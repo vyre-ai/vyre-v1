@@ -19,6 +19,7 @@ import { createSidebarApi } from "./actions.ts";
 import { createMenuApi, muteKey } from "../menus/actions.ts";
 import { useAddSheet } from "../addsheet/index.ts";
 import { useShareSheet } from "../../../share/useShareSheet.tsx";
+import { itemLink } from "../../../share/rows.ts";
 import { agentMenu, channelMenu, chatMenu as chatMenuOf, personMenu as personMenuOf, shortcutFor } from "../menus/kinds.ts";
 import type { SidebarApi } from "./actions.ts";
 import { ChatsSidebarDataProvider, useOnline, useOptionalSidebarData, useScreenQuery, useSidebarData } from "./data.tsx";
@@ -338,7 +339,8 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   const meNow = { id: data.me?.id ?? "me", name: nameOr(names.get(data.me?.id ?? ""), "You") };
   const add = useAddSheet({ call: data.call, me: meNow, nameOf: agentName, newKey: () => `sb-add-${++seq.current}`, toast: say }, { copy: (t) => copy(t) });
   const share = useShareSheet({ call: data.call, me: meNow, nameOf: agentName, spaceName: data.space.name, newKey: () => `sb-share-${++seq.current}`, toast: say });
-  const chatLink = (threadId: string): string => { const l = (globalThis as { location?: { origin?: string; pathname?: string } }).location; return `${l?.origin ?? ""}${l?.pathname ?? ""}#screen=chats.conversation&threadId=${threadId}`; };
+  // a chat's own link, /open/chat/<id> on the Space's web address: it works wherever it is pasted and opens through reach
+  const chatLink = (threadId: string): string => itemLink("chat", threadId);
   const chatRowsAll = allGroups.flatMap((g) => g.rows).filter((r) => !r.local);
   const dmWith = (agentId: string): ChatRow | undefined => chatRowsAll.find((r) => r.whoId === agentId && r.members === undefined);
   /** Which chat: the most recent ones, then the one picked gets the call. */
@@ -486,6 +488,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
       mute: (on) => setMute("person", e.id, on),
       addToChat: () => pickChat(`Add ${e.name} to`, 8, 48, (threadId) => menuApi.addPersonToChat(threadId, e.id)),
       copyHandle: () => { copy(`@${e.name.split(" ")[0] ?? e.name}`); say("Copied"); },
+      ...(data.nav.callPerson ? { call: () => data.nav.callPerson!(e.id, e.name) } : {}),
     });
   };
   // Notes: Open, Open in a new tab, Take a note

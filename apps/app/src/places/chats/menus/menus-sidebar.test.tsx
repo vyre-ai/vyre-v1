@@ -107,6 +107,19 @@ test("a person row: Message, read state and Mute; the row's ... opens the same m
   assert.deepEqual(caps(s, "notifications.mute.set"), [{ target: { kind: "person", id } }]);
 });
 
+test("a person row has Call only where the Space has telephony, and Call asks the shell to dial that person", async () => {
+  const none = await drawn(createRoot, { open: null, people: [{ id: "usr_maya", name: "Maya Chen" }] });
+  await rightClick(none.root, "row-p:usr_maya");
+  assert.ok(!itemIds(none.root).includes("Call"), "no softphone, no Call");
+  const calls: string[] = [];
+  const { root } = await drawn(createRoot, { open: null, people: [{ id: "usr_maya", name: "Maya Chen" }], calls });
+  await rightClick(root, "row-p:usr_maya");
+  const ids = itemIds(root);
+  assert.equal(ids[1], "Call", `Call sits under Message: ${ids.join("|")}`);
+  await press(find(root, "menu-item-Call")); await flush();
+  assert.deepEqual(calls, ["usr_maya:Maya Chen"]);
+});
+
 test("an agent: Poke goes to your chat with it, Add to a Chat picks a chat and adds it, Share opens the sheet; a person is added to a chat and copied as @name", async () => {
   const { s, root } = await drawn(createRoot, { open: null, people: [{ id: "usr_maya", name: "Maya Chen" }] });
   const face = rowIds(root, "row-f:").find((i) => i === "row-f:agt_intake")!;

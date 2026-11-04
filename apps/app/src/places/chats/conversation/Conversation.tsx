@@ -71,6 +71,7 @@ import {
   directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeline, otherPeople, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
+import { messageLink } from "../../../share/rows.ts";
 
 type ThreadOut = CapMap["threads.get"]["out"];
 type MessagesOut = CapMap["chat.messages.list"]["out"];
@@ -478,7 +479,8 @@ function ConversationView(): ReactElement {
   const actions: MessageActions = {
     host,
     copy: (t) => { data.copy(t); say("Copied"); },
-    copyLink: (id) => { { const l = (globalThis as { location?: { origin?: string; pathname?: string } }).location; data.copy(`${l?.origin ?? ""}${l?.pathname ?? ""}#screen=chats.conversation&threadId=${data.threadId}&m=${id}`); } say("Link copied"); },
+    // one message's own link, /open/message/<threadId>/<messageId>: it opens the chat on that message, through reach
+    copyLink: (id) => { data.copy(messageLink(data.threadId, id)); say("Link copied"); },
     edit: (id, body) => {
       // an edit that adds an @mention asks that agent once, as if it had been named when sent (owner ruling, 3 Nov); the fixed ask id keeps a second edit from asking again
       const before = all.find((x) => x.messageId === id)?.body ?? "";

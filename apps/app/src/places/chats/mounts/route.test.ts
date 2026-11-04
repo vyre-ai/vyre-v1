@@ -78,6 +78,9 @@ test("the link Copy Link makes for a chat and for one message opens that chat, o
   assert.equal(chat.route.view === "chat" ? chat.route.threadId : null, "thr_a");
   const msg = fromHash("screen=chats.conversation&threadId=thr_a&m=msg_9");
   assert.deepEqual(msg.route.view === "chat" ? [msg.route.threadId, msg.route.focus] : null, ["thr_a", "msg_9"]);
+  // the target an /open/message link becomes (subject=thread plus m) opens the chat on that message too
+  const opened = fromHash("subject=thread:thr_a&m=msg_9");
+  assert.deepEqual(opened.route.view === "chat" ? [opened.route.threadId, opened.route.focus] : null, ["thr_a", "msg_9"]);
 });
 
 test("a link that names a layer opens it over the page that is already there, and a link without one leaves the page alone", () => {

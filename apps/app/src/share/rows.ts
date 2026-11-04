@@ -46,6 +46,11 @@ export function itemLink(type: string, id: string, origin = (globalThis as { loc
   return `${origin}/open/${kind}/${id}`;
 }
 
+/** One message's own link: /open/message/<threadId>/<messageId> on the Space's web address. It opens the chat on that message, through the same access check as the chat. */
+export function messageLink(threadId: string, messageId: string, origin = (globalThis as { location?: { origin?: string } }).location?.origin ?? ""): string {
+  return `${origin}/open/message/${encodeURIComponent(threadId)}/${encodeURIComponent(messageId)}`;
+}
+
 export function copyItemLink(type: string, id: string): void {
   const g = globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } };
   void g.navigator?.clipboard?.writeText(itemLink(type, id));

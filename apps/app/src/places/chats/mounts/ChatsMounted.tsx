@@ -231,11 +231,21 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   }, [go]);
   const directory = useDirectory(rt);
 
+  // the Space's softphone, where it has telephony: Call in a person's row menu and in their profile dials from it
+  const phone = usePhone();
+  // Call from a person's row: the phone they set for teammates (their public profile), else a line that says there is none
+  const callPerson = useCallback((personId: string, name: string): void => {
+    if (!phone) return;
+    void Promise.resolve(rt.call("settings.public_of", { personId })).then(
+      (o) => { const n = (o as { phone?: unknown } | null)?.phone; if (typeof n === "string" && n !== "") phone.dial(n); else setLine(`${name.split(/\s+/)[0] ?? name} has no phone teammates can call`); },
+      () => setLine(`Could not call ${name.split(/\s+/)[0] ?? name}`),
+    );
+  }, [phone, rt, setLine]);
   /* ---------- the sidebar: registered in the shell's shared place sidebar slot (collapse, search and the phone list are the slot's) ---------- */
   const side = useMemo(() => {
     const base = wireSidebar(rt, go);
-    return { ...base, people: list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name })), nav: { ...base.nav, openTasks: () => act({ t: "tasks" }), ...(base.nav.openArtifacts ? { openArtifacts: () => act({ t: "artifacts" }) } : {}), openNotes: () => act({ t: "notes" }), takeNote: () => act({ t: "notes", take: true }), ...(openInNewTab ? { openNotesTab: () => openInNewTab("screen=chats.notes") } : {}), openNew: () => act({ t: "new" }), openNewAgent: () => act({ t: "agent-form" }), openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }) }, ...(rt.changes ? { changes: rt.changes } : {}) };
-  }, [rt, go, act, list, openInNewTab]);
+    return { ...base, people: list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name })), nav: { ...base.nav, ...(phone ? { callPerson } : {}), openTasks: () => act({ t: "tasks" }), ...(base.nav.openArtifacts ? { openArtifacts: () => act({ t: "artifacts" }) } : {}), openNotes: () => act({ t: "notes" }), takeNote: () => act({ t: "notes", take: true }), ...(openInNewTab ? { openNotesTab: () => openInNewTab("screen=chats.notes") } : {}), openNew: () => act({ t: "new" }), openNewAgent: () => act({ t: "agent-form" }), openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }) }, ...(rt.changes ? { changes: rt.changes } : {}) };
+  }, [rt, go, act, list, openInNewTab, phone, callPerson]);
 
   /* ---------- the open chat ---------- */
   const recent = useLive<RecentOut>(rt.screens, "chats.sidebar", "recent", { filter: "all" });
@@ -301,8 +311,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   }), [rt, nameOf, byId, route, go]);
   const terminal = useMemo(() => terminalData(rt, go, { agent: leadAgent, nameOf, newKey }), [rt, go, leadAgent, nameOf]);
   const paneCtx = useMemo(() => (threadId === null ? null : wirePane(rt, go, threadId, leadAgent, fill, terminal)), [rt, go, threadId, leadAgent, fill, terminal]);
-  /* the pane's own actions: Poke runs a poked reply, Share opens the share sheet over the agent, Add to chat opens the Add sheet, Call dials from the softphone */
-  const phone = usePhone();
+  /* the pane's own actions: Poke runs a poked reply, Share opens the share sheet over the agent, Add to chat opens the Add sheet, Call dials from the softphone (phone, above) */
   const add = useAddSheet({ call: rt.call as (cap: string, input: unknown) => Promise<unknown>, me: { id: rt.me.id, name: rt.me.name }, nameOf, newKey: () => newKey(), toast: (text) => setLine(text) }, { copy });
   const [shareAgent, setShareAgent] = useState<string | null>(null);
   const poke = useCallback((agentId: string, thread: string): void => {

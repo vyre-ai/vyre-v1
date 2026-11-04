@@ -4,13 +4,20 @@ import { hiddenTitle } from "../../../../../ui/src/blocks/link-card/state.ts";
 import { judge } from "./target.ts";
 import type { Judge, OpenTarget } from "./target.ts";
 
-export interface OpenItem { kind: string; id: string }
+export interface OpenItem { kind: string; id: string; /** for a message: the message to open the chat on (/open/message/<threadId>/<messageId>) */ at?: string }
 
 const KIND = /^[a-z_]{2,24}$/;
 const ID = /^[A-Za-z0-9_.-]{1,128}$/;
 
 /** The kind and id a path names, or null for any other address. */
 export function parseOpenPath(pathname: string): OpenItem | null {
+  // one message: /open/message/<threadId>/<messageId> opens its chat on that message
+  const msg = /^\/open\/message\/([^/]+)\/([^/]+)\/?$/.exec(pathname);
+  if (msg) {
+    let id: string, at: string;
+    try { id = decodeURIComponent(msg[1]!); at = decodeURIComponent(msg[2]!); } catch { return null; }
+    return ID.test(id) && ID.test(at) ? { kind: "message", id, at } : null;
+  }
   const m = /^\/open\/([^/]+)\/([^/]+)\/?$/.exec(pathname);
   if (!m) return null;
   let kind: string, id: string;
@@ -24,6 +31,8 @@ export function targetOfOpen(item: OpenItem): OpenTarget | null {
   switch (kind) {
     case "file": case "folder": case "task": case "project": case "agent": case "automation": case "run": case "goal": case "channel": case "computer": return { subject: { type: kind === "computer" ? "agent" : kind, id } };
     case "thread": case "chat": return { subject: { type: "thread", id } };
+    // a message opens its chat on it; reach reads the chat, so a message is never shown to someone who cannot open its chat
+    case "message": return { subject: { type: "thread", id }, ...(item.at ? { args: { m: item.at } } : {}) };
     case "record": return { subject: { type: "record", id } };
     case "record_type": return { screen: "records.types", args: { type: id } };
     case "note": return { screen: "chats.notes", args: { noteId: id } };
@@ -37,7 +46,7 @@ export type OpenDecision =
   | { to: "peek"; text: string; ask: { type: string; id: string } | null };
 
 /** The resource type access.request names for a kind. */
-const ASK_TYPE: Readonly<Record<string, string>> = { chat: "thread", thread: "thread", record_type: "record_type", vault: "vault_item", computer: "computer" };
+const ASK_TYPE: Readonly<Record<string, string>> = { chat: "thread", thread: "thread", message: "thread", record_type: "record_type", vault: "vault_item", computer: "computer" };
 
 /** Where the link goes for this person: the target when they can open it, else a peek that says only what kind of thing it is. */
 export async function decideOpen(item: OpenItem, j: Judge): Promise<OpenDecision> {

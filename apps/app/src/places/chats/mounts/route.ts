@@ -212,7 +212,7 @@ export function fromHash(hash: string): Shown {
   const subject = /^(thread|chat|channel|task|goal|artifact):(.+)$/.exec(arg("subject"));
   if (subject?.[1] === "goal") return step(START, { t: "goal", goalId: subject[2]! });
   if (subject?.[1] === "artifact") return step(START, { t: "artifact", artifactId: subject[2]!, ...(arg("share") === "1" ? { share: true } : {}) });
-  if (subject) return subject[1] === "task" ? step(START, { t: "task", taskId: subject[2]! }) : step(START, { t: "chat", threadId: subject[2]! });
+  if (subject) return subject[1] === "task" ? step(START, { t: "task", taskId: subject[2]! }) : step(START, { t: "chat", threadId: subject[2]!, ...(arg("m") === "" ? {} : { focus: arg("m") }) });
   switch (screen) {
     case SCREEN.tasks: return step(START, { t: "tasks" });
     case SCREEN.task: return arg("taskId") === "" ? step(START, { t: "tasks" }) : step(START, { t: "task", taskId: arg("taskId") });

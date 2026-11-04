@@ -19,6 +19,19 @@ test("the path is read strictly: /open/<kind>/<id> only", () => {
   for (const bad of ["/open", "/open/file", "/open/file/a/b", "/open/File/x", "/open/file/%zz", "/open/file/a b", "/chat", "/open/../x/y"]) assert.equal(parseOpenPath(bad), null, bad);
 });
 
+test("one message's link, /open/message/<threadId>/<messageId>, opens its chat on that message, and reach reads the chat", async () => {
+  const item = parseOpenPath("/open/message/thr_a/msg_9");
+  assert.deepEqual(item, { kind: "message", id: "thr_a", at: "msg_9" });
+  assert.deepEqual(targetOfOpen(item!), { subject: { type: "thread", id: "thr_a" }, args: { m: "msg_9" } });
+  for (const bad of ["/open/message/thr_a/msg 9", "/open/message/thr_a/%zz", "/open/message/thr_a/m/x"]) assert.equal(parseOpenPath(bad), null, bad);
+  assert.deepEqual(targetOfOpen(parseOpenPath("/open/message/thr_a")!), { subject: { type: "thread", id: "thr_a" } }, "without a message it is the chat");
+  const asked: string[] = [];
+  const no = await decideOpen(item!, { viewer: () => ({ id: "usr_b", spaceId: "spc_1" }), call: async (cap) => { asked.push(cap); throw Object.assign(new Error("no"), { code: "permission.no_grant" }); }, consolePages: async () => new Set<string>(), memo: new Map() });
+  assert.deepEqual(asked, ["threads.get"], "the chat is read before the message is shown");
+  assert.equal(no.to, "peek");
+  assert.deepEqual(no.to === "peek" ? no.ask : null, { type: "thread", id: "thr_a" }, "Ask for access asks for the chat");
+});
+
 const KINDS: Array<[string, string, string, Record<string, unknown>]> = [
   ["file", "files.get", "file", { subject: { type: "file", id: "x1" } }],
   ["folder", "files.folder.get", "folder", { subject: { type: "folder", id: "x1" } }],
