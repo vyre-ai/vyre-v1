@@ -52,7 +52,7 @@ export function ctx(over: Partial<ToolCtx> = {}): ToolCtx {
   return { space: "spc_1", agentId: "agt_intake", asker: "per_dana", thread: thread(), ...over };
 }
 
-export function makeSession(o: { levels?: Record<string, Level>; localPolicy?: (...a: Parameters<NonNullable<CallDeps["localPolicy"]>>) => LocalDecision; prompt?: CallDeps["prompt"]; engineer?: boolean } = {}): {
+export function makeSession(o: { levels?: Record<string, Level>; localPolicy?: (...a: Parameters<NonNullable<CallDeps["localPolicy"]>>) => LocalDecision; prompt?: CallDeps["prompt"]; engineer?: boolean; hooks?: CallDeps["hooks"] } = {}): {
   session: ToolSession; calls: InvokeRecord[]; loaded: Loaded;
 } {
   const loaded = loadGenerated();
@@ -64,6 +64,7 @@ export function makeSession(o: { levels?: Record<string, Level>; localPolicy?: (
     traceId: () => "trace_fixed",
   };
   if (o.localPolicy) deps.localPolicy = o.localPolicy;
+  if (o.hooks) deps.hooks = o.hooks;
   if (o.prompt) deps.prompt = o.prompt;
   return { session: createToolSession(deps), calls, loaded };
 }

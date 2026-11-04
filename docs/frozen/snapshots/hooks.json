@@ -1,0 +1,17 @@
+{
+  "module": "hooks",
+  "capabilities": {
+    "hooks.fire@1": "4d195dcff0808b8abb48d57a34c79db6779a7e94d547471c16b630c7211296b4",
+    "hooks.list@1": "025fd2bb395615596897e1bfd0d9329776a5c659da62b36ba6e4bafe4590569a",
+    "hooks.pause@1": "0a9914a398fd10c545af6fd0f19776376ead1e662b1ef0fd4d8c6af71da2961b",
+    "hooks.policy.get@1": "157740ee212569141a6e5e8c39c6b4818fe69cdfbe605ed681c2c3289ccc44c7",
+    "hooks.policy.set@1": "b20e770b98cdb3169c4e0ee9d054ab7221c49629aa1178faeac9e8e526302804",
+    "hooks.remove@1": "016d707bd3e9308da0e22efdd6c32eb8df15f0b9cc95adad0ce2caca2c1991e7",
+    "hooks.runs.list@1": "f178dbd315935539d7bd72aaf9d622147188c3c90501dce661c5439b2436f12e",
+    "hooks.set@1": "2af44124a1fee84ac447d1b85a7a80956f76fc447e206524aa21657fce73fb85"
+  },
+  "events": {
+    "hook.blocked": "e68b65fa3ea69622cf014d1a4450242029a3ead809c1a12450ea3c7116e0f0aa",
+    "hook.changed": "f0503e91d880f8c70ff4cc830fc7696a4191e005a0dfe94f00dee253cdb6468d"
+  }
+}

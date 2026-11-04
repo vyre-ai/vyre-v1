@@ -60,7 +60,7 @@ test("registering: a row joins host/modules.json in id order with status stub; a
   const text = fs.readFileSync(path.join(REPO, "host/modules.json"), "utf8");
   const next = registerModule(text, { id: "widgets", owner: "L1", status: "stub" });
   const rows = (JSON.parse(next) as ModulesFile).modules;
-  assert.equal(rows.length, 79);   // the 78 modules (goals, notes, browser, machines, talk and ci among them) and widgets
+  assert.equal(rows.length, 80);   // the 79 modules (goals, notes, browser, machines, talk, ci and hooks among them) and widgets
   assert.deepEqual(rows.map((r) => r.id), [...rows.map((r) => r.id)].sort());
   assert.deepEqual(rows.find((r) => r.id === "widgets"), { id: "widgets", owner: "L1", status: "stub" });
   assert.throws(() => registerModule(next, { id: "widgets", owner: "L1", status: "stub" }), /already in host\/modules\.json/);

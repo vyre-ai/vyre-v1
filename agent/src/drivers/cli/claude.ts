@@ -15,6 +15,7 @@
 // was seen for it (an older CLI, or partial messages off).
 import { arr, num, obj, parseLine, str } from "./json.ts";
 import { toolDetail } from "./detail.ts";
+import { claudeSettings } from "./hooks-config.ts";
 import type { Json } from "./json.ts";
 import type { Effort } from "../../turn-engine/types.ts";
 import type { CliAdapter, CliDecoder, CliEvent, CommandOptions, NativePlugins } from "./types.ts";
@@ -261,6 +262,8 @@ export const claudeCode: CliAdapter = {
     return [
       "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--replay-user-messages",
       ...(tools ? ["--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio, o.plugins)] : []), "--strict-mcp-config",
+      // the hooks layer reaches the CLI's own built-in tools and subagents (hooks-config.ts)
+      ...(tools && o.mcpStdio ? ["--settings", claudeSettings(o.mcpStdio)] : []),
       // installed plugins load natively: their commands, skills and agents come from the plugin folder in the work folder
       ...(tools ? (o.plugins?.dirs ?? []).flatMap((d) => ["--plugin-dir", d]) : []),
       "--permission-mode", claudePermission(o),
