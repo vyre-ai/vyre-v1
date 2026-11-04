@@ -753,7 +753,7 @@ const s = StyleSheet.create({
   cmon: { flex: 1, minHeight: 0 },
   mwk: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: ink("--line") },
   mwkText: { flex: 1, paddingTop: 8, paddingBottom: 6, paddingHorizontal: 10, fontSize: 11.5, fontWeight: "500", color: ink("--ink-3") },
-  mgridPhone: { flexGrow: 0, flexShrink: 0 },
+  mgridPhone: { flexGrow: 0, flexShrink: 0, flexBasis: "auto" },
   mgrid: { flex: 1, minHeight: 0, flexDirection: "row", flexWrap: "wrap" },
   mc: { width: "14.2857%" as unknown as number, minHeight: 104, flexGrow: 1, borderRightWidth: 1, borderBottomWidth: 1, borderRightColor: ink("--line"), borderBottomColor: ink("--line"), paddingVertical: 4, paddingHorizontal: 5, overflow: "hidden", gap: 1 },
   mcPhone: { minHeight: 44, alignItems: "center", paddingHorizontal: 1 },
