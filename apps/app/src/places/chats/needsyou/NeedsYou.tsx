@@ -298,7 +298,7 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
           {!mustTake && noAccount ? <Button label="Sign in" primary onPress={() => data.nav.openSignIn()} testID="needs-signin" /> : null}
           {!mustTake && mailSignIn ? <Button label="Sign in again" primary onPress={() => void openConnect?.({ kind: "mailbox", provider: mailSignIn })} testID="needs-mailfix" /> : null}
           {!mustTake && !noAccount && fix === null && keyReq === null && accessReq === null && connFix === null && !mailSignIn && primary && (question === null || question.words) ? <Button label={labelOf(mail, primary)} primary hint="A" onPress={() => onAct(primary)} testID="needs-primary" /> : null}
-          {!mustTake && fix === null && keyReq === null && accessReq === null && connFix === null && sendBack ? <Button label={mail ? labelOf(mail, sendBack) : "Send back"} hint="B" onPress={() => onAct(sendBack)} testID="needs-sendback" /> : null}
+          {!mustTake && fix === null && keyReq === null && accessReq === null && connFix === null && sendBack ? <Button label={labelOf(mail, sendBack)} hint="B" onPress={() => onAct(sendBack)} testID="needs-sendback" /> : null}
           {!mustTake && fix === null && keyReq === null && accessReq === null && connFix === null ? moreButtons : null}
           {hasComputer(t) && !noAccount ? <Button label="Open its computer" onPress={() => data.nav.openComputer(t.createdBy)} testID="needs-computer" /> : null}
         </View>
