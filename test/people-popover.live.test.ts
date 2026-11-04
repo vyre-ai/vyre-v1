@@ -3,6 +3,7 @@
 // Arrow keys move through the rows, Escape closes. Needs the production web export (VYRE_APP_DIST) and Chromium; with VYRE_REQUIRE_CHROME=1 (CI) it fails instead of skipping.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { guardCrashes } from "../apps/app/tests/crash-guard.ts";
 import { SIZES, bootScreens, browserOrSkip, open, seat, shoot } from "./support/mail-browser.ts";
 
 const OUT = "shots-evidence/people-popover";
@@ -17,6 +18,7 @@ test("people popover, team: a chat and a project show People and agents with rol
     const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agent], idempotencyKey: "pp-chat" })).thread.threadId as string;
     const projectId = (await w.owner.ok("projects.create", { type: "project", title: "Rivera account", idempotencyKey: "pp-project" })).projectId as string;
     const me = await seat(s, w.owner, "Owner");
+    const guard = guardCrashes(me.page);
 
     // a chat: the people count in the head
     await open(me, s, `/chat#screen=chats.conversation&threadId=${threadId}`);
@@ -45,7 +47,9 @@ test("people popover, team: a chat and a project show People and agents with rol
     await shoot(me.page, OUT, "project-people");
     await me.page.getByTestId("people-footer").click();
     await me.page.getByTestId("people-popover").waitFor({ state: "detached", timeout: 10_000 });
-    assert.ok(await me.page.getByTestId("project-people").count() >= 1, "the Overview's People section is shown");
+    // the Overview is the live page (l-editor): its default template has a "People and agents" heading and a live block of type people
+    await me.page.getByTestId("live-people").first().waitFor({ timeout: 15_000 });
+    await guard.check("after Manage on the Overview");
 
     // the phone width
     await me.page.setViewportSize(SIZES.phone);
@@ -58,10 +62,12 @@ test("people popover, team: a chat and a project show People and agents with rol
     // the Add people and agents sheet at the same size, for the comparison
     await me.page.keyboard.press("Escape");
     await me.page.getByTestId("people-popover").waitFor({ state: "detached", timeout: 10_000 });
-    await me.page.getByText("Teammates", { exact: true }).first().click();
-    await me.page.getByTestId("teammate-add").click();
+    // Teammates is out of the tab row (rc21): Add people is the project menu's item
+    await me.page.getByTestId("project-menu").click();
+    await me.page.getByText(/^Add people/).first().click();
     await me.page.getByTestId("add-sheet").waitFor({ timeout: 15_000 });
     await shoot(me.page, OUT, "add-sheet-phone");
+    await guard.check("end of the walk");
     assert.deepEqual(me.errors, [], "no page errors");
   } finally { await s.close(); }
 });
