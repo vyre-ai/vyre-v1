@@ -10,18 +10,19 @@ export const SCOPE_WORDS: Readonly<Record<Scope, string>> = { me: "you", agent: 
 export const SCOPES: ReadonlyArray<{ key: Scope; label: string }> = [{ key: "me", label: "Just you" }, { key: "agent", label: "This agent" }, { key: "space", label: "Everyone in the Space" }];
 
 /** The card's title: "Install pdf-forms (a skill)", or for an update "pdf-forms 1.2.0 to 1.3.0". */
-export const titleOf = (p: Pick<Plan, "name" | "kind" | "diff">): string => (p.diff ? `${p.name} ${shortOf(p.diff.from)} to ${shortOf(p.diff.to)}` : `Install ${p.name} (${KIND_WORDS[p.kind]})`);
+export const titleOf = (p: Pick<Plan, "name" | "kind" | "diff">): string => (p.diff ? `${p.name} ${p.diff.fromVersion ?? shortOf(p.diff.from)} to ${p.diff.toVersion ?? shortOf(p.diff.to)}` : `Install ${p.name} (${KIND_WORDS[p.kind]})`);
 export const shortOf = (commit: string): string => commit.slice(0, 7);
 
 /** What it needs, in the card's two lines: the web addresses it reaches, and the Vault keys it wants. "none" where it asks for nothing. */
-export function needsLines(p: Pick<Plan, "needs">): { network: string; vault: string; files: string } {
+export function needsLines(p: Pick<Plan, "needs"> & { kind?: Plan["kind"] }): { network: string; vault: string; files: string } {
   const j = (l: readonly string[]): string => (l.length === 0 ? "none" : l.join(", "));
-  return { network: j(p.needs.domains), vault: j(p.needs.vaultKeys), files: j(p.needs.files) };
+  // a remote server asks for its sign-in after the install, so its Vault line says that instead of "none"
+  return { network: j(p.needs.domains), vault: p.kind === "mcp_remote" && p.needs.vaultKeys.length === 0 ? "Sign-in token, saved after you sign in" : j(p.needs.vaultKeys), files: j(p.needs.files) };
 }
 
 /** Where the commit is pinned: the seven characters. A remote MCP server has no commit, so the card says whose server it is. */
-export const pinnedLine = (p: Pick<Plan, "commit" | "kind">): { label: string; value: string } =>
-  p.commit ? { label: "Pinned to", value: shortOf(p.commit) } : { label: "Version", value: "Not pinned. It is their server." };
+export const pinnedLine = (p: Pick<Plan, "commit" | "kind"> & { version?: string | undefined }): { label: string; value: string } =>
+  p.commit ? { label: "Pinned to", value: p.version ? `${shortOf(p.commit)} · v${p.version.replace(/^v/, "")}` : shortOf(p.commit) } : { label: "Version", value: "Not pinned. It is their server." };
 
 /** Which "For" choices the person has: everyone in the Space is for an admin. */
 export const choices = (p: Pick<Plan, "who">): Array<{ key: Scope; label: string; allowed: boolean }> => p.who.map((w) => ({ key: w.key, label: w.label, allowed: w.allowed }));

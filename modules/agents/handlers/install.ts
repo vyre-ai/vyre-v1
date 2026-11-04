@@ -71,19 +71,13 @@ export function saveFor(ctx: AgentsCtx, o: { owner: string; text: string; files:
   }
   const rev = Number((revsOf(ctx, id)[0] ?? {})["rev"] ?? 0) + 1;
   ctx.db.run("INSERT INTO agents_skill_rev (skill_id, rev, text, files_json, by_who, author_kind, summary, undo_of, at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)", id, rev, o.text, JSON.stringify(o.files), me(ctx), authorKind(ctx), o.summary ?? (was ? "changed" : "created"), now);
-  ctx.emit("skill.mine_changed", id, { skillId: id, name: parsed.skill.name, op: was ? "updated" : "added", by: me(ctx) });
+  // a new skill is born with its owner named (the person, or the person who owns the agent that keeps it): the host registers it as an access resource in the same commit, so its owner holds manage with nothing shared by anyone
+  const ownerPerson = o.owner.startsWith("agt_") ? agentBy(ctx.db, o.owner)?.ownerId : o.owner;
+  ctx.emit("skill.mine_changed", id, { skillId: id, name: parsed.skill.name, op: was ? "updated" : "added", by: me(ctx), ...(!was && ownerPerson ? { ownerId: ownerPerson } : {}) });
   return ownById(ctx, id)!;
 }
 
-/** A skill is an access resource ("skill"): its owner holds manage on it, and the owner of an agent that owns it too, so the shared Share sheet has a row for them. A host without access leaves it as the owner column says. */
-export async function registerSkill(ctx: AgentsCtx, o: Own): Promise<void> {
-  if (!ctx.call) return;
-  const subjects = [{ kind: o.owner.startsWith("agt_") ? "agent" : "person", id: o.owner }, ...(o.owner.startsWith("agt_") && agentBy(ctx.db, o.owner)?.ownerId ? [{ kind: "person", id: agentBy(ctx.db, o.owner)!.ownerId }] : [])];
-  for (const subject of subjects) {
-    try { await ctx.call("access.share", { resource: { type: "skill", id: o.id }, subject, level: "manage", source: "skill:owner", idempotencyKey: `skill-owner:${o.id}:${subject.id}` }, { idempotencyKey: `skill-owner:${o.id}:${subject.id}` }); }
-    catch (e) { ctx.log.warn("agents: a skill could not be registered for sharing", { error: e instanceof Error ? e.message : String(e) }); }
-  }
-}
+// A skill is an access resource ("skill"): the host registers it from the birth event above (skill.mine_changed with ownerId), so its owner holds manage by ownership. Nothing here calls access.share as the person.
 
 export async function skillsSave(ctx: AgentsCtx, input: In) {
   ensure(ctx.db);
@@ -106,7 +100,6 @@ export async function skillsSave(ctx: AgentsCtx, input: In) {
   const same = (ctx.db.all("SELECT * FROM agents_skill_own WHERE owner = ? AND project_id = '' AND name = ?", owner, (pre as { ok: true; skill: { name: string } }).skill.name) as Row[])[0];
   if (same) need(ctx, str(same["id"]), "edit");
   const made = saveFor(ctx, { owner, text: input.text, files, source: input.source ?? (owner.startsWith("agt_") ? "agent" : "upload"), ...(input.summary ? { summary: input.summary } : {}) });
-  if (!same) await registerSkill(ctx, made);
   return { skill: skillOut(ctx, made) };
 }
 
@@ -117,7 +110,6 @@ export async function mineAddShared(ctx: AgentsCtx, input: Parameters<typeof min
   if (o && revsOf(ctx, o.id).length === 0) {
     // the first version of a skill a person added by hand
     ctx.db.run("INSERT INTO agents_skill_rev (skill_id, rev, text, files_json, by_who, author_kind, summary, undo_of, at) VALUES (?, 1, ?, ?, ?, ?, 'created', NULL, ?)", o.id, o.text, JSON.stringify(o.files), me(ctx), authorKind(ctx), ctx.now());
-    await registerSkill(ctx, o);
   }
   return out;
 }
@@ -203,10 +195,10 @@ export async function skillsGrants(ctx: AgentsCtx, input: In) {
 type Kind = "skill" | "plugin" | "mcp_local" | "mcp_remote" | "site";
 interface Needs { domains: string[]; vaultKeys: string[]; files: string[] }
 interface Plan {
-  kind: Kind; name: string; summary: string; repo: string; commit: string; url: string; path: string; flavor?: "claude" | "codex";
+  kind: Kind; name: string; summary: string; repo: string; commit: string; url: string; path: string; flavor?: "claude" | "codex"; version?: string;
   needs: Needs; runs?: { command: string; args: string[] }; skills: string[]; problems: string[]; diff?: Diff;
 }
-interface Diff { from: string; to: string; added: string[]; removed: string[]; changed: Array<{ path: string; plus: string[]; minus: string[] }> }
+interface Diff { from: string; to: string; fromVersion?: string; toVersion?: string; newAccess?: string[]; added: string[]; removed: string[]; changed: Array<{ path: string; plus: string[]; minus: string[] }> }
 
 const jsonAt = (files: Files, path: string): Record<string, any> | null => { try { const j = JSON.parse(files[path] ?? ""); return j && typeof j === "object" ? j : null; } catch { return null; } };   // eslint-disable-line @typescript-eslint/no-explicit-any
 const MCP_HINT = /modelcontextprotocol|\bmcp[-_ ]?server\b|\bFastMCP\b|\bmcp\b.{0,40}\b(stdio|server)\b/i;
@@ -244,7 +236,7 @@ export function detect(files: Files, repo: string, path: string, commit: string,
     const names = hasClaude ? c!.skills.map((s) => s.name) : found.skills.map((s) => s.name);
     const servers = c?.mcpServers ?? [];
     return {
-      ...base, kind: "plugin", flavor: hasClaude ? "claude" : "codex", name: String(man["name"] ?? repo.split("/")[1] ?? "plugin"), summary: summaryOf(files, String(man["description"] ?? "")),
+      ...base, kind: "plugin", flavor: hasClaude ? "claude" : "codex", name: String(man["name"] ?? repo.split("/")[1] ?? "plugin"), ...(typeof man["version"] === "string" ? { version: man["version"] } : {}), summary: summaryOf(files, String(man["description"] ?? "")),
       needs: needsOf(files, { domains: servers.filter((s) => s.url).map((s) => new URL(s.url!).hostname), vaultKeys: [], files: names.length ? [`${names.length} skill${names.length === 1 ? "" : "s"}`] : [] }),
       skills: names, problems: [...(c?.warnings ?? []), ...found.problems],
     };
@@ -253,7 +245,7 @@ export function detect(files: Files, repo: string, path: string, commit: string,
     const first = found.skills[0] as FoundSkill;
     const perms = first ? skillPerms(first.text, first.files) : { scripts: [], mcpServers: [], network: [], vaultKeys: [] };
     return {
-      ...base, kind: "skill", name: first?.name ?? repo.split("/")[1] ?? "skill", summary: first?.description || summaryOf(files, ""),
+      ...base, kind: "skill", name: first?.name ?? repo.split("/")[1] ?? "skill", ...(/^\s*version:\s*["']?([\w.+-]+)/m.exec(first?.text ?? "")?.[1] ? { version: /^\s*version:\s*["']?([\w.+-]+)/m.exec(first?.text ?? "")![1]! } : {}), summary: first?.description || summaryOf(files, ""),
       needs: needsOf(files, { domains: perms.network, vaultKeys: perms.vaultKeys, files: perms.scripts }), skills: found.skills.map((s) => s.name), problems: found.problems,
     };
   }
@@ -279,7 +271,7 @@ export function detect(files: Files, repo: string, path: string, commit: string,
     }
     if (runs) {
       return {
-        ...base, kind: "mcp_local", name: String(pkg?.["name"] ?? /^name\s*=\s*"([^"]+)"/m.exec(py ?? "")?.[1] ?? repo.split("/")[1] ?? "mcp-server").replace(/^@[^/]+\//, ""), summary: summaryOf(files, String(pkg?.["description"] ?? /^description\s*=\s*"([^"]+)"/m.exec(py ?? "")?.[1] ?? "")),
+        ...base, kind: "mcp_local", ...(typeof pkg?.["version"] === "string" ? { version: pkg["version"] } : {}), name: String(pkg?.["name"] ?? /^name\s*=\s*"([^"]+)"/m.exec(py ?? "")?.[1] ?? repo.split("/")[1] ?? "mcp-server").replace(/^@[^/]+\//, ""), summary: summaryOf(files, String(pkg?.["description"] ?? /^description\s*=\s*"([^"]+)"/m.exec(py ?? "")?.[1] ?? "")),
         needs: needsOf(files, { domains: [], vaultKeys: [], files: ["A copy of the repository, in the sandbox"] }), runs, problems: [],
       } as Plan;
     }
@@ -300,7 +292,7 @@ const WHO = (admin: boolean) => [
 function planOut(ctx: AgentsCtx, id: string, p: Plan, state: string) {
   const admin = isAdmin(ctx);
   return {
-    planId: id, state, kind: p.kind, ...(p.flavor ? { flavor: p.flavor } : {}), name: p.name, summary: p.summary, repo: p.repo, commit: p.commit, url: p.url, ...(p.path ? { path: p.path } : {}),
+    planId: id, state, kind: p.kind, ...(p.flavor ? { flavor: p.flavor } : {}), name: p.name, summary: p.summary, repo: p.repo, commit: p.commit, url: p.url, ...(p.path ? { path: p.path } : {}), ...(p.version ? { version: p.version } : {}),
     needs: p.needs, ...(p.runs ? { runs: p.runs } : {}), skills: p.skills, problems: p.problems, who: WHO(admin),
     ...(p.kind === "mcp_local" ? { runOn: [{ key: "sandbox" as const, label: "On your computer, in the sandbox" }, { key: "space" as const, label: "Run it on the Space", needs: "A Vault key to protect it" }] } : {}),
     ...(p.diff ? { diff: p.diff } : {}),
@@ -407,6 +399,9 @@ export async function checkUpdate(ctx: AgentsCtx, input: In) {
   const found = detect(files, was.repo, was.path, revision, str(r["url"]));
   if ("problem" in found) raise(ctx, "validation.bad_input", found.problem);
   found.diff = diffOf(str(r["commit_sha"]), revision, parse<Files>(r["files_json"], {}), files);
+  // what the new version reaches that the one installed did not: the card says it in a line of its own
+  const fresh = [...found.needs.domains, ...found.needs.vaultKeys].filter((x) => ![...(was.needs?.domains ?? []), ...(was.needs?.vaultKeys ?? [])].includes(x));
+  found.diff = { ...found.diff, ...(was.version ? { fromVersion: was.version } : {}), ...(found.version ? { toVersion: found.version } : {}), newAccess: fresh };
   const id = save(ctx, { asker: me(ctx), agentId: str(r["agent_id"]), url: str(r["url"]), p: found, files, updateOf: str(r["id"]) });
   await card(ctx, id, found, true, str(r["id"]));
   return { changed: true, plan: planOut(ctx, id, found, "planned") };
@@ -484,8 +479,8 @@ export async function apply(ctx: AgentsCtx, input: In) {
       const s = skillsInTree(files, p.name).skills[0];
       if (!s) raise(ctx, "validation.bad_input", "The skill could not be read again.");
       if (forWho === "space") { await spaceInstall(ctx, { text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit) }); }
-      else if (forWho === "agent") { const o = saveFor(ctx, { owner: agentId, text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit), summary: `installed from ${p.repo}` }); done["skillId"] = o.id; await registerSkill(ctx, o); }
-      else { const out = await mineAdd(ctx, { text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit) }); done["skillId"] = out.skill.skillId; const mine = ownById(ctx, out.skill.skillId); if (mine) await registerSkill(ctx, mine); }
+      else if (forWho === "agent") { const o = saveFor(ctx, { owner: agentId, text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit), summary: `installed from ${p.repo}` }); done["skillId"] = o.id; }
+      else { const out = await mineAdd(ctx, { text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit) }); done["skillId"] = out.skill.skillId; }
       break;
     }
     case "plugin": case "mcp_local": {
@@ -579,5 +574,5 @@ export async function installList(ctx: AgentsCtx, input: In) {
   // an admin's Console lists every install in the Space; anyone else sees their own
   const all = input.all === true && isAdmin(ctx);
   const rows = (all ? ctx.db.all("SELECT * FROM agents_install WHERE state = 'installed' AND update_of = '' ORDER BY at DESC") : ctx.db.all("SELECT * FROM agents_install WHERE asker = ? AND state = 'installed' AND update_of = '' ORDER BY at DESC", me(ctx))) as Row[];
-  return { installs: rows.map((r) => { const p = parse<Plan>(r["plan_json"], {} as Plan); return { installId: str(r["id"]), kind: p.kind, name: p.name, repo: p.repo, commit: str(r["commit_sha"]), url: str(r["url"]), by: str(r["asker"]), at: Number(r["at"]), installed: parse<Record<string, unknown>>(r["installed_json"], {}) }; }) };
+  return { installs: rows.map((r) => { const p = parse<Plan>(r["plan_json"], {} as Plan); return { installId: str(r["id"]), kind: p.kind, name: p.name, ...(p.version ? { version: p.version } : {}), repo: p.repo, commit: str(r["commit_sha"]), url: str(r["url"]), by: str(r["asker"]), at: Number(r["at"]), installed: parse<Record<string, unknown>>(r["installed_json"], {}) }; }) };
 }
