@@ -5,16 +5,16 @@ import type { Check } from './core.ts';
 
 function d_s_63dee7bf35(v: unknown, p: string, e: string[]): void {
 {
-const x479 = v;
-const g479 = typeOf(x479);
-const b479: string[] = []; lf(x479, p, b479, L0); if (b479.length) e.push(...b479);
-if (g479 === "object") {
-if (g479 === 'object') { const o479 = x479 as Record<string, unknown>;
-if (!("reportId" in o479)) e.push(p + "/reportId" + ': required');
-if (!("issueNumber" in o479)) e.push(p + "/issueNumber" + ': required');
-if ("reportId" in o479) lf(o479["reportId"], p + "/reportId", e, L257);
-if ("issueNumber" in o479) lf(o479["issueNumber"], p + "/issueNumber", e, L2);
-if ("fixedIn" in o479) lf(o479["fixedIn"], p + "/fixedIn", e, L1);
+const x476 = v;
+const g476 = typeOf(x476);
+const b476: string[] = []; lf(x476, p, b476, L0); if (b476.length) e.push(...b476);
+if (g476 === "object") {
+if (g476 === 'object') { const o476 = x476 as Record<string, unknown>;
+if (!("reportId" in o476)) e.push(p + "/reportId" + ': required');
+if (!("issueNumber" in o476)) e.push(p + "/issueNumber" + ': required');
+if ("reportId" in o476) lf(o476["reportId"], p + "/reportId", e, L257);
+if ("issueNumber" in o476) lf(o476["issueNumber"], p + "/issueNumber", e, L2);
+if ("fixedIn" in o476) lf(o476["fixedIn"], p + "/fixedIn", e, L1);
 }
 }
 }

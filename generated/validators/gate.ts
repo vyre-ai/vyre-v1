@@ -57,31 +57,31 @@ if ("ask" in o341) lf(o341["ask"], p + "/ask", e, L3);
 
 function d_s_862b1dbb3f(v: unknown, p: string, e: string[]): void {
 {
-const x668 = v;
-const g668 = typeOf(x668);
-const b668: string[] = []; lf(x668, p, b668, L0); if (b668.length) e.push(...b668);
-if (g668 === "object") {
-if (g668 === 'object') { const o668 = x668 as Record<string, unknown>;
-if (!("act" in o668)) e.push(p + "/act" + ': required');
-if (!("mode" in o668)) e.push(p + "/mode" + ': required');
-if (!("approvers" in o668)) e.push(p + "/approvers" + ': required');
-if (!("peopleOnly" in o668)) e.push(p + "/peopleOnly" + ': required');
-if (!("afterHours" in o668)) e.push(p + "/afterHours" + ': required');
-if (!("onTimeout" in o668)) e.push(p + "/onTimeout" + ': required');
-if (!("escalateTo" in o668)) e.push(p + "/escalateTo" + ': required');
-if (!("emailBackstopHours" in o668)) e.push(p + "/emailBackstopHours" + ': required');
-if (!("scope" in o668)) e.push(p + "/scope" + ': required');
-if ("act" in o668) d_s_9faf5b3126(o668["act"], p + "/act", e);
-if ("mode" in o668) lf(o668["mode"], p + "/mode", e, L302);
-if ("approvers" in o668) lf(o668["approvers"], p + "/approvers", e, L1);
-if ("peopleOnly" in o668) lf(o668["peopleOnly"], p + "/peopleOnly", e, L3);
-if ("agentOkFor" in o668) lf(o668["agentOkFor"], p + "/agentOkFor", e, L303);
-if ("afterHours" in o668) lf(o668["afterHours"], p + "/afterHours", e, L12);
-if ("onTimeout" in o668) lf(o668["onTimeout"], p + "/onTimeout", e, L304);
-if ("escalateTo" in o668) lf(o668["escalateTo"], p + "/escalateTo", e, L305);
-if ("emailBackstopHours" in o668) lf(o668["emailBackstopHours"], p + "/emailBackstopHours", e, L12);
-if ("scope" in o668) lf(o668["scope"], p + "/scope", e, L306);
-if ("agentId" in o668) lf(o668["agentId"], p + "/agentId", e, L10);
+const x665 = v;
+const g665 = typeOf(x665);
+const b665: string[] = []; lf(x665, p, b665, L0); if (b665.length) e.push(...b665);
+if (g665 === "object") {
+if (g665 === 'object') { const o665 = x665 as Record<string, unknown>;
+if (!("act" in o665)) e.push(p + "/act" + ': required');
+if (!("mode" in o665)) e.push(p + "/mode" + ': required');
+if (!("approvers" in o665)) e.push(p + "/approvers" + ': required');
+if (!("peopleOnly" in o665)) e.push(p + "/peopleOnly" + ': required');
+if (!("afterHours" in o665)) e.push(p + "/afterHours" + ': required');
+if (!("onTimeout" in o665)) e.push(p + "/onTimeout" + ': required');
+if (!("escalateTo" in o665)) e.push(p + "/escalateTo" + ': required');
+if (!("emailBackstopHours" in o665)) e.push(p + "/emailBackstopHours" + ': required');
+if (!("scope" in o665)) e.push(p + "/scope" + ': required');
+if ("act" in o665) d_s_9faf5b3126(o665["act"], p + "/act", e);
+if ("mode" in o665) lf(o665["mode"], p + "/mode", e, L302);
+if ("approvers" in o665) lf(o665["approvers"], p + "/approvers", e, L1);
+if ("peopleOnly" in o665) lf(o665["peopleOnly"], p + "/peopleOnly", e, L3);
+if ("agentOkFor" in o665) lf(o665["agentOkFor"], p + "/agentOkFor", e, L303);
+if ("afterHours" in o665) lf(o665["afterHours"], p + "/afterHours", e, L12);
+if ("onTimeout" in o665) lf(o665["onTimeout"], p + "/onTimeout", e, L304);
+if ("escalateTo" in o665) lf(o665["escalateTo"], p + "/escalateTo", e, L305);
+if ("emailBackstopHours" in o665) lf(o665["emailBackstopHours"], p + "/emailBackstopHours", e, L12);
+if ("scope" in o665) lf(o665["scope"], p + "/scope", e, L306);
+if ("agentId" in o665) lf(o665["agentId"], p + "/agentId", e, L10);
 }
 }
 }

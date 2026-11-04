@@ -39,6 +39,7 @@ export interface EngineApiToolsDeps {
 let catalog: ReturnType<typeof buildCatalog> | null = null;
 let defaults: Set<string> | null = null;
 /** Listed for every turn: an agent sees who is in and can message a teammate for its person (lane l-agentdm). */
+import { ROOM_TOOLS, isRoom } from "./room-pack.ts";
 export const TEAMMATE_TOOLS: readonly string[] = ["people_status", "message_person"];
 /**
  * Listed for every turn too: the reads a question about the Inbox or a mail thread starts with. Found only through tool_search, a model asked "what came in about X" searched nineteen times and never
@@ -92,6 +93,7 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     // who is in and a message to a teammate are listed in every chat, without a tool_search (owner ruling 3 Nov, lane l-agentdm)
     session.preload(t.threadId, TEAMMATE_TOOLS);
     session.preload(t.threadId, CORE_READ_TOOLS);
+    if (isRoom(th as never)) session.preload(t.threadId, ROOM_TOOLS);   // a room's reads, so a tagged agent never searches before it speaks
     facts.set(t.threadId, { kind: th?.kind ?? "chat", planMode: th?.planMode === true, ...(th?.mode === "ask" || th?.mode === "auto" || th?.mode === "plan" ? { mode: th.mode } : {}), ...(scope ? { scope } : {}) });
     if (th?.kind === "ask" && scope) {
       const lvl = await d.call("chat.ask_level", { threadId: t.threadId }, t.asker).catch(() => undefined) as { level?: Level | null } | undefined;

@@ -49,26 +49,26 @@ d_s_ba6adca8f3(a329[i329], p + '/' + i329, e);
 
 function d_s_ba6adca8f3(v: unknown, p: string, e: string[]): void {
 {
-const x866 = v;
-const g866 = typeOf(x866);
-const b866: string[] = []; lf(x866, p, b866, L0); if (b866.length) e.push(...b866);
-if (g866 === "object") {
-if (g866 === 'object') { const o866 = x866 as Record<string, unknown>;
-if (!("kind" in o866)) e.push(p + "/kind" + ': required');
-if (!("id" in o866)) e.push(p + "/id" + ': required');
-if (!("title" in o866)) e.push(p + "/title" + ': required');
-if (!("link" in o866)) e.push(p + "/link" + ': required');
-if (!("score" in o866)) e.push(p + "/score" + ': required');
-if ("kind" in o866) lf(o866["kind"], p + "/kind", e, L156);
-if ("id" in o866) lf(o866["id"], p + "/id", e, L1);
-if ("title" in o866) lf(o866["title"], p + "/title", e, L1);
-if ("recordType" in o866) lf(o866["recordType"], p + "/recordType", e, L1);
-if ("snippet" in o866) lf(o866["snippet"], p + "/snippet", e, L1);
-if ("path" in o866) lf(o866["path"], p + "/path", e, L1);
-if ("link" in o866) lf(o866["link"], p + "/link", e, L1);
-if ("label" in o866) lf(o866["label"], p + "/label", e, L125);
-if ("score" in o866) lf(o866["score"], p + "/score", e, L184);
-if ("updatedAt" in o866) lf(o866["updatedAt"], p + "/updatedAt", e, L17);
+const x869 = v;
+const g869 = typeOf(x869);
+const b869: string[] = []; lf(x869, p, b869, L0); if (b869.length) e.push(...b869);
+if (g869 === "object") {
+if (g869 === 'object') { const o869 = x869 as Record<string, unknown>;
+if (!("kind" in o869)) e.push(p + "/kind" + ': required');
+if (!("id" in o869)) e.push(p + "/id" + ': required');
+if (!("title" in o869)) e.push(p + "/title" + ': required');
+if (!("link" in o869)) e.push(p + "/link" + ': required');
+if (!("score" in o869)) e.push(p + "/score" + ': required');
+if ("kind" in o869) lf(o869["kind"], p + "/kind", e, L156);
+if ("id" in o869) lf(o869["id"], p + "/id", e, L1);
+if ("title" in o869) lf(o869["title"], p + "/title", e, L1);
+if ("recordType" in o869) lf(o869["recordType"], p + "/recordType", e, L1);
+if ("snippet" in o869) lf(o869["snippet"], p + "/snippet", e, L1);
+if ("path" in o869) lf(o869["path"], p + "/path", e, L1);
+if ("link" in o869) lf(o869["link"], p + "/link", e, L1);
+if ("label" in o869) lf(o869["label"], p + "/label", e, L125);
+if ("score" in o869) lf(o869["score"], p + "/score", e, L184);
+if ("updatedAt" in o869) lf(o869["updatedAt"], p + "/updatedAt", e, L17);
 }
 }
 }

@@ -40,21 +40,21 @@ if ("subject" in o420) lf(o420["subject"], p + "/subject", e, L1);
 
 function d_s_65cbb13876(v: unknown, p: string, e: string[]): void {
 {
-const x501 = v;
-const g501 = typeOf(x501);
-const b501: string[] = []; lf(x501, p, b501, L0); if (b501.length) e.push(...b501);
-if (g501 === "object") {
-if (g501 === 'object') { const o501 = x501 as Record<string, unknown>;
-if (!("type" in o501)) e.push(p + "/type" + ': required');
-if (!("props" in o501)) e.push(p + "/props" + ': required');
-if ("type" in o501) lf(o501["type"], p + "/type", e, L263);
-if ("props" in o501) {
+const x498 = v;
+const g498 = typeOf(x498);
+const b498: string[] = []; lf(x498, p, b498, L0); if (b498.length) e.push(...b498);
+if (g498 === "object") {
+if (g498 === 'object') { const o498 = x498 as Record<string, unknown>;
+if (!("type" in o498)) e.push(p + "/type" + ': required');
+if (!("props" in o498)) e.push(p + "/props" + ': required');
+if ("type" in o498) lf(o498["type"], p + "/type", e, L263);
+if ("props" in o498) {
 {
-const x502 = o501["props"];
-const g502 = typeOf(x502);
-const b502: string[] = []; lf(x502, p + "/props", b502, L0); if (b502.length) e.push(...b502);
-if (g502 === "object") {
-if (g502 === 'object') { const o502 = x502 as Record<string, unknown>;
+const x499 = o498["props"];
+const g499 = typeOf(x499);
+const b499: string[] = []; lf(x499, p + "/props", b499, L0); if (b499.length) e.push(...b499);
+if (g499 === "object") {
+if (g499 === 'object') { const o499 = x499 as Record<string, unknown>;
 }
 }
 }
@@ -66,13 +66,13 @@ if (g502 === 'object') { const o502 = x502 as Record<string, unknown>;
 
 function d_s_78845cba60(v: unknown, p: string, e: string[]): void {
 {
-const x592 = v;
-const g592 = typeOf(x592);
-const b592: string[] = []; lf(x592, p, b592, L0); if (b592.length) e.push(...b592);
-if (g592 === "object") {
-if (g592 === 'object') { const o592 = x592 as Record<string, unknown>;
-if (!("email" in o592)) e.push(p + "/email" + ': required');
-if ("email" in o592) d_s_573e287a45(o592["email"], p + "/email", e);
+const x589 = v;
+const g589 = typeOf(x589);
+const b589: string[] = []; lf(x589, p, b589, L0); if (b589.length) e.push(...b589);
+if (g589 === "object") {
+if (g589 === 'object') { const o589 = x589 as Record<string, unknown>;
+if (!("email" in o589)) e.push(p + "/email" + ': required');
+if ("email" in o589) d_s_573e287a45(o589["email"], p + "/email", e);
 }
 }
 }

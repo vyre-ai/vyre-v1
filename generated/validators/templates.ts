@@ -20,15 +20,15 @@ d_s_f06b085bb9(a303[i303], p + '/' + i303, e);
 
 function d_s_65ae3d1fbc(v: unknown, p: string, e: string[]): void {
 {
-const x500 = v;
-const g500 = typeOf(x500);
-const b500: string[] = []; lf(x500, p, b500, L0); if (b500.length) e.push(...b500);
-if (g500 === "object") {
-if (g500 === 'object') { const o500 = x500 as Record<string, unknown>;
-if (!("templateId" in o500)) e.push(p + "/templateId" + ': required');
-if (!("kind" in o500)) e.push(p + "/kind" + ': required');
-if ("templateId" in o500) lf(o500["templateId"], p + "/templateId", e, L262);
-if ("kind" in o500) lf(o500["kind"], p + "/kind", e, L1);
+const x497 = v;
+const g497 = typeOf(x497);
+const b497: string[] = []; lf(x497, p, b497, L0); if (b497.length) e.push(...b497);
+if (g497 === "object") {
+if (g497 === 'object') { const o497 = x497 as Record<string, unknown>;
+if (!("templateId" in o497)) e.push(p + "/templateId" + ': required');
+if (!("kind" in o497)) e.push(p + "/kind" + ': required');
+if ("templateId" in o497) lf(o497["templateId"], p + "/templateId", e, L262);
+if ("kind" in o497) lf(o497["kind"], p + "/kind", e, L1);
 }
 }
 }

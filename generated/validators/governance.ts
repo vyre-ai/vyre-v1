@@ -5,13 +5,13 @@ import type { Check } from './core.ts';
 
 function d_s_5db203819b(v: unknown, p: string, e: string[]): void {
 {
-const x452 = v;
-const g452 = typeOf(x452);
-const b452: string[] = []; lf(x452, p, b452, L0); if (b452.length) e.push(...b452);
-if (g452 === "object") {
-if (g452 === 'object') { const o452 = x452 as Record<string, unknown>;
-if (!("row" in o452)) e.push(p + "/row" + ': required');
-if ("row" in o452) d_s_faee104388(o452["row"], p + "/row", e);
+const x450 = v;
+const g450 = typeOf(x450);
+const b450: string[] = []; lf(x450, p, b450, L0); if (b450.length) e.push(...b450);
+if (g450 === "object") {
+if (g450 === 'object') { const o450 = x450 as Record<string, unknown>;
+if (!("row" in o450)) e.push(p + "/row" + ': required');
+if ("row" in o450) d_s_faee104388(o450["row"], p + "/row", e);
 }
 }
 }
@@ -19,15 +19,15 @@ if ("row" in o452) d_s_faee104388(o452["row"], p + "/row", e);
 
 function d_s_8000f960cb(v: unknown, p: string, e: string[]): void {
 {
-const x625 = v;
-const g625 = typeOf(x625);
-const b625: string[] = []; lf(x625, p, b625, L0); if (b625.length) e.push(...b625);
-if (g625 === "object") {
-if (g625 === 'object') { const o625 = x625 as Record<string, unknown>;
-if (!("kind" in o625)) e.push(p + "/kind" + ': required');
-if (!("id" in o625)) e.push(p + "/id" + ': required');
-if ("kind" in o625) lf(o625["kind"], p + "/kind", e, L288);
-if ("id" in o625) lf(o625["id"], p + "/id", e, L1);
+const x622 = v;
+const g622 = typeOf(x622);
+const b622: string[] = []; lf(x622, p, b622, L0); if (b622.length) e.push(...b622);
+if (g622 === "object") {
+if (g622 === 'object') { const o622 = x622 as Record<string, unknown>;
+if (!("kind" in o622)) e.push(p + "/kind" + ': required');
+if (!("id" in o622)) e.push(p + "/id" + ': required');
+if ("kind" in o622) lf(o622["kind"], p + "/kind", e, L288);
+if ("id" in o622) lf(o622["id"], p + "/id", e, L1);
 }
 }
 }

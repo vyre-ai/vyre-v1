@@ -185,17 +185,17 @@ d_s_d701d8720c(a272[i272], p + '/' + i272, e);
 
 function d_s_8b95056de4(v: unknown, p: string, e: string[]): void {
 {
-const x683 = v;
-const g683 = typeOf(x683);
-const b683: string[] = []; lf(x683, p, b683, L0); if (b683.length) e.push(...b683);
-if (g683 === "object") {
-if (g683 === 'object') { const o683 = x683 as Record<string, unknown>;
-if (!("viewId" in o683)) e.push(p + "/viewId" + ': required');
-if (!("type" in o683)) e.push(p + "/type" + ': required');
-if (!("shared" in o683)) e.push(p + "/shared" + ': required');
-if ("viewId" in o683) lf(o683["viewId"], p + "/viewId", e, L314);
-if ("type" in o683) lf(o683["type"], p + "/type", e, L40);
-if ("shared" in o683) lf(o683["shared"], p + "/shared", e, L3);
+const x680 = v;
+const g680 = typeOf(x680);
+const b680: string[] = []; lf(x680, p, b680, L0); if (b680.length) e.push(...b680);
+if (g680 === "object") {
+if (g680 === 'object') { const o680 = x680 as Record<string, unknown>;
+if (!("viewId" in o680)) e.push(p + "/viewId" + ': required');
+if (!("type" in o680)) e.push(p + "/type" + ': required');
+if (!("shared" in o680)) e.push(p + "/shared" + ': required');
+if ("viewId" in o680) lf(o680["viewId"], p + "/viewId", e, L314);
+if ("type" in o680) lf(o680["type"], p + "/type", e, L40);
+if ("shared" in o680) lf(o680["shared"], p + "/shared", e, L3);
 }
 }
 }
@@ -203,13 +203,13 @@ if ("shared" in o683) lf(o683["shared"], p + "/shared", e, L3);
 
 function d_s_c0bb60860c(v: unknown, p: string, e: string[]): void {
 {
-const x878 = v;
-const g878 = typeOf(x878);
-const b878: string[] = []; lf(x878, p, b878, L0); if (b878.length) e.push(...b878);
-if (g878 === "object") {
-if (g878 === 'object') { const o878 = x878 as Record<string, unknown>;
-if (!("sections" in o878)) e.push(p + "/sections" + ': required');
-if ("sections" in o878) d_s_f54a1e0c66(o878["sections"], p + "/sections", e);
+const x881 = v;
+const g881 = typeOf(x881);
+const b881: string[] = []; lf(x881, p, b881, L0); if (b881.length) e.push(...b881);
+if (g881 === "object") {
+if (g881 === 'object') { const o881 = x881 as Record<string, unknown>;
+if (!("sections" in o881)) e.push(p + "/sections" + ': required');
+if ("sections" in o881) d_s_f54a1e0c66(o881["sections"], p + "/sections", e);
 }
 }
 }
