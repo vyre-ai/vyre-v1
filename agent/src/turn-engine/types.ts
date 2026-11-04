@@ -36,6 +36,8 @@ export interface EngineAgent {
 
 export interface OpenThread {
   id: string;
+  /** A thread on the person's own task, note or goal (not a reply thread in a channel). */
+  personal?: boolean;
   /** The people in the chat, when the host knows them: a person mentioned who is not among them is only talked about. */
   people?: string[];
   kind: ThreadKind;
@@ -155,7 +157,7 @@ export type EngineEvent =
   | { type: "turn.waiting"; threadId: string; reason: "approval"; turnId: string; agentId: string; taskId: string; runId?: string }
   | { type: "turn.completed"; threadId: string; turnId: string; agentId: string }
   | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** a turn a dead host left (code host_lost): its queue row and whom it ran for */ qseq?: number; asker?: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string }
-  | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string }
+  | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string; /** why it was stopped: interrupt, stop, limit, left, moved, lease */ reason?: string }
   | { type: "agent.handoff"; threadId: string; to: Placement }
   | { type: "queue.consumed"; threadId: string; qseq: number; messageId: string | null };
 

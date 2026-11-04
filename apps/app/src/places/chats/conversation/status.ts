@@ -108,13 +108,26 @@ export type StatusView = { kind: "error"; block: MessageBlock } | { kind: "note"
 export const DEVICE_WAIT_TEXT = "Your computer is off. This chat runs when it is back.";
 export const RUN_ON_SERVER = { key: "run_on_server", label: "Run it on the server instead" } as const;
 
+/** Why a turn stopped, in words: never a bare "Stopped." (owner, 4 Nov 2026). */
+export function stoppedWords(reason: string): string {
+  switch (reason) {
+    case "interrupt": return "Stopped because a new message came in while it was working. It answers that one next.";
+    case "stop": return "Stopped because Stop was pressed.";
+    case "limit": return "Stopped because it reached a spending or turn limit.";
+    case "left": return "Stopped because the person it was working for left.";
+    case "moved": return "Stopped because the task was handed to someone else.";
+    case "lease": return "Stopped because the server it was running on went away. Send it again.";
+    default: return "Stopped, and no reason was recorded. Send it again.";
+  }
+}
+
 export function statusView(b: MessageBlock): StatusView {
   const d = dataOf(b);
   const state = str(d.state);
   if (state === "note" && str(d.text) !== "") return { kind: "note", id: b.id, text: str(d.text) };
   // a chat pinned to the person's computer waits for it, quietly, with the way to run it on the server instead
   if (state === "device_wait") return { kind: "wait", id: b.id, text: str(d.text) || DEVICE_WAIT_TEXT, action: { ...RUN_ON_SERVER } };
-  if (state === "cancelled") return { kind: "note", id: b.id, text: "Stopped." };
+  if (state === "cancelled") return { kind: "note", id: b.id, text: stoppedWords(str(d.reason)) };
   if (state === "waiting" && str(d.taskId) !== "") return { kind: "approval", id: b.id, taskId: str(d.taskId) };
   if (state === "waiting") return { kind: "note", id: b.id, text: "Waiting for your approval." };
   let w = wordsFor(str(d.code));

@@ -11,7 +11,7 @@
 // it brings back (a Job's line) each carry the next hop, so an agent that starts a helper after every result stops at the same budget.
 
 export interface RouteAgent { id: string; /** the name people say it by, for a message that names the agent in words */ name?: string; mode: "lead" | "listen"; /** a watcher acts unasked as a routine and is never the one agent that answers */ watching?: boolean }
-export interface RouteThread { agents: readonly RouteAgent[]; /** the people in the chat, when known: a mention of anyone else is a reference. Left out: every mentioned person is taken to be in it. */ people?: readonly string[]; /** the thread kind when known: only a person's chat has a lone agent that answers whatever its mode says */ kind?: string }
+export interface RouteThread { agents: readonly RouteAgent[]; /** a thread on the person's own task, note or goal: no one else is in it unless the people list says so */ personal?: boolean; /** the people in the chat, when known: a mention of anyone else is a reference. Left out: every mentioned person is taken to be in it. */ people?: readonly string[]; /** the thread kind when known: only a person's chat has a lone agent that answers whatever its mode says */ kind?: string }
 export interface RouteMention { kind: "agent" | "person"; id: string }
 export interface RouteMessage {
   author: { kind: "person" | "agent"; id: string };
@@ -74,7 +74,11 @@ export function route(thread: RouteThread, m: RouteMessage, policy: RoutePolicy 
 
   // the only agent in a person's chat answers that person whatever its mode says: listening means nothing with no one else to lead. Not a message the host posts (a nudge, a baton line, svc_...),
   // not an agent's, not a run, helper, channel or console thread, and never a watcher.
-  const solo = thread.agents.length === 1 && thread.agents[0]!.watching !== true && (!fromAgent || job) && !m.author.id.startsWith("svc_") && (thread.kind === undefined || PERSON_CHATS.has(thread.kind));
+  // Where the only people present are the person and agents acting for them, their one agent answers without an @ (owner, 4 Nov 2026): a task thread on their task, a note thread, a goal chat. People known
+  // to be in it besides the author make it a group, where an @ picks who answers.
+  const alone = thread.people !== undefined && thread.people.every((id) => id === m.author.id);
+  const solo = thread.agents.length === 1 && thread.agents[0]!.watching !== true && (!fromAgent || job) && !m.author.id.startsWith("svc_")
+    && (thread.kind === undefined || PERSON_CHATS.has(thread.kind) || (alone && thread.personal === true));
   const lead = thread.agents.find((a) => a.mode === "lead") ?? (solo ? thread.agents[0] : undefined);
   if (!lead || (fromAgent && !job && lead.id === m.author.id)) return done([], "no_lead");
   return done([lead.id], "lead");
