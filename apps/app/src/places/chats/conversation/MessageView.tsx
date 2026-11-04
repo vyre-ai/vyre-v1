@@ -83,6 +83,8 @@ export interface MessageActions {
   retryTurn(turnId: string): void;
   /** Run the turn that made this reply once more: "Regenerate" in an agent reply's menu. Left out where the chat cannot. */
   regenerate?(messageId: string): void;
+  /** Mark the chat unread from this message on (threads.mark_unread_from, by its sequence number). */
+  markUnreadFrom?(seq: number): void;
   /** Copies the plain link to this message (/c/<thread>#<message>). Left out where the chat has no address. */
   copyLink?(messageId: string): void;
   /** The rows of Details on a failed turn, read from the turn when it opens. */
@@ -217,6 +219,7 @@ export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: ()
     { label: m.pinned ? "Unpin Message" : "Pin Message", onSelect: () => a.setPinned(m.messageId, !m.pinned) },
     { label: "Add Reaction", onSelect: () => (a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "👍", false)) },
   ];
+  if (a.markUnreadFrom && !m.messageId.startsWith("pending:")) keep.push({ label: "Mark Unread From Here", onSelect: () => a.markUnreadFrom!(m.threadSeq) });
   if (m.kind !== "quiet" && a.memoryEntries) keep.push(...a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu));
   const how: MenuEntry[] = [];
   // how an agent's reply was made: the right pane's Details tab (what the agent knew is a section of it)

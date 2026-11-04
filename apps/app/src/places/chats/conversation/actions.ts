@@ -148,6 +148,11 @@ export async function regenerate(data: ConversationData, messageId: string): Pro
   await retryTurn(data, turnId);
 }
 
+/** Mark this chat unread from one message on: the read point goes back to just before it. */
+export async function markUnreadFrom(data: ConversationData, seq: number): Promise<void> {
+  await data.call("threads.mark_unread_from", { threadId: data.threadId, seq } satisfies CapMap["threads.mark_unread_from"]["in"]);
+}
+
 export async function retryTurn(data: ConversationData, turnId: string): Promise<void> {
   await data.call("engine.turn.retry", { turnId } satisfies CapMap["engine.turn.retry"]["in"]);
 }

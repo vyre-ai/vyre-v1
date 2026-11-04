@@ -2683,10 +2683,12 @@ export function stubs(ctx: CallCtx) {
       list: call("threads.list"),
       make_channel: call("threads.make_channel"),
       mark_read: call("threads.mark_read"),
+      mark_unread_from: call("threads.mark_unread_from"),
       members: {
         add: call("threads.members.add"),
         remove: call("threads.members.remove"),
       },
+      move: call("threads.move"),
       outside_agent: {
         add: call("threads.outside_agent.add"),
         remove: call("threads.outside_agent.remove"),

@@ -28,6 +28,8 @@ export interface ChatDo {
   addPeople?: (() => void) | undefined;
   copyLink?: (() => void) | undefined;
   notifications?: (() => void) | undefined;
+  /** Pick a project and move the chat into it (threads.move). */
+  moveToProject?: (() => void) | undefined;
 }
 /** `has` says which optional parts the caller can do (a sidebar with no Rename leaves it out); by default all. */
 export function chatMenu(f: ChatFacts, d: ChatDo, has: { rename?: boolean; mute?: boolean } = {}): MenuEntry[] {
@@ -43,6 +45,7 @@ export function chatMenu(f: ChatFacts, d: ChatDo, has: { rename?: boolean; mute?
     f.local || !d.notifications ? null : item("Notifications\u2026", d.notifications),
     sep,
     f.local || !d.addPeople ? null : item("Add People\u2026", d.addPeople),
+    f.local || !d.moveToProject ? null : item("Move to Project\u2026", d.moveToProject),
     f.local || !d.copyLink ? null : item("Copy Link", d.copyLink),
     sep,
     f.archived ? item("Unarchive", d.unarchive, { hint: KEY.archive }) : item("Archive", d.archive, { hint: KEY.archive }),

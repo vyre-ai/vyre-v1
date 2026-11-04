@@ -92,8 +92,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "threads.list": Handler<"threads.list", X>;
   "threads.make_channel": Handler<"threads.make_channel", X>;
   "threads.mark_read": Handler<"threads.mark_read", X>;
+  "threads.mark_unread_from": Handler<"threads.mark_unread_from", X>;
   "threads.members.add": Handler<"threads.members.add", X>;
   "threads.members.remove": Handler<"threads.members.remove", X>;
+  "threads.move": Handler<"threads.move", X>;
   "threads.outside_agent.add": Handler<"threads.outside_agent.add", X>;
   "threads.outside_agent.remove": Handler<"threads.outside_agent.remove", X>;
   "threads.poke": Handler<"threads.poke", X>;

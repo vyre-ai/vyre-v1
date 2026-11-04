@@ -62,3 +62,19 @@ test("Copy Link copies the plain link to the message, only where the chat has an
   assert.deepEqual(calls, ["link:m1"]);
   assert.ok(!menuFor(msg(), false, acts, () => undefined).some((e) => "label" in e && e.label === "Copy Link"));
 });
+
+test("Mark Unread From Here is in the keep group where the chat can do it, and runs threads.mark_unread_from with that message's sequence number", async () => {
+  const withIt = { ...(acts as object), markUnreadFrom: (seq: number) => calls.push(`unread:${seq}`) } as unknown as MessageActions;
+  const m = msg({ threadSeq: 7 });
+  const item = menuFor(m, false, withIt, () => undefined).find((e) => "label" in e && e.label === "Mark Unread From Here") as { onSelect(): void } | undefined;
+  assert.ok(item, "offered");
+  calls.length = 0;
+  item.onSelect();
+  assert.deepEqual(calls, ["unread:7"]);
+  assert.ok(!menuFor(m, false, acts, () => undefined).some((e) => "label" in e && e.label === "Mark Unread From Here"), "left out where the chat cannot");
+  assert.ok(!menuFor(msg({ messageId: "pending:k1" }), false, withIt, () => undefined).some((e) => "label" in e && e.label === "Mark Unread From Here"), "not for a message still sending");
+  const { markUnreadFrom } = await import("./actions.ts");
+  const sent: { cap: string; input: unknown }[] = [];
+  await markUnreadFrom({ threadId: "thr_1", call: async (cap: string, input: unknown) => { sent.push({ cap, input }); return { unread: 2 }; } } as never, 7);
+  assert.deepEqual(sent, [{ cap: "threads.mark_unread_from", input: { threadId: "thr_1", seq: 7 } }]);
+});

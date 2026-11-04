@@ -264,6 +264,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     "notifications.mute.clear": (i: { target: { kind: string; id: string } }) => { refuse("notifications.mute.clear", i); menus.mutes.delete(`${i.target.kind}:${i.target.id}`); return { cleared: true }; },
     "stars.list": () => ({ stars: [] }),
     "threads.poke": (i: { threadId: string; agentId: string }) => { refuse("threads.poke", i); return { poked: true }; },
+    "threads.move": (i: { threadId: string; projectId: string }) => { return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
     "threads.add_agent": (i: { threadId: string; agentId: string }) => { return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
     "threads.members.add": (i: { threadId: string; personId: string }) => { return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
     "access.shares_of": () => ({ shares: [], agentsCanCall: true }),

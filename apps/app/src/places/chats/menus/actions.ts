@@ -11,6 +11,10 @@ export interface MenuApi {
   /** Mute for `minutes`, or until turned back on when none is given; `on` false clears it. */
   setMute(kind: MuteKind, id: string, on: boolean, minutes?: number): Promise<void>;
   addAgentToChat(threadId: string, agentId: string): Promise<void>;
+  /** The projects the person can see, to pick one for Move to Project. */
+  projects(): Promise<{ projectId: string; title: string }[]>;
+  /** Move a chat into a project (threads.move). */
+  moveToProject(threadId: string, projectId: string): Promise<void>;
   addPersonToChat(threadId: string, personId: string): Promise<void>;
   poke(threadId: string, agentId: string): Promise<void>;
   /** What is starred now, as `type:id`. */
@@ -35,6 +39,11 @@ export function createMenuApi(data: Pick<ChatsSidebarData, "call">): MenuApi {
       return new Set((out?.mutes ?? []).map((m) => `${m.target.kind}:${m.target.id}`));
     },
     async setMute(kind, id, on, minutes) { await data.call(on ? "notifications.mute.set" : "notifications.mute.clear", { target: { kind, id }, ...(on && minutes !== undefined ? { minutes } : {}) }); },
+    async projects() {
+      const out = (await data.call("projects.list", {})) as { projects?: { projectId: string; title: string; archivedAt?: number }[] } | null;
+      return (out?.projects ?? []).filter((p) => p.archivedAt === undefined).map((p) => ({ projectId: p.projectId, title: p.title }));
+    },
+    async moveToProject(threadId, projectId) { await data.call("threads.move", { threadId, projectId }); },
     async addAgentToChat(threadId, agentId) { await data.call("threads.add_agent", { threadId, agentId }); },
     async addPersonToChat(threadId, personId) { await data.call("threads.members.add", { threadId, personId }); },
     async poke(threadId, agentId) { await data.call("threads.poke", { threadId, agentId }); },

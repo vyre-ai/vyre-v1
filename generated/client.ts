@@ -2683,10 +2683,12 @@ export function createClient(transport: Transport) {
       list: call("threads.list", 1),
       make_channel: call("threads.make_channel", 1),
       mark_read: call("threads.mark_read", 1),
+      mark_unread_from: call("threads.mark_unread_from", 1),
       members: {
         add: call("threads.members.add", 1),
         remove: call("threads.members.remove", 1),
       },
+      move: call("threads.move", 1),
       outside_agent: {
         add: call("threads.outside_agent.add", 1),
         remove: call("threads.outside_agent.remove", 1),

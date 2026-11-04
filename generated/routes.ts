@@ -35305,6 +35305,25 @@ const routes6: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/threads/mark_unread_from",
+    "cap": "threads.mark_unread_from",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/threads/members/add",
     "cap": "threads.members.add",
     "v": 1,
@@ -35331,6 +35350,25 @@ const routes6: Route[] = [
     "effects": "write",
     "permission": null,
     "level": "edit",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/threads/move",
+    "cap": "threads.move",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": null,
+    "level": "manage",
     "resource": {
       "type": "thread",
       "id": "/threadId"

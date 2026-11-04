@@ -35,8 +35,8 @@ async function refused(cap: string, ctx: Harness["ctx"], input: Record<string, u
 const chatOf = async (hn: Harness, extra: Record<string, unknown> = {}) => (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key(), ...extra })).thread.threadId as string;
 const channelOf = async (hn: Harness, name = "intake") => (await h["channels.create"]!(hn.ctx, { name, visibility: "public", memberIds: [MAYA], agentIds: [INTAKE], idempotencyKey: key() })).channel;
 
-test("the table holds the twelve capabilities of this group, all frozen chat capabilities, and every example input is valid", () => {
-  assert.equal(OURS.length, 12);
+test("the table holds the fourteen capabilities of this group, all frozen chat capabilities, and every example input is valid", () => {
+  assert.equal(OURS.length, 14);
   for (const name of OURS) {
     const cap = registry.capabilities.find((c) => c.module === "chat" && c.name === name);
     assert.ok(cap, name);

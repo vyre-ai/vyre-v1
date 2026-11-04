@@ -199,6 +199,13 @@ export default defineManifest({
     write('threads.mark_read', 'Mark a thread read up to a sequence number, or unread again (the newest message from someone else counts as new)', {
       in: { ...threadT, upto: t.opt(t.int()), unread: t.opt(t.bool()) }, out: { unread: t.int() }, on: ['thread', '/threadId'], level: 'view', tool: 'chats', offline: 'queue', idem: 'natural', risk: 'low',
     }),
+    write('threads.mark_unread_from', 'Mark a thread unread from one message on: the read point goes back to just before that message, so it and everything after it count as new (it never moves the point forward)', {
+      in: { ...threadT, seq: t.int({ minimum: 1, description: 'The threadSeq of the first message to count as new again' }) }, out: { unread: t.int() }, on: ['thread', '/threadId'], level: 'view', tool: 'chats', offline: 'queue', idem: 'natural', risk: 'low', errors: ['validation.bad_input'],
+    }),
+    write('threads.move', 'Move a chat into a project: it then belongs to the project (its memory and its people). Needs Manage on the chat and the right to add to the project; audited', {
+      in: { ...threadT, projectId: id.project }, out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'manage', emits: ['thread.updated'], audit: 'always', risk: 'medium', idem: 'natural', tool: 'chats',
+      errors: ['validation.not_found', 'validation.bad_input', 'validation.precondition_failed', 'permission.role_lacks_permission'],
+    }),
     write('threads.add_agent', 'Add an agent to a thread as listening (or leading when it is the only agent)', {
       in: { ...threadT, agentId: id.agent, mode: t.opt(agentMode) }, out: { thread: threadRow }, on: ['thread', '/threadId'], perm: 'channels.agents',
       emits: ['agent.engaged'], tool: 'chats', errors: ['validation.precondition_failed'],

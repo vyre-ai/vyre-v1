@@ -7,3 +7,4 @@
 - Files: the file menu shows its keys (Enter, Space, F2, Delete) and a file can be shared from its menu.
 - Records: a record has Open, Star, Share, Copy Link and Delete in its menu (S stars it), and a record type in the sidebar has Open, Star, Copy Name and Edit Type.
 - Artifacts: an artifact row has Open, Share, Copy Link, Rename and Delete (Delete asks first) in its menu.
+- A message menu has Mark Unread From Here, and a chat menu has Move to Project. A task menu has Follow and Copy Link.

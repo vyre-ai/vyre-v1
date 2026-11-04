@@ -376,6 +376,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     addPeople: () => add.open({ threadId: r.threadId, name: r.title }),
     copyLink: () => copy(chatLink(r.threadId)),
     notifications: () => notifyMenu("thread", r.threadId, 8, 48),
+    moveToProject: () => { void menuApi.projects().then((ps) => menu.show(ps.length === 0 ? [{ head: "No projects yet." }] : [{ head: `Move ${r.title} to` }, ...ps.map((p) => ({ label: p.title, onSelect: () => { void menuApi.moveToProject(r.threadId, p.projectId).then(() => say(`Moved to ${p.title}`), () => say("Could not move it. You need Manage on the chat and edit on the project.")); } }))], 8, 48, "other"), () => say("Could not read the projects. Try again.")); },
     ...(data.nav.openChatTab ? { openTab: () => data.nav.openChatTab?.(r.threadId) } : {}),
   });
   const faceMenu = (e: Extract<Entry, { type: "face" }>, x: number, y: number): MenuEntry[] => {

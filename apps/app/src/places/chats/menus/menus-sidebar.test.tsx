@@ -140,3 +140,16 @@ test("a chat: Notifications mutes for an hour, Add People opens the Add sheet on
   assert.ok(caps(s, "threads.get").some((i) => (i as { threadId: string }).threadId === "c3"), "the Add sheet read that chat");
   assert.ok(!s.rejected.some((r) => /poke/.test(r)));
 });
+
+test("a chat row: Move to Project lists the projects and the one picked calls threads.move with the chat and the project", async () => {
+  const { s, root } = await drawn(createRoot, { open: null });
+  const row = rowIds(root, "row-c:")[0]!;
+  const threadId = row.slice("row-c:".length);
+  await rightClick(root, row);
+  assert.ok(itemIds(root).includes("Move to Project…"), itemIds(root).join("|"));
+  await press(find(root, "menu-item-Move to Project…")); await flush();
+  assert.deepEqual(itemIds(root).filter((x) => x === "Rivera matter" || x === "ATP Q4 review"), ["Rivera matter", "ATP Q4 review"], itemIds(root).join("|"));
+  await press(find(root, "menu-item-Rivera matter")); await flush();
+  assert.deepEqual(caps(s, "threads.move"), [{ threadId, projectId: "prj_rec_rivera" }]);
+  assert.deepEqual(s.rejected, []);
+});
