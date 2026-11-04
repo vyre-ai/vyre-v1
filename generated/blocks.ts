@@ -4,7 +4,7 @@ export type AccessRequestBlockData = {
   requestId: string;
   requester: string;
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
     id: string;
   };
   resourceTitle: string;
@@ -146,6 +146,13 @@ export type HelperBlockData = {
       title: string;
       threadId: string;
     }>;
+};
+export type InstallPlanBlockData = {
+  planId: string;
+  name: string;
+  kind: "skill" | "plugin" | "mcp_local" | "mcp_remote" | "site";
+  update?: boolean;
+  installId?: string;
 };
 export type MemorySavedBlockData = {
   factId: string;
@@ -318,6 +325,7 @@ export interface BlockDataMap {
   "form_fields": FormFieldsBlockData;
   "goal": GoalBlockData;
   "helper": HelperBlockData;
+  "install_plan": InstallPlanBlockData;
   "memory_saved": MemorySavedBlockData;
   "model_switch": ModelSwitchBlockData;
   "mount": MountBlockData;
@@ -637,6 +645,16 @@ export const blockRegistry = [
         "threadId": "/threadId"
       }
     }
+  },
+  {
+    "type": "install_plan",
+    "v": 1,
+    "module": "chat",
+    "component": "ui:BlockInstallPlan",
+    "fallback": "Install {{name}}?",
+    "waitsForAnswer": false,
+    "actions": [],
+    "opens": null
   },
   {
     "type": "memory_saved",

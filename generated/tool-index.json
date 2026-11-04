@@ -4688,6 +4688,42 @@
     },
     {
       "deferred": false,
+      "name": "install_apply",
+      "summary": "Install what a plan says, for the person, for one agent, or for everyone in the Space (admin only). An agent asking is held at the Gate as a card with the plan; the person presses Install",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_check_update",
+      "summary": "Read an install's repository again. A newer commit gives an update plan with the diff; nothing changes until the plan is applied",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_from_link",
+      "summary": "Read a GitHub link (pinned to a commit) or an MCP server address and say what it is: a skill, a plugin, a local MCP server, a remote MCP server or a site, what it does, what it needs (network, Vault keys, files) and who can get it. Nothing is installed",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_get",
+      "summary": "One plan, as its card draws it: what it is, what it needs, the commit, who can get it, and for an update the diff",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_list",
+      "summary": "What was installed from links, by the person asking (an admin may ask for the whole Space)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_remove",
+      "summary": "Take back an install: its skill, plugin or connection is removed",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "journeys_create",
       "summary": "Create a Journey and its record type (cloned from the Projects template) on a subject record type",
       "toolset": "automations"
@@ -8174,6 +8210,36 @@
     },
     {
       "deferred": false,
+      "name": "skill_grant",
+      "summary": "Give an agent use, edit or manage of a skill, or take it back (level null). Use puts it in the agent's list; edit lets it save versions; manage lets it share the skill on",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_grants",
+      "summary": "Who owns a skill and which agents hold it, at what level",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_history",
+      "summary": "The versions of a skill, newest first, each with who saved it and what changed",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_save",
+      "summary": "Write a skill as its owner (the person, or an agent they own; an agent writes its own) or as an agent given edit: a new skill, or a new version of one. Every save is a version",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_undo",
+      "summary": "Undo the latest version of a skill; the version before it comes back as a new version, and undoing again brings the undone one back",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "skills_add",
       "summary": "Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)",
       "toolset": "agents"
@@ -8212,6 +8278,12 @@
       "deferred": false,
       "name": "skills_mine_update",
       "summary": "Fetch one of your skills again from its link or repo; whoever it is shared with approves again if it can now touch more",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_of_agents",
+      "summary": "The skills the agents a person owns keep for themselves, one row each",
       "toolset": "agents"
     },
     {

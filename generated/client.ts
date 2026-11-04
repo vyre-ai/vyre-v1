@@ -1457,6 +1457,14 @@ export function createClient(transport: Transport) {
       unmatch: call("inbox.unmatch", 1),
       unmatched: call("inbox.unmatched", 1),
     },
+    install: {
+      apply: call("install.apply", 1),
+      check_update: call("install.check_update", 1),
+      from_link: call("install.from_link", 1),
+      get: call("install.get", 1),
+      list: call("install.list", 1),
+      remove: call("install.remove", 1),
+    },
     invites: {
       accept_create_account: call("invites.accept_create_account", 1),
     },
@@ -2466,6 +2474,9 @@ export function createClient(transport: Transport) {
     },
     skills: {
       add: call("skills.add", 1),
+      grant: call("skills.grant", 1),
+      grants: call("skills.grants", 1),
+      history: call("skills.history", 1),
       list: call("skills.list", 1),
       load: call("skills.load", 1),
       members: call("skills.members", 1),
@@ -2475,12 +2486,14 @@ export function createClient(transport: Transport) {
         set: call("skills.mine.set", 1),
         update: call("skills.mine.update", 1),
       },
+      of_agents: call("skills.of_agents", 1),
       page: call("skills.page", 1),
       policy: {
         set: call("skills.policy.set", 1),
       },
       preview: call("skills.preview", 1),
       remove: call("skills.remove", 1),
+      save: call("skills.save", 1),
       set_enabled: call("skills.set_enabled", 1),
       share: call("skills.share", 1),
       shared: {
@@ -2492,6 +2505,7 @@ export function createClient(transport: Transport) {
         setup: call("skills.space.setup", 1),
         update: call("skills.space.update", 1),
       },
+      undo: call("skills.undo", 1),
       view: call("skills.view", 1),
     },
     source_rules: {

@@ -6,7 +6,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-export interface TreeSource { kind: "git" | "local"; url?: string; path?: string; ref?: string; subdir?: string }
+/** `tokenHandle`: a Vault filler handle (github.token) for a private GitHub repository; the host reads the token behind it, once, and hands it to git through its environment, never its arguments. */
+export interface TreeSource { kind: "git" | "local"; url?: string; path?: string; ref?: string; subdir?: string; tokenHandle?: string }
+/** Tokens the filler delivered for a clone, by handle: taken (read and forgotten) by the fetch that asked. Filled by the daemon's `git_clone` sink. */
+export const cloneTokens = new Map<string, string>();
 export interface TreeResult { files: Record<string, string>; revision: string; skipped: string[] }
 export interface PluginsHostSeam {
   fetchTree(src: TreeSource): Promise<TreeResult>;
@@ -56,6 +59,8 @@ const run = (file: string, args: string[], cwd: string, timeoutMs: number, env: 
   });
 
 export interface PluginsHostDeps {
+  /** Asks the Vault filler to deliver the token behind a handle into `cloneTokens` (sink git_clone). False when it is unknown or expired. */
+  fillToken?: (handle: string) => boolean;
   /** Null when the address may be fetched, else why not (the network guard). Without it only https addresses are checked for a literal private address. */
   refuse?: (url: string) => Promise<string | null>;
   /** The git program. Default: git. */
@@ -107,6 +112,15 @@ export function createPluginsHost(d: PluginsHostDeps = {}): PluginsHostSeam {
       if (src.ref && !/^[A-Za-z0-9._/-]{1,100}$/.test(src.ref)) throw new Error("That branch or tag name is not allowed.");
       const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-plugin-"));
       const env: NodeJS.ProcessEnv = { PATH: process.env["PATH"] ?? "", HOME: tmp, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_NOSYSTEM: "1", GIT_CONFIG_GLOBAL: "/dev/null", GIT_ALLOW_PROTOCOL: "https" };
+      if (src.tokenHandle !== undefined) {
+        // a private repository: the token the person's GitHub gave, held behind a handle for one use. It goes to git as an environment header, never in an argument or the address.
+        if (u.hostname !== "github.com") throw new Error("A GitHub sign-in only reads github.com.");
+        if (!d.fillToken || !d.fillToken(src.tokenHandle)) throw new Error("Your GitHub sign-in could not be used just now. Try again.");
+        const token = cloneTokens.get(src.tokenHandle);
+        cloneTokens.delete(src.tokenHandle);
+        if (!token) throw new Error("Your GitHub sign-in could not be used just now. Try again.");
+        Object.assign(env, { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "http.https://github.com/.extraheader", GIT_CONFIG_VALUE_0: `Authorization: Basic ${Buffer.from(`x-access-token:${token}`).toString("base64")}` });
+      }
       try {
         const dest = path.join(tmp, "repo");
         await run(git, ["-c", "core.hooksPath=/dev/null", "-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "clone", "--depth", "1", "--no-tags", "--single-branch", "--no-recurse-submodules", ...(src.ref ? ["--branch", src.ref] : []), "--", url, dest], tmp, timeout, env);

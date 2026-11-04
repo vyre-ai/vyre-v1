@@ -676,6 +676,7 @@ export default defineManifest({
     block('note_offer', {
       threadId: id.thread, blockId: id.block, person: t.opt(id.user), title: t.str(), body: t.str(), topic: t.str(), messageId: t.opt(id.message), state: t.enm('offered', 'saved', 'dismissed'), noteId: t.opt(t.str()),
     }, 'Offer to save a note: {{title}}', { actions: [{ key: 'save', label: 'Save', cap: 'chat.note_offer.answer', input: { threadId: '/threadId', blockId: '/blockId', decision: 'save' } }, { key: 'dismiss', label: 'Not now', cap: 'chat.note_offer.answer', input: { threadId: '/threadId', blockId: '/blockId', decision: 'dismiss' } }] }),
+    block('install_plan', { planId: t.str(), name: t.str(), kind: t.enm('skill', 'plugin', 'mcp_local', 'mcp_remote', 'site'), update: t.opt(t.bool()), installId: t.opt(t.str()) }, 'Install {{name}}?'),
     block('poked', { by: id.user, agentId: id.agent }, 'Poked by {{by}}'),
     block('poke', { agentId: id.agent, by: id.user, note: t.opt(t.str()) }, '{{by}} poked an agent'),
     block('tab_opened', { targetType: t.str(), targetId: t.str(), title: t.str(), agentId: id.agent }, 'Opened {{title}} beside the chat', { opens: { tab: 'target', input: { type: '/targetType', id: '/targetId' } } }),

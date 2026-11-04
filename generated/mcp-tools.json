@@ -262,7 +262,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -405,7 +406,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -473,7 +475,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -719,7 +722,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -1071,7 +1075,8 @@
                         "run",
                         "number",
                         "domain",
-                        "calendar"
+                        "calendar",
+                        "skill"
                       ],
                       "type": "string"
                     }
@@ -1356,7 +1361,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -1440,7 +1446,8 @@
               "run",
               "number",
               "domain",
-              "calendar"
+              "calendar",
+              "skill"
             ],
             "type": "string"
           }
@@ -1734,7 +1741,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -1803,7 +1811,8 @@
                     "run",
                     "number",
                     "domain",
-                    "calendar"
+                    "calendar",
+                    "skill"
                   ],
                   "type": "string"
                 }
@@ -1917,7 +1926,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -2209,7 +2219,8 @@
                 "run",
                 "number",
                 "domain",
-                "calendar"
+                "calendar",
+                "skill"
               ],
               "type": "string"
             },
@@ -2708,7 +2719,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -2808,7 +2820,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -2881,7 +2894,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -4521,7 +4535,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -4709,7 +4724,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -19938,7 +19954,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -22114,7 +22131,8 @@
               "run",
               "number",
               "domain",
-              "calendar"
+              "calendar",
+              "skill"
             ],
             "type": "string"
           }
@@ -22200,7 +22218,8 @@
               "run",
               "number",
               "domain",
-              "calendar"
+              "calendar",
+              "skill"
             ],
             "type": "string"
           }
@@ -22307,7 +22326,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -22404,7 +22424,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -22462,7 +22483,8 @@
               "run",
               "number",
               "domain",
-              "calendar"
+              "calendar",
+              "skill"
             ],
             "type": "string"
           }
@@ -22521,7 +22543,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -23237,6 +23260,7 @@
               "signature_send",
               "spend_raise",
               "signin_change",
+              "install",
               "approve"
             ],
             "type": "string"
@@ -23329,6 +23353,7 @@
               "signature_send",
               "spend_raise",
               "signin_change",
+              "install",
               "approve"
             ],
             "type": "string"
@@ -23422,6 +23447,7 @@
               "signature_send",
               "spend_raise",
               "signin_change",
+              "install",
               "approve"
             ],
             "type": "string"
@@ -31892,6 +31918,248 @@
       "name": "inbox_unmatched",
       "planMode": "allowed",
       "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "install.apply",
+      "deferred": false,
+      "description": "Install what a plan says, for the person, for one agent, or for everyone in the Space (admin only). An agent asking is held at the Gate as a card with the plan; the person presses Install",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "authHandle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          },
+          "card": {
+            "properties": {
+              "commit": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "needs": {
+                "properties": {
+                  "domains": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "files": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "vaultKeys": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "domains",
+                  "vaultKeys",
+                  "files"
+                ],
+                "type": "object"
+              },
+              "summary": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "kind",
+              "summary",
+              "commit",
+              "needs"
+            ],
+            "type": "object"
+          },
+          "for": {
+            "enum": [
+              "me",
+              "agent",
+              "space"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "planId": {
+            "examples": [
+              "ins_a1b2c3"
+            ],
+            "pattern": "^ins_[a-z0-9]+$",
+            "type": "string"
+          },
+          "runOn": {
+            "enum": [
+              "sandbox",
+              "space"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "planId",
+          "for",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "install_apply",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "install_plan"
+      ],
+      "cap": "install.check_update",
+      "deferred": false,
+      "description": "Read an install's repository again. A newer commit gives an update plan with the diff; nothing changes until the plan is applied",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "installId": {
+            "examples": [
+              "ins_a1b2c3"
+            ],
+            "pattern": "^ins_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "installId"
+        ],
+        "type": "object"
+      },
+      "name": "install_check_update",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "install_plan"
+      ],
+      "cap": "install.from_link",
+      "deferred": false,
+      "description": "Read a GitHub link (pinned to a commit) or an MCP server address and say what it is: a skill, a plugin, a local MCP server, a remote MCP server or a site, what it does, what it needs (network, Vault keys, files) and who can get it. Nothing is installed",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "url": {
+            "examples": [
+              "https://github.com/anthropics/skills/tree/main/pdf"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "name": "install_from_link",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "install.get",
+      "deferred": false,
+      "description": "One plan, as its card draws it: what it is, what it needs, the commit, who can get it, and for an update the diff",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "planId": {
+            "examples": [
+              "ins_a1b2c3"
+            ],
+            "pattern": "^ins_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "planId"
+        ],
+        "type": "object"
+      },
+      "name": "install_get",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "install.list",
+      "deferred": false,
+      "description": "What was installed from links, by the person asking (an admin may ask for the whole Space)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "all": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "install_list",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "install.remove",
+      "deferred": false,
+      "description": "Take back an install: its skill, plugin or connection is removed",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "installId": {
+            "examples": [
+              "ins_a1b2c3"
+            ],
+            "pattern": "^ins_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "installId"
+        ],
+        "type": "object"
+      },
+      "name": "install_remove",
+      "planMode": "blocked",
+      "toolset": "agents",
       "v": 1
     },
     {
@@ -44339,7 +44607,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -50749,7 +51018,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -51404,7 +51674,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -55357,6 +55628,182 @@
     },
     {
       "blocks": [],
+      "cap": "skills.grant",
+      "deferred": false,
+      "description": "Give an agent use, edit or manage of a skill, or take it back (level null). Use puts it in the agent's list; edit lets it save versions; manage lets it share the skill on",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "enum": [
+                  "use",
+                  "edit",
+                  "manage"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId",
+          "agentId",
+          "level"
+        ],
+        "type": "object"
+      },
+      "name": "skill_grant",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.grants",
+      "deferred": false,
+      "description": "Who owns a skill and which agents hold it, at what level",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId"
+        ],
+        "type": "object"
+      },
+      "name": "skill_grants",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.history",
+      "deferred": false,
+      "description": "The versions of a skill, newest first, each with who saved it and what changed",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId"
+        ],
+        "type": "object"
+      },
+      "name": "skill_history",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.save",
+      "deferred": false,
+      "description": "Write a skill as its owner (the person, or an agent they own; an agent writes its own) or as an agent given edit: a new skill, or a new version of one. Every save is a version",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "ownerAgentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "skill_save",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.undo",
+      "deferred": false,
+      "description": "Undo the latest version of a skill; the version before it comes back as a new version, and undoing again brings the undone one back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId"
+        ],
+        "type": "object"
+      },
+      "name": "skill_undo",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "skills.add",
       "deferred": false,
       "description": "Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)",
@@ -55627,6 +56074,21 @@
       },
       "name": "skills_mine_update",
       "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.of_agents",
+      "deferred": false,
+      "description": "The skills the agents a person owns keep for themselves, one row each",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "skills_of_agents",
+      "planMode": "allowed",
       "toolset": "agents",
       "v": 1
     },
@@ -57143,7 +57605,8 @@
               "run",
               "number",
               "domain",
-              "calendar"
+              "calendar",
+              "skill"
             ],
             "type": "string"
           }
@@ -57205,7 +57668,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -68521,7 +68985,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
