@@ -11,9 +11,9 @@ export const withoutIds = (s: string): string => s.replace(ID, "that item").repl
 export function modelError(error: VyreError): { code: string; message: string; retryable?: boolean; next?: Array<{ label: string }>; details?: { reason?: string; tool?: string } } {
   const next = (error.next ?? []).map((n) => ({ label: withoutIds(String((n as { label?: unknown }).label ?? "")) })).filter((n) => n.label !== "");
   const d = error.details as { reason?: unknown; tool?: unknown } | undefined;
-  const reason = typeof d?.reason === "string" && !ID.test(d.reason) ? d.reason : undefined;
+  // a reason is a plain snake_case word the code gave ("agent_settings", "placeholder"); an id has digits, so a reason with digits or any other shape is left out
+  const reason = typeof d?.reason === "string" && /^[a-z]+(?:_[a-z]+)*$/.test(d.reason) ? d.reason : undefined;
   const tool = typeof d?.tool === "string" && /^[a-z][a-z0-9_]*$/.test(d.tool) ? d.tool : undefined;
-  ID.lastIndex = 0;
   return {
     code: error.code, message: withoutIds(error.message ?? ""),
     ...(reason || tool ? { details: { ...(reason ? { reason } : {}), ...(tool ? { tool } : {}) } } : {}),
