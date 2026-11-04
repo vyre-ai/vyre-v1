@@ -10929,6 +10929,39 @@
     },
     {
       "blocks": [],
+      "cap": "chat.pace_of",
+      "deferred": false,
+      "description": "How a teammate answers, for their profile: usual reply time over the last 30 days, and for one chat how they hear about it. Reads only chats you are in with them",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "personId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "personId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_pace_of",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.pin",
       "deferred": false,
       "description": "Mark a message as pinned (a content marker, not a Star)",
@@ -30628,6 +30661,264 @@
     },
     {
       "blocks": [],
+      "cap": "hooks.list",
+      "deferred": false,
+      "description": "List hooks: the Space's, yours, and an agent's or one chat's. Each has a plain line, when it runs, what it does and who made it. Use this before you add one",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "person",
+              "agent",
+              "chat",
+              "run"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "hooks_list",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "hook"
+      ],
+      "cap": "hooks.remove",
+      "deferred": false,
+      "description": "Remove a hook you made",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "hooks_remove",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "hooks.runs.list",
+      "deferred": false,
+      "description": "What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first. since and outcomes narrow it before the limit; scope space is a Space admin's read of every Space hook's runs (anyone else gets only what they could see anyway)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "hookId": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "outcomes": {
+            "items": {
+              "enum": [
+                "ok",
+                "blocked",
+                "note",
+                "error",
+                "timeout",
+                "skipped",
+                "allowed_once"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "scope": {
+            "enum": [
+              "space"
+            ],
+            "type": "string"
+          },
+          "since": {
+            "description": "Only runs at or after this time",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "hooks_runs",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "hook"
+      ],
+      "cap": "hooks.set",
+      "deferred": false,
+      "description": "Add or change a hook that runs at an event (before a tool, before anything leaves Vyre, a message, a turn end, a helper) as a command, a check or one action. For yourself: scope agent, chat or run. It can stop something, add a note or run its own action; never skip a rule",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "args": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "type": "array"
+          },
+          "cap": {
+            "description": "For an action hook: the one capability to call",
+            "examples": [
+              "chat.post"
+            ],
+            "type": "string"
+          },
+          "command": {
+            "description": "For a command hook: runs in the agent's own sandbox with the event as JSON on stdin; exit 2 stops it and stderr is the reason",
+            "type": "string"
+          },
+          "event": {
+            "enum": [
+              "session.start",
+              "prompt.submit",
+              "tool.before",
+              "tool.after",
+              "outward.before",
+              "turn.end",
+              "helper.start",
+              "helper.end"
+            ],
+            "type": "string"
+          },
+          "helpers": {
+            "type": "boolean"
+          },
+          "id": {
+            "description": "Give the id of a hook you made to change it",
+            "type": "string"
+          },
+          "input": {
+            "description": "Any JSON value"
+          },
+          "instruction": {
+            "description": "For a check hook: one short instruction a small model reads against the event and answers allow, block with a reason, or note",
+            "examples": [
+              "The address must be in Contacts"
+            ],
+            "maxLength": 1000,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "command",
+              "check",
+              "action"
+            ],
+            "type": "string"
+          },
+          "matcher": {
+            "description": "For tool events: a tool name, a capability, a family like mail, or a pattern. Empty is every tool",
+            "examples": [
+              "mail.send"
+            ],
+            "type": "string"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "person",
+              "agent",
+              "chat",
+              "run"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "description": "The plain sentence people read in the chat",
+            "examples": [
+              "before any email, check the address is in Contacts"
+            ],
+            "maxLength": 200,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "timeoutSec": {
+            "maximum": 60,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scope",
+          "event",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "name": "hooks_set",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "hubspot.list_objects",
       "deferred": false,
       "description": "List remote objects of a type (contacts, companies, deals) for mapping",
@@ -44471,7 +44762,8 @@
               "item.shared",
               "space.deletion_scheduled",
               "space.deletion_cancelled",
-              "ci.paused"
+              "ci.paused",
+              "hook.asked"
             ],
             "type": "string"
           },
@@ -44941,7 +45233,8 @@
               "item.shared",
               "space.deletion_scheduled",
               "space.deletion_cancelled",
-              "ci.paused"
+              "ci.paused",
+              "hook.asked"
             ],
             "type": "string"
           },

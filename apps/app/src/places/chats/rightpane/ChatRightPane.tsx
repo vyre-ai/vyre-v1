@@ -25,6 +25,7 @@ import { MemoryTab } from "./MemoryTab.tsx";
 import { KnowsTab } from "../memory/KnowsTab.tsx";
 import { RoutinesTab } from "./RoutinesTab.tsx";
 import { TerminalPaneTab } from "./TerminalPaneTab.tsx";
+import { HooksTab } from "./HooksTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN, PANE_SCREEN } from "./ThreadsTab.tsx";
 import { CrewTab } from "./CrewTab.tsx";
 import { useCrew } from "../crew/context.tsx";
@@ -50,6 +51,8 @@ export interface ChatRightPaneProps {
   embedded?: boolean;
   /** Start with the Computer tab on the setup of an agent that has no computer yet (what "Give it a computer" in About does). */
   setup?: boolean;
+  /** The hook to show and flash when the Hooks tab was opened from a line in the chat. */
+  hookSel?: string | null;
   onTab?: (tab: TabKey) => void;
   /** Pins which rows are drawn (tests and screenshots draw them all); the shell leaves it out and the lists window by scroll. */
   window?: VirtualWindow;
@@ -95,7 +98,7 @@ export function ChatRightPaneLoading({ open, onToggle }: { open: boolean; onTogg
   );
 }
 
-function PaneView({ open, onToggle, tab: controlled, initialTab, setup: setupFirst, onTab, window, paneWidth, openRoutine, extra, embedded }: ChatRightPaneProps): ReactElement {
+function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, setup: setupFirst, onTab, window, paneWidth, openRoutine, extra, embedded }: ChatRightPaneProps): ReactElement {
   const data = usePaneData();
   const online = useOnline();
   const menu = useMenu();
@@ -144,7 +147,10 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, setup: setupFir
     void Promise.resolve(data.call("skills.page", {})).then((p) => { const pg = p as { mine?: unknown[]; shared?: unknown[] } | undefined; if (live) setHasSkills(((pg?.mine?.length ?? 0) + (pg?.shared?.length ?? 0)) > 0); }, () => undefined);
     return () => { live = false; };
   }, [data]);
-  const tabs = useMemo(() => tabsOf(data.terminal !== undefined, hasCrew, hasComputer, hasSkills).filter((t) => !(noComputers && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, noComputers, data.terminal, hasCrew, showComputer, hasSkills]);
+  // the Hooks tab appears once the chat has hooks, or when a hook line opened it
+  const hooksQ = useScreenQuery<CapMap["hooks.list"]["out"]>(PANE_SCREEN, "hooks", { threadId: data.threadId });
+  const hasHooks = (hooksQ.status === "ready" && hooksQ.data.hooks.length > 0) || tab === "hooks";
+  const tabs = useMemo(() => tabsOf(data.terminal !== undefined, hasCrew, hasComputer, hasSkills, hasHooks).filter((t) => !(noComputers && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, noComputers, data.terminal, hasCrew, showComputer, hasSkills, hasHooks]);
   const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);
   const { strip, select } = useFittedTabs(tabs, tab, paneNow, {
@@ -163,6 +169,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, setup: setupFir
       {tab === "about" ? <AboutTab agent={agent} name={data.agent.name} hasComputer={showComputer} {...(!noComputers && !showComputer ? { onGive: () => { setSetup(true); setOwn("computer"); onTab?.("computer"); } } : {})} onOpenFiles={() => { setOwn("files"); onTab?.("files"); }} onOpenKnows={() => { setOwn("memory"); onTab?.("memory"); }} /> : null}
       {tab === "computer" ? <ComputerTab deps={deps} {...(window ? { window } : {})} /> : null}
       {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
+      {tab === "hooks" ? <HooksTab deps={deps} selected={hookSel ?? null} {...(window ? { window } : {})} /> : null}
       {tab === "crew" ? <CrewTab deps={deps} {...(window ? { window } : {})} /> : null}
       {tab === "files" ? <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} /> : null}
       {tab === "terminal" && data.terminal ? <TerminalPaneTab data={data.terminal} /> : null}

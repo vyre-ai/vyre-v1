@@ -44,3 +44,18 @@ export function responsibleFor(title: string | undefined, roles: readonly { proj
   const t = title ?? "Member";
   return roles.length === 0 ? `${t}.` : `${t}. ${roles.map((r) => `${r.role} on ${r.project}`).join(", ")}.`;
 }
+
+/** The lines of someone's public profile a teammate may read (memory.profile.get with personId): current public facts only. The private part never reaches this pane, whatever the answer holds. */
+export function publicLines(out: { public: readonly { text: string; status: string; place: string }[] } | null | undefined): string[] {
+  return (out?.public ?? []).filter((f) => f.place === "public" && f.status === "current" && f.text.trim() !== "").map((f) => f.text.trim());
+}
+
+/** What chat.pace_of says about their usual reply time, in words. */
+export function paceWords(p: "minutes" | "hour" | "day" | "slow" | "unknown"): string {
+  return p === "minutes" ? "Usually within minutes" : p === "hour" ? "Usually within the hour" : p === "day" ? "Usually the same day" : p === "slow" ? "Usually after a day" : "Not enough chats yet";
+}
+
+/** How they hear about this chat: the level tells others whether to @ them. */
+export function notifyWords(n: "all" | "mentions" | "off" | undefined): string | undefined {
+  return n === "all" ? "All messages" : n === "mentions" ? "Mentions only" : n === "off" ? "Off" : undefined;
+}

@@ -566,7 +566,9 @@ export async function helperSteer(ctx: ChatCtx, input: { threadId: string; body:
   const t = threadBy(ctx.db, input.threadId);
   if (!t || t.kind !== "helper") raise(ctx, "validation.not_found", "That is not a helper chat.");
   const asker = askerOf(ctx);
-  if (!asker.startsWith("usr_") || t.starter !== asker) raise(ctx, "validation.precondition_failed", "Only the person the helper works for can ask it something.");
+  // any person who can speak in the chat the helper works in may message it (owner, 4 Nov 2026): the words are theirs, the turn runs on their account and within their access, and the chat above sees them
+  const root = t.parentThreadId !== undefined ? threadBy(ctx.db, t.parentThreadId) : null;
+  if (!asker.startsWith("usr_") || !root || !canSpeak(ctx, root)) raise(ctx, "validation.precondition_failed", "Only someone in the chat this helper works in can message it.");
   if (t.closedAt !== undefined) raise(ctx, "validation.precondition_failed", "This helper has finished. Ask in the chat that started it.");
   const body = input.body.trim();
   if (body === "" || body.length > 20_000) raise(ctx, "validation.bad_input", "Write what to ask it.");
@@ -574,6 +576,12 @@ export async function helperSteer(ctx: ChatCtx, input: { threadId: string; body:
   if (!lead) raise(ctx, "validation.precondition_failed", "This helper has no agent to ask.");
   const m = insertMessage(ctx, t.id, { author: asker, kind: "text", body });
   deliver(ctx, t, m, [{ kind: "agent", id: lead.agentId }], { kind: "person", id: asker }, { notify: false });
+  // the chat above sees it, as a line to be read and not answered, so the agent that started the helper knows what it was told
+  if (root) {
+    const seen = insertMessage(ctx, root.id, { author: asker, kind: "text", body: `To "${t.title ?? "a helper"}": ${body}`, depth: 0 });
+    deliver(ctx, root, seen, [], { kind: "person", id: asker }, { notify: false, copy: true });
+  }
+  ctx.emit("helper.note", t.id, { helperThreadId: t.id, direction: "down", kind: "followup", messageId: m.id });
   return { messageId: m.id };
 }
 

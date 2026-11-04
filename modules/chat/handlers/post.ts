@@ -10,6 +10,7 @@ import { unarchiveForMention } from "./archive-state.ts";
 import { saveScreen } from "./screen.ts";
 import { approveInChat } from "./agent-dm.ts";
 import { followersOf, joinThread } from "./follow.ts";
+import { recordMentions } from "./pace.ts";
 
 export interface Mention { kind: "person" | "agent"; id: string }
 export interface PostInput {
@@ -246,6 +247,7 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     ...(input.clientId !== undefined ? { id: input.clientId } : {}), author: author.id, kind: author.kind === "agent" ? "agent" : "text", body, blocks,
     ...(input.replyTo !== undefined ? { replyTo: input.replyTo } : {}), ...(input.via ? { via: { routineOwner: input.via.routineOwner } } : {}), ...(author.kind === "agent" && ctx.actingFor !== undefined && !ctx.sharedKey ? { paidBy: ctx.actingFor } : {}), depth, attachments,
   });
+  recordMentions(ctx, m.id, thread.id, mentions);
   // a person who replies in a thread is in it: its later replies reach them and it counts on their Threads row
   if (author.kind === "person") joinThread(ctx, thread, author.id);
   saveScreen(ctx, thread.id, m.id, input.screen);

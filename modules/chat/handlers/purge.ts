@@ -5,6 +5,7 @@
 import { ensure } from "../projections.ts";
 import { deletedBefore, forgetDeleted } from "./archive-state.ts";
 import { ownedIn, trashOwned } from "./owned.ts";
+import { forgetMentions } from "./pace.ts";
 import type { ChatCtx } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -27,6 +28,7 @@ function family(ctx: ChatCtx, root: string): string[] {
 }
 
 function dropThread(ctx: ChatCtx, id: string): void {
+  forgetMentions(ctx, { thread: id });
   for (const m of ctx.db.all(`SELECT id FROM chat_message WHERE thread = ?`, id) as Row[]) ctx.db.run(`DELETE FROM chat_message__fm WHERE id = ?`, String(m["id"]));
   ctx.db.run(`DELETE FROM chat_message WHERE thread = ?`, id);
   ctx.db.run(`DELETE FROM chat_block WHERE thread = ?`, id);
@@ -118,6 +120,7 @@ export async function transcriptPurge(ctx: ChatCtx, input: { before: number; lim
   const batch = due.slice(0, room);
   for (const m of batch) {
     const id = String(m["id"]);
+    forgetMentions(ctx, { message: id });
     ctx.db.run(`DELETE FROM chat_block WHERE message = ?`, id);
     ctx.db.run(`DELETE FROM chat_message__fm WHERE id = ?`, id);
     ctx.db.run(`DELETE FROM chat_message WHERE id = ?`, id);

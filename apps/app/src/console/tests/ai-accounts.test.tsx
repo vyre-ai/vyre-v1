@@ -131,3 +131,12 @@ test("N people do today comes from providers.own_people, so an admin sees people
     assert.ok(textOf(t.root).includes("3 people will switch to the Space's AI accounts: Maya, Lena, Irfad"));
   } finally { t.restore(); }
 });
+
+test("a Space Codex API key reads 'Codex, with an API key' in the list", async () => {
+  const codex = { ref: "acc_codex", driver: "codex", kind: "api_key", title: "Codex", name: "Codex, with an API key", mine: false, ownerId: "usr_irfad", uses: { automations: true }, status: "ok" };
+  const { root, restore } = await page([codex], "any");
+  try {
+    assert.match(textOf(root), /Codex, with an API key/);
+    assert.match(textOf(find(root, "ai-acct-acc_codex") ?? root), /Codex, with an API key/);
+  } finally { restore(); }
+});

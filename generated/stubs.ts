@@ -423,6 +423,7 @@ export function stubs(ctx: CallCtx) {
         page: call("chat.history.page"),
         search: call("chat.history.search"),
       },
+      hook_line: call("chat.hook_line"),
       make_task: call("chat.make_task"),
       message: {
         get: call("chat.message.get"),
@@ -438,6 +439,7 @@ export function stubs(ctx: CallCtx) {
       noted: call("chat.noted"),
       open_as_chat: call("chat.open_as_chat"),
       open_tab: call("chat.open_tab"),
+      pace_of: call("chat.pace_of"),
       people_status: call("chat.people_status"),
       pin: call("chat.pin"),
       pins: {
@@ -1181,6 +1183,7 @@ export function stubs(ctx: CallCtx) {
       repos: {
         list: call("github.repos.list"),
       },
+      runner_release: call("github.runner_release"),
       runners: {
         jit_config: call("github.runners.jit_config"),
         remove: call("github.runners.remove"),
@@ -1379,6 +1382,22 @@ export function stubs(ctx: CallCtx) {
       mark_digest_seen: call("home.mark_digest_seen"),
       routines_today: call("home.routines_today"),
       write_digest: call("home.write_digest"),
+    },
+    hooks: {
+      allow_once: call("hooks.allow_once"),
+      ask_admin: call("hooks.ask_admin"),
+      fire: call("hooks.fire"),
+      list: call("hooks.list"),
+      pause: call("hooks.pause"),
+      policy: {
+        get: call("hooks.policy.get"),
+        set: call("hooks.policy.set"),
+      },
+      remove: call("hooks.remove"),
+      runs: {
+        list: call("hooks.runs.list"),
+      },
+      set: call("hooks.set"),
     },
     hubspot: {
       health: call("hubspot.health"),

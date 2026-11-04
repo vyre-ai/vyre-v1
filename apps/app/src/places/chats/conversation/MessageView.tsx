@@ -48,6 +48,8 @@ import { KeyRequestCard, isKeyRequest } from "./keyrequest.tsx";
 import { AccessRequestCard, isAccessRequest } from "./accessrequest.tsx";
 import { RedactRequestCard, isRedactRequest } from "./redactrequest.tsx";
 import { ChecklistCard, isChecklist } from "./checklist.tsx";
+import { HookLineActs } from "./hookline.tsx";
+import { hookLead } from "./model.ts";
 import { NoteOfferCard, isNoteOffer } from "./noteoffer.tsx";
 import { InstallCard, isInstallPlan } from "../install/InstallCard.tsx";
 import { QuoteCard, WebPageCard, isQuote, isWebPage } from "./webpage.tsx";
@@ -66,7 +68,7 @@ import { AttachmentChips, LinkedText, MountRefs, refsOf } from "./attachments.ts
 import { unnamed } from "../names.ts";
 import type { ConversationData } from "./data.tsx";
 import type { GlyphName } from "./parts.tsx";
-import { pokeLine, pokedBy, reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isSystemLine, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
+import { hookLineOf, hookLineText, pokeLine, pokedBy, reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isSystemLine, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
 import { MARK } from "./marks.ts";
 import type { ReplySummary } from "./replies.ts";
@@ -142,8 +144,10 @@ export interface MessageActions {
   openMessage?(threadId: string, messageId: string): void;
   /** The crew strip: the live read, the open peek, and what its buttons do. Without it the strip draws from the helpers' own blocks and its rows do nothing. */
   crew?: { status: CrewStatusOut | null; selected: string | null; peek(helperThreadId: string): void; stopAll(): void; openPane(): void; retry(helperThreadId: string): void };
+  /** A hook line's Edit or Details: the Hooks tab of the right pane at that hook. */
+  openHooks?(hookId: string | undefined): void;
   /** What files and links in a message need: lookups, opening beside the chat, copying. Left out in a place that cannot open them. */
-  files?: Pick<ConversationData, "call" | "nav" | "copy" | "threadId" | "changes">;
+  files?: Pick<ConversationData, "call" | "nav" | "copy" | "threadId" | "changes" | "nameOf">;
   /** The agents of this chat (for a Mount card, which shares the new folder with them) and the sheet that connects a folder. Left out where the shell has no Files. */
   mountCard?: { agents: readonly { id: string; name: string }[]; data: Pick<ConversationData, "call" | "mountSheet"> };
   /** What a Run this card needs: the capability door, a key for a new session, who asked, and how to show a session. Left out where the shell has no terminal. */
@@ -198,6 +202,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
         </View>
       );
     }
+    const hookLine = hookLineOf(item.message);
     const origin = forkOrigin(item.message);
     if (origin && props.actions.openMessage) {
       const go = props.actions.openMessage;
@@ -209,6 +214,18 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
             <Text testID={`fork-origin-${item.key}`} accessibilityRole="link" onPress={() => go(origin.threadId, origin.messageId)} style={st.eventLink}>{origin.title}</Text>
           </Text>
           <Text style={st.eventTime}>{item.time}</Text>
+        </View>
+      );
+    }
+    if (hookLine) {
+      // a hook line (lane l-hooks): the lock where other lines have a dot, the lead words in ink, the way forward quiet at the right, no time
+      const words = hookLineText(hookLine, props.actions.nameOf ?? unnamed);
+      const [lead, rest] = hookLead(words);
+      return (
+        <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
+          <Glyph name="lock" size={13} color="var(--ink-4)" />
+          <Text style={st.hookText}><Text style={st.hookLead}>{lead}</Text>{rest}</Text>
+          {props.actions.files ? <HookLineActs id={item.key} line={hookLine} threadId={props.actions.files.threadId} call={props.actions.files.call} {...(props.actions.openHooks ? { open: (hookId: string) => props.actions.openHooks?.(hookId) } : {})} linkStyle={st.hookAct} quietStyle={st.hookAct} /> : null}
         </View>
       );
     }
@@ -523,7 +540,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           return (
             <View key={b.id}>
               <CrewStrip members={members} totals={totals} selectedId={c?.selected ?? null} onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))} {...(c ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) } : {})} />
-              {/* ui-rows-lint: not a list (the approval cards a message holds) */}
+              {/* ui-rows-lint: not a list (the approval cards of helpers that wait for a yes, each the same card as anywhere else in the chat) */}
               {actions.files ? holds.map((x) => <ApprovalCard key={`hold-${x.id}`} taskId={x.holdTaskId} agent={x.name ?? x.title} agentId={x.agentId} data={actions.files!} />) : null}
             </View>
           );
@@ -727,6 +744,9 @@ export const st = StyleSheet.create({
   eventText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
   eventLink: { color: "var(--accent)" as string, textDecorationLine: "underline", cursor: "pointer" } as object,
   eventTime: { fontSize: 11.5, color: "var(--ink-4)" as string },
+  hookText: { flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 19, color: "var(--ink-2)" as string },
+  hookLead: { color: "var(--ink)" as string, fontWeight: "500" },
+  hookAct: { fontSize: 12.5, color: "var(--ink-3)" as string, cursor: "pointer" } as object,
   gapTop: { marginTop: 18 },
   // the mark sits outside the message (marks.ts), so nothing touches its edge
   found: MARK.found as object,

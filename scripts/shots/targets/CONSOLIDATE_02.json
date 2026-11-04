@@ -97,6 +97,24 @@
       "note": "Console page voice over scripted Northwind data."
     },
     {
+      "id": "CONSOLIDATE_02-voice_failing",
+      "route": "/m/CONSOLIDATE_02?part=voice_failing",
+      "proto": "console,{skin}",
+      "note": "Console Voice, variant failing."
+    },
+    {
+      "id": "CONSOLIDATE_02-voice_eleven",
+      "route": "/m/CONSOLIDATE_02?part=voice_eleven",
+      "proto": "console,{skin}",
+      "note": "Console Voice, variant eleven."
+    },
+    {
+      "id": "CONSOLIDATE_02-voice_new",
+      "route": "/m/CONSOLIDATE_02?part=voice_new",
+      "proto": "console,{skin}",
+      "note": "Console Voice, variant new."
+    },
+    {
       "id": "CONSOLIDATE_02-aipolicy",
       "route": "/m/CONSOLIDATE_02?part=aipolicy",
       "proto": "console,{skin}",
@@ -275,6 +293,30 @@
       "route": "/m/CONSOLIDATE_02?part=ghapp_own",
       "proto": "console,{skin}",
       "note": "Apps > GitHub, the Space's own app"
+    },
+    {
+      "id": "CONSOLIDATE_02-hooks",
+      "route": "/m/CONSOLIDATE_02?part=hooks",
+      "proto": "console,at:hooks,{skin}",
+      "note": "Agents > Hooks: four hooks, one stopped an email lately"
+    },
+    {
+      "id": "CONSOLIDATE_02-hooks_empty",
+      "route": "/m/CONSOLIDATE_02?part=hooks_empty",
+      "proto": "console,at:hooks,{skin}",
+      "note": "Agents > Hooks, no hooks yet"
+    },
+    {
+      "id": "CONSOLIDATE_02-hooks_add",
+      "route": "/m/CONSOLIDATE_02?part=hooks_add",
+      "proto": "console,at:hooks,{skin}",
+      "note": "Agents > Hooks, the Add a hook sheet open"
+    },
+    {
+      "id": "CONSOLIDATE_02-hooks_only",
+      "route": "/m/CONSOLIDATE_02?part=hooks_only",
+      "proto": "console,at:hooks,{skin}",
+      "note": "Agents > Hooks, the Add a hook sheet with the Only for menu open"
     }
   ]
 }

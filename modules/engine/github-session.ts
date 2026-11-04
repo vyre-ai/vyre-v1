@@ -3,6 +3,9 @@
 // (never a file, never the command line, never a Vault item) and is gone when the process ends. A person with no connected GitHub, a chat with no linked repository, or a policy that asks first gets nothing.
 // DECISION: git reads the helper from GIT_CONFIG_COUNT, GIT_CONFIG_KEY_n and GIT_CONFIG_VALUE_n, so nothing is written to the work folder's config and nothing outlives the process.
 import type { LaunchSpec } from "../../agent/src/drivers/cli/types.ts";
+import fs from "node:fs";
+import path from "node:path";
+import { heldSecrets, holdSecret } from "../../agent/src/drivers/cli/redact.ts";
 
 export interface GithubSessionPort {
   call(cap: string, input: unknown, as?: string): Promise<unknown>;
@@ -35,6 +38,8 @@ export async function githubEnv(port: GithubSessionPort, person: string, threadI
   const handle = got.env?.["GH_TOKEN"];
   const token = handle ? port.fill(handle) : null;
   if (!token) return {};
+  // whatever the process writes back is cleaned of this token, until the token ends (agent/src/drivers/cli/redact.ts)
+  holdSecret(token, Number((got as { expiresAt?: number }).expiresAt ?? 0) + 5 * 60_000 || Date.now() + 65 * 60_000);
   const out: Record<string, string> = { GH_TOKEN: token, GITHUB_TOKEN: token };
   const pairs = (got.gitConfig ?? []).map((l) => { const i = l.indexOf("="); return i > 0 ? [l.slice(0, i), l.slice(i + 1)] as const : null; }).filter((p): p is readonly [string, string] => p !== null);
   out["GIT_CONFIG_COUNT"] = String(pairs.length);
@@ -45,4 +50,37 @@ export async function githubEnv(port: GithubSessionPort, person: string, threadI
 /** The spawn with GitHub in its environment, set last so nothing filled before it can name another. */
 export function withGithub(spec: LaunchSpec, env: Record<string, string>): LaunchSpec {
   return Object.keys(env).length === 0 ? spec : { ...spec, env: { ...spec.env, ...env } };
+}
+
+const SKIP = new Set(["node_modules", ".cache"]);
+const MAX_FILE = 2 * 1024 * 1024;
+
+/**
+ * Take every held secret (the GitHub token a session was handed) out of the files a session wrote: a script that saved its environment, a remote added with the token in its address (.git/config), a log. It
+ * walks the folder, text files up to 2 MB, and replaces the token with [token]. Run when the engine's process ends and before a crew teammate's leftovers are committed, so a token can never be committed or pushed.
+ * Returns the files it changed. Never throws: a folder that is gone has nothing to clean.
+ */
+export function redactTree(dir: string, secrets: readonly string[] = heldSecrets()): string[] {
+  const changed: string[] = [];
+  if (secrets.length === 0) return changed;
+  const walk = (d: string, depth: number): void => {
+    let entries: fs.Dirent[];
+    try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      const full = path.join(d, e.name);
+      if (e.isDirectory()) { if (depth < 12 && !SKIP.has(e.name)) walk(full, depth + 1); continue; }
+      if (!e.isFile()) continue;
+      try {
+        if (fs.statSync(full).size > MAX_FILE) continue;
+        const buf = fs.readFileSync(full);
+        if (buf.includes(0)) continue;   // binary
+        let text = buf.toString("utf8");
+        let hit = false;
+        for (const s of secrets) if (text.includes(s)) { text = text.split(s).join("[token]"); hit = true; }
+        if (hit) { fs.writeFileSync(full, text); changed.push(full); }
+      } catch { /* a file that cannot be read or written is left */ }
+    }
+  };
+  walk(dir, 0);
+  return changed;
 }

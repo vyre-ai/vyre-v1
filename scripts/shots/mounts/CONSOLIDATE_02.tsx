@@ -219,7 +219,7 @@ const POLICIES = [
   { key: "gate.wait", scope: "space", kind: "gate", value: { hours: 4 }, updatedAt: ago(30 * DAY) },
 ];
 const DEVICES = [["dev_1", "usr_irfad", "Irfad's MacBook Pro", "desktop", "San Francisco", 0], ["dev_2", "usr_irfad", "Irfad's iPhone", "phone", "San Francisco", 40 * MIN], ["dev_3", "usr_maya", "Maya's MacBook Air", "desktop", "Austin", 12 * MIN], ["dev_4", "usr_omar", "Omar's iMac", "desktop", "Dallas", 2 * HOUR], ["dev_5", "usr_lena", "Chrome on Windows", "web", "Denver", 3 * HOUR]].map(([id, person, name, cls, location, seen], i) => ({ id, person, name, class: cls, epoch: 1, lastSeenAt: ago(seen as number), location, ...(i === 0 ? { current: true } : {}) }));
-const ISO_SPACE = { id: "northwind", name: "Northwind", legalName: "Northwind Advisory LLC", kind: "team", owner: "usr_irfad", fingerprint: "7F:3A:91:0C", address: { mode: "relay", host: "northwind.vyre.run" }, hostedOn: "Northwind server", defaults: {}, createdAt: ago(210 * DAY) };
+const ISO_SPACE = { id: "northwind", name: "Northwind", legalName: "Northwind Advisory LLC", kind: "team", owner: "usr_irfad", fingerprint: "7F:3A:91:0C", address: { mode: "relay", host: "northwind.vyre.run" }, hostedOn: "Northwind server", defaults: { timezone: "America/Los_Angeles" }, createdAt: ago(210 * DAY) };
 const SETTINGS: Record<string, unknown> = {
   "engine.review_sampling": { percent: 5, labels: ["confidential", "restricted"] }, "engine.egress": { mode: "providers", hosts: [] }, "backup.encrypt": true,
   "send.cap": 2000, "send.window": "8-20", "send.throttle": 20,
@@ -367,8 +367,9 @@ const answers: Record<string, Handler> = {
   // Space > Transfer or delete: the last export
   "spaces.export_latest": () => ({ at: ago(9 * DAY) }),
   // AI > Voice
-  "talk.space.status": () => ({ set: true, on: true, provider: "elevenlabs", itemId: "vit_voice", setBy: "usr_irfad", checkedAt: ago(HOUR), state: "ok", peopleOwnKey: 1 }),
-  "talk.status": () => ({ on: true, provider: "elevenlabs", language: "en", model: "eleven_flash_v2_5", source: "space", spaceOn: true, mayManage: true, providers: [{ key: "elevenlabs", name: "ElevenLabs", keyUrl: "https://elevenlabs.io/app/settings/api-keys", models: [{ id: "eleven_flash_v2_5", label: "Flash" }, { id: "eleven_multilingual_v2", label: "Multilingual" }], languages: [{ id: "en", label: "English" }, { id: "es", label: "Spanish" }] }, { key: "deepgram", name: "Deepgram", keyUrl: "https://console.deepgram.com", models: [{ id: "nova-3", label: "Nova 3" }], languages: [{ id: "en", label: "English" }] }] }),
+  // voice: Deepgram on (the prototype); voice_new: no key yet; voice_eleven: ElevenLabs in use with a Deepgram key already stored; voice_failing: the key stopped working
+  "talk.space.status": () => part.variant === "new" ? { set: false, on: false } : part.variant === "eleven" ? { set: true, on: true, provider: "elevenlabs", keyed: ["elevenlabs", "deepgram"], itemId: "vit_voice", setBy: "usr_irfad", checkedAt: ago(HOUR), state: "ok", peopleOwnKey: 1 } : { set: true, on: true, provider: "deepgram", keyed: ["deepgram"], itemId: "vit_voice", setBy: "usr_irfad", checkedAt: ago(4 * MIN), state: part.variant === "failing" ? "failing" : "ok", peopleOwnKey: 2 },
+  "talk.status": () => ({ on: true, provider: part.variant === "eleven" ? "elevenlabs" : "deepgram", language: "en", model: "eleven_flash_v2_5", source: "space", spaceOn: true, mayManage: true, providers: [{ key: "elevenlabs", name: "ElevenLabs", keyUrl: "https://elevenlabs.io/app/settings/api-keys", models: [{ id: "eleven_flash_v2_5", label: "Flash" }, { id: "eleven_multilingual_v2", label: "Multilingual" }], languages: [{ id: "en", label: "English" }, { id: "es", label: "Spanish" }] }, { key: "deepgram", name: "Deepgram", keyUrl: "https://console.deepgram.com", models: [{ id: "nova-3", label: "Nova 3" }], languages: [{ id: "en", label: "English" }] }] }),
   // Computers > CI runners: off by default; _on = on with the month's cost and runs; _paused = on and at the cap
   "ci.settings.get": () => ({ settings: { enabled: part.variant !== "", provider: "digitalocean", vaultKeyRef: "#Northwind_DO", region: "nyc3", size: "s-4vcpu-8gb", image: "ubuntu-24-04-x64", maxConcurrent: 3, monthlyCapUsd: 50, maxJobMinutes: 30, labels: ["vyre"] }, keyReady: true, githubApp: part.variant === "" ? { ready: false, installed: false, missing: [], acceptUrl: null, orgAcceptUrl: null } : { ready: true, installed: true, missing: [], acceptUrl: null, orgAcceptUrl: null } }),
   "ci.cost.month": () => part.variant === "paused" ? { month: "2026-11", spentUsd: 50, capUsd: 50, leftUsd: 0, runs: 1320, paused: true, byRepo: [{ repo: "northwind/website", runs: 980, costUsd: 36.4 }, { repo: "northwind/portal", runs: 340, costUsd: 13.6 }] } : { month: "2026-11", spentUsd: 4.12, capUsd: 50, leftUsd: 45.88, runs: 212, paused: false, byRepo: [{ repo: "northwind/website", runs: 150, costUsd: 2.9 }, { repo: "northwind/portal", runs: 62, costUsd: 1.22 }] },
@@ -414,6 +415,23 @@ const answers: Record<string, Handler> = {
 
 answers["computers.hosts"] = () => ({ available: true, hosts: [{ hostId: "this", kind: "space", name: "Northwind server", online: true, canRun: true, runs: 3 }, { hostId: "srv_box", kind: "server", name: "Berlin box", online: true, canRun: true, runs: 1 }] });
 
+// Agents > Hooks: four hooks (an admin's command, one an agent made, a paused one, one that stopped an email lately); hooks_empty has none
+const hook = (id: string, o: Record<string, unknown>): Record<string, unknown> => ({ id, scope: "space", matcher: "", paused: false, madeBy: "usr_maya", madeByKind: "admin", helpers: false, timeoutSec: 10, createdAt: ago(20 * DAY), updatedAt: ago(20 * DAY), mine: false, canChange: true, ...o });
+const HOOKS = [
+  hook("hk_fmt", { event: "tool.after", kind: "command", line: "After a tool edits a file, run the formatter", spec: { command: "npm run format" }, matcher: "files.write" }),
+  hook("hk_files", { event: "outward.before", kind: "check", paused: true, madeBy: "usr_irfad", line: "Before a file leaves the Space, check it is not marked private", spec: { instruction: "Confirm the file is not marked private" }, matcher: "files.*" }),
+  hook("hk_mail", { event: "outward.before", kind: "check", line: "Before an email goes to a client, check the address is in Contacts", spec: { instruction: "Check the address is in Contacts" }, matcher: "email.send" }),
+];
+const AGENT_HOOKS = [hook("hk_notes", { scope: "agent", agentId: "agt_docs", madeBy: "agt_docs", madeByKind: "agent", event: "turn.end", kind: "action", line: "After a turn ends, Docs adds a line to the weekly notes", spec: { cap: "notes.add", input: {} } })];
+const hookRun = (id: number, hookId: string, outcome: string, at: number, detail?: string): Record<string, unknown> => ({ id, hookId, event: "tool.after", outcome, ms: 40, at, ...(detail ? { detail } : {}) });
+answers["hooks.list"] = (i) => ({ hooks: part.variant === "empty" ? [] : i["scope"] === "agent" ? (i["agentId"] === "agt_docs" ? AGENT_HOOKS : []) : HOOKS, agentHooks: true });
+answers["hooks.policy.get"] = () => ({ agentHooks: true });
+answers["hooks.runs.list"] = (i) => {
+  const all = [hookRun(1, "hk_fmt", "ok", ago(3 * MIN)), hookRun(2, "hk_mail", "blocked", ago(2 * HOUR), "The address is not in Contacts"), hookRun(3, "hk_notes", "ok", ago(DAY)), hookRun(4, "hk_mail", "ok", ago(3 * DAY))];
+  const outcomes = i["outcomes"] as string[] | undefined;
+  return { runs: part.variant === "empty" ? [] : all.filter((r) => (outcomes ? outcomes.includes(String(r["outcome"])) : true) && (typeof i["since"] === "number" ? Number(r["at"]) >= i["since"] : true)) };
+};
+
 const machines = machinesCall();
 const part = { current: "", variant: "" };
 async function call(cap: string, input: unknown): Promise<unknown> {
@@ -445,8 +463,16 @@ const DEFAULTS: Record<string, string> = { memlearn: "memlearn", "def-access": "
 export default function Mount(): ReactNode {
   const [id, setId] = useState<string | null>(null);
   useEffect(() => { const raw = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "overview"; const [p, v] = raw.split("_"); part.current = p!; part.variant = v ?? ""; setId(p!); }, []);
+  // hooks_add: the Add a hook sheet open over the page. hooks_only: the same sheet, then the Only for picker pressed so its menu is open.
+  useEffect(() => {
+    if (id !== "hooks" || (part.variant !== "add" && part.variant !== "only")) return undefined;
+    const doc = (globalThis as { document?: { querySelector(s: string): { click(): void } | null } }).document;
+    const t = setTimeout(() => doc?.querySelector("[data-testid='hooks-add']")?.click(), 900);
+    const t2 = part.variant === "only" ? setTimeout(() => doc?.querySelector("[aria-label='Only for']")?.click(), 1800) : undefined;
+    return () => { clearTimeout(t); if (t2) clearTimeout(t2); };
+  }, [id]);
   const data = useMemo(() => consoleData(), []);
   const settings = useMemo(() => createSampleSettings().data, []);
   if (id === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  return <ConsoleDataProvider value={data}><View style={{ flex: 1, minHeight: 1000 }}><ConsoleShell key={id} embedded initialPage={id} renderPage={(pid, state) => DEFAULTS[pid] ? <SettingsDataProvider value={settings}><SpaceDefaults page={DEFAULTS[pid] as never} /></SettingsDataProvider> : consolePageFor(pid, state as Record<string, string | undefined>)} /></View></ConsoleDataProvider>;
+  return <ConsoleDataProvider value={data}><View style={{ flex: 1, minHeight: 1000 }}><ConsoleShell key={id} embedded initialPage={id} renderPage={(pid, state) => DEFAULTS[pid] ? <SettingsDataProvider value={settings}><SpaceDefaults page={DEFAULTS[pid] as never} flush={state['extra'] === true} /></SettingsDataProvider> : consolePageFor(pid, state as Record<string, string | undefined>)} /></View></ConsoleDataProvider>;
 }

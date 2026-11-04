@@ -10,6 +10,8 @@ export interface HelperNav {
   openThread(threadId: string): void;
   /** The message in a thread that started the helper: the link back to it. Left out where a thread opens at its top only. */
   openMessage?(threadId: string, messageId: string): void;
+  /** A hook row: the lead's Hooks tab at that hook. Left out where the shell has none. */
+  openHooks?(hookId: string): void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }

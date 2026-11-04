@@ -203,7 +203,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   const extras = activeTab?.tab.extras?.[page] ?? [];
 
   const allowed = data.allowedScreens ? data.allowedScreens.has(def.screen) : data.can(def.needs);
-  const drawn = (id: string): ReactElement => <>{renderPage?.(id, pageState) ?? <States kind="error" message={`${pageById(id)?.title ?? id} is not implemented in this candidate yet.`} />}</>;
+  const drawn = (id: string, extra = false): ReactElement => <>{renderPage?.(id, extra ? { ...pageState, extra: true } : pageState) ?? <States kind="error" message={`${pageById(id)?.title ?? id} is not implemented in this candidate yet.`} />}</>;
   const body = ((): ReactElement => {
     if (!allowed) {
       return <LockedState resourceType="space" resourceId={data.space.id} title={def.title} reason="role_lacks_permission" level="manage" status="none" canRequest note="" density="regular" {...(invoke ? { invoke } : {})} />;
@@ -215,7 +215,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
       return <Audit key={JSON.stringify(pageState)} {...(filter ? { initialFilter: filter } : {})} {...(open ? { initialOpen: open } : {})} />;
     }
     // ui-rows-lint: not a list (extra pages drawn under the page, each its own section)
-    return <>{drawn(def.id)}{extras.filter((x) => { const d = pageById(x); return d !== undefined && ok(d); }).map((x) => <View key={x} style={s.extra} testID={`extra-${x}`}>{drawn(x)}</View>)}</>;
+    return <>{drawn(def.id)}{extras.filter((x) => { const d = pageById(x); return d !== undefined && ok(d); }).map((x) => <View key={x} style={s.extra} testID={`extra-${x}`}>{drawn(x, true)}</View>)}</>;
   })();
 
   return (
@@ -316,7 +316,7 @@ const s = StyleSheet.create({
   view: { paddingVertical: 2 },
   viewText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-3)" as string },
   viewTextOn: { color: "var(--ink)" as string },
-  extra: { marginTop: 8 },
+  extra: { marginTop: 0 },
   alertDot: { minWidth: 18, height: 18, paddingHorizontal: 5, borderRadius: 9, alignItems: "center", justifyContent: "center", backgroundColor: "var(--warn)" as string },
   alertDotText: { fontSize: 11, fontWeight: "600", color: "#fff" },
   wide: { width: "100%", maxWidth: 1200, flex: 1, minHeight: 480 },

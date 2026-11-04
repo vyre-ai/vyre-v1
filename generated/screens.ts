@@ -1751,6 +1751,13 @@ export const screens: ScreenIndexEntry[] = [
           "threadId": "/state/threadId"
         },
         "live": true
+      },
+      "hooks": {
+        "cap": "hooks.list",
+        "input": {
+          "threadId": "/state/threadId"
+        },
+        "live": true
       }
     },
     "actions": {
@@ -1828,6 +1835,20 @@ export const screens: ScreenIndexEntry[] = [
       },
       "crew": {
         "cap": "engine.crew.list",
+        "input": {
+          "threadId": "/state/threadId"
+        },
+        "live": true
+      },
+      "hooks": {
+        "cap": "hooks.list",
+        "input": {
+          "threadId": "/state/threadId"
+        },
+        "live": true
+      },
+      "hookRuns": {
+        "cap": "hooks.runs.list",
         "input": {
           "threadId": "/state/threadId"
         },
@@ -2769,6 +2790,43 @@ export const screens: ScreenIndexEntry[] = [
     },
     "needs": [
       "connectors.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.hooks",
+    "module": "hooks",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleHooks",
+    "caller": "principal",
+    "queries": {
+      "hooks": {
+        "cap": "hooks.list",
+        "input": {
+          "scope": "space"
+        },
+        "live": true
+      }
+    },
+    "actions": {
+      "set": {
+        "cap": "hooks.set",
+        "input": {}
+      },
+      "remove": {
+        "cap": "hooks.remove",
+        "input": {
+          "id": "/state/id"
+        },
+        "confirm": "Remove this hook?"
+      }
+    },
+    "needs": [
+      "agents.manage"
     ],
     "perf": {
       "firstPaintMs": 50,

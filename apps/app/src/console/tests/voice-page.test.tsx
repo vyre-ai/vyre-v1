@@ -28,7 +28,7 @@ test("set up: the sub-line names who added it and when it was checked, with the 
   try {
     const t = p.text();
     assert.ok(t.includes("Deepgram") && t.includes("added it") && t.includes("checked"), t);
-    assert.ok(t.includes("Working") && t.includes("People with their own key") && t.includes("2. Their own key wins for them"));
+    assert.ok(t.includes("Working") && t.includes("People with their own key") && t.includes("2 people · their own key wins for them"));
     assert.ok(!t.includes("Needs you"), "a good check raises nothing");
   } finally { p.restore(); }
 });

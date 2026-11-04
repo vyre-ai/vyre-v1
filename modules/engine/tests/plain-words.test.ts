@@ -41,3 +41,15 @@ test("the step a helper is on is said in plain words, never a tool name", () => 
   for (const t of ["Read", "Edit", "Bash", "WebFetch", "Agent", "task_submit", "mcp__vyre__files_tree"]) assert.deepEqual(internalNames(stepWords(t, "a.md")), [], t);
   assert.equal(oneLine("One fact. Two facts."), "One fact.");
 });
+
+test("a step line never carries the machinery: no browser, shell or tool id reaches a person", async () => {
+  const { plainStep } = await import("../../../lib/plain-words.ts");
+  assert.deepEqual(plainStep({ title: "Opened harlowprice.example/pricing", sub: "headless Chrome" }), { title: "Opened harlowprice.example/pricing", sub: "" });
+  assert.deepEqual(plainStep({ title: "Searching parcel 104-22-009", sub: "Playwright via CDP" }), { title: "Searching parcel 104-22-009", sub: "" });
+  assert.deepEqual(plainStep({ title: "Read the calendar", sub: "Next week" }), { title: "Read the calendar", sub: "Next week" });
+  for (const raw of [{ title: "task_submit", sub: "" }, { title: "Bash", sub: "stdout" }, { title: "mcp__vyre__files_tree", sub: "tool_search" }, { title: "Opened a page", sub: "terminal_run" }]) {
+    const out = plainStep(raw);
+    assert.deepEqual(internalNames(`${out.title} ${out.sub}`), [], JSON.stringify(raw));
+    assert.doesNotMatch(`${out.title} ${out.sub}`, /chrome|bash|stdout|mcp|playwright/i, JSON.stringify(raw));
+  }
+});
