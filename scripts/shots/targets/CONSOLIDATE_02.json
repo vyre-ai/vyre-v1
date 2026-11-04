@@ -251,6 +251,36 @@
       "route": "/m/CONSOLIDATE_02?part=updates",
       "proto": "console,{skin}",
       "note": "Console page updates over scripted Northwind data."
+    },
+    {
+      "id": "CONSOLIDATE_02-ci",
+      "route": "/m/CONSOLIDATE_02?part=ci",
+      "proto": "console,{skin}",
+      "note": "Computers > CI runners, off"
+    },
+    {
+      "id": "CONSOLIDATE_02-ci_on",
+      "route": "/m/CONSOLIDATE_02?part=ci_on",
+      "proto": "console,{skin}",
+      "note": "CI runners on: month cost, runs"
+    },
+    {
+      "id": "CONSOLIDATE_02-ci_paused",
+      "route": "/m/CONSOLIDATE_02?part=ci_paused",
+      "proto": "console,{skin}",
+      "note": "CI runners paused at the cap"
+    },
+    {
+      "id": "CONSOLIDATE_02-ghapp",
+      "route": "/m/CONSOLIDATE_02?part=ghapp",
+      "proto": "console,{skin}",
+      "note": "Apps > GitHub, Vyre app in use"
+    },
+    {
+      "id": "CONSOLIDATE_02-ghapp_own",
+      "route": "/m/CONSOLIDATE_02?part=ghapp_own",
+      "proto": "console,{skin}",
+      "note": "Apps > GitHub, the Space's own app"
     }
   ]
 }

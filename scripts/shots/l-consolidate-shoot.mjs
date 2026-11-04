@@ -20,7 +20,7 @@ const sizeOnly = flag("size");
 const skinOnly = flag("skin");
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync("/root/wt/base/node_modules/.bin/expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync("npx expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
 }
 fs.mkdirSync(out, { recursive: true });
 const SIZES = prefix === "CONSOLIDATE_02" ? { wide: { width: 1440, height: 1000 }, phone: { width: 390, height: 1300 } } : { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };

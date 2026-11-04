@@ -12,6 +12,7 @@ import { consolePageFor } from "../../../apps/app/src/shell/providers/console.ts
 import { SettingsDataProvider } from "../../../apps/app/src/places/settings/data.tsx";
 import { SpaceDefaults } from "../../../apps/app/src/places/settings/SpacePages.tsx";
 import { createSampleSettings } from "../../../apps/app/src/places/settings/sample.ts";
+import { permissions as REGISTRY } from "../../../generated/permissions.ts";
 import type { MachineOut, MachineRow, MachinesOut, Point } from "../../../apps/app/src/machines/model.ts";
 
 export const title = "Console, every page";
@@ -99,7 +100,8 @@ const AGENTS = [
 ];
 const NAME: Record<string, string> = { ...Object.fromEntries(PEOPLE.map((p) => [p.id, p.name])), ...Object.fromEntries(AGENTS.map((a) => [a.id, a.name])), svc_gate: "Approvals", svc_vyre: "Vyre", usr_jordan: "Jordan Ellis", fld_rivera_docs: "Rivera documents", rec_rivera: "Rivera engagement", rec_inv_2041: "Invoice 2041", rec_guide_7: "Onboarding guide", con_slack: "Slack, Maya", svc_backup: "Backups", northwind: "Northwind", prj_rivera: "Rivera engagement", mbx_billing: "billing@northwind.example", vlt_dev: "Developer keys" };
 const micros = (usd: number): number => Math.round(usd * 1_000_000);
-const ALL_PERMS = ["console.access", "audit.read", "access.manage", "policy.manage", "members.invite", "members.remove", "agents.manage", "computers.use", "schema.manage", "records.hold", "records.export", "server.backups", "server.update", "server.logs", "server.network", "ai.models", "ai.spend", "ai.incidents", "comms.domains", "comms.numbers", "comms.shared_send", "connectors.manage", "engineer.mcp"];
+const ALL_PERMS = REGISTRY.map((p) => p.key as string);
+const defaultsFor = (role: string): string[] => REGISTRY.filter((p) => (p.defaults as Record<string, boolean>)[role]).map((p) => p.key as string);
 
 const principals = [
   ...PEOPLE.map((p) => ({ id: p.id, kind: "person", name: p.name, status: "active", roles: [p.role], groups: p.groups, title: p.title, createdAt: ago(60 * DAY) })),
@@ -108,10 +110,10 @@ const principals = [
 ];
 const ROLES = [
   { id: "rol_owner", name: "Owner", builtIn: true, clearance: "restricted", assignableToAgents: false, permissions: ALL_PERMS, holders: 1 },
-  { id: "rol_admin", name: "Admin", builtIn: true, clearance: "confidential", assignableToAgents: false, permissions: ALL_PERMS.filter((p) => !["server.update", "engineer.mcp"].includes(p)), holders: 1 },
-  { id: "rol_developer", name: "Developer", builtIn: true, clearance: "internal", assignableToAgents: true, permissions: ["console.access", "schema.manage", "server.logs", "engineer.mcp", "audit.read"], holders: 1 },
-  { id: "rol_member", name: "Member", builtIn: true, clearance: "internal", assignableToAgents: true, permissions: [], holders: 3 },
-  { id: "rol_guest", name: "Guest", builtIn: true, clearance: "public", assignableToAgents: false, permissions: [], holders: 1 },
+  { id: "rol_admin", name: "Admin", builtIn: true, clearance: "confidential", assignableToAgents: false, permissions: defaultsFor("admin"), holders: 1 },
+  { id: "rol_developer", name: "Developer", builtIn: true, clearance: "internal", assignableToAgents: true, permissions: defaultsFor("developer"), holders: 1 },
+  { id: "rol_member", name: "Member", builtIn: true, clearance: "internal", assignableToAgents: true, permissions: defaultsFor("member"), holders: 3 },
+  { id: "rol_guest", name: "Guest", builtIn: true, clearance: "public", assignableToAgents: false, permissions: defaultsFor("guest"), holders: 1 },
   { id: "rol_finance", name: "Finance reviewer", builtIn: false, clearance: "confidential", assignableToAgents: false, permissions: ["console.access", "ai.spend", "audit.read"], holders: 1 },
 ];
 const GROUPS = [
@@ -357,6 +359,31 @@ const answers: Record<string, Handler> = {
   "search.resolve": () => ({ results: [] }),
   "vault.folders.list": () => ({ folders: [] }),
   "vault.items.list": () => ({ items: [] }),
+  // People > Requests: the join link and who is waiting
+  "members.join_link.get": () => ({ link: { on: true, role: "rol_member", waiting: 2, total: 7, address: "https://northwind.vyre.run/join/NW7K-4QPD", createdAt: ago(20 * DAY) } }),
+  "members.join_requests.list": () => ({ requests: [{ id: "jrq_1", name: "Priya Nair", email: "priya@northwind.example", note: "Joining the Finance team", role: "rol_member", state: "waiting", at: ago(3 * HOUR) }, { id: "jrq_2", name: "Tom Becker", email: "tom@northwind.example", role: "rol_member", state: "waiting", at: ago(DAY) }], total: 2 }),
+  // AI > AI accounts: people who run on their own sign-ins
+  "providers.own_people": () => ({ people: [{ personId: "usr_maya", accounts: 1 }, { personId: "usr_sam", accounts: 2 }] }),
+  // Space > Transfer or delete: the last export
+  "spaces.export_latest": () => ({ at: ago(9 * DAY) }),
+  // AI > Voice
+  "talk.space.status": () => ({ set: true, on: true, provider: "elevenlabs", itemId: "vit_voice", setBy: "usr_irfad", checkedAt: ago(HOUR), state: "ok", peopleOwnKey: 1 }),
+  "talk.status": () => ({ on: true, provider: "elevenlabs", language: "en", model: "eleven_flash_v2_5", source: "space", spaceOn: true, mayManage: true, providers: [{ key: "elevenlabs", name: "ElevenLabs", keyUrl: "https://elevenlabs.io/app/settings/api-keys", models: [{ id: "eleven_flash_v2_5", label: "Flash" }, { id: "eleven_multilingual_v2", label: "Multilingual" }], languages: [{ id: "en", label: "English" }, { id: "es", label: "Spanish" }] }, { key: "deepgram", name: "Deepgram", keyUrl: "https://console.deepgram.com", models: [{ id: "nova-3", label: "Nova 3" }], languages: [{ id: "en", label: "English" }] }] }),
+  // Computers > CI runners: off by default; _on = on with the month's cost and runs; _paused = on and at the cap
+  "ci.settings.get": () => ({ settings: { enabled: part.variant !== "", provider: "digitalocean", vaultKeyRef: "#Northwind_DO", region: "nyc3", size: "s-4vcpu-8gb", image: "ubuntu-24-04-x64", maxConcurrent: 3, monthlyCapUsd: 50, maxJobMinutes: 30, labels: ["vyre"] }, keyReady: true, githubApp: part.variant === "" ? { ready: false, installed: false, missing: [], acceptUrl: null, orgAcceptUrl: null } : { ready: true, installed: true, missing: [], acceptUrl: null, orgAcceptUrl: null } }),
+  "ci.cost.month": () => part.variant === "paused" ? { month: "2026-11", spentUsd: 50, capUsd: 50, leftUsd: 0, runs: 1320, paused: true, byRepo: [{ repo: "northwind/website", runs: 980, costUsd: 36.4 }, { repo: "northwind/portal", runs: 340, costUsd: 13.6 }] } : { month: "2026-11", spentUsd: 4.12, capUsd: 50, leftUsd: 45.88, runs: 212, paused: false, byRepo: [{ repo: "northwind/website", runs: 150, costUsd: 2.9 }, { repo: "northwind/portal", runs: 62, costUsd: 1.22 }] },
+  "ci.runs.list": (i) => { const mk = (id: string, repo: string, job: string, state: string, conclusion: string | null, min: number, len: number, cost: number, note: string | null) => ({ runId: id, jobId: 11, workflowRunId: 99, repo, jobName: job, projectId: null, state, dropletId: "d1", size: "s-4vcpu-8gb", queuedAt: ago(min * MIN), startedAt: ago(min * MIN), endedAt: state === "running" ? null : ago((min - len) * MIN), conclusion, costUsd: cost, note }); const all = [mk("cir_1", "northwind/website", "tests", "finished", "failure", 12, 4, 0.01, "3 tests failing"), mk("cir_2", "northwind/website", "lint", "finished", "success", 14, 1, 0.01, null), mk("cir_3", "northwind/portal", "build", "running", null, 3, 0, 0, null), mk("cir_4", "northwind/portal", "e2e", "swept", null, 90, 30, 0.02, "Removed a machine that ran past the time limit"), mk("cir_5", "northwind/website", "tests", "finished", "success", 240, 3, 0.01, null)]; return { runs: all.filter((r) => r.repo === i.repo) }; },
+  // Apps > GitHub: _own = the Space has its own app and an install
+  "github.app.get": () => { if (part.variant !== "own") throw new Error("no app"); return { id: 982114, slug: "northwind-vyre", name: "Northwind Vyre", permissions: { contents: "write", pull_requests: "write", actions: "read", checks: "write", metadata: "read" }, events: ["push", "pull_request", "workflow_job"] }; },
+  "github.installations.list": () => ({ installations: part.variant === "own" ? [{ id: 5512, account: "northwind", repositorySelection: "all" }, { id: 5513, account: "northwind-labs", repositorySelection: "selected" }] : [] }),
+  // Agents > Skills and plugins: Installed for the Space
+  "install.list": () => ({ installs: [
+    { installId: "ins_1", kind: "skill", name: "contract-review", repo: "northwind/vyre-skills", commit: "a41c9e07d2", url: "https://github.com/northwind/vyre-skills", by: "usr_maya", at: ago(12 * DAY), installed: { for: "space" } },
+    { installId: "ins_2", kind: "mcp_remote", name: "Linear", repo: "linear/mcp", commit: "7be03a1c55", url: "https://github.com/linear/mcp", by: "usr_sam", at: ago(5 * DAY), installed: { for: "agent", agentId: "agt_scout" } },
+    { installId: "ins_3", kind: "plugin", name: "invoice-tools", repo: "northwind/plugins", commit: "0c9d44e8b1", url: "https://github.com/northwind/plugins", by: "usr_irfad", at: ago(21 * DAY), installed: { for: "space" } },
+    { installId: "ins_4", kind: "site", name: "client-portal", repo: "northwind/portal-site", commit: "93ffa210ce", url: "https://github.com/northwind/portal-site", by: "usr_lena", at: ago(2 * DAY), installed: { for: "me" } },
+  ] }),
+  "install.check_update": (i) => i.installId === "ins_3" ? { changed: true, plan: { planId: "pln_1", state: "planned", kind: "plugin", name: "invoice-tools", summary: "Invoice helpers.", repo: "northwind/plugins", commit: "5d11b7a3f0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", url: "https://github.com/northwind/plugins", needs: { domains: ["api.stripe.com"], vaultKeys: [], files: [] }, skills: [], problems: [], who: [{ key: "me", label: "Just you", allowed: true }, { key: "space", label: "Everyone in the Space", allowed: true }], card: { name: "invoice-tools", kind: "plugin", summary: "Invoice helpers.", commit: "5d11b7a3f0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", needs: { domains: ["api.stripe.com"], vaultKeys: [], files: [] } }, diff: { from: "0c9d44e8b1aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", to: "5d11b7a3f0aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", added: [], removed: [], changed: [{ path: "plugin.json", plus: ["new"], minus: ["old"] }] } } } : { changed: false },
   "skills.page": () => {
     const perms = { scripts: [], mcpServers: [], network: [], vaultKeys: [] };
     const item = (name: string, description: string) => ({ skillId: `skl_${name}`, name, description, source: "Northwind", origin: "space", version: "1.0", enabled: true, perms, setup: {}, needs: [], updatedAt: ago(9 * DAY) });
@@ -380,7 +407,7 @@ const answers: Record<string, Handler> = {
 answers["computers.hosts"] = () => ({ available: true, hosts: [{ hostId: "this", kind: "space", name: "Northwind server", online: true, canRun: true, runs: 3 }, { hostId: "srv_box", kind: "server", name: "Berlin box", online: true, canRun: true, runs: 1 }] });
 
 const machines = machinesCall();
-const part = { current: "" };
+const part = { current: "", variant: "" };
 async function call(cap: string, input: unknown): Promise<unknown> {
   const i = (input ?? {}) as Record<string, unknown>;
   const log = (tag: string): void => console.log(`${tag} ${part.current} ${cap} ${JSON.stringify(i).slice(0, 140)}`);
@@ -409,7 +436,7 @@ const DEFAULTS: Record<string, string> = { memlearn: "memlearn", "def-access": "
 
 export default function Mount(): ReactNode {
   const [id, setId] = useState<string | null>(null);
-  useEffect(() => { const p = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "overview"; part.current = p; setId(p); }, []);
+  useEffect(() => { const raw = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "overview"; const [p, v] = raw.split("_"); part.current = p!; part.variant = v ?? ""; setId(p!); }, []);
   const data = useMemo(() => consoleData(), []);
   const settings = useMemo(() => createSampleSettings().data, []);
   if (id === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;

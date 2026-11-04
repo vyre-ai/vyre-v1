@@ -14,7 +14,6 @@ import { Row } from "../../../../ui/src/Row/index.tsx";
 import { TextField } from "../../../../ui/src/TextField/index.tsx";
 import { Section, Segmented, SmallButton, Switch } from "../places/settings/ui.tsx";
 import { cardLead, folderFiles, keyOf, sharedLine, skillsOfAgent, sourceLine, titleOf, toBase64, touchLines, usedByLine } from "./model.ts";
-import { InstalledFromLinks } from "./InstalledFromLinks.tsx";
 import { checkServer, fileSkillKey } from "./actions.ts";
 import type { Health } from "./actions.ts";
 import type { Call, Card, MemberSkill, Own, Page, Perms, Preview, SpaceSkill } from "./model.ts";
@@ -377,7 +376,6 @@ export function SkillsPage({ call, mode, ask, initialAdd = false }: SkillsPagePr
       onToggle={(x, on) => void run(() => (x.kind === "space" ? call("skills.set_enabled", { name: x.name, enabled: on, idempotencyKey: key() }) : call("skills.mine.set", { skillId: x.skillId, enabled: on, idempotencyKey: key() })))}
       onAdopt={(m) => void run(() => call("skills.space.adopt", { skillId: m.skillId, idempotencyKey: key() }))}
       onPolicy={(on) => void run(() => call("skills.policy.set", { scriptsAdminOnly: on, idempotencyKey: key() }))} />
-    {mode === "console" ? <InstalledFromLinks call={call} nameOf={nameOf} /> : null}
     {open && target ? <SkillSheet mode={mode} kind={open.kind} skill={target} agents={page.agents} health={health} people={people.filter((x) => x.id !== page.me)} busy={busy} nameOf={nameOf}
       onClose={() => setOpen(null)} onView={() => void view(open.kind === "space" ? { skillId: open.skillId } : { skillId: open.skillId })}
       onAgents={(agents) => void run(() => call("skills.mine.set", { skillId: open.skillId, agents, idempotencyKey: key() }))}

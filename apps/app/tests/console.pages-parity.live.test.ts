@@ -65,7 +65,7 @@ test("production Console: every page draws at desktop and phone, light and graph
     // the Console is ten places, each with a quiet tab strip (the plan in SETTINGS-CONSOLE-IA.md): the places, their order and their tabs are pinned here, so a place or tab that goes missing fails loudly
     const PLACES: [string, string[]][] = [["Home", ["Home"]], ["People", ["Members", "Teams", "Roles", "Requests"]], ["Agents", ["Space agents", "Outside agents", "Skills and plugins", "Activity", "Defaults for new agents"]],
       ["AI", ["AI accounts", "What each provider may see", "Spend and limits", "Approvals", "Review", "Voice", "AI use policy"]], ["Data", ["Record types", "Labels", "Keep and delete", "Backups", "Export"]],
-      ["Messaging", ["Email", "Phone and texting", "Rules"]], ["Apps", ["Connected apps", "Developers"]], ["Computers", ["Overview", "Servers", "Agent computers", "Diagnostics"]],
+      ["Messaging", ["Email", "Phone and texting", "Rules"]], ["Apps", ["Connected apps", "GitHub", "Developers"]], ["Computers", ["Overview", "Servers", "Agent computers", "CI runners", "Diagnostics"]],
       ["Security", ["Sign-in", "Access reviews", "Audit log"]], ["Space", ["General", "Billing", "Transfer or delete"]]];
     assert.deepEqual(SECTIONS.map((x) => [x.title, x.tabs.map((tab) => tab.label)]), PLACES, "the ten places and their tabs");
     // every page of every tab, reached through the real navigation (the side list, tab and view), at two renderings: it must draw (no crash card, no loading forever),
@@ -99,10 +99,8 @@ test("production Console: every page draws at desktop and phone, light and graph
             const section = sectionOf(id)!;
             if ((await p.getByTestId("page-subtitle").innerText().catch(() => null)) !== section.subtitle) problems.push(`${where}: the subtitle is not ${JSON.stringify(section.subtitle)}`);
             if (section.tabs.length > 1 && !(await p.getByTestId(`tab-${tabOf(id)!.views[0]!.page}`).count())) problems.push(`${where}: the tab strip does not show its tab`);
-            // the dot beside the title must tell the truth: it reads the server's own overall health (health.status), on every page
-            let dot: string | null = null, overall: string | undefined;
-            for (let i = 0; i < 30; i++) { overall = (await call("health.status", {})).data?.overall as string | undefined; dot = await p.getByTestId("console-health").getAttribute("aria-label").catch(() => null); if (dot === `Server ${overall}`) break; await p.waitForTimeout(500); }   // the dot catches up with a change within a few seconds
-            if (dot !== `Server ${overall}`) problems.push(`${where}: the health dot reads ${JSON.stringify(dot)} but the server reports ${JSON.stringify(overall)}`);
+            // inside the app there is no stray health dot beside the title (owner ruling, 4 Nov 2026): Home's Health row says how the server is
+            if (await p.getByTestId("console-health").count()) problems.push(`${where}: a health dot sits beside the title`);
             const overflow = await p.evaluate(() => ({ doc: document.documentElement.scrollWidth - window.innerWidth, body: document.body.scrollWidth - window.innerWidth }));
             if (overflow.doc > 2 || overflow.body > 2) problems.push(`${where}: the page is ${Math.max(overflow.doc, overflow.body)} px wider than the screen`);
             await p.screenshot({ path: path.join(shots, `${id}-${size}-${skin === "paper" ? "light" : "graphite"}.png`), animations: "disabled" });
