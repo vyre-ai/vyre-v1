@@ -138,7 +138,7 @@ export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; c
 }
 
 export function helperData(rt: ShellRuntime, go: Go, threadId: string, nameOf: (id: string) => string): HelperChatData {
-  return { screens: rt.screens, call: rt.call, connection: rt.connection, threadId, nameOf, nav: { openThread: (id) => go.thread(id) }, clock: rt.clock };
+  return { screens: rt.screens, call: rt.call, connection: rt.connection, threadId, nameOf, nav: { openThread: (id) => go.thread(id), ...(go.message ? { openMessage: (t: string, m: string) => go.message(t, m) } : {}) }, clock: rt.clock };
 }
 
 export function needsData(rt: ShellRuntime, go: Go, nameOf: (id: string) => string): NeedsYouData {

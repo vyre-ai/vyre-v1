@@ -51,6 +51,8 @@ function HelperView(): ReactElement {
   const clock = data.clock();
   const agentId = thread.agents[0]?.agentId;
   const owner = agentId ? data.nameOf(agentId) : "the agent";
+  // who started it: the author of the brief, the first message
+  const startedBy = messages[0] ? data.nameOf(messages[0].author.id) : owner;
 
   const crumbs: ReactElement[] = [];
   for (const [i, p] of parts.entries()) {
@@ -73,6 +75,16 @@ function HelperView(): ReactElement {
   for (const m of messages) {
     const who = data.nameOf(m.author.id);
     const hasWork = m.blocks.length > 0;
+    // the first message is the brief the helper was given, not the helper speaking: a block labelled with who gave it
+    if (m === messages[0]) {
+      feed.push(
+        <View key={m.messageId} testID="helper-brief" accessibilityLabel={`Brief from ${who}`} style={st.brief}>
+          <Text style={st.briefHead}>{`Brief from ${who}`}</Text>
+          {m.body ? <Text style={st.body}>{m.body}</Text> : null}
+        </View>,
+      );
+      continue;
+    }
     feed.push(
       <View key={m.messageId} testID={`msg-${m.messageId}`} style={st.msg}>
         <View style={st.by}><Face name={who} seedId={m.author.id} size={20} /><Text style={st.who}>{who}</Text><Text style={st.time}>{whenLabel(m.createdAt, clock)}</Text></View>
@@ -92,6 +104,12 @@ function HelperView(): ReactElement {
         {status === "running" ? <Button label="Stop" onPress={() => void stop()} testID="helper-stop" /> : null}
         {online ? null : <Text testID="helper-offline" style={st.meta}>Offline</Text>}
       </View>
+      {parent ? (
+        <Pressable accessibilityRole="link" accessibilityLabel={`Back to the message that started this helper in ${parent.title}`} testID="helper-started-by"
+          onPress={() => (data.nav.openMessage && thread.parentMessageId ? data.nav.openMessage(parent.threadId, thread.parentMessageId) : data.nav.openThread(parent.threadId))} style={st.startedBy}>
+          <Text numberOfLines={1} style={st.startedByText}>{`Helper chat · started by ${startedBy} in ${parent.title}`}</Text>
+        </Pressable>
+      ) : null}
       <ScrollView testID="helper-feed" style={{ flex: 1 }} contentContainerStyle={st.feed}>
         <Text style={st.daysep}>{`Helper of ${owner}${parent ? ` · from “${parent.title}”` : ""}`}</Text>
         {messages.length === 0 ? <States kind="empty" icon="chat" title="Nothing yet. The helper has not started." /> : feed}
@@ -130,6 +148,10 @@ function Work({ summary, messages }: { summary: string; messages: readonly Messa
 }
 
 const st = StyleSheet.create({
+  brief: { alignSelf: "stretch", gap: 6, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
+  briefHead: { fontSize: 11, letterSpacing: 0.4, textTransform: "uppercase", color: "var(--ink-4)" as string },
+  startedBy: { minHeight: 28, justifyContent: "center", paddingHorizontal: 16 },
+  startedByText: { fontSize: 12.5, color: "var(--accent)" as string },
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   bar: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   crumbs: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 },

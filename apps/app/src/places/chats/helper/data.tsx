@@ -8,6 +8,8 @@ import type { Clock } from "./model.ts";
 export interface HelperNav {
   /** The chat or thread an address-bar part names; also "Reply in ...". */
   openThread(threadId: string): void;
+  /** The message in a thread that started the helper: the link back to it. Left out where a thread opens at its top only. */
+  openMessage?(threadId: string, messageId: string): void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }

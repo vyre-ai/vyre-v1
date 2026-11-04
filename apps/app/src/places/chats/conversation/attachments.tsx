@@ -154,13 +154,16 @@ export interface LinkRef { kind: string; id: string; title: string }
 const kindName: Record<string, string> = { record: "Record", file: "File", folder: "Folder", channel: "Channel" };
 
 const previews = new WeakMap<object, Map<string, Promise<{ title: string; line: string } | null>>>();
+/** A thread, helper chat or channel opens through the thread read the click uses, so the hover and the click agree: whoever may open it never reads "You cannot open this". */
+const THREADS: ReadonlySet<string> = new Set(["thread", "chat", "helper", "channel", "ask"]);
+
 export function preview(data: Pick<ConversationData, "call">, r: LinkRef): Promise<{ title: string; line: string } | null> {
   let m = previews.get(data.call);
   if (!m) { m = new Map(); previews.set(data.call, m); }
   const key = `${r.kind}:${r.id}`;
   let p = m.get(key);
   if (!p) {
-    p = Promise.resolve(data.call("search.resolve", { kind: r.kind, itemId: r.id })).then(
+    const searched = (): Promise<{ title: string; line: string } | null> => Promise.resolve(data.call("search.resolve", { kind: r.kind, itemId: r.id })).then(
       (out) => {
         const hit = (out as CapMap["search.resolve"]["out"]).hit;
         if (!hit) return null;
@@ -168,6 +171,12 @@ export function preview(data: Pick<ConversationData, "call">, r: LinkRef): Promi
       },
       () => null,
     );
+    p = THREADS.has(r.kind)
+      ? Promise.resolve(data.call("threads.get", { threadId: r.id })).then(
+        (out) => { const t = (out as { thread?: { title?: string; kind?: string } } | null)?.thread; return t ? { title: t.title || r.title, line: t.kind === "helper" ? "Helper chat" : "" } : searched(); },
+        () => searched(),
+      )
+      : searched();
     m.set(key, p);
   }
   return p;
