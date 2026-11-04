@@ -12,12 +12,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fakePlatform } from "../src/platform/index.ts";
-import type { FetchFn } from "../src/platform/probes.ts";
-import { loadConfig } from "../src/daemon/config.ts";
-import { CODE_ROOT, startDaemon } from "../src/daemon/daemon.ts";
-import type { Daemon } from "../src/daemon/daemon.ts";
-import { bindHooksPort } from "../../agent/src/tools/hooks.ts";
+import { fakePlatform } from "../host/src/platform/index.ts";
+import type { FetchFn } from "../host/src/platform/probes.ts";
+import { loadConfig } from "../host/src/daemon/config.ts";
+import { CODE_ROOT, startDaemon } from "../host/src/daemon/daemon.ts";
+import type { Daemon } from "../host/src/daemon/daemon.ts";
+import { bindHooksPort } from "../agent/src/tools/hooks.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };

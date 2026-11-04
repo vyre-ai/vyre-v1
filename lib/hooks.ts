@@ -97,3 +97,6 @@ export interface HookVerdict {
   notes: string[];
   ran: number;
 }
+
+/** What a small model reads when it checks one hook rule against one event (modules/hooks/eval.ts and the engine's check both use it). */
+export const CHECK_SYSTEM = "You check one rule against one event for a workspace assistant. Answer with exactly one line: ALLOW, or BLOCK: <short reason a person can read>, or NOTE: <one short line for the assistant to keep in mind>. Do not explain. Never answer with a key, a password or any secret.";

@@ -62,7 +62,8 @@ async function runOne(ctx: HooksCtx, h: Rec, who: Who, f: HookFire, payload: Rec
 }
 
 /** A check is read by a small model on the asker's own AI account: the account that would pay for the turn, asked through the engine (engine.complete is for the Space's own jobs, which this is). */
-export const CHECK_SYSTEM = "You check one rule against one event for a workspace assistant. Answer with exactly one line: ALLOW, or BLOCK: <short reason a person can read>, or NOTE: <one short line for the assistant to keep in mind>. Do not explain. Never answer with a key, a password or any secret.";
+import { CHECK_SYSTEM } from "../../lib/hooks.ts";
+export { CHECK_SYSTEM };
 async function viaEngine(ctx: HooksCtx, who: Who, instruction: string, payload: Record<string, unknown>): Promise<CheckAnswer | null> {
   if (!ctx.call || !who.threadId) return null;
   const acct = (await ctx.call("engine.account.resolve", { threadId: who.threadId, agentId: who.agentId, askerId: who.asker, kind: "agent_work" })) as { accountRef?: string | null; allowed?: boolean } | undefined;

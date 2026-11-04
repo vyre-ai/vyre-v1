@@ -6,8 +6,7 @@ import { bindHooks } from "../../lib/hooks-host.ts";
 import { hooksPortOf } from "./hooks-port.ts";
 import { pluginRuntime } from "./plugin-host.ts";
 import { completerOf, providerOfDriver } from "./runtime.ts";
-import { parseCheck } from "../../lib/hooks.ts";
-import { CHECK_SYSTEM } from "../hooks/eval.ts";
+import { CHECK_SYSTEM, parseCheck } from "../../lib/hooks.ts";
 import type { ResolvedAccount } from "../../agent/src/turn-engine/types.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 
