@@ -26,7 +26,8 @@ test("vault item: a manager sees the whole menu, danger last; the words follow t
   dangerLast(e);
   assert.equal(rows(e).at(-1)!.hint, "⌘⌫");
   const use = labels(vaultItemMenu(vaultFacts({ level: "use", moveTo: [] }), { ...vaultDo, move: rec("move") }));
-  assert.deepEqual(use, ["Open", "Reveal Values…", "-", "Copy Handle", "Copy Name"], "a user may open, reveal and copy, nothing more");
+  assert.deepEqual(use, ["Open", "-", "Copy Handle", "Copy Name"], "use-only: the handle to fill with, never the values");
+  assert.deepEqual(labels(vaultItemMenu(vaultFacts({ level: "view", moveTo: [] }), { ...vaultDo, move: rec("move") })), ["Open", "Reveal Values…", "-", "Copy Handle", "Copy Name"], "a viewer may reveal");
   const edit = labels(vaultItemMenu(vaultFacts({ level: "edit" }), { ...vaultDo, move: rec("move") }));
   assert.ok(edit.includes("Edit…") && edit.includes("Mark as Rotated") && !edit.includes("Share…") && !edit.some((x) => /Trash|Move to Folder/.test(x)));
   const card = labels(vaultItemMenu(vaultFacts({ kind: "card", rotates: false }), { ...vaultDo, move: rec("move") }));

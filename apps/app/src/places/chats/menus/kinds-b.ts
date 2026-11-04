@@ -14,8 +14,8 @@ const ellipsis = (label: string): string => `${label}…`;
 
 export interface VaultItemFacts {
   name: string;
-  /** What it is: a key, a login, a card, a note of secrets. Rotation and usage are for keys and logins. */
-  kind: "key" | "login" | "card" | "note" | string;
+  /** What it is: an API key, a login, a card, a note. Rotation and usage are for keys and logins, not cards or notes. */
+  kind: string;
   /** The level you hold on it: view, use, edit or manage. */
   level: "view" | "use" | "edit" | "manage";
   /** It has a rotation reminder to restart. */
@@ -37,10 +37,10 @@ export interface VaultItemDo {
 }
 export function vaultItemMenu(f: VaultItemFacts, d: VaultItemDo): MenuEntry[] {
   const canEdit = f.level === "edit" || f.level === "manage";
-  const secret = f.kind === "key" || f.kind === "login";
+  const secret = f.kind !== "card" && f.kind !== "note" && f.kind !== "secure_note";
   return tidy([
     canEdit ? item(ellipsis("Edit"), d.edit, { hint: KEY.enter }) : item("Open", d.open, { hint: KEY.enter }),
-    item(ellipsis("Reveal Values"), d.reveal, { hint: KEY_B.reveal }),
+    f.level !== "use" ? item(ellipsis("Reveal Values"), d.reveal, { hint: KEY_B.reveal }) : null,
     sep,
     item("Copy Handle", d.copyHandle),
     item("Copy Name", d.copyName),
