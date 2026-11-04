@@ -23,6 +23,7 @@ test("60 agent faces: mount time and scroll frames", async (t) => {
     await page.getByTestId("people-footer").click();
     await page.getByTestId("add-sheet").waitFor();
     await page.waitForFunction("document.querySelectorAll('[data-testid=add-sheet] [data-avatar=agent]').length >= 20", undefined, { timeout: 30_000 });
+    const openMs = Date.now() - tOpen;
     const probe = `(async function () {
       var faces = function () { return document.querySelectorAll('[data-testid=add-sheet] [data-avatar=agent]').length; };
       var placeholders = function () { return Array.prototype.filter.call(document.querySelectorAll('[data-testid=add-sheet] [data-avatar=agent]'), function (f) { return !f.querySelector('img') && !!f.querySelector("svg[viewBox='0 0 16 16']"); }).length; };
@@ -42,7 +43,7 @@ test("60 agent faces: mount time and scroll frames", async (t) => {
       return { faces: faces(), settleMs: settleMs, scrollable: !!sc, frames: frames.length, p50: q(0.5), p95: q(0.95), max: q(1) };
     })()`;
     const r = await page.evaluate(probe) as Record<string, unknown>;
-    console.log("AVATAR_SCROLL " + JSON.stringify({ ...r, openToFacesMs: Date.now() - tOpen }));
+    console.log("AVATAR_SCROLL " + JSON.stringify({ ...r, openToFacesMs: openMs, totalMs: Date.now() - tOpen }));
     assert.ok(Number(r["faces"]) >= 20, "agent faces are on screen");
   } finally { await s.close(); }
 });
