@@ -150,6 +150,7 @@ export interface SampleSidebar {
 export interface SampleImported { conversationId: string; provider: "claude_code" | "codex"; title: string; startedAt: number; importedAt: number; continuedThreadId?: string; archived?: boolean }
 
 export function createSampleSidebar(space: SampleSpace = northwind, o: { online?: boolean; startDelayMs?: number; imported?: readonly SampleImported[]; /** goals the person has, as goals.list answers them */ goals?: readonly Record<string, unknown>[] } = {}): SampleSidebar {
+  const starredProjects = new Set<string>();
   const replica = createFakeReplica(space.id);
   const calls: { cap: string; input: unknown }[] = [];
   const opened: string[] = [];
@@ -241,6 +242,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
       return { thread: { threadId: id, kind: "chat", title: "New chat", listed: true, planMode: false } };
     },
     "stars.toggle": (i: { resource: { type: string; id: string }; on: boolean }) => {
+      if (i.resource.type === "project") { if (i.on) starredProjects.add(i.resource.id); else starredProjects.delete(i.resource.id); }
       if (i.resource.type === "thread") patch(i.resource.id, { starred: i.on });
       if (i.resource.type === "agent") { const a = replica.rows("agents").find((r) => r.id === i.resource.id); if (a) replica.put("agents", [{ ...a, starred: i.on }]); }
       return { starred: i.on, following: false };
@@ -262,7 +264,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     "notifications.mute.list": () => ({ mutes: [...menus.mutes].map((k) => { const [kind, ...id] = k.split(":"); return { target: { kind, id: id.join(":") }, until: 0 }; }) }),
     "notifications.mute.set": (i: { target: { kind: string; id: string } }) => { refuse("notifications.mute.set", i); menus.mutes.add(`${i.target.kind}:${i.target.id}`); return { until: 0 }; },
     "notifications.mute.clear": (i: { target: { kind: string; id: string } }) => { refuse("notifications.mute.clear", i); menus.mutes.delete(`${i.target.kind}:${i.target.id}`); return { cleared: true }; },
-    "stars.list": () => ({ stars: [] }),
+    "stars.list": () => ({ stars: [...starredProjects].map((id) => ({ resource: { type: "project", id } })) }),
     "threads.poke": (i: { threadId: string; agentId: string }) => { refuse("threads.poke", i); return { poked: true }; },
     "threads.move": (i: { threadId: string; projectId: string }) => { return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
     "goals.list": (i: { scope?: string }) => ({ goals: i.scope === "mine" ? [...(o.goals ?? [])] : [] }),
@@ -290,7 +292,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     "access.principals.list": () => ({
       principals: (space.people ?? []).map((p) => ({ id: p.id, kind: "person", name: p.name, status: "active", roles: [], groups: [], createdAt: at(10, 1, 9), ...(p.title ? { title: p.title } : {}) })),
     }),
-    "projects.list": () => ({ projects: (space.projects ?? []).map((p) => ({ projectId: `prj_${p.recordId}`, recordId: p.recordId, type: "matter", title: p.title, status: "active" })) }),
+    "projects.list": () => ({ projects: (space.projects ?? []).map((p) => ({ projectId: `prj_${p.recordId}`, recordId: p.recordId, type: "matter", title: p.title, status: "active", ...(p.recordId === "rec_atp" ? { health: "risk" } : p.recordId === "rec_rivera" ? { health: "on" } : {}) })) }),
     "channels.create": (i: { name: string; visibility: "public" | "invite"; topic?: string; recordId?: string }) => {
       const rows = replica.rows("channels") as unknown as SampleSpace["channels"];
       if (rows.some((c) => c.name === i.name)) throw Object.assign(new Error("A channel with that name already exists."), { code: "validation.bad_input" });
@@ -309,7 +311,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     openChat: (id) => void opened.push(`chat:${id}`), openAgentChat: (id) => void opened.push(`agent:${id}`), openChannel: (id) => void opened.push(`channel:${id}`),
     openNeedsYou: (id) => void opened.push(id ? `needs:${id}` : "needs"), openAllAgents: () => void opened.push("all-agents"), openSearch: () => void opened.push("search"),
     openSpaceSwitcher: () => void opened.push("spaces"), openNewChannel: () => void opened.push("new-channel"),
-    openAgent: (id) => void opened.push(`profile:${id}`), openChatTab: (id) => void opened.push(`tab:${id}`), openGoal: (id) => void opened.push(`goal:${id}`),
+    openAgent: (id) => void opened.push(`profile:${id}`), openChatTab: (id) => void opened.push(`tab:${id}`), openGoal: (id) => void opened.push(`goal:${id}`), openProject: (id) => void opened.push(`project:${id}`),
   };
   const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };
 

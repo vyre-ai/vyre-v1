@@ -414,7 +414,7 @@ export default defineManifest({
       on: ['thread', '/threadId'], level: 'use', tool: 'chats', mcpName: 'offer_note', agent: { planMode: 'blocked', blocks: ['note_offer'] }, errors: ['validation.bad_input', 'validation.not_found'],
     }),
     write('chat.hook_line', 'Hooks module only: leave a quiet line in a chat when a hook is added, changed, removed or paused, when one stops something, or when one could not finish', {
-      in: { ...threadT, body: t.str({ maxLength: 400 }), kind: t.enm('added', 'changed', 'removed', 'paused', 'resumed', 'blocked', 'failed', 'allowed', 'asked'), hookId: t.opt(t.str()), scope: t.opt(t.str()), by: t.opt(t.str()), byKind: t.opt(t.enm('admin', 'person', 'agent')), reason: t.opt(t.str({ maxLength: 300 })), tool: t.opt(t.str({ maxLength: 80 })), subject: t.opt(t.str({ maxLength: 200 })) },
+      in: { ...threadT, body: t.str({ maxLength: 400 }), kind: t.enm('added', 'changed', 'removed', 'paused', 'resumed', 'blocked', 'failed', 'allowed', 'asked'), hookId: t.opt(t.str()), scope: t.opt(t.str()), by: t.opt(t.str()), byKind: t.opt(t.enm('admin', 'person', 'agent')), reason: t.opt(t.str({ maxLength: 300 })), tool: t.opt(t.str({ maxLength: 80 })), subject: t.opt(t.str({ maxLength: 200 })), agentId: t.opt(id.agent), next: t.opt(t.arr(t.obj({ label: t.str({ maxLength: 40 }), ask: t.str({ maxLength: 200 }) }), { maxItems: 2 })) },
       out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', errors: ['validation.bad_input', 'validation.not_found'],
     }),
     write('chat.note_offer.answer', 'Save or dismiss an offer to keep something from this chat as a note. Save makes the person\'s own private note that links back to the message', {
@@ -763,7 +763,7 @@ export default defineManifest({
       empty: 'The helper has not said anything yet', primary: 'Back to the chat',
     }),
     screen('chats.right-pane', 'chats', 'ui:ChatRightPane', {
-      slot: 'side', q: { threads: ['threads.list', { parentThreadId: '/state/threadId' }, true], helpers: ['chat.helpers.list', { threadId: '/state/threadId' }, true], crew: ['engine.crew.list', { threadId: '/state/threadId' }, true], hooks: ['hooks.list', { threadId: '/state/threadId' }, true], hookRuns: ['hooks.runs.list', { threadId: '/state/threadId' }, true] },
+      slot: 'side', q: { threads: ['threads.list', { parentThreadId: '/state/threadId' }, true], helpers: ['chat.helpers.list', { threadId: '/state/threadId' }, true], crew: ['engine.crew.list', { threadId: '/state/threadId' }, true], hooks: ['hooks.list', { threadId: '/state/threadId' }, true], hookRuns: ['hooks.runs.latest', { threadId: '/state/threadId' }, true] },
       a: { openThread: ['chat.thread', { threadId: '/state/threadId' }] }, empty: 'No threads yet',
     }),
     screen('chats.threads', 'chats', 'ui:ThreadsPage', {

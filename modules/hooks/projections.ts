@@ -105,7 +105,8 @@ export function applicable(ctx: HooksCtx, q: { event: string; agentId: string; a
       case "space": return true;
       case "person": return h.personId === q.asker;
       case "agent": return h.agentId === q.agentId;
-      case "chat": return h.threadId === q.threadId && (h.agentId === null || h.agentId === q.agentId);
+      // a chat's rules cover everything that works for the chat: the chat itself, and every helper it started (and theirs), whichever agent the helper is; a rule an agent made for itself in the chat binds only that agent in the chat itself
+      case "chat": return h.threadId !== null && chain.includes(h.threadId) && (h.threadId !== q.threadId || h.agentId === null || h.agentId === q.agentId);
       case "run": return h.threadId !== null && chain.includes(h.threadId) && (h.endedAt === null || h.threadId !== q.threadId) && (h.threadId === q.threadId || h.helpers) && (h.agentId === null || h.agentId === q.agentId || h.threadId !== q.threadId);
       default: return false;
     }

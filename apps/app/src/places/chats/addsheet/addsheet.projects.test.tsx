@@ -1,5 +1,6 @@
 // The Add people and agents host in projects, outside agents and the people popover. Split from addsheet.test.tsx so each file stays under the CI cap.
 // @reads /apps/app/src/places/chats/addsheet/addsheet.support.tsx
+import { TeammatesTab } from "../../records/projectpage/TeammatesTab.tsx";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { act } from "react";
@@ -20,13 +21,21 @@ async function rightClick(root: Node, id: string): Promise<void> {
   await flush();
 }
 
+/** The sample project's viewer as its Lead, so the project's menu offers Add People (it is a manager's). */
+const asLead = <T extends { call(cap: string, input: unknown): Promise<unknown> }>(data: T): T & { me: { id: string; name: string } } => ({
+  ...data, me: { id: "usr_maya", name: "Maya Chen" },
+  async call(cap: string, input: unknown) { if (cap === "stars.list") return { stars: [] }; return cap === "projects.members.list" ? { members: [{ principal: "usr_maya", role: "lead", kind: "person", since: 1 }] } : data.call(cap, input); },
+});
+
 test("a project: people and agents become members, a new agent is agents.create with the project id", async () => {
   await withDom(async () => {
     const s = createSampleProject();
-    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>);
+    const root = await mount(createRoot, <ProjectPageDataProvider value={asLead(s.data)}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>);
     await flush();
-    await press(find(root, "tab-teammates"));
-    await press(find(root, "teammate-add"));
+    await flush(); await flush();
+    await press(find(root, "project-more"));
+    await flush();
+    await press(find(root, "menu-item-Add People…"));
     await flush();
     await press(find(root, "as-row-person:usr_sara"));
     await press(find(root, "as-row-agent:agt_billing"));
@@ -46,9 +55,7 @@ test("a project: people and agents become members, a new agent is agents.create 
 test("a teammate's role is chosen on its row (Lead answers first); adding is only the sheet", async () => {
   await withDom(async () => {
     const s = createSampleProject();
-    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>);
-    await flush();
-    await press(find(root, "tab-teammates"));
+    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><TeammatesTab projectId="pj_0" refresh={0} onAdd={() => undefined} /></ProjectPageDataProvider>);
     await flush();
     await press(find(root, "teammate-role-agt_docs"));
     await press(find(root, "menu-item-Lead: Answers first in a new chat of this project"));

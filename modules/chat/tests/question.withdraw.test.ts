@@ -13,12 +13,14 @@ test("the guard refuses an empty, a short or a test question with a plain messag
   const hn = world();
   const threadId = (await start(hn.ctx, { kind: "chat", agentIds: [INTAKE] })).thread["threadId"] as string;
   const before = tasks.length;
-  for (const prompt of ["test", "Test test test", "hi", "which one", "   ", "ok ok ok"]) {
+  for (const prompt of ["test", "Test test test", "hi", "test?", "?", "question 1", "Lorem ipsum dolor", "   ", "ok ok ok"]) {
     assert.equal(await failure(() => questionAsk(hn.agent(), { threadId, prompt, mode: "free" })), "validation.bad_input", prompt);
   }
   assert.equal(tasks.length, before, "no task");
   assert.equal(hn.rows("SELECT id FROM chat_block").length, 0, "no card");
   assert.equal(isProbe("Which firm should I file this for?"), false);
+  for (const real of ["Who signed?", "Which court?", "Why?", "which one", "Is it 5 May?"]) assert.equal(isProbe(real), false, `${real} is a real question`);
+  for (const probe of ["test?", "?", "", "question 1", "TODO", "123"]) assert.equal(isProbe(probe), true, `${probe} is a placeholder`);
   const ok = await questionAsk(hn.agent(), { threadId, prompt: "Which firm should I file this for?", mode: "free" });
   assert.deepEqual(contractErrors("chat.question.ask", "out", ok), []);
 });
