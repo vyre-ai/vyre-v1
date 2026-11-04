@@ -11,8 +11,11 @@ import type { Hook } from "../rightpane/hooks-model.ts";
 export type HelperHooksOut = CapMap["hooks.list"]["out"];
 
 /** Which of the hooks this helper's own lead gave it, and which it inherits. */
-export function splitHooks(hooks: readonly Hook[], helperThreadId: string): { own: Hook[]; inherited: Hook[] } {
-  return { own: hooks.filter((h) => h.scope === "run" && h.threadId === helperThreadId), inherited: hooks.filter((h) => !(h.scope === "run" && h.threadId === helperThreadId)) };
+export function splitHooks(hooks: readonly Hook[], helperThreadId: string): { own: Hook[]; chat: Hook[]; inherited: Hook[] } {
+  const own = hooks.filter((h) => h.scope === "run" && h.threadId === helperThreadId);
+  // the chat's own rules bind the helper too: shown as "From this chat", read-only here
+  const chat = hooks.filter((h) => h.scope === "chat");
+  return { own, chat, inherited: hooks.filter((h) => !own.includes(h) && !chat.includes(h)) };
 }
 
 function HookRow({ h, tag, open }: { h: Hook; tag: string; open?: (hookId: string) => void }): ReactElement {
@@ -34,11 +37,12 @@ function HookRow({ h, tag, open }: { h: Hook; tag: string; open?: (hookId: strin
 
 export function HelperHooks({ hooks, helperThreadId, lead, name, open }: { hooks: readonly Hook[]; helperThreadId: string; lead: string; /** The helper's own name: "Hooks for Research" */ name: string; open?: (hookId: string) => void }): ReactElement | null {
   if (hooks.length === 0) return null;
-  const { own, inherited } = splitHooks(hooks, helperThreadId);
+  const { own, chat, inherited } = splitHooks(hooks, helperThreadId);
   return (
     <View testID="helper-hooks" style={st.root}>
-      <View style={st.head}><Text accessibilityRole="header" style={st.label}>{`Hooks for ${name}`}</Text><Text style={st.label}>{own.length + inherited.length}</Text></View>
+      <View style={st.head}><Text accessibilityRole="header" style={st.label}>{`Hooks for ${name}`}</Text><Text style={st.label}>{own.length + chat.length + inherited.length}</Text></View>
       {own.map((h) => <HookRow key={h.id} h={h} tag={`From ${lead}`} {...(open ? { open } : {})} />)}
+      {chat.map((h) => <HookRow key={h.id} h={h} tag="From this chat" {...(open ? { open } : {})} />)}
       {inherited.map((h) => <HookRow key={h.id} h={h} tag="Inherited" {...(open ? { open } : {})} />)}
     </View>
   );

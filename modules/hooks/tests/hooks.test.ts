@@ -322,3 +322,21 @@ test("the newest run of each hook in a chat: one row per hook, so a busy hook ne
   await assert.rejects(w.call("hooks.runs.latest", { threadId: "thr_x" }, maya), /not one you can use/);
   await assert.rejects(w.call("hooks.runs.latest", { threadId: "thr_a" }, { id: "svc_0123456789abcdef0123456789abcdef", kind: "service" }), /may not use hooks/);
 });
+
+test("a chat hook binds a helper that works for the chat: the same tool is stopped when a helper calls it, whichever agent the helper is, and not in an unrelated chat", async () => {
+  const w = world();
+  w.s.command = async () => stop;
+  await w.call("hooks.set", { scope: "chat", threadId: "thr_a", event: "tool.before", matcher: "mail", kind: "command", command: "guard", summary: "before any email, check Contacts" }, agent());
+  assert.ok((await w.fire({ event: "tool.before", tool: "mail_send", cap: "mail.send" })).block, "the chat itself");
+  w.helperStarted("thr_h1", "thr_a");
+  w.helperStarted("thr_h2", "thr_h1");
+  for (const t of ["thr_h1", "thr_h2"]) {
+    const v = await w.fire({ event: "tool.before", tool: "mail_send", cap: "mail.send", threadId: t, agentId: "agt_helper" });
+    assert.equal(v.block?.reason, "Not on a Friday.", `a helper under the chat (${t}) is stopped`);
+  }
+  assert.equal((await w.fire({ event: "tool.before", tool: "mail_send", cap: "mail.send", threadId: "thr_b", agentId: "agt_helper" })).block, null, "an unrelated chat is not bound");
+  assert.equal((await w.fire({ event: "tool.before", tool: "files_read", cap: "files.read", threadId: "thr_h1", agentId: "agt_helper" })).block, null, "the matcher still applies");
+  // the list a helper shows holds the chat's hook too, for the peek
+  const listed = (await w.call("hooks.list", { threadId: "thr_h1" }, maya)).hooks.map((h: { scope: string }) => h.scope);
+  assert.ok(listed.includes("chat"), "the helper's hooks include the chat's");
+});

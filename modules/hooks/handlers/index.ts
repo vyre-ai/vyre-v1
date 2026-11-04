@@ -6,7 +6,7 @@ import { HOOK_EVENTS, HOOK_KINDS, HOOK_SCOPES, plainLine, plainTools, redact } f
 import { isTrustedService } from "../../../lib/trust.ts";
 import type { HookFire } from "../../../agent/src/tools/hooks.ts";
 import { ACTION_DENIED, fire as fireHooks } from "../eval.ts";
-import { addPass, PASS_MS, agentHooksOn, allHooks, ensure, helpersActive, hookById, link, nextSeq, parentOf, raise, setAgentHooks } from "../projections.ts";
+import { addPass, PASS_MS, agentHooksOn, allHooks, ensure, helpersActive, hookById, lineage, link, nextSeq, parentOf, raise, setAgentHooks } from "../projections.ts";
 import type { HooksCtx, Rec, Spec } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -175,7 +175,8 @@ export async function list(ctx: HooksCtx, i: { scope?: string; threadId?: string
     if (h.scope === "person") return h.personId === a.asker || a.kind === "service";
     if (h.scope === "agent") return i.agentId !== undefined ? h.agentId === i.agentId : h.agentId === a.id || h.forPerson === a.asker || h.madeBy === a.id;
     if (!i.threadId) return h.madeBy === a.id || h.forPerson === a.asker;
-    return h.threadId === i.threadId || (h.scope === "run" && h.threadId !== null && parentOf(ctx, i.threadId) === h.threadId);
+    // the thread's own hooks, and the chat and run hooks of every chat above it: what a helper works under
+    return h.threadId === i.threadId || ((h.scope === "run" || h.scope === "chat") && h.threadId !== null && lineage(ctx, i.threadId).includes(h.threadId));
   });
   return { hooks: rows.map((h) => outRow(h, a)), agentHooks: agentHooksOn(ctx) };
 }

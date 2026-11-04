@@ -11,7 +11,7 @@ test("a helper's hooks are asked for by its thread: its own say From the lead, t
   const off = installDom();
   try {
     const calls: Array<{ cap: string; input: unknown }> = [];
-    const call = async (cap: string, input: unknown) => { calls.push({ cap, input }); return { hooks: [h("hok_own", "run", "thr_h", "before a helper acts, ask"), h("hok_run", "run", "thr_p", "before any search, no names"), h("hok_sp", "space", undefined, "before each message, rules")] }; };
+    const call = async (cap: string, input: unknown) => { calls.push({ cap, input }); return { hooks: [h("hok_own", "run", "thr_h", "before a helper acts, ask"), h("hok_run", "run", "thr_p", "before any search, no names"), h("hok_sp", "space", undefined, "before each message, rules"), h("hok_chat", "chat", "thr_p", "before any email, check Contacts")] }; };
     const root = await mount(createRoot, <HelperHooksSection threadId="thr_h" call={call} lead="Research" name="Firms 1-3" />);
     await flush();
     assert.deepEqual(calls, [{ cap: "hooks.list", input: { threadId: "thr_h" } }]);
@@ -19,6 +19,7 @@ test("a helper's hooks are asked for by its thread: its own say From the lead, t
     assert.match(textOf(find(root, "helper-hook-hok_own")), /From Research/);
     assert.match(textOf(find(root, "helper-hook-hok_run")), /Inherited/);
     assert.match(textOf(find(root, "helper-hook-hok_sp")), /Inherited/);
+    assert.match(textOf(find(root, "helper-hook-hok_chat")), /From this chat/, "the chat's own rule binds the helper and says so");
     const none = await mount(createRoot, <HelperHooksSection threadId="thr_h" call={async () => ({ hooks: [] })} lead="Research" name="x" />);
     await flush();
     assert.equal(find(none, "helper-hooks"), null);
