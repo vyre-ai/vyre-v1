@@ -1,4 +1,4 @@
-# automation.watch_changed
+# automations.watch_changed
 
 A watched page changed since its last reading
 

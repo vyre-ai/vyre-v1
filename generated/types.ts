@@ -43405,12 +43405,12 @@ export type AutomationVersionRestoredPayload = {
   versionId: string;
   version: number;
 };
-export type AutomationWatchChangedPayload = {
+export type AutomationsWatchChangedPayload = {
   watchId: string;
   owner: string;
   changes: number;
 };
-export type AutomationWatchSavedPayload = {
+export type AutomationsWatchSavedPayload = {
   watchId: string;
   owner: string;
   op: "added" | "changed" | "paused" | "resumed" | "removed";
@@ -47121,8 +47121,8 @@ export interface EventMap {
   "automation.trigger_dropped": AutomationTriggerDroppedPayload;
   "automation.updated": AutomationUpdatedPayload;
   "automation.version_restored": AutomationVersionRestoredPayload;
-  "automation.watch_changed": AutomationWatchChangedPayload;
-  "automation.watch_saved": AutomationWatchSavedPayload;
+  "automations.watch_changed": AutomationsWatchChangedPayload;
+  "automations.watch_saved": AutomationsWatchSavedPayload;
   "away.cleared": AwayClearedPayload;
   "away.set": AwaySetPayload;
   "backup.completed": BackupCompletedPayload;
