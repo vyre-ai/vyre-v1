@@ -163,13 +163,15 @@ test("journey 8, one-tap send: an agent's email is held, Needs you shows the dra
     assert.match(await me.page.getByTestId("held-body").innerText(), /Please sign by Friday/);
     await me.page.getByTestId("held-record").getByText("Dana Fox").first().waitFor({ timeout: 20_000 });
     // the held send opens on its task page now (Held before sending): Approve sends it, Send back asks for changes
-    await me.page.getByRole("button", { name: "Approve", exact: true }).waitFor({ timeout: 20_000 });
+    // the buttons are read by what they do (task-act-<action key>): approve sends the mail, reject is Send back (a note is required); their words are the server's and may change
+    await me.page.getByTestId("task-act-approve").waitFor({ timeout: 20_000 });
+    assert.match(await me.page.getByTestId("task-act-approve").innerText(), /^(Approve|Allow)$/, "the approval button says the one approval word");
     await shoot(me.page, dir, "held-draft");
     // Send back asks what to change first (a note is required), then sends it back; Approve is the one that sends the mail
-    await me.page.getByRole("button", { name: "Send back", exact: true }).click();
+    await me.page.getByTestId("task-act-reject").click();
     await me.page.getByPlaceholder("Add a note").fill("Add the fee to the letter");
     await shoot(me.page, dir, "ask-for-changes", { phone: false });
-    await me.page.getByRole("button", { name: "Send back", exact: true }).click();
+    await me.page.getByTestId("task-act-reject").click();
     await until(async () => (((await w.owner.ok("gate.holds.list", { states: ["held"] })).holds as unknown[]).length === 0 ? true : null), "the hold is closed");
     const out = ((await w.owner.ok("mail.message.list", { mailboxId })).messages as { direction: string }[]).filter((m) => m.direction === "out");
     assert.equal(out.length, 0, "nothing was sent");
