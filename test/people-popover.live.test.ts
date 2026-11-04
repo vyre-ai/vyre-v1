@@ -64,7 +64,7 @@ test("people popover, team: a chat and a project show People and agents with rol
     await me.page.getByTestId("people-popover").waitFor({ state: "detached", timeout: 10_000 });
     // Teammates is out of the tab row (rc21): Add people is the project menu's item
     await me.page.getByTestId("project-menu").click();
-    await me.page.getByText(/^Add people/).first().click();
+    await me.page.getByText(/^Add people/i).first().click();
     await me.page.getByTestId("add-sheet").waitFor({ timeout: 15_000 });
     await shoot(me.page, OUT, "add-sheet-phone");
     await guard.check("end of the walk");
