@@ -7,7 +7,7 @@ import { actParts, auditPhrase, auditSentence, leaksCode, sayWords } from "./aud
 const registry = JSON.parse(readFileSync(new URL("../../generated/registry.json", import.meta.url), "utf8")) as { capabilities: { name: string; audit?: string }[]; events: { name: string }[] };
 
 test("known acts read as sentences", () => {
-  assert.equal(auditSentence({ actor: "Priya Raman", action: "files.save", resource: "Fee agreement.pdf" }), "Priya Raman saved Fee agreement.pdf");
+  assert.equal(auditSentence({ actor: "Priya Raman", action: "files.save", resource: "Fee agreement.pdf" }), "Priya Raman saved the file Fee agreement.pdf");
   assert.equal(auditSentence({ actor: "Priya Raman", action: "files.save" }), "Priya Raman saved a file");
   assert.equal(auditSentence({ actor: "Dex", action: "tasks.working_notes.set", onBehalfOf: "Andrey" }), "Dex changed the working notes of a task, for Andrey");
   assert.equal(auditSentence({ actor: "Omar", action: "tasks.working_notes.set", resource: "Send Josh the link" }), "Omar changed the working notes of Send Josh the link");
@@ -17,9 +17,16 @@ test("known acts read as sentences", () => {
   assert.equal(auditSentence({ actor: "", action: "access.actors.create" }), "Someone created an outside tool in access settings");
 });
 
+test("a thing done to someone joins with its own word, and a named thing says what kind it is", () => {
+  assert.equal(auditSentence({ actor: "Priya Raman", action: "access.roles.assign", resource: "Omar Haddad" }), "Priya Raman assigned a role to Omar Haddad");
+  assert.equal(auditSentence({ actor: "Priya Raman", action: "access.groups.remove_member", resource: "Sales" }), "Priya Raman removed a group member from Sales");
+  assert.equal(auditSentence({ actor: "Intake", action: "records.reveal", resource: "Rivera engagement", onBehalfOf: "Priya Raman" }), "Intake revealed the record Rivera engagement, for Priya Raman");
+  assert.equal(auditSentence({ actor: "Tom Reyes", action: "agents.delete", resource: "Dex" }), "Tom Reyes deleted the agent Dex");
+});
+
 test("events read the same way, and a state needs no actor", () => {
   assert.equal(auditPhrase("file.comment_resolved"), "resolved the comment of a file");
-  assert.equal(auditPhrase("file.renamed", "plan.md"), "renamed plan.md");
+  assert.equal(auditPhrase("file.renamed", "plan.md"), "renamed the file plan.md");
   assert.match(auditSentence({ actor: "x", action: "call.recording_ready" }), /^Call recording is ready$|^Recording of a call is ready$/i);
 });
 

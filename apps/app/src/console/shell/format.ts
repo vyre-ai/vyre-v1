@@ -20,7 +20,7 @@ export function money(micros: number): string {
   return "$" + Math.round(micros / 1_000_000).toLocaleString("en-US");
 }
 
-/** "files.save" as "saved a file", "role.changed" as "changed a role": the registry's act names said as a person says them (lib/words/audit.ts). With the name of the thing, "saved Fee agreement.pdf". */
+/** "files.save" as "saved a file", "role.changed" as "changed a role": the registry's act names said as a person says them (lib/words/audit.ts). With the name of the thing, "saved the file Fee agreement.pdf". */
 export function actionPhrase(action: string, resource?: string): string {
   return auditPhrase(action, resource);
 }

@@ -79,7 +79,7 @@ export function sayWords(name: string, plural = false): string {
   return out.filter((w, i) => w !== out[i - 1]).join(" ");
 }
 
-export interface ActParts { verb: string; det: "a" | "the"; /** the thing the act was on, in words ("working notes"), or "" */ subject: string; /** the kind of thing it belongs to ("task") or the provider or area */ owner: string; kind: "entity" | "provider" | "area"; state?: string }
+export interface ActParts { /** the verb word the act was built from ("assign", "created") */ key: string; verb: string; det: "a" | "the"; /** the thing the act was on, in words ("working notes"), or "" */ subject: string; /** the kind of thing it belongs to ("task") or the provider or area */ owner: string; kind: "entity" | "provider" | "area"; state?: string }
 
 /** Modules that are another company's product: an act in them is "in Google", "in Zoom". */
 const PROVIDERS: Readonly<Record<string, string>> = { google: "Google", microsoft: "Microsoft", ms: "Microsoft", zoom: "Zoom", github: "GitHub", dropbox: "Dropbox", dropbox_sign: "Dropbox Sign", stripe: "Stripe", twilio: "Twilio", mailgun: "Mailgun", resend: "Resend", hubspot: "HubSpot", docusign: "DocuSign", documenso: "Documenso", telephony: "the phone service", git: "Git" };
@@ -106,7 +106,7 @@ export function actParts(action: string): ActParts {
   // a state: "call.recording_ready", but "task.sent_back" is an act with a "back"
   if (STATES[lastWord] !== undefined && !earlier.some((w) => isVerbWord(w) || isParticiple(w))) {
     const sub = [...mids, ...earlier.map((w) => sayWords(w))].filter(Boolean).join(" ");
-    return { verb: "", det: "the", subject: sub, owner, kind, state: STATES[lastWord] as string };
+    return { key: lastWord, verb: "", det: "the", subject: sub, owner, kind, state: STATES[lastWord] as string };
   }
   let vi = words.findIndex((w) => isVerbWord(w));
   let verb = "";
@@ -130,24 +130,29 @@ export function actParts(action: string): ActParts {
   // "back" after "sent" is part of the verb
   if (vi === words.length - 2 && words[words.length - 1] === "back") { verb = `${verb} back`; words.pop(); }
   const subject = subjectOf(vi);
-  return { verb, det, subject: subject === owner ? "" : subject, owner, kind };
+  return { key: words[vi] ?? lastWord, verb, det, subject: subject === owner ? "" : subject, owner, kind };
 }
 
 const article = (w: string): string => (/^[aeiou]/i.test(w) ? "an" : "a");
 
+/** The word that joins a thing to the one it was done to: "assigned a role to Omar", "removed a member from Sales". */
+const PREP: Readonly<Record<string, string>> = { assign: "to", grant: "to", add: "to", append: "to", invite: "to", delegate: "to", handoff: "to", share: "with", unassign: "from", remove: "from", revoke: "from", unshare: "with" };
+
 /** "saved a file", "changed the working notes of a task", "created the calendar event in Google": the act without who. With the name of the thing, "saved Fee agreement.pdf". */
 export function auditPhrase(action: string, resource?: string): string {
   const kindOf = SAID_OF[action];
-  if (kindOf !== undefined) return resource !== undefined && resource !== "" ? `${kindOf[0]} the ${kindOf[1]} ${resource}` : `${kindOf[0]} ${/^[aeiou]/.test(kindOf[1]) ? "an" : "a"} ${kindOf[1]}`;
+  if (kindOf !== undefined) return resource !== undefined && resource !== "" ? `${kindOf[0]} the ${kindOf[1]}${kindOf[2] ? ` ${kindOf[2]}` : ""} ${resource}` : `${kindOf[0]} ${/^[aeiou]/.test(kindOf[1]) ? "an" : "a"} ${kindOf[1]}`;
   const said = SAID[action];
   if (said !== undefined) return resource !== undefined && resource !== "" && !said.includes(" a ") && !/Space|audit|held/.test(said) ? said : said;
   const p = actParts(action);
   if (p.state !== undefined) return `${[p.owner, p.subject].filter(Boolean).join(" ")}`.replace(/^(\w)/, (c) => c).trim() + ` ${p.state}`;
   const named = resource !== undefined && resource !== "";
   const det = (w: string): string => (p.det === "a" ? article(w) : "the");
+  const prep = PREP[p.key];
+  if (named && prep !== undefined && p.subject !== "") return `${p.verb} ${article(p.subject)} ${p.subject} ${prep} ${resource}`;
   if (p.kind === "provider") return named ? `${p.verb} ${resource} in ${p.owner}` : `${p.verb} ${p.subject !== "" ? `${det(p.subject)} ${p.subject}` : "an item"} in ${p.owner}`;
-  if (p.kind === "area") return named ? `${p.verb} ${resource} in ${p.owner}` : p.subject !== "" ? `${p.verb} ${det(p.subject)} ${p.subject} in ${p.owner}` : `${p.verb} ${p.owner}`;
-  if (named) return p.subject !== "" ? `${p.verb} the ${p.subject} of ${resource}` : `${p.verb} ${resource}`;
+  if (p.kind === "area") return named ? `${p.verb} ${resource} in ${p.owner}` : p.subject !== "" ? `${p.verb} ${det(p.subject)} ${p.subject} in ${p.owner}` : `${p.verb} ${/^the /.test(p.owner) ? "" : "the "}${p.owner}`;
+  if (named) return p.subject !== "" ? `${p.verb} the ${p.subject} of ${resource}` : `${p.verb} the ${p.owner} ${resource}`;
   return p.subject !== "" ? `${p.verb} ${det(p.subject)} ${p.subject} of ${article(p.owner)} ${p.owner}` : `${p.verb} ${article(p.owner)} ${p.owner}`;
 }
 
@@ -160,9 +165,9 @@ const SAID: Readonly<Record<string, string>> = {
 };
 
 /** Acts where the thing has a name people use for its kind: with its name it reads "changed the approval rule Send". */
-const SAID_OF: Readonly<Record<string, readonly [string, string]>> = {
+const SAID_OF: Readonly<Record<string, readonly [string, string, string?]>> = {
   "gate.rule_changed": ["changed", "approval rule"], "gate.rule_created": ["added", "approval rule"], "gate.rule_deleted": ["removed", "approval rule"],
-  "role.changed": ["changed", "role"], "role.created": ["created", "role"], "role.deleted": ["deleted", "role"],
+  "role.changed": ["changed", "role", "of"], "role.created": ["created", "role"], "role.deleted": ["deleted", "role"],
 };
 
 /** A whole line: who, what they did, to what, and for whom. The actor is a name already (the caller looks it up); an unknown actor is "Someone". */
