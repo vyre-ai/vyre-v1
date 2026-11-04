@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
@@ -6,6 +6,8 @@ import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { ObjectPage, ObjectSection, withBaseTabs } from "../../../../../ui/src/ObjectPage/index.tsx";
 import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
+import { personRowActions } from "../objects/row-menus.ts";
+import { createMenuApiB } from "../../places/chats/menus/actions-b.ts";
 import { ObjectList } from "../objects/ObjectList.tsx";
 import type { ObjectListRow } from "../objects/ObjectList.tsx";
 import { useObjectNames } from "../objects/names.ts";
@@ -62,6 +64,7 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
   useEffect(() => setSelected(initialPersonId ?? null), [initialPersonId]);
   const refreshAll = (): void => { people.refresh(); groups.refresh(); };
   const action = useAction(refreshAll);
+  const menuApi = useMemo(() => createMenuApiB(consoleData), [consoleData]);
   if (!people.data || !roles.data || !groups.data) return <ReadState error={people.error ?? roles.error ?? groups.error} retry={() => { people.refresh(); roles.refresh(); groups.refresh(); }} />;
   const everyone = people.data.principals;
   const roleName = (id: string): string => roles.data?.roles.find((r) => r.id === id)?.name ?? "Role";
@@ -72,7 +75,7 @@ export function People({ initialPersonId }: { initialPersonId?: string } = {}): 
     id: `console-person-${person.id}`, title: person.name === person.id ? "Person profile unavailable" : person.name,
     note: `${person.status[0]!.toUpperCase()}${person.status.slice(1)} · ${person.roles.map(roleName).join(", ") || "No role"}${person.groups.length ? ` · ${person.groups.length} ${person.groups.length === 1 ? "group" : "groups"}` : ""}`,
     search: `${person.title ?? ""}`, filters: personRowFilters(person), value: person,
-    actions: [{ label: "Open", onSelect: () => setSelected(person.id) }],
+    actions: personRowActions(person, consoleData.me.id, { api: menuApi, can: consoleData.can, open: () => setSelected(person.id), done: refreshAll, fail: (e) => setReport(e instanceof Error ? e.message : "That did not work.") }),
   }));
   const pickedPeople = everyone.filter((p) => picked.has(`console-person-${p.id}`));
   const protectedIds = new Set([consoleData.me.id, ...everyone.filter((p) => p.roles.some((id) => id === "rol_owner" || id === "owner")).map((p) => p.id)]);

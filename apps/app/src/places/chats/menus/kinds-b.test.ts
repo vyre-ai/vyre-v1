@@ -122,9 +122,10 @@ test("console person: Suspend or Reactivate by state, no actions on yourself or 
 });
 test("console group, role, computer, number and domain: Manage shows the changing items, Remove or Delete is last", () => {
   const g = recorder<Parameters<typeof consoleGroupMenu>[1]>(["open", "copyName", "addPerson", "rename", "remove"]);
-  assert.deepEqual(labels(consoleGroupMenu({ name: "Sales", manage: true }, g)), ["Open", "Copy Name", "-", "Add Person…", "Rename…", "-", "Delete Group…"]);
-  assert.deepEqual(labels(consoleGroupMenu({ name: "Sales", manage: false }, g)), ["Open", "Copy Name"]);
-  dangerLast(consoleGroupMenu({ name: "Sales", manage: true }, g));
+  assert.deepEqual(labels(consoleGroupMenu({ name: "Sales", manage: true, builtIn: false }, g)), ["Open", "Copy Name", "-", "Add Person…", "Rename…", "-", "Delete Group…"]);
+  assert.deepEqual(labels(consoleGroupMenu({ name: "Everyone", manage: true, builtIn: true }, g)), ["Open", "Copy Name", "-", "Add Person…"], "a built-in group is not renamed or deleted");
+  assert.deepEqual(labels(consoleGroupMenu({ name: "Sales", manage: false, builtIn: false }, g)), ["Open", "Copy Name"]);
+  dangerLast(consoleGroupMenu({ name: "Sales", manage: true, builtIn: false }, g));
   const r = recorder<Parameters<typeof consoleRoleMenu>[1]>(["open", "copyName", "duplicate", "preview", "remove"]);
   assert.deepEqual(labels(consoleRoleMenu({ name: "Editor", manage: true, builtIn: false, holders: 0 }, r)), ["Open", "Copy Name", "-", "Duplicate", "Preview Changes…", "-", "Delete Role…"]);
   assert.ok(!labels(consoleRoleMenu({ name: "Admin", manage: true, builtIn: true, holders: 3 }, r)).some((x) => /Delete/.test(x)), "a built-in role is never deleted");

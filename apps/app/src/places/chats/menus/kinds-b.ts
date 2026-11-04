@@ -233,16 +233,18 @@ export function consolePersonMenu(f: ConsolePersonFacts, d: ConsolePersonDo): Me
   ]);
 }
 
+/** A built-in group keeps its name and stays: no Rename, no Delete. */
+export interface ConsoleGroupFacts extends ConsoleFacts { builtIn: boolean }
 export interface ConsoleGroupDo { open(): void; copyName(): void; addPerson(): void; rename(): void; remove(): void }
-export function consoleGroupMenu(f: ConsoleFacts, d: ConsoleGroupDo): MenuEntry[] {
+export function consoleGroupMenu(f: ConsoleGroupFacts, d: ConsoleGroupDo): MenuEntry[] {
   return tidy([
     item("Open", d.open, { hint: KEY.enter }),
     item("Copy Name", d.copyName),
     f.manage ? sep : null,
     f.manage ? item(ellipsis("Add Person"), d.addPerson) : null,
-    f.manage ? item(ellipsis("Rename"), d.rename, { hint: KEY.rename }) : null,
-    f.manage ? sep : null,
-    f.manage ? item(ellipsis("Delete Group"), d.remove, { danger: true, hint: KEY.remove }) : null,
+    f.manage && !f.builtIn ? item(ellipsis("Rename"), d.rename, { hint: KEY.rename }) : null,
+    f.manage && !f.builtIn ? sep : null,
+    f.manage && !f.builtIn ? item(ellipsis("Delete Group"), d.remove, { danger: true, hint: KEY.remove }) : null,
   ]);
 }
 
