@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, Text, View, useWindowDimensions } from "react-native";
 import type { AccessRolesGetOut, AccessRolesListOut, AccessRolesPreviewOut, AccessGrantsListOut, AuditListOut } from "../../../../../generated/types.ts";
@@ -8,6 +8,8 @@ import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { ObjectList } from "../objects/ObjectList.tsx";
 import { Empty, Group, Lead, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
+import { roleRowActions } from "../objects/row-menus.ts";
+import { createMenuApiB } from "../../places/chats/menus/actions-b.ts";
 import { capital, count } from "../shell/format.ts";
 import { Help,  Actions, Button, Field, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 type Role = AccessRolesListOut["roles"][number];
@@ -104,6 +106,7 @@ export function Roles({ initialId }: {initialId?:string}): ReactElement {
   const [drafts,setDrafts] = useState<Drafts>(new Map());
   const [busy,setBusy] = useState(false);
   const [error,setError] = useState("");
+  const menuApi = useMemo(() => createMenuApiB(data), [data]);
   const refresh = () => {setMore(null);list.refresh();};
   useEffect(() => {setSelected(initialId ?? "");},[initialId]);
   useEffect(() => {setMore(null);},[search]);
@@ -114,7 +117,7 @@ export function Roles({ initialId }: {initialId?:string}): ReactElement {
   for(const role of roles)known.current.set(role.id,role);
   const visible = roles.filter((role) => (!search || role.name.toLowerCase().includes(search.toLowerCase())) && (!filters.size || filters.has(role.builtIn ? "built-in" : "custom")));
   const next = more ? more.next : list.data.next;
-  return <View testID="console-roles"><ObjectList rows={roles.map((role) => ({id:role.id,title:role.name,note:`${count(role.holders, "holder")} · ${role.clearance}`,filters:[role.builtIn ? "built-in" : "custom"],actions:[{label:role.builtIn ? "Open / Clone role" : "Open role",onSelect:()=>open(role)}],value:role}))} selectedId={null} onOpen={(row)=>{if(row.value)open(row.value);}} search={{value:search,onSearch:setSearch}} filters={[{id:"built-in",label:"Built-in"},{id:"custom",label:"Custom"}]} activeFilters={filters} onFilters={setFilters} picked={picked} onPicked={setPicked} bulkActions={[{label:"Compare selected roles",onSelect:()=>setColumns(new Set(picked))}]} pagination={{...(next?{next}:{}),busy,onMore:()=>{if(!next||busy)return;setBusy(true);void data.call("access.roles.list",{q:search,cursor:next,limit:100}).then((value)=>{const out=value as AccessRolesListOut;if(searchNow.current!==search)return;setMore({...out,roles:[...(more?.roles??[]),...out.roles]});},()=>setError("Couldn’t load more roles.")).finally(()=>setBusy(false));}}} empty="No roles match this search." testID="roles-list" />
+  return <View testID="console-roles"><ObjectList rows={roles.map((role) => ({id:role.id,title:role.name,note:`${count(role.holders, "holder")} · ${role.clearance}`,filters:[role.builtIn ? "built-in" : "custom"],actions:roleRowActions({id:role.id,name:role.name,builtIn:role.builtIn,holders:role.holders},{api:menuApi,can:data.can,open:()=>open(role),done:refresh,fail:(e)=>setError(e instanceof Error?e.message:"That did not work.")}),value:role}))} selectedId={null} onOpen={(row)=>{if(row.value)open(row.value);}} search={{value:search,onSearch:setSearch}} filters={[{id:"built-in",label:"Built-in"},{id:"custom",label:"Custom"}]} activeFilters={filters} onFilters={setFilters} picked={picked} onPicked={setPicked} bulkActions={[{label:"Compare selected roles",onSelect:()=>setColumns(new Set(picked))}]} pagination={{...(next?{next}:{}),busy,onMore:()=>{if(!next||busy)return;setBusy(true);void data.call("access.roles.list",{q:search,cursor:next,limit:100}).then((value)=>{const out=value as AccessRolesListOut;if(searchNow.current!==search)return;setMore({...out,roles:[...(more?.roles??[]),...out.roles]});},()=>setError("Couldn’t load more roles.")).finally(()=>setBusy(false));}}} empty="No roles match this search." testID="roles-list" />
     {next ? <Note>Load remaining roles to include them in this matrix.</Note> : null}{columns.size ? <Button label="Show all columns" onPress={()=>setColumns(new Set())}/> : null}<DraftEditor roles={[...known.current.values()]} displayRoles={columns.size ? visible.filter((role)=>columns.has(role.id)) : visible} drafts={drafts} setDrafts={setDrafts} onOpen={open} refresh={refresh} />{error?<Note>{error}</Note>:null}</View>;
 }
 function RoleObject({roleId,onBack}:{roleId:string;onBack:()=>void}):ReactElement {

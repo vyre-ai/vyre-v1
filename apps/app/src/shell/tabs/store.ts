@@ -146,6 +146,23 @@ export function selectTab(state: TabsState, key: string): TabsState {
   return findTab(state, key) === undefined || state.active === key ? state : { tabs: state.tabs, active: key };
 }
 
+/** Pinned tabs sit at the left in the order they were pinned; a tab pinned or unpinned moves to the edge of the pinned group. */
+export function pinTab(state: TabsState, key: string, on: boolean): TabsState {
+  const tab = findTab(state, key);
+  if (tab === undefined || (tab.pinned === true) === on || tab.isNew === true) return state;
+  const rest = state.tabs.filter((t) => t.key !== key);
+  const pinned = rest.filter((t) => t.pinned === true);
+  const loose = rest.filter((t) => t.pinned !== true);
+  const { pinned: _p, ...plain } = tab;
+  return on ? { tabs: [...pinned, { ...plain, pinned: true }, ...loose], active: state.active } : { tabs: [...pinned, plain, ...loose], active: state.active };
+}
+
+/** The unpinned tabs to the right of `key`, nearest first. */
+export function keysToTheRight(state: TabsState, key: string): string[] {
+  const at = state.tabs.findIndex((t) => t.key === key);
+  return at < 0 ? [] : state.tabs.slice(at + 1).filter((t) => t.pinned !== true).map((t) => t.key);
+}
+
 /** Puts the tabs in the order of `keys`. Unknown keys are ignored; tabs missing from `keys` keep their relative order at the end. */
 export function reorderTabs(state: TabsState, keys: readonly string[]): TabsState {
   const by = new Map(state.tabs.map((t) => [t.key, t] as const));
@@ -295,6 +312,14 @@ export interface TabsController {
   reorder(keys: readonly string[]): void;
   /** Rename a tab (a chat title arrives after the tab opens). */
   retitle(key: string, title: string, empty?: boolean): void;
+  /** Pin a tab (it stays at the left, and Close does not take it) or let it go. */
+  pin(key: string, on: boolean): void;
+  /** Close every unpinned tab to the right of this one. */
+  closeRight(key: string): void;
+  /** A tab that was closed comes back, the last closed first. */
+  reopen(): void;
+  /** Whether a closed tab can come back. */
+  canReopen(): boolean;
 }
 
 export interface TabsControllerOptions {
@@ -324,6 +349,11 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
     return kept !== null && kept.tabs.length > 0 ? kept : openTab(EMPTY_TABS, placeTab(options.start));
   })();
   const listeners = new Set<() => void>();
+  /** Closed tabs, the last closed on top: Reopen Closed Tab takes them back. Kept for this session only. */
+  const closed: TabEntry[] = [];
+  const remember = (keys: readonly string[]): void => {
+    for (const k of keys) { const t = findTab(state, k); if (t !== undefined && t.pinned !== true && t.isNew !== true) { closed.push(t); if (closed.length > 10) closed.shift(); } }
+  };
 
   const set = (given: TabsState): void => {
     // closing the last tab leaves the Space's start place open, never an empty stage
@@ -364,8 +394,16 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
       return tab;
     },
     select(key) { set(selectTab(state, key)); },
-    close(key) { set(closeTab(state, key)); },
-    closeMany(keys) { set(closeTabs(state, keys)); },
+    close(key) { remember([key]); set(closeTab(state, key)); },
+    closeMany(keys) { remember(keys); set(closeTabs(state, keys)); },
+    pin(key, on) { set(pinTab(state, key, on)); },
+    closeRight(key) { const keys = keysToTheRight(state, key); remember(keys); set(closeTabs(state, keys)); },
+    reopen() {
+      const tab = closed.pop();
+      if (tab === undefined || hidden.includes(tab.place)) return;
+      set(openTab(state, tab));
+    },
+    canReopen: () => closed.length > 0,
     reorder(keys) { set(reorderTabs(state, keys)); },
     retitle(key, title, empty) {
       if (findTab(state, key) === undefined) return;

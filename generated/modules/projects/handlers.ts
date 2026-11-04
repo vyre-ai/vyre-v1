@@ -6,6 +6,7 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "projects.apply_cascade": Handler<"projects.apply_cascade", X>;
+  "projects.archive": Handler<"projects.archive", X>;
   "projects.cascade": Handler<"projects.cascade", X>;
   "projects.create": Handler<"projects.create", X>;
   "projects.crew": Handler<"projects.crew", X>;
@@ -48,6 +49,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "projects.teammates.list": Handler<"projects.teammates.list", X>;
   "projects.teammates.remove": Handler<"projects.teammates.remove", X>;
   "projects.templates.list": Handler<"projects.templates.list", X>;
+  "projects.unarchive": Handler<"projects.unarchive", X>;
   "projects.unlink_tasks": Handler<"projects.unlink_tasks", X>;
   "projects.unpin_file": Handler<"projects.unpin_file", X>;
   "projects.unshare_out": Handler<"projects.unshare_out", X>;

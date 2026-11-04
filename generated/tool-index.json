@@ -6836,6 +6836,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_archive",
+      "summary": "Archive a project: it leaves the lists and stays readable, with its record, channel, folder and plan. A manager of the project",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_cascade",
       "summary": "Propose the cascade after something slips: which later tasks move and which dates still hold (an agent may call this too)",
       "toolset": "tasks"
@@ -7066,6 +7072,12 @@
       "deferred": false,
       "name": "projects_templates_list",
       "summary": "Project templates: record types derived from Project and template projects from installed Kits",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_unarchive",
+      "summary": "Bring an archived project back to the lists",
       "toolset": "records"
     },
     {
@@ -9482,6 +9494,12 @@
     },
     {
       "deferred": false,
+      "name": "threads_mark_unread_from",
+      "summary": "Mark a thread unread from one message on: the read point goes back to just before that message, so it and everything after it count as new (it never moves the point forward)",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_members_add",
       "summary": "Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker's private profile there. A chat's own agents become visible to the newcomer.",
       "toolset": "chats"
@@ -9490,6 +9508,12 @@
       "deferred": false,
       "name": "threads_members_remove",
       "summary": "Remove a person from a thread",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_move",
+      "summary": "Move a chat into a project: it then belongs to the project (its memory and its people). Needs Manage on the chat and the right to add to the project; audited",
       "toolset": "chats"
     },
     {

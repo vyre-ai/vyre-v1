@@ -2113,6 +2113,7 @@ export function stubs(ctx: CallCtx) {
     },
     projects: {
       apply_cascade: call("projects.apply_cascade"),
+      archive: call("projects.archive"),
       cascade: call("projects.cascade"),
       create: call("projects.create"),
       crew: call("projects.crew"),
@@ -2173,6 +2174,7 @@ export function stubs(ctx: CallCtx) {
       templates: {
         list: call("projects.templates.list"),
       },
+      unarchive: call("projects.unarchive"),
       unlink_tasks: call("projects.unlink_tasks"),
       unpin_file: call("projects.unpin_file"),
       unshare_out: call("projects.unshare_out"),
@@ -2825,10 +2827,12 @@ export function stubs(ctx: CallCtx) {
       list: call("threads.list"),
       make_channel: call("threads.make_channel"),
       mark_read: call("threads.mark_read"),
+      mark_unread_from: call("threads.mark_unread_from"),
       members: {
         add: call("threads.members.add"),
         remove: call("threads.members.remove"),
       },
+      move: call("threads.move"),
       outside_agent: {
         add: call("threads.outside_agent.add"),
         remove: call("threads.outside_agent.remove"),

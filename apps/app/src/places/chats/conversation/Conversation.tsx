@@ -49,8 +49,8 @@ import { ThreadParent } from "./ThreadParent.tsx";
 import { replySummaries } from "./replies.ts";
 import type { ReplySummary } from "./replies.ts";
 import type { LiveQuery } from "../../../../../../client/src/index.ts";
-import { useChatViewing, useOpenPublished } from "./artifact-open.ts";
 import { useAddSheet } from "../addsheet/index.ts";
+import { useChatViewing, useOpenPublished } from "./artifact-open.ts";
 import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, usePickUnavailable, useUsage } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
@@ -478,6 +478,7 @@ function ConversationView(): ReactElement {
   const actions: MessageActions = {
     host,
     copy: (t) => { data.copy(t); say("Copied"); },
+    copyLink: (id) => { { const l = (globalThis as { location?: { origin?: string; pathname?: string } }).location; data.copy(`${l?.origin ?? ""}${l?.pathname ?? ""}#screen=chats.conversation&threadId=${data.threadId}&m=${id}`); } say("Link copied"); },
     edit: (id, body) => {
       // an edit that adds an @mention asks that agent once, as if it had been named when sent (owner ruling, 3 Nov); the fixed ask id keeps a second edit from asking again
       const before = all.find((x) => x.messageId === id)?.body ?? "";
@@ -494,6 +495,8 @@ function ConversationView(): ReactElement {
     answer: (blockId, answer) => void act.answerBlock(data, blockId, answer).catch(fail("Could not send the answer.")),
     approvePlan: (planId) => void act.approvePlan(data, planId).then(() => say("Plan approved. The steps run and tick off in the card."), fail("Could not approve the plan.")),
     retryTurn: (turnId) => void act.retryTurn(data, turnId).catch(fail("Could not retry.")),
+    regenerate: (messageId) => void act.regenerate(data, messageId).catch(fail("Could not ask again.")),
+    markUnreadFrom: (seq) => void act.markUnreadFrom(data, seq).then(() => say("Marked unread from that message."), fail("Could not mark it unread.")),
     turnDetail: (turnId) => act.turnDetail(data, turnId),
     accountReady: () => act.hasWorkingAccount(data),
     errorNext: (key, turnId) => void act.errorAction(data, key, turnId, say).catch(fail("Could not do that.")),

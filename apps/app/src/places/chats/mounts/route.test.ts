@@ -72,3 +72,10 @@ test("one artifact opens in its own tab inside Chats, keeps the Artifacts row se
   assert.deepEqual(fromHash("subject=artifact:sit_1&share=1").route, { view: "artifact", artifactId: "sit_1", share: true });
   assert.equal(openKeyOf(fromHash("subject=artifact:sit_1").route), "artifacts");
 });
+
+test("the link Copy Link makes for a chat and for one message opens that chat, on that message", () => {
+  const chat = fromHash("screen=chats.conversation&threadId=thr_a");
+  assert.equal(chat.route.view === "chat" ? chat.route.threadId : null, "thr_a");
+  const msg = fromHash("screen=chats.conversation&threadId=thr_a&m=msg_9");
+  assert.deepEqual(msg.route.view === "chat" ? [msg.route.threadId, msg.route.focus] : null, ["thr_a", "msg_9"]);
+});

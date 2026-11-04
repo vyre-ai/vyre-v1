@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, mcp, members.
 
-## Capabilities (107)
+## Capabilities (109)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -100,8 +100,10 @@ Requires: engine, mcp, members.
 - [threads.list](../capabilities/threads.list.md): List threads by kind, folder, scope or record; or the threads I am in, newest reply first
 - [threads.make_channel](../capabilities/threads.make_channel.md): Make a private chat into a channel with another person; the new channel links back to the chat
 - [threads.mark_read](../capabilities/threads.mark_read.md): Mark a thread read up to a sequence number, or unread again (the newest message from someone else counts as new)
+- [threads.mark_unread_from](../capabilities/threads.mark_unread_from.md): Mark a thread unread from one message on: the read point goes back to just before that message, so it and everything after it count as new (it never moves the point forward)
 - [threads.members.add](../capabilities/threads.members.add.md): Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker's private profile there. A chat's own agents become visible to the newcomer.
 - [threads.members.remove](../capabilities/threads.members.remove.md): Remove a person from a thread
+- [threads.move](../capabilities/threads.move.md): Move a chat into a project: it then belongs to the project (its memory and its people). Needs Manage on the chat and the right to add to the project; audited
 - [threads.outside_agent.add](../capabilities/threads.outside_agent.add.md): Bring an outside agent into this chat with exactly this chat, its project, files folder and record, each tagged with the chat; it shows as "<person> (Agent)" and removing it ends access at once. You can only give what you hold
 - [threads.outside_agent.remove](../capabilities/threads.outside_agent.remove.md): Take an outside agent out of this chat and end every grant that bringing it in gave, at once
 - [threads.poke](../capabilities/threads.poke.md): Poke an agent: one turn for it now, even if it is listening. It reads the last 12 messages and tool calls, answers the poker, and its reply carries "Poked by <person>". An outside agent gets the poke in its queue

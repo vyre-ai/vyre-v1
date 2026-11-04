@@ -2113,6 +2113,7 @@ export function createClient(transport: Transport) {
     },
     projects: {
       apply_cascade: call("projects.apply_cascade", 1),
+      archive: call("projects.archive", 1),
       cascade: call("projects.cascade", 1),
       create: call("projects.create", 1),
       crew: call("projects.crew", 1),
@@ -2173,6 +2174,7 @@ export function createClient(transport: Transport) {
       templates: {
         list: call("projects.templates.list", 1),
       },
+      unarchive: call("projects.unarchive", 1),
       unlink_tasks: call("projects.unlink_tasks", 1),
       unpin_file: call("projects.unpin_file", 1),
       unshare_out: call("projects.unshare_out", 1),
@@ -2825,10 +2827,12 @@ export function createClient(transport: Transport) {
       list: call("threads.list", 1),
       make_channel: call("threads.make_channel", 1),
       mark_read: call("threads.mark_read", 1),
+      mark_unread_from: call("threads.mark_unread_from", 1),
       members: {
         add: call("threads.members.add", 1),
         remove: call("threads.members.remove", 1),
       },
+      move: call("threads.move", 1),
       outside_agent: {
         add: call("threads.outside_agent.add", 1),
         remove: call("threads.outside_agent.remove", 1),

@@ -3,7 +3,7 @@
 import { applyCascade, cascade } from "./cascade.ts";
 import { linkTasks, openTaskThread, plan, reschedule, stagesSet, unlinkTasks } from "./plan.ts";
 import {
-  create, fileChat, fromChannel, get, list, rolesOf, membersList, membersRemove, membersSet, overview, pinFile, postUpdate, shareOut, sharedView, unshareOut, templatesList, unpinFile,
+  archive, create, fileChat, fromChannel, get, list, rolesOf, unarchive, membersList, membersRemove, membersSet, overview, pinFile, postUpdate, shareOut, sharedView, unshareOut, templatesList, unpinFile,
 } from "./project.ts";
 import { recordFilesFolder } from "./folders.ts";
 import { link, linksList, rulesSet, unlink } from "./attach.ts";
@@ -36,6 +36,8 @@ export const handlers = {
   "projects.update.draft": updateDraft,
   "projects.update.edit": updateEdit,
   "projects.apply_cascade": applyCascade,
+  "projects.archive": archive,
+  "projects.unarchive": unarchive,
   "projects.cascade": cascade,
   "projects.create": create,
   "projects.file_chat": fileChat,

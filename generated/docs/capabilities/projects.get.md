@@ -51,6 +51,7 @@ type Out = {
     health?: "on" | "risk" | "off" | "hold" | "done";
     healthSetBy?: string;
     healthSetAt?: number;
+    archivedAt?: number;
   };
 };
 ```
@@ -73,6 +74,7 @@ type Out = {
   },
   "output": {
     "project": {
+      "archivedAt": 1760000000000,
       "channelId": "chn_a1b2c3",
       "due": 1760000000000,
       "folderId": "fld_a1b2c3",

@@ -29466,6 +29466,13 @@ export type ProjectsApplyCascadeIn = {
 export type ProjectsApplyCascadeOut = {
   moved: number;
 };
+export type ProjectsArchiveIn = {
+  projectId: string;
+};
+export type ProjectsArchiveOut = {
+  archived: boolean;
+  changed: boolean;
+};
 export type ProjectsCascadeIn = {
   projectId: string;
   taskId: string;
@@ -29594,6 +29601,7 @@ export type ProjectsGetOut = {
     health?: "on" | "risk" | "off" | "hold" | "done";
     healthSetBy?: string;
     healthSetAt?: number;
+    archivedAt?: number;
   };
 };
 export type ProjectsLinkTasksIn = {
@@ -29694,6 +29702,7 @@ export type ProjectsListIn = {
   type?: string;
   mine?: boolean;
   status?: string;
+  archived?: boolean;
   cursor?: string;
   limit?: number;
 };
@@ -29716,6 +29725,7 @@ export type ProjectsListOut = {
       health?: "on" | "risk" | "off" | "hold" | "done";
       healthSetBy?: string;
       healthSetAt?: number;
+      archivedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -29801,6 +29811,7 @@ export type ProjectsOverviewOut = {
     health?: "on" | "risk" | "off" | "hold" | "done";
     healthSetBy?: string;
     healthSetAt?: number;
+    archivedAt?: number;
   };
   goal?: string;
   statusUpdate?: {
@@ -30269,6 +30280,13 @@ export type ProjectsTemplatesListOut = {
       stages: Array<string>;
       source: "builtin" | "kit";
     }>;
+};
+export type ProjectsUnarchiveIn = {
+  projectId: string;
+};
+export type ProjectsUnarchiveOut = {
+  archived: boolean;
+  changed: boolean;
 };
 export type ProjectsUnlinkTasksIn = {
   projectId: string;
@@ -41529,6 +41547,13 @@ export type ThreadsMarkReadIn = {
 export type ThreadsMarkReadOut = {
   unread: number;
 };
+export type ThreadsMarkUnreadFromIn = {
+  threadId: string;
+  seq: number;
+};
+export type ThreadsMarkUnreadFromOut = {
+  unread: number;
+};
 export type ThreadsMembersAddIn = {
   threadId: string;
   personId: string;
@@ -41595,6 +41620,66 @@ export type ThreadsMembersRemoveIn = {
   personId: string;
 };
 export type ThreadsMembersRemoveOut = {
+  thread: {
+    threadId: string;
+    kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+    title?: string;
+    starter?: string;
+    channelId?: string;
+    parentThreadId?: string;
+    parentMessageId?: string;
+    recordId?: string;
+    folderId?: string;
+    scopeType?: string;
+    scopeId?: string;
+    listed: boolean;
+    planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
+    members: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    agents: Array<{
+        agentId: string;
+        mode: "lead" | "listen";
+        model?: string;
+        provider?: string;
+        effort?: "low" | "medium" | "high" | "max";
+        accountRef?: string;
+        watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
+      }>;
+    createdAt: number;
+    closedAt?: number;
+    sharedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
+    path?: Array<{
+        title: string;
+        threadId: string;
+      }>;
+    unread?: number;
+    following?: boolean;
+    muted?: boolean;
+    repliers?: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    parentTitle?: string;
+    preview?: string;
+  };
+};
+export type ThreadsMoveIn = {
+  threadId: string;
+  projectId: string;
+};
+export type ThreadsMoveOut = {
   thread: {
     threadId: string;
     kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
@@ -45165,6 +45250,7 @@ export interface CapMap {
   "previews.text": { in: PreviewsTextIn; out: PreviewsTextOut };
   "previews.thumbnails": { in: PreviewsThumbnailsIn; out: PreviewsThumbnailsOut };
   "projects.apply_cascade": { in: ProjectsApplyCascadeIn; out: ProjectsApplyCascadeOut };
+  "projects.archive": { in: ProjectsArchiveIn; out: ProjectsArchiveOut };
   "projects.cascade": { in: ProjectsCascadeIn; out: ProjectsCascadeOut };
   "projects.create": { in: ProjectsCreateIn; out: ProjectsCreateOut };
   "projects.crew": { in: ProjectsCrewIn; out: ProjectsCrewOut };
@@ -45207,6 +45293,7 @@ export interface CapMap {
   "projects.teammates.list": { in: ProjectsTeammatesListIn; out: ProjectsTeammatesListOut };
   "projects.teammates.remove": { in: ProjectsTeammatesRemoveIn; out: ProjectsTeammatesRemoveOut };
   "projects.templates.list": { in: ProjectsTemplatesListIn; out: ProjectsTemplatesListOut };
+  "projects.unarchive": { in: ProjectsUnarchiveIn; out: ProjectsUnarchiveOut };
   "projects.unlink_tasks": { in: ProjectsUnlinkTasksIn; out: ProjectsUnlinkTasksOut };
   "projects.unpin_file": { in: ProjectsUnpinFileIn; out: ProjectsUnpinFileOut };
   "projects.unshare_out": { in: ProjectsUnshareOutIn; out: ProjectsUnshareOutOut };
@@ -45689,8 +45776,10 @@ export interface CapMap {
   "threads.list": { in: ThreadsListIn; out: ThreadsListOut };
   "threads.make_channel": { in: ThreadsMakeChannelIn; out: ThreadsMakeChannelOut };
   "threads.mark_read": { in: ThreadsMarkReadIn; out: ThreadsMarkReadOut };
+  "threads.mark_unread_from": { in: ThreadsMarkUnreadFromIn; out: ThreadsMarkUnreadFromOut };
   "threads.members.add": { in: ThreadsMembersAddIn; out: ThreadsMembersAddOut };
   "threads.members.remove": { in: ThreadsMembersRemoveIn; out: ThreadsMembersRemoveOut };
+  "threads.move": { in: ThreadsMoveIn; out: ThreadsMoveOut };
   "threads.outside_agent.add": { in: ThreadsOutsideAgentAddIn; out: ThreadsOutsideAgentAddOut };
   "threads.outside_agent.remove": { in: ThreadsOutsideAgentRemoveIn; out: ThreadsOutsideAgentRemoveOut };
   "threads.poke": { in: ThreadsPokeIn; out: ThreadsPokeOut };
@@ -48382,6 +48471,10 @@ export type PrincipalSuspendedPayload = {
   principalId: string;
   reason?: string;
 };
+export type ProjectArchivedPayload = {
+  projectId: string;
+  by: string;
+};
 export type ProjectCascadeAppliedPayload = {
   projectId: string;
   proposalId: string;
@@ -48497,6 +48590,10 @@ export type ProjectTasksUnlinkedPayload = {
   projectId: string;
   fromTaskId: string;
   toTaskId: string;
+};
+export type ProjectUnarchivedPayload = {
+  projectId: string;
+  by: string;
 };
 export type ProjectUnsharedOutPayload = {
   projectId: string;
@@ -50450,6 +50547,7 @@ export interface EventMap {
   "principal.created": PrincipalCreatedPayload;
   "principal.reactivated": PrincipalReactivatedPayload;
   "principal.suspended": PrincipalSuspendedPayload;
+  "project.archived": ProjectArchivedPayload;
   "project.cascade_applied": ProjectCascadeAppliedPayload;
   "project.cascade_proposed": ProjectCascadeProposedPayload;
   "project.chat_filed": ProjectChatFiledPayload;
@@ -50471,6 +50569,7 @@ export interface EventMap {
   "project.task_thread_opened": ProjectTaskThreadOpenedPayload;
   "project.tasks_linked": ProjectTasksLinkedPayload;
   "project.tasks_unlinked": ProjectTasksUnlinkedPayload;
+  "project.unarchived": ProjectUnarchivedPayload;
   "project.unshared_out": ProjectUnsharedOutPayload;
   "project.update_drafted": ProjectUpdateDraftedPayload;
   "project.update_posted": ProjectUpdatePostedPayload;

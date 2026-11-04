@@ -97,6 +97,12 @@ export interface MessageActions {
   answer(blockId: string, answer: unknown): void;
   approvePlan(planId: string): void;
   retryTurn(turnId: string): void;
+  /** Run the turn that made this reply once more: "Regenerate" in an agent reply's menu. Left out where the chat cannot. */
+  regenerate?(messageId: string): void;
+  /** Mark the chat unread from this message on (threads.mark_unread_from, by its sequence number). */
+  markUnreadFrom?(seq: number): void;
+  /** Copies the plain link to this message (/c/<thread>#<message>). Left out where the chat has no address. */
+  copyLink?(messageId: string): void;
   /** The rows of Details on a failed turn, read from the turn when it opens. */
   turnDetail?(turnId: string): Promise<[string, string][]>;
   errorNext(key: string, turnId?: string): void;
@@ -215,22 +221,33 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
 const firstName = (name: string): string => name.split(" ")[0] || name;
 
 export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: () => void, at: { x: number; y: number } = { x: 0, y: 0 }): MenuEntry[] {
-  const items: MenuEntry[] = [{ label: "Copy", onSelect: () => a.copy(m.body) }];
-  if (mine && m.kind === "text") items.push({ label: "Edit", onSelect: onEdit });
-  items.push({ label: "Reply in Thread", onSelect: () => a.openThread(m.messageId) });
-  if (a.askAgent && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Ask an Agent…", onSelect: () => a.askAgent!(m.messageId, at.x, at.y) });
-  if (a.makeTask && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Make a Task", onSelect: () => a.makeTask!(m.messageId) });
-  if (a.share && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Share to...", onSelect: () => a.share!(m.messageId, at.x, at.y) });
-  if (a.fork && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Fork From Here", onSelect: () => a.fork!(m.messageId) });
-  items.push({ label: m.pinned ? "Unpin Message" : "Pin Message", onSelect: () => a.setPinned(m.messageId, !m.pinned) });
-  items.push({ label: "Add Reaction", onSelect: () => (a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "👍", false)) });
-  if (m.kind !== "quiet" && a.memoryEntries) items.push(...a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu));
+  // groups, split by a separator: read and write it, then turn it into something, then keep it, then how it was made, then remove it last
+  const talk = m.kind !== "system" && m.kind !== "quiet";
+  const write: MenuEntry[] = [{ label: "Copy", onSelect: () => a.copy(m.body) }];
+  if (a.copyLink) write.push({ label: "Copy Link", onSelect: () => a.copyLink!(m.messageId) });
+  if (mine && m.kind === "text") write.push({ label: "Edit", onSelect: onEdit });
+  const turn: MenuEntry[] = [{ label: "Reply in Thread", onSelect: () => a.openThread(m.messageId) }];
+  // an agent's reply cannot be edited by you; it can be asked again
+  if (!mine && m.author.kind === "agent" && m.kind !== "system" && m.kind !== "quiet" && a.regenerate) turn.push({ label: "Regenerate", onSelect: () => a.regenerate!(m.messageId) });
+  if (a.askAgent && talk) turn.push({ label: "Ask an Agent…", onSelect: () => a.askAgent!(m.messageId, at.x, at.y) });
+  if (a.makeTask && talk) turn.push({ label: "Make a Task", onSelect: () => a.makeTask!(m.messageId) });
+  if (a.share && talk) turn.push({ label: "Share to...", onSelect: () => a.share!(m.messageId, at.x, at.y) });
+  if (a.fork && talk) turn.push({ label: "Fork From Here", onSelect: () => a.fork!(m.messageId) });
+  const keep: MenuEntry[] = [
+    { label: m.pinned ? "Unpin Message" : "Pin Message", onSelect: () => a.setPinned(m.messageId, !m.pinned) },
+    { label: "Add Reaction", onSelect: () => (a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "👍", false)) },
+  ];
+  if (a.markUnreadFrom && !m.messageId.startsWith("pending:")) keep.push({ label: "Mark Unread From Here", onSelect: () => a.markUnreadFrom!(m.threadSeq) });
+  if (m.kind !== "quiet" && a.memoryEntries) keep.push(...a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu));
+  const how: MenuEntry[] = [];
   // how an agent's reply was made: the right pane's Details tab (what the agent knew is a section of it)
-  if (!mine && a.details && m.author.kind === "agent") items.push({ separator: true }, { label: "Details", onSelect: () => a.details!.open(m.messageId) });
+  if (!mine && a.details && m.author.kind === "agent") how.push({ label: "Details", onSelect: () => a.details!.open(m.messageId) });
   const ob = onBehalfOf(m);
-  if (ob && a.agentMute && ob.teammate === a.agentMute.me) items.push({ label: `Mute Agent Messages From ${firstName(a.nameOf ? a.nameOf(ob.person) : "Them")} for Today`, onSelect: () => a.agentMute!.mute(ob.person) });
-  if (mine) items.push({ separator: true }, { label: "Delete", danger: true, onSelect: () => a.remove(m.messageId) });
-  return items;
+  if (ob && a.agentMute && ob.teammate === a.agentMute.me) how.push({ label: `Mute Agent Messages From ${firstName(a.nameOf ? a.nameOf(ob.person) : "Them")} for Today`, onSelect: () => a.agentMute!.mute(ob.person) });
+  const last: MenuEntry[] = mine ? [{ label: "Delete", danger: true, onSelect: () => a.remove(m.messageId) }] : [];
+  const out: MenuEntry[] = [];
+  for (const group of [write, turn, keep, how, last]) { if (group.length === 0) continue; if (out.length > 0) out.push({ separator: true }); out.push(...group); }
+  return out;
 }
 
 /** The bar is drawn only while the row is hovered or has focus: fifty rows that each hold a hidden bar of buttons were most of what the first frame cost. The empty toolbar stays, so the row's size and test hook never change. */
