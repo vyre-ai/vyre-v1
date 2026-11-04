@@ -153,3 +153,17 @@ test("a chat row: Move to Project lists the projects and the one picked calls th
   assert.deepEqual(caps(s, "threads.move"), [{ threadId, projectId: "prj_rec_rivera" }]);
   assert.deepEqual(s.rejected, []);
 });
+
+test("a goal row: right-click gives the goal menu for its owner; Pause calls goals.pause with the goal's id", async () => {
+  const goal = { id: "gol_a", title: "Fill Lab 8", status: "active", owner: "usr_irfad", leadAgentId: "agt_assistant", deadline: Date.UTC(2026, 11, 1), progress: { tasksDone: 1, tasks: 4 }, updatedAt: Date.UTC(2026, 10, 3) };
+  const { s, root } = await drawn(createRoot, { open: null, goals: [goal] });
+  await flush();
+  const row = rowIds(root, "row-g:")[0];
+  assert.ok(row, `goal rows: ${rowIds(root, "row-").join(" ")}`);
+  await rightClick(root, row);
+  const ids = itemIds(root);
+  assert.ok(ids.includes("Open") && ids.includes("Pause") && ids.includes("Copy Link"), ids.join("|"));
+  await press(find(root, "menu-item-Pause")); await flush();
+  assert.deepEqual(caps(s, "goals.pause"), [{ goalId: "gol_a" }]);
+  assert.deepEqual(s.rejected, []);
+});

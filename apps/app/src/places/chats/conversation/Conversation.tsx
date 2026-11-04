@@ -460,7 +460,7 @@ function ConversationView(): ReactElement {
   const actions: MessageActions = {
     host,
     copy: (t) => { data.copy(t); say("Copied"); },
-    copyLink: (id) => { data.copy(`${(globalThis as { location?: { origin?: string } }).location?.origin ?? ""}/c/${data.threadId}#${id}`); say("Link copied"); },
+    copyLink: (id) => { { const l = (globalThis as { location?: { origin?: string; pathname?: string } }).location; data.copy(`${l?.origin ?? ""}${l?.pathname ?? ""}#screen=chats.conversation&threadId=${data.threadId}&m=${id}`); } say("Link copied"); },
     edit: (id, body) => {
       // an edit that adds an @mention asks that agent once, as if it had been named when sent (owner ruling, 3 Nov); the fixed ask id keeps a second edit from asking again
       const before = all.find((x) => x.messageId === id)?.body ?? "";

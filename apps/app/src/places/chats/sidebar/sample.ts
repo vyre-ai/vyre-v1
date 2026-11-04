@@ -149,7 +149,7 @@ export interface SampleSidebar {
 /** An imported coding session as sessions.list answers it (the sample's own copy, so rename, archive and delete change it). */
 export interface SampleImported { conversationId: string; provider: "claude_code" | "codex"; title: string; startedAt: number; importedAt: number; continuedThreadId?: string; archived?: boolean }
 
-export function createSampleSidebar(space: SampleSpace = northwind, o: { online?: boolean; startDelayMs?: number; imported?: readonly SampleImported[] } = {}): SampleSidebar {
+export function createSampleSidebar(space: SampleSpace = northwind, o: { online?: boolean; startDelayMs?: number; imported?: readonly SampleImported[]; /** goals the person has, as goals.list answers them */ goals?: readonly Record<string, unknown>[] } = {}): SampleSidebar {
   const replica = createFakeReplica(space.id);
   const calls: { cap: string; input: unknown }[] = [];
   const opened: string[] = [];
@@ -265,6 +265,8 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     "stars.list": () => ({ stars: [] }),
     "threads.poke": (i: { threadId: string; agentId: string }) => { refuse("threads.poke", i); return { poked: true }; },
     "threads.move": (i: { threadId: string; projectId: string }) => { return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
+    "goals.list": (i: { scope?: string }) => ({ goals: i.scope === "mine" ? [...(o.goals ?? [])] : [] }),
+    "goals.pause": () => ({}),
     "threads.add_agent": (i: { threadId: string; agentId: string }) => { return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
     "threads.members.add": (i: { threadId: string; personId: string }) => { return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
     "access.shares_of": () => ({ shares: [], agentsCanCall: true }),
@@ -307,7 +309,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     openChat: (id) => void opened.push(`chat:${id}`), openAgentChat: (id) => void opened.push(`agent:${id}`), openChannel: (id) => void opened.push(`channel:${id}`),
     openNeedsYou: (id) => void opened.push(id ? `needs:${id}` : "needs"), openAllAgents: () => void opened.push("all-agents"), openSearch: () => void opened.push("search"),
     openSpaceSwitcher: () => void opened.push("spaces"), openNewChannel: () => void opened.push("new-channel"),
-    openAgent: (id) => void opened.push(`profile:${id}`), openChatTab: (id) => void opened.push(`tab:${id}`),
+    openAgent: (id) => void opened.push(`profile:${id}`), openChatTab: (id) => void opened.push(`tab:${id}`), openGoal: (id) => void opened.push(`goal:${id}`),
   };
   const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };
 

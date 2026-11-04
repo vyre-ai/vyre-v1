@@ -30,9 +30,9 @@ export const chainTo = (n: Node, id: string, up: Node[] = []): Node[] | null => 
 
 /** The sidebar drawn with what the middle shows; `show` changes that the way a tab, a link or Cmd-K does (the place re-renders it with the new open key). */
 /** `make` is test-renderer's createRoot, handed in by the test file (only test files may import that dev dependency). */
-export async function drawn(make: () => { render(el: ReactElement): void; container: unknown }, o: { imported?: SampleImported[]; open?: string | null; artifacts?: boolean; people?: { id: string; name: string }[] } = {}) {
+export async function drawn(make: () => { render(el: ReactElement): void; container: unknown }, o: { imported?: SampleImported[]; open?: string | null; artifacts?: boolean; people?: { id: string; name: string }[]; goals?: readonly Record<string, unknown>[] } = {}) {
   installDom();
-  const s = createSampleSidebar(northwind, o.imported ? { imported: o.imported } : {});
+  const s = createSampleSidebar(northwind, { ...(o.imported ? { imported: o.imported } : {}), ...(o.goals ? { goals: o.goals } : {}) });
   const news: string[] = [];
   // imported coding sessions exist only in a Personal Space (a Team Space refuses the read), so a draw with them is one, on the same clock and rows
   const data = { ...s.data, ...(o.imported ? { space: { ...s.data.space, personal: true } } : {}), ...(o.people ? { people: o.people } : {}), nav: { ...s.data.nav, openImported: (id: string) => void s.opened.push(`imported:${id}`), openNew: () => void news.push("new"), ...(o.artifacts ? { openArtifacts: () => void s.opened.push("artifacts") } : {}) } };

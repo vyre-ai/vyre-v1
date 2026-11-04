@@ -43,6 +43,8 @@ import { useGoals } from "../goals/data.ts";
 import { sidebarGoals } from "../goals/model.ts";
 import type { GoalLine } from "../goals/model.ts";
 import { GOAL_ROW_H, GoalRow } from "../goals/GoalRow.tsx";
+import { askedCall, goalMenuEntries } from "../goals/goal-menu.ts";
+import { TextAsk } from "../menus/TextAsk.tsx";
 import { RenameField } from "../conversation/parts.tsx";
 import { ChannelSheets } from "../channels/Sheets.tsx";
 import { onChannelRequest, takeChannelRequest } from "../channels/request.ts";
@@ -334,7 +336,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   const meNow = { id: data.me?.id ?? "me", name: nameOr(names.get(data.me?.id ?? ""), "You") };
   const add = useAddSheet({ call: data.call, me: meNow, nameOf: agentName, newKey: () => `sb-add-${++seq.current}`, toast: say }, { copy: (t) => copy(t) });
   const share = useShareSheet({ call: data.call, me: meNow, nameOf: agentName, spaceName: data.space.name, newKey: () => `sb-share-${++seq.current}`, toast: say });
-  const chatLink = (threadId: string): string => `${(globalThis as { location?: { origin?: string } }).location?.origin ?? ""}/c/${threadId}`;
+  const chatLink = (threadId: string): string => { const l = (globalThis as { location?: { origin?: string; pathname?: string } }).location; return `${l?.origin ?? ""}${l?.pathname ?? ""}#screen=chats.conversation&threadId=${threadId}`; };
   const chatRowsAll = allGroups.flatMap((g) => g.rows).filter((r) => !r.local);
   const dmWith = (agentId: string): ChatRow | undefined => chatRowsAll.find((r) => r.whoId === agentId && r.members === undefined);
   /** Which chat: the most recent ones, then the one picked gets the call. */
@@ -355,6 +357,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     ], x, y, "other");
   };
   const [renamingChat, setRenamingChat] = useState<string | null>(null);
+  const [goalAsk, setGoalAsk] = useState<{ goalId: string; kind: "stuck" | "report" } | null>(null);
   const renameChat = (r: ChatRow, title: string | null): void => {
     setRenamingChat(null);
     if (title === null || title.trim() === "" || title === r.title) return;
@@ -489,8 +492,16 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     ...(data.nav.openNotesTab ? [{ label: "Open in a new tab", onSelect: () => data.nav.openNotesTab?.() }] : []),
     ...(data.nav.takeNote ? [{ label: "Take a note", onSelect: () => { setCursor(e.key); data.nav.takeNote?.(); leave(); } }] : []),
   ];
+  /** One capability call for a goal from its row menu: the words say what happened, a refusal says it did not. */
+  const goalRun = (goalId: string) => (cap: string, input: Record<string, unknown>, done?: string): Promise<unknown> =>
+    Promise.resolve(data.call(cap, { goalId, ...input })).then((o) => { if (done) say(done); return o; }, (e: unknown) => { say(e instanceof Error && e.message ? e.message : "That did not go through."); });
+  const goalMenu = (e: Extract<Entry, { type: "goal" }>): MenuEntry[] => goalMenuEntries(e.goal, data.me?.id, {
+    run: goalRun(e.goal.id),
+    ...(data.nav.openGoal ? { open: () => { data.nav.openGoal?.(e.goal.id); leave(); } } : {}),
+    ask: (kind) => setGoalAsk({ goalId: e.goal.id, kind }),
+  });
   const menuFor = (e: Entry, x: number, y: number): MenuEntry[] | null =>
-    e.type === "nav" && e.to === "notes" ? notesMenu(e) : e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e, x, y) : e.type === "channel" ? channelMenuFor(e.channel) : e.type === "imported" ? importedMenu(e, x, y) : e.type === "person" ? personMenu(e) : null;
+    e.type === "goal" ? goalMenu(e) : e.type === "nav" && e.to === "notes" ? notesMenu(e) : e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e, x, y) : e.type === "channel" ? channelMenuFor(e.channel) : e.type === "imported" ? importedMenu(e, x, y) : e.type === "person" ? personMenu(e) : null;
   /** A row's "...", drawn while the pointer is on it: the same menu as a right-click. */
   const moreTool = (e: Entry, label: string): ReactElement => (
     <Tool icon="more" label={`More for ${label}`} onPress={(x, y) => { readFacts(); const m = menuFor(e, x, y); if (m) menu.show(m, x, y, "context", { label: e.key }); }} testID={`more-${e.key}`} />
@@ -530,9 +541,9 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     const sel = selected === e.key;
     // the keyboard cursor on a row that is not the open one: drawn as a hover, never as the selection
     const lit = follows && cursor === e.key && !sel;
-    const wrap = (child: ReactElement): ReactElement => {
+    const wrap = (child: ReactElement, rowH: number = ROW_H): ReactElement => {
       const m = menuFor(e, 0, 0);
-      return m ? <View style={{ height: ROW_H }} {...rowMenu.on((at) => menuFor(e, at.x, at.y), { label: e.key, before: () => readFacts() })}>{child}</View> : child;
+      return m ? <View style={{ height: rowH }} {...rowMenu.on((at) => menuFor(e, at.x, at.y), { label: e.key, before: () => readFacts() })}>{child}</View> : child;
     };
     switch (e.type) {
       case "head": {
@@ -544,7 +555,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
           </SectionHead>
         );
       }
-      case "goal": return <GoalRow goal={e.goal} selected={sel} hovered={lit} now={data.clock().now} offsetMin={data.clock().offsetMin} me={data.me?.id} leadName={agentName(e.goal.leadAgentId)} onPress={() => open(e)} />;
+      case "goal": return wrap(<GoalRow goal={e.goal} selected={sel} hovered={lit} now={data.clock().now} offsetMin={data.clock().offsetMin} me={data.me?.id} leadName={agentName(e.goal.leadAgentId)} onPress={() => open(e)} />, GOAL_ROW_H);
       case "group": return <GroupLabel label={e.label} />;
       case "action": return (
         <Row id={e.key} title={e.label} selected={sel} hovered={lit} onPress={() => open(e)} leading={<LeadGlyph name="plus" />} />
@@ -712,6 +723,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
       {menu.element}
       {add.element}
       {share.element}
+      {goalAsk ? <TextAsk title={goalAsk.kind === "stuck" ? "Why is this goal stuck?" : "Report progress"} label={goalAsk.kind === "stuck" ? "What is in the way" : "What changed and what is next"} action={goalAsk.kind === "stuck" ? "Mark stuck" : "Report"} multiline onClose={() => setGoalAsk(null)} onDone={(text) => { const c = askedCall(goalAsk.kind, text); const id = goalAsk.goalId; setGoalAsk(null); void goalRun(id)(c.cap, c.input, c.done); }} /> : null}
       {sheet ? <ChannelSheets kind={sheet} channels={allChannels} agents={agents} onSwitch={setSheet} onClose={() => setSheet(null)} /> : null}
     </View>
   );
