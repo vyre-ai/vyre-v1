@@ -6,7 +6,7 @@
 import { windowFor } from "../../../../agent/src/transcript/windows.ts";
 import { actorOf, raise } from "../../projections.ts";
 import { completerOf, ensureRuntime } from "../../runtime.ts";
-import { PROBE_CAP, PROBE_PROMPT, confirmedFor, probeModels, probeRunning, probing, unavailableFor } from "../../model-health.ts";
+import { CLI_PROBE_PARALLEL, CLI_PROBE_TIMEOUT_MS, PROBE_CAP, PROBE_PROMPT, noteAccount, confirmedFor, probeModels, probeRunning, probing, unavailableFor } from "../../model-health.ts";
 import { LIVE_DRIVERS, modelsFor, savedTested, saveTested } from "../../live-models.ts";
 import type { LiveModel, ModelsState } from "../../live-models.ts";
 import type { EngineCtx } from "../../projections.ts";
@@ -131,11 +131,13 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
     const refused = unavailableFor(ctx.db, ref, ctx.now());
     // an API key's models are checked once, in the background, with one tiny request each (capped): until a model is confirmed it is shown greyed as "Checking..."
     const checking = new Set<string>();
-    if (!passive && !subs.includes(p) && p.spaceKey !== true && completerOf() !== null) {
+    const isCli = subs.includes(p);
+    noteAccount(ctx.db, p.id, ref);
+    if (!passive && p.spaceKey !== true && completerOf() !== null) {
       const known = confirmedFor(ctx.db, ref, ctx.now());
       const unsure = models.filter((m) => !refused.has(m) && !known.has(m)).slice(0, PROBE_CAP);
       for (const m of unsure) checking.add(m);
-      if (unsure.length > 0) probeModels(ctx.db, ref, unsure, async (r, m) => { await ctx.call("engine.complete", { accountRef: r, prompt: PROBE_PROMPT, model: m }); }, ctx.now);
+      if (unsure.length > 0) probeModels(ctx.db, ref, unsure, async (r, m) => { await ctx.call("engine.complete", { accountRef: r, prompt: PROBE_PROMPT, model: m }); }, ctx.now, isCli ? { parallel: CLI_PROBE_PARALLEL, timeoutMs: CLI_PROBE_TIMEOUT_MS } : {});
     }
     for (const model of models) {
       if (refused.has(model)) continue;

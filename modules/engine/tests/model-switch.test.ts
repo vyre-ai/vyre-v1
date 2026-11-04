@@ -3,11 +3,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { candidates, createModelSwitch, modelSwapLine, NO_MODEL_WORKS } from "../model-switch.ts";
-import { REST_MS, clearUnavailable, confirmedFor, forgetAll, markConfirmed, markUnavailable, resetProbes, unavailableFor } from "../model-health.ts";
+import { REST_MS, clearUnavailable, confirmedFor, forgetAll, forgetProvider, markConfirmed, noteAccount, markUnavailable, resetProbes, unavailableFor } from "../model-health.ts";
 import { bindCompleter } from "../runtime.ts";
 import { recallPick, recentPicks, rememberPick } from "../last-pick.ts";
 import { modelsList } from "../handlers/extra/models.ts";
-import { resetLiveModels } from "../live-models.ts";
+import { bindModelLister, resetLiveModels } from "../live-models.ts";
 import { harness } from "../fixtures/harness.ts";
 import type { EngineCtx } from "../projections.ts";
 
@@ -102,6 +102,11 @@ test("a sign-in change forgets what was learned about the accounts' models", () 
   markConfirmed(h.ctx.db, "#A", "m1", 1000);
   markUnavailable(h.ctx.db, "#B", "m2", 1000);
   assert.deepEqual([[...confirmedFor(h.ctx.db, "#A", 2000)], [...unavailableFor(h.ctx.db, "#B", 2000)]], [["m1"], ["m2"]]);
+  noteAccount(h.ctx.db, "prv_a", "#A");
+  noteAccount(h.ctx.db, "prv_b", "#B");
+  assert.equal(forgetProvider(h.ctx.db, "prv_b"), "#B", "only the changed account is forgotten");
+  assert.equal(forgetProvider(h.ctx.db, "prv_zzz"), null, "an account never read has nothing to forget");
+  assert.deepEqual([[...confirmedFor(h.ctx.db, "#A", 2000)], [...unavailableFor(h.ctx.db, "#B", 2000)]], [["m1"], []]);
   forgetAll(h.ctx.db);
   assert.deepEqual([[...confirmedFor(h.ctx.db, "#A", 2000)], [...unavailableFor(h.ctx.db, "#B", 2000)]], [[], []]);
 });
@@ -154,4 +159,38 @@ test("a failure that says nothing about the model (a rate limit) confirms it; no
     const done = await modelsList(c, { wait: true });
     assert.deepEqual(done.models.map((m) => [m.model, m.allowed]), [["glm-5.3", true]]);
   } finally { bindCompleter(null); resetProbes(); }
+});
+
+test("a CLI account's listed models are checked one at a time with the CLI's own one-shot, Beam Free-style refusals leave the list, and the rest stay", async () => {
+  resetLiveModels(); resetProbes();
+  const CODEX = { connection: "subscription", scope: "mine", spaceMayUse: false, state: "ok", id: "prv_x", providerKey: "codex", name: "Codex", engine: "codex", handle: "#Dana_Codex", itemId: "vit_x" };
+  bindModelLister(async () => [{ id: "gpt-7-nova", title: "GPT-7-Nova" }, { id: "beam-free", title: "Beam Free" }, { id: "gpt-6.1-sol", title: "GPT-6.1-Sol" }]);
+  bindCompleter(async () => ({ text: "ok", tokensIn: 1, tokensOut: 1 }));
+  try {
+    const h = harness();
+    let live = 0, peak = 0;
+    const asked: string[] = [];
+    const ctx: EngineCtx = {
+      ...h.ctx,
+      call: async (cap: string, input: unknown) => {
+        if (cap === "providers.list") return { providers: [CODEX] };
+        if (cap === "engine.complete") {
+          const m = (input as { model: string }).model;
+          asked.push(m); live += 1; peak = Math.max(peak, live);
+          await new Promise((r) => setTimeout(r, 5));
+          live -= 1;
+          if (m === "beam-free") throw new Error("engine.model_unavailable: There's an issue with the selected model (beam-free). It may not exist or you may not have access to it.");
+          return { text: "ok" };
+        }
+        return h.ctx.call(cap, input);
+      },
+    };
+    await modelsList(ctx, { refresh: true, wait: true });
+    const first = await modelsList(ctx, { wait: true });
+    const done = await modelsList(ctx, { wait: true });
+    assert.deepEqual(done.models.map((m) => [m.model, m.allowed]).sort(), [["gpt-6.1-sol", true], ["gpt-7-nova", true]]);
+    assert.ok(first.models.length >= 2);
+    assert.equal(peak, 1, "one at a time per CLI");
+    assert.deepEqual(asked.sort(), ["beam-free", "gpt-6.1-sol", "gpt-7-nova"]);
+  } finally { bindCompleter(null); bindModelLister(null); resetProbes(); resetLiveModels(); }
 });

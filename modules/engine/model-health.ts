@@ -14,6 +14,9 @@ export const CONFIRM_MS = 24 * 3600_000;
 export const PROBE_CAP = 12;
 /** Probes of one account run this many at a time. */
 export const PROBE_PARALLEL = 2;
+/** A CLI engine is probed one model at a time, each with this long to answer (a process per model is heavy). A timeout says nothing about the model. */
+export const CLI_PROBE_PARALLEL = 1;
+export const CLI_PROBE_TIMEOUT_MS = 45_000;
 export const PROBE_PROMPT = "Reply with the single word: ok";
 
 const ready = new WeakSet<object>();
@@ -21,6 +24,7 @@ const ready = new WeakSet<object>();
 function ensure(db: Db): void {
   if (ready.has(db as object)) return;
   db.run("CREATE TABLE IF NOT EXISTS engine_model_health (account_ref TEXT NOT NULL, model TEXT NOT NULL, state TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (account_ref, model))");
+  db.run("CREATE TABLE IF NOT EXISTS engine_model_account (provider_id TEXT PRIMARY KEY, account_ref TEXT NOT NULL)");
   ready.add(db as object);
 }
 const put = (db: Db, ref: string, model: string, state: "bad" | "ok", now: number): void => {
@@ -54,9 +58,23 @@ export function forgetAll(db: Db): void {
   db.run("DELETE FROM engine_model_health");
 }
 
+/** Which account a provider row (the id its events carry) is, so a sign-in change forgets that account only. */
+export function noteAccount(db: Db, providerId: string, ref: string): void {
+  ensure(db);
+  db.run("INSERT OR REPLACE INTO engine_model_account (provider_id, account_ref) VALUES (?, ?)", providerId, ref);
+}
+/** A sign-in of this provider changed (connected, removed, re-authorized, key changed): what was learned about its account is forgotten. Answers the account, or null when none was known. */
+export function forgetProvider(db: Db, providerId: string): string | null {
+  ensure(db);
+  const r = db.all("SELECT account_ref FROM engine_model_account WHERE provider_id = ?", providerId)[0] as { account_ref: string } | undefined;
+  if (!r) return null;
+  clearUnavailable(db, r.account_ref);
+  return r.account_ref;
+}
+
 /** An API provider's own words for a model it does not serve (a 404, "model_not_found", "does not exist"). Anything else says nothing about the model. */
 const REFUSED = /model[_ ]not[_ ]found|no such model|unknown model|invalid model|model .{0,60}(?:does not exist|not found|not available|is not supported|not supported)|\b404\b|do(?:es)? not have access to (?:the )?model/i;
-export const refusesModel = (message: string): boolean => modelGone(message) || REFUSED.test(message);
+export const refusesModel = (message: string): boolean => modelGone(message) || /engine\.model_unavailable/.test(message) || REFUSED.test(message);
 
 /** Asks one account for one tiny answer on one model. A rejection is the provider's refusal. */
 export type Ask = (ref: string, model: string) => Promise<void>;
@@ -73,12 +91,12 @@ export function resetProbes(): void { running.clear(); }
  * Check these models in the background, two at a time: an answer confirms the model, the provider refusing it marks it bad, and anything else (a rate limit, no network, a failed sign-in) says nothing
  * about the model, so it stays shown. Never throws, never waits for the caller.
  */
-export function probeModels(db: Db, ref: string, models: readonly string[], ask: Ask, now: () => number): void {
+export function probeModels(db: Db, ref: string, models: readonly string[], ask: Ask, now: () => number, o: { parallel?: number; timeoutMs?: number } = {}): void {
   const todo = models.filter((m) => !running.has(key(ref, m))).slice(0, PROBE_CAP);
   const queue = [...todo];
   const one = async (): Promise<void> => {
     for (let m = queue.shift(); m !== undefined; m = queue.shift()) {
-      try { await ask(ref, m); markConfirmed(db, ref, m, now()); }
+      try { await (o.timeoutMs === undefined ? ask(ref, m) : within(ask(ref, m), o.timeoutMs)); markConfirmed(db, ref, m, now()); }
       catch (e) {
         const text = `${(e as { code?: unknown } | null)?.code ?? ""} ${e instanceof Error ? e.message : String(e)}`;
         if (refusesModel(text)) markUnavailable(db, ref, m, now()); else markConfirmed(db, ref, m, now());
@@ -86,7 +104,12 @@ export function probeModels(db: Db, ref: string, models: readonly string[], ask:
       finally { running.delete(key(ref, m)); }
     }
   };
-  const lanes = Array.from({ length: Math.min(PROBE_PARALLEL, queue.length) }, () => one());
+  const lanes = Array.from({ length: Math.min(o.parallel ?? PROBE_PARALLEL, queue.length) }, () => one());
   const all = Promise.all(lanes).then(() => undefined);
   for (const m of todo) running.set(key(ref, m), all);
+}
+
+function within<T>(p: Promise<T>, ms: number): Promise<T> {
+  let t: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([p, new Promise<never>((_, rej) => { t = setTimeout(() => rej(new Error("the check took too long")), ms); (t as { unref?: () => void }).unref?.(); })]).finally(() => { if (t !== undefined) clearTimeout(t); });
 }
