@@ -211,7 +211,7 @@ export function scriptedModel(plan: (input: TurnInput, run: RunTool) => AsyncGen
         } finally { live.delete(stop); }
       },
       sendToolResult(id: string, r: ToolResult) { waiting.get(id)?.(r); waiting.delete(id); },
-      inject() {}, async cancel() { for (const f of [...live]) f(); }, async close() { for (const f of [...live]) f(); },
+      inject() {}, async cancel() { if (process.env["SCRIPTED_DEBUG"]) console.log("CANCEL", live.size); for (const f of [...live]) f(); }, async close() { for (const f of [...live]) f(); },
     } as EngineSession;
   };
 }

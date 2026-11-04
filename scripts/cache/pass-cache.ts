@@ -1,9 +1,9 @@
 // Pass cache (ARCH 10.2): a pass is stored as a marker { key, durationMs, tests }, keyed by the import-closure hash from scripts/lib/graph.mjs.
 // Runner-local directory plus an optional mirror on the fleet cache server (HTTP content-addressed store: GET/PUT <url>/<key>).
-// Failures are never stored. Files tagged `// @nocache` are never stored or looked up. The mirror is best effort and never fails a run.
+// Failures are never stored. Files tagged `// @nocache`, and files that list a directory, are never stored or looked up. The mirror is best effort and never fails a run.
 import fs from "node:fs";
 import path from "node:path";
-import { cacheKey } from "../lib/graph.mjs";
+import { cacheKey, noCache } from "../lib/graph.mjs";
 
 export type Marker = { key: string; durationMs: number; tests: number };
 export type CacheEnv = { node: string; runner: string; tag: string };
@@ -16,9 +16,9 @@ type FetchLike = (url: string, init?: { method?: string; body?: string; signal?:
 const KEY = /^[0-9a-f]{64}$/;
 const isMarker = (m: any, key: string): m is Marker => !!m && m.key === key && Number.isFinite(m.durationMs) && Number.isFinite(m.tests);
 
-/** True when the file opts out of caching (time or network dependent). */
+/** True when the file opts out of caching (time or network dependent) or scans a directory (its reads are not in the import closure). */
 export function isNoCache(src: string): boolean {
-  return /^\s*\/\/\s*@nocache\b/m.test(src);
+  return noCache(src);
 }
 
 /** Cache key for a test file: content of its sorted transitive closure, node version, runner version and env tag. */
