@@ -34,6 +34,7 @@
 - An artifact an agent publishes during your turn opens in a new tab when that chat is open in your app; otherwise the card says Open. `artifact_publish` returns `opened` only when it was marked for you, and the agent's wording follows it.
 - The artifact host comes from the Space's address: `<name>-a.vyre.run` for a relay name and `a.<domain>` for your own domain, with its own Caddy route. The installer prints the DNS record to add. `VYRE_ARTIFACT_HOST=off` turns it off.
 - With an artifact host the keyed `/a/<id>/k/<token>/` address is refused everywhere. It stays only for a Space on a local address, which has no host.
+- The per-chat placement words are read again when a machine is drained, hits its limits, runs out of room or has room again (`network.machine_changed`). The Moved-from line under Ran on comes from l-machines.
 
 ## What's new
 - Agents on Claude Code or Codex can work in a goal's folder: it shows as goal/ and their changes are saved to Vyre.
