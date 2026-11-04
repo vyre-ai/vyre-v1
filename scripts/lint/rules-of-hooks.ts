@@ -6,7 +6,7 @@
 // There is no allow comment. Test files are not scanned (renderHook(() => useX()) is a callback by design).
 // Before it scans, it checks itself against the fixtures below and fails if it misses one, so a broken check can never read as clean.
 //   node scripts/lint/rules-of-hooks.ts [--report] [files...]     exit 1 on a finding (--report prints and exits 0)
-// TypeScript comes from tools/gen/node_modules (cd tools/gen && npm install --no-package-lock), as the contracts gate uses it.
+// TypeScript comes from tools/gen/node_modules (tools/gen/check.sh installs it), as the contracts gate uses it.
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -134,7 +134,7 @@ export function sourceFiles(root: string): string[] {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const ts = loadTs();
-  if (!ts) { console.log("rules-of-hooks: typescript is not installed under tools/gen (cd tools/gen && npm install --no-package-lock); the check cannot run, and a check that cannot run fails"); process.exit(1); }
+  if (!ts) { console.log("rules-of-hooks: typescript is not installed under tools/gen (bash tools/gen/check.sh installs it); the check cannot run, and a check that cannot run fails"); process.exit(1); }
   const self = selfCheck(ts);
   if (self.length) { for (const s of self) console.log(`rules-of-hooks self-check: ${s}`); process.exit(1); }
   const args = process.argv.slice(2).filter((a) => !a.startsWith("--"));
