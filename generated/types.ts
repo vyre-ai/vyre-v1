@@ -14410,6 +14410,7 @@ export type GoalsActivityOut = {
       text: string;
       by?: string;
       ref?: string;
+      tpl?: string;
     }>;
 };
 export type GoalsAskIn = {
@@ -15185,6 +15186,7 @@ export type GoalsGetOut = {
       text: string;
       by?: string;
       ref?: string;
+      tpl?: string;
     }>;
   readings: Array<{
       at: number;

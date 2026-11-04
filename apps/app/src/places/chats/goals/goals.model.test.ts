@@ -94,6 +94,7 @@ test("the finish line's date and the Due chip come from the one deadline; the ch
   assert.equal(dueWords(fri, PKT), "Sat 7 Nov, 18:00");
   assert.equal(lineWithDue("Luma registrations for Lab 8 reach 300 by Friday", fri, PKT), `Luma registrations for Lab 8 reach 300 by ${dueWords(fri, PKT)}`);
   assert.equal(lineWithDue("Luma registrations reach 300 by Mon 10 Nov, 18:00", fri, PKT), `Luma registrations reach 300 by ${dueWords(fri, PKT)}`, "an old date in the words gives way to the real deadline");
+  assert.equal(lineWithDue("Luma registrations reach 300 by Wed 11 Nov 2026, 04:16 PKT", fri, PKT), `Luma registrations reach 300 by ${dueWords(fri, PKT)}`, "a date with a year and a zone name is not left behind");
   assert.equal(lineWithDue("Every onboarding task closed", fri, PKT), `Every onboarding task closed by ${dueWords(fri, PKT)}`);
   assert.deepEqual([niceStep(100), niceStep(120), niceStep(7), niceStep(0)], [100, 200, 10, 1]);
 });

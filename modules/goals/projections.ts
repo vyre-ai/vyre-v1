@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { fail } from "../../host/src/routes/errors.ts";
 import { makeId } from "../../packages/contracts/src/ids.ts";
 import { isHostService, isPersonPress, isTrustedService } from "../../lib/trust.ts";
+import { whoToken } from "../../lib/words/time.ts";
 
 export type Status = "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
 export type Ended = "done" | "missed" | "stopped";
@@ -184,7 +185,7 @@ export function local(at: number, zone: string): Local {
   for (const x of formatter(zone).formatToParts(new Date(at))) p[x.type] = x.value;
   return { y: Number(p["year"]), mo: Number(p["month"]), d: Number(p["day"]), h: Number(p["hour"]) % 24, mi: Number(p["minute"]), wd: DAYS.indexOf(p["weekday"] ?? "Sun") };
 }
-const offsetAt = (at: number, zone: string): number => { const l = local(at, zone); return Date.UTC(l.y, l.mo - 1, l.d, l.h, l.mi) - Math.floor(at / MINUTE) * MINUTE; };
+export const offsetAt = (at: number, zone: string): number => { const l = local(at, zone); return Date.UTC(l.y, l.mo - 1, l.d, l.h, l.mi) - Math.floor(at / MINUTE) * MINUTE; };
 /** The instant a wall-clock time falls on, in a zone. */
 export function instant(y: number, mo: number, d: number, h: number, mi: number, zone: string): number {
   const guess = Date.UTC(y, mo - 1, d, h, mi);
@@ -256,7 +257,7 @@ export function setStatus(ctx: GoalsCtx, g: Goal, to: Status, reason?: string): 
   if (reason !== undefined) g.statusReason = reason; else if (from !== to) delete g.statusReason;
   if (from !== to) {
     emit(ctx, g, "goal.status_changed", clean({ from, to, reason }));
-    note(ctx, g.id, "status", `${label(from)} to ${label(to)}${reason ? `: ${reason}` : ""}`);
+    note(ctx, g.id, "status", `Moved from ${label(from)} to ${label(to)}${reason ? `: ${reason}` : ""}.`);
   }
   return changed;
 }
@@ -336,16 +337,16 @@ export function dispatch(ctx: GoalsCtx, g: Goal): number {
     const attempt = w.attempt + 1;
     ctx.db.run("UPDATE goals_wake SET state = 'sent', attempt = ?, sent_at = ? WHERE id = ?", attempt, now, w.id);
     emit(ctx, g, "goal.woken", { wakeId: w.id, attempt, reason: w.reason, leadAgentId: g.leadAgentId, owner: g.owner }, `${w.id}:${attempt}`);
-    note(ctx, g.id, "wake", `Woke ${"the lead agent"}: ${reasonWords(w.reason)}`, w.id);
+    note(ctx, g.id, "wake", `${whoToken(g.leadAgentId)} was woken because ${reasonWords(w.reason)}.`, w.id);
     sent++;
   }
   return sent;
 }
 export function reasonWords(reasons: string): string {
   const words: Record<string, string> = {
-    start: "the goal started", checkin: "check-in", task_done: "a task finished", task_blocked: "a task is blocked", task_asked: "a task has a question", source_changed: "the number moved",
-    answered: "an answer came back", resumed: "the goal was resumed", budget_raised: "the budget was raised", extended: "the deadline moved", done: "the finish line was reached", retry: "the last wake-up got no update",
-    stuck: "no progress",
+    start: "the goal started", checkin: "it is time for a check-in", task_done: "a task finished", task_blocked: "a task is blocked", task_asked: "a task has a question", source_changed: "the number moved",
+    answered: "an answer came back", resumed: "the goal was resumed", budget_raised: "the budget was raised", extended: "the deadline moved", done: "the finish line was reached", retry: "the last wake-up got no reply",
+    stuck: "there is no progress",
   };
   return reasons.split(",").map((r) => words[r] ?? r).join(", ");
 }

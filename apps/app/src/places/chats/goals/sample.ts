@@ -1,5 +1,6 @@
 // A Space's goals for screenshots and screen tests: "300 registrations for Lab 8" read from Luma, led by Lab Desk, in each state the page draws (active with a held send, stuck, budget at
 // 80%, paused at the budget, missed, done, a draft), plus two more goals for the sidebar. `goalsCall` answers the goals capabilities and the tasks a waiting item reads.
+import { atToken, whoToken } from "../../../../../../lib/words/time.ts";
 import type { ActivityLine, Goal, GoalLine, GoalPageData, Reading, TaskLine, WaitLine } from "./model.ts";
 
 export type SampleState = "active" | "stuck" | "budget" | "paused" | "missed" | "done" | "draft";
@@ -47,7 +48,8 @@ export function sampleGoals(now: number, state: SampleState = "active"): { page:
     { at: now - 26 * HOUR, kind: "waiting", text: "Waiting: Approve: email to 1,240 Lab 7 attendees", ref: "tsk_hold" },
     { at: now - 2 * DAY, kind: "task", text: "Done: VY-312 Post Lab 8 in the MLA AI Labs community", ref: "tsk_skool" },
     { at: now - 4 * DAY, kind: "plan", text: "Planned VY-311 Remind Lab 7 attendees who have not registered. Why: past attendees registered at 31% after one reminder. Expected: +40 to +60", ref: "tsk_rem" },
-    { at: now - 5 * DAY, kind: "started", text: "Started. Finish line: Luma registrations for Lab 8 reach 300." },
+    { at: now - 5 * DAY, kind: "started", text: `Started. Due ${atToken(goal.deadline)}.` },
+    { at: now - 5 * DAY - 60_000, kind: "created", text: `${whoToken("agt_labdesk")} drafted this goal for ${whoToken("usr_irfad")}.`, by: "agt_labdesk>usr_irfad" },
   ];
   const page: GoalPageData = { goal: state === "draft" ? { ...goal, status: "draft", permissions: goal.permissions.map((p) => ({ ...p, granted: false })) } : goal, tasks: state === "draft" ? [] : tasks, waiting, activity, readings };
   const line = (g: Goal): GoalLine => ({ id: g.id, title: g.title, status: g.status, ...(g.statusReason ? { statusReason: g.statusReason } : {}), owner: g.owner, leadAgentId: g.leadAgentId, deadline: g.deadline, ...(g.nextCheckinAt ? { nextCheckinAt: g.nextCheckinAt } : {}), progress: g.progress, updatedAt: g.updatedAt });

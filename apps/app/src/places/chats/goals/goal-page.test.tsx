@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import type { ConversationData } from "../conversation/data.tsx";
-import { GoalPage } from "./GoalPage.tsx";
+import { Activity, GoalPage } from "./GoalPage.tsx";
 import { GoalCard } from "./GoalCard.tsx";
 import { goalsCall } from "./sample.ts";
 import type { SampleState } from "./sample.ts";
@@ -12,7 +12,7 @@ import type { SampleState } from "./sample.ts";
 const NOW = Date.UTC(2026, 10, 3, 5, 0);
 const NAMES: Record<string, string> = { usr_irfad: "Irfad Imtiaz", agt_labdesk: "Lab Desk", agt_content: "Content", usr_aliza: "Aliza Khan" };
 
-async function page(state: SampleState): Promise<{ root: ReturnType<typeof find>; calls: Array<{ cap: string; input: Record<string, unknown> }>; opened: string[] }> {
+async function page(state: SampleState, pane = false): Promise<{ root: ReturnType<typeof find>; calls: Array<{ cap: string; input: Record<string, unknown> }>; opened: string[] }> {
   installDom();
   const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
   const opened: string[] = [];
@@ -20,7 +20,7 @@ async function page(state: SampleState): Promise<{ root: ReturnType<typeof find>
   const logged = async (cap: string, input: unknown): Promise<unknown> => { calls.push({ cap, input: input as Record<string, unknown> }); return cap.startsWith("goals.") && cap !== "goals.get" && cap !== "goals.list" ? {} : call(cap, input); };
   const root = await mount(createRoot as never, (
     <GoalPage goalId="gol_lab8" call={logged} changes={undefined} me="usr_irfad" nameOf={(id) => NAMES[id] ?? id} clock={() => ({ now: NOW, offsetMin: 300 })}
-      conversationFor={() => ({}) as ConversationData} openTask={(id) => opened.push(`task:${id}`)} openAgent={(id) => opened.push(`agent:${id}`)} pane={false} />
+      conversationFor={() => ({}) as ConversationData} openTask={(id) => opened.push(`task:${id}`)} openAgent={(id) => opened.push(`agent:${id}`)} pane={pane} />
   ));
   await flush(); await flush();
   return { root, calls, opened };
@@ -77,4 +77,24 @@ test("a draft card starts the goal with one press, and a check-in card shows the
   await flush();
   assert.match(textOf(update), /212.*\/ 300 registrations|212/s);
   assert.match(textOf(update), /\+18/);
+});
+
+test("the Activity pane names who did it as the reader sees it: a Space agent by name, the time once in the reader's zone", async () => {
+  installDom();
+  const call = goalsCall(async (cap) => { throw new Error(`no write for ${cap}`); }, NOW, "active");
+  const data = (await call("goals.get", { goalId: "gol_lab8" })) as unknown as import("./model.ts").GoalPageData;
+  const root = await mount(createRoot as never, <Activity data={data} me="usr_irfad" nameOf={(id) => NAMES[id] ?? id} now={NOW} offsetMin={300} openTask={() => undefined} />);
+  await flush();
+  const text = textOf(find(root!, "goal-activity"));
+  assert.match(text, /Lab Desk drafted this goal for you\./);
+  assert.match(text, /Lab Desk/);
+  assert.doesNotMatch(text, /Irfad Imtiaz \(Agent\)|Made by|an agent|the owner|usr_|agt_|\{at:|\{who:/);
+  assert.match(text, /Started\. Due \w{3} \d{1,2} \w{3}, \d{1,2}:\d{2}\./);
+});
+
+test("a draft card says what to do in plain words", async () => {
+  const { root } = await page("draft");
+  const text = textOf(find(root!, "goal-draft"));
+  assert.match(text, /Nothing starts until you press Start goal\./);
+  assert.doesNotMatch(text, /permission holds/);
 });
