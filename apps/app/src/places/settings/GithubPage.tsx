@@ -77,7 +77,7 @@ export function GithubPage(): ReactElement {
         <Text accessibilityRole="header" style={{ fontSize: 16, fontWeight: "600", color: "var(--ink)" as string }}>Connect GitHub once</Text>
         <Text style={{ fontSize: 13, lineHeight: 19, color: "var(--ink-3)" as string, textAlign: "center", maxWidth: 360 }}>Vyre uses it to sign you in, and agents use it for your repos.</Text>
         <SmallButton label={busy ? "Connecting..." : "Connect GitHub"} primary disabled={busy} testID="gh-connect" onPress={connect} />
-        <Text testID="gh-app-line" style={{ fontSize: 12, color: "var(--ink-4)" as string }}>Uses the Vyre GitHub app</Text>
+        <Text testID="gh-app-line" style={{ fontSize: 12, color: "var(--ink-4)" as string }}>Connect your GitHub account</Text>
       </View>
     );
   }
