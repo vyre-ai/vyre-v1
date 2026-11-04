@@ -2,3 +2,4 @@
 - Integration: the Chrome watch events are `automations.watch_saved` and `automations.watch_changed`, the two-part names every event has.
 - Integration: tests that reach across modules or layers (the Chrome watch e2e, a goal reading a watched page) run from test/.
 - TipTap packages are all 2.27.3: the five pinned ones now match the extensions the lock already used. KaTeX is installed for math in chat replies.
+- Diagrams (Mermaid 11.17.2) and math (KaTeX) in chat replies are on; each loads the first time a reply holds one. license-check records khroma 2.1.0 as MIT from its repository, because its package.json has no license field.
