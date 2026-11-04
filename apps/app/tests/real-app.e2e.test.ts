@@ -500,7 +500,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.screenshot({path:"shots-evidence/console/groups-dark.png"});
         await phoneConsole("groups-phone");
         await pickSkin("Vyre");
-        await page.getByRole("tab", {name:/^Members/}).click();
+        await page.getByTestId("object-tab-members").click();
         await page.getByRole("button", {name:"Remove…", exact:true}).click();
         await page.getByTestId("group-member-remove-confirm").click();
         await page.getByText("Member removed", {exact:true}).waitFor();
