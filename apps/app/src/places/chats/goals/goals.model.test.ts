@@ -124,7 +124,7 @@ test("the Space zone and the viewer's: a check-in reads 9:00 AM Pacific with 10:
   const now = Date.parse("2026-11-05T15:00:00Z");     // 7:00 AM Pacific
   assert.equal(when(Date.parse("2026-11-06T17:00:00Z"), now, z), "Tomorrow 9:00 AM (10:00 PM your time)");
   const due = Date.parse("2026-11-07T21:00:00Z");
-  assert.equal(dueWords(due, z), "Sat 7 Nov, 1:00 PM (2:00 AM, Sun 8 Nov your time)");
+  assert.equal(dueWords(due, z), "Sat 7 Nov, 1:00 PM (Sun 2:00 AM your time)");
   // the agent's own date goes and so does the dash that led into it: one due date, in the Space zone, with yours beside it
   assert.equal(lineWithDue("Luma registrations for Lab 8 reach 300 \u2014 by Friday", due, z), `Luma registrations for Lab 8 reach 300 by ${dueWords(due, z)}`);
   assert.equal(lineWithDue("Reach 300 - by Wed 11 Nov 2026, 04:16 PKT", due, z), `Reach 300 by ${dueWords(due, z)}`);

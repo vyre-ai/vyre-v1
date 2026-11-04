@@ -43,6 +43,6 @@ test("the plain string forms: a check-in line and a deadline line, each with the
   assert.equal(whenText(NINE, NOW, { space: PT, viewer: PK }), "Tomorrow 9:00 AM (10:00 PM your time)");
   assert.equal(whenText(NINE, NOW, { space: PT, viewer: PT }), "Tomorrow 9:00 AM");
   const due = Date.parse("2026-11-07T21:00:00Z");   // Sat 7 Nov 1:00 PM Pacific, 2:00 AM Sunday Karachi
-  assert.equal(dueText(due, { space: PT, viewer: PK }), "Sat 7 Nov, 1:00 PM (2:00 AM, Sun 8 Nov your time)");
+  assert.equal(dueText(due, { space: PT, viewer: PK }), "Sat 7 Nov, 1:00 PM (Sun 2:00 AM your time)");
   assert.equal(dueText(due, { space: PT, viewer: PT }), "Sat 7 Nov, 1:00 PM");
 });

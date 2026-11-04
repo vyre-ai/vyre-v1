@@ -201,6 +201,7 @@ export function whenText(at: number, now: number, z: Zones): string {
 export function dueText(at: number, z: Zones): string {
   const base = dueIn(at, z);
   if (offsetMinAt(at, z.space) === offsetMinAt(at, z.viewer)) return base;
-  const day = dateIn(at, z.viewer) !== dateIn(at, z.space) ? `, ${dateIn(at, z.viewer)}` : "";
-  return `${base} (${clockIn(at, z.viewer)}${day} your time)`;
+  // the reference form: "Wed 11 Nov, 4:16 PM (Thu 5:16 AM your time)", the day word only when it is not the same date there
+  const day = dateIn(at, z.viewer) !== dateIn(at, z.space) ? `${DAYS[partsIn(at, z.viewer).dow]} ` : "";
+  return `${base} (${day}${clockIn(at, z.viewer)} your time)`;
 }

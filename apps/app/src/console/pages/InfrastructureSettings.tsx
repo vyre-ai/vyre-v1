@@ -95,7 +95,7 @@ export function SpaceProfile(): ReactElement {
     </Group>{action.note ? <Note>{action.note}</Note> : null}</Section>
     <Section title="Defaults for new members"><Group>
         <Line index={0}><Row id="space-skin" title="Skin" trailing={<Pick label="Skin" testID="infra-space-skin" value={current.skin} shown={skinOptions.find(o => o.key === current.skin)?.title ?? current.skin} face={skinFace(skinKnown ? current.skin : system.id)} options={skinOptions} disabled={action.busy} onChange={key => saveDefault({ skin: key }, 'Skin saved.')}/>}/></Line>
-        <Line index={1}><Row id="space-timezone" title="Time zone for new members" note="Where a new member's own clock starts" trailing={<Pick label="Time zone" testID="infra-space-zone" value={current.timezone} shown={zoneLabel(current.timezone)} options={zones.map(key => ({ key, title: zoneLabel(key) }))} disabled={action.busy} onChange={key => saveDefault({ timezone: key }, 'Time zone saved.')}/>}/></Line>
+        <Line index={1}><Row id="space-timezone" title="Time zone for new members" note="Where a new member's own clock starts. It does not change what shared places show." trailing={<Pick label="Time zone" testID="infra-space-zone" value={current.timezone} shown={zoneLabel(current.timezone)} options={zones.map(key => ({ key, title: zoneLabel(key) }))} disabled={action.busy} onChange={key => saveDefault({ timezone: key }, 'Time zone saved.')}/>}/></Line>
     </Group></Section>
     <PlanAndUsage/>
     <Section title="Address settings"><Group>
