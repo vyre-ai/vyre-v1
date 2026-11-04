@@ -28,6 +28,7 @@ export const SECTIONS: readonly SectionDef[] = [
   { id: "ai", title: "AI", icon: "ai", tabs: [
     { label: "Models", views: [v("models", "Models and providers")] },
     { label: "Spend and usage", views: [v("spend", "Spend and limits"), v("usage", "Usage")] },
+    { label: "Voice", views: [v("voice", "Voice")] },
     { label: "AI rules", views: [v("aipolicy", "AI use policy"), v("internet", "Internet access"), v("memlearn", "Memory learning")], extras: { memlearn: ["def-memory"] } },
   ] },
   { id: "agents", title: "Agents and skills", icon: "agent", tabs: [
