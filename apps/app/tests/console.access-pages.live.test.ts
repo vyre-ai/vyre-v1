@@ -6,6 +6,8 @@ import fs from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright-core";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding} from "./real-app-harness.test.ts";
+import { openConsolePage } from "./console-nav.ts";
+import { guardCrashes } from "./crash-guard.ts";
 
 const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
 const PASSWORD = "fixture password 123";
@@ -22,6 +24,7 @@ test("production Console Access pages: Groups, Roles, Policies and Access review
   const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
+  const guard = guardCrashes(page);
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
   const shots = process.env["VYRE_CONSOLE_PAGES_SHOTS"] ?? "/tmp/vyre-console-pages-shots"; fs.mkdirSync(shots, { recursive: true });
@@ -54,8 +57,7 @@ test("production Console Access pages: Groups, Roles, Policies and Access review
 
     const goPeople = async (p: Page = page): Promise<void> => {
       await p.goto(`${web.origin}/console`, { waitUntil: "load" }); await p.getByTestId("console").waitFor({ timeout: 30_000 });
-      const group = p.getByTestId("navgroup-Access"); if ((await group.getAttribute("aria-expanded")) !== "true") await group.click();
-      await p.getByTestId("row-nav-people").click(); await p.getByTestId("console-people").waitFor();
+      await openConsolePage(p, "people"); await p.getByTestId("console-people").waitFor();
     };
     const rowOf = (id: string) => page.getByTestId(`row-object-row-console-person-${id}`);
     const pickRow = async (id: string): Promise<void> => { await rowOf(id).click({ button: "right" }); await page.getByRole("menuitem", { name: /^Select$/ }).click(); };
@@ -66,23 +68,19 @@ test("production Console Access pages: Groups, Roles, Policies and Access review
         // the Console opens on a computer: a phone shows that line and a way to chat about it (mobile-map.ts desktopLine), so a phone has no Console page to navigate
         if (w < 720) await view.getByText(/The Console opens on a computer/).waitFor({ timeout: 30_000 });
         else { await view.getByTestId("console").waitFor({ timeout: 30_000 }); await navigate(view); }
-        await view.waitForTimeout(250);
+        await view.waitForTimeout(250); await guardCrashes(view).check(`${name} ${size} ${skin}`);
         await view.screenshot({ path: path.join(shots, `${name}-${size}-${skin === "paper" ? "light" : "graphite"}.png`), animations: "disabled" }); await view.close();
       }
     };
-    /** Phone width has no side navigation: the search button opens the "Go to" list. */
-    /** Wait for the server to show what the UI just did (a note can come and go with the sheet). */
+        /** Wait for the server to show what the UI just did (a note can come and go with the sheet). */
     const eventually = async (read: () => Promise<boolean>, what: string): Promise<void> => { for (let i = 0; i < 60; i++) { if (await read()) return; await new Promise((r) => setTimeout(r, 200)); } assert.fail(what); };
-    const goTo = async (p: Page, testId: string, title: string, group: string): Promise<void> => {
-      if (p.viewportSize()!.width < 720) { await p.getByTestId("console-search").click(); await p.getByRole("menuitem", { name: title, exact: true }).click(); }
-      else { const g = p.getByTestId(`navgroup-${group}`); if ((await g.getAttribute("aria-expanded")) !== "true") await g.click(); await p.getByTestId(`row-nav-${testId}`).click(); }
-    };
-    const toPeople = async (p: Page): Promise<void> => { await goTo(p, "people", "People", "Access"); await p.getByTestId("console-people").waitFor(); };
+    const goTo = async (p: Page, pageId: string): Promise<void> => { await openConsolePage(p, pageId); };
+    const toPeople = async (p: Page): Promise<void> => { await goTo(p, "people"); await p.getByTestId("console-people").waitFor(); };
 
     // ---- Groups
     await t.test("Groups: create, rename, add and remove members, change managers, roles, bulk delete", async () => {
       await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
-      await goTo(page, "groups", "Groups", "Access"); await page.getByTestId("console-groups").waitFor();
+      await goTo(page, "groups"); await page.getByTestId("console-groups").waitFor();
       await page.getByTestId("group-create-open").click(); await page.getByTestId("group-name").fill("Intake team"); await page.getByTestId("group-create").click();
       await page.getByTestId("group-object").waitFor();
       const group = ((await api("access.groups.list", {})).groups as { id: string; name: string }[]).find((g) => g.name === "Intake team")!;
@@ -95,45 +93,46 @@ test("production Console Access pages: Groups, Roles, Policies and Access review
       await page.getByTestId("object-action-managers").click();
       await page.getByTestId("group-principal-search").fill("Maya"); await page.getByTestId("row-pick-" + maya.personId).getByRole("button", { name: "Select" }).click();
       await page.getByTestId("group-save-managers").click(); await eventually(async () => ((await api("access.groups.get", { groupId: group.id })).group.managers as { id: string }[]).map((m) => m.id).join() === maya.personId, "Maya manages the group");
-      await page.getByRole("tab", { name: /^Members/ }).click();
+      await page.locator('[data-testid^="object-tab-"]').filter({ hasText: /^Members/ }).click();
       await page.getByTestId("row-member-" + priya.personId).getByRole("button", { name: "Remove…" }).click(); await page.getByTestId("group-member-remove-confirm").click(); await eventually(async () => !(await groupOf(group.id)).includes(priya.personId), "Priya was removed");
-      await page.getByRole("tab", { name: /^Access/ }).click();
+      await page.locator('[data-testid^="object-tab-"]').filter({ hasText: /^Access/ }).click();
       const dev = roleId("Developer");
       await page.getByTestId("row-group-role-" + dev).getByRole("button", { name: "Assign role…" }).click(); await page.getByTestId("group-role-confirm-" + dev).click(); await eventually(async () => ((await api("access.groups.get", { groupId: group.id })).roles as string[]).includes(dev), "the role was assigned");
-      await page.getByRole("tab", { name: /^Activity/ }).click(); await page.getByTestId("object-body").getByText(/rename|details/i).first().waitFor();
-      await matrix("group-object", async (p) => { await goTo(p, "groups", "Groups", "Access"); await p.getByTestId("console-groups").waitFor(); await p.getByTestId("row-object-row-" + group.id).click(); await p.getByTestId("group-object").waitFor(); });
+      await page.locator('[data-testid^="object-tab-"]').filter({ hasText: /^Activity/ }).click(); await page.getByTestId("object-body").getByText(/rename|details/i).first().waitFor();
+      await matrix("group-object", async (p) => { await goTo(p, "groups"); await p.getByTestId("console-groups").waitFor(); await p.getByTestId("row-object-row-" + group.id).click(); await p.getByTestId("group-object").waitFor(); });
       // bulk delete from the list, built-in groups refused
       await page.getByTestId("object-parent").click(); await page.getByTestId("console-groups").waitFor();
       const extra = (await api("access.groups.create", { name: "Temporary", idempotencyKey: "grp-temp" })).group.id as string;
-      await page.reload({ waitUntil: "load" }); await goTo(page, "groups", "Groups", "Access");
+      await page.reload({ waitUntil: "load" }); await goTo(page, "groups");
       for (const id of [extra]) { await page.getByTestId("row-object-row-" + id).click({ button: "right" }); await page.getByRole("menuitem", { name: /^Select$/ }).click(); }
-      await page.getByRole("button", { name: "Delete selected custom groups…" }).click(); await page.getByRole("button", { name: "Delete selected groups", exact: true }).click(); await eventually(async () => !((await api("access.groups.list", {})).groups as { id: string }[]).some((g) => g.id === extra), "the group was deleted");
+      await page.getByRole("button", { name: "Delete selected custom teams…" }).click(); await page.getByRole("button", { name: "Delete selected teams", exact: true }).click(); await eventually(async () => !((await api("access.groups.list", {})).groups as { id: string }[]).some((g) => g.id === extra), "the group was deleted");
     });
+    await guard.check("after Groups");
     // ---- Roles
     await t.test("Roles: matrix, clone, stage and apply permissions, clearance, holders, delete", async () => {
       await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
-      await goTo(page, "roles", "Roles", "Access"); await page.getByTestId("permission-matrix").waitFor();
-      await matrix("roles-matrix", async (p) => { await goTo(p, "roles", "Roles", "Access"); await p.getByTestId("permission-matrix").waitFor(); });
+      await goTo(page, "roles"); await page.getByTestId("permission-matrix").waitFor();
+      await matrix("roles-matrix", async (p) => { await goTo(p, "roles"); await p.getByTestId("permission-matrix").waitFor(); });
       await page.getByRole("button", { name: "Open Member", exact: true }).click(); await page.getByTestId("role-object").waitFor();
       await page.getByTestId("object-action-clone").click(); await page.getByTestId("role-edit-name").fill("Intake reader"); await page.getByTestId("role-save").click();
       await eventually(async () => ((await api("access.roles.list", {})).roles as { name: string }[]).some((r) => r.name === "Intake reader"), "the role was cloned");
       const cloned = ((await api("access.roles.list", {})).roles as { id: string; name: string; permissions: string[]; clearance: string }[]).find((r) => r.name === "Intake reader")!;
-      await goTo(page, "roles", "Roles", "Access"); await page.getByRole("button", { name: "Open Intake reader", exact: true }).click();
-      await page.getByRole("tab", { name: /^Permissions/ }).click();
+      await goTo(page, "roles"); await page.getByRole("button", { name: "Open Intake reader", exact: true }).click();
+      await page.locator('[data-testid^="object-tab-"]').filter({ hasText: /^Permissions/ }).click();
       const dropped = cloned.permissions[0]!;
       await page.getByTestId(`matrix-${cloned.id}-${dropped}`).click(); await page.getByTestId("roles-preview-changes").click(); await page.getByTestId("roles-apply-changes").click();
       await eventually(async () => !((await api("access.roles.get", { roleId: cloned.id })).role.permissions as string[]).includes(dropped), "the permission was removed");
-      await page.getByRole("tab", { name: /^Clearance/ }).click(); await page.getByRole("button", { name: "Change clearance", exact: true }).click();
+      await page.locator('[data-testid^="object-tab-"]').filter({ hasText: /^Clearance/ }).click(); await page.getByRole("button", { name: "Change clearance", exact: true }).click();
       await page.getByRole("button", { name: "Clearance", exact: true }).click(); await page.getByRole("menuitem", { name: "Public", exact: true }).click(); await page.getByTestId("role-save").click();
       await eventually(async () => (await api("access.roles.get", { roleId: cloned.id })).role.clearance === "public", "the clearance changed");
       await api("access.roles.assign", { subject: { kind: "person", id: priya.personId }, roleId: cloned.id });
-      await page.reload({ waitUntil: "load" }); await goTo(page, "roles", "Roles", "Access"); await page.getByRole("button", { name: "Open Intake reader", exact: true }).click();
-      await page.getByRole("tab", { name: /^Holders/ }).click(); await page.getByTestId("row-role-holder-" + priya.personId).waitFor();
-      await matrix("role-object-holders", async (p) => { await goTo(p, "roles", "Roles", "Access"); await p.getByTestId("permission-matrix").waitFor(); if (p.viewportSize()!.width < 720) { await p.getByRole("button", { name: "Role", exact: true }).click(); await p.getByRole("menuitem", { name: "Intake reader", exact: true }).click(); } await p.getByRole("button", { name: "Open Intake reader", exact: true }).click(); await p.getByRole("tab", { name: /^Holders/ }).click(); await p.getByTestId("row-role-holder-" + priya.personId).waitFor(); });
+      await page.reload({ waitUntil: "load" }); await goTo(page, "roles"); await page.getByRole("button", { name: "Open Intake reader", exact: true }).click();
+      await page.locator('[data-testid^="object-tab-"]').filter({ hasText: /^Holders/ }).click(); await page.getByTestId("row-role-holder-" + priya.personId).waitFor();
+      await matrix("role-object-holders", async (p) => { await goTo(p, "roles"); await p.getByTestId("permission-matrix").waitFor(); if (p.viewportSize()!.width < 720) { await p.getByRole("button", { name: "Role", exact: true }).click(); await p.getByRole("menuitem", { name: "Intake reader", exact: true }).click(); } await p.getByRole("button", { name: "Open Intake reader", exact: true }).click(); await p.locator('[data-testid^="object-tab-"]').filter({ hasText: /^Holders/ }).click(); await p.getByTestId("row-role-holder-" + priya.personId).waitFor(); });
       // the Console is not on a phone any more (the matrix helper above checks the notice there): the permission toggle the phone block proved is made on the desktop matrix
       {
         await page.goto(`${web.origin}/console?skin=paper`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
-        await goTo(page, "roles", "Roles", "Access"); await page.getByTestId("permission-matrix").waitFor();
+        await goTo(page, "roles"); await page.getByTestId("permission-matrix").waitFor();
         const now = ((await api("access.roles.get", { roleId: cloned.id })).role.permissions as string[]);
         const toggled = now[0]!;
         assert.ok(await page.getByTestId(`matrix-${cloned.id}-${toggled}`).count(), "the toggle for a permission the role holds is drawn");
@@ -147,18 +146,19 @@ test("production Console Access pages: Groups, Roles, Policies and Access review
       await page.waitForTimeout(600);
       assert.ok(((await api("access.roles.list", {})).roles as { id: string }[]).some((r) => r.id === cloned.id), "a role with a holder is not deleted");
       await api("access.roles.unassign", { subject: { kind: "person", id: priya.personId }, roleId: cloned.id });
-      await page.reload({ waitUntil: "load" }); await goTo(page, "roles", "Roles", "Access"); await page.getByRole("button", { name: "Open Intake reader", exact: true }).click();
+      await page.reload({ waitUntil: "load" }); await goTo(page, "roles"); await page.getByRole("button", { name: "Open Intake reader", exact: true }).click();
       await page.getByTestId("object-more").click(); await page.getByRole("menuitem", { name: "Delete role", exact: true }).click(); await page.getByTestId("object-confirm-go").click();
       await eventually(async () => !((await api("access.roles.list", {})).roles as { id: string }[]).some((r) => r.id === cloned.id), "the role was deleted");
     });
+    await guard.check("after Roles");
     // ---- Policies
     await t.test("Policies: filter, public links policy with review, honest sign-in prerequisites, linked controls, activity", async () => {
       await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
-      await goTo(page, "policies", "Policies", "Access"); await page.getByTestId("console-policies").waitFor();
-      await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("Data", { exact: true }).click();
-      await page.getByTestId("row-object-row-retention").waitFor(); assert.equal(await page.getByTestId("row-object-row-sign_in").count(), 0, "the Data filter hides Access policies");
-      await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("Data", { exact: true }).click();
-      await matrix("policies-list", async (p) => { await goTo(p, "policies", "Policies", "Access"); await p.getByTestId("console-policies").waitFor(); });
+      await goTo(page, "policies"); await page.getByTestId("console-policies").waitFor();
+      await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("People", { exact: true }).click();
+      await page.getByTestId("row-object-row-sign_in").waitFor(); assert.equal(await page.getByTestId("row-object-row-sharing.public_links").count(), 0, "the People filter hides the Everyone rows");
+      await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("People", { exact: true }).click();
+      await matrix("policies-list", async (p) => { await goTo(p, "policies"); await p.getByTestId("console-policies").waitFor(); });
       // sign-in: required authenticators are not offered while the prerequisites are missing
       await page.getByTestId("row-object-row-sign_in").click(); await page.getByTestId("policy-object").waitFor();
       await page.getByText(/The Space owner must set up an authenticator first|Set up your own authenticator|cannot enroll new members/).first().waitFor();
@@ -173,13 +173,14 @@ test("production Console Access pages: Groups, Roles, Policies and Access review
       await page.getByRole("button", { name: "Who can create new public links", exact: true }).click(); await page.getByRole("menuitem", { name: "Nobody", exact: true }).click();
       await page.getByTestId("policy-links-review").click(); await page.getByTestId("policy-links-confirm").click();
       await eventually(async () => ((await api("access.policies.list", { kind: "sharing" })).policies as { key: string; value: unknown }[]).some((x) => x.key === "sharing.public_links" && x.value === "off"), "the public-link policy is saved");
-      await page.getByRole("tab", { name: /^Activity/ }).click(); await page.getByTestId("object-body").getByText(/policies set|policy/i).first().waitFor();
-      await matrix("policy-object", async (p) => { await goTo(p, "policies", "Policies", "Access"); await p.getByTestId("console-policies").waitFor(); await p.getByTestId("row-object-row-sharing.public_links").click(); await p.getByTestId("policy-object").waitFor(); });
+      await page.locator('[data-testid^="object-tab-"]').filter({ hasText: /^Activity/ }).click(); await page.getByTestId("object-body").getByText(/policies set|policy/i).first().waitFor();
+      await matrix("policy-object", async (p) => { await goTo(p, "policies"); await p.getByTestId("console-policies").waitFor(); await p.getByTestId("row-object-row-sharing.public_links").click(); await p.getByTestId("policy-object").waitFor(); });
       // an owned control opens its own page
-      await page.getByTestId("object-parent").click(); await page.getByTestId("row-object-row-retention").click(); await page.getByTestId("object-action-open").click();
-      await page.getByText(/Retention/).first().waitFor();
+      await page.getByTestId("object-parent").click(); await page.getByTestId("row-object-row-mailcal").click(); await page.getByTestId("object-action-open").click();
+      await page.getByTestId("console-domains").waitFor();
     });
 
+    await guard.check("after Policies");
     // ---- Access reviews
     await t.test("Access reviews: start, decide grants, close, with review tasks", async () => {
       await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
@@ -189,30 +190,31 @@ test("production Console Access pages: Groups, Roles, Policies and Access review
       await api("access.share", { resource: { type: "folder", id: made }, subject: { kind: "person", id: maya.personId }, level: "view", idempotencyKey: "rv-g1" });
       await api("access.share", { resource: { type: "folder", id: made }, subject: { kind: "person", id: guest.personId }, level: "view", idempotencyKey: "rv-g2" });
       assert.ok(((await api("access.principals.effective", { principal: { kind: "person", id: guest.personId } })).grants as { resource: { id: string } }[]).some((g) => g.resource.id === made), "the guest holds the grant");
-      await goTo(page, "reviews", "Access reviews", "Access"); await page.getByTestId("console-reviews").waitFor();
+      await goTo(page, "reviews"); await page.getByTestId("console-reviews").waitFor();
       await page.getByTestId("review-start-open").click();
       await page.getByRole("button", { name: "Resources to review", exact: true }).click(); await page.getByRole("menuitem", { name: "Folders", exact: true }).click();
       await page.getByTestId("review-start").click();
       let review: { id: string; items: number } | undefined;
       await eventually(async () => { review = ((await api("access.reviews.list", {})).reviews as { id: string; items: number }[])[0]; return !!review && review.items >= 2; }, "a review with the folder grants was started");
       const id = review!.id;
-      await page.reload({ waitUntil: "load" }); await goTo(page, "reviews", "Access reviews", "Access"); await page.getByTestId("console-reviews").waitFor();
+      await page.reload({ waitUntil: "load" }); await goTo(page, "reviews"); await page.getByTestId("console-reviews").waitFor();
       await page.getByTestId("row-object-row-" + id).click(); await page.getByTestId("object-header").waitFor();
-      await page.getByRole("tab", { name: /^Grants/ }).click();
+      await page.locator('[data-testid^="object-tab-"]').filter({ hasText: /^To review/ }).click();
       const items = (await api("access.reviews.get", { reviewId: id })).items as { grant: { id: string; subject: { id: string } }; decision?: string }[];
       const keep = items.find((i) => i.grant.subject.id === maya.personId)!, drop = items.find((i) => i.grant.subject.id === guest.personId)!;
       await page.getByTestId("row-review-grant-" + keep.grant.id).getByRole("button", { name: "Keep", exact: true }).click();
       await eventually(async () => ((await api("access.reviews.get", { reviewId: id })).items as { grant: { id: string }; decision?: string }[]).find((i) => i.grant.id === keep.grant.id)?.decision === "keep", "the grant was kept");
       await page.getByTestId("row-review-grant-" + drop.grant.id).click();
-      await page.getByRole("button", { name: "Remove selected…" }).click(); await page.getByRole("button", { name: "Remove selected grants", exact: true }).click();
+      await page.getByRole("button", { name: "Remove selected…" }).click(); await page.getByRole("button", { name: "Remove selected access", exact: true }).click();
       await eventually(async () => !((await api("access.grants.list", { resource: { type: "folder", id: made } })).grants as { id: string }[]).some((g) => g.id === drop.grant.id), "the removed grant ended");
       assert.ok(!((await api("access.principals.effective", { principal: { kind: "person", id: guest.personId } })).grants as { resource: { id: string } }[]).some((g) => g.resource.id === made), "the person whose grant was removed no longer holds it");
-      await page.getByRole("tab", { name: /^Review tasks/ }).click();
-      await page.getByRole("tab", { name: /^Activity/ }).click(); await page.getByTestId("object-body").getByText(/review/i).first().waitFor();
-      await matrix("review-object", async (p) => { await goTo(p, "reviews", "Access reviews", "Access"); await p.getByTestId("console-reviews").waitFor(); await p.getByTestId("row-object-row-" + id).click(); await p.getByTestId("object-header").waitFor(); await p.getByRole("tab", { name: /^Grants/ }).click(); });
+      await page.locator('[data-testid^="object-tab-"]').filter({ hasText: /^Review tasks/ }).click();
+      await page.locator('[data-testid^="object-tab-"]').filter({ hasText: /^Activity/ }).click(); await page.getByTestId("object-body").getByText(/review/i).first().waitFor();
+      await matrix("review-object", async (p) => { await goTo(p, "reviews"); await p.getByTestId("console-reviews").waitFor(); await p.getByTestId("row-object-row-" + id).click(); await p.getByTestId("object-header").waitFor(); await p.locator('[data-testid^="object-tab-"]').filter({ hasText: /^To review/ }).click(); });
       await page.getByTestId("object-more").click(); await page.getByRole("menuitem", { name: "Close review", exact: true }).click(); await page.getByTestId("object-confirm-go").click();
       await eventually(async () => ((await api("access.reviews.get", { reviewId: id })).review as { state: string }).state === "closed", "the review closed");
     });
+    await guard.check("after Access reviews");
     assert.deepEqual(errors, []);
   } catch (error) {
     await page.screenshot({ path: path.join(shots, "failure.png") }).catch(() => undefined);
