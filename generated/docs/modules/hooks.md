@@ -1,0 +1,21 @@
+# Hooks (hooks)
+
+Lane L2. Kind module. Version 0.1.0.
+
+Requires: nothing.
+
+## Capabilities (8)
+
+- [hooks.fire](../capabilities/hooks.fire.md): System: ask what the hooks say about one event. The engine, the tool session and the CLI shim call it; it returns a block with its reason, notes for the model, and how many ran. Hooks that fail or run out of time never block
+- [hooks.list](../capabilities/hooks.list.md): List hooks: the Space's, yours, and an agent's or one chat's. Each has a plain line, when it runs, what it does and who made it. Use this before you add one
+- [hooks.pause](../capabilities/hooks.pause.md): Pause a hook, or turn it back on
+- [hooks.policy.get](../capabilities/hooks.policy.get.md): Whether agents may make hooks in this Space
+- [hooks.policy.set](../capabilities/hooks.policy.set.md): Space admins: allow or turn off hooks made by agents for the whole Space. Hooks agents already made stay but do not run while it is off
+- [hooks.remove](../capabilities/hooks.remove.md): Remove a hook you made
+- [hooks.runs.list](../capabilities/hooks.runs.list.md): What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first
+- [hooks.set](../capabilities/hooks.set.md): Add or change a hook that runs at an event (before a tool, before anything leaves Vyre, a message, a turn end, a helper) as a command, a check or one action. For yourself: scope agent, chat or run. It can stop something, add a note or run its own action; never skip a rule
+
+## Events (2)
+
+- [hook.blocked](../events/hook.blocked.md): A hook stopped a message, a tool call, an outward act or a helper
+- [hook.changed](../events/hook.changed.md): A hook was added, changed, removed, paused or turned back on, or an admin switched agent-made hooks

@@ -415,6 +415,7 @@ export function stubs(ctx: CallCtx) {
         page: call("chat.history.page"),
         search: call("chat.history.search"),
       },
+      hook_line: call("chat.hook_line"),
       make_task: call("chat.make_task"),
       message: {
         get: call("chat.message.get"),
@@ -1312,6 +1313,20 @@ export function stubs(ctx: CallCtx) {
       mark_digest_seen: call("home.mark_digest_seen"),
       routines_today: call("home.routines_today"),
       write_digest: call("home.write_digest"),
+    },
+    hooks: {
+      fire: call("hooks.fire"),
+      list: call("hooks.list"),
+      pause: call("hooks.pause"),
+      policy: {
+        get: call("hooks.policy.get"),
+        set: call("hooks.policy.set"),
+      },
+      remove: call("hooks.remove"),
+      runs: {
+        list: call("hooks.runs.list"),
+      },
+      set: call("hooks.set"),
     },
     hubspot: {
       health: call("hubspot.health"),

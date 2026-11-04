@@ -147,6 +147,16 @@ export type HelperBlockData = {
       threadId: string;
     }>;
 };
+export type HookBlockData = {
+  threadId: string;
+  kind: "added" | "changed" | "removed" | "paused" | "resumed" | "blocked" | "failed";
+  line: string;
+  hookId?: string;
+  scope?: string;
+  by?: string;
+  byKind?: "admin" | "person" | "agent";
+  reason?: string;
+};
 export type MemorySavedBlockData = {
   factId: string;
   layer: "person" | "agent" | "project" | "space";
@@ -313,6 +323,7 @@ export interface BlockDataMap {
   "form_fields": FormFieldsBlockData;
   "goal": GoalBlockData;
   "helper": HelperBlockData;
+  "hook": HookBlockData;
   "memory_saved": MemorySavedBlockData;
   "model_switch": ModelSwitchBlockData;
   "mount": MountBlockData;
@@ -631,6 +642,16 @@ export const blockRegistry = [
         "threadId": "/threadId"
       }
     }
+  },
+  {
+    "type": "hook",
+    "v": 1,
+    "module": "hooks",
+    "component": "ui:BlockHook",
+    "fallback": "{{line}}",
+    "waitsForAnswer": false,
+    "actions": [],
+    "opens": null
   },
   {
     "type": "memory_saved",

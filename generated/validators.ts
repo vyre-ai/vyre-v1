@@ -36,6 +36,7 @@ import { validators as m_google, eventValidators as m_google_ev } from './valida
 import { validators as m_governance, eventValidators as m_governance_ev } from './validators/governance.ts';
 import { validators as m_health, eventValidators as m_health_ev } from './validators/health.ts';
 import { validators as m_home, eventValidators as m_home_ev } from './validators/home.ts';
+import { validators as m_hooks, eventValidators as m_hooks_ev } from './validators/hooks.ts';
 import { validators as m_hubspot, eventValidators as m_hubspot_ev } from './validators/hubspot.ts';
 import { validators as m_identity, eventValidators as m_identity_ev } from './validators/identity.ts';
 import { validators as m_import, eventValidators as m_import_ev } from './validators/import.ts';
@@ -120,6 +121,7 @@ export const validators: Record<string, { in: Check; out: Check }> = {
   ...m_governance,
   ...m_health,
   ...m_home,
+  ...m_hooks,
   ...m_hubspot,
   ...m_identity,
   ...m_import,
@@ -203,6 +205,7 @@ export const eventValidators: Record<string, Check> = {
   ...m_governance_ev,
   ...m_health_ev,
   ...m_home_ev,
+  ...m_hooks_ev,
   ...m_hubspot_ev,
   ...m_identity_ev,
   ...m_import_ev,

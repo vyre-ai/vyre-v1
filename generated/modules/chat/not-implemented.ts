@@ -43,6 +43,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "chat.helpers.list": async (ctx) => { throw new VyreErr(notImplemented("chat.helpers.list", ctx.trace)); },
   "chat.history.page": async (ctx) => { throw new VyreErr(notImplemented("chat.history.page", ctx.trace)); },
   "chat.history.search": async (ctx) => { throw new VyreErr(notImplemented("chat.history.search", ctx.trace)); },
+  "chat.hook_line": async (ctx) => { throw new VyreErr(notImplemented("chat.hook_line", ctx.trace)); },
   "chat.make_task": async (ctx) => { throw new VyreErr(notImplemented("chat.make_task", ctx.trace)); },
   "chat.message.get": async (ctx) => { throw new VyreErr(notImplemented("chat.message.get", ctx.trace)); },
   "chat.message_person": async (ctx) => { throw new VyreErr(notImplemented("chat.message_person", ctx.trace)); },

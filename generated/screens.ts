@@ -1751,6 +1751,13 @@ export const screens: ScreenIndexEntry[] = [
           "threadId": "/state/threadId"
         },
         "live": true
+      },
+      "hooks": {
+        "cap": "hooks.list",
+        "input": {
+          "threadId": "/state/threadId"
+        },
+        "live": true
       }
     },
     "actions": {
@@ -1828,6 +1835,13 @@ export const screens: ScreenIndexEntry[] = [
       },
       "crew": {
         "cap": "engine.crew.list",
+        "input": {
+          "threadId": "/state/threadId"
+        },
+        "live": true
+      },
+      "hooks": {
+        "cap": "hooks.list",
         "input": {
           "threadId": "/state/threadId"
         },
