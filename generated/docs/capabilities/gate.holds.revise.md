@@ -28,6 +28,7 @@ type In = {
   holdId: string;
   taskId: string;
   body: string;
+  title?: string;
 };
 ```
 
@@ -57,7 +58,8 @@ type Out = {
   "input": {
     "body": "example",
     "holdId": "hld_a1b2c3",
-    "taskId": "tsk_a1b2c3"
+    "taskId": "tsk_a1b2c3",
+    "title": "example"
   },
   "output": {
     "edited": 1,

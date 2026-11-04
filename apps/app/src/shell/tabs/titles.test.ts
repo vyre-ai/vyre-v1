@@ -32,6 +32,17 @@ test("a Records tab on a type is named for the type: its plural, else its title;
   assert.equal(typeTitleAsk("records", {}), null);
 });
 
+test("a chat's tab carries the chat's one name: the person for a direct message, the title, else who is in it", async () => {
+  const ask = titleAsk({ type: "chat", id: "thr_1" })!;
+  const calls = async (cap: string): Promise<unknown> => (cap === "agents.list" ? { agents: [{ agentId: "agt_dex", name: "Dex" }] } : { principals: [{ id: "usr_aliza", name: "Aliza" }, { id: "usr_me", name: "Me" }] });
+  const resolve = (thread: Record<string, unknown>) => ask.resolve!({ thread }, calls, "usr_me");
+  assert.equal(await resolve({ kind: "chat", title: "Heyy", agents: [], members: [{ kind: "person", id: "usr_me" }, { kind: "person", id: "usr_aliza" }] }), "Aliza");
+  assert.equal(await resolve({ kind: "chat", agents: [{ agentId: "agt_dex" }], members: [{ kind: "person", id: "usr_me" }] }), "Dex");
+  assert.equal(await resolve({ kind: "chat", agents: [{ agentId: "agt_dex" }], members: [{ kind: "person", id: "usr_me" }, { kind: "person", id: "usr_aliza" }] }), "Dex and Aliza");
+  assert.equal(await resolve({ kind: "chat", title: "GHL onboarding goal", agents: [{ agentId: "agt_dex" }], members: [] }), "GHL onboarding goal");
+  assert.equal(ask.name({ thread: { title: "New chat" } }) ?? ask.empty, "New chat", "until the names arrive the tab says New chat (the ask's empty name)");
+});
+
 test("a tab opened on an artifact is named for the artifact", () => {
   const ask = titleAsk({ type: "artifact", id: "sit_1" })!;
   assert.equal(ask.cap, "sites.get");

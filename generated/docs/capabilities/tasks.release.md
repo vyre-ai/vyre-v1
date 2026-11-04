@@ -119,7 +119,7 @@ type Out = {
       "actions": [
         {
           "key": "approve",
-          "label": "Approve",
+          "label": "Allow",
           "note": "required"
         }
       ],

@@ -26,7 +26,7 @@ Who has access to a resource, through what (direct, group, role, folder), with c
 ```ts
 type In = {
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
     id: string;
   };
 };
@@ -44,7 +44,7 @@ type Out = {
           id: string;
         };
         resource: {
-          type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+          type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
           id: string;
         };
         level: "view" | "use" | "edit" | "manage";
@@ -66,6 +66,8 @@ type Out = {
       };
       through: "direct" | "group" | "role" | "folder" | "owner";
     }>;
+  mine?: "view" | "use" | "edit" | "manage";
+  agentsCanCall?: boolean;
   audience?: "space" | "added" | "me";
   exporters?: "admins" | "viewers" | "chosen";
   inherits?: string;
@@ -98,6 +100,7 @@ type Out = {
     }
   },
   "output": {
+    "agentsCanCall": true,
     "audience": "space",
     "can": {
       "edit": true,
@@ -107,6 +110,7 @@ type Out = {
     },
     "exporters": "admins",
     "inherits": "example",
+    "mine": "view",
     "outside": true,
     "shares": [
       {

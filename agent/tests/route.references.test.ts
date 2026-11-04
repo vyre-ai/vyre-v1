@@ -54,3 +54,28 @@ test("in the engine: the owner's exact message runs the lead, and a person who i
   assert.deepEqual(to.responders, []);
   await engine.idle("T");
 });
+
+test("where only the person and their agent are present, the agent answers without an @; a group still needs one", () => {
+  const dex = { id: "agt_dex", name: "Dex", mode: "listen" as const };
+  const task = { agents: [dex], kind: "thread", personal: true, people: [] as string[] };
+  // a task thread on their task: the person and the agent that works it
+  assert.deepEqual(route(task, { author: me, mentions: [], text: "Please also check the invoices" }).responders, ["agt_dex"]);
+  assert.deepEqual(route({ ...task, people: ["usr_irfad"] }, { author: me, mentions: [], text: "go" }).responders, ["agt_dex"]);
+  // another person in it makes it a group: an @ picks who answers
+  assert.deepEqual(route({ ...task, people: ["usr_irfad", "usr_aliza"] }, { author: me, mentions: [], text: "go" }).responders, []);
+  assert.deepEqual(route({ ...task, people: ["usr_irfad", "usr_aliza"] }, { author: me, mentions: [{ kind: "agent", id: "agt_dex" }], text: "go" }).responders, ["agt_dex"]);
+  // a reply thread in a channel is not a personal one
+  assert.deepEqual(route({ agents: [dex], kind: "thread", people: [] as string[] }, { author: me, mentions: [], text: "go" }).responders, []);
+  // a 1:1 chat, as before
+  assert.deepEqual(route({ agents: [dex], kind: "chat", people: ["usr_irfad"] }, { author: me, mentions: [], text: "go" }).responders, ["agt_dex"]);
+});
+
+test("the agent that works a task answers a person in the task's thread without an @, but an agent's own line (a reviewer's hand-off) never wakes it", () => {
+  const doer = { id: "agt_doer", name: "Drafter", mode: "listen" as const, taskLead: true };
+  const checker = { id: "agt_checker", name: "Checker", mode: "listen" as const };
+  const thread = { agents: [doer, checker], kind: "thread", personal: true, people: ["usr_irfad"] };
+  assert.deepEqual(route(thread, { author: me, mentions: [], text: "how is it going?" }).responders, ["agt_doer"], "a person's line reaches the one working the task");
+  const handoff = route(thread, { author: { kind: "agent", id: "agt_checker" }, mentions: [], depth: 1, text: "Sent back with fixes:\n1. Use her full name" });
+  assert.deepEqual(handoff.responders, [], "the reviewer's line is not the doer's turn: the baton wakes it by seat");
+  assert.deepEqual(route(thread, { author: { kind: "agent", id: "agt_checker" }, mentions: [{ kind: "agent", id: "agt_doer" }], depth: 1, text: "@Drafter please look" }).responders, ["agt_doer"], "an @ still reaches it");
+});

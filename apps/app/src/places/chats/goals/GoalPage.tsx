@@ -8,17 +8,24 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimen
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
-import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { askedCall, goalMenuEntries } from "./goal-menu.ts";
+import { TextAsk } from "../menus/TextAsk.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Conversation } from "../conversation/Conversation.tsx";
 import type { ConversationData } from "../conversation/data.tsx";
 import type { Changes } from "../conversation/use-follow.ts";
+import { formatActivity } from "../../../../../../lib/words/activity.ts";
 import { useGoal } from "./data.ts";
 import type { Call } from "./data.ts";
 import { Bar, TONE } from "./GoalRow.tsx";
-import { ENDED, LIVE, budgetOf, byDay, chartOf, dueWords, fmt, lineWithDue, fractionOf, leftWords, numberOf, rhythmWords, statusOf, taskWord, whenWords } from "./model.ts";
-import type { Goal, GoalPageData, TaskLine, Tone, WaitLine } from "./model.ts";
+import { ENDED, LIVE, bareLine, budgetOf, byDay, canEdit as mayEdit, chartOf, dueWords, fmt, fractionOf, leftWords, nameList, numberOf, statusOf, taskWord, whenWords } from "./model.ts";
+import { TextField } from "../../../../../../ui/src/TextField/index.tsx";
+import { GoalSettings } from "./GoalSettings.tsx";
+import { AddLine, ChecklistEdit, DeadlineEdit, DraftPlanEdit, EditText, HelpersRow, Mini, PeopleDialog, newId } from "./GoalEdit.tsx";
+import type { PickEntry } from "../../../../../../ui/src/PeoplePicker/index.tsx";
+import type { Goal, GoalPageData, PlanStep, TaskLine, Tone, WaitLine, Who } from "./model.ts";
 
 export interface GoalPageProps {
   goalId: string;
@@ -37,42 +44,78 @@ export interface GoalPageProps {
   fill?(text: string): void;
   /** Off where the page sits in a narrow window: the pane folds away. */
   pane?: boolean;
+  /** The people and agents a lead, owner or helper can be picked from. */
+  directory?: readonly PickEntry[];
 }
 
 type PaneTab = "activity" | "details" | "files";
 const DAY = 86_400_000;
 
-export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversationFor, openTask, openAgent, openFolder, openFile, fill, pane = true }: GoalPageProps): ReactElement {
+export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversationFor, openTask, openAgent, openFolder, openFile, fill, pane = true, directory }: GoalPageProps): ReactElement {
   const { state, reload } = useGoal(call, changes, goalId);
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 640;
   const [tab, setTab] = useState<PaneTab>("activity");
   const [paneOpen, setPaneOpen] = useState(pane && !phone && width >= 980);
   const [line, setLine] = useState("");
+  const [undo, setUndo] = useState<{ input: Record<string, unknown>; said: string } | null>(null);
+  const [picker, setPicker] = useState<"lead" | "owner" | "helpers" | null>(null);
   const menu = useMenu();
+  const [asking, setAsking] = useState<"stuck" | "report" | null>(null);
   const data = state.status === "ready" ? state.data : null;
   const g = data?.goal;
-  const run = useCallback(async (cap: string, input: Record<string, unknown>, done?: string): Promise<boolean> => {
-    setLine("");
-    try { await call(cap, { goalId, ...input }); reload(); if (done) setLine(done); return true; }
-    catch (e) { setLine(e instanceof Error && e.message ? e.message : "That could not be changed."); return false; }
-  }, [call, goalId, reload]);
-  useEffect(() => { setLine(""); }, [goalId]);
+  /** One capability call. `back` is the same capability's input that puts the change back: it shows as Undo. A helper the goal chat would not take is said, with the reason, never skipped. */
+  const run = useCallback(async (cap: string, input: Record<string, unknown>, done?: string, back?: Record<string, unknown>): Promise<boolean> => {
+    setLine(""); setUndo(null);
+    try {
+      const r = (await call(cap, { goalId, ...input })) as { seated?: Array<{ id: string; inChat: boolean; error?: string }> } | undefined;
+      reload();
+      const failed = (r?.seated ?? []).filter((x) => !x.inChat);
+      const lost = failed.length ? ` ${nameList(failed.map((x) => nameOf(x.id)))} could not join the goal chat${failed[0]?.error ? `: ${failed[0].error}` : ""}` : "";
+      if (done || lost) setLine(`${done ?? "Saved."}${lost}`);
+      if (back) setUndo({ input: back, said: cap === "goals.update" ? "Put back." : "Undone." });
+      return true;
+    } catch (e) { setLine(e instanceof Error && e.message ? e.message : "That could not be changed."); return false; }
+  }, [call, goalId, reload, nameOf]);
+  const takeBack = useCallback(async (): Promise<void> => {
+    const u = undo;
+    if (!u) return;
+    await run("goals.update", u.input, u.said);
+  }, [undo, run]);
+  useEffect(() => { setLine(""); setUndo(null); }, [goalId]);
   const conv = useMemo(() => (g?.threadId ? conversationFor(g.threadId) : null), [conversationFor, g?.threadId]);
 
+  const entries = useMemo<readonly PickEntry[]>(() => {
+    if (directory && directory.length > 0) return directory;
+    if (!g) return [];
+    const seen = new Map<string, PickEntry>();
+    for (const w of [{ kind: "person", id: g.owner }, { kind: "agent", id: g.leadAgentId }, ...g.helpers]) seen.set(w.id, { id: w.id, name: nameOf(w.id), kind: w.kind === "agent" ? "agent" : "person" });
+    return [...seen.values()];
+  }, [directory, g, nameOf]);
   if (!data || !g) {
     return <View testID="goal-page-loading" style={st.root}>{state.status === "error" ? <States kind="error" message="This goal is not available" cause={state.message} /> : <View style={st.loading} />}</View>;
   }
   const now = clock().now, offsetMin = clock().offsetMin;
   const showPane = (t: PaneTab): void => { setTab(t); setPaneOpen(true); };
+  const edit = mayEdit(g, me);
+  const saveHelpers = (next: Who[], said: string): void => { void run("goals.update", { helpers: next }, said, { helpers: g.helpers }); };
   const head = (
-    <View testID="goal-page-head" style={[st.col, phone && st.colPhone]}>
-      <Head g={g} me={me} nameOf={nameOf} now={now} offsetMin={offsetMin} run={run} menu={menu} showPane={showPane} openAgent={openAgent} fill={fill} phone={phone} />
-      {line ? <Text testID="goal-line" accessibilityLiveRegion="polite" style={st.line}>{line}</Text> : null}
-      <Notice data={data} now={now} offsetMin={offsetMin} run={run} fill={fill} menu={menu} />
-      <NumberBlock data={data} now={now} offsetMin={offsetMin} phone={phone} />
+    <View testID="goal-page-head" style={[st.col, phone && st.colPhone]} {...menuTrigger((x, y) => menu.show(goalMenuEntries(g, me, { run, ask: setAsking }), x, y, "context", { label: g.title }))}>
+      <Head g={g} me={me} nameOf={nameOf} now={now} offsetMin={offsetMin} run={run} menu={menu} showPane={showPane} openAgent={openAgent} fill={fill} phone={phone} edit={edit} pick={setPicker} saveHelpers={saveHelpers} />
+      {line ? (
+        <View style={st.lineRow}>
+          <Text testID="goal-line" accessibilityLiveRegion="polite" style={st.lineText}>{line}</Text>
+          {undo ? <Mini label="Undo" testID="goal-undo" onPress={() => void takeBack()} /> : null}
+        </View>
+      ) : null}
+      <Notice data={data} now={now} offsetMin={offsetMin} run={run} fill={fill} menu={menu} edit={edit} />
+      <NumberBlock data={data} now={now} offsetMin={offsetMin} phone={phone} {...(edit ? { onItems: (items: NonNullable<Goal["finish"]["items"]>) => void run("goals.update", { finish: { ...g.finish, items } }, "Checklist changed.", { finish: g.finish }) } : {})} me={me} />
       <Waiting waits={data.waiting} call={call} nameOf={nameOf} now={now} offsetMin={offsetMin} openTask={openTask} onDone={reload} />
-      <Plan tasks={data.tasks} nameOf={nameOf} openTask={openTask} />
+      <Plan data={data} nameOf={nameOf} openTask={openTask} edit={edit}
+        onDraft={(plan) => void run("goals.update", { plan }, "Plan changed.", { plan: data.draftPlan ?? [] })}
+        onRemove={(taskId) => void call("tasks.withdraw", { taskId, note: "Taken off the goal's plan by the owner." }).then(() => { reload(); setLine("Step removed."); }, (e: unknown) => setLine(e instanceof Error ? e.message : "That could not be changed."))}
+        onRename={(taskId, title) => void call("tasks.update", { taskId, title }).then(() => { reload(); setLine("Step renamed."); }, (e: unknown) => setLine(e instanceof Error ? e.message : "That could not be changed."))}
+        onAdd={(title) => void run("goals.plan", { children: [{ key: newId("s"), title, why: "Added by the owner", assigned: { kind: "agent", id: g.leadAgentId } }] }, "Step added.")} />
     </View>
   );
   const feed = conv
@@ -82,16 +125,23 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
     <View testID="goal-page" style={st.row}>
       <View style={st.main}>{feed}</View>
       {paneOpen && !phone ? (
-        <SidePane paneKey="goal-pane" toggle={{ open: true, onPress: () => setPaneOpen(false) }} title="Goal" tabs={[{ key: "activity", title: "Activity" }, { key: "details", title: "Details" }, { key: "files", title: "Files" }]} activeTab={tab} onSelectTab={(k) => setTab(k as PaneTab)} defaultWidth={340} onCloseTab={() => setPaneOpen(false)}>
-          {tab === "activity" ? <Activity data={data} nameOf={nameOf} now={now} offsetMin={offsetMin} openTask={openTask} /> : tab === "details" ? <Details g={g} nameOf={nameOf} offsetMin={offsetMin} now={now} run={run} menu={menu} /> : <Files g={g} call={call} changes={changes} {...(openFolder ? { openFolder } : {})} {...(openFile ? { openFile } : {})} />}
+        <SidePane paneKey="goal-pane" toggle={{ open: true, onPress: () => setPaneOpen(false) }} title="Goal" tabs={[{ key: "activity", title: "Activity" }, { key: "details", title: "Details" }, { key: "files", title: "Files" }]} activeTab={tab} onSelectTab={(k) => setTab(k as PaneTab)} defaultWidth={340}>
+          {tab === "activity" ? <Activity data={data} me={me} nameOf={nameOf} now={now} offsetMin={offsetMin} openTask={openTask} /> : tab === "details" ? <GoalSettings g={g} nameOf={nameOf} offsetMin={offsetMin} canEdit={edit} patch={(i, said, back) => void run("goals.update", i, said, back)} pick={setPicker} removeHelper={(id) => saveHelpers(g.helpers.filter((h) => h.id !== id), `${nameOf(id)} is no longer a helper.`)} /> : <Files g={g} call={call} changes={changes} {...(openFolder ? { openFolder } : {})} {...(openFile ? { openFile } : {})} />}
         </SidePane>
       ) : null}
       {menu.element}
+      {picker === "lead" ? <PeopleDialog testID="goal-pick-lead" title="Who leads this goal" single entries={entries.filter((e) => e.kind === "agent")} selected={[g.leadAgentId]} onClose={() => setPicker(null)}
+        onSave={(ids) => { const id = ids[0]; if (id && id !== g.leadAgentId) void run("goals.update", { leadAgentId: id }, `${nameOf(id)} leads it now.`, { leadAgentId: g.leadAgentId }); }} /> : null}
+      {picker === "owner" ? <PeopleDialog testID="goal-pick-owner" title="Who owns this goal" single entries={entries.filter((e) => e.kind === "person")} selected={[g.owner]} onClose={() => setPicker(null)}
+        onSave={(ids) => { const id = ids[0]; if (id && id !== g.owner) void run("goals.update", { owner: id }, `${nameOf(id)} owns it now. What you allowed does not carry over.`); }} /> : null}
+      {picker === "helpers" ? <PeopleDialog testID="goal-pick-helpers" title="Who helps with this goal" entries={entries.filter((e) => e.id !== g.owner && e.id !== g.leadAgentId)} selected={g.helpers.map((h) => h.id)} onClose={() => setPicker(null)}
+        onSave={(ids) => saveHelpers(ids.map((id) => ({ kind: entries.find((e) => e.id === id)?.kind ?? "person", id })), "Helpers changed.")} /> : null}
+      {asking ? <TextAsk title={asking === "stuck" ? "Why is this goal stuck?" : "Report progress"} label={asking === "stuck" ? "What is in the way" : "What changed and what is next"} action={asking === "stuck" ? "Mark stuck" : "Report"} multiline onClose={() => setAsking(null)} onDone={(text) => { const c = askedCall(asking, text); setAsking(null); void run(c.cap, c.input, c.done); }} /> : null}
     </View>
   );
 }
 
-type Run = (cap: string, input: Record<string, unknown>, done?: string) => Promise<boolean>;
+type Run = (cap: string, input: Record<string, unknown>, done?: string, back?: Record<string, unknown>) => Promise<boolean>;
 type Menu = ReturnType<typeof useMenu>;
 const pointAt = (e: unknown): { x: number; y: number } => { const t = (e as { currentTarget?: { getBoundingClientRect?: () => { left: number; bottom: number } } } | undefined)?.currentTarget?.getBoundingClientRect?.(); return { x: t?.left ?? 8, y: (t?.bottom ?? 48) + 4 }; };
 
@@ -135,7 +185,7 @@ function extendEntries(g: Goal, run: Run): MenuEntry[] {
   ];
 }
 
-function Head({ g, me, nameOf, now, offsetMin, run, menu, showPane, openAgent, fill, phone }: { g: Goal; me: string; nameOf(id: string): string; now: number; offsetMin: number; run: Run; menu: Menu; showPane(t: PaneTab): void; openAgent(id: string): void; fill: ((t: string) => void) | undefined; phone: boolean }): ReactElement {
+function Head({ g, me, nameOf, now, offsetMin, run, menu, showPane, openAgent, fill, phone, edit, pick, saveHelpers }: { edit: boolean; pick(w: "lead" | "owner" | "helpers"): void; saveHelpers(next: Who[], said: string): void; g: Goal; me: string; nameOf(id: string): string; now: number; offsetMin: number; run: Run; menu: Menu; showPane(t: PaneTab): void; openAgent(id: string): void; fill: ((t: string) => void) | undefined; phone: boolean }): ReactElement {
   const s = statusOf(g, me);
   const live = LIVE.has(g.status);
   const more = (e: unknown): void => {
@@ -150,24 +200,27 @@ function Head({ g, me, nameOf, now, offsetMin, run, menu, showPane, openAgent, f
   return (
     <View>
       <View style={st.kicker}><Icon name="target" size={13} /><Text style={st.kickerText}>Goal</Text></View>
-      <Text testID="goal-title" accessibilityRole="header" style={[st.h1, phone && st.h1Phone]}>{g.title}</Text>
-      <Text testID="goal-finish" style={st.finish}>{lineWithDue(g.finish.line, g.deadline, offsetMin)}</Text>
+      <EditText value={g.title} canEdit={edit} label="the title" testID="goal-title" textStyle={[st.h1, phone && st.h1Phone]} onSave={(title) => void run("goals.update", { title }, "Renamed.", { title: g.title })} />
+      <EditText value={bareLine(g.finish.line)} canEdit={edit} label="the finish line" testID="goal-finish" textStyle={st.finish} multiline
+        onSave={(line) => void run("goals.update", { finish: { ...g.finish, line } }, "Finish line changed.", { finish: g.finish })} />
       <View style={st.meta}>
         <Text testID="goal-status" style={[st.metaText, { color: TONE[s.tone] as string, fontWeight: s.tone === "plain" ? "400" : "600" }]}>{s.word}</Text>
-        <Pressable accessibilityRole="link" accessibilityLabel={`Open ${nameOf(g.leadAgentId)}`} onPress={() => openAgent(g.leadAgentId)} style={st.metaItem}>
+        <Pressable accessibilityRole="button" accessibilityLabel={edit ? "Change the lead" : `Open ${nameOf(g.leadAgentId)}`} testID="goal-lead" onPress={() => (edit ? pick("lead") : openAgent(g.leadAgentId))} style={st.metaItem}>
           <Avatar {...avatarOf({ id: g.leadAgentId, name: nameOf(g.leadAgentId), kind: "agent" })} size={18} /><Text style={st.metaText}>{`${nameOf(g.leadAgentId)} leads`}</Text>
         </Pressable>
-        <View style={st.metaItem}><Avatar {...avatarOf({ id: g.owner, name: nameOf(g.owner), kind: "person" })} size={18} /><Text style={st.metaText}>{`${g.owner === me ? "You own it" : `${nameOf(g.owner)} owns it`}`}</Text></View>
+        <Pressable accessibilityRole={edit ? "button" : "text"} accessibilityLabel={edit ? "Change the owner" : "Owner"} testID="goal-owner" onPress={edit ? () => pick("owner") : undefined} style={st.metaItem}>
+          <Avatar {...avatarOf({ id: g.owner, name: nameOf(g.owner), kind: "person" })} size={18} /><Text style={st.metaText}>{`${g.owner === me ? "You own it" : `${nameOf(g.owner)} owns it`}`}</Text>
+        </Pressable>
         {live && g.nextCheckinAt ? <View style={st.metaItem}><Icon name="clock" /><Text style={st.metaText}>{`Check-in ${whenWords(g.nextCheckinAt, now, offsetMin)}`}</Text></View> : null}
-        <View style={st.metaItem}><Icon name="cal" /><Text style={st.metaText}>{ENDED.has(g.status) ? `Ended ${whenWords(g.endedAt ?? now, now, offsetMin)}` : `Due ${dueWords(g.deadline, offsetMin)}`}</Text></View>
+        <DeadlineEdit deadline={g.deadline} offsetMin={offsetMin} canEdit={edit} onSave={(deadline) => void run("goals.update", { deadline }, `Deadline moved to ${dueWords(deadline, offsetMin)}.`, { deadline: g.deadline })}
+          shown={<View style={st.metaItem}><Icon name="cal" /><Text testID="goal-due" style={st.metaText}>{ENDED.has(g.status) ? `Ended ${whenWords(g.endedAt ?? now, now, offsetMin)}` : `Due ${dueWords(g.deadline, offsetMin)}`}</Text></View>} />
       </View>
+      <HelpersRow helpers={g.helpers} nameOf={nameOf} canEdit={edit} onAdd={() => pick("helpers")} onRemove={(id) => saveHelpers(g.helpers.filter((h) => h.id !== id), `${nameOf(id)} is no longer a helper.`)} />
       {ENDED.has(g.status) ? null : (
         <View style={st.controls}>
           {g.status === "draft" ? <Btn label="Start goal" primary testID="goal-start" onPress={() => void run("goals.confirm", {}, "Started")} /> : null}
           {live ? <Btn label="Pause" icon="pause" testID="goal-pause" onPress={() => void run("goals.pause", {}, "Paused. Nothing wakes until you resume it.")} /> : null}
           {g.status === "paused" ? <Btn label="Resume" icon="play" testID="goal-resume" onPress={() => void run("goals.resume", {}, "Resumed")} /> : null}
-          <Btn label="Edit finish line" icon="edit" testID="goal-edit" onPress={() => showPane("details")} />
-          <Btn label="Add helper" icon="plus" testID="goal-add-helper" onPress={() => showPane("details")} />
           <Btn label="More" icon="more" testID="goal-more" onPress={more} />
         </View>
       )}
@@ -176,7 +229,7 @@ function Head({ g, me, nameOf, now, offsetMin, run, menu, showPane, openAgent, f
 }
 
 /** Stuck, the budget, a draft or the end: one notice, above the number, with what you can do about it. */
-function Notice({ data, now, offsetMin, run, fill, menu }: { data: GoalPageData; now: number; offsetMin: number; run: Run; fill: ((t: string) => void) | undefined; menu: Menu }): ReactElement | null {
+function Notice({ data, now, offsetMin, run, fill, menu, edit }: { edit: boolean; data: GoalPageData; now: number; offsetMin: number; run: Run; fill: ((t: string) => void) | undefined; menu: Menu }): ReactElement | null {
   const g = data.goal;
   const b = budgetOf(g);
   if (g.status === "stuck") {
@@ -203,7 +256,7 @@ function Notice({ data, now, offsetMin, run, fill, menu }: { data: GoalPageData;
   if (g.status === "draft") {
     return (
       <Card testID="goal-draft" tone="plain" icon="target" title="Drafted, not started">
-        <Text style={st.body}>{`Nothing runs and no permission holds until you press Start goal.`}</Text>
+        <Text style={st.body}>{edit ? "Nothing runs until you press Start goal. Click any part of this page to change it." : "Nothing runs until the owner presses Start goal."}</Text>
       </Card>
     );
   }
@@ -238,9 +291,10 @@ function Card({ tone, icon, title, children, testID }: { tone: Tone; icon: strin
 }
 
 /** The number, big and still, with where it comes from and the chart of how it got here. */
-function NumberBlock({ data, now, offsetMin, phone }: { data: GoalPageData; now: number; offsetMin: number; phone: boolean }): ReactElement {
+function NumberBlock({ data, now, offsetMin, phone, onItems, me }: { data: GoalPageData; now: number; offsetMin: number; phone: boolean; onItems?: (items: NonNullable<Goal["finish"]["items"]>) => void; me: string }): ReactElement {
   const g = data.goal, p = g.progress;
-  const src = g.finish.source?.label ?? (g.finish.kind === "checklist" ? "the checklist" : g.finish.kind === "owner" ? "the owner says done" : "the source");
+  const you = g.owner === me;
+  const src = g.finish.source?.label ?? (g.finish.kind === "checklist" ? (you ? "Done when you tick every item" : "Done when the owner ticks every item") : g.finish.kind === "owner" ? (you ? "Done when you say so" : "Done when the owner says so") : "the source");
   const sub = p.error ? `Can't read ${src}: ${p.error}` : p.readAt ? `${src}, read ${whenWords(p.readAt, now, offsetMin)}` : src;
   const big = p.target !== undefined ? (p.value === undefined ? "–" : fmt(p.value)) : p.items !== undefined ? String(p.itemsDone ?? 0) : String(p.tasksDone);
   const of = p.target !== undefined ? `/ ${fmt(p.target)}` : p.items !== undefined ? `of ${p.items}` : `of ${p.tasks} tasks`;
@@ -257,7 +311,8 @@ function NumberBlock({ data, now, offsetMin, phone }: { data: GoalPageData; now:
       <Bar value={fractionOf(p)} tone={g.status === "done" ? "ok" : "plain"} width="100%" testID="goal-progress" />
       <Text testID="goal-source" style={[st.small, p.error && { color: "var(--danger)" as string }]}>{sub}</Text>
       {g.finish.kind === "number" ? <ChartView data={data} now={now} /> : null}
-      {g.finish.kind === "checklist" ? <View style={st.list}>{(g.finish.items ?? []).map((i) => <Row key={i.id} id={`ci-${i.id}`} title={i.text} leading={<View style={{ marginRight: 8 }}><Icon name={i.done ? "check" : "target"} color={i.done ? "var(--ok)" : "var(--ink-4)"} /></View>} />)}</View> : null}
+      {g.finish.kind === "checklist" && onItems ? <ChecklistEdit items={g.finish.items ?? []} onChange={onItems} /> : null}
+      {g.finish.kind === "checklist" && !onItems ? <View style={st.list}>{(g.finish.items ?? []).map((i) => <Row key={i.id} id={`ci-${i.id}`} title={i.text} leading={<View style={{ marginRight: 8 }}><Icon name={i.done ? "check" : "target"} color={i.done ? "var(--ok)" : "var(--ink-4)"} /></View>} />)}</View> : null}
     </View>
   );
 }
@@ -315,7 +370,7 @@ function WaitRow({ w, call, nameOf, now, offsetMin, openTask, onDone }: { w: Wai
   const buttons: ReactElement[] = [];
   if (options.length > 0) options.slice(0, 4).forEach((o, i) => buttons.push(<Btn key={o} label={o} primary={i === 0} onPress={() => act("answer", o)} testID={`goal-wait-${w.taskId}-${i}`} />));
   else if (w.kind === "approve") {
-    buttons.push(<Btn key="ok" label="Approve" primary onPress={() => act("approve")} testID={`goal-wait-${w.taskId}-approve`} />);
+    buttons.push(<Btn key="ok" label="Allow" primary onPress={() => act("approve")} testID={`goal-wait-${w.taskId}-approve`} />);
     buttons.push(<Btn key="later" label="Not now" onPress={() => void call("tasks.snooze", { taskId: w.taskId, until: now + DAY }).then(onDone, () => undefined)} testID={`goal-wait-${w.taskId}-later`} />);
   }
   buttons.push(<Btn key="open" label="Open" onPress={() => openTask(w.taskId)} testID={`goal-wait-${w.taskId}-open`} />);
@@ -328,23 +383,46 @@ function WaitRow({ w, call, nameOf, now, offsetMin, openTask, onDone }: { w: Wai
   );
 }
 
-function Plan({ tasks, nameOf, openTask }: { tasks: readonly TaskLine[]; nameOf(id: string): string; openTask(id: string): void }): ReactElement {
+function Plan({ data, nameOf, openTask, edit, onDraft, onRemove, onAdd, onRename }: {
+  data: GoalPageData; nameOf(id: string): string; openTask(id: string): void; edit: boolean; onDraft(next: PlanStep[]): void; onRemove(taskId: string): void; onAdd(title: string): void; onRename(taskId: string, title: string): void;
+}): ReactElement {
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const finish = (t: TaskLine, save: boolean): void => { setRenaming(null); const next = name.trim(); if (save && next !== "" && next !== t.title) onRename(t.taskId, next); };
+  const g = data.goal, tasks = data.tasks;
+  if (g.status === "draft") {
+    const steps = data.draftPlan ?? [];
+    return (
+      <View testID="goal-plan" style={st.section}>
+        <Text style={st.label}>{steps.length ? `Plan · ${steps.length} step${steps.length === 1 ? "" : "s"}` : "Plan"}</Text>
+        <DraftPlanEdit steps={steps} leadAgentId={g.leadAgentId} canEdit={edit} nameOf={nameOf} onChange={onDraft} />
+      </View>
+    );
+  }
   const done = tasks.filter((t) => t.state === "done").length;
   return (
     <View testID="goal-plan" style={st.section}>
       <Text style={st.label}>{tasks.length ? `Plan · ${done} of ${tasks.length} done` : "Plan"}</Text>
-      {tasks.length === 0 ? <Text style={st.small}>The lead agent researches first, then plans here.</Text> : null}
+      {tasks.length === 0 ? <Text style={st.small}>{edit ? `No steps yet. ${nameOf(g.leadAgentId)} researches first, then plans here. You can add a step now.` : `${nameOf(g.leadAgentId)} researches first, then plans here.`}</Text> : null}
       {tasks.map((t) => {
         const s = taskWord(t.state, t.blocked);
+        if (renaming === t.taskId) {
+          return <TextField key={t.taskId} testID={`goal-task-name-${t.taskId}`} accessibilityLabel="Step name" autoFocus value={name} onChangeText={setName} onBlur={() => finish(t, true)} onSubmitEditing={() => finish(t, true)}
+            onKeyPress={(e: { nativeEvent: { key: string } }) => { if (e.nativeEvent.key === "Escape") finish(t, false); }} />;
+        }
         return <Row key={t.taskId} id={`gt-${t.taskId}`} title={t.title} titleSuffix={t.key ?? ""} onPress={() => openTask(t.taskId)}
           leading={<View style={{ marginRight: 8 }}><Icon name={t.state === "done" ? "check" : "target"} color={t.state === "done" ? "var(--ok)" : "var(--ink-4)"} /></View>}
-          trailing={<View style={st.planTrail}><Text style={[st.small, { color: TONE[s.tone] as string }]}>{s.word}</Text>{t.assigned ? <Avatar {...avatarOf({ id: t.assigned.id, name: nameOf(t.assigned.id), kind: t.assigned.kind === "agent" ? "agent" : "person" })} size={18} /> : null}</View>} />;
+          trailing={<View style={st.planTrail}><Text style={[st.small, { color: TONE[s.tone] as string }]}>{s.word}</Text>{t.assigned ? <Avatar {...avatarOf({ id: t.assigned.id, name: nameOf(t.assigned.id), kind: t.assigned.kind === "agent" ? "agent" : "person" })} size={18} /> : null}
+            {edit && t.state !== "done" && t.state !== "canceled" ? <Mini label="Rename" testID={`goal-task-rename-${t.taskId}`} onPress={() => { setName(t.title); setRenaming(t.taskId); }} /> : null}
+            {edit && t.state !== "done" && t.state !== "canceled" ? <Mini label="Remove" testID={`goal-task-remove-${t.taskId}`} onPress={() => onRemove(t.taskId)} /> : null}</View>} />;
       })}
+      {edit && g.status !== "done" ? <AddLine label="a new step" placeholder="Add a step" testID="goal-step-new" onAdd={onAdd} /> : null}
     </View>
   );
 }
 
-function Activity({ data, nameOf, now, offsetMin, openTask }: { data: GoalPageData; nameOf(id: string): string; now: number; offsetMin: number; openTask(id: string): void }): ReactElement {
+export function Activity({ data, me, nameOf, now, offsetMin, openTask }: { data: GoalPageData; me: string; nameOf(id: string): string; now: number; offsetMin: number; openTask(id: string): void }): ReactElement {
+  const viewer = { me, nameOf, offsetMin };
   const days = byDay(data.activity, now, offsetMin);
   if (days.length === 0) return <Text style={[st.small, st.pad]}>Nothing yet.</Text>;
   return (
@@ -353,56 +431,15 @@ function Activity({ data, nameOf, now, offsetMin, openTask }: { data: GoalPageDa
       {days.map((d) => (
         <View key={d.day} style={st.day}>
           <Text style={st.label}>{d.day}</Text>
-          {d.items.map((a) => (
-            <Row key={`${a.at}-${a.kind}-${a.text.slice(0, 24)}`} id={`ga-${a.at}`} title={a.text} note={`${whenWords(a.at, now, offsetMin)}${a.by ? ` · ${credit(a.by, nameOf)}` : ""}`}
-              {...(a.ref?.startsWith("tsk_") ? { onPress: () => openTask(a.ref!) } : {})} />
-          ))}
+          {d.items.map((a) => {
+            const line = formatActivity(a, viewer);
+            return (
+              <Row key={`${a.at}-${a.kind}-${a.text.slice(0, 24)}`} id={`ga-${a.at}`} title={line.text} note={`${whenWords(a.at, now, offsetMin)}${line.credit ? ` · ${line.credit}` : ""}`}
+                {...(a.ref?.startsWith("tsk_") ? { onPress: () => openTask(a.ref!) } : {})} />
+            );
+          })}
         </View>
       ))}
-    </ScrollView>
-  );
-}
-/** Who did it: a person by name, a person's agent as "<Person> (Agent)", the server as Vyre. */
-function credit(by: string, nameOf: (id: string) => string): string {
-  const [actor, forWho] = by.split(">");
-  if (forWho) return `${nameOf(forWho)} (Agent)`;
-  if (actor?.startsWith("svc_")) return "Vyre";
-  return nameOf(actor ?? by);
-}
-
-function Details({ g, nameOf, offsetMin, now, run, menu }: { g: Goal; nameOf(id: string): string; offsetMin: number; now: number; run: Run; menu: Menu }): ReactElement {
-  const b = budgetOf(g);
-  const [editing, setEditing] = useState(false);
-  const [target, setTarget] = useState(String(g.finish.target ?? ""));
-  const people: Array<{ id: string; kind: string; role: string }> = [{ id: g.owner, kind: "person", role: "Owner" }, { id: g.leadAgentId, kind: "agent", role: "Lead" }, ...g.helpers.map((h) => ({ id: h.id, kind: h.kind, role: "Helper" }))];
-  return (
-    <ScrollView testID="goal-details" contentContainerStyle={st.pad}>
-      <Text style={st.label}>Finish line</Text>
-      <Text style={st.body}>{g.finish.line}</Text>
-      {g.finish.kind === "number" ? (editing ? (
-        <View style={st.cardActions}>
-          <Text style={st.small}>Target</Text>
-          {createElement("input", { "aria-label": "Target", value: target, onChange: (e: { target: { value: string } }) => setTarget(e.target.value), style: { width: 90, font: "inherit", fontSize: 13, padding: "4px 6px", border: "1px solid var(--field-line)", borderRadius: 6, background: "var(--field)", color: "var(--ink)" } })}
-          <Btn label="Save" primary onPress={() => { const n = Number(target); if (Number.isFinite(n)) void run("goals.update", { finish: { ...g.finish, target: n } }, "Finish line changed").then(() => setEditing(false)); }} testID="goal-target-save" />
-          <Btn label="Cancel" onPress={() => setEditing(false)} />
-        </View>
-      ) : <Btn label="Change the target" icon="edit" onPress={() => setEditing(true)} testID="goal-target-edit" />) : null}
-      <Text style={st.small}>{`Read from ${g.finish.source?.label ?? g.finish.source?.kind ?? "the goal itself"}. Progress comes from the source only, never from what an agent says.`}</Text>
-      <Text style={st.label}>Deadline</Text>
-      <Text style={st.body}>{dueWords(g.deadline, offsetMin)}</Text>
-      <Btn label="Extend" onPress={(e) => { const at = pointAt(e); menu.show(extendEntries(g, run), at.x, at.y, "other", { label: "Extend" }); }} />
-      <Text style={st.label}>Check-ins</Text>
-      <Text style={st.body}>{rhythmWords(g)}</Text>
-      <Text style={st.small}>Also wakes when a task finishes, the number moves, or you answer.</Text>
-      <Text style={st.label}>Budget</Text>
-      <Bar value={b.used} tone={b.warn ? "need" : "plain"} width="100%" testID="goal-budget" />
-      <Text testID="goal-budget-text" style={[st.body, b.warn && { color: "var(--warn)" as string }]}>{b.text}</Text>
-      <Text style={st.small}>Warns at 80%. Pauses and asks at 100%. Runs on the owner's AI account.</Text>
-      <Text style={st.label}>May do without asking</Text>
-      {g.permissions.length === 0 ? <Text style={st.small}>Nothing. Every outward act waits on the owner.</Text> : g.permissions.map((p) => <Row key={p.label} id={`gp-${p.label}`} title={p.label} note={p.granted ? "Granted" : "Waiting for the owner's press"} leading={<View style={{ marginRight: 8 }}><Icon name="check" color={p.granted ? "var(--ok)" : "var(--ink-4)"} /></View>} />)}
-      <Text style={st.small}>Anything else that leaves the Space waits on you.</Text>
-      <Text style={st.label}>People</Text>
-      {people.map((p) => <Row key={`${p.role}-${p.id}`} id={`gpp-${p.id}`} title={nameOf(p.id)} trailing={<Text style={st.small}>{p.role}</Text>} leading={<View style={{ marginRight: 8 }}><Avatar {...avatarOf({ id: p.id, name: nameOf(p.id), kind: p.kind === "agent" ? "agent" : "person" })} size={20} /></View>} />)}
     </ScrollView>
   );
 }
@@ -453,6 +490,8 @@ const st = StyleSheet.create({
   btnPrimary: { backgroundColor: "var(--accent)" as string, borderColor: "var(--accent)" as string },
   btnText: { color: "var(--ink-2)" as string, fontSize: 12.5 },
   line: { color: "var(--ink-3)" as string, fontSize: 12.5, marginTop: 10 },
+  lineRow: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 10 },
+  lineText: { color: "var(--ink-3)" as string, fontSize: 12.5, flexShrink: 1 },
   card: { marginTop: 20, padding: 14, borderRadius: 10, backgroundColor: "var(--sunk)" as string, gap: 8 },
   cardHead: { flexDirection: "row", alignItems: "center", gap: 8 },
   cardTitle: { color: "var(--ink)" as string, fontSize: 13.5, fontWeight: "600" },

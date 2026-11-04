@@ -4,6 +4,7 @@
 import { createElement, useEffect, useRef } from "react";
 import type { ReactElement } from "react";
 import { chatDoc, chatText, offsetToPos, pasteNodes, posToOffset, sameDoc } from "./chatdoc.ts";
+import type { Transaction } from "@tiptap/pm/state";
 import type { ChatNode, ChatRange } from "./chatdoc.ts";
 
 export interface ChatKey { key: string; shiftKey?: boolean; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean; isComposing?: boolean; preventDefault?: () => void }
@@ -27,6 +28,8 @@ export interface ChatFieldProps {
   controlRef: (c: { focus: () => void } | null) => void;
   /** The editor could not mount (no DOM, a load that failed): the composer falls back to the plain field. */
   onFail: () => void;
+  /** Talk is listening: the words it puts in come in without entering the undo history, and when it stops they are one undo step. */
+  talking?: boolean;
 }
 
 /** True where a real browser DOM is there to mount the editor on; a test renderer or a server render is not. */
@@ -37,7 +40,7 @@ export function canMountChatField(): boolean {
 
 const CSS = [
   ".vyre-chat{outline:none;white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;overflow-y:auto;color:var(--ink);caret-color:var(--accent);min-height:22px}",
-  ".vyre-chat p{margin:0}.vyre-chat[data-empty=true] p:first-child::before{content:attr(data-placeholder);color:var(--ink-3);float:left;height:0;pointer-events:none}",
+  ".vyre-chat p{margin:0}.vyre-chat[data-empty=true]::before{content:attr(data-placeholder);color:var(--ink-3);float:left;height:0;pointer-events:none}",
   ".vyre-chat .vyre-chip{background:var(--accent-wash);border-radius:5px;box-shadow:0 0 0 2px var(--accent-wash);cursor:default;user-select:all}",
   ".vyre-chat .vyre-chip.ProseMirror-selectednode{outline:2px solid var(--accent);outline-offset:1px}",
 ].join("\n");
@@ -58,7 +61,7 @@ interface EditorLike {
   getJSON(): ChatNode;
   commands: { setContent(c: unknown, emit?: boolean): boolean; setTextSelection(p: number): boolean; focus(p?: unknown): boolean; insertContent(c: unknown): boolean; setHardBreak(): boolean };
   state: { doc: PMLike; selection: { from: number; to: number } };
-  view: { composing: boolean; dom: { setAttribute(k: string, v: string): void } };
+  view: { composing: boolean; dom: { setAttribute(k: string, v: string): void }; state: never; dispatch(tr: Transaction): void };
   destroy(): void;
 }
 
@@ -69,6 +72,9 @@ export function ChatField(p: ChatFieldProps): ReactElement {
   const cb = useRef(p);
   cb.current = p;
   const last = useRef(p.value);
+  /** The document as it was when Talk began listening, while it listens. */
+  const talkFrom = useRef<ChatNode | null>(null);
+  const live = useRef<typeof import("./chatnode.ts") | null>(null);
 
   useEffect(() => {
     let gone = false;
@@ -76,7 +82,9 @@ export function ChatField(p: ChatFieldProps): ReactElement {
     if (host.current === null || (host.current as { nodeType?: number }).nodeType !== 1) { cb.current.onFail(); return undefined; }
     void (async () => {
       const core = await import("@tiptap/core");
-      const { chatExtensions } = await import("./chatnode.ts");
+      const node = await import("./chatnode.ts");
+      live.current = node;
+      const { chatExtensions } = node;
       if (gone || host.current === null || (host.current as { nodeType?: number }).nodeType !== 1) return;
       const at = (): number => { const e = ed.current; return e ? posToOffset(e.state.doc.toJSON(), e.state.selection.from) : 0; };
       const e = new core.Editor({
@@ -133,10 +141,30 @@ export function ChatField(p: ChatFieldProps): ReactElement {
     const have = e.state.doc.toJSON();
     if (sameDoc(have, want)) return;
     const caret = Math.min(p.cursor, p.value.length);
-    e.commands.setContent(want as never, false);
-    e.commands.setTextSelection(offsetToPos(want, caret));
+    if (talkFrom.current !== null && live.current) {
+      // Talk's words: the whole document is set again with the chips where they belong, out of the undo history
+      e.view.dispatch(live.current.replaceDoc(e.state as never, want, false, offsetToPos(want, caret)));
+    } else {
+      e.commands.setContent(want as never, false);
+      e.commands.setTextSelection(offsetToPos(want, caret));
+    }
     last.current = p.value;
   }, [key]);
+
+  // Talk starts: remember the field. Talk stops: from there to here is one step to undo.
+  useEffect(() => {
+    const e = ed.current;
+    if (!e || !live.current) return;
+    if (p.talking === true && talkFrom.current === null) { talkFrom.current = e.state.doc.toJSON(); return; }
+    if (p.talking !== true && talkFrom.current !== null) {
+      const before = talkFrom.current;
+      talkFrom.current = null;
+      const end = live.current.endTalk(e.state as never, before);
+      if (!end) return;
+      e.view.dispatch(end.back);
+      e.view.dispatch(end.forward(e.state as never));
+    }
+  }, [p.talking]);
 
   return createElement("div", { ref: (el: unknown) => { host.current = el; }, "data-testid": `${p.testID}-host`, style: { fontSize: p.fontSize, lineHeight: `${p.lineHeight}px`, maxHeight: p.maxHeight, width: "100%" } });
 }

@@ -15,7 +15,7 @@ const only = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",
 const sizeOnly = (args.find((a) => a.startsWith("--size=")) ?? "").slice(7);
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync("/root/wt/base/node_modules/.bin/expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), { cwd: appDir, stdio: "inherit", env: exportEnv() });
 }
 fs.mkdirSync(out, { recursive: true });
 const SIZES = { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
@@ -23,7 +23,7 @@ const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
-const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => (t.id.startsWith("TASKCONFLICT_01") || t.id.startsWith("MENTION_01") || t.id.startsWith("THREADS_01") || ["NOTES_01-open", "NOTES_01-from", "NOTES_01-single", "NOTES_01-single-open", "NOTES_01-grid", "NOTES_01-phone-note", "NOTES_01-phone-from"].includes(t.id) || t.id.startsWith("NOTEOFFER_01") || t.id === "LEARN_01-chat") && (only.length === 0 || only.includes(t.id)));
+const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => (t.id.startsWith("TASKCONFLICT_01") || t.id.startsWith("MENTION_01") || t.id.startsWith("THREADS_01") || t.id.startsWith("NAME_01") || t.id.startsWith("DRAFTS_01") || t.id.startsWith("COPY_01") || t.id.startsWith("EXPIRED_01") || ["NOTES_01-open", "NOTES_01-from", "NOTES_01-single", "NOTES_01-single-open", "NOTES_01-grid", "NOTES_01-phone-note", "NOTES_01-phone-from"].includes(t.id) || t.id.startsWith("NOTEOFFER_01") || t.id === "LEARN_01-chat") && (only.length === 0 || only.includes(t.id)));
 for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [size, vp] of Object.entries(SIZES)) {
   if (sizeOnly && size !== sizeOnly) continue;
   const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
@@ -37,6 +37,7 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   let found = true;
   if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
   await page.waitForTimeout(900);
+  if (t.hover) { await page.hover(t.hover).catch(() => undefined); await page.waitForTimeout(400); }
   const file = path.join(out, `${t.id}-${skin}-${size}.png`);
   await page.screenshot({ path: file });
   console.log(`shot ${path.basename(file)} waitFor=${found}${errs.length ? " errors=" + errs.join(" | ").slice(0, 400) : ""}`);

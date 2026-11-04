@@ -110,7 +110,7 @@ export async function save(ctx: AutoCtx, input: SaveIn): Promise<{ watch: WatchO
   // the chat is made now, by the person: an agent woken in it acts for them, which is what lets it report what it read
   if (!r["thread_id"] && r["agent_id"]) await alertThread(ctx, r);
   put(ctx, r);
-  ctx.emit("automation.watch_saved", String(r["id"]), { watchId: String(r["id"]), owner: person, op: prior ? "changed" : "added" }, { vis: "owner" });
+  ctx.emit("automations.watch_saved", String(r["id"]), { watchId: String(r["id"]), owner: person, op: prior ? "changed" : "added" }, { vis: "owner" });
   return { watch: watchOut(r) };
 }
 
@@ -150,7 +150,7 @@ export async function remove(ctx: AutoCtx, input: { watchId: string; op: "remove
   else if (input.op === "pause") r["state"] = "paused";
   else { r["state"] = "on"; r["next_due_at"] = now; r["error"] = null; r["errors_in_row"] = 0; }
   put(ctx, r);
-  ctx.emit("automation.watch_saved", input.watchId, { watchId: input.watchId, owner: person, op: input.op === "remove" ? "removed" : input.op === "pause" ? "paused" : "resumed" }, { vis: "owner" });
+  ctx.emit("automations.watch_saved", input.watchId, { watchId: input.watchId, owner: person, op: input.op === "remove" ? "removed" : input.op === "pause" ? "paused" : "resumed" }, { vis: "owner" });
   return input.op === "remove" ? { removed: true } : { removed: false, watch: watchOut(r) };
 }
 
@@ -221,7 +221,7 @@ export async function report(ctx: AutoCtx, input: ReportIn): Promise<{ changed: 
     for (const th of w.tellThreads) if (th !== thread) await tryCall(ctx, "chat.post", { threadId: th, body, idempotencyKey: `watch-change:${w.watchId}:${w.changes}:${th}` });
   }
   put(ctx, r);
-  if (changed) ctx.emit("automation.watch_changed", input.watchId, { watchId: input.watchId, owner: person, changes: Number(r["changes"]) }, { vis: "owner" });
+  if (changed) ctx.emit("automations.watch_changed", input.watchId, { watchId: input.watchId, owner: person, changes: Number(r["changes"]) }, { vis: "owner" });
   return { changed, watch: watchOut(r) };
 }
 

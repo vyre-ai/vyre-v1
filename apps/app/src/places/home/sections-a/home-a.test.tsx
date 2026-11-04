@@ -54,7 +54,7 @@ test("Needs you shows the top 3 in the capability's order and a link to all of t
   assert.ok(has(out, "All 7 in Needs you"));
   assert.ok(has(out, "$18,420 total · due Friday"));
   assert.ok(has(out, 'data-testid="need-action-tsk_n1"') && has(out, 'data-testid="need-action-tsk_n2"') && has(out, 'data-testid="need-action-tsk_n3"'));
-  const labels = ["Approve", "Review", "Unblock"].map((l) => has(out, `aria-label="${l}"`));
+  const labels = ["Allow", "Review", "Unblock"].map((l) => has(out, `aria-label="${l}"`));
   assert.deepEqual(labels, [true, true, true], "one action per row, named for what it does");
 });
 

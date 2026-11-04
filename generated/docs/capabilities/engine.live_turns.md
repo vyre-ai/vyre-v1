@@ -37,6 +37,7 @@ type Out = {
       turnId: string;
       agentId: string;
       text: string;
+      step?: string;
     }>;
 };
 ```
@@ -61,6 +62,7 @@ type Out = {
     "turns": [
       {
         "agentId": "agt_a1b2c3",
+        "step": "example",
         "text": "example",
         "turnId": "example"
       }

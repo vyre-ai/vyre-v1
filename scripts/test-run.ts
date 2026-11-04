@@ -1,7 +1,8 @@
 // Per-file runner (ARCH 10.2): one `node --test` process per file with --test-timeout and a watchdog at the file cap.
 // A file over its cap fails with the slowest-test breakdown. The cap is 30 s unless test/slow.json lists the file (capSec <= 120).
 // Selection (ci-select) and the pass cache live in scripts/test-run.mjs; this module is the watchdog, breakdown and timings.
-//   node scripts/test-run.ts --files a.test.ts b.test.ts [--slow] [--jobs N] [--timings]
+//   node scripts/test-run.ts --files a.test.ts b.test.ts [--slow] [--jobs N] [--timings] [--no-skip]
+// --no-skip: a file that skipped any test fails, with the reasons (release evidence: a skipped test is not a pass).
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -58,6 +59,12 @@ export function runFile(file: string, opts: { cwd?: string; capMs?: number } = {
   });
 }
 
+/** Tests a file skipped, from the spec reporter: the count and each skipped test's line with its reason. */
+export function skippedOf(out: string): { n: number; lines: string[] } {
+  const n = Number(/^ℹ skipped (\d+)/m.exec(out)?.[1] ?? 0);
+  return { n, lines: out.split("\n").filter((l) => /^\s*﹣ .* # /.test(l)).map((l) => l.trim()) };
+}
+
 /** Merges this run's durations into a timings table: { file: { ms, at } }. */
 export function mergeTimings(prev: Record<string, { ms: number; at: string }>, results: RunResult[], at = new Date().toISOString()) {
   const next = { ...prev };
@@ -79,6 +86,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
   const jobs = Number(val("--jobs")) || Math.max(2, Math.floor(os.cpus().length / 2));
   const queue = [...picked], results: RunResult[] = [];
   await Promise.all(Array.from({ length: Math.min(jobs, queue.length) }, async () => { while (queue.length) { const f = queue.shift()!; results.push(await runFile(f, { cwd: repo, capMs: capFor(f, slowAll) })); } }));
+  if (arg("--no-skip")) for (const r of results) { const sk = skippedOf(r.out); if (r.ok && sk.n > 0) { r.ok = false; r.out = `${r.file} skipped ${sk.n} test(s), and with --no-skip a skip is a failure:\n${sk.lines.join("\n")}\n`; } }
   for (const r of results.sort((a, b) => a.file.localeCompare(b.file))) { console.log(`${r.ok ? "ok  " : "FAIL"} ${r.file} ${r.ms} ms`); if (!r.ok) console.log(r.out); }
   if (arg("--timings")) {
     const tf = path.join(repo, "test/timings.json");

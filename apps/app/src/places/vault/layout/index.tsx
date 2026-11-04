@@ -17,9 +17,12 @@ import type { Expiry } from "./model.ts";
 import type { Folder, Health, Item, Provider, Selection } from "./model.ts";
 import { Btn, Glyph, IconBtn, QuietLine } from "./parts.tsx";
 import { Sidebar } from "./Sidebar.tsx";
+import { vaultItemMenu } from "../../chats/menus/kinds-b.ts";
+import { createMenuApiB } from "../../chats/menus/actions-b.ts";
 import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { Sheet } from "./Sheet.tsx";
+import { VaultShareSheet } from "../share/VaultShareSheet.tsx";
 import { PolicyView } from "./PolicyView.tsx";
 import { ChromeSheet } from "./ChromeSheet.tsx";
 import { declineVaultRequest, exportVaultFolder, fulfilVaultRequest, requestFields, revokeVaultExport } from "./routed-actions.ts";
@@ -88,6 +91,7 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   const routeSelection: Selection | undefined = route.surface === "requests" ? { kind: "requested" } : route.surface === "export" ? { kind: "folder", folderId: route.folderId } : undefined;
   const [selection, setSelection] = useState<Selection>(routeSelection ?? initial ?? ALL);
   const [query, setQuery] = useState("");
+  const [sharingFolder, setSharingFolder] = useState<Folder | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(route.surface === "share" ? route.itemId : null);
   const [detailOpen, setDetailOpen] = useState(route.surface === "share");
   const [adding, setAdding] = useState<{ paste?: string; app?: string } | null>(sheet?.add ?? null);
@@ -112,6 +116,8 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   const [addField, setAddField] = useState(false);
   const [lastFolder, setLastFolder] = useState<string | undefined>(undefined);
   const [askDelete, setAskDelete] = useState(0);
+  const [revealAll, setRevealAll] = useState(0);
+  const menuApi = useMemo(() => createMenuApiB(data), [data]);
   const [note, setNote] = useState<QuietNote | null>(null);
   const seq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -212,21 +218,26 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
 
   const itemMenu = (item: Item, x: number, y: number): void => {
     setSelectedId(item.id);
-    const others = folderList.filter((f) => f.id !== item.folderId && (f.yourLevel === "edit" || f.yourLevel === "manage") && f.scope === "shared");
-    const canEdit = item.yourLevel === "edit" || item.yourLevel === "manage";
-    const entries: MenuEntry[] = [
-      ...(canEdit ? [{ label: "Edit…", onSelect: () => setEditing(item.id) }] : [{ label: "Open", onSelect: () => open(item.id) }]),
-      { label: "Copy handle", onSelect: () => { void copyHandle(data, item.handle); } },
-      ...(canEdit ? [{ separator: true } as MenuEntry, { label: "Mark as rotated", onSelect: () => { void data.call("vault.item.mark_rotated", { itemId: item.id }).then(() => showNote(`Marked ${item.name} rotated`)); } }] : []),
-      ...(item.yourLevel === "manage" && others.length ? [{ separator: true } as MenuEntry, { head: "Move to" } as MenuEntry, ...others.map((f): MenuEntry => ({ label: f.name, onSelect: () => { const from = item.folderId; void data.call("vault.item.move", { itemId: item.id, folderId: f.id }).then(() => showNote(`Moved ${item.name} to ${f.name}`, async () => { await data.call("vault.item.move", { itemId: item.id, folderId: from }); })); } }))] : []),
-      ...(item.yourLevel === "manage" ? [{ separator: true } as MenuEntry, { label: "Move to Trash", danger: true, onSelect: () => { open(item.id); setAskDelete((n) => n + 1); } } as MenuEntry] : []),
-    ];
-    menu.show(entries, x, y);
+    const moveTo = folderList.filter((f) => f.id !== item.folderId && (f.yourLevel === "edit" || f.yourLevel === "manage") && f.scope === "shared").map((f) => ({ id: f.id, name: f.name }));
+    // the row's own menu (chats/menus/kinds-b.ts): what the level allows, the words of each state, Move to Trash last. Reveal, Share and Usage are on the open item, which they open.
+    menu.show(vaultItemMenu(
+      { name: item.name, kind: item.kind, level: item.yourLevel, rotates: item.rotateEveryDays !== undefined, moveTo },
+      {
+        open: () => open(item.id), edit: () => setEditing(item.id),
+        reveal: () => { open(item.id); setRevealAll((n) => n + 1); },
+        copyHandle: () => { void copyHandle(data, item.handle); }, copyName: () => { void copyText(data, item.name); },
+        move: (folderId) => { const from = item.folderId; void menuApi.vaultMove(item.id, folderId).then(() => showNote(`Moved ${item.name}`, () => menuApi.vaultMove(item.id, from))); },
+        share: () => open(item.id), usage: () => open(item.id),
+        markRotated: () => { void menuApi.vaultMarkRotated(item.id).then(() => showNote(`Marked ${item.name} rotated`)); },
+        trash: () => { open(item.id); setAskDelete((n) => n + 1); },
+      },
+    ), x, y);
   };
 
   const folderMenu = (f: Folder, x: number, y: number): void => {
     menu.show([
       ...(f.yourLevel === "edit" || f.yourLevel === "manage" ? [{ label: "Add an item here", onSelect: () => { setLastFolder(f.id); setAdding({}); } } as MenuEntry] : []),
+      ...(f.yourLevel === "manage" && f.scope === "shared" && data.personal !== true ? [{ label: "Share…", onSelect: () => setSharingFolder(f) } as MenuEntry] : []),
       ...(f.yourLevel === "manage" ? [{ label: "Export .env…", onSelect: () => data.nav.openExport(f.id) } as MenuEntry] : []),
     ], x, y);
   };
@@ -326,7 +337,7 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
     <View style={{ flex: 1, minHeight: 0 }}>
       {providerHere?.connection === "subscription" ? <ProviderPage key={providerHere.id} provider={providerHere} handle={all.find((i) => i.id === providerHere.itemId)?.handle ?? ""} onNote={showNote} /> : null}
       {providerHere && providerHere.connection !== "subscription" ? <ProviderPanel key={providerHere.id} provider={providerHere} onNote={showNote} onRemoved={() => { setSelectedId(null); setDetailOpen(false); }} /> : null}
-      {providerHere?.connection === "subscription" ? null : <ItemEnv key={effectiveId} itemId={effectiveId} askDelete={askDelete} initialMode={view} onEdit={() => { setAddField(false); setEditing(effectiveId); }} onAddField={() => { setAddField(true); setEditing(effectiveId); }} onGone={() => { setSelectedId(null); setDetailOpen(false); }} onNote={showNote} onBack={twoPane ? undefined : () => setDetailOpen(false)} />}
+      {providerHere?.connection === "subscription" ? null : <ItemEnv key={effectiveId} itemId={effectiveId} askDelete={askDelete} revealAll={revealAll} initialMode={view} onEdit={() => { setAddField(false); setEditing(effectiveId); }} onAddField={() => { setAddField(true); setEditing(effectiveId); }} onGone={() => { setSelectedId(null); setDetailOpen(false); }} onNote={showNote} onBack={twoPane ? undefined : () => setDetailOpen(false)} />}
     </View>
   ) : <NoItem text={loading ? "" : visible.length === 0 ? "" : "Select an item to see its fields"} />;
 
@@ -343,6 +354,7 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   return (
     <View style={s.page} testID="vault-place">
       {menu.element}
+      {sharingFolder ? <VaultShareSheet kind="vault_folder" id={sharingFolder.id} name={sharingFolder.name} onClose={() => setSharingFolder(null)} /> : null}
       {wide ? <Sidebar counts={counts} folders={folderList} selection={selection} onSelect={select} onAdvanced={data.nav.openAdvanced} advanced={route.surface === "advanced" || route.surface === "policy"} {...(data.nav.openConnections ? { onConnections: data.nav.openConnections, connections: route.surface === "connections" } : {})} onNewFolder={createFolder} onFolderMenu={folderMenu} canCreateShared={canShare} hideShared={data.personal === true} /> : null}
       {routed ?? (sectionPage ? <View style={[s.listPane, { flex: 1 }]} testID="vault-section-page">{header}{sectionPage}</View> : <>{twoPane || !showDetail ? listPane : null}{showDetail ? <View style={s.detail}>{detail}</View> : null}</>)}
       {choosing ? <AddChooser onClose={() => setChoosing(false)} onPick={(t) => addThe(t)} /> : null}
@@ -416,8 +428,8 @@ function RequestCard({ request, items, requester }: { request: RequestsOut["requ
         </View>
       )}
       <View style={s.requestActions}>
-        <TextInput value={note} onChangeText={setNote} placeholder="Note for requester (optional)" accessibilityLabel="Decline note" style={[s.requestInput, { flex: 1 }]} />
-        <Btn label="Decline" danger disabled={busy} onPress={() => run(() => declineVaultRequest(data, request.id, note))} testID={`vault-request-decline-${request.id}`} />
+        <TextInput value={note} onChangeText={setNote} placeholder="Note for requester (optional)" accessibilityLabel="Deny note" style={[s.requestInput, { flex: 1 }]} />
+        <Btn label="Deny" danger disabled={busy} onPress={() => run(() => declineVaultRequest(data, request.id, note))} testID={`vault-request-decline-${request.id}`} />
       </View>
       {failure ? <Text style={s.error} accessibilityRole="alert">{failure}</Text> : null}
     </View>

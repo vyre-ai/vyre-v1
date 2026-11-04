@@ -176,6 +176,26 @@ export async function listByContact(
   return { rows, showing: showing(input, "conversations"), total: p.total, ...(p.next ? { next: p.next } : {}) };
 }
 
+// ---- inbox.thread_conversation
+
+/** The conversation an email thread opens in: the provider's thread id is stored on each message, and only a conversation the reader may see answers. Nothing found is an empty answer, never an error. */
+export async function threadConversation(ctx: InboxCtx, input: { threadId: string }): Promise<{ conversationId?: string; contactId?: string; subject?: string }> {
+  ensure(ctx);
+  const convs = new Map((await mine(ctx, `deleted_at IS NULL`, [])).map(({ row }) => [str(row, "id"), row]));
+  const items = rowsOf(ctx.db.all(`SELECT * FROM inbox_item WHERE "threadId" = ? ORDER BY "at" DESC`, input.threadId));
+  for (const item of items) {
+    const conv = convs.get(str(item, "conversationId"));
+    if (!conv) continue;
+    const out: { conversationId?: string; contactId?: string; subject?: string } = { conversationId: str(item, "conversationId") };
+    const contactId = strOrNull(conv, "contactId");
+    if (contactId) out.contactId = contactId;
+    const subject = [...items].reverse().map((i) => str(i, "subject")).find((s) => s !== "");
+    if (subject) out.subject = subject;
+    return out;
+  }
+  return {};
+}
+
 // ---- inbox.list_by_thread
 
 interface ThreadRow {

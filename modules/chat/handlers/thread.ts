@@ -6,7 +6,7 @@
 //   channels.create              a named room, public to the Team Space or invite-only; a record's channel is a Project or Journey channel
 //   chat.answer_block / chat.approve_plan   answers to the blocks that park a turn; the engine reads block.answered and queues the wake
 import {
-  MAX_NAME, addAgent, addMember, agentsOf, askerOf, blockBy, channelBy, channelByName, channelOfRecord, channelOut, ensure, insertChannel, insertMessage, insertThread, membersOf, messageBy,
+  MAX_NAME, addAgent, agentsReplyInThreads, addMember, agentsOf, askerOf, blockBy, channelBy, channelByName, channelOfRecord, channelOut, ensure, insertChannel, insertMessage, insertThread, membersOf, messageBy,
   mintId, patchBlockInMessage, planBy, raise, refuseUnseenAgents, threadBy, threadOut,
 } from "../projections.ts";
 import type { ChatCtx, Mode, PlanStep, ThreadRec } from "../projections.ts";
@@ -174,6 +174,12 @@ export async function thread(ctx: ChatCtx, input: { threadId: string; messageId:
   // An agent works inside the thread under its own message, and the agent that opens a thread leads it (spec 2.5); people's threads otherwise leave agents listening.
   const leads = [msg.author, ctx.principal.id].filter((id, i, all) => id.startsWith("agt_") && all.indexOf(id) === i);
   if (leads.length > 0) addAgent(ctx, t.id, { agentId: leads[0]!, mode: "lead", addedBy: asker });
+  // Where agents reply in threads, the agents of the chat are in its threads as they are in the chat: the thread is where they answer, so a question asked inside it is answered there.
+  if (agentsReplyInThreads(parent)) {
+    for (const a of agentsOf(ctx.db, parent.id)) {
+      addAgent(ctx, t.id, { agentId: a.agentId, mode: a.mode === "lead" && leads.length > 0 ? "listen" : a.mode, ...(a.model !== undefined ? { model: a.model } : {}), ...(a.provider !== undefined ? { provider: a.provider } : {}), ...(a.effort !== undefined ? { effort: a.effort } : {}), ...(a.accountRef !== undefined ? { accountRef: a.accountRef } : {}), ...(a.quiet === true ? { quiet: true } : {}), addedBy: asker });
+    }
+  }
   emitStarted(ctx, t);
   return { thread: threadOut(ctx.db, t) };
 }
@@ -211,7 +217,7 @@ export async function makeChannel(ctx: ChatCtx, input: { threadId: string; perso
   return { channel: channelOut(ctx.db, channel) };
 }
 
-export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibility: "public" | "invite"; topic?: string; memberIds?: string[]; agentIds?: string[]; folderId?: string; recordId?: string; idempotencyKey?: string }) {
+export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibility: "public" | "invite"; topic?: string; memberIds?: string[]; agentIds?: string[]; leadAgentId?: string; folderId?: string; recordId?: string; idempotencyKey?: string }) {
   ensure(ctx.db);
   const name = cleanName(ctx, input.name);
   if (channelByName(ctx.db, name)) raise(ctx, "validation.bad_input", "A channel with that name already exists.", { name });
@@ -227,7 +233,7 @@ export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibi
   if (asker.startsWith("usr_")) addMember(ctx, main.id, asker, "owner");
   for (const p of memberIds) addMember(ctx, main.id, p);
   // Agents are invited as listeners: in a channel they answer when asked, and act unmentioned only where "watches this channel" is on.
-  for (const agentId of agentIds) addAgent(ctx, main.id, { agentId, mode: "listen", addedBy: asker });
+  for (const agentId of agentIds) addAgent(ctx, main.id, { agentId, mode: agentId === input.leadAgentId ? "lead" : "listen", addedBy: asker });
   const channel = insertChannel(ctx, { id: channelId, mainThread: main.id, name, topic, visibility: input.visibility, folderId: input.folderId, recordId: input.recordId, createdBy: asker });
   ctx.emit("channel.created", channel.id, { channelId: channel.id, name, visibility: input.visibility, ...(input.recordId !== undefined ? { recordId: input.recordId } : {}) });
   emitStarted(ctx, main);

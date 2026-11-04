@@ -4,10 +4,15 @@
 //   tools/call  one capability invoke, as the agent acting for the person; outside.ts narrows an outside agent first, then the same ToolSession the API drivers use refuses
 //               what was never offered, and the invoke pipeline intersects access, applies the Gate and writes the audit row
 // Nothing here decides access. A tool being listed grants nothing.
+import { safeContent } from "../tools/model-error.ts";
+import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import { createToolSession } from "../tools/call.ts";
 import { decideLocal, dialFor } from "../tools/local.ts";
 import { localFacts } from "../tools/local-facts.ts";
 import type { ToolSession } from "../tools/call.ts";
+import { hooksHolder, NO_VERDICT } from "../tools/hooks.ts";
+import type { CallHooks } from "../tools/call.ts";
+import { CLI_EVENT } from "../../../lib/hooks.ts";
 import type { ToolCtx, ToolDef } from "../tools/types.ts";
 import type { Invoke } from "../../../host/src/invoke.ts";
 import { makeError } from "../../../host/src/routes/errors.ts";
@@ -40,7 +45,7 @@ const SETUP_NOTE = "Runs as the person you act for, under the setup grant they g
 /** Listed for an outside agent from the start, so it can get work and answer without a search. */
 const OUTSIDE_PRELOAD: readonly string[] = ["agents_next"];
 /** Listed for a CLI engine from the start: "make me a file" is a first-hour ask, and it needs a new file and a place to put it. */
-const ENGINE_PRELOAD: readonly string[] = ["files_tree", "files_create", "files_folder_create", "people_status", "message_person"];   // and who is in, and a message to a teammate (lane l-agentdm)
+const ENGINE_PRELOAD: readonly string[] = ["files_tree", "files_create", "files_folder_create", "people_status", "message_person", "task_submit", "task_ask", "models_for_helpers", "helper_note"];   // and who is in, and a message to a teammate (lane l-agentdm), and the two a helper hands in or asks with, so it never has to search for them
 
 interface Session {
   caller: McpCaller;
@@ -109,8 +114,10 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       // An outside agent stopped at a role its person holds asks that person (docs/ask-the-person.md); the door says 'always' for what only a person does.
       return deps.invoke(cap, input, { ...rest, principal: caller.principal, origin: "mcp", space: caller.space, ...(thread !== undefined && (!outsideCall || thread.startsWith("thr_")) ? { thread } : {}), ...(outsideCall ? { auditAll: true, askPerson: seed.askPerson ?? "if_refused", ...(setup ? { setupGrant: true } : {}) } : {}) });
     };
+    // the one hooks layer, for every engine that reaches Vyre here: the port is the host's, bound when its engine runtime starts
+    const hooks: CallHooks = { fire: (c, f) => (hooksHolder.port ? hooksHolder.port.fire({ ...f, agentId: c.agentId, asker: c.asker, threadId: c.thread.threadId, threadKind: c.thread.kind, ...(c.turnId ? { turnId: c.turnId } : {}), engine: caller.provider ?? "cli", source: "tools" }) : Promise.resolve(NO_VERDICT)) };
     const tools = createToolSession({
-      catalog: deps.catalog, defaults: deps.defaults, invoke,
+      catalog: deps.catalog, defaults: deps.defaults, invoke, hooks,
       levelFor: () => caller.askLevel ?? null,
       canEngineer: () => false,
       // A CLI engine's session works for one chat, so a local tool follows that chat's mode, under the owner's floor. An outside agent has none: outside.ts refuses local tools before they get here.
@@ -163,11 +170,16 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   const toolViews = (s: Session): unknown[] => [...listTools(s).map(toolView), ...(s.caller.kind === "outside" || !s.ctx.thread.planMode ? [USE_TOOL_VIEW] : [])];
 
   /** The text a model reads. The same data also travels as structuredContent unless it had to be cut: a cut answer is never sent twice. */
-  const textResult = (value: unknown, isError: boolean, structured?: unknown): Record<string, unknown> => {
+  const textResult = (value0: unknown, isError: boolean, structured0?: unknown): Record<string, unknown> => {
+    // an error reaches the model as a code and a plain sentence: no trace and no internal id (tools/model-error.ts)
+    const value = isError && typeof value0 === "object" ? safeContent(value0) : value0;
+    const structured = isError && structured0 !== undefined ? safeContent(structured0) : structured0;
     let text = typeof value === "string" ? value : JSON.stringify(value);
     const cut = text.length > MAX_RESULT_CHARS;
     if (cut) text = `${text.slice(0, MAX_RESULT_CHARS)}\n[cut: ${text.length - MAX_RESULT_CHARS} more characters]`;
-    return { content: [{ type: "text", text }], isError, ...(structured === undefined || cut ? {} : { structuredContent: structured }) };
+    // the trace id goes in _meta, for the turn's Details: it is not part of what the model reads
+    const trace = isError && value0 !== null && typeof value0 === "object" ? (value0 as { error?: { traceId?: unknown } }).error?.traceId : undefined;
+    return { content: [{ type: "text", text }], isError, ...(structured === undefined || cut ? {} : { structuredContent: structured }), ...(typeof trace === "string" ? { _meta: { "vyre/traceId": trace } } : {}) };
   };
 
   async function callTool(s: Session, params: unknown): Promise<{ result: Record<string, unknown> } | { invalid: string }> {
@@ -179,6 +191,12 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     const t = deps.catalog.byName(p.name);
     if (!t) return { invalid: `Unknown tool: ${p.name}` };
     const traceId = s.ctx.trace?.traceId ?? hex(16);
+    // no tool is called to see if it works, and none with placeholder content: refused before it reaches the chat, a hold, a task or a person's list
+    if (probeIn(args, "", "", t.inputSchema) !== null) {
+      const error = makeError("validation.bad_input", traceId, { message: PROBE_MESSAGE, details: { tool: t.name, reason: "placeholder" } });
+      deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId: s.ctx.thread.threadId });
+      return { result: textResult({ error }, true, { error }) };
+    }
 
     if (!allowed(s, t)) {
       const door = outsideDoor(t);
@@ -259,7 +277,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     let out: Awaited<ReturnType<Invoke>> | "gone";
     try { out = await Promise.race([s.invoke(t.cap, args, seed), s.gone]); }
     catch (e) {
-      let error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: `${t.name} could not finish on the server just now, and nothing was changed. Try it once more; if it fails again, tell the person it did not work and give them this trace: ${traceId}.`, details: { tool: t.name, reason: "server_error" } });
+      let error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: `${t.name} could not finish on the server just now, and nothing was changed. Try it once more; if it fails again, tell the person in plain words that it did not work. Do not paste ids or traces.`, details: { tool: t.name, reason: "server_error" } });
       // a Mine item needs the person's own key, held on the server only while they are signed in: say so plainly (owner ruling 3 Nov)
       if ((error.details as { reason?: unknown } | undefined)?.reason === "vault_locked") error = { ...error, message: "Their Mine items open while they are signed in to Vyre. Ask the person you act for to sign in on this Space, in the app or the browser, then try again. Saving a new item works now." };
       deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId });
@@ -306,7 +324,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     let out: Awaited<ReturnType<Invoke>>;
     try { out = await s.invoke("vault.request", input, seed); }
     catch (e) {
-      const error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: `${t.name} could not finish on the server just now, and nothing was changed. Try it once more; if it fails again, tell the person it did not work and give them this trace: ${traceId}.`, details: { tool: t.name, reason: "server_error" } });
+      const error = e instanceof HostError ? e.error : makeError("internal.unexpected", traceId, { message: `${t.name} could not finish on the server just now, and nothing was changed. Try it once more; if it fails again, tell the person in plain words that it did not work. Do not paste ids or traces.`, details: { tool: t.name, reason: "server_error" } });
       deps.onCall?.(s.caller, t.name, "error", { cap: "vault.request", threadId });
       return { result: textResult({ error }, true, { error }) };
     }
@@ -337,6 +355,22 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         } catch {
           return err(id, INTERNAL_ERROR, "Something went wrong on our side.");
         }
+      }
+      case "vyre/hook": {
+        // the vyre-hook shim of a CLI engine: its own built-in tools and subagents (Vyre's own tools already pass through the tool session, so they are not asked twice)
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "driver") return err(id, INVALID_REQUEST, "No session.");
+        const p = (req.params ?? {}) as { event?: unknown; payload?: Record<string, unknown> };
+        const event = CLI_EVENT[String(p.event)];
+        const body = p.payload ?? {};
+        const tool = typeof body["tool_name"] === "string" ? (body["tool_name"] as string) : undefined;
+        if (!event || !hooksHolder.port || (tool?.startsWith("mcp__vyre__") ?? false)) return ok(id, { block: null, notes: [] });
+        const v = await hooksHolder.port.fire({
+          event, agentId: s.ctx.agentId, asker: s.ctx.asker, threadId: s.ctx.thread.threadId, threadKind: s.ctx.thread.kind, engine: s.caller.provider ?? "cli", source: "cli",
+          ...(tool ? { tool } : {}), ...(body["tool_input"] !== undefined ? { input: body["tool_input"] } : {}), ...(body["tool_response"] !== undefined ? { output: body["tool_response"] } : {}),
+          ...(typeof body["prompt"] === "string" ? { prompt: body["prompt"] as string } : {}),
+        });
+        return ok(id, { block: v.block ? v.block.reason : null, notes: v.notes });
       }
       default:
         return isNote ? null : err(id, METHOD_NOT_FOUND, `Method not found: ${req.method}`);

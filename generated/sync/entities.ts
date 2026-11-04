@@ -2598,6 +2598,11 @@ export const syncEntities: SyncEntityConfig[] = [
         "label": null,
         "required": false
       },
+      "repliesIn": {
+        "type": "number",
+        "label": null,
+        "required": false
+      },
       "createdAt": {
         "type": "datetime",
         "label": null,
@@ -2714,6 +2719,11 @@ export const syncEntities: SyncEntityConfig[] = [
       },
       "role": {
         "type": "choice",
+        "label": null,
+        "required": false
+      },
+      "fromAt": {
+        "type": "datetime",
         "label": null,
         "required": false
       }

@@ -2,7 +2,7 @@
 // The links that open Chats: a link with `with` and `about` is an Ask about an object, `with` alone is a chat with that agent, and a thread id is that thread.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { START, askAbout, fromHash, openKeyOf, step } from "./route.ts";
+import { START, askAbout, fromHash, linkedTo, openKeyOf, step } from "./route.ts";
 
 test("with and about make an Ask about the object, and bring names the chat whose summary comes along", () => {
   const s = fromHash("#screen=chats.conversation&with=agt_billing&about=record%3Arec_a1&bring=thr_old");
@@ -13,6 +13,10 @@ test("with and about make an Ask about the object, and bring names the chat whos
 test("with alone is a chat with that agent, a thread id wins, and neither is the start", () => {
   assert.deepEqual(fromHash("#screen=chats.conversation&with=assistant").route, { view: "ask", agentId: "assistant", scopeType: "", scopeId: "", bringFrom: null });
   assert.deepEqual(fromHash("#screen=chats.conversation&threadId=thr_1&with=agt_x&about=record%3Arec_1").route, { view: "chat", threadId: "thr_1" });
+  // a reply opened from Inbox > Replies: the chat, on the message the thread hangs off, with the thread beside it
+  const reply = fromHash("#screen=chats.conversation&threadId=thr_chat&m=msg_9&side=thr_reply");
+  assert.deepEqual(reply.route, { view: "chat", threadId: "thr_chat", focus: "msg_9" });
+  assert.equal(reply.side, "thr_reply");
   assert.deepEqual(fromHash("#screen=chats.conversation").route, { view: "new" }, "the start is a new chat");
   assert.deepEqual(fromHash("#screen=tasks.my-work").route, { view: "tasks" });
   assert.deepEqual(fromHash("#screen=tasks.page&taskId=tsk_1").route, { view: "task", taskId: "tsk_1" });
@@ -67,4 +71,43 @@ test("one artifact opens in its own tab inside Chats, keeps the Artifacts row se
   assert.deepEqual(fromHash("subject=artifact:sit_1").route, { view: "artifact", artifactId: "sit_1" });
   assert.deepEqual(fromHash("subject=artifact:sit_1&share=1").route, { view: "artifact", artifactId: "sit_1", share: true });
   assert.equal(openKeyOf(fromHash("subject=artifact:sit_1").route), "artifacts");
+});
+
+test("the link Copy Link makes for a chat and for one message opens that chat, on that message", () => {
+  const chat = fromHash("screen=chats.conversation&threadId=thr_a");
+  assert.equal(chat.route.view === "chat" ? chat.route.threadId : null, "thr_a");
+  const msg = fromHash("screen=chats.conversation&threadId=thr_a&m=msg_9");
+  assert.deepEqual(msg.route.view === "chat" ? [msg.route.threadId, msg.route.focus] : null, ["thr_a", "msg_9"]);
+  // the target an /open/message link becomes (subject=thread plus m) opens the chat on that message too
+  const opened = fromHash("subject=thread:thr_a&m=msg_9");
+  assert.deepEqual(opened.route.view === "chat" ? [opened.route.threadId, opened.route.focus] : null, ["thr_a", "msg_9"]);
+});
+
+test("a link that names a layer opens it over the page that is already there, and a link without one leaves the page alone", () => {
+  const onLanding = linkedTo(START, "screen=chats.terminal-list&at=1");
+  assert.equal(onLanding.route.view, "new");
+  assert.equal(onLanding.layer?.kind, "terminals", "Open Terminal on the landing puts the Terminals list up (it was dropped when the page was the same)");
+  const chat = step(START, { t: "chat", threadId: "c1", pane: true });
+  assert.equal(linkedTo(chat, "screen=chats.conversation&threadId=c1").pane, true, "the same chat keeps its pane");
+  assert.equal(linkedTo(chat, "screen=chats.conversation&threadId=c1"), chat, "and is the very same state");
+  assert.equal(linkedTo(chat, "screen=chats.all-agents").layer?.kind, "all-agents", "a layer over an open chat");
+  assert.equal(linkedTo(chat, "screen=chats.conversation&threadId=c2").route.view, "chat");
+});
+
+test("a project opens in Chats as its own page: subject=project:<id>, with the tab it is on", () => {
+  assert.deepEqual(fromHash("#subject=project:prj_1").route, { view: "project", projectId: "prj_1", tab: null });
+  assert.deepEqual(fromHash("#subject=project:prj_1&tab=plan").route, { view: "project", projectId: "prj_1", tab: "plan" });
+  assert.equal(openKeyOf(fromHash("#subject=project:prj_1").route), "p:prj_1", "the sidebar selects its row");
+  const next = step(START, { t: "project", projectId: "prj_1", tab: "knows" });
+  assert.deepEqual(next.route, { view: "project", projectId: "prj_1", tab: "knows" });
+  assert.equal(next.pane, false);
+});
+
+test("a link to a person names the person and no page: the place keeps its page and opens their profile beside it", async () => {
+  const { personOfHash } = await import("./route.ts");
+  assert.equal(personOfHash("subject=person:usr_omar"), "usr_omar");
+  assert.equal(personOfHash("#subject=person%3Ausr_omar"), "usr_omar");
+  assert.equal(personOfHash("subject=thread:thr_1"), null);
+  assert.equal(personOfHash(""), null);
+  assert.deepEqual(fromHash("subject=person:usr_omar").route, START.route, "as a page it is nothing: the profile is not a route");
 });

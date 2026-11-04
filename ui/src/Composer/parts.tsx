@@ -176,6 +176,7 @@ export function Kbd({ k }: { k: string }): ReactElement {
 const svg = (d: string): string => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 export const I = {
   plus: svg('<path d="M12 5v14M5 12h14"/>'),
+  mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.500 11.500a6.500 6.500 0 0 0 13 0M12 18v3"/>'),
   up: svg('<path d="M12 19V5M6 11l6-6 6 6"/>'),
   file: svg('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>'),
   folder: svg('<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'),
@@ -184,6 +185,7 @@ export const I = {
   bolt: svg('<path d="M13 3 4 14h7l-1 7 9-11h-7z"/>'),
   project: svg('<path d="M4 6h16M4 12h10M4 18h7"/>'),
   channel: svg('<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>'),
+  people: svg('<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6M18 20a5 5 0 0 0-2.4-4.3"/>'),
   at: svg('<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>'),
   hash: svg('<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>'),
   slash: svg('<path d="m15 4-6 16"/>'),

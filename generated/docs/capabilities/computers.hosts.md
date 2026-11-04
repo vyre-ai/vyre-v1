@@ -40,6 +40,12 @@ type Out = {
       canRun: boolean;
       runs: number;
       reason?: string;
+      detail?: string;
+      room?: {
+        fits: number;
+        freeMb: number;
+        totalMb: number;
+      };
     }>;
 };
 ```
@@ -62,11 +68,17 @@ type Out = {
     "hosts": [
       {
         "canRun": true,
+        "detail": "example",
         "hostId": "example",
         "kind": "this",
         "name": "example",
         "online": true,
         "reason": "example",
+        "room": {
+          "fits": 1,
+          "freeMb": 1,
+          "totalMb": 1
+        },
         "runs": 1
       }
     ]

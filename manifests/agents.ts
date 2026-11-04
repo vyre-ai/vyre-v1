@@ -13,6 +13,7 @@ import { atool, create, defineManifest, ev, field, list, read, rtype, screen, se
 import { id, pageIn, pageOut, principalRef, versionRow } from './_common.ts';
 import { pluginCapabilities, pluginEvents, pluginScreens } from './_agents-plugins.ts';
 import { connectionCapabilities, connectionEvents } from './_agents-connections.ts';
+import { installCapabilities } from './_agents-install.ts';
 import { skillScopeCapabilities, skillScopeEvents, skillScopeScreens } from './_agents-skills.ts';
 
 const agentStatus = t.enm('awake', 'working', 'asleep', 'paused');
@@ -23,7 +24,7 @@ const limits = t.obj({
 const agentRow = t.obj({
   agentId: id.agent, name: t.str(), kind: t.opt(t.enm('assistant', 'teammate', 'agent')), runtime: t.opt(t.enm('vyre', 'outside')), face: t.str({ description: 'DiceBear Notionists seed tinted per Space', examples: ['intake'] }), role: t.opt(t.str({ description: 'The "use me when" line' })),
   status: agentStatus, pausedReason: t.opt(t.str()), pausedBy: t.opt(t.str()), ownerId: id.user, folderId: id.folder,
-  model: t.opt(t.str()), fallbackModel: t.opt(t.str()), accountPolicy: t.enm('asker', 'key'), accountKey: t.opt(t.str({ description: 'Vault handle, never a value', examples: ['#Team_Anthropic_Key'] })),
+  model: t.opt(t.str()), fallbackModel: t.opt(t.str()), helperModels: t.opt(t.enm('same_provider', 'any', 'ask')), accountPolicy: t.enm('asker', 'key'), accountKey: t.opt(t.str({ description: 'Vault handle, never a value', examples: ['#Team_Anthropic_Key'] })),
   accountFallback: t.arr(t.str({ description: 'Vault handles, best first: tried in this order when the chat key fails, before the Space backups' })),
   memoryKey: t.opt(t.str({ description: 'Vault handle that pays for this agent memory upkeep; never a value', examples: ['#Team_Anthropic_Key'] })),
   workKey: t.opt(t.str({ description: 'Vault handle of the AI account that pays for this agent\'s own work (routines, watchers, helpers); absent is Automatic, the cheapest Space AI account kept for it; never a value', examples: ['#Team_Anthropic_Key'] })),
@@ -31,6 +32,7 @@ const agentRow = t.obj({
   toolsAllowed: t.arr(t.str()), toolsDenied: t.arr(t.str()), vaultKeys: t.arr(t.str()), limits, captureMode, hasComputer: t.bool(), templateVersion: t.int(),
   createdAt: t.ts(), lastActiveAt: t.opt(t.ts()),
   teammateOf: t.opt(t.str({ description: 'The project, or the chat, this teammate belongs to' })),
+  chatOf: t.opt(id.thread),   // an agent a chat or channel made for itself: it is not on the Agents page and goes with the chat
 });
 const routineRow = t.obj({
   routineId: t.id('rtn'), agentId: id.agent, title: t.str(), cron: t.opt(t.str({ examples: ['0 9 * * 1-5'], description: 'The schedule of a schedule routine; a watcher has none' })), prompt: t.str(), channelId: t.opt(id.channel), enabled: t.bool(),
@@ -53,7 +55,7 @@ const outsideJob = t.obj({
 const agentFile = t.enm('AGENT.md', 'agent.toml');
 const target = { agentId: id.agent };
 // A teammate is an agent made for one project (owner ruling 20 Oct): the Agents page leaves it out unless asked, and the project's Teammates tab lists it.
-const listIn = { section: t.opt(t.enm('personal', 'shared', 'space')), folderId: t.opt(id.folder), status: t.opt(t.arr(agentStatus)), teammates: t.opt(t.enm('hide', 'include', 'only')), projectId: t.opt(t.str({ description: 'A project, or a chat, whose teammates to list' })), ...pageIn };
+const listIn = { section: t.opt(t.enm('personal', 'shared', 'space')), folderId: t.opt(id.folder), status: t.opt(t.arr(agentStatus)), teammates: t.opt(t.enm('hide', 'include', 'only')), projectId: t.opt(t.str({ description: 'A project, or a chat, whose teammates to list' })), threadId: t.opt(id.thread), ...pageIn };
 const effort = t.enm('low', 'medium', 'high', 'max');
 // Skills (CHAT-DESIGN ruling 4): SKILL.md files in three tiers. builtin ships with Vyre (agent/skills), space is the Space library an admin keeps, agent is the agent's own skills/ folder
 // (and what a plugin installed into one agent brings). The turn shows an index of name and one line; load_skill returns the full text.
@@ -138,7 +140,7 @@ export default defineManifest({
       in: {
         name: t.str({ examples: ['Intake'] }), role: t.opt(t.str()), face: t.opt(t.str()), model: t.opt(t.str()), ownerId: t.opt(id.user), computer: t.opt(t.bool()),
         templateKey: t.opt(t.str()), tools: t.opt(t.obj({ allowed: t.arr(t.str()), denied: t.arr(t.str()) })), limits: t.opt(limits),
-        projectId: t.opt(t.str({ description: 'Make a teammate of this project, or of this chat (a thread id): it shows with its crew and not on the Agents page' })),
+        projectId: t.opt(t.str({ description: 'Make a teammate of this project, or of this chat (a thread id): it shows with its crew and not on the Agents page' })), threadId: t.opt(id.thread),
       },
       out: { agent: agentRow }, perm: 'agents.create', emits: ['agent.created'], tool: 'agents', offline: 'queue', cli: 'vyre agents create',
       errors: ['validation.duplicate'],
@@ -162,7 +164,7 @@ export default defineManifest({
       in: { agentId: id.agent, kind: t.enm('mention', 'task', 'answer'), threadId: t.opt(id.thread), taskId: t.opt(id.task), messageId: t.opt(id.message), asker: t.str(), title: t.opt(t.str()), text: t.opt(t.str()) },
       out: { queued: t.bool() }, emits: ['agent.job_queued'], idem: 'none', risk: 'low',
     }),
-    read('agents.outside.usable', 'May the person asking give this agent work? An outside agent takes work from its owner only; every other agent says yes', {
+    read('agents.outside.usable', 'May the person asking give this agent work (a task, an automation step, a crew)? An outside agent takes work from its owner only; any other agent needs Can use on it (Can chat with is not enough); a person\'s Assistant is theirs alone', {
       in: target, out: { usable: t.bool() }, level: 'member',
     }),
     write('agents.outside.seen', 'System: an outside agent called a tool: its status follows', { in: { agentId: id.agent }, out: { ok: t.bool() }, emits: ['agent.seen'], idem: 'none', risk: 'low' }),
@@ -295,6 +297,7 @@ export default defineManifest({
       in: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool() }, out: { skill: skillRow }, perm: 'agents.manage', level: 'manage', idem: 'key', emits: ['skill.changed'], audit: 'always', tool: 'agents', mcpName: 'skills_set_enabled', errors: ['validation.not_found'],
     }),
     ...skillScopeCapabilities,
+    ...installCapabilities,
   ],
   events: [
     ev('skill.added', 'A skill was added to the Space library or to one agent', { p: { name: t.str(), tier: t.enm('space', 'agent'), agentId: t.opt(id.agent), source: t.str(), by: t.str() }, subject: ['entity', '/name'] }),

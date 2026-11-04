@@ -129,3 +129,12 @@ test("chats: the sidebar's dot says another Space needs you, from the Spaces the
   assert.equal(sidebarData({ ...rt, knownSpaces: [space("northwind", false), space("harbor", false)] }, actions).space.otherNeedsYou, false);
   assert.equal(sidebarData({ ...rt, knownSpaces: [space("northwind", false), space("harbor", true)] }, actions).space.otherNeedsYou, true);
 });
+
+test("chats: the sidebar's nav opens a project by subject through rt.open (the wiring a real-browser walk found missing)", () => {
+  const { rt } = runtime();
+  const opened: ShellTarget[] = [];
+  const data = sidebarData({ ...rt, open: (t: ShellTarget) => { opened.push(t); } }, chatsActions(GO));
+  assert.equal(typeof data.nav.openProject, "function", "the sidebar can open a project");
+  data.nav.openProject!("prj_1");
+  assert.deepEqual(opened, [{ subject: { type: "project", id: "prj_1" } }]);
+});

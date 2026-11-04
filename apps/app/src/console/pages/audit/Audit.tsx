@@ -15,6 +15,8 @@ import { Glyph } from "../../shell/glyphs.tsx";
 import { Empty, Lead, pointer } from "../../shell/ui.tsx";
 import { CLASSES, NO_FILTER, classIcon, classLabel, isFiltered, rowTitle, snapshotLines, stateOf, agentDetails } from "./model.ts";
 import type { AuditClass, AuditFilter, AuditRow } from "./model.ts";
+import { errorSentence } from "../../../errors/details.ts";
+import { Note } from "../shared.tsx";
 
 type ListOut = CapMap["audit.list"]["out"];
 type VerifyOut = CapMap["audit.verify"]["out"];
@@ -55,16 +57,16 @@ export function Audit({ initialFilter = NO_FILTER, initialOpen = null }: AuditPr
   ];
   const rowMenu = (r: AuditRow): MenuEntry[] => [
     { label: "Open", onSelect: () => setOpen(r.id) },
-    { label: "Show this trace", onSelect: () => setFilter((f) => ({ ...f, traceId: r.traceId })) },
+    { label: "Show related entries", onSelect: () => setFilter((f) => ({ ...f, traceId: r.traceId })) },
     { label: `Only ${classLabel(r.class).toLowerCase()}`, onSelect: () => setFilter((f) => ({ ...f, cls: r.class })) },
-    { label: "Copy the trace id", onSelect: () => { void (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard?.writeText(r.traceId); setNote("Trace id copied"); } },
+    { label: "Copy the reference", onSelect: () => { void (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard?.writeText(r.traceId); setNote("Reference copied"); } },
   ];
 
   const verify = async (): Promise<void> => {
     try {
       const v = (await data.call("audit.verify", {})) as VerifyOut;
       setNote(v.ok ? `Chain verified, ${v.checked.toLocaleString("en-US")} events` : `The chain breaks at event ${v.firstBadSeq ?? "unknown"}`);
-    } catch (e) { setNote(e instanceof Error ? e.message : "Could not verify"); }
+    } catch (e) { setNote(errorSentence(e, "Could not verify")); }
   };
   const exportRows = async (): Promise<void> => {
     try {
@@ -94,11 +96,11 @@ export function Audit({ initialFilter = NO_FILTER, initialOpen = null }: AuditPr
         </View>
         {isFiltered(filter) ? (
           <View style={s.showing} testID="audit-showing">
-            <Text style={s.showingText}>{filter.traceId ? "Showing one trace" : filter.cls ? `Showing ${classLabel(filter.cls).toLowerCase()}` : `Showing ${rows.length} events`}</Text>
+            <Text style={s.showingText}>{filter.traceId ? "Showing related entries" : filter.cls ? `Showing ${classLabel(filter.cls).toLowerCase()}` : `Showing ${rows.length} events`}</Text>
             <Pressable accessibilityRole="button" accessibilityLabel="Show all" testID="audit-clear" onPress={() => setFilter(NO_FILTER)} style={pointer}><Text style={s.link}>Show all</Text></Pressable>
           </View>
         ) : null}
-        {note ? <Text style={s.note} testID="audit-note" accessibilityLiveRegion="polite">{note}</Text> : null}
+        {note ? <Note testID="audit-note">{note}</Note> : null}
         <View style={s.listWrap}>
           {list.status !== "ready" ? <Text style={s.loading} accessibilityRole="progressbar">Loading</Text> : rows.length === 0 ? (
             <Empty testID="audit-none">No events match</Empty>
@@ -148,7 +150,7 @@ function EntrySheet({ id, onClose, onTrace }: { id: string; onClose: () => void;
           <Line k="When" v={`${new Date(r.at).toISOString().replace("T", " ").slice(0, 16)} UTC, ${ago(now, r.at)}`} />
           {r.before !== undefined ? <Block title="Before" lines={snapshotLines(r.before)} /> : null}
           {r.after !== undefined ? <Block title="After" lines={snapshotLines(r.after)} /> : null}
-          <Pressable accessibilityRole="button" accessibilityLabel="Show this trace" testID="audit-trace" onPress={() => onTrace(r.traceId)} style={pointer}><Text style={s.link}>Show everything in this trace</Text></Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel="Show related entries" testID="audit-trace" onPress={() => onTrace(r.traceId)} style={pointer}><Text style={s.link}>Show everything from this action</Text></Pressable>
         </View>
       )}
     </View>

@@ -5,7 +5,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
-import { useMenu } from "../Menu/index.tsx";
+import { menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { standIn, subline } from "./model.ts";
 import type { ArtifactInfo } from "./model.ts";
@@ -27,6 +27,8 @@ export interface ArtifactCardProps {
   onDelete?: (() => void) | undefined;
   onFrom?: ((chatId: string) => void) | undefined;
   testID?: string;
+  /** The card's menu, built by the host (right-click, long press and the More button open the same one). It gets the way to ask "Delete?" on the card. Absent: Share, Open in browser, Delete. */
+  menu?: ((askDelete: () => void) => MenuEntry[]) | undefined;
 }
 
 const RING = { boxShadow: "inset 0 0 0 1px var(--line)" } as unknown as ViewStyle;
@@ -50,7 +52,9 @@ export function Thumb({ info, size }: { info: ArtifactInfo; size?: { w: number; 
   return (
     <View testID="artifact-thumb-drawn" accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={box}>
       {k === 0 ? <>{bar("46%", true)}{bar("92%")}{bar("84%")}{bar("90%")}{bar("52%")}</> : null}
+      {/* ui-rows-lint: not a list (bars of a drawn placeholder thumbnail) */}
       {k === 1 ? <>{bar("38%", true)}<View style={st.bars}>{[30, 52, 40, 72, 60, 88].map((p, i) => <View key={i} style={[st.col, { height: `${p}%` as unknown as number }]} />)}</View></> : null}
+      {/* ui-rows-lint: not a list (bars of a drawn placeholder thumbnail) */}
       {k === 2 ? <>{[70, 55, 64, 40].map((p, i) => <View key={i} style={st.rw}><View style={[st.tick, i < 2 && st.tickOn]} />{bar(`${p}%`)}</View>)}</> : null}
       {k === 3 ? <View style={st.grid}>{Array.from({ length: 12 }, (_, i) => <View key={i} style={[st.cell, i < 3 && st.cellHead]} />)}</View> : null}
     </View>
@@ -70,12 +74,12 @@ export function ArtifactCard(p: ArtifactCardProps): ReactElement {
   const { element, show } = useMenu();
   const [sure, setSure] = useState(false);
   const line = useMemo(() => subline(info, p.meId, p.now, p.nameOf), [info, p.meId, p.now, p.nameOf]);
-  const more = useCallback(() => {
-    const at = anchor();
-    const items: MenuEntry[] = [{ label: "Share", onSelect: p.onShare }, { label: "Open in browser", onSelect: p.onBrowser }];
-    if (p.onDelete) items.push({ separator: true }, { label: "Delete", danger: true, onSelect: () => setSure(true) });
-    show(items, at.x, at.y, "other", { label: "Artifact" });
-  }, [p.onShare, p.onBrowser, p.onDelete, show]);
+  const openMenu = useCallback((x: number, y: number) => {
+    const items: MenuEntry[] = p.menu ? p.menu(() => setSure(true)) : [{ label: "Share", onSelect: p.onShare }, { label: "Open in browser", onSelect: p.onBrowser }];
+    if (!p.menu && p.onDelete) items.push({ separator: true }, { label: "Delete", danger: true, onSelect: () => setSure(true) });
+    show(items, x, y, "context", { label: "Artifact" });
+  }, [p.menu, p.onShare, p.onBrowser, p.onDelete, show]);
+  const more = useCallback(() => { const at = anchor(); openMenu(at.x, at.y); }, [openMenu]);
   const id = p.testID ?? `artifact-card-${info.id}`;
   if (sure) {
     return (
@@ -97,6 +101,7 @@ export function ArtifactCard(p: ArtifactCardProps): ReactElement {
       accessibilityLabel={`Open ${info.name}`}
       testID={id}
       onPress={p.onOpen}
+      {...menuTrigger(openMenu)}
       {...(Platform.OS === "web" ? { dataSet: { artifactCard: info.id } } : {})}
       style={({ hovered }: { hovered?: boolean }) => [st.card, hovered === true ? RING_HOVER : RING, p.grid === true && st.cardGrid]}
     >

@@ -247,7 +247,7 @@ export function ChangesetBlock({ block, host }: BlockViewProps): ReactElement {
     [host, block],
   );
   const menu = useCallback(
-    () => baseMenu(host, "changeset", block, open ? [{ key: "approve", label: "Approve and commit" }, { key: "request_changes", label: "Request changes" }, { key: "discard", label: "Discard", danger: true }] : [], run),
+    () => baseMenu(host, "changeset", block, open ? [{ key: "approve", label: "Allow and commit" }, { key: "request_changes", label: "Request changes" }, { key: "discard", label: "Discard", danger: true }] : [], run),
     [host, block, open, run],
   );
   const closedWord = done === "approved" ? "Approved and committed" : done === "discarded" ? "Discarded" : done === "changes" ? "Changes requested" : d.state.charAt(0).toUpperCase() + d.state.slice(1);
@@ -265,7 +265,7 @@ export function ChangesetBlock({ block, host }: BlockViewProps): ReactElement {
       </View>
       {open ? (
         <View style={styles.acts}>
-          <Btn id={`blk-changeset-${block.id}-approve`} label="Approve and commit" onPress={() => run("approve")} />
+          <Btn id={`blk-changeset-${block.id}-approve`} label="Allow and commit" onPress={() => run("approve")} />
           <Btn id={`blk-changeset-${block.id}-request_changes`} label="Request changes" onPress={() => run("request_changes")} />
           <Btn id={`blk-changeset-${block.id}-discard`} label="Discard" quiet danger onPress={() => run("discard")} />
         </View>
@@ -373,7 +373,7 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
   }, [host, block]);
   const run = useCallback((key: string) => (key === "approve" ? approve() : reject()), [approve, reject]);
   const menu = useCallback(
-    () => baseMenu(host, "plan", block, waiting ? [{ key: "approve", label: "Approve" }, { key: "reject", label: "Reject", danger: true }] : [], run),
+    () => baseMenu(host, "plan", block, waiting ? [{ key: "approve", label: "Allow" }, { key: "reject", label: "Deny", danger: true }] : [], run),
     [host, block, waiting, run],
   );
   const toggleRemoved = (id: string): void =>
@@ -418,9 +418,9 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
       </View>
       {waiting ? (
         <View style={styles.acts}>
-          <Btn id={`blk-plan-${block.id}-approve`} label={editing ? "Approve with edits" : "Approve"} primary onPress={approve} />
+          <Btn id={`blk-plan-${block.id}-approve`} label={editing ? "Allow with edits" : "Allow"} primary onPress={approve} />
           <Btn id={`blk-plan-${block.id}-edit`} label={editing ? "Cancel" : "Edit"} onPress={() => { setEditing((e) => !e); setTexts({}); setRemoved(new Set()); }} />
-          <Btn id={`blk-plan-${block.id}-reject`} label="Reject" quiet danger onPress={reject} />
+          <Btn id={`blk-plan-${block.id}-reject`} label="Deny" quiet danger onPress={reject} />
         </View>
       ) : state === "approved" ? (
         <StatusLine tone="ok" testID={`blk-plan-${block.id}-state`} text={`Approved · plan mode is off · ${planProgress(steps)}`} />

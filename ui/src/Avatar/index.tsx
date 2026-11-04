@@ -26,6 +26,49 @@ export { cachedFace, cachedFaceCount, clearFaceCache, currentSkin, faceKey, requ
 
 export const AVATAR_DEFAULT_SIZE = 18;
 
+/**
+ * The drawing modules, held once loaded so a face can be written in the same frame its row is first drawn (no placeholder frame, no timer). The browser starts loading both when this file
+ * is first evaluated, ahead of the first row that asks, so by the time a surface opens they are almost always here. Before they land a row shows its tinted placeholder, as it always did.
+ */
+let notionistsMod: typeof import("./notionists.ts") | null = null;
+let libraryMod: typeof import("./library.ts") | null = null;
+if (typeof document !== "undefined" && Platform.OS === "web") {
+  void loadNotionists().then((m) => { notionistsMod = m; }, () => undefined);
+  void loadLibrary().then((m) => { libraryMod = m; }, () => undefined);
+}
+const drawnMarkup = new Map<string, string>();
+/** Faces written synchronously in one frame: a popover or a header has a handful and gets them all at once; a long list (60 agents in the Add sheet) draws the first few now and the rest as it did before, so one render never holds the main thread. */
+const SYNC_PER_FRAME = 6;
+let syncThisFrame = 0;
+let frameReset = false;
+function spendSync(): boolean {
+  if (syncThisFrame >= SYNC_PER_FRAME) return false;
+  syncThisFrame++;
+  if (!frameReset) {
+    frameReset = true;
+    const reset = (): void => { syncThisFrame = 0; frameReset = false; };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(reset); else setTimeout(reset, 16);
+  }
+  return true;
+}
+/** The face svg for a key, written now when its module is loaded, else undefined (the effect below fetches it and the row draws again). */
+function drawnNow(key: string, spec: FaceSpec | null, seed: string, expression: Expression, size: number): string | undefined {
+  const hit = drawnMarkup.get(key);
+  if (hit !== undefined) return hit;
+  if (!spendSync()) return undefined;
+  let markup: string | undefined;
+  try {
+    if (spec !== null && spec.fam === "emoji") markup = emojiSvg(spec.e, spec.tint, size);
+    else if (spec !== null && spec.fam !== "img" && spec.fam !== "file") markup = libraryMod === null ? undefined : libraryMod.faceSvg(spec, expression, size);
+    else markup = notionistsMod === null ? undefined : sized(notionistsMod.notionistsSvg(seed), size);
+  } catch { markup = undefined; }
+  if (markup !== undefined) {
+    drawnMarkup.set(key, markup);
+    if (drawnMarkup.size > 800) { const first = drawnMarkup.keys().next(); if (first.done !== true) drawnMarkup.delete(first.value); }
+  }
+  return markup;
+}
+
 const web = Platform.OS === "web";
 
 /** The ring follows the face's shape, a rounded square on agents and a circle on people. It stays still and the colour travels round it, iris into coral, ours and nobody else's: an animated conic angle behind a
@@ -140,9 +183,12 @@ export const Avatar = memo(function Avatar({ name, seedId: ownId, kind: ownKind,
   const [, bump] = useState(0);
   const [agentFace, setAgentFace] = useState<{ key: string; markup: string } | null>(null);
   const bitmap = drawn ? cachedFace(key) : undefined;
+  // drawn in this frame from the loaded modules (and the bitmap replaces it when it is ready): a surface that opens shows its faces at once
+  const now = drawn && bitmap === undefined ? drawnNow(key, spec, seed, expression, size) : undefined;
   useEffect(() => {
     if (!drawn || cachedFace(key) !== undefined) return;
     let alive = true;
+    if (now !== undefined) { requestFace(key, now, size, () => { if (alive) bump((n) => n + 1); }); return () => { alive = false; }; }
     const paint = (markup: string): void => { if (!alive) return; setAgentFace({ key, markup }); requestFace(key, markup, size, () => bump((n) => n + 1)); };
     if (spec !== null && spec.fam === "emoji") paint(emojiSvg(spec.e, spec.tint, size));
     else if (spec !== null && spec.fam !== "img" && spec.fam !== "file") { installBlink(); void loadLibrary().then(({ faceSvg }) => paint(faceSvg(spec, expression, size))); }
@@ -169,7 +215,7 @@ export const Avatar = memo(function Avatar({ name, seedId: ownId, kind: ownKind,
   } else if (kind === "person") {
     face = web ? svg(marbleInner(seed), size, "0 0 80 80") : <NativeLetters name={name} size={size} person tint={`hsl(${hueOf(seed)}, 45%, 70%)`} />;
   } else if (kind === "agent" || looked) {
-    const markup = agentFace?.key === key ? agentFace.markup : null;
+    const markup = agentFace?.key === key ? agentFace.markup : (now ?? null);
     face = web && markup ? createElement("span", { style: { display: "block", width: size, height: size, lineHeight: 0 }, dangerouslySetInnerHTML: { __html: markup } }) : <AgentFallback name={name} seed={seed} size={size} />;
   } else if (kind === "space") {
     face = <NativeLetters name={name} size={size} tint={`hsla(${hueOf(seed)}, 60%, 50%, 0.18)`} ink={`hsl(${hueOf(seed)}, 55%, 46%)`} />;

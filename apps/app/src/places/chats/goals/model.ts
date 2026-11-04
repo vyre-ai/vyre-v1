@@ -19,9 +19,11 @@ export interface Goal extends GoalLine {
 }
 export interface TaskLine { taskId: string; key?: string; title: string; state: string; assigned?: Who; blocked: boolean }
 export interface WaitLine { taskId: string; kind: string; title: string; assigned?: Who; since: number }
-export interface ActivityLine { at: number; kind: string; text: string; by?: string; ref?: string }
+export interface ActivityLine { at: number; kind: string; text: string; tpl?: string; by?: string; ref?: string }
 export interface Reading { at: number; value?: number; ok: boolean; error?: string }
-export interface GoalPageData { goal: Goal; tasks: TaskLine[]; waiting: WaitLine[]; activity: ActivityLine[]; readings: Reading[] }
+/** One step of a drafted plan: what it is, why it should move the number, and who does it. */
+export interface PlanStep { key: string; title: string; why: string; impact?: string; brief?: string; doneMeans?: string[]; assigned: Who; reviewer?: Who; approver?: Who; dependsOn?: string[]; due?: number }
+export interface GoalPageData { goal: Goal; draftPlan?: PlanStep[]; tasks: TaskLine[]; waiting: WaitLine[]; activity: ActivityLine[]; readings: Reading[] }
 
 export const LIVE: ReadonlySet<Status> = new Set<Status>(["planning", "active", "waiting", "stuck"]);
 export const ENDED: ReadonlySet<Status> = new Set<Status>(["done", "missed", "stopped"]);
@@ -76,7 +78,7 @@ export function dueWords(at: number, offsetMin = 0): string {
 }
 /** The finish line in words, ending with the real deadline: a date the words carry ("by Friday") is replaced, so the line and the chip never disagree. */
 export function lineWithDue(line: string, deadline: number, offsetMin = 0): string {
-  const bare = line.replace(/\s+by\s+[^,.]*(,\s*\d{1,2}:\d{2})?\.?\s*$/i, "").replace(/\.\s*$/, "");
+  const bare = line.replace(/\s+by\s+[^,.]*(,?\s*\d{1,2}:\d{2}(\s*[ap]m)?(\s+[A-Z]{2,5}\b)?)?\.?\s*$/i, "").replace(/\.\s*$/, "");
   return `${bare} by ${dueWords(deadline, offsetMin)}`;
 }
 /** "4 days left", "18 hours left", "Due now". */
@@ -211,3 +213,35 @@ export function delta(b: Pick<GoalBlock, "value" | "prev">): string | null {
   const d = b.value - b.prev;
   return d === 0 ? "no change" : `${d > 0 ? "+" : ""}${fmt(d)}`;
 }
+
+/** The finish line without a closing "by <date>": the deadline has its own place on the page, so the line never says it a second time. */
+export function bareLine(line: string): string {
+  return line.replace(/\s+by\s+[^,.]*(,\s*\d{1,2}:\d{2})?\.?\s*$/i, "").replace(/\.\s*$/, "").trim();
+}
+const two = (n: number): string => String(n).padStart(2, "0");
+/** A time as a date-and-time field holds it ("2026-11-07T18:00"), in the person's zone. */
+export function toLocalInput(at: number, offsetMin = 0): string {
+  const d = new Date(at + offsetMin * MIN);
+  return `${d.getUTCFullYear()}-${two(d.getUTCMonth() + 1)}-${two(d.getUTCDate())}T${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`;
+}
+/** The time a date-and-time field holds, back to a moment; null when the field is not a full date and time. */
+export function fromLocalInput(v: string, offsetMin = 0): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(v.trim());
+  if (!m) return null;
+  const t = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
+  return Number.isFinite(t) ? t - offsetMin * MIN : null;
+}
+/** The list with the item at `from` moved to `to` (drag to reorder). */
+export function moved<T>(list: readonly T[], from: number, to: number): T[] {
+  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return [...list];
+  const out = [...list];
+  const [item] = out.splice(from, 1);
+  out.splice(to, 0, item as T);
+  return out;
+}
+/** "Aliza", "Aliza and Rubab", "Aliza, Rubab and Content". */
+export function nameList(names: readonly string[]): string {
+  return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+/** Whether this person may edit the goal in place: its owner, until it ends. */
+export const canEdit = (g: Pick<Goal, "owner" | "status">, me: string): boolean => g.owner === me && !ENDED.has(g.status);

@@ -98,3 +98,19 @@ test("an email is edited in its text and loses its HTML; a refused card rewrite 
     assert.deepEqual(findHold(h.ctxFor(null, { id: alice.id, kind: "person" }).db, p.holdId)!.input, { mailboxId: "mbx_1", to: [{ address: "aliza@example.com" }], subject: "Deed", text: "new" });
   } finally { bindPayloadHash(null); }
 });
+
+test("a calendar event's title and agenda can be edited, its agenda may be empty, and the invitees and time stay as they were", async () => {
+  bindPayloadHash(hashOf);
+  try {
+    const h = harness();
+    h.callee("tasks.held_revise", () => ({ ok: true }));
+    const ev = { connectionId: "con_1", calendarId: "primary", summary: "Prep", description: "Old agenda", attendees: [{ email: "a@b.c" }], start: { dateTime: "2026-11-04T14:00:00Z" }, end: { dateTime: "2026-11-04T15:00:00Z" }, idempotencyKey: "k" };
+    const { p } = await parked(h, { capName: "google.calendar.create_event", input: ev, decisionId: "dec_ev" });
+    const r = await h.call("gate.holds.revise", { holdId: p.holdId, taskId: p.taskId, body: "", title: "Prep, moved" }, person(alice));
+    assert.equal(r.ok, true);
+    const call = h.callsTo("tasks.held_revise")[0]!.input as { blocks: Array<{ data: Record<string, any> }> };   // eslint-disable-line @typescript-eslint/no-explicit-any
+    assert.deepEqual(call.blocks[0]!.data["input"], { ...ev, summary: "Prep, moved", description: "" });
+    assert.equal(call.blocks[0]!.data["outward"].event.title, "Prep, moved");
+    await assert.rejects(h.call("gate.holds.revise", { holdId: p.holdId, taskId: p.taskId, body: "x", title: " " }, person(alice)), (e) => reasonOf(e) === "empty_title");
+  } finally { bindPayloadHash(null as never); }
+});

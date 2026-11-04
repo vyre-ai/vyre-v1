@@ -161,8 +161,10 @@ test("the description is saved against the note it started from: two saves race,
     NOTES["brief"] = "Alice's brief";   // Sara saved first; this page still shows "Check the renewal terms."
     const root = await mount(createRoot, page(rt));
     await press(find(root, "task-brief"));
-    await typeInto(find(root, "task-brief-edit"), "Irfad's brief");
-    await fire(find(root, "task-brief-edit"), "onBlur");
+    // the description is the shared Markdown editor: its Markdown view is the field a test can type into, and Done saves what was typed
+    await press(find(root, "md-view-raw"));
+    await typeInto(find(root, "markdown-editor-raw-text"), "Irfad's brief");
+    await press(find(root, "task-brief-done"));
     await wait(() => find(root, "task-conflict") !== null);
     assert.match(textOf(find(root, "task-conflict")), /Description/);
     assert.match(textOf(find(root, "task-conflict")), /Irfad's brief/);

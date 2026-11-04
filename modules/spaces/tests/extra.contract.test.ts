@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { sample, validate } from "../../../packages/contracts/src/jsonschema.ts";
 import type { JsonSchema } from "../../../packages/contracts/src/types.ts";
-import { world } from "../handlers/extra/memdb.ts";
+import { NOW, world } from "../handlers/extra/memdb.ts";
 import type { World } from "../handlers/extra/memdb.ts";
 import { configureSpaceAdmin, extraHandlers } from "../handlers/extra/index.ts";
 import type { ExtraCtx } from "../handlers/extra/index.ts";
@@ -33,17 +33,23 @@ const run = (name: string, ctx: ExtraCtx, input: unknown): Promise<unknown> => {
 };
 
 /** The Space is named "example", which is what the delete example types; the caller is the owner, except for leave, where the owner may not. */
-function populated(cap: string): World {
+async function populated(cap: string): Promise<World> {
   const w = world({ name: "example" });
   configureSpaceAdmin(w.drivers);
   if (cap === "spaces.leave") w.asPerson("usr_ines");
+  // the host's minute job and the cancel have something to act on: a deletion scheduled a moment ago, whose date the job reaches
+  if (cap === "spaces.delete_cancel" || cap === "spaces.delete_due") {
+    await run("spaces.delete", w.ctx, { confirmName: "example", withoutExport: true });
+    w.events.length = 0;
+    if (cap === "spaces.delete_due") { w.setNow(NOW + 15 * 86_400_000); w.asService(); }
+  }
   return w;
 }
 
 afterEach(() => configureSpaceAdmin(null));
 
-test("the registry declares exactly the nine capabilities this packet handles", () => {
-  assert.equal(caps.length, 9);
+test("the registry declares exactly the twelve capabilities this packet handles", () => {
+  assert.equal(caps.length, 12);
   assert.deepEqual(caps.map((c) => c.name).sort(), [...mine].sort());
 });
 
@@ -54,7 +60,7 @@ for (const cap of caps) {
     assert.ok(cap.examples.length >= 1);
     for (const ex of cap.examples) {
       assert.deepEqual(validate(cap.input, ex.input, "", defs), [], `example ${ex.name} input is valid`);
-      const w = populated(cap.name);
+      const w = await populated(cap.name);
       const out = await run(cap.name, w.ctx, ex.input);
       assert.deepEqual(validate(cap.output, out, "", defs), [], `example ${ex.name} output`);
       for (const e of w.events) {
@@ -69,13 +75,13 @@ for (const cap of caps) {
   test(`${name}: real handler answers the schema sample with a valid output`, async () => {
     const input = sample(cap.input, 0, defs);
     assert.deepEqual(validate(cap.input, input, "", defs), []);
-    const w = populated(cap.name);
+    const w = await populated(cap.name);
     const out = await run(cap.name, w.ctx, input);
     assert.deepEqual(validate(cap.output, out, "", defs), []);
   });
 
   test(`${name}: every declared event is emitted by the handler that declares it`, async () => {
-    const w = populated(cap.name);
+    const w = await populated(cap.name);
     // the example asks for the relay the Space already uses, which changes nothing and so announces nothing; the event needs a real move
     const input = cap.name === "spaces.switch_address" ? { mode: "own_domain", host: "team.example.com" } : cap.examples[0]!.input;
     await run(cap.name, w.ctx, input);

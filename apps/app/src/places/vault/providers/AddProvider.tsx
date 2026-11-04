@@ -14,7 +14,7 @@ import { SignInPanel } from "../../../ai-signin/SignInPanel.tsx";
 import { LOCAL_SIGNINS, localNote, onMacDevice, startFlow, takeLocalSignin } from "../../../ai-signin/flow.ts";
 import type { Flow as SignFlow } from "../../../ai-signin/flow.ts";
 import { ownAiRefusal } from "../../../ai-signin/own-ai.ts";
-import { CONNECTION_NAME, CONNECTION_NOTE, connectionList, normalizeAddress, testWords } from "./model.ts";
+import { CONNECTION_NOTE, connectionList, kindNote, kindTitle, normalizeAddress, testWords } from "./model.ts";
 import { AI_ACCOUNTS, SYSTEM_FOLDERS, pickSpaceFolder } from "../../../../../../lib/space-folder.ts";
 import { itemName } from "../connections/model.ts";
 import type { Catalog, ConnectionKind } from "./model.ts";
@@ -178,7 +178,7 @@ export function AddProvider({ onClose, onAdded, initial, initialFlow, initialSco
         </View>
       ) : kind === null ? (
         <View testID="provider-kinds" accessibilityLabel="How to connect">
-          {pick.connections.map((k) => <Row key={k} id={`kind:${k}`} title={CONNECTION_NAME[k]} note={CONNECTION_NOTE[k]} tall leading={<View style={s.logo}><LogoTile name={pick.name} size={30} /></View>} onPress={() => setKind(k)} />)}
+          {pick.connections.map((k) => <Row key={k} id={`kind:${k}`} title={kindTitle(pick.key, k)} note={kindNote(pick.key, k)} tall leading={<View style={s.logo}><LogoTile name={pick.name} size={30} /></View>} onPress={() => setKind(k)} />)}
         </View>
       ) : kind === "subscription" ? (
         <View style={s.stack} testID="provider-subscription">

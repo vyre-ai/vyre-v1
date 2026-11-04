@@ -19,7 +19,7 @@ Vyre for Chrome: remove a watch, or pause or resume it
 | HTTP | POST /v1/automations/watches/remove |
 | MCP tool | none |
 | CLI | none |
-| Emits | automation.watch_saved |
+| Emits | automations.watch_saved |
 
 ## Input
 

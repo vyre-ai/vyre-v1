@@ -1,0 +1,4 @@
+## What's new
+- Asking an agent "what is on my calendar this week and what needs a reply" is much faster and cheaper. The calendar and mail tools now give an agent compact rows instead of every raw description, HTML body and attendee list: events have a title, start, end, who, location and a link; mail has subject, from, date, a one-line snippet and whether it needs a reply.
+- Lists have a default limit and a ceiling, and each result says how many rows came back, how many exist, the next page and its size. A result is held under 8 KB, and rows that do not fit are counted with where to resume.
+- One event, one message or one thread is read whole with its own tool (calendar_get_event, mail_message_get, mail_thread_get); raw HTML and quoted history are left out and very long text is cut and says so. The app's own views are unchanged.

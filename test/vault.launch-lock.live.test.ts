@@ -11,7 +11,7 @@ import { forgetKey, keyIsKept, rehandKey } from "../client/src/gateway/key-keepe
 import { serverKeyState } from "../client/src/gateway/local-key.ts";
 import { passwordKeyState, remoteGateState, unlockWithPassword } from "../apps/app/src/shell/session/key-unlock.ts";
 import { LOCKED_SPACE_KEY_LINE } from "../modules/engine/locked-account.ts";
-import { boot, seededDir } from "./memory-live-kit.ts";
+import { boot, hostLog, seededDir } from "./memory-live-kit.ts";
 import { PASSWORD, SPACE_KEY, api, ask, connectClaude, door, join, ok, standIn, vendor } from "./member-key-kit.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 
@@ -59,11 +59,20 @@ test("launch lock on a Space server: held, goes straight in; relaunched with the
     const lines = ((await api(d, sara.token, "chat.messages.list", { threadId: closed.threadId })).data.messages as Array<{ blocks?: Array<{ data?: { text?: string } }> }>).flatMap((m) => (m.blocks ?? []).map((b) => b.data?.text ?? ""));
     assert.ok(lines.includes(LOCKED_SPACE_KEY_LINE), `the chat says why in one line: ${JSON.stringify(lines)}`);
 
+    // the refusal reads as a locked key, in plain words, and never as a sign-out
+    const items = (await api(d, sara.token, "vault.items.list", {})).data.items as Array<{ id: string }>;
+    const revealed = await api(d, sara.token, "vault.item.reveal", { itemId: items[0]!.id, idempotencyKey: "reveal-locked" });
+    assert.equal(revealed.status, 401);
+    const err = (revealed.data as { error?: { message?: string; details?: { reason?: string } } }).error!;
+    assert.equal(err.message, "Your sign-ins are locked on this server. Unlock Vyre to use them.");
+    assert.equal(err.details?.reason, "vault_locked", "the app reads the reason, so the person stays signed in");
+
     // 3. Unlock: the password opens the key, it goes to the server and stays in the app's memory; her Mine sign-in answers again
     await assert.rejects(unlockWithPassword(SPACE_URL, sara.token, "not the password"), /not right/);
     await unlockWithPassword(SPACE_URL, sara.token, PASSWORD);
     assert.equal(keyIsKept(), true);
     assert.equal(((await (await door(d, sara.token, "status")).json()) as { held: boolean }).held, true);
+    assert.match(hostLog(d), /vault\.wrap_made/, "the unlock wrote the server's wrap of her key (it opens again after a Google or Microsoft sign-in without asking)");
     assert.equal((await ask(d, agentId, sara, "unlocked")).reply, mine, "her Mine sign-in answers after Unlock");
     assert.equal(await gate(sara.token), "open");
   } finally {

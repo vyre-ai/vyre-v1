@@ -30,6 +30,8 @@ export interface NotesStore {
   pin(noteId: string, pinned: boolean): void;
   label(noteId: string, name: string, on: boolean): void;
   share(noteId: string, patch: SharePatch): Promise<Note | null>;
+  /** Hand the note to someone it is shared with; you keep Edit. */
+  setOwner(noteId: string, personId: string): Promise<Note | null>;
   remove(noteId: string): Promise<boolean>;
   restore(noteId: string): Promise<Note | null>;
   toTask(input: CapMap["notes.to_task"]["in"]): Promise<{ taskId: string; key?: string } | null>;
@@ -132,6 +134,16 @@ export function createNotesStore(call: Call, sayFirst: (text: string) => void = 
         if (p.role !== "remove") people.push({ personId: p.personId, role: p.role });
       }
       return optimistic(noteId, { share: { people, space: patch.space ?? n.share.space } }, "notes.share", { noteId, ...patch }, "Could not change who sees it.");
+    },
+    async setOwner(noteId, personId) {
+      try {
+        const out = (await call("notes.set_owner", { noteId, personId })) as { note: Note };
+        put(out.note);
+        return out.note;
+      } catch {
+        say("Could not hand the note over.");
+        return null;
+      }
     },
     async remove(noteId) {
       const before = find(noteId);

@@ -18,7 +18,7 @@ export const INITIAL_STATE: Record<TaskKind, TaskState> = {
 };
 export const KIND_ACTIONS: Record<TaskKind, ActionDef[]> = {
   work: [],
-  approve: [{ key: "approve", label: "Approve", note: "optional" }, { key: "reject", label: "Send back", note: "required" }],
+  approve: [{ key: "approve", label: "Allow", note: "optional" }, { key: "reject", label: "Send back", note: "required" }],
   review: [{ key: "approve", label: "Looks good", note: "optional" }, { key: "send_back", label: "Send back", note: "required" }],
   answer: [{ key: "answer", label: "Answer", note: "optional" }, { key: "dismiss", label: "Dismiss", note: "optional" }],
   unblock: [{ key: "resolved", label: "Done, continue", note: "optional" }, { key: "cannot", label: "Can't do this", note: "required" }],
@@ -96,7 +96,7 @@ export function checkMove(ctx: TasksCtx, t: Task, to: TaskState, o: { note?: str
   const plan = planMove(t, to);
   if (!plan.ok) raise(ctx, "validation.precondition_failed", plan.why, { reason: "illegal_transition", from: t.state, to });
   const move = plan.move;
-  if (!mayAct(t, move, who)) raise(ctx, "validation.precondition_failed", "Only the person this step belongs to can do that.", { reason: "wrong_actor", action: move.action });
+  if (!mayAct(t, move, who)) raise(ctx, "validation.precondition_failed", ctx.principal.kind === "agent" ? "This step belongs to someone else. An agent can do it only for the person it is assigned to, when that person is the one asking." : "Only the person this step belongs to can do that.", { reason: "wrong_actor", action: move.action });
   const note = o.note?.trim();
   if (move.noteRequired && !note) raise(ctx, "validation.precondition_failed", "Add a note so the sender knows what to change.", { reason: "note_required", action: move.action });
   const judging = move.action === "approve_review" || move.action === "approve" || move.action === "send_back" || move.action === "reject";
@@ -524,6 +524,7 @@ export async function withdraw(ctx: TasksCtx, input: In): Promise<unknown> {
     }
     if (input.taskId !== undefined && hasSource && (t.source?.kind !== input.sourceKind || t.source?.id !== input.sourceId)) continue;
     t.state = "canceled";
+    t.workingNotes = { ...t.workingNotes, withdrawn: note };
     delete t.snoozedUntil;
     touch(ctx, ctx.db, t);
     emitTask(ctx, ctx.db, "task.withdrawn", t, { note, sourceKind: t.source?.kind, sourceId: t.source?.id }, { type: "withdrawn", by: ctx.principal.id, note });

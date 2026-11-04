@@ -41,6 +41,7 @@ type In = {
       role: "lead" | "member" | "reviewer" | "guest";
     }>;
   template?: string;
+  overviewTemplate?: string;
   idempotencyKey: string;
 };
 ```
@@ -80,6 +81,7 @@ type Out = {
         "role": "lead"
       }
     ],
+    "overviewTemplate": "tpl_software_project",
     "stages": [
       {
         "key": "draft",

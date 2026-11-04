@@ -1,21 +1,23 @@
-// Lane screenshots without ensureDeps (the shared node_modules is never reinstalled): export the shots app once, serve it, shoot each ARTIFACTS_01 target in paper and graphite, at the
+// Lane screenshots without ensureDeps (the shared node_modules is never reinstalled): export the shots app once, serve it, shoot each LINKED_01 target in paper and graphite, at the
 // wide size and the phone size (a phone-only part is shot at the phone size only). Run on the build box from the worktree:
 //   node scripts/shots/l-artifacts-shoot.mjs [out-dir] [--skip-export] [--only=grid,take] [--size=wide|phone]
 import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 const REPO = process.cwd();
+const { guardCrashes } = await import(path.join(REPO, "apps/app/tests/crash-guard.ts"));
+let crashed = 0;
 const { serve } = await import(path.join(REPO, "scripts/shots/serve.mjs"));
 const { routeUrl, loadTargets } = await import(path.join(REPO, "scripts/shots/lib.mjs"));
 const { exportEnv } = await import(path.join(REPO, "scripts/lib/registry-hash.mjs"));
 const appDir = path.join(REPO, "scripts/shots/app");
 const args = process.argv.slice(2);
-const out = args.find((a) => !a.startsWith("--")) || "/root/wt/tmp-l-artifacts/ui-shots";
+const out = args.find((a) => !a.startsWith("--")) || "/root/avshots";
 const only = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",").filter(Boolean);
 const sizeOnly = (args.find((a) => a.startsWith("--size=")) ?? "").slice(7);
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync(`${process.cwd()}/node_modules/.bin/expo export --platform web --output-dir dist`, { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync(`${REPO}/node_modules/.bin/expo export --platform web --output-dir dist`, { cwd: appDir, stdio: "inherit", env: exportEnv() });
 }
 fs.mkdirSync(out, { recursive: true });
 const SIZES = { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
@@ -31,6 +33,8 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
   const page = await ctx.newPage();
   const errs = [];
+  const guard = guardCrashes(page);
+  const check = async (where) => { try { await guard.check(where); } catch (e) { crashed++; errs.push("CRASH " + String(e.message).slice(0, 200)); } };
   page.on("pageerror", (e) => errs.push(String(e)));
   // a busy box drops a navigation now and then: one more try before giving up
   const url = routeUrl(real.origin, t.route, skin);
@@ -38,11 +42,22 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   await page.waitForTimeout(500);
   let found = true;
   if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
+  for (const step of t.steps ?? []) {
+    const [kind, id, ...rest] = step.split("|");
+    const loc = page.locator(`[data-testid="${id}"]`).first();
+    if (kind === "click") await loc.click({ timeout: 5000 }).catch((e) => errs.push("click " + id + " " + String(e).slice(0, 80)));
+    else if (kind === "see") await loc.scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => errs.push("see " + id));
+    else if (kind === "fill") await loc.fill(rest.join("|")).catch((e) => errs.push("fill " + id));
+    await page.waitForTimeout(350);
+    await check("after " + step);
+  }
   await page.waitForTimeout(900);
+  await check("before the shot of " + t.id);
   const file = path.join(out, `${t.id.replace(PREFIX + "-", "")}-${skin}-${size}.png`);
   await page.screenshot({ path: file });
   console.log(`shot ${path.basename(file)} waitFor=${found}${errs.length ? " errors=" + errs.join(" | ").slice(0, 400) : ""}`);
   await ctx.close();
 }
 await browser.close(); real.close();
-process.exit(0);
+if (crashed > 0) console.log(`CRASHES: ${crashed}`);
+process.exit(crashed > 0 ? 1 : 0);

@@ -22,7 +22,7 @@ const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
 
 // ---- the host seam: fetching trees of text ---------------------------------------------------------------------------------------------------------------
 
-export interface TreeSource { kind: "git" | "local"; url?: string; path?: string; ref?: string; subdir?: string }
+export interface TreeSource { kind: "git" | "local"; url?: string; path?: string; ref?: string; subdir?: string; tokenHandle?: string }
 export interface TreeResult { files: Record<string, string>; revision: string; skipped: string[] }
 /** The host half: reads a git repository (https) or a folder into a map of text files. Never follows a symlink, skips binary files, bounds the size. */
 export interface PluginsHost {

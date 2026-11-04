@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, View, useWindowDimensions } from "react-native";
 import { ChatRightPane } from "./rightpane/ChatRightPane.tsx";
+import { CrewProvider } from "./crew/context.tsx";
 import type { ChatRightPaneData } from "./rightpane/data.tsx";
 import { Conversation } from "./conversation/Conversation.tsx";
 import type { ConversationData } from "./conversation/data.tsx";
@@ -32,11 +33,13 @@ export function ChatsPlace({ sidebar, conversation, pane, paneOpen = true, windo
   // The chat's own button toggles the same pane the pane's toggle does.
   const chat = useMemo<ConversationData>(() => ({ ...conversation, nav: { ...conversation.nav, togglePane: () => setOpen((o) => !o) } }), [conversation]);
   return (
-    <View testID="chats-place" style={st.root}>
-      <ChatsSidebarSlot data={sidebar} {...(window ? { window } : {})} />
-      <View testID="chats-place-chat" style={st.chat}><Conversation data={chat} /></View>
-      {wide ? <ChatRightPane data={pane} open={open} onToggle={() => setOpen((o) => !o)} {...(window ? { window } : {})} /> : null}
-    </View>
+    <CrewProvider call={conversation.call} threadId={conversation.threadId} onShow={() => setOpen(true)}>
+      <View testID="chats-place" style={st.root}>
+        <ChatsSidebarSlot data={sidebar} {...(window ? { window } : {})} />
+        <View testID="chats-place-chat" style={st.chat}><Conversation data={chat} /></View>
+        {wide ? <ChatRightPane data={pane} open={open} onToggle={() => setOpen((o) => !o)} {...(window ? { window } : {})} /> : null}
+      </View>
+    </CrewProvider>
   );
 }
 

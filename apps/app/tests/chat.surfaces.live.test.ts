@@ -8,6 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
+import { guardCrashes } from "./crash-guard.ts";
 import { vendor } from "../../../fixtures/model-vendor.ts";
 
 const PRELOAD = fileURLToPath(new URL("../../../fixtures/model-vendor-preload.mjs", import.meta.url));
@@ -32,13 +33,17 @@ for (const kind of ["team", "personal"] as const) {
     const page = await context.newPage();
     const errors: string[] = [];
     page.on("pageerror", (e) => errors.push(e.message));
+    // an error page or a React error fails the walk where it happens, by name (on 3464fa6b6 every loaded chat threw #310 and this walk only timed out waiting for the composer)
+    const guard = guardCrashes(page);
+    const named = (where: string) => async (e: unknown): Promise<never> => { await guard.check(where); throw e; };
     const shots = process.env["VYRE_CHAT_SURFACES_SHOTS"] ?? "/tmp/vyre-chat-surfaces-shots"; fs.mkdirSync(shots, { recursive: true });
     try {
       await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
       await page.getByTestId("claim-name").fill("Chat Owner"); await page.getByTestId("claim-username").fill("chatowner");
       await page.getByTestId("claim-password").fill("fixture password 123"); await page.getByTestId("claim-confirm").fill("fixture password 123");
       await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click(); await dismissOnboarding(page);
-      await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+      await page.getByTestId("shell").waitFor({ timeout: 30_000 }).catch(named("after sign-in"));
+      await guard.check("after sign-in");
       const token = await page.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string);
       const api = async (cap: string, data: unknown): Promise<any> => { // eslint-disable-line @typescript-eslint/no-explicit-any
         const r = await context.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token}` }, data });
@@ -51,12 +56,13 @@ for (const kind of ["team", "personal"] as const) {
       await api("agents.update", { agentId: assistant.agentId, patch: { model: "gpt-4o-mini" }, idempotencyKey: "cs-model" });
       const rec = (await api("records.create", { type: "contact", fields: { name: "Ada Lovelace" }, idempotencyKey: "cs-rec" })).record as { id: string };
 
-      // the record Chat tab: the right pane's overflow, then Chat
+      // the record's Ask: the pane beside the page, about the record
       await page.goto(`${web.origin}/records#subject=record:${rec.id}&type=contact`, { waitUntil: "load" });
-      await page.getByTestId("tab-more").waitFor({ timeout: 20_000 });
-      await page.getByTestId("tab-more").click(); await page.getByRole("menuitem", { name: "Chat", exact: true }).click();
-      const field = page.getByTestId("composer-field").first();
-      await field.waitFor({ timeout: 30_000 });
+      await page.getByTestId("record-ask").waitFor({ timeout: 20_000 }).catch(named("the record page"));
+      await page.getByTestId("record-ask").click();
+      const field = page.getByTestId("ask-pane-chat").getByTestId("composer-field").first();
+      await field.waitFor({ timeout: 30_000 }).catch(named("the record Ask pane"));
+      await guard.check("the record Ask pane, loaded");
       const ask = async (text: string): Promise<void> => { await field.fill(text); await field.press("Enter"); };
 
       // 1 a live reply streams into the shared conversation
@@ -83,24 +89,28 @@ for (const kind of ["team", "personal"] as const) {
       while (v.requests.length === seen) await new Promise((r) => setTimeout(r, 50));
       const stop = page.getByRole("button", { name: "Stop", exact: true }).first();
       const paneHasStop = await stop.waitFor({ timeout: 15_000 }).then(() => true, () => false);
+      await guard.check("the record Ask pane, working");
       await page.screenshot({ path: path.join(shots, `${kind}-record-chat-working-paper-desktop.png`) });
       if (paneHasStop) { await stop.click(); await page.getByRole("button", { name: "Stop", exact: true }).first().waitFor({ state: "detached", timeout: 20_000 }); }
       // 5 the same held turn in the Chats place: Working and Stop are on the composer there too
       const chatThread = (await api("chat.start", { kind: "chat", agentIds: [assistant.agentId], title: "Held chat", idempotencyKey: "cs-chat" })).thread.threadId as string;
       await page.goto(`${web.origin}/chat#subject=thread:${chatThread}`, { waitUntil: "load" });
       const chatField = page.getByTestId("composer-field").first();
-      await chatField.waitFor({ timeout: 30_000 });
+      await chatField.waitFor({ timeout: 30_000 }).catch(named("Chats, a conversation opening"));
+      await guard.check("Chats, a loaded conversation");
       v.script.push({ hold: true });
       const seenChat = v.requests.length;
       await chatField.fill("hold this one"); await chatField.press("Enter");
       while (v.requests.length === seenChat) await new Promise((r) => setTimeout(r, 50));
       const chatStop = page.getByRole("button", { name: "Stop", exact: true }).first();
-      await chatStop.waitFor({ timeout: 20_000 }).catch(async (e) => { await page.screenshot({ path: path.join(shots, `${kind}-chats-stop-missing.png`) }); throw e; });
+      await chatStop.waitFor({ timeout: 20_000 }).catch(async (e) => { await page.screenshot({ path: path.join(shots, `${kind}-chats-stop-missing.png`) }); return named("Chats, waiting for Stop")(e); });
+      await guard.check("Chats, working");
       await page.screenshot({ path: path.join(shots, `${kind}-chats-working-paper-desktop.png`) });
       await chatStop.click();
       for (const [skin, w, h] of [["paper", 1280, 900], ["graphite", 1280, 900], ["paper", 390, 844], ["graphite", 390, 844]] as const) {
         await page.setViewportSize({ width: w, height: h });
         await page.evaluate((s) => document.documentElement.setAttribute("data-mode", s === "graphite" ? "dark" : "light"), skin);
+        await guard.check(`Chats, ${skin} at ${w}`);
         await page.screenshot({ path: path.join(shots, `${kind}-record-chat-reply-${skin}-${w < 700 ? "phone" : "desktop"}.png`) });
       }
       await page.setViewportSize({ width: 1280, height: 900 }); await page.evaluate(() => document.documentElement.setAttribute("data-mode", "light"));

@@ -50,6 +50,7 @@ type Out = {
       base?: string;
       keyless?: boolean;
       spaceKey?: boolean;
+      keepsNothing?: boolean;
       aliases?: Array<string>;
       older?: Array<{
           ref: string;
@@ -110,6 +111,7 @@ type Out = {
         "code": "example",
         "driver": "anthropic",
         "itemId": "vit_a1b2c3",
+        "keepsNothing": true,
         "keyless": true,
         "kind": "api_key",
         "lastProbeAt": 1760000000000,

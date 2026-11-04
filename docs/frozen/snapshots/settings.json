@@ -1,7 +1,10 @@
 {
   "module": "settings",
   "capabilities": {
-    "settings.copy_profile@1": "6fa0910b4419200e0c6c101aed1e2a5abdf8a4cdb3e0b2a519fea1af4a50f8e4",
+    "settings.contact.status@1": "a0256c009d29a3547cb3be326ce2970c4602f8f0a60209e02ffdf1cb135182c2",
+    "settings.contact.verify_confirm@1": "a658ea6b2b3a9fd10c3aec8fe3e6e829becb1a3fa7ba9afd13d58bff788faa0f",
+    "settings.contact.verify_start@1": "d6f711bbf70e6cd434cc26508ae5ef9d0cd6a5cc6c4c0787a6c9bb603493565c",
+    "settings.copy_profile@1": "f3e3d63ec7a2b619c805fb85297a0e58ab05731f405f5a57fee68eb05fec7333",
     "settings.copy_source@1": "13e0a9e877fc71c872fa247b75afadb82a4afa1ab164c70d8ec3d62fa2577287",
     "settings.floor_set@1": "196e37b686b6a64650d9f6396cf31cd7af7234e065a39a9d97b519fe56967bf8",
     "settings.get@1": "b2e396c0ddaf615ec4c8f9b6ad4737f10a93e0d1156fbb7cc8a87969b8a57e85",
@@ -10,15 +13,19 @@
     "settings.kit.set_space@1": "383cdd3f67524c9ee734052e4c01e0f0a3c64c8ba9aa07407c09eb11f85240ad",
     "settings.list@1": "3466042323862ca9e4c5ab0a3116ac09c1b7d2cd3127c098bc46707c2f278605",
     "settings.pages@1": "9cac5b162fe3f5132634adaa25312d682827a2869f256a53fb047b35906b9570",
-    "settings.public_of@1": "7c6625f36bdb3a248259dd986af90f3845662207e36315bb4f86177cf1aa7fca",
-    "settings.reset@1": "388343e0bac7553bbcca77250384da256da422c4af4d105bfb2a5c370c7c4f0d",
+    "settings.public_of@1": "6efa60146892e931205d8b5e994697af6b4ef2db65a7c8f0ed0f248226465cf0",
+    "settings.reset@1": "fb1b2709f976c3d765f293431d160bb063c33500fd3db7bec8c87633de492c56",
     "settings.reset_space@1": "131c452d68779c7a755c6ade122e187e298ff4dac4750c89d5e78309de1a66fd",
     "settings.search@1": "fee1aa89471244f05b7774e017a54a13165901f16308a072f350edc4664a93de",
-    "settings.set@1": "fe411f5582c85a72434cbcc5101072c55c9a20e9bf59520a458488aeb9c85f65",
+    "settings.set@1": "bb66d4bd066d7666ca17bef82d01dccb297f5874daf7945633d369cef70c029d",
     "settings.set_space@1": "a33b6432ba5d4997c3bb78e47d312ac2449e41afcfdc1614e6b3974a219c8dc1"
   },
   "events": {
     "settings.changed": "21494486dd388c5f01060a6abb6944689173f6081de579a26132ea3906271d99",
+    "settings.contact_code_failed": "b9c3d4ec7080300a173f940b2a2152a95e367fd61a58a5a4454d286deeae1692",
+    "settings.contact_code_sent": "48cc8d333318504abe8eca84ecf1cdb96f57da49d6cfcf28fb390012cbd3279d",
+    "settings.contact_unverified": "9f9b16850b0b9406f2ff039fee1a27574536fba33582109bb09e81b210ea2100",
+    "settings.contact_verified": "0b1444287fe740cc0cf0fbbaea87366bd066cf6ecb3efee9aa530b5cb53063d0",
     "settings.floor_changed": "72d1beeb9f9cd86051f25c37bc1ed34add49eaed32440a493ad4292c7b7150b8"
   }
 }

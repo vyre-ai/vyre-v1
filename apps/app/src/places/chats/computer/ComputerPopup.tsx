@@ -13,6 +13,11 @@ import type { ComputerPopupData } from "./data.tsx";
 import { DEFAULT_INTENTS, MASKED_NOTE, hostLabel, NO_CAPTURE, captureLine, captureParts, mmss, options, orderedIntents, popupView, railItems, toggleIntent } from "./model.ts";
 import type { Capture, Intent, Recording } from "./model.ts";
 import { LiveScreen } from "./LiveScreen.tsx";
+import { ReachLink } from "../../../shell/reach/ReachLink.tsx";
+import { reach as reachOf } from "../../../shell/reach/reach.ts";
+import type { Item } from "../../../shell/reach/reach.ts";
+import { loadMachines } from "../../../machines/api.ts";
+import { machineItem, shellTarget } from "../../../shell/reach/viewer.ts";
 import { Desk, Icon, RailButton, SheetButton } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
@@ -71,6 +76,15 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
     void data.call("network.servers", {}).then((r) => { if (live) setHostName(hostLabel((r as { servers?: Array<{ serverId: string; name: string }> }).servers, nodeId)); }, () => undefined);
     return () => { live = false; };
   }, [nodeId, data.call]);
+  // where it runs is a link only when the person can go somewhere from it: an admin to the machine in the Console, its owner to This device, anyone else to a peek (reach)
+  const [machine, setMachine] = useState<Item | null>(null);
+  const reachData = data.reach;
+  useEffect(() => {
+    if (!nodeId || !reachData) { setMachine(null); return; }
+    let live = true;
+    void loadMachines(data.call).then((out) => { if (live) setMachine(machineItem(out, nodeId, reachData.nameOf, data.agent.name)); }, () => { if (live) setMachine(null); });
+    return () => { live = false; };
+  }, [nodeId, reachData, data.call, data.agent.name]);
 
   const recSecs = rec ? Math.max(0, Math.floor((data.clock().now - rec.startedAt) / 1000)) : null;
 
@@ -140,7 +154,7 @@ function PopupView({ initial }: { initial?: PopupInitial }): ReactElement {
           </View>
         ) : null}
         <View testID="popup-window" style={[st.win, view.screen === "mine" && st.winMine, rec !== null && st.winRec]}>
-          <View style={st.pillWrap} pointerEvents="none"><View testID="popup-pill" style={st.pill}><View style={[st.pillDot, view.screen === "mine" && st.pillMine, rec !== null && st.pillRec]} /><Text style={st.pillText}>{view.pill}</Text></View>{hostName ? <Text testID="popup-host" style={st.hostText}>{hostName}</Text> : null}</View>
+          <View style={st.pillWrap} pointerEvents={machine !== null ? "box-none" : "none"}><View testID="popup-pill" style={st.pill}><View style={[st.pillDot, view.screen === "mine" && st.pillMine, rec !== null && st.pillRec]} /><Text style={st.pillText}>{view.pill}</Text></View>{hostName ? (machine !== null && reachData ? <ReachLink r={reachOf(machine, reachData.viewer)} label={hostName} testID="popup-host" textStyle={st.hostText} deps={{ viewer: reachData.viewer, call: data.call, open: (t) => reachData.open(t) }} /> : <Text testID="popup-host" style={st.hostText}>{hostName}</Text>) : null}</View>
           <LiveScreen
             computerId={c.computerId} state={c.state} call={data.call} note={deps.note} spaceUrl={data.spaceUrl} display={data.display} now={() => data.clock().now} control={c.state === "takeover"}
             onIdlePress={() => { if (c.state === "asleep") void wake(deps, c.computerId, name); }} testID="popup-screen" streamTestID="popup-stream"
