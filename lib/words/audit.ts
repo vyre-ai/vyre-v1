@@ -85,7 +85,7 @@ export interface ActParts { /** the verb word the act was built from ("assign", 
 const PROVIDERS: Readonly<Record<string, string>> = { google: "Google", microsoft: "Microsoft", ms: "Microsoft", zoom: "Zoom", github: "GitHub", dropbox: "Dropbox", dropbox_sign: "Dropbox Sign", stripe: "Stripe", twilio: "Twilio", mailgun: "Mailgun", resend: "Resend", hubspot: "HubSpot", docusign: "DocuSign", documenso: "Documenso", telephony: "the phone service", git: "Git" };
 /** Modules that are a part of the Space's settings, not a thing: said as an area. */
 const AREAS: Readonly<Record<string, string>> = { access: "access settings", gate: "approval rules", governance: "governance settings", identity: "sign-in settings", network: "network settings", engine: "AI engine settings", company: "company settings", health: "health checks", memory: "memory", keys: "encryption keys", logs: "logs", console: "admin settings", providers: "AI providers", provider: "AI providers", mcp: "connected tools", settings: "settings", sync: "sync", retention: "retention rules", policy: "policy", notification: "notifications", notifications: "notifications", updates: "updates", spend: "spending limits", schema: "data model", report: "reports", reports: "reports", mail: "mail", vault: "the Vault", mailbox: "mail" };
-const STOP = new Set(["a", "as", "of", "to", "from", "in", "the", "for", "by", "on", "my", "mine", "out", "up"]);
+const STOP = new Set(["a", "as", "of", "to", "from", "in", "the", "for", "by", "on", "my", "mine", "out", "up", "space", "personal"]);
 
 const isVerbWord = (w: string): boolean => VERBS[w] !== undefined;
 const isParticiple = (w: string): boolean => PARTICIPLES[w] !== undefined;
