@@ -112,11 +112,11 @@ test("the data shelf keeps real rows and names the three absence states", () => 
 
 test("a run timeline shows an attempt and a child Run only from real fields", () => {
   assert.equal(attemptLine({ step: "send", state: "failed", attempt: 2, branch: "Lane A" }), "send · failed · attempt 2 · Lane A");
-  assert.equal(childRunLine({ runId: "run_child", attempt: 2 }), "Child run_child, attempt 2");
-  assert.equal(childRunLine({ runId: "run_8", lane: "A" }), "Lane A · child Run run_8");
-  assert.equal(childRunLine({ runId: "run_9", item: "3" }), "Item 3 · child Run run_9");
+  assert.equal(childRunLine({ runId: "run_child", attempt: 2 }), "Side run, attempt 2");
+  assert.equal(childRunLine({ runId: "run_8", lane: "A" }), "Lane A");
+  assert.equal(childRunLine({ runId: "run_9", item: "3" }), "Item 3");
   const lines = lineageLines("run_parent", [{ attempt: 2 }], [{ runId: "run_child", attempt: 2 }]);
-  assert.equal(lines?.children[0]?.text, "Child run_child, attempt 2");
+  assert.equal(lines?.children[0]?.text, "Side run, attempt 2");
   assert.equal(containerForChildren([{ id: "p", key: "parallel" }, { id: "s", key: "send_email" }]), "p");
   assert.equal(containerForChildren([{ id: "p", key: "parallel" }, { id: "l", key: "loop" }]), null);
   assert.equal(stepStatusChip("a", [], undefined, new Set()), null);
