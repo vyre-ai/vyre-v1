@@ -137,7 +137,6 @@ test("the Island says Working with the faces of the helpers on it, Needs you in 
   await press(find(root, "crew-island")); assert.equal(opened, 1);
   const working = await mount(createRoot, <CrewIsland status={status([M({ state: "working" })], T({ members: 1, working: 1, needsYou: 0, done: 0 }))} onPress={() => undefined} />);
   assert.equal(textOf(find(working, "crew-island-text")), "Working");
-  const { islandText } = await import("./model.ts");
   assert.equal(islandText(status([M({ id: "x", state: "needs_you" }), M({ id: "y", state: "needs_you" })], T({ needsYou: 2 }))), "2 helpers need you");
   const none = await mount(createRoot, <CrewIsland status={status([M({ state: "done" })], T({ members: 1, working: 0, needsYou: 0, done: 1 }))} onPress={() => undefined} />);
   assert.equal(find(none, "crew-island"), null);

@@ -3,7 +3,7 @@
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
-import { counts, nameOf, faceSeed } from "./model.ts";
+import { counts, faceSeed, islandText, nameOf } from "./model.ts";
 import type { CrewStatusOut } from "./model.ts";
 
 export function CrewIsland({ status, onPress }: { status: CrewStatusOut; onPress: () => void }): ReactElement | null {
