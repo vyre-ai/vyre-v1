@@ -287,3 +287,10 @@ test("pressing a figure of the totals puts the helpers in that order", async () 
   await press(find(root, "crew-sort-cost"));
   assert.deepEqual(order().slice(0, 2), ["thr_y", "thr_x"], "dearest first");
 });
+
+test("the turn's own status is not a step: it shows neither in the peek nor in the helper chat", async () => {
+  const call = async (cap: string): Promise<unknown> => (cap === "chat.messages.list" ? { messages: [{ blocks: [{ id: "x1", type: "turn_status", data: {}, state: "done" }, { id: "x2", type: "step", data: { title: "Read the price table" }, state: "done" }] }] } : cap === "chat.helper.notes" ? { notes: [] } : {});
+  const root = await mount(createRoot, <CrewPeek member={M({ id: "thr_s", state: "working" })} call={call} onBack={() => undefined} onOpenChat={() => undefined} onRefresh={() => undefined} />);
+  await flush();
+  assert.ok(find(root, "crew-step-x2")); assert.equal(find(root, "crew-step-x1"), null);
+});

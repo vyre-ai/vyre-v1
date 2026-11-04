@@ -155,27 +155,31 @@ test("running helpers: a held request, Change model, a person messaging a helper
       await page.locator('[data-testid^="crew-chip-"][role="button"]').first().click({ timeout: 15_000 });
       await page.getByTestId("crew-peek").first().waitFor({ timeout: 20_000 });
       await shoot(page, `crew-peek1-${mode}-${size}`);
-      // Change model on the running helper
-      await page.getByTestId("crew-peek-change-model").click({ timeout: 10_000 });
-      await page.locator('[data-testid^="row-crew-change-"]').first().waitFor({ timeout: 20_000 });
-      await shoot(page, `crewmodels-choices-${mode}-${size}`);
-      await page.locator('[data-testid^="row-crew-change-"]').first().click();
-      await page.getByTestId("crew-change-confirm").waitFor({ timeout: 10_000 });
-      await shoot(page, `crewmodels-confirm-${mode}-${size}`);
-      await page.getByTestId("crew-change-go").click();
-      await page.waitForTimeout(3000);
-      // the helper chat: ask it something, it answers the person
-      await page.getByTestId("crew-peek-open").click({ timeout: 15_000 });
-      await page.getByText(/Brief from/).first().waitFor({ timeout: 20_000 });
-      await page.getByLabel(/^Ask .* something$/).first().fill("Keep it short.", { timeout: 15_000 });
-      await page.getByTestId("helper-ask-send").click();
-      await page.getByText("Noted. I will keep it short.").first().waitFor({ timeout: 100_000 }).catch(async (e) => { await shoot(page, `FAILED-reply-${mode}`); throw e; });
-      assert.ok(await page.getByText(/replying to you/).count() > 0, "the helper says whom it answers");
-      await shoot(page, `crew-chat1-ask-${mode}-${size}`);
-      // the chat above sees what the person told the helper
-      await page.getByText("Vendor call and quotes", { exact: false }).first().click({ timeout: 10_000 }).catch(() => undefined);
-      await page.getByText(/^To ".*": Keep it short\.$/).first().waitFor({ timeout: 30_000 }).catch(async (e) => { await shoot(page, `FAILED-to-line-${mode}`); throw e; });
-      await shoot(page, `crew-t27-toline-${mode}-${size}`);
+      if (mode === "light") {
+        // Change model on the running helper
+        await page.getByTestId("crew-peek-change-model").click({ timeout: 10_000 });
+        await page.locator('[data-testid^="row-crew-change-"]').first().waitFor({ timeout: 20_000 });
+        await shoot(page, `crewmodels-choices-${mode}-${size}`);
+        await page.locator('[data-testid^="row-crew-change-"]').first().click();
+        await page.getByTestId("crew-change-confirm").waitFor({ timeout: 10_000 });
+        await shoot(page, `crewmodels-confirm-${mode}-${size}`);
+        await page.getByTestId("crew-change-go").click();
+        await page.waitForTimeout(3000);
+        // the helper chat: ask it something, it answers the person
+        await page.getByTestId("crew-peek-open").click({ timeout: 15_000 });
+        await page.getByText(/Brief from/).first().waitFor({ timeout: 20_000 });
+        await page.getByLabel(/^Ask .* something$/).first().fill("Keep it short.", { timeout: 15_000 });
+        await page.getByTestId("helper-ask-send").click();
+        await page.getByText("Noted. I will keep it short.").first().waitFor({ timeout: 100_000 }).catch(async (e) => { await shoot(page, `FAILED-reply-${mode}`); throw e; });
+        assert.ok(await page.getByText(/replying to you/).count() > 0, "the helper says whom it answers");
+        await shoot(page, `crew-chat1-ask-${mode}-${size}`);
+      }
+      if (mode === "light") {
+        // the chat above sees what the person told the helper
+        await page.getByText("Vendor call and quotes", { exact: false }).first().click({ timeout: 10_000 }).catch(() => undefined);
+        await page.getByText(/^To ".*": Keep it short\.$/).first().waitFor({ timeout: 30_000 }).catch(async (e) => { await shoot(page, `FAILED-to-line-${mode}`); throw e; });
+        await shoot(page, `crew-t27-toline-${mode}-${size}`);
+      }
       await ctx.close();
     }
   } finally { await browser.close(); web.close(); await stop(d); }

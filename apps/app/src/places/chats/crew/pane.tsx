@@ -15,6 +15,8 @@ import type { Call } from "./status.ts";
 
 const web = Platform.OS === "web";
 const SHOW: Array<{ key: Show; label: string }> = [{ key: "all", label: "All" }, { key: "working", label: "Working" }, { key: "needs_you", label: "Needs you" }, { key: "done", label: "Done" }, { key: "failed", label: "Failed" }];
+/** Blocks of a helper's chat that are bookkeeping, not steps a person reads. */
+const NOT_STEPS = new Set(["helper_note", "turn_status", "tool_steps", "link_card", "question", "plan"]);
 const NONE: Record<Show, string> = { all: "No helpers yet.", working: "No helper is working right now.", needs_you: "No helper needs you.", done: "No helper is done yet.", failed: "No helper failed." };
 const BAR = { working: "var(--accent)", needs_you: "var(--warn)", done: "var(--accent)", failed: "var(--ink-4)", stopped: "var(--ink-4)" } as const;
 
@@ -148,7 +150,7 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
       // the steps it has taken, in plain words: the blocks of its own chat that are work, not notes
       void Promise.resolve(call("chat.messages.list", { threadId: member.id })).then((r) => {
         if (dead) return;
-        const blocks = ((r as { messages?: Array<{ blocks: Array<{ id: string; type: string; data?: unknown; state?: string }> }> } | undefined)?.messages ?? []).flatMap((m) => m.blocks).filter((b) => b.type !== "helper_note");
+        const blocks = ((r as { messages?: Array<{ blocks: Array<{ id: string; type: string; data?: unknown; state?: string }> }> } | undefined)?.messages ?? []).flatMap((m) => m.blocks).filter((b) => !NOT_STEPS.has(b.type));
         setSteps(blocks.map((b) => { const l = blockLine(b as never); return { id: b.id, title: l.title, sub: l.sub, ...(b.state ? { state: b.state } : {}) }; }));
       }, () => undefined);
     };

@@ -20,6 +20,8 @@ type MessagesOut = CapMap["chat.messages.list"]["out"];
 import { HelperHooks } from "./HelperHooks.tsx";
 import type { HelperHooksOut } from "./HelperHooks.tsx";
 export const HELPER_SCREEN = "chats.helper-chat";
+/** Blocks that are bookkeeping, not steps a person reads: the notes between helper and agent, the turn's own status. */
+const BOOKKEEPING = new Set(["helper_note", "turn_status", "tool_steps"]);
 
 export function HelperChat({ data }: { data?: HelperChatData }): ReactElement {
   const ctx = useOptionalHelperData();
@@ -88,13 +90,13 @@ function HelperView(): ReactElement {
 
   const feed: ReactElement[] = [];
   const noteOf = (m: Message): { data: Record<string, unknown> } | undefined => { const b = m.blocks.find((x) => x.type === "helper_note"); return b ? { data: (b.data ?? {}) as Record<string, unknown> } : undefined; };
-  const work = messages.filter((m) => m.blocks.some((b) => b.type !== "helper_note"));
+  const work = messages.filter((m) => m.blocks.some((b) => !BOOKKEEPING.has(b.type)));
   const summary = workSummary(thread, messages, status);
   let workShown = false;
   for (const m of messages) {
     const who = data.nameOf(m.author.id);
     const note = noteOf(m);
-    const hasWork = m.blocks.some((b) => b.type !== "helper_note");
+    const hasWork = m.blocks.some((b) => !BOOKKEEPING.has(b.type));
     // the first message is the brief the helper was given, not the helper speaking: a block labelled with who gave it
     if (m === messages[0]) {
       feed.push(
@@ -187,7 +189,7 @@ function Work({ summary, messages }: { summary: string; messages: readonly Messa
   const lines: ReactElement[] = [];
   for (const m of messages) {
     for (const b of m.blocks) {
-      if (b.type === "helper_note") continue;
+      if (BOOKKEEPING.has(b.type)) continue;
       const l = blockLine(b);
       lines.push(
         <View key={b.id} testID={`step-${b.id}`} style={st.step}>
