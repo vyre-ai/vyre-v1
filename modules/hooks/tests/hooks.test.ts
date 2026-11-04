@@ -245,7 +245,8 @@ test("runs.list since, outcomes and scope space: an admin reads every Space hook
   const asMaya = await w.call("hooks.runs.list", { scope: "space", since, outcomes: bad, limit: 200 }, maya);
   assert.ok(asMaya.runs.every((r: { hookId: string; threadId?: string }) => r.hookId === spaceHook.id && r.threadId !== "thr_b"), "a chat Maya cannot use stays hidden");
   assert.ok(asMaya.runs.length < all.runs.length);
-  const plain = await w.call("hooks.runs.list", { since, outcomes: bad }, maya);
+  // a person's own read names the hook (l-hooks: a chat they can use or a hook they may change)
+  const plain = await w.call("hooks.runs.list", { hookId: mayaHook.id, since, outcomes: bad }, maya);
   assert.ok(plain.runs.some((r: { hookId: string }) => r.hookId === mayaHook.id), "Maya still sees her own hook's runs");
   assert.ok(!plain.runs.some((r: { threadId?: string }) => r.threadId === "thr_b"));
   const limited = await w.call("hooks.runs.list", { scope: "space", since, outcomes: bad, limit: 1 }, admin);

@@ -3,7 +3,7 @@
 //   actions: nothing an agent makes can loosen a Space or person hook, skip the Gate, approve a held act or reach past the agent's own reach, because a hook can only stop work, add a note or run an
 //   action through the normal pipeline as the agent. An admin can turn agent-made hooks off for the whole Space.
 import { HOOK_EVENTS, HOOK_KINDS, HOOK_SCOPES, plainLine, redact } from "../../../lib/hooks.ts";
-import { isTrustedService } from "../../../lib/trust.ts";
+import { isTenantService, isTrustedService } from "../../../lib/trust.ts";
 import type { HookFire } from "../../../lib/hooks.ts";
 import { ACTION_DENIED, fire as fireHooks } from "../eval.ts";
 import { addPass, PASS_MS, agentHooksOn, allHooks, ensure, helpersActive, hookById, link, nextSeq, parentOf, raise, setAgentHooks } from "../projections.ts";
@@ -12,7 +12,7 @@ import type { HooksCtx, Rec, Spec } from "../projections.ts";
 type Row = Record<string, unknown>;
 export const MAX_AGENT_HOOKS = 30;
 
-interface Actor { id: string; kind: "person" | "agent" | "service"; asker: string; admin: boolean }
+interface Actor { id: string; kind: "person" | "agent" | "trusted"; asker: string; admin: boolean }
 /**
  * Who is calling, and whether they may use hooks at all. Every trust decision is lib/trust.ts: a service the host runs (svc_host, svc_engine ...) is trusted, a service a tenant can make (an Automation's
  * svc_<hex>, a form, a site) never is, and any other principal kind is refused. What a trusted service may do:
@@ -22,10 +22,11 @@ interface Actor { id: string; kind: "person" | "agent" | "service"; asker: strin
  */
 function actorOf(ctx: HooksCtx, svc: "none" | "read" | "fire" = "none"): Actor {
   const p = ctx.principal;
-  if (p.kind === "service") {
-    if (!isTrustedService(p as never)) raise(ctx, "permission.no_grant", "That service may not use hooks.");
+  // every service principal is one of the two kinds lib/trust.ts names: a tenant's (refused) or the host's own (trusted)
+  if (isTenantService(p as never)) raise(ctx, "permission.no_grant", "That service may not use hooks.");
+  if (isTrustedService(p as never)) {
     if (svc === "none") raise(ctx, "permission.no_grant", "Hooks are set by people and their agents, not by a service.");
-    return { id: p.id, kind: "service", asker: "", admin: false };
+    return { id: p.id, kind: "trusted", asker: "", admin: false };
   }
   if (p.kind !== "person" && p.kind !== "agent") raise(ctx, "permission.no_grant", "Hooks are for people and their agents.");
   const kind = p.kind === "agent" ? "agent" : "person";
@@ -172,7 +173,7 @@ export async function list(ctx: HooksCtx, i: { scope?: string; threadId?: string
   const rows = allHooks(ctx).filter((h) => {
     if (i.scope && h.scope !== i.scope) return false;
     if (h.scope === "space") return true;
-    if (h.scope === "person") return h.personId === a.asker || a.kind === "service";
+    if (h.scope === "person") return h.personId === a.asker || a.kind === "trusted";
     if (h.scope === "agent") return i.agentId !== undefined ? h.agentId === i.agentId : h.agentId === a.id || h.forPerson === a.asker || h.madeBy === a.id;
     if (!i.threadId) return h.madeBy === a.id || h.forPerson === a.asker;
     return h.threadId === i.threadId || (h.scope === "run" && h.threadId !== null && parentOf(ctx, i.threadId) === h.threadId);
@@ -217,8 +218,12 @@ const RUN_OUTCOMES = ["ok", "blocked", "note", "error", "timeout", "skipped", "a
 export async function runsList(ctx: HooksCtx, i: { hookId?: string; threadId?: string; limit?: number; since?: number; outcomes?: string[]; scope?: string }): Promise<{ runs: Row[] }> {
   ensure(ctx.db);
   const a = actorOf(ctx, "read");
-  // a chat named must be one the caller can use (l-hooks); with none named, each run is filtered below
-  if (a.kind !== "service" && i.threadId && !(await mayUseThread(ctx, i.threadId))) raise(ctx, "permission.no_grant", "That chat is not one you can use.");
+  // a person or an agent names what they read (l-hooks): a chat they can use, a hook they may change, or the Space-wide read (l-consolidate), whose runs are filtered below to what they could see anyway
+  if (a.kind !== "trusted") {
+    if (i.threadId) { if (!(await mayUseThread(ctx, i.threadId))) raise(ctx, "permission.no_grant", "That chat is not one you can use."); }
+    else if (i.hookId) { const h = hookById(ctx, i.hookId); if (!h || !mayChange(h, a)) raise(ctx, "permission.no_grant", "Name a chat you can use, or a hook you may change."); }
+    else if (i.scope !== "space" && !a.admin) raise(ctx, "permission.no_grant", "Name a chat you can use, or a hook you may change.");   // an admin reads the Console list unnamed
+  }
   const outcomes = (i.outcomes ?? []).filter((o) => RUN_OUTCOMES.includes(o));
   const where = [i.hookId ? "hook_id = ?" : "", i.threadId ? "thread_id = ?" : "", i.since !== undefined ? "at >= ?" : "", i.outcomes ? `outcome IN (${outcomes.length ? outcomes.map(() => "?").join(", ") : "NULL"})` : ""].filter(Boolean);
   const args = [i.hookId, i.threadId, i.since].filter((x): x is string | number => x !== undefined);
@@ -229,7 +234,7 @@ export async function runsList(ctx: HooksCtx, i: { hookId?: string; threadId?: s
   const seen = async (r: Row): Promise<boolean> => {
     const h = hooks.get(String(r["hook_id"]));
     if (!h) return false;
-    if (a.kind === "service") return i.scope !== "space" || h.scope === "space";   // a trusted service reads any (lib/trust.ts)
+    if (a.kind === "trusted") return i.scope !== "space" || h.scope === "space";   // a trusted service reads any (lib/trust.ts)
     if (i.scope === "space" && h.scope !== "space") return false;
     if (h.scope === "space") return a.admin || !r["thread_id"] || (await mayUse(String(r["thread_id"])));
     if (h.scope === "person") return h.personId === a.asker;
@@ -262,12 +267,12 @@ export async function fire(ctx: HooksCtx, i: Omit<HookFire, "asker"> & { asker?:
   ensure(ctx.db);
   const a = actorOf(ctx, "fire");
   // a trusted service (the engine) names the person whose turn it is; a person or an agent can only ask for themselves, and only about an agent they can see
-  if (a.kind === "service") { if (!i.asker || !/^usr_/.test(i.asker)) raise(ctx, "validation.bad_input", "Name the person whose turn it is."); }
+  if (a.kind === "trusted") { if (!i.asker || !/^usr_/.test(i.asker)) raise(ctx, "validation.bad_input", "Name the person whose turn it is."); }
   else {
     if (i.asker !== undefined && i.asker !== a.asker) raise(ctx, "permission.no_grant", "You can only ask about your own turns.");
     if (ctx.call && a.kind === "person") { try { await ctx.call("agents.get", { agentId: i.agentId }); } catch { raise(ctx, "permission.no_grant", "That agent is not one you can use."); } }
   }
-  const asker = a.kind === "service" ? i.asker! : a.asker;
+  const asker = a.kind === "trusted" ? i.asker! : a.asker;
   return fireHooks(ctx, { ...i, asker });
 }
 export { link, helpersActive };
