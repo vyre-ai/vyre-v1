@@ -359,3 +359,16 @@ test("when an agent changes the page, a quiet bar appears on its own (no reload 
     assert.match(textOf(find(root, "overview-notice")), /Docs added a live goal block/);
   } finally { off(); }
 });
+
+test("the shell's tab body, ProjectOverview, opens the page for its project with the person's edit access", async () => {
+  const off = installDom();
+  try {
+    const { ProjectOverview } = await import("./index.tsx");
+    const s = createSampleOverview();
+    const space = { id: "spc_1", kind: "team" as const, name: "Northwind" };
+    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><ProjectOverview projectId="prj_rivera" space={space} canEdit={false} /></ProjectPageDataProvider>);
+    await wait(() => find(root, "project-overview") !== null);
+    assert.equal((s.calls.find((c) => c.cap === "projects.overview_doc.get")!.input as { projectId: string }).projectId, "prj_rivera");
+    assert.equal(find(root, "prop-add"), null, "canEdit false: no controls");
+  } finally { off(); }
+});
