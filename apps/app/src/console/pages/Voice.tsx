@@ -79,8 +79,8 @@ export function VoiceSettings(): ReactElement {
           {s.set && me.data.providers.length > 1 ? (
             <Row id="voice-provider" title="Provider for everyone" note={me.data.providers.map((p) => `${p.name}${p.key === s.provider ? " (in use)" : keyed.includes(p.key) ? "" : " (no key yet)"}`).join(" · ")} trailing={
               <Actions>
-                {me.data.providers.filter((p) => p.key !== s.provider).map((p) => (
                 {/* ui-rows-lint: not a list (the buttons of one row, one per other provider) */}
+                {me.data.providers.filter((p) => p.key !== s.provider).map((p) => (
                   <Button key={p.key} label={keyed.includes(p.key) ? `Use ${p.name}` : `Add ${p.name} key`} disabled={action.busy} testID={`voice-use-${p.key}`}
                     onPress={() => (keyed.includes(p.key) ? void action.run("talk.space.configure", { provider: p.key }, `${p.name} covers everyone now`) : (setAdding(p.key), setKey("")))} />
                 ))}
