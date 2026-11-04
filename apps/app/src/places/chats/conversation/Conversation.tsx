@@ -60,6 +60,8 @@ import { FaceButton, Glyph, IconButton, RenameField, TextButton } from "./parts.
 import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine } from "./hops.ts";
 import { addedAgentMentions, askPost, pickerAgents, unansweredOwn } from "./askagent.ts";
 import { MemorySwitch } from "./memory-switch.tsx";
+import { SWITCH_TITLE, hasSwitch } from "../thread-replies/model.ts";
+import { useReplySwitch } from "../thread-replies/ThreadSwitch.tsx";
 import type { AgentMeta } from "./askagent.ts";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import { offlineLine } from "../agentpage/model.ts";
@@ -89,7 +91,7 @@ function useReplies(threadId: string): Map<string, ReplySummary> {
   const { screens } = useConversationData();
   const q = useMemo(() => { try { return screens.query(REPLIES_SCREEN, "threads", { threadId }) as LiveQuery<ThreadsOut>; } catch { return NOT_READ; } }, [screens, threadId]);
   const snap = useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
-  return useMemo(() => (snap.status === "ready" ? replySummaries(snap.data.threads) : NO_REPLIES), [snap]);
+  return useMemo(() => (snap.status === "ready" ? replySummaries(snap.data.threads, { empty: true }) : NO_REPLIES), [snap]);
 }
 
 /** `compact` is for a conversation inside another screen (the onboarding Assistant): just the messages and the composer, no title bar with members, search and side-panel buttons. */
@@ -199,6 +201,7 @@ function ConversationView(): ReactElement {
   const memoryEntries = useMemoryEntries();
   const threadQ = useScreenQuery<ThreadOut>(CONVERSATION_SCREEN, "thread", { threadId: data.threadId });
   const messagesQ = useScreenQuery<MessagesOut>(CONVERSATION_SCREEN, "messages", { threadId: data.threadId });
+  const repliesSwitch = useReplySwitch(data, data.threadId, threadQ.status === "ready" ? threadQ.data.thread.agentRepliesInThreads : undefined);
   const helpersQ = useScreenQuery<HelpersOut>(CONVERSATION_SCREEN, "helpers", { threadId: data.threadId });
   const [shown, setShown] = useState(WINDOW);
   const [older, setOlder] = useState<Message[]>([]);
@@ -234,7 +237,7 @@ function ConversationView(): ReactElement {
     return () => clearTimeout(t);
   }, [data.focusN, data.focus]);
   const replies = useReplies(data.threadId);
-  const accounts = useAccounts(data, useConnectVersion());
+    const accounts = useAccounts(data, useConnectVersion());
   const [modeOver, setModeOver] = useState<ChatMode | null>(null);
   const [picker, setPicker] = useState<{ id: string; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -448,6 +451,7 @@ function ConversationView(): ReactElement {
   const moreMenu = (x: number, y: number): void => {
     const items: MenuEntry[] = [
       { label: "Plan Mode", checked: mode === "plan", onSelect: () => chooseChatMode(mode === "plan" ? "ask" : "plan") },
+      ...(hasSwitch(thread) && repliesSwitch.on !== null ? [{ label: SWITCH_TITLE, checked: repliesSwitch.on, onSelect: () => repliesSwitch.set(!repliesSwitch.on) } as MenuEntry] : []),
       ...(lead ? [{ label: `Open ${nameOf(lead.agentId)}'s Page`, onSelect: () => data.nav.openAgent(lead.agentId) } as MenuEntry] : []),
       ...connectEntries(thread, data.nav),
       { separator: true } as MenuEntry,
@@ -489,8 +493,9 @@ function ConversationView(): ReactElement {
     },
     setPinned: (id, pinned) => void act.setPinned(data, id, pinned).catch(fail("Could not pin it.")),
     react: (id, emoji, remove) => void act.react(data, id, emoji, remove).catch(fail("Could not react.")),
-    openThread: (id) => void act.openMessageThread(data, id).then((tid) => data.nav.openThread(tid), fail("Could not open the replies.")),
+    openThread: (id) => void act.openMessageThread(data, id).then((tid) => (data.nav.openReplies && thread.kind !== "thread" ? data.nav.openReplies(tid) : data.nav.openThread(tid)), fail("Could not open the replies.")),
     remove: (id) => void act.deleteMessage(data, id).catch(fail("Could not delete it.")),
+    ...(data.alsoSent ? { alsoSent: data.alsoSent } : {}),
     openAgent: data.nav.openAgent,
     openBeside: data.nav.openBeside,
     ...(data.nav.openGoal ? { openGoal: data.nav.openGoal } : {}),

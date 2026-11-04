@@ -15,6 +15,8 @@ export interface ConversationNav {
   openAgent(agentId: string): void;
   /** A helper from the Helpers list, or a thread from "Open thread". With a message id the chat opens on that message and marks it. */
   openThread(threadId: string, messageId?: string): void;
+  /** A thread under a message of a chat or channel, from the footer under the message or "Reply in thread": beside the chat on a wide screen, a full-screen sheet on a phone. Left out where the shell cannot: the thread then opens as a chat of its own. */
+  openReplies?(threadId: string): void;
   /** Search every chat (the page of results). Left out where the shell has no such page. */
   openSearch?(query: string): void;
   /** A reply's Details: the right pane opens on its Details tab. Left out where the shell has no right pane. */
@@ -125,6 +127,8 @@ export interface ConversationData {
   activity?: { events: readonly import("./model.ts").Message[]; show: "all" | "comments" | "updates" };
   /** The composer's words, in place of the chat's. */
   placeholder?: string;
+  /** In a thread: the messages that were also sent to the chat. They carry "Also sent to the chat". */
+  alsoSent?: ReadonlySet<string>;
   /** What the chat's memory surfaces read and write (Used N memories, quote cards, Learned lines, underlined subjects, the message menu's memory items). Left out where the shell has none: every surface then draws nothing. */
   memory?: ChatMemoryData;
 }

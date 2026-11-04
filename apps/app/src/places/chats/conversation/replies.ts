@@ -11,13 +11,13 @@ interface ThreadLike {
   repliers?: readonly { kind: string; id: string }[] | undefined; unread?: number | undefined; muted?: boolean | undefined;
 }
 
-/** The reply threads of a chat by the message each hangs off. A thread nobody has written in yet draws no line. */
-export function replySummaries(threads: readonly ThreadLike[]): Map<string, ReplySummary> {
+/** The reply threads of a chat by the message each hangs off. A thread nobody has written in yet draws no line, unless `empty` keeps it so a footer can show an agent writing in it. */
+export function replySummaries(threads: readonly ThreadLike[], o: { empty?: boolean } = {}): Map<string, ReplySummary> {
   const out = new Map<string, ReplySummary>();
   for (const t of threads) {
-    if (t.kind !== "thread" || !t.parentMessageId || !t.replyCount) continue;
+    if (t.kind !== "thread" || !t.parentMessageId || (!t.replyCount && o.empty !== true)) continue;
     out.set(t.parentMessageId, {
-      threadId: t.threadId, count: t.replyCount, ...(t.lastMessageAt !== undefined ? { lastAt: t.lastMessageAt } : {}),
+      threadId: t.threadId, count: t.replyCount ?? 0, ...(t.lastMessageAt !== undefined ? { lastAt: t.lastMessageAt } : {}),
       people: (t.repliers ?? []).slice(0, 3).map((r) => ({ id: r.id, kind: r.kind === "agent" ? "agent" : "person" })), unread: t.muted ? 0 : t.unread ?? 0, muted: t.muted === true,
     });
   }

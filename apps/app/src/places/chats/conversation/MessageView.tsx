@@ -68,9 +68,10 @@ import type { ConversationData } from "./data.tsx";
 import type { GlyphName } from "./parts.tsx";
 import { pokeLine, pokedBy, reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isSystemLine, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
-import { ReplyLine } from "./ReplyLine.tsx";
 import { MARK } from "./marks.ts";
 import type { ReplySummary } from "./replies.ts";
+import { ThreadFooter } from "../thread-replies/ThreadFooter.tsx";
+import { AlsoSentMark } from "../thread-replies/AlsoSentMark.tsx";
 import type { Clock } from "../rightpane/model.ts";
 
 /** A principal id left in someone's words (an agent printed `usr_...`) shows as the name it stands for, when the Space knows it. */
@@ -89,6 +90,8 @@ export interface MessageActions {
   /** Only people talk here: no agent is in this chat. */
   humanChat?: boolean;
   openThread(messageId: string): void;
+  /** In a thread: the messages that were also sent to the chat (a copy from this thread is there). They carry the "Also sent to the chat" mark. */
+  alsoSent?: ReadonlySet<string>;
   remove(messageId: string): void;
   openAgent(agentId: string): void;
   openBeside(kind: string, id: string): void;
@@ -322,7 +325,7 @@ function ActionSheet({ open, entries, onClose }: { open: boolean; entries: reado
 /** The line under a message with a thread; a press opens the thread beside the chat. */
 function Replies({ m, replies, actions, mine }: { m: Message; replies: MessageViewProps["replies"]; actions: MessageActions; mine: boolean }): ReactElement | null {
   if (!replies) return null;
-  return <ReplyLine s={replies.s} clock={replies.clock} nameOf={actions.nameOf ?? unnamed} mine={mine} testID={`replies-${m.messageId}`} onOpen={() => actions.openThread(m.messageId)} />;
+  return <ThreadFooter s={replies.s} threadId={replies.s.threadId} clock={replies.clock} nameOf={actions.nameOf ?? unnamed} mine={mine} testID={`replies-${m.messageId}`} onOpen={() => actions.openThread(m.messageId)} />;
 }
 
 function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { item: Extract<Item, { kind: "me" }> }): ReactElement {
@@ -377,6 +380,7 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
         </View>
       ) : null}
       <Reactions m={m} a={actions} mine />
+      {actions.alsoSent?.has(m.messageId) ? <AlsoSentMark messageId={m.messageId} mine /> : null}
       <Replies m={m} replies={replies} actions={actions} mine />
       <LearnedLines messageId={m.messageId} />
     </View>
@@ -509,6 +513,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         </Pressable>
       ) : null}
       <Reactions m={m} a={actions} mine={false} />
+      {actions.alsoSent?.has(m.messageId) ? <AlsoSentMark messageId={m.messageId} /> : null}
       <Replies m={m} replies={replies} actions={actions} mine={false} />
       <LearnedLines messageId={m.messageId} />
       {m.pinned ? <Text testID={`pinned-${m.messageId}`} style={st.edited}>pinned</Text> : null}
