@@ -48,7 +48,8 @@ const st = StyleSheet.create({
   markText: { fontSize: 13, color: "var(--ink-2)" as string },
   title: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
   sub: { fontSize: 12, color: "var(--ink-3)" as string },
-  why: { fontSize: 12, color: "var(--danger)" as string, marginTop: 1 },
+  // the failure line sits under its run's own text: the row's 8 px inset, the 28 px tile and its 10 px gap
+  why: { fontSize: 12, lineHeight: 16, color: "var(--danger)" as string, marginLeft: 46, marginRight: 8, marginTop: -10, marginBottom: 8 },
   state: { fontSize: 12.5, color: "var(--ink-3)" as string },
   bad: { color: "var(--danger)" as string }, ok: { color: "var(--ok)" as string }, accent: { color: "var(--accent)" as string },
   card: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6, marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string },
