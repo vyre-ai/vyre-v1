@@ -92,12 +92,12 @@ export function CrewStrip({ members, totals, selectedId, parentName, merge, onPe
 }): ReactElement | null {
   const live = totals.working + totals.needsYou > 0;
   const now = useNow(live);
+  // Review all is the primary button until the crew has been looked at; then it reads Reviewed and Merge is the primary
+  const [reviewed, setReviewed] = useState(false);
+  const winW = useWindowDimensions().width;   // hooks above the early return: they run on every render (React error 310)
   if (members.length === 0) return null;
   const tone = stripTone(totals);
   ensureCss();
-  // Review all is the primary button until the crew has been looked at; then it reads Reviewed and Merge is the primary
-  const [reviewed, setReviewed] = useState(false);
-  const winW = useWindowDimensions().width;
   const compactHead = winW > 0 && winW < 640;
   const mergeButtons = merge ? (
     <>
