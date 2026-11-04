@@ -1,19 +1,13 @@
-// Settings > Computers: the list (this computer, servers by nickname, online dot, what runs there, Remove), the one command, and the steps of the Add a server sheet.
+// Add a server, the one flow (Console, Machines and Settings, This device): the one command, the steps of the sheet, and which capabilities each scope calls.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AddServerSheet, ComputersBody, ComputersSection } from "./Computers.tsx";
-import { SettingsDataProvider } from "./data.tsx";
-import { addressKind, emptySheet, factsLine, joinCommand, peerServerCommand, phaseOf, runsLine, validNickname } from "./computers-model.ts";
-import type { HostInfo, ServerInfo } from "./computers-model.ts";
-import { createSampleSettings, northwind } from "./sample.ts";
+import { AddServerSheet, addCalls } from "./AddServer.tsx";
+import { addressKind, emptySheet, factsLine, joinCommand, peerServerCommand, phaseOf, runsLine, validNickname } from "../places/settings/computers-model.ts";
+import type { ServerInfo } from "../places/settings/computers-model.ts";
 
-const here: HostInfo = { hostId: "this", kind: "this", name: "This computer", online: true, canRun: false, runs: 0, reason: "No Docker" };
-const box: HostInfo = { hostId: "srv_home", kind: "server", name: "home-box", online: true, canRun: true, runs: 2 };
 const server = (o: Partial<ServerInfo> = {}): ServerInfo => ({ serverId: "srv_home", name: "home-box", state: "healthy", enrollment: "approved", facts: { os: "linux", arch: "x64", docker: true, version: "1" }, ...o });
 const noop = (): void => undefined;
-const body = (hosts: HostInfo[], servers: ServerInfo[], removing: string | null = null): string =>
-  renderToStaticMarkup(<ComputersBody hosts={hosts} servers={servers} removing={removing} onAdd={noop} onAskRemove={noop} onRemove={noop} />).replaceAll("<!-- -->", "");
 
 test("the command carries the address and the code, and a server's facts read as one short line", () => {
   const cmd = joinCommand("https://home.example", "VYRE-AB12-CD34");
@@ -29,23 +23,6 @@ test("the command carries the address and the code, and a server's facts read as
   assert.equal(runsLine({ runs: 0, canRun: false, reason: "No Docker" }), "No Docker");
   assert.equal(runsLine({ runs: 0, canRun: true }), "");
   assert.deepEqual(["home-box", "x", "My Mac 2", "", " ", "-no", "a".repeat(41)].map(validNickname), [true, true, true, false, false, false, false]);
-});
-
-test("the list shows this computer first, each approved server by its nickname with an online dot and what runs there, and Add a server last", () => {
-  const out = body([here, box], [server(), server({ serverId: "srv_off", name: "old-mac", state: "down", facts: { os: "darwin", arch: "arm64", docker: false, version: "1" } }), server({ serverId: "srv_wait", name: "new", enrollment: "pending" })]);
-  const at = (t: string): number => { const i = out.indexOf(t); assert.ok(i >= 0, t); return i; };
-  assert.ok(at("This computer") < at("home-box") && at("home-box") < at("old-mac") && at("old-mac") < at("Add a server"));
-  assert.ok(out.includes("Linux x64, Docker · 2 agent computers"), "what runs on it");
-  assert.equal((out.match(/data-testid="dot-on"/g) ?? []).length, 2, "this computer and home-box are online");
-  assert.equal((out.match(/data-testid="dot-off"/g) ?? []).length, 1, "old-mac is not");
-  assert.ok(!out.includes(">new<"), "a server still waiting for approval is in the sheet, not the list");
-  assert.ok(out.includes('data-testid="remove-srv_home"'));
-  assert.ok(!out.includes("Needs a Team Space"));
-});
-
-test("asking to remove a server turns its button into Cancel and Remove", () => {
-  const out = body([here, box], [server()], "srv_home");
-  assert.ok(out.includes('data-testid="remove-yes-srv_home"') && !out.includes('data-testid="remove-srv_home"'));
 });
 
 test("the sheet goes from naming, to a command and waiting, to comparing the fingerprint, to done", () => {
@@ -78,27 +55,6 @@ test("the sheet goes from naming, to a command and waiting, to comparing the fin
   assert.ok(render(made, [], "Couldn't approve it. Try again.").includes('data-testid="add-error"'));
 });
 
-test("the section reads the hosts and your servers through the capabilities", async () => {
-  const s = createSampleSettings(northwind);
-  const asked: string[] = [];
-  const data = { ...s.data, call: async (cap: string): Promise<unknown> => { asked.push(cap); return cap === "computers.hosts" ? { available: true, hosts: [here] } : { computers: [] }; } };
-  const out = renderToStaticMarkup(<SettingsDataProvider value={data}><ComputersSection /></SettingsDataProvider>);
-  assert.ok(out.includes("This computer") && out.includes("Add a server"));
-  assert.equal(out.includes("Needs a Team Space"), false);
-});
-
-test("asked for from the Space menu or an agent's page, Computers opens with the Add a server sheet, once", async () => {
-  const { requestAddServer, addServerAsked, takeAddServerRequest } = await import("../../shell/computers-available.ts");
-  const s = createSampleSettings(northwind);
-  const draw = (): string => renderToStaticMarkup(<SettingsDataProvider value={{ ...s.data, call: async () => ({}) }}><ComputersSection /></SettingsDataProvider>);
-  assert.ok(!draw().includes('data-testid="add-server-sheet"'), "nothing asked, no sheet");
-  requestAddServer();
-  assert.equal(addServerAsked(), true);
-  assert.ok(draw().includes('data-testid="add-server-sheet"'), "the sheet is open");
-  assert.equal(addServerAsked(), false, "taken: a redraw does not open it again");
-  assert.equal(takeAddServerRequest(), false);
-});
-
 test("a Personal Space adds a server with no address: the line carries the one-time code, and the server is in once it is one of the Space's computers", () => {
   const cmd = peerServerCommand("VYRE-PS-abc123");
   assert.ok(cmd.startsWith("VYRE_PEER_JOIN=VYRE-PS-abc123 sh -c '") && cmd.includes('env VYRE_PEER_JOIN="$VYRE_PEER_JOIN"'), cmd);
@@ -110,4 +66,11 @@ test("a Personal Space adds a server with no address: the line carries the one-t
   assert.equal(phaseOf(sheet, []).phase, "waiting");
   const joined: ServerInfo = { serverId: "peer_srv", name: "home-server", state: "healthy", enrollment: "approved" };
   assert.equal(phaseOf(sheet, [joined]).phase, "done", "no fingerprint to compare: the code was the yes");
+});
+
+test("one flow, two scopes: an admin adds a server the Space holds, a person adds one only they use, and a Personal Space joins through the relay", () => {
+  assert.deepEqual(addCalls("space", false), { code: "network.server_join_code", approve: "network.server_approve", decline: "network.server_decline" });
+  assert.deepEqual(addCalls("mine", false), { code: "network.my_computer_code", approve: "network.my_computer_approve", decline: "network.my_computer_decline" });
+  assert.equal(addCalls("mine", true).code, "network.peer_server_code");
+  assert.equal(addCalls("space", true).code, "network.server_join_code", "the Console of a Team Space is never a Personal Space");
 });

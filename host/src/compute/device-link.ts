@@ -32,6 +32,14 @@ export interface DeviceLinkDeps {
   sleep(ms: number, signal: AbortSignal): Promise<void>;
   signal: AbortSignal;
   log(line: string): void;
+  /** What this computer reports of itself (specs, load, what runs here: lib/machines.ts Report). Sent as a {t:"report"} frame at once and every `reportMs`. Absent: nothing is sent. */
+  report?: () => Record<string, unknown>;
+  /** Pause between reports. Default 30 s. */
+  reportMs?: number;
+  /** Run one of the Doctor's Fixes on this computer when the Space asks (machine-fix.ts); one plain line back. The Space checks who may ask. */
+  fix?: (fix: string, service?: string) => Promise<string>;
+  /** Run one of the Doctor's Fixes on this computer when the Space asks (machine-fix.ts). Only the Space's admin or this person can ask; the Space checks. */
+  fix?: (fix: string, service?: string) => Promise<string>;
   /** Pause between dials after a drop. Default 2 s. */
   retryMs?: number;
   /** The person's own Chrome on this computer, for the Space's agents working for them: answers the Space's questions (chrome.available, chrome.call, chrome.drop, chrome.takeover, chrome.watch) and reports what the extension does. */
@@ -200,6 +208,7 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
       let opened = false;
       let hb: ReturnType<typeof setInterval> | undefined;
       let unsub: (() => void) | undefined;
+      let rp: ReturnType<typeof setInterval> | undefined;
       const up = d.socket(url, { authorization: `Bearer ${d.token}` });
       const say = (m: Record<string, unknown>): void => { try { up.send(JSON.stringify(m)); } catch { /* the socket is going away */ } };
       const end = (): void => {
@@ -208,6 +217,7 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
         person = null;
         unsub?.();
         if (hb) clearInterval(hb);
+        if (rp) clearInterval(rp);
         d.signal.removeEventListener("abort", stop);
         resolve(opened ? "closed" : "refused");
       };
@@ -218,12 +228,22 @@ export async function runDeviceLink(d: DeviceLinkDeps): Promise<"stopped"> {
         say({ t: "hello", engines: [...d.engines], name: d.name });
         hb = setInterval(() => say({ t: "hb" }), 15_000); hb.unref?.();
         unsub = d.chrome?.onEvent((event) => say({ t: "chrome_event", event }));
+        if (d.report) {
+          const send = (): void => { try { say({ t: "report", report: d.report!() }); } catch { /* a report that cannot be made is skipped; the next is in 30 s */ } };
+          send();
+          rp = setInterval(send, d.reportMs ?? 30_000); rp.unref?.();
+        }
       });
       up.onClose(end);
       up.onMessage((data) => {
         if (typeof data !== "string") return;
         let m: Record<string, unknown>;
         try { m = JSON.parse(data) as Record<string, unknown>; } catch { return; }
+        if (m["t"] === "ask" && m["kind"] === "fix" && d.fix) {
+          const id = String(m["id"]), x = (m["input"] ?? {}) as { fix?: unknown; service?: unknown };
+          d.fix(String(x.fix), typeof x.service === "string" ? x.service : undefined).then((result) => say({ t: "ask_res", id, ok: true, result }), (e: unknown) => say({ t: "ask_res", id, ok: false, reason: e instanceof Error ? e.message : "It could not do that." }));
+          return;
+        }
         if (m["t"] === "ready") { person = typeof m["person"] === "string" ? m["person"] : null; if (person) d.log(`Linked to ${server} for ${person}.`); return; }
         if (typeof m["t"] === "string" && m["t"].startsWith("cli_")) engines.frame(m, say);
         // the Space asks about this computer's Chrome for an agent working for this person: only the Chrome questions

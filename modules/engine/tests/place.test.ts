@@ -216,3 +216,16 @@ test("with a relay, the live link decides: the computer in use first, then anoth
     assert.deepEqual(opts.options.find((o) => o.target === "server"), { target: "server", serverId: "srv_home", name: "home-box", online: false, reason: "Off" }, "a server that is not connected is off");
   } finally { bindRelay(null); }
 });
+
+test("a busy computer is passed over for the Space's server, and the decision says where it would have gone and why not", async () => {
+  const dm = ctxFor("chat", [{ kind: "person", id: "usr_dana" }, { kind: "agent", id: "agt_1" }], [{ ...mac, name: "Dana's MacBook" }]);
+  const inner = dm.ctx.call as (cap: string, input: unknown) => Promise<unknown>;
+  dm.ctx.call = async (cap: string, input: unknown) => {
+    if (cap === "network.machines") return { machines: [{ serverId: "srv_dev_mac", online: true, room: { n: 0, why: "turn limit" }, runs: { turns: 4 }, limits: { maxTurns: 4 } }], spaceRoom: { n: 60, why: "cpu", turns: 1, maxTurns: null } };
+    return inner(cap, input);
+  };
+  assert.deepEqual(await placementDecide(dm.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" }), { placement: "host", reason: "space", moved: { from: "Dana's MacBook", why: "it was busy, 4 of 4 turns running" } });
+  // a Space server that is busy too: the order stands and the turn queues on the computer
+  dm.ctx.call = async (cap: string, input: unknown) => (cap === "network.machines" ? { machines: [{ serverId: "srv_dev_mac", online: true, room: { n: 5, why: "memory" }, runs: { turns: 1 }, limits: { maxTurns: null } }], spaceRoom: { n: 3, why: "cpu", turns: 0, maxTurns: null } } : inner(cap, input));
+  assert.deepEqual(await placementDecide(dm.ctx, { threadId: "thr_1", agentId: "agt_1", kind: "message" }), { placement: "device", reason: "other_device", deviceId: "dev_mac" });
+});

@@ -6,7 +6,10 @@ import type { Mode, NetworkCtx } from "./status.ts";
 import { approve, approveMine, decline, declineMine, enroll, enrollStatus, makeJoinCode, mine, revoke } from "./enroll.ts";
 import { peerAllow, peerConflicts, peerDecline, peerRemove, peerRequests, peerRunner, peerServerCode, peers } from "./peers.ts";
 
+import { machine, machineAlerts, machineAlertsNotify, machineFix, machineMoveRecord, machineMoves, machinePin, machinePlace, machineSet, machines } from "./machines.ts";
+
 export type { NetworkCtx } from "./status.ts";
+export { machine, machineAlerts, machineAlertsNotify, machineFix, machineMoveRecord, machineMoves, machinePin, machinePlace, machineSet, machines };
 
 const DOMAIN = /^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -65,7 +68,11 @@ export async function certificateRenew(ctx: NetworkCtx, input: { host: string })
   return { state: cert.state };
 }
 
-export async function serverJoinCode(ctx: NetworkCtx, _input: In) { return makeJoinCode(ctx, "space"); }
+export async function serverJoinCode(ctx: NetworkCtx, input: In) {
+  const made = makeJoinCode(ctx, "space", typeof input["nickname"] === "string" ? input["nickname"] : undefined);
+  const address = readConfig(ctx)?.address;
+  return { ...made, ...(address ? { address } : {}) };
+}
 export async function myComputerCode(ctx: NetworkCtx, input: In) {
   const made = makeJoinCode(ctx, "personal", typeof input["nickname"] === "string" ? input["nickname"] : undefined);
   const address = readConfig(ctx)?.address;
@@ -154,6 +161,16 @@ export const handlers = {
   "network.phone_release": phoneRelease,
   "network.server_reconnect": serverReconnect,
   "network.server_remove": serverRemove,
+  "network.machines": machines,
+  "network.machine": machine,
+  "network.machine_set": machineSet,
+  "network.machine_pin": machinePin,
+  "network.machine_alerts": machineAlerts,
+  "network.machine_alerts_notify": machineAlertsNotify,
+  "network.machine_fix": machineFix,
+  "network.machine_move_record": machineMoveRecord,
+  "network.machine_moves": machineMoves,
+  "network.machine_place": machinePlace,
   "network.health": health,
   "network.peers": peers,
   "network.peer_requests": peerRequests,

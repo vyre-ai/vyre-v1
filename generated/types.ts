@@ -1681,6 +1681,24 @@ export type AgentsPauseOut = {
     teammateOf?: string;
   };
 };
+export type AgentsPausePersonIn = {
+  personId: string;
+  paused: boolean;
+};
+export type AgentsPausePersonOut = {
+  changed: number;
+};
+export type AgentsPeopleSummaryIn = Record<string, unknown>;
+export type AgentsPeopleSummaryOut = {
+  people: Array<{
+      personId: string;
+      assistant: boolean;
+      privateAgents: number;
+      spendMonthMicros: number;
+      capMicros?: number;
+      paused: boolean;
+    }>;
+};
 export type AgentsRestoreIn = {
   agentId: string;
 };
@@ -7251,6 +7269,7 @@ export type ChatReplyDetailsOut = {
       ranOn: Array<{
           kind: string;
           name: string;
+          note?: string;
         }>;
       timing: {
         queuedAt?: number;
@@ -11018,6 +11037,10 @@ export type EnginePlacementDecideOut = {
   wakeLine?: string;
   nodeId?: string;
   deviceId?: string;
+  moved?: {
+    from: string;
+    why: string;
+  };
 };
 export type EnginePlacementOptionsIn = {
   threadId: string;
@@ -11412,6 +11435,7 @@ export type EngineTurnFinishOut = {
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
+        note?: string;
       }>;
   };
 };
@@ -11449,6 +11473,7 @@ export type EngineTurnGetOut = {
       ranOn?: Array<{
           kind: "computer" | "server" | "space";
           name: string;
+          note?: string;
         }>;
     };
     machine: "host" | "device";
@@ -11495,6 +11520,7 @@ export type EngineTurnOfMessageOut = {
     ranOn: Array<{
         kind: string;
         name: string;
+        note?: string;
       }>;
     timing: {
       queuedAt?: number;
@@ -11628,6 +11654,7 @@ export type EngineTurnRecordOut = {
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
+        note?: string;
       }>;
   };
 };
@@ -11678,6 +11705,7 @@ export type EngineTurnRetryOut = {
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
+        note?: string;
       }>;
   };
 };
@@ -11721,6 +11749,7 @@ export type EngineTurnStartOut = {
     ranOn?: Array<{
         kind: "computer" | "server" | "space";
         name: string;
+        note?: string;
       }>;
   };
 };
@@ -11770,6 +11799,7 @@ export type EngineTurnsListOut = {
       ranOn?: Array<{
           kind: "computer" | "server" | "space";
           name: string;
+          note?: string;
         }>;
     }>;
   next?: string;
@@ -25701,6 +25731,347 @@ export type NetworkIngressCheckOut = {
   reachable: boolean;
   detail?: string;
 };
+export type NetworkMachineIn = {
+  serverId: string;
+  range?: "1h" | "24h" | "7d" | "30d";
+};
+export type NetworkMachineOut = {
+  machine: {
+    serverId: string;
+    name: string;
+    nickname?: string;
+    kind: "space" | "server" | "linked";
+    owner?: string;
+    mine: boolean;
+    state: "healthy" | "degraded" | "down";
+    online: boolean;
+    lastSeenAt?: number;
+    version?: string;
+    os?: string;
+    arch?: string;
+    cores?: number;
+    memBytes?: number;
+    diskBytes?: number;
+    latencyMs?: number;
+    load?: {
+      cpu: number;
+      memPct: number;
+      diskPct: number;
+      diskFreeBytes: number;
+    };
+    vyre?: {
+      cpu: number;
+      memPct: number;
+    };
+    private: boolean;
+    runs: {
+      turns: number;
+      agentComputers: number;
+      sites: number;
+      automations: number;
+    };
+    can: Array<string>;
+    room: {
+      n: number;
+      why: string;
+    };
+    limits: {
+      maxTurns: number | null;
+      maxAgentComputers: number | null;
+    };
+    drain: boolean;
+    pins: Array<string>;
+  };
+  series: {
+    range: "1h" | "24h" | "7d" | "30d";
+    step: number;
+    points: Array<{
+        t: number;
+        cpu: number | null;
+        mem: number | null;
+        disk: number | null;
+        netIn: number | null;
+        netOut: number | null;
+      }>;
+  };
+  findings: Array<{
+      key: string;
+      state: "healthy" | "degraded" | "down";
+      detail: string;
+      next: string;
+      fix: string | null;
+    }>;
+  work: Array<{
+      agent: string;
+      what: string;
+      where: string;
+      cpu: number;
+    }>;
+  alerts: Array<{
+      alertId: string;
+      serverId: string;
+      kind: "disk" | "memory" | "offline" | "backup" | "update";
+      title: string;
+      detail: string;
+    }>;
+  privacy: "full" | "vyre_only";
+  lastFix?: {
+    fix: string;
+    at: number;
+    state: "queued" | "done" | "failed";
+    detail?: string;
+  };
+};
+export type NetworkMachineAlertsIn = Record<string, unknown>;
+export type NetworkMachineAlertsOut = {
+  alerts: Array<{
+      alertId: string;
+      serverId: string;
+      kind: "disk" | "memory" | "offline" | "backup" | "update";
+      title: string;
+      detail: string;
+    }>;
+};
+export type NetworkMachineAlertsNotifyIn = Record<string, unknown>;
+export type NetworkMachineAlertsNotifyOut = {
+  sent: number;
+};
+export type NetworkMachineFixIn = {
+  serverId: string;
+  fix: "clear_caches" | "stop_idle" | "restart_service";
+  service?: string;
+};
+export type NetworkMachineFixOut = {
+  queued: boolean;
+  commandId: number;
+};
+export type NetworkMachineMoveRecordIn = {
+  turnId?: string;
+  asker?: string;
+  agentId?: string;
+  threadId?: string;
+  from: string;
+  to: string;
+  why: string;
+};
+export type NetworkMachineMoveRecordOut = {
+  ok: boolean;
+};
+export type NetworkMachineMovesIn = {
+  limit?: number;
+};
+export type NetworkMachineMovesOut = {
+  moves: Array<{
+      id: number;
+      at: number;
+      turnId: string | null;
+      asker: string | null;
+      agentId: string | null;
+      threadId: string | null;
+      from: string;
+      to: string;
+      why: string;
+    }>;
+};
+export type NetworkMachinePinIn = {
+  serverId: string;
+  agentId: string;
+  pinned: boolean;
+};
+export type NetworkMachinePinOut = {
+  machine: {
+    serverId: string;
+    name: string;
+    nickname?: string;
+    kind: "space" | "server" | "linked";
+    owner?: string;
+    mine: boolean;
+    state: "healthy" | "degraded" | "down";
+    online: boolean;
+    lastSeenAt?: number;
+    version?: string;
+    os?: string;
+    arch?: string;
+    cores?: number;
+    memBytes?: number;
+    diskBytes?: number;
+    latencyMs?: number;
+    load?: {
+      cpu: number;
+      memPct: number;
+      diskPct: number;
+      diskFreeBytes: number;
+    };
+    vyre?: {
+      cpu: number;
+      memPct: number;
+    };
+    private: boolean;
+    runs: {
+      turns: number;
+      agentComputers: number;
+      sites: number;
+      automations: number;
+    };
+    can: Array<string>;
+    room: {
+      n: number;
+      why: string;
+    };
+    limits: {
+      maxTurns: number | null;
+      maxAgentComputers: number | null;
+    };
+    drain: boolean;
+    pins: Array<string>;
+  };
+};
+export type NetworkMachinePlaceIn = {
+  order: Array<string>;
+};
+export type NetworkMachinePlaceOut = {
+  serverId: string | null;
+  name: string | null;
+  skipped: Array<{
+      serverId: string;
+      name: string;
+      why: string;
+    }>;
+  moved: boolean;
+  line: string | null;
+};
+export type NetworkMachineSetIn = {
+  serverId: string;
+  nickname?: string | null;
+  maxTurns?: number | null;
+  maxAgentComputers?: number | null;
+  drain?: boolean;
+};
+export type NetworkMachineSetOut = {
+  machine: {
+    serverId: string;
+    name: string;
+    nickname?: string;
+    kind: "space" | "server" | "linked";
+    owner?: string;
+    mine: boolean;
+    state: "healthy" | "degraded" | "down";
+    online: boolean;
+    lastSeenAt?: number;
+    version?: string;
+    os?: string;
+    arch?: string;
+    cores?: number;
+    memBytes?: number;
+    diskBytes?: number;
+    latencyMs?: number;
+    load?: {
+      cpu: number;
+      memPct: number;
+      diskPct: number;
+      diskFreeBytes: number;
+    };
+    vyre?: {
+      cpu: number;
+      memPct: number;
+    };
+    private: boolean;
+    runs: {
+      turns: number;
+      agentComputers: number;
+      sites: number;
+      automations: number;
+    };
+    can: Array<string>;
+    room: {
+      n: number;
+      why: string;
+    };
+    limits: {
+      maxTurns: number | null;
+      maxAgentComputers: number | null;
+    };
+    drain: boolean;
+    pins: Array<string>;
+  };
+};
+export type NetworkMachinesIn = Record<string, unknown>;
+export type NetworkMachinesOut = {
+  machines: Array<{
+      serverId: string;
+      name: string;
+      nickname?: string;
+      kind: "space" | "server" | "linked";
+      owner?: string;
+      mine: boolean;
+      state: "healthy" | "degraded" | "down";
+      online: boolean;
+      lastSeenAt?: number;
+      version?: string;
+      os?: string;
+      arch?: string;
+      cores?: number;
+      memBytes?: number;
+      diskBytes?: number;
+      latencyMs?: number;
+      load?: {
+        cpu: number;
+        memPct: number;
+        diskPct: number;
+        diskFreeBytes: number;
+      };
+      vyre?: {
+        cpu: number;
+        memPct: number;
+      };
+      private: boolean;
+      runs: {
+        turns: number;
+        agentComputers: number;
+        sites: number;
+        automations: number;
+      };
+      can: Array<string>;
+      room: {
+        n: number;
+        why: string;
+      };
+      limits: {
+        maxTurns: number | null;
+        maxAgentComputers: number | null;
+      };
+      drain: boolean;
+      pins: Array<string>;
+    }>;
+  waiting: Array<{
+      serverId: string;
+      name: string;
+      owner?: string;
+      fingerprint?: string;
+      requestedAt?: number;
+      facts?: {
+        os: string;
+        arch: string;
+        docker: boolean;
+        version: string;
+      };
+    }>;
+  alerts: Array<{
+      alertId: string;
+      serverId: string;
+      kind: "disk" | "memory" | "offline" | "backup" | "update";
+      title: string;
+      detail: string;
+    }>;
+  admin: boolean;
+  now: number;
+  spaceRoom?: {
+    n: number;
+    why: string;
+    turns: number;
+    maxTurns: number | null;
+  };
+};
 export type NetworkMyComputerApproveIn = {
   serverId: string;
 };
@@ -25863,11 +26234,13 @@ export type NetworkServerDeclineOut = {
   state: "declined";
 };
 export type NetworkServerJoinCodeIn = {
+  nickname?: string;
   idempotencyKey: string;
 };
 export type NetworkServerJoinCodeOut = {
   code: string;
   expiresAt: number;
+  address?: string;
 };
 export type NetworkServerReconnectIn = {
   serverId: string;
@@ -26680,7 +27053,7 @@ export type NotificationsDigestCollectIn = {
 };
 export type NotificationsDigestCollectOut = {
   items: Array<{
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
       title: string;
       at: number;
       subject?: {
@@ -26691,19 +27064,19 @@ export type NotificationsDigestCollectOut = {
     }>;
 };
 export type NotificationsKindSetLevelIn = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
   level?: "interrupt" | "badge" | "digest";
   channels?: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindSetLevelOut = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
   level: "interrupt" | "badge" | "digest";
   channels: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindsListIn = Record<string, unknown>;
 export type NotificationsKindsListOut = {
   kinds: Array<{
-      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -26724,7 +27097,7 @@ export type NotificationsListIn = {
 export type NotificationsListOut = {
   notifications: Array<{
       id: string;
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -26838,7 +27211,7 @@ export type NotificationsRulesSetOut = {
 };
 export type NotificationsSendIn = {
   to: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
   subject?: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
@@ -31394,6 +31767,12 @@ export type SitesBuildIn = {
 export type SitesBuildOut = {
   runId: string;
   deploymentId: string;
+};
+export type SitesChatViewingIn = {
+  threadId: string;
+};
+export type SitesChatViewingOut = {
+  ok: boolean;
 };
 export type SitesCreateIn = {
   name: string;
@@ -40716,6 +41095,8 @@ export interface CapMap {
   "agents.outside.seen": { in: AgentsOutsideSeenIn; out: AgentsOutsideSeenOut };
   "agents.outside.usable": { in: AgentsOutsideUsableIn; out: AgentsOutsideUsableOut };
   "agents.pause": { in: AgentsPauseIn; out: AgentsPauseOut };
+  "agents.pause_person": { in: AgentsPausePersonIn; out: AgentsPausePersonOut };
+  "agents.people_summary": { in: AgentsPeopleSummaryIn; out: AgentsPeopleSummaryOut };
   "agents.restore": { in: AgentsRestoreIn; out: AgentsRestoreOut };
   "agents.restore_version": { in: AgentsRestoreVersionIn; out: AgentsRestoreVersionOut };
   "agents.resume": { in: AgentsResumeIn; out: AgentsResumeOut };
@@ -41947,6 +42328,16 @@ export interface CapMap {
   "network.enroll_status": { in: NetworkEnrollStatusIn; out: NetworkEnrollStatusOut };
   "network.health": { in: NetworkHealthIn; out: NetworkHealthOut };
   "network.ingress_check": { in: NetworkIngressCheckIn; out: NetworkIngressCheckOut };
+  "network.machine": { in: NetworkMachineIn; out: NetworkMachineOut };
+  "network.machine_alerts": { in: NetworkMachineAlertsIn; out: NetworkMachineAlertsOut };
+  "network.machine_alerts_notify": { in: NetworkMachineAlertsNotifyIn; out: NetworkMachineAlertsNotifyOut };
+  "network.machine_fix": { in: NetworkMachineFixIn; out: NetworkMachineFixOut };
+  "network.machine_move_record": { in: NetworkMachineMoveRecordIn; out: NetworkMachineMoveRecordOut };
+  "network.machine_moves": { in: NetworkMachineMovesIn; out: NetworkMachineMovesOut };
+  "network.machine_pin": { in: NetworkMachinePinIn; out: NetworkMachinePinOut };
+  "network.machine_place": { in: NetworkMachinePlaceIn; out: NetworkMachinePlaceOut };
+  "network.machine_set": { in: NetworkMachineSetIn; out: NetworkMachineSetOut };
+  "network.machines": { in: NetworkMachinesIn; out: NetworkMachinesOut };
   "network.my_computer_approve": { in: NetworkMyComputerApproveIn; out: NetworkMyComputerApproveOut };
   "network.my_computer_code": { in: NetworkMyComputerCodeIn; out: NetworkMyComputerCodeOut };
   "network.my_computer_decline": { in: NetworkMyComputerDeclineIn; out: NetworkMyComputerDeclineOut };
@@ -42264,6 +42655,7 @@ export interface CapMap {
   "sites.artifact_open": { in: SitesArtifactOpenIn; out: SitesArtifactOpenOut };
   "sites.artifact_publish": { in: SitesArtifactPublishIn; out: SitesArtifactPublishOut };
   "sites.build": { in: SitesBuildIn; out: SitesBuildOut };
+  "sites.chat_viewing": { in: SitesChatViewingIn; out: SitesChatViewingOut };
   "sites.create": { in: SitesCreateIn; out: SitesCreateOut };
   "sites.db_import": { in: SitesDbImportIn; out: SitesDbImportOut };
   "sites.delete": { in: SitesDeleteIn; out: SitesDeleteOut };
@@ -44827,6 +45219,17 @@ export type NetworkDomainChangedPayload = {
   address: string;
   mode: "own_domain" | "relay";
 };
+export type NetworkMachineAlertPayload = {
+  alertId: string;
+  serverId: string;
+  kind: "disk" | "memory" | "offline" | "backup" | "update";
+  title: string;
+  detail: string;
+};
+export type NetworkMachineChangedPayload = {
+  serverId: string;
+  what: Array<"drain" | "limits" | "full" | "room">;
+};
 export type NetworkServerAddedPayload = {
   serverId: string;
   name: string;
@@ -44878,7 +45281,7 @@ export type NotesUpdatedPayload = {
 export type NotificationCappedPayload = {
   person: string;
   agentId: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
   perHour: number;
 };
 export type NotificationDelegateChangedPayload = {
@@ -44891,7 +45294,7 @@ export type NotificationDelegateChangedPayload = {
 export type NotificationDeliveredPayload = {
   notificationId: string;
   person: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
   level: "interrupt" | "badge" | "digest";
   place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
   subject?: {
@@ -47004,6 +47407,8 @@ export interface EventMap {
   "network.certificate_failed": NetworkCertificateFailedPayload;
   "network.certificate_renewed": NetworkCertificateRenewedPayload;
   "network.domain_changed": NetworkDomainChangedPayload;
+  "network.machine_alert": NetworkMachineAlertPayload;
+  "network.machine_changed": NetworkMachineChangedPayload;
   "network.server_added": NetworkServerAddedPayload;
   "network.server_removed": NetworkServerRemovedPayload;
   "network.server_requested": NetworkServerRequestedPayload;

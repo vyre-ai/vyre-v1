@@ -34,6 +34,7 @@ export default defineManifest({
     screen('console.overview', 'console', 'ui:ConsoleOverview', { q: { overview: ['console.overview'] }, a: {}, needs: ['console.access'], empty: 'Nothing needs attention', perf: { firstPaintMs: 100, completeMs: 300 } }),
     screen('console.speed', 'console', 'ui:ConsoleSpeed', { q: { speed: ['console.speed'] }, needs: ['console.access'], empty: 'No speed samples yet' }),
     screen('console.usage', 'console', 'ui:ConsoleUsage', { q: { usage: ['console.usage', { period: '/period', by: '/by' }] }, needs: ['console.access'], empty: 'No usage in this period' }),
+    screen('console.machines', 'console', 'ui:ConsoleMachines', { needs: ['console.access'], q: { machines: ['network.machines'] }, a: { set: ['network.machine_set', { serverId: '/state/serverId' }], pin: ['network.machine_pin', { serverId: '/state/serverId', agentId: '/state/agentId', pinned: '/state/pinned' }] }, empty: 'No machines yet', primary: 'Add a server' }),
     screen('console.network', 'console', 'ui:ConsoleNetwork', {
       needs: ['server.network'],
       q: { status: ['network.status'], servers: ['network.servers'], hostnames: ['network.public_hostnames'] },
