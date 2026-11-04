@@ -35,8 +35,8 @@ test("a reply being written says what the agent is doing, from its real steps an
 
     // before the first word: one line, "Thinking", with the last of its thinking
     const line = me.page.getByTestId("activity-line");
-    await line.waitFor({ timeout: 10_000 });
-    assert.match(await line.innerText(), /Thinking/);
+    // the line is redrawn as the words change, so wait for it to read Thinking instead of reading a node that may be replaced
+    await line.filter({ hasText: /Thinking/ }).waitFor({ timeout: 10_000 });
     assert.equal(await me.page.locator('[data-testid^="body-turn"]').count(), 0, "no lone caret on an empty line: the activity line takes that spot");
     await me.page.getByTestId("activity-excerpt").filter({ hasText: /notes|plan|look/i }).waitFor({ timeout: 10_000 });   // a live excerpt of its thinking
     await shoot(me.page, dir, "thinking", { phone: false });
