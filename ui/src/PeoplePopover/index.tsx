@@ -79,7 +79,11 @@ export function PeoplePopover({ where, rows, meId, perms, anchor, onOpen, onActi
             >
               <Avatar name={r.name} seedId={r.id} {...(r.kind === "person" ? {} : { kind: "agent" as const })} size={24} />
               <Text style={st.name} numberOfLines={1}>{r.id === meId ? "You" : r.name}</Text>
-              <Text style={st.role} numberOfLines={1} testID={`people-role-${r.id}`}>{r.role}</Text>
+              {perms.changeRole ? (
+                <Pressable accessibilityRole="button" accessibilityLabel={`Change role of ${r.name}, now ${r.role}`} testID={`people-role-${r.id}`} onPress={() => onAction("role", r)} style={({ hovered }: { hovered?: boolean }) => [st.roleBtn, hovered === true && st.roleLit]}>
+                  <Text style={st.role} numberOfLines={1}>{r.role}</Text>
+                </Pressable>
+              ) : <Text style={st.role} numberOfLines={1} testID={`people-role-${r.id}`}>{r.role}</Text>}
             </Pressable>
       ))}
       <View style={st.rule} />
@@ -124,6 +128,8 @@ const st = StyleSheet.create({
   lit: { backgroundColor: "var(--hover)" as string },
   kb: { backgroundColor: "var(--sel)" as string },
   name: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string },
+  roleBtn: { borderRadius: 6, paddingHorizontal: 4, marginLeft: 4 },
+  roleLit: { backgroundColor: "var(--hover)" as string },
   role: { fontSize: 12, color: "var(--ink-3)" as string, paddingLeft: 12 },
   ic: { width: 22, alignItems: "center", justifyContent: "center" },
   sheet: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 14 },

@@ -155,3 +155,18 @@ test("a trigger in the left half opens rightwards from its left edge; one in the
   assert.equal(placeOf({ x: 60, y: 100, left: 10 }, 1280, "project").left, 10, "never off the left edge");
   assert.equal(placeOf({ x: 1270, y: 100, left: 1240 }, 1280, "project").left, 1010, "right half: right-aligned");
 });
+
+test("a Lead presses the role text to change the role (the same menu as Change role); without that right the role is plain text and opens nothing", async () => {
+  const restore = installDom();
+  try {
+    const lead = props({ where: "project" });
+    const a = await mount(createRoot, <PeoplePopover {...lead.p} />);
+    await press(find(a, "people-role-usr_sara"));
+    assert.deepEqual(lead.log, ["role:usr_sara"], "the role text is a button, and it does not also open the person");
+    const plain = props({ where: "project", perms: { message: true, changeRole: false, remove: false } });
+    const b = await mount(createRoot, <PeoplePopover {...plain.p} />);
+    assert.equal(find(b, "people-role-usr_sara")?.props.accessibilityRole, undefined, "no button for someone who cannot change roles");
+    assert.equal(typeof find(b, "people-role-usr_sara")?.props.onClick, "undefined", "plain text takes no press");
+    assert.deepEqual(plain.log, []);
+  } finally { restore(); }
+});
