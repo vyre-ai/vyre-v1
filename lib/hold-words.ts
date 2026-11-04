@@ -1,5 +1,6 @@
 // A held act in a person's words, in one place: the Gate titles the approval task with it and the card reads the same (lane l-chrome2a). "send message" is "send a message", "automations.read_link" is "open example.com",
 // and no module name or raw field name is shown. Nothing here decides anything.
+import { HOLD_PHRASES } from "./hold-phrases.ts";
 import { outwardOf } from "./outward.ts";
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
@@ -27,7 +28,7 @@ export function hostOfLink(raw: string): string {
 /** Modules a person has no word for: a step in one of these never reads "in <module>". */
 const INTERNAL_SCOPES: ReadonlySet<string> = new Set(["engine", "gate", "automations", "computers", "connectors", "agents", "kernel", "host", "memory", "providers", "browser", "watches"]);
 
-export const WANTS: Record<string, string> = {
+const OLD_WANTS: Record<string, string> = {
   "chat.message_person": "send a message to a teammate",
   "engine.mcp.call": "use an outside tool", "engine.mcp.read": "read from an outside tool",
   "files.write": "edit", "files.create": "create", "files.delete": "delete", "files.move": "move", "files.rename": "rename", "files.folder.create": "create the folder",
@@ -36,6 +37,8 @@ export const WANTS: Record<string, string> = {
   "stripe.refund.create": "refund a payment", "calendar.create_event": "put an event on the calendar", "calendar.update_event": "change an event", "calendar.delete_event": "delete an event",
   "git.push": "push your changes", "git.commit": "save your changes to the repository", "sites.promote": "put the site live", "engine.crew.merge": "merge a teammate's branch", "engine.crew.push": "push a teammate's branch",
 };
+/** What a card says after "wants to": the older short words where a subject follows ("delete Q4 pricing.docx"), else the table of every held capability. */
+export const WANTS: Record<string, string> = { ...HOLD_PHRASES, ...OLD_WANTS };
 
 /** A step with no entry of its own, in plain words: "tasks.create" is "create a task", "calendar.add_guest" is "add a guest on calendar", never the capability's own name. */
 export function capPhrase(cap: string): string {
@@ -64,7 +67,7 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
 export function holdTitle(cap: string, input: unknown, actTitle?: string): string {
   const o = outwardOf(cap, input);
   if (o) return { message: "Send a message", email: "Send an email", text: "Send a text", post: "Post to a chat" }[o.channel];
-  const known = wantsFromInput(cap, obj(input)) ?? WANTS[cap];
+  const known = wantsFromInput(cap, obj(input)) ?? HOLD_PHRASES[cap] ?? WANTS[cap];
   if (!known && actTitle && actTitle !== "Send a message") return actTitle;   // the Gate's own name for the kind of act, unless that is the message one, which this is not
   const w = known ?? (cap === "" ? "do a step" : capPhrase(cap));
   return w.charAt(0).toUpperCase() + w.slice(1);
