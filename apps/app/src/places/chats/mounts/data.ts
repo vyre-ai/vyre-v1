@@ -351,6 +351,11 @@ export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string
 }
 
 /** The agent's pane: its Computer tab pops the computer out and opens a terminal on it, its Threads tab opens a helper as the helper chat. */
+/** Console > Computers with one machine selected: the route is `machines~<id>` (the Space's own server is `space`), as the prototype and the Console page ids spell it. */
+export function machinesTarget(nodeId?: string): { screen: string; args: Record<string, string> } {
+  return { screen: "console.page", args: { page: `machines~${nodeId && nodeId !== "" ? nodeId : "space"}` } };
+}
+
 export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: PaneAgent, fill?: ComposerFill, terminal?: TerminalData): ChatRightPaneData {
   const base = paneData(rt, chatsActions(go, fill), threadId, agent);
   return {
@@ -360,6 +365,7 @@ export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: Pane
     nav: {
       ...base.nav, openThread: (id: string) => go.thread(id), openHelper: (id: string) => go.thread(id), openComputer: (id: string) => go.computer(id),
       openTerminal: (id: string) => go.terminalOfComputer(id), openAgentPage: (id: string) => go.agent(id),
+      openMachines: (nodeId?: string) => rt.open(machinesTarget(nodeId)),
     },
   };
 }
