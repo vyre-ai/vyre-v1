@@ -548,9 +548,10 @@ export interface ComposerProps extends ComposerShellProps {
   folder?: string | null;
   onFolder?: (folder: string | null) => void;
   /** Called with everything sent: text, chips, files, folder, linked records, mode. */
-  onSubmit?: (payload: ComposerSend) => void;
+  /** A caller whose send can fail returns its promise: if it rejects the draft comes back, with the reason and Try again under it. A plain return is a send that cannot fail. */
+  onSubmit?: (payload: ComposerSend) => void | Promise<unknown>;
   /** Send now while the agent works. A plain send queues for its next step. */
-  onInterrupt?: (payload: ComposerSend) => void;
+  onInterrupt?: (payload: ComposerSend) => void | Promise<unknown>;
   onCommand?: (name: string) => void;
   onChange?: (text: string) => void;
   onFiles?: (files: ComposerAttachment[]) => void;
@@ -738,6 +739,8 @@ export function Composer(props: ComposerProps): ReactElement {
   const [state, setState] = useState<ComposerState>(() => initialState(props.value ?? "", props.folder ?? null));
   const [focused, setFocused] = useState(false);
   const [height, setHeight] = useState(MIN_FIELD);
+  // a send that failed: the draft is back in the field and this says why, with Try again
+  const [sendError, setSendError] = useState<{ reason: string; mode: SendMode } | null>(null);
   const [plusOpen, setPlusOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [scope, setScope] = useState<HashScope>("All");
@@ -825,9 +828,16 @@ export function Composer(props: ComposerProps): ReactElement {
     stateRef.current = sent.next;
     setState(sent.next);
     setHeight(MIN_FIELD);
+    setSendError(null);
     props.onSend?.(sent.payload.text);
-    if (mode === "interrupt") props.onInterrupt?.(sent.payload);
-    else props.onSubmit?.(sent.payload);
+    const out = mode === "interrupt" ? props.onInterrupt?.(sent.payload) : props.onSubmit?.(sent.payload);
+    // never lose what the person wrote: a send that fails gives the draft back and says why
+    if (out && typeof (out as Promise<unknown>).then === "function") {
+      (out as Promise<unknown>).then(undefined, (e: unknown) => {
+        if (stateRef.current.text === "" && stateRef.current.files.length === 0 && (stateRef.current.refs?.length ?? 0) === 0) { stateRef.current = cur; setState(cur); }
+        setSendError({ reason: e instanceof Error && e.message.trim() !== "" ? e.message.slice(0, 200) : "It did not send.", mode });
+      });
+    }
   }, [props.onSend, props.onSubmit, props.onInterrupt, props.whoWillAnswer, props.lead, props.listening, props.lists]);
 
   const pick = useCallback((entry: PopupEntry | undefined) => {
@@ -1250,6 +1260,12 @@ export function Composer(props: ComposerProps): ReactElement {
           e.target.value = "";
         },
       }) : null}
+      {sendError ? (
+        <View style={styles.sendError} testID="composer-send-error" accessibilityRole="alert">
+          <Text style={styles.sendErrorText}>{sendError.reason}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Try again" testID="composer-send-retry" onPress={() => submit(sendError.mode)}><Text style={styles.sendErrorRetry}>Try again</Text></Pressable>
+        </View>
+      ) : null}
       {menu.element}
       {dropZone.over ? <DropOverlay radius={compact ? 18 : 22} testID={`${props.testID ?? "composer"}-drop-overlay`} /> : null}
     </View>
@@ -1265,6 +1281,9 @@ const styles = StyleSheet.create({
   line: { flexDirection: "row", alignItems: "flex-end", gap: 2, padding: 7 },
   recipients: { paddingTop: 10, paddingHorizontal: 14 },
   banner: { paddingTop: 8, paddingHorizontal: 14 },
+  sendError: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingBottom: 10 },
+  sendErrorText: { fontSize: 12.5, color: "var(--danger)" as string, flexShrink: 1 },
+  sendErrorRetry: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
   tray: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingTop: 10, paddingHorizontal: 12 },
   chip: { flexDirection: "row", alignItems: "center", gap: 5, height: 26, paddingLeft: 8, paddingRight: 3, borderRadius: 999, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string, maxWidth: "100%", alignSelf: "center" },
   chipText: { color: "var(--ink)" as string, fontSize: 12.5, lineHeight: 16, flexShrink: 1 },

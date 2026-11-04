@@ -44,17 +44,15 @@ export interface CommentFile { name: string; mime?: string; file?: unknown }
  * post puts the text back in the field and says so, so nothing written is lost.
  */
 export function MentionField({ api, id, placeholder, onSend, commands = [] }: { api: CommentApi; id: string; placeholder: string; onSend(text: string, mentions: Mention[]): Promise<void>; commands?: readonly { name: string; label: string; run(): void }[] }): ReactElement {
-  const [seed, setSeed] = useState<{ value: string; n: number }>({ value: "", n: 0 });
-  const [failed, setFailed] = useState(false);
   const lists = useMemo(() => {
     const item = (e: PickEntry): ListItem => ({ t: e.name, ...(e.sub ? { s: e.sub } : {}), kind: e.kind === "agent" ? "Agent" : "Person", ref: e.id });
     return { people: api.people.filter((e) => e.kind === "person").map(item), agents: api.people.filter((e) => e.kind === "agent").map(item), commands: commands.map((c): ListItem => ({ t: c.name, s: c.label })) };
   }, [api.people, commands]);
-  const submit = (p: ComposerSend): void => {
+  // a refused post gives the draft back with the reason and Try again (the shared composer)
+  const submit = (p: ComposerSend): Promise<void> | void => {
     const typed = p.text.trim();
     if (typed === "" && p.files.length === 0) return;
-    setFailed(false);
-    void (async () => {
+    return (async () => {
       let text = typed;
       if (p.files.length > 0) {
         if (!api.attach) throw new Error("This record cannot take files here.");
@@ -62,19 +60,14 @@ export function MentionField({ api, id, placeholder, onSend, commands = [] }: { 
         text = `${text}${text ? "\n" : ""}Attached to the record: ${p.files.map((f) => f.name).join(", ")}`;
       }
       await onSend(text, mentionsIn(text, api.people));
-    })().then(
-      () => undefined,
-      () => { setFailed(true); setSeed((x) => ({ value: p.text, n: x.n + 1 })); },
-    );
+    })().catch((e: unknown) => { throw new Error(e instanceof Error && e.message === "This record cannot take files here." ? e.message : "Could not post."); });
   };
   return (
     <View style={s.field} testID={`comment-field-${id}`}>
       <Composer
-        key={`comment-composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
         testID={`comment-reply-${id}`} whoWillAnswer="" hideWho symbols={["at", "hash", "slash"]} density="compact" placeholder={placeholder} label={placeholder}
         lists={lists} onSubmit={submit} onCommand={(name) => commands.find((c) => c.name === name)?.run()}
       />
-      {failed ? <Text accessibilityRole="alert" testID={`comment-error-${id}`} style={s.error}>Could not post. Your text is still here, try again</Text> : null}
     </View>
   );
 }

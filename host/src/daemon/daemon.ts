@@ -128,6 +128,7 @@ import { createComputeStream } from "../routes/compute-stream.ts";
 import { createReporter } from "../machines/reporter.ts";
 import type { Report } from "../machines/report.ts";
 import { isFix, runFix } from "./machine-fix.ts";
+import { relayVersionWatch, storeInfo } from "./relay-version.ts";
 import { runDoctor } from "./doctor.ts";
 import { createLocalWork, createLocalWorkRoute } from "../routes/local-work.ts";
 import { createChromeAgentsRoute } from "../routes/chrome-agents.ts";
@@ -573,7 +574,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let computeStreamOpen: (ticket: string, computerId: string) => Promise<{ nodeId: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
   let computeStreamInput: (computerId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
   // a person's own computer links with their signed-in session (lane l-runson); who it is comes from the same resolver as the gateway, once the Space is open
-  let closeIdleSessions: () => Promise<number> = () => Promise.resolve(0);
+  let closeIdleSessions: (person?: string) => Promise<number> = () => Promise.resolve(0);
+  let idleSessions: (person?: string) => number = () => 0;
   let machinesSync: () => void = () => undefined;
   let machinesIngest: (from: { nodeId: string; serverId?: string; owner?: string; device?: { deviceId: string; person: string; name?: string }; latencyMs?: number }, report: unknown) => void = () => undefined;
   let deviceReporter: ReturnType<typeof createReporter> | undefined;
@@ -932,7 +934,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         return true;
       };
       computeStreamOpen = async (ticket, computerId) => (await hookRunner.call("computers.stream_open", { ticket, computerId })) as { nodeId: string; personId: string; input: boolean } | null;
-      closeIdleSessions = async () => (await (loaded.moduleExports.get("engine") as { openerOf?: () => { pool: { closeIdle?: () => Promise<number> } } | null } | undefined)?.openerOf?.()?.pool.closeIdle?.()) ?? 0;
+      const pool = (): { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number } | undefined => (loaded.moduleExports.get("engine") as { openerOf?: () => { pool: { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number } } | null } | undefined)?.openerOf?.()?.pool;
+      closeIdleSessions = async (person) => (await pool()?.closeIdle?.(person)) ?? 0;
+      idleSessions = (person) => pool()?.idleCount?.(person) ?? 0;
       // Machines (lane l-machines): a machine's report goes to the module; the Space server reads itself every 30 s; the module asks the host how many turns a connected machine runs, for the Doctor and for the Fixes
       machinesSync = () => { void hookRunner.call("machines.sync", {}).catch(() => undefined); };
       machinesIngest = (from, r) => {
@@ -947,9 +951,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         (loaded.moduleExports.get("machines") as { bindMachines?: (h: unknown) => void } | undefined)?.bindMachines?.({
           turns: (id: string) => (id === "space" ? Math.max(0, engineTurns - computeStream.running()) : computeStream.connected(id) ? computeStream.running(id) : undefined),
           own: async () => ({ name: reporter.name(), report: (o.machineReport ?? ((r: Report) => r))(reporter.report()) }),
+          idle: (_id: string, person?: string) => idleSessions(person),
           findings: async () => (await runDoctor({ dataDir: paths.root, role: "space" })).findings,
-          fix: async (id: string, fix: string, service?: string) => {
+          fix: async (id: string, fix: string, service?: string, person?: string) => {
             if (!isFix(fix)) throw new Error(`unknown fix ${fix}`);
+            // a member's own computer or server: its idle sessions are the owner's, held by the Space's pool, and only theirs stop; nothing of anyone else's
+            if (fix === "stop_idle" && id !== "space" && person) return runFix(fix, service, { dataDir: paths.root, now, closeIdle: () => closeIdleSessions(person) });
             if (id === "space") return runFix(fix, service, { dataDir: paths.root, now, closeIdle: () => closeIdleSessions(), restart: async (svc) => { if (!supervisor.has(svc)) return false; await supervisor.restart(svc); return true; } });
             return String(await computeStream.ask(id, "fix", { fix, ...(service ? { service } : {}) }));
           },
@@ -2167,6 +2174,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const d = db;
     // one commit for the three heartbeats, not three
     d.tx(() => {
+      storeInfo(d, "space_version", cfg.version, t);
       d.run(
         "INSERT INTO network_config (id, address, mode, domain, relay_address, public_ingress, ingress_detail, reported_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET reported_at = excluded.reported_at, relay_address = COALESCE(excluded.relay_address, network_config.relay_address)",
         address, cfg.relayUrl && !cfg.address ? "relay" : "own_domain", cfg.address, relayHost, cfg.address || cfg.relayUrl ? 1 : 0, cfg.address || cfg.relayUrl ? null : "Forms and webhooks need a public address.", t,
@@ -2400,12 +2408,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     if (hasSpace && db) {
       const relayDb = db;
       const relayAt = (url: string): RelayBox => {
+        // the relay says its version on /health; read it on the link, about every five minutes, beside this Space server's own
+        const watchRelay = relayVersionWatch({ relay: url, fetch: fetchFn, db: relayDb, now });
         const box = startRelayBox({
           relayUrl: url, dataDir: paths.root, localPort: () => boundPort, invites: openInvites,
           onSigninAsk: (loc, s) => peerService?.onAsk(loc, s),
           log: (m) => sink.log({ space: space ?? "-", level: 30, msg: "relay.link", place: "relay", attrs: { note: m } }),
           ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
           onState: (st) => {
+            if (st.state === "healthy") watchRelay();
             void box.ready.then((r) => {
               try {
                 relayDb.run(

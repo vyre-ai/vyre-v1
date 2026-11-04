@@ -282,14 +282,19 @@ export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narro
   );
 }
 
+/** What the confirm of Stop idle sessions says: how many will stop, and whose. */
+export const stopLine = (n: number, space: boolean): string => (n === 0 ? "No idle engine sessions are open." : `This stops ${n} idle engine session${n === 1 ? "" : "s"}${space ? " on the Space server, whoever they belong to" : " of yours on this computer"}. A turn that is running is not touched.`);
+
 function HealthTab({ detail, m, goto, onFix, fixed }: { detail: MachineOut | null; m: MachineRow; goto: ((page: string) => void) | undefined; onFix?: ((fix: "clear_caches" | "stop_idle") => void) | undefined; fixed?: string | undefined }): ReactElement {
+  const [sure, setSure] = useState(false);
   if (!detail) return <Text style={s.note}>Loading</Text>;
   if (detail.privacy === "vyre_only") return <Text style={s.empty} testID="machine-health-private">Health checks of a member's own computer stay on that computer.</Text>;
   return (
     <View testID="machine-health">
       <Block title="Doctor" count={detail.findings.filter((f) => f.state !== "healthy").length} testID="machine-doctor">
-        {detail.findings.map((f) => <Row key={f.key} id={`finding-${f.key}`} title={f.detail} note={f.next} tall leading={<View style={s.lead36}><Glyph name={f.state === "healthy" ? "ok" : f.state === "down" ? "x" : "warn"} size={15} color={f.state === "healthy" ? "var(--ok)" : f.state === "down" ? "var(--danger)" : "var(--warn)"} /></View>} trailing={(f.fix === "clear_caches" || f.fix === "stop_idle") && onFix ? <Pressable accessibilityRole="button" accessibilityLabel="Fix" testID={`finding-fix-${f.fix}`} onPress={() => onFix(f.fix as "clear_caches" | "stop_idle")} style={[s.small, pointer]}><Text style={s.smallText}>Fix</Text></Pressable> : f.fix === "update" && goto ? <Pressable accessibilityRole="button" accessibilityLabel="Update" testID="finding-fix-update" onPress={() => goto("updates")} style={[s.small, pointer]}><Text style={s.smallText}>Update</Text></Pressable> : undefined} />)}
+        {detail.findings.map((f) => <Row key={f.key} id={`finding-${f.key}`} title={f.detail} note={f.next} tall leading={<View style={s.lead36}><Glyph name={f.state === "healthy" ? "ok" : f.state === "down" ? "x" : "warn"} size={15} color={f.state === "healthy" ? "var(--ok)" : f.state === "down" ? "var(--danger)" : "var(--warn)"} /></View>} trailing={(f.fix === "clear_caches" || f.fix === "stop_idle") && onFix ? <Pressable accessibilityRole="button" accessibilityLabel="Fix" testID={`finding-fix-${f.fix}`} onPress={() => { if (f.fix === "stop_idle" && !sure) { setSure(true); return; } setSure(false); onFix(f.fix as "clear_caches" | "stop_idle"); }} style={[s.small, pointer]}><Text style={s.smallText}>{f.fix === "stop_idle" && sure ? "Stop them" : "Fix"}</Text></Pressable> : f.fix === "update" && goto ? <Pressable accessibilityRole="button" accessibilityLabel="Update" testID="finding-fix-update" onPress={() => goto("updates")} style={[s.small, pointer]}><Text style={s.smallText}>Update</Text></Pressable> : undefined} />)}
       </Block>
+      {sure ? <Text style={s.foot} testID="machine-fix-confirm">{stopLine(detail.idleSessions ?? 0, m.kind === "space")}</Text> : null}
       {fixed || detail.lastFix ? <Text style={s.foot} testID="machine-last-fix">{fixed || detail.lastFix?.detail}</Text> : null}
       <Text style={s.foot}>The same check runs as vyre-server doctor in a terminal on this machine, so it works even when the Space server is down.</Text>
       {m.kind === "space" && goto ? (
