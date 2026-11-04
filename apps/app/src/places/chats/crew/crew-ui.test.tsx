@@ -327,3 +327,21 @@ test("the crew UI says Allow, Always allow and Deny for a helper's request and n
   const labels = textOf(find(root, "approval-tsk_1"));
   assert.ok(!/Approve|Reject|Allow this once/.test(labels), labels);
 });
+
+test("on a phone, Open chat from the Crew screen closes the screen so the helper chat is what shows", async () => {
+  const { CrewProvider, useCrew } = await import("./context.tsx");
+  const { CrewSide } = await import("./CrewSide.tsx");
+  const opened: string[] = [];
+  const member = M({ id: "thr_p", state: "working" });
+  const call = async (cap: string): Promise<unknown> => (cap === "engine.crew.status" ? { members: [member], totals: T({ members: 1, working: 1, done: 0, needsYou: 0 }) } : cap === "chat.helper.notes" ? { notes: [] } : {});
+  let ctx: ReturnType<typeof useCrew> = null;
+  const Probe = (): null => { ctx = useCrew(); return null; };
+  const root = await mount(createRoot, <CrewProvider call={call} threadId="thr_0"><Probe /><CrewSide fallback={null} nameOf={() => "x"} openHelper={(id) => opened.push(id)} narrow /></CrewProvider>);
+  await flush(); await flush();
+  const { act } = await import("react");
+  await act(async () => { ctx!.show("thr_p"); });
+  await flush();
+  await press(find(root, "crew-peek-open"));
+  assert.deepEqual(opened, ["thr_p"]);
+  assert.equal(ctx!.open, false, "the Crew screen is closed, so the helper chat shows");
+});

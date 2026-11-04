@@ -11,7 +11,7 @@ export function CrewSide({ fallback, nameOf, openHelper, narrow }: { fallback: R
   if (!crew || !crew.open || !crew.status || crew.status.members.length === 0 || !crew.call) return fallback;
   const sel = crew.selected !== null ? crew.status.members.find((m) => m.id === crew.selected) : undefined;
   const body = sel
-    ? <CrewPeek member={sel} call={crew.call} nameOfId={nameOf} onBack={() => crew.show(null)} onOpenChat={openHelper} onRefresh={crew.refresh} />
+    ? <CrewPeek member={sel} call={crew.call} nameOfId={nameOf} onBack={() => crew.show(null)} onOpenChat={(id) => { if (narrow) crew.close(); openHelper(id); }} onRefresh={crew.refresh} />
     : <CrewOverview status={crew.status} call={crew.call} threadId={crew.threadId} onPeek={(id) => crew.show(id)} onRefresh={crew.refresh} />;
   // on a phone the Crew pane is a screen of its own, the full width, with its own title bar and a close
   if (narrow) {
