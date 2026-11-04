@@ -10,9 +10,10 @@ test("a notification kind reads as words, with no template left in it", () => {
 });
 
 test("a member is not shown the kinds only an owner or admin can act on; an owner and an admin see them all", () => {
-  const all = ["dm", "mention", "space.deletion_cancelled", "ci.paused", "member.join_requested", "limit.hit", "member.joined", "machine.alert", "hook.asked", "task.assigned"].map((key) => ({ key }));
+  const all = ["dm", "mention", "space.deletion_cancelled", "ci.paused", "member.join_requested", "limit.hit", "machine.alert", "hook.asked", "task.assigned"].map((key) => ({ key }));
   const keys = (role: string): string[] => kindsFor(all, role).map((k) => k.key);
   assert.deepEqual(keys("Member"), ["dm", "mention", "task.assigned"]);
+  assert.ok(kindsFor([{ key: "member.joined" }], "Member").length === 1, "the person who invited someone is told when they join, so a member can be sent it");
   assert.deepEqual(keys("Guest"), ["dm", "mention", "task.assigned"]);
   assert.equal(keys("Owner").length, all.length);
   assert.equal(keys("Admin").length, all.length);

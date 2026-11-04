@@ -126,7 +126,7 @@ export const KIND_LABELS: Readonly<Record<string, string>> = {
   "member.joined": "People who joined", "member.join_requested": "People asking to join", "limit.hit": "A limit was reached", "vault.rotation_due": "Keys to rotate", "machine.alert": "Machine alerts", "ci.paused": "Builds paused", "space.deletion_scheduled": "Space deletion scheduled", "space.deletion_cancelled": "Space deletion cancelled",
 };
 /** Kinds only a Space's owner or admins are sent: a member does not see them in the list. */
-export const ADMIN_KINDS: ReadonlySet<string> = new Set(["space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "member.joined", "member.join_requested", "limit.hit", "machine.alert", "vault.rotation_due", "hook.asked"]);
+export const ADMIN_KINDS: ReadonlySet<string> = new Set(["space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "member.join_requested", "limit.hit", "machine.alert", "vault.rotation_due", "hook.asked"]);
 /** The kinds a person with this role is sent: owners and admins get all, a member none of the admin-only ones. */
 export const kindsFor = <T extends { key: string }>(kinds: readonly T[], role: string): T[] => { const r = role.toLowerCase(); return r === "owner" || r === "admin" ? [...kinds] : kinds.filter((k) => !ADMIN_KINDS.has(k.key)); };
 export const kindLabel = (title: string): string => title.replace(/^Replies in your threads$/, "Replies to you").replace(/:\s*\{\{\w+\}\}$/, "").replace(/\{\{(\w+)\}\}/g, (_, w: string) => WORD[w] ?? "something");
