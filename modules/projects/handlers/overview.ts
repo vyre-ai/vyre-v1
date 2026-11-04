@@ -5,7 +5,7 @@
 // DECISION: the notes module here is a Keep-style note with no block document, collaboration or history, so the page lives in this module: its blocks, and a log of revisions. Two writers are kept apart by
 // the revision they based their change on, not by live merging.
 import {
-  LIVE_TYPES, attachesOf, call, clean, codeOf, docOf, emitP, ensure, isOpenState, loadTasks, me, membersOf, newId, planTask, plansOf, projectRow, raise, readRecord, revsOf, saveDoc, saveTemplate,
+  LIVE_TYPES, revBlocks, attachesOf, call, clean, codeOf, docOf, emitP, ensure, isOpenState, loadTasks, me, membersOf, newId, planTask, plansOf, projectRow, raise, readRecord, revsOf, saveDoc, saveTemplate,
   templateBy, templatesOf, tolerant, visible, writeRecord,
 } from "../projections.ts";
 import type { In, LiveType, PageBlock, Project, ProjectsCtx, RevRow } from "../projections.ts";
@@ -134,7 +134,8 @@ function checkLive(ctx: ProjectsCtx, l: In | undefined): NonNullable<PageBlock["
   return clean({ type: l.type as LiveType, spec, view: v });
 }
 
-const brief = (b: PageBlock): string => (b.kind === "live" ? `a live ${b.live!.type} block` : b.kind === "heading" ? `the heading "${(b.text ?? "").slice(0, 40)}"` : "a paragraph");
+const liveName = (b: PageBlock): string => { const ti = (b.live?.spec as { title?: unknown } | undefined)?.title; return typeof ti === "string" && ti.trim() !== "" ? ` "${ti.trim().slice(0, 40)}"` : ""; };
+const brief = (b: PageBlock): string => (b.kind === "live" ? `a live ${b.live!.type} block${liveName(b)}` : b.kind === "heading" ? `the heading "${(b.text ?? "").slice(0, 40)}"` : "a paragraph");
 
 /** Apply ops to a page: answers the new blocks, a line saying what changed, and the property values the ops replaced. */
 export async function applyOps(ctx: ProjectsCtx, p: Project, start: readonly PageBlock[], ops: readonly In[]): Promise<{ blocks: PageBlock[]; summary: string; props: Record<string, unknown>; changed: number }> {
@@ -212,6 +213,23 @@ function stale(ctx: ProjectsCtx, p: Project, baseRev: unknown): void {
   if (typeof baseRev === "number" && baseRev !== cur) raise(ctx, "validation.precondition_failed", "Someone changed the page since you opened it. Open it again and redo your change.", { reason: "stale_revision", rev: cur });
 }
 
+/** What a save changed, in a few words: which live block was added, removed or set differently, which text was written. */
+export function describeChange(before: readonly PageBlock[], after: readonly PageBlock[]): string {
+  const said: string[] = [];
+  const was = new Map(before.map((b) => [b.id, b]));
+  const now = new Map(after.map((b) => [b.id, b]));
+  for (const b of after) {
+    const o = was.get(b.id);
+    if (!o) { said.push(`added ${brief(b)}`); continue; }
+    if (JSON.stringify({ ...o, by: undefined, at: undefined }) === JSON.stringify({ ...b, by: undefined, at: undefined })) continue;
+    if (b.kind === "live" && o.kind === "live") said.push(JSON.stringify(o.live!.spec) !== JSON.stringify(b.live!.spec) ? `changed the filter of ${(b.live!.spec as { title?: string }).title ?? b.live!.type}` : `changed the view of ${(b.live!.spec as { title?: string }).title ?? b.live!.type}`);
+    else said.push(b.kind === "heading" ? `renamed the heading "${(b.text ?? "").slice(0, 40)}"` : "edited a paragraph");
+  }
+  for (const b of before) if (!now.has(b.id)) said.push(`removed ${brief(b)}`);
+  if (said.length === 0) return before.map((b) => b.id).join() === after.map((b) => b.id).join() ? "no change" : "moved a block";
+  return said.slice(0, 3).join(", ") + (said.length > 3 ? ` and ${said.length - 3} more` : "");
+}
+
 export async function docSave(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const p = visible(ctx, input.projectId, "edit");
@@ -230,7 +248,7 @@ export async function docSave(ctx: ProjectsCtx, input: In): Promise<unknown> {
     return old && JSON.stringify({ ...old, by: undefined, at: undefined }) === JSON.stringify({ id, ...checked }) ? old : withAuthor({ id, ...checked }, me(ctx), at);
   });
   if (blocks.length > 300) raise(ctx, "validation.bad_input", "A page holds at most 300 blocks.");
-  const summary = JSON.stringify(blocks) === JSON.stringify(before) ? "no change" : "edited the page";
+  const summary = JSON.stringify(blocks) === JSON.stringify(before) ? "no change" : describeChange(before, blocks);
   const rev = await commit(ctx, p, before, { blocks, summary, props: {} });
   return { rev, blocks: blocks.map(view), markdown: toMarkdown(blocks) };
 }
@@ -263,6 +281,22 @@ export async function undo(ctx: ProjectsCtx, input: In): Promise<unknown> {
   }
   const rev = await commit(ctx, p, cur.blocks, { blocks: last.before, summary: `undid: ${last.summary}`, props: reverted }, last.rev);
   return { rev, undid: last.rev, blocks: last.before.map(view) };
+}
+
+/** Bring an older version back: its blocks are the page again, as a new revision, so the restore can be undone like any change. */
+export async function restore(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const p = visible(ctx, input.projectId, "edit");
+  stale(ctx, p, input.baseRev);
+  const rev = Number(input.rev);
+  const blocks = revBlocks(ctx.db, p.projectId, rev);
+  if (!blocks) raise(ctx, "validation.not_found", "That version is no longer kept.", { rev });
+  const before = docOf(ctx.db, p.projectId)?.blocks ?? defaultBlocks();
+  const at = ctx.now();
+  const next = blocks!.map((b) => withAuthor({ ...b }, me(ctx), at));
+  const now = await commit(ctx, p, before, { blocks: next, summary: `restored version ${rev}`, props: {} });
+  await say(ctx, p, `restored version ${rev}`);
+  return { rev: now, restored: rev, blocks: next.map(view) };
 }
 
 // ---- templates ----
@@ -386,7 +420,7 @@ export async function overviewGet(ctx: ProjectsCtx, input: In): Promise<unknown>
 
 // ---- live blocks ----
 
-export interface LiveRow { id: string; title: string; state?: string | undefined; detail?: string | undefined; url?: string | undefined }
+export interface LiveRow { id: string; title: string; state?: string | undefined; detail?: string | undefined; url?: string | undefined; who?: string | undefined; due?: number | undefined }
 const day = (ms: number | undefined): string | undefined => (ms === undefined ? undefined : new Date(ms).toISOString().slice(0, 10));
 const cap = (spec: Record<string, unknown>, dflt = 20): number => Math.min(100, Math.max(1, Number(spec["limit"] ?? dflt)));
 const asText = (v: unknown): string => (v === null || v === undefined ? "" : String(v));
@@ -406,6 +440,7 @@ export async function evaluate(ctx: ProjectsCtx, p: Project, type: LiveType, spe
         if (st === "late") all = all.filter((t) => isOpenState(t.status) && t.due !== undefined && t.due < now);
         else if (st === "open" || st === undefined) all = all.filter((t) => isOpenState(t.status));
         else if (st === "done") all = all.filter((t) => t.status === "done");
+        else if (st === "waiting") all = all.filter((t) => t.status === "in_review" || t.status === "awaiting_approval");
       }
       if (typeof spec["assigned"] === "string") all = all.filter((t) => t.assigned === spec["assigned"]);
       all.sort((a, b) => (a.due ?? Infinity) - (b.due ?? Infinity));
@@ -413,7 +448,7 @@ export async function evaluate(ctx: ProjectsCtx, p: Project, type: LiveType, spe
       // is what is hidden from them. (A count that cannot be read leaves hidden at 0 rather than guessing.)
       const everyTask = await tolerant<{ count?: number }>(ctx, "records.counts", { type: "task", filter: { field: "project", op: "eq", value: p.recordId } }, {});
       const hiddenTasks = everyTask.count === undefined ? 0 : Math.max(0, everyTask.count - tasks.length);
-      return done(all.map((t) => ({ id: t.taskId, title: t.title, state: t.status, detail: [day(t.due), t.due !== undefined && t.due < now && isOpenState(t.status) ? "late" : undefined].filter(Boolean).join(" · ") || undefined, url: `/tasks/${t.taskId}` })), hiddenTasks);
+      return done(all.map((t) => ({ id: t.taskId, title: t.title, state: t.status, detail: [day(t.due), t.due !== undefined && t.due < now && isOpenState(t.status) ? "late" : undefined].filter(Boolean).join(" · ") || undefined, url: `/tasks/${t.taskId}`, ...(t.assigned ? { who: t.assigned } : {}), ...(t.due !== undefined ? { due: t.due } : {}) })), hiddenTasks);
     }
     case "links": case "ci": {
       const kind = type === "ci" ? "ci.run" : typeof spec["kind"] === "string" ? spec["kind"] : undefined;

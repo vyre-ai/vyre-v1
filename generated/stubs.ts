@@ -2184,6 +2184,7 @@ export function stubs(ctx: CallCtx) {
         apply_template: call("projects.overview_doc.apply_template"),
         get: call("projects.overview_doc.get"),
         history: call("projects.overview_doc.history"),
+        restore: call("projects.overview_doc.restore"),
         save: call("projects.overview_doc.save"),
         templates: {
           list: call("projects.overview_doc.templates.list"),

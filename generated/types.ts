@@ -30152,6 +30152,8 @@ export type ProjectsLiveBlockQueryOut = {
       state?: string;
       detail?: string;
       url?: string;
+      who?: string;
+      due?: number;
     }>;
   hidden: number;
   total: number;
@@ -30370,6 +30372,28 @@ export type ProjectsOverviewDocHistoryOut = {
       summary: string;
       undoOf?: number;
       at: number;
+    }>;
+};
+export type ProjectsOverviewDocRestoreIn = {
+  projectId: string;
+  rev: number;
+  baseRev?: number;
+};
+export type ProjectsOverviewDocRestoreOut = {
+  rev: number;
+  restored: number;
+  blocks: Array<{
+      id: string;
+      kind: "text" | "heading" | "live";
+      text?: string;
+      level?: number;
+      live?: {
+        type: "tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status";
+        spec: Record<string, unknown>;
+        view?: "list" | "table" | "count" | "cards";
+      };
+      by?: string;
+      at?: number;
     }>;
 };
 export type ProjectsOverviewDocSaveIn = {
@@ -45872,6 +45896,7 @@ export interface CapMap {
   "projects.overview_doc.apply_template": { in: ProjectsOverviewDocApplyTemplateIn; out: ProjectsOverviewDocApplyTemplateOut };
   "projects.overview_doc.get": { in: ProjectsOverviewDocGetIn; out: ProjectsOverviewDocGetOut };
   "projects.overview_doc.history": { in: ProjectsOverviewDocHistoryIn; out: ProjectsOverviewDocHistoryOut };
+  "projects.overview_doc.restore": { in: ProjectsOverviewDocRestoreIn; out: ProjectsOverviewDocRestoreOut };
   "projects.overview_doc.save": { in: ProjectsOverviewDocSaveIn; out: ProjectsOverviewDocSaveOut };
   "projects.overview_doc.templates.list": { in: ProjectsOverviewDocTemplatesListIn; out: ProjectsOverviewDocTemplatesListOut };
   "projects.overview_doc.templates.save": { in: ProjectsOverviewDocTemplatesSaveIn; out: ProjectsOverviewDocTemplatesSaveOut };

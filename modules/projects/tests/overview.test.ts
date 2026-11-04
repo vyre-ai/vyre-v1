@@ -48,7 +48,7 @@ test("an agent inserts a live invoices block; a member sees only the invoices th
   const ev = h.named("project.overview_edited");
   assert.deepEqual(ev.map((e) => [e.payload["authorKind"], e.payload["rev"]]), [["agent", 1]]);
   assert.equal(h.only("chat.post").length, 1);
-  assert.match(h.only("chat.post")[0]!.input.body, /^Helper edited the Overview: added a live records block\.$/);
+  assert.match(h.only("chat.post")[0]!.input.body, /^Helper edited the Overview: added a live records block "Invoices"\.$/);
   // Dana opens every invoice; Leo, two of three
   const asDana = await run(h, "projects.live_block.query", { projectId: p.projectId, blockId: block.id });
   assert.deepEqual([asDana.rows.length, asDana.hidden, asDana.total], [3, 0, 3]);
@@ -364,4 +364,29 @@ test("goals the reader may not open are counted through goals.count: the differe
   assert.equal(JSON.stringify(out).includes("gol_2"), false);
   h.world.down.add("goals.count");
   assert.equal((await run(h, "projects.live_block.query", { projectId: p.projectId, type: "goal", spec: {} })).hidden, 0, "a reader who may not ask is told nothing hidden, not a guess");
+});
+
+test("a save says what it changed, an agent's block is named with its title, and an older version can be restored as a new one", async () => {
+  const { describeChange } = await import("../handlers/overview.ts");
+  const live = (id: string, title: string, status: string, view?: string) => ({ id, kind: "live" as const, live: { type: "tasks" as const, spec: { title, status }, ...(view ? { view: view as "list" } : {}) } });
+  assert.equal(describeChange([live("a", "Open tasks", "open")], [live("a", "Open tasks", "late")]), "changed the filter of Open tasks");
+  assert.equal(describeChange([live("a", "Open tasks", "open")], [live("a", "Open tasks", "open", "table")]), "changed the view of Open tasks");
+  assert.equal(describeChange([], [live("b", "Late work", "late")]), 'added a live tasks block "Late work"');
+  assert.equal(describeChange([live("b", "Late work", "late")], []), 'removed a live tasks block "Late work"');
+  assert.equal(describeChange([{ id: "t", kind: "text", text: "a" }], [{ id: "t", kind: "text", text: "b" }]), "edited a paragraph");
+  const h = harness();
+  const p = await mkProject(h);
+  const one = await run(h, "projects.overview_edit", { projectId: p.projectId, ops: [{ op: "insert", block: { kind: "text", text: "First" } }] });
+  const first = { rev: one.rev as number };
+  await run(h, "projects.overview_edit", { projectId: p.projectId, baseRev: first.rev, ops: [{ op: "insert", block: { kind: "text", text: "Added later" } }] });
+  const second = await run(h, "projects.overview_doc.get", { projectId: p.projectId });
+  assert.ok(second.markdown.includes("Added later"));
+  const back = await run(h, "projects.overview_doc.restore", { projectId: p.projectId, rev: first.rev, baseRev: second.rev });
+  assert.equal(back.restored, first.rev);
+  const now = await run(h, "projects.overview_doc.get", { projectId: p.projectId });
+  assert.ok(!now.markdown.includes("Added later"), "the older page is back");
+  assert.equal(now.latest.summary, `restored version ${first.rev}`);
+  assert.equal(now.rev, back.rev, "the restore is a revision of its own");
+  await refused(run(h, "projects.overview_doc.restore", { projectId: p.projectId, rev: 999 }), "validation.not_found");
+  await refused(run(h, "projects.overview_doc.restore", { projectId: p.projectId, rev: first.rev, baseRev: second.rev }), "validation.precondition_failed");
 });

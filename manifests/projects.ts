@@ -32,7 +32,7 @@ const pageOp = t.obj({
 const pageProp = t.obj({ key: t.str(), title: t.str(), type: t.str(), value: t.opt(t.json()) });
 const revRow = t.obj({ rev: t.int({ minimum: 1 }), by: t.str(), authorKind: t.enm('person', 'agent'), summary: t.str(), undoOf: t.opt(t.int()), at: t.ts() });
 const pageTemplate = t.obj({ templateId: t.str({ examples: ['tpl_client_account'] }), title: t.str(), summary: t.opt(t.str()), builtin: t.bool(), blocks: t.int({ minimum: 0 }), by: t.str(), at: t.ts() });
-const liveRow = t.obj({ id: t.str(), title: t.str(), state: t.opt(t.str()), detail: t.opt(t.str()), url: t.opt(t.str()) });
+const liveRow = t.obj({ id: t.str(), title: t.str(), state: t.opt(t.str()), detail: t.opt(t.str()), url: t.opt(t.str()), who: t.opt(t.str({ description: 'The person or agent a task is assigned to' })), due: t.opt(t.ts()) });
 const helperRow = t.obj({
   jobId: t.str(), threadId: id.thread, agentId: id.agent, name: t.opt(t.str()), title: t.str(), state: t.enm('working', 'done', 'needs_you', 'stopped'), startedAt: t.ts(), endedAt: t.opt(t.ts()),
 });
@@ -292,6 +292,10 @@ export default defineManifest({
     write('projects.overview_doc.undo', 'Undo the latest change to the Overview: the blocks and any property it set go back as they were; the undo is a revision too', {
       in: { projectId: id.project, rev: t.opt(t.int({ minimum: 1 })) }, out: { rev: t.int({ minimum: 1 }), undid: t.int({ minimum: 1 }), blocks: t.arr(pageBlock) },
       on: ['project', '/projectId'], level: 'edit', audit: 'always', emits: ['project.overview_edited'], tool: 'records', errors: ['validation.precondition_failed'],
+    }),
+    write('projects.overview_doc.restore', 'Bring an older version of the Overview back: its blocks become the page again, as a new revision (so the restore can be undone)', {
+      in: { projectId: id.project, rev: t.int({ minimum: 1 }), baseRev: t.opt(t.int({ minimum: 0 })) }, out: { rev: t.int({ minimum: 1 }), restored: t.int({ minimum: 1 }), blocks: t.arr(pageBlock) },
+      on: ['project', '/projectId'], level: 'edit', audit: 'always', emits: ['project.overview_edited'], tool: 'records', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     read('projects.overview_doc.history', 'The Overview\'s revisions, newest first, each with who made it and what changed', {
       in: { projectId: id.project, limit: t.opt(t.int({ minimum: 1, maximum: 100 })) }, out: { revisions: t.arr(revRow) }, on: ['project', '/projectId'], tool: 'records', label: 'filter',

@@ -43,6 +43,8 @@ type Out = {
       state?: string;
       detail?: string;
       url?: string;
+      who?: string;
+      due?: number;
     }>;
   hidden: number;
   total: number;
@@ -76,10 +78,12 @@ type Out = {
     "rows": [
       {
         "detail": "example",
+        "due": 1760000000000,
         "id": "example",
         "state": "example",
         "title": "example",
-        "url": "example"
+        "url": "example",
+        "who": "example"
       }
     ],
     "total": 1,

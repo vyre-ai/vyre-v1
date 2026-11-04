@@ -30,6 +30,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "projects.overview_doc.apply_template": async (ctx) => { throw new VyreErr(notImplemented("projects.overview_doc.apply_template", ctx.trace)); },
   "projects.overview_doc.get": async (ctx) => { throw new VyreErr(notImplemented("projects.overview_doc.get", ctx.trace)); },
   "projects.overview_doc.history": async (ctx) => { throw new VyreErr(notImplemented("projects.overview_doc.history", ctx.trace)); },
+  "projects.overview_doc.restore": async (ctx) => { throw new VyreErr(notImplemented("projects.overview_doc.restore", ctx.trace)); },
   "projects.overview_doc.save": async (ctx) => { throw new VyreErr(notImplemented("projects.overview_doc.save", ctx.trace)); },
   "projects.overview_doc.templates.list": async (ctx) => { throw new VyreErr(notImplemented("projects.overview_doc.templates.list", ctx.trace)); },
   "projects.overview_doc.templates.save": async (ctx) => { throw new VyreErr(notImplemented("projects.overview_doc.templates.save", ctx.trace)); },

@@ -2184,6 +2184,7 @@ export function createClient(transport: Transport) {
         apply_template: call("projects.overview_doc.apply_template", 1),
         get: call("projects.overview_doc.get", 1),
         history: call("projects.overview_doc.history", 1),
+        restore: call("projects.overview_doc.restore", 1),
         save: call("projects.overview_doc.save", 1),
         templates: {
           list: call("projects.overview_doc.templates.list", 1),
