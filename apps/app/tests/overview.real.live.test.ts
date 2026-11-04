@@ -63,7 +63,11 @@ test("Overview, real data: an Unpaid block sums real invoices, and the number fo
       if (size === "phone") { await page.getByTestId("mobile-shell").waitFor({ timeout: 30_000 }); await page.goto(`${web.origin}/chat?skin=${skin}#subject=project:${pid}`, { waitUntil: "load" }); }
       else { await page.getByTestId("shell").waitFor({ timeout: 30_000 }); await page.getByTestId("head-projects").waitFor({ timeout: 20_000 }); await page.getByTestId(`row-pj:${pid}`).click(); }
       await page.getByTestId("project-page").waitFor({ timeout: 40_000 });
-      await page.waitForTimeout(1200); await page.getByTestId("tab-overview").click({ force: true });
+      await page.waitForTimeout(1200); await page.getByTestId("tab-overview").click({ force: true, timeout: 10_000 }).catch(async (e: Error) => {
+        const ids = await page.evaluate(() => [...document.querySelectorAll("[data-testid]")].map((x) => x.getAttribute("data-testid")).slice(0, 60));
+        await page.screenshot({ path: path.join(shots, `debug-${tag}-${size}.png`) });
+        throw new Error(`no overview tab at ${page.url()}: ${JSON.stringify(ids)} errors=${JSON.stringify(errs.slice(0, 3))} / ${e.message.slice(0, 60)}`);
+      });
       await page.getByTestId("project-overview").waitFor({ timeout: 20_000 });
       await page.locator("[data-testid=live-metric] [data-testid=live-number]").first().waitFor({ timeout: 20_000 });
       await page.waitForTimeout(800);
