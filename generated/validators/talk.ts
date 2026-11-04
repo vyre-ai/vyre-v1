@@ -302,6 +302,7 @@ lf(a6171[i6171], p + "/protocols" + '/' + i6171, e, L1);
 }
 }
 }
+if ("context" in o6170) lf(o6170["context"], p + "/context", e, L1);
 if ("source" in o6170) lf(o6170["source"], p + "/source", e, L950);
 if ("expiresIn" in o6170) lf(o6170["expiresIn"], p + "/expiresIn", e, L12);
 }

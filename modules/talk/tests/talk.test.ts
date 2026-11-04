@@ -190,7 +190,10 @@ test("a session asks the provider to favour Vyre, the Space, its agents and its 
   const url = new URL((await h.session(mia, {})).url);
   assert.deepEqual(url.searchParams.getAll("keyterm"), ["Vyre", "Hart Reyes Law", "Intake", "Maya Chen", "Dana Wine"], "someone else's private agent is not named");
   await h.spaceConnect(w.as(person("usr_admin")), { provider: "elevenlabs", fields: fields(), idempotencyKey: "s9" });
-  assert.deepEqual(new URL((await h.session(mia, {})).url).searchParams.getAll("keyterms"), ["Vyre", "Hart Reyes Law", "Intake", "Maya Chen", "Dana Wine"]);
+  const eleven = await h.session(mia, {});
+  assert.deepEqual(JSON.parse(new URL(eleven.url).searchParams.get("keyterms")!), ["Vyre", "Hart Reyes Law", "Intake", "Maya Chen", "Dana Wine"]);
+  assert.equal(eleven.context, "Words that may come up: Vyre, Hart Reyes Law, Intake, Maya Chen, Dana Wine.", "the same words as a line for the first audio chunk");
+  assert.equal(new URL(url.toString()).searchParams.has("keyterm"), true);
   const quiet = world({ admins: ["usr_admin"] });
   const call = quiet.as(person("usr_admin")).call;
   await spaceConnect(quiet.as(person("usr_admin")));

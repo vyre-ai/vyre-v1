@@ -37889,6 +37889,7 @@ export type TalkSessionOut = {
   provider: string;
   url: string;
   protocols: Array<string>;
+  context?: string;
   source: "own" | "space";
   expiresIn: number;
 };
