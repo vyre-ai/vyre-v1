@@ -31,12 +31,12 @@ test("the pane is the prototype's 340 px, its tabs are pinned (no close slot) an
 test("a roomy pane draws every tab, Knows with its count, and no More", () => {
   const out = pane({ width: 640 });
   for (const t of ["Computer", "Chats", "Knows 4", "Routines"]) assert.ok(out.includes(t), t);
-  assert.ok(!out.includes(">More<"), "no More when everything fits");
+  assert.ok(!out.includes('aria-label="More tabs"'), "no More when everything fits");
 });
 
 test("a narrow pane folds the tabs that do not fit behind More", () => {
   const out = pane({ width: 300 });
-  assert.ok(out.includes(">More<"));
+  assert.ok(out.includes('aria-label="More tabs"'));
 });
 
 test("a sleeping computer shows its dimmed frame (pressing it wakes it) and one chip, and the last session's steps each carry a thumbnail, the tool and the time into the session", () => {

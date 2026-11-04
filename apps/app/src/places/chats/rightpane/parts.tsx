@@ -166,9 +166,9 @@ export function PaneList({ entries, window, testID, plain = false }: { entries: 
         );
         const menuItems = e.menu;
         const body = <Hot>{row}</Hot>;
-        return menuItems && menuItems.length > 0
+        return <View style={s.rowGutter}>{menuItems && menuItems.length > 0
           ? <View {...menuTrigger((x, y) => menu.show(menuItems, x, y, "context", { label: e.title }))}>{body}</View>
-          : body;
+          : body}</View>;
       }
     }
   };
@@ -207,10 +207,11 @@ export const s = StyleSheet.create({
   btnText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },
   btnTextPrimary: { color: "var(--accent-ink)" as string },
   list: { flex: 1, minHeight: 0 },
-  label: { minHeight: 30, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 8, paddingTop: 12, paddingBottom: 4 },
-  labelText: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
+  label: { minHeight: 30, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", paddingHorizontal: 24, paddingTop: 26, paddingBottom: 8 },
+  labelText: { fontSize: 12, fontWeight: "400", color: "var(--ink-3)" as string },
   labelRight: { fontSize: 11.5, color: "var(--ink-4)" as string },
-  empty: { minHeight: 28, justifyContent: "center", paddingHorizontal: 8, paddingVertical: 4 },
+  rowGutter: { paddingHorizontal: 16, paddingVertical: 2 },
+  empty: { minHeight: 36, justifyContent: "center", paddingHorizontal: 24, paddingVertical: 6 },
   emptyText: { fontSize: 12.5, color: "var(--ink-3)" as string },
   notice: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 36, paddingLeft: 12, paddingRight: 6, borderTopWidth: 1, borderTopColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
   noticeText: { flex: 1, fontSize: 12.5, color: "var(--ink-2)" as string },

@@ -129,7 +129,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, setup: setupFir
   const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);
   const { strip, select } = useFittedTabs(tabs, tab, paneNow, {
-    extra: PANE_TAB_EXTRA, chrome: PANE_CHROME, menu, left: Math.max(0, win.width - paneNow) + 40, top: 118, measured: withMore(titles.widths),
+    extra: PANE_TAB_EXTRA, chrome: PANE_CHROME, dots: true, menu, left: Math.max(0, win.width - paneNow) + 40, top: 118, measured: withMore(titles.widths),
     pick: (key) => { setOwn(key); onTab?.(key); },
   });
   /** The pane's top row: the open item as a tab, the agent with its face and a close x, as the prototype draws it above the agent's header. */
@@ -143,7 +143,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, setup: setupFir
       <View testID="chats-right-pane" style={[st.root, extra?.active ? st.gone : null]} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}>
         <TabMeasure titles={tabs.map((x) => x.title)} onWidth={titles.set} />
         <AgentHeader deps={deps} role={agent?.role} status={agent?.status} menu={menu} />
-        <View style={st.tabs}><TabStrip tabs={strip} active={tab} onSelect={select} tight bare label={`${data.agent.name}'s tabs`} /></View>
+        <View style={st.tabs}><TabStrip tabs={strip} active={tab} onSelect={select} tight bare noOptions label={`${data.agent.name}'s tabs`} /></View>
         {online ? null : <Text testID="pane-offline" style={st.offline}>Offline. Showing what this device keeps.</Text>}
         <View testID={`pane-body-${tab}`} style={st.body}>
           {tab === "about" ? <AboutTab agent={agent} name={data.agent.name} hasComputer={showComputer} {...(!noComputers && !showComputer ? { onGive: () => { setSetup(true); setOwn("computer"); onTab?.("computer"); } } : {})} onOpenFiles={() => { setOwn("files"); onTab?.("files"); }} onOpenKnows={() => { setOwn("memory"); onTab?.("memory"); }} /> : null}
