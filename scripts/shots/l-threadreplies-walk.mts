@@ -20,7 +20,7 @@ const model = eco.scriptedModel(async function* (input: any) {
   const said = input.trigger?.body ?? "";
   if (/vendor call/.test(said)) {
     yield { type: "text", text: "Two helpers. Tess checks the vendor calendar and Orin compares the quotes. " };
-    await new Promise((r) => setTimeout(r, 14000));
+    await new Promise((r) => setTimeout(r, 30000));
     yield { type: "text", text: "Harbor costs $260 more up front, but its setup is two weeks sooner. Thursday 14:00 is free. Want me to book it?" };
   } else yield { type: "text", text: "Got it. Noted for the summary." };
 });
