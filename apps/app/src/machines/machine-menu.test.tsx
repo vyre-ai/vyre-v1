@@ -30,7 +30,7 @@ async function page(ms: MachineRow[], admin: boolean) {
 
 test("the menu follows whose machine it is: an admin may drain and fix the Space server and servers and remove a server; of a member's computer only drain", () => {
   const d = { open() {}, drain() {}, clearCaches() {}, stopIdle() {}, pinAgent() {}, copyAddress() {}, remove() {} };
-  assert.deepEqual(labels(machineMenu({ name: "Berlin box", draining: false, canDrain: true, canFix: true, canRemove: true }, d)), ["Open", "Drain", "-", "# Fix", "Clear Old Caches", "Stop Idle Sessions", "Pin an Agent…", "-", "Copy Address", "-", "Remove from the Space…"]);
+  assert.deepEqual(labels(machineMenu({ name: "Berlin box", draining: false, canDrain: true, canFix: true, canRemove: true }, d)), ["Open", "Drain", "Pin an Agent…", "-", "# Fix", "Clear Old Caches", "Stop Idle Sessions", "-", "Copy Address", "-", "Remove from the Space…"]);
   assert.ok(labels(machineMenu({ name: "x", draining: true, canDrain: true, canFix: true, canRemove: false }, d)).includes("Undrain"), "the words follow the state");
   assert.deepEqual(labels(machineMenu({ name: "Maya", draining: false, canDrain: true, canFix: false, canRemove: false }, d)), ["Open", "Drain", "-", "Copy Address"]);
   assert.deepEqual(labels(machineMenu({ name: "x", draining: false, canDrain: false, canFix: false, canRemove: false }, d)), ["Open", "-", "Copy Address"]);
@@ -39,7 +39,7 @@ test("the menu follows whose machine it is: an admin may drain and fix the Space
 test("an admin's row for a server: Drain and the fixes call machines.set and machines.fix on its id; Remove asks first, then network.server_remove", async () => {
   const w = await page([space, box, maya, mine], true);
   await open(w.root, "srv_box");
-  assert.deepEqual(menuLabels(w.root), ["Open", "Drain", "Clear Old Caches", "Stop Idle Sessions", "Pin an Agent…", "Copy Address", "Remove from the Space…"]);
+  assert.deepEqual(menuLabels(w.root), ["Open", "Drain", "Pin an Agent…", "Clear Old Caches", "Stop Idle Sessions", "Copy Address", "Remove from the Space…"]);
   await press(find(w.root as never, "menu-item-Drain") as never); await flush();
   await open(w.root, "srv_box");
   await press(find(w.root as never, "menu-item-Stop Idle Sessions") as never); await flush();
@@ -58,7 +58,7 @@ test("the Space server cannot be removed, a member's computer only drains for an
   assert.deepEqual(menuLabels(admin.root), ["Open", "Drain", "Copy Address"]);
   const member = await page([mine], false);
   await open(member.root, "dev_me");
-  assert.deepEqual(menuLabels(member.root), ["Open", "Drain", "Clear Old Caches", "Stop Idle Sessions", "Pin an Agent…", "Copy Address"]);
+  assert.deepEqual(menuLabels(member.root), ["Open", "Drain", "Pin an Agent…", "Clear Old Caches", "Stop Idle Sessions", "Copy Address"]);
   const watcher = await page([base({ serverId: "srv_x", name: "Shared box" })], false);
   await open(watcher.root, "srv_x");
   assert.deepEqual(menuLabels(watcher.root), ["Open", "Copy Address"], "a member has nothing to change on a server that is not theirs");

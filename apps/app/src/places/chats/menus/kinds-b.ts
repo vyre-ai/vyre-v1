@@ -244,11 +244,11 @@ export function machineMenu(f: MachineFacts, d: MachineDo): MenuEntry[] {
   return tidy([
     item("Open", d.open, { hint: KEY.enter }),
     f.canDrain ? (f.draining ? item("Undrain", () => d.drain(false)) : item("Drain", () => d.drain(true))) : null,
+    f.canFix ? item(ellipsis("Pin an Agent"), d.pinAgent) : null,
     f.canFix ? sep : null,
     f.canFix ? { head: "Fix" } : null,
     f.canFix ? item("Clear Old Caches", d.clearCaches) : null,
     f.canFix ? item("Stop Idle Sessions", d.stopIdle) : null,
-    f.canFix ? item(ellipsis("Pin an Agent"), d.pinAgent) : null,
     sep,
     item("Copy Address", d.copyAddress),
     f.canRemove ? sep : null,
