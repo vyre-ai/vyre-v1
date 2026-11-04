@@ -134,7 +134,8 @@ export function stripFromCoders<M extends Msg>(messages: readonly M[], threads: 
   return messages.flatMap((m, i) => {
     if (!m.blocks.some(mine)) return [m];
     const rest = m.blocks.filter((b) => !mine(b));
-    if (i === first) return [{ ...m, blocks: [...rest, { type: "crew_strip", id: `strip-${m.messageId}`, data: { blocks: [] } }] }];
+    // a line that held only the start ("Started a helper: ...") keeps no words; the lead's own words stay
+    if (i === first) return [{ ...m, body: /^Started a helper\b/.test(m.body) ? "" : m.body, blocks: [...rest, { type: "crew_strip", id: `strip-${m.messageId}`, data: { blocks: [] } }] }];
     return rest.length === 0 && m.body.trim() === "" ? [] : [{ ...m, blocks: rest }];
   });
 }

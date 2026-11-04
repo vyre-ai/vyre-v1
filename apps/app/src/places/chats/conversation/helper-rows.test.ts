@@ -81,6 +81,8 @@ test("a crew of coders only gets a strip made of the first coder's start line: t
   assert.deepEqual(out.map((m) => m.messageId), ["m1", "m3"]);
   assert.deepEqual(out[0]!.blocks.map((b) => b.type), ["crew_strip"]);
   assert.equal(out[0]!.body, "Two coders are on it.");
+  const startOnly = { messageId: "m0", body: "Started a helper: Dark mode", author: agent, blocks: [{ type: "helper", id: "b0", data: { crew: true, helperThreadId: "thr_a" } }] };
+  assert.equal(stripFromCoders([startOnly], new Set(["thr_a"]))[0]!.body, "", "a line that held only the start keeps no words");
   assert.equal(stripFromCoders([lead], new Set()).length, 1);
   // done: the answer joins the strip under the lead's own words
   const done = mergeCrewAnswer(out.map((m, i) => (i === 0 ? { ...m, blocks: [{ ...m.blocks[0]!, data: { blocks: [{ type: "helper", id: "x", data: { helperThreadId: "thr_a", status: "done" } }] } }] } : m)));

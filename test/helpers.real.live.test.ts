@@ -11,6 +11,7 @@ import { workFolder } from "../modules/engine/sandbox.ts";
 import { makeBundle } from "../client/src/crypto/keys.ts";
 import { holdKeyOnOwnNode } from "../client/src/gateway/local-key.ts";
 import { edge } from "../apps/app/tests/real-app-harness.test.ts";
+import { guardCrashes } from "../apps/app/tests/crash-guard.ts";
 import { loadConfig } from "../host/src/daemon/config.ts";
 import { boot, hostLog, scriptedModel, stop, waitFor, KEY } from "./support/eco-live.ts";
 
@@ -93,6 +94,8 @@ test("REAL MODEL: helpers are one row each, the lead answers once, a helper chat
       const ctx = await browser.newContext({ viewport: phone ? { width: 390, height: 844 } : { width: 1440, height: 900 } });
       await ctx.addInitScript((s: unknown) => { try { localStorage.setItem("vyre.session.v1", JSON.stringify({ sessions: { [(s as { baseUrl: string }).baseUrl]: s } })); } catch { /* blocked */ } }, session);
       const page = await ctx.newPage();
+      const guard = guardCrashes(page);
+      const shot = async (name: string): Promise<void> => { await guard.check(name); await shoot(page, name); };
       page.on("console", (c) => { if (c.type() === "error") console.error("CONSOLE", c.text().slice(0, 300)); });
       await page.goto(`${web.origin}/chats?skin=${skin}`, { waitUntil: "load" });
       await page.getByText("Pricing research", { exact: false }).first().waitFor({ timeout: 40_000 });
@@ -100,10 +103,14 @@ test("REAL MODEL: helpers are one row each, the lead answers once, a helper chat
       if (await later.count()) await later.first().click().catch(() => undefined);
       await page.getByText("Pricing research", { exact: false }).first().click({ timeout: 30_000 });
       await page.waitForTimeout(2500);
-      await shoot(page, `${mode}-1-rows`);
-      await page.getByText("Open", { exact: true }).first().click({ timeout: 15_000 });
-      await page.getByText(/Brief from/).first().waitFor({ timeout: 20_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-helper-chat`); throw e; });
-      await shoot(page, `${mode}-2-helper-chat`);
+      await guard.check("after the chat opened");
+      // one strip, a row per helper; the row opens the peek in the Crew pane; Open chat there shows the helper's chat with its brief
+      await page.getByTestId("crew-strip").first().waitFor({ timeout: 40_000 }).catch(async (e) => { await guard.check("waiting for the strip"); await shoot(page, `${mode}-FAILED-strip`); throw e; });
+      await shot(`${mode}-1-strip`);
+      await page.locator('[role="button"][data-testid^="crew-chip-"]').first().click({ timeout: 15_000 });
+      await page.getByTestId("crew-peek-open").click({ timeout: 20_000 });
+      await page.getByText(/Brief from/).first().waitFor({ timeout: 20_000 }).catch(async (e) => { await guard.check("waiting for the helper chat"); await shoot(page, `${mode}-FAILED-helper-chat`); throw e; });
+      await shot(`${mode}-2-helper-chat`);
       await ctx.close();
     }
   } finally { await browser.close(); web.close(); await stop(d); }
