@@ -6,16 +6,17 @@ export interface LineageChild {
   item?: string;
 }
 
-/** Child line. Lane or item only when that field is present. Otherwise the id and attempt. */
+/** Child line, as a person reads it: the lane or item it ran for, and the try. No run id. */
 export function childRunLine(child: LineageChild): string {
   const attempt = typeof child.attempt === "number" ? `, attempt ${child.attempt}` : "";
-  if (child.lane && child.lane.length > 0) return `Lane ${child.lane} · child Run ${child.runId}${attempt}`;
-  if (child.item !== undefined && String(child.item).length > 0) return `Item ${child.item} · child Run ${child.runId}${attempt}`;
-  return typeof child.attempt === "number" ? `Child ${child.runId}, attempt ${child.attempt}` : `Child ${child.runId}`;
+  if (child.lane && child.lane.length > 0) return `Lane ${child.lane}${attempt}`;
+  if (child.item !== undefined && String(child.item).length > 0) return `Item ${child.item}${attempt}`;
+  return `Side run${attempt}`;
 }
 
-export function attemptLine(step: { step: string; state: string; attempt?: number; branch?: string }): string {
-  const parts = [step.step, step.state];
+/** A step's try: its name (the step's own title or what it does, never its id), how it ended, which try and which lane. */
+export function attemptLine(step: { step: string; state: string; attempt?: number; branch?: string }, nameOf: (stepId: string) => string = (id) => id): string {
+  const parts = [nameOf(step.step), step.state];
   if (typeof step.attempt === "number") parts.push(`attempt ${step.attempt}`);
   if (step.branch) parts.push(step.branch);
   return parts.join(" · ");
@@ -40,7 +41,7 @@ export function lineageLines(parentRun: string | undefined, steps: readonly { at
   const attempts = [...steps.map((step) => step.attempt), ...kids.map((child) => child.attempt)].filter((n): n is number => typeof n === "number");
   const attempt = attempts.length > 0 ? Math.max(...attempts) : undefined;
   return {
-    ...(hasParent ? { parent: `Parent ${parentRun}` } : {}),
+    ...(hasParent ? { parent: "Retry of an earlier run" } : {}),
     ...(attempt !== undefined ? { attempt: `Attempt ${attempt}` } : {}),
     children: kids.map((child) => ({
       id: child.runId,

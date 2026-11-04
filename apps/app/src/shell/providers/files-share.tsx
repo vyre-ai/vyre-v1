@@ -3,8 +3,9 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
-import { ShareSheet } from "../../../../../ui/src/ShareSheet/index.tsx";
-import type { ShareInput, UnshareInput } from "../../../../../ui/src/ShareSheet/index.tsx";
+import { AccessSheet } from "../../../../../ui/src/AccessSheet/index.tsx";
+import type { ShareInput, ShareItemType, ShareResourceType, UnshareInput } from "../../../../../ui/src/AccessSheet/index.tsx";
+import { copyItemLink, shareRows, sheetDirectory, withNotify } from "../../share/rows.ts";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { RECORD_LEVELS, sheetModel } from "../../places/records/sharing/model.ts";
 import type { SharesOut } from "../../places/records/sharing/model.ts";
@@ -12,6 +13,7 @@ import { useDirectory } from "./automations-parts.tsx";
 import { capLive, nameLookup } from "./records-live.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
+const SKILL_LEVELS = ["use", "edit", "manage"] as const;
 const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as ViewStyle["position"];
 
 export function FolderShareSheet({ rt, folderId, resource, onClose }: { rt: ShellRuntime; folderId: string; /** another resource than a folder (a site, an artifact), with its name */ resource?: { type: string; id: string; name: string }; onClose(): void }): ReactElement {
@@ -38,13 +40,17 @@ export function FolderShareSheet({ rt, folderId, resource, onClose }: { rt: Shel
   );
   if (state.status !== "ready") return shell(<View style={s.card}>{state.status === "error" ? <States kind="error" message="This could not be opened." /> : <States kind="loading" title="Opening" icon="files" />}</View>);
   const m = sheetModel(state.data, nameOf);
-  const res = { type, id: folderId };
+  const itemType: ShareItemType = type === "site" ? "artifact" : type === "skill" ? "skill" : "file";
+  const rows = shareRows(state.data, nameOf, folderId);
   return shell(
     <View style={s.stack}>
-      <ShareSheet
-        resourceType={type as "folder"} resourceId={folderId} resourceName={name} target="folder" {...(type === "site" ? { subtitle: "Artifact. The people you add can open it in Vyre." } : {})} ownerName={m.owner?.name ?? "Space owner"} {...(m.owner ? { ownerId: m.owner.id } : {})}
-        levels={RECORD_LEVELS} shares={m.rows} allowExternal={false} density="regular" directory={directory}
-        onShare={(i: ShareInput) => run(rt.call("access.share", { resource: res, subject: i.subject, level: i.level }))}
+      <AccessSheet
+        mode="share" itemType={itemType} resourceType={type as ShareResourceType} resourceId={folderId} itemName={name} {...(type === "folder" ? { itemLabel: "folder" } : {})} target={type === "folder" ? "folder" : "item"}
+        {...(type === "site" ? { subtitle: "Artifact. The people you add can open it in Vyre." } : {})} spaceName={rt.space.name} ownerName={m.owner?.name ?? "Space owner"} {...(m.owner ? { ownerId: m.owner.id } : {})}
+        levels={type === "skill" ? SKILL_LEVELS : RECORD_LEVELS} shares={rows} allowExternal={false} density="regular" directory={sheetDirectory(directory)}
+        {...(state.data.mine ? { maxLevel: state.data.mine } : {})}
+        meId={rt.me.id} notifyPeople onMakeOwner={(s) => run(rt.call("access.make_owner", { resource: { type, id: folderId }, personId: s.id, idempotencyKey: `owner:${folderId}:${s.id}` }))} onCopyLink={() => copyItemLink(type, folderId)}
+        onShare={(i: ShareInput, opts) => run(rt.call("access.share", withNotify({ resource: { type, id: folderId }, subject: i.subject, level: i.level }, opts)))}
         onUnshare={(i: UnshareInput) => run(rt.call("access.unshare", { resource: i.resource, subject: i.subject }))}
         onClose={onClose}
       />

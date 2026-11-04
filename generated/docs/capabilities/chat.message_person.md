@@ -1,6 +1,6 @@
 # chat.message_person
 
-Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour
+Message a teammate. An Assistant writes for its person in their direct chat, signed as them (Agent). Any other agent writes as itself in its own chat with them. Cards allowed; waits for away and after hours unless urgent; 3 an hour
 
 | | |
 |---|---|
@@ -49,6 +49,7 @@ type Out = {
   messageId?: string;
   dueAt?: number;
   when: string;
+  as: "person" | "self";
   taskId?: string;
   requestId?: string;
 };
@@ -81,10 +82,11 @@ type Out = {
     },
     "idempotencyKey": "idem_1",
     "timing": "now",
-    "to": "usr_a1b2c3",
+    "to": "example",
     "urgent": true
   },
   "output": {
+    "as": "person",
     "dueAt": 1760000000000,
     "messageId": "msg_a1b2c3",
     "requestId": "example",

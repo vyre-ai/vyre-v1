@@ -10,3 +10,4 @@ HTTP 403. Retryable: no.
 - engine.step_turn
 - engine.switch
 - engine.turn.retry
+- hooks.set

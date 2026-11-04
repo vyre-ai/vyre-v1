@@ -15,7 +15,7 @@ const only = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",
 const sizeOnly = (args.find((a) => a.startsWith("--size=")) ?? "").slice(7);
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync("/root/wt/base/node_modules/.bin/expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), { cwd: appDir, stdio: "inherit", env: exportEnv() });
 }
 fs.mkdirSync(out, { recursive: true });
 const SIZES = { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
@@ -37,6 +37,7 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   await page.waitForTimeout(500);
   let found = true;
   if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
+  for (const sel of [].concat(t.click ?? [])) { await page.click(sel).catch(() => { found = false; }); await page.waitForTimeout(700); }
   await page.waitForTimeout(900);
   const file = path.join(out, `${t.id.replace("CHROME2A_01-", "")}-${skin}-${size}.png`);
   await page.screenshot({ path: file });

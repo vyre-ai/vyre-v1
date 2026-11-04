@@ -3,6 +3,7 @@ import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { grantOnProject } from "./handlers/project.ts";
 import { backfill, onRecordEvent } from "./handlers/folders.ts";
+import { itemOf, offer } from "./handlers/attach.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
@@ -17,6 +18,14 @@ export const consumers = {
     async run(ctx: Ctx, event: { payload: Record<string, unknown> }): Promise<void> {
       const id = event.payload["projectId"];
       if (typeof id === "string") await grantOnProject(ctx as never, id);
+    },
+  },
+  /** A new pull request, commit, record or email that a project's rule takes is linked to that project, with the rule's id (handlers/attach.ts). */
+  "projects.auto_link": {
+    on: ["pull_request.opened", "repo.pushed", "record.created", "mail.received"],
+    async run(ctx: Ctx, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
+      const item = await itemOf(ctx as never, event);
+      if (item) await offer(ctx as never, item);
     },
   },
   /** Every project record has its folder in Files > Projects: made with the record, renamed and trashed with it (handlers/folders.ts). */

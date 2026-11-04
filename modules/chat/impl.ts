@@ -3,9 +3,11 @@ import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { recentWithUnread } from "./handlers/g26.ts";
 import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
+import { forgetMentions } from "./handlers/pace.ts";
 import { onCardAnswered, onDirectReply, sendDue } from "./handlers/agent-dm.ts";
 import type { ChatCtx } from "./projections.ts";
 import { ensureHome } from "./handlers/home-channel.ts";
+import { closePlaceholderQuestions } from "./handlers/placeholders.ts";
 import { NOTIFY_EVENTS, notify } from "./handlers/notify.ts";
 import type { NotifyEvent } from "./handlers/notify.ts";
 
@@ -15,6 +17,8 @@ export const handlers: Record<string, Handler> = table as unknown as Record<stri
 export const periodic = {
   "chat.home_channel": { everyMs: 3_600_000, immediate: true, run: async (ctx: ChatCtx) => { await ensureHome(ctx); } },
   /** Agent messages to teammates whose time came: checked again and sent, or moved to their new time (lane l-agentdm). */
+  /** Once, on update: question cards an agent threw in as a test close, and their tasks leave Needs you. */
+  "chat.placeholder_cleanup": { everyMs: 86_400_000, immediate: true, run: (ctx: ChatCtx) => { closePlaceholderQuestions(ctx); } },
   "chat.agent_dm_due": { everyMs: 30_000, run: (ctx: ChatCtx) => sendDue(ctx) },
 };
 
@@ -67,6 +71,7 @@ export const hostCalls = {
       if (i.kind === "private_chats" && i.action === "delete") {
         const ids = ownedRows(ctx, `SELECT t."id" AS "id" ${PRIVATE_CHATS}`, i.person).map((r) => String(r["id"]));
         for (const id of ids) {
+          forgetMentions(ctx, { thread: id });
           ctx.db.run(`UPDATE chat_message SET "deleted_at" = ?, "updated_at" = ? WHERE "thread" = ? AND "deleted_at" IS NULL`, now, now, id);
           ctx.db.run(`UPDATE chat_thread SET "deleted_at" = ?, "updated_at" = ?, "closedAt" = COALESCE("closedAt", ?) WHERE "id" = ?`, now, now, now, id);
         }

@@ -2,24 +2,37 @@
 // agent's folder is walked. The pane follows the agent of the open chat (spec 3.2); nothing here reads the replica, so the tests drive every rule directly.
 import type { CapMap } from "../../../../../../generated/types.ts";
 
-export type TabKey = "computer" | "threads" | "files" | "terminal" | "memory" | "routines" | "crew";
+export type TabKey = "about" | "computer" | "threads" | "files" | "terminal" | "memory" | "routines" | "crew" | "skills" | "hooks";
 export const TABS: readonly { key: TabKey; title: string }[] = [
+  { key: "about", title: "About" },
   { key: "computer", title: "Computer" },
-  { key: "threads", title: "Threads" },
+  { key: "threads", title: "Chats" },
   { key: "files", title: "Files" },
   { key: "memory", title: "Knows" },
   { key: "routines", title: "Routines" },
 ];
-/** The sixth tab, shown only where the shell has a terminal; it sits after Files. */
+/** Terminal belongs to the agent's computer and sits after Files, where the shell has one. */
 export const TERMINAL_TAB: { key: TabKey; title: string } = { key: "terminal", title: "Terminal" };
-/** The tabs of a pane: the five, with Terminal after Files when the shell has one. */
-export const tabsOf = (terminal: boolean, crew = false): readonly { key: TabKey; title: string }[] => {
-  const base = terminal ? [...TABS.slice(0, 3), TERMINAL_TAB, ...TABS.slice(3)] : TABS;
-  return crew ? [...base.slice(0, 2), CREW_TAB, ...base.slice(2)] : base;
-};
-/** The Crew tab: shown only in a chat that has teammates working for it, right after Threads. */
+/** The Crew tab: shown only in a chat that has teammates working for it, right after Chats. */
 export const CREW_TAB: { key: TabKey; title: string } = { key: "crew", title: "Crew" };
-export const DEFAULT_TAB: TabKey = "computer";
+/** The tabs of a pane, shown only when useful: Computer once the agent has one, Terminal with it where the shell has a terminal, Crew when teammates work for the chat. */
+export const tabsOf = (terminal: boolean, crew = false, computer = true, skills = false, hooks = false): readonly { key: TabKey; title: string }[] => {
+  const out: { key: TabKey; title: string }[] = [];
+  for (const t of TABS) {
+    if (t.key === "computer" && !computer) continue;
+    out.push(t);
+    if (t.key === "threads" && crew) out.push(CREW_TAB);
+    if (t.key === "files" && terminal && computer) out.push(TERMINAL_TAB);
+  }
+  if (hooks) out.push(HOOKS_TAB);   // once the chat has hooks (l-hooks)
+  if (skills) out.push(SKILLS_TAB);   // once the person has skills (l-install)
+  return out;
+};
+/** The Hooks tab: the hooks that run in this chat, shown once there are some or when a hook line opened it. */
+export const HOOKS_TAB: { key: TabKey; title: string } = { key: "hooks", title: "Hooks" };
+/** The Skills tab: the person's skills and an agent's, last, once there are any. */
+export const SKILLS_TAB: { key: TabKey; title: string } = { key: "skills", title: "Skills" };
+export const DEFAULT_TAB: TabKey = "about";
 
 /* ---------- the tab strip at a narrow width ---------- */
 

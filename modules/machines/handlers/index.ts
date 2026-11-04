@@ -7,9 +7,9 @@ import {
 import type { MachinesCtx, Range, Rec, Viewer } from "../projections.ts";
 import type { Room } from "../../../lib/room-left.ts";
 import { latestVersion, hostSeams } from "../seams.ts";
-import { roomsFor } from "../rooms.ts";
+import { roomsFor, turnCounter } from "../rooms.ts";
 import { busyNow, findingsOf, readMoves, recordMove, syncBusy } from "../more.ts";
-import { isSystemCall } from "../../../lib/trust.ts";
+import { isHostService, isSystemCall } from "../../../lib/trust.ts";
 import { BUSY_BELOW } from "../../../lib/room-left.ts";
 
 type Row = Record<string, unknown>;
@@ -18,7 +18,7 @@ const GB = 1024 ** 3;
 /** The person acting, and whether they manage the Space's servers. A call from the host (a system caller) is an admin with no person. */
 export function viewerOf(ctx: MachinesCtx): Viewer {
   const person = ctx.principal.kind === "person" ? ctx.principal.id : (ctx.actingFor ?? "");
-  const admin = ctx.principal.kind === "service" || (ctx.authorize?.({ perm: "server.network", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow");
+  const admin = isHostService(ctx.principal) || (ctx.authorize?.({ perm: "server.network", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow");
   return { id: person, admin };
 }
 
@@ -61,13 +61,12 @@ async function agentComputers(ctx: MachinesCtx): Promise<Comp[]> {
 }
 
 /** The turns running on a machine now. The host knows it exactly for the machines it holds a socket to; a report is up to 30 seconds old. */
-const turnsOn = (r: Rec): number => hostSeams.turns(r.machineId) ?? r.runs?.turns ?? 0;
 
 const shownName = (r: Rec, dir: Map<string, Dir>): string => r.nickname ?? (dir.get(r.machineId)?.name || r.name);
 
-function out(ctx: MachinesCtx, r: Rec, v: Viewer, x: { dir: Map<string, Dir>; comps: Comp[]; pins: Array<{ machineId: string; agentId: string }>; alerts: number }) {
+function out(ctx: MachinesCtx, r: Rec, v: Viewer, x: { dir: Map<string, Dir>; comps: Comp[]; pins: Array<{ machineId: string; agentId: string }>; turns: (r: Rec) => number; alerts: number }) {
   const now = ctx.now(), online = isOnline(r, now), restricted = restrictedFor(r, v);
-  const turns = turnsOn(r);
+  const turns = x.turns(r);
   const room: Room = roomOf(r, now, turns);
   const mine = x.comps.filter((c) => (c.nodeId ?? "space") === r.machineId);
   const runs = { turns, agentComputers: mine.length, sites: r.runs?.sites ?? 0, automations: r.runs?.automations ?? 0 };
@@ -128,13 +127,13 @@ async function context(ctx: MachinesCtx) {
   const [dir, comps] = await Promise.all([directory(ctx, v), agentComputers(ctx)]);
   const pins = pinsOf(ctx);
   const recs = allMachines(ctx).filter((r) => mayList(r, v) && !gone(r, dir));
-  return { v, dir, comps, pins, recs };
+  return { v, dir, comps, pins, recs, turns: await turnCounter(ctx) };
 }
 
 export async function list(ctx: MachinesCtx, _input: Record<string, never>) {
-  const { v, dir, comps, pins, recs } = await context(ctx);
+  const { v, dir, comps, pins, recs, turns } = await context(ctx);
   const alerts = await alertsFor(ctx, v, recs, dir, pins);
-  const machines = recs.map((r) => out(ctx, r, v, { dir, comps, pins, alerts: alerts.filter((a) => a.machineId === r.machineId).length }));
+  const machines = recs.map((r) => out(ctx, r, v, { dir, comps, pins, turns, alerts: alerts.filter((a) => a.machineId === r.machineId).length }));
   const taking = machines.filter((m) => m.online && !m.draining);
   return {
     machines,
@@ -175,18 +174,18 @@ function lastFixOf(ctx: MachinesCtx, id: string): { fix: string; at: number; sta
 }
 
 export async function get(ctx: MachinesCtx, input: { machineId: string }) {
-  const { v, dir, comps, pins, recs } = await context(ctx);
+  const { v, dir, comps, pins, recs, turns } = await context(ctx);
   const r = recs.find((x) => x.machineId === input.machineId);
   if (!r) raise(ctx, "validation.not_found", "That machine is not in this Space.");
   const alerts = (await alertsFor(ctx, v, [r], dir, pins)).filter((a) => a.machineId === r.machineId);
-  const machine = out(ctx, r, v, { dir, comps, pins, alerts: alerts.length });
+  const machine = out(ctx, r, v, { dir, comps, pins, turns, alerts: alerts.length });
   const own = !machine.restricted;
   const series = Object.fromEntries((Object.keys(RANGES) as Range[]).map((k) => [k, seriesOf(ctx, r.machineId, k, own)]));
   const latest = v.admin ? await latestVersion(ctx) : null;
   const doctor = r.kind === "space" && v.admin ? await hostSeams.findings() : [];
   const findings = own ? [...doctor.map((f) => ({ key: `doctor.${f.key}`, state: f.state, detail: f.detail || f.key, next: f.next, fix: null })), ...findingsOf(r, latest)] : [];
   const lastFix = own ? lastFixOf(ctx, r.machineId) : undefined;
-  return { machine, series, work: await workOf(ctx, r), alerts, findings, privacy: own ? "full" : "vyre_only", ...(lastFix ? { lastFix } : {}) };
+  return { machine, series, work: await workOf(ctx, r), alerts, findings, idleSessions: own ? hostSeams.idle(r.machineId, r.kind !== "space" ? r.ownerId ?? undefined : undefined) : 0, privacy: own ? "full" : "vyre_only", ...(lastFix ? { lastFix } : {}) };
 }
 
 const NICK = /^[^\u0000-\u001f]{1,40}$/;
@@ -200,18 +199,22 @@ export async function set(ctx: MachinesCtx, input: { machineId: string; nickname
   const mayConfigure = r.kind === "computer" ? owner : v.admin || owner;
   const changes: string[] = [];
   const need = (ok: boolean, what: string): void => { if (!ok) raise(ctx, "permission.no_grant", `Only ${r.kind === "computer" ? "the person it belongs to" : "an admin"} can change ${what}.`); };
+  // every refusal comes before any write: a call refused for one field changes nothing
+  if (input.nickname !== undefined) need(mayConfigure, "its name");
+  if (input.maxTurns !== undefined) need(mayConfigure, "the most turns at once");
+  if (input.maxAgentComputers !== undefined) need(mayConfigure, "the most agent computers at once");
+  if (input.drain !== undefined) need(v.admin || owner, "draining");
+  if (input.pinAgent) need(mayConfigure, "which agents are pinned");
+  const n = input.nickname === undefined || input.nickname === null ? null : input.nickname.trim();
+  if (n !== null && n !== "" && !NICK.test(n)) raise(ctx, "validation.bad_input", "A name is up to 40 characters.");
   if (input.nickname !== undefined) {
-    need(mayConfigure, "its name");
-    const n = input.nickname === null ? null : input.nickname.trim();
-    if (n !== null && n !== "" && !NICK.test(n)) raise(ctx, "validation.bad_input", "A name is up to 40 characters.");
     ctx.db.run("UPDATE machines_machine SET nickname = ? WHERE machine_id = ?", n === "" ? null : n, r.machineId);
     changes.push("nickname");
   }
-  if (input.maxTurns !== undefined) { need(mayConfigure, "the most turns at once"); ctx.db.run("UPDATE machines_machine SET max_turns = ? WHERE machine_id = ?", input.maxTurns, r.machineId); if (input.maxTurns !== r.maxTurns) changes.push("limits"); }
-  if (input.maxAgentComputers !== undefined) { need(mayConfigure, "the most agent computers at once"); ctx.db.run("UPDATE machines_machine SET max_agent_computers = ? WHERE machine_id = ?", input.maxAgentComputers, r.machineId); if (input.maxAgentComputers !== r.maxAgentComputers) changes.push("limits"); }
-  if (input.drain !== undefined) { need(v.admin || owner, "draining"); ctx.db.run("UPDATE machines_machine SET drain = ? WHERE machine_id = ?", input.drain ? 1 : 0, r.machineId); if (input.drain !== r.drain) changes.push("drain"); }
+  if (input.maxTurns !== undefined) { ctx.db.run("UPDATE machines_machine SET max_turns = ? WHERE machine_id = ?", input.maxTurns, r.machineId); if (input.maxTurns !== r.maxTurns) changes.push("limits"); }
+  if (input.maxAgentComputers !== undefined) { ctx.db.run("UPDATE machines_machine SET max_agent_computers = ? WHERE machine_id = ?", input.maxAgentComputers, r.machineId); if (input.maxAgentComputers !== r.maxAgentComputers) changes.push("limits"); }
+  if (input.drain !== undefined) { ctx.db.run("UPDATE machines_machine SET drain = ? WHERE machine_id = ?", input.drain ? 1 : 0, r.machineId); if (input.drain !== r.drain) changes.push("drain"); }
   if (input.pinAgent) {
-    need(mayConfigure, "which agents are pinned");
     // an agent is pinned to one machine at a time: pinning it here lets go of the others
     if (input.pinAgent.pinned) { ctx.db.run("DELETE FROM machines_pin WHERE agent_id = ?", input.pinAgent.agentId); ctx.db.run("INSERT OR REPLACE INTO machines_pin (machine_id, agent_id, at) VALUES (?, ?, ?)", r.machineId, input.pinAgent.agentId, ctx.now()); }
     else ctx.db.run("DELETE FROM machines_pin WHERE machine_id = ? AND agent_id = ?", r.machineId, input.pinAgent.agentId);
@@ -219,8 +222,8 @@ export async function set(ctx: MachinesCtx, input: { machineId: string; nickname
   }
   if (changes.length) ctx.emit("machine.changed", r.machineId, { machineId: r.machineId, what: [...new Set(changes)] });
   const after = machineById(ctx, r.machineId)!;
-  const { dir, comps, pins } = await context(ctx);
-  return { machine: out(ctx, after, v, { dir, comps, pins, alerts: 0 }) };
+  const { dir, comps, pins, turns } = await context(ctx);
+  return { machine: out(ctx, after, v, { dir, comps, pins, turns, alerts: 0 }) };
 }
 
 export async function alerts(ctx: MachinesCtx, _input: Record<string, never>) {
@@ -234,7 +237,7 @@ export async function rooms(ctx: MachinesCtx, input: { ids: string[]; agentId?: 
   const v = viewerOf(ctx), want = new Set(input.ids);
   // the machine an agent is pinned to, if it is one of the machines asked about (placement never sends a person's turn to a machine that is not theirs)
   const pin = input.agentId ? pinsOf(ctx).find((p) => p.agentId === input.agentId && want.has(p.machineId)) : undefined;
-  const room = roomsFor(ctx);
+  const room = await roomsFor(ctx);
   return {
     ...(pin ? { pinnedTo: pin.machineId } : {}),
     rooms: allMachines(ctx).filter((r) => want.has(r.machineId) && (mayList(r, v) || r.kind === "space")).map((r) => {
@@ -265,7 +268,7 @@ export async function fix(ctx: MachinesCtx, input: { machineId: string; fix: (ty
   if (input.fix === "restart_service" && !(typeof input.service === "string" && SERVICE.test(input.service))) raise(ctx, "validation.bad_input", "Name the service to restart.");
   if (!isOnline(r, ctx.now())) raise(ctx, "validation.precondition_failed", "That machine is offline. Fix it when it is back.");
   let state: "done" | "failed" = "done", detail: string;
-  try { detail = await hostSeams.fix(r.machineId, input.fix, input.service); } catch (e) { state = "failed"; detail = e instanceof Error ? e.message.slice(0, 200) : "It could not be done."; }
+  try { detail = await hostSeams.fix(r.machineId, input.fix, input.service, r.kind !== "space" ? r.ownerId ?? undefined : undefined); } catch (e) { state = "failed"; detail = e instanceof Error ? e.message.slice(0, 200) : "It could not be done."; }
   const last = { fix: input.fix, at: ctx.now(), state, detail };
   ctx.db.run("INSERT OR REPLACE INTO machines_meta (key, value) VALUES (?, ?)", `fix:${r.machineId}`, JSON.stringify(last));
   return { state, detail };
@@ -290,7 +293,7 @@ export async function moveRecord(ctx: MachinesCtx, input: { turnId?: string; ask
  * (machine.changed), so a cached answer never goes on ignoring room.
  */
 export async function alertsNotify(ctx: MachinesCtx, _input: Record<string, never>) {
-  if (ctx.principal.kind !== "service") raise(ctx, "permission.no_grant", "Only the host sends machine alerts to the Inbox.");
+  if (!isHostService(ctx.principal)) raise(ctx, "permission.no_grant", "Only the host sends machine alerts to the Inbox.");
   ensure(ctx.db);
   const recs = allMachines(ctx), host: Viewer = { id: "", admin: true };
   const now = await alertsFor(ctx, host, recs, new Map(), pinsOf(ctx));
@@ -299,7 +302,7 @@ export async function alertsNotify(ctx: MachinesCtx, _input: Record<string, neve
   for (const a of fresh) { ctx.db.run("INSERT OR REPLACE INTO machines_alert_seen (alert_id, at) VALUES (?, ?)", a.alertId, ctx.now()); ctx.emit("machine.alert", a.machineId, { alertId: a.alertId, machineId: a.machineId, kind: a.kind, title: a.title, detail: a.detail }); }
   const live = new Set(now.map((a) => a.alertId));
   for (const id of seen) if (!live.has(id)) ctx.db.run("DELETE FROM machines_alert_seen WHERE alert_id = ?", id);
-  tellRoom(ctx);
+  await tellRoom(ctx);
   return { sent: fresh.length };
 }
 
@@ -307,9 +310,9 @@ export async function alertsNotify(ctx: MachinesCtx, _input: Record<string, neve
  * Tell the placement caches when a machine ran out of room or has room again (machine.changed): the host calls this the moment a turn starts or ends on a machine, so a cached answer never goes on
  * ignoring room; the minute job calls it too, for what the host cannot see (a report that brought a machine's CPU or disk past the line).
  */
-export function tellRoom(ctx: MachinesCtx): { filled: string[]; freed: string[] } {
+export async function tellRoom(ctx: MachinesCtx): Promise<{ filled: string[]; freed: string[] }> {
   ensure(ctx.db);
-  const sw = syncBusy(ctx, busyNow(ctx, (r) => hostSeams.turns(r.machineId), BUSY_BELOW));
+  const sw = syncBusy(ctx, busyNow(ctx, await turnCounter(ctx), BUSY_BELOW));
   for (const id of sw.filled) ctx.emit("machine.changed", id, { machineId: id, what: ["full"] });
   for (const id of sw.freed) ctx.emit("machine.changed", id, { machineId: id, what: ["room"] });
   return sw;

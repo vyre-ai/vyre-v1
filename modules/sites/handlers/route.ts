@@ -225,8 +225,37 @@ async function sitesCreate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   return { site: siteOut(ctx, mustSite(ctx, id)) };
 }
 
+/** What an artifact adds to its row when read: the picture taken at publish, the chat that made it (with its title, read now), and the people it is shared with (the Access sheet's own list, direct shares only). */
+async function artifactExtras(ctx: Ctx, r: Row): Promise<Record<string, unknown>> {
+  if (r.kind !== "artifact") return {};
+  let kept: Record<string, unknown> = {};
+  try { const v: unknown = JSON.parse(isNull(r.settings) ? "{}" : str(r.settings)); if (v !== null && typeof v === "object") kept = v as Record<string, unknown>; } catch { /* an old row with no settings */ }
+  const out: Record<string, unknown> = {};
+  if (typeof kept["thumb"] === "string") out["thumb"] = kept["thumb"];
+  if (typeof kept["chatId"] === "string") {
+    out["chatId"] = kept["chatId"];
+    try { const t = (await ctx.call("threads.get", { threadId: kept["chatId"] })) as { thread?: { title?: unknown } }; if (typeof t.thread?.title === "string" && t.thread.title !== "") out["chatTitle"] = t.thread.title; } catch { /* the chat is gone or not readable by this person: the card shows no source */ }
+  }
+  try {
+    const sh = (await ctx.call("access.shares_of", { resource: { type: "site", id: str(r.id) } })) as { shares?: { through?: string; grant?: { subject?: { kind?: string; id?: string } } }[] };
+    const people = new Set<string>();
+    const audience = new Set<string>();
+    for (const x of sh.shares ?? []) {
+      const sub = x.grant?.subject;
+      if (!sub || typeof sub.id !== "string" || x.through === "owner") continue;
+      if (sub.kind === "link") audience.add("link");
+      else if (sub.kind === "group" && sub.id === "grp_everyone") audience.add("space");
+      else if (sub.kind === "person" && sub.id !== str(r.owner)) people.add(sub.id); // direct or inherited from a folder
+    }
+    if (people.size > 0) out["sharedWith"] = [...people];
+    if (audience.size > 0) out["sharedAudience"] = [...audience];
+  } catch { /* a person who cannot read the shares sees none */ }
+  return out;
+}
+
 async function sitesGet(ctx: Ctx, input: unknown): Promise<{ site: unknown }> {
-  return { site: siteOut(ctx, mustSite(ctx, reqStr(ctx, rec(ctx, input), "siteId"))) };
+  const r = mustSite(ctx, reqStr(ctx, rec(ctx, input), "siteId"));
+  return { site: { ...siteOut(ctx, r), ...(await artifactExtras(ctx, r)) } };
 }
 
 async function sitesList(ctx: Ctx, input: unknown): Promise<{ sites: unknown[]; next?: string; total: number }> {
@@ -244,7 +273,8 @@ async function sitesList(ctx: Ctx, input: unknown): Promise<{ sites: unknown[]; 
   if (section === "shared") rows = rows.filter((r) => r.owner !== me);
   rows = rows.filter((r) => ctx.authorize({ perm: null, level: "view" }, { type: "site", id: str(r.id) }).effect === "allow");
   rows.sort((a, b) => num(b.updated_at) - num(a.updated_at) || str(a.id).localeCompare(str(b.id)));
-  const out: { sites: unknown[]; next?: string; total: number } = { sites: rows.slice(offset, offset + limit).map((r) => siteOut(ctx, r)), total: rows.length };
+  const page = rows.slice(offset, offset + limit);
+  const out: { sites: unknown[]; next?: string; total: number } = { sites: await Promise.all(page.map(async (r) => ({ ...siteOut(ctx, r), ...(await artifactExtras(ctx, r)) }))), total: rows.length };
   if (offset + limit < rows.length) out.next = String(offset + limit);
   return out;
 }
@@ -399,6 +429,9 @@ async function sitesLogs(ctx: Ctx, input: unknown): Promise<{ lines: string[]; s
 
 // ---- artifacts
 
+/** The largest thumbnail kept (a data URL, about 120 by 80 pixels). */
+const THUMB_MAX = 60_000;
+
 async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: string; url?: string; updated: boolean; opened: boolean }> {
   const o = rec(ctx, input);
   const title = cleanName(ctx, reqStr(ctx, o, "title"));
@@ -407,6 +440,8 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: 
   const folderIn = optStr(ctx, o, "folderId");
   const localPath = optStr(ctx, o, "path");
   const port = cleanPort(ctx, optInt(ctx, o, "port"));
+  const thumb = optStr(ctx, o, "thumb");
+  if (thumb !== undefined && (thumb.length > THUMB_MAX || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(thumb))) fail(ctx, "validation.bad_input", "A thumbnail is a small png, jpeg or webp data URL.", { field: "thumb" });
   let computerId = optStr(ctx, o, "computerId");
   if ([html, fileId, folderIn, localPath, port].filter((v) => v !== undefined).length !== 1) fail(ctx, "validation.bad_input", "Give one of html, fileId, folderId, path or port.", { field: "html" });
   // a port with no computer named is on the agent's own computer, when it has one
@@ -455,6 +490,12 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: 
     "UPDATE sites_site SET port = ?, computer_id = ?, target_folder = ?, live = ?, state = ?, updated_at = ? WHERE id = ?",
     port ?? null, port === undefined ? null : (computerId ?? null), port === undefined ? folderId : null, 1, "ready", now, id,
   );
+  // the picture and the chat that made it are kept with the artifact; the first chat stays its source
+  let kept: Record<string, unknown> = {};
+  try { const v: unknown = JSON.parse(isNull(row.settings) ? "{}" : str(row.settings)); if (v !== null && typeof v === "object") kept = v as Record<string, unknown>; } catch { /* an old row */ }
+  if (thumb !== undefined) { kept["thumb"] = thumb; kept["thumbAt"] = now; }
+  if (ctx.thread && kept["chatId"] === undefined) kept["chatId"] = ctx.thread;
+  ctx.db.run("UPDATE sites_site SET settings = ? WHERE id = ?", JSON.stringify(kept), id);
   touchActivity(ctx.db, id, "site.published", now);
   const fresh = mustSite(ctx, id);
   const url = urlOf(fresh);
@@ -493,6 +534,24 @@ function chatViewing(ctx: Ctx, input: unknown): { ok: boolean } {
 }
 
 const hashHex = async (text: string): Promise<string> => Array.from(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))), (b) => b.toString(16).padStart(2, "0")).join("");
+
+/** Keeps the picture a person's browser took when it opened the artifact: only when there is none, or the artifact changed since the last one. Anyone who can open it may send it. */
+async function artifactThumbSet(ctx: Ctx, input: unknown): Promise<{ set: boolean }> {
+  const o = rec(ctx, input);
+  const row = mustSite(ctx, reqStr(ctx, o, "artifactId"));
+  if (row.kind !== "artifact") fail(ctx, "validation.bad_input", "That is a site, not an artifact.", { field: "artifactId" });
+  const thumb = reqStr(ctx, o, "thumb");
+  if (thumb.length > THUMB_MAX || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(thumb)) fail(ctx, "validation.bad_input", "A thumbnail is a small png, jpeg or webp data URL.", { field: "thumb" });
+  let kept: Record<string, unknown> = {};
+  try { const v: unknown = JSON.parse(isNull(row.settings) ? "{}" : str(row.settings)); if (v !== null && typeof v === "object") kept = v as Record<string, unknown>; } catch { /* an old row */ }
+  const at = typeof kept["thumbAt"] === "number" ? kept["thumbAt"] : 0;
+  if (typeof kept["thumb"] === "string" && at >= num(row.updated_at)) return { set: false };
+  kept["thumb"] = thumb;
+  kept["thumbAt"] = ctx.now();
+  // not touch: a picture is not a change to the artifact
+  ctx.db.run("UPDATE sites_site SET settings = ? WHERE id = ?", JSON.stringify(kept), str(row.id));
+  return { set: true };
+}
 
 async function artifactOpen(ctx: Ctx, input: unknown): Promise<{ path: string; url?: string; expiresAt: number }> {
   const id = reqStr(ctx, rec(ctx, input), "artifactId");
@@ -600,5 +659,6 @@ export const routeHandlers = {
   "sites.logs": (ctx: Ctx, input: unknown) => sitesLogs(ctx, input),
   "sites.artifact_publish": (ctx: Ctx, input: unknown) => artifactPublish(ctx, input),
   "sites.artifact_open": (ctx: Ctx, input: unknown) => artifactOpen(ctx, input),
+  "sites.artifact_thumb_set": (ctx: Ctx, input: unknown) => artifactThumbSet(ctx, input),
   "sites.chat_viewing": (ctx: Ctx, input: unknown) => chatViewing(ctx, input),
 };

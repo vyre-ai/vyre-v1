@@ -10,9 +10,12 @@ import { unarchiveForMention } from "./archive-state.ts";
 import { saveScreen } from "./screen.ts";
 import { approveInChat } from "./agent-dm.ts";
 import { followersOf, joinThread } from "./follow.ts";
+import { recordMentions } from "./pace.ts";
 
 export interface Mention { kind: "person" | "agent"; id: string }
 export interface PostInput {
+  /** From a thread: also put this in the chat the thread hangs in, with a note that it came from the thread. The copy wakes no agent. */
+  alsoToChat?: boolean;
   threadId: string; body: string; blocks?: Array<{ type: string; v: number; data: unknown }>; attachments?: string[]; replyTo?: string; mentions?: Mention[]; via?: { routineOwner: string };
   clientId?: string; idempotencyKey?: string;
   /** Where the person sent this from (ScreenContext); kept beside the message for the agent's turn. */
@@ -116,17 +119,19 @@ export function inertCard(data: unknown): unknown {
 
 /**
  * What a message sets in motion, once it is stored: message.received for the engine and the replicas, then the notices people get.
- * `author` is who the event names (the call's principal); a mention of a person who cannot see the thread notifies nobody (a private chat never gains people).
+ * `author` is who the event names (the call's principal); a mention of a person who cannot see the thread notifies nobody (a private chat gains people only by threads.members.add, so a person it does not hold hears nothing).
  * `notify: false` sends message.received only. chat.start declares no message.direct, so the first message of a new direct message cannot notify the other person from there (a contract gap, see the packet comment).
  */
-export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions: Mention[], author: { kind: "person" | "agent" | "actor" | "service"; id: string }, opts: { notify?: boolean; job?: boolean } = {}): void {
+export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions: Mention[], author: { kind: "person" | "agent" | "actor" | "service"; id: string }, opts: { notify?: boolean; job?: boolean; poke?: { agentId: string; by: string; outside?: boolean } } = {}): void {
   ctx.emit("message.received", thread.id, {
     messageId: m.id, threadId: thread.id, threadSeq: m.seq, author, kind: m.kind, depth: m.depth, mentions, hasBlocks: m.blocks.length > 0,
-    ...(m.via ? { via: m.via.routineOwner } : {}), ...(opts.job === true ? { job: true } : {}),
+    ...(m.via ? { via: m.via.routineOwner } : {}), ...(opts.job === true ? { job: true } : {}), ...(opts.copy === true ? { copy: true } : {}),
     // an agent speaks for the person it works for: the engine reads a private thread as that person when nobody has spoken in it yet
     ...(author.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? { actingFor: ctx.actingFor } : {}),
     // a person typed this: not a line a module or the server posted in their name. Only these words can ask for an outward act (chat design, hole 3)
-    ...(author.kind === "person" && ctx.depth === 0 && (ctx.origin === "user" || ctx.origin === "sync") ? { typed: true } : {}),
+    ...(author.kind === "person" && ctx.depth === 0 && (ctx.origin === "user" || ctx.origin === "sync") && opts.poke === undefined ? { typed: true } : {}),
+    // a poke starts a turn for that agent now (threads.poke); its line is never the person's own typed request
+    ...(opts.poke ? { poke: opts.poke } : {}),
   });
   if (opts.notify === false) return;
   const root = rootOf(ctx, thread);
@@ -242,10 +247,19 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     ...(input.clientId !== undefined ? { id: input.clientId } : {}), author: author.id, kind: author.kind === "agent" ? "agent" : "text", body, blocks,
     ...(input.replyTo !== undefined ? { replyTo: input.replyTo } : {}), ...(input.via ? { via: { routineOwner: input.via.routineOwner } } : {}), ...(author.kind === "agent" && ctx.actingFor !== undefined && !ctx.sharedKey ? { paidBy: ctx.actingFor } : {}), depth, attachments,
   });
+  recordMentions(ctx, m.id, thread.id, mentions);
   // a person who replies in a thread is in it: its later replies reach them and it counts on their Threads row
   if (author.kind === "person") joinThread(ctx, thread, author.id);
   saveScreen(ctx, thread.id, m.id, input.screen);
   deliver(ctx, thread, m, mentions, { kind: author.kind, id: author.id }, { job });
+  // "Also post to the chat" from a thread: the same words in the chat the thread hangs in, marked as coming from the thread, so the main chat reads the outcome and not the work. It is a copy, not a message to answer.
+  if (input.alsoToChat === true && thread.kind === "thread" && thread.parentThreadId !== undefined) {
+    const root = threadBy(ctx.db, thread.parentThreadId);
+    if (root && canSpeak(ctx, root) && root.kind !== "helper") {
+      const copy = insertMessage(ctx, root.id, { author: author.id, kind: author.kind === "agent" ? "agent" : "text", body, blocks: [{ type: "from_thread", v: 1, id: mintId("blk", ctx.now()), data: { threadId: thread.id, messageId: m.id }, state: "done", traceId: ctx.trace.traceId }], depth: 0 });
+      deliver(ctx, root, copy, [], { kind: author.kind, id: author.id }, { notify: false, copy: true });
+    }
+  }
   // a person's own typed "send it" presses the "Send this to <name>?" card it answers (lane l-agentdm)
   if (author.kind === "person" && ctx.depth === 0 && (ctx.origin === "user" || ctx.origin === "sync") && body.trim() !== "") await approveInChat(ctx, thread.id, body);
   return { message: messageOut(m, encOf(ctx.db, thread)) };

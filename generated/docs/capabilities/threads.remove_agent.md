@@ -49,6 +49,7 @@ type Out = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -61,6 +62,13 @@ type Out = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -105,15 +113,23 @@ type Out = {
   },
   "output": {
     "thread": {
+      "agentRepliesInThreads": true,
       "agents": [
         {
           "accountRef": "example",
           "agentId": "agt_a1b2c3",
           "effort": "low",
+          "hoursFrom": "09:00",
+          "hoursTo": "09:00",
           "mode": "lead",
           "model": "claude-sonnet-5-5",
+          "owned": true,
           "provider": "anthropic",
-          "watches": true
+          "quiet": true,
+          "style": "short",
+          "topics": "example",
+          "watches": true,
+          "when": "always"
         }
       ],
       "channelId": "chn_a1b2c3",

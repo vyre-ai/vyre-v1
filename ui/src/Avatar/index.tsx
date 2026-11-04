@@ -9,18 +9,65 @@ import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
 import { faceTint, hueOf, initialsOf, marbleGradient, marbleInner } from "./faces.ts";
 import { cachedFace, currentSkin, faceKey, requestFace } from "./cache.ts";
-import { loadNotionists } from "./load.ts";
+import { loadLibrary, loadNotionists } from "./load.ts";
+import { emojiSvg, hasExpressions, parseFace } from "./agentface.ts";
+import type { Expression, FaceSpec } from "./agentface.ts";
 import { injectCss } from "../theme/css.ts";
 import type { AvatarKind, AvatarProps, FaceState } from "./props.ts";
-import { assistantLook, isAssistantId, pickedFace, standInOf, subscribeAssistant } from "./assistant.ts";
+import { assistantLook, isAssistantId, lookOf, pickedFace, standInOf, subscribeAssistant } from "./assistant.ts";
+import { faceImageOf, requestFaceImage, subscribeFaceImages } from "./faceimages.ts";
 
 export type { AvatarKind, AvatarProps, FaceState } from "./props.ts";
-export { assistantId, assistantLook, avatarOf, isAssistantId, pickedFace, resetAssistant, setAgentFaces, setAssistantId, setAssistantLook, setStandIns, standInOf, subscribeAssistant } from "./assistant.ts";
+export { assistantId, assistantLook, avatarOf, isAssistantId, pickedFace, resetAssistant, setAgentFaces, setAgentStatuses, setAssistantId, setShotFaces, setAssistantLook, setStandIns, standInOf, subscribeAssistant, takenFaces } from "./assistant.ts";
 export type { AvatarEntity } from "./assistant.ts";
 export { faceTint, hash, hueOf, initialsOf, marbleGradient, marbleInner, marbleSpec } from "./faces.ts";
+export { faceImageOf, primeFaceImage, requestFaceImage, resetFaceImages, setFaceImageLoader, subscribeFaceImages } from "./faceimages.ts";
 export { cachedFace, cachedFaceCount, clearFaceCache, currentSkin, faceKey, requestFace, wrapSvg } from "./cache.ts";
 
 export const AVATAR_DEFAULT_SIZE = 18;
+
+/**
+ * The drawing modules, held once loaded so a face can be written in the same frame its row is first drawn (no placeholder frame, no timer). The browser starts loading both when this file
+ * is first evaluated, ahead of the first row that asks, so by the time a surface opens they are almost always here. Before they land a row shows its tinted placeholder, as it always did.
+ */
+let notionistsMod: typeof import("./notionists.ts") | null = null;
+let libraryMod: typeof import("./library.ts") | null = null;
+if (typeof document !== "undefined" && Platform.OS === "web") {
+  void loadNotionists().then((m) => { notionistsMod = m; }, () => undefined);
+  void loadLibrary().then((m) => { libraryMod = m; }, () => undefined);
+}
+const drawnMarkup = new Map<string, string>();
+/** Faces written synchronously in one frame: a popover or a header has a handful and gets them all at once; a long list (60 agents in the Add sheet) draws the first few now and the rest as it did before, so one render never holds the main thread. */
+const SYNC_PER_FRAME = 6;
+let syncThisFrame = 0;
+let frameReset = false;
+function spendSync(): boolean {
+  if (syncThisFrame >= SYNC_PER_FRAME) return false;
+  syncThisFrame++;
+  if (!frameReset) {
+    frameReset = true;
+    const reset = (): void => { syncThisFrame = 0; frameReset = false; };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(reset); else setTimeout(reset, 16);
+  }
+  return true;
+}
+/** The face svg for a key, written now when its module is loaded, else undefined (the effect below fetches it and the row draws again). */
+function drawnNow(key: string, spec: FaceSpec | null, seed: string, expression: Expression, size: number): string | undefined {
+  const hit = drawnMarkup.get(key);
+  if (hit !== undefined) return hit;
+  if (!spendSync()) return undefined;
+  let markup: string | undefined;
+  try {
+    if (spec !== null && spec.fam === "emoji") markup = emojiSvg(spec.e, spec.tint, size);
+    else if (spec !== null && spec.fam !== "img" && spec.fam !== "file") markup = libraryMod === null ? undefined : libraryMod.faceSvg(spec, expression, size);
+    else markup = notionistsMod === null ? undefined : sized(notionistsMod.notionistsSvg(seed), size);
+  } catch { markup = undefined; }
+  if (markup !== undefined) {
+    drawnMarkup.set(key, markup);
+    if (drawnMarkup.size > 800) { const first = drawnMarkup.keys().next(); if (first.done !== true) drawnMarkup.delete(first.value); }
+  }
+  return markup;
+}
 
 const web = Platform.OS === "web";
 
@@ -74,7 +121,41 @@ function FaceRing({ state, round, id }: { state: FaceState; round: boolean; id: 
   return createElement("span", { className: `vyre-face-ring vyre-${state}${round ? " vyre-round" : ""}`, "data-testid": `${id}-ring`, "data-state": state, "aria-hidden": true });
 }
 
-export const Avatar = memo(function Avatar({ name, seedId: ownId, kind: ownKind, size = AVATAR_DEFAULT_SIZE, photo, running = false, present = false, state, testID }: AvatarProps): ReactElement {
+/** The expression a state draws on a library face. */
+export const expressionOf = (state: FaceState | undefined): Expression => (state === "working" ? "working" : state === "done" ? "done" : state === "asleep" ? "asleep" : "idle");
+
+let blinkInstalled = false;
+/** A library face blinks once when the pointer arrives: its asleep drawing for 150 ms. Not under reduced motion. One listener for every face on the page; the closed eyes are drawn on the first hover. */
+function installBlink(): void {
+  const d = (globalThis as { document?: Document }).document;
+  if (blinkInstalled || d === undefined) return;
+  blinkInstalled = true;
+  d.addEventListener("mouseover", (e) => {
+    const t = e.target as Element | null;
+    const img = (t?.closest?.("[data-avatar]")?.querySelector?.("img[data-face-blink]") ?? null) as HTMLImageElement | null;
+    if (img === null || img.dataset["blinking"] !== undefined) return;
+    if ((globalThis as { matchMedia?: (q: string) => { matches: boolean } }).matchMedia?.("(prefers-reduced-motion: reduce)").matches === true) return;
+    const text = img.dataset["faceBlink"] ?? "";
+    const size = Number(img.dataset["faceSize"] ?? 0);
+    const spec = parseFace(text);
+    if (spec === null || spec.fam === "img" || spec.fam === "file" || spec.fam === "emoji" || !hasExpressions(spec) || !(size > 0)) return;
+    img.dataset["blinking"] = "1";
+    const done = (): void => { delete img.dataset["blinking"]; };
+    void loadLibrary().then(({ faceSvg }) => {
+      const key = faceKey(text, "spec:asleep", size, currentSkin());
+      const show = (): void => {
+        const url = cachedFace(key);
+        if (url === undefined) { done(); return; }
+        const prev = img.src;
+        img.src = url;
+        setTimeout(() => { img.src = prev; setTimeout(done, 300); }, 150);
+      };
+      if (cachedFace(key) !== undefined) show(); else requestFace(key, faceSvg(spec, "asleep", size), size, show);
+    }, done);
+  });
+}
+
+export const Avatar = memo(function Avatar({ name, seedId: ownId, kind: ownKind, size = AVATAR_DEFAULT_SIZE, photo, running = false, present = false, state, face: ownFace, testID }: AvatarProps): ReactElement {
   // someone else's private agent wears its person's face: their marble, seeded by their id
   const standIn = useSyncExternalStore(subscribeAssistant, () => standInOf(ownId), () => standInOf(ownId));
   const seedId = standIn !== "" ? standIn : ownId;
@@ -84,26 +165,36 @@ export const Avatar = memo(function Avatar({ name, seedId: ownId, kind: ownKind,
   const look = useSyncExternalStore(subscribeAssistant, assistantLook, assistantLook);
   const looked = kind === "assistant" && look !== "";
   // One person, one face everywhere: the face is seeded by the id when the caller has one, by the name only as a fallback. Letters and the label still come from the name.
-  const chosen = useSyncExternalStore(subscribeAssistant, () => pickedFace(seedId), () => pickedFace(seedId));
+  const stored = useSyncExternalStore(subscribeAssistant, () => pickedFace(seedId), () => pickedFace(seedId));
+  const chosen = ownFace ?? stored;
   const seed = looked ? look : chosen !== "" ? chosen : seedId !== undefined && seedId !== "" ? seedId : name;
+  // a face chosen from the library (av1:...) is drawn from its own curated lists, in the expression the state asks for; any older seed keeps drawing as it did
+  const spec: FaceSpec | null = kind === "agent" && !looked ? parseFace(chosen) : null;
+  // what the agent is doing, wherever it is known, shows on every one of its faces: an explicit state first, else its status
+  const doing = useSyncExternalStore(subscribeAssistant, () => lookOf(seedId), () => lookOf(seedId));
+  const expression = expressionOf(state ?? (doing === "" ? undefined : doing));
+  const pictureId = spec?.fam === "file" ? spec.id : "";
+  const picture = useSyncExternalStore(subscribeFaceImages, () => (pictureId === "" ? undefined : faceImageOf(pictureId)), () => (pictureId === "" ? undefined : faceImageOf(pictureId)));
+  useEffect(() => { if (pictureId !== "") requestFaceImage(pictureId); }, [pictureId]);
   // A person's marble and an agent's face are drawn once to a cached bitmap per seed, kind, size and skin; rows reuse it as an <img>.
   const browser = web && typeof document !== "undefined";
-  const drawn = web && (kind === "agent" || looked);
-  const key = faceKey(seed, looked ? "agent" : kind, size, currentSkin());
+  const drawn = web && (kind === "agent" || looked) && spec?.fam !== "img" && spec?.fam !== "file";
+  const key = spec !== null ? faceKey(seed, `spec:${expression}`, size, currentSkin()) : faceKey(seed, looked ? "agent" : kind, size, currentSkin());
   const [, bump] = useState(0);
   const [agentFace, setAgentFace] = useState<{ key: string; markup: string } | null>(null);
   const bitmap = drawn ? cachedFace(key) : undefined;
+  // drawn in this frame from the loaded modules (and the bitmap replaces it when it is ready): a surface that opens shows its faces at once
+  const now = drawn && bitmap === undefined ? drawnNow(key, spec, seed, expression, size) : undefined;
   useEffect(() => {
     if (!drawn || cachedFace(key) !== undefined) return;
     let alive = true;
-    void loadNotionists().then(({ notionistsSvg }) => {
-      if (!alive) return;
-      const markup = sized(notionistsSvg(seed), size);
-      setAgentFace({ key, markup });
-      requestFace(key, markup, size, () => bump((n) => n + 1));
-    });
+    if (now !== undefined) { requestFace(key, now, size, () => { if (alive) bump((n) => n + 1); }); return () => { alive = false; }; }
+    const paint = (markup: string): void => { if (!alive) return; setAgentFace({ key, markup }); requestFace(key, markup, size, () => bump((n) => n + 1)); };
+    if (spec !== null && spec.fam === "emoji") paint(emojiSvg(spec.e, spec.tint, size));
+    else if (spec !== null && spec.fam !== "img" && spec.fam !== "file") { installBlink(); void loadLibrary().then(({ faceSvg }) => paint(faceSvg(spec, expression, size))); }
+    else void loadNotionists().then(({ notionistsSvg }) => paint(sized(notionistsSvg(seed), size)));
     return () => { alive = false; };
-  }, [drawn, key, kind, seed, size]);
+  }, [drawn, key, kind, seed, size, expression]);
   const id = testID ?? `avatar-${name}`;
   const round = kind === "person";
   const box: ViewStyle = { width: size, height: size, borderRadius: round ? size / 2 : ("30%" as unknown as number), alignItems: "center", justifyContent: "center", flexShrink: 0 };
@@ -113,14 +204,18 @@ export const Avatar = memo(function Avatar({ name, seedId: ownId, kind: ownKind,
 
   if (kind === "person" && photo) {
     face = web ? createElement("img", { src: photo, alt: "", width: size, height: size, draggable: false, style: { display: "block", objectFit: "cover", width: size, height: size } }) : <Image accessibilityIgnoresInvertColors source={{ uri: photo }} style={{ width: size, height: size }} />;
+  } else if (spec !== null && spec.fam === "file") {
+    face = picture !== undefined ? (web ? createElement("img", { src: picture, alt: "", width: size, height: size, draggable: false, style: { display: "block", objectFit: "cover", width: size, height: size }, "data-face": "upload" }) : <Image accessibilityIgnoresInvertColors source={{ uri: picture }} style={{ width: size, height: size }} />) : <AgentFallback name={name} seed={seed} size={size} />;
+  } else if (spec !== null && spec.fam === "img") {
+    face = web ? createElement("img", { src: spec.url, alt: "", width: size, height: size, draggable: false, style: { display: "block", objectFit: "cover", width: size, height: size }, "data-face": "upload" }) : <Image accessibilityIgnoresInvertColors source={{ uri: spec.url }} style={{ width: size, height: size }} />;
   } else if (bitmap !== undefined) {
-    face = createElement("img", { src: bitmap, alt: "", width: size, height: size, draggable: false, decoding: "async", style: { display: "block", width: size, height: size }, "data-face": "cached" });
+    face = createElement("img", { src: bitmap, alt: "", width: size, height: size, draggable: false, decoding: "async", style: { display: "block", width: size, height: size, ...(spec !== null && expression === "asleep" && !hasExpressions(spec) ? { opacity: 0.6 } : {}) }, "data-face": "cached", ...(spec !== null && spec.fam !== "emoji" && spec.fam !== "file" && spec.fam !== "img" && hasExpressions(spec) ? { "data-face-blink": chosen, "data-face-size": size } : {}) });
   } else if (kind === "person" && browser) {
     face = createElement("span", { style: { display: "block", width: size, height: size, background: marbleGradient(seed) }, "data-face": "gradient" });
   } else if (kind === "person") {
     face = web ? svg(marbleInner(seed), size, "0 0 80 80") : <NativeLetters name={name} size={size} person tint={`hsl(${hueOf(seed)}, 45%, 70%)`} />;
   } else if (kind === "agent" || looked) {
-    const markup = agentFace?.key === key ? agentFace.markup : null;
+    const markup = agentFace?.key === key ? agentFace.markup : (now ?? null);
     face = web && markup ? createElement("span", { style: { display: "block", width: size, height: size, lineHeight: 0 }, dangerouslySetInnerHTML: { __html: markup } }) : <AgentFallback name={name} seed={seed} size={size} />;
   } else if (kind === "space") {
     face = <NativeLetters name={name} size={size} tint={`hsla(${hueOf(seed)}, 60%, 50%, 0.18)`} ink={`hsl(${hueOf(seed)}, 55%, 46%)`} />;

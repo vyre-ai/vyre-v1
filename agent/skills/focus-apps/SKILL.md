@@ -1,6 +1,6 @@
 ---
 name: focus-apps
-description: Work in Apps. Sites, Forms, Templates and Kits, the email builder; build, preview, then publish through the Gate.
+description: Work in Apps. Sites, Forms, Templates and Kits, the email builder; build, preview, then publish once a person approves.
 system: true
 ---
 

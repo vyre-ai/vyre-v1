@@ -259,6 +259,17 @@ test("imap: a Vault failure or an empty value is an auth failure with no detail 
   await assert.rejects(empty("#Mail_Pw", ctx), code("provider.auth_failed"));
 });
 
+test("imap: the person asking is passed to the Vault, so their own Mine password opens; a locked or missing item says so in fixed words", async () => {
+  const askers: Array<string | undefined> = [];
+  const ctx = { space: "spc_1", trace: { traceId: TRACE } };
+  const mine = createImapSecretResolver({ secret: async (_h, _s, asker) => { askers.push(asker); if (!asker) throw new Error("The Vault has no shared item #Mail_Pw."); return "pa55"; } });
+  assert.equal(await mine("#Mail_Pw", ctx, "usr_pia"), "pa55");
+  assert.deepEqual(askers, ["usr_pia"]);
+  await assert.rejects(mine("#Mail_Pw", ctx), (e: unknown) => e instanceof HostError && e.error.message === "The Vault has no item for that mailbox password.", "no asker: the Mine item is missing, and it says so");
+  const locked = createImapSecretResolver({ secret: async () => { throw new Error("Your sign-ins are locked on this server. Unlock Vyre to use them."); } });
+  await assert.rejects(locked("#Mail_Pw", ctx, "usr_pia"), (e: unknown) => e instanceof HostError && /locked on this server/.test(e.error.message));
+});
+
 // ---- wiring
 
 test("wireSeams registers what it is given and reports what is absent, then takes it all back out", () => {

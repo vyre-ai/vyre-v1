@@ -1,5 +1,6 @@
 // Shared pieces of the booted-daemon chat tests (test/chat-brain.live.test.ts): a seeded data directory, a daemon with a model stand-in, capability calls over HTTP, and a chat that waits for a reply.
 // Nothing inside the daemon is faked. The model vendor stand-in is an OpenSession the test supplies.
+import type { SeamFetch } from "../../host/src/seams/ports.ts";
 import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -44,6 +45,7 @@ export async function boot(dir: string, standIn: OpenSession | null, extra: { en
     fetch: caddyFetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
     ...(extra.realVault ? {} : { vault: { secret: async () => process.env["VYRE_TEST_VAULT_SECRET"] ?? KEY, signRs256: async () => "" } }),   // a live test pointed at a real vendor sets VYRE_TEST_VAULT_SECRET to its key: the stand-in Vault then fills that key, not the fake one
+    ...(extra.seamFetch ? { seams: { fetch: extra.seamFetch } } : {}),
     ...(standIn ? { engineOpenSession: standIn } : {}),
     ...(extra.engineCli !== undefined ? { engineCli: extra.engineCli as never } : {}),
     ...(extra.seams !== undefined ? { seams: extra.seams as never } : {}),

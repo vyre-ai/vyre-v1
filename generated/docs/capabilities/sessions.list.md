@@ -1,6 +1,6 @@
 # sessions.list
 
-List the current owner private imported session archive in this Personal Space
+List the current owner private imported session archive in this Personal Space; in any other Space the list is empty and personalOnly is true
 
 | | |
 |---|---|
@@ -47,6 +47,7 @@ type Out = {
       archived?: boolean;
     }>;
   next?: string;
+  personalOnly?: boolean;
 };
 ```
 
@@ -69,6 +70,7 @@ type Out = {
   },
   "output": {
     "next": "example",
+    "personalOnly": true,
     "sessions": [
       {
         "archived": true,

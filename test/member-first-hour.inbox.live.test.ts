@@ -43,6 +43,8 @@ after(async () => { await h?.stop(); });
 
 test("6 each opens Inbox: their own mail is there after the first pull, their calendar pulls, and a Google Doc in their Drive opens with its words", async () => {
   // the server's own jobs, as the minute timer runs them: the first pull of each new mailbox, and Calendar's pull of connected calendars
+  // drain the event queue first, as the daemon does every 5 s: a person who just joined is matched to their mailbox by the member.joined consumer
+  await h.d.hooks?.pump?.();
   await h.d.hooks!.runPeriodic("google.adopt_polls");
   for (const p of people()) {
     const side = await screen(p, "inbox.sidebar", "mailboxes", {});

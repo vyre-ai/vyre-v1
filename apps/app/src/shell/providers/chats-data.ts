@@ -90,11 +90,15 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openChannel: a.openThread,
     openNeedsYou: (taskId) => rt.open({ screen: "tasks.needs-you", ...(taskId ? { args: { taskId } } : {}) }),
     openAllAgents: () => rt.open({ screen: "chats.all-agents" }),
-    openArtifacts: () => rt.open({ screen: "apps.artifacts" }),
+    // the agent page opens on a tab: Instructions are the first thing in its Settings tab
+    openAgent: (agentId, section) => rt.open({ screen: "chats.agent-page", args: { agentId, ...(section === "instructions" ? { tab: "settings" } : section ? { tab: section } : {}) } }),
+    openChatTab: (threadId) => rt.open({ subject: { type: "thread", id: threadId }, background: true }),
+    openArtifacts: () => rt.open({ screen: "chats.artifacts" }),
     openSearch: () => rt.open({ screen: "shell.cmdk" }),
     openSpaceSwitcher: () => rt.open({ screen: "spaces.switcher" }),
     openNewChannel: () => requestChannelSheet("new"),
     openSubject: (subject) => rt.open({ subject }),
+    openProject: (projectId) => rt.open({ subject: { type: "project", id: projectId } }),
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.changes ? { changes: rt.changes } : {}),
@@ -160,9 +164,15 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
     openThread: a.openThread,
     togglePane: a.togglePane,
-    openBeside: (kind, id) => (kind === "artifact" ? rt.open({ screen: "apps.artifacts", args: { selected: id } }) : rt.open({ subject: { type: kind, id } })),
+    openBeside: (kind, id) => {
+      if (kind === "artifact-share") return rt.open({ subject: { type: "artifact", id }, args: { share: "1" } });
+      // an email thread a reply links by its provider thread id opens in the Inbox conversation that holds it
+      if (kind === "mail") return openMailThread(rt, id);
+      return rt.open({ subject: { type: kind, id } });
+    },
     openNote: (noteId) => rt.open({ screen: "chats.notes", args: { noteId } }),
     openGoal: (goalId) => rt.open({ subject: { type: "goal", id: goalId } }),
+    openUrl: (url) => rt.openUrl(url),
     openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),   // the same page the Needs you sign-in opens
     openSpaceAiKey: () => rt.open({ screen: "console.ai-models" }),
     ...(rt.unlockVault ? { unlockVault: () => askVaultUnlock(rt.unlockVault!) } : {}),
@@ -215,4 +225,12 @@ export function paneData(rt: ShellRuntime, a: ChatsActions, threadId: string, ag
     memory: chatMemory(rt, a),
     ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}),
   };
+}
+
+/** Opens the Inbox conversation an email thread belongs to, by the provider thread id the server stored on its messages. A thread the reader cannot see opens nothing. */
+export function openMailThread(rt: Pick<ShellRuntime, "call" | "open">, threadId: string): void {
+  void Promise.resolve(rt.call("inbox.thread_conversation", { threadId })).then((o) => {
+    const c = (o as { conversationId?: string } | null)?.conversationId;
+    if (c) rt.open({ subject: { type: "conversation", id: c }, args: { threadId } });
+  }, () => undefined);
 }

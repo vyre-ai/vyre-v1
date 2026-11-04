@@ -27,6 +27,7 @@ HTTP 401. Retryable: no.
 - invites.accept_create_account
 - members.accept
 - members.invites.preview
+- members.join_link.preview
+- members.join_link.request
 - ms.user.complete
 - network.enroll
-- network.enroll_status

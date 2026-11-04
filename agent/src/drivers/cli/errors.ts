@@ -12,7 +12,27 @@ export function missingProgram(message: string): string | null {
   return path === undefined ? null : path.slice(path.lastIndexOf("/") + 1);
 }
 
+/**
+ * The engine says the picked model is not there or not this account's. Checked against Claude Code's own words ("There's an issue with the selected model (x). It may not exist or you may not have
+ * access to it. Run --model to pick a different model.") and the same thing from the other CLIs. Not a failure of the engine: the turn moves to another model (modules/engine/model-switch.ts).
+ */
+const MODEL_GONE = /issue with the selected model|model (?:[\w./:-]+ )?(?:may|might) not exist|(?:selected )?model [\w./:-]* ?(?:does not exist|not found|is not available|isn't available)|unknown model|invalid model|no access to (?:the )?model|do not have access to (?:the )?model/i;
+export const modelGone = (message: string): boolean => MODEL_GONE.test(message);
+
+/** The model a "selected model (x)" line names, or null. */
+export function goneModel(message: string): string | null {
+  return /selected model \(([^)\s]+)\)/i.exec(message)?.[1] ?? null;
+}
+
+/** A line the engine's own command line wrote for its own user ("Run --model to pick a different model.") is no use to a person in a chat: it is cut from what they read. */
+const USAGE = /\s*\b(?:Run|Use|Try|Pass|Specify)\s+(?:`?[\w-]*\s)?`?--[\w-]+[^.\n]*\.?/gi;
+export function plainCli(message: string): string {
+  const cut = message.replace(USAGE, "").replace(/\s{2,}/g, " ").trim();
+  return cut === "" ? message : cut;
+}
+
 export function classifyCli(message: string): string {
+  if (MODEL_GONE.test(message)) return "engine.model_unavailable";
   if (CONTEXT.test(message)) return "provider.context_too_long";
   if (AUTH.test(message)) return "provider.auth_failed";
   if (OVERLOADED.test(message)) return "provider.overloaded";

@@ -78,6 +78,7 @@ test("a held call has one card: the approval card, whether the turn parked on it
   assert.equal(find(both, "link-card-blk_h"), null, "the work card is not drawn beside it");
   assert.equal(JSON.stringify(both.toJSON()).match(/"data-testid":"approval-tsk_h"|"testID":"approval-tsk_h"/g)?.length, 1, "one approval card");
   const named = await mount(createRoot, heldView([heldBlock]));
-  assert.ok(find(named, "approval-allow-tsk_h"), "a call only named, with no parked turn, still gets its card with Allow");
+  // a held mail.send is the one held card (held-card.tsx, l-chrome2a): its answer is Send, where other held acts say Allow
+  assert.ok(find(named, "approval-tsk_h-send"), "a call only named, with no parked turn, still gets its card with Send");
   assert.equal(find(named, "link-card-blk_h"), null);
 });

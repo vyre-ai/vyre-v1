@@ -1,5 +1,6 @@
 // Global error catalogue (ARCHITECTURE-V1.md 3.2 and 4.8). Every `errors` entry of a capability must be in this list.
 import type { ErrorCode, ErrorGroup, VyreError, NextStep, TraceContext } from './types.ts';
+import { ERROR_WORDS } from '../../../lib/words/errors.ts';
 
 export interface ErrorCodeDef {
   code: ErrorCode;
@@ -33,7 +34,7 @@ const NEXT: Record<ErrorGroup, NextStep['kind'][]> = {
 
 const e = (code: ErrorCode, http: number, retryable: boolean, summary: string): ErrorCodeDef => ({
   code, group: code.split('.')[0] as ErrorGroup, http, retryable, summary,
-  what: summary, why: WHY[code.split('.')[0] as ErrorGroup], next: NEXT[code.split('.')[0] as ErrorGroup],
+  what: ERROR_WORDS[code]?.what ?? summary, why: WHY[code.split('.')[0] as ErrorGroup], next: NEXT[code.split('.')[0] as ErrorGroup],
 });
 
 export const ERROR_CODES: ErrorCodeDef[] = [

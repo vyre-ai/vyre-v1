@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { harness, codeOf, reasonOf } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
-import { HOUR, NOW, alice, as, bob, bot, bot2, cara, parkInput } from "../fixtures/seed.ts";
+import { HOUR, NOW, alice, as, bob, bot, bot2, cara, dana, parkInput } from "../fixtures/seed.ts";
 import { consumers, effectiveRule, recover, rejectAllOf, summaryLine, ACTS } from "../impl.ts";
 import { findHold, holdsWhere } from "../projections.ts";
 
@@ -356,4 +356,14 @@ test("a deleted agent's holds can no longer be approved: each is dropped, and a 
   assert.equal(findHold(h.db, a.holdId)!.state, "denied");
   assert.equal(findHold(h.db, other.holdId)!.state, "held", "another agent's hold stands");
   assert.deepEqual(h.callsTo("tasks.withdraw").map((x) => [x.input.taskId, x.input.note]), [[a.taskId, "The agent that asked was deleted."]]);
+});
+
+test("a hold parked from a thread is listed for the person who must approve it, and only for them", async () => {
+  const h = harness();
+  const r = await park(h, { threadId: "thr_0123456789abcdef0123456789abcdef" });
+  assert.equal(findHold(h.db, r.holdId)!.threadId, "thr_0123456789abcdef0123456789abcdef");
+  const mine = (await h.call("gate.holds.list", { states: ["held"] }, as(alice))) as { holds: Array<{ holdId?: string; id?: string; taskId: string }> };
+  assert.deepEqual(mine.holds.map((x) => x.taskId), [r.taskId], "the person the agent works for sees it, thread or not");
+  const other = (await h.call("gate.holds.list", { states: ["held"] }, as(dana))) as { holds: unknown[] };
+  assert.equal(other.holds.length, 0, "someone who is not asked does not");
 });

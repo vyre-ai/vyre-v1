@@ -95,7 +95,10 @@ test("Take a note saves what was typed; an empty one is dropped; the search narr
 
   await press(find(root, "take-closed"));
   await typeInto(find(root, "take-title"), "JCS Law, Windows setup");
-  await typeInto(find(root, "take-body"), "Send Josh the installer link.");
+  // the note text is the shared Markdown editor; its Markdown view is the field a test can type into
+  assert.ok(find(find(root, "take-body")!, "markdown-editor-host"), "the note body is the shared Markdown editor");
+  await press(find(root, "md-view-raw"));
+  await typeInto(find(root, "markdown-editor-raw-text"), "Send Josh the installer link.");
   await press(find(root, "take-close"));
   await flush();
   const made = calls.filter((c) => c.cap === "notes.create");
@@ -153,4 +156,19 @@ test("the opened note says where it was saved from, with a way to the message; a
   assert.deepEqual(fromLine({ from: { threadId: "thr_1", messageId: "msg_1", title: "Weinberger Law prep", at, readable: true } }, now), { text: "From: Weinberger Law prep, 9:12", open: { threadId: "thr_1", messageId: "msg_1" } });
   assert.deepEqual(fromLine({ from: { at, readable: false } }, now), { text: "From a chat you can no longer read, 9:12", open: null });
   assert.equal(fromLine({}, now), null);
+});
+
+test("a note's menu lists what fits it with the keys that work, and Pin reaches notes.pin", async () => {
+  installDom();
+  const { rt, calls } = scripted();
+  const store = createNotesStore((c, i) => rt.call(c, i), () => undefined, () => T0);
+  const root = await mount(createRoot, <NotesPage rt={rt} nameOf={(id) => id} store={store} />);
+  await flush();
+  await press(find(root, "note-more-n2"));
+  await flush();
+  const labels = ids(root, "menu-item-").map((t) => t.slice("menu-item-".length));
+  assert.deepEqual(labels, ["Open", "Pin", "Colour", "Labels", "Share", "Ask about this note", "Turn into task", "Turn into record", "Copy link", "Make a copy", "Delete"]);
+  await press(find(root, "menu-item-Pin"));
+  await flush();
+  assert.deepEqual(calls.filter((c) => c.cap === "notes.pin").map((c) => c.input), [{ noteId: "n2", pinned: true }]);
 });

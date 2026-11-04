@@ -9,7 +9,7 @@ import { HoverBar, MessageView } from "./MessageView.tsx";
 import * as act from "./actions.ts";
 import {
   WINDOW, beforeCursor, byOrder, dayLabel, faces, lastMessages, leadOf, mentionsIn, mergePages, pendingMessage, queueNote, queuedCount, respondersFor, sendKind, stillPending, stopLabel,
-  swapNeeded, timeline, whoLine, workOf, workingAgents, bodyBlocks, findMatches, reportLabel, matchLine, modelLabel, participants, placeholderFor, summarizeOpen, openVerdict, CHAT_OPEN_BUDGET_MS,
+  swapNeeded, timeline, whoLine, workOf, workingAgents, bodyBlocks, findMatches, reportLabel, matchLine, modelLabel, placeholderFor, summarizeOpen, openVerdict, CHAT_OPEN_BUDGET_MS,
 } from "./model.ts";
 import { changeCount, editedNote, isPlanFile, isProposal, planFileLine, proposalActs, proposalData } from "./proposal.tsx";
 import type { Message, Pending, Thread } from "./model.ts";

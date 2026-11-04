@@ -34,7 +34,8 @@ type In = {
 ```ts
 type Out = {
   repo: {
-    projectId: string;
+    projectId?: string;
+    threadId?: string;
     path: string;
     baseBranch: string;
     branch: string;
@@ -56,14 +57,15 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "projectId": "example"
+    "projectId": "prj_a1b2c3"
   },
   "output": {
     "repo": {
       "baseBranch": "example",
       "branch": "example",
       "path": "example",
-      "projectId": "example"
+      "projectId": "prj_a1b2c3",
+      "threadId": "thr_a1b2c3"
     }
   }
 }

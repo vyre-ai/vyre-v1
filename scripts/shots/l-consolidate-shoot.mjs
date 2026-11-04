@@ -1,6 +1,8 @@
-// Lane screenshots without ensureDeps (the shared node_modules is never reinstalled): export the shots app once, serve it, shoot each CONSOLIDATE_01 target in paper and graphite, at the
+// Lane screenshots without ensureDeps (the shared node_modules is never reinstalled): export the shots app once, serve it, shoot each target of one mount prefix in paper and graphite, at the
 // wide size and the phone size (a phone-only part is shot at the phone size only). Run on the build box from the worktree:
-//   node scripts/shots/notes-shoot.mjs [out-dir] [--skip-export] [--only=grid,take] [--size=wide|phone]
+//   node scripts/shots/l-consolidate-shoot.mjs [out-dir] [--prefix=CONSOLIDATE_02] [--skip-export] [--only=people,groups] [--size=wide|phone] [--height=N] [--skin=paper|graphite]
+// CONSOLIDATE_02 is the whole Console (one part per page id). Its files are <page>-<skin>-<wide|phone>.png at 1440x1000 and 390x1300 (the prototype shots' sizes). The runner also prints, per part, every
+// capability the page asked for that the mount does not script ("UNSCRIPTED") and any "Couldn't load" text on the page.
 import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
@@ -10,38 +12,57 @@ const { routeUrl, loadTargets } = await import(path.join(REPO, "scripts/shots/li
 const { exportEnv } = await import(path.join(REPO, "scripts/lib/registry-hash.mjs"));
 const appDir = path.join(REPO, "scripts/shots/app");
 const args = process.argv.slice(2);
+const flag = (name) => (args.find((a) => a.startsWith(`--${name}=`)) ?? "").slice(name.length + 3);
 const out = args.find((a) => !a.startsWith("--")) || "/root/wt/tmp-l-consolidate/ui-shots";
-const only = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",").filter(Boolean);
-const sizeOnly = (args.find((a) => a.startsWith("--size=")) ?? "").slice(7);
+const prefix = flag("prefix") || "CONSOLIDATE_02";
+const only = flag("only").split(",").filter(Boolean);
+const sizeOnly = flag("size");
+const skinOnly = flag("skin");
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync("/root/wt/base/node_modules/.bin/expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync("npx expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
 }
 fs.mkdirSync(out, { recursive: true });
-const SIZES = { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
+const tall = Number(flag("height")) || 0; // --height=N: a taller viewport for a long page
+const SIZES = prefix === "CONSOLIDATE_02" ? { wide: { width: 1440, height: tall || 1000 }, phone: { width: 390, height: tall || 1300 } } : { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
 const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
-const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => t.id.startsWith("CONSOLIDATE_01") && (only.length === 0 || only.includes(t.id.replace("CONSOLIDATE_01-", ""))));
+const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => t.id.startsWith(prefix) && (only.length === 0 || only.includes(t.id.replace(`${prefix}-`, ""))));
+const unscripted = new Map();
+const broken = [];
+const lines = [];
+const say = (x) => { console.log(x); lines.push(x); };
 for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [size, vp] of Object.entries(SIZES)) {
   if (sizeOnly && size !== sizeOnly) continue;
+  if (skinOnly && skin !== skinOnly) continue;
   if (size === "wide" && t.id.includes("phone")) continue;
+  const name = t.id.replace(`${prefix}-`, "");
   const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
   const page = await ctx.newPage();
   const errs = [];
   page.on("pageerror", (e) => errs.push(String(e)));
+  page.on("console", (m) => { const x = m.text(); if (x.startsWith("UNSCRIPTED ")) { const k = x.split(" ").slice(1).join(" "); unscripted.set(k, true); } });
+  page.on("crash", () => say(`crash ${name}`));
   // a busy box drops a navigation now and then: one more try before giving up
   const url = routeUrl(real.origin, t.route, skin);
   await page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
   await page.waitForTimeout(500);
   let found = true;
   if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
-  await page.waitForTimeout(900);
-  const file = path.join(out, `${t.id.replace("CONSOLIDATE_01-", "")}-${skin}-${size}.png`);
+  else await page.waitForSelector("[data-testid='console-top'], [data-testid='console']", { timeout: 15000 }).catch(() => { found = false; });
+  await page.waitForTimeout(1600);
+  const text = await page.evaluate(() => document.body.innerText).catch(() => "");
+  const bad = /Couldn.t load|Check access and try again|Something went wrong/.test(text);
+  if (bad) broken.push(`${name}-${skin}-${size}`);
+  const file = path.join(out, `${name}-${skin}-${size}.png`);
   await page.screenshot({ path: file });
-  console.log(`shot ${path.basename(file)} waitFor=${found}${errs.length ? " errors=" + errs.join(" | ").slice(0, 400) : ""}`);
+  say(`shot ${path.basename(file)} found=${found}${bad ? " LOAD-ERROR" : ""}${errs.length ? " errors=" + errs.join(" | ").slice(0, 400) : ""}`);
   await ctx.close();
 }
 await browser.close(); real.close();
+if (unscripted.size) say("UNSCRIPTED CAPS (part cap input):\n" + [...unscripted.keys()].sort().join("\n"));
+if (broken.length) say("LOAD ERRORS: " + broken.join(" "));
+fs.writeFileSync(path.join(out, "report.txt"), lines.join("\n") + "\n");
 process.exit(0);

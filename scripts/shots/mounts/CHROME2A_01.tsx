@@ -3,6 +3,8 @@
 //   site        the Add a site sheet: the site, My Chrome, Agent computers or Both, a right for each agent, and the always-held line
 //   held        the approval card in a chat: To, From, Subject, Message, with Send, Edit and Don't send
 //   held-done   the same card after Send: it says Sent
+//   gate-dm | gate-email | gate-text | gate-post | gate-long   the one held card for a message, an email, a text, a channel post, a long body cut at twelve lines with Show all
+//   gate-edit | gate-reason | gate-sent | gate-dropped | gate-edited   the same card with Edit open, Don't send asking why, after Send, after Don't send, and after a Save
 //   step        "Using your Chrome" with a masked picture of the tab, Watch and Take over
 //   step-saw    the same step, with "Show what Scout saw" open: the handles it was given, names only
 import { useEffect, useMemo, useState } from "react";
@@ -11,6 +13,7 @@ import { View } from "react-native";
 import Vault from "../../../apps/app/src/places/vault/layout/index.tsx";
 import { createSampleVault } from "../../../apps/app/src/places/vault/layout/sample.ts";
 import { sampleConnectionsCall, sampleConnectionsData } from "../../../apps/app/src/places/vault/connections/sample.ts";
+import { ApprovalCard } from "../../../apps/app/src/places/chats/conversation/approval.tsx";
 import { MessageView } from "../../../apps/app/src/places/chats/conversation/MessageView.tsx";
 import { timeline } from "../../../apps/app/src/places/chats/conversation/model.ts";
 import type { Message } from "../../../apps/app/src/places/chats/conversation/model.ts";
@@ -61,6 +64,36 @@ function Chat({ part }: { part: string }): ReactNode {
   );
 }
 
+const LONG = Array.from({ length: 16 }, (_, i) => `- item ${i + 1}: the draft for the ${["Rivera", "Okafor", "Lindqvist", "Tanaka", "Moreau", "Haddad", "Novak", "Bianchi"][i % 8]} file`).join("\n");
+const BODY = "Hi **Aliza**,\n\nThe signed deed is ready. Two things before Friday:\n\n- the [county form](https://county.example/form)\n- a call with me\n\nOlivia";
+const GATE: Record<string, { cap: string; input: Record<string, unknown>; outward: Record<string, unknown> }> = {
+  dm: { cap: "chat.message_person", input: { to: "usr_aliza", body: BODY, timing: "online" }, outward: { channel: "message", to: [{ kind: "person", id: "usr_aliza" }], body: BODY, bodyField: "body", schedule: { kind: "online" } } },
+  email: { cap: "mail.send", input: { to: ["aliza@firm.test"], subject: "Your signed deed", body: BODY }, outward: { channel: "email", to: [{ kind: "address", address: "aliza@firm.test" }], subject: "Your signed deed", body: BODY, bodyField: "body" } },
+  text: { cap: "telephony.send_sms", input: { to: "+14155550123", text: "Your deed is ready. Reply YES to book a signing." }, outward: { channel: "text", to: [{ kind: "address", address: "+14155550123" }], body: "Your deed is ready. Reply YES to book a signing.", bodyField: "text" } },
+  post: { cap: "chat.post", input: { threadId: "thr_team", body: "**Heads up:** the Rivera closing moved to Friday." }, outward: { channel: "post", to: [{ kind: "channel", name: "Team" }], body: "**Heads up:** the Rivera closing moved to Friday.", bodyField: "body" } },
+  event: { cap: "google.calendar.create_event", input: { summary: "Rivera closing prep", description: "Agenda\n- the deed\n- the fee", location: "https://us02web.zoom.us/j/123456", sendUpdates: "all", start: { dateTime: "2026-11-04T14:00:00-08:00", timeZone: "America/Los_Angeles" }, end: { dateTime: "2026-11-04T15:00:00-08:00", timeZone: "America/Los_Angeles" }, attendees: [{ email: "dana@client.test" }, { email: "sam@firm.test" }] }, outward: {} },
+  long: { cap: "chat.message_person", input: { to: "usr_aliza", body: LONG }, outward: { channel: "message", to: [{ kind: "person", id: "usr_aliza" }], body: LONG, bodyField: "body" } },
+};
+function Gate({ part }: { part: string }): ReactNode {
+  const kind = part === "gate-email" ? "email" : part === "gate-text" ? "text" : part === "gate-post" ? "post" : part === "gate-long" ? "long" : part === "gate-event" ? "event" : "dm";
+  const g = GATE[kind]!;
+  const state = part === "gate-sent" ? "done" : part === "gate-dropped" ? "canceled" : "awaiting_approval";
+  const edited = part === "gate-edited" ? { by: "usr_olivia", at: Date.UTC(2026, 10, 4, 4, 30) } : undefined;
+  const data = useMemo(() => ({
+    call: async (cap: string) => {
+      if (cap === "tasks.get") return { task: { id: "tsk_g", kind: "approve", title: "Approve: Send a message", state, ...(part === "gate-dropped" ? { workingNotes: { decision: "rejected" } } : {}), blocks: [{ type: "approval_preview", v: 1, data: { act: "send", cap: g.cap, input: g.input, holdId: "hld_g", outward: { ...g.outward, ...(edited ? { edited } : {}) } } }], updatedAt: Date.UTC(2026, 10, 4, 4, 38) } };
+      if (cap === "access.principals.get") return { principal: { name: "Aliza Rizvi" } };
+      return {};
+    },
+    nav: { openBeside: () => undefined },
+  }), [kind, part]);   // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <View style={{ flex: 1, minHeight: 520, padding: 24, backgroundColor: "var(--win)" as string }}>
+      <View style={{ maxWidth: 720, width: "100%" }}><ApprovalCard taskId="tsk_g" agent="Dex" agentId="agt_dex" data={data as never} /></View>
+    </View>
+  );
+}
+
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "conn"), []);
@@ -73,5 +106,6 @@ export default function Mount(): ReactNode {
       </View>
     );
   }
+  if (part.startsWith("gate-")) return <Gate part={part} />;
   return <Chat part={part} />;
 }

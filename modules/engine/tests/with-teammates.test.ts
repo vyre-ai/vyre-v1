@@ -11,8 +11,8 @@ const call = async (cap: string, input: unknown): Promise<unknown> => {
 };
 
 test("a send to a first or last name adds the person it names; other acts, addresses and unknown names add nothing", async () => {
-  assert.deepEqual(await withTeammates(call, [{ act: "send", target: "andrey" }]), [{ act: "send", target: "andrey" }, { act: "send", target: "usr_andrey" }], "Andreya is not Andrey");
-  assert.deepEqual((await withTeammates(call, [{ act: "send", target: "khan" }])).map((a) => a.target), ["khan", "usr_rubab"]);
+  assert.deepEqual(await withTeammates(call, [{ act: "send", target: "andrey" }]), [{ act: "send", target: "andrey" }, { act: "send", target: "usr_andrey" }, { act: "send", target: "andrey-drey" }], "Andreya is not Andrey; the handle people_status gives is let through too");
+  assert.deepEqual((await withTeammates(call, [{ act: "send", target: "khan" }])).map((a) => a.target), ["khan", "usr_rubab", "rubab-ubab"]);
   assert.deepEqual(await withTeammates(call, [{ act: "post", target: "andrey" }, { act: "send", target: "lee@acme.test" }, { act: "send", target: "zed" }, { act: "send", target: "" }]),
     [{ act: "post", target: "andrey" }, { act: "send", target: "lee@acme.test" }, { act: "send", target: "zed" }, { act: "send", target: "" }]);
   assert.deepEqual(await withTeammates(async () => { throw new Error("no directory"); }, [{ act: "send", target: "andrey" }]), [{ act: "send", target: "andrey" }]);

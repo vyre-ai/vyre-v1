@@ -179,3 +179,31 @@ test("an outside agent asking its person (docs/ask-the-person.md): who asks, wha
   await flush();
   assert.deepEqual(calls.find((c) => c.cap === "tasks.act")?.input, { taskId: "tsk_ask", action: "approve" });
 });
+
+test("a held link read says what it opens, shows the link as a link, and names no module or raw field", async () => {
+  const d = { call: async (cap: string) => (cap === "tasks.get" ? { task: { id: "tsk_1", kind: "approve", title: "Approve: Open example.com", state: "awaiting_approval", blocks: [{ type: "approval_preview", v: 1, data: { act: "send", cap: "automations.read_link", input: { url: "https://www.example.com/pricing" } } }] } } : {}), nav: { openBeside: () => undefined } } as never;
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Assistant" agentId="agt_a" data={d} />);
+  const t = textOf(root);
+  assert.match(t, /Assistant wants to open example\.com/);
+  assert.match(t, /Link/);
+  assert.ok(t.includes("example.com/pricing"), "the link is shown");
+  for (const bad of ["automations", "Url", "read link", "Send a message"]) assert.ok(!t.includes(bad), `${bad} is not on the card`);
+});
+
+test("two other held acts that are not messages read in plain words", async () => {
+  assert.equal(wantsPhrase("automations.read_docs", undefined, {}), "read the documentation");
+  assert.equal(wantsPhrase("stripe.refund.create"), "refund a payment");
+  assert.doesNotMatch(wantsPhrase("engine.mcp.read"), /engine/);
+  assert.doesNotMatch(wantsLine("Ops", "computers.screen.screenshot"), /computers|screen\./);
+});
+
+test("a held install draws as a card: what it is, what it does, what it needs, the exact commit and who gets it", async () => {
+  const { wantsLine, excerptLines } = await import("./approval-model.ts");
+  const input = { planId: "ins_1", for: "space", card: { name: "pdf-tools", kind: "skill", summary: "Reads, splits and fills in PDF forms for your agents.", commit: "a41f9c2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", needs: { domains: ["api.example.com"], vaultKeys: [], files: [] } } };
+  assert.equal(wantsLine("Assistant", "install.apply", undefined, input), "Assistant wants to install pdf-tools");
+  assert.deepEqual(excerptLines(input, 5, "install.apply"), [
+    { label: "What", text: "pdf-tools (a skill)" }, { label: "It does", text: "Reads, splits and fills in PDF forms for your agents." },
+    { label: "Needs", text: "Network: api.example.com. Vault: none." }, { label: "Pinned to", text: "a41f9c2" }, { label: "For", text: "Everyone in the Space" },
+  ]);
+  assert.equal(excerptLines({ planId: "ins_1", for: "me", card: { name: "tasks-mcp", kind: "mcp_remote", summary: "x", commit: "", needs: { domains: [], vaultKeys: [], files: [] } } }, 5, "install.apply")[3]!.text, "Not pinned. It is their server.");
+});

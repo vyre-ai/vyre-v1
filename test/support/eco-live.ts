@@ -140,12 +140,12 @@ export type Api = (cap: string, input: unknown) => Promise<any>;   // eslint-dis
  * A Space the way a person starts one: the owner claims it (so their Assistant exists, as for every real person), signs in, and connects their own Claude account. `api` calls as that person.
  * The model vendor is the scripted one. Nothing else is faked.
  */
-export async function claimedSpace(standIn: OpenSession, name = "Crew Co"): Promise<{ d: Daemon; api: Api; owner: string; assistant: string }> {
+export async function claimedSpace(standIn: OpenSession, name = "Crew Co", extra: Record<string, unknown> = {}): Promise<{ d: Daemon; api: Api; owner: string; assistant: string }> {
   const { makeBundle } = await import("../../client/src/crypto/keys.ts");
   const { holdKeyOnOwnNode } = await import("../../client/src/gateway/local-key.ts");
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-claimed-")));
   const PASSWORD = "claimed space password 7731";
-  const d = await boot(dir, standIn, { config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_claimed", "--space-name", name], {}, "1.2.3") });
+  const d = await boot(dir, standIn, { config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_claimed", "--space-name", name], {}, "1.2.3"), ...extra });
   assert.ok(d.claim, "a fresh Space offers a claim link");
   const code = /claim\/([^#]+)/.exec(d.claim!.url)![1]!;
   const spaceId = /s=([^&]+)/.exec(d.claim!.url)![1]!;
@@ -155,7 +155,7 @@ export async function claimedSpace(standIn: OpenSession, name = "Crew Co"): Prom
   const token = ((await claimed.json()) as { data: { session: { token: string } } }).data.session.token;
   assert.equal(await holdKeyOnOwnNode(d.url, token, made.personKey), true);
   const api: Api = async (cap, input) => {
-    const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(input) });
+    const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(input) }).catch((e: unknown) => { throw new Error(`${cap}: ${String(e)} (the daemon closed the connection) ${hostLog(d)}`); });
     const body = (await r.json()) as { data?: unknown };
     assert.equal(r.status, 200, `${cap}: ${r.status} ${JSON.stringify(body)}`);
     return body.data;
@@ -169,4 +169,16 @@ export async function claimedSpace(standIn: OpenSession, name = "Crew Co"): Prom
   const owner = (await api("identity.whoami", {})).principal.id as string;
   const assistant = await waitFor(async () => { await d.hooks?.pump?.(); const r = await api("agents.assistant_of", { personId: owner }); return typeof r.agentId === "string" ? (r.agentId as string) : null; }, 40_000);
   return { d, api, owner, assistant };
+}
+
+/**
+ * A channel's messages with the threads under them: agents reply in the thread under the asking message in a channel, so a test that asks in a channel reads the chat and those threads together, oldest first.
+ * `api` is the test's own caller: (who, cap, input) giving { status, data }.
+ */
+export async function listAll<M extends { threadSeq?: number; createdAt?: number }>(api: (who: string, cap: string, input: unknown) => Promise<{ data: any }>, who: string, threadId: string): Promise<M[]> {   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const main = ((await api(who, "chat.messages.list", { threadId })).data.messages ?? []) as M[];
+  const under = ((await api(who, "threads.list", { parentThreadId: threadId })).data.threads ?? []) as Array<{ threadId: string }>;
+  const more: M[] = [];
+  for (const t of under) more.push(...(((await api(who, "chat.messages.list", { threadId: t.threadId })).data.messages ?? []) as M[]));
+  return [...main, ...more];
 }

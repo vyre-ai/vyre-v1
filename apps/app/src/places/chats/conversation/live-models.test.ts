@@ -71,3 +71,8 @@ test("a remembered pick that cannot run here is unavailable: greyed by the list,
   for (const pick of [undefined, null, "", "auto"]) assert.equal(pickUnavailable(live([sonnet]), pick), false);
   assert.equal(pickUnavailable(undefined, "claude-sonnet-5-5"), false);
 });
+
+test("a model still being checked is a greyed row that says Checking...", () => {
+  const rows = menuModels({ models: [{ model: "glm-5.3", title: "GLM 5.3", allowed: false, reason: "checking" }, { model: "ok", title: "Ok", allowed: true }] });
+  assert.deepEqual(rows.map((r) => [r.id, r.allowed, r.reason]), [["glm-5.3", false, "Checking..."], ["ok", true, undefined]]);
+});

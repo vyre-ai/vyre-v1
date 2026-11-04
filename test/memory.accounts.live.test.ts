@@ -23,7 +23,8 @@ type Ev = { type: "text"; text: string } | { type: "error"; code: string; messag
 function vendor(refused: Set<string>, opened: string[]): (spec: unknown) => Promise<unknown> {
   return async (spec: unknown) => {
     const ref = (spec as Spec).account?.ref ?? "none";
-    opened.push(ref);
+    // an account is named once per turn: the chat title is a second call on the chat's own key and is not another account
+    if (!opened.includes(ref)) opened.push(ref);
     return {
       warm: true,
       async *send(): AsyncGenerator<Ev> {

@@ -1,6 +1,6 @@
 # threads.members.add
 
-Add a person to a thread; a private chat never gains people, so this offers a channel instead
+Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker's private profile there. A chat's own agents become visible to the newcomer.
 
 | | |
 |---|---|
@@ -27,6 +27,7 @@ Add a person to a thread; a private chat never gains people, so this offers a ch
 type In = {
   threadId: string;
   personId: string;
+  fromStart?: boolean;
 };
 ```
 
@@ -49,6 +50,7 @@ type Out = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -61,6 +63,13 @@ type Out = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
@@ -92,7 +101,6 @@ type Out = {
 - permission.no_grant
 - validation.bad_input
 - validation.not_found
-- validation.precondition_failed
 
 ## Example
 
@@ -100,20 +108,29 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "fromStart": true,
     "personId": "usr_a1b2c3",
     "threadId": "thr_a1b2c3"
   },
   "output": {
     "thread": {
+      "agentRepliesInThreads": true,
       "agents": [
         {
           "accountRef": "example",
           "agentId": "agt_a1b2c3",
           "effort": "low",
+          "hoursFrom": "09:00",
+          "hoursTo": "09:00",
           "mode": "lead",
           "model": "claude-sonnet-5-5",
+          "owned": true,
           "provider": "anthropic",
-          "watches": true
+          "quiet": true,
+          "style": "short",
+          "topics": "example",
+          "watches": true,
+          "when": "always"
         }
       ],
       "channelId": "chn_a1b2c3",

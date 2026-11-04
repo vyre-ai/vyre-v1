@@ -1,0 +1,12 @@
+{
+  "targets": [
+    {
+      "id": "EXPIRED_01-needs",
+      "route": "/m/P-L9b_06c?sel=n8&expired=1",
+      "proto": "chat,needs,{skin}",
+      "waitFor": "[data-testid='needs-withdrawn']",
+      "note": "An approval nobody answered for 7 days: under Withdrawn, the open request reads Not sent, it waited 7 days, and only Dismiss is left (no Approve, Send or Send back).",
+      "protoSettleMs": 1500
+    }
+  ]
+}

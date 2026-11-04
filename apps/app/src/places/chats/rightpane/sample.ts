@@ -58,7 +58,7 @@ const file = (fileId: string, folderId: string, name: string, size: number, upda
   fileId, folderId, name, kind, mime: kind === "markdown" ? "text/markdown" : "text/plain", size, version: 1, label: 0, ownerId: "usr_omar", createdAt: at(10, 2, 9), updatedAt, updatedBy: "usr_omar", thumb: false, holds: 0,
 });
 
-export function createSample(variant: Variant = "northwind", o: { online?: boolean; crew?: boolean } = {}): Sample {
+export function createSample(variant: Variant = "northwind", o: { online?: boolean; crew?: boolean; hooks?: boolean; admin?: boolean } = {}): Sample {
   const personal = variant === "personal";
   const replica = createFakeReplica(personal ? "personal" : "northwind");
   const calls: { cap: string; input: unknown }[] = [];
@@ -174,6 +174,22 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     { id: "crw_3", ...jobBase, jobId: "crw_3", threadId: "thr_crew3", agentId: "agt_quill", name: "Quill", title: "Docs", branch: "crew/quill-1", state: "merged", startedAt: SAMPLE_NOW - 3 * 60 * MIN, endedAt: SAMPLE_NOW - 2 * 60 * MIN },
   ]);
   replica.resolve("engine.crew.list", () => ({ jobs: rowsOf<Row>("crew").map((x) => strip(x, [])) as never, waits: (o.crew ? [{ waitId: "cwt_1", kind: "checks", label: "acme/site#12", state: "pending", done: 12, total: 40, startedAt: SAMPLE_NOW - 4 * MIN }] : []) as never }));
+  // the hooks of the open chat (lane l-hooks): one the agent set for this chat, one for its helpers, one it carries everywhere and one the Space set
+  const hk = (id: string, scope: string, event: string, kind: string, spec: Record<string, unknown>, line: string, by: string, byKind: string, canChange: boolean) => ({
+    id, scope, event, kind, matcher: "", line, paused: false, madeBy: by, madeByKind: byKind, threadId: scope === "chat" || scope === "run" ? "thr_open" : undefined, helpers: true, timeoutSec: 20, createdAt: SAMPLE_NOW - 60 * MIN, updatedAt: SAMPLE_NOW - 60 * MIN, spec, mine: false, canChange,
+  });
+  if (o.hooks) replica.put("hooks", [
+    hk("hok_chat", "chat", "outward.before", "check", { instruction: "Check the address is in Contacts" }, "before any email, check the address is in Contacts", "agt_intake", "agent", true),
+    hk("hok_run", "run", "tool.before", "check", { instruction: "Only open links from the quotes you were sent" }, "before a helper opens a link, only open links from the quotes you were sent", "agt_intake", "agent", true),
+    hk("hok_agent", "agent", "tool.after", "command", { command: "format-changed.sh" }, "after a helper edits a file, format the changed files", "agt_intake", "agent", true),
+    hk("hok_space", "space", "prompt.submit", "check", { instruction: "No client names in prompts" }, "before each message is read, no client names", "usr_irfad", "admin", o.admin === true),
+  ]);
+  replica.resolve("hooks.runs.latest", () => ({ runs: o.hooks ? [
+    { id: 3, hookId: "hok_chat", event: "outward.before", threadId: "thr_open", tool: "mail_send", outcome: "blocked", ms: 410, at: SAMPLE_NOW - 2 * MIN },
+    { id: 2, hookId: "hok_space", event: "prompt.submit", threadId: "thr_open", outcome: "ok", ms: 380, at: SAMPLE_NOW - 14 * MIN },
+    { id: 1, hookId: "hok_agent", event: "tool.after", threadId: "thr_open", tool: "files_write", outcome: "ok", ms: 90, at: SAMPLE_NOW - 3 * 60 * MIN },
+  ] : [] }));
+  replica.resolve("hooks.list", () => ({ hooks: rowsOf<Row>("hooks") as never, agentHooks: true }));
   replica.resolve("chat.helpers.list", () => ({ helpers: rowsOf<Helper & Row>("helpers").map((x) => strip(x, [])) }));
   replica.resolve("memory.facts.list", (_t, input) => {
     const status = input.status ?? ["current"];
@@ -217,6 +233,15 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
   const mapOut = () => ({ map: { body: MAP_MD, lines: MAP_MD.split("\n").filter((l) => l.startsWith("- `")).length, updatedAt: at(10, 24, 9, 31) } });
   replica.resolve("memory.map.get", mapOut);
   const writes: Record<string, (input: any) => unknown> = {
+    "hooks.pause": (i: { id: string; paused: boolean }) => { const cur = rowsOf<Row>("hooks").find((x) => x["id"] === i.id); if (!cur) throw new Error("no such hook"); replica.put("hooks", [{ ...cur, paused: i.paused }]); return { hook: cur }; },
+    "hooks.remove": (i: { id: string }) => { replica.remove("hooks", [i.id]); return { removed: true }; },
+    "hooks.set": (i: { id?: string; scope: string; event: string; kind: string; command?: string; instruction?: string; cap?: string; summary?: string }) => {
+      const cur = i.id ? rowsOf<Row>("hooks").find((x) => x["id"] === i.id) : undefined;
+      const spec = i.kind === "check" ? { instruction: i.instruction } : i.kind === "action" ? { cap: i.cap } : { command: i.command };
+      const next = { ...(cur ?? hk(`hok_${rowsOf("hooks").length + 1}`, i.scope, i.event, i.kind, spec, i.summary ?? "a hook", "agt_intake", "agent", true)), ...(cur ? { event: i.event, kind: i.kind, spec } : {}) };
+      replica.put("hooks", [next]);
+      return { hook: next };
+    },
     // reads the pane makes with a plain call (not a live query)
     "memory.map.get": () => mapOut(),
     "memory.counts": () => countsOut(),
@@ -273,6 +298,13 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
       return { routine: strip(next, []) };
     },
     "agents.routine.delete": (i: { routineId: string }) => { replica.remove("routines", [i.routineId]); return { deleted: true }; },
+    // the Add people and agents sheet (lane l-addsheet): the open chat, the directory and the calls
+    "threads.get": (i: { threadId: string }) => ({ thread: { threadId: i.threadId, kind: "chat", title: "Rivera intake", listed: true, planMode: false, members: [{ kind: "person", id: "usr_irfad" }, { kind: "agent", id: agentId }], agents: [{ agentId, mode: "lead" }], createdAt: SAMPLE_NOW } }),
+    "access.principals.list": () => ({ principals: [
+      { id: "usr_irfad", kind: "person", name: "Irfad Imtiaz", status: "active", roles: [], groups: [], createdAt: SAMPLE_NOW },
+      { id: "usr_maya", kind: "person", name: "Maya Chen", status: "active", roles: [], groups: [], createdAt: SAMPLE_NOW },
+    ] }),
+    "threads.members.add": (i: { personId: string }) => ({ thread: { threadId: "c1", personId: i.personId } }),
   };
 
   const nav: RightPaneNav = {

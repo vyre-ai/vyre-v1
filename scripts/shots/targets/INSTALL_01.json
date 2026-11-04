@@ -1,0 +1,87 @@
+{
+  "targets": [
+    {
+      "id": "INSTALL_01-skill",
+      "route": "/m/INSTALL_01?part=skill",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-m1']",
+      "note": "Install from a link, skill."
+    },
+    {
+      "id": "INSTALL_01-plugin",
+      "route": "/m/INSTALL_01?part=plugin",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-m1']",
+      "note": "Install from a link, plugin."
+    },
+    {
+      "id": "INSTALL_01-mcp",
+      "route": "/m/INSTALL_01?part=mcp",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-m1']",
+      "note": "Install from a link, mcp."
+    },
+    {
+      "id": "INSTALL_01-remote",
+      "route": "/m/INSTALL_01?part=remote",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-m1']",
+      "note": "Install from a link, remote."
+    },
+    {
+      "id": "INSTALL_01-member",
+      "route": "/m/INSTALL_01?part=member",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-m1']",
+      "note": "Install from a link, member."
+    },
+    {
+      "id": "INSTALL_01-vaultkey",
+      "route": "/m/INSTALL_01?part=mcp",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-vault-m1']",
+      "click": [
+        "[data-testid='install-addkey-DATABASE_URL-m1']"
+      ],
+      "note": "Install waits for a missing Vault key: Add it opened, Install held."
+    },
+    {
+      "id": "INSTALL_01-done",
+      "route": "/m/INSTALL_01?part=done",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-done-m1']",
+      "note": "Install from a link, done."
+    },
+    {
+      "id": "INSTALL_01-update",
+      "route": "/m/INSTALL_01?part=update",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-update-m1']",
+      "note": "Install from a link, update."
+    },
+    {
+      "id": "INSTALL_01-update-diff",
+      "route": "/m/INSTALL_01?part=update",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-update-m1']",
+      "click": [
+        "[data-testid='install-diff-toggle-m1']"
+      ],
+      "note": "Install from a link, update with the diff opened."
+    },
+    {
+      "id": "INSTALL_01-skills",
+      "route": "/m/INSTALL_01?part=skills",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='skills-list']",
+      "note": "Install from a link, skills."
+    },
+    {
+      "id": "INSTALL_01-console",
+      "route": "/m/INSTALL_01?part=console",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='skills-installed']",
+      "note": "Install from a link, console."
+    }
+  ]
+}

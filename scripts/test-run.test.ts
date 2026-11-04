@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { runFile, capFor, breakdown, mergeTimings, DEFAULT_CAP_MS } from "./test-run.ts";
+import { runFile, capFor, breakdown, mergeTimings, skippedOf, DEFAULT_CAP_MS } from "./test-run.ts";
 
 // Scaled stand-in for the 20 s rule: the cap is 1 s here and the fixture runs 1.6 s, so the check is the same without a 21 s wait.
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "trun-"));
@@ -29,6 +29,16 @@ test("a listed slow file passes up to its capSec", async () => {
   assert.equal(r.overCap, false);
   assert.equal(r.breakdown[0].name, "takes a while");
   assert.ok(r.breakdown[0].ms >= 1500);
+});
+test("skippedOf counts a file's skipped tests and keeps their reasons (--no-skip fails on them)", async () => {
+  const f = path.join(dir, "skips.test.mjs");
+  fs.writeFileSync(f, `import test from "node:test";\ntest("runs", () => {});\ntest("needs a build", (t) => { t.skip("VYRE_APP_DIST required"); });\n`);
+  const r = await runFile(f, { cwd: dir, capMs: 10_000 });
+  assert.equal(r.ok, true, r.out);
+  const sk = skippedOf(r.out);
+  assert.equal(sk.n, 1);
+  assert.match(sk.lines.join("\n"), /needs a build .*# VYRE_APP_DIST required/);
+  assert.equal(skippedOf("ℹ skipped 0\n").n, 0);
 });
 test("unlisted files get the 30 s default", () => assert.equal(capFor("a.test.ts", []), DEFAULT_CAP_MS));
 test("breakdown sorts the slowest leaf tests first", () => {

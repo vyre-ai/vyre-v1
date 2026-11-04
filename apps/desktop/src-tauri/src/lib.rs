@@ -182,7 +182,14 @@ const PROOF: &str = r#"(function () {
   var url = "__PROOF_URL__";
   function post(body) { return fetch(url + "/proof", { method: "POST", headers: { "content-type": "text/plain" }, body: JSON.stringify(body) }); }
   (async function () {
-    var out = { personal: null, sources: null, reads: [], errors: [] };
+    var out = { personal: null, sources: null, reads: [], errors: [], talk: { origin: location.origin, secure: window.isSecureContext === true, mediaDevices: !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia), mic: "not asked", audioContext: typeof AudioContext === "function", socket: "not asked" } };
+    // Talk: can this webview reach the mic and the provider's socket at all? The runner's TCC answer decides "granted" or "NotAllowedError"; either name proves the call reached the system, while a TypeError or no mediaDevices is the failure.
+    try {
+      out.talk.mic = await Promise.race([navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) { s.getTracks().forEach(function (t) { t.stop(); }); return "granted"; }, function (e) { return e && e.name ? e.name : String(e); }), new Promise(function (r) { setTimeout(function () { r("no answer in 8s"); }, 8000); })]);
+    } catch (e) { out.talk.mic = "threw: " + String(e); }
+    try {
+      out.talk.socket = await new Promise(function (r) { var s = new WebSocket("wss://api.deepgram.com/v1/listen", ["bearer", "ci-proof-not-a-token"]); var t = setTimeout(function () { r("no answer in 8s"); s.close(); }, 8000); s.onopen = function () { clearTimeout(t); r("open"); s.close(); }; s.onerror = function () { clearTimeout(t); r("reached and refused"); }; s.onclose = function (e) { clearTimeout(t); r("closed " + e.code); }; });
+    } catch (e) { out.talk.socket = "threw: " + String(e); }
     try { out.personal = await inv("ensure_personal_space"); } catch (e) { out.errors.push("ensure_personal_space: " + String(e)); }
     try {
       out.sources = await inv("discover_session_sources");

@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Avatar, assistantId, assistantLook, setAssistantLook, subscribeAssistant } from "../../../../../ui/src/Avatar/index.tsx";
 import { Bar, RegistrySections, useRead } from "./blocks.tsx";
+import { ContactVerify } from "./ContactVerify.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { SignInApps } from "./SignInApps.tsx";
 import { OutsideAgents } from "./OutsideAgents.tsx";
@@ -14,6 +15,7 @@ import { ROW_HELP, clock, labelOf, moneyLabel, rowHelp, sectionsFor } from "./mo
 import type { SettingRow } from "./model.ts";
 import { SettingRowFor, useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
+import { VoiceRows } from "./VoiceRows.tsx";
 import { Choice, Field, Glyph, Section, SettingsRow, SmallButton, Switch, Value, pointer } from "./ui.tsx";
 import { useOpenConnect } from "../../shell/connect/context.ts";
 import { statusNote, useSpaceAi } from "../../ai-signin/SpaceAiStatus.tsx";
@@ -80,8 +82,8 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
       {before}
       {contact ? (
         <Section title="Contact">
-          <SettingsRow id="profile.contact" label="Email" first found={found === "profile.contact"} control={<Field value={c.email ?? ""} label="Email" placeholder="Add an email" width={260} testID="ctl-profile.contact.email" onCommit={(v) => void change(contact, { ...c, email: v })} />} />
-          <SettingsRow id="profile.contact.phone" label="Phone" control={<Field value={c.phone ?? ""} label="Phone" placeholder="Add a phone number" width={260} testID="ctl-profile.contact.phone" onCommit={(v) => void change(contact, { ...c, phone: v })} />} />
+          <SettingsRow id="profile.contact" label="Email" first found={found === "profile.contact"} control={<View style={{ alignItems: "flex-end", gap: 6 }}><Field value={c.email ?? ""} label="Email" placeholder="Add an email" width={260} testID="ctl-profile.contact.email" onCommit={(v) => void change(contact, { ...c, email: v })} /><ContactVerify channel="email" value={(c.email ?? "").trim()} /></View>} />
+          <SettingsRow id="profile.contact.phone" label="Phone" control={<View style={{ alignItems: "flex-end", gap: 6 }}><Field value={c.phone ?? ""} label="Phone" placeholder="Add a phone number" width={260} testID="ctl-profile.contact.phone" onCommit={(v) => void change(contact, { ...c, phone: v })} /><ContactVerify channel="phone" value={(c.phone ?? "").trim()} /></View>} />
         </Section>
       ) : null}
       {copy ? <CopyFromSpace onClose={() => setCopy(false)} /> : null}
@@ -115,8 +117,35 @@ function AssistantLook(): ReactElement {
 type KindsOut = CapMap["notifications.kinds.list"]["out"];
 const WORD: Readonly<Record<string, string>> = { from: "Someone", agent: "An agent", name: "Something", where: "a chat", device: "a device", service: "A service", space: "the Space", level: "more", title: "something", state: "down", reason: "a reason", decision: "decided", message: "an error" };
 /** A notification kind's title is the template of the notice; here it names the kind, so the blanks read as words, never as {{from}}. */
-export const kindLabel = (title: string): string => title.replace(/:\s*\{\{\w+\}\}$/, "").replace(/\{\{(\w+)\}\}/g, (_, w: string) => WORD[w] ?? "something");
+/** What each kind is called on the page, in plain words. A template title ("{{from}} replied in {{where}}") is never shown as a label. */
+export const KIND_LABELS: Readonly<Record<string, string>> = {
+  "approval.requested": "Needs you", "unblock.requested": "Someone is blocked on you", "answer.requested": "Needs your answer", "approval.backstop": "Still waiting on you", dm: "Direct messages", mention: "Mentions", "mention.thread": "Mentions in a reply",
+  "call.incoming": "Incoming calls", "agent.blocked": "An agent is blocked", "agent.task_finished": "Agent finished a task", "incident.owned": "Incidents you own", "task.assigned": "Tasks given to you", "task.turn": "Your turn on a task", "task.returned": "A task sent back to you",
+  "task.finished": "Tasks finished", "task.due": "Tasks due", "reply.followed": "Replies to you", "reply.thread": "Replies in a chat", "digest.away": "While you were away", "run.failed": "Routines that failed", "conflict.needs_you": "Edits that conflict",
+  "access.requested": "Requests for access", "access.decided": "Answers to your access requests", "item.shared": "Things shared with you", "sync.attention": "A device needs attention", "health.degraded": "Something is down", "problem.report": "Problem reports",
+  "member.joined": "People who joined", "member.join_requested": "People asking to join", "limit.hit": "A limit was reached", "vault.rotation_due": "Keys to rotate", "machine.alert": "Machine alerts", "ci.paused": "Builds paused", "space.deletion_scheduled": "Space deletion scheduled", "space.deletion_cancelled": "Space deletion cancelled",
+};
+export const kindLabel = (title: string): string => title.replace(/^Replies in your threads$/, "Replies to you").replace(/:\s*\{\{\w+\}\}$/, "").replace(/\{\{(\w+)\}\}/g, (_, w: string) => WORD[w] ?? "something");
 type MutesOut = CapMap["notifications.mute.list"]["out"];
+
+export type Channel = "desktop" | "phone" | "email";
+export const CHANNELS: readonly { key: Channel; label: string }[] = [{ key: "desktop", label: "Desktop" }, { key: "phone", label: "Phone" }, { key: "email", label: "Email" }];
+/** "Desktop and email", "Desktop", "Badge only": where a kind reaches the person, in words. */
+export function channelWords(cs: readonly Channel[]): string {
+  const n = CHANNELS.filter((c) => cs.includes(c.key)).map((c, i) => (i === 0 ? c.label : c.label.toLowerCase()));
+  return n.length === 0 ? "Badge only" : n.length === 1 ? n[0]! : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]!}`;
+}
+/** The channels a plain level stands for, until the person has picked their own. */
+export const levelChannels = (level: string): Channel[] => (level === "interrupt" ? ["desktop", "phone"] : []);
+export const toggleChannel = (cs: readonly Channel[], c: Channel): Channel[] => (cs.includes(c) ? cs.filter((x) => x !== c) : CHANNELS.map((x) => x.key).filter((k) => k === c || cs.includes(k)));
+
+function Chip({ label, on, onPress, testID }: { label: string; on: boolean; onPress(): void; testID: string }): ReactElement {
+  return (
+    <Pressable accessibilityRole="button" aria-pressed={on} accessibilityLabel={label} testID={testID} onPress={onPress} style={[{ height: 28, paddingHorizontal: 10, borderRadius: 14, justifyContent: "center", borderWidth: 1, borderColor: (on ? "var(--accent)" : "var(--line)") as string, backgroundColor: (on ? "var(--accent-wash)" : "transparent") as string }, pointer]}>
+      <Text style={{ fontSize: 12.5, color: (on ? "var(--ink)" : "var(--ink-3)") as string }}>{label}</Text>
+    </Pressable>
+  );
+}
 
 export function NotificationsPage({ rows, found }: PageProps): ReactElement {
   const data = useSettingsData();
@@ -124,17 +153,25 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
   const kinds = useRead<KindsOut>("notifications.kinds.list");
   const mutes = useScreenQuery<MutesOut>(NOTIFICATIONS, "mutes", {});
   const [levels, setLevels] = useState<Record<string, string>>({});
-  const setLevel = (key: string, was: string, level: string): void => {
-    setLevels((cur) => ({ ...cur, [key]: level }));
-    void data.call("notifications.kind.set_level", { kind: key, level }).then(
-      () => saved.saved("Saved", async () => { setLevels((cur) => ({ ...cur, [key]: was })); await data.call("notifications.kind.set_level", { kind: key, level: was }); }),
-      (e: unknown) => { setLevels((cur) => ({ ...cur, [key]: was })); saved.failed(e instanceof Error ? e.message : "That did not save."); },
+  const [chans, setChans] = useState<Record<string, Channel[]>>({});
+  /** One press on a channel: the channels now carrying the kind, saved; Undo puts the old ones back. */
+  const toggle = (key: string, was: Channel[], c: Channel): void => {
+    const next = toggleChannel(was, c);
+    setChans((cur) => ({ ...cur, [key]: next }));
+    const send = (cs: Channel[]): Promise<unknown> => Promise.resolve(data.call("notifications.kind.set_level", { kind: key, channels: cs }));
+    void send(next).then(
+      () => saved.saved("Saved", async () => { setChans((cur) => ({ ...cur, [key]: was })); await send(was); }),
+      (e: unknown) => { setChans((cur) => ({ ...cur, [key]: was })); saved.failed(e instanceof Error ? e.message : "That did not save."); },
     );
   };
   const list: ReactElement[] = [];
   (kinds?.kinds ?? []).forEach((k, i) => {
-    const level = levels[k.key] ?? k.level;
-    list.push(<SettingsRow key={k.key} id={`kind.${k.key}`} label={kindLabel(k.title)} first={i === 0} help="Interrupt rings your desktop and phone. Badge only adds a dot. Digest waits for your next summary." control={<Choice value={level} options={LEVELS} label={k.title} testID={`kind-${k.key}`} onChange={(v) => setLevel(k.key, level, v)} />} />);
+    const now = chans[k.key] ?? (k.mine?.channels as Channel[] | undefined) ?? levelChannels(k.level);
+    list.push(
+      <SettingsRow key={k.key} id={`kind.${k.key}`} label={KIND_LABELS[k.key] ?? kindLabel(k.title)} first={i === 0} sub={channelWords(now)} help="Pick where it reaches you. With none picked it adds a dot only."
+        /* ui-rows-lint: not a list (the channel chips of one row's control) */
+        control={<View style={{ flexDirection: "row", gap: 6 }} testID={`kind-${k.key}`}>{CHANNELS.map((c) => <Chip key={c.key} label={c.label} on={now.includes(c.key)} testID={`kind-${k.key}-${c.key}`} onPress={() => toggle(k.key, now, c.key)} />)}</View>} />,
+    );
   });
   const muteRows: ReactElement[] = [];
   if (mutes.status === "ready") {
@@ -188,14 +225,14 @@ function AwayHand({ rows, found }: PageProps): ReactElement | null {
   const options: { value: string; label: string }[] = [{ value: "", label: "Nobody" }];
   for (const p of people?.principals ?? []) if (p.id !== data.me.id) options.push({ value: p.id, label: p.name });
   return (
-    <Section title="While you are away">
-      <SettingsRow id={row.key} label="Hand Needs you to" help={rowHelp(row)!} first found={found === row.key} control={<Choice value={typeof row.value === "string" ? row.value : ""} options={options} label="Hand Needs you to" testID="ctl-hand-to" onChange={(v) => void change(row, v === "" ? null : v)} />} />
+    <Section title="Away">
+      <SettingsRow id={row.key} label="While you're away, send Needs you to" help={rowHelp(row)!} first found={found === row.key} control={<Choice value={typeof row.value === "string" ? row.value : ""} options={options} label="While you're away, send Needs you to" testID="ctl-hand-to" onChange={(v) => void change(row, v === "" ? null : v)} />} />
     </Section>
   );
 }
 
 /** How each level reaches the person: interrupt rings the desktop and the phone, badge adds a dot only, digest waits for While you were away. A level the Space holds higher (approvals) refuses with its reason. */
-const LEVELS: readonly { value: string; label: string }[] = [{ value: "interrupt", label: "Interrupt" }, { value: "badge", label: "Badge only" }, { value: "digest", label: "Digest" }];
+const LEVELS: readonly { value: string; label: string }[] = [{ value: "interrupt", label: "Desktop and phone" }, { value: "badge", label: "Badge only" }, { value: "digest", label: "In my summary" }];
 
 // ---------------------------------------------------------------- AI
 
@@ -219,6 +256,22 @@ export function olderLine(n: number): string | null {
   return n <= 0 ? null : `and ${n} older sign-in${n === 1 ? "" : "s"}`;
 }
 
+/** The start of this month in the person's own clock, as the milliseconds the usage read takes. */
+export function monthStart(now: number, offsetMin: number): number {
+  const local = new Date(now + offsetMin * 60_000);
+  return Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), 1) - offsetMin * 60_000;
+}
+
+/** The value the Default model row shows: the last pick (its provider found from the models on offer when the pick did not keep one), else the Space default, else nothing. */
+export function defaultModelValue(last: { provider?: string; model?: string } | null, defaults: { provider?: string; model?: string } | null, options: readonly { value: string }[]): string {
+  if (last?.model) {
+    if (last.provider) return `${last.provider}/${last.model}`;
+    const hit = options.find((o) => o.value.endsWith(`/${last.model}`));
+    if (hit) return hit.value;
+  }
+  return defaults?.provider && defaults.model ? `${defaults.provider}/${defaults.model}` : "";
+}
+
 export function AiPage({ rows, found }: PageProps): ReactElement {
   const data = useSettingsData();
   const openConnect = useOpenConnect();
@@ -230,7 +283,8 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   const personal = useIsPersonal();
   const noSpaceKey = !personal && accounts.status === "ready" && !accounts.data.accounts.some((a) => a.spaceKey === true);
   const spaceAi = useSpaceAi(data.call, { me: data.me.id, off: !noSpaceKey });
-  const usage = useScreenQuery<UsageOut>(MODELS, "usage", { by: "model" });
+  // "You and your agents this month": this person's own turns since the first of the month. Someone who manages AI spend would otherwise be handed the whole Space for all time; that view is Console > AI > Spend and limits.
+  const usage = useScreenQuery<UsageOut>(MODELS, "usage", { by: "model", personId: data.me.id, from: monthStart(data.clock().now, data.clock().offsetMin) });
   // older sign-ins: shown on request, removed one by one by the person (never by Vyre on its own)
   const [openOlder, setOpenOlder] = useState<string | null>(null);
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
@@ -240,7 +294,9 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   const options: { value: string; label: string }[] = [];
   if (models.status === "ready") for (const m of models.data.models) if (m.allowed) options.push({ value: `${m.provider}/${m.model}`, label: m.title });
   const d = defaults.status === "ready" ? defaults.data : null;
-  const cur = d?.provider && d.model ? `${d.provider}/${d.model}` : "";
+  // the Default model is what a new chat starts on: the model the person last picked, else the Space default
+  const last = useRead<CapMap["engine.last_pick.get"]["out"]>("engine.last_pick.get");
+  const cur = defaultModelValue(last, d, options);
   const fb = d?.fallback[0] ? `${d.fallback[0].provider}/${d.fallback[0].model}` : "";
   const setDefault = (v: string, slot: "model" | "fallback"): void => {
     const [provider, model] = v.split("/");
@@ -301,15 +357,23 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   return (
     <>
       <Section>
-        <SettingsRow id="model.default" label="Default model" help={ROW_HELP["model.default"]!} first found={found === "model.default"} control={<Choice value={cur} options={options} label="Default model" testID="ctl-model-default" onChange={(v) => setDefault(v, "model")} />} />
-        <SettingsRow id="model.fallback" label="Fallback model" help={ROW_HELP["model.fallback"]!} found={found === "model.fallback"} control={<Choice value={fb} options={options} label="Fallback model" testID="ctl-model-fallback" onChange={(v) => setDefault(v, "fallback")} />} />
+        {options.length === 0 && models.status === "ready" ? (
+          <SettingsRow id="model.none" first label="Add an AI account to choose a default model" sub="Models show up here once an AI account is connected." lead={<Glyph name="key" size={15} />}
+            control={<SmallButton label="Add AI account" primary testID="ctl-add-ai" onPress={() => (openConnect ? void openConnect({ kind: "ai" }) : data.nav.openVault())} />} />
+        ) : (
+          <>
+        <SettingsRow id="model.default" label="Default model" sub={last?.model ? "Your last pick. A new chat starts on it" : "A new chat starts on the model you pick"} help={ROW_HELP["model.default"]!} first found={found === "model.default"} control={<Choice value={cur} options={options} label="Default model" testID="ctl-model-default" onChange={(v) => setDefault(v, "model")} />} />
+        <SettingsRow id="model.fallback" label="Backup model" sub="Used when the default is busy" help={ROW_HELP["model.fallback"]!} found={found === "model.fallback"} control={<Choice value={fb} options={options} label="Backup model" testID="ctl-model-fallback" onChange={(v) => setDefault(v, "fallback")} />} />
+          </>
+        )}
       </Section>
       <RegistrySections page="ai" rows={rows} found={found} />
       {use.length > 0 ? <Section title="You and your agents this month" testID="usage">{use}</Section> : null}
-      <Section title="AI accounts">
+      <Section title="Your sign-ins" note="Each one is Working, or says why it is not. The model picker in a chat shows this same list.">
         {acc}
-        <SettingsRow id="open-vault" label="Sign-ins and keys" sub="Add an account, or let the Space use yours" lead={<Glyph name="key" size={15} />} first={acc.length === 0} onPress={() => data.nav.openVault()} control={<Glyph name="chevR" size={13} />} />
+        <SettingsRow id="open-vault" label="Keys and sign-ins" sub="Add, replace or remove them. Manage in Vault" lead={<Glyph name="key" size={15} />} first={acc.length === 0} onPress={() => data.nav.openVault()} control={<Glyph name="chevR" size={13} />} />
       </Section>
+      <VoiceRows found={found} />
     </>
   );
 }
