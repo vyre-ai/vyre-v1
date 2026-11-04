@@ -464,8 +464,12 @@ export function createBridge(o: BridgeOptions): Bridge {
     // an agent's message is read as the person it speaks for when the event says so (the first brief of a crew teammate: nobody has spoken in its thread yet)
     const readAs = str(p["actingFor"]).startsWith("usr_") ? str(p["actingFor"]) : str(a.id);
     // the first line of a task's thread is its brief (the AI step posts it as the person who started the task): the task's own baton wakes the agent that holds it, so the brief wakes nobody a second time
+    // (an AI step's brief starts "## Goal"; a person's own first words in a task's thread are a message like any other)
     if (Number(p["threadSeq"]) === 1 && a.kind === "person") {
-      try { if ((((await reader(ctx, readAs, threadId)("threads.get", { threadId })) as { thread?: { scopeType?: string } }).thread?.scopeType) === "task") return { skipped: "task_brief" }; } catch { /* not readable: route it as any message */ }
+      try {
+        const first = (await reader(ctx, readAs, threadId)("chat.message.get", { threadId, messageId })) as { message?: { body?: string } };
+        if (/^## Goal\n/.test(String(first.message?.body ?? "")) && (((await reader(ctx, readAs, threadId)("threads.get", { threadId })) as { thread?: { scopeType?: string } }).thread?.scopeType) === "task") return { skipped: "task_brief" };
+      } catch { /* not readable: route it as any message */ }
     }
     if (!(await open(ctx, threadId, messageId, readAs))) return { skipped: "no_agents" };
     if (store.get(messageId)) return { skipped: "known" };
