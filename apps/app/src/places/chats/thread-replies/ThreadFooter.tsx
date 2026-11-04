@@ -5,7 +5,8 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Face } from "../needsyou/parts.tsx";
 import { ReplyLine } from "../conversation/ReplyLine.tsx";
-import { useConversationData, useOnline } from "../conversation/data.tsx";
+import { useConversationData } from "../conversation/data.tsx";
+import type { ConversationData } from "../conversation/data.tsx";
 import type { LiveTurn } from "../../../shell/session/turn-streams.ts";
 import type { ReplySummary } from "../conversation/replies.ts";
 import type { Clock } from "../rightpane/model.ts";
@@ -20,10 +21,15 @@ const noSub = (): (() => void) => () => undefined;
  */
 export function useThreadTurns(threadId: string): readonly LiveTurn[] {
   const data = useConversationData();
+  return useTurnsOf(data, threadId);
+}
+
+/** The same, from the conversation data itself: for a part drawn outside the conversation's own provider (the thread beside the chat). */
+export function useTurnsOf(data: Pick<ConversationData, "live" | "call" | "connection">, threadId: string, seed = true): readonly LiveTurn[] {
   const { live } = data;
-  const online = useOnline();
+  const online = useSyncExternalStore(data.connection.subscribe, () => data.connection.get() === "online", () => data.connection.get() === "online");
   useEffect(() => {
-    if (!live || !online) return undefined;
+    if (!live || !online || !seed) return undefined;
     let gone = false;
     const fetchNow = (): void => {
       try {
@@ -33,7 +39,7 @@ export function useThreadTurns(threadId: string): readonly LiveTurn[] {
     fetchNow();
     const off = live.onGap((th) => { if (th === threadId) fetchNow(); });
     return () => { gone = true; off(); };
-  }, [data, live, online, threadId]);
+  }, [data, live, online, threadId, seed]);
   const read = (): readonly LiveTurn[] => (live ? live.turnsOf(threadId) : NO_TURNS);
   return useSyncExternalStore(live ? live.subscribe : noSub, read, read);
 }

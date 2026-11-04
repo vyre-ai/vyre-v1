@@ -15,6 +15,7 @@ import type { LiveTurns } from "../../../apps/app/src/places/chats/conversation/
 
 export const title = "Thread replies";
 
+const none: never[] = [];
 const at = (h: number, min: number, sec = 0): number => Date.UTC(2025, 9, 24, h, min, sec);
 const intake = { kind: "agent" as const, id: "agt_intake" };
 const me = { kind: "person" as const, id: "usr_irfad" };
@@ -54,7 +55,7 @@ export default function Mount(): ReactNode {
     const data = build(part);
     const writing = part === "main" || part === "empty";
     const live: LiveTurns = {
-      turnsOf: (id) => (writing && id === "t_c2" ? turns : []), subscribe: () => () => undefined, settle: () => undefined, seed: () => undefined, onGap: () => () => undefined,
+      turnsOf: (id) => (writing && id === "t_c2" ? turns : none), subscribe: () => () => undefined, settle: () => undefined, seed: () => undefined, onGap: () => () => undefined,
     };
     const turns = [{ turnId: "turn_1", threadId: "t_c2", agentId: "agt_intake", store: undefined as never, state: "writing" as const, startedAt: Date.now() - 23_000 }];
     return { conversation: { ...data, clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }), live } };

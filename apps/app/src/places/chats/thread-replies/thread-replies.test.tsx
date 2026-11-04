@@ -152,6 +152,16 @@ test("an empty thread says so; a long thread opens on its last reply", async () 
   assert.ok(find(b, "composer-input") ?? find(b, "composer"), "with the composer under it");
 });
 
+test("while the agent writes its first reply the thread does not say it is empty", async () => {
+  installDom(); widen(1280);
+  const s = channel();
+  s.replica.put("threads", [threadRow()]);
+  const turns = [{ threadId: "t_c2", agentId: "agt_intake", state: "writing" as const, startedAt: Date.now() - 3_000 }];
+  const root = await mount(createRoot, <ThreadSide rt={{ screens: s.data.screens, call: s.data.call, connection: s.data.connection } as unknown as ShellRuntime} threadId="t_c2" data={{ ...s.data, threadId: "t_c2", live: liveOf(turns) }} narrow={false} onClose={() => undefined} say={() => undefined} />);
+  await flush();
+  assert.equal(find(root, "thread-empty"), null, "it is writing, not empty");
+});
+
 test("a reply that was also sent to the chat carries the mark in the thread; one that was not does not", async () => {
   installDom(); widen(1280);
   const s = withThread();
