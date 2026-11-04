@@ -26,3 +26,9 @@ test("it gives one form for pointing at an item, and never an address or a bare 
   assert.ok(REPLY_FORMAT.includes("[[Name|id]]"));
   assert.match(REPLY_FORMAT, /Never type an address, a bare id or a ref\.vyre\.invalid link/);
 });
+
+test("it says which ids can be linked: Vyre items, and mail and calendar ids from tool results", () => {
+  assert.match(REPLY_FORMAT, /email thread/);
+  assert.match(REPLY_FORMAT, /calendar event/);
+  assert.match(REPLY_FORMAT, /write the name alone/);
+});

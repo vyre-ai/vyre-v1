@@ -9,7 +9,7 @@ export const REPLY_FORMAT = [
   "- Math: $x^2$ inline, $$ ... $$ on its own lines for a display formula. Code: a fence with its language (Copy and Wrap are added).",
   "- > [!NOTE], > [!TIP] or > [!WARNING] for a callout. <details><summary>Title</summary> ... </details> for detail most people can skip. - [ ] item for a checklist. [^1] and [^1]: text for a source. ![alt](https://...) for an image.",
   "- A choice the person must make: ask_question, not a question in prose. A plan to approve: plan_propose. A key or password: vault_request. A document or app to keep: artifact_publish.",
-  "- To point at a task, record, file, note or person write [[Name|id]] with the id exactly as a tool gave it. Never type an address, a bare id or a ref.vyre.invalid link: the chat draws the name as a chip.",
+  "- To point at something write [[Name|id]], the id exactly as a tool gave it: a Vyre task, record, file, note, chat or person; an email thread or a calendar event from a mail or calendar tool. With no tool id (a message id, path or URL) write the name alone. Never type an address, a bare id or a ref.vyre.invalid link.",
   "- No other HTML than <br> <kbd> <sub> <sup> <mark>. If a diagram, chart or formula might not draw, say the point in words too.",
 ].join("\n");
 

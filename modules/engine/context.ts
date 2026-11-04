@@ -18,7 +18,7 @@ import { REPLY_FORMAT } from "../../lib/reply-format.ts";
 
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
 /** How to name a record, file, task or chat in a reply: by link, never by id. */
-export const NAMING = "Name a record, file, task or chat as [[Name|id]], the name, a bar and its id, like [[Rivera Holdings|rec_01...]]. Never write a bare id (rec_..., file_..., task_...) in a reply; the reader sees the name as a link that opens it.";
+export const NAMING = "Name a record, file, task or chat as [[Name|id]], the name, a bar and its id, like [[Rivera Holdings|rec_01...]]. Never write a bare id (rec_..., file_..., task_...) in a reply; the reader sees the name as a link that opens it. The same form links an email thread or a calendar event, with the id a mail or calendar tool returned; for anything else write the name alone.";
 
 export { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL };
 
