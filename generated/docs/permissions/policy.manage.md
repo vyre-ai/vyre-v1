@@ -1,6 +1,6 @@
 # policy.manage
 
-Manage policies, retention and erase a person
+Manage sign-in rules, keep and delete, and erase a person
 
 Area: space. Risk: high. Applies to: space.
 

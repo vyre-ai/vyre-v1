@@ -43430,7 +43430,9 @@
               "task.finished",
               "task.due",
               "machine.alert",
-              "item.shared"
+              "item.shared",
+              "space.deletion_scheduled",
+              "space.deletion_cancelled"
             ],
             "type": "string"
           },
@@ -43896,7 +43898,9 @@
               "task.finished",
               "task.due",
               "machine.alert",
-              "item.shared"
+              "item.shared",
+              "space.deletion_scheduled",
+              "space.deletion_cancelled"
             ],
             "type": "string"
           },
@@ -46936,6 +46940,21 @@
         "type": "object"
       },
       "name": "providers_list",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "providers.own_people",
+      "deferred": false,
+      "description": "Who runs on their own AI sign-ins: the people with a Mine provider and how many each, for the AI accounts switch (never an account name or a value)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "providers_own_people",
       "planMode": "allowed",
       "toolset": "vault",
       "v": 1
@@ -55354,12 +55373,15 @@
       "blocks": [],
       "cap": "spaces.delete",
       "deferred": false,
-      "description": "Owner only: delete the Space after typing its legal name",
+      "description": "Owner only: schedule the Space for deletion 14 days out after typing its legal name. Needs an export from the last 24 hours, or withoutExport. Everything keeps working until the date",
       "effects": "write",
       "inputSchema": {
         "properties": {
           "confirmName": {
             "type": "string"
+          },
+          "withoutExport": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -55368,6 +55390,36 @@
         "type": "object"
       },
       "name": "spaces_delete",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "spaces.delete_cancel",
+      "deferred": false,
+      "description": "Owner or an admin: cancel the scheduled deletion with one click; the Space carries on and every admin is told",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "spaces_delete_cancel",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "spaces.delete_due",
+      "deferred": false,
+      "description": "Host only: when the scheduled date has passed, remove the Space's data and stop serving it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "spaces_delete_due",
       "planMode": "blocked",
       "toolset": "meta",
       "v": 1
@@ -55395,6 +55447,21 @@
       },
       "name": "spaces_export",
       "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "spaces.export_latest",
+      "deferred": false,
+      "description": "When the newest finished export of this Space was taken, or nothing when none was; Delete this Space asks for one from the last 24 hours",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "spaces_export_latest",
+      "planMode": "allowed",
       "toolset": "meta",
       "v": 1
     },

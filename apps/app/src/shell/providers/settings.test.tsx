@@ -15,7 +15,7 @@ test("the Settings place draws its pages through the shell runtime", () => {
   const s = createSampleSettings();
   const rt = sampleRuntime({ screens: s.data.screens, call: s.data.call });
   const out = renderToStaticMarkup(<ShellRuntimeProvider value={rt}><SettingsShellPlace place="settings" /></ShellRuntimeProvider>);
-  assert.ok(out.includes("Profile"));   // Settings keeps the unfolded pages until the owner approves the Settings prototype (lead ruling for rc.22); l-consolidate's fold is not in
+  assert.ok(out.includes(">Profile<"));   // Settings keeps the unfolded pages until the owner approves the Settings prototype (lead ruling for rc.22)
   assert.ok(!out.includes("settings-loading"));
 });
 
@@ -31,7 +31,7 @@ test("Settings leaves for the Vault through the shell's door, and a Console addr
   assert.deepEqual(opened, ["vault.layout"]);
   assert.deepEqual(adminTarget("console.backups"), { screen: "console.backups", args: { page: "backups" } });
   assert.deepEqual(adminTarget("console.schema", { type: "contact" }), { screen: "console.schema", args: { page: "schema", type: "contact" } });
-  assert.deepEqual([...adminPages({ groups: [{ pages: [{ key: "gate.rules" }, { key: "console.backups" }] }] })].sort(), ["backups", "gate"]);
+  assert.deepEqual([...adminPages({ groups: [{ pages: [{ key: "gate.rules" }, { key: "console.backups" }] }] })].sort(), ["backups", "export", "gate"]);
   assert.equal(d.space.name, "Northwind");
 });
 

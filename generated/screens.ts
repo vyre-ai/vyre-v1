@@ -3047,6 +3047,23 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "console.page",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsolePage",
+    "caller": "principal",
+    "queries": {},
+    "actions": {},
+    "needs": [
+      "console.access"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.plugins",
     "module": "agents",
     "place": "console",
@@ -8045,6 +8062,10 @@ export const screens: ScreenIndexEntry[] = [
       }
     },
     "actions": {
+      "cancel": {
+        "cap": "spaces.delete_cancel",
+        "input": {}
+      },
       "update": {
         "cap": "spaces.update",
         "input": {
@@ -8068,7 +8089,8 @@ export const screens: ScreenIndexEntry[] = [
       "delete": {
         "cap": "spaces.delete",
         "input": {
-          "confirmName": "/state/confirmName"
+          "confirmName": "/state/confirmName",
+          "withoutExport": "/state/withoutExport"
         },
         "confirm": "Delete the Space for everyone?"
       },

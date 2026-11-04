@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access.
 
-## Capabilities (52)
+## Capabilities (53)
 
 - [providers.add](../capabilities/providers.add.md): Connect a provider with a pasted API key (stored once, used by handle) or a local model address
 - [providers.catalog](../capabilities/providers.catalog.md): The provider gallery from the definition files: name, logo, connection kinds, model list source, engine
@@ -12,6 +12,7 @@ Requires: access.
 - [providers.custom_list](../capabilities/providers.custom_list.md): The custom OpenAI-compatible endpoints this Space registered
 - [providers.custom_remove](../capabilities/providers.custom_remove.md): Remove a custom endpoint I registered, and my connections to it
 - [providers.list](../capabilities/providers.list.md): My connected AI providers: logo, how connected, Mine or Shared, agents using it, this month's usage
+- [providers.own_people](../capabilities/providers.own_people.md): Who runs on their own AI sign-ins: the people with a Mine provider and how many each, for the AI accounts switch (never an account name or a value)
 - [providers.remove](../capabilities/providers.remove.md): Remove a provider and its key or sign-in
 - [providers.set_space_use](../capabilities/providers.set_space_use.md): Let the Space run work on my subscription, or stop it (stopping ends my sandbox)
 - [providers.space_key.get](../capabilities/providers.space_key.get.md): The Space AI key for the Space: whether one is set, its provider and the models it unlocks (read live from the provider and kept for a while). Never the key

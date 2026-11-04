@@ -320,13 +320,16 @@ Events:
 
 ### spaces
 
-Capabilities to implement: 20. Events to emit: 10. Contract tests that must go green: `generated/tests/spaces/`.
+Capabilities to implement: 23. Events to emit: 12. Contract tests that must go green: `generated/tests/spaces/`.
 
 Capabilities:
 - follows.list (read, grant only, level view)
 - follows.toggle (write, grant only, level view)
 - spaces.delete (write, grant only, level manage, gate delete)
+- spaces.delete_cancel (write, grant only, level manage)
+- spaces.delete_due (write, grant only, level view)
 - spaces.export (write, records.export, level manage)
+- spaces.export_latest (read, records.export, level manage)
 - spaces.get (read, grant only, level member)
 - spaces.image (read, grant only, level view)
 - spaces.leave (write, grant only, level view)
@@ -351,6 +354,8 @@ Events:
 - onboarding.step_completed
 - space.address_changed
 - space.deleted
+- space.deletion_cancelled
+- space.deletion_scheduled
 - space.ownership_transferred
 - space.updated
 - star.added
@@ -382,7 +387,7 @@ Events:
 
 ### vault
 
-Capabilities to implement: 52. Events to emit: 20. Contract tests that must go green: `generated/tests/vault/`.
+Capabilities to implement: 53. Events to emit: 20. Contract tests that must go green: `generated/tests/vault/`.
 
 Capabilities:
 - providers.add (write, grant only, level view)
@@ -391,6 +396,7 @@ Capabilities:
 - providers.custom_list (read, grant only, level view)
 - providers.custom_remove (write, grant only, level view, gate delete)
 - providers.list (read, grant only, level view)
+- providers.own_people (read, ai.models, level view)
 - providers.remove (write, grant only, level view, gate delete)
 - providers.set_space_use (write, grant only, level view)
 - providers.space_key.get (read, grant only, level member)

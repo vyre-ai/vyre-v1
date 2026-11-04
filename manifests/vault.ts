@@ -203,6 +203,7 @@ export default defineManifest({
       ...V, in: {}, out: { providers: t.arr(t.obj({ key: t.str(), name: t.str(), logo: t.opt(t.str()), connections: t.arr(t.enm('subscription', 'api_key', 'local_model')), modelsSource: t.str(), engine: t.str(), custom: t.opt(t.bool()), base: t.opt(t.str()) })) }, tool: 'vault',
     }),
     read('providers.list', 'My connected AI providers: logo, how connected, Mine or Shared, agents using it, this month\'s usage', { ...V, in: {}, out: { providers: t.arr(providerRow) }, tool: 'vault' }),
+    read('providers.own_people', 'Who runs on their own AI sign-ins: the people with a Mine provider and how many each, for the AI accounts switch (never an account name or a value)', { level: 'view', perm: 'ai.models', in: {}, out: { people: t.arr(t.obj({ personId: t.str(), accounts: t.int({ minimum: 1 }) })) }, tool: 'vault' }),
     write('providers.add', 'Connect a provider with a pasted API key (stored once, used by handle) or a local model address', {
       ...V, idem: 'key', in: { providerKey: t.str({ examples: ['anthropic'] }), connection: t.enm('api_key', 'local_model'), name: t.opt(t.str()), apiKey: t.opt(t.str()), address: t.opt(url), scope: t.enm('mine', 'shared'), folderId: t.opt(id.vaultFolder) },
       out: { provider: providerRow }, emits: ['provider.added', 'vault.item_created', 'vault.folder_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['validation.duplicate', 'provider.auth_failed'],

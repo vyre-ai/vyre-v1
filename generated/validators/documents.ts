@@ -5,15 +5,15 @@ import type { Check } from './core.ts';
 
 function d_s_44b3e62fc2(v: unknown, p: string, e: string[]): void {
 {
-const x313 = v;
-const g313 = typeOf(x313);
-const b313: string[] = []; lf(x313, p, b313, L0); if (b313.length) e.push(...b313);
-if (g313 === "object") {
-if (g313 === 'object') { const o313 = x313 as Record<string, unknown>;
-if (!("fileId" in o313)) e.push(p + "/fileId" + ': required');
-if (!("isTemplate" in o313)) e.push(p + "/isTemplate" + ': required');
-if ("fileId" in o313) lf(o313["fileId"], p + "/fileId", e, L45);
-if ("isTemplate" in o313) lf(o313["isTemplate"], p + "/isTemplate", e, L3);
+const x315 = v;
+const g315 = typeOf(x315);
+const b315: string[] = []; lf(x315, p, b315, L0); if (b315.length) e.push(...b315);
+if (g315 === "object") {
+if (g315 === 'object') { const o315 = x315 as Record<string, unknown>;
+if (!("fileId" in o315)) e.push(p + "/fileId" + ': required');
+if (!("isTemplate" in o315)) e.push(p + "/isTemplate" + ': required');
+if ("fileId" in o315) lf(o315["fileId"], p + "/fileId", e, L45);
+if ("isTemplate" in o315) lf(o315["isTemplate"], p + "/isTemplate", e, L3);
 }
 }
 }
@@ -423,20 +423,20 @@ if ("total" in o2437) lf(o2437["total"], p + "/total", e, L2);
 
 function e169_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6500 = v;
-const g6500 = typeOf(x6500);
-const b6500: string[] = []; lf(x6500, p, b6500, L0); if (b6500.length) e.push(...b6500);
-if (g6500 === "object") {
-if (g6500 === 'object') { const o6500 = x6500 as Record<string, unknown>;
-if (!("fileId" in o6500)) e.push(p + "/fileId" + ': required');
-if (!("templateFileId" in o6500)) e.push(p + "/templateFileId" + ': required');
-if (!("fields" in o6500)) e.push(p + "/fields" + ': required');
-if (!("missing" in o6500)) e.push(p + "/missing" + ': required');
-if ("fileId" in o6500) lf(o6500["fileId"], p + "/fileId", e, L45);
-if ("templateFileId" in o6500) lf(o6500["templateFileId"], p + "/templateFileId", e, L45);
-if ("fields" in o6500) lf(o6500["fields"], p + "/fields", e, L2);
-if ("missing" in o6500) lf(o6500["missing"], p + "/missing", e, L2);
-if ("recordId" in o6500) lf(o6500["recordId"], p + "/recordId", e, L32);
+const x6510 = v;
+const g6510 = typeOf(x6510);
+const b6510: string[] = []; lf(x6510, p, b6510, L0); if (b6510.length) e.push(...b6510);
+if (g6510 === "object") {
+if (g6510 === 'object') { const o6510 = x6510 as Record<string, unknown>;
+if (!("fileId" in o6510)) e.push(p + "/fileId" + ': required');
+if (!("templateFileId" in o6510)) e.push(p + "/templateFileId" + ': required');
+if (!("fields" in o6510)) e.push(p + "/fields" + ': required');
+if (!("missing" in o6510)) e.push(p + "/missing" + ': required');
+if ("fileId" in o6510) lf(o6510["fileId"], p + "/fileId", e, L45);
+if ("templateFileId" in o6510) lf(o6510["templateFileId"], p + "/templateFileId", e, L45);
+if ("fields" in o6510) lf(o6510["fields"], p + "/fields", e, L2);
+if ("missing" in o6510) lf(o6510["missing"], p + "/missing", e, L2);
+if ("recordId" in o6510) lf(o6510["recordId"], p + "/recordId", e, L32);
 }
 }
 }

@@ -423,6 +423,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.console.page",
+      "place": "console",
+      "screen": "console.page"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.console.plugins",
       "place": "console",
       "screen": "console.plugins"

@@ -140,6 +140,17 @@ export async function list(ctx: VaultCtx, _input: Record<string, never>) {
   return { providers: out };
 }
 
+/** Who runs on their own AI sign-ins: a count per person of the Mine providers they keep, never a name of an account or a value. An admin reads it to say "4 people do today". */
+export async function ownPeople(ctx: VaultCtx, _input: Record<string, never>) {
+  ensureProviders(ctx);
+  const by = new Map<string, number>();
+  for (const p of rowsOf(ctx.db.all(`SELECT * FROM vault_provider`)).filter(live)) {
+    if (str(p, "scope") !== "mine" || !itemOf(ctx, str(p, "itemId"))) continue;
+    by.set(str(p, "owner"), (by.get(str(p, "owner")) ?? 0) + 1);
+  }
+  return { people: [...by].map(([personId, accounts]) => ({ personId, accounts })).sort((a, b) => b.accounts - a.accounts || a.personId.localeCompare(b.personId)) };
+}
+
 // ---- add and remove
 
 async function mineFolder(ctx: VaultCtx): Promise<string> {

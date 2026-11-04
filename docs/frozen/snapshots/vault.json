@@ -7,6 +7,7 @@
     "providers.custom_list@1": "805a3207aae35cac4953cf1a46d47723296ac9f65ce140f75797eb04a979e004",
     "providers.custom_remove@1": "6271c05b2b76a144d7e6e1600208f8c0d1dab61d8559fffb2263360220adf8a3",
     "providers.list@1": "abc2a09356567d75017a134f3cd4191a5329fcd8b9f1b70d25e91c716b62c127",
+    "providers.own_people@1": "3a5aed52de4f32b3bb2f90a14aeeb70a5125854599210fa700d1128bec95f56d",
     "providers.remove@1": "cfdba12b37a3ccb9c8039ba863d85570bf603729a07df85ecd72c2cf02b7f743",
     "providers.set_space_use@1": "4dac9591bdc996dd17d01bd07fb4024b3a068b18d220317623dd52667f1c8a90",
     "providers.space_key.get@1": "fdef72dc813d4307bdcff9a50624fce0cc9b04fbac4a193ced7a1dbf1791a8fd",

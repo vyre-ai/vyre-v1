@@ -9632,7 +9632,7 @@ export type ConsoleAssistantToolsOut = {
 export type ConsoleAttentionIn = Record<string, unknown>;
 export type ConsoleAttentionOut = {
   items: Array<{
-      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel" | "no_ai_account";
+      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel" | "no_ai_account" | "space_deletion_scheduled";
       title: string;
       ref?: string;
       since: number;
@@ -9697,7 +9697,7 @@ export type ConsoleOverviewIn = Record<string, unknown>;
 export type ConsoleOverviewOut = {
   health: "healthy" | "degraded" | "down";
   attention: Array<{
-      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel" | "no_ai_account";
+      kind: "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel" | "no_ai_account" | "space_deletion_scheduled";
       title: string;
       ref?: string;
       since: number;
@@ -22147,6 +22147,7 @@ export type MailSendOut = {
   status: "queued" | "sent" | "held" | "suppressed";
   taskId?: string;
   suppressed: Array<string>;
+  note?: string;
 };
 export type MailSendAsIn = {
   mailboxId: string;
@@ -27913,7 +27914,7 @@ export type NotificationsDigestCollectIn = {
 };
 export type NotificationsDigestCollectOut = {
   items: Array<{
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled";
       title: string;
       at: number;
       subject?: {
@@ -27924,19 +27925,19 @@ export type NotificationsDigestCollectOut = {
     }>;
 };
 export type NotificationsKindSetLevelIn = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled";
   level?: "interrupt" | "badge" | "digest";
   channels?: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindSetLevelOut = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled";
   level: "interrupt" | "badge" | "digest";
   channels: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindsListIn = Record<string, unknown>;
 export type NotificationsKindsListOut = {
   kinds: Array<{
-      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
+      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -27957,7 +27958,7 @@ export type NotificationsListIn = {
 export type NotificationsListOut = {
   notifications: Array<{
       id: string;
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -28071,7 +28072,7 @@ export type NotificationsRulesSetOut = {
 };
 export type NotificationsSendIn = {
   to: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled";
   subject?: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
@@ -29570,6 +29571,13 @@ export type ProvidersListOut = {
       capped?: boolean;
       teamChatsForMe?: boolean;
       models?: Array<string>;
+    }>;
+};
+export type ProvidersOwnPeopleIn = Record<string, unknown>;
+export type ProvidersOwnPeopleOut = {
+  people: Array<{
+      personId: string;
+      accounts: number;
     }>;
 };
 export type ProvidersRemoveIn = {
@@ -34459,15 +34467,29 @@ export type SourcesUpdateOut = {
 };
 export type SpacesDeleteIn = {
   confirmName: string;
+  withoutExport?: boolean;
 };
 export type SpacesDeleteOut = {
   ok: boolean;
+  deletionAt: number;
+};
+export type SpacesDeleteCancelIn = Record<string, unknown>;
+export type SpacesDeleteCancelOut = {
+  ok: boolean;
+};
+export type SpacesDeleteDueIn = Record<string, unknown>;
+export type SpacesDeleteDueOut = {
+  deleted: boolean;
 };
 export type SpacesExportIn = {
   idempotencyKey: string;
 };
 export type SpacesExportOut = {
   runId: string;
+};
+export type SpacesExportLatestIn = Record<string, unknown>;
+export type SpacesExportLatestOut = {
+  at?: number;
 };
 export type SpacesGetIn = Record<string, unknown>;
 export type SpacesGetOut = {
@@ -34486,6 +34508,7 @@ export type SpacesGetOut = {
     hostedOn?: string;
     defaults: Record<string, unknown>;
     createdAt: number;
+    deletionAt?: number;
   };
 };
 export type SpacesImageIn = {
@@ -34573,6 +34596,7 @@ export type SpacesSwitchAddressOut = {
     hostedOn?: string;
     defaults: Record<string, unknown>;
     createdAt: number;
+    deletionAt?: number;
   };
 };
 export type SpacesSwitcherIn = Record<string, unknown>;
@@ -34612,6 +34636,7 @@ export type SpacesUpdateOut = {
     hostedOn?: string;
     defaults: Record<string, unknown>;
     createdAt: number;
+    deletionAt?: number;
   };
 };
 export type StarsListIn = {
@@ -39549,6 +39574,7 @@ export type TelephonySendSmsOut = {
   smsId?: string;
   status: "queued" | "sent" | "held" | "suppressed";
   taskId?: string;
+  note?: string;
 };
 export type TelephonySmsEraseIn = {
   smsId: string;
@@ -44125,6 +44151,7 @@ export interface CapMap {
   "providers.custom_list": { in: ProvidersCustomListIn; out: ProvidersCustomListOut };
   "providers.custom_remove": { in: ProvidersCustomRemoveIn; out: ProvidersCustomRemoveOut };
   "providers.list": { in: ProvidersListIn; out: ProvidersListOut };
+  "providers.own_people": { in: ProvidersOwnPeopleIn; out: ProvidersOwnPeopleOut };
   "providers.remove": { in: ProvidersRemoveIn; out: ProvidersRemoveOut };
   "providers.set_space_use": { in: ProvidersSetSpaceUseIn; out: ProvidersSetSpaceUseOut };
   "providers.space_key.get": { in: ProvidersSpaceKeyGetIn; out: ProvidersSpaceKeyGetOut };
@@ -44381,7 +44408,10 @@ export interface CapMap {
   "sources.set_secret": { in: SourcesSetSecretIn; out: SourcesSetSecretOut };
   "sources.update": { in: SourcesUpdateIn; out: SourcesUpdateOut };
   "spaces.delete": { in: SpacesDeleteIn; out: SpacesDeleteOut };
+  "spaces.delete_cancel": { in: SpacesDeleteCancelIn; out: SpacesDeleteCancelOut };
+  "spaces.delete_due": { in: SpacesDeleteDueIn; out: SpacesDeleteDueOut };
   "spaces.export": { in: SpacesExportIn; out: SpacesExportOut };
+  "spaces.export_latest": { in: SpacesExportLatestIn; out: SpacesExportLatestOut };
   "spaces.get": { in: SpacesGetIn; out: SpacesGetOut };
   "spaces.image": { in: SpacesImageIn; out: SpacesImageOut };
   "spaces.leave": { in: SpacesLeaveIn; out: SpacesLeaveOut };
@@ -46988,7 +47018,7 @@ export type NotesUpdatedPayload = {
 export type NotificationCappedPayload = {
   person: string;
   agentId: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled";
   perHour: number;
 };
 export type NotificationDelegateChangedPayload = {
@@ -47001,7 +47031,7 @@ export type NotificationDelegateChangedPayload = {
 export type NotificationDeliveredPayload = {
   notificationId: string;
   person: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled";
   level: "interrupt" | "badge" | "digest";
   place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
   subject?: {
@@ -47971,6 +48001,13 @@ export type SpaceAddressChangedPayload = {
 };
 export type SpaceDeletedPayload = {
   by: string;
+};
+export type SpaceDeletionCancelledPayload = {
+  by: string;
+};
+export type SpaceDeletionScheduledPayload = {
+  by: string;
+  at: number;
 };
 export type SpaceOwnershipTransferredPayload = {
   from: string;
@@ -49356,6 +49393,8 @@ export interface EventMap {
   "source.updated": SourceUpdatedPayload;
   "space.address_changed": SpaceAddressChangedPayload;
   "space.deleted": SpaceDeletedPayload;
+  "space.deletion_cancelled": SpaceDeletionCancelledPayload;
+  "space.deletion_scheduled": SpaceDeletionScheduledPayload;
   "space.ownership_transferred": SpaceOwnershipTransferredPayload;
   "space.updated": SpaceUpdatedPayload;
   "spend.caps_changed": SpendCapsChangedPayload;

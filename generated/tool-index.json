@@ -6926,6 +6926,12 @@
     },
     {
       "deferred": false,
+      "name": "providers_own_people",
+      "summary": "Who runs on their own AI sign-ins: the people with a Mine provider and how many each, for the AI accounts switch (never an account name or a value)",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
       "name": "providers_remove",
       "summary": "Remove a provider and its key or sign-in",
       "toolset": "vault"
@@ -8181,13 +8187,31 @@
     {
       "deferred": false,
       "name": "spaces_delete",
-      "summary": "Owner only: delete the Space after typing its legal name",
+      "summary": "Owner only: schedule the Space for deletion 14 days out after typing its legal name. Needs an export from the last 24 hours, or withoutExport. Everything keeps working until the date",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "spaces_delete_cancel",
+      "summary": "Owner or an admin: cancel the scheduled deletion with one click; the Space carries on and every admin is told",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "spaces_delete_due",
+      "summary": "Host only: when the scheduled date has passed, remove the Space's data and stop serving it",
       "toolset": "meta"
     },
     {
       "deferred": false,
       "name": "spaces_export",
       "summary": "Owner one-click export: a zip of records, files, chats and settings; never secret values, never others' private chats or personal memory",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "spaces_export_latest",
+      "summary": "When the newest finished export of this Space was taken, or nothing when none was; Delete this Space asks for one from the last 24 hours",
       "toolset": "meta"
     },
     {

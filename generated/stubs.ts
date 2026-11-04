@@ -2105,6 +2105,7 @@ export function stubs(ctx: CallCtx) {
       custom_list: call("providers.custom_list"),
       custom_remove: call("providers.custom_remove"),
       list: call("providers.list"),
+      own_people: call("providers.own_people"),
       remove: call("providers.remove"),
       set_space_use: call("providers.set_space_use"),
       space_key: {
@@ -2447,7 +2448,10 @@ export function stubs(ctx: CallCtx) {
     },
     spaces: {
       delete: call("spaces.delete"),
+      delete_cancel: call("spaces.delete_cancel"),
+      delete_due: call("spaces.delete_due"),
       export: call("spaces.export"),
+      export_latest: call("spaces.export_latest"),
       get: call("spaces.get"),
       image: call("spaces.image"),
       leave: call("spaces.leave"),
