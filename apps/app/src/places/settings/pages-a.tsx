@@ -132,8 +132,8 @@ export type Channel = "desktop" | "phone" | "email";
 export const CHANNELS: readonly { key: Channel; label: string }[] = [{ key: "desktop", label: "Desktop" }, { key: "phone", label: "Phone" }, { key: "email", label: "Email" }];
 /** "Desktop and email", "Desktop", "Badge only": where a kind reaches the person, in words. */
 export function channelWords(cs: readonly Channel[]): string {
-  const n = CHANNELS.filter((c) => cs.includes(c.key)).map((c) => c.label);
-  return n.length === 0 ? "Badge only" : n.length === 1 ? n[0]! : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]!.toLowerCase()}`;
+  const n = CHANNELS.filter((c) => cs.includes(c.key)).map((c, i) => (i === 0 ? c.label : c.label.toLowerCase()));
+  return n.length === 0 ? "Badge only" : n.length === 1 ? n[0]! : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]!}`;
 }
 /** The channels a plain level stands for, until the person has picked their own. */
 export const levelChannels = (level: string): Channel[] => (level === "interrupt" ? ["desktop", "phone"] : []);

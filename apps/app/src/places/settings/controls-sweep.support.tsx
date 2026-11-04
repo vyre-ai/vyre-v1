@@ -1,5 +1,6 @@
 // Shared by the controls-sweep tests: mounts one Settings page for an Owner or a Member and presses every control that has a test id once; none may throw. No test imports here.
 import assert from "node:assert/strict";
+import type { ReactElement } from "react";
 import { find, installDom, mount, press, textOf } from "../../../../../ui/src/testing/dom.ts";
 import { SettingsDataProvider } from "./data.tsx";
 import { SettingsPlace } from "./SettingsPlace.tsx";
