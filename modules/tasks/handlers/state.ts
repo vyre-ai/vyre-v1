@@ -524,6 +524,7 @@ export async function withdraw(ctx: TasksCtx, input: In): Promise<unknown> {
     }
     if (input.taskId !== undefined && hasSource && (t.source?.kind !== input.sourceKind || t.source?.id !== input.sourceId)) continue;
     t.state = "canceled";
+    t.workingNotes = { ...t.workingNotes, withdrawn: note };
     delete t.snoozedUntil;
     touch(ctx, ctx.db, t);
     emitTask(ctx, ctx.db, "task.withdrawn", t, { note, sourceKind: t.source?.kind, sourceId: t.source?.id }, { type: "withdrawn", by: ctx.principal.id, note });

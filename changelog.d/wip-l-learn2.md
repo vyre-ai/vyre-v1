@@ -77,3 +77,4 @@
 - An approval nobody answered does not wait for ever. After 7 days, or once the chat it was asked in or its task closed, it expires as "Not sent, it waited 7 days": the call is never sent, its task closes and the agent is told the plain reason. At start the same check clears what earlier releases left behind.
 - Needs you groups approvals that have waited days under Older, after what just arrived, in place of mixing them.
 - Agents are told never to say "Gate", "hold" or other internal words to people, and what a model reads from a failed tool says approval in their place.
+- An approval nobody answered for 7 days now reads "Not sent, it waited 7 days" in Needs you, under Withdrawn, with only Dismiss left.

@@ -258,7 +258,7 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
         </Pressable>) : null}
         <Tool icon="more" label="More" onPress={(x, y) => showMenu(menuItems, x, y)} testID="needs-more" />
       </View>
-      {gone ? <Text testID="needs-withdrawn" style={st.why}>{`Withdrawn by ${data.nameOf(t.createdBy)}, nothing to do.`}</Text> : null}
+      {gone ? <Text testID="needs-withdrawn" style={st.why}>{t.workingNotes["withdrawn"] ?? `Withdrawn by ${data.nameOf(t.createdBy)}, nothing to do.`}</Text> : null}
       {t.why ? <Text testID="needs-why" style={st.why}>{t.why}</Text> : null}
       {blockNodes}
       <View style={st.src}>
