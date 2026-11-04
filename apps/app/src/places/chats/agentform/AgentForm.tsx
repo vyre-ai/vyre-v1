@@ -4,7 +4,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
-import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
+import { Avatar, takenFaces } from "../../../../../../ui/src/Avatar/index.tsx";
+import { formatFace, isFace, suggestFace } from "../../../../../../ui/src/Avatar/agentface.ts";
+import { FacePicker } from "../../../../../../ui/src/FacePicker/index.tsx";
 import { each } from "../../../shell/sidebar/model.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConfigDirectory } from "../../automations/config/data.tsx";
@@ -20,7 +22,7 @@ import { useSpaceAi } from "../../vault/providers/useSpaceAi.ts";
 import type { ShareInput, UnshareInput } from "../../../../../../ui/src/ShareSheet/index.tsx";
 import { Glyph as Mark } from "../conversation/parts.tsx";
 import { Glyph } from "../sidebar/parts.tsx";
-import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch, workPatch, chatKeyPatch } from "./model.ts";
+import { createInput, draftInstructions, grantsFor, reachOffers, updatePatch, workPatch, chatKeyPatch } from "./model.ts";
 import type { AgentDraft, ComputerChoice, VaultItem } from "./model.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
@@ -49,7 +51,7 @@ const COMPUTERS: readonly { id: ComputerChoice; title: string; note: string }[] 
 ];
 
 export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharing, openVault }: AgentFormProps): ReactElement {
-  const [d, setD] = useState<AgentDraft>(() => ({ ...EMPTY, face: agentId === null ? faceSeed() : "" }));
+  const [d, setD] = useState<AgentDraft>(() => ({ ...EMPTY, face: agentId === null ? formatFace(suggestFace(takenFaces())) : "" }));
   const [shares, setShares] = useState<CapMap["access.shares_of"]["out"] | null>(null);
   const [sharingOpen, setSharingOpen] = useState(false);
   const loadShares = useCallback((): void => {
@@ -58,7 +60,8 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
   }, [agentId, call]);
   useEffect(loadShares, [loadShares]);
   const [touched, setTouched] = useState(false);
-  const [offers, setOffers] = useState<string[]>(() => faceChoices());
+  const [facing, setFacing] = useState(false);
+  const [was, setWas] = useState<string | null>(null);
   const [items, setItems] = useState<readonly VaultItem[]>([]);
   const [picked, setPicked] = useState<readonly VaultItem[]>([]);
   const [q, setQ] = useState("");
@@ -87,7 +90,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
     void Promise.resolve(call("agents.get", { agentId })).then(async (o) => {
       const a = (o as CapMap["agents.get"]["out"]).agent;
       if (!live) return;
-      setD((c) => ({ ...c, name: a.name, does: a.role ?? "", face: a.face.startsWith("pick-") ? a.face : "", model: a.model ?? "", fallbackModel: a.fallbackModel ?? "", workKey: a.workKey ?? "", chatKey: a.accountPolicy === "key" ? a.accountKey ?? "" : "", chatOn: a.accountPolicy === "key" }));
+      setD((c) => ({ ...c, name: a.name, does: a.role ?? "", face: a.face.startsWith("pick-") || isFace(a.face) ? a.face : "", model: a.model ?? "", fallbackModel: a.fallbackModel ?? "", workKey: a.workKey ?? "", chatKey: a.accountPolicy === "key" ? a.accountKey ?? "" : "", chatOn: a.accountPolicy === "key" }));
       setSavedWork(a.workKey ?? "");
       setSavedChat(a.accountPolicy === "key" ? a.accountKey ?? "" : "");
       setFolderId(a.folderId);
@@ -136,17 +139,16 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
       <View style={st.col}>
         <View style={st.head}>
           <View>
-            <Avatar name={d.name || "Agent"} seedId={d.face || agentId || ""} kind="agent" size={72} />
-            <Pressable role="button" aria-label="Shuffle the face" testID="agent-shuffle" onPress={() => { set({ face: faceSeed() }); setOffers(faceChoices()); }} style={st.shuffle}><Glyph name="retry" size={13} color="var(--ink-2)" /></Pressable>
+            <Pressable role="button" aria-label="Change the face" testID="agent-face" onPress={() => setFacing(true)}><Avatar name={d.name || "Agent"} seedId={d.face || agentId || ""} kind="agent" size={72} face={isFace(d.face) ? d.face : undefined} /></Pressable>
+            <Pressable role="button" aria-label="Another face" testID="agent-shuffle" onPress={() => { setWas(d.face); set({ face: formatFace(suggestFace(takenFaces())) }); }} style={st.shuffle}><Glyph name="retry" size={13} color="var(--ink-2)" /></Pressable>
           </View>
           <View style={st.names}>
             <TextInput testID="agent-name" accessibilityLabel="Name" value={d.name} onChangeText={(name) => set({ name })} placeholder="Name" placeholderTextColor="var(--ink-4)" style={st.name} />
             <TextInput testID="agent-does" accessibilityLabel="What does it do?" value={d.does} onChangeText={(does) => set({ does })} placeholder="What does it do?" placeholderTextColor="var(--ink-4)" style={st.does} />
           </View>
         </View>
-        <View style={st.picks}>
-          {each(offers, (seed) => <Pressable key={seed} role="button" aria-label="Use this face" testID={`agent-face-${seed}`} onPress={() => set({ face: seed })} style={[st.pick, d.face === seed && st.pickOn]}><Avatar name="Agent" seedId={seed} kind="agent" size={32} /></Pressable>)}
-        </View>
+        {was !== null ? <View style={st.undo}><Text style={st.undoText}>Face changed.</Text><Pressable role="button" aria-label="Undo the face change" testID="agent-face-undo" onPress={() => { set({ face: was }); setWas(null); }}><Text style={st.undoLink}>Undo</Text></Pressable></View> : null}
+        {facing ? <FacePicker name={d.name} value={d.face} onDone={(face) => { setFacing(false); if (face !== null) { setWas(d.face); set({ face }); } }} /> : null}
 
         <Section title="Instructions" note="AGENT.md">
           <View style={st.md}><MarkdownEditor testID="agent-instructions" label="Instructions" value={shown} onChange={(instructions) => { setTouched(true); set({ instructions }); }} minHeight={260} /></View>
@@ -274,9 +276,9 @@ const st = StyleSheet.create({
   names: { flex: 1, minWidth: 0 },
   name: { fontSize: 26, fontWeight: "600", letterSpacing: -0.4, color: "var(--ink)" as string, padding: 0, outlineStyle: "none", outlineWidth: 0 } as object,
   does: { marginTop: 4, fontSize: 15, color: "var(--ink-2)" as string, padding: 0, outlineStyle: "none", outlineWidth: 0 } as object,
-  picks: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 14 },
-  pick: { padding: 2, borderRadius: 12 },
-  pickOn: { boxShadow: "0 0 0 2px var(--accent)" } as object,
+  undo: { flexDirection: "row", gap: 8, marginTop: 10, alignItems: "center" },
+  undoText: { fontSize: 13, color: "var(--ink-3)" as string },
+  undoLink: { fontSize: 13, color: "var(--accent)" as string, fontWeight: "500" },
   sec: { paddingTop: 26 },
   secHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 },
   secTitle: { fontSize: 13, fontWeight: "600", color: "var(--ink-2)" as string },

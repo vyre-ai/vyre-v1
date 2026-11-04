@@ -50,10 +50,10 @@ export function Icon({ name, size = 15, color = "var(--ink-3)", width = 1.4, fil
 const webProps = (props: Record<string, unknown>): Record<string, unknown> => (Platform.OS === "web" ? props : {});
 
 /** An agent is a pixel face on a soft tint: the shared Avatar. `pulse` rings it while it works. */
-export function Face({ name, seedId, size = 18, pulse = false }: { name: string; seedId?: string | undefined; size?: number; pulse?: boolean }): ReactElement {
+export function Face({ name, seedId, size = 18, pulse = false, asleep = false }: { name: string; seedId?: string | undefined; size?: number; pulse?: boolean; asleep?: boolean }): ReactElement {
   return (
     <View aria-hidden testID={`face-${name}`} style={{ width: size, height: size, flexShrink: 0, flexGrow: 0 }}>
-      <Avatar name={name} seedId={seedId} kind="agent" size={size} state={pulse ? "working" : undefined} {...(pulse ? { testID: "pulse" } : {})} />
+      <Avatar name={name} seedId={seedId} kind="agent" size={size} state={pulse ? "working" : asleep ? "asleep" : undefined} {...(pulse ? { testID: "pulse" } : {})} />
     </View>
   );
 }

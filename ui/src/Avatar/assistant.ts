@@ -45,13 +45,18 @@ export function setAssistantLook(look: string | null): void {
   emit();
 }
 
-/** An agent's face stays seeded by its id until someone picks one on its page: a picked seed starts "pick-" (the stored default is only a slug of its name). */
+/** An agent's face stays seeded by its id until someone picks one on its page: a picked seed starts "pick-" (the stored default is only a slug of its name), a face from the library starts "av1:" (agentface.ts). */
 const PICKED = "pick-";
 let picked: ReadonlyMap<string, string> = new Map();
 
+/** Every face an agent in the Space wears (as stored), for a suggestion nobody has yet. */
+let taken: readonly string[] = [];
+export const takenFaces = (): readonly string[] => taken;
+
 export function setAgentFaces(agents: readonly { id: string; face?: string | undefined }[]): void {
+  taken = agents.map((a) => a.face ?? "").filter((f) => f !== "");
   const next = new Map<string, string>();
-  for (const a of agents) if (a.face?.startsWith(PICKED) === true) next.set(a.id, a.face);
+  for (const a of agents) if (a.face?.startsWith(PICKED) === true || a.face?.startsWith("av1:") === true) next.set(a.id, a.face);
   if (next.size === picked.size && [...next].every(([id, f]) => picked.get(id) === f)) return;
   picked = next;
   emit();

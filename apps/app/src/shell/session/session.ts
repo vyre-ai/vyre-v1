@@ -31,7 +31,7 @@ import { assistantName } from "../../../../../ui/src/Avatar/assistant.ts";
 import type { Dial, Scheduler } from "../../../../../client/src/connection/index.ts";
 import { PLACE_QUERIES, WARM_ORDER } from "./prefetch.ts";
 import { directoryOf, standInsOf } from "./private-agents.ts";
-import { setStandIns } from "../../../../../ui/src/Avatar/assistant.ts";
+import { setAgentFaces, setStandIns } from "../../../../../ui/src/Avatar/assistant.ts";
 import { createRemoteScreenHooks } from "./remote-hooks.ts";
 import type { RemoteHooks } from "./remote-hooks.ts";
 import { onRetryLoads } from "../../../../../ui/src/States/retry.ts";
@@ -330,6 +330,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     const list = new Map<string, Principal>([[me.id, me]]);
     // the agents this person may use are what agents.list answers (the agents module's visibility rule); any other agent is someone else's private one, credited to its person ("Irfad Imtiaz (Agent)") and never offered
     const usable = ag?.status === "ready" ? new Set((ag.data as Out<"agents.list">).agents.map((a) => a.agentId)) : null;
+    // what was picked on an agent's page shows on every face of that agent, in every place (not only Chats)
+    if (ag?.status === "ready") setAgentFaces((ag.data as Out<"agents.list">).agents.map((a) => ({ id: a.agentId, face: a.face })));
     if (p?.status === "ready") {
       const dir = directoryOf((p.data as Out<"access.principals.list">).principals, own, me.id, usable);
       for (const x of dir) list.set(x.id, x);
