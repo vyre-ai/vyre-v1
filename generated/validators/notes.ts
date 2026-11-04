@@ -196,13 +196,13 @@ if ("updatedAt" in o142) lf(o142["updatedAt"], p + "/updatedAt", e, L17);
 
 function d_s_720359d2fb(v: unknown, p: string, e: string[]): void {
 {
-const x567 = v;
-const g567 = typeOf(x567);
-const b567: string[] = []; lf(x567, p, b567, L0); if (b567.length) e.push(...b567);
-if (g567 === "object") {
-if (g567 === 'object') { const o567 = x567 as Record<string, unknown>;
-if (!("note" in o567)) e.push(p + "/note" + ': required');
-if ("note" in o567) d_s_1f7500875b(o567["note"], p + "/note", e);
+const x569 = v;
+const g569 = typeOf(x569);
+const b569: string[] = []; lf(x569, p, b569, L0); if (b569.length) e.push(...b569);
+if (g569 === "object") {
+if (g569 === 'object') { const o569 = x569 as Record<string, unknown>;
+if (!("note" in o569)) e.push(p + "/note" + ': required');
+if ("note" in o569) d_s_1f7500875b(o569["note"], p + "/note", e);
 }
 }
 }

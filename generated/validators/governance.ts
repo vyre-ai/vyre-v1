@@ -19,15 +19,15 @@ if ("row" in o452) d_s_faee104388(o452["row"], p + "/row", e);
 
 function d_s_8000f960cb(v: unknown, p: string, e: string[]): void {
 {
-const x623 = v;
-const g623 = typeOf(x623);
-const b623: string[] = []; lf(x623, p, b623, L0); if (b623.length) e.push(...b623);
-if (g623 === "object") {
-if (g623 === 'object') { const o623 = x623 as Record<string, unknown>;
-if (!("kind" in o623)) e.push(p + "/kind" + ': required');
-if (!("id" in o623)) e.push(p + "/id" + ': required');
-if ("kind" in o623) lf(o623["kind"], p + "/kind", e, L288);
-if ("id" in o623) lf(o623["id"], p + "/id", e, L1);
+const x625 = v;
+const g625 = typeOf(x625);
+const b625: string[] = []; lf(x625, p, b625, L0); if (b625.length) e.push(...b625);
+if (g625 === "object") {
+if (g625 === 'object') { const o625 = x625 as Record<string, unknown>;
+if (!("kind" in o625)) e.push(p + "/kind" + ': required');
+if (!("id" in o625)) e.push(p + "/id" + ': required');
+if ("kind" in o625) lf(o625["kind"], p + "/kind", e, L288);
+if ("id" in o625) lf(o625["id"], p + "/id", e, L1);
 }
 }
 }

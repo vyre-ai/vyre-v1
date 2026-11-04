@@ -5,12 +5,12 @@ import type { Check } from './core.ts';
 
 function d_s_7e915df98a(v: unknown, p: string, e: string[]): void {
 {
-const x620 = v;
-const g620 = typeOf(x620);
-const b620: string[] = []; lf(x620, p, b620, L0); if (b620.length) e.push(...b620);
-if (g620 === "object") {
-if (g620 === 'object') { const o620 = x620 as Record<string, unknown>;
-if ("type" in o620) d_s_a9e82a4576(o620["type"], p + "/type", e);
+const x622 = v;
+const g622 = typeOf(x622);
+const b622: string[] = []; lf(x622, p, b622, L0); if (b622.length) e.push(...b622);
+if (g622 === "object") {
+if (g622 === 'object') { const o622 = x622 as Record<string, unknown>;
+if ("type" in o622) d_s_a9e82a4576(o622["type"], p + "/type", e);
 }
 }
 }

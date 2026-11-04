@@ -5,22 +5,22 @@ import type { Check } from './core.ts';
 
 function d_s_72d7e2d7dd(v: unknown, p: string, e: string[]): void {
 {
-const x571 = v;
-const g571 = typeOf(x571);
-const b571: string[] = []; lf(x571, p, b571, L4); if (b571.length) e.push(...b571);
-if (g571 === "array") {
-if (g571 === 'array') { const a571 = x571 as unknown[];
-for (let i571 = 0; i571 < a571.length; i571++) {
+const x573 = v;
+const g573 = typeOf(x573);
+const b573: string[] = []; lf(x573, p, b573, L4); if (b573.length) e.push(...b573);
+if (g573 === "array") {
+if (g573 === 'array') { const a573 = x573 as unknown[];
+for (let i573 = 0; i573 < a573.length; i573++) {
 {
-const x572 = a571[i571];
-const g572 = typeOf(x572);
-const b572: string[] = []; lf(x572, p + '/' + i571, b572, L0); if (b572.length) e.push(...b572);
-if (g572 === "object") {
-if (g572 === 'object') { const o572 = x572 as Record<string, unknown>;
-if (!("agentId" in o572)) e.push(p + '/' + i571 + "/agentId" + ': required');
-if (!("right" in o572)) e.push(p + '/' + i571 + "/right" + ': required');
-if ("agentId" in o572) lf(o572["agentId"], p + '/' + i571 + "/agentId", e, L10);
-if ("right" in o572) lf(o572["right"], p + '/' + i571 + "/right", e, L278);
+const x574 = a573[i573];
+const g574 = typeOf(x574);
+const b574: string[] = []; lf(x574, p + '/' + i573, b574, L0); if (b574.length) e.push(...b574);
+if (g574 === "object") {
+if (g574 === 'object') { const o574 = x574 as Record<string, unknown>;
+if (!("agentId" in o574)) e.push(p + '/' + i573 + "/agentId" + ': required');
+if (!("right" in o574)) e.push(p + '/' + i573 + "/right" + ': required');
+if ("agentId" in o574) lf(o574["agentId"], p + '/' + i573 + "/agentId", e, L10);
+if ("right" in o574) lf(o574["right"], p + '/' + i573 + "/right", e, L278);
 }
 }
 }

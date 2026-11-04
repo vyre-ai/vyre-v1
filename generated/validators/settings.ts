@@ -93,14 +93,14 @@ if ("row" in o227) d_s_027fb3219c(o227["row"], p + "/row", e);
 
 function d_s_80c3e7c555(v: unknown, p: string, e: string[]): void {
 {
-const x624 = v;
-const g624 = typeOf(x624);
-const b624: string[] = []; lf(x624, p, b624, L0); if (b624.length) e.push(...b624);
-if (g624 === "object") {
-if (g624 === 'object') { const o624 = x624 as Record<string, unknown>;
-if (!("row" in o624)) e.push(p + "/row" + ': required');
-if (!("previous" in o624)) e.push(p + "/previous" + ': required');
-if ("row" in o624) d_s_027fb3219c(o624["row"], p + "/row", e);
+const x626 = v;
+const g626 = typeOf(x626);
+const b626: string[] = []; lf(x626, p, b626, L0); if (b626.length) e.push(...b626);
+if (g626 === "object") {
+if (g626 === 'object') { const o626 = x626 as Record<string, unknown>;
+if (!("row" in o626)) e.push(p + "/row" + ': required');
+if (!("previous" in o626)) e.push(p + "/previous" + ': required');
+if ("row" in o626) d_s_027fb3219c(o626["row"], p + "/row", e);
 }
 }
 }

@@ -66,13 +66,13 @@ if (g502 === 'object') { const o502 = x502 as Record<string, unknown>;
 
 function d_s_78845cba60(v: unknown, p: string, e: string[]): void {
 {
-const x590 = v;
-const g590 = typeOf(x590);
-const b590: string[] = []; lf(x590, p, b590, L0); if (b590.length) e.push(...b590);
-if (g590 === "object") {
-if (g590 === 'object') { const o590 = x590 as Record<string, unknown>;
-if (!("email" in o590)) e.push(p + "/email" + ': required');
-if ("email" in o590) d_s_573e287a45(o590["email"], p + "/email", e);
+const x592 = v;
+const g592 = typeOf(x592);
+const b592: string[] = []; lf(x592, p, b592, L0); if (b592.length) e.push(...b592);
+if (g592 === "object") {
+if (g592 === 'object') { const o592 = x592 as Record<string, unknown>;
+if (!("email" in o592)) e.push(p + "/email" + ': required');
+if ("email" in o592) d_s_573e287a45(o592["email"], p + "/email", e);
 }
 }
 }

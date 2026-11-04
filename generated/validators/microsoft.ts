@@ -69,17 +69,17 @@ d_s_0046d61ae3(a436[i436], p + '/' + i436, e);
 
 function d_s_745b46a2f2(v: unknown, p: string, e: string[]): void {
 {
-const x577 = v;
-const g577 = typeOf(x577);
-const b577: string[] = []; lf(x577, p, b577, L0); if (b577.length) e.push(...b577);
-if (g577 === "object") {
-if (g577 === 'object') { const o577 = x577 as Record<string, unknown>;
-if (!("connectionId" in o577)) e.push(p + "/connectionId" + ': required');
-if (!("itemId" in o577)) e.push(p + "/itemId" + ': required');
-if ("connectionId" in o577) lf(o577["connectionId"], p + "/connectionId", e, L38);
-if ("as" in o577) lf(o577["as"], p + "/as", e, L6);
-if ("driveId" in o577) lf(o577["driveId"], p + "/driveId", e, L1);
-if ("itemId" in o577) lf(o577["itemId"], p + "/itemId", e, L1);
+const x579 = v;
+const g579 = typeOf(x579);
+const b579: string[] = []; lf(x579, p, b579, L0); if (b579.length) e.push(...b579);
+if (g579 === "object") {
+if (g579 === 'object') { const o579 = x579 as Record<string, unknown>;
+if (!("connectionId" in o579)) e.push(p + "/connectionId" + ': required');
+if (!("itemId" in o579)) e.push(p + "/itemId" + ': required');
+if ("connectionId" in o579) lf(o579["connectionId"], p + "/connectionId", e, L38);
+if ("as" in o579) lf(o579["as"], p + "/as", e, L6);
+if ("driveId" in o579) lf(o579["driveId"], p + "/driveId", e, L1);
+if ("itemId" in o579) lf(o579["itemId"], p + "/itemId", e, L1);
 }
 }
 }
@@ -87,15 +87,15 @@ if ("itemId" in o577) lf(o577["itemId"], p + "/itemId", e, L1);
 
 function d_s_7e1f5a267d(v: unknown, p: string, e: string[]): void {
 {
-const x619 = v;
-const g619 = typeOf(x619);
-const b619: string[] = []; lf(x619, p, b619, L0); if (b619.length) e.push(...b619);
-if (g619 === "object") {
-if (g619 === 'object') { const o619 = x619 as Record<string, unknown>;
-if (!("subscriptionId" in o619)) e.push(p + "/subscriptionId" + ': required');
-if (!("expiresAt" in o619)) e.push(p + "/expiresAt" + ': required');
-if ("subscriptionId" in o619) lf(o619["subscriptionId"], p + "/subscriptionId", e, L1);
-if ("expiresAt" in o619) lf(o619["expiresAt"], p + "/expiresAt", e, L17);
+const x621 = v;
+const g621 = typeOf(x621);
+const b621: string[] = []; lf(x621, p, b621, L0); if (b621.length) e.push(...b621);
+if (g621 === "object") {
+if (g621 === 'object') { const o621 = x621 as Record<string, unknown>;
+if (!("subscriptionId" in o621)) e.push(p + "/subscriptionId" + ': required');
+if (!("expiresAt" in o621)) e.push(p + "/expiresAt" + ': required');
+if ("subscriptionId" in o621) lf(o621["subscriptionId"], p + "/subscriptionId", e, L1);
+if ("expiresAt" in o621) lf(o621["expiresAt"], p + "/expiresAt", e, L17);
 }
 }
 }
@@ -103,18 +103,18 @@ if ("expiresAt" in o619) lf(o619["expiresAt"], p + "/expiresAt", e, L17);
 
 function d_s_7f24e0525d(v: unknown, p: string, e: string[]): void {
 {
-const x621 = v;
-const g621 = typeOf(x621);
-const b621: string[] = []; lf(x621, p, b621, L0); if (b621.length) e.push(...b621);
-if (g621 === "object") {
-if (g621 === 'object') { const o621 = x621 as Record<string, unknown>;
-if (!("connectionId" in o621)) e.push(p + "/connectionId" + ': required');
-if (!("subscriptionId" in o621)) e.push(p + "/subscriptionId" + ': required');
-if (!("idempotencyKey" in o621)) e.push(p + "/idempotencyKey" + ': required');
-if ("connectionId" in o621) lf(o621["connectionId"], p + "/connectionId", e, L38);
-if ("as" in o621) lf(o621["as"], p + "/as", e, L6);
-if ("subscriptionId" in o621) lf(o621["subscriptionId"], p + "/subscriptionId", e, L1);
-if ("idempotencyKey" in o621) lf(o621["idempotencyKey"], p + "/idempotencyKey", e, L53);
+const x623 = v;
+const g623 = typeOf(x623);
+const b623: string[] = []; lf(x623, p, b623, L0); if (b623.length) e.push(...b623);
+if (g623 === "object") {
+if (g623 === 'object') { const o623 = x623 as Record<string, unknown>;
+if (!("connectionId" in o623)) e.push(p + "/connectionId" + ': required');
+if (!("subscriptionId" in o623)) e.push(p + "/subscriptionId" + ': required');
+if (!("idempotencyKey" in o623)) e.push(p + "/idempotencyKey" + ': required');
+if ("connectionId" in o623) lf(o623["connectionId"], p + "/connectionId", e, L38);
+if ("as" in o623) lf(o623["as"], p + "/as", e, L6);
+if ("subscriptionId" in o623) lf(o623["subscriptionId"], p + "/subscriptionId", e, L1);
+if ("idempotencyKey" in o623) lf(o623["idempotencyKey"], p + "/idempotencyKey", e, L53);
 }
 }
 }
@@ -122,13 +122,13 @@ if ("idempotencyKey" in o621) lf(o621["idempotencyKey"], p + "/idempotencyKey", 
 
 function d_s_82b1280cc8(v: unknown, p: string, e: string[]): void {
 {
-const x626 = v;
-const g626 = typeOf(x626);
-const b626: string[] = []; lf(x626, p, b626, L4); if (b626.length) e.push(...b626);
-if (g626 === "array") {
-if (g626 === 'array') { const a626 = x626 as unknown[];
-for (let i626 = 0; i626 < a626.length; i626++) {
-d_s_dced9d14be(a626[i626], p + '/' + i626, e);
+const x628 = v;
+const g628 = typeOf(x628);
+const b628: string[] = []; lf(x628, p, b628, L4); if (b628.length) e.push(...b628);
+if (g628 === "array") {
+if (g628 === 'array') { const a628 = x628 as unknown[];
+for (let i628 = 0; i628 < a628.length; i628++) {
+d_s_dced9d14be(a628[i628], p + '/' + i628, e);
 }
 }
 }

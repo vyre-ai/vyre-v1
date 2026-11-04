@@ -63,13 +63,13 @@ if ("total" in o271) lf(o271["total"], p + "/total", e, L2);
 
 function d_s_73cbbf9330(v: unknown, p: string, e: string[]): void {
 {
-const x573 = v;
-const g573 = typeOf(x573);
-const b573: string[] = []; lf(x573, p, b573, L0); if (b573.length) e.push(...b573);
-if (g573 === "object") {
-if (g573 === 'object') { const o573 = x573 as Record<string, unknown>;
-if (!("record" in o573)) e.push(p + "/record" + ': required');
-if ("record" in o573) d_s_b87b1cfef9(o573["record"], p + "/record", e);
+const x575 = v;
+const g575 = typeOf(x575);
+const b575: string[] = []; lf(x575, p, b575, L0); if (b575.length) e.push(...b575);
+if (g575 === "object") {
+if (g575 === 'object') { const o575 = x575 as Record<string, unknown>;
+if (!("record" in o575)) e.push(p + "/record" + ': required');
+if ("record" in o575) d_s_b87b1cfef9(o575["record"], p + "/record", e);
 }
 }
 }

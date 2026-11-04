@@ -263,40 +263,40 @@ if ("email" in o523) lf(o523["email"], p + "/lastModifyingUser" + "/email", e, L
 
 function d_s_7d004c33d7(v: unknown, p: string, e: string[]): void {
 {
-const x614 = v;
-const g614 = typeOf(x614);
-const b614: string[] = []; lf(x614, p, b614, L0); if (b614.length) e.push(...b614);
-if (g614 === "object") {
-if (g614 === 'object') { const o614 = x614 as Record<string, unknown>;
-if (!("id" in o614)) e.push(p + "/id" + ': required');
-if (!("threadId" in o614)) e.push(p + "/threadId" + ': required');
-if (!("labelIds" in o614)) e.push(p + "/labelIds" + ': required');
-if ("id" in o614) lf(o614["id"], p + "/id", e, L1);
-if ("threadId" in o614) lf(o614["threadId"], p + "/threadId", e, L1);
-if ("labelIds" in o614) {
-{
-const x615 = o614["labelIds"];
-const g615 = typeOf(x615);
-const b615: string[] = []; lf(x615, p + "/labelIds", b615, L4); if (b615.length) e.push(...b615);
-if (g615 === "array") {
-if (g615 === 'array') { const a615 = x615 as unknown[];
-for (let i615 = 0; i615 < a615.length; i615++) {
-lf(a615[i615], p + "/labelIds" + '/' + i615, e, L1);
-}
-}
-}
-}
-}
-if ("snippet" in o614) lf(o614["snippet"], p + "/snippet", e, L1);
-if ("historyId" in o614) lf(o614["historyId"], p + "/historyId", e, L1);
-if ("internalDate" in o614) lf(o614["internalDate"], p + "/internalDate", e, L17);
-if ("payload" in o614) {
-{
-const x616 = o614["payload"];
+const x616 = v;
 const g616 = typeOf(x616);
-const b616: string[] = []; lf(x616, p + "/payload", b616, L0); if (b616.length) e.push(...b616);
+const b616: string[] = []; lf(x616, p, b616, L0); if (b616.length) e.push(...b616);
 if (g616 === "object") {
 if (g616 === 'object') { const o616 = x616 as Record<string, unknown>;
+if (!("id" in o616)) e.push(p + "/id" + ': required');
+if (!("threadId" in o616)) e.push(p + "/threadId" + ': required');
+if (!("labelIds" in o616)) e.push(p + "/labelIds" + ': required');
+if ("id" in o616) lf(o616["id"], p + "/id", e, L1);
+if ("threadId" in o616) lf(o616["threadId"], p + "/threadId", e, L1);
+if ("labelIds" in o616) {
+{
+const x617 = o616["labelIds"];
+const g617 = typeOf(x617);
+const b617: string[] = []; lf(x617, p + "/labelIds", b617, L4); if (b617.length) e.push(...b617);
+if (g617 === "array") {
+if (g617 === 'array') { const a617 = x617 as unknown[];
+for (let i617 = 0; i617 < a617.length; i617++) {
+lf(a617[i617], p + "/labelIds" + '/' + i617, e, L1);
+}
+}
+}
+}
+}
+if ("snippet" in o616) lf(o616["snippet"], p + "/snippet", e, L1);
+if ("historyId" in o616) lf(o616["historyId"], p + "/historyId", e, L1);
+if ("internalDate" in o616) lf(o616["internalDate"], p + "/internalDate", e, L17);
+if ("payload" in o616) {
+{
+const x618 = o616["payload"];
+const g618 = typeOf(x618);
+const b618: string[] = []; lf(x618, p + "/payload", b618, L0); if (b618.length) e.push(...b618);
+if (g618 === "object") {
+if (g618 === 'object') { const o618 = x618 as Record<string, unknown>;
 }
 }
 }

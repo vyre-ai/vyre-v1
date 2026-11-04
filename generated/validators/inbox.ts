@@ -38,13 +38,13 @@ if ("why" in o76) lf(o76["why"], p + '/' + i75 + "/why", e, L1);
 
 function d_s_7da9a4dfc3(v: unknown, p: string, e: string[]): void {
 {
-const x617 = v;
-const g617 = typeOf(x617);
-const b617: string[] = []; lf(x617, p, b617, L4); if (b617.length) e.push(...b617);
-if (g617 === "array") {
-if (g617 === 'array') { const a617 = x617 as unknown[];
-for (let i617 = 0; i617 < a617.length; i617++) {
-d_s_acdf9f65cd(a617[i617], p + '/' + i617, e);
+const x619 = v;
+const g619 = typeOf(x619);
+const b619: string[] = []; lf(x619, p, b619, L4); if (b619.length) e.push(...b619);
+if (g619 === "array") {
+if (g619 === 'array') { const a619 = x619 as unknown[];
+for (let i619 = 0; i619 < a619.length; i619++) {
+d_s_acdf9f65cd(a619[i619], p + '/' + i619, e);
 }
 }
 }

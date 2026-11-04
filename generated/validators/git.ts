@@ -81,16 +81,16 @@ if ("text" in o315) lf(o315["text"], p + '/' + i312 + "/lines" + '/' + i314 + "/
 
 function d_s_720edec7c2(v: unknown, p: string, e: string[]): void {
 {
-const x568 = v;
-const g568 = typeOf(x568);
-const b568: string[] = []; lf(x568, p, b568, L0); if (b568.length) e.push(...b568);
-if (g568 === "object") {
-if (g568 === 'object') { const o568 = x568 as Record<string, unknown>;
-if (!("name" in o568)) e.push(p + "/name" + ': required');
-if (!("kind" in o568)) e.push(p + "/kind" + ': required');
-if ("name" in o568) lf(o568["name"], p + "/name", e, L1);
-if ("kind" in o568) lf(o568["kind"], p + "/kind", e, L277);
-if ("id" in o568) lf(o568["id"], p + "/id", e, L1);
+const x570 = v;
+const g570 = typeOf(x570);
+const b570: string[] = []; lf(x570, p, b570, L0); if (b570.length) e.push(...b570);
+if (g570 === "object") {
+if (g570 === 'object') { const o570 = x570 as Record<string, unknown>;
+if (!("name" in o570)) e.push(p + "/name" + ': required');
+if (!("kind" in o570)) e.push(p + "/kind" + ': required');
+if ("name" in o570) lf(o570["name"], p + "/name", e, L1);
+if ("kind" in o570) lf(o570["kind"], p + "/kind", e, L277);
+if ("id" in o570) lf(o570["id"], p + "/id", e, L1);
 }
 }
 }

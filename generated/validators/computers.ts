@@ -94,32 +94,32 @@ if ("runId" in o180) lf(o180["runId"], p + "/runId", e, L26);
 
 function d_s_81ebbf63da(v: unknown, p: string, e: string[]): void {
 {
-const x625 = v;
-const g625 = typeOf(x625);
-const b625: string[] = []; lf(x625, p, b625, L0); if (b625.length) e.push(...b625);
-if (g625 === "object") {
-if (g625 === 'object') { const o625 = x625 as Record<string, unknown>;
-if (!("computerId" in o625)) e.push(p + "/computerId" + ': required');
-if (!("agentId" in o625)) e.push(p + "/agentId" + ': required');
-if (!("state" in o625)) e.push(p + "/state" + ': required');
-if (!("tabs" in o625)) e.push(p + "/tabs" + ': required');
-if (!("tabLimit" in o625)) e.push(p + "/tabLimit" + ': required');
-if (!("host" in o625)) e.push(p + "/host" + ': required');
-if (!("recording" in o625)) e.push(p + "/recording" + ': required');
-if ("computerId" in o625) lf(o625["computerId"], p + "/computerId", e, L22);
-if ("agentId" in o625) lf(o625["agentId"], p + "/agentId", e, L10);
-if ("state" in o625) lf(o625["state"], p + "/state", e, L289);
-if ("caption" in o625) lf(o625["caption"], p + "/caption", e, L1);
-if ("tabs" in o625) lf(o625["tabs"], p + "/tabs", e, L2);
-if ("tabLimit" in o625) lf(o625["tabLimit"], p + "/tabLimit", e, L2);
-if ("host" in o625) lf(o625["host"], p + "/host", e, L290);
-if ("nodeId" in o625) lf(o625["nodeId"], p + "/nodeId", e, L1);
-if ("diskBytes" in o625) lf(o625["diskBytes"], p + "/diskBytes", e, L2);
-if ("lastFrameAt" in o625) lf(o625["lastFrameAt"], p + "/lastFrameAt", e, L17);
-if ("lastActiveAt" in o625) lf(o625["lastActiveAt"], p + "/lastActiveAt", e, L17);
-if ("takeoverBy" in o625) lf(o625["takeoverBy"], p + "/takeoverBy", e, L16);
-if ("recording" in o625) lf(o625["recording"], p + "/recording", e, L3);
-if ("error" in o625) lf(o625["error"], p + "/error", e, L1);
+const x627 = v;
+const g627 = typeOf(x627);
+const b627: string[] = []; lf(x627, p, b627, L0); if (b627.length) e.push(...b627);
+if (g627 === "object") {
+if (g627 === 'object') { const o627 = x627 as Record<string, unknown>;
+if (!("computerId" in o627)) e.push(p + "/computerId" + ': required');
+if (!("agentId" in o627)) e.push(p + "/agentId" + ': required');
+if (!("state" in o627)) e.push(p + "/state" + ': required');
+if (!("tabs" in o627)) e.push(p + "/tabs" + ': required');
+if (!("tabLimit" in o627)) e.push(p + "/tabLimit" + ': required');
+if (!("host" in o627)) e.push(p + "/host" + ': required');
+if (!("recording" in o627)) e.push(p + "/recording" + ': required');
+if ("computerId" in o627) lf(o627["computerId"], p + "/computerId", e, L22);
+if ("agentId" in o627) lf(o627["agentId"], p + "/agentId", e, L10);
+if ("state" in o627) lf(o627["state"], p + "/state", e, L289);
+if ("caption" in o627) lf(o627["caption"], p + "/caption", e, L1);
+if ("tabs" in o627) lf(o627["tabs"], p + "/tabs", e, L2);
+if ("tabLimit" in o627) lf(o627["tabLimit"], p + "/tabLimit", e, L2);
+if ("host" in o627) lf(o627["host"], p + "/host", e, L290);
+if ("nodeId" in o627) lf(o627["nodeId"], p + "/nodeId", e, L1);
+if ("diskBytes" in o627) lf(o627["diskBytes"], p + "/diskBytes", e, L2);
+if ("lastFrameAt" in o627) lf(o627["lastFrameAt"], p + "/lastFrameAt", e, L17);
+if ("lastActiveAt" in o627) lf(o627["lastActiveAt"], p + "/lastActiveAt", e, L17);
+if ("takeoverBy" in o627) lf(o627["takeoverBy"], p + "/takeoverBy", e, L16);
+if ("recording" in o627) lf(o627["recording"], p + "/recording", e, L3);
+if ("error" in o627) lf(o627["error"], p + "/error", e, L1);
 }
 }
 }

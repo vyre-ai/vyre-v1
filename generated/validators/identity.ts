@@ -5,17 +5,17 @@ import type { Check } from './core.ts';
 
 function d_s_7978170373(v: unknown, p: string, e: string[]): void {
 {
-const x593 = v;
-const g593 = typeOf(x593);
-const b593: string[] = []; lf(x593, p, b593, L0); if (b593.length) e.push(...b593);
-if (g593 === "object") {
-if (g593 === 'object') { const o593 = x593 as Record<string, unknown>;
-if (!("code" in o593)) e.push(p + "/code" + ': required');
-if (!("deviceName" in o593)) e.push(p + "/deviceName" + ': required');
-if (!("deviceClass" in o593)) e.push(p + "/deviceClass" + ': required');
-if ("code" in o593) lf(o593["code"], p + "/code", e, L1);
-if ("deviceName" in o593) lf(o593["deviceName"], p + "/deviceName", e, L1);
-if ("deviceClass" in o593) lf(o593["deviceClass"], p + "/deviceClass", e, L283);
+const x595 = v;
+const g595 = typeOf(x595);
+const b595: string[] = []; lf(x595, p, b595, L0); if (b595.length) e.push(...b595);
+if (g595 === "object") {
+if (g595 === 'object') { const o595 = x595 as Record<string, unknown>;
+if (!("code" in o595)) e.push(p + "/code" + ': required');
+if (!("deviceName" in o595)) e.push(p + "/deviceName" + ': required');
+if (!("deviceClass" in o595)) e.push(p + "/deviceClass" + ': required');
+if ("code" in o595) lf(o595["code"], p + "/code", e, L1);
+if ("deviceName" in o595) lf(o595["deviceName"], p + "/deviceName", e, L1);
+if ("deviceClass" in o595) lf(o595["deviceClass"], p + "/deviceClass", e, L283);
 }
 }
 }
@@ -23,15 +23,15 @@ if ("deviceClass" in o593) lf(o593["deviceClass"], p + "/deviceClass", e, L283);
 
 function d_s_79f131257e(v: unknown, p: string, e: string[]): void {
 {
-const x595 = v;
-const g595 = typeOf(x595);
-const b595: string[] = []; lf(x595, p, b595, L0); if (b595.length) e.push(...b595);
-if (g595 === "object") {
-if (g595 === 'object') { const o595 = x595 as Record<string, unknown>;
-if (!("personId" in o595)) e.push(p + "/personId" + ': required');
-if (!("kind" in o595)) e.push(p + "/kind" + ': required');
-if ("personId" in o595) lf(o595["personId"], p + "/personId", e, L16);
-if ("kind" in o595) lf(o595["kind"], p + "/kind", e, L284);
+const x597 = v;
+const g597 = typeOf(x597);
+const b597: string[] = []; lf(x597, p, b597, L0); if (b597.length) e.push(...b597);
+if (g597 === "object") {
+if (g597 === 'object') { const o597 = x597 as Record<string, unknown>;
+if (!("personId" in o597)) e.push(p + "/personId" + ': required');
+if (!("kind" in o597)) e.push(p + "/kind" + ': required');
+if ("personId" in o597) lf(o597["personId"], p + "/personId", e, L16);
+if ("kind" in o597) lf(o597["kind"], p + "/kind", e, L284);
 }
 }
 }
