@@ -47,13 +47,14 @@ if (space.claim) {
   await ctx.close();
 }
 const sess = session ?? JSON.stringify(ownerSession(space, web.origin));
-const token = (() => { try { return JSON.parse(sess).token ?? space.token; } catch { return space.token; } })();
+const token = space.token;   // the admin token of the booted daemon: the same owner, for the API calls the page does not make
 
 async function api(ctx, cap, data = {}) {
   const r = await ctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token}` }, data });
   const text = await r.text();
   let body = null; try { body = JSON.parse(text); } catch { body = text; }
-  return { status: r.status(), body };
+  if (r.status() >= 400) console.log(`     api ${cap} ${r.status()} ${String(text).slice(0, 200)}`);
+  return { status: r.status(), body: body?.data ?? body };
 }
 const open = async (ctx, url) => {
   const page = await ctx.newPage();
@@ -66,8 +67,11 @@ const open = async (ctx, url) => {
 const pick = async (page, trigger, city) => {
   await page.getByTestId(trigger).click();
   await page.getByTestId("menu-search").fill(city);
-  await page.waitForTimeout(300);
-  await page.locator("[data-testid^='menu-item-']").filter({ hasText: city }).first().click();
+  await page.waitForTimeout(500);
+  const items = page.locator("[data-testid^='menu-item-']").filter({ hasText: city });
+  console.log(`     ${city}: ${await items.count()} matching rows`);
+  await items.first().click();
+  await page.waitForTimeout(600);
 };
 
 try {
@@ -78,16 +82,18 @@ try {
   await seed.close();
 
   // 1. the admin sets the Space zone in Console
-  const con = await open(ctx, `${web.origin}/console?skin=paper#screen=spaces.console`);
+  const con = await open(ctx, `${web.origin}/console?skin=paper`);
+  await con.getByTestId("row-nav-space").click({ timeout: 30000 }).catch(async () => { console.log("testids: " + JSON.stringify((await con.$$eval("[data-testid]", (n) => n.map((x) => x.getAttribute("data-testid")))).slice(0, 50))); });
   say(await con.getByTestId("infra-space-timezone").waitFor({ timeout: 30000 }).then(() => true, () => false), "Console, Space, General has the Space time zone row");
   await pick(con, "infra-space-timezone", "Los Angeles");
-  const line = await con.getByTestId("space-timezone-confirm").innerText().catch(() => "");
+  const line = await con.getByTestId("row-space-timezone-confirm").innerText().catch(() => "");
   say(/will read in Pacific Time\. Deadlines already set keep their moment\./.test(line), `the confirm line reads: ${JSON.stringify(line.slice(0, 140))}`);
   await con.screenshot({ path: path.join(out, "paper-wide-1-console-confirm.png") });
   await con.getByTestId("infra-space-timezone-save").click();
   await con.waitForTimeout(1500);
   const got = await api(ctx, "spaces.get");
   say(got.body?.space?.timezone === "America/Los_Angeles", `spaces.get says ${got.body?.space?.timezone}`);
+  say(/Space time zone is now Pacific Time\./.test(await con.getByTestId("row-space-timezone-saved").innerText().catch(() => "")), "the saved line with Undo and the audit note shows");
   await con.screenshot({ path: path.join(out, "paper-wide-2-console-saved.png") });
   await con.close();
 
@@ -116,7 +122,11 @@ try {
     await seedPage.evaluate((v) => localStorage.setItem("vyre.session.v1", v), sess);
     await seedPage.close();
     const page = await open(c, `${web.origin}/chat?skin=${skin}#screen=goals.page&goalId=${goalId}`);
-    const there = await page.getByTestId("goal-checkin").waitFor({ timeout: 30000 }).then(() => true, () => false);
+    let there = await page.getByTestId("goal-checkin").waitFor({ timeout: 20000 }).then(() => true, () => false);
+    if (!there) {   // a phone shows the list first: open the goal from its row
+      await page.locator("[data-testid^='goal-row-']").first().click({ timeout: 8000 }).catch(() => undefined);
+      there = await page.getByTestId("goal-checkin").waitFor({ timeout: 20000 }).then(() => true, () => false);
+    }
     say(there, `${skin} ${size}: the goal page draws its check-in`);
     if (there) {
       const text = (await page.getByTestId("goal-checkin").innerText()).replace(/\s+/g, " ").trim();
@@ -128,8 +138,8 @@ try {
         await page.getByTestId("goal-checkin").hover();
       }
       await page.waitForTimeout(500);
-      await page.screenshot({ path: path.join(out, `${skin}-${size}-4-goal.png`) });
     }
+    await page.screenshot({ path: path.join(out, `${skin}-${size}-4-goal.png`) });
     await c.close();
   }
   await ctx.close();
