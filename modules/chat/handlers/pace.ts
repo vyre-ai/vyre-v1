@@ -1,4 +1,4 @@
-// @reads /modules/chat/migrations/0007_mentions.sql
+// @reads /modules/chat/migrations/0008_mentions.sql
 // How a teammate answers (the profile's "How <name> responds here"): their usual reply time and, for one chat, how they hear about it. A plain read from chats the ASKER is in, so it never draws on a
 // place the asker cannot open: a chat the asker is not a member of is never read, whoever else is in it.
 //   Replies: from the last 30 days of chats both are in, the time from a message that asked something of them (a mention of them by person id, a reply to their message, or any line from the other
@@ -34,7 +34,7 @@ export function paceOf(waits: readonly number[]): Pace {
   return "slow";
 }
 
-const SCHEMA = readFileSync(new URL("../migrations/0007_mentions.sql", import.meta.url), "utf8")
+const SCHEMA = readFileSync(new URL("../migrations/0008_mentions.sql", import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((x) => x.trim()).filter((x) => x.length > 0);
 const ready = new WeakSet<object>();

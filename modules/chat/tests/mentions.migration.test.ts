@@ -15,7 +15,7 @@ test("the host's migration run creates chat_mention from the module's numbered f
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-mention-"));
   const db = openDb(path.join(dir, "modules.db"));
   const ran = migrate(db, ROOT, () => 1);
-  assert.ok(ran.some((r) => r.module === "chat" && r.file === "0007_mentions.sql"), "the numbered file ran");
+  assert.ok(ran.some((r) => r.module === "chat" && r.file === "0008_mentions.sql"), "the numbered file ran");
   assert.deepEqual(migrate(db, ROOT, () => 2).filter((r) => r.module === "chat"), [], "and does not run twice");
   assert.deepEqual((db.all("PRAGMA table_info(chat_mention)") as Array<{ name: string }>).map((c) => c.name), ["message", "thread", "person", "at"]);
   db.run("INSERT INTO chat_mention (message, thread, person, at) VALUES (?, ?, ?, ?)", "msg_1", "thr_1", "usr_maya", 5);
