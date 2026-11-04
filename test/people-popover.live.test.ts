@@ -52,6 +52,13 @@ test("people popover, team: a chat and a project show People and agents with rol
     await me.page.getByTestId("people-popover").waitFor({ timeout: 15_000 });
     assert.equal(await me.page.getByTestId("people-popover").getAttribute("data-sheet"), "phone", "a phone gets the bottom sheet");
     await shoot(me.page, OUT, "project-people-phone");
+    // the Add people and agents sheet at the same size, for the comparison
+    await me.page.keyboard.press("Escape");
+    await me.page.getByTestId("people-popover").waitFor({ state: "detached", timeout: 10_000 });
+    await me.page.getByText("Teammates", { exact: true }).first().click();
+    await me.page.getByTestId("teammate-add").click();
+    await me.page.getByTestId("add-sheet").waitFor({ timeout: 15_000 });
+    await shoot(me.page, OUT, "add-sheet-phone");
     assert.deepEqual(me.errors, [], "no page errors");
   } finally { await s.close(); }
 });

@@ -55,3 +55,12 @@ export function walk(at: number, key: string, count: number): number {
   if (key === "End") return count - 1;
   return at;
 }
+
+export const WIDTH: Readonly<Record<PeopleWhere, number>> = { chat: 215, project: 260 };
+
+/** Where the popover sits: under the trigger, 4px below. A trigger in the left half of the window opens rightwards from its left edge; one in the right half (or one whose left edge is unknown) opens leftwards from its right edge. */
+export function placeOf(anchor: { x: number; y: number; left?: number }, win: number, where: PeopleWhere): { left: number; top: number; width: number } {
+  const width = Math.min(WIDTH[where], win - 16);
+  const leftHalf = anchor.left !== undefined && anchor.left < win / 2;
+  return { left: Math.max(8, Math.min(leftHalf ? (anchor.left as number) : anchor.x - width, win - width - 8)), top: Math.max(8, anchor.y + 4), width };
+}

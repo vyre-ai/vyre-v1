@@ -327,6 +327,20 @@ export function LinkView({ link, copied, onCopy, onBack, onClose, ownerName }: {
 
 /* ---------- head and foot ---------- */
 
+/** The sheet's shell: the scrim and the card, a bottom sheet on a phone. The Add and Share sheet and the people list on a phone both sit in it. */
+export function SheetShell({ phone, label, testID, onClose, children }: { phone: boolean; label: string; testID: string; onClose(): void; children: ReactNode }): ReactElement {
+  return (
+    <Overlay>
+      <View style={[st.veil, phone && st.veilPhone]}>
+        <Pressable accessibilityLabel="Close" accessible={false} onPress={onClose} testID="as-veil" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 } as ViewStyle} />
+        <View role="dialog" aria-modal accessibilityLabel={label} testID={testID} style={[st.card, phone && st.cardPhone, { boxShadow: "var(--sh-pop)" } as unknown as ViewStyle]} {...(web ? ({ dataSet: { sheet: phone ? "phone" : "card" } } as object) : {})}>
+          {children}
+        </View>
+      </View>
+    </Overlay>
+  );
+}
+
 export function ViewHead({ title, sub, onBack, onClose }: { title: string; sub?: string; onBack?: () => void; onClose(): void }): ReactElement {
   return (
     <View style={st.head}>

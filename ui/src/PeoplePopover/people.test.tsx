@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, installDom, mount, press, textOf } from "../testing/dom.ts";
-import { PeoplePopover, footerOf, memberMenu, walk } from "./index.tsx";
+import { PeoplePopover, footerOf, memberMenu, placeOf, walk } from "./index.tsx";
 import type { MemberAction, MemberRow, PeopleWhere } from "./index.tsx";
 
 const rows: MemberRow[] = [
@@ -146,4 +146,12 @@ test("the popover is 215 wide in a chat and 260 in a project; a phone gets the b
       assert.equal(textOf(find(phone, "people-footer")).trim(), "Add people and agents");
     } finally { Dimensions.set({ window: before }); }
   } finally { restore(); }
+});
+
+test("a trigger in the left half opens rightwards from its left edge; one in the right half opens leftwards from its right edge", () => {
+  assert.deepEqual(placeOf({ x: 543, y: 170, left: 483 }, 1280, "project"), { left: 483, top: 174, width: 260 }, "left half: from the trigger's left edge, 4px below");
+  assert.deepEqual(placeOf({ x: 1200, y: 100, left: 1100 }, 1280, "chat"), { left: 985, top: 104, width: 215 }, "right half: right-aligned");
+  assert.equal(placeOf({ x: 600, y: 100 }, 1280, "chat").left, 385, "no left edge known: right-aligned");
+  assert.equal(placeOf({ x: 60, y: 100, left: 10 }, 1280, "project").left, 10, "never off the left edge");
+  assert.equal(placeOf({ x: 1270, y: 100, left: 1240 }, 1280, "project").left, 1010, "right half: right-aligned");
 });
