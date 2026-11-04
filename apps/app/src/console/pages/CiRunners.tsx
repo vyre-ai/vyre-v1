@@ -119,7 +119,7 @@ export function GithubAppLine({ settings, top = 0 }: { settings: CiSettings; top
 export function IconTile({ icon, tone, size = 30 }: { icon: string; tone?: "ok" | "warn" | "bad"; size?: number }): ReactElement {
   const color = tone === "bad" ? "var(--danger)" : tone === "ok" ? "var(--ok)" : tone === "warn" ? "var(--warn)" : "var(--ink-3)";
   const wash = tone === "bad" ? "var(--bad-wash, rgba(214, 69, 65, 0.13))" : tone === "ok" ? "var(--ok-wash, rgba(46, 160, 100, 0.14))" : tone === "warn" ? "var(--warn-wash, rgba(214, 140, 30, 0.15))" : "var(--sunk)";
-  return <Lead><View testID={`icon-tile-${icon}`} style={{ width: size, height: size, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: wash as string }}><Glyph name={icon} size={size >= 30 ? 16 : 15} color={color} /></View></Lead>;
+  return <Lead><View testID={`icon-tile-${icon}`} style={{ width: size, height: size, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: wash as string, ...(tone ? {} : { borderWidth: 1, borderColor: "var(--line)" as string }) }}><Glyph name={icon} size={size >= 30 ? 16 : 15} color={color} /></View></Lead>;
 }
 
 /** The cloud accounts in Vault as menu entries: the current one is checked; the last entry goes to Vault to add one. */

@@ -87,7 +87,7 @@ export function SkillsLists(p: ListsProps): ReactElement {
   if (mode === "console") {
     const members = p.members ?? [];
     return <View testID="skills-console" style={{ gap: 4 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 6 }}><Text style={[t.lead, { flex: 1 }]}>Space-wide skills apply to every member and their agents at once, with no card to approve.</Text>{addButton}</View>
+      <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, marginBottom: 6 }}><Text style={[t.lead, { flex: 1 }]}>Space-wide skills apply to every member and their agents at once, with no card to approve.</Text></View>
       <Section title="Space-wide" testID="skills-space">
         {page.space.length > 0 ? page.space.map(spaceRow) : <Row id="skills-space-none" title="No Space-wide skills yet" note="Add one, or make a member's shared skill Space-wide" />}
       </Section>
@@ -301,11 +301,13 @@ export interface SkillsPageProps {
   ask?: (draft: string) => void;
   /** Open the page with the Add sheet up (the screenshots and a deep link). */
   initialAdd?: boolean;
+  /** Console: a count the page above raises to open the Add sheet (its "Add a Space skill" button lives in the Installed for the Space header). */
+  addTick?: number;
 }
 
 const msg = (e: unknown): string => { const x = e as { message?: string; error?: { message?: string } }; return x.error?.message ?? x.message ?? "That did not work."; };
 
-export function SkillsPage({ call, mode, ask, initialAdd = false }: SkillsPageProps): ReactElement {
+export function SkillsPage({ call, mode, ask, initialAdd = false, addTick = 0 }: SkillsPageProps): ReactElement {
   const [page, setPage] = useState<Page | null>(null);
   const [members, setMembers] = useState<MemberSkill[]>([]);
   const [people, setPeople] = useState<{ id: string; name: string }[]>([]);
@@ -314,6 +316,7 @@ export function SkillsPage({ call, mode, ask, initialAdd = false }: SkillsPagePr
   const [open, setOpen] = useState<{ kind: "mine" | "shared" | "space"; skillId: string } | null>(null);
   const [viewing, setViewing] = useState<{ name: string; text: string; files: { path: string; bytes: number }[] } | null>(null);
   const [adding, setAdding] = useState(initialAdd);
+  useEffect(() => { if (addTick > 0) { setAdding(true); setFound(null); setAddError(null); } }, [addTick]);
   const [found, setFound] = useState<AddProps["found"]>(null);
   const [addError, setAddError] = useState<string | null>(null);
   const [browse, setBrowse] = useState<BrowseRow[]>([]);

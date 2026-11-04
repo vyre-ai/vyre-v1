@@ -2,7 +2,7 @@
 // who it is for, Update when a newer commit exists and Remove. Every control calls install.*: list, check_update, from_link (the preview), apply (only after the preview) and remove.
 import { useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
@@ -54,7 +54,8 @@ export function loseWords(i: Install, nameOf: (id: string) => string): string {
 /** What an update newly reaches: it needs a person to look first. */
 export const reaches = (p: Plan): string[] => [...p.needs.domains, ...p.needs.vaultKeys];
 
-export function InstalledForSpace({ call, nameOf = (id) => id }: { call: Call; nameOf?: (id: string) => string }): ReactElement {
+export function InstalledForSpace({ call, nameOf = (id) => id, onAddSkill }: { call: Call; nameOf?: (id: string) => string; onAddSkill?: () => void }): ReactElement {
+  const width = useWindowDimensions().width, compact = width > 0 && width < 720;   // an unmeasured screen (a static render) keeps the desktop layout
   const [rows, setRows] = useState<Install[] | null>(null);
   const [updates, setUpdates] = useState<Record<string, Plan>>({});
   const [failed, setFailed] = useState<Record<string, string>>({});
@@ -130,23 +131,24 @@ export function InstalledForSpace({ call, nameOf = (id) => id }: { call: Call; n
   const nl = plan ? needsLines(plan) : null;
 
   return <View testID="skills-installed">
-    <Section title="Installed for the Space" testID="skills-installed-section" note={waiting > 0 ? `${waiting} ${waiting === 1 ? "needs" : "need"} you. Each item is pinned to the commit it was read at. Nothing updates by itself.` : "Each item is pinned to the commit it was read at. Nothing updates by itself."}>
+    <Section title="Installed for the Space" testID="skills-installed-section" right={onAddSkill ? <Ghost label="+ Add a Space skill" testID="skill-add" onPress={onAddSkill} /> : undefined} note={waiting > 0 ? `${waiting} ${waiting === 1 ? "needs" : "need"} you. Each item is pinned to the commit it was read at. Nothing updates by itself.` : "Each item is pinned to the commit it was read at. Nothing updates by itself."}>
       {rows === null ? <Text style={quiet}>Loading…</Text> : list.length === 0 ? (
         <View testID="installed-empty" style={{ gap: 8, padding: 12, alignItems: "flex-start" }}>
           <Text style={quiet}>Nothing installed yet. Install a skill, plugin or tool server from a link.</Text>
           <SmallButton primary label="Install" testID="installed-add-empty" onPress={() => setAdding(true)} />
         </View>
-      ) : list.map((i) => {
+      ) : list.map((i, n) => {
         const hold = needsYou(i);
         const u = updates[i.installId];
-        return <Row key={i.installId} id={`install-row-${i.installId}`} tall title={i.name} titleSuffix={KIND_LABEL[i.kind]}
+        const actions = <View style={{ flexDirection: "row", gap: 4, alignItems: "center" }}>
+          {u ? <SmallButton label="See changes" testID={`install-update-${i.installId}`} disabled={busy} onPress={() => setUpdating(i)} /> : <Text style={quiet}>Up to date</Text>}
+          <Ghost label="Remove" testID={`install-remove-${i.installId}`} disabled={busy} onPress={() => setRemoving(i)} />
+        </View>;
+        return <View key={i.installId} style={{ paddingVertical: 6, borderTopWidth: n === 0 ? 0 : 1, borderTopColor: "var(--line)" as string }}><Row id={`install-row-${i.installId}`} tall title={i.name} titleSuffix={KIND_LABEL[i.kind]}
           titleMarks={u ? <Text testID={`install-ready-${i.installId}`} style={{ fontSize: 12, fontWeight: "500", color: "var(--accent)" as string }}>{readyWord(u)}</Text> : undefined}
           leading={<IconTile icon={i.kind === "skill" ? "spark" : "plug"} />}
           note={metaLines(i, nameOf, hold)}
-          trailing={<View style={{ flexDirection: "row", gap: 4, alignItems: "center" }}>
-            {u ? <SmallButton label="See changes" testID={`install-update-${i.installId}`} disabled={busy} onPress={() => setUpdating(i)} /> : <Text style={quiet}>Up to date</Text>}
-            <Ghost label="Remove" testID={`install-remove-${i.installId}`} disabled={busy} onPress={() => setRemoving(i)} />
-          </View>} />;
+          {...(compact ? {} : { trailing: actions })} />{compact ? <View style={{ flexDirection: "row", gap: 4, alignItems: "center", paddingLeft: 46, paddingTop: 4, paddingBottom: 4 }}>{actions}</View> : null}</View>;
       })}
       {list.length > 0 ? <View style={{ padding: 12, alignItems: "flex-start" }}><SmallButton label="Install from a link" testID="installed-add" onPress={() => setAdding(true)} /></View> : null}
     </Section>
