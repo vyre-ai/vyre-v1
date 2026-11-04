@@ -47,7 +47,7 @@ const SAMPLE: Record<string, Record<string, unknown>> = {
   "mention.thread": { where: "Intake" }, "run.failed": { name: "Weekly", message: "no mailbox" }, "conflict.needs_you": { title: "Lee" },
   "access.requested": { from: "Bob", level: "edit", title: "Clients" }, "access.decided": { title: "Clients", decision: "approved" }, "sync.attention": { device: "Laptop" },
   "health.degraded": { service: "Mail", state: "slow" }, "problem.report": { from: "Bob" }, "member.joined": { name: "Cara", space: "Northwind" }, "member.join_requested": { name: "Dana", space: "Northwind" }, "limit.hit": { title: "Scout" }, "machine.alert": { title: "Berlin box has 8% disk left" },
-  "space.deletion_scheduled": { title: "The Space is scheduled for deletion on 18 November 2026. Everything is removed then." }, "space.deletion_cancelled": { title: "The scheduled deletion of the Space was cancelled." }, "ci.paused": { title: "CI paused: this month's cap of $10 is reached" },
+  "space.deletion_scheduled": { title: "The Space is scheduled for deletion on 18 November 2026. Everything is removed then." }, "space.deletion_cancelled": { title: "The scheduled deletion of the Space was cancelled." }, "ci.paused": { title: "CI paused: this month's cap of $10 is reached" }, "item.shared": { from: "Irfad", title: "Dex" },
 };
 for (const def of KINDS.filter((k) => k.key !== "vault.rotation_due")) {
   test(`kind ${def.key}: lands at ${def.level} in ${def.place} with its actions and a readable line`, async () => {

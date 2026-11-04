@@ -16,6 +16,7 @@ test("the Settings place draws its pages through the shell runtime", () => {
   const rt = sampleRuntime({ screens: s.data.screens, call: s.data.call });
   const out = renderToStaticMarkup(<ShellRuntimeProvider value={rt}><SettingsShellPlace place="settings" /></ShellRuntimeProvider>);
   assert.ok(out.includes("How people in this Space see you."), "the Profile page and its sentence");
+  assert.ok(out.includes(">Profile<"));
   assert.ok(!out.includes("settings-loading"));
 });
 

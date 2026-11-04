@@ -54,12 +54,14 @@ export const SECTIONS: readonly SectionDef[] = [
   ] },
   { id: "apps", title: "Apps", icon: "plug", subtitle: "Connect the tools your team already uses", tabs: [
     { label: "Connected apps", views: [v("apps", "Connected apps"), v("company", "Company sign-in"), v("google", "Google Workspace"), v("microsoft", "Microsoft 365")] },
+    { label: "GitHub", views: [v("ghapp", "GitHub")] },
     { label: "Developers", views: [v("webhooks", "Webhooks"), v("keys", "API keys")] },
   ] },
   { id: "machines", title: "Computers", icon: "server", subtitle: "Every computer and server the Space runs on", tabs: [
     { label: "Overview", views: [v("machines", "Overview")] },
     { label: "Servers", views: [v("servers", "Servers"), v("network", "Address and network"), v("updates", "Updates")] },
     { label: "Agent computers", views: [v("agentcomputers", "Agent computers")] },
+    { label: "CI runners", views: [v("ci", "CI runners")] },
     { label: "Diagnostics", views: [v("diagnostics", "Diagnostics"), v("server", "Server logs"), v("speed", "Speed"), v("support", "Support bundle")] },
   ] },
   { id: "security", title: "Security", icon: "filter", subtitle: "Sign-in rules, devices and the audit log", tabs: [
@@ -110,7 +112,7 @@ export function landing(section: SectionDef, ok: Visible, last?: string): string
 /** Names people knew: the search finds them and says where they went. */
 export const OLD_NAMES: readonly (readonly [string, string])[] = [
   ["Sessions", "sessions"], ["Sessions and devices", "sessions"], ["Policies", "policies"], ["Groups", "groups"], ["People", "people"], ["Invites", "requests"], ["Permissions", "permissions"], ["Grants", "grants"], ["Roles", "roles"],
-  ["Access checker", "checker"], ["Check access", "checker"], ["Infrastructure", "machines"], ["Machines", "machines"], ["Server", "server"], ["Computers", "machines"], ["Agent computers", "agentcomputers"], ["Network", "network"],
+  ["Access checker", "checker"], ["Check access", "checker"], ["Infrastructure", "machines"], ["Machines", "machines"], ["Server", "server"], ["Computers", "machines"], ["Agent computers", "agentcomputers"], ["CI runners", "ci"], ["Cloud runners", "ci"], ["GitHub app", "ghapp"], ["Network", "network"],
   ["Network nodes", "machines"], ["Actors", "actors"], ["Outside actors", "actors"], ["Agent template", "template"], ["Agents register", "agents"], ["Runs", "activity"], ["Schema", "schema"], ["Sensitivity labels", "labels"],
   ["Retention and holds", "retention"], ["Retention", "retention"], ["Holds", "holds"], ["Models and providers", "aiaccounts"], ["Models", "models"], ["Allowed models by label", "aisee"], ["Gate rules", "gate"],
   ["Logging and review", "review"], ["Incidents", "incidents"], ["Kit", "kit"], ["Connectors", "connectors"], ["Connections", "connections"], ["API keys", "keys"], ["Webhooks", "webhooks"], ["Sending domains", "domains"],

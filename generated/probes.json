@@ -360,6 +360,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.console.ci",
+      "place": "console",
+      "screen": "console.ci"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.console.connector-build",
       "place": "console",
       "screen": "console.connector-build"
@@ -370,6 +377,13 @@
       "id": "screen.console.diagnostics",
       "place": "console",
       "screen": "console.diagnostics"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
+      "id": "screen.console.github-app",
+      "place": "console",
+      "screen": "console.github-app"
     },
     {
       "completeMs": 100,

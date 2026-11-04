@@ -167,6 +167,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, setup: setupFir
       {tab === "files" ? <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} /> : null}
       {tab === "terminal" && data.terminal ? <TerminalPaneTab data={data.terminal} /> : null}
       {tab === "memory" ? (data.memory ? <KnowsTab deps={deps} memory={data.memory} spaceName={data.space.name} {...(window ? { window } : {})} /> : <MemoryTab deps={deps} spaceName={data.space.name} {...(window ? { window } : {})} />) : null}
+      {tab === "skills" ? <SkillsTab deps={deps} {...(data.nameOf ? { nameOf: data.nameOf } : {})} {...(lit ? { highlight: lit } : {})} {...(data.renderShare ? { renderShare: data.renderShare } : {})} /> : null}
       {tab === "routines" ? <RoutinesTab deps={deps} {...(window ? { window } : {})} {...(openRoutine ? { initial: { routineId: openRoutine } } : {})} /> : null}
       {tab === "skills" ? <SkillsTab deps={deps} {...(data.nameOf ? { nameOf: data.nameOf } : {})} {...(lit ? { highlight: lit } : {})} {...(data.renderShare ? { renderShare: data.renderShare } : {})} /> : null}
     </View>
