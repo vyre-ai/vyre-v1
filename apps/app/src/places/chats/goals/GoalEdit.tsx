@@ -102,6 +102,7 @@ export function HelpersRow({ helpers, nameOf, canEdit, onRemove, onAdd }: { help
       <Text style={st.helpersLabel}>Helpers</Text>
       {helpers.length === 0 ? <Text style={st.helpersNone}>None yet</Text> : null}
       {helpers.map((h) => (
+        // ui-rows-lint: not a list (helper chips laid side by side in a wrapping row)
         <View key={`${h.kind}-${h.id}`} testID={`goal-helper-${h.id}`} style={st.helper}>
           <Avatar {...avatarOf({ id: h.id, name: nameOf(h.id), kind: h.kind === "agent" ? "agent" : "person" })} size={18} />
           <Text style={st.helperName}>{nameOf(h.id)}</Text>
@@ -165,6 +166,7 @@ export function ChecklistEdit({ items, onChange }: { items: ReadonlyArray<{ id: 
   return (
     <View testID="goal-checklist-edit" style={st.list}>
       {items.map((it, i) => (
+        // ui-rows-lint: not a list (each row is an inline editor with its own field, drag handle and remove, not a pressable list row)
         <DragRow key={it.id} index={i} count={items.length} onMove={(a, b) => onChange(moved(items, a, b))} testID={`goal-item-${it.id}`}>
           <View style={st.rowBody}>
             <EditText value={it.text} canEdit label="this item" testID={`goal-item-text-${it.id}`} textStyle={st.rowText} onSave={(text) => onChange(items.map((x) => (x.id === it.id ? { ...x, text } : x)))} />
@@ -192,6 +194,7 @@ export function DraftPlanEdit({ steps, leadAgentId, canEdit, nameOf, onChange }:
           );
         }
         return (
+          // ui-rows-lint: not a list (each row is an inline editor with its own fields, drag handle and remove, not a pressable list row)
           <DragRow key={s.key} index={i} count={steps.length} onMove={(a, b) => onChange(moved(steps, a, b))} testID={`goal-step-${s.key}`}>
             <View style={st.rowBody}>
               <EditText value={s.title} canEdit label="this step" testID={`goal-step-title-${s.key}`} textStyle={st.rowText} onSave={(title) => onChange(steps.map((x) => (x.key === s.key ? { ...x, title } : x)))} />
