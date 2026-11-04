@@ -117,11 +117,7 @@ try {
     check(footer === `They'll see the whole chat, its files folder ${folderName}, and records in Rivera file.`, `real footer (${mode} ${tag}): ${footer}`);
     check(!footer.includes("Rivera retainer chat"), `the footer never uses the chat's own name (${mode} ${tag})`);
     await shot(page, `real-sheet-earlier-${mode}-${tag}`);
-    if (mode === "light" && tag === "1440") {
-      await page.getByTestId("as-add").click({ timeout: 8000 });
-      const seen = await until(async () => (await list("usr_mia", chat)).some((m: any) => /40000/.test(m.body ?? "")), "Mia reads from the start", 20000);
-      check(seen, "Mia, added with earlier messages, reads the first message");
-    } else await page.getByTestId("as-cancel").click({ timeout: 8000 });
+    await page.getByTestId("as-cancel").click({ timeout: 8000 });
     await ctx.close();
   }
   // (3) Poke an agent from its Here now row in the sheet; the reply says Poked by
@@ -144,6 +140,16 @@ try {
     } else { await shot(page, `real-sheet-here-${mode}-${tag}`); await page.getByTestId("as-cancel").click({ timeout: 8000 }); }
     await ctx.close();
   }
+  // (2, last) Mia is added with Include earlier messages on, and reads from the start
+  { const { page, ctx } = await open("usr_olivia", { mode: "light" });
+    await openSheet(page, false);
+    await page.getByTestId("as-search").fill("Mia");
+    await page.getByTestId("as-row-person:usr_mia").click({ timeout: 8000 });
+    await page.getByTestId("as-earlier").click({ timeout: 8000 });
+    await page.getByTestId("as-add").click({ timeout: 8000 });
+    const seen = await until(async () => (await list("usr_mia", chat)).some((m: any) => /40000/.test(m.body ?? "")), "Mia reads from the start", 20000);
+    check(seen, "Mia, added with earlier messages, reads the first message");
+    await ctx.close(); }
 } catch (e) { console.log("WALK FAILED", e); failures.push(String(e).slice(0, 200)); }
 console.log(failures.length === 0 && crashed === 0 ? "WALK PASSED" : `WALK FAILED: ${failures.length} check(s), ${crashed} crash(es)`);
 await browser.close(); web.close(); await eco.stop(d); process.exit(failures.length === 0 && crashed === 0 ? 0 : 1);
