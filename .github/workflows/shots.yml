@@ -80,6 +80,12 @@ jobs:
           node scripts/shots/pwa-mobile.mjs --dist apps/app/dist --out shots-evidence/pwa-mobile
           test -f shots-evidence/pwa-mobile/evidence.json
           test -f shots-evidence/pwa-mobile/iphone-390x844-standalone-simulated.png
+      - name: Bubblewrap for the CLI engine's sandbox, and what this runner allows (the chat walks run a CLI under bwrap; without it a turn ends at once with no words)
+        run: |
+          command -v bwrap >/dev/null || { sudo -n apt-get update -q && sudo -n apt-get install -y -q bubblewrap; }
+          bwrap --version
+          sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
+          if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
       - name: Real app end to end against the production export (apps/app/tests/real-app.e2e.test.ts)
         run: |
           set -o pipefail
@@ -134,6 +140,12 @@ jobs:
         run: |
           H="$(node -e 'import("./scripts/lib/registry-hash.mjs").then((m) => console.log(m.registryHash()))')"
           (cd apps/app && rm -rf dist && CI=1 EXPO_NO_TELEMETRY=1 EXPO_PUBLIC_VYRE_REGISTRY_HASH="$H" npx expo export --platform web --output-dir dist)
+      - name: Bubblewrap for the CLI engine's sandbox, and what this runner allows (the chat walks run a CLI under bwrap; without it a turn ends at once with no words)
+        run: |
+          command -v bwrap >/dev/null || { sudo -n apt-get update -q && sudo -n apt-get install -y -q bubblewrap; }
+          bwrap --version
+          sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
+          if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
       - name: Browser walks against the production export, none skipped
         run: |
           set -o pipefail
@@ -141,8 +153,10 @@ jobs:
           CHROME_BIN="$(node -e 'import("playwright-core").then((p) => console.log((p.chromium ?? p.default.chromium).executablePath()))')"
           test -x "$CHROME_BIN"
           export CHROME_BIN VYRE_APP_DIST="$PWD/apps/app/dist" VYRE_REQUIRE_CHROME=1 VYRE_TEST_CAPTURE_DIR="$PWD/walks-evidence"
-          node scripts/test-run.ts --slow --no-cache --no-skip --jobs 2 --files apps/app/tests/automations.home.live.test.ts apps/app/tests/console.compute.live.test.ts apps/app/tests/console.ecosystem.live.test.ts apps/app/tests/console.health-fresh.live.test.ts apps/app/tests/console.infra.live.test.ts apps/app/tests/console.pages-parity.live.test.ts apps/app/tests/console.permissions.live.test.ts apps/app/tests/open-link.live.test.ts apps/app/tests/projects-shell.live.test.ts apps/app/tests/speed.producers.live.test.ts apps/app/tests/tab-switch.live.test.ts apps/app/tests/vault.add-save.live.test.ts scripts/shots/real-app.apps.live.test.ts test/chat-flows.journeys.live.test.ts test/crew.journey.live.test.ts test/crew.plain.journey.live.test.ts test/helper.rows.journey.live.test.ts test/helpers.real.live.test.ts test/outside-agents.browser.live.test.ts test/people-popover.live.test.ts test/person-profile.live.test.ts test/settings.journeys.live.test.ts test/work-flows.journeys.live.test.ts 2>&1 | tee walks.out
-          for T in automations.home console.compute console.ecosystem console.health-fresh console.infra console.pages-parity console.permissions open-link projects-shell speed.producers tab-switch vault.add-save real-app.apps chat-flows.journeys crew.journey crew.plain.journey helper.rows.journey helpers.real outside-agents.browser people-popover person-profile settings.journeys work-flows.journeys; do grep -q "^ok .*/${T}.live.test.ts" walks.out || { echo "$T did not pass" >&2; exit 1; }; done
+          node scripts/test-run.ts --slow --no-cache --no-skip --jobs 2 --files apps/app/tests/automations.home.live.test.ts apps/app/tests/console.compute.live.test.ts apps/app/tests/console.ecosystem.live.test.ts apps/app/tests/console.health-fresh.live.test.ts apps/app/tests/console.infra.live.test.ts apps/app/tests/console.pages-parity.live.test.ts apps/app/tests/console.permissions.live.test.ts apps/app/tests/open-link.live.test.ts apps/app/tests/projects-shell.live.test.ts apps/app/tests/speed.producers.live.test.ts apps/app/tests/tab-switch.live.test.ts apps/app/tests/vault.add-save.live.test.ts scripts/shots/real-app.apps.live.test.ts test/chat-flows.journeys.live.test.ts test/crew.journey.live.test.ts test/crew.plain.journey.live.test.ts test/helper.rows.journey.live.test.ts test/outside-agents.browser.live.test.ts test/people-popover.live.test.ts test/person-profile.live.test.ts test/settings.journeys.live.test.ts test/work-flows.journeys.live.test.ts 2>&1 | tee walks.out
+          # live-key tests nobody here has a key for are not counted as a pass, and not silent: they are run by hand at the cut (LANDING-RC22.md, Live-key tests)
+          for T in test/helpers.real.live.test.ts test/room-pack.real.live.test.ts; do echo "run by hand at cut: $T (needs a live model key; not run here, not counted)"; done
+          for T in automations.home console.compute console.ecosystem console.health-fresh console.infra console.pages-parity console.permissions open-link projects-shell speed.producers tab-switch vault.add-save real-app.apps chat-flows.journeys crew.journey crew.plain.journey helper.rows.journey outside-agents.browser people-popover person-profile settings.journeys work-flows.journeys; do grep -q "^ok .*/${T}.live.test.ts" walks.out || { echo "$T did not pass" >&2; exit 1; }; done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
