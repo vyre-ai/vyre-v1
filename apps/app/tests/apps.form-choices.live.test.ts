@@ -38,6 +38,7 @@ test("production Apps: Public choices guard, picking, exact public labels, and a
     const acme = await company("Northwind Traders"), globex = await company("Contoso Supply"), hidden = await company("Hidden Holdings");
 
     await page.goto(`${web.origin}/sites`, { waitUntil: "load" });
+    await page.getByTestId("apps-head-forms").click();
     await page.getByTestId("apps-new-group").click();
     await page.getByRole("menuitem", { name: "New form", exact: true }).click();
     await page.getByTestId("apps-create-form").waitFor({ timeout: 30_000 });

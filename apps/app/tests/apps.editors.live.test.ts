@@ -29,6 +29,7 @@ test("production Apps: create a form, reload its real editor, install a saved dr
     const fixtureCompany = await context.request.post(`${web.origin}/v1/records/create`, { headers: { authorization: `Bearer ${token}` }, data: { type: "company", fields: { name: "Fixture relation company" }, idempotencyKey: "apps-company-fixture" } });
     assert.equal(fixtureCompany.status(), 200, await fixtureCompany.text());
     await page.goto(`${web.origin}/sites`, { waitUntil: "load" });
+    await page.getByTestId("apps-head-forms").click();
     await page.getByTestId("apps-new-group").click();
     await page.getByRole("menuitem", { name: "New form", exact: true }).click();
     await page.getByTestId("apps-create-form").waitFor({ timeout: 30_000 });
