@@ -30,7 +30,8 @@ export interface TalkProvider {
   defaultLanguage: string;
   grant(apiKey: string, ttlSeconds: number): { url: string; method: string; headers: Record<string, string>; body: string };
   readGrant(status: number, body: string): GrantResult;
-  socket(s: { model: string; language: string; token: string }): { url: string; protocols: string[] };
+  /** `terms` are words the provider should favour: the product, the Space, its people and agents. Each provider passes them its own way, or ignores them. */
+  socket(s: { model: string; language: string; token: string; terms?: readonly string[] }): { url: string; protocols: string[] };
   /** One chunk of microphone audio as the socket wants it: Deepgram takes the raw bytes, ElevenLabs a JSON text frame. */
   frame(pcm: ArrayBuffer): string | ArrayBuffer;
   /** The text frame that asks the provider for what it still holds, then to close. */
@@ -69,8 +70,10 @@ const DEEPGRAM: TalkProvider = {
       return { ok: true, token: j.access_token, expiresIn: typeof j.expires_in === "number" ? j.expires_in : TOKEN_SECONDS };
     } catch { return { ok: false, why: "down" }; }
   },
-  socket({ model, language, token }) {
+  socket({ model, language, token, terms = [] }) {
     const q = new URLSearchParams({ model, language, encoding: "linear16", sample_rate: String(TALK_SAMPLE_RATE), channels: "1", interim_results: "true", smart_format: "true", endpointing: "300" });
+    // Nova 3 takes plain keyterms (one parameter each); Nova 2 takes keywords with an intensifier
+    for (const term of terms) q.append(model.startsWith("nova-3") ? "keyterm" : "keywords", model.startsWith("nova-3") ? term : `${term}:2`);
     // a browser socket cannot set a header: Deepgram reads the JWT from the subprotocol pair
     return { url: `wss://api.deepgram.com/v1/listen?${q.toString()}`, protocols: ["bearer", token] };
   },
@@ -119,8 +122,9 @@ const ELEVENLABS: TalkProvider = {
       return { ok: true, token: j.token, expiresIn: 900 };
     } catch { return { ok: false, why: "down" }; }
   },
-  socket({ model, language, token }) {
+  socket({ model, language, token, terms = [] }) {
     const q = new URLSearchParams({ model_id: model, token, audio_format: "pcm_16000", commit_strategy: "vad", include_timestamps: "false" });
+    for (const term of terms) q.append("keyterms", term);
     if (language !== "multi") q.set("language_code", language);
     return { url: `wss://api.elevenlabs.io/v1/speech-to-text/realtime?${q.toString()}`, protocols: [] };
   },
@@ -135,6 +139,27 @@ const ELEVENLABS: TalkProvider = {
     return null;
   },
 };
+
+const MAX_TERMS = 40;
+const MAX_TERM_CHARS = 40;
+const MAX_TOTAL_CHARS = 600;
+/** The words worth favouring, in order of use: the product first, then the Space, its agents and its people. Each is trimmed, kept to one line, and listed once; the list stays short (a provider caps what it takes). */
+export function boostTerms(groups: { product: string; space?: string | undefined; agents?: readonly string[]; people?: readonly string[] }): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  let total = 0;
+  const add = (raw: string | undefined): void => {
+    const term = (raw ?? "").replace(/[,;:&=#?]/g, "").replace(/\s+/g, " ").trim();
+    if (term.length < 2 || term.length > MAX_TERM_CHARS || out.length >= MAX_TERMS || total + term.length > MAX_TOTAL_CHARS) return;
+    const key = term.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key); out.push(term); total += term.length;
+  };
+  add(groups.product); add(groups.space);
+  for (const a of groups.agents ?? []) add(a);
+  for (const p of groups.people ?? []) add(p);
+  return out;
+}
 
 export const TALK_PROVIDERS: readonly TalkProvider[] = [DEEPGRAM, ELEVENLABS];
 export const DEFAULT_TALK_PROVIDER = DEEPGRAM.key;

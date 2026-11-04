@@ -5,7 +5,7 @@
 // never printed or written. Exit 1 if a provider that has a key fails.
 import { readFileSync } from "node:fs";
 import { createTalkHost } from "../host/src/seams/talk.ts";
-import { TALK_SAMPLE_RATE, talkProvider } from "../lib/talk.ts";
+import { TALK_SAMPLE_RATE, boostTerms, talkProvider } from "../lib/talk.ts";
 
 const ENV: Record<string, string> = { deepgram: "DEEPGRAM_API_KEY", elevenlabs: "ELEVENLABS_API_KEY" };
 const ctx = { space: "spc_live", trace: { traceId: "0".repeat(32) } };
@@ -31,7 +31,7 @@ async function one(name: string, key: string): Promise<boolean> {
   let minted: { token: string };
   try { minted = await host.mint(ctx, { provider: name, handle: "#live.api_key", own: false }); }
   catch (e) { console.log(`${name}: token FAILED ${message(e)}`); return false; }
-  const sock = p.socket({ model: p.defaultModel, language: "en", token: minted.token });
+  const sock = p.socket({ model: p.defaultModel, language: "en", token: minted.token, terms: boostTerms({ product: "Vyre" }) });
   const ws = new WebSocket(sock.url, sock.protocols);
   ws.binaryType = "arraybuffer";
   const finals: string[] = [];

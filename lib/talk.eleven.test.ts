@@ -30,3 +30,14 @@ test("partial and committed transcripts are words, an error kind is an error, an
   assert.equal(p.read('{"message_type":"session_started"}'), null);
   assert.equal(p.read("nope"), null);
 });
+
+test("boosted words: trimmed, listed once, product first, kept short; Nova 3 takes keyterm, Nova 2 keywords, ElevenLabs keyterms", async () => {
+  const { boostTerms } = await import("./talk.ts");
+  const terms = boostTerms({ product: "Vyre", space: " Hart & Reyes ", agents: ["Intake", "vyre"], people: ["Maya Chen", "A", "x".repeat(60), "Dana, Wine"] });
+  assert.deepEqual(terms, ["Vyre", "Hart Reyes", "Intake", "Maya Chen", "Dana Wine"]);
+  assert.equal(boostTerms({ product: "Vyre", people: Array.from({ length: 100 }, (_, i) => `Person ${i}`) }).length, 40);
+  const dg = talkProvider("deepgram")!;
+  assert.deepEqual(new URL(dg.socket({ model: "nova-3", language: "en", token: "t", terms: ["Vyre", "Maya Chen"] }).url).searchParams.getAll("keyterm"), ["Vyre", "Maya Chen"]);
+  assert.deepEqual(new URL(dg.socket({ model: "nova-2", language: "en", token: "t", terms: ["Vyre"] }).url).searchParams.getAll("keywords"), ["Vyre:2"]);
+  assert.deepEqual(new URL(p.socket({ model: "scribe_v2_realtime", language: "en", token: "t", terms: ["Vyre", "Maya Chen"] }).url).searchParams.getAll("keyterms"), ["Vyre", "Maya Chen"]);
+});

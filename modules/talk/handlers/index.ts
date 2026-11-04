@@ -2,7 +2,7 @@
 // DECISION: a key is validated before anything is written, with the same grant Talk makes every time. A key that fails is never stored.
 // DECISION: talk.session mints from the Space key through the host with no asker, so it reads a Shared item with no grant to the member. That is what keeps the key Restricted: members never need Use on it.
 import { fail } from "../../../host/src/routes/errors.ts";
-import { talkProvider } from "../../../lib/talk.ts";
+import { boostTerms, talkProvider } from "../../../lib/talk.ts";
 import type { TalkProvider } from "../../../lib/talk.ts";
 import { catalog, dropSpace, needHost, ownKeyCount, prefsOf, putPick, putPrefs, putSpace, spaceOf, spaceProviders } from "../projections.ts";
 import type { Prefs, SpaceKey, TalkCtx } from "../projections.ts";
@@ -132,8 +132,19 @@ export async function session(ctx: TalkCtx, _i: Record<string, never>) {
   const minted = own
     ? await needHost(ctx).mint(ctx, { provider: p.key, handle: `${used!.handle}.${p.keyField}`, asker: person, own: true })
     : await needHost(ctx).mint(ctx, { provider: p.key, handle: `${space!.handle}.${p.keyField}`, own: false });
-  const socket = p.socket({ model, language, token: minted.token });
+  const socket = p.socket({ model, language, token: minted.token, terms: await termsFor(ctx) });
   return { provider: p.key, url: socket.url, protocols: socket.protocols, source: own ? "own" : "space", expiresIn: Math.max(1, Math.round(minted.expiresIn)) };
+}
+
+/** The words a provider mishears most: Vyre, the Space's name, and the names of its agents and people. Read as the person asking, so only what they may see; a read that fails leaves its words out and the session goes on. */
+async function termsFor(ctx: TalkCtx): Promise<string[]> {
+  const ask = async <T,>(cap: string, input: unknown): Promise<T | null> => { try { return (await ctx.call(cap, input)) as T; } catch { return null; } };
+  const [space, principals] = await Promise.all([
+    ask<{ space?: { name?: string } }>("spaces.get", {}),
+    ask<{ principals?: { kind: string; name: string; private?: boolean }[] }>("access.principals.list", { status: "active" }),
+  ]);
+  const named = (kind: string): string[] => (principals?.principals ?? []).filter((x) => x.kind === kind && x.private !== true).map((x) => x.name);
+  return boostTerms({ product: "Vyre", space: space?.space?.name, agents: named("agent"), people: named("person") });
 }
 
 export async function askKey(ctx: TalkCtx, i: { scope?: "mine" | "space"; provider?: string }) {
