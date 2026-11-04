@@ -101,7 +101,7 @@ export function HeldCard(p: HeldCardProps): ReactElement {
     return (
       <View testID={p.testID} style={st.done} accessibilityRole="text">
         <Glyph name={state === "sent" ? "check" : "x"} size={13} color={state === "sent" ? "var(--ok)" : "var(--ink-3)"} />
-        <Text style={st.doneText} testID={`${p.testID}-done`}>{p.doneLine ?? (state === "sent" ? "Sent" : "Not sent")}</Text>
+        <Text style={st.doneText} testID={`${p.testID}-done`}>{state === "sent" ? (p.state === "dropped" ? "Sent" : p.doneLine ?? "Sent") : (p.state === "dropped" ? p.doneLine ?? "Not sent" : "Not sent")}</Text>
       </View>
     );
   }
@@ -187,7 +187,7 @@ const st = StyleSheet.create({
   menu: { alignSelf: "flex-end", paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
   menuItem: { fontSize: 13, color: "var(--ink-2)" as string },
   rows: { gap: 6 },
-  row: { flexDirection: "row", gap: 10, alignItems: "center" },
+  row: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   label: { width: 60, fontSize: 12, color: "var(--ink-3)" as string },
   value: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string },
   input: { flex: 1, minWidth: 0, minHeight: 30, borderWidth: 1, borderColor: "var(--line)" as string, borderRadius: 7, paddingHorizontal: 9, color: "var(--ink)" as string, backgroundColor: "var(--win)" as string, fontSize: 13 },

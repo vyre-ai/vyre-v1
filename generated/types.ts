@@ -17222,6 +17222,15 @@ export type GoogleGmailCreateDraftIn = {
 export type GoogleGmailCreateDraftOut = {
   draftId: string;
 };
+export type GoogleGmailDeleteDraftIn = {
+  connectionId: string;
+  as?: string;
+  draftId: string;
+  idempotencyKey: string;
+};
+export type GoogleGmailDeleteDraftOut = {
+  deleted: boolean;
+};
 export type GoogleGmailGetAttachmentIn = {
   connectionId: string;
   as?: string;
@@ -41582,6 +41591,7 @@ export interface CapMap {
   "google.dwd.status": { in: GoogleDwdStatusIn; out: GoogleDwdStatusOut };
   "google.dwd.sync_members": { in: GoogleDwdSyncMembersIn; out: GoogleDwdSyncMembersOut };
   "google.gmail.create_draft": { in: GoogleGmailCreateDraftIn; out: GoogleGmailCreateDraftOut };
+  "google.gmail.delete_draft": { in: GoogleGmailDeleteDraftIn; out: GoogleGmailDeleteDraftOut };
   "google.gmail.get_attachment": { in: GoogleGmailGetAttachmentIn; out: GoogleGmailGetAttachmentOut };
   "google.gmail.get_message": { in: GoogleGmailGetMessageIn; out: GoogleGmailGetMessageOut };
   "google.gmail.get_profile": { in: GoogleGmailGetProfileIn; out: GoogleGmailGetProfileOut };

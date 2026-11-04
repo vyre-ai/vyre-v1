@@ -1205,6 +1205,7 @@ export function stubs(ctx: CallCtx) {
       },
       gmail: {
         create_draft: call("google.gmail.create_draft"),
+        delete_draft: call("google.gmail.delete_draft"),
         get_attachment: call("google.gmail.get_attachment"),
         get_message: call("google.gmail.get_message"),
         get_profile: call("google.gmail.get_profile"),

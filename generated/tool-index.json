@@ -3980,6 +3980,12 @@
     },
     {
       "deferred": true,
+      "name": "google_gmail_delete_draft",
+      "summary": "Delete a draft from the member mailbox (the draft an agent made and its person decided not to send)",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": true,
       "name": "google_gmail_get_message",
       "summary": "Read one Gmail message",
       "toolset": "inbox"

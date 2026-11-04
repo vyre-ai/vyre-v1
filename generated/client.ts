@@ -1205,6 +1205,7 @@ export function createClient(transport: Transport) {
       },
       gmail: {
         create_draft: call("google.gmail.create_draft", 1),
+        delete_draft: call("google.gmail.delete_draft", 1),
         get_attachment: call("google.gmail.get_attachment", 1),
         get_message: call("google.gmail.get_message", 1),
         get_profile: call("google.gmail.get_profile", 1),

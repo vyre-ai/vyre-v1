@@ -14,10 +14,10 @@ import { MarkdownBlocks, StreamText } from "../../../../../../ui/src/stream/inde
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import { KeptAside } from "./KeptAside.tsx";
 import { LinkCard } from "../../../../../../ui/src/blocks/link-card/LinkCard.tsx";
-import { DraftCard } from "./draft-card.tsx";
+import { DraftCard, ProviderDraftCard } from "./draft-card.tsx";
 import { linkCardOf } from "../../../../../../ui/src/blocks/link-card/model.ts";
 import type { LinkCardData } from "../../../../../../ui/src/blocks/link-card/model.ts";
-import { doneByState, draftOf, heldTaskOf, probeOf, stateOf } from "../../../../../../ui/src/blocks/link-card/state.ts";
+import { doneByState, draftOf, heldTaskOf, probeOf, providerDraftOf, stateOf } from "../../../../../../ui/src/blocks/link-card/state.ts";
 import type { CardState } from "../../../../../../ui/src/blocks/link-card/state.ts";
 import { useThreadMemory } from "../memory/thread.tsx";
 import { rememberMessage } from "../memory/actions.ts";
@@ -416,6 +416,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         const held = lc && actions.files ? heldTaskOf(lc) : null;
         if (held !== null) return parked.has(held) ? null : <ApprovalCard key={b.id} taskId={held} agent={item.who.name} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files!} />;
         const draft = lc && actions.files ? draftOf(lc) : null;
+        if (lc && actions.files && providerDraftOf(lc)) return <ProviderDraftCard key={b.id} card={lc} agent={item.who.name} agentId={item.who.id} data={actions.files} />;
         if (draft !== null) return <DraftCard key={b.id} draftId={draft} agent={item.who.name} agentId={item.who.id} data={actions.files!} />;
         if (lc) return <LinkCardView key={b.id} id={b.id} data={lc} actions={actions} size={14} trusted={m.kind === "system"} />;
         if (isAccessRequest(b.type) && actions.files) return <AccessRequestCard key={b.id} block={b.data as never} data={actions.files} />;

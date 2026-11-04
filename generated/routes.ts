@@ -15786,6 +15786,25 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/google/gmail/delete_draft",
+    "cap": "google.gmail.delete_draft",
+    "v": 1,
+    "module": "google",
+    "effects": "outward",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "connection",
+      "id": "/connectionId"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "none"
+  },
+  {
+    "method": "POST",
     "path": "/v1/google/gmail/get_attachment",
     "cap": "google.gmail.get_attachment",
     "v": 1,
@@ -16616,7 +16635,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": true,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/governance/tombstones/list",
@@ -16634,10 +16656,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": true,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/governance/tombstones/reapply",
@@ -22085,7 +22104,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/memory/promote",
@@ -22103,10 +22125,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/memory/promotion/approve",
@@ -27609,7 +27628,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/records/restore_version",
@@ -27628,10 +27650,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/records/reveal",
@@ -33117,7 +33136,10 @@ const routes5: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/tasks/decide",
@@ -33136,10 +33158,7 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/tasks/delegate",
