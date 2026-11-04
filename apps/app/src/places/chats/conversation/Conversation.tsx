@@ -2,12 +2,8 @@
 // agent's mode menu), Helpers while any run, Stop and Stop all while any work, the pane toggle and a menu. Under it the last 50 messages (older ones stream in on request), the agent's
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
-<<<<<<< HEAD
-import { foldHelperRows, groupHelperStrips, mergeCrewAnswer } from "./helper-rows.ts";
-=======
 import { useFrameStore } from "./frame.ts";
-import { foldHelperRows, groupHelperStrips } from "./helper-rows.ts";
->>>>>>> origin/wip/rc21
+import { foldHelperRows, groupHelperStrips, mergeCrewAnswer } from "./helper-rows.ts";
 import { useCrew } from "../crew/context.tsx";
 import { crewChipOf } from "../crew/model.ts";
 import { CrewIsland } from "../crew/island.tsx";
