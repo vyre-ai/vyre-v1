@@ -2790,6 +2790,43 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "console.hooks",
+    "module": "hooks",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleHooks",
+    "caller": "principal",
+    "queries": {
+      "hooks": {
+        "cap": "hooks.list",
+        "input": {
+          "scope": "space"
+        },
+        "live": true
+      }
+    },
+    "actions": {
+      "set": {
+        "cap": "hooks.set",
+        "input": {}
+      },
+      "remove": {
+        "cap": "hooks.remove",
+        "input": {
+          "id": "/state/id"
+        },
+        "confirm": "Remove this hook?"
+      }
+    },
+    "needs": [
+      "agents.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.integrations",
     "module": "connectors",
     "place": "console",

@@ -23,7 +23,7 @@ const deps = (s: Sample): { d: PaneDeps; notes: Array<{ text: string; undo?: () 
 const hooksOf = (s: Sample): Hook[] => (s.data.screens.query("chats.right-pane", "hooks", { threadId: s.data.threadId }).getSnapshot() as { data: { hooks: Hook[] } }).data.hooks;
 
 test("the Hooks tab comes last, and only where the chat has hooks", () => {
-  assert.deepEqual(tabsOf(false, false, true).map((t) => t.title), ["Computer", "Threads", "Files", "Knows", "Routines", "Hooks"]);
+  assert.deepEqual(tabsOf(false, false, true, false, true).map((t) => t.title), ["About", "Computer", "Chats", "Files", "Knows", "Routines", "Hooks"]);
   assert.ok(!html(createSample(), "threads").includes(">Hooks<"), "no hooks, no tab");
   assert.ok(html(createSample("northwind", { hooks: true }), "threads").includes(">Hooks<"));
 });

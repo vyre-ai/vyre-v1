@@ -27,6 +27,7 @@ import { DomainsPage, InboxesPage, NumbersPage, TextingPage } from "../../consol
 import { LabelsPage, SchemaPage } from "../../console/pages/Data.tsx";
 import { ApiKeysPage, WebhooksPage } from "../../console/pages/Integrations.tsx";
 import { SkillsPage } from "../../console/pages/Skills.tsx";
+import { HooksPage } from "../../console/pages/Hooks.tsx";
 import { PluginsPage } from "../../console/pages/Plugins.tsx";
 import { ConnectCompanyPage } from "../../console/pages/company/ConnectCompany.tsx";
 import { GoogleWorkspacePage } from "../../console/pages/suite/GoogleWorkspace.tsx";
@@ -110,6 +111,7 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "machines") return <MachinesPage key={args["machineId"] ?? "machines-list"} {...(args["machineId"] ? { initialId: args["machineId"] } : {})} />;
   if (id === "template") return <AgentTemplate />;
   if (id === "skills") return <SkillsPage />;
+  if (id === "hooks") return <HooksPage />;
   if (id === "plugins") return <PluginsPage />;
   if (id === "schema") return <SchemaPage />;
   if (id === "labels") return <LabelsPage />;

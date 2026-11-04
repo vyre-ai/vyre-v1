@@ -6,7 +6,7 @@
 // DECISION: a hook that errors or runs out of time never blocks; it is logged (hooks.runs.list) and a quiet line says so in the chat.
 // DECISION: hooks.fire is the one question every engine asks: the API drivers (through the tool session), the engine around each turn, and a CLI's own built-in tools (through the vyre-hook shim). The tool
 //   events of Vyre's own tools come from the tool session for every engine; a CLI reports only its built-in tools and subagents, so nothing fires twice.
-import { block, defineManifest, ev, read, t, write } from '../packages/contracts/src/index.ts';
+import { block, defineManifest, ev, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id } from './_common.ts';
 
 const scope = t.enm('space', 'person', 'agent', 'chat', 'run');
@@ -72,6 +72,14 @@ export default defineManifest({
         tool: t.opt(t.str()), cap: t.opt(t.str()), input: t.opt(t.json()), output: t.opt(t.json()), ok: t.opt(t.bool()), prompt: t.opt(t.str()), title: t.opt(t.str()),
       },
       out: verdict, level: 'member', emits: ['hook.blocked'], errors: [],
+    }),
+  ],
+  screens: [
+    // Console, Agents, Hooks (admins): the Space's hooks, the switch for agents' own hooks, and the runs that stopped something or failed
+    screen('console.hooks', 'console', 'ui:ConsoleHooks', {
+      q: { hooks: ['hooks.list', { scope: 'space' }, true] },
+      a: { set: ['hooks.set', {}], remove: ['hooks.remove', { id: '/state/id' }, 'Remove this hook?'] },
+      needs: ['agents.manage'], empty: 'No hooks yet', primary: 'Add a hook',
     }),
   ],
   blocks: [

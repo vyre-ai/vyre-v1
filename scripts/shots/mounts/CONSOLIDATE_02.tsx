@@ -414,6 +414,19 @@ const answers: Record<string, Handler> = {
 
 answers["computers.hosts"] = () => ({ available: true, hosts: [{ hostId: "this", kind: "space", name: "Northwind server", online: true, canRun: true, runs: 3 }, { hostId: "srv_box", kind: "server", name: "Berlin box", online: true, canRun: true, runs: 1 }] });
 
+// Agents > Hooks: four hooks (an admin's command, one an agent made, a paused one, one that stopped an email lately); hooks_empty has none
+const hook = (id: string, o: Record<string, unknown>): Record<string, unknown> => ({ id, scope: "space", matcher: "", paused: false, madeBy: "usr_maya", madeByKind: "admin", helpers: false, timeoutSec: 10, createdAt: ago(20 * DAY), updatedAt: ago(20 * DAY), mine: false, canChange: true, ...o });
+const HOOKS = [
+  hook("hk_fmt", { event: "tool.after", kind: "command", line: "After a tool edits a file, run the formatter", spec: { command: "npm run format" }, matcher: "files.write" }),
+  hook("hk_files", { event: "outward.before", kind: "check", paused: true, madeBy: "usr_irfad", line: "Before a file leaves the Space, check it is not marked private", spec: { instruction: "Confirm the file is not marked private" }, matcher: "files.*" }),
+  hook("hk_mail", { event: "outward.before", kind: "check", line: "Before an email goes to a client, check the address is in Contacts", spec: { instruction: "Check the address is in Contacts" }, matcher: "email.send" }),
+];
+const AGENT_HOOKS = [hook("hk_notes", { scope: "agent", agentId: "agt_docs", madeBy: "agt_docs", madeByKind: "agent", event: "turn.end", kind: "action", line: "After a turn ends, Docs adds a line to the weekly notes", spec: { cap: "notes.add", input: {} } })];
+const hookRun = (id: number, hookId: string, outcome: string, at: number, detail?: string): Record<string, unknown> => ({ id, hookId, event: "tool.after", outcome, ms: 40, at, ...(detail ? { detail } : {}) });
+answers["hooks.list"] = (i) => ({ hooks: part.variant === "empty" ? [] : i["scope"] === "agent" ? (i["agentId"] === "agt_docs" ? AGENT_HOOKS : []) : HOOKS, agentHooks: true });
+answers["hooks.policy.get"] = () => ({ agentHooks: true });
+answers["hooks.runs.list"] = () => ({ runs: part.variant === "empty" ? [] : [hookRun(1, "hk_fmt", "ok", ago(3 * MIN)), hookRun(2, "hk_mail", "blocked", ago(2 * HOUR), "The address is not in Contacts"), hookRun(3, "hk_notes", "ok", ago(DAY)), hookRun(4, "hk_mail", "ok", ago(3 * DAY))] });
+
 const machines = machinesCall();
 const part = { current: "", variant: "" };
 async function call(cap: string, input: unknown): Promise<unknown> {

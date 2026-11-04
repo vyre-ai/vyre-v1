@@ -275,6 +275,18 @@
       "route": "/m/CONSOLIDATE_02?part=ghapp_own",
       "proto": "console,{skin}",
       "note": "Apps > GitHub, the Space's own app"
+    },
+    {
+      "id": "CONSOLIDATE_02-hooks",
+      "route": "/m/CONSOLIDATE_02?part=hooks",
+      "proto": "console,at:hooks,{skin}",
+      "note": "Agents > Hooks: four hooks, one stopped an email lately"
+    },
+    {
+      "id": "CONSOLIDATE_02-hooks_empty",
+      "route": "/m/CONSOLIDATE_02?part=hooks_empty",
+      "proto": "console,at:hooks,{skin}",
+      "note": "Agents > Hooks, no hooks yet"
     }
   ]
 }
