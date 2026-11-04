@@ -448,9 +448,10 @@ export async function evaluate(ctx: ProjectsCtx, p: Project, type: LiveType, spe
       const f = await readRecord(ctx, p).catch(() => ({} as Record<string, unknown>));
       const g = asText(f["goal"]);
       const goals = await tolerant<{ goals?: Array<{ id: string; title: string; status: string }> }>(ctx, "goals.list", { scope: "project", projectId: p.projectId }, {});
-      // A goal can be private to its owner. The goals module answers "all I can see" and keeps no count that ignores access, so the goals the reader may not open cannot be counted from here: hidden stays 0
-      // for goals until that module offers such a count. The brief's goal text is a field of the project record, which the reader sees whole or not at all.
-      return done([...(g ? [{ id: "goal", title: g }] : []), ...(goals.goals ?? []).map((x) => ({ id: x.id, title: x.title, state: x.status, url: `/goals/${x.id}` }))]);
+      // A goal can be private to its owner: goals.list answers the ones the reader may open, goals.count (a manager or the system only) says how many exist. Where the reader may not ask, hidden stays 0.
+      const every = await tolerant<{ count?: number }>(ctx, "goals.count", { projectId: p.projectId }, {});
+      const hiddenGoals = every.count === undefined ? 0 : Math.max(0, every.count - (goals.goals ?? []).length);
+      return done([...(g ? [{ id: "goal", title: g }] : []), ...(goals.goals ?? []).map((x) => ({ id: x.id, title: x.title, state: x.status, url: `/goals/${x.id}` }))], hiddenGoals);
     }
     // People and agents: every reader of the project reads its member list whole (a project role is a grant on the project), so nothing is hidden from a reader who can open the Overview.
     case "people": return done(membersOf(ctx.db, p.projectId).map((m) => ({ id: m.principal, title: m.principal, state: m.role, detail: m.kind })));

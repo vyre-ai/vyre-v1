@@ -351,3 +351,17 @@ test("two paragraphs typed in the editor are two blocks; editing the second leav
   assert.deepEqual([b2.id, b2.text, b2.by], [b.id, "Second paragraph, rewritten", MAYA], "the edited one keeps its id and takes the editor as author");
   assert.equal(second.blocks.length, first.blocks.length);
 });
+
+test("goals the reader may not open are counted through goals.count: the difference from what goals.list shows is hidden", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  h.world.handlers["goals.list"] = () => ({ goals: [{ id: "gol_1", title: "Open goal", status: "active" }] });
+  let asked: unknown;
+  h.world.handlers["goals.count"] = (i) => { asked = i; return { count: 4 }; };
+  const out = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "goal", spec: {} });
+  assert.deepEqual([out.rows.length, out.hidden, out.total], [1, 3, 4]);
+  assert.deepEqual(asked, { projectId: p.projectId });
+  assert.equal(JSON.stringify(out).includes("gol_2"), false);
+  h.world.down.add("goals.count");
+  assert.equal((await run(h, "projects.live_block.query", { projectId: p.projectId, type: "goal", spec: {} })).hidden, 0, "a reader who may not ask is told nothing hidden, not a guess");
+});

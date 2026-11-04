@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (26)
+## Capabilities (27)
 
 - [goals.activity](../capabilities/goals.activity.md): The activity of a goal, newest first: every reading, wake-up, step, task and status change, and why
 - [goals.ask](../capabilities/goals.ask.md): Ask the owner (or a named person) for a decision only they can make: one Waiting-on item, with the options. The same decision asked again returns the first ask; the answer wakes you
@@ -12,6 +12,7 @@ Requires: nothing.
 - [goals.checklist.tick](../capabilities/goals.checklist.tick.md): The owner ticks or unticks one condition of a checklist goal
 - [goals.complete](../capabilities/goals.complete.md): When a goal ends (done or missed), write its retrospective: what worked, what did not, and a playbook worth repeating. It is saved to the goal, its project and Space memory. On an owner-says-done goal whose work is finished, it asks the owner to confirm instead
 - [goals.confirm](../capabilities/goals.confirm.md): Start a drafted goal: the owner presses Start on its card. The standing permissions it names hold from this press
+- [goals.count](../capabilities/goals.count.md): How many goals a project has, whoever may open them: a number and nothing else (never a title). Only a manager of the project or the system may ask; the Overview uses it to say how many goals a reader may not open
 - [goals.create](../capabilities/goals.create.md): Give an agent a goal with a finish line: it plans the work as tasks, works across days, posts progress, asks for approvals and says when it is stuck. Drafted by an agent, it waits for its owner to press Start
 - [goals.extend](../capabilities/goals.extend.md): Move the deadline of a goal; a missed goal starts again
 - [goals.finish](../capabilities/goals.finish.md): The owner says a goal is done (the finish line of an owner-says-done goal, or done early)

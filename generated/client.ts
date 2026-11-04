@@ -1120,6 +1120,7 @@ export function createClient(transport: Transport) {
       },
       complete: call("goals.complete", 1),
       confirm: call("goals.confirm", 1),
+      count: call("goals.count", 1),
       create: call("goals.create", 1),
       extend: call("goals.extend", 1),
       finish: call("goals.finish", 1),

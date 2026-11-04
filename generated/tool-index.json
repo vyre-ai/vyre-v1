@@ -3632,6 +3632,12 @@
     },
     {
       "deferred": false,
+      "name": "goals_count",
+      "summary": "How many goals a project has, whoever may open them: a number and nothing else (never a title). Only a manager of the project or the system may ask; the Overview uses it to say how many goals a reader may not open",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "goals_create",
       "summary": "Give an agent a goal with a finish line: it plans the work as tasks, works across days, posts progress, asks for approvals and says when it is stuck. Drafted by an agent, it waits for its owner to press Start",
       "toolset": "tasks"

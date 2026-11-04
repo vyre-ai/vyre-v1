@@ -15057,6 +15057,12 @@ export type GoalsConfirmOut = {
     updatedAt: number;
   };
 };
+export type GoalsCountIn = {
+  projectId: string;
+};
+export type GoalsCountOut = {
+  count: number;
+};
 export type GoalsCreateIn = {
   title: string;
   outcome?: string;
@@ -41788,6 +41794,7 @@ export interface CapMap {
   "goals.checklist.tick": { in: GoalsChecklistTickIn; out: GoalsChecklistTickOut };
   "goals.complete": { in: GoalsCompleteIn; out: GoalsCompleteOut };
   "goals.confirm": { in: GoalsConfirmIn; out: GoalsConfirmOut };
+  "goals.count": { in: GoalsCountIn; out: GoalsCountOut };
   "goals.create": { in: GoalsCreateIn; out: GoalsCreateOut };
   "goals.extend": { in: GoalsExtendIn; out: GoalsExtendOut };
   "goals.finish": { in: GoalsFinishIn; out: GoalsFinishOut };

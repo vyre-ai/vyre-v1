@@ -8,3 +8,4 @@
 - A project's Overview is a page that people and agents both edit. Live blocks (tasks, milestones, links, records, metrics, CI, goal, people, status) hold only what to show, and each reader sees only the rows they may open, with a count of the rest. Every change is saved with its author and can be undone, and an agent's edit leaves one line in the project channel.
 - A project's own fields show in the page header. New pages can start from a template: Client account, Software project or Hiring, and anyone can save their own.
 - A new project can start from an Overview template in one step, and the Overview's task counts tell a reader how many tasks they may not open.
+- Hidden goals are counted too: a project manager or the system can ask how many goals a project has (a number only), and the Overview shows how many a reader may not open.

@@ -1120,6 +1120,7 @@ export function stubs(ctx: CallCtx) {
       },
       complete: call("goals.complete"),
       confirm: call("goals.confirm"),
+      count: call("goals.count"),
       create: call("goals.create"),
       extend: call("goals.extend"),
       finish: call("goals.finish"),
