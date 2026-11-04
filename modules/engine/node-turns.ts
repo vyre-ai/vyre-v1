@@ -39,7 +39,7 @@ function ensureNodeTable(db: Db): void {
   if (ready.has(db)) return;
   db.run(TABLE); db.run(WHERE); db.run(USING); db.run(ONCE);
   // a store made before the note column gets it: probed by name, added once
-  if (!(db.all("PRAGMA table_info(engine_turn_where)") as Array<{ name: string }>).some((c) => c.name === "note")) db.run(NOTE);
+  try { db.all("SELECT note FROM engine_turn_where LIMIT 1"); } catch { db.run(NOTE); }
   ready.add(db);
 }
 
