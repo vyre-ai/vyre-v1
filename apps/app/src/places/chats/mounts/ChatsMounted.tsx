@@ -225,10 +225,12 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   useEffect(() => {
     if (!projectView) return undefined;
     let live = true;
-    void Promise.resolve(rt.call("projects.get", { projectId: projectView.projectId })).then((o) => { if (live) setPjChannel({ projectId: projectView.projectId, channelId: (o as { project: { channelId: string } }).project.channelId }); }, () => undefined);
+    void Promise.resolve(rt.call("projects.get", { projectId: projectView.projectId })).then((o) => { if (live) setPjChannel({ projectId: projectView.projectId, channelId: (o as { project: { channelId: string } }).project.channelId }); }, () => { if (live) setPjChannel({ projectId: projectView.projectId, channelId: "" }); });
     return () => { live = false; };
   }, [rt, projectView?.projectId]);   // eslint-disable-line react-hooks/exhaustive-deps -- one read per project
-  const route: Route = projectChat && projectView && pjChannel?.projectId === projectView.projectId ? { view: "chat", threadId: pjChannel.channelId } : shown.route;
+  const pjReady = projectChat && projectView !== null && pjChannel?.projectId === projectView.projectId;
+  // no main channel (yet): the empty chat with the composer ready, never a list of old chats
+  const route: Route = pjReady ? (pjChannel!.channelId === "" ? { view: "new" } : { view: "chat", threadId: pjChannel!.channelId }) : shown.route;
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < WIDE;
   // the sidebar draws the row of what the middle shows, however it was opened (a row, a tab, a link, Cmd-K)
@@ -434,7 +436,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   }
 
   // the project's page frames its channel's chat
-  if (projectChat && projectView && route.view === "chat") main = <ProjectScreen key={projectView.projectId} rt={rt} projectId={projectView.projectId} tab={projectView.tab} onTab={(tab) => act({ t: "project", projectId: projectView.projectId, tab })} chatSlot={main} />;
+  if (projectChat && projectView && !pjReady) main = <ProjectScreen key={projectView.projectId} rt={rt} projectId={projectView.projectId} tab={projectView.tab} onTab={(tab) => act({ t: "project", projectId: projectView.projectId, tab })} chatSlot={<ConversationLoading />} />;
+  else if (projectChat && projectView && (route.view === "chat" || route.view === "new")) main = <ProjectScreen key={projectView.projectId} rt={rt} projectId={projectView.projectId} tab={projectView.tab} onTab={(tab) => act({ t: "project", projectId: projectView.projectId, tab })} chatSlot={main} />;
   const showMain = !(narrow && right !== null);
   return (
     <View testID="chats-place" style={st.row}>

@@ -1,0 +1,97 @@
+// The Projects shell in a real browser against the production export and a claimed daemon (lane l-chrome2a): the Projects group in the Chats sidebar, a project in its own tab with the header and the
+// tabs, Plan opening (the regression l-ci21 found), a status set; as the owner (admin) and as Maya (a member joined through the real join screens). Shots (paper, wide and phone) go to VYRE_PROJECTS_SHOTS.
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
+
+const PASSWORD = "fixture password 123";
+
+test("Projects shell: sidebar group, project tab, header, tabs and status, as an admin and as a member", async (t) => {
+  const dist = process.env["VYRE_APP_DIST"];
+  if (!dist) { t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
+  const { chromium } = await import("playwright-core");
+  const exe = process.env["CHROME_BIN"] || chromium.executablePath();
+  const space = await bootFreshSpace();
+  const web = await edge(dist, space.url);
+  const browser = await chromium.launch({ executablePath: exe, args: ["--no-sandbox"] });
+  const shots = process.env["VYRE_PROJECTS_SHOTS"] ?? "/tmp/vyre-projects-shots"; fs.mkdirSync(shots, { recursive: true });
+  const errs: string[] = [];
+  try {
+    const owner = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const page = await owner.newPage();
+    page.on("pageerror", (e) => errs.push(e.message));
+    await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
+    await page.getByTestId("claim-name").fill("Olivia Owner"); await page.getByTestId("claim-username").fill("olivia");
+    await page.getByTestId("claim-password").fill(PASSWORD); await page.getByTestId("claim-confirm").fill(PASSWORD);
+    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click(); await dismissOnboarding(page);
+    const token = await page.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string);
+    const call = async (cap: string, data: unknown): Promise<any> => { // eslint-disable-line @typescript-eslint/no-explicit-any
+      const r = await owner.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token}` }, data });
+      const body = await r.json();
+      assert.equal(r.status(), 200, `${cap}: ${JSON.stringify(body).slice(0, 400)}`);
+      return body.data;
+    };
+    const types = (await call("schema.types.list", {})).types as Array<{ key: string }>;
+    const type = (types.find((x) => /project|matter/.test(x.key)) ?? types[0]!).key;
+    const made = await call("projects.create", { type, title: "Rivera account", goal: "Close the Rivera engagement", idempotencyKey: "pj-rivera" });
+    const pid = made.projectId as string;
+    await call("projects.create", { type, title: "Q4 billing", idempotencyKey: "pj-q4" });
+
+    // Maya joins through the real join screens, and is made a member of the first project
+    const roles = (await call("access.roles.list", {})).roles as { id: string; name: string }[];
+    const inv = await call("members.invites.create", { role: roles.find((r) => r.name === "Member")!.id, idempotencyKey: "inv-maya" });
+    const joinCtx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const jp = await joinCtx.newPage();
+    const link = new URL(inv.link);
+    await jp.goto(web.origin + link.pathname + link.hash);
+    await jp.getByTestId("step-accept").waitFor({ timeout: 20_000 });
+    await jp.getByTestId("web").click(); await jp.getByTestId("first").fill("Maya"); await jp.getByTestId("last").fill("Lin"); await jp.getByTestId("next").click();
+    await jp.getByTestId("username").fill("maya"); await jp.getByTestId("password").fill(PASSWORD); await jp.getByTestId("confirm").fill(PASSWORD); await jp.getByTestId("next").click();
+    await jp.getByTestId("device").fill("Maya's browser"); await jp.getByTestId("next").click();
+    await jp.getByTestId("ai-none").click(); await jp.getByTestId("next").click();
+    await dismissOnboarding(jp);
+    const mayaId = await jp.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].personId as string);
+    await call("projects.members.set", { projectId: pid, principal: mayaId, role: "member", idempotencyKey: "pj-maya" });
+
+    const walk = async (who: "admin" | "member", p: typeof page, size: "wide" | "phone"): Promise<void> => {
+      await p.goto(`${web.origin}/chat`, { waitUntil: "load" });
+      if (size === "phone") { await p.getByTestId("mobile-shell").waitFor({ timeout: 30_000 }); } else { await p.getByTestId("shell").waitFor({ timeout: 30_000 }); }
+      // the group in the sidebar, after Goals, and a row
+      if (size === "wide") {
+        await p.getByTestId("head-projects").waitFor({ timeout: 20_000 });
+        await p.screenshot({ path: path.join(shots, `projects-1-sidebar-${who}-${size}-paper.png`) });
+        await p.getByTestId(`row-pj:${pid}`).click();
+      } else {
+        await p.goto(`${web.origin}/chat#subject=project:${pid}`, { waitUntil: "load" });
+      }
+      await p.getByTestId("project-page").waitFor({ timeout: 30_000 });
+      assert.equal(await p.getByTestId("project-title").innerText(), "Rivera account");
+      await p.waitForTimeout(500);
+      await p.screenshot({ path: path.join(shots, `projects-2-project-${who}-${size}-paper.png`) });
+      // the regression: pressing Plan opens the Plan
+      await p.getByTestId("tab-plan").click();
+      await p.getByTestId("project-plan").waitFor({ timeout: 15_000 });
+      await p.waitForTimeout(500);
+      await p.screenshot({ path: path.join(shots, `projects-3-plan-${who}-${size}-paper.png`) });
+      for (const k of ["overview", "linked", "knows", "chat"]) { await p.getByTestId(`tab-${k}`).click(); await p.waitForTimeout(250); }
+      await p.getByTestId("project-chat").waitFor({ timeout: 10_000 });
+      if (who === "admin" && size === "wide") {
+        await p.getByTestId("project-health").click();
+        await p.getByTestId("menu-item-At risk").click();
+        await p.getByText("At risk").first().waitFor({ timeout: 10_000 });
+        await p.getByTestId("tab-knows").click();
+        await p.getByTestId("project-knows").waitFor({ timeout: 10_000 });
+        await p.screenshot({ path: path.join(shots, `projects-4-knows-${who}-${size}-paper.png`) });
+      }
+    };
+    await walk("admin", page, "wide");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await walk("admin", page, "phone");
+    await walk("member", jp, "wide");
+    await jp.setViewportSize({ width: 390, height: 844 });
+    await walk("member", jp, "phone");
+    assert.deepEqual(errs.filter((e) => !/ResizeObserver/.test(e)), [], "no page errors");
+  } finally { await browser.close(); web.close(); await space.stop(); }
+});

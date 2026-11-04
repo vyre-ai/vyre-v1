@@ -155,3 +155,17 @@ test("the shell gives the page its admin flag, the Space's id and the three door
   assert.deepEqual(opened, [{ subject: { type: "task", id: "tsk_1" } }, { screen: "chats.ask", args: { with: "assistant", first: "fix the CI" } }]);
   assert.deepEqual(urls, ["https://github.com/x/y/pull/1"]);
 });
+
+test("the Chat tab with a slot draws that slot and never the old list of the project's chats; without one (the record page) it lists them", async () => {
+  const off = installDom(); widen(1280);
+  try {
+    const t = setup();
+    const withSlot = await mount(createRoot, <ProjectPageDataProvider value={t.data}><ProjectPage projectId="pj_0" space={SPACE} chatSlot={<></>} /></ProjectPageDataProvider>);
+    await flush();
+    assert.ok(find(withSlot, "project-chat-main"), "the slot");
+    assert.equal(find(withSlot, "project-chat"), null, "no list of old chats");
+    const without = await mount(createRoot, <ProjectPageDataProvider value={t.data}><ProjectPage projectId="pj_0" space={SPACE} /></ProjectPageDataProvider>);
+    await flush();
+    assert.ok(find(without, "project-chat") && !find(without, "project-chat-main"));
+  } finally { off(); }
+});
