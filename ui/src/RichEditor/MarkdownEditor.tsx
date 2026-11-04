@@ -4,7 +4,7 @@
 // Paste loses the indent it was copied with and Markdown becomes its structure. The editor saves nothing itself: the host keeps the text (autosave.ts) and shows the version.
 // Web mounts TipTap; the phone keeps a plain multiline field until a native editor exists (the same rule as the Notes editor).
 
-import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LiveBlockApi, LiveBlockAttrsLike, LiveBlockRenderer } from "./extensions.ts";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -591,14 +591,19 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
   ) : null;
 
   const sgItems = sg !== null && props.suggest ? props.suggest.items : [];
+  const sgGroups: { name: string | undefined; items: { it: SuggestItem; i: number }[] }[] = [];
+  sgItems.forEach((it, i) => { const last = sgGroups[sgGroups.length - 1]; if (last && last.name === it.group) last.items.push({ it, i }); else sgGroups.push({ name: it.group, items: [{ it, i }] }); });
   const suggestNode = sg !== null && props.suggest && sgItems.length > 0 ? (
     <View style={[st.suggest, { left: sg.left, top: sg.top }]} accessibilityRole="menu" accessibilityLabel={props.suggest.label} testID={props.suggest.menuTestID ?? "md-suggest"} {...webProps({ onMouseDown: (e: { preventDefault(): void }) => e.preventDefault() })}>
-      {sgItems.map((it, i) => (
-        <View key={it.id}>
-        {it.group !== undefined && it.group !== sgItems[i - 1]?.group ? <Text style={st.sgHead} testID={`md-suggest-head-${it.group}`}>{it.group}</Text> : null}
-        <Row key={it.id} id={it.id} title={it.label} selected={i === sgHi} {...(it.detail ? { trailing: <Text style={st.sgDetail}>{it.detail}</Text> } : {})} onPress={() => pickSuggest(it)}
-          domProps={{ "data-testid": props.suggest?.itemTestID ? props.suggest.itemTestID(it) : `md-suggest-${it.id}`, role: "menuitem", "aria-selected": i === sgHi }} />
-        </View>
+      {/* ui-rows-lint: not a list (groups of rows: each group is a heading and its rows) */}
+      {sgGroups.map((g) => (
+        <Fragment key={g.name ?? ""}>
+          {g.name !== undefined ? <Text style={st.sgHead} testID={`md-suggest-head-${g.name}`}>{g.name}</Text> : null}
+          {g.items.map(({ it, i }) => (
+            <Row key={it.id} id={it.id} title={it.label} selected={i === sgHi} {...(it.detail ? { trailing: <Text style={st.sgDetail}>{it.detail}</Text> } : {})} onPress={() => pickSuggest(it)}
+              domProps={{ "data-testid": props.suggest?.itemTestID ? props.suggest.itemTestID(it) : `md-suggest-${it.id}`, role: "menuitem", "aria-selected": i === sgHi }} />
+          ))}
+        </Fragment>
       ))}
     </View>
   ) : null;
