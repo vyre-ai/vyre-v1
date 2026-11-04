@@ -108,7 +108,7 @@ export function LiveBlockView({ projectId, attrs, readOnly, api, fresh = false, 
   return (
     <View testID={`live-${attrs.type}`} accessibilityLabel={`${title}, live`} style={[s.box, fresh && s.fresh]} {...({ dataSet: { live: attrs.blockId ?? "" } } as object)}>
       <View style={s.head}>
-        <Text accessibilityRole="header" style={s.title}>{title}</Text>
+        <Text style={s.title}>{title}</Text>
         <View style={s.liveDot} /><Text testID="live-tag" style={s.tag}>{live ? `Live · ${live}` : "Live"}</Text>
         <View style={{ flex: 1 }} />
         {!readOnly && kind !== undefined ? <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${title}`} testID="live-edit" onPress={() => onSettings(attrs)} style={s.btn}><Text style={s.btnText}>Edit</Text></Pressable> : null}

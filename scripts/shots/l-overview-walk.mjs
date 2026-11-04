@@ -43,8 +43,8 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   await page.waitForTimeout(1600);
   check(`${tag}: typing saves by itself`, /Saved/.test((await page.textContent(T("overview-status"))) ?? "") && /3 versions/.test((await page.textContent(T("overview-line"))) ?? ""));
   // the slash menu inserts a live block
-  await page.click(".ProseMirror");
-  await page.keyboard.press("Control+End");
+  await page.click(".ProseMirror p");
+  await page.keyboard.press("End");
   await page.keyboard.press("Enter");
   await page.keyboard.type("/");
   await page.waitForTimeout(300);
