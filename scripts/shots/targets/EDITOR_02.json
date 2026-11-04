@@ -1,0 +1,39 @@
+{
+  "targets": [
+    {
+      "id": "EDITOR_02-edit",
+      "route": "/m/EDITOR_02?file=1&part=edit",
+      "proto": "files,at:ed-edit,{skin}",
+      "waitFor": "[data-testid='agent-file-text']",
+      "note": "AGENT.md in Edit, styled: the check strip, the formatting bar, the page."
+    },
+    {
+      "id": "EDITOR_02-raw",
+      "route": "/m/EDITOR_02?file=1&part=raw",
+      "proto": "files,at:ed-raw,{skin}",
+      "waitFor": "[data-testid='agent-file-text']",
+      "note": "The Markdown view: proportional font, colour on the syntax."
+    },
+    {
+      "id": "EDITOR_02-problem",
+      "route": "/m/EDITOR_02?file=1&part=problem",
+      "proto": "files,at:ed-problem,{skin}",
+      "waitFor": "[data-testid='agent-file-text']",
+      "note": "A file that does not say it follows VYRE.md: the 1 problem chip."
+    },
+    {
+      "id": "EDITOR_02-select",
+      "route": "/m/EDITOR_02?file=1&part=select",
+      "proto": "files,at:ed-select,{skin}",
+      "waitFor": "[data-testid='agent-file-text']",
+      "note": "A selection with the bubble: Bold, Italic, Link, Code, Turn into."
+    },
+    {
+      "id": "EDITOR_02-view",
+      "route": "/m/EDITOR_02?file=1&part=view",
+      "proto": "files,at:ed-view,{skin}",
+      "waitFor": "[data-testid='agent-file-text']",
+      "note": "AGENT.md read in View."
+    }
+  ]
+}

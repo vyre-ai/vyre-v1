@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (38)
+## Capabilities (39)
 
 - [tasks.act](../capabilities/tasks.act.md): Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once
 - [tasks.ask](../capabilities/tasks.ask.md): Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you
@@ -24,6 +24,7 @@ Requires: nothing.
 - [tasks.followers.add](../capabilities/tasks.followers.add.md): Add a follower; plain @mentions become followers, never tasks
 - [tasks.followers.remove](../capabilities/tasks.followers.remove.md): Remove a follower
 - [tasks.get](../capabilities/tasks.get.md): Read one task with its blocks, slots, links, notes and followers
+- [tasks.held_revise](../capabilities/tasks.held_revise.md): Rewrite the card of a held act and the hash its approval is bound to (the Gate's edit of a held message; not for a person or an agent to call)
 - [tasks.history](../capabilities/tasks.history.md): Activity of a task: transitions, hand-overs, notes and sends back, newest first
 - [tasks.index](../capabilities/tasks.index.md): The long list of a scope in one read: a light row per task with its rollup, ordered newest first; pass the last rev and an unchanged list answers nothing
 - [tasks.links.add](../capabilities/tasks.links.add.md): Link a record or a file to a task

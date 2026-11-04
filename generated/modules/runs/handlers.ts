@@ -11,6 +11,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.get": Handler<"runs.get", X>;
   "runs.list": Handler<"runs.list", X>;
   "runs.mark_waiting": Handler<"runs.mark_waiting", X>;
+  "runs.people_counts": Handler<"runs.people_counts", X>;
   "runs.pin_version": Handler<"runs.pin_version", X>;
   "runs.preview_undo": Handler<"runs.preview_undo", X>;
   "runs.purge": Handler<"runs.purge", X>;

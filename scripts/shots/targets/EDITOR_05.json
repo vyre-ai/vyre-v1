@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "EDITOR_05-every",
+      "route": "/m/EDITOR_05",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='reply']",
+      "note": "Every format in one reply."
+    }
+  ]
+}

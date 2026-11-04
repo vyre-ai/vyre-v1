@@ -43,7 +43,7 @@ function runtime(mailboxes: unknown[]): { rt: ShellRuntime; opened: ShellTarget[
 const noop = (): void => undefined;
 const screen = (rt: ShellRuntime) => (
   <ResumeContext.Provider value={{ done: 3, total: 8, open: noop, pill: null }}>
-    <Landing rt={rt} nameOf={(id) => id} kindOf={() => "agent"} agents={[]} people={[]} openChat={noop} openTasks={noop} openNeed={noop} openProfile={noop} fill={noop} newKey={() => "k"} say={noop} />
+    <Landing rt={rt} nameOf={(id) => id} kindOf={() => "agent"} openChat={noop} openTasks={noop} openNeed={noop} openProfile={noop} fill={noop} newKey={() => "k"} say={noop} />
   </ResumeContext.Provider>
 );
 const FIRST_DAY = { flow: "personal" as const, progress: { ai: "done" as const, interview: "done" as const, sessions: "done" as const } };

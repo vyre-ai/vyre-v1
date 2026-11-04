@@ -1,6 +1,6 @@
 // Drag a mounted folder or file from Files onto a chat (desktop): it is shared with that chat's agents, and a line under the chat says so with Undo (rc.8 live folders). Files drags carry
 // "file:<id>" and "folder:<id>" joined by commas as text/plain. Agents get View, so they can read and list; a write goes through the Gate as for any change, and an agent that needs to write
-// asks for more. Nothing is shared with people: a chat never gains people.
+// asks for more. Nothing is shared with people: only the agents in the chat get it.
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 

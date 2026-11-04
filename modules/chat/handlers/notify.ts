@@ -1,7 +1,8 @@
 // What a person hears about a conversation (spec 2.24): a direct message, an @mention and a reply in a thread they follow become notifications. Chat knows where a message was and who it
 // reaches; notifications.send decides how loud (working hours, quiet hours, away, mutes, the agent cap) and collapses a burst in one thread into one row ("3 new replies in #intake").
 // A mention in a task's thread also makes that person a follower of the task, so they hear how the task goes. Runs as the consumer chat.notify (impl.ts), after the message is stored.
-import { encOf, messageBy, refOf, threadBy } from "../projections.ts";
+import { chatName } from "../../../lib/chat-name.ts";
+import { agentsOf, encOf, membersOf, messageBy, refOf, threadBy } from "../projections.ts";
 import type { ChatCtx, MessageRec, ThreadRec } from "../projections.ts";
 import { placeOf } from "./follow.ts";
 
@@ -29,6 +30,18 @@ async function nameOf(ctx: ChatCtx, id: string): Promise<string> {
   return ref.kind === "agent" ? "An agent" : "Someone";
 }
 
+/** Where it happened, in the chat's one name (lib/chat-name.ts): "#intake", its title, else who is in it ("Dex and Aliza"); a direct message is the other person. */
+async function whereOf(ctx: ChatCtx, t: ThreadRec, to: string): Promise<string> {
+  let root: ThreadRec = t;
+  for (let i = 0; i < 8 && root.parentThreadId; i++) { const up = threadBy(ctx.db, root.parentThreadId); if (!up) break; root = up; }
+  if (root.kind !== "chat") return placeOf(ctx, t);
+  const agents = agentsOf(ctx.db, root.id).map((a) => a.agentId);
+  const people = membersOf(ctx.db, root.id).filter((p) => p.startsWith("usr_") && p !== to);
+  const names = new Map<string, string>();
+  for (const id of [...agents, ...people]) names.set(id, await nameOf(ctx, id));
+  return chatName({ title: root.title, kind: root.kind, agents, people }, (id) => names.get(id) ?? "Someone");
+}
+
 /** What one event says, to whom. Undefined when it files nothing. */
 export async function planNotice(ctx: ChatCtx, e: NotifyEvent): Promise<Send | undefined> {
   const p = e.payload;
@@ -39,7 +52,7 @@ export async function planNotice(ctx: ChatCtx, e: NotifyEvent): Promise<Send | u
   // a task's thread carries its status lines: the task tells its people about those itself
   if (e.name === "thread.replied" && t.scopeType === "task") return undefined;
   const author = refOf(m.author);
-  const data: Record<string, unknown> = { from: await nameOf(ctx, m.author), where: placeOf(ctx, t), threadId: t.id, messageId: m.id };
+  const data: Record<string, unknown> = { from: await nameOf(ctx, m.author), where: await whereOf(ctx, t, to), threadId: t.id, messageId: m.id };
   if (author.kind === "person") data["fromId"] = m.author;
   if (author.kind === "agent") data["agentId"] = m.author;
   if (t.channelId !== undefined) data["channelId"] = t.channelId;

@@ -19,6 +19,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "gate.grants.take": Handler<"gate.grants.take", X>;
   "gate.holds.get": Handler<"gate.holds.get", X>;
   "gate.holds.list": Handler<"gate.holds.list", X>;
+  "gate.holds.revise": Handler<"gate.holds.revise", X>;
   "gate.links.known": Handler<"gate.links.known", X>;
   "gate.park": Handler<"gate.park", X>;
   "gate.release": Handler<"gate.release", X>;

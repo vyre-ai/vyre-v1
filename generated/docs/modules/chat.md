@@ -2,9 +2,9 @@
 
 Lane L2. Kind module. Version 0.1.0.
 
-Requires: engine, mcp.
+Requires: engine, mcp, members.
 
-## Capabilities (92)
+## Capabilities (101)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -42,10 +42,11 @@ Requires: engine, mcp.
 - [chat.handoff](../capabilities/chat.handoff.md): Hand work to another agent: opens that agent thread linked from this one, counted against the hop limit
 - [chat.helper.start](../capabilities/chat.helper.start.md): Start a helper sub-task thread with its own model, provider and effort; helper chats are read-only
 - [chat.helpers.list](../capabilities/chat.helpers.list.md): Helpers running under a chat, with status
+- [chat.history.page](../capabilities/chat.history.page.md): Older messages and tool calls of THIS chat before a given message number, at most 100 at a time, oldest first inside the page; the agent reads further back than the window it was given. It refuses any other chat than the one the agent is working in
 - [chat.history.search](../capabilities/chat.history.search.md): Word-for-word search over the chat messages and transcript rows (turns, tool calls and results) the asker could open themselves; used by memory for exact quotes. Returns the stored words, author, time and a link that opens the chat at that line
 - [chat.make_task](../capabilities/chat.make_task.md): Turn a message into a task: the title is its first line, the task points back at it and a "Task created" card in the thread links to the task. An agent may do it for the person it acts for
 - [chat.message.get](../capabilities/chat.message.get.md): Read one message with its blocks
-- [chat.message_person](../capabilities/chat.message_person.md): Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour
+- [chat.message_person](../capabilities/chat.message_person.md): Message a teammate. An Assistant writes for its person in their direct chat, signed as them (Agent). Any other agent writes as itself in its own chat with them. Cards allowed; waits for away and after hours unless urgent; 3 an hour
 - [chat.messages.list](../capabilities/chat.messages.list.md): Messages of a thread by sequence window (last 50 first, older stream in)
 - [chat.note_offer.answer](../capabilities/chat.note_offer.answer.md): Save or dismiss an offer to keep something from this chat as a note. Save makes the person's own private note that links back to the message
 - [chat.note_offer.make](../capabilities/chat.note_offer.make.md): Offer to save something from this chat as a note: a small card with a preview of the note, Save and Not now. At most once per topic and rarely; says offered false with a reason when the person has it off or it is too soon
@@ -60,6 +61,7 @@ Requires: engine, mcp.
 - [chat.post](../capabilities/chat.post.md): Post a message in a thread or channel; routes to the lead agent or @mentioned agents and records mentions
 - [chat.question.ask](../capabilities/chat.question.ask.md): Ask the person a structured question (single, multi or free text); the turn parks until it is answered
 - [chat.react](../capabilities/chat.react.md): Add or remove a reaction
+- [chat.read_floor](../capabilities/chat.read_floor.md): Where the caller's reading of one chat starts: the time they were added without Include earlier messages, or nothing when they read all of it. The engine tells an agent so before it answers them
 - [chat.recent](../capabilities/chat.recent.md): Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)
 - [chat.remember](../capabilities/chat.remember.md): Remember a message as a fact in the memory of the project this chat belongs to (else your own), sourced to the message; a "Remembered for ..." card in the thread links to the fact. A shared layer keeps its review rule
 - [chat.reply_details](../capabilities/chat.reply_details.md): How one agent reply was made, for its hover card and Details tab: its turn, what the agent knew, and its own steps when no turn was kept. Account, cost and tool arguments are for the asker and AI-spend managers only
@@ -68,6 +70,7 @@ Requires: engine, mcp.
 - [chat.share](../capabilities/chat.share.md): Share a message to another chat (a channel or a person): a card there carries it, and a card here says where it went; both open the other chat. You must be able to write in the chat it goes to
 - [chat.start](../capabilities/chat.start.md): Start a chat or an Ask pane with one or more agents, or a direct message with one person (a third person means a channel)
 - [chat.thread](../capabilities/chat.thread.md): Open or create the inline thread under a message; an @mentioned agent works inside it
+- [chat.title_make](../capabilities/chat.title_make.md): Name a chat from its first real request: 2 to 5 plain words, on a cheap model of the account that ran the turn or from the request's own words, never from a greeting. Made again once if the first came from a thin request; never after a person renamed the chat
 - [chat.transcript.append](../capabilities/chat.transcript.append.md): Append canonical transcript rows for a turn (every engine writes here, API drivers directly and CLI drivers through hooks)
 - [chat.transcript.get](../capabilities/chat.transcript.get.md): Read one turn of a transcript verbatim
 - [chat.transcript.purge](../capabilities/chat.transcript.purge.md): Remove messages and blocks older than a time from chats and channels, a batch at a time; threads listed in skipThreadIds (held ones) are left whole (retention)
@@ -78,18 +81,24 @@ Requires: engine, mcp.
 - [chat.unpin](../capabilities/chat.unpin.md): Remove the pinned marker from a message
 - [threads.add_agent](../capabilities/threads.add_agent.md): Add an agent to a thread as listening (or leading when it is the only agent)
 - [threads.agent.configure](../capabilities/threads.agent.configure.md): Pick the model, provider, effort or account an agent answers with, for this chat or as the agent default; null clears a field
+- [threads.agent.create](../capabilities/threads.agent.create.md): Make an agent for this chat or channel and add it as listening in one step: a name, a one-line brief (use me for) and a model. It belongs to the chat: it is not on the Agents page, and it is removed with the chat or when it is removed from it
+- [threads.agent_settings.set](../capabilities/threads.agent_settings.set.md): Set how and when one agent answers in one chat: mode lead (answers everything), listen (when tagged) or quiet (listening, posts only when poked); when always, topics or hours; topics, hours and style (short or full). A tag or a poke still reaches an agent that is not quiet
 - [threads.archive](../capabilities/threads.archive.md): Archive a chat for me: it leaves my list and waits in my Archived section; the others in a group chat still see it. New messages do not bring it back, an @mention of me does
 - [threads.close](../capabilities/threads.close.md): Close a thread (idle with nothing waiting, or done)
 - [threads.delete](../capabilities/threads.delete.md): Delete a chat only I am in (me and agents): hidden everywhere, running turns stop first, undone with threads.restore until the retention purge removes it. A chat with other people is left, not deleted
 - [threads.erase](../capabilities/threads.erase.md): Erase one chat thread for good: messages, blocks, pins, reactions, attachment links, transcript rows, summaries and search entries (governance erase)
 - [threads.follow](../capabilities/threads.follow.md): Follow a thread (its replies reach me), mute it (I stay in it, its replies are quiet and do not count as new) or leave it
 - [threads.get](../capabilities/threads.get.md): Read one thread with its members, agents, modes, plan mode and (for helpers) the address bar path
+- [threads.invite_guest](../capabilities/threads.invite_guest.md): Invite someone by email as a guest of this channel chat only: no files folder, no records, no other chats. level view reads, reply also writes. Only the channel owner or a manager invites; a private chat becomes a channel first
 - [threads.leave](../capabilities/threads.leave.md): Leave a chat that has other people in it: I stop being a member, they keep it. A channel is left with channels.leave
 - [threads.list](../capabilities/threads.list.md): List threads by kind, folder, scope or record; or the threads I am in, newest reply first
 - [threads.make_channel](../capabilities/threads.make_channel.md): Make a private chat into a channel with another person; the new channel links back to the chat
 - [threads.mark_read](../capabilities/threads.mark_read.md): Mark a thread read up to a sequence number, or unread again (the newest message from someone else counts as new)
-- [threads.members.add](../capabilities/threads.members.add.md): Add a person to a thread; a private chat never gains people, so this offers a channel instead
+- [threads.members.add](../capabilities/threads.members.add.md): Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker's private profile there. A chat's own agents become visible to the newcomer.
 - [threads.members.remove](../capabilities/threads.members.remove.md): Remove a person from a thread
+- [threads.outside_agent.add](../capabilities/threads.outside_agent.add.md): Bring an outside agent into this chat with exactly this chat, its project, files folder and record, each tagged with the chat; it shows as "<person> (Agent)" and removing it ends access at once. You can only give what you hold
+- [threads.outside_agent.remove](../capabilities/threads.outside_agent.remove.md): Take an outside agent out of this chat and end every grant that bringing it in gave, at once
+- [threads.poke](../capabilities/threads.poke.md): Poke an agent: one turn for it now, even if it is listening. It reads the last 12 messages and tool calls, answers the poker, and its reply carries "Poked by <person>". An outside agent gets the poke in its queue
 - [threads.remove_agent](../capabilities/threads.remove_agent.md): Remove an agent from a thread
 - [threads.reopen](../capabilities/threads.reopen.md): Reopen a closed thread
 - [threads.restore](../capabilities/threads.restore.md): Undo the delete of my chat (the Undo toast), while it has not been purged

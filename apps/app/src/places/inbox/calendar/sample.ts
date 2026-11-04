@@ -27,7 +27,11 @@ const BASE_BUSY: Record<string, readonly (readonly [number, number, number, numb
 };
 
 const DAY0 = Date.UTC(2025, 9, 24); // Friday 24 October, midnight UTC (the sample person's day is UTC)
-const at = (dayOffset: number, h: number, m = 0): number => DAY0 + dayOffset * DAY + h * HOUR + m * MIN;
+// whole days the sample is moved by, so a screenshot has its today be the real today; 0 for the tests
+let SHIFT = 0;
+const at = (dayOffset: number, h: number, m = 0): number => DAY0 + SHIFT + dayOffset * DAY + h * HOUR + m * MIN;
+/** The whole days from the sample's today to the day `now` falls in. */
+export const daysTo = (now: number): number => Math.floor(now / DAY) - Math.floor(SAMPLE_NOW / DAY);
 const att = (...emails: string[]): EventRow["attendees"] => emails.map((email) => ({ email, name: TEAM.find((t) => t.email === email)?.name ?? email, response: "accepted" as const }));
 const ev = (id: string, calendarId: string, title: string, startsAt: number, endsAt: number, o: Partial<EventRow> = {}): EventRow =>
   ({ id, calendarId, title, startsAt, endsAt, allDay: false, joinProvider: "none", attendees: [], recordIds: [], status: "confirmed", ...o });
@@ -36,7 +40,7 @@ function nwEvents(): EventRow[] {
   const out: EventRow[] = [];
   // the daily standup, Monday to Friday, three weeks around today
   for (let d = -18; d <= 17; d++) {
-    const wd = new Date(DAY0 + d * DAY).getUTCDay();
+    const wd = new Date(DAY0 + SHIFT + d * DAY).getUTCDay();
     if (wd === 0 || wd === 6) continue;
     out.push(ev(`standup_${d}`, "cal_work", "Team standup", at(d, 9, 30), at(d, 10, 0), { seriesId: "standup", organizer: "maya@northwind.example", attendees: att(ME, "maya@northwind.example", "omar@northwind.example", "lena@northwind.example") }));
   }
@@ -66,6 +70,23 @@ function nwEvents(): EventRow[] {
     ev("e_dinner", "cal_pers", "Dinner with Grace", at(0, 19), at(0, 20, 30), { location: "Tartine Manufactory, 595 Alabama St, San Francisco" }),
     ev("e_sat", "cal_pers", "Farmers market", at(1, 9), at(1, 10)),
     ev("e_mon1", "cal_work", "Client intake: Priya Nair", at(3, 10, 30), at(3, 11, 30), { joinProvider: "meet", joinUrl: "https://meet.example/abc-defg", attendees: att(ME) }),
+  );
+  // a crowded week like a real one (Monday to Thursday of today's week): overlaps, long Block and Focus events, repeated and multi-day all-day items
+  const MON = -((new Date(DAY0 + SHIFT).getUTCDay() + 6) % 7);
+  const day = (id: string, cal: string, title: string, d: number, o: Partial<EventRow> = {}): EventRow => ev(id, cal, title, at(d, 0), at(d + 1, 0), { allDay: true, ...o });
+  out.push(
+    ev("e_x_block", "cal_work", "Block", at(MON + 1, 9), at(MON + 1, 17)),
+    ev("e_x_focus", "cal_work", "Focus", at(MON + 3, 8, 30), at(MON + 3, 16)),
+    ev("e_x_prep", "cal_work", "Block 10:00 prep for Hartwell", at(MON + 2, 10), at(MON + 2, 12)),
+    ev("e_x_nda", "cal_work", "NDA walk-through: Alvarez Design", at(MON + 2, 10), at(MON + 2, 10, 30), { attendees: att(ME) }),
+    ev("e_x_priya", "cal_work", "Meeting with Priya", at(MON + 2, 10), at(MON + 2, 10, 30), { attendees: att(ME) }),
+    ev("e_x_hart", "cal_ms", "The Hartwell intake call", at(MON + 2, 10, 15), at(MON + 2, 11), { attendees: att(ME, "lena@northwind.example"), joinProvider: "teams", joinUrl: "https://teams.microsoft.com/l/meetup-join/hartwell" }),
+    ev("e_x_pipe", "cal_work", "Pipeline review", at(MON + 3, 10), at(MON + 3, 10, 45), { attendees: att(ME, "maya@northwind.example", "omar@northwind.example"), joinProvider: "meet", joinUrl: "https://meet.google.com/pip-eline-rev" }),
+    ev("e_x_omar", "cal_ms", "Quick sync: Omar", at(MON + 3, 10, 30), at(MON + 3, 11), { attendees: att(ME, "omar@northwind.example") }),
+    day("e_x_up1", "cal_work", "MLA Updates", MON + 0), day("e_x_up2", "cal_work", "MLA Updates", MON + 1), day("e_x_up2b", "cal_work", "MLA Updates", MON + 1),
+    day("e_x_up3", "cal_work", "MLA Updates", MON + 2), day("e_x_up3b", "cal_work", "MLA Updates", MON + 2), day("e_x_up4", "cal_work", "MLA Updates", MON + 3),
+    day("e_x_off", "cal_ms", "Offsite prep", MON + 1), day("e_x_bd", "cal_work", "Birthday: Maya", MON + 2), day("e_x_car", "cal_pers", "Car service", MON + 2),
+    ev("e_x_summit", "cal_pers", "LegalTech Summit", at(MON + 2, 0), at(MON + 4, 0), { allDay: true }),
   );
   return out;
 }
@@ -119,8 +140,9 @@ export function slotsFor(people: readonly string[], minutes: number, from: numbe
   return out;
 }
 
-export function createCalendarSample(space: SampleSpace = northwind, o: { online?: boolean; bulk?: number } = {}): CalendarSample {
-  const base = createSampleInbox(space, o);
+export function createCalendarSample(space: SampleSpace = northwind, o: { online?: boolean; bulk?: number; shiftDays?: number } = {}): CalendarSample {
+  SHIFT = (o.shiftDays ?? 0) * DAY;
+  const base = createSampleInbox(space, { online: o.online, bulk: o.bulk } as Parameters<typeof createSampleInbox>[1]);
   const { replica } = base;
   const writes: CalendarSample["writes"] = [];
   const rows = (): EventRow[] => replica.rows("events") as unknown as EventRow[];
@@ -150,7 +172,7 @@ export function createCalendarSample(space: SampleSpace = northwind, o: { online
       // All events of a series: every instance not yet ended takes the title and moves by the same amount (the server does the same, modules/calendar updateSeries)
       const shift = i.startsAt !== undefined ? i.startsAt - cur.startsAt : 0;
       const len = i.startsAt !== undefined && i.endsAt !== undefined ? i.endsAt - i.startsAt : cur.endsAt - cur.startsAt;
-      const series = i.scope === "all" && cur.seriesId ? rows().filter((e) => e.seriesId === cur.seriesId && (e.id === cur.id || e.endsAt > SAMPLE_NOW)) : [cur];
+      const series = i.scope === "all" && cur.seriesId ? rows().filter((e) => e.seriesId === cur.seriesId && (e.id === cur.id || e.endsAt > SAMPLE_NOW + SHIFT)) : [cur];
       const out = series.map((e) => {
         const startsAt = e.id === cur.id ? (i.startsAt ?? e.startsAt) : e.startsAt + shift;
         return { ...e, ...(i.startsAt !== undefined || i.endsAt !== undefined ? { startsAt, endsAt: e.id === cur.id ? (i.endsAt ?? startsAt + len) : startsAt + len } : {}), ...(i.title !== undefined ? { title: i.title } : {}), ...(i.attendees !== undefined ? { attendees: i.attendees } : {}) };
@@ -214,6 +236,7 @@ export function createCalendarSample(space: SampleSpace = northwind, o: { online
   };
   const data: InboxData = {
     ...base.data,
+    clock: () => ({ now: SAMPLE_NOW + SHIFT, offsetMin: 0 }),
     async call(cap, input) {
       const r = reads[cap];
       if (r) return r(input as never);

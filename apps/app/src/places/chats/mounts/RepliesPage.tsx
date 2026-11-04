@@ -3,7 +3,7 @@
 // the top. Right-click a row for Open, Mark as Read, Follow or Mute, Leave and Copy Link; J and K move, Enter opens. More load on request. A task's replies stay with its task.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -24,11 +24,15 @@ const PAGE = 50;
 /** What the page asks for: the replies I am in, newest reply first, without a task's. */
 export const THREADS_STATE = { kind: ["thread"], mine: true, order: "latest", exceptScope: ["task"], limit: PAGE } as const;
 
-export function RepliesPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; nameOf(id: string): string; openChat(id: string): void; say?(text: string): void }): ReactElement {
+/** What pressing a row does: the reply opens its chat with the thread beside the message, the chat name opens the chat itself. */
+export type OpenReply = (t: { threadId: string; parentThreadId?: string | undefined; parentMessageId?: string | undefined }, how: "reply" | "chat") => void;
+
+export function RepliesPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; nameOf(id: string): string; openChat: OpenReply; say?(text: string): void }): ReactElement {
   const live = useLive<ThreadsOut>(rt.screens, THREADS_SCREEN, "threads", THREADS_STATE as unknown as Record<string, unknown>);
   const [more, setMore] = useState<{ rows: readonly Thread[]; next: string | undefined } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const menu = useMenu();
+  const phone = useWindowDimensions().width < 600;
   const first = live.status === "ready" ? live.data.threads : [];
   const next = more ? more.next : live.status === "ready" ? live.data.next : undefined;
   const rows = useMemo(() => mergeThreadPages(first, more?.rows ?? []), [first, more]);
@@ -46,8 +50,9 @@ export function RepliesPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; n
     void Promise.resolve(rt.call("threads.follow", { threadId: id, mode })).then(() => tell(followSaid(mode)), () => tell("Could not change that. Try again."));
   };
   const markRead = (id: string): void => { void Promise.resolve(rt.call("threads.mark_read", { threadId: id })).catch(() => tell("Could not mark it read. Try again.")); };
+  const open = (t: Thread, how: "reply" | "chat"): void => { if (how === "reply" && t.unread) markRead(t.threadId); openChat(t, how); };
   const entries = (t: Thread): MenuEntry[] => [
-    { label: "Open", onSelect: () => openChat(t.threadId) },
+    { label: "Open", onSelect: () => open(t, "reply") },
     { label: "Mark as Read", disabled: !t.unread, onSelect: () => markRead(t.threadId) },
     { separator: true },
     ...followMenu(modeOf(t), (mode) => follow(t.threadId, mode)),
@@ -60,13 +65,14 @@ export function RepliesPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; n
     const g = globalThis as unknown as { addEventListener?: (t: string, f: (e: KeyboardEvent) => void) => void; removeEventListener?: (t: string, f: (e: KeyboardEvent) => void) => void };
     const onKey = (e: KeyboardEvent): void => {
       if (e.metaKey || e.ctrlKey || e.altKey || typing(e.target)) return;
-      if (e.key === "Enter" && selected !== null) { e.preventDefault(); openChat(selected); return; }
+      const sel = rows.find((r) => r.threadId === selected);
+      if (e.key === "Enter" && sel) { e.preventDefault(); open(sel, "reply"); return; }
       const to = moveSelection(ids, selected, e.key);
       if (to !== null) { e.preventDefault(); setSelected(to); }
     };
     g.addEventListener?.("keydown", onKey);
     return () => g.removeEventListener?.("keydown", onKey);
-  }, [ids, selected, openChat]);
+  }, [ids, rows, selected, openChat]); // eslint-disable-line react-hooks/exhaustive-deps -- open reads the same props
 
   const clock = rt.clock();
   return (
@@ -77,12 +83,36 @@ export function RepliesPage({ rt, nameOf, openChat, say }: { rt: ShellRuntime; n
           {live.status === "ready" && rows.length === 0 ? <Text style={LIST_PAGE.empty}>Replies to messages you wrote, replied to or follow show here.</Text> : null}
           {rows.map((t) => {
             const v = threadView(t, nameOf, clock);
+            if (phone) {
+              // two lines, like an activity list: who replied and where, with the time; then the words, with the count
+              return (
+                <Pressable
+                  key={t.threadId} testID={`row-thread-${t.threadId}`} accessibilityRole="button" accessibilityLabel={`${v.who} in ${v.title}: ${v.note}`}
+                  onPress={() => { setSelected(t.threadId); open(t, "reply"); }} style={[st.prow, selected === t.threadId ? st.psel : null]}
+                  {...(menuTrigger((x, y) => { setSelected(t.threadId); menu.show(entries(t), x, y, "context", { label: "Reply" }); }) as object)}
+                >
+                  <View style={st.plead}>{v.faces[0] ? <Face name={nameOf(v.faces[0].id)} seedId={v.faces[0].id} kind={v.faces[0].kind} size={32} /> : null}</View>
+                  <View style={st.pbody}>
+                    <View style={st.pline}>
+                      <Text numberOfLines={1} style={[st.pwho, v.bold ? st.pbold : null]}>{v.who}</Text>
+                      <Text numberOfLines={1} accessibilityRole="link" testID={`reply-chat-${t.threadId}`} onPress={() => open(t, "chat")} style={st.pchat}>{`in ${v.title}`}</Text>
+                      <View style={st.pgrow} />
+                      <Text style={st.when}>{v.when}</Text>
+                    </View>
+                    <View style={st.pline}>
+                      <Text numberOfLines={1} style={st.pnote}>{v.note}</Text>
+                      {v.unread > 0 ? <Text testID={`thread-unread-${t.threadId}`} accessibilityLabel={`${v.unread} new`} style={st.unread}>{String(v.unread)}</Text> : v.muted ? <Text style={st.when}>Muted</Text> : null}
+                    </View>
+                  </View>
+                </Pressable>
+              );
+            }
             return (
               <Row
-                key={t.threadId} id={`thread-${t.threadId}`} title={v.title} note={v.note} emphasis={v.bold} selected={selected === t.threadId}
+                key={t.threadId} id={`thread-${t.threadId}`} title={v.who} titleSuffix={`replied in ${v.title}`} note={v.note} emphasis={v.bold} selected={selected === t.threadId}
                 leading={<View style={st.lead}>{v.faces[0] ? <Face name={nameOf(v.faces[0].id)} seedId={v.faces[0].id} kind={v.faces[0].kind} size={28} /> : null}</View>}
-                trailing={<View style={st.trail}><Text style={st.when}>{v.when}</Text>{v.unread > 0 ? <Text testID={`thread-unread-${t.threadId}`} accessibilityLabel={`${v.unread} new`} style={st.unread}>{String(v.unread)}</Text> : v.muted ? <Text style={st.when}>Muted</Text> : null}</View>}
-                onPress={() => { setSelected(t.threadId); openChat(t.threadId); }}
+                trailing={<View style={st.trail}><Text style={st.when}>{v.when}</Text><TextButton label={v.title} testID={`reply-chat-${t.threadId}`} onPress={() => open(t, "chat")} />{v.unread > 0 ? <Text testID={`thread-unread-${t.threadId}`} accessibilityLabel={`${v.unread} new`} style={st.unread}>{String(v.unread)}</Text> : v.muted ? <Text style={st.when}>Muted</Text> : null}</View>}
+                onPress={() => { setSelected(t.threadId); open(t, "reply"); }}
                 domProps={menuTrigger((x, y) => { setSelected(t.threadId); menu.show(entries(t), x, y, "context", { label: "Reply" }); })}
               />
             );
@@ -108,6 +138,16 @@ export const LIST_PAGE = StyleSheet.create({
 const st = StyleSheet.create({
   lead: { marginRight: 12, width: 28 },
   trail: { flexDirection: "row", alignItems: "center", gap: 10 },
+  prow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, paddingHorizontal: 8, borderRadius: 10 },
+  psel: { backgroundColor: "var(--sel)" as string },
+  plead: { width: 32 },
+  pbody: { flex: 1, minWidth: 0, gap: 3 },
+  pline: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
+  pwho: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string, flexShrink: 0 },
+  pchat: { fontSize: 13, color: "var(--ink-2)" as string, flexShrink: 1, minWidth: 0 },
+  pbold: { fontWeight: "700" },
+  pgrow: { flex: 1, minWidth: 4 },
+  pnote: { flex: 1, fontSize: 13, color: "var(--ink-3)" as string },
   when: { fontSize: 12, color: "var(--ink-3)" as string },
   unread: { fontSize: 12.5, fontWeight: "700", color: "var(--accent)" as string, minWidth: 14, textAlign: "right" },
   more: { paddingVertical: 12, alignItems: "flex-start", paddingHorizontal: 10 },

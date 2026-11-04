@@ -63,6 +63,13 @@ type Out = {
           effort?: "low" | "medium" | "high" | "max";
           accountRef?: string;
           watches?: boolean;
+          when?: "always" | "topics" | "hours";
+          topics?: string;
+          hoursFrom?: string;
+          hoursTo?: string;
+          style?: "short" | "full";
+          quiet?: boolean;
+          owned?: boolean;
         }>;
       createdAt: number;
       closedAt?: number;
@@ -114,10 +121,17 @@ type Out = {
             "accountRef": "example",
             "agentId": "agt_a1b2c3",
             "effort": "low",
+            "hoursFrom": "09:00",
+            "hoursTo": "09:00",
             "mode": "lead",
             "model": "claude-sonnet-5-5",
+            "owned": true,
             "provider": "anthropic",
-            "watches": true
+            "quiet": true,
+            "style": "short",
+            "topics": "example",
+            "watches": true,
+            "when": "always"
           }
         ],
         "channelId": "chn_a1b2c3",

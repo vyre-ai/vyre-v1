@@ -87,12 +87,12 @@ test("list: mine, owner, subject, all, with filters and pages", async () => {
   assert.deepEqual(ids(await h.call("runs.list", { scope: "owner", ownerId: bob.id }, alice)), [], "someone else's Runs are not listed by owner");
   assert.deepEqual(ids(await h.call("runs.list", { scope: "subject", subject: subj }, bob)).sort(), [r2, r3].sort(), "a viewer of the object sees its Runs");
   assert.deepEqual(ids(await h.call("runs.list", { scope: "subject", subject: subj }, alice)), [r2], "without access, only your own");
-  assert.equal((await h.call("runs.list", { scope: "all" }, admin)).total, 3);
+  assert.equal((await h.call("runs.list", { scope: "all" }, admin)).total, 2, "the routine is a person's own agent work: counted, not listed");
   await refused(h.call("runs.list", { scope: "all" }, alice), "permission.role_lacks_permission", "manage_required");
-  const p1 = await h.call("runs.list", { scope: "all", limit: 2 }, admin);
-  assert.equal(p1.runs.length, 2);
-  assert.equal(p1.total, 3);
-  const p2 = await h.call("runs.list", { scope: "all", limit: 2, cursor: p1.next }, admin);
+  const p1 = await h.call("runs.list", { scope: "all", limit: 1 }, admin);
+  assert.equal(p1.runs.length, 1);
+  assert.equal(p1.total, 2);
+  const p2 = await h.call("runs.list", { scope: "all", limit: 1, cursor: p1.next }, admin);
   assert.deepEqual(ids(p2), [r1]);
   assert.equal(p2.next, undefined);
 });
@@ -107,6 +107,21 @@ test("count by status for badges", async () => {
   assert.equal((await h.call("runs.count", { scope: "mine" }, alice)).count, 2);
   assert.equal((await h.call("runs.count", { scope: "mine", statuses: ["failed"] }, alice)).count, 1);
   assert.equal((await h.call("runs.count", { scope: "all", statuses: ["queued"] }, admin)).count, 2);
+});
+
+test("an admin who manages runs never gets a person's own agent runs: folded into a count per person", async () => {
+  const h = harness({ authorize: managers(admin.id) });
+  const shared = await mk(h, { kind: "automation" }, { id: "usr_alice", kind: "person" } as typeof alice);
+  const mine = await mk(h, { kind: "routine" }, { id: "usr_alice", kind: "person" } as typeof alice);
+  const ids = (r: any): string[] => r.runs.map((x: any) => x.id);   // eslint-disable-line @typescript-eslint/no-explicit-any
+  assert.deepEqual(ids(await h.call("runs.list", { scope: "all" }, admin)), [shared], "the admin's list has the shared run only");
+  assert.deepEqual(ids(await h.call("runs.list", { scope: "owner", ownerId: alice.id }, admin)), [shared]);
+  assert.deepEqual(ids(await h.call("runs.list", { scope: "mine" }, alice)).sort(), [shared, mine].sort(), "the person sees their own");
+  assert.deepEqual((await h.call("runs.people_counts", {}, admin)).people, [{ person: alice.id, runs: 1 }]);
+  await assert.rejects(h.call("runs.get", { runId: mine }, admin), (e) => codeOf(e) === "permission.not_found");
+  await assert.rejects(h.call("runs.people_counts", {}, bob), (e) => codeOf(e) === "permission.role_lacks_permission");
+  const all = JSON.stringify(await h.call("runs.list", { scope: "all" }, admin));
+  assert.ok(!all.includes(mine), "the folded run's id is nowhere in what the admin got");
 });
 
 // ---- step log ----

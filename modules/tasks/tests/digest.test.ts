@@ -35,7 +35,7 @@ test("on the task's own thread it hears the task, the parent and the siblings, a
   await h.call("tasks.update", { taskId: p.a, threadId: "thr_bound" }, me);
   await h.call("tasks.transition", { taskId: p.b, to: "canceled" }, me);
   const d = await digest(h, { agentId: bot.id, threadId: "thr_bound" });
-  assert.match(d.text, /On this thread: \S+ Flow \[to do\]/);
+  assert.match(d.text, /On this chat: \S+ Flow \[to do\]/);
   assert.match(d.text, /Parent: \S+ Ship uploads/);
   assert.match(d.text, /Siblings \(1 of 2 finished\):/);
   assert.match(d.text, /Links/);
@@ -46,7 +46,7 @@ test("the cap holds at any size and the count says what was left out", () => {
   const many = Array.from({ length: 500 }, (_, i) => ({ id: `tsk_${i}`, key: `VY-${i}`, title: "A very long title that goes on ".repeat(6), state: "doing" })) as never[];
   const text = renderDigest({ bound: many[0], parent: many[1], siblings: many, children: many, mine: many.slice(0, 5), mineTotal: 500 });
   assert.ok(text.length <= DIGEST_CHARS, `${text.length}`);
-  assert.ok(text.includes("On this thread:"));
+  assert.ok(text.includes("On this chat:"));
 });
 
 test("the same words give the same hash, a change gives another: the digest is sent only when it moved", async () => {
@@ -73,9 +73,9 @@ test("a crew job or helper's thread is told which task it is doing; a chat that 
   await h.call("tasks.update", { taskId: p.parent, threadId: "thr_chat" }, me);
   const job = await digest(h, { agentId: bot.id, threadId: "thr_job" });
   assert.equal(job.boundTaskId, p.a);
-  assert.match(job.text, /On this thread: \S+ Flow/);
+  assert.match(job.text, /On this chat: \S+ Flow/);
   const chat = await digest(h, { agentId: bot.id, threadId: "thr_chat" });
   assert.equal(chat.boundTaskId, undefined);
-  assert.match(chat.text, /On this thread: \S+ Ship uploads/);
+  assert.match(chat.text, /On this chat: \S+ Ship uploads/);
   assert.match(chat.text, /Children \(0 of 3 finished\):/);
 });

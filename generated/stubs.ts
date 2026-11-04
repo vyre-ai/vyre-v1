@@ -20,6 +20,10 @@ export function stubs(ctx: CallCtx) {
         set_engineer_mcp: call("access.actors.set_engineer_mcp"),
         update: call("access.actors.update"),
       },
+      agents_can_call: {
+        get: call("access.agents_can_call.get"),
+        set: call("access.agents_can_call.set"),
+      },
       audience_set: call("access.audience_set"),
       automation_senders: call("access.automation_senders"),
       check: call("access.check"),
@@ -136,6 +140,8 @@ export function stubs(ctx: CallCtx) {
         usable: call("agents.outside.usable"),
       },
       pause: call("agents.pause"),
+      pause_person: call("agents.pause_person"),
+      people_summary: call("agents.people_summary"),
       restore: call("agents.restore"),
       restore_version: call("agents.restore_version"),
       resume: call("agents.resume"),
@@ -406,6 +412,7 @@ export function stubs(ctx: CallCtx) {
         list: call("chat.helpers.list"),
       },
       history: {
+        page: call("chat.history.page"),
         search: call("chat.history.search"),
       },
       make_task: call("chat.make_task"),
@@ -437,6 +444,7 @@ export function stubs(ctx: CallCtx) {
         ask: call("chat.question.ask"),
       },
       react: call("chat.react"),
+      read_floor: call("chat.read_floor"),
       recent: call("chat.recent"),
       remember: call("chat.remember"),
       reply_details: call("chat.reply_details"),
@@ -447,6 +455,7 @@ export function stubs(ctx: CallCtx) {
       share: call("chat.share"),
       start: call("chat.start"),
       thread: call("chat.thread"),
+      title_make: call("chat.title_make"),
       transcript: {
         append: call("chat.transcript.append"),
         get: call("chat.transcript.get"),
@@ -757,6 +766,7 @@ export function stubs(ctx: CallCtx) {
       compact: call("engine.compact"),
       complete: call("engine.complete"),
       crew: {
+        chat_repo: call("engine.crew.chat_repo"),
         list: call("engine.crew.list"),
         merge: call("engine.crew.merge"),
         message: call("engine.crew.message"),
@@ -873,6 +883,7 @@ export function stubs(ctx: CallCtx) {
       },
       turns: {
         list: call("engine.turns.list"),
+        running: call("engine.turns.running"),
       },
       usage: {
         get: call("engine.usage.get"),
@@ -1033,6 +1044,7 @@ export function stubs(ctx: CallCtx) {
       holds: {
         get: call("gate.holds.get"),
         list: call("gate.holds.list"),
+        revise: call("gate.holds.revise"),
       },
       links: {
         known: call("gate.links.known"),
@@ -1431,6 +1443,17 @@ export function stubs(ctx: CallCtx) {
       tail: call("logs.tail"),
       trace: call("logs.trace"),
     },
+    machines: {
+      alerts: call("machines.alerts"),
+      alerts_notify: call("machines.alerts_notify"),
+      fix: call("machines.fix"),
+      get: call("machines.get"),
+      list: call("machines.list"),
+      move_record: call("machines.move_record"),
+      moves: call("machines.moves"),
+      rooms: call("machines.rooms"),
+      set: call("machines.set"),
+    },
     mail: {
       attachment: {
         save: call("mail.attachment.save"),
@@ -1582,6 +1605,7 @@ export function stubs(ctx: CallCtx) {
       invites: {
         create: call("members.invites.create"),
         extend: call("members.invites.extend"),
+        guest: call("members.invites.guest"),
         list: call("members.invites.list"),
         preview: call("members.invites.preview"),
         revoke: call("members.invites.revoke"),
@@ -2162,6 +2186,7 @@ export function stubs(ctx: CallCtx) {
       get: call("runs.get"),
       list: call("runs.list"),
       mark_waiting: call("runs.mark_waiting"),
+      people_counts: call("runs.people_counts"),
       pin_version: call("runs.pin_version"),
       preview_undo: call("runs.preview_undo"),
       purge: call("runs.purge"),
@@ -2297,7 +2322,9 @@ export function stubs(ctx: CallCtx) {
       addon_remove: call("sites.addon_remove"),
       artifact_open: call("sites.artifact_open"),
       artifact_publish: call("sites.artifact_publish"),
+      artifact_thumb_set: call("sites.artifact_thumb_set"),
       build: call("sites.build"),
+      chat_viewing: call("sites.chat_viewing"),
       create: call("sites.create"),
       db_import: call("sites.db_import"),
       delete: call("sites.delete"),
@@ -2540,6 +2567,7 @@ export function stubs(ctx: CallCtx) {
         remove: call("tasks.followers.remove"),
       },
       get: call("tasks.get"),
+      held_revise: call("tasks.held_revise"),
       history: call("tasks.history"),
       index: call("tasks.index"),
       links: {
@@ -2642,6 +2670,10 @@ export function stubs(ctx: CallCtx) {
       add_agent: call("threads.add_agent"),
       agent: {
         configure: call("threads.agent.configure"),
+        create: call("threads.agent.create"),
+      },
+      agent_settings: {
+        set: call("threads.agent_settings.set"),
       },
       archive: call("threads.archive"),
       close: call("threads.close"),
@@ -2649,6 +2681,7 @@ export function stubs(ctx: CallCtx) {
       erase: call("threads.erase"),
       follow: call("threads.follow"),
       get: call("threads.get"),
+      invite_guest: call("threads.invite_guest"),
       leave: call("threads.leave"),
       list: call("threads.list"),
       make_channel: call("threads.make_channel"),
@@ -2657,6 +2690,11 @@ export function stubs(ctx: CallCtx) {
         add: call("threads.members.add"),
         remove: call("threads.members.remove"),
       },
+      outside_agent: {
+        add: call("threads.outside_agent.add"),
+        remove: call("threads.outside_agent.remove"),
+      },
+      poke: call("threads.poke"),
       remove_agent: call("threads.remove_agent"),
       reopen: call("threads.reopen"),
       restore: call("threads.restore"),

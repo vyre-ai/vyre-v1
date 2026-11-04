@@ -110,12 +110,12 @@ test("a person watches a crew build in a plain chat in the real app: the Crew ta
       }
       const later = page.getByText("Finish later", { exact: true });
       if (await later.count()) await later.first().click().catch(() => undefined);
-      await (phone ? Promise.resolve() : page.getByText("Build the site", { exact: false }).first().click({ timeout: 30_000 })).catch(async (e) => { await shoot(page, `${mode}-FAILED-open-chat`); await page.getByText("Details", { exact: true }).click().catch(() => undefined); console.error("DETAILS", (await page.locator("body").innerText()).slice(0, 1500), errors.join(" | ")); throw e; });
+      await page.getByText("Build the site", { exact: false }).first().click({ timeout: 30_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-open-chat`); await page.getByText("Details", { exact: true }).click().catch(() => undefined); console.error("DETAILS", (await page.locator("body").innerText()).slice(0, 1500), errors.join(" | ")); throw e; });
       const jobId = ((await api("engine.crew.list", { threadId: chat })).jobs as Array<{ jobId: string }>)[0]!.jobId;
       const card = page.getByTestId(`crew-card-${jobId}`);
       await card.waitFor({ timeout: 40_000 });
       // the dark pass opens the chat after the merge: the same card, now one line
-      assert.match(await card.innerText(), mode === "light" ? /Ember finished Dark mode[\s\S]*1 commit · 2 files/ : /Merged · Ember: Dark mode/);
+      if (!(phone && mode === "dark")) assert.match(await card.innerText(), mode === "light" ? /Ember finished Dark mode[\s\S]*1 commit · 2 files/ : /Merged · Ember: Dark mode/);
       if (mode === "light") {
         // the start of the job is one line, not "Started a helper" plus a chip; and nobody is left marked Working once the job is done
         await page.getByText("Ember is on Dark mode").first().waitFor({ timeout: 15_000 });
@@ -135,9 +135,9 @@ test("a person watches a crew build in a plain chat in the real app: the Crew ta
         // Merge on the card lands the branch and the card collapses to one line
         await page.getByTestId(`crew-merge-${jobId}`).first().click();
         // on a phone the pane covers the chat: the pane saying Merged is the check, and the phone run stops there
-        if (phone) { await page.getByText(/Merged/).first().waitFor({ timeout: 15_000 }); await shoot(page, `${mode}-3-merged-pane`); await ctx.close(); return; }
+        if (phone) { await page.getByText(/Merged/).first().waitFor({ timeout: 15_000 }); await shoot(page, `${mode}-3-merged-pane`); await ctx.close(); continue; }
         await card.getByText(/Merged/).first().waitFor({ timeout: 15_000 });
-        const repo = ((await api("engine.crew.repo.get", { projectId: chat })).repo as { path: string }).path;
+        const repo = ((await api("engine.crew.chat_repo", { threadId: chat })).repo as { path: string }).path;
         assert.equal(fs.readFileSync(path.join(repo, "dark-mode.txt"), "utf8"), "toggle: on\n");
         assert.match(git(repo, "log", "--format=%s", "-n", "2"), /Merge crew\/ember-1/);
         await shoot(page, `${mode}-3-merged`);

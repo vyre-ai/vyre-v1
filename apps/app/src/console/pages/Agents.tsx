@@ -14,6 +14,7 @@ import { Actions, Button, Field, FormSheet, ModelSelect, Note, pickRow, Stepper,
 
 import {TemplateFiles} from "./TemplateFiles.tsx";
 import { connectedNote } from "./connected-model.ts";
+import { CAP_OPTIONS, PAUSE_NOTE, PEOPLE_FOOT, capKey, micros, spendPct, summaryNote } from "./people-agents-model.ts";
 
 type Agents = CapMap["agents.list"]["out"];
 const PROVIDERS = [{ key: "anthropic", title: "Anthropic" }, { key: "openai", title: "OpenAI" }, { key: "google", title: "Google" }, { key: "other", title: "Other" }];
@@ -51,12 +52,45 @@ export function AgentsRegister({ initialAgentId = null }: { initialAgentId?: str
   if (!list.data) return <ReadState error={list.error} retry={list.refresh} />;
   const selected = list.data.agents.find((agent) => agent.agentId === selectedId) ?? null;
   if (selected) return <AgentObject key={selected.agentId} agent={selected} busy={action.busy} note={action.note} onBack={() => setSelectedId(null)} onRun={action.run} onDeleted={(deleted) => setTrashed((current) => [...current, deleted])} />;
-  const rows: ObjectListRow<Agent>[] = list.data.agents.map((agent) => ({ id: agent.agentId, title: agent.name, note: `${agent.role ?? "No role line"} · ${agent.hasComputer ? "Computer" : "No computer"}`, leading: <Lead><Avatar name={agent.name} seedId={agent.agentId} kind="agent" size={26} /></Lead>, trailing: <StatusLabel status={agent.status} />, search: `${agent.ownerId} ${agent.folderId} ${agent.model ?? ""}`, filters: [agent.status, ...(agent.hasComputer ? ["computer"] : [])], value: agent, actions: [{ label: "Open", onSelect: () => setSelectedId(agent.agentId) }, { label: agent.status === "paused" ? "Resume agent" : "Pause agent", onSelect: () => void action.run(agent.status === "paused" ? "agents.resume" : "agents.pause", { agentId: agent.agentId }, agent.status === "paused" ? "Agent resumed" : "Agent paused") }, { separator: true }, { label: "Delete agent", danger: true, onSelect: () => { setPicked(new Set([agent.agentId])); setBulkConfirm(true); } }] }));
+  const rows: ObjectListRow<Agent>[] = list.data.agents.map((agent) => ({ id: agent.agentId, title: agent.name, note: `${agent.role ?? "No role line"} · ${agent.hasComputer ? "Computer" : "No computer"}${agent.kind === "assistant" || agent.runtime === "outside" ? " · Only you" : ""}`, leading: <Lead><Avatar name={agent.name} seedId={agent.agentId} kind="agent" size={26} /></Lead>, trailing: <StatusLabel status={agent.status} />, search: `${agent.ownerId} ${agent.folderId} ${agent.model ?? ""}`, filters: [agent.status, ...(agent.hasComputer ? ["computer"] : [])], value: agent, actions: [{ label: "Open", onSelect: () => setSelectedId(agent.agentId) }, { label: agent.status === "paused" ? "Resume agent" : "Pause agent", onSelect: () => void action.run(agent.status === "paused" ? "agents.resume" : "agents.pause", { agentId: agent.agentId }, agent.status === "paused" ? "Agent resumed" : "Agent paused") }, { separator: true }, { label: "Delete agent", danger: true, onSelect: () => { setPicked(new Set([agent.agentId])); setBulkConfirm(true); } }] }));
   const deletePicked = async (): Promise<void> => { for (const agentId of picked) { const out = await action.run("agents.delete", { agentId }, "Agent moved to Trash"); if (out === undefined) return; setTrashed((current) => [...current, { agentId, name: list.data!.agents.find((a) => a.agentId === agentId)?.name ?? "Agent" }]); } setPicked(new Set()); setBulkConfirm(false); };
-  return <View testID="console-agents"><Section title="Agents" count={rows.length} right={<Button label="New agent" testID="agent-new" onPress={() => setCreating(true)} />}><ObjectList rows={rows} selectedId={null} onOpen={(row) => setSelectedId(row.id)} filters={[{ id: "awake", label: "Awake" }, { id: "working", label: "Working" }, { id: "asleep", label: "Asleep" }, { id: "paused", label: "Paused" }, { id: "computer", label: "Has computer" }]} activeFilters={filters} onFilters={setFilters} picked={picked} onPicked={setPicked} bulkActions={[{ label: "Delete selected…", danger: true, onSelect: () => setBulkConfirm(true) }]} empty="No agents yet." testID="agents-object-list" /></Section>{bulkConfirm ? <Section title="Delete selected agents?"><Group><Note>{picked.size} agent{picked.size === 1 ? "" : "s"} will move to Trash and stop working.</Note><Actions><Button label="Cancel" onPress={() => setBulkConfirm(false)} /><Button label="Confirm deletion" danger disabled={action.busy || picked.size === 0} onPress={() => void deletePicked()} /></Actions></Group></Section> : null}{creating ? <FormSheet title="New agent" testID="agent-new-sheet" onClose={() => setCreating(false)} disabled={!name.trim() || action.busy} why={!name.trim() ? "Name the agent first" : undefined}
+  return <View testID="console-agents"><Section title="Space agents" count={rows.length} {...({} as object)} right={<Button label="New agent" testID="agent-new" onPress={() => setCreating(true)} />}><ObjectList rows={rows} selectedId={null} onOpen={(row) => setSelectedId(row.id)} filters={[{ id: "awake", label: "Awake" }, { id: "working", label: "Working" }, { id: "asleep", label: "Asleep" }, { id: "paused", label: "Paused" }, { id: "computer", label: "Has computer" }]} activeFilters={filters} onFilters={setFilters} picked={picked} onPicked={setPicked} bulkActions={[{ label: "Delete selected…", danger: true, onSelect: () => setBulkConfirm(true) }]} empty="No agents yet." testID="agents-object-list" /></Section>{bulkConfirm ? <Section title="Delete selected agents?"><Group><Note>{picked.size} agent{picked.size === 1 ? "" : "s"} will move to Trash and stop working.</Note><Actions><Button label="Cancel" onPress={() => setBulkConfirm(false)} /><Button label="Confirm deletion" danger disabled={action.busy || picked.size === 0} onPress={() => void deletePicked()} /></Actions></Group></Section> : null}{creating ? <FormSheet title="New agent" testID="agent-new-sheet" onClose={() => setCreating(false)} disabled={!name.trim() || action.busy} why={!name.trim() ? "Name the agent first" : undefined}
     onSubmit={() => void action.run("agents.create", { name: name.trim(), ...(role.trim() ? { role: role.trim() } : {}), ...(newModel.trim() ? { model: newModel.trim() } : {}), idempotencyKey: attempt() }, "Agent created").then((out) => { if (out) { setName(""); setRole(""); setNewModel(""); setCreating(false); } })}>
     <Field label="Name" testID="agent-name" value={name} onChange={setName} /><Field label="Role line" value={role} onChange={setRole} /><ModelSelect label="Model" value={newModel} onChange={setNewModel} />
-  </FormSheet> : null}{trashed.length ? <Section title="Moved to Trash"><Group>{trashed.map((t) => <Row key={t.agentId} id={`agent-trashed-${t.agentId}`} title={t.name} note="Stopped and moved to Trash" trailing={<Button label="Undo" testID={`agent-undo-${t.agentId}`} disabled={action.busy} onPress={() => void action.run("agents.restore", { agentId: t.agentId }, "Agent restored").then((out) => { if (out) setTrashed((current) => current.filter((x) => x.agentId !== t.agentId)); })} />} />)}</Group></Section> : null}{action.note ? <Note>{action.note}</Note> : null}</View>;
+  </FormSheet> : null}<PeoplesAgents />{trashed.length ? <Section title="Moved to Trash"><Group>{trashed.map((t) => <Row key={t.agentId} id={`agent-trashed-${t.agentId}`} title={t.name} note="Stopped and moved to Trash" trailing={<Button label="Undo" testID={`agent-undo-${t.agentId}`} disabled={action.busy} onPress={() => void action.run("agents.restore", { agentId: t.agentId }, "Agent restored").then((out) => { if (out) setTrashed((current) => current.filter((x) => x.agentId !== t.agentId)); })} />} />)}</Group></Section> : null}{action.note ? <Note>{action.note}</Note> : null}</View>;
+}
+
+/**
+ * People's own agents: one row per person whose agents you cannot see, with the count, the spend against the cap, a Spend cap and Pause all. Never a name, an instruction or a chat: agents.people_summary
+ * does not carry them. A person's own agents are in the list above, in full, to them.
+ */
+export function PeoplesAgents(): ReactElement | null {
+  const consoleData = useConsoleData();
+  const read = useRead<CapMap["agents.people_summary"]["out"]>("agents.people_summary", {});
+  const action = useAction(read.refresh);
+  const [confirm, setConfirm] = useState<string | null>(null);
+  if (!read.data || read.data.people.length === 0) return null;
+  return (
+    <Section title="People's own agents" count={read.data.people.length} testID="people-agents">
+      <Group>
+        {read.data.people.map((p) => {
+          const name = consoleData.name(p.personId);
+          return (
+            <View key={p.personId}>
+              <Row id={`person-agents-${p.personId}`} title={name} note={summaryNote(p)} tall leading={<Lead><Avatar name={name} size={26} /></Lead>}
+                trailing={<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  <Select label={`Spend cap for ${name}`} value={capKey(p)} options={CAP_OPTIONS} disabled={action.busy} onChange={(v) => void action.run("engine.spend.caps.set", { scope: "person", scopeId: p.personId, caps: { monthMicros: Number(v) ? micros(Number(v)) : undefined } }, `${name}: spend cap ${Number(v) ? `$${v}` : "removed"}`)} />
+                  <Button label={p.paused ? "Resume all" : "Pause all"} testID={`person-pause-${p.personId}`} disabled={action.busy} onPress={() => { if (p.paused) void action.run("agents.pause_person", { personId: p.personId, paused: false }, `${name}'s agents are running again`); else setConfirm(p.personId); }} />
+                </View>} />
+              {confirm === p.personId ? <><Note>{PAUSE_NOTE(name)}</Note><Actions><Button label="Cancel" testID="person-pause-cancel" onPress={() => setConfirm(null)} /><Button label="Pause all" danger testID="person-pause-yes" disabled={action.busy} onPress={() => void action.run("agents.pause_person", { personId: p.personId, paused: true }, `${name} was told. Their agents are paused`).then(() => setConfirm(null))} /></Actions></> : null}
+            </View>
+          );
+        })}
+      </Group>
+      <Note>{PEOPLE_FOOT}</Note>
+      {action.note ? <Note>{action.note}</Note> : null}
+    </Section>
+  );
 }
 
 function AgentObject({ agent, busy, note, onBack, onRun, onDeleted }: { agent: Agent; busy: boolean; note: string; onBack: () => void; onDeleted: (agent: { agentId: string; name: string }) => void; onRun: <T>(cap: string, input: unknown, success: string | ((out: T) => string | Promise<string>)) => Promise<T | undefined> }): ReactElement {

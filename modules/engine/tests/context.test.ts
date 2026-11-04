@@ -313,3 +313,15 @@ test("a long index is cut, nearest first, and says how many more there are; a lo
   assert.match(t2, /^Working in Vyre \(always loaded\):/, "the manual comes from disk");
   assert.match(t2, /- focus-records: /);
 });
+
+test("group guidance is in the context of a group chat and a channel, and absent in a 1:1", async () => {
+  const { GROUP_STYLE } = await import("../context.ts");
+  const where = async (over: Record<string, unknown>): Promise<string> => {
+    const f = fake(over as never);
+    const ctx = await createContextBuilder({ call: f.call, skills, now: () => at }).build(input());
+    return ctx.sections.find((s) => s.id === "where")?.text ?? "";
+  };
+  assert.match(await where(FULL), new RegExp(GROUP_STYLE.slice(0, 40)), "Docs and Omar are also here: a group");
+  assert.doesNotMatch(await where({ ...FULL, "threads.get": { thread: { threadId: "thr_1", kind: "chat", title: "Intake desk", members: [{ kind: "person", id: "usr_maya" }], agents: [{ agentId: "agt_intake", mode: "lead" }] } } }), /group conversation/, "a 1:1 keeps the agent's own style");
+  assert.match(await where({ ...FULL, "threads.get": { thread: { threadId: "thr_1", kind: "channel", title: "general", members: [{ kind: "person", id: "usr_maya" }], agents: [{ agentId: "agt_intake", mode: "lead" }] } } }), /group conversation/, "a channel is a group even with one other");
+});

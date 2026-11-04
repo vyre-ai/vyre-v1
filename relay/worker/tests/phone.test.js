@@ -312,21 +312,17 @@ test("/p/: a response over one chunk streams back whole", async t => {
   assert.equal((await (await call(rt, "https://harbor.vyre.run/p/x")).text()).length, big.length);
 });
 
-test("/a/: a plain artifact address opens the app; an address with its token goes to the box in the sandbox; anything else under /a/ is the shell", async t => {
+test("/a/: a plain artifact address opens the app; an address with a token in it is gone, and reaches nothing but the shell", async t => {
   const rt = world(t);
   const token = "a".repeat(48);
   const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, { "content-type": "text/html", "set-cookie": "x=1" }, "<p>made</p>"));
   const plain = await call(rt, "https://harbor.vyre.run/a/sit_abc");
   assert.equal(plain.status, 302);
-  assert.equal(plain.headers.get("location"), "/#screen=apps.artifacts&selected=sit_abc");
+  assert.equal(plain.headers.get("location"), "/#subject=artifact:sit_abc");
   const res = await call(rt, `https://harbor.vyre.run/a/sit_abc/k/${token}/index.html`, { headers: { cookie: "s=1", authorization: "Bearer x" } });
-  assert.equal(await res.text(), "<p>made</p>");
-  assert.deepEqual(asked[0].headers, {});
+  assert.notEqual(await res.text(), "<p>made</p>", "a token in the address serves nothing");
   assert.equal(res.headers.get("set-cookie"), null);
-  assert.ok(res.headers.get("content-security-policy").includes(SANDBOX));
-  assert.equal(asked.length, 1);
-  await call(rt, "https://harbor.vyre.run/a/sit_abc/k/short/");
-  assert.equal(asked.length, 1, "a token of the wrong shape never reaches the box");
+  assert.equal(asked.length, 0, "and never reaches the box");
 });
 
 test("the door: /mcp carries its token to the box and nowhere else, sign-in answers keep their headers, and nothing else on the host gets through", async t => {
@@ -441,11 +437,11 @@ test("the artifact host: <name>-a.vyre.run carries its own cookie to the box and
   const before = asked.length;
   for (const p of ["/", "/p/forms/x", "/mcp", "/__vyre/info.json", `/a/sit_abc/k/${code}/`, "/x/short", "/sit_abc/../etc"]) assert.equal((await call(rt, `https://harbor-a.vyre.run${p}`)).status, 404, p);
   assert.equal(asked.length, before, "nothing else reaches the box");
-  // the app origin: the same paths still drop the cookie both ways
+  // the app origin: a keyed artifact address is gone and nothing of the artifact host's paths reaches the box from it
+  const before2 = asked.length;
   const app = await call(rt, `https://harbor.vyre.run/a/sit_abc/k/${code}/`, { headers: { cookie: "vyre_art=s1" } });
   assert.equal(app.headers.get("set-cookie"), null);
-  assert.deepEqual(asked[asked.length - 1].headers, {});
-  assert.equal(asked[asked.length - 1].a, undefined);
+  assert.equal(asked.length, before2, "the app origin carries nothing of an artifact to the box");
   const n = asked.length;
   await call(rt, `https://harbor.vyre.run/x/${code}`);
   assert.equal(asked.length, n, "the app origin never carries the code path to the box");

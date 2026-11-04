@@ -18,4 +18,6 @@ Area: chats. Risk: low. Applies to: channel.
 - channels.agents.add
 - channels.agents.remove
 - threads.add_agent
+- threads.outside_agent.add
+- threads.outside_agent.remove
 - threads.remove_agent

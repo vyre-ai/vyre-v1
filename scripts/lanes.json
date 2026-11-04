@@ -38,6 +38,7 @@
         "modules/terminal/",
         "modules/mcp/",
         "modules/notes/",
+        "modules/machines/",
         "package-lock.json"
       ],
       "modules": [
@@ -48,7 +49,8 @@
         "computers",
         "terminal",
         "mcp",
-        "notes"
+        "notes",
+        "machines"
       ]
     },
     {
@@ -447,6 +449,7 @@
     "logs": "L7b",
     "mail": "L5",
     "mailgun": "L5",
+    "machines": "L2",
     "mcp": "L2",
     "meetings": "L5",
     "members": "L7a",
