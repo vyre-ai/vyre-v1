@@ -59,3 +59,8 @@ test("on a phone a short picker stays on its label's line; a long picker name or
   assert.equal(pickerStacks("Record calls on new numbers", "Announce and record"), true);
   assert.equal(pickerStacks("Connect people's Microsoft mail and calendar and more besides", "Yes"), true);
 });
+
+test("the Files rows draw beside their controls on a phone: Set and a short Yes are inline", () => {
+  // the phone rule: a row marked inline keeps its control on the label line
+  assert.equal(pickerStacks("Local folders keep a server copy", "Yes"), false);
+});

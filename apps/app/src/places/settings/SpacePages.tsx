@@ -11,7 +11,7 @@ import { subOf } from "./rows.tsx";
 import { SavedBar, SavedProvider, useSaved } from "./saved.tsx";
 import { MemoryKeys } from "./MemoryKeys.tsx";
 import { MemoryLearningLimits } from "./MemoryLearning.tsx";
-import { Choice, Field, Section, SettingsRow, SmallButton, Stepper, Switch, Value } from "./ui.tsx";
+import { Choice, pickerStacks, Field, Section, SettingsRow, SmallButton, Stepper, Switch, Value } from "./ui.tsx";
 
 type ListOut = CapMap["settings.list"]["out"];
 
@@ -63,6 +63,14 @@ function SpaceControlFor({ def, row, onChanged }: { def: SpaceRowDef; row: Setti
   }
 }
 
+/** On a phone the control stays on its label's line: a switch, a Set or Edit button, and a picker whose name and label are both short. */
+function staysBeside(def: SpaceRowDef, row: SettingRow): boolean {
+  const c = def.control;
+  if (c.kind === "switch" || c.kind === "flag" || c.kind === "text") return true;
+  if (c.kind === "choice") return !pickerStacks(def.label, c.options.find((o) => o.value === String(row.value))?.label ?? String(row.value));
+  return false;
+}
+
 export function SpacePageBody({ page, rows, reload, found, personal = false }: { page: SpacePage; rows: readonly SettingRow[]; reload(): void; found: string | null; personal?: boolean }): ReactElement {
   const parts: ReactElement[] = [];
   const shown = SPACE_ROWS.filter((def) => def.page === page && (!personal || PERSONAL_SPACE_ROWS.has(def.id)));
@@ -75,7 +83,7 @@ export function SpacePageBody({ page, rows, reload, found, personal = false }: {
       const row = rows.find((r) => r.key === def.key);
       if (!row) continue;
       const sub = subOf(row);
-      items.push(<SettingsRow key={def.id} id={def.id} label={def.label} help={def.help} first={items.length === 0} found={found === def.id} inline={def.control.kind === "switch" || def.control.kind === "flag"} {...(sub ? { sub } : {})} control={<SpaceControlFor def={def} row={row} onChanged={reload} />} />);
+      items.push(<SettingsRow key={def.id} id={def.id} label={def.label} help={def.help} first={items.length === 0} found={found === def.id} inline={staysBeside(def, row)} {...(sub ? { sub } : {})} control={<SpaceControlFor def={def} row={row} onChanged={reload} />} />);
     }
     if (items.length > 0) parts.push(<Section key={head} title={head}>{items}</Section>);
   }
