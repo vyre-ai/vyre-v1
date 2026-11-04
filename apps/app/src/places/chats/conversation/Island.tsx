@@ -63,6 +63,7 @@ function useSeenCards(ids: readonly string[]): ReadonlySet<string> {
     };
     read();
     const t = setInterval(read, 500);
+    (t as unknown as { unref?: () => void }).unref?.();   // a page poll never keeps a process alive
     (d as unknown as { addEventListener(t: string, f: () => void, c?: boolean): void }).addEventListener("scroll", read, true);
     return () => { clearInterval(t); (d as unknown as { removeEventListener(t: string, f: () => void, c?: boolean): void }).removeEventListener("scroll", read, true); };
   }, [key]);  // eslint-disable-line react-hooks/exhaustive-deps
