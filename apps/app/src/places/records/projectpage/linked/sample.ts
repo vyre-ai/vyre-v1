@@ -39,8 +39,9 @@ export interface Sample {
   state: { links: Link[]; rules: Rule[]; asked: string[] };
 }
 
-export function createSampleLinked(o: { ci?: boolean; empty?: boolean; me?: string; accept?: "personal" | "org" } = {}): Sample {
-  const state = { links: o.empty ? [] : LINKS(), rules: o.empty ? [] : RULES(), asked: [] as string[] };
+export function createSampleLinked(o: { ci?: boolean; empty?: boolean; me?: string; accept?: "personal" | "org"; admin?: boolean; ruleOnly?: boolean } = {}): Sample {
+  // ruleOnly: the project's only link to its repository is a repo rule (no Files remote, no linked pull request): CI still shows
+  const state = { links: o.empty ? [] : o.ruleOnly ? LINKS().filter((l) => !l.kind.startsWith("github")) : LINKS(), rules: o.empty ? [] : o.ruleOnly ? RULES().filter((r) => r.kind === "repo") : RULES(), asked: [] as string[] };
   const calls: Sample["calls"] = [];
   const opened: string[] = [];
   const failing = new Map<string, string>();
@@ -71,12 +72,12 @@ export function createSampleLinked(o: { ci?: boolean; empty?: boolean; me?: stri
         const pool = [{ kind: "file", id: "fil_terms", title: "Service terms.pdf" }, { kind: "record", id: "rec_sam", title: "Sam Ortega", recordType: "contact" }, { kind: "chat", id: "thr_billing", title: "#billing" }, { kind: "person", id: "usr_maya", title: "Maya Chen" }, { kind: "task", id: "tsk_2", title: "Collect documents" }];
         return { hits: pool.filter((h) => q === "" || h.title.toLowerCase().includes(q)).map((h) => ({ ...h, link: "", score: 1 })) };
       }
-      case "access.request": state.asked.push(JSON.stringify((i["resource"]))); return { request: { requestId: "arq_1" } };
+      case "access.request": if ((i["resource"] as { type?: string })?.type === "space") { state.asked.push("space"); return { request: { requestId: "arq_2" } }; } state.asked.push(JSON.stringify((i["resource"]))); return { request: { requestId: "arq_1" } };
       default: throw new Error(`unscripted ${cap}`);
     }
   };
   const data: ProjectPageData = {
-    call, nameOf: (id) => NAMES[id] ?? id, me: { id: o.me ?? "usr_irfad", name: "Irfad Imtiaz" }, now: () => NOW,
+    admin: o.admin === true, spaceId: "spc_nw", call, nameOf: (id) => NAMES[id] ?? id, me: { id: o.me ?? "usr_irfad", name: "Irfad Imtiaz" }, now: () => NOW,
     nav: {
       openChannel: (id) => void opened.push(`channel:${id}`), openThread: (id) => void opened.push(`thread:${id}`), openFolder: (id) => void opened.push(`folder:${id}`), openFile: (id) => void opened.push(`file:${id}`),
       openRecord: (t, id) => void opened.push(`record:${t}/${id}`), openRecordPage: (t, id) => void opened.push(`recordpage:${t}/${id}`),

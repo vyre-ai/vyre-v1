@@ -8,7 +8,7 @@ import { Row } from "../../../../../../../ui/src/Row/index.tsx";
 import { ReachRow } from "../../../../../../../ui/src/Row/ReachRow.tsx";
 import { menuTrigger, useMenu } from "../../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../../ui/src/Menu/index.tsx";
-import { act, hint } from "../../../../shell/reach/reach.ts";
+import { act, hint, tellAdmins } from "../../../../shell/reach/reach.ts";
 import type { Target, Viewer } from "../../../../shell/reach/reach.ts";
 import { useProjectPageData } from "../data.tsx";
 import { LinkSheet } from "./LinkSheet.tsx";
@@ -53,6 +53,7 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
   const [runs, setRuns] = useState<readonly Run[]>([]);
   const [repo, setRepo] = useState<string | null>(null);
   const [accept, setAccept] = useState<{ url: string; org: boolean } | null>(null);
+  const [told, setTold] = useState("");
   const [failed, setFailed] = useState(false);
   const [show, setShow] = useState<Show>(first);
   const [sheet, setSheet] = useState<"link" | "rule" | null>(null);
@@ -220,8 +221,11 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
       </View>
       {accept !== null ? (
         <View testID="ci-accept" accessibilityRole="alert" style={st.notice}>
-          <Text style={st.noticeText}>{`${spaceName}'s GitHub app needs new permissions`}</Text>
-          <Pressable accessibilityRole="button" testID="ci-accept-go" onPress={() => { if (openUrl) openUrl(accept.url); else (globalThis as { open?: (u: string, t: string, f: string) => void }).open?.(accept.url, "_blank", "noopener"); }} style={st.askBtn}><Text style={st.askText}>Accept</Text></Pressable>
+          <Text style={st.noticeText}>GitHub needs an admin to accept new permissions</Text>
+          {d.admin === true
+            ? <Pressable accessibilityRole="button" testID="ci-accept-go" onPress={() => { if (openUrl) openUrl(accept.url); else (globalThis as { open?: (u: string, t: string, f: string) => void }).open?.(accept.url, "_blank", "noopener"); }} style={st.askBtn}><Text style={st.askText}>Accept</Text></Pressable>
+            : told !== "" ? <Text testID="ci-accept-told" style={st.sub}>{told}</Text>
+            : <Pressable accessibilityRole="button" testID="ci-accept-ask" onPress={() => { void tellAdmins(d.call, { id: meId, ...(d.spaceId ? { spaceId: d.spaceId } : {}) }, `${spaceName}: GitHub needs an admin to accept new permissions`).then(setTold, () => setTold("Could not send that. Try again.")); }} style={st.askBtn}><Text style={st.askText}>Ask an admin</Text></Pressable>}
         </View>
       ) : null}
       {failed ? <Text accessibilityRole="alert" testID="linked-failed" style={st.bad}>Linked items could not be read. Try again.</Text> : null}

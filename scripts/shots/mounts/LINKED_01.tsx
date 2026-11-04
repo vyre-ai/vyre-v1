@@ -15,7 +15,7 @@ export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   const [said, setSaid] = useState("");
   useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "tab"), []);
-  const s = useMemo(() => (part === null ? null : createSampleLinked({ ...(part === "empty" ? { empty: true, ci: false } : {}), ...(part === "noci" ? { ci: false } : {}) })), [part]);
+  const s = useMemo(() => (part === null ? null : createSampleLinked({ ...(part === "empty" ? { empty: true, ci: false } : {}), ...(part === "noci" ? { ci: false } : {}), ...(part === "accept" ? { accept: "personal", admin: false } : {}), ...(part === "accept-admin" ? { accept: "org", admin: true } : {}), ...(part === "rule-only" ? { ruleOnly: true } : {}) })), [part]);
   if (part === null || s === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   return (
     <ProjectPageDataProvider value={s.data}>

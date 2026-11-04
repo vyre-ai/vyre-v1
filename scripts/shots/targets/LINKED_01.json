@@ -137,6 +137,40 @@
       "waitFor": "[data-testid='project-linked']",
       "steps": [],
       "note": "A project with no linked repository: no CI rows."
+    },
+    {
+      "id": "LINKED_01-accept",
+      "route": "/m/LINKED_01?part=accept",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='ci-accept']",
+      "steps": [],
+      "note": "A member: GitHub needs an admin to accept new permissions, with Ask an admin."
+    },
+    {
+      "id": "LINKED_01-accept-asked",
+      "route": "/m/LINKED_01?part=accept",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='ci-accept']",
+      "steps": [
+        "click|ci-accept-ask"
+      ],
+      "note": "After Ask an admin."
+    },
+    {
+      "id": "LINKED_01-accept-admin",
+      "route": "/m/LINKED_01?part=accept-admin",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='ci-accept-go']",
+      "steps": [],
+      "note": "An admin: Accept."
+    },
+    {
+      "id": "LINKED_01-rule-only",
+      "route": "/m/LINKED_01?part=rule-only",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='ci-rows']",
+      "steps": [],
+      "note": "A project whose only link to its repository is a repo rule: its CI rows show."
     }
   ]
 }

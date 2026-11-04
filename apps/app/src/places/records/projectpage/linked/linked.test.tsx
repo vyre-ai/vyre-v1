@@ -346,15 +346,37 @@ test("with the page's own doors, a task, a pull request and the fix card go thro
   } finally { restore(); }
 });
 
-test("when the GitHub app needs new permissions the tab says so and Accept opens GitHub (the organization's address when there is one)", async () => {
-  const a = await tab({ accept: "personal" }, { spaceName: "Northwind" });
+test("when the GitHub app needs new permissions the tab says so over the CI rows: an admin gets Accept (the organization's address when there is one), a member gets Ask an admin", async () => {
+  const a = await tab({ accept: "personal", admin: true });
   try {
-    assert.ok(textOf(find(a.root, "ci-accept")).includes("Northwind's GitHub app needs new permissions"));
+    assert.ok(textOf(find(a.root, "ci-accept")).includes("GitHub needs an admin to accept new permissions"));
+    assert.equal(find(a.root, "ci-accept-ask"), null, "an admin has nobody to ask");
     await tap(a.root, "ci-accept-go");
     assert.deepEqual(a.urls, ["https://github.com/settings/installations/1"]);
+    assert.ok(find(a.root, "ci-rows"), "the CI rows are still there");
   } finally { a.restore(); }
-  const o = await tab({ accept: "org" });
+  const o = await tab({ accept: "org", admin: true });
   try { await tap(o.root, "ci-accept-go"); assert.deepEqual(o.urls, ["https://github.com/organizations/northwind/settings/installations/1"]); } finally { o.restore(); }
+  const m = await tab({ accept: "personal" });
+  try {
+    assert.equal(find(m.root, "ci-accept-go"), null, "a member cannot accept on GitHub");
+    await tap(m.root, "ci-accept-ask");
+    const req = writes(m.s.calls, "access.request");
+    assert.equal(req.length, 1);
+    assert.deepEqual(req[0]!.input["resource"], { type: "space", id: "spc_nw" }, "the ask goes to the Space's admins, through the access rule");
+    assert.match(String(req[0]!.input["note"]), /accept new permissions/);
+    assert.ok(find(m.root, "ci-accept-told") && !find(m.root, "ci-accept-ask"), "it says it sent it, once");
+    assert.deepEqual(m.urls, []);
+  } finally { m.restore(); }
   const none = await tab();
   try { assert.equal(find(none.root, "ci-accept"), null); } finally { none.restore(); }
+});
+
+test("a project whose only link to its repository is a repo rule still shows its CI rows", async () => {
+  const r = await tab({ ruleOnly: true });
+  try {
+    assert.equal(r.s.state.links.filter((l) => l.kind.startsWith("github")).length, 0, "no pull request is linked");
+    assert.ok(find(r.root, "ci-rows") && find(r.root, "ci-run-cir_1") && find(r.root, "ci-fix"));
+    assert.ok(textOf(r.root).includes("Everything from northwind/website"));
+  } finally { r.restore(); }
 });

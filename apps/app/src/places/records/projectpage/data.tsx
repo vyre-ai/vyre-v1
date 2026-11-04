@@ -62,6 +62,10 @@ export interface ProjectPageData {
   fileName?(fileId: string): string;
   /** Present only in a Personal Space, where imported coding history is private to its owner. */
   imports?: ProjectImports;
+  /** The person is an admin of the Space (Console is theirs): Linked offers Accept on the GitHub app's new permissions, and a member is offered Ask an admin. */
+  admin?: boolean;
+  /** The Space's id, for the request "Ask an admin" files. */
+  spaceId?: string;
   /** The Space changed: the Goals strip reads again. */
   changes?: { subscribe(listener: () => void): () => void };
 }
