@@ -9,6 +9,8 @@ export interface Ask {
   next?: Ask;
   /** The name when nothing gave one. */
   empty?: string;
+  /** A live read of the same thing: when it changes the name is read again (a rename shows on the tab). */
+  live?: { cap: string; input: Record<string, unknown> };
 }
 
 const obj = (v: unknown): Record<string, unknown> | null => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
@@ -49,9 +51,21 @@ export function titleAsk(subject: { type: string; id: string }, args: Readonly<R
     case "task": return { cap: "tasks.get", input: { taskId: id }, name: (o) => at(o, "task", "title") };
     case "goal": return { cap: "goals.get", input: { goalId: id }, name: (o) => at(o, "goal", "title") };
     case "run": return { cap: "runs.get", input: { runId: id }, name: (o) => at(o, "run", "name") };
-    case "chat": case "thread": return { cap: "threads.get", input: { threadId: id }, name: (o) => at(o, "thread", "title"), next: { cap: "chat.messages.list", input: { threadId: id }, name: firstMessageTitle }, empty: "New chat" };
+    case "chat": case "thread": return { cap: "threads.get", input: { threadId: id }, live: { cap: "threads.get", input: { threadId: id } }, name: (o) => at(o, "thread", "title"), next: { cap: "chat.messages.list", input: { threadId: id }, name: firstMessageTitle }, empty: "New chat" };
+    case "agent": return agentAsk(id, (n) => n);
     default: return null;
   }
+}
+
+const agentAsk = (agentId: string, title: (name: string) => string): Ask => ({ cap: "agents.get", input: { agentId }, live: { cap: "agents.get", input: { agentId } }, name: (o) => { const n = at(o, "agent", "name"); return n === null ? null : title(n); } });
+
+/** A screen tab that shows one agent is named for it: its page by its name, its form as "Edit <name>". A new agent's form keeps "New agent" until it has an agent. */
+export function screenAsk(screen: string | undefined, args: Readonly<Record<string, unknown>>): Ask | null {
+  const id = typeof args["agentId"] === "string" && args["agentId"] !== "" ? args["agentId"] : null;
+  if (id === null) return null;
+  if (screen === "chats.agent-page") return agentAsk(id, (n) => n);
+  if (screen === "chats.agent-form") return agentAsk(id, (n) => `Edit ${n}`);
+  return null;
 }
 
 /** What to read to name a Records tab opened on a record type (its hash carries the type's key): the type's own plural, "Companies" in place of "Records". */
@@ -78,7 +92,7 @@ export interface TitleSession {
  * Names a tab for its item: the name, else the next read (a chat's first message), else the ask's own empty name ("New chat"). A chat is read again whenever it changes, so the tab follows
  * its first message and its renames. Returns the stop.
  */
-export function followTitle(session: TitleSession, target: { subject?: { type: string; id: string } }, ask: Ask, retitle: (title: string, empty?: boolean) => void): () => void {
+export function followTitle(session: TitleSession, ask: Ask, retitle: (title: string, empty?: boolean) => void): () => void {
   let off = false;
   const read = (a: Ask): Promise<string | null> => session.call(a.cap, a.input).then((out) => a.name(out) ?? (a.next ? read(a.next) : null), () => null);
   let latest = 0;
@@ -87,8 +101,7 @@ export function followTitle(session: TitleSession, target: { subject?: { type: s
     void read(ask).then((name) => { const t = name ?? ask.empty; if (!off && mine === latest && t) retitle(t, name === null); });
   };
   run();
-  const sub = target.subject;
-  const live = sub && (sub.type === "thread" || sub.type === "chat") ? session.hooks.capQuery("threads.get", { threadId: sub.id }) : null;
+  const live = ask.live ? session.hooks.capQuery(ask.live.cap, ask.live.input) : null;
   const stop = live ? live.subscribe(run) : undefined;
   return () => { off = true; stop?.(); };
 }

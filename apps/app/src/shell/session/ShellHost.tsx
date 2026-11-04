@@ -16,7 +16,7 @@ import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
 import type { Hit } from "../cmdk/model.ts";
 import { formatHash, parseHash } from "../hash/hash.ts";
 import { tabKey } from "../tabs/store.ts";
-import { followTitle, titleAsk, typeTitleAsk } from "../tabs/titles.ts";
+import { followTitle, screenAsk, titleAsk, typeTitleAsk } from "../tabs/titles.ts";
 import type { PlaceId } from "../rail/kits.ts";
 import { createShellHub } from "../spaces/hub.ts";
 import { INBOX_TIP, followInboxSources, rememberInbox, seedInbox, takeInboxTip } from "../rail/inbox-sources.ts";
@@ -198,10 +198,10 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   useEffect(() => {
     if (!session) return;
     const target = parseHash(location.hash);
-    const ask = target.subject ? titleAsk(target.subject, target.args) : typeTitleAsk(location.place, target.args);
+    const ask = target.subject ? titleAsk(target.subject, target.args) : screenAsk(target.screen, target.args) ?? typeTitleAsk(location.place, target.args);
     if (!ask) return;
     const key = tabKey(location.place, location.hash);
-    return followTitle(session, target, ask, (t, empty) => hub.retitle(key, t, empty));
+    return followTitle(session, ask, (t, empty) => hub.retitle(key, t, empty));
   }, [session, hub, location.place, location.hash]);
 
   // Inbox is on the rail once something flows in: the answer follows the mailbox, calendar and number reads (and their change events), and is kept for the next launch

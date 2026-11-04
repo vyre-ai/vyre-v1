@@ -60,6 +60,9 @@ export function screenTitle(hash: string | undefined): string | undefined {
   const t = parseHash(hash);
   // a chat is never named for its place: "New chat" until its own name or first message arrives
   if (t.subject !== undefined && (t.subject.type === "thread" || t.subject.type === "chat")) return NEW_CHAT;
+  // an agent's page or its form, until the agent's name arrives
+  if ((t.screen === "chats.agent-page" || t.screen === "chats.agent-form") && typeof t.args["agentId"] === "string" && t.args["agentId"] !== "") return t.screen === "chats.agent-form" ? "Edit agent" : "Agent";
+  if (t.subject !== undefined && t.subject.type === "agent") return "Agent";
   return t.screen === undefined ? undefined : OWN_TAB[t.screen];
 }
 
