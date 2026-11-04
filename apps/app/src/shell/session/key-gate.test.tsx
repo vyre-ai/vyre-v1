@@ -105,3 +105,12 @@ test("the launch lock for a Space server: shown only when no one holds the key a
   assert.match(t, /Not now/);
   assert.doesNotMatch(text(renderToStaticMarkup(<LockScreen name="Irfad" onUnlock={async () => undefined} />)), /Not now/, "the lock on this computer has no way round");
 });
+
+test("mid-session after a server restart the lock shows once; Not now is remembered until the server holds the key again, then a later loss asks once more", async () => {
+  const { afterBeat } = await import("./key-unlock.ts");
+  assert.deepEqual(afterBeat("open", { dismissed: false }), { show: false, dismissed: false }, "held: never a prompt");
+  assert.deepEqual(afterBeat("locked", { dismissed: false }), { show: true, dismissed: false }, "lost: ask once");
+  assert.deepEqual(afterBeat("locked", { dismissed: true }), { show: false, dismissed: true }, "Not now: not asked again for the same loss");
+  assert.deepEqual(afterBeat("open", { dismissed: true }), { show: false, dismissed: false }, "the server holds it again: forgotten");
+  assert.deepEqual(afterBeat("locked", { dismissed: false }), { show: true, dismissed: false }, "a later loss asks once more");
+});

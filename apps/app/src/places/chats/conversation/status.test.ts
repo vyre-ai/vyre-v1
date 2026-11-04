@@ -70,7 +70,7 @@ test("an install that did not finish says why in a plain line and keeps the Inst
 
 test("a locked Vault is an Unlock card, not a failed reply; an unreadable one gives the reason the Vault gave", () => {
   const locked = errorOf({ state: "failed", turnId: "t", code: "engine.vault_locked" });
-  assert.equal(locked.message, "Your Vault is locked.");
+  assert.equal(locked.message, "Your sign-ins are locked on this server.");
   assert.deepEqual(locked.next, [{ key: "unlock_vault", label: "Unlock" }]);
   const unreadable = errorOf({ state: "failed", turnId: "t", code: "engine.vault_unreadable", reason: "provider.unavailable" });
   assert.equal(unreadable.message, "Your Vault could not be read just now.");

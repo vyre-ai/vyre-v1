@@ -5,7 +5,7 @@
 /** The daemon says a vault key is locked by its reason, or (older daemons) in these words. A person stays signed in. */
 export function isVaultLockedError(e: unknown): boolean {
   const x = e as { message?: string; details?: { reason?: string }; error?: { message?: string; details?: { reason?: string } } } | null | undefined;
-  return x?.details?.reason === "vault_locked" || x?.error?.details?.reason === "vault_locked" || /vault key is locked/i.test(x?.message ?? x?.error?.message ?? "");
+  return x?.details?.reason === "vault_locked" || x?.error?.details?.reason === "vault_locked" || /vault key is locked|sign-ins are locked/i.test(x?.message ?? x?.error?.message ?? "");
 }
 
 export type Unlock = (password: string) => Promise<void>;

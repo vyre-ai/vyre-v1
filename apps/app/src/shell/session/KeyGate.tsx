@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { isLoopbackUrl, keyDoor, keyStatusOnOwnNode, serverKeyState } from "../../../../../client/src/gateway/local-key.ts";
 import { keyIsKept, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
-import { OFFLINE_OWN, SESSION_OVER, WRONG_PASSWORD, passwordKeyState, remoteGateState, unlockWithPassword } from "./key-unlock.ts";
+import { OFFLINE_OWN, SESSION_OVER, WRONG_PASSWORD, afterBeat, passwordKeyState, remoteGateState, unlockWithPassword } from "./key-unlock.ts";
 export { hasPasswordKey, passwordKeyState, unlockWithPassword } from "./key-unlock.ts";
 import { Bar, Button, ErrorLine, Field, Group, JoinFrame, Links, Opening, Panel, Step, TextButton, Title, useHoldFirstFrame } from "../../join/kit.tsx";
 import { whenUsable } from "../../startup/marks.ts";
@@ -118,6 +118,20 @@ export function KeyGate({ baseUrl, token, name, onSignOut, onForgot, children }:
     }).then((next) => { if (live) setState(next); }, () => { if (live) setState("open"); });
     return () => { live = false; };
   }, [remote, baseUrl, token]);
+  // while the app is open on a Space server: a server that restarted and holds no key, with no key in this app either, shows the lock once (never again for the same loss after Not now)
+  const dismissed = useRef(false);
+  useEffect(() => {
+    if (!remote || state !== "open") return undefined;
+    let live = true;
+    const timer = setInterval(() => {
+      void remoteGateState({
+        kept: keyIsKept, rehand: () => rehandKey(baseUrl, token),
+        serverHolds: async () => { const k = await serverKeyState(baseUrl, token); return k === null ? null : k.held; },
+        passwordKey: () => passwordKeyState(baseUrl, token),
+      }).then((now) => { const next = afterBeat(now, { dismissed: dismissed.current }); dismissed.current = next.dismissed; if (live && next.show) setState("locked"); }, () => undefined);
+    }, 30_000);
+    return () => { live = false; clearInterval(timer); };
+  }, [remote, state, baseUrl, token]);
   // while the app is open: a daemon that lost the key (a restart) gets it back from this app's memory, silently
   useEffect(() => {
     if (!own || state !== "open") return undefined;
@@ -128,7 +142,7 @@ export function KeyGate({ baseUrl, token, name, onSignOut, onForgot, children }:
   if (state === "nopassword") return <NoPasswordKey onContinue={() => setState("open")} {...(onSignOut ? { onSignOut } : {})} />;
   if (state === "locked" || state === "offline") {
     const forgot = onForgot ?? onSignOut;
-    return <LockScreen name={name} {...(forgot ? { onForgot: forgot } : {})} {...(onSignOut ? { onSignOut } : {})} {...(remote ? { onSkip: () => setState("open") } : {})} {...(state === "offline" ? { notice: OFFLINE_OWN } : {})} onUnlock={async (password) => { await unlockWithPassword(baseUrl, token, password); if (alive.current) setState("open"); }} />;
+    return <LockScreen name={name} {...(forgot ? { onForgot: forgot } : {})} {...(onSignOut ? { onSignOut } : {})} {...(remote ? { onSkip: () => { dismissed.current = true; setState("open"); } } : {})} {...(state === "offline" ? { notice: OFFLINE_OWN } : {})} onUnlock={async (password) => { await unlockWithPassword(baseUrl, token, password); if (alive.current) setState("open"); }} />;
   }
   return <><HoldUntilUsable />{children}</>;
 }

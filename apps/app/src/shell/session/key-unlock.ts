@@ -59,3 +59,13 @@ export async function remoteGateState(d: {
   if (held === null || held === true) return "open";
   return (await d.passwordKey()) === "yes" ? "locked" : "open";
 }
+
+/**
+ * One beat of the watch while the app is open (owner, 4 Nov: after a server restart the key is gone from the server and an app that was relaunched since holds none): the lock shows again when the
+ * server says it does not hold the key and nobody can hand it over, once. "Not now" is remembered until the server holds the key again, so a person who said not now is never asked twice for the
+ * same loss, and a later loss asks once more.
+ */
+export function afterBeat(now: "open" | "locked", asked: { dismissed: boolean }): { show: boolean; dismissed: boolean } {
+  if (now === "open") return { show: false, dismissed: false };
+  return { show: !asked.dismissed, dismissed: asked.dismissed };
+}
