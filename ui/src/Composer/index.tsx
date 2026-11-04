@@ -551,9 +551,10 @@ export interface ComposerProps extends ComposerShellProps {
   folder?: string | null;
   onFolder?: (folder: string | null) => void;
   /** Called with everything sent: text, chips, files, folder, linked records, mode. */
-  onSubmit?: (payload: ComposerSend) => void;
+  /** A caller whose send can fail returns its promise: if it rejects the draft comes back, with the reason and Try again under it. A plain return is a send that cannot fail. */
+  onSubmit?: (payload: ComposerSend) => void | Promise<unknown>;
   /** Send now while the agent works. A plain send queues for its next step. */
-  onInterrupt?: (payload: ComposerSend) => void;
+  onInterrupt?: (payload: ComposerSend) => void | Promise<unknown>;
   onCommand?: (name: string) => void;
   onChange?: (text: string) => void;
   onFiles?: (files: ComposerAttachment[]) => void;
@@ -561,6 +562,8 @@ export interface ComposerProps extends ComposerShellProps {
   takesFiles?: boolean;
   /** Attach from Vyre Files, where the place opens its own picker. Without it (and with `suggest`) From Files searches Files in the # picker. */
   onAttach?: () => void;
+  /** Opens the one Add people and agents sheet for this chat: the "Add people and agents" row under This chat. Left out where the place has no such sheet. */
+  onAddPeople?: () => void;
   /** Recipients for a composer that sends outside. Mounted above the field. */
   recipients?: ReactNode;
   banner?: ReactNode;
@@ -746,6 +749,8 @@ export function Composer(props: ComposerProps): ReactElement {
   const [state, setState] = useState<ComposerState>(() => initialState(props.value ?? "", props.folder ?? null));
   const [focused, setFocused] = useState(false);
   const [height, setHeight] = useState(MIN_FIELD);
+  // a send that failed: the draft is back in the field and this says why, with Try again
+  const [sendError, setSendError] = useState<{ reason: string; mode: SendMode } | null>(null);
   const [plusOpen, setPlusOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const [scope, setScope] = useState<HashScope>("All");
@@ -846,6 +851,7 @@ export function Composer(props: ComposerProps): ReactElement {
     stateRef.current = sent.next;
     setState(sent.next);
     setHeight(MIN_FIELD);
+    setSendError(null);
     props.onSend?.(sent.payload.text);
     const out = mode === "interrupt" ? props.onInterrupt?.(sent.payload) : props.onSubmit?.(sent.payload);
     // never lose what the person wrote: a send that fails gives the draft back and says why
@@ -1049,10 +1055,9 @@ export function Composer(props: ComposerProps): ReactElement {
     if (symbols.includes("hash")) plusRow("composer-symbol-hash", "Link something", I.hash, () => { setPlusOpen(false); typeSymbol("#"); }, <Kbd k="#" />);
     if (symbols.includes("at")) plusRow("composer-symbol-at", "Mention", I.at, () => { setPlusOpen(false); typeSymbol("@"); }, <Kbd k="@" />);
     if (symbols.includes("slash")) plusRow("composer-symbol-slash", "Commands", I.slash, () => { setPlusOpen(false); typeSymbol("/"); }, <Kbd k="/" />);
-    if (showMode && props.mode) {
-      plusRows.push(<GroupHead key="g-chat" label="This chat" />);
-      plusRow("plus-mode", `Mode: ${modeInfo(props.mode).label}`, MODE_ICON[props.mode], () => { setPlusOpen(false); cycleMode(); }, <Kbd k={"⇧⇥"} />);
-    }
+    if ((showMode && props.mode) || props.onAddPeople) plusRows.push(<GroupHead key="g-chat" label="This chat" />);
+    if (props.onAddPeople) plusRow("plus-people", "Add people and agents", I.people, () => { setPlusOpen(false); props.onAddPeople?.(); });
+    if (showMode && props.mode) plusRow("plus-mode", `Mode: ${modeInfo(props.mode).label}`, MODE_ICON[props.mode], () => { setPlusOpen(false); cycleMode(); }, <Kbd k={"⇧⇥"} />);
   }
 
   const listNodes: ReactElement[] = [];
@@ -1289,6 +1294,12 @@ export function Composer(props: ComposerProps): ReactElement {
           e.target.value = "";
         },
       }) : null}
+      {sendError ? (
+        <View style={styles.sendError} testID="composer-send-error" accessibilityRole="alert">
+          <Text style={styles.sendErrorText}>{sendError.reason}</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Try again" testID="composer-send-retry" onPress={() => submit(sendError.mode)}><Text style={styles.sendErrorRetry}>Try again</Text></Pressable>
+        </View>
+      ) : null}
       {menu.element}
       {dropZone.over ? <DropOverlay radius={compact ? 18 : 22} testID={`${props.testID ?? "composer"}-drop-overlay`} /> : null}
     </View>
@@ -1304,6 +1315,9 @@ const styles = StyleSheet.create({
   line: { flexDirection: "row", alignItems: "flex-end", gap: CTRL_GAP, padding: 8 },
   recipients: { paddingTop: 10, paddingHorizontal: 14 },
   banner: { paddingTop: 8, paddingHorizontal: 14 },
+  sendError: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingBottom: 10 },
+  sendErrorText: { fontSize: 12.5, color: "var(--danger)" as string, flexShrink: 1 },
+  sendErrorRetry: { fontSize: 12.5, fontWeight: "600", color: "var(--accent)" as string },
   tray: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingTop: 10, paddingHorizontal: 12 },
   chip: { flexDirection: "row", alignItems: "center", gap: 5, height: 26, paddingLeft: 8, paddingRight: 3, borderRadius: 999, backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string, maxWidth: "100%", alignSelf: "center" },
   chipText: { color: "var(--ink)" as string, fontSize: 12.5, lineHeight: 16, flexShrink: 1 },

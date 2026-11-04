@@ -284,12 +284,12 @@ export const NAV: readonly NavGroup[] = [
   { key: "integrations", title: "Integrations", pages: [
     { key: "company.setup", title: "Connect your company", perm: "connectors.manage" }, { key: "google.setup", title: "Google Workspace", perm: "connectors.manage" }, { key: "microsoft.setup", title: "Microsoft 365", perm: "connectors.manage" },
     { key: "console.integrations", title: "Connectors and connections", perm: "connectors.manage" }, { key: "events.webhooks", title: "Webhooks", perm: "connectors.manage" },
-    { key: "console.mcp-sessions", title: "API keys", perm: "access.manage" },
+    { key: "console.github-app", title: "GitHub", perm: "connectors.manage" }, { key: "console.mcp-sessions", title: "API keys", perm: "access.manage" },
   ] },
   { key: "infrastructure", title: "Machines", pages: [
     { key: "console.machines", title: "Machines", perm: C }, { key: "console.network", title: "Network", perm: "server.network" }, { key: "console.server-updates", title: "Updates", perm: "server.update" },
     { key: "console.server-logs", title: "Logs", perm: "server.logs" }, { key: "console.diagnostics", title: "Diagnostics", perm: C },
-    { key: "console.support-bundle", title: "Support bundle", perm: "server.logs" }, { key: "console.speed", title: "Speed", perm: C },
+    { key: "console.ci", title: "CI runners", perm: "connectors.manage" }, { key: "console.support-bundle", title: "Support bundle", perm: "server.logs" }, { key: "console.speed", title: "Speed", perm: C },
   ] },
   { key: "audit", title: "Audit log", pages: [{ key: "audit.log", title: "Audit log", perm: "audit.read" }] },
   { key: "space", title: "Space", pages: [{ key: "spaces.console", title: "Space settings", perm: "policy.manage" }] },

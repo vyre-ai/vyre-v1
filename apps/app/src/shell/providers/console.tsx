@@ -49,6 +49,8 @@ import { ActivityPage } from "../../console/pages/Activity.tsx";
 import { AppsPage } from "../../console/pages/AppsList.tsx";
 import { ServersPage } from "../../console/pages/Servers.tsx";
 import { AgentComputersPage } from "../../console/pages/AgentComputersPage.tsx";
+import { CiRunnersPage } from "../../console/pages/CiRunners.tsx";
+import { GithubAppPage } from "../../console/pages/GithubApp.tsx";
 import { BillingPage } from "../../console/pages/Billing.tsx";
 import { SpaceDeletePage } from "../../console/pages/SpaceDelete.tsx";
 import { ExportPage } from "../../console/pages/ExportPage.tsx";
@@ -81,6 +83,8 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "apps") return <AppsPage />;
   if (id === "servers") return <ServersPage />;
   if (id === "agentcomputers") return <AgentComputersPage />;
+  if (id === "ci") return <CiRunnersPage />;
+  if (id === "ghapp") return <GithubAppPage />;
   if (id === "billing") return <BillingPage />;
   if (id === "spacedel") return <SpaceDeletePage />;
   if (id === "export") return <ExportPage />;

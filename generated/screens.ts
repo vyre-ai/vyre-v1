@@ -2579,6 +2579,39 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "console.ci",
+    "module": "ci",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleCi",
+    "caller": "principal",
+    "queries": {
+      "settings": {
+        "cap": "ci.settings.get",
+        "input": {},
+        "live": true
+      },
+      "cost": {
+        "cap": "ci.cost.month",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "set": {
+        "cap": "ci.settings.set",
+        "input": {}
+      }
+    },
+    "needs": [
+      "connectors.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.connector-build",
     "module": "connectors",
     "place": "console",
@@ -2705,6 +2738,37 @@ export const screens: ScreenIndexEntry[] = [
     },
     "needs": [
       "console.access"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.github-app",
+    "module": "github",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleGithubApp",
+    "caller": "principal",
+    "queries": {},
+    "actions": {
+      "create": {
+        "cap": "github.app.create_manifest",
+        "input": {
+          "org": "/draft/org"
+        }
+      },
+      "complete": {
+        "cap": "github.app.complete",
+        "input": {
+          "code": "/state/code",
+          "state": "/state/state"
+        }
+      }
+    },
+    "needs": [
+      "connectors.manage"
     ],
     "perf": {
       "firstPaintMs": 50,

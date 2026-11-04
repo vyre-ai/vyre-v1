@@ -196,6 +196,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   ) : null;
   const views = activeTab && activeTab.views.length > 1 ? (
     <View style={s.views} accessibilityRole="tablist" testID="console-views">
+      {/* ui-rows-lint: not a list (a place's view tabs) */}
       {activeTab.views.map((x) => <Pressable key={x.page} accessibilityRole="tab" accessibilityState={{ selected: x.page === page }} aria-selected={x.page === page} testID={`view-${x.page}`} onPress={() => go(x.page)} style={[s.view, pointer]}><Text style={[s.viewText, x.page === page && s.viewTextOn]}>{x.label}</Text></Pressable>)}
     </View>
   ) : null;
@@ -213,6 +214,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
       const open = (pageState["open"] as string | undefined) ?? initialAudit?.open;
       return <Audit key={JSON.stringify(pageState)} {...(filter ? { initialFilter: filter } : {})} {...(open ? { initialOpen: open } : {})} />;
     }
+    // ui-rows-lint: not a list (extra pages drawn under the page, each its own section)
     return <>{drawn(def.id)}{extras.filter((x) => { const d = pageById(x); return d !== undefined && ok(d); }).map((x) => <View key={x} style={s.extra} testID={`extra-${x}`}>{drawn(x)}</View>)}</>;
   })();
 

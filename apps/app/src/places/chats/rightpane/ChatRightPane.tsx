@@ -27,6 +27,8 @@ import { RoutinesTab } from "./RoutinesTab.tsx";
 import { TerminalPaneTab } from "./TerminalPaneTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN, PANE_SCREEN } from "./ThreadsTab.tsx";
 import { CrewTab } from "./CrewTab.tsx";
+import { SkillsTab } from "../install/SkillsTab.tsx";
+import { onOpenSkills } from "../install/open.ts";
 import { DEFAULT_TAB, PANE_KEY, PANE_WIDTH_GUESS, TABS, tabsOf } from "./model.ts";
 import { TabMeasure, useFittedTabs, useTitleWidths } from "./fit.tsx";
 import type { TabKey } from "./model.ts";
