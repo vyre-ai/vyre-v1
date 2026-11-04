@@ -1124,6 +1124,19 @@ export function createClient(transport: Transport) {
         get: call("github.issue.get", 1),
         update: call("github.issue.update", 1),
       },
+      me: {
+        approve: call("github.me.approve", 1),
+        complete: call("github.me.complete", 1),
+        connect: call("github.me.connect", 1),
+        disconnect: call("github.me.disconnect", 1),
+        policy: {
+          get: call("github.me.policy.get", 1),
+          set: call("github.me.policy.set", 1),
+        },
+        reach: call("github.me.reach", 1),
+        status: call("github.me.status", 1),
+        usage: call("github.me.usage", 1),
+      },
       pull_request: {
         ask_author_fix: call("github.pull_request.ask_author_fix", 1),
         checks: call("github.pull_request.checks", 1),
@@ -1149,6 +1162,8 @@ export function createClient(transport: Transport) {
         jit_config: call("github.runners.jit_config", 1),
         remove: call("github.runners.remove", 1),
       },
+      session_env: call("github.session_env", 1),
+      token: call("github.token", 1),
     },
     goals: {
       activity: call("goals.activity", 1),

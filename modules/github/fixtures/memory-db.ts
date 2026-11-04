@@ -1,6 +1,6 @@
 // In-memory SQL for the github tests (the same fixture the other L5 modules keep, one copy per module: modules are leaf nodes, B1). It covers the statements the handlers emit and nothing more: CREATE TABLE and INDEX, INSERT
 // (OR IGNORE), UPDATE and DELETE with AND-joined terms, and SELECT with the same terms, ORDER BY several columns, LIMIT and OFFSET, and
-// count(*). A term is `col IS [NOT] NULL`, `col = ?`, `col LIKE ?` or `col IN (?, ...)`. Not a SQLite: a statement outside this list throws,
+// count(*). A term is `col IS [NOT] NULL`, `col = ?`, `col LIKE ?` `col IN (?, ...)` or `col < ? | <= | > | >=` (numbers). Not a SQLite: a statement outside this list throws,
 // so a handler that drifts into new SQL fails its test loudly instead of passing on a wrong answer.
 import type { GithubDb } from "../projections.ts";
 
@@ -180,6 +180,11 @@ function compileWhere(src: string, args: unknown[]): { pred: (row: Row) => boole
       const set = args.slice(i, i + n).map(norm);
       i += n;
       preds.push((row) => set.includes(row[col] ?? null));
+    } else if ((m = /^([\s\S]+?)\s*(<=|>=|<|>)\s*\?$/i.exec(t))) {
+      const col = ident(m[1] ?? "");
+      const op = m[2];
+      const value = Number(args[i++]);
+      preds.push((row) => { const v = Number(row[col]); return op === "<" ? v < value : op === "<=" ? v <= value : op === ">" ? v > value : v >= value; });
     } else if ((m = /^([\s\S]+?)\s*=\s*\?$/i.exec(t))) {
       const col = ident(m[1] ?? "");
       const value = norm(args[i++]);

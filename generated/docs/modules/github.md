@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (31)
+## Capabilities (42)
 
 - [github.actions.secrets](../capabilities/github.actions.secrets.md): How many Actions secrets a repository holds; null when GitHub would not say
 - [github.app.complete](../capabilities/github.app.complete.md): Finish the manifest flow: exchange the code, store the app key in the Vault and return the install link
@@ -20,6 +20,15 @@ Requires: nothing.
 - [github.issue.create](../capabilities/github.issue.create.md): Open an issue
 - [github.issue.get](../capabilities/github.issue.get.md): Read an issue live from GitHub
 - [github.issue.update](../capabilities/github.issue.update.md): Change the title, body, labels or assignees of an issue
+- [github.me.approve](../capabilities/github.me.approve.md): Ask me before something uses my GitHub for this repository and kind of use (the Gate holds it; once I approve, it is good for ten minutes)
+- [github.me.complete](../capabilities/github.me.complete.md): Finish connecting my GitHub: GitHub sent me back with a code; trade it, learn who I am on GitHub and keep the refresh token in my Vault
+- [github.me.connect](../capabilities/github.me.connect.md): Start connecting my own GitHub: the address to send me to (the Space's own GitHub app when an admin set one up, else the default Vyre app), with PKCE. The refresh token ends up in my own Vault (Mine)
+- [github.me.disconnect](../capabilities/github.me.disconnect.md): Disconnect my GitHub: revoke it, delete the refresh token from my Vault and forget approvals
+- [github.me.policy.get](../capabilities/github.me.policy.get.md): What I let each kind of use do on GitHub: Always, Ask me first or Never
+- [github.me.policy.set](../capabilities/github.me.policy.set.md): Change what I let a kind of use do: read, push a branch, open a pull request, comment, merge, push to the default branch
+- [github.me.reach](../capabilities/github.me.reach.md): The repositories and organisations I reach through the app; each organisation says whether the app is installed on all repositories, chosen ones or not at all, and gives the address to install or ask
+- [github.me.status](../capabilities/github.me.status.md): Is my GitHub connected, as whom, through which app, and does it need connecting again
+- [github.me.usage](../capabilities/github.me.usage.md): Where my GitHub was last used, by consumer (crew, CI, linked pull requests, agent tools): the Used by list
 - [github.pull_request.ask_author_fix](../capabilities/github.pull_request.ask_author_fix.md): Ask the author agent to fix a failing check: creates a task (at most 3 rounds per pull request)
 - [github.pull_request.checks](../capabilities/github.pull_request.checks.md): Check runs of a pull request
 - [github.pull_request.close](../capabilities/github.pull_request.close.md): Close a pull request without merging
@@ -37,14 +46,18 @@ Requires: nothing.
 - [github.repos.list](../capabilities/github.repos.list.md): List repositories the App can reach
 - [github.runners.jit_config](../capabilities/github.runners.jit_config.md): Make a just-in-time runner for one job: GitHub answers a config the new machine runs with, once. Called by the CI module; the config is never stored
 - [github.runners.remove](../capabilities/github.runners.remove.md): Take back a runner that never ran a job (its machine failed to start)
+- [github.session_env](../capabilities/github.session_env.md): For one turn of Claude Code, Codex or Grok: GH_TOKEN and GITHUB_TOKEN as filler handles and a git credential helper, scoped to the owner's repositories the person lets run without asking
+- [github.token](../capabilities/github.token.md): The one way to get a GitHub token: for a person (the caller, or an agent on that person's own turn), one repository and one kind of use; short-lived, narrowed to that, returned as a filler handle and never the token. Follows the person's Always, Ask me first or Never
 
-## Events (13)
+## Events (15)
 
 - [github.app_created](../events/github.app_created.md): The GitHub App was created and its key stored
 - [github.check_completed](../events/github.check_completed.md): A check run finished
 - [github.event_received](../events/github.event_received.md): A verified GitHub delivery arrived
 - [github.fix_requested](../events/github.fix_requested.md): The author agent was asked to fix a failing check
 - [github.issue_assigned](../events/github.issue_assigned.md): An issue was assigned to an agent
+- [github.me_connected](../events/github.me_connected.md): A person connected their own GitHub
+- [github.me_disconnected](../events/github.me_disconnected.md): A person disconnected their GitHub
 - [issue.opened](../events/issue.opened.md): An issue was opened
 - [pull_request.closed](../events/pull_request.closed.md): A pull request was closed without merging
 - [pull_request.merged](../events/pull_request.merged.md): A pull request was merged

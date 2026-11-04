@@ -15029,6 +15029,94 @@ export type GithubIssueUpdateOut = {
     body?: string;
   };
 };
+export type GithubMeApproveIn = {
+  repo: string;
+  action: "read" | "push_branch" | "open_pr" | "comment" | "merge" | "push_default";
+  consumer: string;
+  idempotencyKey: string;
+};
+export type GithubMeApproveOut = {
+  approved: boolean;
+};
+export type GithubMeCompleteIn = {
+  code: string;
+  state: string;
+};
+export type GithubMeCompleteOut = {
+  login: string;
+  source: "space" | "vyre";
+};
+export type GithubMeConnectIn = Record<string, unknown>;
+export type GithubMeConnectOut = {
+  authUrl: string;
+  state: string;
+  source: "space" | "vyre";
+};
+export type GithubMeDisconnectIn = Record<string, unknown>;
+export type GithubMeDisconnectOut = {
+  disconnected: boolean;
+};
+export type GithubMePolicyGetIn = Record<string, unknown>;
+export type GithubMePolicyGetOut = {
+  policy: {
+    read: "always" | "ask" | "never";
+    push_branch: "always" | "ask" | "never";
+    open_pr: "always" | "ask" | "never";
+    comment: "always" | "ask" | "never";
+    merge: "always" | "ask" | "never";
+    push_default: "always" | "ask" | "never";
+  };
+};
+export type GithubMePolicySetIn = {
+  policy: {
+    read?: "always" | "ask" | "never";
+    push_branch?: "always" | "ask" | "never";
+    open_pr?: "always" | "ask" | "never";
+    comment?: "always" | "ask" | "never";
+    merge?: "always" | "ask" | "never";
+    push_default?: "always" | "ask" | "never";
+  };
+};
+export type GithubMePolicySetOut = {
+  policy: {
+    read: "always" | "ask" | "never";
+    push_branch: "always" | "ask" | "never";
+    open_pr: "always" | "ask" | "never";
+    comment: "always" | "ask" | "never";
+    merge: "always" | "ask" | "never";
+    push_default: "always" | "ask" | "never";
+  };
+};
+export type GithubMeReachIn = Record<string, unknown>;
+export type GithubMeReachOut = {
+  login: string;
+  orgs: Array<{
+      login: string;
+      install: "all" | "selected" | "none";
+      url: string | null;
+    }>;
+  repos: Array<{
+      repo: string;
+      installationId: number;
+    }>;
+};
+export type GithubMeStatusIn = Record<string, unknown>;
+export type GithubMeStatusOut = {
+  connected: boolean;
+  login?: string;
+  source?: "space" | "vyre";
+  connectedAt?: number;
+  needsReconnect: boolean;
+};
+export type GithubMeUsageIn = Record<string, unknown>;
+export type GithubMeUsageOut = {
+  uses: Array<{
+      consumer: string;
+      repo: string;
+      action: string;
+      at: number;
+    }>;
+};
 export type GithubPullRequestAskAuthorFixIn = {
   recordId: string;
   checkName?: string;
@@ -15267,6 +15355,29 @@ export type GithubRunnersRemoveIn = {
 };
 export type GithubRunnersRemoveOut = {
   removed: boolean;
+};
+export type GithubSessionEnvIn = {
+  repos: Array<string>;
+  consumer: string;
+};
+export type GithubSessionEnvOut = {
+  env: Record<string, string>;
+  gitConfig: Array<string>;
+  repos: Array<string>;
+  skipped: Array<string>;
+  expiresAt: number;
+};
+export type GithubTokenIn = {
+  person?: string;
+  repo: string;
+  action: "read" | "push_branch" | "open_pr" | "comment" | "merge" | "push_default";
+  consumer: string;
+};
+export type GithubTokenOut = {
+  handle: string;
+  expiresAt: number;
+  repo: string;
+  permissions: Record<string, string>;
 };
 export type GoalsActivityIn = {
   goalId: string;
@@ -42743,6 +42854,15 @@ export interface CapMap {
   "github.issue.create": { in: GithubIssueCreateIn; out: GithubIssueCreateOut };
   "github.issue.get": { in: GithubIssueGetIn; out: GithubIssueGetOut };
   "github.issue.update": { in: GithubIssueUpdateIn; out: GithubIssueUpdateOut };
+  "github.me.approve": { in: GithubMeApproveIn; out: GithubMeApproveOut };
+  "github.me.complete": { in: GithubMeCompleteIn; out: GithubMeCompleteOut };
+  "github.me.connect": { in: GithubMeConnectIn; out: GithubMeConnectOut };
+  "github.me.disconnect": { in: GithubMeDisconnectIn; out: GithubMeDisconnectOut };
+  "github.me.policy.get": { in: GithubMePolicyGetIn; out: GithubMePolicyGetOut };
+  "github.me.policy.set": { in: GithubMePolicySetIn; out: GithubMePolicySetOut };
+  "github.me.reach": { in: GithubMeReachIn; out: GithubMeReachOut };
+  "github.me.status": { in: GithubMeStatusIn; out: GithubMeStatusOut };
+  "github.me.usage": { in: GithubMeUsageIn; out: GithubMeUsageOut };
   "github.pull_request.ask_author_fix": { in: GithubPullRequestAskAuthorFixIn; out: GithubPullRequestAskAuthorFixOut };
   "github.pull_request.checks": { in: GithubPullRequestChecksIn; out: GithubPullRequestChecksOut };
   "github.pull_request.close": { in: GithubPullRequestCloseIn; out: GithubPullRequestCloseOut };
@@ -42760,6 +42880,8 @@ export interface CapMap {
   "github.repos.list": { in: GithubReposListIn; out: GithubReposListOut };
   "github.runners.jit_config": { in: GithubRunnersJitConfigIn; out: GithubRunnersJitConfigOut };
   "github.runners.remove": { in: GithubRunnersRemoveIn; out: GithubRunnersRemoveOut };
+  "github.session_env": { in: GithubSessionEnvIn; out: GithubSessionEnvOut };
+  "github.token": { in: GithubTokenIn; out: GithubTokenOut };
   "goals.activity": { in: GoalsActivityIn; out: GoalsActivityOut };
   "goals.ask": { in: GoalsAskIn; out: GoalsAskOut };
   "goals.brief": { in: GoalsBriefIn; out: GoalsBriefOut };
@@ -45409,6 +45531,15 @@ export type GithubIssueAssignedPayload = {
 };
 export type GithubLinkedPayload = {
   personId: string;
+  login: string;
+};
+export type GithubMeConnectedPayload = {
+  person: string;
+  login: string;
+  source: "space" | "vyre";
+};
+export type GithubMeDisconnectedPayload = {
+  person: string;
   login: string;
 };
 export type GithubUnlinkedPayload = {
@@ -48326,6 +48457,8 @@ export interface EventMap {
   "github.fix_requested": GithubFixRequestedPayload;
   "github.issue_assigned": GithubIssueAssignedPayload;
   "github.linked": GithubLinkedPayload;
+  "github.me_connected": GithubMeConnectedPayload;
+  "github.me_disconnected": GithubMeDisconnectedPayload;
   "github.unlinked": GithubUnlinkedPayload;
   "goal.budget_warned": GoalBudgetWarnedPayload;
   "goal.created": GoalCreatedPayload;

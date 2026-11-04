@@ -1124,6 +1124,19 @@ export function stubs(ctx: CallCtx) {
         get: call("github.issue.get"),
         update: call("github.issue.update"),
       },
+      me: {
+        approve: call("github.me.approve"),
+        complete: call("github.me.complete"),
+        connect: call("github.me.connect"),
+        disconnect: call("github.me.disconnect"),
+        policy: {
+          get: call("github.me.policy.get"),
+          set: call("github.me.policy.set"),
+        },
+        reach: call("github.me.reach"),
+        status: call("github.me.status"),
+        usage: call("github.me.usage"),
+      },
       pull_request: {
         ask_author_fix: call("github.pull_request.ask_author_fix"),
         checks: call("github.pull_request.checks"),
@@ -1149,6 +1162,8 @@ export function stubs(ctx: CallCtx) {
         jit_config: call("github.runners.jit_config"),
         remove: call("github.runners.remove"),
       },
+      session_env: call("github.session_env"),
+      token: call("github.token"),
     },
     goals: {
       activity: call("goals.activity"),

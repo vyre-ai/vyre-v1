@@ -19,6 +19,15 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "github.issue.create": Handler<"github.issue.create", X>;
   "github.issue.get": Handler<"github.issue.get", X>;
   "github.issue.update": Handler<"github.issue.update", X>;
+  "github.me.approve": Handler<"github.me.approve", X>;
+  "github.me.complete": Handler<"github.me.complete", X>;
+  "github.me.connect": Handler<"github.me.connect", X>;
+  "github.me.disconnect": Handler<"github.me.disconnect", X>;
+  "github.me.policy.get": Handler<"github.me.policy.get", X>;
+  "github.me.policy.set": Handler<"github.me.policy.set", X>;
+  "github.me.reach": Handler<"github.me.reach", X>;
+  "github.me.status": Handler<"github.me.status", X>;
+  "github.me.usage": Handler<"github.me.usage", X>;
   "github.pull_request.ask_author_fix": Handler<"github.pull_request.ask_author_fix", X>;
   "github.pull_request.checks": Handler<"github.pull_request.checks", X>;
   "github.pull_request.close": Handler<"github.pull_request.close", X>;
@@ -36,4 +45,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "github.repos.list": Handler<"github.repos.list", X>;
   "github.runners.jit_config": Handler<"github.runners.jit_config", X>;
   "github.runners.remove": Handler<"github.runners.remove", X>;
+  "github.session_env": Handler<"github.session_env", X>;
+  "github.token": Handler<"github.token", X>;
 }
