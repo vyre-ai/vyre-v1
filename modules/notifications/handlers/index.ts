@@ -2,7 +2,7 @@
 import { kindSetLevel } from "./kinds.ts";
 import { pushRegister, pushUnregister } from "./push.ts";
 import {
-  awayClear, awayGet, awaySet, awayWho, counts, delegateGet, delegateResolve, delegateSet, digestCollect, kindsList, list, markSeen, muteClear, muteList, muteSet, rulesGet, rulesSet, send,
+  awayClear, awayGet, awaySet, awayWho, counts, delegateGet, delegateResolve, delegateSet, digestCollect, kindsList, list, markSeen, hearsIn, muteClear, muteList, muteSet, rulesGet, rulesSet, send,
 } from "./rules.ts";
 
 export const handlers = {
@@ -19,6 +19,7 @@ export const handlers = {
   "notifications.kinds.list": kindsList,
   "notifications.list": list,
   "notifications.mark_seen": markSeen,
+  "notifications.hears_in": hearsIn,
   "notifications.mute.clear": muteClear,
   "notifications.mute.list": muteList,
   "notifications.mute.set": muteSet,

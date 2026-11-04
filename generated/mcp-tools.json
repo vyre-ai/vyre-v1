@@ -44450,6 +44450,40 @@
     },
     {
       "blocks": [],
+      "cap": "notifications.hears_in",
+      "deferred": false,
+      "description": "Whether a teammate has muted one chat or channel, for their profile: only that, never what else they mute; asked by someone who can open the chat",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "personId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "personId",
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "notifications_hears_in",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "notifications.kind.set_level",
       "deferred": false,
       "description": "Set how one kind of notification reaches me: its level and which of desktop, phone and email carry it. Give a level, channels, or both; channels alone pick the level (desktop or phone interrupt, otherwise badge). Approval reminders and owned incidents never go below Interrupt",

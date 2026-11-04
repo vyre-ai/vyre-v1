@@ -2,8 +2,8 @@
 // place the asker cannot open: a chat the asker is not a member of is never read, whoever else is in it.
 //   Replies: from the last 30 days of chats both are in, the time from a message that asked something of them (an @ with their name, a reply to their message, or any line from the other person in a
 //            direct chat) until their next message in that chat. The median is the answer; fewer than three such moments is "unknown", never a guess.
-//   Notifies: for one chat both are in. A direct chat tells them of every message (message.direct); a group chat or channel tells them of @mentions and followed threads (notify.ts); a thread they
-//            muted or left says off. Mutes made in Notifications settings belong to that module and are not read here.
+//   Notifies: for one chat both are in. A direct chat tells them of every message (message.direct); a group chat or channel tells them of @mentions and followed threads (notify.ts); a chat they
+//            muted (a thread they muted or left, or a mute in Notifications, asked of that module for this one chat) says off.
 import { askerOf, membersOf, refOf } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
 import { followMode } from "./follow.ts";
@@ -37,6 +37,11 @@ async function nameOf(ctx: ChatCtx, id: string): Promise<string> {
     const out = (await ctx.call?.("access.principals.get", { principal: { kind: "person", id } })) as { principal?: { name?: unknown } } | undefined;
     return typeof out?.principal?.name === "string" ? out.principal.name.trim() : "";
   } catch { return ""; }
+}
+
+/** Whether they muted this chat in Notifications: that module keeps the mute, and tells this one fact to someone who can open the chat. Unanswered (not available) reads as not muted. */
+async function mutedInSettings(ctx: ChatCtx, person: string, threadId: string): Promise<boolean> {
+  try { return ((await ctx.call?.("notifications.hears_in", { personId: person, threadId })) as { muted?: boolean } | undefined)?.muted === true; } catch { return false; }
 }
 
 export async function paceOfPerson(ctx: ChatCtx, input: { personId: string; threadId?: string }): Promise<{ replies: Pace; samples: number; notifies?: Notifies }> {
@@ -87,7 +92,8 @@ export async function paceOfPerson(ctx: ChatCtx, input: { personId: string; thre
     const t = rows.find((r) => str(r["id"]) === input.threadId);
     if (t !== undefined) {
       const people = membersOf(ctx.db, input.threadId).filter((p) => p.startsWith("usr_"));
-      out.notifies = followMode(ctx, input.threadId, them) !== undefined ? "off" : people.length === 2 ? "all" : "mentions";
+      const muted = followMode(ctx, input.threadId, them) !== undefined || (await mutedInSettings(ctx, them, input.threadId));
+      out.notifies = muted ? "off" : people.length === 2 ? "all" : "mentions";
     }
   }
   return out;

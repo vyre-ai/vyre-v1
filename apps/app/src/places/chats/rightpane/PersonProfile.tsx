@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { LeadIcon } from "./parts.tsx";
+import { chatName } from "../../../../../../lib/chat-name.ts";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { ProfileHeader } from "./ProfileHeader.tsx";
 import type { HeaderAction, Presence } from "./ProfileHeader.tsx";
@@ -35,6 +36,8 @@ export interface PersonProfileProps {
   /** Opens the Add people and agents sheet on the open chat; without it the third action is Mention. */
   onAdd?: (() => void) | undefined;
   openThread?(threadId: string): void; openFile?(fileId: string): void; openTask?(taskId: string): void;
+  /** The directory name of a person or agent, and who the viewer is: a chat in Shared context takes its one name (lib/chat-name.ts). */
+  nameOf?: ((id: string) => string) | undefined; meId?: string | undefined;
   /** The chat this profile was opened from: how they hear about it (Notifies) is read for it. */
   threadId?: string | undefined;
   /** Opens a project the two of you can see (Shared context). */
@@ -107,6 +110,12 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
 const label = (t: string): ReactElement => <Text key={t} style={st.label}>{t}</Text>;
 const kv = (k: string, v: string | undefined): ReactElement | null => (v === undefined || v === "" ? null : <View key={k} style={st.kv}><Text style={st.k}>{k}</Text><Text style={[st.v, st.vEnd]}>{v}</Text></View>);
 
+/** A chat's one name: its title, else who is in it (lib/chat-name.ts), the same as the sidebar and the tabs. */
+export function chatLabel(p: PersonProfileProps, t: ThreadRow): string {
+  const name = p.nameOf ?? ((id: string): string => id);
+  return chatName({ title: t.title, kind: t.kind, agents: t.agents.map((a) => a.agentId), people: t.members.filter((m) => m.kind === "person" && m.id !== p.meId).map((m) => m.id) }, name);
+}
+
 function About(p: PersonProfileProps & { pace: CapMap["chat.pace_of"]["out"] | null; chats: readonly ThreadRow[]; known: readonly string[]; roles: readonly { id: string; project: string; role: string }[]; first: string; state: PresenceState | undefined; lastSeenAt: number | undefined; pub: PublicOut | null; time: string | undefined }): ReactElement {
   const roles = p.roles;
   const resp = responsibleFor(p.title ?? p.pub?.title, roles);
@@ -117,7 +126,7 @@ function About(p: PersonProfileProps & { pace: CapMap["chat.pace_of"]["out"] | n
       {label("Responsible for")}<Text testID="person-resp" style={st.body14}>{resp}</Text>
       {p.state !== undefined ? <>{label("Right now")}<View style={st.now}><View style={[st.dot, { backgroundColor: (away ? "var(--warn)" : p.state === "online" ? "var(--ok)" : "var(--ink-4)") as string }]} /><View><Text style={st.v}>{presenceWord(p.state)}</Text>{now ? <Text style={st.sub}>{now}</Text> : null}</View></View></> : null}
       {p.pace !== null || p.pub?.hours || p.pub?.timezone ? <>{label(`How ${p.first} responds here`)}
-        {p.pace !== null ? kv("Replies", paceWords(p.pace.replies)) : null}
+        {kv("Replies", p.pace !== null ? paceWords(p.pace.replies) : undefined)}
         {kv("Notifies", notifyWords(p.pace?.notifies))}
         {kv("Available", p.pub?.hours ? hoursWords(p.pub.hours) : undefined)}
         {kv("Their time", p.time && p.pub?.timezone ? `${p.time} · ${cityOf(p.pub.timezone)}` : undefined)}</> : null}
@@ -126,7 +135,7 @@ function About(p: PersonProfileProps & { pace: CapMap["chat.pace_of"]["out"] | n
           <Row key={r.id} id={`person-project-${r.id}`} title={r.project} note={`Project · ${r.role}`} leading={<LeadIcon name="folder" />} onPress={() => p.openProject?.(r.id)} />
         ))}
         {p.chats.slice(0, 3).map((t) => (
-          <Row key={t.threadId} id={`person-shared-chat-${t.threadId}`} title={t.title ?? t.preview ?? "Chat"} note="Chat · you both" leading={<LeadIcon name="chat" />} onPress={() => p.openThread?.(t.threadId)} />
+          <Row key={t.threadId} id={`person-shared-chat-${t.threadId}`} title={chatLabel(p, t)} note="Chat · you both" leading={<LeadIcon name="chat" />} onPress={() => p.openThread?.(t.threadId)} />
         ))}</> : null}
       {p.pub?.pronouns || p.known.length > 0 ? label(`About ${p.first}`) : null}
       {kv("Pronouns", p.pub?.pronouns)}

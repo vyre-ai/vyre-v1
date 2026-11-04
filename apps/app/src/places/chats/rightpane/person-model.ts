@@ -52,7 +52,7 @@ export function publicLines(out: { public: readonly { text: string; status: stri
 
 /** What chat.pace_of says about their usual reply time, in words. */
 export function paceWords(p: "minutes" | "hour" | "day" | "slow" | "unknown"): string {
-  return p === "minutes" ? "Usually within minutes" : p === "hour" ? "Usually within the hour" : p === "day" ? "Usually the same day" : p === "slow" ? "Usually after a day" : "Not enough to tell";
+  return p === "minutes" ? "Usually within minutes" : p === "hour" ? "Usually within the hour" : p === "day" ? "Usually the same day" : p === "slow" ? "Usually after a day" : "Not enough chats yet";
 }
 
 /** How they hear about this chat: the level tells others whether to @ them. */

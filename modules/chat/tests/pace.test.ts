@@ -91,3 +91,19 @@ test("a thread they muted says off; lines older than 30 days are left out", asyn
   assert.deepEqual(await h["chat.pace_of"]!(hn.ctx, { personId: MAYA }), { replies: "unknown", samples: 0 }, "all of it is older than 30 days");
   assert.deepEqual(await h["chat.pace_of"]!(hn.ctx, { personId: DANA }), { replies: "unknown", samples: 0 }, "yourself has no pace to show");
 });
+
+test("a chat they muted in Notifications says off, asked of that module for this one chat; when it cannot answer the level stands", async () => {
+  const asked: Array<Record<string, unknown>> = [];
+  let muted = false;
+  const hn = harness({ calls: { ...names, "notifications.hears_in": (i) => { asked.push(i); return { muted }; } } });
+  const dm = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() })).thread.threadId as string;
+  assert.equal((await h["chat.pace_of"]!(hn.ctx, { personId: MAYA, threadId: dm })).notifies, "all");
+  muted = true;
+  assert.equal((await h["chat.pace_of"]!(hn.ctx, { personId: MAYA, threadId: dm })).notifies, "off");
+  assert.deepEqual(asked.at(-1), { personId: MAYA, threadId: dm });
+  // a chat the asker is not in is never asked about
+  const theirs = (await h["chat.start"]!(hn.person(LEO), { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() })).thread.threadId as string;
+  const before = asked.length;
+  assert.equal((await h["chat.pace_of"]!(hn.ctx, { personId: MAYA, threadId: theirs })).notifies, undefined);
+  assert.equal(asked.length, before);
+});

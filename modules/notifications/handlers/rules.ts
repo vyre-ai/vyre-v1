@@ -274,6 +274,15 @@ export async function muteList(ctx: NotifCtx): Promise<{ mutes: { target: Target
   return { mutes: activeMutes(ctx.db, meOf(ctx), ctx.now()) };
 }
 
+/** Has this person muted this chat (the chat itself, or the channel it is the main thread of)? Answered to anyone who can open the chat, and only this one fact: nothing else they mute is told. */
+export async function hearsIn(ctx: NotifCtx, input: { personId: string; threadId: string }): Promise<{ muted: boolean }> {
+  const seen = (await ctx.call?.("threads.get", { threadId: input.threadId })) as { thread?: { channelId?: unknown } } | undefined;   // refuses when the asker cannot open it
+  if (seen === undefined) throw new Error("threads.get is not available");
+  const sources: Target[] = [{ kind: "thread", id: input.threadId }];
+  if (typeof seen.thread?.channelId === "string" && seen.thread.channelId !== "") sources.push({ kind: "channel", id: seen.thread.channelId });
+  return { muted: isMuted(ctx.db, readRules(ctx.db, input.personId), input.personId, sources, ctx.now()) };
+}
+
 // ---- away and delegates ----
 
 function cleanChain(ctx: NotifCtx, me: string, chain: Delegate[]): Delegate[] {

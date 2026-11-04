@@ -2031,6 +2031,7 @@ export function stubs(ctx: CallCtx) {
       digest: {
         collect: call("notifications.digest.collect"),
       },
+      hears_in: call("notifications.hears_in"),
       kind: {
         set_level: call("notifications.kind.set_level"),
       },

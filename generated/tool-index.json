@@ -6572,6 +6572,12 @@
     },
     {
       "deferred": false,
+      "name": "notifications_hears_in",
+      "summary": "Whether a teammate has muted one chat or channel, for their profile: only that, never what else they mute; asked by someone who can open the chat",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "notifications_kind_set_level",
       "summary": "Set how one kind of notification reaches me: its level and which of desktop, phone and email carry it. Give a level, channels, or both; channels alone pick the level (desktop or phone interrupt, otherwise badge). Approval reminders and owned incidents never go below Interrupt",
       "toolset": "meta"

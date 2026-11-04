@@ -48,6 +48,7 @@ test("person profile, team: pressing a person in the chat's People popover opens
     await me.page.getByText(PUBLIC_FACT).first().waitFor({ timeout: 15_000 });   // About shows the public line
     await me.page.getByText("Usually within minutes").first().waitFor({ timeout: 15_000 });   // how she responds here: from the chat the two of you are in
     await me.page.getByText("All messages").first().waitFor({ timeout: 15_000 });
+    assert.match(await me.page.getByTestId(`row-person-shared-chat-${threadId}`).innerText(), /Ember and sara/, "a chat in Shared context carries the chat's own name, not the word Chat");
     await me.page.waitForTimeout(1500);
     assert.equal((await me.page.locator("body").innerText()).includes(PRIVATE_FACT), false, "the private fact never reaches the page");
     await shoot(me.page, OUT, "chat-person-wide");

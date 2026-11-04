@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PERSON_TABS, PersonProfile, personActions } from "./PersonProfile.tsx";
+import { PERSON_TABS, PersonProfile, chatLabel, personActions } from "./PersonProfile.tsx";
 import { cityOf, hoursWords, lastActive, localTime, personLine, notifyWords, paceWords, presenceWord, publicLines, responsibleFor } from "./person-model.ts";
 
 const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
@@ -91,9 +91,20 @@ test("how they respond: the reply time and the notification level in words, and 
   assert.equal(paceWords("minutes"), "Usually within minutes");
   assert.equal(paceWords("hour"), "Usually within the hour");
   assert.equal(paceWords("day"), "Usually the same day");
-  assert.equal(paceWords("unknown"), "Not enough to tell");
+  assert.equal(paceWords("unknown"), "Not enough chats yet");
   assert.equal(notifyWords("all"), "All messages");
   assert.equal(notifyWords("mentions"), "Mentions only");
   assert.equal(notifyWords("off"), "Off");
   assert.equal(notifyWords(undefined), undefined);
+});
+
+test("a chat in Shared context takes the one chat name: its title, else who is in it, never the word Chat", () => {
+  const names: Record<string, string> = { usr_me: "You", usr_sara: "Sara Malik", agt_ember: "Ember", usr_omar: "Omar" };
+  const nameOf = (id: string): string => names[id] ?? id;
+  const p = { ...props, nameOf, meId: "usr_me" };
+  const row = (o: Record<string, unknown>): never => ({ threadId: "thr_1", kind: "chat", title: undefined, agents: [], members: [], ...o }) as never;
+  assert.equal(chatLabel(p, row({ title: "Launch plan", agents: [{ agentId: "agt_ember" }] })), "Launch plan");
+  assert.equal(chatLabel(p, row({ agents: [{ agentId: "agt_ember" }], members: [{ kind: "person", id: "usr_me" }, { kind: "person", id: "usr_sara" }] })), "Ember and Sara Malik", "untitled: who is in it");
+  assert.equal(chatLabel(p, row({ title: "New chat", members: [{ kind: "person", id: "usr_me" }, { kind: "person", id: "usr_sara" }] })), "Sara Malik", "a direct chat is the other person");
+  assert.equal(chatLabel(p, row({ title: "Chat", members: [{ kind: "person", id: "usr_me" }, { kind: "person", id: "usr_sara" }, { kind: "person", id: "usr_omar" }] })), "Sara Malik and Omar");
 });

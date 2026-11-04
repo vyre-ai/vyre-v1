@@ -17,7 +17,7 @@ async function refused(p: Promise<unknown>, code: string): Promise<void> {
 
 test("every capability in the contract has a real handler", () => {
   const want = registry.capabilities.filter((c) => c.module === "notifications").map((c) => c.name).sort();
-  assert.equal(want.length, 21);
+  assert.equal(want.length, 22);
   assert.deepEqual(Object.keys(handlers).sort(), want);
 });
 
@@ -223,3 +223,26 @@ test("digest.collect: digest-level rows of a period for a person, oldest first, 
 });
 
 // Run on the final commit of this packet, after merging main, so the CI log lists the file as ok.
+
+// ---- hears_in: a teammate's mute of one chat, for their profile ----
+
+test("hears_in tells whether a teammate muted one chat, to someone who can open it, and nothing else they mute", async () => {
+  const h = harness();
+  h.callee("threads.get", (i: { threadId: string }) => ({ thread: { threadId: i.threadId, ...(i.threadId === "thr_chan" ? { channelId: "chn_1" } : {}) } }));
+  assert.deepEqual(await h.call("notifications.hears_in", { personId: bob.id, threadId: "thr_1" }, me), { muted: false });
+  await h.call("notifications.mute.set", { target: { kind: "thread", id: "thr_1" }, minutes: 60 }, as(bob));
+  await h.call("notifications.mute.set", { target: { kind: "person", id: "usr_x" }, minutes: 60 }, as(bob));
+  assert.deepEqual(await h.call("notifications.hears_in", { personId: bob.id, threadId: "thr_1" }, me), { muted: true });
+  assert.deepEqual(await h.call("notifications.hears_in", { personId: bob.id, threadId: "thr_2" }, me), { muted: false }, "another chat, and a mute of a person, say nothing");
+  // a channel mute reaches its main thread
+  await h.call("notifications.mute.set", { target: { kind: "channel", id: "chn_1" }, minutes: 60 }, as(bob));
+  assert.deepEqual(await h.call("notifications.hears_in", { personId: bob.id, threadId: "thr_chan" }, me), { muted: true });
+  h.advance(2 * HOUR);
+  assert.deepEqual(await h.call("notifications.hears_in", { personId: bob.id, threadId: "thr_1" }, me), { muted: false }, "a mute that ended is not one");
+});
+
+test("hears_in is refused to someone who cannot open the chat", async () => {
+  const h = harness();
+  h.callee("threads.get", () => { throw Object.assign(new Error("no"), { code: "permission.denied" }); });
+  await assert.rejects(h.call("notifications.hears_in", { personId: bob.id, threadId: "thr_private" }, me));
+});
