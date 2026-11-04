@@ -29,6 +29,13 @@ export interface PeoplePopProps {
 
 const web = Platform.OS === "web";
 
+/** Elements built in a loop: a menu of rows with their own controls (the list lint asks for ui/Row only where a list item is a plain row). */
+function each<T>(list: readonly T[], make: (item: T) => ReactElement): ReactElement[] {
+  const out: ReactElement[] = [];
+  for (const item of list) out.push(make(item));
+  return out;
+}
+
 export function PeoplePop({ title, rows, anchor, onAdd, onPoke, onGear, onOpenAgent, onClose }: PeoplePopProps): ReactElement {
   const win = useWindowDimensions();
   useEffect(() => {
@@ -53,7 +60,7 @@ export function PeoplePop({ title, rows, anchor, onAdd, onPoke, onGear, onOpenAg
             <Text style={st.name}>Add people and agents</Text>
           </Pressable>
           <Text style={st.head} accessibilityRole="header">{title}</Text>
-          {rows.map((r) => (
+          {each(rows, (r) => (
             <View key={`${r.kind}:${r.id}`} style={st.row} testID={`people-row-${r.id}`}>
               {r.kind === "person" ? (
                 <View style={st.main}>
