@@ -2,7 +2,7 @@
 // (test/support/mail-browser.ts): needs Node 24, a Chromium and the production web export (VYRE_APP_DIST); with VYRE_REQUIRE_CHROME=1 (CI) it fails instead of skipping.
 //   5 Add as a client (Personal): a stranger writes with two attachments; one tap on the Unmatched line makes the contact, files both attachments in its folder and puts a Reply task on the list.
 //   6 A record shows everything (Team): Bo opens a record and sees its comment, task and shared mail in one feed, and nothing of Olivia's private chat about it.
-//   7 Home says what changed (Team): Bo opens Home and the first line says what waits on him; the part about tasks opens Needs you.
+//   7 The first screen (Team): a fresh chat shows what needs the owner and what is running, under the composer, from the Space's real data (Home is gone).
 //   8 One-tap send (Personal): an agent's email is held; Needs you shows the draft beside its record; Ask for changes sends it back with a note and nothing goes out.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -96,33 +96,42 @@ test("journey 6, a record shows everything: Bo sees the comment, the task and th
   } finally { await s.close(); }
 });
 
-test("journey 7, Home says what changed: the first line names what waits on Bo, and the task part opens Needs you", async (t) => {
+test("journey 7, the first screen says what waits: a fresh chat shows what needs the owner and what is running, under the composer, from the Space's real data", async (t) => {
   const env = await browserOrSkip();
   if (typeof env === "string") { t.skip(env); return; }
-  const s = await bootScreens({ kind: "team" }, env);
-  const dir = `${OUT}/7-home-since`;
+  const s = await bootScreens({ kind: "team", engineOpenSession: standIn }, env);
+  const dir = `${OUT}/7-first-screen`;
   try {
     const w = s.world;
-    const bo = await w.join("bo");
-    const seatBo = await seat(s, bo, "Member");
-    await seatBo.ctx.addInitScript(() => { try { localStorage.setItem("vyre.home.lastVisit", String(Date.now() - 3 * 86_400_000)); } catch { /* blocked */ } });
-    await open(seatBo, s, "/home");
-    await seatBo.page.getByTestId("home-since").waitFor({ timeout: 30_000 }).catch(() => undefined);
-    await shoot(seatBo.page, dir, "all-quiet");
-    const quiet = await seatBo.page.getByTestId("home-since").innerText().catch(() => "");
-    assert.match(quiet, /All quiet since/, "nothing happened yet");
+    await unlockVault(w);
+    const account = await connectClaude(w);
+    const me = await seat(s, w.owner, "Owner");
+    await open(me, s, "/chat");
+    await me.page.getByTestId("landing-title").waitFor({ timeout: 30_000 });
+    await shoot(me.page, dir, "nothing-waiting");
 
-    await w.owner.ok("tasks.create", { kind: "approve", title: "Approve the Dana letter", assigned: { kind: "person", id: bo.id } });
+    // things that wait: a task for the owner to approve, a held send from an agent (a running turn parked on the Gate), and mail from a stranger
+    await w.owner.ok("tasks.create", { kind: "approve", title: "Approve the Dana letter", assigned: { kind: "person", id: w.owner.id } });
     await strangerWrites(w, w.owner, { subject: "Hello from Dana", text: "Hi" });
-    await open(seatBo, s, "/home");
-    await seatBo.page.getByTestId("since-waiting").waitFor({ timeout: 30_000 });
-    const line = await seatBo.page.getByTestId("home-since").innerText();
-    assert.match(line, /Since .*1 task waits on you.*1 unread message/s);
-    await shoot(seatBo.page, dir, "line");
-    await seatBo.page.getByTestId("since-waiting").click();
-    await seatBo.page.getByText("Approve the Dana letter").first().waitFor({ timeout: 20_000 });
-    await shoot(seatBo.page, dir, "needs-you", { phone: false });
-    assert.deepEqual(seatBo.errors, [], "no page errors");
+    const rec = (await w.owner.ok("records.create", { type: "contact", fields: { name: "Dana Fox", email: "dana@fox.test" } })).record as { id: string };
+    const { mailboxId } = (await w.owner.ok("mail.mailbox.list", {})).mailboxes.length ? { mailboxId: ((await w.owner.ok("mail.mailbox.list", {})).mailboxes as { id: string }[])[0]!.id } : { mailboxId: "" };
+    const helper = await makeAgent(w.owner, "Drafter", account);
+    const draft = { mailboxId, to: [{ address: "dana@fox.test", name: "Dana Fox", contactId: rec.id }], subject: "Your engagement letter", text: "Dear Dana, the letter is attached.", contactId: rec.id, idempotencyKey: "j7-send" };
+    void ask(w, w.owner, helper, `TOOL mail_send ${JSON.stringify(draft)}`).catch(() => undefined);
+    await until(async () => { await w.d.hooks?.pump?.(); return (((await w.owner.ok("tasks.needs_you", {})).items as unknown[]).length >= 2) ? true : null; }, "two things waiting on the owner");
+
+    await open(me, s, "/chat");
+    await me.page.getByTestId("chats-landing").waitFor({ timeout: 30_000 });
+    const needs = (await w.owner.ok("tasks.needs_you", {})).items as { task: { id: string; title: string } }[];
+    const shown = needs.slice(0, 3);
+    for (const n of shown) await me.page.getByTestId(`landing-need-${n.task.id}`).waitFor({ timeout: 20_000 });
+    assert.match(await me.page.getByTestId("chats-landing").innerText(), /Approve the Dana letter/, "the task that waits on the owner is listed under the composer");
+    // what is running: every chat the Space reports as working has its line, and nothing else has
+    const recent = (await w.owner.ok("chat.recent", {})) as { starred: { threadId: string; working?: boolean }[]; today: { threadId: string; working?: boolean }[]; yesterday: { threadId: string; working?: boolean }[]; earlier: { threadId: string; working?: boolean }[] };
+    const working = new Set([...recent.starred, ...recent.today, ...recent.yesterday, ...recent.earlier].filter((c) => c.working).map((c) => c.threadId));
+    assert.equal(await me.page.locator('[data-testid^="landing-working-"]').count(), working.size, "the running lines are the chats that are working");
+    await shoot(me.page, dir, "waiting");
+    assert.deepEqual(me.errors, [], "no page errors");
   } finally { await s.close(); }
 });
 
