@@ -193,6 +193,21 @@ test("Always allow: only a person, one agent or chat, an outward act needs an ad
   await assert.rejects(allow(admin, alice, { act: "pay", target: "stripe" }), (e) => codeOf(e) === "permission.role_lacks_permission");
 });
 
+test("Always let this agent message one recipient: a person's own to allow, no wider than that recipient and agent, never money", async () => {
+  const h = harness();   // no admin
+  const set = (hh: Harness, over: Record<string, unknown>) => hh.call("gate.allow.set", over, alice as never);
+  const { rule } = await set(h, { act: "send", target: "lee@acme.test", agentId: bot.id, recipient: true });
+  assert.equal(rule.act, "send");
+  const sent = (to: string, agentId = bot.id) => h.call("gate.grants.take", { act: "send", targets: [to], always: { person: alice.id, agentId, threads: ["thr_chat"], cap: "mail.send" } }, gate);
+  assert.equal(await granted(sent("lee@acme.test")), true);
+  assert.equal(await granted(sent("sam@acme.test")), false, "another recipient");
+  assert.equal(await granted(sent("lee@acme.test", "agt_other")), false, "another agent");
+  await assert.rejects(set(h, { act: "send", target: "*", agentId: bot.id, recipient: true }), (e) => codeOf(e) === "validation.bad_input");
+  await assert.rejects(set(h, { act: "send", target: "lee@acme.test", recipient: true }), (e) => codeOf(e) === "validation.bad_input", "an agent is named");
+  await assert.rejects(set(h, { act: "pay", target: "lee@acme.test", agentId: bot.id, recipient: true }), (e) => codeOf(e) === "permission.role_lacks_permission");
+  await assert.rejects(set(h, { act: "send", target: "mail.send", agentId: bot.id }), (e) => codeOf(e) === "permission.role_lacks_permission", "without the recipient flag an outward rule still needs an admin");
+});
+
 test("a rule is removed only by who wrote it or an admin; a person leaving takes their asks and rules with them", async () => {
   const h = harness();
   const { rule } = await allow(h, alice);

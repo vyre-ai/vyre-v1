@@ -78,6 +78,14 @@ export function scheduleWords(s: Schedule | undefined, when: (at: number) => str
   return s.kind === "online" ? "Sends when they are next online" : s.at !== undefined ? `Sends ${when(s.at)}` : null;
 }
 
+/** The same, in the recipient's time when it is known: "Sends at 9:00 their time (14:00 yours)"; in the viewer's alone when the recipient has not set a zone. `theirs` is null then. */
+export function scheduleLine(s: Schedule | undefined, fmt: { yours(at: number): string; theirs: ((at: number) => string) | null }): string | null {
+  if (!s) return null;
+  if (s.kind === "online") return "Sends when they are next online";
+  if (s.at === undefined) return null;
+  return fmt.theirs ? `Sends at ${fmt.theirs(s.at)} their time (${fmt.yours(s.at)} yours)` : `Sends at ${fmt.yours(s.at)}`;
+}
+
 /** The input with its body replaced, for an edit: only the body field changes (an email's HTML is dropped, since the text is what was edited). Null when the call is not one that can be edited. */
 export function withBody(cap: string, input: unknown, markdown: string): Record<string, unknown> | null {
   const o = outwardOf(cap, input);

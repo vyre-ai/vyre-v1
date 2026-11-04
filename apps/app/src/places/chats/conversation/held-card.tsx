@@ -48,6 +48,9 @@ export interface HeldCardProps {
   onSend(): Promise<void>;
   onSave?(saved: HeldSaved): Promise<void>;
   onDrop(reason: string): Promise<void>;
+  /** A quiet item in the card's "..." menu: always let this agent do this (its words, e.g. "Always let Dex message Aliza"). Pressing it keeps the rule and sends. */
+  alwaysLabel?: string;
+  onAlways?: () => Promise<void>;
   /** The editor the body turns into. The shared MarkdownEditor unless a test or a screenshot puts its own in (a browser's TipTap cannot be typed into under test). */
   editor?: HeldEditor;
 }
@@ -73,6 +76,7 @@ export function HeldCard(p: HeldCardProps): ReactElement {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [all, setAll] = useState(false);
+  const [menu, setMenu] = useState(false);
   const [done, setDone] = useState<"sent" | "dropped" | null>(null);
   const state = done ?? p.state;
   const long = linesOf(p.body) > BODY_LINES;
@@ -100,7 +104,11 @@ export function HeldCard(p: HeldCardProps): ReactElement {
           {p.schedule ? <Text style={st.sub} testID={`${p.testID}-schedule`}>{p.schedule}</Text> : null}
         </View>
         {p.edited ? <Text style={st.edited} testID={`${p.testID}-edited`}>Edited by you</Text> : null}
+        {p.onAlways && p.alwaysLabel && !editing && !denying ? <Pressable accessibilityRole="button" accessibilityLabel="More" onPress={() => setMenu((m) => !m)} testID={`${p.testID}-more`}><Text style={st.more}>...</Text></Pressable> : null}
       </View>
+      {menu && p.onAlways && p.alwaysLabel && !editing && !denying ? (
+        <View style={st.menu}><Pressable accessibilityRole="button" disabled={busy} onPress={() => { setMenu(false); void run(() => p.onAlways!(), () => setDone("sent")); }} testID={`${p.testID}-always`}><Text style={st.menuItem}>{p.alwaysLabel}</Text></Pressable></View>
+      ) : null}
       <View style={st.rows}>
         {editing && p.editTo ? (
           <View style={st.row}><Text style={st.label}>To</Text><TextInput accessibilityLabel="To" testID={`${p.testID}-to`} value={draft.to} onChangeText={(v) => setDraft((d) => ({ ...d, to: v }))} style={st.input} /></View>
@@ -156,6 +164,9 @@ const st = StyleSheet.create({
   title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   sub: { fontSize: 12, color: "var(--ink-3)" as string },
   edited: { fontSize: 12, color: "var(--ink-3)" as string },
+  more: { fontSize: 16, color: "var(--ink-3)" as string, paddingHorizontal: 6, letterSpacing: 1 },
+  menu: { alignSelf: "flex-end", paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
+  menuItem: { fontSize: 13, color: "var(--ink-2)" as string },
   rows: { gap: 6 },
   row: { flexDirection: "row", gap: 10, alignItems: "center" },
   label: { width: 60, fontSize: 12, color: "var(--ink-3)" as string },

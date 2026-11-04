@@ -137,7 +137,10 @@ export async function allowSet(ctx: GateCtx, input: In): Promise<unknown> {
   if (!input.agentId && !input.threadId) raise(ctx, "validation.bad_input", "Always allow is for one agent or one chat.");
   if (input.act === "pay") raise(ctx, "permission.role_lacks_permission", "Sending money always asks.", { reason: "money" });
   if (actOf(input.act).alwaysStops) raise(ctx, "permission.role_lacks_permission", "A company connection or a sign-in change always asks.", { reason: "always_stops" });
-  if (input.act !== "approve" && !isAdmin(ctx)) raise(ctx, "permission.role_lacks_permission", "An admin allows this.", { reason: "admin_only" });
+  // "Always let this agent message Aliza": one agent, one named recipient, a send or a post. It reaches no further than that person, so it is the person's own to allow; a wider outward rule needs an admin
+  const toOne = input.recipient === true && (input.act === "send" || input.act === "post") && Boolean(input.agentId) && input.target !== ANY_TARGET && !String(input.target).includes("*");
+  if (input.recipient === true && !toOne) raise(ctx, "validation.bad_input", "Always allow for a recipient names one agent and one recipient.");
+  if (input.act !== "approve" && !toOne && !isAdmin(ctx)) raise(ctx, "permission.role_lacks_permission", "An admin allows this.", { reason: "admin_only" });
   const now = ctx.now();
   const row: AllowRow = { id: newGrantId(), kind: "always", act: input.act, target: input.target, agent_id: input.agentId ?? null, thread_id: input.threadId ?? null, subject_id: null, step_id: null, expires_at: now + (input.days ?? ALWAYS_DAYS) * DAY_MS, person: ctx.principal.id };
   ctx.db.run("INSERT INTO gate_grants (id, kind, person, act, target, agent_id, thread_id, expires_at, created_at) VALUES (?, 'always', ?, ?, ?, ?, ?, ?, ?)", row.id, row.person, row.act, row.target, row.agent_id, row.thread_id, row.expires_at, now);

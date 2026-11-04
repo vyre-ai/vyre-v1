@@ -14,13 +14,14 @@ type Call = { cap: string; input: any };   // eslint-disable-line @typescript-es
 const block = (cap: string, input: Record<string, unknown>, outward: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ type: "approval_preview", v: 1, data: { act: "send", cap, input, holdId: "hld_1", outward, ...extra } });
 const DM = block("chat.message_person", { to: "usr_aliza", body: "Hi **Aliza**,\n\n- the deed is ready\n- call me", timing: "online" }, { channel: "message", to: [{ kind: "person", id: "usr_aliza" }], body: "Hi **Aliza**,\n\n- the deed is ready\n- call me", bodyField: "body", schedule: { kind: "online" } });
 
-function world(blocks: unknown[], o: { state?: string; onGet?: () => unknown } = {}) {
+function world(blocks: unknown[], o: { state?: string; onGet?: () => unknown; tz?: string } = {}) {
   const calls: Call[] = [];
   let current = blocks;
   const d = {
     call: async (cap: string, input: unknown) => {
       calls.push({ cap, input });
       if (cap === "tasks.get") return { task: { id: "tsk_1", kind: "approve", title: "Approve: Send a message", state: o.state ?? "awaiting_approval", blocks: current, updatedAt: Date.UTC(2026, 10, 4, 4, 38) } };
+      if (cap === "settings.public_of") return o.tz ? { timezone: o.tz } : {};
       if (cap === "access.principals.get") return { principal: { name: "Aliza Rizvi" } };
       if (cap === "gate.holds.revise") { const b = (input as { body: string }).body; current = [block("chat.message_person", { to: "usr_aliza", body: b }, { channel: "message", to: [{ kind: "person", id: "usr_aliza" }], body: b, bodyField: "body", edited: { by: "usr_me", at: 1 } })]; return { ok: true }; }
       return {};
@@ -154,4 +155,30 @@ test("a hold already answered shows the one line at once; a failed answer says s
   await flush();
   assert.match(textOf(find(root, "approval-tsk_1-error")), /down/);
   assert.ok(find(root, "approval-tsk_1-send"), "still answerable");
+});
+
+const AT = Date.UTC(2026, 10, 4, 14, 0);
+const timed = block("chat.message_person", { to: "usr_aliza", body: "x", timing: "at", at: AT }, { channel: "message", to: [{ kind: "person", id: "usr_aliza" }], body: "x", bodyField: "body", schedule: { kind: "at", at: AT } });
+
+test("a timed send reads in the recipient's time first and yours after; yours alone when they have not set a zone", async () => {
+  const withTz = await mount(createRoot, card(world([timed], { tz: "Asia/Karachi" }).d));
+  assert.match(textOf(withTz), /Sends at 19:00 their time \(\d\d:\d\d yours\)/);
+  const without = await mount(createRoot, card(world([timed]).d));
+  const t = textOf(without);
+  assert.match(t, /Sends at \d\d:\d\d/);
+  assert.ok(!t.includes("their time"), "no zone, no their time");
+});
+
+test("the ... menu offers Always let Dex message Aliza Rizvi: one rule for that agent and recipient, then it sends; no wider button on the card", async () => {
+  const w = world([DM]);
+  const root = await mount(createRoot, card(w.d));
+  assert.equal(find(root, "approval-tsk_1-always"), null, "quiet until the menu opens");
+  await press(find(root, "approval-tsk_1-more"));
+  assert.match(textOf(root), /Always let Dex message Aliza Rizvi/);
+  await press(find(root, "approval-tsk_1-always"));
+  await flush();
+  const set = w.calls.find((c) => c.cap === "gate.allow.set");
+  assert.deepEqual(set?.input, { act: "send", target: "usr_aliza", agentId: "agt_dex", recipient: true });
+  assert.ok(w.calls.findIndex((c) => c.cap === "gate.allow.set") < w.calls.findIndex((c) => c.cap === "tasks.act"), "the rule first, then the send");
+  assert.equal(w.calls.find((c) => c.cap === "tasks.act")?.input.action, "approve");
 });

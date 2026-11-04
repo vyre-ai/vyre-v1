@@ -80,7 +80,7 @@ export default defineManifest({
       in: { ids: t.arr(t.str(), { minItems: 1 }) }, out: { returned: t.int() }, perm: null, level: 'view', idem: 'natural',
     }),
     write('gate.allow.set', 'Always allow: a rule the Gate reads, for one agent or one chat, one act and one target, with an expiry. Local changes are a person\'s to allow; an outward act needs an admin; money is never allowed this way', {
-      in: { act: actKey, target: t.str({ minLength: 1 }), agentId: t.opt(id.agent), threadId: t.opt(id.thread), days: t.opt(t.int({ minimum: 1, maximum: 90 })) },
+      in: { act: actKey, target: t.str({ minLength: 1 }), agentId: t.opt(id.agent), threadId: t.opt(id.thread), days: t.opt(t.int({ minimum: 1, maximum: 90 })), recipient: t.opt(t.bool()) },
       out: { rule: allowRow }, perm: null, level: 'view', audit: 'always', errors: ['validation.bad_input', 'permission.role_lacks_permission'],
     }),
     read('gate.allow.list', 'What may go without asking: your Always allow rules and the automations your press gave permission to', {

@@ -13926,6 +13926,7 @@ export type GateAllowSetIn = {
   agentId?: string;
   threadId?: string;
   days?: number;
+  recipient?: boolean;
 };
 export type GateAllowSetOut = {
   rule: {
