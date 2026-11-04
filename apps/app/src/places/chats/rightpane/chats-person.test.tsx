@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PERSON_TABS, PersonProfile, personActions } from "./PersonProfile.tsx";
-import { cityOf, hoursWords, lastActive, localTime, personLine, presenceWord } from "./person-model.ts";
+import { cityOf, hoursWords, lastActive, localTime, personLine, presenceWord, responsibleFor } from "./person-model.ts";
 
 const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 const has = (s: string, n: string): boolean => s.includes(n);
@@ -49,10 +49,10 @@ test("the header's actions: Message and Mention each do their one thing, and Cal
   const without = personActions(base, "Sara");
   assert.deepEqual(without.map((a) => a.key), ["message", "mention"], "no Call without a number and a phone");
   without[0]!.onPress(); without[1]!.onPress();
-  const withCall = personActions({ ...base, onCall: () => log.push("call") }, "Sara");
-  assert.deepEqual(withCall.map((a) => a.key), ["message", "call", "mention"]);
-  withCall[1]!.onPress();
-  assert.deepEqual(log, ["message", "mention", "call"]);
+  const withCall = personActions({ ...base, onCall: () => log.push("call"), onAdd: () => log.push("add") }, "Sara");
+  assert.deepEqual(withCall.map((a) => a.key), ["message", "call", "add"], "Add to chat takes Mention's place where the Add sheet is wired");
+  withCall[1]!.onPress(); withCall[2]!.onPress();
+  assert.deepEqual(log, ["message", "mention", "call", "add"]);
 });
 
 test("the pane draws the header, four tabs with About open, and what the role line says; no menu where nothing can be done", () => {
@@ -63,9 +63,9 @@ test("the pane draws the header, four tabs with About open, and what the role li
   assert.ok(has(out, 'data-testid="person-about"') && has(out, "Responsible for"));
   assert.ok(!has(out, 'data-testid="profile-call"'), "no Call without a phone");
   assert.ok(!has(out, 'data-testid="pane-more"'), "no \"...\" where nothing is behind it");
-  const rich = clean(renderToStaticMarkup(<PersonProfile {...props} onCall={() => undefined} copy={() => undefined} roles={[{ project: "Client portal launch", role: "Lead" }]} />));
-  assert.ok(has(rich, 'data-testid="profile-call"') && has(rich, 'data-testid="pane-more"'));
-  assert.ok(has(rich, "Lead on Client portal launch"), "responsible for is the title plus the roles they hold");
+  const rich = clean(renderToStaticMarkup(<PersonProfile {...props} dial={() => undefined} onAdd={() => undefined} copy={() => undefined} />));
+  assert.ok(has(rich, 'data-testid="pane-more"') && has(rich, 'data-testid="profile-add"') && !has(rich, 'data-testid="profile-mention"'));
+  assert.ok(!has(rich, 'data-testid="profile-call"'), "no Call until they have set a phone teammates can call (read in the live shell)");
 });
 
 test("each other tab shows its own list heading", () => {
@@ -73,4 +73,10 @@ test("each other tab shows its own list heading", () => {
     const out = clean(renderToStaticMarkup(<PersonProfile {...props} initialTab={tab} />));
     assert.ok(has(out, `data-testid="person-${tab}"`) && has(out, heading), tab);
   }
+});
+
+test("responsible for is the title plus the roles they hold on projects the asker can see", () => {
+  assert.equal(responsibleFor("Account lead", [{ project: "Client portal launch", role: "Lead" }, { project: "Northwind renewal", role: "Reviewer" }]), "Account lead. Lead on Client portal launch, Reviewer on Northwind renewal.");
+  assert.equal(responsibleFor("Account lead", []), "Account lead.");
+  assert.equal(responsibleFor(undefined, []), "Member.");
 });

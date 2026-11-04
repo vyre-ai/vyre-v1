@@ -38,3 +38,9 @@ export function lastActive(nowMs: number, lastSeenAt: number | undefined): strin
   const h = Math.round(m / 60);
   return h < 24 ? `Last active ${h} ${h === 1 ? "hour" : "hours"} ago` : `Last active ${Math.round(h / 24)} days ago`;
 }
+
+/** "Account lead. Lead on Client portal launch, Reviewer on Northwind renewal.": the title, then the roles they hold on projects the asker can see. */
+export function responsibleFor(title: string | undefined, roles: readonly { project: string; role: string }[]): string {
+  const t = title ?? "Member";
+  return roles.length === 0 ? `${t}.` : `${t}. ${roles.map((r) => `${r.role} on ${r.project}`).join(", ")}.`;
+}

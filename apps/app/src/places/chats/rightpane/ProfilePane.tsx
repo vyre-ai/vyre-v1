@@ -8,6 +8,8 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { each } from "../../../shell/sidebar/model.ts";
 import { ProfileHeader, roleLine } from "./ProfileHeader.tsx";
 import { PersonProfile } from "./PersonProfile.tsx";
+import { ChatRightPane } from "./ChatRightPane.tsx";
+import type { ChatRightPaneData } from "./data.tsx";
 import type { PersonProfileProps } from "./PersonProfile.tsx";
 
 type AgentOut = CapMap["agents.get"]["out"]["agent"];
@@ -43,10 +45,12 @@ export interface ProfileProps {
   /** An agent's one page: where it is edited. */
   onEdit(): void;
   /** A person's pane: what the shell can do beside Message and Mention, and where its lists open. */
-  person?: Pick<PersonProfileProps, "now" | "onCall" | "roles" | "openThread" | "openFile" | "openTask" | "copy"> | undefined;
+  /** An agent opened from a face: the full agent pane (About, Computer, Chats, Files, Terminal) for it, drawn inside this tab. Absent: the short body. */
+  agentPane?: ChatRightPaneData | null | undefined;
+  person?: Pick<PersonProfileProps, "now" | "dial" | "onAdd" | "openThread" | "openFile" | "openTask" | "copy"> | undefined;
 }
 
-export function ProfilePane({ tab, name, call, onMessage, onMention, onEdit, person: more }: ProfileProps): ReactElement {
+export function ProfilePane({ tab, name, call, onMessage, onMention, onEdit, person: more, agentPane }: ProfileProps): ReactElement {
   const person = tab.kind === "person";
   const [agent, setAgent] = useState<AgentOut | null>(null);
   const [summary, setSummary] = useState<SummaryOut | null>(null);
@@ -58,6 +62,7 @@ export function ProfilePane({ tab, name, call, onMessage, onMention, onEdit, per
     return () => { live = false; };
   }, [call, tab.id, person]);
   if (person) return <PersonProfile id={tab.id} name={name} call={call} now={more?.now ?? Date.now} onMessage={onMessage} onMention={onMention} {...(more ?? {})} />;
+  if (agentPane) return <ChatRightPane data={agentPane} embedded open onToggle={() => undefined} />;
   const shown = tab.kind === "assistant" ? "Assistant" : name;
   const line = "Member";
   const row = (label: string, value: string | number | undefined): ReactElement | null => (value === undefined || value === "" ? null : <View key={label} style={st.kv}><Text style={st.k}>{label}</Text><Text numberOfLines={1} style={st.v}>{String(value)}</Text></View>);

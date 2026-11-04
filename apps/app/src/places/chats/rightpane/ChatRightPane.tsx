@@ -14,7 +14,7 @@ import type { PaneDeps } from "./actions.ts";
 import { useKnowsFocus } from "../memory/data.tsx";
 import type { ChatMemoryData } from "../memory/data.tsx";
 import { RightPaneDataProvider, hasComputers, useOnline, useOptionalPaneData, usePaneData, useScreenQuery } from "./data.tsx";
-import type { ChatRightPaneData } from "./data.tsx";
+import type { ChatRightPaneData, RightPaneNav } from "./data.tsx";
 import { COMPUTER_SCREEN, ComputerTab } from "./ComputerTab.tsx";
 import { AboutTab } from "./AboutTab.tsx";
 import { ProfileHeader, roleLine } from "./ProfileHeader.tsx";
@@ -43,6 +43,8 @@ export interface ChatRightPaneProps {
   /** The tab shown. Leave `tab` out and the pane keeps its own; `initialTab` is where it starts. */
   tab?: TabKey;
   initialTab?: TabKey;
+  /** Draw only the pane body, with no side-pane frame: an agent's profile opened as a tab inside another pane. */
+  embedded?: boolean;
   /** Start with the Computer tab on the setup of an agent that has no computer yet (what "Give it a computer" in About does). */
   setup?: boolean;
   onTab?: (tab: TabKey) => void;
@@ -90,7 +92,7 @@ export function ChatRightPaneLoading({ open, onToggle }: { open: boolean; onTogg
   );
 }
 
-function PaneView({ open, onToggle, tab: controlled, initialTab, setup: setupFirst, onTab, window, paneWidth, openRoutine, extra }: ChatRightPaneProps): ReactElement {
+function PaneView({ open, onToggle, tab: controlled, initialTab, setup: setupFirst, onTab, window, paneWidth, openRoutine, extra, embedded }: ChatRightPaneProps): ReactElement {
   const data = usePaneData();
   const online = useOnline();
   const menu = useMenu();
@@ -134,30 +136,34 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, setup: setupFir
   });
   /** The pane's top row: the open item as a tab, the agent with its face and a close x, as the prototype draws it above the agent's header. */
   const openTab = { key: "open", title: data.agent.name, lead: <Face name={data.agent.name} seedId={data.agent.agentId} size={16} /> };
+  const inner = (
+  <View testID="chats-right-pane" style={[st.root, extra?.active ? st.gone : null]} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}>
+    <TabMeasure titles={tabs.map((x) => x.title)} onWidth={titles.set} />
+    <AgentHeader deps={deps} role={agent?.role} status={agent?.status} menu={menu} />
+    <View style={st.tabs}><TabStrip tabs={strip} active={tab} onSelect={select} tight bare noOptions label={`${data.agent.name}'s tabs`} /></View>
+    {online ? null : <Text testID="pane-offline" style={st.offline}>Offline. Showing what this device keeps.</Text>}
+    <View testID={`pane-body-${tab}`} style={st.body}>
+      {tab === "about" ? <AboutTab agent={agent} name={data.agent.name} hasComputer={showComputer} {...(!noComputers && !showComputer ? { onGive: () => { setSetup(true); setOwn("computer"); onTab?.("computer"); } } : {})} onOpenFiles={() => { setOwn("files"); onTab?.("files"); }} onOpenKnows={() => { setOwn("memory"); onTab?.("memory"); }} /> : null}
+      {tab === "computer" ? <ComputerTab deps={deps} {...(window ? { window } : {})} /> : null}
+      {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
+      {tab === "crew" ? <CrewTab deps={deps} {...(window ? { window } : {})} /> : null}
+      {tab === "files" ? <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} /> : null}
+      {tab === "terminal" && data.terminal ? <TerminalPaneTab data={data.terminal} /> : null}
+      {tab === "memory" ? (data.memory ? <KnowsTab deps={deps} memory={data.memory} spaceName={data.space.name} {...(window ? { window } : {})} /> : <MemoryTab deps={deps} spaceName={data.space.name} {...(window ? { window } : {})} />) : null}
+      {tab === "routines" ? <RoutinesTab deps={deps} {...(window ? { window } : {})} {...(openRoutine ? { initial: { routineId: openRoutine } } : {})} /> : null}
+    </View>
+    {notice ? <Notice text={notice.text} onClose={() => setNotice(null)} {...(notice.undo ? { onUndo: () => { const u = notice.undo; setNotice(null); void u?.(); } } : {})} /> : null}
+    {menu.element}
+  </View>
+  );
+  if (embedded === true) return inner;
   return (
     <SidePane
       paneKey={PANE_KEY} toggle={{ open, onPress: onToggle }} title={data.agent.name} tabs={[openTab, ...(extra?.tabs ?? [])]} activeTab={extra?.active ?? "open"} onSelectTab={(key) => extra?.onSelect(key === "open" ? null : key)} onCloseTab={(key) => { if (key === "open") onToggle(); else extra?.onClose(key); }}
       {...(narrow ? { max: 1, defaultWidth: win.width } : { defaultWidth: WIDE_PANE_W })}
     >
       {extra?.active ? <View testID="right-tab-body" style={st.root}>{extra.body}</View> : null}
-      <View testID="chats-right-pane" style={[st.root, extra?.active ? st.gone : null]} onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); if (w > 0 && w !== paneW) setPaneW(w); }}>
-        <TabMeasure titles={tabs.map((x) => x.title)} onWidth={titles.set} />
-        <AgentHeader deps={deps} role={agent?.role} status={agent?.status} menu={menu} />
-        <View style={st.tabs}><TabStrip tabs={strip} active={tab} onSelect={select} tight bare noOptions label={`${data.agent.name}'s tabs`} /></View>
-        {online ? null : <Text testID="pane-offline" style={st.offline}>Offline. Showing what this device keeps.</Text>}
-        <View testID={`pane-body-${tab}`} style={st.body}>
-          {tab === "about" ? <AboutTab agent={agent} name={data.agent.name} hasComputer={showComputer} {...(!noComputers && !showComputer ? { onGive: () => { setSetup(true); setOwn("computer"); onTab?.("computer"); } } : {})} onOpenFiles={() => { setOwn("files"); onTab?.("files"); }} onOpenKnows={() => { setOwn("memory"); onTab?.("memory"); }} /> : null}
-          {tab === "computer" ? <ComputerTab deps={deps} {...(window ? { window } : {})} /> : null}
-          {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
-          {tab === "crew" ? <CrewTab deps={deps} {...(window ? { window } : {})} /> : null}
-          {tab === "files" ? <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} /> : null}
-          {tab === "terminal" && data.terminal ? <TerminalPaneTab data={data.terminal} /> : null}
-          {tab === "memory" ? (data.memory ? <KnowsTab deps={deps} memory={data.memory} spaceName={data.space.name} {...(window ? { window } : {})} /> : <MemoryTab deps={deps} spaceName={data.space.name} {...(window ? { window } : {})} />) : null}
-          {tab === "routines" ? <RoutinesTab deps={deps} {...(window ? { window } : {})} {...(openRoutine ? { initial: { routineId: openRoutine } } : {})} /> : null}
-        </View>
-        {notice ? <Notice text={notice.text} onClose={() => setNotice(null)} {...(notice.undo ? { onUndo: () => { const u = notice.undo; setNotice(null); void u?.(); } } : {})} /> : null}
-        {menu.element}
-      </View>
+      {inner}
     </SidePane>
   );
 }
@@ -175,15 +181,20 @@ function HeaderWithComputer({ deps, role, status, computerId, menu }: { deps: Pa
   return <HeaderBar deps={deps} role={role} status={status} computerState={q.status === "ready" ? q.data.computer.state : undefined} menu={menu} />;
 }
 
+/** The header's actions for an agent: Message always; Poke and Share only where the shell can do them (a button is never drawn for something that cannot work). */
+export function agentActions(nav: Pick<RightPaneNav, "openThread" | "poke" | "share">, threadId: string, agentId: string, name: string): HeaderAction[] {
+  return [
+    { key: "message", icon: "chat", label: "Message", hint: `Chat with ${name}`, onPress: () => nav.openThread(threadId, "here") },
+    ...(nav.poke ? [{ key: "poke", icon: "bolt" as const, label: "Poke", hint: `Ask ${name} to read the latest and answer now`, onPress: () => nav.poke?.(agentId, threadId) }] : []),
+    ...(nav.share ? [{ key: "share", icon: "share" as const, label: "Share", hint: `Share ${name}`, onPress: () => nav.share?.(agentId) }] : []),
+  ];
+}
+
 function HeaderBar({ deps, role, status, computerState, menu }: { deps: PaneDeps; role: string | undefined; status: string | undefined; computerState: string | undefined; menu: ReturnType<typeof useMenu> }): ReactElement {
   const data = usePaneData();
   const name = data.agent.name;
   const presence: Presence = computerState === "asleep" || status === "asleep" ? "asleep" : status === "paused" ? "away" : "on";
-  const actions: HeaderAction[] = [
-    { key: "message", icon: "chat", label: "Message", hint: `Chat with ${name}`, onPress: () => data.nav.openThread(data.threadId, "here") },
-    ...(data.nav.poke ? [{ key: "poke", icon: "bolt" as const, label: "Poke", hint: `Ask ${name} to read the latest and answer now`, onPress: () => data.nav.poke?.(data.agent.agentId, data.threadId) }] : []),
-    ...(data.nav.share ? [{ key: "share", icon: "share" as const, label: "Share", onPress: () => data.nav.share?.(data.agent.agentId) }] : []),
-  ];
+  const actions = agentActions(data.nav, data.threadId, data.agent.agentId, name);
   const awake = data.agent.computerId !== undefined && data.agent.computerId !== "" && computerState !== undefined && computerState !== "asleep" && computerState !== "provisioning" && computerState !== "error";
   const more = (x: number, y: number): void => {
     menu.show([

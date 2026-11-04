@@ -8,7 +8,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { LeadIcon } from "./parts.tsx";
 import { ProfileHeader } from "./ProfileHeader.tsx";
 import type { HeaderAction, Presence } from "./ProfileHeader.tsx";
-import { cityOf, hoursWords, lastActive, localTime, personLine, presenceWord } from "./person-model.ts";
+import { cityOf, hoursWords, lastActive, localTime, personLine, presenceWord, responsibleFor } from "./person-model.ts";
 import type { PresenceState } from "./person-model.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 
@@ -19,6 +19,8 @@ type ThreadRow = CapMap["threads.list"]["out"]["threads"][number];
 type FileRow = CapMap["files.shared_with_me"]["out"]["files"][number];
 type TaskRow = CapMap["tasks.list"]["out"]["tasks"][number];
 
+const ROLE_WORD: Record<string, string> = { lead: "Lead", member: "Member", reviewer: "Reviewer", guest: "Guest" };
+
 export type PersonTab = "about" | "chats" | "files" | "tasks";
 export const PERSON_TABS: readonly { key: PersonTab; title: string }[] = [{ key: "about", title: "About" }, { key: "chats", title: "Chats" }, { key: "files", title: "Files" }, { key: "tasks", title: "Tasks" }];
 
@@ -27,10 +29,10 @@ export interface PersonProfileProps {
   onMessage(): void; onMention(): void;
   /** Copies text to the clipboard; the "..." menu is drawn only where it can do this. */
   copy?: ((text: string) => void) | undefined;
-  /** Only where the Space has a number and the person has a phone: Call is drawn when this is given. */
-  onCall?: (() => void) | undefined;
-  /** The projects where they hold a role, when the shell can say. */
-  roles?: readonly { project: string; role: string }[] | undefined;
+  /** Places a call from the Space's softphone; given only where the Space has telephony. Call is drawn when this is given and the person has set a phone teammates can call. */
+  dial?: ((number: string) => void) | undefined;
+  /** Opens the Add people and agents sheet on the open chat; without it the third action is Mention. */
+  onAdd?: (() => void) | undefined;
   openThread?(threadId: string): void; openFile?(fileId: string): void; openTask?(taskId: string): void;
   initialTab?: PersonTab;
 }
@@ -48,11 +50,11 @@ function useRead<T>(call: Call, cap: string, input: unknown, pick: (o: unknown) 
 }
 
 /** What the header offers for a person: Message and Mention always, Call only where the shell gave it (the Space has a number and the person has a phone). */
-export function personActions(p: Pick<PersonProfileProps, "onMessage" | "onMention" | "onCall">, first: string): HeaderAction[] {
+export function personActions(p: { onMessage(): void; onMention(): void; onAdd?: (() => void) | undefined; onCall?: (() => void) | undefined }, first: string): HeaderAction[] {
   return [
     { key: "message", icon: "chat", label: "Message", hint: `Chat with ${first}`, onPress: p.onMessage },
     ...(p.onCall ? [{ key: "call", icon: "phone" as const, label: "Call", hint: `Call ${first}`, onPress: p.onCall }] : []),
-    { key: "mention", icon: "plus", label: "Mention", hint: `Mention ${first} in this chat`, onPress: p.onMention },
+    p.onAdd ? { key: "add", icon: "plus", label: "Add to chat", hint: `Add ${first} to this chat`, onPress: p.onAdd } : { key: "mention", icon: "plus", label: "Mention", hint: `Mention ${first} in this chat`, onPress: p.onMention },
   ];
 }
 
@@ -62,10 +64,13 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
   const first = p.name.split(/\s+/)[0] ?? p.name;
   const presence = useRead<PresenceOut | undefined>(p.call, "devices.presence", { people: [p.id] }, (o) => (o as CapMap["devices.presence"]["out"]).people[0]);
   const pub = useRead<PublicOut>(p.call, "settings.public_of", { personId: p.id }, (o) => o as PublicOut);
+  const roles = useRead<{ project: string; role: string }[]>(p.call, "projects.roles_of", { personId: p.id }, (o) => (o as CapMap["projects.roles_of"]["out"]).roles.map((r) => ({ project: r.title, role: ROLE_WORD[r.role] ?? r.role })));
   const state = presence?.state as PresenceState | undefined;
   const time = localTime(p.now(), pub?.timezone);
   const dot: Presence | undefined = state === "online" ? "on" : state === "away" ? "away" : state === "offline" ? "asleep" : undefined;
-  const actions = personActions(p, first);
+  const phone = pub?.phone;
+  const dial = p.dial;
+  const actions = personActions({ onMessage: p.onMessage, onMention: p.onMention, onAdd: p.onAdd, onCall: phone && dial ? () => dial(phone) : undefined }, first);
   const copy = p.copy;
   const more = copy ? (x: number, y: number): void => menu.show([{ label: "Copy Name", onSelect: () => copy(p.name) }], x, y, "other") : undefined;
   return (
@@ -80,7 +85,7 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
         ))}
       </View>
       <ScrollView style={st.body} contentContainerStyle={st.content}>
-        {tab === "about" ? <About {...p} first={first} state={state} lastSeenAt={presence?.lastSeenAt} pub={pub} time={time} /> : null}
+        {tab === "about" ? <About {...p} roles={roles ?? []} first={first} state={state} lastSeenAt={presence?.lastSeenAt} pub={pub} time={time} /> : null}
         {tab === "chats" ? <Chats {...p} first={first} /> : null}
         {tab === "files" ? <Files {...p} first={first} /> : null}
         {tab === "tasks" ? <Tasks {...p} first={first} /> : null}
@@ -93,9 +98,9 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
 const label = (t: string): ReactElement => <Text key={t} style={st.label}>{t}</Text>;
 const kv = (k: string, v: string | undefined): ReactElement | null => (v === undefined || v === "" ? null : <View key={k} style={st.kv}><Text style={st.k}>{k}</Text><Text style={[st.v, st.vEnd]}>{v}</Text></View>);
 
-function About(p: PersonProfileProps & { first: string; state: PresenceState | undefined; lastSeenAt: number | undefined; pub: PublicOut | null; time: string | undefined }): ReactElement {
-  const roles = p.roles ?? [];
-  const resp = `${p.title ?? p.pub?.title ?? "Member"}${roles.length > 0 ? `. ${roles.map((r) => `${r.role} on ${r.project}`).join(", ")}.` : "."}`;
+function About(p: PersonProfileProps & { roles: readonly { project: string; role: string }[]; first: string; state: PresenceState | undefined; lastSeenAt: number | undefined; pub: PublicOut | null; time: string | undefined }): ReactElement {
+  const roles = p.roles;
+  const resp = responsibleFor(p.title ?? p.pub?.title, roles);
   const away = p.state === "away";
   const now = lastActive(p.now(), p.lastSeenAt);
   return (

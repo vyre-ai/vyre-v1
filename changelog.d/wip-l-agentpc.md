@@ -7,8 +7,12 @@
 - The Computer tab is simpler. The picture is the open (hover says "Open Dex's computer"), one chip says whether it is awake or asleep, Sleep now is in the header's menu because computers sleep by themselves, and where it runs is one footer line that opens Console, Machines.
 - A person's profile pane matches an agent's: the same header, with a presence dot, one role line, Message and Mention (and Call where the Space has a number and they have a phone), and About, Chats, Files and Tasks. About shows their title and roles, how they are right now, their local time, working hours and pronouns, only when they set them. Pronouns are a new Profile setting, never guessed.
 - With no computer, the offer to give an agent one is the first thing in About, not buried.
+- The agent pane's buttons work. Poke asks the agent to read the latest and answer now, Share opens the share sheet over the agent, Add to chat opens the Add people and agents sheet, and Call places a call from the softphone when the person has set a phone teammates can call. Any agent's face opens the full agent pane (About, Computer, Chats, Files, Terminal).
+- A person's profile shows the projects where they hold a role (only those you can see) and a phone teammates can call, which they add in Profile.
 
 ## Behind the scenes
 - The runner (`host/src/sites-runner`) has a second policy for computers (`computers-policy.ts`): the agent computer image only, the `vyre.computer` label, every capability dropped, a seccomp profile, its own network and profile volume, no host folder, no device, exec and archive only on a computer's own container and inside its own home, and a fixed removal helper. Refusals are tested against the policy and on a real engine.
 - vyred reaches the runner with its token (`VYRE_SITES_RUNNER`), makes a network per computer, and joins the ingress to it for the Vault channel only. A connection that arrives on a computer's network may reach nothing but that route.
 - `computers.hosts` and `computers.provision` carry the host's own reason (`explainEngine`), and provision refuses before it makes a row when the runtime cannot be used.
+- `projects.roles_of` lists the projects where one person holds a role, only those the asker can see. `settings.public_of` also returns pronouns, title and a public phone (`profile.public_phone`), each only when the person set it.
+- The agent form and the agent pane share one share sheet host (`AgentShare.tsx`).

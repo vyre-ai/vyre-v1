@@ -42,7 +42,8 @@ function Pane({ withComputer, tab, asleep = false }: { withComputer: boolean; ta
 const NOW = Date.UTC(2026, 10, 4, 21, 41);
 const answer = (away: boolean) => (cap: string): Promise<unknown> => Promise.resolve(
   cap === "devices.presence" ? { people: [{ personId: "usr_sara", state: away ? "away" : "online", lastSeenAt: NOW - 4 * 60_000 }] }
-  : cap === "settings.public_of" ? { timezone: "Europe/Berlin", hours: { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:30" }, pronouns: away ? undefined : "they/them", title: "Account lead" }
+  : cap === "settings.public_of" ? { timezone: "Europe/Berlin", hours: { days: [1, 2, 3, 4, 5], from: "09:00", to: "17:30" }, pronouns: away ? undefined : "they/them", title: "Account lead", ...(away ? {} : { phone: "+49 30 5550 188" }) }
+  : cap === "projects.roles_of" ? { roles: [{ projectId: "p1", title: "Client portal launch", role: "lead" }, { projectId: "p2", title: "Northwind renewal", role: "reviewer" }] }
   : cap === "threads.list" ? { threads: [{ threadId: "t1", kind: "chat", title: "Renewal redline", members: [{ kind: "person", id: "usr_sara" }, { kind: "person", id: "usr_irfad" }] }, { threadId: "t2", kind: "chat", title: "Portal launch", members: [{ kind: "person", id: "usr_sara" }] }] }
   : cap === "files.shared_with_me" ? { files: [{ fileId: "f1", name: "Renewal redline.docx", ownerId: "usr_sara" }, { fileId: "f2", name: "Portal launch plan", ownerId: "usr_sara" }], folders: [] }
   : cap === "tasks.list" ? { tasks: [{ id: "k1", title: "Check the renewal before Friday" }] } : {});
@@ -51,8 +52,8 @@ function Person({ away, tab }: { away: boolean; tab: "about" | "chats" | "files"
   return (
     <View style={{ flex: 1, alignItems: "flex-end", backgroundColor: "var(--win)" as string }}>
       <View style={{ width: 340, flex: 1, backgroundColor: "var(--side)" as string }}>
-        <PersonProfile id="usr_sara" name="Sara Malik" call={answer(away)} now={() => NOW} onMessage={() => undefined} onMention={() => undefined} onCall={away ? undefined : () => undefined} copy={() => undefined}
-          roles={[{ project: "Client portal launch", role: "Lead" }, { project: "Northwind renewal", role: "Reviewer" }]} openThread={() => undefined} openFile={() => undefined} openTask={() => undefined} initialTab={tab} />
+        <PersonProfile id="usr_sara" name="Sara Malik" call={answer(away)} now={() => NOW} onMessage={() => undefined} onMention={() => undefined} dial={away ? undefined : () => undefined} onAdd={() => undefined} copy={() => undefined}
+          openThread={() => undefined} openFile={() => undefined} openTask={() => undefined} initialTab={tab} />
       </View>
     </View>
   );

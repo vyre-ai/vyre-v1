@@ -24,6 +24,10 @@ import { createComposerFill } from "../conversation/data.tsx";
 import type { ComposerFill } from "../conversation/data.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { AgentPane } from "../AgentPane.tsx";
+import { useAddSheet } from "../addsheet/index.ts";
+import { AgentShareHost } from "../agentform/AgentShare.tsx";
+import { pokeInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
+import { usePhone } from "../../inbox/softphone/phone.tsx";
 import { ChatsSidebar, ChatsSidebarSlot } from "../sidebar/ChatsSidebar.tsx";
 import { TerminalList } from "../terminal/TerminalList.tsx";
 import { TerminalRules } from "../terminal/TerminalRules.tsx";
@@ -291,6 +295,20 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   }), [rt, nameOf, byId, route, go]);
   const terminal = useMemo(() => terminalData(rt, go, { agent: leadAgent, nameOf, newKey }), [rt, go, leadAgent, nameOf]);
   const paneCtx = useMemo(() => (threadId === null ? null : wirePane(rt, go, threadId, leadAgent, fill, terminal)), [rt, go, threadId, leadAgent, fill, terminal]);
+  /* the pane's own actions: Poke runs a poked reply, Share opens the share sheet over the agent, Add to chat opens the Add sheet, Call dials from the softphone */
+  const phone = usePhone();
+  const add = useAddSheet({ call: rt.call as (cap: string, input: unknown) => Promise<unknown>, me: { id: rt.me.id, name: rt.me.name }, nameOf, newKey: () => newKey(), toast: (text) => setLine(text) }, { copy });
+  const [shareAgent, setShareAgent] = useState<string | null>(null);
+  const poke = useCallback((agentId: string, thread: string): void => {
+    void Promise.resolve(rt.call("threads.poke", pokeInput(thread, agentId))).then(
+      () => setLine(`Poked ${nameOf(agentId)}`),
+      (e: unknown) => { const m = (e as { message?: unknown } | null)?.message; setLine(`Could not poke ${nameOf(agentId)}${typeof m === "string" && m !== "" ? `: ${m}` : ""}`); },
+    );
+  }, [rt, nameOf, setLine]);
+  const paneFull = useMemo(() => (paneCtx === null ? null : { ...paneCtx, nav: { ...paneCtx.nav, poke, share: (id: string) => setShareAgent(id) } }), [paneCtx, poke]);
+  const rightTabNow = rightTabs.find((x) => x.key === rightOn);
+  const agentTabId = rightTabNow && (rightTabNow.kind === "agent" || rightTabNow.kind === "assistant") ? rightTabNow.id : null;
+  const agentTabData = useMemo(() => (paneFull === null || agentTabId === null ? null : { ...paneFull, agent: { agentId: agentTabId, name: nameOf(agentTabId), ...(computerOf(agentTabId) ? { computerId: computerOf(agentTabId) as string } : {}) } }), [paneFull, agentTabId, nameOf, computers]);
 
   /* ---------- the other pages ---------- */
   const importedData = useMemo<ImportedData>(() => ({ call: rt.call, clock: rt.clock, spaceId: rt.space.id, assistantId: rt.assistant.id, openChat: go.chat }), [rt, go]);
@@ -345,7 +363,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       onMessage={() => { if (rightTab.kind === "person") void Promise.resolve(rt.call("chat.start", { kind: "chat", agentIds: [], personId: rightTab.id, idempotencyKey: `dm_${rightTab.id}` })).then((o) => { const id = (o as { thread?: { threadId?: string } }).thread?.threadId; if (id) go.chat(id); }, () => setLine("Could not start the chat. Try again.")); else go.agentChat(rightTab.id); }}
       onMention={() => fill.set(`@${nameOf(rightTab.id)} `)}
       onEdit={() => act({ t: "agent-form", agentId: rightTab.id })}
-      person={{ now: Date.now, openThread: (id) => go.thread(id), openFile: (id) => rt.open({ subject: { type: "file", id } }), openTask: openSideTask, copy: (text) => { copy(text); setLine("Copied the name"); } }}
+      agentPane={agentTabData}
+      person={{ now: Date.now, ...(phone ? { dial: (n: string) => phone.dial(n) } : {}), ...(threadId !== null ? { onAdd: () => add.open({ threadId }) } : {}), openThread: (id) => go.thread(id), openFile: (id) => rt.open({ subject: { type: "file", id } }), openTask: openSideTask, copy: (text) => { copy(text); setLine("Copied the name"); } }}
     />
   ) : null;
   let right: ReactElement | null = null;
@@ -373,7 +392,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       </View>
     );
   } else if (shown.pane && paneCtx && route.view === "chat") {
-    right = <View style={st.pane}><AgentPane data={paneCtx} open onToggle={go.togglePane} {...(window ? { window } : {})} extra={{ tabs: rightSpecs, active: rightOn, onSelect: setRightOn, onClose: closeRight, body: rightBody }} /></View>;
+    right = <View style={st.pane}><AgentPane data={paneFull ?? paneCtx} open onToggle={go.togglePane} {...(window ? { window } : {})} extra={{ tabs: rightSpecs, active: rightOn, onSelect: setRightOn, onClose: closeRight, body: rightBody }} /></View>;
   } else if (rightOn !== null) {
     right = (
       <View style={st.pane}>
@@ -395,6 +414,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       ) : null}
       {right}
       {narrow ? beside : null}
+      {add.element}
+      {shareAgent !== null ? <AgentShareHost agentId={shareAgent} name={nameOf(shareAgent)} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} newKey={newKey} say={setLine} sharing={{ directory, meName: rt.me.name, meId: rt.me.id, nameOf }} onClose={() => setShareAgent(null)} /> : null}
       <Layer shown={shown} rt={rt} go={go} nameOf={nameOf} list={list} counter={counter} terminal={terminal} window={window} />
       {line ? <View testID="chats-line" accessibilityRole="alert" accessibilityLiveRegion="polite" style={st.toast}><Text style={st.toastText}>{line.text}</Text>{line.action ? <TextButton label={line.action.label} testID="chats-line-action" onPress={() => { const run = line.action?.run; setLineState(null); run?.(); }} /> : null}</View> : null}
     </View>

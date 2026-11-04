@@ -8,15 +8,14 @@ import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { each } from "../../../shell/sidebar/model.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConfigDirectory } from "../../automations/config/data.tsx";
-import { Overlay } from "../../automations/config/Overlay.tsx";
+import { AgentShareSheet } from "./AgentShare.tsx";
 import { Switch } from "../../automations/config/parts.tsx";
-import { shareRows, sheetDirectory } from "../../../share/rows.ts";
-import { AccessSheet, accessCount } from "../../../../../../ui/src/AccessSheet/index.tsx";
+import { shareRows } from "../../../share/rows.ts";
+import { accessCount } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { aiMenu } from "../../vault/providers/aiMenu.ts";
 import { aiCaption, aiName, automaticLine } from "../../vault/providers/pick.ts";
 import { useSpaceAi } from "../../vault/providers/useSpaceAi.ts";
-import type { ShareInput, UnshareInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { Glyph as Mark } from "../conversation/parts.tsx";
 import { Glyph } from "../sidebar/parts.tsx";
 import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch, workPatch, chatKeyPatch } from "./model.ts";
@@ -241,20 +240,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
         </View>
       </View>
       {aiPop.element}
-      {sharing && sharingOpen && agentId !== null && shares ? (
-        <Overlay label="Who can use it" onClose={() => setSharingOpen(false)} testID="agent-share-overlay">
-          <AccessSheet
-            mode="share" itemType="agent" resourceType="agent" resourceId={agentId} itemName={d.name} target="item" ownerName={sharing.meName} ownerId={sharing.meId} levels={["view", "use", "edit", "manage"]}
-            shares={shareRows(shares, sharing.nameOf, agentId)} allowExternal={false} density="compact" newKey={newKey}
-            {...(shares.agentsCanCall === undefined ? {} : { agentsOn: shares.agentsCanCall })}
-            onAgents={(on) => { void Promise.resolve(call("access.agents_can_call.set", { agentId, on, idempotencyKey: newKey() })).then(loadShares, () => say("Could not change who can call this agent.")); }}
-            directory={sheetDirectory(sharing.directory)}
-            onShare={(i: ShareInput) => { void Promise.resolve(call("access.share", i)).then(loadShares, () => say("Could not change access.")); }}
-            onUnshare={(i: UnshareInput) => { void Promise.resolve(call("access.unshare", i)).then(loadShares, () => say("Could not change access.")); }}
-            onClose={() => setSharingOpen(false)}
-          />
-        </Overlay>
-      ) : null}
+      {sharing && sharingOpen && agentId !== null && shares ? <AgentShareSheet agentId={agentId} name={d.name} call={call} newKey={newKey} say={say} sharing={sharing} shares={shares} reload={loadShares} onClose={() => setSharingOpen(false)} /> : null}
     </ScrollView>
   );
 }
