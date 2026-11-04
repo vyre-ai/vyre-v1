@@ -87,6 +87,7 @@ export function InstallCard({ id, data, chat, mine = true }: { id: string; data:
             <Text accessibilityRole="header" style={st.title}>{titleOf(plan)}</Text>
             <Text style={st.sub}>{`${shortOf(d.from)} to ${shortOf(d.to)} · ${changedCount(d)} ${changedCount(d) === 1 ? "file" : "files"} changed`}</Text>
             <View style={st.diff}>
+              {/* ui-rows-lint: not a list (the lines of one diff) */}
               {diffRows(d).map((r, i) => <Text key={i} style={[st.mono, r.kind === "head" && st.head, r.kind === "add" && st.add, r.kind === "del" && st.del]}>{r.text}</Text>)}
             </View>
             {plan.needs.domains.length + plan.needs.vaultKeys.length > 0 ? <Text style={st.sub}>{`It reaches ${[...plan.needs.domains, ...plan.needs.vaultKeys].join(", ")}.`}</Text> : null}
@@ -112,11 +113,13 @@ export function InstallCard({ id, data, chat, mine = true }: { id: string; data:
         {plan.problems.length > 0 ? <Row k="Heads up" v={plan.problems.slice(0, 2).join(" ")} /> : null}
         {plan.kind === "mcp_local" && plan.runOn ? (
           <View style={st.rowLine}><Text style={st.k}>Run</Text>
+            {/* ui-rows-lint: not a list (two pills of one choice) */}
             <View style={st.seg}>{plan.runOn.map((r) => <Pill key={r.key} on={runOn === r.key} label={r.key === "sandbox" ? "Run on my agent's computer" : r.label} testID={`install-run-${r.key}-${id}`} onPress={() => setRunOn(r.key)} />)}</View>
           </View>
         ) : null}
         {plan.kind === "mcp_local" || plan.kind === "mcp_remote" || plan.kind === "plugin" || plan.kind === "skill" ? (
           <View style={st.rowLine}><Text style={st.k}>For</Text>
+            {/* ui-rows-lint: not a list (the pills of one choice) */}
             <View style={st.seg}>{choices(plan).filter((c) => c.allowed || c.key !== "space").map((c) => <Pill key={c.key} on={scope === c.key} label={SCOPES.find((x) => x.key === c.key)?.label ?? c.label} testID={`install-for-${c.key}-${id}`} onPress={() => setScope(c.key)} />)}</View>
           </View>
         ) : null}

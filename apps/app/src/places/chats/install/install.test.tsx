@@ -155,9 +155,9 @@ test("the Skills list groups Yours, Your agents' and Shared with you, each with 
   await flush(); await flush();
   const all = textOf(find(root!, "skills-list")!);
   assert.ok(all.indexOf("Yours") < all.indexOf("Your agents'") && all.indexOf("Your agents'") < all.indexOf("Shared with you"));
-  assert.match(textOf(find(root!, "skill-row-sko_1")!), /pdf-tools[\s\S]*v1\.2\.0 · acme\/pdf-tools/);
-  assert.match(textOf(find(root!, "skill-row-sko_5")!), /Write a brief[\s\S]*Mira keeps it/);
-  assert.match(textOf(find(root!, "skill-row-sko_9")!), /Shared by Sara Malik/);
+  assert.match(textOf(find(root!, "row-skill-sko_1")!), /pdf-tools[\s\S]*v1\.2\.0 · acme\/pdf-tools/);
+  assert.match(textOf(find(root!, "row-skill-sko_5")!), /Write a brief[\s\S]*Mira keeps it/);
+  assert.match(textOf(find(root!, "row-skill-sko_9")!), /Shared by Sara Malik/);
   assert.equal(find(root!, "skill-share-sko_9"), null, "a skill shared with you is not yours to share on");
   assert.deepEqual(groupsOf({ mine: [], shared: [], me: "x" } as never, [], (i) => i), []);
 });
@@ -211,7 +211,7 @@ test("Open on an install card names the skill to the pane, which lights it; a na
   const s = skills();
   const root = await mount(createRoot as never, <SkillsTab deps={s.deps} highlight="pdf-tools" />);
   await flush(); await flush();
-  assert.ok(find(root!, "skill-row-sko_1"));
+  assert.ok(find(root!, "row-skill-sko_1"));
 });
 
 test("no skills yet says how to get one", async () => {
