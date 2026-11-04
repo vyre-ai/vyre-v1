@@ -19,7 +19,7 @@ Apply values read from another Space to my profile here; the title is never copi
 | HTTP | POST /v1/settings/copy_profile |
 | MCP tool | settings_copy_profile (meta) |
 | CLI | none |
-| Emits | settings.changed |
+| Emits | settings.changed, settings.contact_unverified |
 
 ## Input
 

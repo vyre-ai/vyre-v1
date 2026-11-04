@@ -12,7 +12,7 @@ import { SavedProvider } from "./saved.tsx";
 import { HIDDEN_ROWS, PAGES, clock, controlFor, hoursSummary, moneyLabel, pageOfRow, rowLabel, searchRows, sectionsFor, splitList, summaryOf, timeIn } from "./model.ts";
 import type { SettingRow, YouPage } from "./model.ts";
 import { whenLabel } from "./pages-b.tsx";
-import { defaultModelValue, monthStart } from "./pages-a.tsx";
+import { channelWords, defaultModelValue, monthStart } from "./pages-a.tsx";
 import { KEYBOARD_MAP } from "../../shell/keyboard/map.ts";
 import { SpaceDefaults } from "./SpacePages.tsx";
 import { dollars, monthNote } from "./MemorySpend.tsx";
@@ -162,6 +162,17 @@ test("AI: defaults, how agents work with you, usage with bars, the accounts and 
   assert.ok(has(out, 'data-testid="row-open-vault"'));
   assert.ok(has(html(createSampleSettings(northwind), { initialPage: "memory" }), "Who pays for memory"), "Who pays for memory moved to Memory and privacy");
   assert.equal(moneyLabel(48_200_000), "$48.20");
+});
+
+test("AI accounts: Codex on an API key reads 'Codex, with an API key' next to the ChatGPT sign-in", () => {
+  assert.ok(!has(html(createSampleSettings(northwind), { initialPage: "ai" }), "Codex, with an API key"), "not shown until the account exists");
+  const withCodex = createSampleSettings(northwind);
+  withCodex.replica.put("accounts", [
+    { id: "acc_cx1", ref: "acc_cx1", driver: "codex", kind: "subscription", title: "Codex", name: "Codex, dana@example.com", mine: true, status: "ok" },
+    { id: "acc_cx2", ref: "acc_cx2", driver: "codex", kind: "api_key", title: "Codex", name: "Codex, with an API key", mine: true, status: "ok" },
+  ] as never);
+  const shown = html(withCodex, { initialPage: "ai" });
+  assert.ok(has(shown, "Codex, dana@example.com") && has(shown, "Codex, with an API key"));
 });
 
 test("Email and calendar lists mailboxes with their state and a way to pause, calendars, your numbers, and the connect tiles to add another", () => {
@@ -414,4 +425,20 @@ test("the Default model row shows the model the person last picked, and says so;
   assert.equal(defaultModelValue({ model: "gpt-5" }, { provider: "anthropic", model: "claude-sonnet-5-5" }, opts), "openai/gpt-5", "a pick without a provider finds it among the models");
   assert.equal(defaultModelValue({}, { provider: "anthropic", model: "claude-sonnet-5-5" }, opts), "anthropic/claude-sonnet-5-5");
   assert.equal(defaultModelValue(null, null, opts), "");
+});
+
+test("Your AI with no AI account: one line and an Add AI account button, not blank pickers", async () => {
+  const s = createSampleSettings(northwind);
+  s.replica.remove("models", s.replica.rows("models").map((r) => String(r.id)));
+  const out = html(s, { initialPage: "ai" });
+  assert.ok(has(out, "Add an AI account to choose a default model") && has(out, 'data-testid="ctl-add-ai"'));
+  assert.ok(!has(out, 'data-testid="ctl-model-default"') && !has(out, 'data-testid="ctl-model-fallback"'), "no empty pickers");
+  assert.ok(has(html(createSampleSettings(northwind), { initialPage: "ai" }), 'data-testid="ctl-model-default"'), "with accounts the pickers are there");
+});
+
+test("channel words: first word capital, the rest lower case, none is Badge only", () => {
+  assert.equal(channelWords(["desktop", "phone", "email"]), "Desktop, phone and email");
+  assert.equal(channelWords(["desktop", "email"]), "Desktop and email");
+  assert.equal(channelWords(["phone"]), "Phone");
+  assert.equal(channelWords([]), "Badge only");
 });

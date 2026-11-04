@@ -1466,6 +1466,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_pace_of",
+      "summary": "How a teammate answers, for their profile: usual reply time over the last 30 days, and for one chat how they hear about it. Reads only chats you are in with them",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_pin",
       "summary": "Mark a message as pinned (a content marker, not a Star)",
       "toolset": "chats"
@@ -4427,6 +4433,36 @@
       "name": "home_routines_today",
       "summary": "Today's routines of my agents: scheduled, running, done or failed, one line each",
       "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "hooks_list",
+      "summary": "List hooks: the Space's, yours, and an agent's or one chat's. Each has a plain line, when it runs, what it does and who made it. Use this before you add one",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "hooks_remove",
+      "summary": "Remove a hook you made",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "hooks_runs",
+      "summary": "What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first. since and outcomes narrow it before the limit; scope space is a Space admin's read of every Space hook's runs (anyone else gets only what they could see anyway)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "hooks_runs_latest",
+      "summary": "The newest run of each hook in one chat, one row per hook: what \"Last ran\" on a hook card reads. Only for a chat you can use",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "hooks_set",
+      "summary": "Add or change a hook that runs at an event (before a tool, before anything leaves Vyre, a message, a turn end, a helper) as a command, a check or one action. For yourself: scope agent, chat or run. It can stop something, add a note or run its own action; never skip a rule",
+      "toolset": "agents"
     },
     {
       "deferred": false,
@@ -9616,6 +9652,12 @@
       "deferred": false,
       "name": "threads_reopen",
       "summary": "Reopen a closed thread",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_set_agent_replies",
+      "summary": "Choose where the agents of a chat reply: in the thread under the message that asked them, or in the chat itself. Approvals and answers an agent marks Also send to the chat still come to the chat",
       "toolset": "chats"
     },
     {

@@ -170,3 +170,15 @@ export async function claimedSpace(standIn: OpenSession, name = "Crew Co", extra
   const assistant = await waitFor(async () => { await d.hooks?.pump?.(); const r = await api("agents.assistant_of", { personId: owner }); return typeof r.agentId === "string" ? (r.agentId as string) : null; }, 40_000);
   return { d, api, owner, assistant };
 }
+
+/**
+ * A channel's messages with the threads under them: agents reply in the thread under the asking message in a channel, so a test that asks in a channel reads the chat and those threads together, oldest first.
+ * `api` is the test's own caller: (who, cap, input) giving { status, data }.
+ */
+export async function listAll<M extends { threadSeq?: number; createdAt?: number }>(api: (who: string, cap: string, input: unknown) => Promise<{ data: any }>, who: string, threadId: string): Promise<M[]> {   // eslint-disable-line @typescript-eslint/no-explicit-any
+  const main = ((await api(who, "chat.messages.list", { threadId })).data.messages ?? []) as M[];
+  const under = ((await api(who, "threads.list", { parentThreadId: threadId })).data.threads ?? []) as Array<{ threadId: string }>;
+  const more: M[] = [];
+  for (const t of under) more.push(...(((await api(who, "chat.messages.list", { threadId: t.threadId })).data.messages ?? []) as M[]));
+  return [...main, ...more];
+}

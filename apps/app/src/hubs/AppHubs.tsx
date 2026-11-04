@@ -10,6 +10,7 @@ import type { HubTemplate } from "../../../../lib/mcp-hubs.ts";
 import { fileHubKey } from "./hub-key.ts";
 import { AppIcon } from "../../../../ui/src/AppIcon/index.tsx";
 import { Dialog } from "../../../../ui/src/Dialog/index.tsx";
+import { errorSentence } from "../errors/details.ts";
 import { useMenu } from "../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../ui/src/Row/index.tsx";
 import { Segmented } from "../../../../ui/src/Segmented/index.tsx";
@@ -158,8 +159,7 @@ export function AppHubsCard({ call }: { call: Call }): ReactElement {
       await load(true);
       return undefined;
     } catch (e) {
-      const err = e as { message?: string; code?: string };
-      return `${err.message ?? "That did not connect"}${err.code ? ` (${err.code})` : ""}.`;
+      return errorSentence(e, "That did not connect");
     }
   };
   return <AppHubsView connections={connections} servers={servers} onConnect={onConnect}

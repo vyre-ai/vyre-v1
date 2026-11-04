@@ -58,6 +58,7 @@ type Out = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -131,6 +132,7 @@ type Out = {
   "output": {
     "blockId": "blk_a1b2c3",
     "helper": {
+      "agentRepliesInThreads": true,
       "agents": [
         {
           "accountRef": "example",

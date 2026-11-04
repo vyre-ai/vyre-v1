@@ -44,6 +44,8 @@ const INPUTS: Record<string, unknown> = {
 };
 /** The failure event rides with the call only when it fails (afterFailure), so the answering call does not emit it. */
 const ON_FAILURE = new Set(["settings.contact_code_failed"]);
+// Emitted only when a write changes a verified email or phone (contact.ts clearStale): set, reset and copy_profile declare it, the example inputs here do not change a contact
+const ON_CONTACT_CHANGE = new Set(["settings.contact_unverified"]);
 
 /** Maya, an admin, with one value of her own and one of the Space's already set, so reset has something to put back. */
 const sent = { text: "" };
@@ -76,7 +78,7 @@ for (const cap of caps) {
     assert.deepEqual(validate(cap.input, input, "", defs), [], "input is valid");
     const out = await run(cap.name, ctx, input);
     assert.deepEqual(validate(cap.output, out, "", defs), [], "output");
-    assert.deepEqual([...new Set(h.events.map((e) => e.name))].sort(), cap.emits.filter((e) => !ON_FAILURE.has(e)).sort());
+    assert.deepEqual([...new Set(h.events.map((e) => e.name))].sort(), cap.emits.filter((e) => !ON_FAILURE.has(e) && !ON_CONTACT_CHANGE.has(e)).sort());
     for (const e of h.events) {
       assert.ok(cap.emits.includes(e.name), `${e.name} is declared in emits of ${cap.name}`);
       const schema = eventSchemas.get(e.name);

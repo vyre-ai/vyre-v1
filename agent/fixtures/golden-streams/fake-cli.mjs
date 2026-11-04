@@ -157,6 +157,7 @@ async function run(prompt) {
   const words = prompt.trim().split(/\s+/);
   switch (words[0]) {
     case "text": replay("text"); break;
+    case "echoenv": say(`env GH_TOKEN=${process.env.GH_TOKEN ?? "none"} GITHUB_TOKEN=${process.env.GITHUB_TOKEN ?? "none"}`); process.stderr.write(`stderr ${process.env.GH_TOKEN ?? "none"}\n`); break;   // a CLI that echoes its environment
     case "nopartial": replay("nopartial"); break;
     case "tool": replay((await callTool(words[1] ?? "schema_describe")).ok ? "tool" : "tool-denied"); break;
     case "authfail": replay("error-auth"); break;

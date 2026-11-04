@@ -1,4 +1,4 @@
-import { NO_ACCESS, judge, needsJudging } from "../reach/target.ts";
+import { judge, needsJudging, noAccessLine } from "../reach/target.ts";
 import type { Judge } from "../reach/target.ts";
 import { adminPages } from "../providers/settings-admin.ts";
 import { createLinkPolicy } from "../reach/policy.ts";
@@ -395,11 +395,12 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     const place = railPlace(where);
     if (!place || !o.navigate) return;
     const go = (): void => { o.navigate?.(place, targetHash(t), t.background === true); };
-    if (!needsJudging(t)) { go(); return; }
+    // a tab or view of what is already open is not a new door: no read, no refusal
+    if (t.local === true || !needsJudging(t)) { go(); return; }
     void judge(t, judging).then((r) => {
       if (r.to === "open") { go(); return; }
       // the last resort: a link should have drawn plain before it was pressed. Under test it is a failure, so the suite counts zero of these.
-      if (o.notice) o.notice(NO_ACCESS);
+      if (o.notice) o.notice(noAccessLine(t));
       else if ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.["NODE_TEST_CONTEXT"] !== undefined) throw new Error("reach fallback fired: a link led somewhere the viewer cannot open");
     });
   };

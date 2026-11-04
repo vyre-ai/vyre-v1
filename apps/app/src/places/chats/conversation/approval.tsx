@@ -89,7 +89,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { t
     const ev = ow.event;
     const viewerTz = ((): string | undefined => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return undefined; } })();
     const host = (u: string): string => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
-    const nameOf = (r: Recipient): string => (r.kind === "person" ? subject ?? "a teammate" : r.kind === "thread" ? "this chat" : r.address ?? "");
+    const nameOf = (r: Recipient): string => (r.kind === "person" ? r.name ?? subject ?? "a teammate" : r.kind === "thread" ? "this chat" : r.address ?? "");
     const first = ow.to[0] ? nameOf(ow.to[0]) : "";
     const hhmm = new Date((task as { updatedAt?: number }).updatedAt ?? Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
     const only = !ev && ow.to.length === 1 && ow.to[0]!.kind !== "thread" ? (ow.to[0]!.id ?? ow.to[0]!.address ?? "").toLowerCase() : "";
@@ -104,7 +104,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { t
     );
     return (
       <HeldCard
-        testID={ended ? `approval-done-${taskId}` : `approval-${taskId}`} agent={agent} to={ev ? [] : ow.to.map((r) => ({ name: nameOf(r), seed: r.id ?? r.address ?? agentId, kind: "person" as const }))} verb={verbOfChannel(ow, nameOf)}
+        testID={ended ? `approval-done-${taskId}` : `approval-${taskId}`} agent={agent} headFace={{ name: agent, seed: agentId, kind: "agent" }} to={ev ? [] : ow.to.map((r) => ({ name: nameOf(r), seed: r.id ?? r.address ?? agentId, kind: "person" as const }))} verb={verbOfChannel(ow, nameOf)}
         schedule={scheduleLine(ow.schedule, { yours: (at) => clock(at), theirs: theirTz ? (at) => clock(at, theirTz) : null })} subject={ow.subject} body={ow.body}
         {...(ev ? {
           subjectLabel: "Title", editSubject: true, fold: "Agenda", fieldMd: ["Where"], sendLabel: ev.notify ? "Send invites" : "Add to calendar",

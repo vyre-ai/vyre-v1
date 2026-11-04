@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import type { ShareSheetProps } from "../../../ui/src/AccessSheet/index.tsx";
+import { PeoplePopover } from "../../../ui/src/PeoplePopover/index.tsx";
 import { AgentForm } from "../../../apps/app/src/places/chats/agentform/AgentForm.tsx";
 import { createConfigSample, northwind } from "../../../apps/app/src/places/automations/config/sample.ts";
 import { AccessSheet } from "../../../ui/src/AccessSheet/index.tsx";
@@ -77,10 +78,26 @@ function DexPath(): ReactNode {
   );
 }
 
+const noopX = (): void => undefined;
+
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "dex"), []);
   if (part === null) return <View />;
+  if (part === "people-chat" || part === "people-project") {
+    const rows = [
+      { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" as const, role: part === "people-chat" ? "Admin" : "Lead" },
+      { id: "usr_sara", name: "Sara Malik", kind: "person" as const, role: "Member" },
+      { id: "usr_omar", name: "Omar Reyes", kind: "person" as const, role: part === "people-chat" ? "Member" : "Reviewer" },
+      { id: "agt_ember", name: "Ember", kind: "agent" as const, role: "Can use" },
+      { id: "agt_docs", name: "Docs", kind: "agent" as const, role: "Can edit" },
+    ];
+    return (
+      <View style={{ flex: 1 }}>
+        <PeoplePopover where={part === "people-chat" ? "chat" : "project"} rows={rows} meId="usr_irfad" perms={{ message: true, changeRole: true, remove: true }} anchor={{ x: 700, y: 70 }} onOpen={noopX} onAction={noopX} onFooter={noopX} onClose={noopX} />
+      </View>
+    );
+  }
   if (part === "dexpath") return <DexPath />;
   const props = PARTS[part] ?? PARTS["dex"]!;
   return <AccessSheet {...props} />;

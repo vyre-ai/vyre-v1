@@ -7,7 +7,7 @@ import { Text, View } from "react-native";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import { InstallCard, blockOf } from "./InstallCard.tsx";
 import { SkillsTab, groupsOf } from "./SkillsTab.tsx";
-import { changedCount, choices, diffRows, doneLine, needsLines, newAccess, pinnedLine, skillLine, sourceWords } from "./model.ts";
+import { changedCount, choices, diffRows, doneLine, needsLines, newAccess, pinnedLine, skillLine, sourceWords, titleOf } from "./model.ts";
 import type { Plan } from "./model.ts";
 
 const PLAN = (o: Partial<Plan> = {}): Plan => ({
@@ -15,12 +15,16 @@ const PLAN = (o: Partial<Plan> = {}): Plan => ({
   needs: { domains: ["api.example.com"], vaultKeys: [], files: [] }, skills: ["pdf-tools"], problems: [],
   who: [{ key: "me", label: "Just you", allowed: true }, { key: "agent", label: "This agent", allowed: true }, { key: "space", label: "Everyone in the Space", allowed: true, adminOnly: true }], ...o,
 });
+let VAULT: string[] | undefined;   // the names in the person's Vault; undefined: the Vault cannot be read
 function world(plan: Plan, fail?: string) {
   const calls: Array<{ cap: string; input: Record<string, any> }> = [];
   const call = async (cap: string, input: unknown): Promise<unknown> => {
     calls.push({ cap, input: input as Record<string, any> });
     if (cap === "install.get") return { plan };
     if (cap === "install.apply") { if (fail) throw new Error(fail); return { installed: { kind: plan.kind } }; }
+    if (cap === "vault.items.list" && VAULT) return { items: VAULT.map((name) => ({ name })) };
+    if (cap === "vault.folders.list" && VAULT) return { folders: [{ id: "vfd_mine" }] };
+    if (cap === "vault.item.put" && VAULT) { VAULT.push(String((input as Record<string, unknown>)["name"])); return { item: {} }; }
     throw new Error(`no ${cap}`);
   };
   return { calls, call };
@@ -35,6 +39,9 @@ async function card(plan: Plan, data: Record<string, unknown> = {}, fail?: strin
 
 test("the words: kinds, needs, the pinned commit, the choices, the done line", () => {
   assert.deepEqual(needsLines(PLAN()), { network: "api.example.com", vault: "none", files: "none" });
+  assert.equal(needsLines(PLAN({ kind: "mcp_remote" })).vault, "Sign-in token, saved after you sign in", "a remote server says when its sign-in happens, never 'none'");
+  assert.deepEqual(pinnedLine(PLAN({ version: "2.1.0" } as never)), { label: "Pinned to", value: "a41f9c2 · v2.1.0" });
+  assert.equal(titleOf(PLAN({ diff: { from: "a41f9c2".padEnd(40, "0"), to: "7d03be8".padEnd(40, "0"), fromVersion: "1.2.0", toVersion: "1.3.0", added: [], removed: [], changed: [] } } as never)), "pdf-tools 1.2.0 to 1.3.0");
   assert.deepEqual(pinnedLine(PLAN()), { label: "Pinned to", value: "a41f9c2" });
   assert.deepEqual(pinnedLine(PLAN({ commit: "", kind: "mcp_remote" })), { label: "Version", value: "Not pinned. It is their server." });
   assert.deepEqual(choices(PLAN({ who: [{ key: "me", label: "Just you", allowed: true }, { key: "space", label: "Everyone in the Space", allowed: false, adminOnly: true }] })).map((c) => [c.key, c.allowed]), [["me", true], ["space", false]]);
@@ -75,7 +82,7 @@ test("a member is not offered the whole Space; an admin is", async () => {
   assert.ok(find((await card(PLAN())).root, "install-for-space-m1"));
 });
 
-test("Edit renames what agents see and Install uses it; Not now says nothing was added and Undo brings the card back", async () => {
+test("Edit renames what agents see and Install uses it; Don't install says nothing was added and Undo brings the card back", async () => {
   const c = await card(PLAN());
   await press(find(c.root, "install-edit-m1")!);
   assert.ok(find(c.root, "install-name-m1"));
@@ -98,8 +105,27 @@ test("a local MCP server asks where it runs; Run it on the Space needs a Vault k
   assert.equal(c.calls.some((x) => x.cap === "install.apply"), false, "no key, no install");
 });
 
+test("an install waits for a Vault key the person does not have: Add it, Save to Vault, then Install works; the value goes only to the Vault", async () => {
+  VAULT = [];
+  try {
+    const plan = PLAN({ kind: "mcp_local", name: "sql-reader", commit: "c90e5a3bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", needs: { domains: [], vaultKeys: ["DATABASE_URL"], files: [] },
+      runOn: [{ key: "sandbox", label: "On your computer, in the sandbox" }] });
+    const c = await card(plan);
+    assert.match(textOf(find(c.root, "install-vault-m1")!), /DATABASE_URL is not in your Vault/);
+    assert.match(textOf(find(c.root, "install-waits-m1")!), /Add the key first\./);
+    await press(find(c.root, "install-go-m1")!);
+    assert.equal(c.calls.some((x) => x.cap === "install.apply"), false, "no key, no install");
+    await press(find(c.root, "install-addkey-DATABASE_URL-m1")!);
+    assert.ok(find(c.root, "install-keyvalue-DATABASE_URL-m1"), "the field to paste into");
+    await press(find(c.root, "install-keysave-DATABASE_URL-m1")!);
+    assert.equal(c.calls.some((x) => x.cap === "vault.item.put"), false, "an empty value saves nothing");
+  } finally { VAULT = undefined; }
+});
+
 test("a remote MCP server says it is not pinned; a refused install shows the reason and keeps the card", async () => {
   const remote = await card(PLAN({ kind: "mcp_remote", commit: "", name: "tasks-mcp", needs: { domains: ["mcp.tasks.example"], vaultKeys: [], files: [] } }));
+  assert.equal(find(remote.root, "install-key-m1"), null, "no key picker: its sign-in comes after the install");
+  assert.match(textOf(find(remote.root, "install-needs-m1")!), /Sign-in token, saved after you sign in/);
   assert.match(textOf(find(remote.root, "install-pin-m1")!), /Not pinned\. It is their server\./);
   const refused = await card(PLAN(), {}, "Only an admin can install something for everyone in the Space");
   await press(find(refused.root, "install-for-space-m1")!);
@@ -155,10 +181,10 @@ test("the Skills list groups Yours, Your agents' and Shared with you, each with 
   await flush(); await flush();
   const all = textOf(find(root!, "skills-list")!);
   assert.ok(all.indexOf("Yours") < all.indexOf("Your agents'") && all.indexOf("Your agents'") < all.indexOf("Shared with you"));
-  assert.match(textOf(find(root!, "row-skill-sko_1")!), /pdf-tools[\s\S]*v1\.2\.0 · acme\/pdf-tools/);
+  assert.match(textOf(find(root!, "row-skill-sko_1")!), /pdf-tools[\s\S]*v1\.2\.0[\s\S]*acme\/pdf-tools/);
   assert.match(textOf(find(root!, "row-skill-sko_5")!), /Write a brief[\s\S]*Mira keeps it/);
   assert.match(textOf(find(root!, "row-skill-sko_9")!), /Shared by Sara Malik/);
-  assert.equal(find(root!, "skill-share-sko_9"), null, "a skill shared with you is not yours to share on");
+  assert.ok(find(root!, "skill-share-sko_9") && find(root!, "skill-history-sko_9"), "a shared skill has Share and History too, as in the prototype");
   assert.deepEqual(groupsOf({ mine: [], shared: [], me: "x" } as never, [], (i) => i), []);
 });
 
@@ -184,11 +210,11 @@ test("Share opens the one shared Share sheet on the skill, as an access resource
   assert.equal(s.calls.some((c) => c.cap === "skills.grant"), false, "the sheet writes through access, not a sheet of its own");
 });
 
-test("a skill installed from a link with a newer commit says Update available; one that is current does not", async () => {
+test("a skill installed from a link with a newer commit says Update ready; one that is current does not", async () => {
   const s = skills();
   const root = await mount(createRoot as never, <SkillsTab deps={s.deps} />);
   await flush(); await flush(); await flush();
-  assert.match(textOf(find(root!, "skill-update-sko_1")!), /Update available/);
+  assert.match(textOf(find(root!, "skill-update-sko_1")!), /Update ready/);
   assert.equal(find(root!, "skill-update-sko_5"), null);
   const none = skills({ noUpdate: true });
   const r2 = await mount(createRoot as never, <SkillsTab deps={none.deps} />);

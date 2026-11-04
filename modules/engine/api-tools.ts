@@ -36,6 +36,8 @@ export interface EngineApiToolsDeps {
   /** The MCP tools of the agent's plugins and connections, and the plugin hooks around every call (modules/engine/plugin-tools.ts). */
   /** What each agent has used: counted after a call, read to list its top tools at the start of a turn (modules/engine/tool-use.ts). */
   usage?: { record(agentId: string, tool: string): void; top(agentId: string): readonly string[] };
+  /** The one hooks layer for Vyre's own tools; replaces the plugin-only hooks. */
+  hooks?: CallHooks;
   plugins?: { extra(ctx: ToolCtx): Promise<ToolDef[]>; dynamic: DynamicTools; hooks: CallHooks };
 }
 
@@ -78,7 +80,7 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
       const dial = dialFor(ctx.thread.mode, t.local === "chrome" || t.local === "screen" ? m?.chrome : m?.terminal);
       return decideLocal(t, dial.person, dial.floor, localFacts(t, input));
     },
-    ...(d.plugins ? { dynamic: d.plugins.dynamic, hooks: d.plugins.hooks } : {}) });
+    ...(d.plugins ? { dynamic: d.plugins.dynamic } : {}), ...(d.hooks ? { hooks: d.hooks } : d.plugins ? { hooks: d.plugins.hooks } : {}) });
   const primed = new Set<string>();
   const hasHelpers = async (t: { threadId: string; asker: string }): Promise<boolean> => {
     if (!d.call) return false;

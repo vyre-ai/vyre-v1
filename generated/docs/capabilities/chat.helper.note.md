@@ -19,7 +19,7 @@ Note between a helper and the agent that started it: a follow-up down, progress,
 | HTTP | POST /v1/chat/helper/note |
 | MCP tool | helper_note (chats, deferred) |
 | CLI | none |
-| Emits | helper.note, message.received, block.waiting |
+| Emits | helper.note, message.received, block.waiting, message.direct, message.mentioned, thread.replied, thread.unarchived |
 
 ## Input
 

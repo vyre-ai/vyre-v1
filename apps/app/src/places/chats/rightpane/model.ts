@@ -2,7 +2,7 @@
 // agent's folder is walked. The pane follows the agent of the open chat (spec 3.2); nothing here reads the replica, so the tests drive every rule directly.
 import type { CapMap } from "../../../../../../generated/types.ts";
 
-export type TabKey = "about" | "computer" | "threads" | "files" | "terminal" | "memory" | "routines" | "crew" | "skills";
+export type TabKey = "about" | "computer" | "threads" | "files" | "terminal" | "memory" | "routines" | "crew" | "skills" | "hooks";
 export const TABS: readonly { key: TabKey; title: string }[] = [
   { key: "about", title: "About" },
   { key: "computer", title: "Computer" },
@@ -16,7 +16,7 @@ export const TERMINAL_TAB: { key: TabKey; title: string } = { key: "terminal", t
 /** The Crew tab: shown only in a chat that has teammates working for it, right after Chats. */
 export const CREW_TAB: { key: TabKey; title: string } = { key: "crew", title: "Crew" };
 /** The tabs of a pane, shown only when useful: Computer once the agent has one, Terminal with it where the shell has a terminal, Crew when teammates work for the chat. */
-export const tabsOf = (terminal: boolean, crew = false, computer = true, skills = false): readonly { key: TabKey; title: string }[] => {
+export const tabsOf = (terminal: boolean, crew = false, computer = true, skills = false, hooks = false): readonly { key: TabKey; title: string }[] => {
   const out: { key: TabKey; title: string }[] = [];
   for (const t of TABS) {
     if (t.key === "computer" && !computer) continue;
@@ -24,9 +24,12 @@ export const tabsOf = (terminal: boolean, crew = false, computer = true, skills 
     if (t.key === "threads" && crew) out.push(CREW_TAB);
     if (t.key === "files" && terminal && computer) out.push(TERMINAL_TAB);
   }
+  if (hooks) out.push(HOOKS_TAB);   // once the chat has hooks (l-hooks)
   if (skills) out.push(SKILLS_TAB);   // once the person has skills (l-install)
   return out;
 };
+/** The Hooks tab: the hooks that run in this chat, shown once there are some or when a hook line opened it. */
+export const HOOKS_TAB: { key: TabKey; title: string } = { key: "hooks", title: "Hooks" };
 /** The Skills tab: the person's skills and an agent's, last, once there are any. */
 export const SKILLS_TAB: { key: TabKey; title: string } = { key: "skills", title: "Skills" };
 export const DEFAULT_TAB: TabKey = "about";

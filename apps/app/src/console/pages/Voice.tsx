@@ -1,14 +1,14 @@
 // Console, AI, Voice: one key that covers everyone in the Space. Status at a glance first, then what can be done. The key itself is never read back here: it sits Restricted in the Vault.
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Text, View } from "react-native";
+import { Text, View, useWindowDimensions } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
-import { Group, Lead, Section } from "../shell/ui.tsx";
+import { Group, Section } from "../shell/ui.tsx";
 import { IconTile } from "./CiRunners.tsx";
-import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, Field, ReadState, Select, useAction, useRead, QuietButton } from "./shared.tsx";
 
 type SpaceOut = CapMap["talk.space.status"]["out"];
 type VoiceOut = CapMap["talk.status"]["out"];
@@ -44,7 +44,11 @@ export function VoiceSettings(): ReactElement {
   const [gone, setGone] = useState(false);
   /** a provider the Space has no key for yet: its key form is open */
   const [adding, setAdding] = useState<string | null>(null);
+  /** first time only: the provider chosen before any key exists */
+  const [pick, setPick] = useState("deepgram");
   const checked = useRef(false);
+  const winW = useWindowDimensions().width;
+  const narrow = winW > 0 && winW < 720;   // an unmeasured screen (a static render) keeps the desktop layout
   const s = space.data;
   // a row that says when it was last checked should not be far behind: an old answer is asked again once as the page opens
   useEffect(() => {
@@ -53,7 +57,7 @@ export function VoiceSettings(): ReactElement {
     void action.run("talk.space.check", {}, "");
   }, [s?.set]);
   if (!s || !me.data) return <ReadState error={space.error ?? me.error} retry={refresh} />;
-  const provider = me.data.providers.find((p) => p.key === (adding ?? s.provider ?? me.data?.provider)) ?? me.data.providers[0];
+  const provider = me.data.providers.find((p) => p.key === (adding ?? s.provider ?? (s.set ? me.data?.provider : pick))) ?? me.data.providers[0];
   const keyed = s.keyed ?? [];
   const name = provider?.name ?? "Deepgram";
   const save = async (): Promise<void> => {
@@ -62,7 +66,7 @@ export function VoiceSettings(): ReactElement {
     if (out) { setKey(""); setReplacing(false); setAdding(null); }
   };
   const who = s.setBy ? `${data.name(s.setBy)} added it` : "";
-  const note = s.set ? [name, who, `checked ${agoLine(s.checkedAt, data.clock().now)}`].filter(Boolean).join(" · ") : `One ${name} key can cover everyone. People just press the mic, and can never read the key.`;
+  const note = s.set ? [name, who, `checked ${agoLine(s.checkedAt, data.clock().now)}`].filter(Boolean).join(" · ") : "One key covers everyone. People just press the mic, and nobody can read the key.";
   const owned = s.peopleOwnKey ?? 0;
   const form = !s.set || replacing || adding !== null;
   const failing = s.set && s.state === "failing";
@@ -71,41 +75,49 @@ export function VoiceSettings(): ReactElement {
     <View testID="console-voice">
       <Text testID="voice-intro" style={{ fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginHorizontal: 2, marginBottom: 12 }}>Press the mic and your words land in the message. One key here covers everyone, and nobody can read it.</Text>
       {failing ? <Section title="Needs you" count={1}>
-        <Group><Row id="voice-need" title={`${name} stopped accepting the key`} note="Replace the key, or check again if it was a passing problem." leading={<Lead><View style={{ width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--warn-wash, var(--sel))" as string }}><Glyph name="warn" size={15} color="var(--warn)" /></View></Lead>} trailing={<Button label="Replace key" testID="voice-need-replace" onPress={() => setReplacing(true)} />} /></Group>
+        <Group><Row id="voice-need" title={`${name} stopped accepting the key`} note="Replace the key, or check again if it was a passing problem." leading={<IconTile icon="warn" tone="warn" />} trailing={<Button small label="Replace key" testID="voice-need-replace" onPress={() => setReplacing(true)} />} /></Group>
       </Section> : null}
       <View>
         <Group>
           <Row id="voice-status" title={voiceHeadline(s)} note={note} leading={<IconTile icon="mic" {...(failing ? { tone: "warn" as const } : {})} />} trailing={s.set ? <Text testID="voice-state" style={{ fontSize: 12.5, color: (failing ? "var(--warn)" : "var(--ink-3)") as string }}>{stateWord}</Text> : undefined} />
-          {s.set && me.data.providers.length > 1 ? (
-            <Row id="voice-provider" title="Provider for everyone" note={me.data.providers.map((p) => `${p.name}${p.key === s.provider ? " (in use)" : keyed.includes(p.key) ? "" : " (no key yet)"}`).join(" · ")} trailing={
+          {s.set && me.data.providers.length > 1 ? (() => {
+            const buttons = (
               <Actions>
                 {/* ui-rows-lint: not a list (the buttons of one row, one per other provider) */}
                 {me.data.providers.filter((p) => p.key !== s.provider).map((p) => (
-                  <Button key={p.key} label={keyed.includes(p.key) ? `Use ${p.name}` : `Add ${p.name} key`} disabled={action.busy} testID={`voice-use-${p.key}`}
+                  <Button key={p.key} small label={keyed.includes(p.key) ? `Use ${p.name}` : `Add ${p.name} key`} disabled={action.busy} testID={`voice-use-${p.key}`}
                     onPress={() => (keyed.includes(p.key) ? void action.run("talk.space.configure", { provider: p.key }, `${p.name} covers everyone now`) : (setAdding(p.key), setKey("")))} />
                 ))}
-              </Actions>} />
-          ) : null}
-          {s.set ? <Row id="voice-own" title="People with their own key" note={owned === 0 ? "Nobody. The Space key covers everyone" : `${owned}. Their own key wins for them`} /> : null}
+              </Actions>
+            );
+            return (
+              <View style={{ borderTopWidth: 1, borderTopColor: "var(--line)" as string }}>
+                <Row id="voice-provider" title="Provider for everyone" note={[...me.data.providers].sort((x, y) => Number(y.key === s.provider) - Number(x.key === s.provider)).map((p) => `${p.name}${p.key === s.provider ? " (in use)" : keyed.includes(p.key) ? "" : " (no key yet)"}`).join(" · ")} leading={<IconTile icon="bolt" />} {...(narrow ? {} : { trailing: buttons })} />
+                {narrow ? <View testID="voice-provider-buttons" style={{ paddingLeft: 48, paddingRight: 8, marginTop: -8, marginBottom: -4 }}>{buttons}</View> : null}
+              </View>
+            );
+          })() : null}
+          {s.set ? <View style={{ borderTopWidth: 1, borderTopColor: "var(--line)" as string }}><Row id="voice-own" title="People with their own key" note={owned === 0 ? "Nobody. The Space key covers everyone" : `${owned} ${owned === 1 ? "person" : "people"} · their own key wins for them`} /></View> : null}
         </Group>
         {form ? (
-          <Group>
+          <View style={{ marginTop: 10 }}><Group><View testID="voice-form" style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+            {!s.set && adding === null ? <View style={{ marginBottom: 10 }}><Select label="Provider" testID="voice-provider-pick" value={provider?.key ?? pick} hint="Turns what people say into text in the message." options={[...me.data.providers].sort((x, y) => Number(y.key === "deepgram") - Number(x.key === "deepgram")).map((p) => ({ key: p.key, title: p.name }))} onChange={(v) => { setPick(v); setKey(""); }} /></View> : null}
             <Field label={`${name} key`} value={key} onChange={setKey} secure testID="voice-key" />
-            <Note>{"Goes straight to this Space's Vault and is checked at once. It needs the Member role."}</Note>
+            <Text accessibilityRole="status" style={{ fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string, marginVertical: 6 }}>{`Goes straight to this Space's Vault and is checked at once. ${provider?.key === "elevenlabs" ? "Make the key in ElevenLabs with Speech to Text access." : "Make the key in Deepgram with the Member role or higher."}`}</Text>
             <Actions>
               <Button label={action.busy ? "Checking" : s.set ? "Replace key" : "Turn on for everyone"} disabled={key.trim() === "" || action.busy} why="Paste the key first" onPress={() => void save()} testID="voice-save" />
               {replacing || adding !== null ? <Button label="Cancel" onPress={() => { setReplacing(false); setAdding(null); setKey(""); }} testID="voice-cancel" /> : null}
               {provider ? <Button label={`Get a key from ${name}`} onPress={() => { (globalThis as { open?: (url: string, target: string) => void }).open?.(provider.keyUrl, "_blank"); }} testID="voice-get-key" /> : null}
             </Actions>
-          </Group>
+          </View></Group></View>
         ) : (
           <Actions>
-            <Button label="Replace key" onPress={() => setReplacing(true)} testID="voice-replace" />
-            <Button label={s.on ? "Turn off" : "Turn on"} onPress={() => void action.run("talk.space.configure", { on: !s.on }, s.on ? "Talk is off for everyone without their own key" : "Talk is on for everyone")} disabled={action.busy} testID="voice-toggle" />
-            <Button label="Check now" onPress={() => void action.run("talk.space.check", {}, "Checked")} disabled={action.busy} testID="voice-check" />
+            <QuietButton label="Replace key" onPress={() => setReplacing(true)} testID="voice-replace" />
+            <QuietButton label={s.on ? "Turn off" : "Turn on"} onPress={() => void action.run("talk.space.configure", { on: !s.on }, s.on ? "Talk is off for everyone without their own key" : "Talk is on for everyone")} disabled={action.busy} testID="voice-toggle" />
+            <QuietButton label="Check now" onPress={() => void action.run("talk.space.check", {}, "Checked")} disabled={action.busy} testID="voice-check" />
             {gone
               ? <Button danger label="Remove from the Vault" onPress={() => void action.run("talk.space.disconnect", {}, "Key removed").then(() => setGone(false))} testID="voice-remove-yes" />
-              : <Button danger label="Remove key" onPress={() => setGone(true)} testID="voice-remove" />}
+              : <QuietButton danger label="Remove key" onPress={() => setGone(true)} testID="voice-remove" />}
           </Actions>
         )}
         {action.note !== "" ? <Text accessibilityRole="status" testID="voice-note" style={{ marginTop: 8, fontSize: 12.5, color: "var(--ink-3)" }}>{action.note}</Text> : null}

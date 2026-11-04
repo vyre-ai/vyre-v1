@@ -53,6 +53,7 @@ export const handlers: Record<string, Handler> = {
   "github.token": (ctx, i) => me.token(ctx, i),
   "github.session_env": (ctx, i) => me.sessionEnv(ctx, i),
   "github.me.usage": (ctx) => me.meUsage(ctx),
+  "github.runner_release": (ctx, i) => h.runnerRelease(ctx, i),
   "github.runners.jit_config": (ctx, i) => h.runnersJitConfig(ctx, i),
   "github.runners.remove": (ctx, i) => h.runnersRemove(ctx, i),
   "github.actions.secrets": (ctx, i) => h.actionsSecrets(ctx, i),

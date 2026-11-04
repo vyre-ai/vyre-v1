@@ -3,6 +3,7 @@ import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { recentWithUnread } from "./handlers/g26.ts";
 import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
+import { forgetMentions } from "./handlers/pace.ts";
 import { onCardAnswered, onDirectReply, sendDue } from "./handlers/agent-dm.ts";
 import type { ChatCtx } from "./projections.ts";
 import { ensureHome } from "./handlers/home-channel.ts";
@@ -70,6 +71,7 @@ export const hostCalls = {
       if (i.kind === "private_chats" && i.action === "delete") {
         const ids = ownedRows(ctx, `SELECT t."id" AS "id" ${PRIVATE_CHATS}`, i.person).map((r) => String(r["id"]));
         for (const id of ids) {
+          forgetMentions(ctx, { thread: id });
           ctx.db.run(`UPDATE chat_message SET "deleted_at" = ?, "updated_at" = ? WHERE "thread" = ? AND "deleted_at" IS NULL`, now, now, id);
           ctx.db.run(`UPDATE chat_thread SET "deleted_at" = ?, "updated_at" = ?, "closedAt" = COALESCE("closedAt", ?) WHERE "id" = ?`, now, now, now, id);
         }

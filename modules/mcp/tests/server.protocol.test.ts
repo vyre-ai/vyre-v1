@@ -192,10 +192,10 @@ test("tools/list for an outside agent: common tools it may use, none of the vaul
 test("tools/list for a CLI engine's session is the whole default set (the agent's own rules apply), not the outside tool's cut", async () => {
   const r = rig();
   const names = new Set((await r.list("drv")).map((t) => t.name));
-  assert.equal(names.size, g.defaults.size + 9);   // and people_status, message_person: who is in and a message to a teammate (lane l-agentdm), task_submit and task_ask: how a helper hands in
+  assert.equal(names.size, g.defaults.size + 10);   // and helper_note (a helper and the agent that started it talk with it, l-crews), people_status, message_person: who is in and a message to a teammate (lane l-agentdm), task_submit and task_ask: how a helper hands in
   assert.ok(names.has("terminal_run") && names.has("vault_use") && names.has("screen_screenshot") && names.has("use_tool") && names.has("files_create") && names.has("files_tree"));
   assert.ok(names.has("people_status") && names.has("message_person"));
-  assert.ok(names.has("task_submit") && names.has("task_ask"), "a helper hands in with what is already listed, never searching for it");
+  assert.ok(names.has("task_submit") && names.has("task_ask") && names.has("helper_note"), "a helper hands in with what is already listed, never searching for it");
 });
 
 test("a CLI engine lists once, so use_tool calls what tool_search found; a tool it never searched for stays refused", async () => {
@@ -443,8 +443,10 @@ test("a session that ends fails the call in flight at once", async () => {
   const caller = outside({ sessionId: "ses_slow" });
   const server = createMcpServer({ catalog: g.catalog, defaults: g.defaults, invoke: slow, open: async () => caller });
   const call = server.handle({ method: "POST", headers: { authorization: "Bearer t" }, body: JSON.stringify({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "records_query", arguments: { type: "lead" } } }) });
-  await new Promise((r) => setTimeout(r, 10));
-  assert.equal(server.end("ses_slow"), true);
+  // the call is in flight once its session is open (the hooks layer and the tool list come first, so a fixed 10 ms was too short under load): end it then
+  let ended = false;
+  for (let i = 0; i < 200 && !ended; i++) { await new Promise((r) => setTimeout(r, 10)); ended = server.end("ses_slow"); }
+  assert.equal(ended, true, "the session was open with the call in flight");
   const out = JSON.parse((await call).body) as { result: { isError: boolean; structuredContent: { error: { code: string } } } };
   assert.equal(out.result.isError, true);
   assert.equal(out.result.structuredContent.error.code, "permission.revoked");

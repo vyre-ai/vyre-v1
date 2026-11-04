@@ -36,6 +36,16 @@
       "note": "Install from a link, member."
     },
     {
+      "id": "INSTALL_01-vaultkey",
+      "route": "/m/INSTALL_01?part=mcp",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-vault-m1']",
+      "click": [
+        "[data-testid='install-addkey-DATABASE_URL-m1']"
+      ],
+      "note": "Install waits for a missing Vault key: Add it opened, Install held."
+    },
+    {
       "id": "INSTALL_01-done",
       "route": "/m/INSTALL_01?part=done",
       "proto": "chat,{skin}",
@@ -48,6 +58,16 @@
       "proto": "chat,{skin}",
       "waitFor": "[data-testid='install-update-m1']",
       "note": "Install from a link, update."
+    },
+    {
+      "id": "INSTALL_01-update-diff",
+      "route": "/m/INSTALL_01?part=update",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-update-m1']",
+      "click": [
+        "[data-testid='install-diff-toggle-m1']"
+      ],
+      "note": "Install from a link, update with the diff opened."
     },
     {
       "id": "INSTALL_01-skills",

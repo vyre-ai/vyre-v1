@@ -6,6 +6,16 @@ export type Catalog = CapMap["providers.catalog"]["out"]["providers"][number];
 export type ConnectionKind = Provider["connection"];
 
 export const CONNECTION_NAME: Readonly<Record<ConnectionKind, string>> = { subscription: "Subscription", api_key: "API key", local_model: "Local model" };
+/** What a way of connecting is called for this provider: Codex has two, the ChatGPT plan and an OpenAI key, and each says so. */
+export function kindTitle(provider: string, k: ConnectionKind): string {
+  if (provider === "codex") return k === "api_key" ? "Codex, with an API key" : k === "subscription" ? "Codex, with your ChatGPT sign-in" : CONNECTION_NAME[k];
+  return CONNECTION_NAME[k];
+}
+export function kindNote(provider: string, k: ConnectionKind): string {
+  if (provider === "codex" && k === "api_key") return "Paste an OpenAI API key. Codex runs on it, and you pay OpenAI by use.";
+  if (provider === "codex" && k === "subscription") return "Sign in with your ChatGPT plan. It stays yours.";
+  return CONNECTION_NOTE[k];
+}
 /** What each way of connecting means, in one line, for the gallery. */
 export const CONNECTION_NOTE: Readonly<Record<ConnectionKind, string>> = {
   subscription: "Sign in with your own plan. It stays yours.",

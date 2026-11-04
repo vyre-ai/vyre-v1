@@ -39,6 +39,9 @@ test("helper notes: follow-up down, question answered by the parent, a person-on
       threads["Slow"] = input.threadId;
       await new Promise((r) => setTimeout(r, 9000));
       yield { type: "text", text: "Slow is done." };
+    } else if (/filing date|colour/.test(body)) {
+      // the person's own line, taken into the helper's next step: it answers them in its own chat
+      yield { type: "text", text: "Noted. I will include it." };
     } else if (/pricing page/.test(body)) {
       yield { type: "text", text: "Read the pricing page." };
     }
@@ -87,6 +90,16 @@ test("helper notes: follow-up down, question answered by the parent, a person-on
     assert.equal(steer.who, "person");
     assert.equal(steer.authorId, who, "credited to the person");
     assert.ok(!slow.some((n) => n.who === "parent"), "the steer is not the parent's");
+    // the helper takes the line into its next step and answers that person in its own chat, after their line
+    const answered = await waitFor(async () => {
+      const n = (await s.api("chat.helper.notes", { threadId: threads["Slow"] })).notes as Note[];
+      const at = n.findIndex((x) => x.body === "Also tell me the colour.");
+      return n.slice(at + 1).find((x) => x.who === "helper" && /Noted/.test(x.body)) ?? null;
+    }, 40_000, () => hostLog(s.d));
+    assert.ok(answered, "the helper answers the person in the helper chat");
+    // and the chat above sees what the person told it
+    const above = (await s.api("chat.messages.list", { threadId: chat })).messages as Msg[];
+    assert.ok(above.some((m) => /^To "Slow": Also tell me the colour\.$/.test(m.body) && m.author.id === who), "the parent chat sees the person's line");
     // let the last helper end before the daemon goes down
     await waitFor(async () => (((await s.api("engine.helpers.status", { threadId: chat })).helpers as Array<{ state: string }>).every((h) => h.state !== "working") ? true : null), 40_000, () => hostLog(s.d));
   } catch (e) {

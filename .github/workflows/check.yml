@@ -117,6 +117,12 @@ jobs:
         run: node scripts/lint/no-silent-calls.ts --enforce
       - name: no-noop-opt-out (enforced); the no-dead-buttons gate has no opt-out attribute
         run: node scripts/lint/no-noop-opt-out.ts
+      - name: rules-of-hooks (enforced); React's rules of hooks over apps/ and ui/ on the syntax tree, no allow comment (a hook after an early return crashed every chat on 3464fa6b6)
+        run: |
+          [ -d tools/gen/node_modules/typescript ] || bash tools/gen/check.sh   # TypeScript comes from tools/gen, installed by the contracts gate script, as the typecheck step below does
+          node scripts/lint/rules-of-hooks.ts
+      - name: Typecheck ratchet for apps/app and ui (scripts/typecheck-ratchet.ts); the error count in scripts/typecheck-baseline.json may only fall
+        run: node scripts/typecheck-ratchet.ts
       - name: Typecheck every package that has a tsconfig.json above a changed file
         run: |
           git fetch -q origin main

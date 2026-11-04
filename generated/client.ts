@@ -423,6 +423,7 @@ export function createClient(transport: Transport) {
         page: call("chat.history.page", 1),
         search: call("chat.history.search", 1),
       },
+      hook_line: call("chat.hook_line", 1),
       make_task: call("chat.make_task", 1),
       message: {
         get: call("chat.message.get", 1),
@@ -438,6 +439,7 @@ export function createClient(transport: Transport) {
       noted: call("chat.noted", 1),
       open_as_chat: call("chat.open_as_chat", 1),
       open_tab: call("chat.open_tab", 1),
+      pace_of: call("chat.pace_of", 1),
       people_status: call("chat.people_status", 1),
       pin: call("chat.pin", 1),
       pins: {
@@ -1181,6 +1183,7 @@ export function createClient(transport: Transport) {
       repos: {
         list: call("github.repos.list", 1),
       },
+      runner_release: call("github.runner_release", 1),
       runners: {
         jit_config: call("github.runners.jit_config", 1),
         remove: call("github.runners.remove", 1),
@@ -1379,6 +1382,23 @@ export function createClient(transport: Transport) {
       mark_digest_seen: call("home.mark_digest_seen", 1),
       routines_today: call("home.routines_today", 1),
       write_digest: call("home.write_digest", 1),
+    },
+    hooks: {
+      allow_once: call("hooks.allow_once", 1),
+      ask_admin: call("hooks.ask_admin", 1),
+      fire: call("hooks.fire", 1),
+      list: call("hooks.list", 1),
+      pause: call("hooks.pause", 1),
+      policy: {
+        get: call("hooks.policy.get", 1),
+        set: call("hooks.policy.set", 1),
+      },
+      remove: call("hooks.remove", 1),
+      runs: {
+        latest: call("hooks.runs.latest", 1),
+        list: call("hooks.runs.list", 1),
+      },
+      set: call("hooks.set", 1),
     },
     hubspot: {
       health: call("hubspot.health", 1),
@@ -2861,6 +2881,7 @@ export function createClient(transport: Transport) {
       remove_agent: call("threads.remove_agent", 1),
       reopen: call("threads.reopen", 1),
       restore: call("threads.restore", 1),
+      set_agent_replies: call("threads.set_agent_replies", 1),
       set_folder: call("threads.set_folder", 1),
       set_mode: call("threads.set_mode", 1),
       set_plan_mode: call("threads.set_plan_mode", 1),

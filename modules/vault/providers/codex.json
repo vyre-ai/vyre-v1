@@ -3,7 +3,8 @@
   "key": "codex",
   "name": "Codex",
   "connections": [
-    "subscription"
+    "subscription",
+    "api_key"
   ],
   "modelsSource": "engine",
   "engine": "codex",
@@ -18,5 +19,5 @@
     "gpt-5.6-luna",
     "gpt-5.5"
   ],
-  "instruction": "Press Sign in with ChatGPT. Vyre starts ChatGPT's own sign-in and gives you its link. Approve it in your browser and the account is saved in your Mine folder."
+  "instruction": "With your ChatGPT plan: press Sign in with ChatGPT. Vyre starts ChatGPT's own sign-in and gives you its link. Approve it in your browser and the account is saved in your Mine folder."
 }

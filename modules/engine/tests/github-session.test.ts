@@ -57,3 +57,32 @@ test("withGithub sets the variables on the spawn last and leaves a spawn with no
   assert.equal(withGithub(spec, {}), spec);
   assert.deepEqual(withGithub(spec, { GH_TOKEN: "new" }).env, { PATH: "/bin", GH_TOKEN: "new" });
 });
+
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { redactTree } from "../github-session.ts";
+
+test("files a session wrote are cleaned of the token: a saved environment, a remote with the token in its address, a log; binaries, big files and node_modules are left", () => {
+  const T = "ghs_fileTOKEN0123456789abcdefABCDEF";   // secret-scan: fake
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-redact-"));
+  try {
+    fs.mkdirSync(path.join(dir, ".git"));
+    fs.mkdirSync(path.join(dir, "src", "deep"), { recursive: true });
+    fs.mkdirSync(path.join(dir, "node_modules", "x"), { recursive: true });
+    fs.writeFileSync(path.join(dir, ".git", "config"), `[remote "origin"]\n\turl = https://x-access-token:${T}@github.com/northwind/site.git\n`);
+    fs.writeFileSync(path.join(dir, "env.txt"), `PATH=/bin\nGH_TOKEN=${T}\nGITHUB_TOKEN=${T}\n`);
+    fs.writeFileSync(path.join(dir, "src", "deep", "run.log"), `curl -H "Authorization: Bearer ${T}"\n`);
+    fs.writeFileSync(path.join(dir, "node_modules", "x", "a.js"), T);
+    fs.writeFileSync(path.join(dir, "blob.bin"), Buffer.concat([Buffer.from([0, 1, 2]), Buffer.from(T)]));
+    fs.writeFileSync(path.join(dir, "clean.txt"), "nothing here");
+    const changed = redactTree(dir, [T]).map((f) => path.relative(dir, f)).sort();
+    assert.deepEqual(changed, [".git/config", "env.txt", path.join("src", "deep", "run.log")]);
+    assert.equal(fs.readFileSync(path.join(dir, ".git", "config"), "utf8").includes(T), false);
+    assert.match(fs.readFileSync(path.join(dir, "env.txt"), "utf8"), /GH_TOKEN=\[token\]/);
+    assert.equal(fs.readFileSync(path.join(dir, "node_modules", "x", "a.js"), "utf8"), T, "installed packages are not touched");
+    assert.deepEqual(redactTree(dir, [T]).length, 0, "nothing left to clean");
+    assert.deepEqual(redactTree(path.join(dir, "gone"), [T]), []);
+    assert.deepEqual(redactTree(dir, []), []);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
