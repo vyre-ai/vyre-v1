@@ -6,6 +6,8 @@ import { claimedSpace, hostLog, scriptedModel, stop, waitFor } from "./support/e
 test("change model: the helper restarts on the picked model with its brief again, and the model it runs on is on its row", async () => {
   let lead = ""; let chat = "";
   const briefs: string[] = [];
+  let release!: () => void;
+  const restartGate = new Promise<void>((resolve) => { release = resolve; });
   const model = scriptedModel(async function* (input, run) {
     if (input.agent.id !== lead) return;
     const body = input.trigger?.body ?? "";
@@ -16,7 +18,7 @@ test("change model: the helper restarts on the picked model with its brief again
     briefs.push(body);
     if (briefs.length === 1) { await new Promise((r) => setTimeout(r, 12_000)); yield { type: "text", text: "first run" }; }
     else yield { type: "text", text: "second run on the new model" };
-  });
+  }, { gate: (input) => (/Starting again/.test(input.trigger?.body ?? "") ? restartGate : undefined) });
   const s = await claimedSpace(model);
   lead = s.assistant;
   try {
@@ -31,9 +33,16 @@ test("change model: the helper restarts on the picked model with its brief again
     const pick = acct.models.find((m) => m.available && m.model !== now)?.model ?? acct.models.find((m) => m.available)!.model;
     const out = await s.api("engine.helpers.change_model", { threadId: chat, helperId: h.threadId, account: acct.ref, model: pick });
     assert.equal(out.restarted, true);
-    // what a person sees right after Change model: the helper is working on its restart, never "stopped"
-    const right = ((await s.api("engine.helpers.status", { threadId: chat })).helpers as Array<{ threadId: string; state: string; step?: string }>).find((x) => x.threadId === h.threadId)!;
-    assert.equal(right.state, "working", "a restarting helper reads as working");
+    // the gap: the first turn is stopped, the replacement is held before it starts. What a person sees now is a helper starting again, never one that stopped
+    const stoppedBefore = await waitFor(async () => {
+      const r = ((await s.api("engine.helpers.status", { threadId: chat })).helpers as Array<{ threadId: string; state: string; step?: string }>).find((x) => x.threadId === h.threadId)!;
+      return r.state !== "working" || r.step === "Starting again" ? r : null;
+    }, 20_000, () => hostLog(s.d)).catch(async (e) => { console.log("GAP", JSON.stringify((await s.api("engine.helpers.status", { threadId: chat })).helpers), JSON.stringify((await s.api("chat.helper.notes", { threadId: h.threadId })).notes)); throw e; });
+    assert.equal(stoppedBefore.state, "working", "a restarting helper reads as working while its new turn is held");
+    assert.equal(stoppedBefore.step, "Starting again");
+    const rowDuringGap = ((await s.api("engine.crew.status", { threadId: chat })).members as Array<{ id: string; state: string; step?: string }>).find((x) => x.id === h.threadId)!;
+    assert.deepEqual([rowDuringGap.state, rowDuringGap.step], ["working", "Starting again"], "the one read the strip and the pane use says the same");
+    release();
     const after = await waitFor(async () => (briefs.length >= 2 ? true : null), 40_000, () => hostLog(s.d));
     assert.ok(after);
     assert.match(briefs[1]!, /Starting again on .*Do the brief again from the start/);

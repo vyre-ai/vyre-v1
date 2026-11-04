@@ -152,7 +152,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
       await page.getByTestId("helpers-button").first().click({ timeout: 15_000 });
       await page.getByTestId("crew-overview").first().waitFor({ timeout: 20_000 });
       await shoot(page, `crew-over-${mode}-${size}`);
-      await page.getByTestId("crew-overview").locator('[data-testid^="crew-chip-"][role="button"]').first().click({ timeout: 15_000 });
+      await page.getByTestId("crew-overview").locator('[data-testid^="crew-chip-"][role="button"]').filter({ hasText: "Check the calendar" }).first().click({ timeout: 15_000 });
       await page.getByTestId("crew-peek").first().waitFor({ timeout: 20_000 });
       await shoot(page, `crew-peek1-${mode}-${size}`);
       if (mode === "light") {
@@ -168,7 +168,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
         // the helper chat: ask it something, it answers the person
         await page.getByTestId("crew-peek-open").click({ timeout: 15_000 });
         await page.getByText(/Brief from/).first().waitFor({ timeout: 20_000 });
-        await page.getByLabel(/^Ask .* something$/).first().fill("Keep it short.", { timeout: 15_000 });
+        await page.getByLabel(/^Ask .* something$/).first().fill("Keep it short.", { timeout: 15_000 }).catch(async (e) => { await shoot(page, `FAILED-ask-box-${mode}`); console.log("MEMBER", JSON.stringify(await api("engine.crew.status", { threadId: chat }).then((r: any) => r.members.map((m: any) => [m.title, m.state, m.step])))); throw e; });
         await page.getByTestId("helper-ask-send").click();
         await page.getByText("Noted. I will keep it short.").first().waitFor({ timeout: 100_000 }).catch(async (e) => { await shoot(page, `FAILED-reply-${mode}`); throw e; });
         assert.ok(await page.getByText(/replying to you/).count() > 0, "the helper says whom it answers");

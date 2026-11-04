@@ -161,7 +161,14 @@ export type RunTool = (name: string, input: unknown) => AsyncGenerator<DriverEve
 export const isOneShot = (input: TurnInput): boolean => String(input.threadId ?? "").startsWith("oneshot_") || input.agent?.id === "memory-upkeep";
 
 /** What `scriptedModel` does with memory's learning one-shots: "answer" (the default) answers them itself with nothing to learn; "pass" hands them to `plan` like a turn. */
-export interface ScriptedModelOptions { oneShots?: "answer" | "pass" }
+export interface ScriptedModelOptions {
+  oneShots?: "answer" | "pass";
+  /**
+   * Hold a turn before it starts: the promise this returns (when it returns one) must settle before the plan runs. A test releases it when it has looked at what a person sees in the gap between a
+   * turn that was stopped and the turn that replaces it. A cancel while the turn is held ends it at once.
+   */
+  gate?: (input: TurnInput) => Promise<void> | undefined;
+}
 
 /**
  * A model vendor stand-in that decides like a model would: `plan` reads the turn input and yields text and tool calls. `yield* run(name, input)` makes a tool call and returns its result.
@@ -181,15 +188,30 @@ export function scriptedModel(plan: (input: TurnInput, run: RunTool) => AsyncGen
       yield { type: "tool_call", id, name, input };
       return answer;
     };
+    // like the real engine, a cancel stops the turn that is running: the plan's pending await is left behind and the turn ends without a word more
+    const live = new Set<() => void>();
     return {
       warm: true,
       async *send(input: TurnInput): AsyncGenerator<DriverEvent> {
         if (o.oneShots !== "pass" && isOneShot(input)) { yield { type: "text", text: '{"ops":[]}' }; yield { type: "done" }; return; }
-        yield* plan(input, run);
-        yield { type: "done" };
+        let stop!: () => void;
+        const stopped = new Promise<"stopped">((resolve) => { stop = () => resolve("stopped"); });
+        live.add(stop);
+        try {
+          const held = o.gate?.(input);
+          if (held && (await Promise.race([held.then(() => "go" as const), stopped])) === "stopped") return;
+          const it = plan(input, run)[Symbol.asyncIterator]();
+          for (;;) {
+            const next = await Promise.race([it.next(), stopped]);
+            if (next === "stopped") { void it.return?.(undefined as never).catch(() => undefined); return; }
+            if (next.done) break;
+            yield next.value;
+          }
+          yield { type: "done" };
+        } finally { live.delete(stop); }
       },
       sendToolResult(id: string, r: ToolResult) { waiting.get(id)?.(r); waiting.delete(id); },
-      inject() {}, async cancel() {}, async close() {},
+      inject() {}, async cancel() { for (const f of [...live]) f(); }, async close() { for (const f of [...live]) f(); },
     } as EngineSession;
   };
 }
