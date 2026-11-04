@@ -1,6 +1,7 @@
 // A component must call the same hooks on every render. A hook after an early `return` runs only once the early return stops firing (data arrived), so React throws #310 ("rendered more hooks
 // than during the previous render") and the place shows "Couldn't draw this page". The Inbox conversation did exactly that, so a person could not open an email. This scans every component
-// body in the app for a hook call at the top level of the function after a top-level early return.
+// body in the app for a hook call at the top level of the function after a top-level early return, `return null;` included.
+// scripts/lint/rules-of-hooks.ts is the full check on the syntax tree, in gates; this is the quick one that runs with the app tests.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -26,7 +27,7 @@ export function hooksAfterEarlyReturn(text: string): { line: number; code: strin
   for (let i = 0; i < lines.length; i++) {
     const l = lines[i]!;
     if (/^\S/.test(l) && !/^[})\]]/.test(l)) early = false;   // a new top-level statement starts a new function
-    if (/^  if \([^{]*\) return\b[^;]*;\s*$/.test(l) && !/return null;|return;|return undefined;/.test(l)) early = true;
+    if (/^  if \([^{]*\) return\b[^;]*;\s*$/.test(l)) early = true;   // return null and a bare return count too (ChromeStepCard did `if (!found) return null;` then useState)
     else if (early && /^  (const|let) .*= use[A-Z]\w*\(|^  use[A-Z]\w*\(/.test(l)) found.push({ line: i + 1, code: l.trim().slice(0, 100) });
   }
   return found;
@@ -35,6 +36,7 @@ export function hooksAfterEarlyReturn(text: string): { line: number; code: strin
 test("the scan finds a hook after an early return and nothing else", () => {
   const bad = "function A() {\n  const a = useX();\n  if (!a) return <Loading />;\n  const b = useY();\n  return <b />;\n}\nfunction B() {\n  const a = useX();\n  const b = useY();\n  if (!a) return <Loading />;\n  return <b />;\n}\n";
   assert.deepEqual(hooksAfterEarlyReturn(bad).map((f) => f.line), [4]);
+  assert.deepEqual(hooksAfterEarlyReturn("function C({ d }) {\n  if (!d) return null;\n  const [s] = useState(d.open);\n  return <V />;\n}\n").map((f) => f.line), [3]);
 });
 
 test("no component in the app calls a hook after an early return", () => {

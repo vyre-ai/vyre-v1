@@ -96,6 +96,16 @@ export function GithubAppPage(): ReactElement {
     })();
     return () => { live = false; };
   }, [rev]);
+  const gapp = ci.data?.githubApp;
+  const acceptUrl = gapp && gapp.installed && !gapp.ready ? (gapp.acceptUrl ?? gapp.orgAcceptUrl) : null;
+  // (above the early return: hooks run on every render) after Accept the person is on GitHub: ask again every few seconds (up to five minutes) so the row clears by itself once the permissions are accepted
+  useEffect(() => {
+    if (!accepting || !acceptUrl) return undefined;
+    const t0 = Date.now();
+    const timer = setInterval(() => { if (Date.now() - t0 > ACCEPT_POLL_MAX_MS) { clearInterval(timer); return; } ci.refresh(); }, ACCEPT_POLL_MS);
+    (timer as unknown as { unref?: () => void }).unref?.();
+    return () => clearInterval(timer);
+  }, [accepting, acceptUrl, ci]);
   if (!sign.data) return <ReadState error={sign.error} retry={sign.refresh} />;
   const g = sign.data.github;
   const complete = appComplete(g, app);
@@ -105,16 +115,6 @@ export function GithubAppPage(): ReactElement {
     if (complete) { setConfirm(true); return; }
     setWantOwn(false);
   };
-  const gapp = ci.data?.githubApp;
-  const acceptUrl = gapp && gapp.installed && !gapp.ready ? (gapp.acceptUrl ?? gapp.orgAcceptUrl) : null;
-  // after Accept the person is on GitHub: ask again every few seconds (up to five minutes) so the row clears by itself once the permissions are accepted
-  useEffect(() => {
-    if (!accepting || !acceptUrl) return undefined;
-    const t0 = Date.now();
-    const timer = setInterval(() => { if (Date.now() - t0 > ACCEPT_POLL_MAX_MS) { clearInterval(timer); return; } ci.refresh(); }, ACCEPT_POLL_MS);
-    (timer as unknown as { unref?: () => void }).unref?.();
-    return () => clearInterval(timer);
-  }, [accepting, acceptUrl, ci]);
   return <View testID="console-github-app">
     {acceptUrl ? <Section title="Needs you" count={1}>
       <Group><Row id="gh-need-perms" title={`GitHub needs you to accept new permissions for ${acceptOrg(gapp?.orgAcceptUrl ?? null, data.space.name)}`} note="Until you accept them, jobs stay on GitHub's own runners." leading={<IconTile icon="warn" tone="warn" />} trailing={<Button small label="Accept" testID="gh-need-accept" onPress={() => { open(acceptUrl); setAccepting(true); }} />} /></Group>

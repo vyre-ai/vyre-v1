@@ -67,6 +67,12 @@ export function closure(file, fwd) {
   return [...seen].sort();
 }
 
+/** True when a pass must never be cached: the file opts out with `// @nocache`, or it lists a directory (readdirSync, readdir, globSync, git ls-files).
+ * A test that scans the tree reads files that are not in its import closure, so its key would not change when they do and a stale pass would replay. */
+export function noCache(src) {
+  return /^\s*\/\/\s*@nocache\b/m.test(src) || /\b(?:readdirSync|readdir|globSync|opendirSync)\s*\(|\bls-files\b/.test(src);
+}
+
 /** Pass-cache key: sha256 over content hashes of the closure, node version, runner version and env tag. */
 export function cacheKey(file, fwd, read, env) {
   const h = crypto.createHash("sha256");
