@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DAY, NOW, DANA, LEO, MAYA, BOT, contractErrors, harness, codeOf, reasonOf } from "../fixtures/harness.ts";
 import { key, mkProject, run } from "../fixtures/seed.ts";
-import { consumers, grantOnProject } from "../impl.ts";
+import { grantOnProject } from "../impl.ts";
 
 async function refused(p: Promise<unknown>, code: string, reason?: string): Promise<void> {
   await assert.rejects(p, (e) => { assert.equal(codeOf(e), code); if (reason) assert.equal(reasonOf(e), reason); return true; });
@@ -567,23 +567,4 @@ test("archive and unarchive need Manage: a person with no grant on the project i
   await refused(run(h, "projects.archive", { projectId: p.projectId }, h.person(LEO)), "validation.not_found");
   h.allowOnly(() => true);
   assert.deepEqual((await run(h, "projects.list", {})).projects.length, 1, "nothing changed");
-});
-
-test("an agent made for a project joins its people as a member after agent.created commits; a retry writes nothing twice, and an agent of no project is nobody's member", async () => {
-  const h = harness();
-  const made = await run(h, "projects.create", { type: "project", title: "Probate GTM", idempotencyKey: key() });
-  const mate = (h.world.handlers["agents.create"]!({ name: "Coordinator", projectId: made.projectId }, { idempotencyKey: key() }) as { agent: { agentId: string } }).agent.agentId;
-  const plain = (h.world.handlers["agents.create"]!({ name: "Plain" }, { idempotencyKey: key() }) as { agent: { agentId: string } }).agent.agentId;
-  const hook = consumers["projects.agent_member"];
-  assert.deepEqual(hook.on, ["agent.created"]);
-  const before = (await run(h, "projects.members.list", { projectId: made.projectId })).members as { principal: string }[];
-  assert.ok(!before.some((m) => m.principal === mate), "not a member until the event is handled");
-  await hook.run(h.ctx, { payload: { agentId: mate } });
-  await hook.run(h.ctx, { payload: { agentId: plain } });
-  const grants = h.world.grants.length;
-  await hook.run(h.ctx, { payload: { agentId: mate } });   // retried
-  assert.equal(h.world.grants.length, grants, "a retry writes nothing twice");
-  const after = (await run(h, "projects.members.list", { projectId: made.projectId })).members as { principal: string; role: string; kind: string }[];
-  assert.deepEqual(after.filter((m) => m.kind === "agent").map((m) => [m.principal, m.role]), [[mate, "member"]]);
-  assert.ok(!after.some((m) => m.principal === plain), "an agent of no project is nobody's member");
 });

@@ -538,8 +538,8 @@ export async function share(ctx: ShareCtx, input: {
   }
   assertFlags(ctx,store,res,cond,grant?.conditions);
   if (input.subject.kind === "group" && input.subject.id === EVERYONE) assertEveryone(ctx, store, res, input.level, grant);
-  // the host writing a project's roles for its people (projects.initial_roles after project.created commits, projects.agent_member after an agent made for the project commits) is not a person delegating: the people it names were vetted when the project was made
-  if (!(isHostService(ctx.principal) && sameSource?.startsWith("project:"))) assertDelegation(ctx,store,res,input.subject,input.level,cond,grant?.id);
+  // the host writing a project's roles for the people it started with (projects.initial_roles, after project.created commits) is not a person delegating: the people it names were vetted when the project was made
+  if (!(isHostService(ctx.principal) && res.type === "project" && sameSource?.startsWith("project:"))) assertDelegation(ctx,store,res,input.subject,input.level,cond,grant?.id);
   const created = !grant;
   if (grant) { grant.level = input.level; grant.conditions = cond; }
   else {

@@ -37,19 +37,6 @@ export async function grantOnProject(ctx: ProjectsCtx, projectId: string): Promi
   }
 }
 
-/**
- * An agent made for a project is one of the project's people. The agent is an access principal only once the create has committed, so this runs after `agent.created` (projects.agent_member), as the host.
- * An agent that is not a project's teammate, a project that is gone and an agent that already holds a role are left alone, so a retried consumer writes nothing twice.
- */
-export async function addAgentMember(ctx: ProjectsCtx, agentId: string): Promise<void> {
-  const got = await call<{ agent?: { teammateOf?: string; kind?: string } }>(ctx, "agents.get", { agentId });
-  const projectId = got.agent?.kind === "teammate" || got.agent?.teammateOf?.startsWith("prj_") ? got.agent?.teammateOf : undefined;
-  if (!projectId) return;
-  const p = projectBy(ctx.db, projectId);
-  if (!p || memberOf(ctx.db, projectId, agentId)) return;
-  await applyRole(ctx, p, agentId, "member");
-}
-
 /** Tasks for counts; a project still opens when Tasks does not answer. */
 async function tasksOrNone(ctx: ProjectsCtx, p: Project): Promise<TaskView[]> {
   try { return await loadTasks(ctx, p); } catch (e) {

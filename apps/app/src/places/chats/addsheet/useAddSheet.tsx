@@ -163,7 +163,9 @@ export async function runAdd(deps: AddSheetDeps, r: Loaded, picks: readonly Acce
   for (const c of queue) {
     const names = nameOfCall(c, picks);
     try {
-      await deps.call(c.cap, c.input);
+      const out = await deps.call(c.cap, c.input) as { agent?: { agentId?: string } } | undefined;
+      // an agent made for a project is one of the project's people too (listed with them, given a role by a Lead). It is a principal of the Space only once the create has committed (host/src/gateway/principals.ts), so this cannot be part of agents.create itself
+      if (c.cap === "agents.create" && r.ctx.kind === "project" && out?.agent?.agentId) await deps.call("projects.members.set", { projectId: r.ctx.projectId, principal: out.agent.agentId, role: "member", idempotencyKey: key() });
       if (addsSomeone(c as never)) for (const n of names) if (!added.includes(n)) added.push(n);
     } catch {
       for (const n of names) if (!failed.includes(n)) failed.push(n);
