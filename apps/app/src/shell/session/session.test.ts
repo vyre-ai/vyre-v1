@@ -955,7 +955,7 @@ test("session: a tab change inside the page already open is not a new door: it n
   s.runtime.open({ subject: { type: "project", id: "prj_1" }, args: { tab: "plan" } });
   await new Promise((r) => setTimeout(r, 40));
   s.close();
-  assert.deepEqual(went, ["records subject=project%3Aprj_1&tab=plan"], "the local move goes; the same open as a new door is refused");
+  assert.deepEqual(went, ["chats subject=project%3Aprj_1&tab=plan"], "the local move goes (a project opens in Chats now); the same open as a new door is refused");
   assert.equal(said.length, 1);
 });
 
