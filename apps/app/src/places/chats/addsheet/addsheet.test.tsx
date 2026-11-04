@@ -24,6 +24,12 @@ async function rightClick(root: Node, id: string): Promise<void> {
   await flush();
 }
 
+/** The sample project's viewer as its Lead, so the project's menu offers Add People (it is a manager's). */
+const asLead = <T extends { call(cap: string, input: unknown): Promise<unknown> }>(data: T): T & { me: { id: string; name: string } } => ({
+  ...data, me: { id: "usr_maya", name: "Maya Chen" },
+  async call(cap: string, input: unknown) { if (cap === "stars.list") return { stars: [] }; return cap === "projects.members.list" ? { members: [{ principal: "usr_maya", role: "lead", kind: "person", since: 1 }] } : data.call(cap, input); },
+});
+
 test("the composer's + has Add people and agents under This chat, and it opens the sheet", async () => {
   await withDom(async () => {
     const s = createSample("idle");
@@ -98,10 +104,10 @@ test("the right pane's Threads and Crew tabs each have the Add people and agents
   });
 });
 
-test("a project's members count opens the people popover (Manage on the Overview); its Teammates tab opens the Add sheet; the old inline form is gone", async () => {
+test("a project's members count opens the people popover (Manage on the Overview); Add People in the project's menu opens the Add sheet; there is no Teammates tab and no inline form", async () => {
   await withDom(async () => {
     const s = createSampleProject();
-    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>);
+    const root = await mount(createRoot, <ProjectPageDataProvider value={asLead(s.data)}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>);
     await flush();
     await press(find(root, "project-members"));
     await flush();
@@ -110,10 +116,12 @@ test("a project's members count opens the people popover (Manage on the Overview
     await press(find(root, "people-footer"));
     await flush();
     assert.equal(find(root, "people-popover"), null, "the footer closes it and shows the Overview");
-    await press(find(root, "tab-teammates"));
-    await flush();
+    assert.equal(find(root, "tab-teammates"), null, "the Teammates list is the people popover's now");
     assert.equal(find(root, "teammate-name"), null, "no inline form");
-    await press(find(root, "teammate-add"));
+    await flush(); await flush();
+    await press(find(root, "project-more"));
+    await flush();
+    await press(find(root, "menu-item-Add People…"));
     await flush();
     assert.ok(find(root, SHEET));
     assert.match(textOf(find(root, SHEET)), /to Rivera engagement/);
