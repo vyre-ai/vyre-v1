@@ -139,7 +139,7 @@ export function MachineList({ data, who, narrow, now, onOpen, onAdd, onApprove, 
       {data.waiting.length > 0 ? (
         <Block title="Waiting for approval" count={data.waiting.length} testID="machines-waiting">
           {data.waiting.map((w) => <Row key={w.serverId} id={`waiting-${w.serverId}`} title={w.name} note={[w.facts ? `${w.facts.os} ${w.facts.arch}${w.facts.docker ? ", Docker" : ""}` : null, w.fingerprint ? `Fingerprint ${w.fingerprint}` : null].filter(Boolean).join(" \u00b7 ")} tall
-            trailing={<View style={s.inline}><Pressable accessibilityRole="button" accessibilityLabel={`Decline ${w.name}`} testID={`waiting-decline-${w.serverId}`} onPress={() => onDecline?.(w.serverId)} style={[s.small, pointer]}><Text style={s.smallText}>Decline</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Approve ${w.name}`} testID={`waiting-approve-${w.serverId}`} onPress={() => onApprove?.(w.serverId)} style={[s.primary, pointer]}><Text style={s.primaryText}>Approve</Text></Pressable></View>} />)}
+            trailing={<View style={s.inline}><Pressable accessibilityRole="button" accessibilityLabel={`Deny ${w.name}`} testID={`waiting-decline-${w.serverId}`} onPress={() => onDecline?.(w.serverId)} style={[s.small, pointer]}><Text style={s.smallText}>Deny</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Allow ${w.name}`} testID={`waiting-approve-${w.serverId}`} onPress={() => onApprove?.(w.serverId)} style={[s.primary, pointer]}><Text style={s.primaryText}>Allow</Text></Pressable></View>} />)}
         </Block>
       ) : null}
       {data.alerts.length > 0 ? (
@@ -243,19 +243,20 @@ function MachinePage(props: MachinesViewProps & { row: MachineRow; width: number
   };
 
   const m = detail?.machine ?? row;
+  const removal = props.scope === "space" && m.kind === "server" ? { word: "Remove this server", pcs: row.pins.length, run: async (): Promise<void> => { await call("network.server_remove", { serverId: row.serverId }); props.onChanged(); props.onBack(); } } : undefined;
   const own = detail ? detail.privacy === "full" : !row.private;
   const colWidth = Math.max(280, Math.min(props.width, 1200) - (narrow ? 32 : 56));
   const chartW = narrow ? colWidth - 28 : Math.floor((colWidth - 14) / 2) - 28;
-  return <MachineDetail m={m} detail={detail} own={own} range={range} tab={tab} hover={hover} chartW={chartW} narrow={narrow} who={who} now={(props.clock ?? Date.now)()} goto={props.goto} onFix={onFix} fixed={fixed} onRange={setRange} onTab={setTab} onHover={setHover} onBack={props.onBack} placement={<Placement {...props} m={m} />} />;
+  return <MachineDetail m={m} detail={detail} own={own} range={range} tab={tab} hover={hover} chartW={chartW} narrow={narrow} who={who} now={(props.clock ?? Date.now)()} goto={props.goto} onFix={onFix} fixed={fixed} {...(removal ? { removal } : {})} onRange={setRange} onTab={setTab} onHover={setHover} onBack={props.onBack} placement={<Placement {...props} m={m} />} />;
 }
 
 export interface MachineDetailProps {
-  m: MachineRow; detail: MachineOut | null; own: boolean; range: Range; tab: Tab; hover: number | null; chartW: number; narrow: boolean; who(id: string): string; now: number; goto: ((page: string) => void) | undefined; onFix?(fix: "clear_caches" | "stop_idle"): void; fixed?: string;
+  m: MachineRow; detail: MachineOut | null; own: boolean; range: Range; tab: Tab; hover: number | null; chartW: number; narrow: boolean; who(id: string): string; now: number; goto: ((page: string) => void) | undefined; onFix?(fix: "clear_caches" | "stop_idle"): void; fixed?: string; /** The danger block at the foot of an added server's page (prototype vyre-console.html line 4304): Remove asks first, and says the access ends at once. */ removal?: { word: string; pcs: number; run(): Promise<void> };
   onRange(r: Range): void; onTab(t: Tab): void; onHover(f: number | null): void; onBack(): void; placement: ReactNode;
 }
 
 /** One machine's page, drawn from what machines.get answered: nothing here fetches, so the same page serves the Console, Settings and the tests. */
-export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narrow, who, now, goto, onFix, fixed, onRange, onTab, onHover, onBack, placement }: MachineDetailProps): ReactElement {
+export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narrow, who, now, goto, onFix, fixed, removal, onRange, onTab, onHover, onBack, placement }: MachineDetailProps): ReactElement {
   const st = statusOf(m, now);
   const bad = detail ? detail.findings.filter((f) => f.state !== "healthy").length : 0;
   return (
@@ -309,6 +310,7 @@ export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narro
             <Text style={s.empty}>{m.kind === "linked" ? "Names only. Vyre never lists what else is installed on a personal computer." : "Names only."}</Text>
           </Block>
           {placement}
+          {removal ? <RemoveServer m={m} removal={removal} /> : null}
         </View>
       ) : null}
       {tab === "health" ? <HealthTab detail={detail} m={m} goto={goto} onFix={onFix} fixed={fixed} /> : null}
@@ -319,6 +321,31 @@ export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narro
 
 /** What the confirm of Stop idle sessions says: how many will stop, and whose. */
 export const stopLine = (n: number, space: boolean): string => (n === 0 ? "No idle engine sessions are open." : `This stops ${n} idle engine session${n === 1 ? "" : "s"}${space ? " on the Space server, whoever they belong to" : " of yours on this computer"}. A turn that is running is not touched.`);
+
+/** Remove this server…: the confirm names what stops and says the access ends at once; Remove calls network.server_remove. */
+function RemoveServer({ m, removal }: { m: MachineRow; removal: NonNullable<MachineDetailProps["removal"]> }): ReactElement {
+  const [asking, setAsking] = useState(false), [busy, setBusy] = useState(false), [err, setErr] = useState("");
+  const go = (): void => { setBusy(true); setErr(""); void removal.run().catch((e: unknown) => { setErr(e instanceof Error ? e.message : "Couldn't remove it. Try again."); setBusy(false); }); };
+  return (
+    <View testID="machine-remove" style={{ marginTop: 14, gap: 8 }}>
+      {asking ? (
+        <View testID="machine-remove-confirm" style={{ gap: 8 }}>
+          <Text style={s.cellMain}>{`Remove ${displayName(m)}? Its agent computers stop and their local data is wiped. Its access ends at once.`}</Text>
+          <View style={s.inline}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Remove" testID="machine-remove-go" disabled={busy} onPress={go} style={[s.crumb, pointer]}><Text style={[s.crumbText, { color: "var(--danger)" as string }]}>{busy ? "Removing" : "Remove"}</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Cancel" testID="machine-remove-cancel" onPress={() => setAsking(false)} style={[s.crumb, pointer]}><Text style={s.crumbText}>Cancel</Text></Pressable>
+          </View>
+          {err ? <Text style={s.error} testID="machine-remove-error">{err}</Text> : null}
+        </View>
+      ) : (
+        <View style={s.inline}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${removal.word}…`} testID="machine-remove-open" onPress={() => setAsking(true)} style={[s.crumb, pointer]}><Text style={[s.crumbText, { color: "var(--danger)" as string }]}>{`${removal.word}…`}</Text></Pressable>
+          <Text style={s.cellSub}>Its agent computers stop and their local data is wiped. Its access ends at once.</Text>
+        </View>
+      )}
+    </View>
+  );
+}
 
 function HealthTab({ detail, m, goto, onFix, fixed }: { detail: MachineOut | null; m: MachineRow; goto: ((page: string) => void) | undefined; onFix?: ((fix: "clear_caches" | "stop_idle") => void) | undefined; fixed?: string | undefined }): ReactElement {
   const [sure, setSure] = useState(false);

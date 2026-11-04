@@ -121,7 +121,7 @@ export async function requestCreate(ctx: VaultReqCtx, input: { name: string; fie
       ...(ctx.thread ? { notes: { thread: ctx.thread } } : {}),
       assigned: { kind: "person", id: manager }, source: { kind: "manual", id }, blocks: [block],
             // no "resolved" here: a key request closes only through vault.requests.fulfil (a key saved) or decline, never by pressing a bare Done
-      actions: [{ key: "cannot", label: "Decline", note: "optional" }], idempotencyKey: `${id}:${manager}`,
+      actions: [{ key: "cannot", label: "Deny", note: "optional" }], idempotencyKey: `${id}:${manager}`,
     }));
     const taskId = strOf(asRow(made?.["task"])?.["id"]);
     if (!taskId) raise(trace, "internal.unexpected", "The task for the request was not created.");

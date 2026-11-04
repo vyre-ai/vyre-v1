@@ -3,6 +3,8 @@
 // interrupt), and the optimistic message that shows in the same frame as the send.
 import { stepLabel } from "./activity.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { dayIn, partsIn, titleOf as zoneTitle } from "../../../../../../lib/zones.ts";
+import type { Zones } from "../../../../../../lib/zones.ts";
 import { BLOCK_FALLBACKS, isNativeBlockType } from "../../../../../../ui/src/blocks/registry.ts";
 import { applyFallback } from "../../../../../../ui/src/blocks/GenericBlock.tsx";
 import { createIncrementalMarkdown } from "../../../../../../ui/src/stream/markdown.ts";
@@ -18,7 +20,7 @@ export type ThreadAgent = Thread["agents"][number];
 export type Helper = CapMap["chat.helpers.list"]["out"]["helpers"][number];
 export type AgentMode = ThreadAgent["mode"];
 
-export interface Clock { now: number; offsetMin: number }
+export interface Clock { now: number; offsetMin: number; /** the Space's zone and the viewer's, for a shared place; left out for a private one (the device's offset is the clock) */ zones?: Zones }
 
 /** Resume any chat: the last 50 messages paint first, older ones stream in as the person scrolls up (V1-SPEC speed budgets). */
 export const WINDOW = 50;
@@ -63,9 +65,15 @@ const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
 const local = (ts: number, c: Clock): number => ts + c.offsetMin * 60_000;
-const dayNumber = (ts: number, c: Clock): number => Math.floor(local(ts, c) / DAY);
+const dayNumber = (ts: number, c: Clock): number => (c.zones ? dayIn(ts, c.zones.space) : Math.floor(local(ts, c) / DAY));
+
+/** What hover says about a message's time: both zones and the full date. Only where there are zones (a shared place). */
+export function timeTitle(ts: number, c: Clock): string | undefined {
+  return c.zones ? zoneTitle(ts, c.zones) : undefined;
+}
 
 export function timeLabel(ts: number, c: Clock): string {
+  if (c.zones) { const p = partsIn(ts, c.zones.space); return `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`; }
   const d = new Date(local(ts, c));
   const two = (n: number): string => String(n).padStart(2, "0");
   return `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`;
@@ -75,6 +83,10 @@ export function dayLabel(ts: number, c: Clock): string {
   const diff = dayNumber(c.now, c) - dayNumber(ts, c);
   if (diff <= 0) return "Today";
   if (diff === 1) return "Yesterday";
+  if (c.zones) {
+    const p = partsIn(ts, c.zones.space);
+    return diff < 7 ? WEEKDAYS[p.dow] ?? "" : `${p.day} ${MONTHS[p.month - 1] ?? ""}`;
+  }
   const d = new Date(local(ts, c));
   if (diff < 7) return WEEKDAYS[d.getUTCDay()] ?? "";
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()] ?? ""}`;
@@ -111,11 +123,11 @@ export function pokeLine(m: Pick<Message, "blocks">, nameOf: (id: string) => str
 }
 
 /** The quiet line a hook leaves (lane l-hooks): its words, what happened to it, and the hook it is about, so the line can offer Details or Edit. */
-export interface HookLine { line: string; kind: string; hookId?: string; reason?: string; by?: string; subject?: string; scope?: string; agentId?: string; /** Up to two steps a check wrote: a button label and what pressing it says to the assistant */ next?: Array<{ label: string; ask: string }> }
+export interface HookLine { line: string; kind: string; hookId?: string; reason?: string; by?: string; subject?: string; scope?: string; tool?: string; /** The stop was answered, for everyone in the chat: Allow (this time), Always allow or Deny */ resolved?: "allowed" | "always" | "denied"; /** For Always allow: the act and its target in plain words */ resolvedWhat?: string; agentId?: string; /** Up to two steps a check wrote: a button label and what pressing it says to the assistant */ next?: Array<{ label: string; ask: string }> }
 export function hookLineOf(m: Pick<Message, "blocks">): HookLine | null {
   const d = m.blocks.find((x) => x.type === "hook")?.data as { line?: unknown; kind?: unknown; hookId?: unknown; reason?: unknown } | null | undefined;
   if (!d || typeof d.line !== "string" || typeof d.kind !== "string") return null;
-  return { line: d.line, kind: d.kind, ...(typeof d.hookId === "string" ? { hookId: d.hookId } : {}), ...(typeof d.reason === "string" ? { reason: d.reason } : {}), ...(typeof (d as { by?: unknown }).by === "string" ? { by: (d as { by: string }).by } : {}), ...(typeof (d as { subject?: unknown }).subject === "string" ? { subject: (d as { subject: string }).subject } : {}), ...(typeof (d as { scope?: unknown }).scope === "string" ? { scope: (d as { scope: string }).scope } : {}), ...(typeof (d as { agentId?: unknown }).agentId === "string" ? { agentId: (d as { agentId: string }).agentId } : {}), ...nextOf((d as { next?: unknown }).next) };
+  return { line: d.line, kind: d.kind, ...(typeof d.hookId === "string" ? { hookId: d.hookId } : {}), ...(typeof d.reason === "string" ? { reason: d.reason } : {}), ...(typeof (d as { by?: unknown }).by === "string" ? { by: (d as { by: string }).by } : {}), ...(typeof (d as { subject?: unknown }).subject === "string" ? { subject: (d as { subject: string }).subject } : {}), ...(typeof (d as { scope?: unknown }).scope === "string" ? { scope: (d as { scope: string }).scope } : {}), ...(typeof (d as { agentId?: unknown }).agentId === "string" ? { agentId: (d as { agentId: string }).agentId } : {}), ...(typeof (d as { tool?: unknown }).tool === "string" ? { tool: (d as { tool: string }).tool } : {}), ...(typeof (d as { resolvedWhat?: unknown }).resolvedWhat === "string" ? { resolvedWhat: (d as { resolvedWhat: string }).resolvedWhat } : {}), ...(["allowed", "always", "denied"].includes(String((d as { resolved?: unknown }).resolved)) ? { resolved: (d as { resolved: "allowed" | "always" | "denied" }).resolved } : {}), ...nextOf((d as { next?: unknown }).next) };
 }
 /** The steps a check offered, read from the block: at most two, each a short label and a plain sentence; anything else is dropped. */
 function nextOf(v: unknown): { next?: Array<{ label: string; ask: string }> } {
@@ -136,10 +148,14 @@ export function hookLead(text: string): [string, string] {
   return m ? [m[1]!, text.slice(m[1]!.length)] : ["", text];
 }
 /** What a line offers beyond its words. A block shows Details (the hook, in the Hooks tab), Allow this once and Ask an admin; a hook that is still there shows Edit. */
-export type HookLineAct = "details" | "edit" | "once" | "ask";
-export function hookLineActs(h: HookLine): HookLineAct[] {
+/** The one approval vocabulary: Allow (this time only), Always allow (saves the rule through the hooks layer, for that hook's scope) and Deny (closes the line, the stop stands). A person who cannot decide is offered Ask an admin instead. */
+export type HookLineAct = "details" | "edit" | "allow" | "always" | "deny" | "ask";
+export function hookLineActs(h: HookLine, canDecide?: boolean): HookLineAct[] {
   if (h.hookId === undefined) return [];
-  if (h.kind === "blocked") return ["details", "once", "ask"];
+  // an answered stop shows how it was answered and Details; nothing more to decide
+  if (h.kind === "blocked" && h.resolved !== undefined) return ["details"];
+  // until it is known whether this person may decide, only Details is shown, so the line never changes under the pointer
+  if (h.kind === "blocked") return canDecide === undefined ? ["details"] : canDecide ? ["details", "allow", "always", "deny"] : ["details", "ask"];
   if (h.kind === "failed") return ["details"];
   return h.kind === "added" || h.kind === "changed" ? ["edit"] : [];
 }
@@ -301,9 +317,9 @@ export interface TimelineCtx {
 
 export type Item =
   | { kind: "day"; key: string; label: string }
-  | { kind: "event"; key: string; message: Message; text: string; time: string; /** The check's steps ride on the agent's reply below, not on this line */ stepsBelow?: boolean }
-  | { kind: "me"; key: string; message: Message; time: string; newgroup: boolean }
-  | { kind: "other"; key: string; message: Message; who: Who; time: string; newgroup: boolean; /** "On Sara's account": set only where more than one person shares the chat. */ paidLine?: string; /** The steps a hook check wrote for the stop just above this reply: small buttons inside it */ hookSteps?: { key: string; agentId: string; next: Array<{ label: string; ask: string }> } };
+  | { kind: "event"; key: string; message: Message; text: string; time: string; timeTitle?: string; /** The check's steps ride on the agent's reply below, not on this line */ stepsBelow?: boolean }
+  | { kind: "me"; key: string; message: Message; time: string; timeTitle?: string; newgroup: boolean }
+  | { kind: "other"; key: string; message: Message; who: Who; time: string; timeTitle?: string; newgroup: boolean; /** "On Sara's account": set only where more than one person shares the chat. */ paidLine?: string; /** The steps a hook check wrote for the stop just above this reply: small buttons inside it */ hookSteps?: { key: string; agentId: string; next: Array<{ label: string; ask: string }> } };
 
 /** System and quiet messages are one-line events ("Switched to Codex, picked up from the summary and the last 20 turns"). */
 export const isEvent = (m: Message): boolean => m.kind === "system" || m.kind === "quiet";
@@ -336,14 +352,16 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
       prev = null;
     }
     const time = timeLabel(m.createdAt, ctx.clock);
+    const tt = timeTitle(m.createdAt, ctx.clock);
+    const titled = tt ? { timeTitle: tt } : {};
     if (isEvent(m)) {
-      out.push({ kind: "event", key: m.messageId, message: m, text: m.body, time, ...(carried.has(m.messageId) ? { stepsBelow: true } : {}) });
+      out.push({ kind: "event", key: m.messageId, message: m, text: m.body, time, ...titled, ...(carried.has(m.messageId) ? { stepsBelow: true } : {}) });
       prev = null;
       continue;
     }
     const newgroup = prev === null || prev.author.id !== m.author.id || prev.author.kind !== m.author.kind;
-    if (m.author.id === ctx.meId && m.author.kind === "person") out.push({ kind: "me", key: m.messageId, message: m, time, newgroup });
-    else out.push({ kind: "other", key: m.messageId, message: m, who: whoOf(m, ctx), time, newgroup, ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}), ...(stepsFor.has(m.messageId) ? { hookSteps: { key: stepsFor.get(m.messageId)!.key, agentId: stepsFor.get(m.messageId)!.agentId, next: stepsFor.get(m.messageId)!.next } } : {}) });
+    if (m.author.id === ctx.meId && m.author.kind === "person") out.push({ kind: "me", key: m.messageId, message: m, time, ...titled, newgroup });
+    else out.push({ kind: "other", key: m.messageId, message: m, who: whoOf(m, ctx), time, ...titled, newgroup, ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}), ...(stepsFor.has(m.messageId) ? { hookSteps: { key: stepsFor.get(m.messageId)!.key, agentId: stepsFor.get(m.messageId)!.agentId, next: stepsFor.get(m.messageId)!.next } } : {}) });
     prev = m;
   }
   return out;

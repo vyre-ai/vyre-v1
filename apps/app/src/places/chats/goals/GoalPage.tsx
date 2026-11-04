@@ -25,6 +25,9 @@ import { TextField } from "../../../../../../ui/src/TextField/index.tsx";
 import { GoalSettings } from "./GoalSettings.tsx";
 import { AddLine, ChecklistEdit, DeadlineEdit, DraftPlanEdit, EditText, HelpersRow, Mini, PeopleDialog, newId } from "./GoalEdit.tsx";
 import type { PickEntry } from "../../../../../../ui/src/PeoplePicker/index.tsx";
+import { TimePop, When, useZones } from "../../../../../../ui/src/Time/index.tsx";
+import { whenIn } from "../../../../../../lib/zones.ts";
+import type { Zones } from "../../../../../../ui/src/Time/index.tsx";
 import type { Goal, GoalPageData, PlanStep, TaskLine, Tone, WaitLine, Who } from "./model.ts";
 
 export interface GoalPageProps {
@@ -33,7 +36,7 @@ export interface GoalPageProps {
   changes: Changes | undefined;
   me: string;
   nameOf(id: string): string;
-  clock(): { now: number; offsetMin: number };
+  clock(): { now: number; offsetMin?: number };
   /** The chat wiring for the goal's thread: the same conversation data any chat has. */
   conversationFor(threadId: string): ConversationData;
   openTask(taskId: string): void;
@@ -53,6 +56,7 @@ const DAY = 86_400_000;
 
 export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversationFor, openTask, openAgent, openFolder, openFile, fill, pane = true, directory }: GoalPageProps): ReactElement {
   const { state, reload } = useGoal(call, changes, goalId);
+  const zones = useZones();
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 640;
   const [tab, setTab] = useState<PaneTab>("activity");
@@ -95,22 +99,22 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
   if (!data || !g) {
     return <View testID="goal-page-loading" style={st.root}>{state.status === "error" ? <States kind="error" message="This goal is not available" cause={state.message} /> : <View style={st.loading} />}</View>;
   }
-  const now = clock().now, offsetMin = clock().offsetMin;
+  const now = clock().now;
   const showPane = (t: PaneTab): void => { setTab(t); setPaneOpen(true); };
   const edit = mayEdit(g, me);
   const saveHelpers = (next: Who[], said: string): void => { void run("goals.update", { helpers: next }, said, { helpers: g.helpers }); };
   const head = (
     <View testID="goal-page-head" style={[st.col, phone && st.colPhone]} {...menuTrigger((x, y) => menu.show(goalMenuEntries(g, me, { run, ask: setAsking }), x, y, "context", { label: g.title }))}>
-      <Head g={g} me={me} nameOf={nameOf} now={now} offsetMin={offsetMin} run={run} menu={menu} showPane={showPane} openAgent={openAgent} fill={fill} phone={phone} edit={edit} pick={setPicker} saveHelpers={saveHelpers} />
+      <Head g={g} me={me} nameOf={nameOf} now={now} zones={zones} run={run} menu={menu} showPane={showPane} openAgent={openAgent} fill={fill} phone={phone} edit={edit} pick={setPicker} saveHelpers={saveHelpers} />
       {line ? (
         <View style={st.lineRow}>
           <Text testID="goal-line" accessibilityLiveRegion="polite" style={st.lineText}>{line}</Text>
           {undo ? <Mini label="Undo" testID="goal-undo" onPress={() => void takeBack()} /> : null}
         </View>
       ) : null}
-      <Notice data={data} now={now} offsetMin={offsetMin} run={run} fill={fill} menu={menu} edit={edit} />
-      <NumberBlock data={data} now={now} offsetMin={offsetMin} phone={phone} {...(edit ? { onItems: (items: NonNullable<Goal["finish"]["items"]>) => void run("goals.update", { finish: { ...g.finish, items } }, "Checklist changed.", { finish: g.finish }) } : {})} me={me} />
-      <Waiting waits={data.waiting} call={call} nameOf={nameOf} now={now} offsetMin={offsetMin} openTask={openTask} onDone={reload} />
+      <Notice data={data} now={now} zones={zones} run={run} fill={fill} menu={menu} edit={edit} />
+      <NumberBlock data={data} now={now} zones={zones} phone={phone} {...(edit ? { onItems: (items: NonNullable<Goal["finish"]["items"]>) => void run("goals.update", { finish: { ...g.finish, items } }, "Checklist changed.", { finish: g.finish }) } : {})} me={me} />
+      <Waiting waits={data.waiting} call={call} nameOf={nameOf} now={now} zones={zones} openTask={openTask} onDone={reload} />
       <Plan data={data} nameOf={nameOf} openTask={openTask} edit={edit}
         onDraft={(plan) => void run("goals.update", { plan }, "Plan changed.", { plan: data.draftPlan ?? [] })}
         onRemove={(taskId) => void call("tasks.withdraw", { taskId, note: "Taken off the goal's plan by the owner." }).then(() => { reload(); setLine("Step removed."); }, (e: unknown) => setLine(e instanceof Error ? e.message : "That could not be changed."))}
@@ -126,7 +130,7 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
       <View style={st.main}>{feed}</View>
       {paneOpen && !phone ? (
         <SidePane paneKey="goal-pane" toggle={{ open: true, onPress: () => setPaneOpen(false) }} title="Goal" tabs={[{ key: "activity", title: "Activity" }, { key: "details", title: "Details" }, { key: "files", title: "Files" }]} activeTab={tab} onSelectTab={(k) => setTab(k as PaneTab)} defaultWidth={340}>
-          {tab === "activity" ? <Activity data={data} me={me} nameOf={nameOf} now={now} offsetMin={offsetMin} openTask={openTask} /> : tab === "details" ? <GoalSettings g={g} nameOf={nameOf} offsetMin={offsetMin} canEdit={edit} patch={(i, said, back) => void run("goals.update", i, said, back)} pick={setPicker} removeHelper={(id) => saveHelpers(g.helpers.filter((h) => h.id !== id), `${nameOf(id)} is no longer a helper.`)} /> : <Files g={g} call={call} changes={changes} {...(openFolder ? { openFolder } : {})} {...(openFile ? { openFile } : {})} />}
+          {tab === "activity" ? <Activity data={data} me={me} nameOf={nameOf} now={now} zones={zones} openTask={openTask} /> : tab === "details" ? <GoalSettings g={g} nameOf={nameOf} zones={zones} canEdit={edit} patch={(i, said, back) => void run("goals.update", i, said, back)} pick={setPicker} removeHelper={(id) => saveHelpers(g.helpers.filter((h) => h.id !== id), `${nameOf(id)} is no longer a helper.`)} /> : <Files g={g} call={call} changes={changes} {...(openFolder ? { openFolder } : {})} {...(openFile ? { openFile } : {})} />}
         </SidePane>
       ) : null}
       {menu.element}
@@ -185,7 +189,7 @@ function extendEntries(g: Goal, run: Run): MenuEntry[] {
   ];
 }
 
-function Head({ g, me, nameOf, now, offsetMin, run, menu, showPane, openAgent, fill, phone, edit, pick, saveHelpers }: { edit: boolean; pick(w: "lead" | "owner" | "helpers"): void; saveHelpers(next: Who[], said: string): void; g: Goal; me: string; nameOf(id: string): string; now: number; offsetMin: number; run: Run; menu: Menu; showPane(t: PaneTab): void; openAgent(id: string): void; fill: ((t: string) => void) | undefined; phone: boolean }): ReactElement {
+function Head({ g, me, nameOf, now, zones, run, menu, showPane, openAgent, fill, phone, edit, pick, saveHelpers }: { edit: boolean; pick(w: "lead" | "owner" | "helpers"): void; saveHelpers(next: Who[], said: string): void; g: Goal; me: string; nameOf(id: string): string; now: number; zones: Zones; run: Run; menu: Menu; showPane(t: PaneTab): void; openAgent(id: string): void; fill: ((t: string) => void) | undefined; phone: boolean }): ReactElement {
   const s = statusOf(g, me);
   const live = LIVE.has(g.status);
   const more = (e: unknown): void => {
@@ -211,9 +215,9 @@ function Head({ g, me, nameOf, now, offsetMin, run, menu, showPane, openAgent, f
         <Pressable accessibilityRole={edit ? "button" : "text"} accessibilityLabel={edit ? "Change the owner" : "Owner"} testID="goal-owner" onPress={edit ? () => pick("owner") : undefined} style={st.metaItem}>
           <Avatar {...avatarOf({ id: g.owner, name: nameOf(g.owner), kind: "person" })} size={18} /><Text style={st.metaText}>{`${g.owner === me ? "You own it" : `${nameOf(g.owner)} owns it`}`}</Text>
         </Pressable>
-        {live && g.nextCheckinAt ? <View style={st.metaItem}><Icon name="clock" /><Text style={st.metaText}>{`Check-in ${whenWords(g.nextCheckinAt, now, offsetMin)}`}</Text></View> : null}
-        <DeadlineEdit deadline={g.deadline} offsetMin={offsetMin} canEdit={edit} onSave={(deadline) => void run("goals.update", { deadline }, `Deadline moved to ${dueWords(deadline, offsetMin)}.`, { deadline: g.deadline })}
-          shown={<View style={st.metaItem}><Icon name="cal" /><Text testID="goal-due" style={st.metaText}>{ENDED.has(g.status) ? `Ended ${whenWords(g.endedAt ?? now, now, offsetMin)}` : `Due ${dueWords(g.deadline, offsetMin)}`}</Text></View>} />
+        {live && g.nextCheckinAt ? <View style={st.metaItem}><Icon name="clock" /><Text style={st.metaText}>Check-in </Text><When at={g.nextCheckinAt} now={now} style={st.metaText} testID="goal-checkin" /></View> : null}
+        <DeadlineEdit deadline={g.deadline} zones={zones} canEdit={edit} onSave={(deadline) => void run("goals.update", { deadline }, `Deadline moved to ${dueWords(deadline, zones)}.`, { deadline: g.deadline })}
+          shown={<View style={st.metaItem}><Icon name="cal" />{ENDED.has(g.status) ? <Text testID="goal-due" style={st.metaText}>{`Ended ${whenWords(g.endedAt ?? now, now, zones)}`}</Text> : <><Text style={st.metaText}>Due </Text><When at={g.deadline} now={now} as="date" style={st.metaText} testID="goal-due" /></>}</View>} />
       </View>
       <HelpersRow helpers={g.helpers} nameOf={nameOf} canEdit={edit} onAdd={() => pick("helpers")} onRemove={(id) => saveHelpers(g.helpers.filter((h) => h.id !== id), `${nameOf(id)} is no longer a helper.`)} />
       {ENDED.has(g.status) ? null : (
@@ -229,12 +233,12 @@ function Head({ g, me, nameOf, now, offsetMin, run, menu, showPane, openAgent, f
 }
 
 /** Stuck, the budget, a draft or the end: one notice, above the number, with what you can do about it. */
-function Notice({ data, now, offsetMin, run, fill, menu, edit }: { edit: boolean; data: GoalPageData; now: number; offsetMin: number; run: Run; fill: ((t: string) => void) | undefined; menu: Menu }): ReactElement | null {
+function Notice({ data, now, zones, run, fill, menu, edit }: { edit: boolean; data: GoalPageData; now: number; zones: Zones; run: Run; fill: ((t: string) => void) | undefined; menu: Menu }): ReactElement | null {
   const g = data.goal;
   const b = budgetOf(g);
   if (g.status === "stuck") {
     return (
-      <Card testID="goal-stuck" tone="stuck" icon="warn" title={`Stuck${g.lastCheckinAt ? ` since ${whenWords(g.lastCheckinAt, now, offsetMin)}` : ""}`}>
+      <Card testID="goal-stuck" tone="stuck" icon="warn" title={`Stuck${g.lastCheckinAt ? ` since ${whenWords(g.lastCheckinAt, now, zones)}` : ""}`}>
         <Text style={st.body}>{g.statusReason ?? "No progress."}</Text>
         <View style={st.cardActions}>
           <Btn label="Change the plan" primary onPress={() => fill?.("Change the plan: ")} testID="goal-stuck-plan" />
@@ -263,7 +267,7 @@ function Notice({ data, now, offsetMin, run, fill, menu, edit }: { edit: boolean
   if (ENDED.has(g.status)) {
     const missed = g.status === "missed";
     return (
-      <Card testID={`goal-ended-${g.status}`} tone={g.status === "done" ? "ok" : "plain"} icon={g.status === "done" ? "check" : "target"} title={g.status === "done" ? `Reached ${whenWords(g.endedAt ?? now, now, offsetMin)}` : missed ? `Missed: ${numberOf(g.progress)} by the deadline` : "Stopped"}>
+      <Card testID={`goal-ended-${g.status}`} tone={g.status === "done" ? "ok" : "plain"} icon={g.status === "done" ? "check" : "target"} title={g.status === "done" ? `Reached ${whenWords(g.endedAt ?? now, now, zones)}` : missed ? `Missed: ${numberOf(g.progress)} by the deadline` : "Stopped"}>
         {g.summary ? <Text style={st.body}>{g.summary}</Text> : null}
         {g.retro ? (
           <View style={st.retro}>
@@ -291,11 +295,11 @@ function Card({ tone, icon, title, children, testID }: { tone: Tone; icon: strin
 }
 
 /** The number, big and still, with where it comes from and the chart of how it got here. */
-function NumberBlock({ data, now, offsetMin, phone, onItems, me }: { data: GoalPageData; now: number; offsetMin: number; phone: boolean; onItems?: (items: NonNullable<Goal["finish"]["items"]>) => void; me: string }): ReactElement {
+function NumberBlock({ data, now, zones, phone, onItems, me }: { data: GoalPageData; now: number; zones: Zones; phone: boolean; onItems?: (items: NonNullable<Goal["finish"]["items"]>) => void; me: string }): ReactElement {
   const g = data.goal, p = g.progress;
   const you = g.owner === me;
   const src = g.finish.source?.label ?? (g.finish.kind === "checklist" ? (you ? "Done when you tick every item" : "Done when the owner ticks every item") : g.finish.kind === "owner" ? (you ? "Done when you say so" : "Done when the owner says so") : "the source");
-  const sub = p.error ? `Can't read ${src}: ${p.error}` : p.readAt ? `${src}, read ${whenWords(p.readAt, now, offsetMin)}` : src;
+  const sub = p.error ? `Can't read ${src}: ${p.error}` : p.readAt ? `${src}, read ${whenWords(p.readAt, now, zones)}` : src;
   const big = p.target !== undefined ? (p.value === undefined ? "–" : fmt(p.value)) : p.items !== undefined ? String(p.itemsDone ?? 0) : String(p.tasksDone);
   const of = p.target !== undefined ? `/ ${fmt(p.target)}` : p.items !== undefined ? `of ${p.items}` : `of ${p.tasks} tasks`;
   return (
@@ -346,19 +350,19 @@ function ChartView({ data, now }: { data: GoalPageData; now: number }): ReactEle
 }
 
 /** What waits on whom, with the answer one press away. A press acts on the task itself; the goal hears and goes on. */
-function Waiting({ waits, call, nameOf, now, offsetMin, openTask, onDone }: { waits: readonly WaitLine[]; call: Call; nameOf(id: string): string; now: number; offsetMin: number; openTask(id: string): void; onDone(): void }): ReactElement | null {
+function Waiting({ waits, call, nameOf, now, zones, openTask, onDone }: { waits: readonly WaitLine[]; call: Call; nameOf(id: string): string; now: number; zones: Zones; openTask(id: string): void; onDone(): void }): ReactElement | null {
   if (waits.length === 0) return null;
   return (
     <View testID="goal-waiting" style={st.section}>
       <Text style={st.label}>Waiting on</Text>
       {/* ui-rows-lint: not a list (each waiting item is a card with its own answer buttons) */}
-      {waits.map((w) => <WaitRow key={w.taskId} w={w} call={call} nameOf={nameOf} now={now} offsetMin={offsetMin} openTask={openTask} onDone={onDone} />)}
+      {waits.map((w) => <WaitRow key={w.taskId} w={w} call={call} nameOf={nameOf} now={now} zones={zones} openTask={openTask} onDone={onDone} />)}
     </View>
   );
 }
 
 interface TaskActs { state?: string; actions?: Array<{ key: string; label: string; note?: string }>; blocks?: Array<{ type: string; data?: { options?: Array<{ label?: string } | string> } }> }
-function WaitRow({ w, call, nameOf, now, offsetMin, openTask, onDone }: { w: WaitLine; call: Call; nameOf(id: string): string; now: number; offsetMin: number; openTask(id: string): void; onDone(): void }): ReactElement {
+function WaitRow({ w, call, nameOf, now, zones, openTask, onDone }: { w: WaitLine; call: Call; nameOf(id: string): string; now: number; zones: Zones; openTask(id: string): void; onDone(): void }): ReactElement {
   const [task, setTask] = useState<TaskActs | null>(null);
   const [said, setSaid] = useState("");
   useEffect(() => { void call("tasks.get", { taskId: w.taskId }).then((o) => setTask((o as { task?: TaskActs }).task ?? null), () => setTask(null)); }, [call, w.taskId]);
@@ -370,14 +374,14 @@ function WaitRow({ w, call, nameOf, now, offsetMin, openTask, onDone }: { w: Wai
   const buttons: ReactElement[] = [];
   if (options.length > 0) options.slice(0, 4).forEach((o, i) => buttons.push(<Btn key={o} label={o} primary={i === 0} onPress={() => act("answer", o)} testID={`goal-wait-${w.taskId}-${i}`} />));
   else if (w.kind === "approve") {
-    buttons.push(<Btn key="ok" label="Approve" primary onPress={() => act("approve")} testID={`goal-wait-${w.taskId}-approve`} />);
+    buttons.push(<Btn key="ok" label="Allow" primary onPress={() => act("approve")} testID={`goal-wait-${w.taskId}-approve`} />);
     buttons.push(<Btn key="later" label="Not now" onPress={() => void call("tasks.snooze", { taskId: w.taskId, until: now + DAY }).then(onDone, () => undefined)} testID={`goal-wait-${w.taskId}-later`} />);
   }
   buttons.push(<Btn key="open" label="Open" onPress={() => openTask(w.taskId)} testID={`goal-wait-${w.taskId}-open`} />);
   return (
     <View testID={`goal-wait-${w.taskId}`} style={st.wait}>
       <Text style={st.waitTitle}>{w.title}</Text>
-      <Text style={st.small}>{`${who} · since ${whenWords(w.since, now, offsetMin)}`}</Text>
+      <Text style={st.small}>{`${who} · since ${whenIn(w.since, now, zones).text}`}</Text>
       {said ? <Text style={[st.small, { color: "var(--ok)" as string }]}>{said}</Text> : <View style={st.cardActions}>{buttons}</View>}
     </View>
   );
@@ -421,9 +425,9 @@ function Plan({ data, nameOf, openTask, edit, onDraft, onRemove, onAdd, onRename
   );
 }
 
-export function Activity({ data, me, nameOf, now, offsetMin, openTask }: { data: GoalPageData; me: string; nameOf(id: string): string; now: number; offsetMin: number; openTask(id: string): void }): ReactElement {
-  const viewer = { me, nameOf, offsetMin };
-  const days = byDay(data.activity, now, offsetMin);
+export function Activity({ data, me, nameOf, now, zones, openTask }: { data: GoalPageData; me: string; nameOf(id: string): string; now: number; zones: Zones; openTask(id: string): void }): ReactElement {
+  const viewer = { me, nameOf, offsetMin: 0, zone: zones.space };
+  const days = byDay(data.activity, now, zones);
   if (days.length === 0) return <Text style={[st.small, st.pad]}>Nothing yet.</Text>;
   return (
     <ScrollView testID="goal-activity" contentContainerStyle={st.pad}>
@@ -431,11 +435,15 @@ export function Activity({ data, me, nameOf, now, offsetMin, openTask }: { data:
       {days.map((d) => (
         <View key={d.day} style={st.day}>
           <Text style={st.label}>{d.day}</Text>
+          {/* ui-rows-lint: not a list (each item is a ui/Row; the TimePop around it only adds the hover card with both zones) */}
           {d.items.map((a) => {
             const line = formatActivity(a, viewer);
+            // a list of times: each reads in the Space zone only; yours is on hover, so the list stays quiet
             return (
-              <Row key={`${a.at}-${a.kind}-${a.text.slice(0, 24)}`} id={`ga-${a.at}`} title={line.text} note={`${whenWords(a.at, now, offsetMin)}${line.credit ? ` · ${line.credit}` : ""}`}
-                {...(a.ref?.startsWith("tsk_") ? { onPress: () => openTask(a.ref!) } : {})} />
+              <TimePop key={`${a.at}-${a.kind}-${a.text.slice(0, 24)}`} at={a.at}>
+                <Row id={`ga-${a.at}`} title={line.text} note={`${whenIn(a.at, now, zones).text}${line.credit ? ` · ${line.credit}` : ""}`}
+                  {...(a.ref?.startsWith("tsk_") ? { onPress: () => openTask(a.ref!) } : {})} />
+              </TimePop>
             );
           })}
         </View>

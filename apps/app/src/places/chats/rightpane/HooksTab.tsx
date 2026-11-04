@@ -7,7 +7,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { PaneDeps } from "./actions.ts";
-import { hookPause, hookRemove, hookSave } from "./actions.ts";
+import { hookAllowRemove, hookPause, hookRemove, hookSave } from "./actions.ts";
 import { PANE_SCREEN } from "./ThreadsTab.tsx";
 import { agoLabel } from "./model.ts";
 import { usePaneData, useScreenQuery } from "./data.tsx";
@@ -47,6 +47,13 @@ export function HookCard({ h, threadId, deps, selected, nameOf, ran, agentName =
         <>
           <Text style={s.what}><Text style={s.kind}>{kindWord(h)}</Text>{"  "}{whatOf(h)}</Text>
           <Text testID={`hook-meta-${h.id}`} style={s.meta}>Made by {madeBy(h, nameOf)} · <Text testID={`hook-ran-${h.id}`}>{ran}</Text>{h.paused ? " · Paused" : ""}</Text>
+          {/* ui-rows-lint: not a list (each always-allow rule is one line inside the hook's own row, with its Stop allowing) */}
+          {(h.allowed ?? []).map((r) => (
+            <View key={r.id} testID={`hook-allowed-${r.id}`} style={s.allowed}>
+              <Text style={s.allowedText}>Always allowed for {r.what}</Text>
+              {h.canChange ? <TextButton label="Stop allowing" onPress={() => { void hookAllowRemove(deps, r.id, r.what); }} testID={`hook-allowed-remove-${r.id}`} /> : null}
+            </View>
+          ))}
           <View style={s.acts}>
             <TextButton label={h.paused ? "Resume" : "Pause"} onPress={() => { void hookPause(deps, h.id, threadId, !h.paused); }} testID={`hook-pause-${h.id}`} />
             {h.canChange ? <TextButton label="Edit" onPress={() => setEdit(true)} testID={`hook-edit-${h.id}`} /> : null}
@@ -112,6 +119,8 @@ const s = StyleSheet.create({
   kind: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
   meta: { marginTop: 4, fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
   acts: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 2, marginTop: 8, marginHorizontal: -9, marginBottom: -4 },
+  allowed: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginTop: 6 },
+  allowedText: { flex: 1, fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string },
   locked: { fontSize: 12, marginLeft: 9, color: "var(--ink-4)" as string },
   form: { marginTop: 6 },
   label: { marginTop: 6, fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },

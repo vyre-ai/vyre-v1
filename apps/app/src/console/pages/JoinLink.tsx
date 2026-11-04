@@ -61,8 +61,8 @@ export function JoinLinkSection({ link, requests, roles, roleName, refresh }: { 
       {copied ? <Note>{copied}</Note> : null}
       {requests.map((r) => <Row key={r.id} id={`join-request-${r.id}`} title={r.name} note={`${r.email} · Asked ${endsOn(r.at)} · Joins as ${roleName(r.role)}${r.note ? ` · ${r.note}` : ""}`}
         trailing={<Actions>
-          <Button label="Decline" testID={`join-decline-${r.id}`} disabled={action.busy} onPress={() => void action.run("members.join_requests.decline", { requestId: r.id }, `Declined ${r.name}.`)} />
-          <Button label="Approve" testID={`join-approve-${r.id}`} disabled={action.busy} onPress={() => void approve(r)} />
+          <Button label="Deny" testID={`join-decline-${r.id}`} disabled={action.busy} onPress={() => void action.run("members.join_requests.decline", { requestId: r.id }, `Denied ${r.name}.`)} />
+          <Button label="Allow" testID={`join-approve-${r.id}`} disabled={action.busy} onPress={() => void approve(r)} />
         </Actions>} />)}
       {link.on && requests.length === 0 ? <Row id="join-none" title="No one has asked to join" note="When someone opens the link and asks, they show up here." /> : null}
       {fresh ? <><Note>{`Copy this one-time invite link for ${fresh.email}:`}</Note><Text selectable testID="join-approved-link">{fresh.link}</Text><Actions><Button label={`Email it to ${fresh.email}`} testID="join-approved-mail" disabled={mailNote === "Sending"} onPress={() => void mail()} /><Button label="Done" testID="join-approved-done" onPress={() => { setFresh(null); setMailNote(""); }} /></Actions>{mailNote ? <Note>{mailNote}</Note> : null}</> : null}

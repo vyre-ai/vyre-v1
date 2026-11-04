@@ -51,7 +51,7 @@ export function DraftCard({ draftId, agent, agentId, data, editor }: { draftId: 
       testID={`draft-${draftId}`} agent={agent} to={to.map((p) => ({ name: p.name || p.address, seed: p.address, kind: "person" as const }))} verb={verb}
       subject={gone ? "" : draft.subject} fields={!gone && draft.cc.length > 0 ? [["Cc", names(draft.cc).join(", ")]] : []} body={gone ? "" : draft.text}
       state={gone ? "dropped" : sent ? "sent" : "waiting"} doneLine={sent ? `Sent to ${names(to).slice(0, 2).join(" and ")} · ${hhmm}` : "Not sent"} editable={!gone && !sent} editSubject
-      {...(editor ? { editor } : {})} sendLabel="Send" stoppedNote="It waits for you: nothing is sent until you press Send."
+      {...(editor ? { editor } : {})} stoppedNote="It waits for you: nothing is sent until you press Allow."
       onSend={async () => {
         if (!draft) return;
         await data.call("mail.send", { mailboxId: draft.mailboxId, draftId, to: draft.to, ...(draft.cc.length > 0 ? { cc: draft.cc } : {}), subject: draft.subject, text: draft.text, idempotencyKey: idem("send") });
@@ -83,7 +83,7 @@ export function ProviderDraftCard({ card, agent, agentId, data, editor }: { card
   return (
     <HeldCard
       testID={`draft-${key}`} agent={agent} to={to.map((address) => ({ name: address, seed: address, kind: "person" as const }))} verb={verb} subject={subject} body={text}
-      state="waiting" doneLine={`Sent to ${to.slice(0, 2).join(" and ")} · ${hhmm}`} editable editSubject {...(editor ? { editor } : {})} sendLabel="Send" stoppedNote={`Saved as a draft in ${card.via ?? "your mailbox"}. Nothing is sent until you press Send.`}
+      state="waiting" doneLine={`Sent to ${to.slice(0, 2).join(" and ")} · ${hhmm}`} editable editSubject {...(editor ? { editor } : {})} stoppedNote={`Saved as a draft in ${card.via ?? "your mailbox"}. Nothing is sent until you press Send.`}
       onSave={async ({ body, subject: s2 }) => { setText(body); if (s2 !== undefined) setSubject(s2); }}
       onSend={async () => {
         if (!send?.cap) throw new Error("This cannot be sent from here.");

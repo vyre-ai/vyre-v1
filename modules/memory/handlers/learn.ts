@@ -24,7 +24,7 @@ import type { Who } from "../trail.ts";
 import { actorOf, autoMergeKinds, bm25, ensure, mintId, num, raise, readFact, rowsOf } from "../projections.ts";
 import type { Fact, FactStatus, Layer, MemCtx, SourceKind } from "../projections.ts";
 import { heuristicExtract } from "./facts.ts";
-import { kindOf, placeOf } from "../place.ts";
+import { kindOf, placeOf, privateIntent } from "../place.ts";
 import type { Place } from "../place.ts";
 import { postNoted, writeSharedWith } from "../shared.ts";
 import { chatAudience } from "../../../lib/audience.ts";
@@ -212,7 +212,7 @@ export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> 
   const sourceKind: SourceKind = t.kind === "channel" ? "channel" : "chat";
   const known = liveFacts(ctx, target);
   const keepLessons = await lessonsOn(ctx);
-  const w: Writer = { ctx, threadId: input.threadId, target, audience, who, sourceKind, statusFor, low: (kind) => kinds.includes(kind), known, mode, lessons: keepLessons, shared, agentId, ...(place && heard ? { place, heard } : {}) };
+  const w: Writer = { ctx, threadId: input.threadId, target, audience, who, sourceKind, statusFor, low: (kind) => kinds.includes(kind), known, mode, lessons: keepLessons, shared, agentId, said: new Map(lines.map((l) => [l.m.messageId, String(l.m.body ?? "")])), ...(place && heard ? { place, heard } : {}) };
   const tally: Tally = { proposed: 0, merged: 0, updated: 0, closed: 0 };
 
   const tz = await timezoneOf(ctx);
@@ -304,12 +304,15 @@ export function relatedOf(known: Fact[], said: CaptureMessage[]): Fact[] {
 
 interface Writer {
   ctx: MemCtx; threadId: string; target: LearnTarget; audience: Array<[string, string]>; who: Who; sourceKind: SourceKind; statusFor(kind: string): FactStatus; low(kind: string): boolean;
-  known: Fact[]; mode: CaptureMode | null; lessons: boolean; shared: boolean; agentId: string | null; place?: Place; heard?: Audience;
+  known: Fact[]; mode: CaptureMode | null; lessons: boolean; shared: boolean; agentId: string | null; place?: Place; heard?: Audience; /** what the person wrote on a line, by message id: a line they marked for themselves only stays theirs */ said?: Map<string, string>;
 }
 
 const lineLink = (threadId: string, messageId: string): string => `/chats/${threadId}#${messageId}`;
 
-function write(w: Writer, f: { text: string; kind: string; messageId: string; key: string; replaces?: string; why?: string }, status: FactStatus): Fact {
+function write(w0: Writer, f: { text: string; kind: string; messageId: string; key: string; replaces?: string; why?: string }, status: FactStatus): Fact {
+  // a line the person marked for themselves only is theirs, in their own layer, in any kind of place
+  const priv = privateIntent(w0.said?.get(f.messageId) ?? "");
+  const w: Writer = priv ? { ...w0, target: { layer: "person", ownerRef: actorOf(w0.ctx), agentId: w0.target.agentId, projectId: null }, place: undefined as never, heard: undefined as never } : w0;
   const { ctx, target } = w;
   let note: { replaced?: Fact; disputedWith?: Fact; questionId?: string } = {};
   const base = {

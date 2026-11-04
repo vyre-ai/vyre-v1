@@ -428,8 +428,8 @@ function RequestCard({ request, items, requester }: { request: RequestsOut["requ
         </View>
       )}
       <View style={s.requestActions}>
-        <TextInput value={note} onChangeText={setNote} placeholder="Note for requester (optional)" accessibilityLabel="Decline note" style={[s.requestInput, { flex: 1 }]} />
-        <Btn label="Decline" danger disabled={busy} onPress={() => run(() => declineVaultRequest(data, request.id, note))} testID={`vault-request-decline-${request.id}`} />
+        <TextInput value={note} onChangeText={setNote} placeholder="Note for requester (optional)" accessibilityLabel="Deny note" style={[s.requestInput, { flex: 1 }]} />
+        <Btn label="Deny" danger disabled={busy} onPress={() => run(() => declineVaultRequest(data, request.id, note))} testID={`vault-request-decline-${request.id}`} />
       </View>
       {failure ? <Text style={s.error} accessibilityRole="alert">{failure}</Text> : null}
     </View>

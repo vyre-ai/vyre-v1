@@ -2,7 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { bootFreshSpace, claimOnEdge, edge } from "./real-app-harness.test.ts";
+import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
+import { guardCrashes } from "./crash-guard.ts";
 
 const PASSWORD = "fixture password 123";
 
@@ -19,17 +20,20 @@ test("production Vault Add: a pasted key gets a name, Add saves one item to Mine
   const page = await context.newPage();
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
+  const guard = guardCrashes(page);
   const puts: number[] = [];
   page.on("response", (r) => { if (r.url().endsWith("/v1/vault/item/put")) puts.push(r.status()); });
   try {
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
     await page.getByTestId("claim-name").fill("Olivia Owner"); await page.getByTestId("claim-username").fill("olivia");
     await page.getByTestId("claim-password").fill(PASSWORD); await page.getByTestId("claim-confirm").fill(PASSWORD);
-    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click();
+    await page.getByTestId("claim-next").click(); await page.getByTestId("claim-saved").click(); await page.getByTestId("claim-create").click(); await dismissOnboarding(page);   // the first-run guide covers the page until it is dismissed, as every walk does
     await page.getByTestId("shell").waitFor({ timeout: 30_000 });
+    await guard.check("after sign-in");
     const token = await page.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string);
 
     await page.goto(`${web.origin}/vault`, { waitUntil: "load" });
+    await guard.check("the Vault");
     await page.getByText("Add an item", { exact: true }).first().click({ timeout: 30_000 });
     await page.getByTestId("add-search").fill("MY_SERVICE_KEY=abc123secretvalue");
     await page.getByTestId("add-name").waitFor();
@@ -44,7 +48,7 @@ test("production Vault Add: a pasted key gets a name, Add saves one item to Mine
     assert.deepEqual(puts, [200], "one vault.item.put, and it succeeded");
     const r = await context.request.post(`${web.origin}/v1/vault/items/list`, { headers: { authorization: `Bearer ${token}` }, data: {} });
     const items = (await r.json()).data.items as { name: string; scope: string }[];
-    assert.deepEqual(items.map((i) => [i.name, i.scope]), [["My service key", "personal"]]);
+    assert.deepEqual(items.map((i) => [i.name, i.scope]), [["My service key", "mine"]], "one item, in Mine (the contract's scope is mine or shared)");
     assert.deepEqual(errors, []);
   } finally { await browser.close(); web.close(); await space.stop(); }
 });

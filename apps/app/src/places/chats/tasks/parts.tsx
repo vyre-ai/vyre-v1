@@ -13,6 +13,7 @@ import { Glyph } from "../conversation/parts.tsx";
 import { batonMarks, dueLabel, holderOf, isOpenState, KIND_TITLE, ago } from "./model.ts";
 import { canTake } from "./moves.ts";
 import type { NeedItem, TaskRow, Who } from "./model.ts";
+import { TimePop, useZones } from "../../../../../../ui/src/Time/index.tsx";
 
 export interface RowEnv {
   now: number; offsetMin: number; me: string; turns?: TurnStreams | undefined;
@@ -89,7 +90,8 @@ function WebLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv; s
   const turn = useLiveTurn(env.turns, row.workerThread ?? row.threadId);
   const holder = holderOf(row);
   const other = holder && holder.id !== env.me ? holder : undefined;
-  const due = dueLabel(row.due, env.now, env.offsetMin);
+  const zones = useZones();
+  const due = dueLabel(row.due, env.now, zones);
   const closed = !isOpenState(row.state);
   const project = row.recordId ? env.project(row.recordId) : undefined;
   const waits = row.blocked ? row.dependsOn.map(env.keyOf).filter((k): k is string => k !== undefined) : [];
@@ -114,7 +116,7 @@ function WebLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv; s
     row.labels.length > 0 ? h("span", { className: "vt-lab" }, `#${row.labels[0]}`) : null,
     h("span", { className: "vt-bat", style: { flex: "none" } }, <BatonMarks row={row} {...(other ? { title: `With ${env.nameOf(other.id)}` } : {})} />),
     other ? h("span", { style: { flex: "none", display: "inline-flex" }, role: "button", "aria-label": `Open ${env.nameOf(other.id)}`, onClick: (e: Press) => { e.stopPropagation(); env.openProfile(other); } }, <Avatar name={env.nameOf(other.id)} seedId={other.id} kind={faceKind(other)} size={22} />) : null,
-    due.text ? h("span", { className: `vt-due${due.late && !closed ? " late" : ""}` }, due.text) : null,
+    due.text ? h("span", { className: `vt-due${due.late && !closed ? " late" : ""}`, ...(due.title ? { title: due.title } : {}) }, due.text) : null,
   );
 }
 
@@ -145,7 +147,8 @@ function NativeLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv
   const turn = useLiveTurn(env.turns, row.workerThread ?? row.threadId);
   const holder = holderOf(row);
   const other = holder && holder.id !== env.me ? holder : undefined;
-  const due = dueLabel(row.due, env.now, env.offsetMin);
+  const zones = useZones();
+  const due = dueLabel(row.due, env.now, zones);
   const closed = !isOpenState(row.state);
   const project = row.recordId ? env.project(row.recordId) : undefined;
   const waits = row.blocked ? row.dependsOn.map(env.keyOf).filter((k): k is string => k !== undefined) : [];
@@ -167,7 +170,7 @@ function NativeLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv
         {row.labels.length > 0 && roomy ? <Text numberOfLines={1} style={s.labels}>{`#${row.labels[0]}`}</Text> : null}
         {roomy ? <BatonMarks row={row} {...(other ? { title: `With ${env.nameOf(other.id)}` } : {})} /> : null}
         {other ? <FaceButton who={other} name={env.nameOf(other.id)} size={22} onPress={() => env.openProfile(other)} /> : null}
-        {due.text ? <Text style={[s.due, due.late && !closed && s.late]}>{due.text}</Text> : <View style={s.dueGap} />}
+        {due.text ? <TimePop at={row.due as number}><Text style={[s.due, due.late && !closed && s.late]}>{due.text}</Text></TimePop> : <View style={s.dueGap} />}
       </>}
     </Pressable>
   </View>;
@@ -181,7 +184,7 @@ export const NeedLine = memo(function NeedLine({ item, env }: { item: NeedItem; 
   const by = t.kind === "work" && (t.state === "in_review" || t.state === "awaiting_approval") ? t.assigned.id : sentBack ? (t.reviewer ?? t.approver)?.id ?? t.createdBy : t.createdBy;
   const who: Who = { kind: by.startsWith("agt_") ? "agent" : "person", id: by };
   // a team task is taken first; a held act is approved here; anything else opens, where its move is
-  const primary = canTake(t) ? { key: "take", label: "Take" } : t.kind === "approve" ? { key: "approve", label: "Approve" } : { key: "open", label: "Open" };
+  const primary = canTake(t) ? { key: "take", label: "Take" } : t.kind === "approve" ? { key: "approve", label: "Allow" } : { key: "open", label: "Open" };
   const step = t.kind !== "work" ? KIND_TITLE[t.kind] : t.state === "in_review" ? "Your review" : t.state === "awaiting_approval" ? "Your approval" : t.workingNotes["fixes"] !== undefined ? "Sent back to you" : canTake(t) ? `For ${env.nameOf(t.assigned.id)}` : "Given to you";
   const sub = [step, env.nameOf(by), t.recordId ? env.project(t.recordId) : undefined, ago(env.now - t.updatedAt)].filter(Boolean).join(" · ");
   const trigger = env.needMenu ? menuTrigger((x, y) => env.needMenu?.(item, { x, y })) : {};

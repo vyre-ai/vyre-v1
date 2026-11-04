@@ -30,7 +30,7 @@ export function heldMail(t: Pick<Task, "kind" | "blocks">): HeldMail | null {
 }
 
 /** What the two buttons of a held send say: Send goes out as written, and asking for changes sends it back to the agent with the person's note. */
-export const HELD_LABELS = { approve: "Send", send_back: "Ask for changes" } as const;
+export const HELD_LABELS = { approve: "Allow", send_back: "Deny" } as const;   // a held send: Allow sends it, Deny keeps it back with the reason (one approval vocabulary)
 export function labelOf(held: HeldMail | null, a: { key: string; label: string }): string {
   if (!held) return a.label;
   return a.key === "approve" ? HELD_LABELS.approve : a.key === "send_back" || a.key === "reject" ? HELD_LABELS.send_back : a.label;

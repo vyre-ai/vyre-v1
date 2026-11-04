@@ -15,6 +15,8 @@ import { Glyph } from "../../shell/glyphs.tsx";
 import { Empty, Lead, pointer } from "../../shell/ui.tsx";
 import { CLASSES, NO_FILTER, classIcon, classLabel, isFiltered, rowTitle, snapshotLines, stateOf, agentDetails } from "./model.ts";
 import type { AuditClass, AuditFilter, AuditRow } from "./model.ts";
+import { errorSentence } from "../../../errors/details.ts";
+import { Note } from "../shared.tsx";
 
 type ListOut = CapMap["audit.list"]["out"];
 type VerifyOut = CapMap["audit.verify"]["out"];
@@ -64,7 +66,7 @@ export function Audit({ initialFilter = NO_FILTER, initialOpen = null }: AuditPr
     try {
       const v = (await data.call("audit.verify", {})) as VerifyOut;
       setNote(v.ok ? `Chain verified, ${v.checked.toLocaleString("en-US")} events` : `The chain breaks at event ${v.firstBadSeq ?? "unknown"}`);
-    } catch (e) { setNote(e instanceof Error ? e.message : "Could not verify"); }
+    } catch (e) { setNote(errorSentence(e, "Could not verify")); }
   };
   const exportRows = async (): Promise<void> => {
     try {
@@ -98,7 +100,7 @@ export function Audit({ initialFilter = NO_FILTER, initialOpen = null }: AuditPr
             <Pressable accessibilityRole="button" accessibilityLabel="Show all" testID="audit-clear" onPress={() => setFilter(NO_FILTER)} style={pointer}><Text style={s.link}>Show all</Text></Pressable>
           </View>
         ) : null}
-        {note ? <Text style={s.note} testID="audit-note" accessibilityLiveRegion="polite">{note}</Text> : null}
+        {note ? <Note testID="audit-note">{note}</Note> : null}
         <View style={s.listWrap}>
           {list.status !== "ready" ? <Text style={s.loading} accessibilityRole="progressbar">Loading</Text> : rows.length === 0 ? (
             <Empty testID="audit-none">No events match</Empty>

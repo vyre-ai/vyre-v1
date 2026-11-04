@@ -91,7 +91,8 @@ export function ThreadFooter({ s, clock, nameOf, onOpen, mine = false, testID, t
     return (
       <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={`Open the thread: ${f.label}`} onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}>
         <View style={st.face}><Face name={nameOf(s?.lastBy?.id ?? "")} seedId={s?.lastBy?.id} kind="agent" size={18} /></View>
-        <Text testID={`${testID}-waiting`} numberOfLines={1} style={st.doneText}><Text style={st.warn}>{f.head}</Text>{f.waiting.line !== "" ? ` \u00b7 ${f.waiting.line}` : ""}</Text>
+        {/* two lines, so on a phone the act stays readable ("Waiting for your OK · message Aliza Rizvi" was cut to "messag...") */}
+        <Text testID={`${testID}-waiting`} numberOfLines={2} style={st.doneText}><Text style={st.warn}>{f.head}</Text>{f.waiting.line !== "" ? ` \u00b7 ${f.waiting.line}` : ""}</Text>
         {f.count !== "0 replies" ? <Text testID={`${testID}-count`} numberOfLines={1} style={[st.muted, f.bold && st.bold]}>{`\u00b7 ${f.count}`}</Text> : null}
       </Pressable>
     );

@@ -203,6 +203,10 @@ export interface TurnEngine {
   idle(threadId: string): Promise<void>;
   events(threadId?: string): EngineEvent[];
   subscribe(fn: (e: EngineEvent) => void): () => void;
+  /** Turns parked because the person's Vault is locked on this computer: one per chat and agent, however many messages came since. A parked turn is not running. */
+  parkedLocked(): Array<{ threadId: string; agentId: string; asker: string; messageId: string | null }>;
+  /** The Vault is open: run the one waiting turn of each chat parked for this person (everyone's when no one is named). Returns how many were resumed. */
+  resumeLocked(asker?: string): number;
   turns(threadId?: string): TurnRow[];
   spend(): SpendRow[];
   messages(threadId: string): StoredMessage[];
@@ -227,6 +231,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   const listeners = new Set<(e: EngineEvent) => void>();
   const turnRows: TurnRow[] = [];
   const spendRows: SpendRow[] = [];
+  /** `${thread}|${agent}` -> the turn that waits for the person's Vault; later messages for that agent fold into it instead of starting a turn that fails the same way. */
+  const lockedPark = new Map<string, { threadId: string; agentId: string; asker: string; messageId: string | null; from: string; since: number }>();
+  const PARK_MAX_MS = 10 * 60_000;   // a host that cannot see the unlock still tries again on the next message after this
   const enqueuedHr = new Map<string, number>();   // `${thread}:${qseq}` -> hr() at enqueue
   let counter = 0;
   const nextId = opts.newId ?? ((p: string): string => `${p}_${++counter}`);
@@ -360,6 +367,14 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         emit({ type: "agent.handoff", threadId: id, to: where });
         st.active = false;
         return;
+      }
+      const parked = lockedPark.get(`${id}|${next.agentId}`);
+      if (parked && now() - parked.since >= PARK_MAX_MS) lockedPark.delete(`${id}|${next.agentId}`);
+      else if (parked) {
+        // the Vault is still locked for this agent's turn: this message folds into the one waiting turn, which will answer the newest one
+        if (next.messageId) parked.messageId = next.messageId;
+        queue.setState(id, next.qseq, "cancelled");
+        continue;
       }
       const item = queue.dequeue(id);
       if (!item) continue;
@@ -732,7 +747,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     try { await opts.onTurnEnd?.(turn, paying ?? null); } catch { /* metering must never fail the turn */ }
     if (turn.state === "completed") emit({ type: "turn.completed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId });
     else if (turn.state === "cancelled") emit({ type: "turn.cancelled", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, ...(run.why ? { reason: run.why } : {}) });
-    else emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}) });
+    else {
+      if (turn.error?.code === "engine.vault_locked") lockedPark.set(`${st.thread.id}|${item.agentId}`, { threadId: st.thread.id, agentId: item.agentId, asker, messageId: item.messageId, from: item.from, since: now() });
+      emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}) });
+    }
     // The agent's answer is a message like any other: it can @mention the next agent, which counts a hop.
     // a turn that was stopped by a hook and then said nothing says what happened itself, so the stop is never the last thing in the chat
     if (turn.state === "completed" && reply === "" && mentions.length === 0 && opts.hooks?.stoppedSince) {
@@ -890,6 +908,20 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     },
     events: (threadId) => (threadId === undefined ? journal.slice() : journal.filter((e) => e.threadId === threadId)),
     subscribe(fn) { listeners.add(fn); return () => { listeners.delete(fn); }; },
+    parkedLocked: () => [...lockedPark.values()].map((x) => ({ threadId: x.threadId, agentId: x.agentId, asker: x.asker, messageId: x.messageId })),
+    resumeLocked(asker) {
+      let n = 0;
+      for (const [key, x] of [...lockedPark]) {
+        if (asker !== undefined && x.asker !== asker) continue;
+        lockedPark.delete(key);
+        const st = threads.get(x.threadId);
+        if (!st) continue;
+        enqueue(st, { kind: x.messageId ? "message" : "wake", agentId: x.agentId, from: x.from, messageId: x.messageId, priority: 0, routine: false });
+        kick(st);
+        n++;
+      }
+      return n;
+    },
     turns: (threadId) => (threadId === undefined ? turnRows.slice() : turnRows.filter((t) => t.threadId === threadId)),
     spend: () => spendRows.slice(),
     messages: (threadId) => need(threadId).messages.slice(),

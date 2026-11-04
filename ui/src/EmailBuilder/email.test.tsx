@@ -119,19 +119,19 @@ test("focus mode hides the header, envelope, rail and pane and shows the leave h
   assert.match(tag(normal, "email-builder"), /data-focus="false"/);
 });
 
-test("Ask pane lists the three suggested diffs, each with its own Accept; an accepted one reads Accepted", () => {
+test("Ask pane lists the three suggested diffs, each with its own Allow; an allowed one reads Allowed", () => {
   const html = renderToStaticMarkup(<EmailBuilder {...base} askOpen diffs={[...DIFFS.slice(0, 1).map((d) => ({ ...d, accepted: true })), ...DIFFS.slice(1)]} />);
   for (const d of DIFFS) assert.match(html, new RegExp(`data-testid="em-diff-${d.id}"`));
   assert.match(tag(html, "em-diff-d-subject"), /data-accepted="true"/);
   assert.match(tag(html, "em-diff-d-body"), /data-accepted="false"/);
   assert.equal(html.match(/data-testid="em-accept-/g)?.length, 2, "only the two open diffs have Accept");
-  assert.ok(html.includes("Accepted"));
+  assert.ok(html.includes("Allowed"));
   assert.ok(renderToStaticMarkup(<EmailBuilder {...base} askOpen diffs={[]} />).includes("Nothing suggested yet"));
 });
 
 test("every open change can be accepted or rejected, and a running Ask names its agent and offers Cancel", () => {
   const open = renderToStaticMarkup(<EmailBuilder {...base} askOpen diffs={DIFFS} />);
-  assert.equal(open.match(/data-testid="em-reject-/g)?.length, DIFFS.length, "each open change has Reject beside Accept");
+  assert.equal(open.match(/data-testid="em-reject-/g)?.length, DIFFS.length, "each open change has Deny beside Allow");
   assert.equal(open.includes('data-testid="em-asking"'), false);
   const waiting = renderToStaticMarkup(<EmailBuilder {...base} askOpen diffs={[]} asking={{ agent: "Writer", onCancel: () => undefined }} />);
   assert.match(waiting, /Asking Writer/);

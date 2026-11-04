@@ -11,6 +11,7 @@ const spaceRow = t.obj({
   id: id.space, name: t.str(), legalName: t.opt(t.str()), logoFileId: t.opt(id.file), kind: t.enm('personal', 'team'), owner: id.user,
   fingerprint: t.str({ examples: ['ab12 cd34 ef56 7890'] }), address: t.obj({ mode: t.enm('relay', 'own_domain', 'device'), host: t.opt(t.str()) }), hostedOn: t.opt(t.str()),
   defaults: t.rec(), createdAt: t.ts(),
+  timezone: t.opt(t.str({ examples: ['America/Los_Angeles'] })), // the Space's time zone (an IANA name): every shared place reads times in it
   deletionAt: t.opt(t.ts()), // set while the Space is scheduled for deletion: when everything is removed unless an admin cancels
 });
 const stepKey = t.enm('photo_title', 'connect_mailbox', 'meet_assistant', 'first_project', 'import');
@@ -40,6 +41,9 @@ export default defineManifest({
 
   capabilities: [
     read('spaces.get', 'The Space profile: name, legal name, logo, address, hosting, defaults, kind', { level: 'member', in: {}, out: { space: spaceRow }, tool: 'meta' }),
+    write('spaces.timezone.set', 'Set the Space time zone (an IANA name). Shared places read times in it; each person sees their own beside it. Deadlines keep their moment. An agent needs an admin to approve', {
+      ...V, in: { timezone: t.str({ examples: ['America/Los_Angeles'] }) }, out: { space: spaceRow }, perm: 'policy.manage', gate: { act: 'approve', when: "actor.kind != 'person'", reason: 'Changes how every time reads in the Space' }, emits: ['space.updated'], audit: 'always', tool: 'meta', errors: ['validation.bad_input'],
+    }),
     write('spaces.update', 'Change the Space name, legal name, logo or defaults', {
       ...V, in: { name: t.opt(t.str()), legalName: t.opt(t.str()), logoFileId: t.opt(t.nullable(id.file)), defaults: t.opt(t.rec()) }, out: { space: spaceRow }, perm: 'policy.manage', emits: ['space.updated'], audit: 'always', tool: 'meta',
     }),

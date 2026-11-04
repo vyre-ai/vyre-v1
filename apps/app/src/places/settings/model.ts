@@ -179,6 +179,7 @@ export type Control =
   | { kind: "number"; min?: number; max?: number; step: number }
   | { kind: "text"; pattern?: string; mono?: boolean }
   | { kind: "hours" }
+  | { kind: "zone" }
   | { kind: "list" }
   | { kind: "summary" };
 
@@ -214,11 +215,7 @@ export function timeIn(at: number, tz: string): string {
 }
 
 export function controlFor(row: SettingRow, schema: Schema | undefined = HINTS[row.key]): Control {
-  if (row.key === "profile.timezone") {
-    const cur = typeof row.value === "string" ? row.value : "UTC";
-    const options = TIMEZONES.some((z) => z.value === cur) ? TIMEZONES : [{ value: cur, label: cur }, ...TIMEZONES];
-    return { kind: "choice", options };
-  }
+  if (row.key === "profile.timezone") return { kind: "zone" };
   if (row.key.endsWith("working_hours")) return { kind: "hours" };
   if (schema?.enum) return { kind: "choice", options: schema.enum.map((v) => ({ value: String(v), label: labelOf(String(v)) })) };
   const v = row.default;
@@ -231,6 +228,7 @@ export function controlFor(row: SettingRow, schema: Schema | undefined = HINTS[r
 
 /** The plain name of a row, where the registry's title is longer than the row needs. */
 export const ROW_LABELS: Readonly<Record<string, string>> = {
+  "profile.timezone": "Your time zone",
   "notifications.email_backstop": "Email me if an approval waits",
   "notifications.routines_all": "Tell me when routines succeed",
   "notifications.alert_replies": "Alert me on replies",
@@ -242,7 +240,7 @@ export const ROW_LABELS: Readonly<Record<string, string>> = {
 };
 /** What a row does. It shows on hover, never as a line on the page. */
 export const ROW_HELP: Readonly<Record<string, string>> = {
-  "profile.timezone": "Used for your working hours, quiet hours and whatever agents schedule for you.",
+  "profile.timezone": "Your own clock: working hours, quiet hours and what agents schedule for you. Shared places read in the Space's time zone and show this beside it.",
   "profile.working_hours": "When you work. People and agents see it, Find a time keeps to it, and outside it only calls, urgent approvals and incidents interrupt you.",
   "notifications.email_backstop": "One email if an approval has been waiting on you for 4 hours.",
   "notifications.alert_replies": "A reply to a message you follow interrupts you. Off, it is a badge.",

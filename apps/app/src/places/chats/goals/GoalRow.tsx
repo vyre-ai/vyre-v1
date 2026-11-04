@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { fractionOf, rowNote } from "./model.ts";
+import { useZones } from "../../../../../../ui/src/Time/index.tsx";
 import type { GoalLine, Tone } from "./model.ts";
 
 /** A goal's row is the Row with a note: 44 px, the same as any two-line row. */
@@ -21,8 +22,9 @@ export function Bar({ value, tone = "plain", width = 44, testID }: { value: numb
   );
 }
 
-export function GoalRow({ goal, selected, hovered, now, offsetMin, me, leadName, onPress }: { goal: GoalLine; selected: boolean; hovered: boolean; now: number; offsetMin: number; me: string | undefined; leadName: string; onPress(): void }): ReactElement {
-  const note = rowNote(goal, now, offsetMin, me);
+export function GoalRow({ goal, selected, hovered, now, me, leadName, onPress }: { goal: GoalLine; selected: boolean; hovered: boolean; now: number; me: string | undefined; leadName: string; onPress(): void }): ReactElement {
+  const zones = useZones();
+  const note = rowNote(goal, now, zones, me);
   const tone: Tone = goal.status === "done" ? "ok" : goal.status === "paused" || goal.status === "missed" || goal.status === "stopped" || goal.status === "draft" ? "dim" : "plain";
   return (
     <View testID={`goal-row-${goal.id}`} style={{ height: GOAL_ROW_H }}>

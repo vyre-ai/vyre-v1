@@ -1,8 +1,8 @@
 // Running the hooks of one event (lane l-hooks). Order: Space, person, agent, chat, run; an admin's block ends it, so it wins. A hook only ever stops work or adds a note or runs its own action; there is no
 // answer here that approves, loosens or skips anything. A hook that errors or runs out of time is logged and shown, never a block.
-import { BLOCKING, matches, namesOf, parseCheck, plainTools, redact, scopeRank, validNext } from "../../lib/hooks.ts";
+import { BLOCKING, matches, namesOf, parseCheck, plainTools, redact, scopeRank, targetsOf, validNext } from "../../lib/hooks.ts";
 import type { HookFire, HookVerdict } from "../../lib/hooks.ts";
-import { applicable, logRun, helpersActive, link, lineage, parentOf, takePass } from "./projections.ts";
+import { applicable, isAllowed, logRun, helpersActive, link, lineage, parentOf, takeNotes, takePass } from "./projections.ts";
 import type { HooksCtx, Rec } from "./projections.ts";
 import { hostSeams } from "./seams.ts";
 import type { CheckAnswer } from "../../lib/hooks.ts";
@@ -105,13 +105,21 @@ export async function fire(ctx: HooksCtx, f: HookFire): Promise<HookVerdict> {
   const names = namesOf({ ...(f.tool ? { tool: f.tool } : {}), ...(f.cap ? { cap: f.cap } : {}) });
   const order = [...mine, ...plugs].sort((a, b) => scopeRank(a.scope) - scopeRank(b.scope) || (a.id.startsWith("plugin:") ? 0 : 1) - (b.id.startsWith("plugin:") ? 0 : 1) || a.seq - b.seq);
   const payload = payloadOf(f);
-  const verdict: HookVerdict = { block: null, notes: [], ran: 0 };
+  // what this act is aimed at (a recipient, a host, a path, a program), so "Always allow" can carry it
+  const targets = targetsOf(f.tool, f.input);
+  const verdict: HookVerdict = { block: null, notes: f.event === "prompt.submit" ? takeNotes(ctx, f.threadId) : [], ran: 0 };
   for (const h of order) {
     if (tooly && !names.some((n) => matches(h.matcher, n))) continue;
     // a person pressed "Allow this once" on this hook in this chat: it lets this one through, and the pass is used up
     if (BLOCKING.has(f.event) && !h.id.startsWith("plugin:") && takePass(ctx, h.id, f.threadId)) {
       verdict.ran++;
       logRun(ctx, { hookId: h.id, event: f.event, threadId: f.threadId, agentId: f.agentId, ...(f.tool ? { tool: f.tool } : {}), outcome: "allowed_once", ms: 0 });
+      continue;
+    }
+    // a person pressed "Always allow" on a stop of this hook for this kind of act: the hook lets it go by and keeps guarding everything else
+    if (BLOCKING.has(f.event) && !h.id.startsWith("plugin:") && isAllowed(ctx, h.id, f.tool, targets)) {
+      verdict.ran++;
+      logRun(ctx, { hookId: h.id, event: f.event, threadId: f.threadId, agentId: f.agentId, ...(f.tool ? { tool: f.tool } : {}), outcome: "allowed_always", ms: 0 });
       continue;
     }
     const t0 = Date.now();
@@ -126,7 +134,7 @@ export async function fire(ctx: HooksCtx, f: HookFire): Promise<HookVerdict> {
     verdict.ran++;
     const ms = Date.now() - t0;
     if (o.outcome === "blocked" && !BLOCKING.has(f.event)) o = { outcome: "ok", detail: "this event cannot be stopped" };
-    if (!h.id.startsWith("plugin:")) logRun(ctx, { hookId: h.id, event: f.event, threadId: f.threadId, agentId: f.agentId, ...(f.tool ? { tool: f.tool } : {}), outcome: o.outcome, ...(o.detail || o.block ? { detail: o.detail ?? o.block ?? "" } : {}), ms });
+    if (!h.id.startsWith("plugin:")) logRun(ctx, { hookId: h.id, event: f.event, threadId: f.threadId, agentId: f.agentId, ...(f.tool ? { tool: f.tool } : {}), ...(targets.length > 0 ? { targets } : {}), outcome: o.outcome, ...(o.detail || o.block ? { detail: o.detail ?? o.block ?? "" } : {}), ms });
     if (o.outcome === "error" || o.outcome === "timeout") {
       const key = `${h.id}|${f.threadId}`;
       if (Date.now() - (said.get(key) ?? 0) > 3_600_000) {

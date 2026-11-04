@@ -110,3 +110,24 @@ test("an API engine keeps its own tool results for the person it worked for: the
   await drain(await wrapped({ account: { ref: "#C", driver: "claude_code", provider: "anthropic", kind: "subscription", payer: "usr_maya", reason: "starter" } } as never), ctxOf(input(13)));
   assert.equal(results(seen.at(-1)!), "");
 });
+
+test("what a tool returned before a person joined the chat is not given back to any later turn there (the answer lands where the newcomer reads it)", async () => {
+  const seen: TurnInput[] = [];
+  const open: OpenSession = async () => ({
+    warm: true,
+    async *send(i: TurnInput) { seen.push(i); if (i.turnId === "trn_20") { yield { type: "tool_call", id: "call_8", name: "memory_propose", input: {} }; } yield { type: "text", text: "ok" }; yield { type: "done" }; },
+    sendToolResult() {}, inject() {}, async cancel() {}, async close() {},
+  }) as EngineSession;
+  const wrapped = withTranscript(open, async () => ({}));
+  const api = { account: { ref: "#K", driver: "anthropic", provider: "anthropic", kind: "api_key", payer: "usr_maya", reason: "starter" } } as never;
+  const at = (n: number, seq: number, from?: number): TurnInput => ({ ...input(n), trigger: { ...msg(`msg_${n}`, `ask ${n}`), threadSeq: seq }, context: { sections: [], names: {}, ...(from === undefined ? {} : { historyFromSeq: from }) } });
+  const first = await wrapped(api);
+  for await (const e of first.send(at(20, 3))) if (e.type === "tool_call") first.sendToolResult(e.id, { ok: true, content: "Maya's budget ceiling for the Acme deal is $80,000." });
+  const results = (i: TurnInput) => i.context?.sections.find((s) => s.id === "results")?.text ?? "";
+  await drain(await wrapped(api), at(21, 4));
+  assert.match(results(seen.at(-1)!), /\$80,000/, "before anyone joined, her own turn is given it");
+  await drain(await wrapped(api), at(22, 9, 7));
+  assert.equal(results(seen.at(-1)!), "", "a person joined after message 3 (the cut starts at 7): nothing from before is given, to anyone");
+  await drain(await wrapped(api), at(23, 9, 2));
+  assert.match(results(seen.at(-1)!), /\$80,000/, "a cut that starts earlier than the result keeps it");
+});

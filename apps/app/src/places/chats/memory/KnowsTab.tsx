@@ -202,8 +202,8 @@ export function KnowsTab({ deps, memory, spaceName, window }: { deps: PaneDeps; 
               <View style={st.foot}>
                 <ChipLink icon={glyphOf(f.sourceKind)} label={sourceLabel(f)} testID={`proposed-source-${f.factId}`} onPress={() => openSource(f)} />
                 <View style={{ flex: 1 }} />
-                <Tool icon="check" label="Accept" onPress={() => decide(f, true)} testID={`accept-${f.factId}`} />
-                <Tool icon="x" label="Reject" onPress={() => decide(f, false)} testID={`reject-${f.factId}`} />
+                <Tool icon="check" label="Allow" onPress={() => decide(f, true)} testID={`accept-${f.factId}`} />
+                <Tool icon="x" label="Deny" onPress={() => decide(f, false)} testID={`reject-${f.factId}`} />
               </View>
             </View>
           </View>

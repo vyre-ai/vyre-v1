@@ -1,6 +1,6 @@
 // The one place an activity line becomes words for a person. A feed line is stored as a plain sentence that may carry two tokens: {at:<ms>} (a moment) and {who:<id>} (a person or agent).
 // The reader fills them in: times in their zone, once; names from their directory; "you" for themself. Old lines with no token read as they were stored.
-import { shortTime } from "./time.ts";
+import { shortTime, shortTimeIn } from "./time.ts";
 
 export interface Viewer {
   /** the reader's id */
@@ -9,6 +9,8 @@ export interface Viewer {
   nameOf(id: string): string;
   /** the reader's zone against UTC, in minutes */
   offsetMin: number;
+  /** an IANA zone to read times in (the Space's): wins over offsetMin, and follows daylight saving */
+  zone?: string | undefined;
 }
 export interface ActivityEvent { kind?: string; text: string; /** the sentence with tokens, when the server sent both */ tpl?: string | undefined; by?: string | undefined; at: number; ref?: string | undefined }
 export interface ActivityLine { text: string; credit: string; at: number; ref?: string | undefined }
@@ -23,7 +25,7 @@ export function expandWords(text: string, v: Viewer): string {
   for (const m of text.matchAll(TOKEN)) {
     const i = m.index ?? 0;
     out += text.slice(last, i);
-    const val = m[1] === "at" ? shortTime(Number(m[2]), v.offsetMin) : m[2] === v.me ? "you" : v.nameOf(m[2]!);
+    const val = m[1] === "at" ? (v.zone ? shortTimeIn(Number(m[2]), v.zone) : shortTime(Number(m[2]), v.offsetMin)) : m[2] === v.me ? "you" : v.nameOf(m[2]!);
     const start = out === "" || /[.!?]\s*$/.test(out);
     out += start ? cap(val) : val;
     last = i + m[0].length;

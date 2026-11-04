@@ -24,6 +24,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "spaces.onboarding.seen": async (ctx) => { throw new VyreErr(notImplemented("spaces.onboarding.seen", ctx.trace)); },
   "spaces.switch_address": async (ctx) => { throw new VyreErr(notImplemented("spaces.switch_address", ctx.trace)); },
   "spaces.switcher": async (ctx) => { throw new VyreErr(notImplemented("spaces.switcher", ctx.trace)); },
+  "spaces.timezone.set": async (ctx) => { throw new VyreErr(notImplemented("spaces.timezone.set", ctx.trace)); },
   "spaces.transfer_ownership": async (ctx) => { throw new VyreErr(notImplemented("spaces.transfer_ownership", ctx.trace)); },
   "spaces.update": async (ctx) => { throw new VyreErr(notImplemented("spaces.update", ctx.trace)); },
   "stars.list": async (ctx) => { throw new VyreErr(notImplemented("stars.list", ctx.trace)); },

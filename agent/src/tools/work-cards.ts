@@ -75,7 +75,7 @@ export function workCardOf(cap: string, input: unknown, output: unknown): WorkCa
         key: `draft:${id}`, icon: "draft", lead: "Draft", title: clip(first(i["subject"], "An email draft")), to: to.join(", "), via: gmail ? "Gmail" : "Outlook", body: s(i["text"]), target: { type: "provider_draft", id },
         actions: [
           { key: "send", label: "Send", cap: gmail ? "google.gmail.send_message" : "ms.mail.send_message", input: { ...base, to, subject: s(i["subject"]), text: s(i["text"]), ...(gmail && s(i["threadId"]) ? { threadId: s(i["threadId"]) } : {}) } },
-          { key: "discard", label: "Don't send", cap: gmail ? "google.gmail.delete_draft" : "ms.mail.delete_message", input: gmail ? { ...base, draftId: id } : { ...base, messageId: id } },
+          { key: "discard", label: "Deny", cap: gmail ? "google.gmail.delete_draft" : "ms.mail.delete_message", input: gmail ? { ...base, draftId: id } : { ...base, messageId: id } },
         ],
       };
     }
