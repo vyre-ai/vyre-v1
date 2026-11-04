@@ -55,7 +55,7 @@ async function features(): Promise<Features> {
 async function runTask(task: Task, f: Features, n: number): Promise<Row> {
   const started = performance.now();
   const invoke = (async () => ({ status: "ok", output: { items: [] }, traceId: "trc_measure" })) as never;
-  const session = createToolSession({ invoke, catalog, defaults, levelFor: () => "manage", canEngineer: () => false });
+  const session = createToolSession({ nextHints: true, invoke, catalog, defaults, levelFor: () => "manage", canEngineer: () => false });
   const threadId = `thr_${n}`;
   session.preload(threadId, f.preload(task));
   const ctx: ToolCtx = { space: "spc_m", agentId: "agt_m", asker: "usr_m", thread: { threadId, kind: task.place.kind, planMode: false, ...(task.place.scope ? { scope: task.place.scope } : {}) }, turnId: `trn_${n}` };
@@ -100,7 +100,7 @@ async function runTask(task: Task, f: Features, n: number): Promise<Row> {
  */
 async function runMultiTask(task: Task, f: Features, n: number, parallel: boolean): Promise<Row> {
   const invoke = (async () => ({ status: "ok", output: { items: [] }, traceId: "trc_measure" })) as never;
-  const session = createToolSession({ invoke, catalog, defaults, levelFor: () => "manage", canEngineer: () => false });
+  const session = createToolSession({ nextHints: true, invoke, catalog, defaults, levelFor: () => "manage", canEngineer: () => false });
   const threadId = `thr_m${n}`;
   session.preload(threadId, f.preload(task));
   const ctx: ToolCtx = { space: "spc_m", agentId: "agt_m", asker: "usr_m", thread: { threadId, kind: task.place.kind, planMode: false }, turnId: `trn_m${n}` };

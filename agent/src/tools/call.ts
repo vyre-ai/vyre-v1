@@ -38,6 +38,8 @@ export interface CallDeps extends AccessDeps {
   dynamic?: DynamicTools;
   hooks?: CallHooks;
   invoke: Invoke;
+  /** Name the tool that reads one item after a list result, and list it at once. For a session whose model sees a live tool list (the API driver); a CLI engine through MCP lists once, so it is left out there. */
+  nextHints?: boolean;
   traceId?(): string;
   /** Local tools only: what Ask, Allow and Auto say. Fails closed: a missing policy refuses a local tool. */
   localPolicy?(t: ToolDef, ctx: ToolCtx, input: unknown): LocalDecision;
@@ -188,7 +190,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
       const content: { data: unknown; meta?: unknown; blocks?: string[]; next?: string } = shaped ? { data: shaped.data, meta: shaped.meta } : { data: res.output };
       if (t.blocks.length > 0) content.blocks = t.blocks;
       // a list names the tool that reads one item, and that tool is listed from now on: no search to find it
-      const reads = nextReads(t.name);
+      const reads = deps.nextHints === true ? nextReads(t.name) : [];
       if (reads.length > 0) {
         const set = toolsFor(deps, ctx), offered = new Set([...set.listed, ...set.searchable].map((x) => x.name));
         const ready = reads.filter((n) => offered.has(n));

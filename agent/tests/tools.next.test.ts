@@ -23,7 +23,7 @@ test("every name in the next-read table is a real tool, and the derived pair exi
 });
 
 test("after tasks_list the result says to call tasks_get, and tasks_get is loaded without a search", async () => {
-  const session = createToolSession({ invoke, catalog, defaults, levelFor: () => "manage", canEngineer: () => false });
+  const session = createToolSession({ nextHints: true, invoke, catalog, defaults, levelFor: () => "manage", canEngineer: () => false });
   const c = ctx();
   const out = await session.call(c, "tasks_list", {});
   assert.equal(out.kind, "result");
@@ -35,8 +35,16 @@ test("after tasks_list the result says to call tasks_get, and tasks_get is loade
 });
 
 test("a read the agent is not allowed to use is not named", async () => {
-  const session = createToolSession({ invoke, catalog, defaults, levelFor: () => "manage", canEngineer: () => false });
+  const session = createToolSession({ nextHints: true, invoke, catalog, defaults, levelFor: () => "manage", canEngineer: () => false });
   const out = await session.call(ctx({ rules: { deny: ["tasks_get"] } }), "tasks_list", {});
+  const content = (out as { result: { content: { next?: string } } }).result.content;
+  assert.equal(content.next, undefined);
+  assert.ok(!session.loaded("thr_n").has("tasks_get"));
+});
+
+test("a session that does not ask for hints (the MCP path of a CLI engine) gets the plain result, no next field", async () => {
+  const session = createToolSession({ invoke, catalog, defaults, levelFor: () => "manage", canEngineer: () => false });
+  const out = await session.call(ctx(), "tasks_list", {});
   const content = (out as { result: { content: { next?: string } } }).result.content;
   assert.equal(content.next, undefined);
   assert.ok(!session.loaded("thr_n").has("tasks_get"));
