@@ -113,7 +113,7 @@ export type ShareLevel = "view" | "use" | "edit" | "manage";
 export type ShareSubjectKind = "person" | "group" | "role" | "agent" | "link";
 export type ShareVia = "owner" | "grant" | "folder" | "space";
 
-export type ShareItemType = "note" | "file" | "record" | "rtype" | "artifact" | "project" | "vault" | "agent" | "automation";
+export type ShareItemType = "note" | "file" | "record" | "rtype" | "artifact" | "project" | "vault" | "agent" | "automation" | "skill";
 
 /** One row of "Who has access". */
 export interface ShareRow {

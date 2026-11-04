@@ -465,3 +465,39 @@ test("a private repository is read with the person's own GitHub: the token handl
   hn.world.answer("github.token", () => { throw Object.assign(new Error("no repo"), { error: { code: "validation.not_found", message: "no repo" } }); });
   assert.equal(await fails(call(hn, "install.from_link", { url: "https://github.com/acme/secret-skill" })), "provider.unavailable", "a repo they cannot reach reads as one that cannot be read");
 });
+
+test("a skill is an access resource: its owner holds manage on it, a grant goes through access, and what the Share sheet changes there follows into the agents' side and people's cards", async () => {
+  const { hn } = world();
+  const agent = await agentOf(hn, hn.ctx, "Intake");
+  const reader = await agentOf(hn, hn.ctx, "Reader");
+  const s = (await call(hn, "skills.save", { text: SKILL("billing-rules", "How we bill."), ownerAgentId: agent })).skill;
+  const grants = () => hn.world.calls.filter((c) => c.cap === "access.share").map((c) => c.input);
+  assert.deepEqual(grants().map((g) => [g.resource, g.subject, g.level, g.source]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+    [[{ type: "skill", id: s.skillId }, { kind: "agent", id: agent }, "manage", "skill:owner"], [{ type: "skill", id: s.skillId }, { kind: "person", id: DANA }, "manage", "skill:owner"]], "the agent and the person who owns it");
+  hn.clear();
+  await call(hn, "skills.grant", { skillId: s.skillId, agentId: reader, level: "edit" });
+  assert.deepEqual(grants().map((g) => [g.subject, g.level, g.source]), [[{ kind: "agent", id: reader }, "edit", "skill:grant"]]);
+  await call(hn, "skills.grant", { skillId: s.skillId, agentId: reader, level: null });
+  assert.equal(hn.world.calls.filter((c) => c.cap === "access.unshare").length, 1);
+  // the Share sheet gives and takes back through access; the consumer follows
+  const { followGrant } = await import("../handlers/install.ts");
+  const ev = (name: string, subject: { kind: string; id: string }, level = "use", source?: string) => followGrant(hn.ctx, { name, payload: { resource: { type: "skill", id: s.skillId }, subject, level, ...(source ? { source } : {}) } });
+  ev("grant.created", { kind: "agent", id: reader }, "edit");
+  assert.equal(hn.rows("SELECT level FROM agents_skill_grants WHERE agent_id = ?", reader)[0]!["level"], "edit");
+  ev("grant.created", { kind: "agent", id: reader }, "view");
+  assert.equal(hn.rows("SELECT level FROM agents_skill_grants WHERE agent_id = ?", reader)[0]!["level"], "use", "view reads as use");
+  ev("grant.revoked", { kind: "agent", id: reader });
+  assert.equal(hn.rows("SELECT * FROM agents_skill_grants").length, 0);
+  ev("grant.created", { kind: "person", id: MAYA });
+  assert.deepEqual(hn.rows("SELECT recipient FROM agents_skill_shares").map((r) => r["recipient"]), [MAYA], "a person it is shared with gets the card");
+  ev("grant.revoked", { kind: "person", id: MAYA });
+  assert.equal(hn.rows("SELECT * FROM agents_skill_shares").length, 0);
+  ev("grant.created", { kind: "person", id: LEO }, "use", "skill:owner");
+  assert.equal(hn.rows("SELECT * FROM agents_skill_shares").length, 0, "the owner's own grant makes no card");
+  followGrant(hn.ctx, { name: "grant.created", payload: { resource: { type: "file", id: "fil_1" }, subject: { kind: "agent", id: reader }, level: "edit" } });
+  assert.equal(hn.rows("SELECT * FROM agents_skill_grants").length, 0, "another resource is not a skill");
+  // a skill added by hand is registered too and has its first version
+  const mine = (await call(hn, "skills.mine.add", { text: SKILL("deploy-checks", "Run checks.") })).skill;
+  assert.ok(hn.world.calls.some((c) => c.cap === "access.share" && c.input.resource.id === mine.skillId));
+  assert.equal((await call(hn, "skills.history", { skillId: mine.skillId })).revisions.length, 1);
+});

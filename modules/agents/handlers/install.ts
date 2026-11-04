@@ -75,6 +75,16 @@ export function saveFor(ctx: AgentsCtx, o: { owner: string; text: string; files:
   return ownById(ctx, id)!;
 }
 
+/** A skill is an access resource ("skill"): its owner holds manage on it, and the owner of an agent that owns it too, so the shared Share sheet has a row for them. A host without access leaves it as the owner column says. */
+export async function registerSkill(ctx: AgentsCtx, o: Own): Promise<void> {
+  if (!ctx.call) return;
+  const subjects = [{ kind: o.owner.startsWith("agt_") ? "agent" : "person", id: o.owner }, ...(o.owner.startsWith("agt_") && agentBy(ctx.db, o.owner)?.ownerId ? [{ kind: "person", id: agentBy(ctx.db, o.owner)!.ownerId }] : [])];
+  for (const subject of subjects) {
+    try { await ctx.call("access.share", { resource: { type: "skill", id: o.id }, subject, level: "manage", source: "skill:owner", idempotencyKey: `skill-owner:${o.id}:${subject.id}` }, { idempotencyKey: `skill-owner:${o.id}:${subject.id}` }); }
+    catch (e) { ctx.log.warn("agents: a skill could not be registered for sharing", { error: e instanceof Error ? e.message : String(e) }); }
+  }
+}
+
 export async function skillsSave(ctx: AgentsCtx, input: In) {
   ensure(ctx.db);
   const files = (input.files ?? {}) as Files;
@@ -95,7 +105,21 @@ export async function skillsSave(ctx: AgentsCtx, input: In) {
   if (!pre.ok) raise(ctx, "validation.bad_input", pre.problem);
   const same = (ctx.db.all("SELECT * FROM agents_skill_own WHERE owner = ? AND project_id = '' AND name = ?", owner, (pre as { ok: true; skill: { name: string } }).skill.name) as Row[])[0];
   if (same) need(ctx, str(same["id"]), "edit");
-  return { skill: skillOut(ctx, saveFor(ctx, { owner, text: input.text, files, source: input.source ?? (owner.startsWith("agt_") ? "agent" : "upload"), ...(input.summary ? { summary: input.summary } : {}) })) };
+  const made = saveFor(ctx, { owner, text: input.text, files, source: input.source ?? (owner.startsWith("agt_") ? "agent" : "upload"), ...(input.summary ? { summary: input.summary } : {}) });
+  if (!same) await registerSkill(ctx, made);
+  return { skill: skillOut(ctx, made) };
+}
+
+/** skills.mine.add, and the new skill is registered for sharing. */
+export async function mineAddShared(ctx: AgentsCtx, input: Parameters<typeof mineAdd>[1]) {
+  const out = await mineAdd(ctx, input);
+  const o = ownById(ctx, out.skill.skillId);
+  if (o && revsOf(ctx, o.id).length === 0) {
+    // the first version of a skill a person added by hand
+    ctx.db.run("INSERT INTO agents_skill_rev (skill_id, rev, text, files_json, by_who, author_kind, summary, undo_of, at) VALUES (?, 1, ?, ?, ?, ?, 'created', NULL, ?)", o.id, o.text, JSON.stringify(o.files), me(ctx), authorKind(ctx), ctx.now());
+    await registerSkill(ctx, o);
+  }
+  return out;
 }
 
 export async function skillsHistory(ctx: AgentsCtx, input: In) {
@@ -123,20 +147,50 @@ export async function skillsUndo(ctx: AgentsCtx, input: In) {
   return { skill: skillOut(ctx, ownById(ctx, o.id)!), undid: Number(latest!["rev"]) };
 }
 
-/** Give an agent use, edit or manage of a skill, or take it back (level null). Only a manager of the skill shares it on. */
+/**
+ * Give an agent use, edit or manage of a skill, or take it back (level null). Only a manager of the skill shares it on. The grant is an access grant on the skill, the same one the shared Share sheet
+ * writes; this table keeps the agents' side of it so a list of an agent's skills needs no access query (the consumer in impl.ts keeps it in step when the sheet changes a grant).
+ */
 export async function skillsGrant(ctx: AgentsCtx, input: In) {
   const o = need(ctx, input.skillId, "manage");
   const a = agentBy(ctx.db, input.agentId);
   if (!a || (!canSee(ctx, a) && ctx.principal.kind !== "agent")) raise(ctx, "validation.not_found", "There is no such agent.");
   if (a!.id === o.owner) raise(ctx, "validation.bad_input", "That agent already owns this skill.");
-  if (input.level === null || input.level === undefined) {
-    ctx.db.run("DELETE FROM agents_skill_grants WHERE skill_id = ? AND agent_id = ?", o.id, a!.id);
-  } else {
-    if (!(input.level in RANK)) raise(ctx, "validation.bad_input", "A level is use, edit or manage.");
-    ctx.db.run("INSERT INTO agents_skill_grants (skill_id, agent_id, level, by_who, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(skill_id, agent_id) DO UPDATE SET level = excluded.level, by_who = excluded.by_who, at = excluded.at", o.id, a!.id, input.level, me(ctx), ctx.now());
+  const off = input.level === null || input.level === undefined;
+  if (!off && !(input.level in RANK)) raise(ctx, "validation.bad_input", "A level is use, edit or manage.");
+  const resource = { type: "skill", id: o.id };
+  const subject = { kind: "agent", id: a!.id };
+  if (ctx.call) {
+    try {
+      if (off) await ctx.call("access.unshare", { resource, subject, source: "skill:grant" });
+      else await ctx.call("access.share", { resource, subject, level: input.level, source: "skill:grant", idempotencyKey: `skill-grant:${o.id}:${a!.id}:${input.level}` }, { idempotencyKey: `skill-grant:${o.id}:${a!.id}:${input.level}` });
+    } catch (e) { ctx.log.warn("agents: the skill grant could not be written to access", { error: e instanceof Error ? e.message : String(e) }); }
   }
-  ctx.emit("skill.shared", o.id, { skillId: o.id, name: o.name, to: [a!.id], stop: input.level === null || input.level === undefined, by: me(ctx) });
+  setGrant(ctx, o.id, a!.id, off ? null : (input.level as Level), me(ctx));
+  ctx.emit("skill.shared", o.id, { skillId: o.id, name: o.name, to: [a!.id], stop: off, by: me(ctx) });
   return { grants: grantsOf(ctx, o.id) };
+}
+/** The agents' side of a skill's grants: written by skills.grant and by the consumer that follows access. */
+export function setGrant(ctx: AgentsCtx, skillId: string, agentId: string, level: Level | null, by: string): void {
+  if (level === null) { ctx.db.run("DELETE FROM agents_skill_grants WHERE skill_id = ? AND agent_id = ?", skillId, agentId); return; }
+  ctx.db.run("INSERT INTO agents_skill_grants (skill_id, agent_id, level, by_who, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(skill_id, agent_id) DO UPDATE SET level = excluded.level, by_who = excluded.by_who, at = excluded.at", skillId, agentId, level, by, ctx.now());
+}
+/** A grant on a skill changed in access (the Share sheet): an agent's goes to the table; a person's makes a card for them, as a share always has. */
+export function followGrant(ctx: AgentsCtx, ev: { name: string; payload: Record<string, any> }): void {   // eslint-disable-line @typescript-eslint/no-explicit-any
+  ensure(ctx.db);
+  const p = ev.payload;
+  if (p["resource"]?.type !== "skill" || p["source"] === "skill:owner") return;
+  const id = String(p["resource"].id), who = p["subject"] as { kind: string; id: string };
+  if (!ownById(ctx, id)) return;
+  if (who.kind === "agent") {
+    if (ev.name === "grant.revoked") setGrant(ctx, id, who.id, null, "access");
+    else if (["use", "view", "edit", "manage"].includes(String(p["level"]))) setGrant(ctx, id, who.id, p["level"] === "view" ? "use" : (p["level"] as Level), "access");
+  } else if (who.kind === "person") {
+    const o = ownById(ctx, id)!;
+    if (who.id === o.owner) return;
+    if (ev.name === "grant.revoked") ctx.db.run("DELETE FROM agents_skill_shares WHERE skill_id = ? AND recipient = ?", id, who.id);
+    else ctx.db.run("INSERT OR IGNORE INTO agents_skill_shares (id, skill_id, sharer, recipient, at) VALUES (?, ?, ?, ?, ?)", mintId("sks", ctx.now()), id, o.owner, who.id, ctx.now());
+  }
 }
 const grantsOf = (ctx: AgentsCtx, skillId: string) => (ctx.db.all("SELECT * FROM agents_skill_grants WHERE skill_id = ? ORDER BY agent_id", skillId) as Row[]).map((r) => ({ agentId: str(r["agent_id"]), level: str(r["level"]) as Level, by: str(r["by_who"]), at: Number(r["at"]) }));
 export async function skillsGrants(ctx: AgentsCtx, input: In) {
@@ -430,8 +484,8 @@ export async function apply(ctx: AgentsCtx, input: In) {
       const s = skillsInTree(files, p.name).skills[0];
       if (!s) raise(ctx, "validation.bad_input", "The skill could not be read again.");
       if (forWho === "space") { await spaceInstall(ctx, { text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit) }); }
-      else if (forWho === "agent") { const o = saveFor(ctx, { owner: agentId, text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit), summary: `installed from ${p.repo}` }); done["skillId"] = o.id; }
-      else { const out = await mineAdd(ctx, { text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit) }); done["skillId"] = out.skill.skillId; }
+      else if (forWho === "agent") { const o = saveFor(ctx, { owner: agentId, text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit), summary: `installed from ${p.repo}` }); done["skillId"] = o.id; await registerSkill(ctx, o); }
+      else { const out = await mineAdd(ctx, { text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit) }); done["skillId"] = out.skill.skillId; const mine = ownById(ctx, out.skill.skillId); if (mine) await registerSkill(ctx, mine); }
       break;
     }
     case "plugin": case "mcp_local": {

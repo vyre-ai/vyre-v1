@@ -179,3 +179,14 @@ test("an outside agent asking its person (docs/ask-the-person.md): who asks, wha
   await flush();
   assert.deepEqual(calls.find((c) => c.cap === "tasks.act")?.input, { taskId: "tsk_ask", action: "approve" });
 });
+
+test("a held install draws as a card: what it is, what it does, what it needs, the exact commit and who gets it", async () => {
+  const { wantsLine, excerptLines } = await import("./approval-model.ts");
+  const input = { planId: "ins_1", for: "space", card: { name: "pdf-tools", kind: "skill", summary: "Reads, splits and fills in PDF forms for your agents.", commit: "a41f9c2aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", needs: { domains: ["api.example.com"], vaultKeys: [], files: [] } } };
+  assert.equal(wantsLine("Assistant", "install.apply", undefined, input), "Assistant wants to install pdf-tools");
+  assert.deepEqual(excerptLines(input, 5, "install.apply"), [
+    { label: "What", text: "pdf-tools (a skill)" }, { label: "It does", text: "Reads, splits and fills in PDF forms for your agents." },
+    { label: "Needs", text: "Network: api.example.com. Vault: none." }, { label: "Pinned to", text: "a41f9c2" }, { label: "For", text: "Everyone in the Space" },
+  ]);
+  assert.equal(excerptLines({ planId: "ins_1", for: "me", card: { name: "tasks-mcp", kind: "mcp_remote", summary: "x", commit: "", needs: { domains: [], vaultKeys: [], files: [] } } }, 5, "install.apply")[3]!.text, "Not pinned. It is their server.");
+});

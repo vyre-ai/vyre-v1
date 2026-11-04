@@ -1,8 +1,8 @@
 {
   "module": "spaces",
   "capabilities": {
-    "follows.list@1": "eb646702200a8f3b0b7da89b1f996d96762f8a51326e4f2e574fbdc47fb2f14d",
-    "follows.toggle@1": "7da326253e75f2ba23c78c39187d0a3088446210e78e93bf2e1eb2209c72730d",
+    "follows.list@1": "9a328feb493016aca0e4a84db3ebffb36c60cb56f2163d202a653164dc339047",
+    "follows.toggle@1": "cdc986d5a0ab3f56ad2de8cbf35c31e4ba56f9481fe55ce87c61335c40931157",
     "spaces.delete@1": "f92a04aa6e7af5af413314c36906b2a7563e87e4a7a4ec4535fb8a51deafa0ca",
     "spaces.export@1": "e7eaf40823741f5a0cb2a599cfe84b60de6d826aad24f736f019c216d6180eb5",
     "spaces.get@1": "182ff904d4357faec64d5fd10a403b3b1c3b9df1decf43e2fa0f5f717752afa7",
@@ -19,19 +19,19 @@
     "spaces.switcher@1": "5105e8274b5dcbdb5fbd4a64a272e205c4aefa546256eee52d9f7b68f1e82c4e",
     "spaces.transfer_ownership@1": "b36440b0b526d7d218a4167bb9992d372620b3e3ab51f8375174fef5eef92924",
     "spaces.update@1": "a3bbc77ee857b940a9fda1d7346b6298589225eeefd9d7c338e39ca49442dcbd",
-    "stars.list@1": "51f2ce48c6fc133242fe63ab4db0d6775e5ba8709ecc08c36ee446b02c3d7925",
-    "stars.toggle@1": "d6d631abae603aa0b536a7404cff3a5d480956e80121cc6bbca3ac053795a63b"
+    "stars.list@1": "c4b21f7918962cace47d99346aadadc99daa01e92f783aed1c129c68e2a75b0f",
+    "stars.toggle@1": "57b1d896809f250bca1999628757b44000285ba943dc07c3fb7ca8143f69571a"
   },
   "events": {
-    "follow.added": "82bd927320258521c1e87f15add3c7c6cabd20deeb015b3d670e434048812e8e",
-    "follow.removed": "be374bc541a4af57262292e16cfda14ece905687094a27711ae73673fbb12778",
+    "follow.added": "c02b6589463ce80f6eed2eece5c35ebd35f96d18daae39a75b5f539655f8cc5b",
+    "follow.removed": "b176e19decc8b65178e7e07fc492035c51980445bc98c40c766cd3ee29e05ea6",
     "onboarding.dismissed": "4b6272d3e943528ae0ec89744dafef3f413e03d7bcee126f5f4e750261576842",
     "onboarding.step_completed": "7c4968ee32da43c49b2b84b4af5d0a3725a591b4b6f36249eb3f1591970cb8bf",
     "space.address_changed": "44cbea505b38e519ce119b54c89b3b13d572b6105093641f6497818bc83f0f2e",
     "space.deleted": "5520158289ad953d0973d95a4734b18cb897d0b41af1fa0a5925ff8cb9530e71",
     "space.ownership_transferred": "df2aaa98681c8ca778c1d490e8b9d337a3cec8b3c96c3f341a2d8b5e8a69f7d3",
     "space.updated": "ca4f74c39d4a658192e4f50b558a9802bc8e82819203846501eb7132b02d1ad2",
-    "star.added": "e3a40e4e0eac73254e04689450586feb3a6b6f7bd13a594f622d1a237b77510a",
-    "star.removed": "c2b2c4fed4aeea2d1827194edcf50fe256db7568adabd740cf7db7c93b4e303c"
+    "star.added": "1845d1adb6a80e8e3dedab2996fdc52bf568503eb2cee7657d59c084575615a6",
+    "star.removed": "6a003de818236b8e2caaca7694689ca1ba1e9f37b393cb0fa03d02b6ff210499"
   }
 }

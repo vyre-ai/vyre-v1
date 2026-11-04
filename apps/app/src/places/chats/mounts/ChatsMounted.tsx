@@ -59,6 +59,7 @@ import { ChatWork } from "../tasks/ChatWork.tsx";
 import { TasksPage } from "../tasks/TasksPage.tsx";
 import { TaskDetail } from "../tasks/TaskDetail.tsx";
 import { GoalPage } from "../goals/GoalPage.tsx";
+import { openSkills } from "../install/open.ts";
 import type { Act, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
 import { LoadFailed } from "../../../../../../ui/src/States/Loads.tsx";
@@ -274,7 +275,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       const wired = wireConversation(rt, go, { threadId, list, nameOf, leadId, fill, ...(focus ? { focus } : {}), ...(focusN ? { focusN } : {}) });
       // a task link in the chat opens beside it, where it was pressed
       const openBeside = (kind: string, id: string): void => { if (kind === "task") openSideTask(id); else wired.nav.openBeside(kind, id); };
-      return { ...wired, nav: { ...wired.nav, openAgent: profile, openBeside, openDetails: (tid: string, mid: string) => replyDetails(tid, mid) } };
+      return { ...wired, nav: { ...wired.nav, openAgent: profile, openBeside, openSkills: (name: string) => { openSkills(name); act({ t: "pane-open" }); }, openDetails: (tid: string, mid: string) => replyDetails(tid, mid) } };
     },
     [rt, go, threadId, list, nameOf, leadId, fill, focus, focusN, profile, openSideTask, replyDetails],
   );

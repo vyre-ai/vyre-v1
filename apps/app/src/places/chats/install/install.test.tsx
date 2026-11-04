@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
+import { Text, View } from "react-native";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
 import { InstallCard, blockOf } from "./InstallCard.tsx";
 import { SkillsTab, groupsOf } from "./SkillsTab.tsx";
@@ -136,6 +137,8 @@ function skills(extra: Record<string, unknown> = {}) {
     switch (cap) {
       case "skills.page": return { mine: [{ skillId: "sko_1", name: "pdf-tools", description: "", source: "github:acme/pdf-tools@a41f9c2", origin: "acme/pdf-tools", version: "1.2.0", agents: ["*"], enabled: true, perms: {}, setup: {}, needs: [], sharedWith: [], updatedAt: 1 }], shared: [{ skillId: "sko_9", name: "Brand voice", sharer: "usr_sara", sharerName: "Sara Malik", description: "", toSpace: false, source: "", origin: "", perms: {}, state: "added", growth: [], agents: [], enabled: true, setup: {}, needs: [], updatedAt: 1 }], waiting: [], space: [], builtin: [], agents: [{ agentId: "agt_mira", name: "Mira" }], policy: { scriptsAdminOnly: false }, admin: false, me: "usr_irfad", ...extra };
       case "skills.of_agents": return { skills: [{ skillId: "sko_5", name: "Write a brief", description: "", agentId: "agt_mira", agentName: "Mira", version: "1.4", source: "agent", rev: 2, updatedAt: 1 }] };
+      case "install.list": return { installs: [{ installId: "ins_1", kind: "skill", name: "pdf-tools", repo: "acme/pdf-tools", commit: "a41f9c2", url: "u", by: "usr_irfad", at: 1, installed: { skillId: "sko_1" } }] };
+      case "install.check_update": return extra["noUpdate"] === true ? { changed: false } : { changed: true, plan: { planId: "ins_9", commit: "7d03be8bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" } };
       case "skills.history": return { revisions: [{ rev: 2, by: "usr_irfad", authorKind: "person", summary: "updated to 7d03be8", at: Date.UTC(2025, 10, 4) }, { rev: 1, by: "usr_irfad", authorKind: "person", summary: "created", at: Date.UTC(2025, 9, 20) }] };
       case "skills.grants": return { owner: "usr_irfad", ownerKind: "person", grants: [...held].map(([agentId, level]) => ({ agentId, level, by: "usr_irfad", at: 1 })) };
       case "skills.grant": if (i["level"] === null) held.delete(i["agentId"]); else held.set(i["agentId"], i["level"]); return { grants: [...held].map(([agentId, level]) => ({ agentId, level, by: "usr_irfad", at: 1 })) };
@@ -159,20 +162,56 @@ test("the Skills list groups Yours, Your agents' and Shared with you, each with 
   assert.deepEqual(groupsOf({ mine: [], shared: [], me: "x" } as never, [], (i) => i), []);
 });
 
-test("History shows the versions with who and when; Share gives an agent a level and takes it back", async () => {
+test("History shows the versions with who and when", async () => {
   const s = skills();
   const root = await mount(createRoot as never, <SkillsTab deps={s.deps} />);
   await flush(); await flush();
   await press(find(root!, "skill-history-sko_1")!);
   assert.match(textOf(find(root!, "skill-hist-sko_1")!), /v2 · Nov 4 · updated to 7d03be8[\s\S]*v1 · Oct 20 · created/);
+  await press(find(root!, "skill-history-sko_1")!);
+  assert.equal(find(root!, "skill-hist-sko_1"), null, "Hide history closes it");
+});
+
+test("Share opens the one shared Share sheet on the skill, as an access resource", async () => {
+  const s = skills();
+  const seen: Array<{ type: string; id: string; name: string }> = [];
+  const root = await mount(createRoot as never, <SkillsTab deps={s.deps} renderShare={(r, close) => { seen.push(r); return <View testID="the-share-sheet"><Text onPress={close}>sheet</Text></View>; }} />);
+  await flush(); await flush();
+  assert.equal(find(root!, "the-share-sheet"), null);
   await press(find(root!, "skill-share-sko_1")!);
-  await flush();
-  await press(find(root!, "skill-grant-sko_1-agt_mira-edit")!);
-  await flush();
-  assert.deepEqual(s.calls.filter((c) => c.cap === "skills.grant").map((c) => [c.input["skillId"], c.input["agentId"], c.input["level"]]), [["sko_1", "agt_mira", "edit"]]);
-  await press(find(root!, "skill-grant-sko_1-agt_mira-edit")!);
-  await flush();
-  assert.equal(s.calls.filter((c) => c.cap === "skills.grant").at(-1)!.input["level"], null, "pressing the level again takes it back");
+  assert.deepEqual(seen.at(-1), { type: "skill", id: "sko_1", name: "pdf-tools" });
+  assert.ok(find(root!, "the-share-sheet"));
+  assert.equal(s.calls.some((c) => c.cap === "skills.grant"), false, "the sheet writes through access, not a sheet of its own");
+});
+
+test("a skill installed from a link with a newer commit says Update available; one that is current does not", async () => {
+  const s = skills();
+  const root = await mount(createRoot as never, <SkillsTab deps={s.deps} />);
+  await flush(); await flush(); await flush();
+  assert.match(textOf(find(root!, "skill-update-sko_1")!), /Update available/);
+  assert.equal(find(root!, "skill-update-sko_5"), null);
+  const none = skills({ noUpdate: true });
+  const r2 = await mount(createRoot as never, <SkillsTab deps={none.deps} />);
+  await flush(); await flush(); await flush();
+  assert.equal(find(r2!, "skill-update-sko_1"), null);
+  assert.equal(s.calls.some((c) => c.cap === "install.apply"), false, "looking applies nothing");
+});
+
+test("Open on an install card names the skill to the pane, which lights it; a name said before the pane exists waits", async () => {
+  const { openSkills, onOpenSkills } = await import("./open.ts");
+  openSkills("pdf-tools");
+  const heard: string[] = [];
+  const off = onOpenSkills((n) => heard.push(n));
+  assert.deepEqual(heard, ["pdf-tools"]);
+  openSkills("brand-voice");
+  assert.deepEqual(heard, ["pdf-tools", "brand-voice"]);
+  off();
+  openSkills("later");
+  assert.deepEqual(heard, ["pdf-tools", "brand-voice"]);
+  const s = skills();
+  const root = await mount(createRoot as never, <SkillsTab deps={s.deps} highlight="pdf-tools" />);
+  await flush(); await flush();
+  assert.ok(find(root!, "skill-row-sko_1"));
 });
 
 test("no skills yet says how to get one", async () => {

@@ -262,7 +262,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -405,7 +406,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -473,7 +475,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -719,7 +722,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -1071,7 +1075,8 @@
                         "run",
                         "number",
                         "domain",
-                        "calendar"
+                        "calendar",
+                        "skill"
                       ],
                       "type": "string"
                     }
@@ -1356,7 +1361,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -1440,7 +1446,8 @@
               "run",
               "number",
               "domain",
-              "calendar"
+              "calendar",
+              "skill"
             ],
             "type": "string"
           }
@@ -1734,7 +1741,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -1847,7 +1855,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -2139,7 +2148,8 @@
                 "run",
                 "number",
                 "domain",
-                "calendar"
+                "calendar",
+                "skill"
               ],
               "type": "string"
             },
@@ -2629,7 +2639,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -2729,7 +2740,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -2802,7 +2814,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -4442,7 +4455,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -4630,7 +4644,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -19560,7 +19575,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -21736,7 +21752,8 @@
               "run",
               "number",
               "domain",
-              "calendar"
+              "calendar",
+              "skill"
             ],
             "type": "string"
           }
@@ -21822,7 +21839,8 @@
               "run",
               "number",
               "domain",
-              "calendar"
+              "calendar",
+              "skill"
             ],
             "type": "string"
           }
@@ -21929,7 +21947,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -22026,7 +22045,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -22084,7 +22104,8 @@
               "run",
               "number",
               "domain",
-              "calendar"
+              "calendar",
+              "skill"
             ],
             "type": "string"
           }
@@ -22143,7 +22164,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -43985,7 +44007,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -49426,7 +49449,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -50081,7 +50105,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -55890,7 +55915,8 @@
               "run",
               "number",
               "domain",
-              "calendar"
+              "calendar",
+              "skill"
             ],
             "type": "string"
           }
@@ -55952,7 +55978,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -67039,7 +67066,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }

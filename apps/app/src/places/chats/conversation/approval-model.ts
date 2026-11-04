@@ -60,6 +60,8 @@ export function wantsPhrase(cap: string, subject?: string, input?: Obj): string 
   if (outside) return outside.phrase;
   // "Send this to Rubab?": the teammate's name, read when the card opens (lane l-agentdm)
   if (cap === "chat.message_person" && subject) return `send this to ${subject}`;
+  // an install from a link: the held act carries the plan's card, so the card names what is being installed
+  if (cap === "install.apply" && input) { const c = obj(input["card"]); if (text(c["name"])) return `install ${text(c["name"])}`; }
   const base = WANTS[cap] ?? (cap === "" ? "do a step" : capPhrase(cap));
   const fileStep = cap.startsWith("files.") && cap !== "files.folder.create";
   return subject && (fileStep || cap === "records.update" || cap === "records.delete") ? `${base} ${subject}` : base;
@@ -106,6 +108,7 @@ export function excerptLines(input: Obj, max = 5, cap?: string): Array<{ label: 
     const lines = excerptLines(outside.fields, outside.hub ? max - 1 : max);
     return outside.hub ? [...lines, { label: "Runs through", text: outside.hub }] : lines;
   }
+  if (cap === "install.apply" && text(obj(input["card"])["name"])) return installLines(input);
   const out: Array<{ label: string; text: string }> = [];
   const content = obj(input["content"]);
   const body = text(content["text"]);
@@ -118,6 +121,23 @@ export function excerptLines(input: Obj, max = 5, cap?: string): Array<{ label: 
     if (t) out.push({ label: label(k), text: cut(t, k === "body" || k === "text" ? 320 : 120) });
   }
   return out;
+}
+
+const KIND: Record<string, string> = { skill: "a skill", plugin: "a plugin", mcp_local: "a local MCP server", mcp_remote: "a remote MCP server", site: "a site" };
+const FOR: Record<string, string> = { me: "Just you", agent: "This agent", space: "Everyone in the Space" };
+/** The held install, from the card the plan put in the act: what it is, what it does, what it needs, the exact commit and who gets it. */
+function installLines(input: Obj): Array<{ label: string; text: string }> {
+  const c = obj(input["card"]);
+  const needs = obj(c["needs"]);
+  const list = (v: unknown): string => (Array.isArray(v) ? v.map(text).filter(Boolean).join(", ") : "") || "none";
+  const commit = text(c["commit"]);
+  return [
+    { label: "What", text: `${text(c["name"])} (${KIND[text(c["kind"])] ?? text(c["kind"])})` },
+    { label: "It does", text: cut(text(c["summary"]), 240) },
+    { label: "Needs", text: `Network: ${list(needs["domains"])}. Vault: ${list(needs["vaultKeys"])}.` },
+    { label: commit ? "Pinned to" : "Version", text: commit ? commit.slice(0, 7) : "Not pinned. It is their server." },
+    { label: "For", text: FOR[text(input["for"])] ?? text(input["for"]) },
+  ];
 }
 
 /** The one-line row an answered card collapses to: "Allowed · edit Q4 pricing.docx". */

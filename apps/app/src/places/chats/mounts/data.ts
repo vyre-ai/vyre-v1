@@ -4,6 +4,7 @@
 // Nothing here touches the network.
 import { computersAvailableNow, requestAddServer } from "../../../shell/computers-available.ts";
 import { createElement } from "react";
+import { FolderShareSheet } from "../../../shell/providers/files-share.tsx";
 import type { QueryState } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { conversationData, paneData, sidebarData } from "../../../shell/providers/chats-data.ts";
@@ -357,6 +358,7 @@ export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: Pane
     ...base,
     agent,
     ...(terminal ? { terminal } : {}),
+    renderShare: (resource, onClose) => createElement(FolderShareSheet, { rt, folderId: resource.id, resource, onClose }),
     nav: {
       ...base.nav, openThread: (id: string) => go.thread(id), openHelper: (id: string) => go.thread(id), openComputer: (id: string) => go.computer(id),
       openTerminal: (id: string) => go.terminalOfComputer(id), openAgentPage: (id: string) => go.agent(id),

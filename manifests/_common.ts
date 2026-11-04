@@ -5,7 +5,7 @@ import type { JsonSchema, ResourceType } from '../packages/contracts/src/index.t
 export const RESOURCE_TYPES: ResourceType[] = [
   'space', 'record_type', 'record', 'project', 'folder', 'file', 'channel', 'thread', 'inbox', 'mailbox',
   'vault_folder', 'vault_item', 'automation_group', 'automation', 'agent', 'connector', 'connection',
-  'site', 'form', 'kit', 'terminal', 'computer', 'task', 'run', 'number', 'domain', 'calendar',
+  'site', 'form', 'kit', 'terminal', 'computer', 'task', 'run', 'number', 'domain', 'calendar', 'skill',
 ];
 
 /** Id schemas by prefix (ids are `<prefix>_<lowercase alphanumerics>`). */

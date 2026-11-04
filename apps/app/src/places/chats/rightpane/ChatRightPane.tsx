@@ -24,6 +24,7 @@ import { TerminalPaneTab } from "./TerminalPaneTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN, PANE_SCREEN } from "./ThreadsTab.tsx";
 import { CrewTab } from "./CrewTab.tsx";
 import { SkillsTab } from "../install/SkillsTab.tsx";
+import { onOpenSkills } from "../install/open.ts";
 import { DEFAULT_TAB, PANE_KEY, PANE_WIDTH_GUESS, TABS, tabsOf } from "./model.ts";
 import { TabMeasure, useFittedTabs, useTitleWidths } from "./fit.tsx";
 import type { TabKey } from "./model.ts";
@@ -95,6 +96,9 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   const noComputers = !hasComputers(data.space);
   const [own, setOwn] = useState<TabKey>(initialTab ?? (noComputers ? "threads" : DEFAULT_TAB));
   const tab = noComputers && (controlled ?? own) === "computer" ? "threads" : controlled ?? own;
+  // Open on an install card: the Skills tab, with that skill lit
+  const [lit, setLit] = useState<string | undefined>(undefined);
+  useEffect(() => onOpenSkills((name) => { setHasSkills(true); setLit(name); setOwn("skills"); onTab?.("skills"); }), [onTab]);
   useKnowsRequest(data.memory?.store, (): void => { setOwn("memory"); onTab?.("memory"); });
   const [paneW, setPaneW] = useState(PANE_WIDTH_GUESS);
   const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
@@ -159,7 +163,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
         <View testID={`pane-body-${tab}`} style={st.body}>
           {tab === "computer" ? <ComputerTab deps={deps} {...(window ? { window } : {})} /> : null}
           {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
-          {tab === "skills" ? <SkillsTab deps={deps} {...(data.nameOf ? { nameOf: data.nameOf } : {})} /> : null}
+          {tab === "skills" ? <SkillsTab deps={deps} {...(data.nameOf ? { nameOf: data.nameOf } : {})} {...(lit ? { highlight: lit } : {})} {...(data.renderShare ? { renderShare: data.renderShare } : {})} /> : null}
           {tab === "crew" ? <CrewTab deps={deps} {...(window ? { window } : {})} /> : null}
           {tab === "files" ? <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} /> : null}
           {tab === "terminal" && data.terminal ? <TerminalPaneTab data={data.terminal} /> : null}
