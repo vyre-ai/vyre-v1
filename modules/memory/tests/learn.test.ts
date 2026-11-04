@@ -233,7 +233,7 @@ test("in a shared chat only what the asker said about themselves is kept, as tha
   assert.equal(rules.rows("SELECT id FROM memory_facts").length, 2);
   const omar = asPerson(rules, { kind: "person", id: OMAR }, { respond: chat(s, { complete: [], listed: 0 }) });
   // Omar is in the room, so he reads the room's memory (Dana's preference); nothing of his own words was stored
-  assert.deepEqual((await factsAsOf(omar.ctx, { date: NOW + 1 })).facts.map((f) => f.text), ["I prefer morning meetings.", "We decided to ship on Friday."]);
+  assert.deepEqual((await factsAsOf(omar.ctx, { date: NOW + 1 })).facts.map((f) => f.text).sort(), ["I prefer morning meetings.", "We decided to ship on Friday."]);   // two facts learned in one instant: no order is promised
 });
 
 test("Don't remember this chat: nothing is learned from it by a turn pass or at its end, and only who turned it off, or the starter, turns it back on", async () => {
