@@ -3,7 +3,10 @@
 import { peopleWords } from "../../../lib/probe.ts";
 import type { VyreError } from "../../../packages/contracts/src/types.ts";
 
-const ID = /\b(?:[a-z]{2,6}_[a-z0-9]{8,}|[0-9a-f]{16,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/gi;
+// A prefixed id has a digit in its tail (usr_5cf430c0..., agt_01a1a388...); a reason word such as agent_settings or server_error does not, and must reach the model.
+const ID_SRC = String.raw`\b(?:[a-z]{2,6}_(?=[a-z0-9]*[0-9])[a-z0-9]{8,}|[0-9a-f]{16,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b`;
+const ID = new RegExp(ID_SRC, "gi");
+const IS_ID = new RegExp(ID_SRC, "i");
 
 /** The words of a message with every id and trace taken out. */
 export const withoutIds = (s: string): string => peopleWords(s.replace(ID, "that item")).replace(/\s{2,}/g, " ").trim();
@@ -12,9 +15,8 @@ export const withoutIds = (s: string): string => peopleWords(s.replace(ID, "that
 export function modelError(error: VyreError): { code: string; message: string; retryable?: boolean; next?: Array<{ label: string }>; details?: { reason?: string; tool?: string } } {
   const next = (error.next ?? []).map((n) => ({ label: withoutIds(String((n as { label?: unknown }).label ?? "")) })).filter((n) => n.label !== "");
   const d = error.details as { reason?: unknown; tool?: unknown } | undefined;
-  const reason = typeof d?.reason === "string" && !ID.test(d.reason) ? d.reason : undefined;
+  const reason = typeof d?.reason === "string" && !IS_ID.test(d.reason) ? d.reason : undefined;
   const tool = typeof d?.tool === "string" && /^[a-z][a-z0-9_]*$/.test(d.tool) ? d.tool : undefined;
-  ID.lastIndex = 0;
   return {
     code: error.code, message: withoutIds(error.message ?? ""),
     ...(reason || tool ? { details: { ...(reason ? { reason } : {}), ...(tool ? { tool } : {}) } } : {}),
