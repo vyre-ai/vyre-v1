@@ -24,7 +24,7 @@ test("route decisions in the engine match lib route() for the whole table", asyn
     { author: person("dana"), mentions: [person("sam")] },
     { author: person("dana"), mentions: [person("sam"), agent("docs")] },
     { author: agent("docs"), mentions: [agent("billing")], depth: 3 },
-    { author: agent("docs"), mentions: [agent("billing")], depth: 4 },
+    { author: agent("docs"), mentions: [agent("billing")], depth: 8 },
     { author: agent("intake"), mentions: [agent("intake")], depth: 0 },
     { author: agent("docs"), mentions: [], depth: 0 },
   ];
@@ -152,7 +152,7 @@ test("stop cancels the running turn; clearQueue also drops what waits", async ()
   assert.equal(engine.turns("T").at(-1)?.state, "completed");
 });
 
-test("hop limit: two agents mentioning each other stop after 8 hops (owner ruling, 3 Nov; was 4) and wait for a person", async () => {
+test("hop limit: two agents mentioning each other stop after the same pair has passed it twice (owner ruling, 4 Nov; at most 3 hand-offs in all) and wait for a person", async () => {
   const p = scriptedProvider({
     script: (_in, spec) => [{ type: "text", text: "your turn" }, { type: "done", mentions: [agent(spec.agent.id === "a" ? "b" : "a")] as RouteMention[] }],
   });
@@ -160,12 +160,12 @@ test("hop limit: two agents mentioning each other stop after 8 hops (owner rulin
   engine.openThread({ id: "C", kind: "channel", starter: "dana", agents: [{ id: "a", mode: "listen" }, { id: "b", mode: "listen" }] });
   engine.receive({ threadId: "C", author: person("dana"), mentions: [agent("a")] });
   await engine.idle("C");
-  assert.deepEqual(engine.turns("C").map((t) => t.agentId), ["a", "b", "a", "b", "a", "b", "a", "b", "a"]);
+  assert.deepEqual(engine.turns("C").map((t) => t.agentId), ["a", "b", "a"]);
   assert.equal(engine.events("C").filter((e) => e.type === "turn.waiting").length, 1);
   // a person reply resets the count
   engine.receive({ threadId: "C", author: person("dana"), mentions: [agent("b")] });
   await engine.idle("C");
-  assert.equal(engine.turns("C").length, 18);
+  assert.equal(engine.turns("C").length, 6);
 });
 
 test("hop limit is configurable through policy", async () => {

@@ -92,8 +92,11 @@ test("Personal with no computer to run on, or nothing that says where the turn r
   {
     const { host, agent } = setup({ team: false, agentComputer: false, runsOn: "device" });
     const f = await failure(() => h["terminal.run"]!(agent, { command: "echo hi" }));
-    assert.deepEqual([f.code, f.reason], ["provider.unavailable", "no_computer"]);
-    assert.match(f.message, /Use your own shell in your work folder, or ask the person to run it with terminal_request/);
+    // the chat runs on the person's own computer: the answer does not say there is no computer, it says whose shell to use
+    assert.deepEqual([f.code, f.reason], ["provider.unavailable", "own_computer"]);
+    assert.match(f.message, /runs on the person's own computer/);
+    assert.doesNotMatch(f.message, /There is no computer/);
+    assert.match(f.message, /Use your own shell in your work folder there, or ask the person to run it with terminal_request/);
     assert.deepEqual(opened(host), []);
   }
   {

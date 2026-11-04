@@ -91,3 +91,10 @@ test("the Chat key is sent only when it changed: on names the account, off hands
   assert.deepEqual(chatKeyPatch("#Team_Credits", "#Team_Credits"), {});
   assert.deepEqual(chatKeyPatch("", "#Team_Credits"), { accountPolicy: "asker", accountKey: null });
 });
+
+test("the instructions (AGENT.md) are written in the shared Markdown editor, with its raw switch", () => {
+  const out = page(true).replaceAll("<!-- -->", "");
+  const at = out.indexOf('data-testid="agent-instructions"');
+  assert.ok(at >= 0, "the instructions box is there");
+  assert.ok(out.slice(at, at + 1500).includes('data-testid="markdown-editor-host"'), "it mounts the Markdown editor, not a plain text field");
+});

@@ -20,6 +20,7 @@ import type { TaskState, TaskView } from "../../../../../../ui/src/TaskPage/mode
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { Conversation } from "../conversation/Conversation.tsx";
 import { uploadAttachments, uploadDeps } from "../conversation/actions.ts";
+import { MarkdownEditor, useAutosavedText } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { DropZone } from "../../../../../../ui/src/FileDrop/index.tsx";
 import type { DroppedFile } from "../../../../../../ui/src/FileDrop/index.tsx";
 import type { ConversationData } from "../conversation/data.tsx";
@@ -373,6 +374,35 @@ function TaskBody({ task, rt, nameOf, run, kids, people, openTask, openAgent, on
   return <>{body}<Fixes task={task} /><Tree task={task} rt={rt} nameOf={nameOf} kids={kids} people={people} openTask={openTask} openAgent={openAgent} onKids={onKids} /><DoneMeans task={task} run={run} /><Outputs task={task} rt={rt} />{blocks.length ? <Block>{blocks}</Block> : null}</>;
 }
 
+/** The description, written in the shared Markdown editor: a pause after typing saves it, Done (or Escape) closes the editor after saving what is pending. */
+function BriefEditor({ text, base, run, onDone }: { text: string; base: string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; onDone: () => void }): ReactElement {
+  // each save says what it replaces, so an edit made meanwhile by someone else comes back as a conflict instead of being overwritten (the Tasks conflict rule)
+  const from = useRef(base);
+  const a = useAutosavedText(text, async (v) => {
+    const value = v.trim();
+    const ok = await run("tasks.working_notes.set", { key: "brief", value, expectedFrom: from.current });
+    if (ok) from.current = value;
+    return ok ? true : "Could not save the description.";
+  });
+  const done = (): void => { void a.flush().then(onDone); };
+  return (
+    <View testID="task-brief-edit-wrap">
+      <MarkdownEditor testID="task-brief-edit" label="What this is" value={a.text} onChange={a.edit} placeholder="What this is" toggle={false} density="compact" minHeight={90} autoFocus onEscape={done} onSave={() => void a.flush()} />
+      <View style={st.briefRow}>
+        <Text style={st.briefAdd} testID="task-brief-status">{a.status === "saving" || a.status === "dirty" ? "Saving\u2026" : a.status === "saved" ? "Saved" : a.status === "error" ? (a.error ?? "Not saved") : ""}</Text>
+        <View style={{ flex: 1 }} />
+        <Btn label="Done" testID="task-brief-done" onPress={done} />
+      </View>
+    </View>
+  );
+}
+
+/** Working notes on the task: anyone on it can read and write them. Saved by a pause after typing. */
+function NotesEditor({ saved, run }: { saved: string; run(cap: string, input: Record<string, unknown>): Promise<boolean> }): ReactElement {
+  const a = useAutosavedText(saved, async (v) => ((await run("tasks.working_notes.set", { key: NOTES_KEY, value: v })) ? true : "Could not save the notes."));
+  return <MarkdownEditor testID="rail-notes" label="Working notes" value={a.text} onChange={a.edit} placeholder="Anyone on this task, person or agent, can read and write these." toggle={false} density="compact" minHeight={70} onSave={() => void a.flush()} />;
+}
+
 const tidyBrief = (text: string): string => text.replace(/^## .+$/gm, "").replace(/\n{3,}/g, "\n\n").trim();
 
 /**
@@ -390,10 +420,7 @@ function Brief({ text, base, run, rt, taskId }: { text: string | undefined; base
     }, (e: unknown) => setNote(e instanceof Error && e.message !== "" ? e.message : "Could not attach that. Try again"));
   };
   const line = note ? <Text style={st.briefAdd} testID="task-brief-files" accessibilityLiveRegion="polite">{note}</Text> : null;
-  if (draft !== null) {
-    const save = (): void => { const v = draft.trim(); setDraft(null); if (v !== (text ?? "").trim()) void run("tasks.working_notes.set", { key: "brief", value: v, expectedFrom: base }); };
-    return <DropZone testID="task-brief-drop" onFiles={attach} radius={8}><Block><TextInput autoFocus multiline accessibilityLabel="What this is" testID="task-brief-edit" placeholder="What this is" placeholderTextColor="var(--ink-3)" value={draft} onChangeText={setDraft} onBlur={save} style={[st.body, st.briefEdit]} />{line}</Block></DropZone>;
-  }
+  if (draft !== null) return <DropZone testID="task-brief-drop" onFiles={attach} radius={8}><Block><BriefEditor text={text ?? ""} base={base} run={run} onDone={() => setDraft(null)} />{line}</Block></DropZone>;
   return <DropZone testID="task-brief-drop" onFiles={attach} radius={8}><Block><Pressable accessibilityRole="button" accessibilityLabel={text ? "Change what this is" : "Add what this is"} testID="task-brief" onPress={() => setDraft(text ?? "")}>
     {text ? <Text style={st.body}>{tidyBrief(text)}</Text> : <Text style={st.briefAdd}>Add what this is</Text>}
   </Pressable>{line}</Block></DropZone>;
@@ -569,8 +596,6 @@ function Rail({ task, rt, nameOf, run, menu, seats, openTask, kidsCount, begin }
   const [labelText, setLabelText] = useState((task.labels ?? []).join(" "));
   useEffect(() => setLabelText((task.labels ?? []).join(" ")), [task.labels]);
   const notes = Object.entries(task.workingNotes).filter(([k]) => !OWN_NOTE.test(k));
-  const [noteText, setNoteText] = useState(task.workingNotes[NOTES_KEY] ?? "");
-  useEffect(() => setNoteText(task.workingNotes[NOTES_KEY] ?? ""), [task.workingNotes[NOTES_KEY]]);  // eslint-disable-line react-hooks/exhaustive-deps
   const fieldsQ = useTypeFields(rt);
   const due = dueLabel(task.due, clock.now, clock.offsetMin);
   const noteRows: ReactElement[] = [];
@@ -602,7 +627,7 @@ function Rail({ task, rt, nameOf, run, menu, seats, openTask, kidsCount, begin }
     <RailLink label={task.snoozedUntil ? "Clear the snooze" : "Snooze"} testID="rail-snooze" onPress={(e) => { if (task.snoozedUntil) { void run("tasks.snooze", { until: null }); return; } const at = pointAt(e); const n = rt.clock().now; menu.show([{ label: "Until tomorrow", onSelect: () => void run("tasks.snooze", { until: n + 86_400_000 }) }, { label: "For a week", onSelect: () => void run("tasks.snooze", { until: n + 7 * 86_400_000 }) }, { label: "For a month", onSelect: () => void run("tasks.snooze", { until: n + 30 * 86_400_000 }) }], at.x, at.y, "other", { label: "Snooze" }); }} />
     {task.recordId ? <RailLink label="Open in Records" testID="rail-records" onPress={() => rt.open({ subject: { type: "record", id: task.recordId! } })} /> : null}
     <Text style={st.notesHead}>Working notes</Text>
-    <TextInput accessibilityLabel="Working notes" testID="rail-notes" multiline placeholder="Anyone on this task, person or agent, can read and write these." placeholderTextColor="var(--ink-3)" value={noteText} onChangeText={setNoteText} onBlur={() => { if (noteText !== (task.workingNotes[NOTES_KEY] ?? "")) void run("tasks.working_notes.set", { key: NOTES_KEY, value: noteText }); }} style={st.notes} />
+    <NotesEditor saved={task.workingNotes[NOTES_KEY] ?? ""} run={run} />
     {noteRows}
     <Text style={st.quiet}>{`${KIND_TITLE[task.kind] ?? task.kind}${kidsCount ? ` · ${kidsCount} under it` : ""}`}</Text>
   </ScrollView>;
@@ -671,6 +696,7 @@ const st = StyleSheet.create({
   blockTitle: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
   blockRight: { fontSize: 12.5, color: "var(--ink-3)" as string },
   body: { fontSize: 15, lineHeight: 23, color: "var(--ink-2)" as string },
+  briefRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingTop: 6 },
   briefEdit: { minHeight: 70, outlineStyle: "none", outlineWidth: 0 } as object,
   briefAdd: { fontSize: 14, color: "var(--ink-3)" as string },
   doneLine: { paddingTop: 6, fontSize: 14, color: "var(--ok)" as string },

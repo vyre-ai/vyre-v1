@@ -158,6 +158,15 @@ export function reachable(ctx: VaultCtx, id: string, need: "use" | "view" | "edi
 
 // ---- reads
 
+/** Search finds an item by its name, handle, kind, field names or folder name (never a value), across every section: Mine, Shared with me and the Space's. */
+function matchesText(ctx: VaultCtx, r: Row, q: string): boolean {
+  const needle = q.trim().toLowerCase();
+  if (needle === "") return true;
+  const folder = first(ctx.db.all(`SELECT * FROM vault_folder WHERE id = ?`, str(r, "folderId")));
+  const hay = [str(r, "name"), str(r, "handle"), str(r, "kind"), ...parseJson<string[]>(r["fieldKeys"], []), folder ? str(folder, "name") : ""];
+  return hay.some((h) => h.toLowerCase().includes(needle)) || needle.replace(/^#/, "").split(/\s+/).every((w) => hay.some((h) => h.toLowerCase().replace(/[_\s]+/g, " ").includes(w)));
+}
+
 export async function itemsList(ctx: VaultCtx, input: { section?: string; folder?: string; kind?: string; q?: string; cursor?: string; limit?: number }) {
   ensure(ctx);
   const { cursor, limit } = paging(ctx, obj(input));
@@ -179,7 +188,7 @@ export async function itemsList(ctx: VaultCtx, input: { section?: string; folder
     if (s === "starred" || s === "following") return false;
     if (input.folder !== undefined && str(r, "folderId") !== input.folder) return false;
     if (input.kind !== undefined && str(r, "kind") !== input.kind) return false;
-    if (input.q && !str(r, "name").toLowerCase().includes(input.q.toLowerCase())) return false;
+    if (input.q && !matchesText(ctx, r, input.q)) return false;
     return true;
   });
   wanted.sort((a, b) => str(a, "name").toLowerCase().localeCompare(str(b, "name").toLowerCase(), "en") || str(a, "id").localeCompare(str(b, "id")));

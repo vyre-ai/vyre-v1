@@ -13,6 +13,7 @@ import { StoreError } from "../../kernel/src/store/types.ts";
 import type { FieldDef, Store, StoredRecord, TypeDef } from "../../kernel/src/store/types.ts";
 import type { ProjectionHost } from "../../kernel/src/store/projection.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
+import { perSpaceStore } from "../../host/src/daemon/store.ts";
 import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { createQueryHandlers, createRecordsHandlers, mapError, RecordsError, toRow } from "./handlers/index.ts";
 import type { QueryHandlers, RecordRow, WriteCtx, WriteHandlers } from "./handlers/index.ts";
@@ -355,28 +356,22 @@ export function openRecords(o: { path?: string; space?: string; actor?: string; 
   return { host, store, handlers, clocks, history, mergeFields };
 }
 
-let shared: RecordsHandle | null = null;
-let spaceSeam: SpaceStoreSeam | null = null;
-/** The host hands the Space store (P-H_08, ruling 31). The per-field clocks projection must be on that store before it opens, so it is declared here. */
-export function setRecordsSpaceStore(seam: SpaceStoreSeam | null): void {
-  spaceSeam = seam;
-  shared = null;
-  extra = null;
-  seam?.declare([recordsFieldMeta]);
-}
+// One handle per Space store: two daemons in one process each have their own, and a call is served from the one its ctx.db belongs to (perSpaceStore).
+const stores = perSpaceStore<RecordsHandle>((seam) => openRecords(seam ? { opened: seam.open() } : {}), (seam) => seam.declare([recordsFieldMeta]));
+/** The host hands the Space store (P-H_08, ruling 31). The per-field clocks projection must be on that store before it opens, so it is declared as the store arrives. */
+export function setRecordsSpaceStore(seam: SpaceStoreSeam | null): void { stores.set(seam); }
 export const hostSeams: SeamSetters = { setRecordsSpaceStore, setRecordsVault };
-function live(): RecordsHandle {
-  if (!shared) shared = openRecords(spaceSeam ? { opened: spaceSeam.open() } : {});
-  return shared;
-}
+function live(ctx?: { db?: unknown }): RecordsHandle { return stores.get(ctx); }
 
 // The rest of the live map (P-L3_LIVE): history, versions and holds (handlers/history.ts), merge, bulk upsert and export (handlers/merge.ts), both built once over the live handle.
 // DECISION: reveal opens a sealed reference through the Vault seam (setRecordsVault); export has no `putFile` until the host hands this module the Files port; until then it refuses, it does not guess.
 type LiveHistory = Omit<HistoryHandlers, "records.history">;
-let extra: { comments: CommentsHandlers; history: LiveHistory; merge: MergeHandlers; sites: SiteTableHandlers; review: ReviewHandlers; views: ViewHandlers; purge: PurgeHandlers } | null = null;
-function more(): NonNullable<typeof extra> {
+const extras = new WeakMap<RecordsHandle, Extra>();
+type Extra = { comments: CommentsHandlers; history: LiveHistory; merge: MergeHandlers; sites: SiteTableHandlers; review: ReviewHandlers; views: ViewHandlers; purge: PurgeHandlers };
+function more(c?: { db?: unknown }): Extra {
+  const h = live(c);
+  let extra: Extra | undefined = extras.get(h);
   if (!extra) {
-    const h = live();
     extra = {
       comments: createCommentsHandlers({ tx: h.host.tx }),
       history: createHistoryHandlers({
@@ -390,6 +385,7 @@ function more(): NonNullable<typeof extra> {
       views: createViewHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, space: h.host.store.space }),
       purge: createPurgeHandlers({ store: h.store, tx: h.host.tx }),
     };
+    extras.set(h, extra);
   }
   return extra;
 }
@@ -398,43 +394,43 @@ export type LiveRecordsHandlers = RecordsHandlers & LiveHistory & CommentsHandle
 
 /** Loader entry. The module stays stub until its manifest flips to live, which is when the host reads this. */
 const table: LiveRecordsHandlers = {
-  "records.create": (ctx, input) => live().handlers["records.create"](ctx, input),
-  "records.update": (ctx, input) => live().handlers["records.update"](ctx, input),
-  "records.delete": (ctx, input) => live().handlers["records.delete"](ctx, input),
-  "records.restore": (ctx, input) => live().handlers["records.restore"](ctx, input),
-  "records.query": (ctx, input) => live().handlers["records.query"](ctx, input),
-  "records.search": (ctx, input) => live().handlers["records.search"](ctx, input),
-  "records.counts": (ctx, input) => live().handlers["records.counts"](ctx, input),
-  "records.get": (ctx, input) => live().handlers["records.get"](ctx, input),
-  "records.history": (ctx, input) => live().handlers["records.history"](ctx, input),
-  "records.activity": (ctx, input) => more().history["records.activity"](ctx, input),
-  "records.comments.list": (ctx, input) => more().comments["records.comments.list"](ctx, input),
-  "records.comments.add": (ctx, input) => more().comments["records.comments.add"](ctx, input),
-  "records.comments.edit": (ctx, input) => more().comments["records.comments.edit"](ctx, input),
-  "records.comments.resolve": (ctx, input) => more().comments["records.comments.resolve"](ctx, input),
-  "records.comments.delete": (ctx, input) => more().comments["records.comments.delete"](ctx, input),
-  "records.as_of": (ctx, input) => more().history["records.as_of"](ctx, input),
-  "records.versions": (ctx, input) => more().history["records.versions"](ctx, input),
-  "records.restore_version": (ctx, input) => more().history["records.restore_version"](ctx, input),
-  "records.hold": (ctx, input) => more().history["records.hold"](ctx, input),
-  "records.release_hold": (ctx, input) => more().history["records.release_hold"](ctx, input),
-  "records.reveal": (ctx, input) => more().history["records.reveal"](ctx, input),
-  "records.merge": (ctx, input) => more().merge["records.merge"](ctx, input),
-  "records.bulk_upsert": (ctx, input) => more().merge["records.bulk_upsert"](ctx, input),
-  "records.export": (ctx, input) => more().merge["records.export"](ctx, input),
-  "records.changes": (ctx, input) => more().review["records.changes"](ctx, input),
-  "records.completeness": (ctx, input) => more().review["records.completeness"](ctx, input),
-  "records.gap_check": (ctx, input) => more().review["records.gap_check"](ctx, input),
-  "records.relate": (ctx, input) => more().review["records.relate"](ctx, input),
-  "records.value_source": (ctx, input) => more().review["records.value_source"](ctx, input),
-  "records.values.pending": (ctx, input) => more().review["records.values.pending"](ctx, input),
-  "records.values.review": (ctx, input) => more().review["records.values.review"](ctx, input),
-  "records.view": (ctx, input) => more().views["records.view"](ctx, input),
-  "records.relations_map": (ctx, input) => more().views["records.relations_map"](ctx, input),
-  "records.page_prefs.get": (ctx, input) => more().views["records.page_prefs.get"](ctx, input),
-  "records.page_prefs.set": (ctx, input) => more().views["records.page_prefs.set"](ctx, input),
-  "records.purge": (ctx, input) => more().purge["records.purge"](ctx, input),
-  "records.purge_trashed": (ctx, input) => more().purge["records.purge_trashed"](ctx, input),
+  "records.create": (ctx, input) => live(ctx).handlers["records.create"](ctx, input),
+  "records.update": (ctx, input) => live(ctx).handlers["records.update"](ctx, input),
+  "records.delete": (ctx, input) => live(ctx).handlers["records.delete"](ctx, input),
+  "records.restore": (ctx, input) => live(ctx).handlers["records.restore"](ctx, input),
+  "records.query": (ctx, input) => live(ctx).handlers["records.query"](ctx, input),
+  "records.search": (ctx, input) => live(ctx).handlers["records.search"](ctx, input),
+  "records.counts": (ctx, input) => live(ctx).handlers["records.counts"](ctx, input),
+  "records.get": (ctx, input) => live(ctx).handlers["records.get"](ctx, input),
+  "records.history": (ctx, input) => live(ctx).handlers["records.history"](ctx, input),
+  "records.activity": (ctx, input) => more(ctx).history["records.activity"](ctx, input),
+  "records.comments.list": (ctx, input) => more(ctx).comments["records.comments.list"](ctx, input),
+  "records.comments.add": (ctx, input) => more(ctx).comments["records.comments.add"](ctx, input),
+  "records.comments.edit": (ctx, input) => more(ctx).comments["records.comments.edit"](ctx, input),
+  "records.comments.resolve": (ctx, input) => more(ctx).comments["records.comments.resolve"](ctx, input),
+  "records.comments.delete": (ctx, input) => more(ctx).comments["records.comments.delete"](ctx, input),
+  "records.as_of": (ctx, input) => more(ctx).history["records.as_of"](ctx, input),
+  "records.versions": (ctx, input) => more(ctx).history["records.versions"](ctx, input),
+  "records.restore_version": (ctx, input) => more(ctx).history["records.restore_version"](ctx, input),
+  "records.hold": (ctx, input) => more(ctx).history["records.hold"](ctx, input),
+  "records.release_hold": (ctx, input) => more(ctx).history["records.release_hold"](ctx, input),
+  "records.reveal": (ctx, input) => more(ctx).history["records.reveal"](ctx, input),
+  "records.merge": (ctx, input) => more(ctx).merge["records.merge"](ctx, input),
+  "records.bulk_upsert": (ctx, input) => more(ctx).merge["records.bulk_upsert"](ctx, input),
+  "records.export": (ctx, input) => more(ctx).merge["records.export"](ctx, input),
+  "records.changes": (ctx, input) => more(ctx).review["records.changes"](ctx, input),
+  "records.completeness": (ctx, input) => more(ctx).review["records.completeness"](ctx, input),
+  "records.gap_check": (ctx, input) => more(ctx).review["records.gap_check"](ctx, input),
+  "records.relate": (ctx, input) => more(ctx).review["records.relate"](ctx, input),
+  "records.value_source": (ctx, input) => more(ctx).review["records.value_source"](ctx, input),
+  "records.values.pending": (ctx, input) => more(ctx).review["records.values.pending"](ctx, input),
+  "records.values.review": (ctx, input) => more(ctx).review["records.values.review"](ctx, input),
+  "records.view": (ctx, input) => more(ctx).views["records.view"](ctx, input),
+  "records.relations_map": (ctx, input) => more(ctx).views["records.relations_map"](ctx, input),
+  "records.page_prefs.get": (ctx, input) => more(ctx).views["records.page_prefs.get"](ctx, input),
+  "records.page_prefs.set": (ctx, input) => more(ctx).views["records.page_prefs.set"](ctx, input),
+  "records.purge": (ctx, input) => more(ctx).purge["records.purge"](ctx, input),
+  "records.purge_trashed": (ctx, input) => more(ctx).purge["records.purge_trashed"](ctx, input),
 };
 
 type AnyCtx = { principal?: { id: string }; actingFor?: string | undefined; trace?: { traceId?: string }; run?: string | undefined };
@@ -450,26 +446,26 @@ export const handlers: LiveRecordsHandlers = withReversals(Object.fromEntries(Ob
 export const consumers = {
   "records.site_tables": {
     on: ["site.table_created", "site.table_promoted"],
-    async run(_ctx: unknown, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
+    async run(ctx: unknown, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
       const ev = event.payload as unknown as SiteTableEvent;
-      if (event.name === "site.table_created") await more().sites.created(ev);
-      else await more().sites.promoted(ev);
+      if (event.name === "site.table_created") await more(ctx as { db?: unknown }).sites.created(ev);
+      else await more(ctx as { db?: unknown }).sites.promoted(ev);
     },
   },
   /** A mentioned agent's turn ended: its comment stops saying "is replying" (it answered by calling records.comments.add, which cleared it already, or it did not and the turn is over). */
   "records.comment_turns": {
     on: ["turn.completed", "turn.failed", "turn.cancelled"],
-    async run(_ctx: unknown, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
+    async run(ctx: unknown, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
       const { threadId, agentId } = event.payload as { threadId?: string; agentId?: string };
       if (typeof threadId !== "string" || typeof agentId !== "string") return;
-      settleTurn(live().host.tx, threadId, agentId, event.name === "turn.completed" ? "done" : "failed");
+      settleTurn(live(ctx as { db?: unknown }).host.tx, threadId, agentId, event.name === "turn.completed" ? "done" : "failed");
     },
   },
   /** An agent or automation proposed a value: it waits for review or counts straight away (per field), and the source is kept for the popover. */
   "records.value_source": {
     on: ["record.value_proposed"],
-    async run(_ctx: unknown, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
-      propose(live().host.tx, event.payload);
+    async run(ctx: unknown, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
+      propose(live(ctx as { db?: unknown }).host.tx, event.payload);
     },
   },
 };
@@ -481,24 +477,24 @@ export { RecordsError } from "./handlers/index.ts";
  * as the person doing the removal, so record permissions, labels and holds apply as they do for anyone.
  */
 type OwnerCtx = { call(cap: string, input: unknown): Promise<unknown> };
-async function ownedRecords(person: string): Promise<{ type: string; id: string; title: string }[]> {
+async function ownedRecords(person: string, ctx?: { db?: unknown }): Promise<{ type: string; id: string; title: string }[]> {
   const out: { type: string; id: string; title: string }[] = [];
-  for (const t of await live().store.types()) {
+  for (const t of await live(ctx).store.types()) {
     if (!t.fields.some((f) => f.name === "owner")) continue;
-    const page = await live().store.query(t.name, { filter: { field: "owner", op: "eq", value: person }, page: { limit: 500 } });
+    const page = await live(ctx).store.query(t.name, { filter: { field: "owner", op: "eq", value: person }, page: { limit: 500 } });
     for (const r of page.rows) out.push({ type: t.name, id: r.id, title: String((r.data as Record<string, unknown>)["name"] ?? r.id) });
   }
   return out;
 }
 export const hostCalls = {
-  "records.owned_by": async (_ctx: unknown, i: { person: string }) => {
-    const all = await ownedRecords(i.person);
+  "records.owned_by": async (ctx: unknown, i: { person: string }) => {
+    const all = await ownedRecords(i.person, ctx as { db?: unknown });
     return { records: { count: all.length, sample: all.slice(0, 5), ids: all.slice(0, 500).map((r) => r.id) } };
   },
   "records.reassign_owned": async (ctx: OwnerCtx, i: { person: string; kind: string; action: string; to?: string }): Promise<number> => {
     if (i.kind !== "records" || i.action !== "reassign" || !i.to) return 0;
     let n = 0;
-    for (const r of await ownedRecords(i.person)) { await ctx.call("records.update", { type: r.type, recordId: r.id, patch: { owner: i.to } }); n++; }
+    for (const r of await ownedRecords(i.person, ctx as { db?: unknown })) { await ctx.call("records.update", { type: r.type, recordId: r.id, patch: { owner: i.to } }); n++; }
     return n;
   },
 };

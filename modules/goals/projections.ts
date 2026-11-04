@@ -10,8 +10,8 @@ export type Status = "draft" | "planning" | "active" | "waiting" | "stuck" | "pa
 export type Ended = "done" | "missed" | "stopped";
 export interface Who { kind: "person" | "agent" | "group" | "role"; id: string }
 export interface Source {
-  kind: "records" | "connection" | "mcp" | "automation" | "manual"; label?: string; type?: string; filter?: unknown; connector?: string; connectionId?: string; action?: string; input?: unknown;
-  server?: string; tool?: string; automationId?: string; path?: string;
+  kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual"; label?: string; type?: string; filter?: unknown; connector?: string; connectionId?: string; action?: string; input?: unknown;
+  server?: string; tool?: string; automationId?: string; watchId?: string; path?: string;
 }
 export interface Item { id: string; text: string; taskId?: string; done?: boolean }
 export interface Finish { kind: "number" | "checklist" | "owner"; line: string; target?: number; direction?: "up" | "down"; unit?: string; source?: Source; items?: Item[] }

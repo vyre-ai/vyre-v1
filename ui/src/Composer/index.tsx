@@ -22,6 +22,7 @@ import { DropHost, DropOverlay, useDropRoute, useFileDrop } from "../FileDrop/in
 import { Row } from "../Row/index.tsx";
 import { answering, contextRing, deleteToken, effortsFor, modeInfo, nextMode, sendControl, sizeLabel, stripName, tokenRanges } from "./brain.ts";
 import type { ChatMode, ComposerAgent, TokenRange } from "./brain.ts";
+import { ChatField, canMountChatField } from "./ChatField.tsx";
 import { ContextRing, EffortBars, GroupHead, I, IconTile, Kbd, Pop, STOP, ensureComposerCss, useDismiss } from "./parts.tsx";
 import { composerSymbols } from "./props.ts";
 import { closeEmoji, findEmoji } from "./emoji.ts";
@@ -301,6 +302,10 @@ export interface WhoContext {
   listening?: readonly string[];
   agents?: readonly ListItem[];
   people?: readonly ListItem[];
+  /** The people in the chat, by name, when known: someone named who is not among them is only talked about, and the lead answers. Left out: everyone named is taken to be in the chat. */
+  members?: readonly string[];
+  /** The lead's name, so a message that names it in words is answered by it even when it speaks to a person. */
+  leadName?: string;
   /** The thread kind when known: in a channel a lone listening agent still waits to be named, as the engine routes it (lib/route.ts). */
   kind?: string;
 }
@@ -331,14 +336,17 @@ export const NO_AGENT_LINE = "No agent will reply. @mention one";
 export function whoAnswers(text: string, ctx: WhoContext): WhoAnswer {
   const agentNames = mentionsIn(text, ctx.agents);
   const personNames = mentionsIn(text, ctx.people);
+  const inChat = (n: string): boolean => ctx.members === undefined || ctx.members.some((x) => firstWord(x).toLowerCase() === firstWord(n).toLowerCase());
   const thread: RouteThread = {
     ...(ctx.kind === undefined ? {} : { kind: ctx.kind }),
+    ...(ctx.members === undefined ? {} : { people: personNames.filter(inChat) }),
     agents: [
-      ...(ctx.lead === undefined ? [] : [{ id: ctx.lead, mode: "lead" as const }]),
+      ...(ctx.lead === undefined ? [] : [{ id: ctx.lead, ...(ctx.leadName ? { name: ctx.leadName } : {}), mode: "lead" as const }]),
       ...(ctx.listening ?? []).filter((n) => n !== ctx.lead).map((id) => ({ id, mode: "listen" as const })),
     ],
   };
   const message: RouteMessage = {
+    text,
     author: { kind: "person", id: "me" },
     mentions: [...agentNames.map((id) => ({ kind: "agent" as const, id })), ...personNames.map((id) => ({ kind: "person" as const, id }))],
   };
@@ -346,7 +354,7 @@ export function whoAnswers(text: string, ctx: WhoContext): WhoAnswer {
   if (result.responders.length > 0) return { line: `${result.responders.join(" and ")} will reply`, responders: result.responders, dim: false, reason: result.reason };
   if (result.reason === "person_addressed") {
     const who = firstWord(personNames[0] ?? "They");
-    return { line: `${who} will see this · no agent will reply`, responders: [], dim: true, reason: result.reason };
+    return { line: `Goes to ${who}; no agent will reply${ctx.leadName ? `. Ask ${ctx.leadName} too` : ""}`, responders: [], dim: true, reason: result.reason };
   }
   // owner ruling, 3 Nov 2026: agents listen until named, and the line says so plainly
   return { line: NO_AGENT_LINE, responders: [], dim: true, reason: result.reason };
@@ -527,9 +535,13 @@ export interface ComposerPreview {
 }
 
 export interface ComposerProps extends ComposerShellProps {
+  /** The text is drawn on the shared editor with each @mention as one chip (ChatField). On wherever a browser DOM is there; the plain field is only the fallback when the editor cannot mount. `false` forces the plain field (tests). */
+  chatField?: boolean;
   lists?: ComposerLists;
   /** Agents that listen in this thread (answer only when @mentioned). The lead comes from `lead`. */
   listening?: readonly string[];
+  /** The people in this thread, by name: someone named who is not among them is only talked about (lib/route.ts). */
+  members?: readonly string[];
   /** Kept for callers; # is one grouped search now. */
   agentChat?: boolean;
   /** The thread's folder chip. Picking a folder with # sets it; removing the chip clears it. */
@@ -669,13 +681,14 @@ function AgentStrip({ list, narrow, onPress, open, face, mode, runsChip, ring }:
   const a = list[0] as ComposerAgent;
   const name = stripName(list);
   const title = a.modelTitle ?? "Auto";
-  const label = `${name} will answer on ${title}${a.effort ? `, ${a.effort} effort` : ""}${onPress ? ". Mode, model, effort and limits" : ""}`;
+  const label = `${name} will answer on ${title}${a.unavailable === true ? ", not available here" : ""}${a.effort ? `, ${a.effort} effort` : ""}${onPress ? ". Mode, model, effort and limits" : ""}`;
   const body = (
     <>
       {face ? <Avatar {...avatarOf({ id: a.id, name: a.name, kind: a.kind === "assistant" ? "assistant" : "agent" })} size={20} /> : null}
       {mode !== undefined && mode !== "auto" ? <View style={styles.mchip} testID="composer-mode"><Text style={styles.mchipText}>{modeInfo(mode).label}</Text></View> : null}
       {runsChip !== undefined ? <View style={styles.rchip} testID="composer-runs"><Text numberOfLines={1} style={styles.rchipText}>{`On ${runsChip}`}</Text></View> : null}
       {narrow ? null : <Text numberOfLines={1} style={styles.stripModelText}>{`${title}${a.accountName ? ` · ${a.accountName}` : ""}`}</Text>}
+      {a.unavailable === true ? <Text numberOfLines={1} style={styles.stripNote} testID="composer-unavailable">Not available here</Text> : null}
       <EffortBars effort={a.effort} levels={effortsFor(a.provider).length} testID="composer-effort" />
       {ring ? <ContextRing pct={ring.pct} warn={ring.warn} size={18} /> : null}
     </>
@@ -687,6 +700,16 @@ function AgentStrip({ list, narrow, onPress, open, face, mode, runsChip, ring }:
       {body}
     </Pressable>
   );
+}
+
+/**
+ * How far the field's text has scrolled. React Native Web hands a multiline TextInput's onScroll the DOM scroll event, which carries no `contentOffset` (that is a native-only field), so the
+ * wash behind a long draft stayed at 0 while the text scrolled under it and the boxes slid onto the wrong words (owner report, rc.20). The textarea's own scrollTop is the truth.
+ */
+export function scrollTopOf(e: unknown): number {
+  const ev = e as { nativeEvent?: { contentOffset?: { y?: number }; target?: { scrollTop?: number } }; target?: { scrollTop?: number }; currentTarget?: { scrollTop?: number } } | null;
+  const y = ev?.nativeEvent?.contentOffset?.y ?? ev?.currentTarget?.scrollTop ?? ev?.target?.scrollTop ?? ev?.nativeEvent?.target?.scrollTop ?? 0;
+  return Number.isFinite(y) ? Math.max(0, y) : 0;
 }
 
 /** The field's tokens, drawn behind the text: a wash under each #link, @mention and [[link]]. The text itself stays the field's own. */
@@ -750,7 +773,7 @@ export function Composer(props: ComposerProps): ReactElement {
   const lists = props.lists ?? {};
   const hasLead = props.lead !== undefined && props.lead.length > 0;
   const whoCtx: WhoContext | undefined = hasLead || lists.agents !== undefined || lists.people !== undefined
-    ? { ...(hasLead ? { lead: props.lead as string } : {}), ...(props.listening === undefined ? {} : { listening: props.listening }), ...(lists.agents === undefined ? {} : { agents: lists.agents }), ...(lists.people === undefined ? {} : { people: lists.people }), ...(props.agentChat === false ? { kind: "channel" } : {}) }
+    ? { ...(hasLead ? { lead: props.lead as string } : {}), ...(props.listening === undefined ? {} : { listening: props.listening }), ...(props.members === undefined ? {} : { members: props.members }), ...(hasLead ? { leadName: props.lead as string } : {}), ...(lists.agents === undefined ? {} : { agents: lists.agents }), ...(lists.people === undefined ? {} : { people: lists.people }), ...(props.agentChat === false ? { kind: "channel" } : {}) }
     : undefined;
   const who = answerLine(state.text, props.whoWillAnswer, whoCtx);
   const answerers = props.sendsOutside === true || props.hideWho === true ? [] : answering(who.responders, props.agents);
@@ -864,6 +887,12 @@ export function Composer(props: ComposerProps): ReactElement {
     typeSymbol("#");
   };
   const cycleMode = (): void => { if (props.mode && props.onMode) props.onMode(nextMode(props.mode)); };
+
+  // a draft that shrinks or grows moves the text under the wash without always raising a scroll event: read the field's own scrollTop after every change
+  useEffect(() => {
+    const el = input.current as unknown as { scrollTop?: number } | null;
+    if (web && el && typeof el.scrollTop === "number") setScrollY(el.scrollTop);
+  }, [state.text, web]);
 
   const names = useMemo(() => [...(lists.agents ?? []), ...(lists.people ?? [])].map((x) => (typeof x === "string" ? x : x.t)), [lists.agents, lists.people]);
   const ranges = useMemo(() => tokenRanges(state.text, state.refs, names), [state.text, state.refs, names]);
@@ -1112,26 +1141,38 @@ export function Composer(props: ComposerProps): ReactElement {
       </Pressable>
     </View>
   );
+  const [chatFailed, setChatFailed] = useState(false);
+  const useChat = web && props.chatField !== false && !chatFailed && canMountChatField();
   const fieldNode = (
     <View style={[styles.fieldWrap, ...fieldPad, oneLine && styles.fieldLine]} {...webProps({ dataSet: { cmpField: "1" } })}>
-      {web && ranges.length > 0 ? <TokenBackdrop text={state.text} ranges={ranges} scrollY={scrollY} style={fieldText} pad={fieldPad} /> : null}
-      <TextInput
-        ref={input}
-        multiline
-        value={state.text}
-        placeholder={props.placeholder ?? "Message"}
-        placeholderTextColor="var(--ink-3)"
-        accessibilityLabel={props.label ?? "Message"}
-        onChange={onChange as never}
-        onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })}
-        onKeyPress={onKeyPress as never}
-        onContentSizeChange={(e) => setHeight(Math.max(MIN_FIELD, Math.min(MAX_FIELD, Math.ceil(e.nativeEvent.contentSize.height))))}
-        onScroll={(e) => setScrollY(e.nativeEvent.contentOffset?.y ?? 0)}
-        onFocus={onFocus}
-        onBlur={onBlur}
-        testID="composer-field"
-        style={[styles.field, fieldText, FIELD_STYLE, { height }]}
-      />
+      {useChat ? (
+        <ChatField
+          value={state.text} cursor={state.cursor} ranges={ranges} placeholder={props.placeholder ?? "Message"} label={props.label ?? "Message"} testID="composer-field" fontSize={compact ? 14 : 15} lineHeight={22} maxHeight={MAX_FIELD}
+          onChange={onChange as never} onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })} onKeyPress={onKeyPress as never} onFocus={onFocus} onBlur={onBlur}
+          controlRef={(c) => { input.current = c as never; }} onFail={() => setChatFailed(true)}
+        />
+      ) : (
+        <>
+          {web && ranges.length > 0 ? <TokenBackdrop text={state.text} ranges={ranges} scrollY={scrollY} style={fieldText} pad={fieldPad} /> : null}
+          <TextInput
+            ref={input}
+            multiline
+            value={state.text}
+            placeholder={props.placeholder ?? "Message"}
+            placeholderTextColor="var(--ink-3)"
+            accessibilityLabel={props.label ?? "Message"}
+            onChange={onChange as never}
+            onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })}
+            onKeyPress={onKeyPress as never}
+            onContentSizeChange={(e) => setHeight(Math.max(MIN_FIELD, Math.min(MAX_FIELD, Math.ceil(e.nativeEvent.contentSize.height))))}
+            onScroll={(e) => setScrollY(scrollTopOf(e))}
+            onFocus={onFocus}
+            onBlur={onBlur}
+            testID="composer-field"
+            style={[styles.field, fieldText, FIELD_STYLE, { height }]}
+          />
+        </>
+      )}
     </View>
   );
   const stripNode_ = ai ? (
@@ -1254,6 +1295,7 @@ const styles = StyleSheet.create({
   stripWrap: { flexShrink: 1, minWidth: 0 },
   strip: { flexDirection: "row", alignItems: "center", gap: 7, height: 34, paddingHorizontal: 9, borderRadius: 17, minWidth: 0 },
   stripModelText: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 1 },
+  stripNote: { fontSize: 11.5, color: "var(--ink-3)" as string, flexShrink: 1, fontStyle: "italic" as const },
   mchip: { height: 20, paddingHorizontal: 7, borderRadius: 10, justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
   mchipText: { fontSize: 11.5, lineHeight: 20, color: "var(--accent)" as string },
   rchip: { height: 20, paddingHorizontal: 7, borderRadius: 10, justifyContent: "center", backgroundColor: "var(--sunk)" as string, flexShrink: 1 },

@@ -208,7 +208,9 @@ test("items.match offers the items whose url fits the page, exact host first, ne
   assert.deepEqual((out(await g.itemsMatch(h.ctx, { url: "example.com:8080/x" })).items as Json[]).map((i) => out(i.item).id), [parent]);
   assert.equal((out(await g.itemsMatch(h.ctx, { url: "https://keyed.net" })).items as Json[])[0]?.usernameField, "email");
   assert.deepEqual(out(await g.itemsMatch(h.ctx, { url: "https://nowhere.test" })).items, []);
-  assert.ok(!JSON.stringify(res).includes("pw-1") && !JSON.stringify(res).includes("dana"), "names and ids, never a value");
+  // the username (not a secret field) is offered so two logins for one site can be told apart in the picker; a password never is
+  assert.deepEqual(items.map((i) => i.username), ["dana2", "dana"]);
+  assert.ok(!JSON.stringify(res).includes("pw-1") && !JSON.stringify(res).includes("pw-2"), "names, ids and a username, never a password");
   assert.ok(!h.everything().includes("pw-1"));
 
   for (const bad of ["javascript:alert(1)", "file:///etc/passwd", "", "   "]) assert.equal(await refusedWith(g.itemsMatch(h.ctx, { url: bad })), "validation.bad_input", bad);

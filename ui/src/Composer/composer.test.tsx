@@ -71,8 +71,19 @@ test("addressed to a person with @: nobody answers, not even the lead", () => {
   const r = route(thread, { author: person("me"), mentions: [person("Sam Patel")] });
   assert.deepEqual(w.responders, r.responders);
   assert.equal(w.reason, "person_addressed");
-  assert.equal(w.line, "Sam will see this · no agent will reply");
+  assert.equal(w.line, "Goes to Sam; no agent will reply");
   assert.equal(w.dim, true);
+});
+
+test("a person named who is not in the chat is only talked about: the lead answers, and the line says so before Send", () => {
+  const w = whoAnswers("@Sam is waiting, please plan it", { ...ctx, members: ["Maya Chen"], leadName: "Intake" });
+  assert.deepEqual([w.responders, w.reason], [["Intake"], "lead"]);
+  assert.equal(w.line, "Intake will reply");
+  // in the chat, the same words go to Sam, with the way to bring the lead in
+  const inChat = whoAnswers("@Sam can you take this?", { ...ctx, members: ["Sam Patel", "Maya Chen"], leadName: "Intake" });
+  assert.equal(inChat.line, "Goes to Sam; no agent will reply. Ask Intake too");
+  // and naming the lead in the words brings it in
+  assert.deepEqual(whoAnswers("@Sam and Intake, can you take this?", { ...ctx, members: ["Sam Patel"], leadName: "Intake" }).responders, ["Intake"]);
 });
 
 test("an agent mention beats a person mention in the same message", () => {

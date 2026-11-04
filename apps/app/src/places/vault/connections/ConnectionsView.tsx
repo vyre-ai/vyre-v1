@@ -17,10 +17,13 @@ import { assemble, dotColor, healthWords, noteOf } from "./model.ts";
 import type { Account, ConnRow, Connector, Health, Home } from "./model.ts";
 import { AddConnection } from "./AddConnection.tsx";
 import type { AddInitial } from "./AddConnection.tsx";
+import { BrowserSheet } from "./BrowserSheet.tsx";
+import type { SheetAgent } from "./BrowserSheet.tsx";
+import type { BrowserSite } from "./browser.ts";
 import { RulesPanel } from "./RulesPanel.tsx";
 import { ShareSheet } from "./ShareSheet.tsx";
 
-export interface ConnectionsData { home: Home | null; accounts: Account[]; connectors: Connector[]; groups: Map<string, string>; error: string | null; loaded: boolean }
+export interface ConnectionsData { home: Home | null; accounts: Account[]; connectors: Connector[]; groups: Map<string, string>; error: string | null; loaded: boolean; sites?: BrowserSite[] }
 
 /** Reads the three sources; a source the person cannot read (built-in integrations for a guest) is left out, never an error for the page. */
 export function useConnections(call: (cap: string, input: unknown) => Promise<unknown>, admin = true, initial?: ConnectionsData): ConnectionsData & { refresh(): void } {
@@ -31,13 +34,14 @@ export function useConnections(call: (cap: string, input: unknown) => Promise<un
     void (async () => {
       const soft = <T,>(p: Promise<unknown>, d: T): Promise<T> => p.then((x) => x as T, () => d);
       try {
-        const [home, accounts, connectors, groups] = await Promise.all([
+        const [home, accounts, connectors, groups, sites] = await Promise.all([
           call("plugins.connections.home", {}) as Promise<Home>,
           soft<{ connections: Account[] }>(call("connections.list", { whose: "all" }), { connections: [] }),
           soft<{ connectors: Connector[] }>(call("connectors.list", {}), { connectors: [] }),
           admin ? soft<{ groups: { id: string; name: string }[] }>(call("access.groups.list", {}), { groups: [] }) : Promise.resolve({ groups: [] }),
+          soft<{ sites: BrowserSite[] }>(call("browser.sites.list", {}), { sites: [] }),
         ]);
-        if (live) setState({ home, accounts: accounts.connections ?? [], connectors: connectors.connectors ?? [], groups: new Map((groups.groups ?? []).map((g) => [g.id, g.name] as const)), error: null, loaded: true });
+        if (live) setState({ home, accounts: accounts.connections ?? [], connectors: connectors.connectors ?? [], groups: new Map((groups.groups ?? []).map((g) => [g.id, g.name] as const)), error: null, loaded: true, sites: sites.sites ?? [] });
       } catch (e) { if (live) setState((s) => ({ ...s, error: messageOf(e), loaded: true })); }
     })();
     return () => { live = false; };
@@ -51,11 +55,13 @@ export interface ConnectionsViewProps {
   onClose?: (() => void) | undefined;
   /** Open on the Add sheet (the address asked for it, or a screenshot mount). */
   initialAdd?: boolean | AddInitial;
+  /** Open on the Add a site sheet (a screenshot mount). */
+  initialSite?: boolean;
   /** What the page shows before its first read answers (a test that renders once, a screenshot mount). */
   initialData?: ConnectionsData;
 }
 
-export function ConnectionsView({ onClose, initialAdd = false, initialData }: ConnectionsViewProps): ReactElement {
+export function ConnectionsView({ onClose, initialAdd = false, initialSite = false, initialData }: ConnectionsViewProps): ReactElement {
   const data = useVaultData();
   const online = useOnline();
   const names = usePrincipals();
@@ -63,13 +69,20 @@ export function ConnectionsView({ onClose, initialAdd = false, initialData }: Co
   const conns = useConnections(data.call, true, initialData);
   const [adding, setAdding] = useState<boolean | AddInitial>(initialAdd);
   const [sharing, setSharing] = useState<ConnRow | null>(null);
+  const [siteSheet, setSiteSheet] = useState<null | "new" | BrowserSite>(initialSite ? "new" : null);
+  const [agents, setAgents] = useState<SheetAgent[]>([]);
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve(data.call("agents.list", { limit: 100 })).then((r) => { if (live) setAgents(((r as { agents?: Array<{ agentId: string; name: string }> })?.agents ?? []).map((a) => ({ id: a.agentId, name: a.name }))); }, () => undefined);
+    return () => { live = false; };
+  }, [data.call]);
   const [tested, setTested] = useState<Record<string, Tested>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const now = data.clock().now;
   const agentName = useCallback((id: string) => names.name(id), [names]);
   const groupName = useCallback((id: string) => conns.groups.get(id) ?? "a group", [conns.groups]);
-  const sections = useMemo(() => assemble(conns.home, conns.accounts, conns.connectors, data.me.id, groupName, agentName), [conns.home, conns.accounts, conns.connectors, data.me.id, groupName, agentName]);
+  const sections = useMemo(() => assemble(conns.home, conns.accounts, conns.connectors, data.me.id, groupName, agentName, conns.sites ?? []), [conns.home, conns.accounts, conns.connectors, conns.sites, data.me.id, groupName, agentName]);
   const admin = conns.home?.admin === true;
   const canAddSpace = conns.home?.canAddSpace === true;
   const origin = (globalThis as { location?: { origin?: string } }).location?.origin ?? "";
@@ -117,6 +130,11 @@ export function ConnectionsView({ onClose, initialAdd = false, initialData }: Co
   };
 
   const rowMenu = (row: ConnRow, x: number, y: number): void => {
+    if (row.kind === "browser" && row.site) {
+      const site = row.site;
+      menu.show([{ label: "Edit…", onSelect: () => setSiteSheet(site) }, { separator: true } as MenuEntry, { label: "Remove", danger: true, onSelect: () => { void run(row, `Removed ${row.title}`, async () => { await data.call("browser.sites.remove", { siteId: site.id }); }); } }], x, y, "other");
+      return;
+    }
     const mcp = row.kind !== "app" && row.kind !== "plugin" && row.kind !== "skill";
     const entries: MenuEntry[] = [
       { label: "Test", onSelect: () => test(row) },
@@ -164,6 +182,7 @@ export function ConnectionsView({ onClose, initialAdd = false, initialData }: Co
         {onClose ? <Btn label="Back" icon="back" onPress={onClose} testID="connections-back" /> : null}
         <Text accessibilityRole="header" style={s.title}>Connections</Text>
         <View style={{ flex: 1 }} />
+        <Btn label={narrow ? "Site" : "Add a site"} icon="plus" onPress={() => setSiteSheet("new")} testID="connections-add-site" />
         <Btn label={narrow ? "Add" : "Add a connection"} icon="plus" primary onPress={() => setAdding(true)} disabled={!online} why={!online ? "Adding needs the Space to be online" : undefined} testID="connections-add" />
       </View>
       <Text style={s.intro}>{data.personal ? "Apps and tool servers you and your agents can use. Keys stay in your Vault." : "Apps and tool servers you and your agents can use. Yours are only yours; the Space's are for everyone or the groups an admin picks. Keys stay in the Vault."}</Text>
@@ -181,6 +200,7 @@ export function ConnectionsView({ onClose, initialAdd = false, initialData }: Co
       <View style={s.lineSlot}>{note ? <QuietLine text={note} testID="connections-line" /> : null}</View>
       </ScrollView>
       {adding ? <AddConnection canAddSpace={canAddSpace && !data.personal} canAsk={!!conns.home && !canAddSpace && !data.personal} {...(typeof adding === "object" ? { initial: adding } : {})} onClose={() => setAdding(false)} onAdded={(t) => { setNote(t); conns.refresh(); }} /> : null}
+      {siteSheet ? <BrowserSheet site={siteSheet === "new" ? null : siteSheet} agents={agents} onClose={() => setSiteSheet(null)} onSaved={(t) => { setSiteSheet(null); setNote(t); conns.refresh(); }} /> : null}
       {sharing ? <ShareSheet row={sharing} groups={conns.groups} onClose={() => setSharing(null)} onSaved={(t) => { setSharing(null); setNote(t); conns.refresh(); }} /> : null}
     </View>
   );

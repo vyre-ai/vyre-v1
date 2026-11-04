@@ -151,6 +151,20 @@ export function createCompactor(d: CompactDeps) {
   }
 
   return {
+    /**
+     * Vyre rolls a chat over before its window fills (agent/src/transcript/rollover.ts, called from rollover.ts): the engine's session ends and the next turn starts a new one from the summary and the
+     * messages after it. Always Vyre's own summary, never the engine's compact: Vyre owns the window.
+     */
+    async roll(req: CompactRequest, share: number, why: string): Promise<CompactResult> {
+      let account: ResolvedAccount | null = null;
+      try { account = await d.resolve({ threadId: req.threadId, agentId: req.agentId, askerId: req.asker }); } catch { account = null; }
+      const s = await chatSettings(d.call, req.threadId, req.agentId, req.asker);
+      const model = s.model ?? d.engine()?.agents(req.threadId).find((a) => a.id === req.agentId)?.model ?? null;
+      const c = await vyre(req, model, account?.provider ?? null);
+      const line = `Started a fresh session to keep the window from filling (it was ${Math.round(share * 100)}% full, ${why}). The summary and the latest messages carry over.${c.used !== null && c.window !== null ? ` Context now about ${k(c.used)} of ${k(c.window)} tokens.` : ""}`;
+      await say(req, line);
+      return { engine: account?.driver ?? "none", how: "vyre", line, context: c.used !== null && c.window !== null ? { used: c.used, window: c.window } : null, fellBack: false };
+    },
     async run(req: CompactRequest): Promise<CompactResult> {
       let account: ResolvedAccount | null = null;
       try { account = await d.resolve({ threadId: req.threadId, agentId: req.agentId, askerId: req.asker }); } catch { account = null; }

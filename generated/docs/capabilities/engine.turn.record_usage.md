@@ -29,6 +29,7 @@ type In = {
   tokensIn: number;
   tokensOut: number;
   costMicros: number;
+  model?: string;
   itemId?: string;
 };
 ```
@@ -56,6 +57,7 @@ type Out = {
   "input": {
     "costMicros": 1,
     "itemId": "vit_a1b2c3",
+    "model": "example",
     "tokensIn": 1,
     "tokensOut": 1,
     "turnId": "trn_a1b2c3"

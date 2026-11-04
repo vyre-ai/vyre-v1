@@ -2,13 +2,13 @@
 // value the provider did not send says "Not reported by <provider>", never 0. In a shared chat the account, the cost and the tool arguments come back only for the asker and the
 // people who manage AI spend; everyone else reads "On <asker>'s account".
 
-export interface ReplyCost { source: "subscription" | "reported" | "catalog" | "unknown"; micros?: number; lines?: Array<{ kind: "input" | "output" | "cache_read" | "cache_write"; tokens: number; perMillion: number; micros: number }>; priceAsOf?: string; missing?: string[] }
+export interface ReplyCost { source: "subscription" | "reported" | "catalog" | "estimate" | "unknown"; micros?: number; lines?: Array<{ kind: "input" | "output" | "cache_read" | "cache_write"; tokens: number; perMillion: number; micros: number }>; priceAsOf?: string; missing?: string[] }
 export interface ReplyTurn {
   turnId: string; traceId: string; agentId: string; asker: string; model: string; effort?: string; engine: string; provider?: string;
   accountKind?: "api_key" | "subscription"; shared?: boolean; accountRef?: string; paid?: string; state: string;
   ranOn: Array<{ kind: string; name: string }>;
   timing: { queuedAt?: number; startedAt: number; firstTokenAt?: number; endedAt?: number };
-  tokens: { in: number; out: number; cacheRead?: number; cacheWrite?: number; reasoning?: number };
+  tokens: { in: number; out: number; context?: number; cacheRead?: number; cacheWrite?: number; reasoning?: number };
   cost?: ReplyCost;
   tools: Array<{ name: string; args?: string; ok?: boolean; durationMs?: number; heldTaskId?: string }>;
   files: { read: string[]; written: string[] }; skills: string[];
@@ -33,7 +33,7 @@ export interface DetailsContext {
 /** One line of the card or the tab: a section heading, a label and its value (with a copy button for an id), or an item of a list. */
 export type Line =
   | { kind: "label"; key: string; text: string; right?: string }
-  | { kind: "kv"; key: string; label: string; value: string; copy?: string; muted?: boolean }
+  | { kind: "kv"; key: string; label: string; value: string; copy?: string; muted?: boolean; /** in grey after the value: whose account it is */ note?: string }
   | { kind: "item"; key: string; title: string; note?: string; right?: string; icon: "file" | "lock" | "check" | "x" | "clock" | "doc" | "copy" | "bubble"; open?: string }
   | { kind: "note"; key: string; text: string };
 
@@ -92,13 +92,35 @@ export function accountLine(t: ReplyTurn, c: DetailsContext): string {
   return "Not recorded";
 }
 
+/**
+ * The one "Paid by" row: the account's name, and in grey after it whose it is ("OpenCode Go", "Space account"). The stored line is "<name> \u00b7 <whose>"; one from before that wording has no
+ * separator, so only the account's own name is shown. Someone who may not see the account reads whose it was.
+ */
+export function paidBy(t: ReplyTurn, c: DetailsContext): { value: string; note?: string } {
+  if (t.private) return { value: accountLine(t, c) };
+  const i = t.paid ? t.paid.indexOf(" \u00b7 ") : -1;
+  if (t.paid && i >= 0) return { value: (t.accountRef ? c.accountName?.(t.accountRef) : undefined) ?? t.paid.slice(0, i), note: t.paid.slice(i + 3) };
+  return { value: accountLine(t, c) };
+}
+
 /** What the turn cost, in one line. */
 export function costLine(t: ReplyTurn, c: DetailsContext): string {
   const k = t.cost;
   if (!k) return "Not recorded";
   if (k.source === "subscription") return `Included in ${t.asker === c.meId ? "your" : `${first(c.nameOf(t.asker))}'s`} ${PLANS[t.engine] ?? providerName(t.provider)} plan`;
   if (k.source === "unknown" || k.micros === undefined) return notReported(t);
+  if (k.source === "estimate") return `About ${usd(k.micros)} (an estimate)`;
   return k.missing && k.missing.length > 0 ? `${usd(k.micros)} and unpriced cache writes` : usd(k.micros);
+}
+
+/**
+ * The card's tokens in one line. A turn's input adds up every call it made, and most of it is the same context read from the cache again, so new input and cached input are counted apart:
+ * "62k new in · 940k cached · 8.3k out". Without the provider's split, the total as it is.
+ */
+export function tokensLine(t: ReplyTurn): string {
+  const cached = (t.tokens.cacheRead ?? 0) + (t.tokens.cacheWrite ?? 0);
+  if (t.tokens.cacheRead === undefined && t.tokens.cacheWrite === undefined) return `${short(t.tokens.in)} in · ${short(t.tokens.out)} out`;
+  return `${short(Math.max(0, t.tokens.in - cached))} new in · ${short(cached)} cached · ${short(t.tokens.out)} out`;
 }
 
 export const ranOnLine = (t: ReplyTurn): string => (t.ranOn.length > 0 ? t.ranOn.map((r) => r.name).join(", then ") : "The Space");
@@ -111,11 +133,10 @@ export function cardLines(d: ReplyDetails, c: DetailsContext): { head: string; s
   if (!t) return { head, sub: "Not recorded for this reply", lines: [{ kind: "note", key: "none", text: "Vyre did not keep the details of this reply. Newer replies have them." }] };
   const lines: Line[] = [
     { kind: "kv", key: "asker", label: "Asked by", value: asker(t, c) },
-    { kind: "kv", key: "account", label: "AI account", value: accountLine(t, c) },
-    ...(t.paid ? [{ kind: "kv" as const, key: "paid", label: "Paid because", value: t.paid }] : []),
+    ((p) => ({ kind: "kv" as const, key: "paid", label: "Paid by", value: p.value, ...(p.note ? { note: p.note } : {}) }))(paidBy(t, c)),
     { kind: "kv", key: "ran", label: "Ran on", value: ranOnLine(t) },
     ...(t.private ? [] : [{ kind: "kv" as const, key: "cost", label: "Cost", value: costLine(t, c) }]),
-    { kind: "kv", key: "tokens", label: "Tokens", value: `${short(t.tokens.in)} in · ${short(t.tokens.out)} out` },
+    { kind: "kv", key: "tokens", label: "Tokens", value: tokensLine(t) },
     { kind: "kv", key: "took", label: "Took", value: durationOf(t) },
   ];
   return { head, sub: t.effort ? `${modelTitle(t.model)} · ${cap(t.effort)} effort` : modelTitle(t.model), lines };
@@ -150,8 +171,8 @@ export function detailLines(d: ReplyDetails, c: DetailsContext): Line[] {
   kv("agent", "Agent", c.nameOf(t.agentId));
   kv("model", "Model", modelTitle(t.model));
   kv("effort", "Effort", t.effort ? cap(t.effort) : "The model's default");
-  kv("account", "AI account", accountLine(t, c));
-  if (t.paid) kv("paid", "Paid because", t.paid);
+  const pb = paidBy(t, c);
+  kv("paid", "Paid by", pb.value, pb.note ? { note: pb.note } : {});
   kv("provider", "Provider", t.provider && PROVIDERS[t.engine] && t.engine !== t.provider ? `${providerName(t.provider)} · ${providerName(t.engine)}` : providerName(t.provider ?? t.engine));
   if (t.ranOn.length > 1) t.ranOn.forEach((r, i) => kv(`ran-${i}`, i === 0 ? "Ran on" : "Then", r.name));
   else kv("ran", "Ran on", ranOnLine(t));
@@ -162,7 +183,9 @@ export function detailLines(d: ReplyDetails, c: DetailsContext): Line[] {
   kv("total", "Total", durationOf(t));
 
   out.push({ kind: "label", key: "tokens", text: "Tokens" });
-  kv("in", "In", count(t.tokens.in));
+  const cachedIn = (t.tokens.cacheRead ?? 0) + (t.tokens.cacheWrite ?? 0);
+  kv("in", t.tokens.cacheRead === undefined && t.tokens.cacheWrite === undefined ? "In" : "New input", count(Math.max(0, t.tokens.in - cachedIn)));
+  if (t.tokens.context !== undefined) kv("context", "Context in the last call", count(t.tokens.context));
   kv("out", "Out", count(t.tokens.out));
   for (const [key, label, v] of [["cache-read", "Cache read", t.tokens.cacheRead], ["cache-write", "Cache write", t.tokens.cacheWrite], ["reasoning", "Reasoning", t.tokens.reasoning]] as const) {
     kv(key, label, v === undefined ? (t.partial ? "Not recorded" : rep) : count(v), v === undefined ? { muted: true } : {});
@@ -177,7 +200,7 @@ export function detailLines(d: ReplyDetails, c: DetailsContext): Line[] {
     for (const l of t.cost.lines ?? []) kv(`cost-${l.kind}`, COST_KIND[l.kind]!, `${usd(l.micros)} · ${count(l.tokens)} at $${l.perMillion.toFixed(2)}/M`);
     for (const m of t.cost.missing ?? []) kv(`cost-${m}`, COST_KIND[m] ?? m, "Not in the price list", { muted: true });
     kv("cost-total", "Total", t.cost.micros !== undefined ? usd(t.cost.micros) : rep);
-    out.push({ kind: "note", key: "cost-src", text: t.cost.source === "reported" ? `Priced by ${reporterOf(t)} itself.` : `${providerName(t.provider)} list price on ${t.cost.priceAsOf ?? "the day of the turn"}.` });
+    out.push({ kind: "note", key: "cost-src", text: t.cost.source === "reported" ? `Priced by ${reporterOf(t)} itself.` : t.cost.source === "estimate" ? `${providerName(t.provider)} gave no price. This is the model's own list price on ${t.cost.priceAsOf ?? "the day of the turn"} times the token counts, so it is an estimate.` : `${providerName(t.provider)} list price on ${t.cost.priceAsOf ?? "the day of the turn"}.` });
   }
 
   out.push({ kind: "label", key: "tools", text: "Tools used", right: String(t.tools.length) });

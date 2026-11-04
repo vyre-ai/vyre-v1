@@ -7,6 +7,7 @@ import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
 import type { Store } from "../../kernel/src/store/types.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
+import { perSpaceStore } from "../../host/src/daemon/store.ts";
 import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { createSchemaHandlers, applyOps, planOps } from "./handlers/index.ts";
 import type { SchemaHandlers, SchemaOp } from "./handlers/index.ts";
@@ -139,18 +140,15 @@ export async function applyScoped(deps: SchemaDeps, ctx: SchemaCtx, siteId: stri
 // ---- loader entry ----
 
 type HostCtx = { trace: { traceId: string }; emit(name: string, subject: string, payload: Record<string, unknown>): unknown; principal?: { id: string } };
-let shared: SchemaHandle | null = null;
-let spaceSeam: SpaceStoreSeam | null = null;
+// One handle per Space store (two daemons in one process each have their own); a call is served from the one its ctx.db belongs to.
+const stores = perSpaceStore<SchemaHandle>((seam) => {
+  const s = seam?.open();
+  return openSchema(s ? { store: s.store, tx: s.tx, host: s.host } : {});
+});
 /** The host hands the Space store (P-H_08, ruling 31): schema, records, sources and connectors then share one persisted store. */
-export function setSchemaSpaceStore(seam: SpaceStoreSeam | null): void { spaceSeam = seam; shared = null; }
+export function setSchemaSpaceStore(seam: SpaceStoreSeam | null): void { stores.set(seam); }
 export const hostSeams: SeamSetters = { setSchemaSpaceStore, setSchemaVault };
-const live = (): SchemaHandle => {
-  if (!shared) {
-    const s = spaceSeam?.open();
-    shared = openSchema(s ? { store: s.store, tx: s.tx, host: s.host } : {});
-  }
-  return shared;
-};
+const live = (ctx?: { db?: unknown }): SchemaHandle => stores.get(ctx);
 
 /**
  * Called by the host once at start, after the Space store is wired: seeds the manifest-declared record types in a write of their own, so no read path has to (a read can run in a
@@ -161,7 +159,7 @@ export async function startSchema(): Promise<string[]> { const h = live(); await
 function adapt(name: keyof SchemaHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
     const sc: SchemaCtx = { trace: ctx.trace, emit: (n, s, p) => ctx.emit(n, s, p), ...(ctx.principal ? { actor: ctx.principal.id } : {}), ...(ctx.call ? { call: (c: string, i: unknown) => ctx.call!(c, i) } : {}), ...(ctx.authorize ? { authorize: (a, r) => ctx.authorize!(a, r) } : {}) };
-    return (live().handlers[name] as (c: SchemaCtx, i: unknown) => Promise<unknown>)(sc, input);
+    return (live(ctx as { db?: unknown }).handlers[name] as (c: SchemaCtx, i: unknown) => Promise<unknown>)(sc, input);
   };
 }
 
@@ -176,8 +174,8 @@ export { createSchemaHandlers, planOps, applyOps };
 
 /** After a field was sealed the old copies are cleaned (seal.ts): once the apply has committed, and at every boot in case a crash came between. */
 export const consumers = {
-  "schema.seal_clean": { on: ["schema.changed"], run: async (): Promise<void> => { await finishJobs(live().deps); } },
+  "schema.seal_clean": { on: ["schema.changed"], run: async (ctx: unknown): Promise<void> => { await finishJobs(live(ctx as { db?: unknown }).deps); } },
 };
 export const periodic = {
-  "schema.seal_resume": { everyMs: 60_000, immediate: true, run: async (): Promise<number> => finishJobs(live().deps) },
+  "schema.seal_resume": { everyMs: 60_000, immediate: true, run: async (ctx: unknown): Promise<number> => finishJobs(live(ctx as { db?: unknown }).deps) },
 };
