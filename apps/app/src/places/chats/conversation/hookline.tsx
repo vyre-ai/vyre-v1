@@ -67,7 +67,7 @@ export function HookLineRow({ id, line, words, threadId, call, open, st, stepsBe
   const inline = hookLineActs(line).length <= 1 && (line.next ?? []).length === 0;
   if (inline) {
     return (
-      <View testID={`event-${id}`} accessibilityRole="text" style={st.event}>
+      <View testID={`event-${id}`} accessibilityRole="text" style={[st.event, { alignItems: "flex-start" }]}>
         <View style={{ marginTop: 3 }}><Glyph name="lock" size={14} color="var(--ink-3)" /></View>
         <Text style={st.text}><Text style={st.lead}>{lead}</Text>{rest}</Text>
         <HookLineActs id={id} line={line} threadId={threadId} call={call} {...(open ? { open } : {})} linkStyle={st.act} quietStyle={st.act} stepsBelow={stepsBelow} />
