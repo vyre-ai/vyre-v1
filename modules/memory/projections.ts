@@ -276,6 +276,11 @@ export function makeAccess(ctx: MemCtx, o: { thread?: string; /** a write's own 
       if (!now) { now = placeAudience((cap, input) => ctx.call(cap, input), kept.live); placeNow.set(kept.live, now); }
       const open = await now;
       if (open === null || (!open.space && !open.people.includes(me))) return false;
+      // rule 8: what a private chat learned before it gained people stays its starter's: a fact from before the chat first had a second person is read only by the starter, and only where nobody else reads
+      if (open.kind === "chat" && open.sharedAt !== undefined && kept.at !== undefined && kept.at < open.sharedAt) {
+        if (open.starter === undefined || open.starter !== me) return false;
+        return here === undefined || within(await audience(), { space: false, people: [open.starter] });
+      }
       return here === undefined || within(await audience(), open);
     }
     if (!kept.people.includes(me)) return false;

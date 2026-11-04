@@ -60,7 +60,7 @@ test("a memory learned in a channel keeps its place, its message and the words a
   assert.equal(out.merged, 1);
   const row = s.raw.all("SELECT place_kind, place_id, msg_id, span, source_person, kind, audience, layer FROM memory_facts")[0] as Record<string, string>;
   assert.deepEqual([row.place_kind, row.place_id, row.msg_id, row.span, row.source_person, row.kind, row.layer], ["channel", "chn_deals", "msg_1", "We decided to go with Harbor for the freight contract.", MAYA, "decision", "agent"]);
-  assert.deepEqual(JSON.parse(row.audience), { people: [DANA, MAYA], live: "thr_chan" });
+  assert.deepEqual({ ...JSON.parse(row.audience), at: undefined }, { people: [DANA, MAYA], live: "thr_chan", at: undefined });
   assert.equal(s.noted.length, 1);
   assert.equal(s.noted[0]!["kind"], "decision");
   assert.match(String(s.noted[0]!["text"]), /Harbor/);
@@ -398,4 +398,44 @@ test("the Knows list comes with linked places and Space markers, each only where
   assert.equal(by("space").length, 1);
   assert.equal(by("space")[0]!["text"], "We decided to go with Harbor for freight shipping.");
   assert.equal(by("linked")[0]!["canEdit"], false);
+});
+
+// ---- a private chat that gains a person keeps what it learned before (MEMORY-RULES 8; rc.22 blocker)
+
+test("LEAK: what an agent saved for its memory in a private chat stays the starter's after the chat gains a person; what it learns afterwards is the room's", async () => {
+  const raw = openRaw();
+  const clock = { t: NOW };
+  const sharedAt = NOW + 1000;
+  let two = false;
+  const threads = (me: string) => (b: Record<string, unknown>) => {
+    const id = String(b["threadId"]);
+    if (id === "thr_priv") {
+      if (!two && me !== DANA) throw new Error("not found");
+      if (two && me !== DANA && me !== MAYA) throw new Error("not found");
+      return { thread: { threadId: id, kind: "chat", starter: DANA, members: two ? [person(DANA), person(MAYA)] : [person(DANA)], agents: [{ agentId: AGENT, mode: "lead" }], ...(two ? { sharedAt } : {}) } };
+    }
+    if (id === "thr_own") return { thread: { threadId: id, kind: "chat", starter: DANA, members: [person(DANA)], agents: [{ agentId: AGENT, mode: "lead" }] } };
+    throw new Error("not found");
+  };
+  const as = (who: string, principal: { kind: "person" | "agent"; id: string } = person(who) as never) => harness({ raw, clock, principal, ...(principal.kind === "agent" ? { actingFor: who } : {}), respond: { "threads.get": threads(who), "agents.get": () => ({ agent: { folderId: "fld_helper", captureMode: "auto", ownerId: DANA } }), "chat.noted": () => ({ posted: true }) } });
+  // Dana alone: the agent keeps her budget in its own memory, from this chat
+  const alone = as(DANA, { kind: "agent", id: AGENT });
+  (alone.ctx as { thread?: string }).thread = "thr_priv";
+  await remember(alone.ctx, { text: "The cobalt budget is eighty thousand dollars.", layer: "agent", agentId: AGENT, threadId: "thr_priv" });
+  clock.t = sharedAt + 1000;
+  two = true;   // Maya is added
+  const q = "what is the cobalt budget in dollars";
+  for (const [who, thread] of [[MAYA, "thr_priv"], [DANA, "thr_priv"]] as const) {
+    const h = as(who);
+    assert.doesNotMatch(await ask(h, thread, q), /eighty/, `${who} in the chat that gained a person`);
+    const tool = as(who, { kind: "agent", id: AGENT });
+    (tool.ctx as { thread?: string }).thread = thread;
+    assert.doesNotMatch(JSON.stringify([await search(tool.ctx, { q: "cobalt budget", agentId: AGENT, mode: "keyword" }), await factsList(tool.ctx, {}), await factsAsOf(tool.ctx, { date: clock.t })]), /eighty/, `${who}'s agent tools in that chat`);
+  }
+  // Dana in a chat of her own still has it; and what the agent learns once Maya is in is the room's
+  assert.match(await ask(as(DANA), "thr_own", q), /eighty/);
+  const room = as(DANA, { kind: "agent", id: AGENT });
+  (room.ctx as { thread?: string }).thread = "thr_priv";
+  await remember(room.ctx, { text: "The cobalt launch review is on Friday.", layer: "agent", agentId: AGENT, threadId: "thr_priv" });
+  assert.match(await ask(as(MAYA), "thr_priv", "cobalt launch review on friday"), /Friday/);
 });

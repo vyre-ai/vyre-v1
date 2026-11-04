@@ -38,7 +38,7 @@ export function insertFact(ctx: MemCtx, n: NewFact): Fact {
   const from = n.replaces ?? n.promotedFrom ?? null;
   const kept = n.audience !== undefined ? (n.audience === null ? null : audienceText(n.audience)) : from ? (rowsOf(ctx.db, "SELECT audience FROM memory_facts WHERE id = ?", from)[0]?.["audience"] ?? null) : null;
   if (kept !== null) ctx.db.run("UPDATE memory_facts SET audience = ? WHERE id = ?", kept, id);
-  if (n.placeThread) ctx.db.run("UPDATE memory_facts SET audience = ? WHERE id = ?", placeAudienceText(n.audience ?? { space: false, people: [] }, n.placeThread), id);
+  if (n.placeThread) ctx.db.run("UPDATE memory_facts SET audience = ? WHERE id = ?", placeAudienceText(n.audience ?? { space: false, people: [] }, n.placeThread, ctx.now()), id);
   if (n.place || n.msgId || n.span || n.state) {
     ctx.db.run("UPDATE memory_facts SET place_kind = ?, place_id = ?, parent_kind = ?, parent_id = ?, msg_id = ?, span = ?, state = ? WHERE id = ?",
       n.place?.kind ?? null, n.place?.id ?? null, n.place?.parent?.kind ?? null, n.place?.parent?.id ?? null, n.msgId ?? null,

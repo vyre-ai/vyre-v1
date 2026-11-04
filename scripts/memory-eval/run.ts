@@ -121,6 +121,11 @@ try {
       const r = await ok(op.who, "chat.post", { threadId: thread, body: op.body });
       said++;
       if (op.label) msgs[op.label] = { thread, id: (r.message?.messageId ?? r.message?.id) as string, who: op.who };
+    } else if (op.op === "remember") {
+      // the agent saves for its own memory, from this chat, as the person asked it to (the tool the model calls)
+      const saved = await ok(op.who, "memory.remember", { text: op.text, layer: "agent", agentId: agent, threadId: threadOf[op.place]! });
+      // the agent's capture mode is auto: what it keeps is current at once
+      if (saved.fact && saved.fact.status === "proposed") await ok("olivia", "memory.fact.accept", { factId: saved.fact.factId });
     } else if (op.op === "delete") {
       const m = msgs[op.label]!;
       await ok(m.who, "chat.delete_message", { threadId: m.thread, messageId: m.id });
