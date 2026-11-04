@@ -107,6 +107,19 @@ export const DEFAULT_PAGE = "overview";
 
 /** What each page is for: the tooltip beside its title. */
 export const PAGE_NOTE: Readonly<Record<string, string>> = {
+  aiaccounts: "The AI accounts the Space uses, and whether people may use their own",
+  aisee: "Which labels each AI provider may see",
+  voice: "One key for speaking to the Space",
+  requests: "Invites sent and people who asked for access",
+  activity: "What agents ran, and what needs a look",
+  apps: "Every app the Space connects to",
+  servers: "Servers the Space runs on, and their updates",
+  agentcomputers: "The computers agents work on",
+  sendrules: "How the Space sends mail, and the limits",
+  dnc: "People who must not be contacted",
+  export: "Take everything with you",
+  billing: "Plan, AI spend and storage",
+  spacedel: "Hand the Space to someone else, or delete it",
   actors: "Agents that connect from elsewhere",
   agents: "Every agent in this Space",
   aipolicy: "The policy people agree to",
@@ -131,7 +144,7 @@ export const PAGE_NOTE: Readonly<Record<string, string>> = {
   google: "One connection for everyone",
   grants: "Access to one thing",
   groups: "People who share access",
-  holds: "Keep things past retention",
+  holds: "Keep things past their time",
   inboxes: "Mailboxes a team reads",
   internet: "What AI tools can reach on the internet",
   incidents: "What went wrong",

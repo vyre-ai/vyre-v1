@@ -44,6 +44,24 @@ export const ATTENTION_SENTENCE: Readonly<Record<Attention["kind"], string>> = {
   no_ai_account: "Your team has no AI account",
 };
 
+
+/** What the Relay tile needs from network.status: the mode, and the relay's own version when the host has read it from the relay's health answer. */
+export interface RelayIn { mode?: "own_domain" | "relay"; relayVersion?: string; relayMs?: number; relayReachable?: boolean }
+const versionParts = (v: string): number[] => v.replace(/^v/, "").split(".").map((x) => Number.parseInt(x, 10) || 0);
+/** True when `relay` is an older version than `server`. */
+export function relayIsOlder(relay: string, server: string): boolean {
+  const a = versionParts(relay), b = versionParts(server);
+  for (let i = 0; i < 3; i++) { if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) < (b[i] ?? 0); }
+  return false;
+}
+/** The Relay tile: "Vyre relay · v1.4.1 · 18 ms", and amber with "Update available" when the relay is older than the Space server (it opens Computers, Servers, Updates). Nothing when the Space has no relay. */
+export function relayTile(n: RelayIn | undefined, serverVersion: string | undefined): { page: string; label: string; icon: string; big: string; sub: string; tone?: Tone } | null {
+  if (!n || n.mode !== "relay") return null;
+  const bits = ["Vyre relay", ...(n.relayVersion ? [`v${n.relayVersion.replace(/^v/, "")}`] : []), ...(n.relayMs !== undefined ? [`${n.relayMs} ms`] : [])];
+  if (n.relayVersion && serverVersion && relayIsOlder(n.relayVersion, serverVersion)) return { page: "updates", label: "Relay", icon: "globe", big: "Update available", sub: bits.join(" · "), tone: "warn" };
+  return { page: "network", label: "Relay", icon: "globe", big: n.relayReachable === false ? "Not reachable" : "Reachable", sub: bits.join(" · "), ...(n.relayReachable === false ? { tone: "bad" as Tone } : { tone: "ok" as Tone }) };
+}
+
 export function Overview(): ReactElement {
   const data = useConsoleData();
   const q = useScreenQuery<Out>("console.overview", "overview", {});
@@ -51,6 +69,9 @@ export function Overview(): ReactElement {
   const act = useAction(() => (data.screens as { invalidate?: () => void }).invalidate?.());
   // machine alerts (a disk nearly full, memory pressure, a machine offline with pinned work, a failed backup, an update waiting): a line here, a dot on Machines, one Inbox line for each admin
   const machineAlerts = (useRead<CapMap["machines.alerts"]["out"]>("machines.alerts").data?.alerts ?? []).map(toAlert);
+  const network = useRead<RelayIn>("network.status");
+  const backups = useRead<CapMap["backup.health"]["out"]>("backup.health");
+  const updates = useRead<CapMap["updates.status"]["out"]>("updates.status");
   if (q.status !== "ready") return <Text style={s.loading} accessibilityRole="progressbar">Loading</Text>;
   // the two kinds a press here settles: a stuck join is retried now, and #general is renamed to #vyre or kept (never renamed without asking)
   const fix = (a: Attention, i: number): ReactElement | null => {
@@ -65,14 +86,33 @@ export function Overview(): ReactElement {
   };
   const o = q.data;
   const now = data.clock().now;
-  const tiles: { page: string; label: string; icon: string; big: string; sub: string; tone?: Tone }[] = [
-    { page: "server", label: "Server", icon: "server", big: HEALTH_LABEL[o.health], sub: o.attention.length ? `${o.attention.length} need${o.attention.length === 1 ? "s" : ""} you` : "Nothing waiting", tone: HEALTH_TONE[o.health] },
+  type Tile = { page: string; label: string; icon: string; big: string; sub: string; tone?: Tone };
+  const relay = relayTile(network.data as RelayIn | undefined, updates.data?.current);
+  const backupAge = backups.data?.ageHours;
+  const health: Tile[] = [
+    { page: "diagnostics", label: "Space server", icon: "server", big: HEALTH_LABEL[o.health], sub: o.attention.length ? `${o.attention.length} need${o.attention.length === 1 ? "s" : ""} you` : "Nothing waiting", tone: HEALTH_TONE[o.health] },
+    ...(relay ? [relay] : []),
+    ...(backupAge !== undefined ? [{ page: "backups", label: "Backups", icon: "box", big: backupAge >= 1 ? `${backupAge} h ago` : "Just now", sub: "Last good backup", ...(backupAge > 24 ? { tone: "warn" as Tone } : {}) }] : []),
     { page: "machines", label: "Machine alerts", icon: "server", big: machineAlerts.length ? String(machineAlerts.length) : "All clear", sub: machineAlerts.length ? [...new Set(machineAlerts.map((a) => a.kind))].join(", ") : "Every machine is fine", ...(machineAlerts.length ? { tone: "warn" as Tone } : {}) },
+  ];
+  const month: Tile[] = [
     { page: "people", label: "Members", icon: "people", big: String(o.usage.members), sub: "in this Space" },
     { page: "agents", label: "Agents", icon: "agent", big: String(o.usage.agents), sub: "in the register" },
-    { page: "spend", label: "Turns today", icon: "pulse", big: o.usage.turnsToday.toLocaleString("en-US"), sub: "across people and agents" },
-    { page: "spend", label: "Spend this month", icon: "ai", big: money(o.usage.costMicrosMonth), sub: "model providers" },
+    { page: "spend", label: "Spend", icon: "ai", big: money(o.usage.costMicrosMonth), sub: "AI this month" },
+    { page: "activity", label: "Turns today", icon: "pulse", big: o.usage.turnsToday.toLocaleString("en-US"), sub: "across people and agents" },
   ];
+  const tileGrid = (list: Tile[], id: string): ReactElement => (
+    <View style={s.grid} testID={id}>
+      {/* ui-rows-lint: not a list (overview tiles) */}
+      {list.map((t) => (
+        <Pressable key={t.label} accessibilityRole="button" accessibilityLabel={`${t.label}: ${t.big}`} testID={`tile-${t.label}`} onPress={() => data.nav.openPage(t.page)} style={[s.tile, t.tone === "warn" && s.tileWarn, pointer]}>
+          <View style={s.tileHead}><Glyph name={t.icon} size={14} color="var(--ink-3)" /><Text style={s.tileLabel}>{t.label}</Text></View>
+          <View style={s.tileBig}>{t.tone ? <Dot tone={t.tone} size={8} /> : null}<Text style={s.big}>{t.big}</Text></View>
+          <Text style={s.tileSub}>{t.sub}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
   return (
     <View testID="overview">
       <Section title="Needs you" count={o.attention.length + machineAlerts.length || ""}>
@@ -100,18 +140,8 @@ export function Overview(): ReactElement {
         {act.note ? <Text accessibilityRole="status" style={s.note} testID="attn-note">{act.note}</Text> : null}
       </Section>
       <TeamNowSection />
-      <Section title="Health">
-        <View style={s.grid} testID="tiles">
-          {/* ui-rows-lint: not a list (overview tiles) */}
-          {tiles.map((t) => (
-            <Pressable key={t.label} accessibilityRole="button" accessibilityLabel={`${t.label}: ${t.big}`} testID={`tile-${t.label}`} onPress={() => data.nav.openPage(t.page)} style={[s.tile, pointer]}>
-              <View style={s.tileHead}><Glyph name={t.icon} size={14} color="var(--ink-3)" /><Text style={s.tileLabel}>{t.label}</Text></View>
-              <View style={s.tileBig}>{t.tone ? <Dot tone={t.tone} size={8} /> : null}<Text style={s.big}>{t.big}</Text></View>
-              <Text style={s.tileSub}>{t.sub}</Text>
-            </Pressable>
-          ))}
-        </View>
-      </Section>
+      <Section title="Health">{tileGrid(health, "tiles")}</Section>
+      <Section title="This month">{tileGrid(month, "tiles-month")}</Section>
       <Section title="Recent admin activity" right={<LinkButton label="Audit log" onPress={() => data.nav.openPage("audit")} testID="to-audit" />}>
         <Group testID="activity">
           {o.activity.length === 0 ? <Empty testID="activity-none">No admin activity yet</Empty> : o.activity.slice(0, 5).map((e, i) => {
@@ -129,6 +159,13 @@ export function Overview(): ReactElement {
           })}
         </Group>
       </Section>
+      <Section title="Quick actions">
+        <Group testID="quick-actions">
+          <Row id="qa-invite" title="Invite people" note="Send a link or an email" leading={<Lead><Glyph name="people" size={16} color="var(--ink-3)" /></Lead>} trailing={<LinkButton label="Invite people" onPress={() => data.nav.openPage("people")} testID="qa-invite-go" />} onPress={() => data.nav.openPage("people")} />
+          <Row id="qa-ai" title="Add an AI account" note="Claude, OpenAI and others, kept in Vault" leading={<Lead><Glyph name="ai" size={16} color="var(--ink-3)" /></Lead>} trailing={<LinkButton label="Add account" onPress={() => data.nav.openPage("aiaccounts")} testID="qa-ai-go" />} onPress={() => data.nav.openPage("aiaccounts")} />
+          <Row id="qa-server" title="Add a server" note="Run agents around the clock" leading={<Lead><Glyph name="server" size={16} color="var(--ink-3)" /></Lead>} trailing={<LinkButton label="Add server" onPress={() => data.nav.openPage("servers")} testID="qa-server-go" />} onPress={() => data.nav.openPage("servers")} />
+        </Group>
+      </Section>
     </View>
   );
 }
@@ -138,6 +175,7 @@ const s = StyleSheet.create({
   none: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 40, paddingHorizontal: 12 },
   noneText: { fontSize: 13, color: "var(--ink-2)" as string },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  tileWarn: { borderColor: "var(--warn)" as string },
   tile: { width: 196, minHeight: 92, padding: 12, gap: 4, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
   tileHead: { flexDirection: "row", alignItems: "center", gap: 6 },
   tileLabel: { fontSize: 12, color: "var(--ink-3)" as string },

@@ -76,7 +76,7 @@ export const SECTIONS: readonly SectionDef[] = [
 
 /** Pages that went away into another: the old id lands on the new one. The Space defaults land on the page they now sit under. */
 export const REDIRECTS: Readonly<Record<string, string>> = (() => {
-  const r: Record<string, string> = { computers: "machines", checker: "people", connectors: "apps", connections: "apps", kit: "diagnostics", invites: "requests" };
+  const r: Record<string, string> = { computers: "machines", checker: "people", connectors: "apps", connections: "apps", kit: "diagnostics", invites: "requests", runs: "activity" };
   for (const s of SECTIONS) for (const t of s.tabs) for (const [host, defs] of Object.entries(t.extras ?? {})) for (const d of defs) r[d] = host;
   return r;
 })();

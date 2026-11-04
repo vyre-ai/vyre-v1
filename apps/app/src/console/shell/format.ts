@@ -21,7 +21,7 @@ export function money(micros: number): string {
 
 /** "role.changed" to "role changed": the registry's action names read as a phrase. */
 export function actionPhrase(action: string): string {
-  return action.replace(/[._]/g, " ");
+  return action.replace(/[._]/g, " ").replace(/\bgate\b/g, "approval");
 }
 
 /** Plain sentences for the acts a new owner sees first; anything else keeps the generic phrase. An actor the Space has no name for reads as "The owner" only for a claim, else "Someone". */

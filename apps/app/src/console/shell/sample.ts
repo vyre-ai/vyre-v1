@@ -23,7 +23,7 @@ const PERMS: Readonly<Record<Viewer, readonly string[]>> = {
 
 export const NAMES: Readonly<Record<string, string>> = {
   usr_irfad: "Irfad Imtiaz", usr_priya: "Priya Raman", usr_omar: "Omar Haddad", usr_lena: "Lena Berg", agt_intake: "Intake", agt_docs: "Docs", agt_billing: "Billing",
-  rec_rivera: "Rivera engagement", rol_delivery: "Delivery role", con_gmail: "Gmail connection", num_main: "main number", dom_northwind: "northwind.example", svc_gate: "Gate",
+  rec_rivera: "Rivera engagement", rol_delivery: "Delivery role", con_gmail: "Gmail connection", num_main: "main number", dom_northwind: "northwind.example", svc_gate: "Approvals",
 };
 
 type OverviewOut = CapMap["console.overview"]["out"];
