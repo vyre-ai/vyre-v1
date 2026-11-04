@@ -1,6 +1,7 @@
 // Console > Messaging > Rules > Do-not-contact list: everyone Vyre will not email, text or call. Search it, add people (one address or a pasted list), and remove someone with a reason.
-// The list is contacts.suppression.list; Add is contacts.suppression.add (one call per channel); Remove is contacts.suppression.remove with the reason as its note. Automatic screening only adds people.
-import { useState } from "react";
+// The list is contacts.suppression.list; Add is contacts.suppression.add (one call per channel); Add from a file reads a CSV (one column of emails or phone numbers, an optional reason column), says how many people it
+// would add, and on confirm stores one small file per channel and reason and calls contacts.suppression.import; Remove is contacts.suppression.remove with the reason as its note. Automatic screening only adds people.
+import { useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
@@ -9,6 +10,17 @@ import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Actions, Button, Field, Note, ReadState, Segmented, useAction } from "./shared.tsx";
 import { useIntegrationRows } from "./integration-data.ts";
+import { pickFiles } from "../../shell/providers/files-actions.ts";
+import { addLabel, describeFile, parseDncFile } from "./dnc-import-model.ts";
+import { storeGroup } from "./dnc-import.ts";
+
+/** A file the person chose: its name and something that reads as text. */
+export interface ChosenFile { name: string; mime: string; file: unknown }
+const textOfFile = async (f: ChosenFile): Promise<string> => {
+  const blob = f.file as { text?: () => Promise<string> };
+  if (typeof blob.text !== "function") throw new Error(`${f.name} cannot be read`);
+  return blob.text();
+};
 
 type Entry = CapMap["contacts.suppression.list"]["out"]["rows"][number];
 type Reason = CapMap["contacts.suppression.add"]["in"]["reason"];
@@ -30,9 +42,11 @@ export function parseAddresses(text: string): { email: string[]; sms: string[] }
   return out;
 }
 
-export function DncPage(): ReactElement {
+export function DncPage({ pick = pickFiles }: { pick?: () => Promise<ChosenFile[]> } = {}): ReactElement {
   const data = useConsoleData();
   const [query, setQuery] = useState(""), [adding, setAdding] = useState(false), [text, setText] = useState(""), [why, setWhy] = useState<Reason>("do_not_contact"), [removing, setRemoving] = useState(""), [reason, setReason] = useState(""), [problem, setProblem] = useState("");
+  const [chosen, setChosen] = useState<{ name: string; text: string } | null>(null), [fileProblem, setFileProblem] = useState(""), [filing, setFiling] = useState(false), [filed, setFiled] = useState("");
+  const file = useMemo(() => (chosen ? parseDncFile(chosen.text, why) : null), [chosen, why]);
   const list = useIntegrationRows<Entry>("contacts.suppression.list", "rows", query.trim() ? { query: query.trim() } : {});
   const action = useAction(list.refresh);
   const add = async (): Promise<void> => {
@@ -48,13 +62,41 @@ export function DncPage(): ReactElement {
     }
     setText(""); setAdding(false);
   };
+  const choose = async (): Promise<void> => {
+    setFileProblem(""); setFiled("");
+    try {
+      const picked = (await pick())[0];
+      if (!picked) return;
+      const text = await textOfFile(picked);
+      const read = parseDncFile(text, why);
+      if (read.total === 0) { setChosen(null); setFileProblem("No email addresses or phone numbers in that file. Put them in the first column, one a row."); return; }
+      setChosen({ name: picked.name, text });
+    } catch (e) { setChosen(null); setFileProblem(e instanceof Error ? e.message : "That file could not be read."); }
+  };
+  const addFile = async (): Promise<void> => {
+    if (!file || !chosen) return;
+    setFiling(true); setFiled("");
+    let added = 0, skipped = 0;
+    try {
+      for (const [i, group] of file.groups.entries()) {
+        const stamp = `${Date.now()}-${i}`;
+        const fileId = await storeGroup(data.call, group, `${group.channel === "email" ? "emails" : "phones"}-${group.reason}-${stamp}.csv`, `dnc-file:${stamp}`);
+        const out = await action.run<CapMap["contacts.suppression.import"]["out"]>("contacts.suppression.import", { channel: group.channel, fileId, reason: group.reason, idempotencyKey: "" }, () => "Added to the do-not-contact list");
+        if (out === undefined) return;
+        added += out.added; skipped += out.skipped;
+      }
+      setChosen(null);
+      setFiled(`Added ${added.toLocaleString("en-US")} ${added === 1 ? "person" : "people"} to the do-not-contact list.${skipped > 0 ? ` ${skipped.toLocaleString("en-US")} ${skipped === 1 ? "was" : "were"} already on it or could not be added.` : ""}`);
+    } catch (e) { setFileProblem(e instanceof Error ? e.message : "That file could not be added."); }
+    finally { setFiling(false); }
+  };
   const remove = async (): Promise<void> => {
     const out = await action.run("contacts.suppression.remove", { suppressionId: removing, note: reason.trim() }, "Removed from the do-not-contact list");
     if (out !== undefined) { setRemoving(""); setReason(""); }
   };
   return (
     <View testID="console-dnc">
-      <Section title="Do-not-contact list" count={list.rows.length} right={<Button label="Add" testID="dnc-add-open" onPress={() => { setAdding(!adding); setProblem(""); }} />}>
+      <Section title="Do-not-contact list" count={list.rows.length} right={<Actions><Button label="Add from a file" testID="dnc-file-open" disabled={filing} onPress={() => void choose()} /><Button label="Add" testID="dnc-add-open" onPress={() => { setAdding(!adding); setProblem(""); }} /></Actions>}>
         <Field label="Search the list" testID="dnc-search" value={query} onChange={setQuery} />
         {adding ? (
           <View testID="dnc-add-form">
@@ -62,6 +104,15 @@ export function DncPage(): ReactElement {
             <Segmented options={ADD_REASONS.map((r) => ({ key: r.key, title: r.title }))} value={why} onChange={(k) => setWhy(k as Reason)} />
             {problem ? <Note>{problem}</Note> : null}
             <Actions><Button label="Cancel" testID="dnc-add-cancel" onPress={() => setAdding(false)} /><Button label="Add" testID="dnc-add-save" disabled={action.busy} onPress={() => void add()} /></Actions>
+          </View>
+        ) : null}
+        {fileProblem ? <Note>{fileProblem}</Note> : null}
+        {filed ? <Note>{filed}</Note> : null}
+        {chosen && file ? (
+          <View testID="dnc-file-form">
+            <Note>{chosen.name}: {describeFile(file)} The first column is read. Rows with a reason column keep it; the others are added as:</Note>
+            <Segmented options={ADD_REASONS.map((r) => ({ key: r.key, title: r.title }))} value={why} onChange={(k) => setWhy(k as Reason)} />
+            <Actions><Button label="Cancel" testID="dnc-file-cancel" disabled={filing} onPress={() => setChosen(null)} /><Button label={addLabel(file.total)} testID="dnc-file-confirm" disabled={filing || action.busy} onPress={() => void addFile()} /></Actions>
           </View>
         ) : null}
         {!list.ready ? <ReadState error={list.error} retry={list.refresh} /> : (

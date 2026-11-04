@@ -169,7 +169,7 @@ export default defineManifest({
         numberId: id.number, senderId: t.opt(t.str({ description: 'An id from comms.senders.list. For a text it is the number id and must equal numberId', examples: ['num_a1b2c3'] })), to: phone, body: t.str(), mediaFileIds: t.opt(t.arr(id.file)), contactId: t.opt(id.record), replyToId: t.opt(smsId), sendAt: t.opt(t.ts()), transactional: t.opt(t.bool()),   // one text to one person from an Automation, such as an appointment confirmation: no window, no cap
        
       },
-      out: { smsId: t.opt(smsId), status: t.enm('queued', 'sent', 'held', 'suppressed'), taskId: t.opt(id.task) },
+      out: { smsId: t.opt(smsId), status: t.enm('queued', 'sent', 'held', 'suppressed'), taskId: t.opt(id.task), note: t.opt(t.str({ description: 'Set when the Space sending window or speed limit held the text: why, and when it leaves' })) },
       on: ['number', '/numberId'], level: 'use', gate: 'send', emits: ['message.sent', 'message.suppressed', 'message.failed'], tool: 'inbox', offline: 'queue', cli: 'vyre sms send',
       errors: ['permission.needs_approval', 'validation.precondition_failed', 'rate_limit.exceeded', 'provider.auth_failed', 'provider.rate_limited'],
     }),

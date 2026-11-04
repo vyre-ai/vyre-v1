@@ -1,6 +1,6 @@
 // Console > Messaging > Rules > Sending rules: how sending works (every sender goes through the same API and the do-not-contact list is read before each message), the rules that are always on,
-// and the sending limits: a daily cap, a sending window and a throttle. The limits are the Space settings send.cap, send.window and send.throttle (settings.get, settings.set_space). A Space
-// whose server has not registered them yet shows the rows read-only with a line saying so.
+// and the sending limits: a daily cap, a sending window and a throttle. The limits are the Space settings send.cap, send.window and send.throttle (settings.get, settings.set_space), registered by the mail
+// module and read by the send path (mail.send, telephony.send_sms): over the daily limit a send is refused, outside the window or over the speed it is queued until it may leave.
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { View } from "react-native";
@@ -8,7 +8,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Group, Lead, Section } from "../shell/ui.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
-import { Note, Segmented, useAction, useRead } from "./shared.tsx";
+import { Note, ReadState, Segmented, useAction, useRead } from "./shared.tsx";
 
 type Setting = CapMap["settings.get"]["out"];
 
@@ -31,7 +31,6 @@ function Limit({ def }: { def: LimitDef }): ReactElement {
   const setting = useRead<Setting>("settings.get", { key: def.key }, { direct: true });
   const [saved, setSaved] = useState<string | null>(null);
   const action = useAction(setting.refresh);
-  const editable = setting.data !== undefined;
   const stored = optionKey(setting.data?.row.value ?? setting.data?.row.default);
   const current = saved ?? stored;
   const label = def.options.find((o) => o.key === current)?.title;
@@ -41,8 +40,8 @@ function Limit({ def }: { def: LimitDef }): ReactElement {
   };
   return (
     <View>
-      <Row id={`send-limit-${def.key}`} title={def.title} note={!editable && setting.error !== undefined ? "Not adjustable yet" : def.note} {...(label ? { titleSuffix: label } : {})} />
-      {editable ? <Segmented options={def.options.map((o) => ({ key: `${def.key}:${o.key}`, title: o.title }))} value={`${def.key}:${current}`} onChange={(k) => choose(k.slice(def.key.length + 1))} /> : null}
+      <Row id={`send-limit-${def.key}`} title={def.title} note={def.note} {...(label ? { titleSuffix: label } : {})} />
+      {setting.data !== undefined ? <Segmented options={def.options.map((o) => ({ key: `${def.key}:${o.key}`, title: o.title }))} value={`${def.key}:${current}`} onChange={(k) => choose(k.slice(def.key.length + 1))} /> : setting.error !== undefined ? <ReadState error={setting.error} retry={setting.refresh} /> : null}
       {action.note ? <Note>{action.note}</Note> : null}
     </View>
   );

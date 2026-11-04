@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ALWAYS_ON, LIMITS, SendRulesPage, optionKey } from "../pages/SendRules.tsx";
 import { DncPage, parseAddresses } from "../pages/Dnc.tsx";
+import { addLabel, parseDncFile, groupCsv, reasonOf } from "../pages/dnc-import-model.ts";
 import { mountPage } from "./page-kit.tsx";
 
 const row = (key: string, value: unknown) => ({ row: { key, scope: "space", page: "email", title: key, value, default: value, source: "default", floorable: false } });
@@ -33,12 +34,21 @@ test("the daily limit, sending window and speed read their setting and save a ch
   } finally { p.restore(); }
 });
 
-test("a server that has not registered the limits shows them read-only and says so", async () => {
+test("a limit that cannot be read says so with a retry, never 'Not adjustable yet'", async () => {
   const p = await mountPage(<SendRulesPage />, {}, (cap) => { if (cap === "settings.get") throw new Error("unknown setting"); return { ok: true }; });
   try {
-    assert.equal((p.text().match(/Not adjustable yet/g) ?? []).length, 3);
+    assert.doesNotMatch(p.text(), /Not adjustable yet/);
     assert.ok(!p.has("seg-send.cap:2000"));
     assert.equal(p.called("settings.set_space").length, 0);
+  } finally { p.restore(); }
+});
+
+test("the page states what each limit does and shows the stored choice", async () => {
+  const p = await mountPage(<SendRulesPage />, {}, (cap, input) => cap === "settings.get" ? row(String(input["key"]), input["key"] === "send.window" ? "9-17" : input["key"] === "send.cap" ? 100 : 5) : { ok: true });
+  try {
+    const t = p.text();
+    assert.ok(t.includes("Daily limit") && t.includes("100 a day") && t.includes("9:00 to 17:00") && t.includes("5 a minute"));
+    assert.doesNotMatch(t, /Not adjustable yet/);
   } finally { p.restore(); }
 });
 
@@ -92,4 +102,66 @@ test("Remove needs a reason and sends it with the entry to contacts.suppression.
 test("an empty list says nobody is on it", async () => {
   const p = await mountPage(<DncPage />, { "contacts.suppression.list": { rows: [] } });
   try { assert.ok(p.text().includes("Nobody is on the list")); } finally { p.restore(); }
+});
+
+// ---- Add from a file
+
+const csvFile = (text: string, name = "people.csv") => ({ name, mime: "text/csv", file: new File([text], name, { type: "text/csv" }) });
+const FILES = { "files.tree": { roots: [{ key: "personal", title: "Personal", kind: "folder", folderId: "fld_me", count: 0 }] }, "files.list": { files: [], folders: [{ folderId: "fld_imports", name: "Do-not-contact imports" }] } };
+const filesAnswer = (cap: string, input: Record<string, unknown>) => {
+  if (cap === "files.create") return { file: { fileId: `fil_${String(input["name"]).slice(0, 6)}` } };
+  if (cap === "contacts.suppression.import") return { added: 2, skipped: 1 };
+  return { ok: true };
+};
+
+test("the file reader takes one column, an optional header and an optional reason column, and counts people once", () => {
+  const f = parseDncFile("email,reason\nAda@x.com,Unsubscribed\nada@x.com,\n+1 555 123 4567,stop\nnot an address,\nbo@y.com,\n", "do_not_contact");
+  assert.deepEqual([f.total, f.emails, f.phones, f.skipped], [3, 2, 1, 2]);
+  assert.deepEqual(f.groups.map((g) => [g.channel, g.reason, g.addresses]), [["email", "unsubscribe", ["ada@x.com"]], ["sms", "stop", ["+1 555 123 4567"]], ["email", "do_not_contact", ["bo@y.com"]]]);
+  assert.equal(groupCsv(f.groups[0]!), "email\nada@x.com\n");
+  assert.equal(parseDncFile("a@x.com\nb@x.com", "stop").groups[0]!.reason, "stop", "no header, no reason column: the chosen reason");
+  assert.equal(reasonOf("Do not contact"), "do_not_contact");
+  assert.equal(addLabel(214), "Add 214 people to the do-not-contact list");
+  assert.equal(addLabel(1), "Add 1 person to the do-not-contact list");
+});
+
+test("Add from a file shows how many people it will add, and nothing is sent until the person confirms", async () => {
+  const list = Array.from({ length: 214 }, (_, i) => `person${i}@x.com`).join("\n");
+  const p = await mountPage(<DncPage pick={async () => [csvFile(`email\n${list}\n`)]} />, { ...LIST, ...FILES }, filesAnswer);
+  try {
+    await p.press("dnc-file-open");
+    assert.ok(p.text().includes("Add 214 people to the do-not-contact list") && p.text().includes("214 emails"));
+    assert.doesNotMatch(p.text(), /\b(suppression)s?\b/i);
+    assert.equal(p.called("contacts.suppression.import").length, 0);
+    assert.equal(p.called("files.create").length, 0);
+    await p.press("dnc-file-cancel");
+    assert.ok(!p.has("dnc-file-form"));
+  } finally { p.restore(); }
+});
+
+test("confirming stores one file per channel and reason and calls contacts.suppression.import with the reason chosen", async () => {
+  const p = await mountPage(<DncPage pick={async () => [csvFile("email,reason\na@x.com,\nb@x.com,unsubscribe\n+1 555 000 1111,\n")]} />, { ...LIST, ...FILES }, filesAnswer);
+  try {
+    await p.press("dnc-file-open");
+    await p.press("seg-stop");   // the reason for rows that name none
+    assert.ok(p.text().includes("Add 3 people to the do-not-contact list"));
+    await p.press("dnc-file-confirm");
+    const imports = p.called("contacts.suppression.import").map((c) => [c.input["channel"], c.input["reason"], typeof c.input["fileId"], typeof c.input["idempotencyKey"]]);
+    assert.deepEqual(imports, [["email", "stop", "string", "string"], ["email", "unsubscribe", "string", "string"], ["sms", "stop", "string", "string"]]);
+    const made = p.called("files.create");
+    assert.equal(made.length, 3);
+    assert.deepEqual(made[0]!.input["content"], { text: "email\na@x.com\n" });
+    assert.equal(made[0]!.input["folderId"], "fld_imports");
+    assert.ok(p.text().includes("Added 6 people to the do-not-contact list."));
+  } finally { p.restore(); }
+});
+
+test("a file with no address in it says so and offers nothing to confirm", async () => {
+  const p = await mountPage(<DncPage pick={async () => [csvFile("name\nAda\nBo\n")]} />, { ...LIST, ...FILES }, filesAnswer);
+  try {
+    await p.press("dnc-file-open");
+    assert.ok(p.text().includes("No email addresses or phone numbers in that file"));
+    assert.ok(!p.has("dnc-file-confirm"));
+    assert.equal(p.called("contacts.suppression.import").length, 0);
+  } finally { p.restore(); }
 });
