@@ -14,6 +14,7 @@ import {
   rolesPreview, rolesUnassign, rolesUpdate,
 } from "./roles.ts";
 import { proposeChange } from "./propose.ts";
+import { reachBatch } from "./reach.ts";
 import { exceptionsExplain, exceptionsLapse, exceptionsList, exceptionsRemove, exceptionsSet } from "./exceptions.ts";
 import { requestCreate, requestsApprove, requestsDecline, requestsList } from "./request.ts";
 import { reviewsClose, reviewsDecide, reviewsGet, reviewsList, reviewsStart } from "./review.ts";
@@ -54,6 +55,7 @@ export const handlers = {
   "access.principals.list": principalsList,
   "access.projection_health": projectionHealth,
   "access.propose_change": proposeChange,
+  "access.reach": reachBatch,
   "access.request": requestCreate,
   "access.requests.approve": requestsApprove,
   "access.requests.decline": requestsDecline,

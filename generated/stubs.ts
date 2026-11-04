@@ -74,6 +74,7 @@ export function stubs(ctx: CallCtx) {
       projection_health: call("access.projection_health"),
       propose_change: call("access.propose_change"),
       provider_check: call("access.provider_check"),
+      reach: call("access.reach"),
       record_marks: call("access.record_marks"),
       request: call("access.request"),
       requests: {

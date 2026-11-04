@@ -23,7 +23,8 @@ import { openAskPane } from "../ask/pane.ts";
 import { chooseProfilePhoto } from "./settings-photo.ts";
 import { appearanceAware } from "./settings-appearance.ts";
 import { loadSecurity } from "./settings-security.ts";
-import { adminPages, adminTarget } from "./settings-admin.ts";
+import { adminTarget } from "./settings-admin.ts";
+import { useConsolePages } from "../reach/viewer.ts";
 import { PAGES as CONSOLE_PAGES } from "../../console/shell/nav.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 import { addServerAsked, useAddServerNonce } from "../computers-available.ts";
@@ -31,12 +32,14 @@ import type { ShellRuntime } from "./runtime.tsx";
 
 // the Console's pages load the first time one opens, so Settings itself stays light
 
-export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["manageSecurity"], security?: SettingsData["security"], consoleAllowed = false): SettingsData {
+export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["manageSecurity"], security?: SettingsData["security"], consoleAllowed = false, companyAllowed = consoleAllowed): SettingsData {
   return {
     ...(security ? { security } : {}),
     // Ask about a Settings page opens the pane beside it, about that page; the person's own settings are theirs to change, so the assistant may propose changes they then approve
     ask: (page) => { openAskPane({ thing: { kind: "settings_page", id: page.key, title: page.title }, context: { actions: ["explain a setting", "find a setting", "change a setting after the person says yes"] } }, "settings"); },
-    ...(consoleAllowed ? { openConsole: () => rt.open({ screen: "console.overview" }), openCompany: () => rt.open({ screen: "company.setup" }) } : {}),
+    ...(consoleAllowed ? { openConsole: () => rt.open({ screen: "console.overview" }) } : {}),
+    // Connect your company is its own Console page: the door is there only for a person who can open it (reach)
+    ...(companyAllowed ? { openCompany: () => rt.open({ screen: "company.setup" }) } : {}),
     screens: rt.screens, call: appearanceAware(rt.call, rt.me.id), me: { id: rt.me.id, name: rt.me.name, ...(rt.me.username ? { username: rt.me.username } : {}) }, space: { id: rt.space.id, name: rt.space.name },
     spaces: rt.knownSpaces?.map(space=>({id:space.spaceId,name:space.name,addr:space.address,kind:space.kind,role:space.role,needsYou:space.needsYou?1:0,current:space.spaceId===rt.space.id}))??[{ id: rt.space.id, name: rt.space.name, addr: "", kind: rt.space.kind, role: "", needsYou: 0, current: true }],
     name: nameOf(rt),
@@ -104,14 +107,8 @@ export default function SettingsShellPlace(_props: { place: string }): ReactElem
   const asked = OLD_PAGES[raw] ?? raw;
   const page = PAGES.some((x) => x.key === asked) ? (asked as PageKey) : undefined;
   const { page: _page, admin: askedAdmin, ...adminArgs } = target.args as Record<string, string>;
-  // may this person open the Console? The same read the Console itself makes
-  const [pages, setPages] = useState<ReadonlySet<string> | null>(null);
-  useEffect(() => {
-    if (!rt || rt.space.kind === "personal" || rt.plainRole === true) return undefined;   // a Member or Guest has no Console to open
-    let live = true;
-    void rt.call("console.nav", {}).then((out) => { if (live) setPages(adminPages(out as Parameters<typeof adminPages>[0])); }, () => undefined);
-    return () => { live = false; };
-  }, [rt]);
+  // may this person open the Console? One answer for every link (reach): console.nav, the read the Console itself makes
+  const pages = useConsolePages(rt);
   const consoleAllowed = pages !== null && pages.size > 0;
   // an old address for a Console page inside Settings now opens that page in the Console
   useEffect(() => {
@@ -119,7 +116,7 @@ export default function SettingsShellPlace(_props: { place: string }): ReactElem
     if (rt && screen) rt.open(adminTarget(screen, adminArgs));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rt, askedAdmin]);
-  const data = useMemo(() => (rt ? settingsData(rt, (kind) => setSecurity(kind), signIn, consoleAllowed) : null), [rt, signIn, consoleAllowed]);
+  const data = useMemo(() => (rt ? settingsData(rt, (kind) => setSecurity(kind), signIn, consoleAllowed, pages?.has("company") === true) : null), [rt, signIn, consoleAllowed, pages]);
   if (!data) return <View style={s.page} testID="settings-loading" />;
   return <SettingsDataProvider value={data}><SettingsPlace key={`${nonce}:${page ?? ""}:${askedAdmin ?? ""}`} {...(addServerAsked() ? { initialPage: "computer" as const } : page ? { initialPage: page } : {})} />{security === "link" ? <LinkSheet spaces={linkSpaces(rt!)} device={deviceFor(isDesktopWindow() ? "desktop" : "web")} onSession={(id, token, username) => storeLinkedSession(id, token, username, rt!.space.id)} onClose={() => setSecurity(null)} /> : security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} spaceName={rt!.space.name} others={otherSpaces(rt!)} /> : null}</SettingsDataProvider>;
 }

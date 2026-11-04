@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { isFullCard, linkCardLine } from "./model.ts";
 import type { LinkCardData } from "./model.ts";
 import type { CardState } from "./state.ts";
-import { HIDDEN_TITLE } from "./state.ts";
+import { hiddenTitle } from "./state.ts";
 
 export interface LinkCardProps {
   id: string;
@@ -21,9 +21,13 @@ export interface LinkCardProps {
   state?: CardState | null;
   /** The reader may not open the thing: its name is not shown and it is not a link. */
   hidden?: boolean;
+  /** Ask for access to the thing: shown beside the stand-in for a thing the reader cannot open. */
+  onAskAccess?: () => void;
+  /** The ask was made. */
+  asked?: boolean;
 }
 
-export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state, hidden }: LinkCardProps): ReactElement {
+export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state, hidden, onAskAccess, asked }: LinkCardProps): ReactElement {
   const line = linkCardLine(data, nameOf);
   const open = data.target && onOpen && !hidden ? (): void => onOpen(data.target!) : undefined;
   const head = (
@@ -31,7 +35,9 @@ export function LinkCard({ id, data, nameOf, icon, onOpen, onAction, done, state
       {icon ? <View style={st.icon}>{icon}</View> : null}
       <Text numberOfLines={2} style={st.text}>
         {`${line}: `}
-        <Text accessibilityRole={open ? "link" : "text"} testID={`link-card-${id}-open`} onPress={open} style={open ? st.link : st.title}>{hidden ? HIDDEN_TITLE : data.title}</Text>
+        <Text accessibilityRole={open ? "link" : "text"} testID={`link-card-${id}-open`} onPress={open} style={open ? st.link : st.title}>{hidden ? hiddenTitle(data.target?.type) : data.title}</Text>
+        {hidden && onAskAccess ? <Text style={st.title}>{" \u00b7 "}</Text> : null}
+        {hidden && onAskAccess ? <Text accessibilityRole={asked ? "text" : "link"} testID={`link-card-${id}-ask`} onPress={asked ? undefined : onAskAccess} style={asked ? st.title : st.link}>{asked ? "Asked for access" : "Ask for access"}</Text> : null}
       </Text>
       {state && !hidden ? <Text testID={`link-card-${id}-state`} style={[st.state, state.tone === "ok" && st.ok, state.tone === "warn" && st.warn, state.tone === "bad" && st.bad]}>{state.text}</Text> : null}
     </View>
