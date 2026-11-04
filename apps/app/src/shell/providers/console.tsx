@@ -24,7 +24,7 @@ import { AgentsRegister, AgentTemplate, OutsideActors } from "../../console/page
 import { MachinesPage } from "../../console/pages/Machines.tsx";
 import { DomainsPage, InboxesPage, NumbersPage, TextingPage } from "../../console/pages/Comms.tsx";
 import { LabelsPage, SchemaPage } from "../../console/pages/Data.tsx";
-import { ApiKeysPage, ConnectorsPage, ConnectionsPage, WebhooksPage } from "../../console/pages/Integrations.tsx";
+import { ApiKeysPage, WebhooksPage } from "../../console/pages/Integrations.tsx";
 import { SkillsPage } from "../../console/pages/Skills.tsx";
 import { PluginsPage } from "../../console/pages/Plugins.tsx";
 import { ConnectCompanyPage } from "../../console/pages/company/ConnectCompany.tsx";
@@ -118,8 +118,6 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "company") return <ConnectCompanyPage />;
   if (id === "google") return <GoogleWorkspacePage />;
   if (id === "microsoft") return <Microsoft365Page />;
-  if (id === "connectors") return <ConnectorsPage {...(args["connectorKey"]?{initialKey:args["connectorKey"]}:{})} />;
-  if (id === "connections") return <ConnectionsPage {...(args["connectionId"]?{initialId:args["connectionId"]}:{})} />;
   if (id === "webhooks") return <WebhooksPage {...(args["webhookId"]?{initialId:args["webhookId"]}:{})} />;
   if (id === "keys") return <ApiKeysPage {...(args.sessionId?{initialSessionId:args.sessionId}:{})} />;
   return <States kind="error" message={`${pageById(id)?.title ?? id} is not implemented in this candidate yet.`} />;
