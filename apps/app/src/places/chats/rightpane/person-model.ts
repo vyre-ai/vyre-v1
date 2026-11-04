@@ -44,3 +44,8 @@ export function responsibleFor(title: string | undefined, roles: readonly { proj
   const t = title ?? "Member";
   return roles.length === 0 ? `${t}.` : `${t}. ${roles.map((r) => `${r.role} on ${r.project}`).join(", ")}.`;
 }
+
+/** The lines of someone's public profile a teammate may read (memory.profile.get with personId): current public facts only. The private part never reaches this pane, whatever the answer holds. */
+export function publicLines(out: { public: readonly { text: string; status: string; place: string }[] } | null | undefined): string[] {
+  return (out?.public ?? []).filter((f) => f.place === "public" && f.status === "current" && f.text.trim() !== "").map((f) => f.text.trim());
+}

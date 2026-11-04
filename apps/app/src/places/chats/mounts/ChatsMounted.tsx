@@ -44,7 +44,7 @@ import { channelThread, isChannelId, copy, threadDoor, agentPageData, askWith, c
 import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
-import { START, fromHash, linkedTo, openKeyOf, step, workOf } from "./route.ts";
+import { START, fromHash, linkedTo, openKeyOf, personOfHash, step, workOf } from "./route.ts";
 import { Landing } from "../landing/Landing.tsx";
 import { ThreadSide } from "./ThreadSide.tsx";
 import { ArtifactsPage } from "./ArtifactsPage.tsx";
@@ -156,6 +156,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   useEffect(() => {
     if (hash === linked.current) return;
     linked.current = hash;
+    // a person's profile opens beside what is on screen (the right pane), so the page itself stays
+    if (personOfHash(hash) !== null) return;
     // a tab switch or a link: the same thing already on screen keeps its pane and its place
     setShown((s) => linkedTo(s, hash));
   }, [hash]);
@@ -202,12 +204,20 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   const openSideTask = useCallback((id: string): void => setSideTask(id), []);
   const chatShown = shown.route.view === "chat" ? shown.route.threadId : null;
   useEffect(() => { setSideTask(null); }, [chatShown]);
-  const profile = useCallback((id: string): void => {
-    const agent = id === rt.assistant.id ? "assistant" as const : byId.get(id)?.kind === "person" ? "person" as const : "agent" as const;
+  const profile = useCallback((id: string, asPerson = false): void => {
+    const agent = id === rt.assistant.id ? "assistant" as const : asPerson || byId.get(id)?.kind === "person" ? "person" as const : "agent" as const;
     const tab = profileTab(id, nameOf(id), agent);
     setRightTabs((t) => withTab(t, tab));
     setRightOn(tab.key);
   }, [rt.assistant.id, byId, nameOf]);
+  // a link to a person (a face in a project's People, a mention): their profile opens in the right pane, here
+  const personLinked = useRef<string | null>(null);
+  useEffect(() => {
+    const id = personOfHash(hash);
+    if (id === null || personLinked.current === hash) return;
+    personLinked.current = hash;
+    profile(id, true);
+  }, [hash, profile]);
   // a reply's Details: one tab, which shows the reply asked for last (opening another reply's Details moves the tab to it)
   const replyDetails = useCallback((threadId: string, messageId: string, agentId?: string): void => {
     const tab: ProfileTab = { key: "details", id: messageId, title: "Details", kind: "details", threadId, ...(agentId ? { agentId } : {}) };
@@ -418,9 +428,10 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   } else if (shown.pane && paneCtx && route.view === "chat") {
     right = <View style={st.pane}><AgentPane data={paneFull ?? paneCtx} open onToggle={go.togglePane} {...(paneTab ? { tab: paneTab, onTab: (t: TabKey) => setPaneTab(t) } : {})} hookSel={hookSel} {...(window ? { window } : {})} extra={{ tabs: rightSpecs, active: rightOn, onSelect: setRightOn, onClose: closeRight, body: rightBody }} /></View>;
   } else if (rightOn !== null) {
+    // a profile on a phone is the full-screen sheet, like the task and the terminal
     right = (
-      <View style={st.pane}>
-        <SidePane paneKey="chats-right-pane" toggle={{ open: true, onPress: () => setRightOn(null) }} title="Profile" tabs={rightSpecs} activeTab={rightOn} onSelectTab={setRightOn} onCloseTab={closeRight} defaultWidth={372}>
+      <View testID="chats-profile-pane" style={narrow ? st.terminalFull : st.pane}>
+        <SidePane paneKey="chats-right-pane" toggle={{ open: true, onPress: () => setRightOn(null) }} title="Profile" tabs={rightSpecs} activeTab={rightOn} onSelectTab={setRightOn} onCloseTab={closeRight} defaultWidth={narrow ? width : 372} {...(narrow ? { max: 1 } : {})}>
           {rightBody}
         </SidePane>
       </View>

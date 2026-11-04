@@ -504,3 +504,15 @@ test("a project's people popover lists the members with their project roles on t
     assert.ok(/Lead|Member|Reviewer|Guest/.test(textOf(find(root, "people-popover"))), "the project roles are on the right");
   });
 });
+
+test("pressing a person in the people popover opens their profile through the chat's own door, like an agent; the popover closes", async () => {
+  await withDom(async () => {
+    const s = createSample("channel");
+    const root = await mount(createRoot, <Conversation data={s.data} />);
+    await press(find(root, "participants-button"));
+    await press(find(root, "people-row-usr_maya"));
+    await flush();
+    assert.ok(s.opened.includes("agent:usr_maya"), "the profile door got the person");
+    assert.equal(find(root, "people-popover"), null, "the popover closed");
+  });
+});

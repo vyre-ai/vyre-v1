@@ -177,7 +177,7 @@ export async function runAdd(deps: AddSheetDeps, r: Loaded, picks: readonly Acce
 type Surface =
   | { k: "sheet"; open: AddOpen; r: Loaded }
   | { k: "pick"; r: Loaded; onPicks(picks: readonly AccessPick[]): void }
-  | { k: "people"; thread: ThreadRow; x: number; y: number; onOpenAgent(id: string): void; outside: ReadonlySet<string>; meRole: string }
+  | { k: "people"; thread: ThreadRow; x: number; y: number; /** opens the profile of whoever was pressed, a person or an agent */ onOpenAgent(id: string): void; outside: ReadonlySet<string>; meRole: string }
   | { k: "settings"; thread: ThreadRow; agentId: string; x: number; y: number; outside: ReadonlySet<string> };
 
 export interface AddSheetApi {
@@ -293,7 +293,7 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
     element = (
       <PeoplePopover
         where="chat" rows={rows} meId={deps.me.id} perms={{ message: false, changeRole: false, remove: false, agentControls: true }} anchor={{ x: surface.x, y: surface.y }}
-        onOpen={(r) => { if (r.kind === "person") { setSurface(null); return; } const go = surface.onOpenAgent; setSurface(null); go(r.id); }}
+        onOpen={(r) => { const go = surface.onOpenAgent; setSurface(null); go(r.id); }}
         onAction={(action, r) => {
           if (action === "poke") poke(t.threadId, r.id, t.agents.map((a) => ({ id: a.agentId })));
           else if (action === "settings") setSurface({ k: "settings", thread: t, agentId: r.id, x: surface.x, y: surface.y, outside: surface.outside });
