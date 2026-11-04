@@ -366,15 +366,29 @@ test("machines.sync: the host calls it when a turn starts or ends on a machine, 
   const w = fleet();
   let live = 1;
   w.bind({ turns: (id) => (id === IRFAD_MAC ? live : undefined) });
-  const sync = () => hostCalls["machines.sync"](w.ctxFor(host));
+  const sync = async () => { await hostCalls["machines.sync"](w.ctxFor(host)); };
   const told = () => w.state.events.filter((e) => e.name === "machine.changed").map((e) => `${e.subject}:${(e.payload.what as string[]).join()}`);
-  sync();
+  await sync();
   assert.deepEqual(told(), [`${SRV}:full`], "Berlin box runs 2 of 2 turns already; Irfad's computer, 1 of 4, has room");
   live = 4;
-  sync(); sync();
+  await sync(); await sync();
   assert.deepEqual(told(), [`${SRV}:full`, `${IRFAD_MAC}:full`], "the fourth turn started: full, told once");
   live = 3;
-  sync();
+  await sync();
   assert.deepEqual(told(), [`${SRV}:full`, `${IRFAD_MAC}:full`, `${IRFAD_MAC}:room`], "one ended: room again");
+  w.bind(null);
+});
+
+test("stop idle sessions: the Space server's is Space-wide; on a member's own computer only that member's, and the page says how many", async () => {
+  const w = fleet();
+  const calls: Array<[string, string | undefined]> = [];
+  w.bind({ fix: async (id, _f, _s, person) => { calls.push([id, person]); return "ok"; }, idle: (id, person) => (id === "space" ? 7 : person === MAYA ? 2 : 0) });
+  await w.call("machines.fix", { machineId: "space", fix: "stop_idle" }, admin);
+  await w.call("machines.fix", { machineId: MAYA_AIR, fix: "stop_idle" }, maya);
+  await w.call("machines.fix", { machineId: SRV, fix: "stop_idle" }, admin);
+  assert.deepEqual(calls, [["space", undefined], [MAYA_AIR, MAYA], [SRV, IRFAD]], "the Space is asked for everyone's; a computer or a server for its owner's");
+  assert.equal((await w.call("machines.get", { machineId: "space" }, admin)).idleSessions, 7);
+  assert.equal((await w.call("machines.get", { machineId: MAYA_AIR }, maya)).idleSessions, 2);
+  assert.equal((await w.call("machines.get", { machineId: MAYA_AIR }, admin)).idleSessions, 0, "an admin is told nothing of a member's own sessions");
   w.bind(null);
 });

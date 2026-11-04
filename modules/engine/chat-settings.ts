@@ -15,6 +15,18 @@ const EFFORTS: ReadonlySet<string> = new Set(["low", "medium", "high", "max"]);
 
 export interface ChatSettings { mode?: ChatMode; model?: string; provider?: string; effort?: Effort }
 
+/**
+ * A model swap (model-switch.ts) makes the chat's pick the model that answers, but the chat's own record of the pick (threads.get) follows the engine's event a moment later. Until it does, the turn that
+ * swapped reads the new model from here: `from` is the pick the chat still shows, so a pick the person makes in the meantime is theirs and wins.
+ */
+const swapped = new Map<string, { from: string | undefined; to: string }>();
+const swapKey = (threadId: string, agentId: string): string => `${threadId}|${agentId}`;
+export function noteSwap(threadId: string, agentId: string, from: string | undefined, to: string): void {
+  const had = swapped.get(swapKey(threadId, agentId));
+  swapped.set(swapKey(threadId, agentId), { from: had ? had.from : from, to });
+  if (swapped.size > 500) swapped.delete(swapped.keys().next().value as string);
+}
+
 /** The settings of one agent in one chat; nothing for a thread that cannot be read (a step, a one-shot job): the session then keeps the older behaviour. */
 export async function chatSettings(call: Call, threadId: string, agentId: string, asker: string): Promise<ChatSettings> {
   let out: ThreadOut;
@@ -23,9 +35,12 @@ export async function chatSettings(call: Call, threadId: string, agentId: string
   if (!t) return {};
   const member = t.agents?.find((a) => a.agentId === agentId);
   const mode = typeof t.mode === "string" && MODES.has(t.mode) ? (t.mode as ChatMode) : t.planMode === true ? "plan" : undefined;
+  const swap = swapped.get(swapKey(threadId, agentId));
+  if (swap && (member?.model === swap.to || member?.model !== swap.from)) swapped.delete(swapKey(threadId, agentId));
+  const model = swap && member?.model === swap.from ? swap.to : member?.model;
   return {
     ...(mode !== undefined ? { mode } : {}),
-    ...(member?.model ? { model: member.model } : {}),
+    ...(model ? { model } : {}),
     ...(member?.provider ? { provider: member.provider } : {}),
     ...(member?.effort && EFFORTS.has(member.effort) ? { effort: member.effort as Effort } : {}),
   };

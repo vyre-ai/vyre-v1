@@ -297,3 +297,34 @@ test("the handler table covers the control and account capabilities", () => {
     assert.equal(typeof handlers[name], "function", name);
   }
 });
+
+test("switch refuses up front, in words, when no account the asker may use serves the target, and leaves the chat as it was", async () => {
+  const h = harness({ threads: [THREAD_SPEC], accounts: [{ ref: "#Dana_Claude", driver: "claude_code" }], modelRows: [{ model: "claude-sonnet-5-5", allowed: true }] });
+  const p = scriptedProvider({ script: done });
+  const engine = h.runtime({ openSession: p.openSession, schedule: NO_BEAT });
+  engine.openThread({ id: THREAD, kind: "chat", starter: "usr_dana", agents: agents() });
+  const before = engine.agents(THREAD).find((a) => a.id === "agt_intake")?.model;
+  const err = await switchEngine(h.ctx, { threadId: THREAD, driver: "codex", model: "gpt-5" }).catch((e: unknown) => e);
+  assert.equal(codeOf(err), "validation.precondition_failed");
+  assert.match((err as { error: { message: string } }).error.message, /^No account here can run GPT-5\. Add a Codex sign-in in Vault\.$/);
+  assert.equal(engine.agents(THREAD).find((a) => a.id === "agt_intake")?.model, before, "nothing was switched");
+  assert.equal(h.named("turn.engine_switched").length, 0);
+  const key = await switchEngine(h.ctx, { threadId: THREAD, driver: "openai", model: "gpt-5" }).catch((e: unknown) => e);
+  assert.match((key as { error: { message: string } }).error.message, /Add an OpenAI key in Vault\./);
+  // a Codex account that works, a Space key row that serves the model, or the named account: each lets it through
+  for (const o of [{ accounts: [{ ref: "#Dana_Codex", driver: "codex" }] }, { accounts: [], modelRows: [{ model: "gpt-5", allowed: true }] }]) {
+    const g = harness({ threads: [THREAD_SPEC], ...o });
+    const e2 = g.runtime({ openSession: p.openSession, schedule: NO_BEAT });
+    e2.openThread({ id: THREAD, kind: "chat", starter: "usr_dana", agents: agents() });
+    assert.equal((await switchEngine(g.ctx, { threadId: THREAD, driver: "codex", model: "gpt-5" })).engine, "codex");
+  }
+  const expired = harness({ threads: [THREAD_SPEC], accounts: [{ ref: "#Dana_Codex", driver: "codex", status: "expired" }], modelRows: [] });
+  const e3 = expired.runtime({ openSession: p.openSession, schedule: NO_BEAT });
+  e3.openThread({ id: THREAD, kind: "chat", starter: "usr_dana", agents: agents() });
+  assert.equal(codeOf(await switchEngine(expired.ctx, { threadId: THREAD, driver: "codex", model: "gpt-5" }).catch((e: unknown) => e)), "validation.precondition_failed", "a signed-out sign-in does not serve");
+  // an account list that cannot be read leaves the switch as it was
+  const blind = harness({ threads: [THREAD_SPEC] });
+  const e4 = blind.runtime({ openSession: p.openSession, schedule: NO_BEAT });
+  e4.openThread({ id: THREAD, kind: "chat", starter: "usr_dana", agents: agents() });
+  assert.equal((await switchEngine(blind.ctx, { threadId: THREAD, driver: "codex", model: "gpt-5" })).engine, "codex");
+});

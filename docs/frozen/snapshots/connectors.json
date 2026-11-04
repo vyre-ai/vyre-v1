@@ -6,6 +6,7 @@
     "connections.delete@1": "f873bd7d73760f3232ba5218c03977b3255521a5823cacb9d72f0ad370e98149",
     "connections.get@1": "5795c8a85df7393ffaff024bab885c69796d94cca16d8107795ee12124cf1cf5",
     "connections.list@1": "007f36f42dec56789a5f2480cb6a5bbac5086e9ad711a29ba1e59d240965f42f",
+    "connections.mark_working@1": "823afde8ce27dea12143f87d85c803c59765ca7574da92abcb320bf2d9d6b910",
     "connections.pause@1": "7ff67908f9a3d0c4dbaf9e2a680326df1237bc7bb742261c1ea527bd35d08c7e",
     "connections.reconnect@1": "731035b8a5bbe45dbe05a703b1cecc593a595fb9b8269b98403c3bfd70f4392f",
     "connections.resume@1": "72ac8c073f82e85b58e41f28fab4e7800197f156db77c79d7c4fc39aa3309155",

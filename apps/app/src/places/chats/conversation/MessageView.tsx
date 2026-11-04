@@ -1,6 +1,14 @@
 // One entry of the conversation. Yours is a bubble on the right; anyone else's has a header (face, name, time) when the author changes; an agent's work folds into one line; native
 // cards (question, plan, terminal, changeset, file) sit under the text; an error is one inline row (what, why, next). Hover shows Copy and Edit and the rest; right-click opens the same
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
+import { HelperRow } from "./helper-row.tsx";
+import { CrewStrip } from "../crew/strip.tsx";
+import { memberFromBlock, memberOf } from "../crew/status.ts";
+import { holdsOf } from "../crew/model.ts";
+import { FROM_THREAD_LINE } from "../crew/also.tsx";
+import { citable, citeBody, citeRender } from "../crew/cite.tsx";
+import type { CrewStatusOut } from "../crew/model.ts";
+import { useLinkState } from "../../../../../../ui/src/reach/index.tsx";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -14,9 +22,10 @@ import { MarkdownBlocks, StreamText } from "../../../../../../ui/src/stream/inde
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import { KeptAside } from "./KeptAside.tsx";
 import { LinkCard } from "../../../../../../ui/src/blocks/link-card/LinkCard.tsx";
+import { DraftCard, ProviderDraftCard } from "./draft-card.tsx";
 import { linkCardOf } from "../../../../../../ui/src/blocks/link-card/model.ts";
 import type { LinkCardData } from "../../../../../../ui/src/blocks/link-card/model.ts";
-import { doneByState, heldTaskOf, probeOf, stateOf } from "../../../../../../ui/src/blocks/link-card/state.ts";
+import { doneByState, draftOf, heldTaskOf, probeOf, providerDraftOf, stateOf } from "../../../../../../ui/src/blocks/link-card/state.ts";
 import type { CardState } from "../../../../../../ui/src/blocks/link-card/state.ts";
 import { useThreadMemory } from "../memory/thread.tsx";
 import { rememberMessage } from "../memory/actions.ts";
@@ -40,6 +49,7 @@ import { AccessRequestCard, isAccessRequest } from "./accessrequest.tsx";
 import { RedactRequestCard, isRedactRequest } from "./redactrequest.tsx";
 import { ChecklistCard, isChecklist } from "./checklist.tsx";
 import { NoteOfferCard, isNoteOffer } from "./noteoffer.tsx";
+import { InstallCard, isInstallPlan } from "../install/InstallCard.tsx";
 import { QuoteCard, WebPageCard, isQuote, isWebPage } from "./webpage.tsx";
 import { ChromeStepCard, HeldSendCard, isChromeHeld, isChromeStep } from "./chrome-cards.tsx";
 import type { ChromeCardActions } from "./chrome-cards.tsx";
@@ -87,6 +97,12 @@ export interface MessageActions {
   answer(blockId: string, answer: unknown): void;
   approvePlan(planId: string): void;
   retryTurn(turnId: string): void;
+  /** Run the turn that made this reply once more: "Regenerate" in an agent reply's menu. Left out where the chat cannot. */
+  regenerate?(messageId: string): void;
+  /** Mark the chat unread from this message on (threads.mark_unread_from, by its sequence number). */
+  markUnreadFrom?(seq: number): void;
+  /** Copies the plain link to this message (/c/<thread>#<message>). Left out where the chat has no address. */
+  copyLink?(messageId: string): void;
   /** The rows of Details on a failed turn, read from the turn when it opens. */
   turnDetail?(turnId: string): Promise<[string, string][]>;
   errorNext(key: string, turnId?: string): void;
@@ -119,8 +135,8 @@ export interface MessageActions {
   nameOf?(id: string): string;
   /** Open another chat on a message (the line a fork starts with). */
   openMessage?(threadId: string, messageId: string): void;
-  /** A hook line's Edit or Details: the Hooks tab of the right pane at that hook. */
-  openHooks?(hookId: string | undefined): void;
+  /** The crew strip: the live read, the open peek, and what its buttons do. Without it the strip draws from the helpers' own blocks and its rows do nothing. */
+  crew?: { status: CrewStatusOut | null; selected: string | null; peek(helperThreadId: string): void; stopAll(): void; openPane(): void; retry(helperThreadId: string): void };
   /** What files and links in a message need: lookups, opening beside the chat, copying. Left out in a place that cannot open them. */
   files?: Pick<ConversationData, "call" | "nav" | "copy" | "threadId" | "changes">;
   /** The agents of this chat (for a Mount card, which shares the new folder with them) and the sheet that connects a folder. Left out where the shell has no Files. */
@@ -169,9 +185,11 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
     if (link) {
       const b = item.message.blocks.find((x) => x.type === "link_card")!;
       return (
-        <View testID={`event-${item.key}`} style={st.event}>
-          <View style={st.eventCard}><LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} /></View>
-          <Text style={st.eventTime}>{item.time}</Text>
+        <View testID={`event-${item.key}`} style={[st.event, (link.style === "noted" || link.style === "question") && st.eventCentre]}>
+          {link.style === "noted" ? <LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} time={item.time} /> : <>
+            <View style={st.eventCard}><LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} /></View>
+            {link.style === "question" ? null : <Text style={st.eventTime}>{item.time}</Text>}
+          </>}
         </View>
       );
     }
@@ -208,22 +226,33 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
 const firstName = (name: string): string => name.split(" ")[0] || name;
 
 export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: () => void, at: { x: number; y: number } = { x: 0, y: 0 }): MenuEntry[] {
-  const items: MenuEntry[] = [{ label: "Copy", onSelect: () => a.copy(m.body) }];
-  if (mine && m.kind === "text") items.push({ label: "Edit", onSelect: onEdit });
-  items.push({ label: "Reply in Thread", onSelect: () => a.openThread(m.messageId) });
-  if (a.askAgent && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Ask an Agent…", onSelect: () => a.askAgent!(m.messageId, at.x, at.y) });
-  if (a.makeTask && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Make a Task", onSelect: () => a.makeTask!(m.messageId) });
-  if (a.share && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Share to...", onSelect: () => a.share!(m.messageId, at.x, at.y) });
-  if (a.fork && m.kind !== "system" && m.kind !== "quiet") items.push({ label: "Fork From Here", onSelect: () => a.fork!(m.messageId) });
-  items.push({ label: m.pinned ? "Unpin Message" : "Pin Message", onSelect: () => a.setPinned(m.messageId, !m.pinned) });
-  items.push({ label: "Add Reaction", onSelect: () => (a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "👍", false)) });
-  if (m.kind !== "quiet" && a.memoryEntries) items.push(...a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu));
+  // groups, split by a separator: read and write it, then turn it into something, then keep it, then how it was made, then remove it last
+  const talk = m.kind !== "system" && m.kind !== "quiet";
+  const write: MenuEntry[] = [{ label: "Copy", onSelect: () => a.copy(m.body) }];
+  if (a.copyLink) write.push({ label: "Copy Link", onSelect: () => a.copyLink!(m.messageId) });
+  if (mine && m.kind === "text") write.push({ label: "Edit", onSelect: onEdit });
+  const turn: MenuEntry[] = [{ label: "Reply in Thread", onSelect: () => a.openThread(m.messageId) }];
+  // an agent's reply cannot be edited by you; it can be asked again
+  if (!mine && m.author.kind === "agent" && m.kind !== "system" && m.kind !== "quiet" && a.regenerate) turn.push({ label: "Regenerate", onSelect: () => a.regenerate!(m.messageId) });
+  if (a.askAgent && talk) turn.push({ label: "Ask an Agent…", onSelect: () => a.askAgent!(m.messageId, at.x, at.y) });
+  if (a.makeTask && talk) turn.push({ label: "Make a Task", onSelect: () => a.makeTask!(m.messageId) });
+  if (a.share && talk) turn.push({ label: "Share to...", onSelect: () => a.share!(m.messageId, at.x, at.y) });
+  if (a.fork && talk) turn.push({ label: "Fork From Here", onSelect: () => a.fork!(m.messageId) });
+  const keep: MenuEntry[] = [
+    { label: m.pinned ? "Unpin Message" : "Pin Message", onSelect: () => a.setPinned(m.messageId, !m.pinned) },
+    { label: "Add Reaction", onSelect: () => (a.pickReaction ? a.pickReaction(m.messageId, at.x, at.y) : a.react(m.messageId, "👍", false)) },
+  ];
+  if (a.markUnreadFrom && !m.messageId.startsWith("pending:")) keep.push({ label: "Mark Unread From Here", onSelect: () => a.markUnreadFrom!(m.threadSeq) });
+  if (m.kind !== "quiet" && a.memoryEntries) keep.push(...a.memoryEntries({ messageId: m.messageId, body: m.body, createdAt: m.createdAt }, at.x, at.y, a.showMenu));
+  const how: MenuEntry[] = [];
   // how an agent's reply was made: the right pane's Details tab (what the agent knew is a section of it)
-  if (!mine && a.details && m.author.kind === "agent") items.push({ separator: true }, { label: "Details", onSelect: () => a.details!.open(m.messageId) });
+  if (!mine && a.details && m.author.kind === "agent") how.push({ label: "Details", onSelect: () => a.details!.open(m.messageId) });
   const ob = onBehalfOf(m);
-  if (ob && a.agentMute && ob.teammate === a.agentMute.me) items.push({ label: `Mute Agent Messages From ${firstName(a.nameOf ? a.nameOf(ob.person) : "Them")} for Today`, onSelect: () => a.agentMute!.mute(ob.person) });
-  if (mine) items.push({ separator: true }, { label: "Delete", danger: true, onSelect: () => a.remove(m.messageId) });
-  return items;
+  if (ob && a.agentMute && ob.teammate === a.agentMute.me) how.push({ label: `Mute Agent Messages From ${firstName(a.nameOf ? a.nameOf(ob.person) : "Them")} for Today`, onSelect: () => a.agentMute!.mute(ob.person) });
+  const last: MenuEntry[] = mine ? [{ label: "Delete", danger: true, onSelect: () => a.remove(m.messageId) }] : [];
+  const out: MenuEntry[] = [];
+  for (const group of [write, turn, keep, how, last]) { if (group.length === 0) continue; if (out.length > 0) out.push({ separator: true }); out.push(...group); }
+  return out;
 }
 
 /** The bar is drawn only while the row is hovered or has focus: fifty rows that each hold a hidden bar of buttons were most of what the first frame cost. The empty toolbar stays, so the row's size and test hook never change. */
@@ -377,7 +406,10 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   // a crew result card says it all (who, what changed, the teammate's words): the message's own text is for the lead agent that wakes on it, so the card stands alone
   const crewCard = m.blocks.some(isCrewResult) || crewStart !== undefined;
   // a person's id that slips into an agent's words reads as their name
-  const words = namedIds(m.body, actions.nameOf);
+  // the answer that brings helpers together marks each claim with the number of the helper it came from: [1], [2]. Those marks are chips that open that helper.
+  const crewRows = actions.crew?.status ? citable(actions.crew.status.members) : [];
+  const words = !person && !stream ? citeBody(namedIds(m.body, actions.nameOf), crewRows.length) : namedIds(m.body, actions.nameOf);
+  const citeLink = useMemo(() => (actions.crew ? citeRender(crewRows, (x) => actions.crew!.peek(x.id)) : undefined), [actions.crew, crewRows.length]);  // eslint-disable-line react-hooks/exhaustive-deps
   const chips = useRefChips(words, actions.files);
   const blocks = stream || crewCard ? null : bodyBlocks(chips.body === words ? m.messageId : `${m.messageId}#${chips.body.length}:${chips.body.slice(-24)}`, chips.body);
   const runCfg = actions.runCode;
@@ -417,7 +449,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           ))}
         </Fold>
       ) : null}
-      {stream ? <LiveBody store={stream} hideEmpty={actions.activityOf?.(m.messageId) !== undefined} testID={`body-${m.messageId}`} style={st.body} /> : m.body && !crewCard ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink || chips.renderLink ? { renderLink: ((href, kids, key) => chips.renderLink?.(href, kids, key) ?? subjects.renderLink?.(href, kids, key) ?? null) as NonNullable<typeof chips.renderLink> } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
+      {stream ? <LiveBody store={stream} hideEmpty={actions.activityOf?.(m.messageId) !== undefined} testID={`body-${m.messageId}`} style={st.body} /> : m.body && !crewCard ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink || chips.renderLink || citeLink ? { renderLink: ((href, kids, key) => citeLink?.(href, kids, key) ?? chips.renderLink?.(href, kids, key) ?? subjects.renderLink?.(href, kids, key) ?? null) as NonNullable<typeof chips.renderLink> } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
       {stream && actions.activityOf?.(m.messageId) ? <ActivityLine store={actions.activityOf(m.messageId)!} stream={stream} /> : null}
       {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part={work ? "cards" : "all"} />}
           {crewStart && actions.openMessage ? <CrewStartLine block={crewStart} name={actions.nameOf ? actions.nameOf(String((crewStart.data as { agentId?: unknown } | null)?.agentId ?? "")) : item.who.name} onOpen={(id) => actions.openMessage?.(id, "")} /> : null}
@@ -426,12 +458,16 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
       {collect(cards, (b) => {
         const goal = goalBlockOf(b);
         if (goal && actions.files) return <GoalCard key={b.id} block={goal} call={actions.files.call} changes={actions.files.changes} {...(actions.openGoal ? { openGoal: actions.openGoal } : {})} me={meId} />;
+        if (isInstallPlan(b.type) && actions.files) return <InstallCard key={b.id} id={b.id} data={b.data} chat={{ call: actions.files.call, ...(actions.files.nav.openSkills ? { openSkills: actions.files.nav.openSkills } : {}) }} />;
         if (isCrewResult(b) && actions.files) return <CrewResultCard key={b.id} block={b} leadThreadId={m.threadId} data={actions.files} />;
         if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} changes={actions.files?.changes} />;
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;
         const lc = linkCardOf(b);
         const held = lc && actions.files ? heldTaskOf(lc) : null;
         if (held !== null) return parked.has(held) ? null : <ApprovalCard key={b.id} taskId={held} agent={item.who.name} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files!} />;
+        const draft = lc && actions.files ? draftOf(lc) : null;
+        if (lc && actions.files && providerDraftOf(lc)) return <ProviderDraftCard key={b.id} card={lc} agent={item.who.name} agentId={item.who.id} data={actions.files} />;
+        if (draft !== null) return <DraftCard key={b.id} draftId={draft} agent={item.who.name} agentId={item.who.id} data={actions.files!} />;
         if (lc) return <LinkCardView key={b.id} id={b.id} data={lc} actions={actions} size={14} trusted={m.kind === "system"} />;
         if (isAccessRequest(b.type) && actions.files) return <AccessRequestCard key={b.id} block={b.data as never} data={actions.files} />;
         if (isRedactRequest(b.type) && actions.files) return <RedactRequestCard key={b.id} block={b.data as never} agent={item.who.name} data={{ ...actions.files, nameOf: actions.nameOf ?? ((x: string) => x) }} />;
@@ -442,6 +478,29 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         if (isQuote(b.type)) return <QuoteCard key={b.id} id={b.id} data={b.data} />;
         if (isChromeHeld(b.type)) return <HeldSendCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
         if (isChromeStep(b.type)) return <ChromeStepCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
+        if (b.type === "from_thread") {
+          const tid = String((b.data as { threadId?: unknown } | null)?.threadId ?? "");
+          return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)}><Text style={st.edited}>{FROM_THREAD_LINE}</Text></Pressable>;
+        }
+        if (b.type === "crew_strip") {
+          const blocks = ((b.data as { blocks?: Array<{ data?: unknown; state?: string }> } | null)?.blocks ?? []);
+          const live = actions.crew?.status ?? null;
+          const members = blocks.map((x) => { const own = memberFromBlock(x, m.threadId); return memberOf(live, own.id) ?? own; });
+          const rows = members.length;
+          const totals = live && members.every((x) => memberOf(live, x.id) !== undefined) && live.members.filter((x) => x.kind === "helper").length === rows ? live.totals
+            : { members: rows, working: members.filter((x) => x.state === "working").length, done: members.filter((x) => x.state === "done").length, needsYou: members.filter((x) => x.state === "needs_you").length, failed: members.filter((x) => x.state === "failed").length, stopped: members.filter((x) => x.state === "stopped").length, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: Math.max(0, ...members.map((x) => x.elapsedMs)) };
+          const c = actions.crew;
+          // a helper that waits for a person's yes shows its held request here, in the chat the person reads: the same approval card as anywhere (Allow, Always allow, Deny)
+          const holds = holdsOf(members);
+          return (
+            <View key={b.id}>
+              <CrewStrip members={members} totals={totals} selectedId={c?.selected ?? null} onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))} {...(c ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) } : {})} />
+              {/* ui-rows-lint: not a list (the approval cards a message holds) */}
+              {actions.files ? holds.map((x) => <ApprovalCard key={`hold-${x.id}`} taskId={x.holdTaskId} agent={x.name ?? x.title} agentId={x.agentId} data={actions.files!} />) : null}
+            </View>
+          );
+        }
+        if (b.type === "helper" && !isCrewStart(b)) return <HelperRow key={b.id} block={b} onOpen={(id) => actions.openMessage?.(id, "")} />;
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;
       })}
@@ -478,7 +537,7 @@ function Reactions({ m, a, mine }: { m: Message; a: MessageActions; mine: boolea
 /* ---------- native cards ---------- */
 
 /** A link card in the conversation: names by the chat's own lookup, a fact opens the Knows tab of the pane (where the chat has memory), anything else opens beside the chat. */
-function LinkCardView({ id, data, actions, size, trusted }: { id: string; data: LinkCardData; actions: MessageActions; size: number; trusted: boolean }): ReactElement {
+function LinkCardView({ id, data, actions, size, trusted, time }: { id: string; data: LinkCardData; actions: MessageActions; size: number; trusted: boolean; time?: string }): ReactElement {
   const memory = useThreadMemory();
   const [done, setDone] = useState<ReadonlySet<string>>(new Set());
   // a button with a capability calls it as the person and reads as done; one that fails says nothing is done (the button stays)
@@ -489,8 +548,18 @@ function LinkCardView({ id, data, actions, size, trusted }: { id: string; data: 
     void Promise.resolve(actions.host.invoke(a.cap, a.input ?? {})).then(() => setDone((d) => new Set(d).add(key)), () => undefined);
   };
   const seen = useCardState(data, actions);
+  // the Space's link policy (ui/reach): a card for a thing this person cannot open draws as plain words before anyone presses it
+  const link = useLinkState(data.reach === undefined && data.target ? { type: data.target.type, id: data.target.id } : undefined);
+  // the level the Space attached when it served the message decides the first draw; the probe and the policy are only the fallback for a card that came without one
+  const hidden = data.reach !== undefined ? data.reach === "none" : seen.hidden || link.state === "plain";
+  const [asked, setAsked] = useState(false);
+  const askAccess = (): void => {
+    const t = data.target;
+    if (!t) return;
+    void Promise.resolve(actions.host.invoke("access.request", { resource: { type: t.type === "chat" ? "thread" : t.type, id: t.id }, level: "view", idempotencyKey: `ask:${t.type}:${t.id}` })).then(() => setAsked(true), () => undefined);
+  };
   const open = (t: NonNullable<LinkCardData["target"]>): void => { if (t.type === "thread" && actions.openMessage) actions.openMessage(t.id, ""); else if (t.type === "fact" && memory?.memory.showKnows) memory.memory.showKnows(); else actions.openBeside(t.type, t.id); };
-  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={new Set([...done, ...doneByState(data, seen.state)])} state={seen.state} hidden={seen.hidden} />;
+  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={new Set([...done, ...doneByState(data, seen.state)])} state={seen.state} hidden={hidden} {...(time ? { time } : {})} {...(hidden && data.target ? { onAskAccess: askAccess, asked } : {})} />;
 }
 
 /** What a work card says now, read as this reader: its state while it is live (read again on every change in the Space), and whether they may open it at all. */
@@ -616,6 +685,7 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
 export const st = StyleSheet.create({
   day: { alignSelf: "center", fontSize: 12, color: "var(--ink-3)" as string, marginTop: 18, marginBottom: 6 },
   eventCard: { flexShrink: 1, minWidth: 0 },
+  eventCentre: { justifyContent: "center" },
   event: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, marginBottom: 2 },
   eventDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
   eventText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },

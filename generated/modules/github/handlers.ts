@@ -5,6 +5,7 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "github.actions.secrets": Handler<"github.actions.secrets", X>;
   "github.app.complete": Handler<"github.app.complete", X>;
   "github.app.create_manifest": Handler<"github.app.create_manifest", X>;
   "github.app.get": Handler<"github.app.get", X>;
@@ -18,6 +19,15 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "github.issue.create": Handler<"github.issue.create", X>;
   "github.issue.get": Handler<"github.issue.get", X>;
   "github.issue.update": Handler<"github.issue.update", X>;
+  "github.me.approve": Handler<"github.me.approve", X>;
+  "github.me.complete": Handler<"github.me.complete", X>;
+  "github.me.connect": Handler<"github.me.connect", X>;
+  "github.me.disconnect": Handler<"github.me.disconnect", X>;
+  "github.me.policy.get": Handler<"github.me.policy.get", X>;
+  "github.me.policy.set": Handler<"github.me.policy.set", X>;
+  "github.me.reach": Handler<"github.me.reach", X>;
+  "github.me.status": Handler<"github.me.status", X>;
+  "github.me.usage": Handler<"github.me.usage", X>;
   "github.pull_request.ask_author_fix": Handler<"github.pull_request.ask_author_fix", X>;
   "github.pull_request.checks": Handler<"github.pull_request.checks", X>;
   "github.pull_request.close": Handler<"github.pull_request.close", X>;
@@ -33,4 +43,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "github.receive_webhook": Handler<"github.receive_webhook", X>;
   "github.repo.get": Handler<"github.repo.get", X>;
   "github.repos.list": Handler<"github.repos.list", X>;
+  "github.runners.jit_config": Handler<"github.runners.jit_config", X>;
+  "github.runners.remove": Handler<"github.runners.remove", X>;
+  "github.session_env": Handler<"github.session_env", X>;
+  "github.token": Handler<"github.token", X>;
 }

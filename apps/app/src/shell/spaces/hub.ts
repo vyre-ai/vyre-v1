@@ -112,7 +112,7 @@ export interface ShellHub {
   hold(): void;
   setHolder(fn: (() => void) | null): void;
   /** Name a tab for the item it holds (its title arrives after the tab opens). */
-  retitle(key: string, title: string): void;
+  retitle(key: string, title: string, empty?: boolean): void;
   /** The count on a place of the open Space, from what it counts live (the rail reads it, and only redraws when it changes). */
   count(place: PlaceId, n: number): void;
   /** The quiet dot on a place of the open Space: something new, no number (Chats: an unread chat, channel or thread). Only a change redraws. */
@@ -347,10 +347,11 @@ export function createShellHub(options: HubOptions): ShellHub {
       fresh = null;
       emit();
     },
-    retitle(key, title) {
+    retitle(key, title, empty) {
       const s = open();
-      if (s.tabs.state().tabs.find((t) => t.key === key)?.title === title) return;
-      s.tabs.retitle(key, title);
+      const was = s.tabs.state().tabs.find((t) => t.key === key);
+      if (was?.title === title && (was.empty === true) === (empty === true)) return;
+      s.tabs.retitle(key, title, empty);
       emit();
     },
     go(requested, hash, background = false) {
@@ -404,7 +405,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       const s = open();
       const tab = s.tabs.newTab(s.place);
       s.place = tab.place;
-      s.hash = "";
+      s.hash = tab.hash ?? "";
       emit();
       return tab;
     },

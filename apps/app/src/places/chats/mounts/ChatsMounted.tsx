@@ -3,6 +3,7 @@
 // rules) sit over it. Every door is one `Go` function over the pure `step`: a face's "Open Intake's Page", the helper icon, the channel menu's "Connect an Outside Agent", the Computer
 // chip, a face in the sidebar, a request in Needs you all end in the same place. The data comes from the runtime the shell built for the open Space (live queries over the kept copy
 // and `call`), never from sample data. A link from another place arrives as `hash` and becomes the first thing shown.
+import { shellTarget, useViewer } from "../../../shell/reach/viewer.ts";
 import { useComputersAvailable } from "../../../shell/computers-available.ts";
 import { ImportedSession } from "../imported/ImportedSession.tsx";
 import type { ImportedData } from "../imported/ImportedSession.tsx";
@@ -24,6 +25,10 @@ import { createComposerFill } from "../conversation/data.tsx";
 import type { ComposerFill } from "../conversation/data.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { AgentPane } from "../AgentPane.tsx";
+import { useAddSheet } from "../addsheet/index.ts";
+import { AgentShareHost } from "../agentform/AgentShare.tsx";
+import { pokeInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
+import { usePhone } from "../../inbox/softphone/phone.tsx";
 import { ChatsSidebar, ChatsSidebarSlot } from "../sidebar/ChatsSidebar.tsx";
 import { TerminalList } from "../terminal/TerminalList.tsx";
 import { TerminalRules } from "../terminal/TerminalRules.tsx";
@@ -38,7 +43,7 @@ import { channelThread, isChannelId, copy, threadDoor, agentPageData, askWith, c
 import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
-import { START, fromHash, openKeyOf, step, workOf } from "./route.ts";
+import { START, fromHash, linkedTo, openKeyOf, step, workOf } from "./route.ts";
 import { Landing } from "../landing/Landing.tsx";
 import { ThreadSide } from "./ThreadSide.tsx";
 import { ArtifactsPage } from "./ArtifactsPage.tsx";
@@ -60,6 +65,7 @@ import { ChatWork } from "../tasks/ChatWork.tsx";
 import { TasksPage } from "../tasks/TasksPage.tsx";
 import { TaskDetail } from "../tasks/TaskDetail.tsx";
 import { GoalPage } from "../goals/GoalPage.tsx";
+import { openSkills } from "../install/open.ts";
 import type { Act, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
 import { LoadFailed } from "../../../../../../ui/src/States/Loads.tsx";
@@ -142,17 +148,19 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     setShown((s) => step(s, a));
   }, [onSwitch, stacked, opened]);
   // a link from another place, a notification or the Space menu while Chats is already open
+  // an agent form that came in on a link of its own (a tab opened for it) closes that tab when it is done; one opened in this tab from the sidebar's New agent leaves the tab and goes on to the chat in it
+  const formTab = useRef(hash !== "" && fromHash(hash).route.view === "agent-form");
   const linked = useRef(hash);
   useEffect(() => {
     if (hash === linked.current) return;
     linked.current = hash;
     // a tab switch or a link: the same thing already on screen keeps its pane and its place
-    setShown((s) => { const next = hash === "" ? START : fromHash(hash); return JSON.stringify(next.route) === JSON.stringify(s.route) ? s : { ...next, pane: s.pane, terminalId: s.terminalId }; });
+    setShown((s) => linkedTo(s, hash));
   }, [hash]);
   // what is open follows into the tab and the address (the Chats tab moves with it; tabs/store.ts moveTab), so coming back lands on it
   const openedRef = useRef(opened);
   openedRef.current = opened;
-  const routeKey = shown.route.view === "agent-form" ? `a:${shown.route.agentId ?? ""}` : shown.route.view === "chat" ? `t:${shown.route.threadId ?? ""}` : shown.route.view === "new" ? "new" : shown.route.view === "task" ? `k:${shown.route.taskId}` : shown.route.view === "tasks" ? "tasks" : shown.route.view === "threads" ? "threads" : shown.route.view === "artifacts" ? "artifacts" : shown.route.view === "artifact" ? `x:${shown.route.artifactId}` : shown.route.view === "notes" ? "notes" : "";
+  const routeKey = shown.route.view === "agent" ? `g:${shown.route.agentId}` : shown.route.view === "agent-form" ? `a:${shown.route.agentId ?? ""}` : shown.route.view === "chat" ? `t:${shown.route.threadId ?? ""}` : shown.route.view === "new" ? "new" : shown.route.view === "task" ? `k:${shown.route.taskId}` : shown.route.view === "tasks" ? "tasks" : shown.route.view === "threads" ? "threads" : shown.route.view === "artifacts" ? "artifacts" : shown.route.view === "artifact" ? `x:${shown.route.artifactId}` : shown.route.view === "notes" ? "notes" : "";
   useEffect(() => {
     const report = openedRef.current;
     if (!report || routeKey === "") return;
@@ -161,6 +169,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     else if (routeKey === "artifacts") report({ screen: "chats.artifacts" });
     else if (routeKey === "notes") report({ screen: "chats.notes" });
     else if (routeKey.startsWith("x:")) report({ subject: { type: "artifact", id: routeKey.slice(2) } });
+    else if (routeKey.startsWith("g:") && routeKey !== "g:") report({ screen: "chats.agent-page", args: { agentId: routeKey.slice(2) } });
     else if (routeKey.startsWith("a:")) report({ screen: "chats.agent-form", ...(routeKey.length > 2 ? { args: { agentId: routeKey.slice(2) } } : {}) });
     else if (routeKey.startsWith("t:") && routeKey !== "t:") report({ subject: { type: "thread", id: routeKey.slice(2) } });
     else if (routeKey.startsWith("k:")) report({ subject: { type: "task", id: routeKey.slice(2) } });
@@ -226,11 +235,21 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   }, [go]);
   const directory = useDirectory(rt);
 
+  // the Space's softphone, where it has telephony: Call in a person's row menu and in their profile dials from it
+  const phone = usePhone();
+  // Call from a person's row: the phone they set for teammates (their public profile), else a line that says there is none
+  const callPerson = useCallback((personId: string, name: string): void => {
+    if (!phone) return;
+    void Promise.resolve(rt.call("settings.public_of", { personId })).then(
+      (o) => { const n = (o as { phone?: unknown } | null)?.phone; if (typeof n === "string" && n !== "") phone.dial(n); else setLine(`${name.split(/\s+/)[0] ?? name} has no phone teammates can call`); },
+      () => setLine(`Could not call ${name.split(/\s+/)[0] ?? name}`),
+    );
+  }, [phone, rt, setLine]);
   /* ---------- the sidebar: registered in the shell's shared place sidebar slot (collapse, search and the phone list are the slot's) ---------- */
   const side = useMemo(() => {
     const base = wireSidebar(rt, go);
-    return { ...base, people: list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name })), nav: { ...base.nav, openTasks: () => act({ t: "tasks" }), ...(base.nav.openArtifacts ? { openArtifacts: () => act({ t: "artifacts" }) } : {}), openNotes: () => act({ t: "notes" }), takeNote: () => act({ t: "notes", take: true }), ...(openInNewTab ? { openNotesTab: () => openInNewTab("screen=chats.notes") } : {}), openNew: () => act({ t: "new" }), openNewAgent: () => act({ t: "agent-form" }), openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }) }, ...(rt.changes ? { changes: rt.changes } : {}) };
-  }, [rt, go, act, list, openInNewTab]);
+    return { ...base, people: list.filter((p) => p.kind === "person" && p.id !== rt.me.id).map((p) => ({ id: p.id, name: p.name })), nav: { ...base.nav, ...(phone ? { callPerson } : {}), openTasks: () => act({ t: "tasks" }), ...(base.nav.openArtifacts ? { openArtifacts: () => act({ t: "artifacts" }) } : {}), openNotes: () => act({ t: "notes" }), takeNote: () => act({ t: "notes", take: true }), ...(openInNewTab ? { openNotesTab: () => openInNewTab("screen=chats.notes") } : {}), openNew: () => act({ t: "new" }), openNewAgent: () => act({ t: "agent-form" }), openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }) }, ...(rt.changes ? { changes: rt.changes } : {}) };
+  }, [rt, go, act, list, openInNewTab, phone, callPerson]);
 
   /* ---------- the open chat ---------- */
   const recent = useLive<RecentOut>(rt.screens, "chats.sidebar", "recent", { filter: "all" });
@@ -278,7 +297,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       const wired = wireConversation(rt, go, { threadId, list, nameOf, leadId, fill, ...(focus ? { focus } : {}), ...(focusN ? { focusN } : {}) });
       // a task link in the chat opens beside it, where it was pressed
       const openBeside = (kind: string, id: string): void => { if (kind === "task") openSideTask(id); else wired.nav.openBeside(kind, id); };
-      return { ...wired, nav: { ...wired.nav, openAgent: profile, openBeside, openDetails: (tid: string, mid: string) => replyDetails(tid, mid), openHooks: (_tid: string, hookId?: string) => { setPaneTab("hooks"); setHookSel(hookId ?? null); setRightOn(null); go.openPane(); } } };
+      return { ...wired, nav: { ...wired.nav, openAgent: profile, openBeside, openSkills: (name: string) => { openSkills(name); act({ t: "pane-open" }); }, openDetails: (tid: string, mid: string) => replyDetails(tid, mid) } };
     },
     [rt, go, threadId, list, nameOf, leadId, fill, focus, focusN, profile, openSideTask, replyDetails],
   );
@@ -296,6 +315,19 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   }), [rt, nameOf, byId, route, go]);
   const terminal = useMemo(() => terminalData(rt, go, { agent: leadAgent, nameOf, newKey }), [rt, go, leadAgent, nameOf]);
   const paneCtx = useMemo(() => (threadId === null ? null : wirePane(rt, go, threadId, leadAgent, fill, terminal)), [rt, go, threadId, leadAgent, fill, terminal]);
+  /* the pane's own actions: Poke runs a poked reply, Share opens the share sheet over the agent, Add to chat opens the Add sheet, Call dials from the softphone (phone, above) */
+  const add = useAddSheet({ call: rt.call as (cap: string, input: unknown) => Promise<unknown>, me: { id: rt.me.id, name: rt.me.name }, nameOf, newKey: () => newKey(), toast: (text) => setLine(text) }, { copy });
+  const [shareAgent, setShareAgent] = useState<string | null>(null);
+  const poke = useCallback((agentId: string, thread: string): void => {
+    void Promise.resolve(rt.call("threads.poke", pokeInput(thread, agentId))).then(
+      () => setLine(`Poked ${nameOf(agentId)}`),
+      (e: unknown) => { const m = (e as { message?: unknown } | null)?.message; setLine(`Could not poke ${nameOf(agentId)}${typeof m === "string" && m !== "" ? `: ${m}` : ""}`); },
+    );
+  }, [rt, nameOf, setLine]);
+  const paneFull = useMemo(() => (paneCtx === null ? null : { ...paneCtx, nav: { ...paneCtx.nav, poke, share: (id: string) => setShareAgent(id) } }), [paneCtx, poke]);
+  const rightTabNow = rightTabs.find((x) => x.key === rightOn);
+  const agentTabId = rightTabNow && (rightTabNow.kind === "agent" || rightTabNow.kind === "assistant") ? rightTabNow.id : null;
+  const agentTabData = useMemo(() => (paneFull === null || agentTabId === null ? null : { ...paneFull, agent: { agentId: agentTabId, name: nameOf(agentTabId), ...(computerOf(agentTabId) ? { computerId: computerOf(agentTabId) as string } : {}) } }), [paneFull, agentTabId, nameOf, computers]);
 
   /* ---------- the other pages ---------- */
   const importedData = useMemo<ImportedData>(() => ({ call: rt.call, clock: rt.clock, spaceId: rt.space.id, assistantId: rt.assistant.id, openChat: go.chat }), [rt, go]);
@@ -320,7 +352,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   else if (route.view === "imported") main = <ImportedSession key={route.conversationId} conversationId={route.conversationId} data={importedData} />;
   else if (route.view === "helper") main = helperId === "" ? <HelperChatLoading /> : <HelperChat key={helperId} data={helper} />;
   else if (route.view === "agent") main = agentId === "" ? <AgentPageLoading /> : <AgentPage key={agentId} data={agentPage} {...(route.tab ? { initialTab: route.tab } : {})} {...(window ? { window } : {})} />;
-  else if (route.view === "agent-form") main = <AgentForm key={route.agentId ?? "new"} agentId={route.agentId} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} newKey={newKey} onDone={(id) => { closeSelf?.(); go.agentChat(id); }} onCancel={() => act({ t: "new" })} say={setLine} openVault={() => rt.open({ screen: "vault.providers" })} {...(rt.space.kind === "personal" ? {} : { sharing: { directory, meName: rt.me.name, meId: rt.me.id, nameOf } })} />;
+  else if (route.view === "agent-form") main = <AgentForm key={route.agentId ?? "new"} agentId={route.agentId} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} newKey={newKey} onDone={(id) => { if (formTab.current) closeSelf?.(); go.agentChat(id); }} onCancel={() => act({ t: "new" })} say={setLine} openVault={() => rt.open({ screen: "vault.providers" })} {...(rt.space.kind === "personal" ? {} : { sharing: { directory, meName: rt.me.name, meId: rt.me.id, nameOf, spaceName: rt.space.name } })} />;
   else if (route.view === "threads") main = <ThreadsPage rt={rt} nameOf={nameOf} openChat={go.thread} say={setLine} />;
   else if (route.view === "artifacts") main = <ArtifactsPage rt={rt} />;
   else if (route.view === "artifact") main = <ArtifactView key={route.artifactId} rt={rt} artifactId={route.artifactId} share={route.share === true} back={() => act({ t: "artifacts" })} gone={() => act({ t: "artifacts" })} />;
@@ -351,6 +383,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       onMessage={() => { if (rightTab.kind === "person") void Promise.resolve(rt.call("chat.start", { kind: "chat", agentIds: [], personId: rightTab.id, idempotencyKey: `dm_${rightTab.id}` })).then((o) => { const id = (o as { thread?: { threadId?: string } }).thread?.threadId; if (id) go.chat(id); }, () => setLine("Could not start the chat. Try again.")); else go.agentChat(rightTab.id); }}
       onMention={() => fill.set(`@${nameOf(rightTab.id)} `)}
       onEdit={() => act({ t: "agent-form", agentId: rightTab.id })}
+      agentPane={agentTabData}
+      person={{ now: Date.now, ...(phone ? { dial: (n: string) => phone.dial(n) } : {}), ...(threadId !== null ? { onAdd: () => add.open({ threadId }) } : {}), openThread: (id) => go.thread(id), openFile: (id) => rt.open({ subject: { type: "file", id } }), openTask: openSideTask, copy: (text) => { copy(text); setLine("Copied the name"); } }}
     />
   ) : null;
   let right: ReactElement | null = null;
@@ -378,7 +412,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       </View>
     );
   } else if (shown.pane && paneCtx && route.view === "chat") {
-    right = <View style={st.pane}><AgentPane data={paneCtx} open onToggle={go.togglePane} {...(paneTab ? { tab: paneTab, onTab: (t: TabKey) => setPaneTab(t) } : {})} hookSel={hookSel} {...(window ? { window } : {})} extra={{ tabs: rightSpecs, active: rightOn, onSelect: setRightOn, onClose: closeRight, body: rightBody }} /></View>;
+    right = <View style={st.pane}><AgentPane data={paneFull ?? paneCtx} open onToggle={go.togglePane} {...(window ? { window } : {})} extra={{ tabs: rightSpecs, active: rightOn, onSelect: setRightOn, onClose: closeRight, body: rightBody }} /></View>;
   } else if (rightOn !== null) {
     right = (
       <View style={st.pane}>
@@ -400,6 +434,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       ) : null}
       {right}
       {narrow ? beside : null}
+      {add.element}
+      {shareAgent !== null ? <AgentShareHost agentId={shareAgent} name={nameOf(shareAgent)} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} newKey={newKey} say={setLine} sharing={{ directory, meName: rt.me.name, meId: rt.me.id, nameOf }} onClose={() => setShareAgent(null)} /> : null}
       <Layer shown={shown} rt={rt} go={go} nameOf={nameOf} list={list} counter={counter} terminal={terminal} window={window} />
       {line ? <View testID="chats-line" accessibilityRole="alert" accessibilityLiveRegion="polite" style={st.toast}><Text style={st.toastText}>{line.text}</Text>{line.action ? <TextButton label={line.action.label} testID="chats-line-action" onPress={() => { const run = line.action?.run; setLineState(null); run?.(); }} /> : null}</View> : null}
     </View>
@@ -450,9 +486,10 @@ function ComputerLayer({ rt, go, nameOf, list, counter, computerId, chat }: {
 }): ReactElement {
   const q = useLive<ComputerOut>(rt.screens, "chats.computer-popup", "computer", { computerId });
   const agentId = q.status === "ready" ? q.data.computer.agentId : "";
+  const viewer = useViewer(rt);
   const data = useMemo(
-    () => (agentId === "" ? null : popupData(rt, go, { computerId, agent: { agentId, name: nameOf(agentId) }, counter, renderChat: (a) => <AgentChat rt={rt} go={go} agentId={a.agentId} list={list} /> })),
-    [rt, go, computerId, agentId, nameOf, counter, list],
+    () => (agentId === "" ? null : popupData(rt, go, { computerId, agent: { agentId, name: nameOf(agentId) }, counter, renderChat: (a) => <AgentChat rt={rt} go={go} agentId={a.agentId} list={list} />, ...(viewer ? { reach: { viewer, nameOf, open: (t) => rt.open(shellTarget(t)) } } : {}) })),
+    [rt, go, computerId, agentId, nameOf, counter, list, viewer],
   );
   return data ? <ComputerPopup data={data} {...(chat ? { initial: { chat: true } } : {})} /> : <ComputerPopupLoading />;
 }

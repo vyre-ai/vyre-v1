@@ -53,3 +53,33 @@
 - Make task and Remember under an agent's answer in a chat of people are drawn as buttons with an edge and an icon, so they no longer read as stray text.
 - Audit rows and the Console overview read as sentences: "Priya Raman assigned a role to Omar Haddad", "Intake revealed the record Rivera engagement, for Priya Raman", in place of "role changed Omar". The sentence is made in lib/words/actions.ts from the act's name, in the past tense, with no dots, underscores or ids; a guard test covers every audited capability.
 - Make task and Remember for an agent's answer in a chat of people sit in the message's hover bar next to Copy, Reply in thread, Fork and Pin (and Make a Task and Remember in the long-press sheet on a phone). Nothing of them is drawn at rest.
+
+## What's new (Agents)
+
+- An agent that asks a question in a chat now stops there: its turn waits for the answer and makes no further model call. A question taken back by its agent (chat.question.withdraw) closes its card and its task leaves Needs you. A turn that ends without waiting takes back any question it left open. A question of fewer than three words, or only "test", is refused with a plain message.
+- A turn parked on a hold or a question now records the usage it had up to that point and is closed when its wake starts, so no turn is left running with nothing counted.
+- Text that comes after a tool step starts a new paragraph, so a reply no longer reads "Let me look.Found 3 leads."
+- No tool is called to see if it works: a call whose arguments are placeholders (example.com, a bare "test", foo and bar, __probe ids, lorem ipsum) is refused before it runs, with "Don't call tools to test them. Call with the real thing the person asked for, or don't call." No card, hold, task or message reaches the chat. Every agent is told the same in its rules.
+- On update, a one-time clean-up closes open question cards and drops holds whose content is a placeholder, and their tasks leave Needs you. Nothing else is touched.
+- The Notes guidance moved from working-in-vyre into its own small skill, working-with-notes, so working-in-vyre stays under its line cap.
+
+## What's new (Inbox drafts)
+
+- An agent's draft in Inbox says who drafted it by name ("Assistant drafted a reply"), never by id, and the line under it reads "Sends from techmanager@... when you press Send" in place of "Gate: <id> sends from ...".
+- One pending draft per thread per agent: a new draft from the same agent on the same thread takes the old one's place. The card says Updated with the time and the earlier draft is one click away.
+- By contact shows only drafts to or from that contact. A draft is filed under a contact only when one of its recipients is that contact's address, and a draft already filed under the wrong contact is left out of the list.
+- Edit and Send on an agent draft in Inbox use the stored draft, not the card preview: Edit opens the draft in its own card with every character of its body and Save keeps its recipients and thread; Send goes to the draft's own recipients and Cc from its own mailbox, filed under its own contact, never to or under the thread that happens to be open. A body that ends in a cut-off marker the person did not type is never sent.
+- A draft is filed under a contact only when one of the people it is addressed to is that contact. Someone on Cc, copied on two contacts' threads, files it under no one.
+- mail.send sends an agent's draft as it is stored: its own recipients, Cc, Bcc, subject and every character of its body, whatever the caller holds. An agent draft that ends in a cut-off marker and has not been saved by a person is refused with a plain message, and nothing is sent.
+
+## What's new (Approvals)
+
+- An approval nobody answered does not wait for ever. After 7 days, or once the chat it was asked in or its task closed, it expires as "Not sent, it waited 7 days": the call is never sent, its task closes and the agent is told the plain reason. At start the same check clears what earlier releases left behind.
+- Needs you groups approvals that have waited days under Older, after what just arrived, in place of mixing them.
+- Agents are told never to say "Gate", "hold" or other internal words to people, and what a model reads from a failed tool says approval in their place.
+- An approval nobody answered for 7 days now reads "Not sent, it waited 7 days" in Needs you, under Withdrawn, with only Dismiss left.
+- The Personal claim live test now expects the route it opened on (/chat), not /home.
+- Live browser tests follow today's product: the invite error sits behind "Use another account" for a device already in the Space, Back on the join sheet is "back", Apps forms are opened from the Forms group first, the record Ask pane is the record chat, a short piece of work opens from the summary beside the name, the onboarding screen closes from its x on a phone, and sign-out waits for the server to revoke the key.
+- A direct message always carries the person's name in the sidebar, as it does on its tab.
+- A withdrawn request names its own key in the footer ("A dismiss"), not "A approve".
+- Add sending domain in Apps opens the Console's Sending domains with Add domain ready, and is not shown to anyone who cannot open the Console.

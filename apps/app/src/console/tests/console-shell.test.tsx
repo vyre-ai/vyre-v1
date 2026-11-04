@@ -34,9 +34,9 @@ test("the top bar: Space mark and name, Console, health dot, Search, Assistant, 
   assert.ok(has(html(createSampleConsole(), { assistantOpen: true }), 'data-testid="console-assistant"'));
 });
 
-test("the navigation: nine places, Overview first and Space last after a gap, and the place a page is in shows its tabs", () => {
+test("the navigation: ten places, Home first and Space last after a gap, and the place a page is in shows its tabs", () => {
   const out = html(createSampleConsole());
-  assert.deepEqual(SECTIONS.map((s) => s.id), ["overview", "access", "ai", "agents", "connections", "machines", "safety", "data", "space"]);
+  assert.deepEqual(SECTIONS.map((s) => s.id), ["overview", "access", "agents", "ai", "data", "messaging", "apps", "machines", "security", "space"]);
   const at = (id: string): number => { const i = out.indexOf(`data-testid="${id}"`); assert.ok(i >= 0, id); return i; };
   const ids = SECTIONS.map((s) => at(`row-nav-${s.id}`));
   assert.deepEqual([...ids].sort((a, b) => a - b), ids, "the places are in order");
@@ -46,12 +46,12 @@ test("the navigation: nine places, Overview first and Space last after a gap, an
   assert.ok(!has(out, 'data-testid="console-tabs"'), "Overview has one tab and so no strip");
   const people = html(createSampleConsole(), { initialPage: "people" });
   assert.match(tag(people, "row-nav-access"), /var\(--sel\)/);
-  for (const tab of ["people", "groups", "permissions", "policies", "reviews"]) assert.ok(has(people, `data-testid="tab-${tab}"`), tab);
+  for (const tab of ["people", "groups", "permissions", "requests"]) assert.ok(has(people, `data-testid="tab-${tab}"`), tab);
   assert.ok(has(tag(people, "tab-people"), 'aria-selected="true"') && !has(people, 'data-testid="console-views"'), "People has no views");
-  // Permissions is one tab with a text switch: the matrix, roles, grants and the checker
+  // Roles is one tab with a text switch: the matrix, role details and extra access
   const roles = html(createSampleConsole(), { initialPage: "roles" });
   assert.ok(has(tag(roles, "tab-permissions"), 'aria-selected="true"'), "an old address lands on the tab it moved into");
-  for (const v of ["permissions", "roles", "grants", "checker"]) assert.ok(has(roles, `data-testid="view-${v}"`), v);
+  for (const v of ["permissions", "roles", "grants"]) assert.ok(has(roles, `data-testid="view-${v}"`), v);
   assert.ok(has(tag(roles, "view-roles"), 'aria-selected="true"'));
   // an old page id lands on its new home
   assert.ok(has(html(createSampleConsole(), { initialPage: "computers" }), 'data-testid="page-machines"'));
@@ -63,10 +63,10 @@ test("the navigation: nine places, Overview first and Space last after a gap, an
 test("a person finds a page by its old name: the search says where it is now", async () => {
   const { OLD_NAMES, nowIn, sectionOf, resolve } = await import("../shell/sections.ts");
   const where = Object.fromEntries(OLD_NAMES.map(([n, id]) => [n, nowIn(id)]));
-  assert.equal(where["Sessions"], "People and access, Sign-in and sessions, Sessions and devices");
-  assert.equal(where["Infrastructure"], "Machines, Machines");
-  assert.equal(where["Actors"], "Agents and skills, Outside agents");
-  assert.equal(where["Access checker"], "People and access, Permissions, Check access");
+  assert.equal(where["Sessions"], "Security, Sign-in, Sessions and devices");
+  assert.equal(where["Infrastructure"], "Computers, Overview");
+  assert.equal(where["Actors"], "Agents, Outside agents");
+  assert.equal(where["Access checker"], "People, Members");
   assert.equal(resolve("computers"), "machines");
   for (const [name, id] of OLD_NAMES) assert.ok(sectionOf(id), `${name} has a home`);
   // every page of the registry is somewhere in a section
@@ -84,11 +84,10 @@ test("every nav page names a screen of the registry, and the pages this packet d
 test("pages hide by permission: a Developer sees Schema, the Space server and the Audit log, and no people management", () => {
   const dev = createSampleConsole({ viewer: "developer" });
   const out = html(dev, { initialPage: "schema" });
-  assert.ok(has(out, 'data-testid="row-nav-data"') && has(out, 'data-testid="row-nav-machines"') && has(out, 'data-testid="row-nav-safety"'));
+  assert.ok(has(out, 'data-testid="row-nav-data"') && has(out, 'data-testid="row-nav-machines"') && has(out, 'data-testid="row-nav-security"'));
   assert.ok(has(out, 'data-testid="row-nav-overview"') && has(out, 'data-testid="page-schema"'));
   assert.ok(!has(out, 'data-testid="row-nav-access"') && !has(out, 'data-testid="tab-people"'), "no people management");
   assert.ok(!has(out, 'data-testid="row-nav-agents"'), "no agent management");
-  assert.ok(!has(out, 'data-testid="tab-backups"'), "a Data place with one page the person may open has no strip");
   const ids = visiblePages(dev.data.can).map((p) => p.id);
   assert.ok(ids.includes("server") && !ids.includes("network"), "Server needs server.logs, Network needs server.network");
   assert.ok(visiblePages(createSampleConsole().data.can).length === PAGES.length, "the Owner sees every page");
@@ -116,12 +115,12 @@ test("Overview: what needs you, the server tiles and the last admin acts, each w
   assert.ok(has(out, 'data-testid="row-attn-failing_check-chk_disk"') && has(out, 'data-testid="row-attn-expiring_certificate-crt_main"') && has(out, 'data-testid="row-attn-access_review_due-2"'));
   assert.ok(has(out, "Disk space on the server is under 15 percent") && has(out, "A health check is failing since 3 h ago"));
   assert.ok(has(out, "Open Server") && has(out, "Start the review"));
-  for (const t of ["Server", "Members", "Agents", "Turns today", "Spend this month"]) assert.ok(has(out, `data-testid="tile-${t}"`), t);
+  for (const t of ["Space server", "Members", "Agents", "Turns today", "Spend"]) assert.ok(has(out, `data-testid="tile-${t}"`), t);
   assert.ok(has(out, "Degraded") && has(out, ">14<") && has(out, ">6<") && has(out, "1,284") && has(out, "$412"));
   assert.equal((out.match(/data-testid="row-act-\d"/g) ?? []).length, 5, "five admin acts");
   assert.ok(has(out, "Priya Raman changed the role of Omar Haddad") && has(out, "6 min ago"));
   assert.ok(has(out, 'data-testid="to-audit"'));
-  assert.deepEqual(Object.keys(ATTENTION_PAGE).sort(), ["access_review_due", "expiring_certificate", "failed_run", "failing_check", "home_channel", "join_stuck", "limit_hit", "no_ai_account", "stuck_update"]);
+  assert.deepEqual(Object.keys(ATTENTION_PAGE).sort(), ["access_review_due", "expiring_certificate", "failed_run", "failing_check", "home_channel", "join_stuck", "limit_hit", "no_ai_account", "space_deletion_scheduled", "stuck_update"]);
   for (const id of Object.values(ATTENTION_PAGE)) assert.ok(PAGES.some((p) => p.id === id), `${id} is a page`);
 });
 
@@ -159,7 +158,7 @@ test("Audit log filters: by kind, by search and by trace, with a Show all", () =
   assert.ok(has(search, 'data-testid="row-aud_004"') && has(search, 'data-testid="row-aud_011"') && !has(search, 'data-testid="row-aud_002"'));
   const trace = html(s, { initialPage: "audit", initialAudit: { filter: { ...NO_FILTER, traceId: "trc_0001" } } });
   assert.ok(has(trace, 'data-testid="row-aud_001"') && has(trace, 'data-testid="row-aud_002"') && !has(trace, 'data-testid="row-aud_003"'));
-  assert.ok(has(trace, "Showing one trace"));
+  assert.ok(has(trace, "Showing related entries"));
   const none = html(s, { initialPage: "audit", initialAudit: { filter: { ...NO_FILTER, query: "zzzz" } } });
   assert.ok(has(none, 'data-testid="audit-none"') && has(none, "No events match"));
 });
@@ -206,10 +205,11 @@ test("text helpers: relative times, whole dollars and action phrases", () => {
   assert.equal(ago(SAMPLE_NOW, SAMPLE_NOW - 2 * 86_400_000), "2 d ago");
   assert.equal(ago(SAMPLE_NOW, SAMPLE_NOW - 30 * 86_400_000), "2025-09-24");
   assert.equal(money(412_000_000), "$412");
-  assert.equal(actionPhrase("gate.rule_changed"), "gate rule changed");
+  assert.equal(actionPhrase("gate.rule_changed"), "changed an approval rule");
+  assert.equal(actionPhrase("files.save", "Fee agreement.pdf"), "saved the file Fee agreement.pdf");
   assert.equal(activityTitle("Olivia Owner", "audit.viewed", "space/spc_fresh"), "Olivia Owner opened the audit log");
   assert.equal(activityTitle("act_anon_12ca17b49af22894", "identity.claim_owner", undefined), "The owner claimed this Space");
-  assert.equal(activityTitle("Priya Raman", "gate.rule_changed", "Send"), "Priya Raman changed the rule Send");
+  assert.equal(activityTitle("Priya Raman", "gate.rule_changed", "Send"), "Priya Raman changed the approval rule Send");
 });
 
 test("the skin menu lists System, then Dark and Light skins, and checks the open one", () => {
@@ -226,7 +226,7 @@ test("the skin menu lists System, then Dark and Light skins, and checks the open
 test("inside the app the Console has no second bar: no skin, no Open the app, and the page still says what it is and how the server is", () => {
   const out = html(createSampleConsole(), { embedded: true });
   for (const id of ["console-top", "console-skin", "console-open-app", "console-search"]) assert.ok(!has(out, `data-testid="${id}"`), id);
-  assert.ok(has(out, 'data-testid="console-nav"') && has(out, 'data-testid="console-health"') && has(out, 'data-testid="page-help"'));
+  assert.ok(has(out, 'data-testid="console-nav"') && !has(out, 'data-testid="console-health"') && has(out, 'data-testid="page-help"'), "no stray health dot in the header: Home's Health row says it");
 });
 
 test("at its own address there is no app to open", () => {
@@ -235,6 +235,38 @@ test("at its own address there is no app to open", () => {
 
 test("every Console page says what it is for, and no two pages draw the same thing", () => {
   for (const p of PAGES) assert.ok(PAGE_NOTE[p.id], p.id);
-  assert.equal(pageById("export"), undefined, "Export lives on Backups");
+  assert.ok(pageById("export") !== undefined, "Export is a tab of Data");
 });
 
+
+test("Home: the Relay tile says its version and turns amber with Update available when the relay is older than the Space server", async () => {
+  const { relayTile, relayIsOlder } = await import("../pages/overview/Overview.tsx");
+  assert.equal(relayIsOlder("1.4.0", "1.4.1"), true);
+  assert.equal(relayIsOlder("1.4.1", "1.4.1"), false);
+  assert.equal(relayIsOlder("v1.10.0", "1.9.9"), false);
+  const ok = relayTile({ mode: "relay", relayVersion: "1.4.1", relayMs: 18, relayReachable: true }, "1.4.1")!;
+  assert.deepEqual([ok.big, ok.sub, ok.page, ok.tone], ["Reachable", "Vyre relay · v1.4.1 · 18 ms", "network", "ok"]);
+  const old = relayTile({ mode: "relay", relayVersion: "1.3.9", relayMs: 18 }, "1.4.1")!;
+  assert.deepEqual([old.big, old.tone, old.page], ["Update available", "warn", "updates"], "it opens Computers, Servers, Updates");
+  const flagged = relayTile({ mode: "relay", relayVersion: "1.4.1", relayOlder: true, relayMs: 18 }, "1.4.1")!;
+  assert.deepEqual([flagged.big, flagged.page, flagged.sub], ["Update available", "updates", "Vyre relay · v1.4.1 · 18 ms"], "network.status says the relay is older: that wins");
+  assert.equal(relayTile({ mode: "relay", relayVersion: "1.3.0", relayOlder: false }, "1.4.1")!.big, "Reachable", "relayOlder false is not amber");
+  assert.equal(relayTile({ mode: "own_domain" }, "1.4.1"), null, "no relay, no tile");
+  assert.equal(relayTile({ mode: "relay" }, "1.4.1")!.sub, "Vyre relay", "no version read yet: just the name");
+});
+
+test("Home: This month and Quick actions, each with a way to its page", () => {
+  const out = html(createSampleConsole());
+  for (const id of ["tiles-month", "quick-actions", "row-qa-invite", "row-qa-ai", "row-qa-server"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  assert.ok(has(out, "Invite people") && has(out, "Add an AI account") && has(out, "Add a server"));
+});
+
+test("Home: one row per problem, an icon tile and a real button, no Working now, a Sync tile", async () => {
+  const { dedupeNeeds } = await import("../pages/overview/Overview.tsx");
+  const att = [{ kind: "failing_check", title: "Disk space on the server is under 10 percent" }, { kind: "expiring_certificate", title: "Certificate renews in 12 days" }, { kind: "failing_check", title: "Records index is slow" }];
+  assert.deepEqual(dedupeNeeds(att, [{ kind: "disk" }]).map((a) => a.title), ["Certificate renews in 12 days", "Records index is slow"], "the disk check and the disk alert are one problem");
+  assert.equal(dedupeNeeds(att, []).length, 3);
+  const out = html(createSampleConsole());
+  assert.ok(!has(out, "Working now") && !has(out, 'data-testid="team-now"'));
+  assert.ok(has(out, 'data-testid="attn-go-0"') && has(out, "Sync"), "a button on the row, and the Sync tile");
+});

@@ -19,7 +19,7 @@ A verified GitHub delivery arrived
 ```ts
 type Payload = {
   deliveryId: string;
-  event: "ping" | "installation" | "push" | "pull_request" | "issues" | "check_run" | "workflow_run";
+  event: "ping" | "installation" | "push" | "pull_request" | "issues" | "check_run" | "workflow_run" | "workflow_job";
   action?: string;
   repo?: string;
 };

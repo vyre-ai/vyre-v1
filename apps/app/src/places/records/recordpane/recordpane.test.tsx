@@ -10,6 +10,7 @@ import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
 import { installComposerForTests } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { RecordPage, RecordPageDataProvider } from "../recordpage/index.ts";
 import { CLIENT, createSamplePage } from "../recordpage/sample.ts";
+import { PANE_TABS } from "../recordpage/model.ts";
 import type { SamplePage } from "../recordpage/sample.ts";
 import { saveField } from "../recordpage/index.ts";
 import type { RecordRow } from "../recordpage/model.ts";
@@ -19,7 +20,7 @@ import type { Activity, Comment } from "./model.ts";
 installComposerForTests(Composer);
 const open: Array<{ unmount(): void }> = [];
 afterEach(async () => { for (const r of open.splice(0)) await act(async () => { r.unmount(); }); });
-async function up(s: SamplePage, tab: "activity" | "comments" | "chat" | "files", id = "cl_0"): Promise<Node> {
+async function up(s: SamplePage, tab: "activity" | "comments" | "files", id = "cl_0"): Promise<Node> {
   installDom();
   const r = createRoot();
   open.push(r);
@@ -176,7 +177,7 @@ test("a refused post puts the text back in the field and says so", async () => {
   s.data.call = async (cap: string, input: unknown) => { if (cap === "records.comments.add") throw new Error("refused"); return call(cap, input); };
   await write(root, "comment-field-new", "Do not lose this");
   await send(root, "comment-field-new");
-  assert.ok(find(root, "comment-error-new"), "it says it could not post");
+  assert.match(textOf(find(root, "composer-send-error")), /Could not post\.\s*Try again/, "it says it could not post, with Try again");
   assert.equal(String((inField(root, "comment-field-new", "composer-field").props as { value?: string }).value), "Do not lose this");
 });
 
@@ -209,14 +210,11 @@ test("a comment you did not write has no Edit or Delete, and a thread with no re
 
 // ---------------------------------------------------------------- Chat and Files
 
-test("the Chat tab is this record's own pane, drawn in place", async () => {
-  const root = await up(createSamplePage(), "chat");
-  assert.ok(find(root, "pane-chat") && textOf(find(root, "sample-chat")).includes("Ask pane for clients cl_0"));
-  const none = createSamplePage();
-  const bare = { ...none.data } as { renderChat?: unknown };
-  delete bare.renderChat;
-  const r2 = await up({ ...none, data: bare as never }, "chat");
-  assert.ok(find(r2, "pane-chat-empty"));
+test("the right pane has no Chat tab: Ask on the record page is how a person gets to chat from there", async () => {
+  const root = await up(createSamplePage(), "activity");
+  assert.ok(find(root, "pane-activity"), "the other tabs are there");
+  assert.equal(find(root, "tab-chat"), null, "no Chat tab");
+  assert.equal(PANE_TABS.some((t) => t.key === ("chat" as never) || t.title === "Chat"), false);
 });
 
 test("Files: empty says so in one line; Attach stores files in the record's folder, they list, and a click opens the viewer", async () => {

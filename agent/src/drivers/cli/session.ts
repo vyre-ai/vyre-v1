@@ -14,10 +14,7 @@
 //   cancel     the process is stopped (TERM, then KILL after the grace time). A cancelled session is dirty: the pool closes it instead of reusing it, and the next one resumes by id.
 import type { ChatMode, DriverEvent, Effort, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
 import { scrub } from "../api/errors.ts";
-import { classifyCli, missingProgram, sessionGone } from "./errors.ts";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
-import { hookFiles } from "./hooks-config.ts";
+import { classifyCli, missingProgram, modelGone, plainCli, sessionGone } from "./errors.ts";
 import { channel, lines } from "./lines.ts";
 import type { Channel } from "./lines.ts";
 import { defaultPrompt } from "./prompt.ts";
@@ -213,7 +210,10 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
               return "stop";
             }
             break;
-          case "text": said = true; yield { type: "text", text: item.text }; break;
+          case "text":
+            // the engine's own "issue with the selected model" line is an error told as an answer: it is not shown, and the error that follows moves the turn to another model
+            if (item.text.length < 600 && modelGone(item.text)) break;
+            said = true; yield { type: "text", text: item.text }; break;
           case "thinking": said = true; yield { type: "thinking", text: item.text }; break;
           case "tool":
             said = true;
@@ -236,7 +236,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
             outstanding -= 1;
             if (item.error) {
               if (gone(item.error.message)) { await stop(r, false); return "gone"; }
-              yield { type: "error", code: item.error.code ?? classifyCli(item.error.message), message: clean(item.error.message) };
+              yield { type: "error", code: item.error.code ?? classifyCli(item.error.message), message: plainCli(clean(item.error.message)) };
               return "stop";
             }
             // A steering engine's result ends the turn every message it has read belongs to. A message it has not read yet is the start of its next turn, which ends with a result of its own: wait for that
@@ -251,7 +251,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
             if (gone(tail)) return "gone";
             const absent = missingProgram(tail);
             if (absent !== null) { yield { type: "error", code: "engine.cli_missing", message: `${absent} is not installed here.` }; return "stop"; }
-            yield { type: "error", code: classifyCli(tail), message: tail !== "" ? tail : "The engine ended before it answered." };
+            yield { type: "error", code: classifyCli(tail), message: tail !== "" ? plainCli(tail) : "The engine ended before it answered." };
             return "stop";
           }
         }

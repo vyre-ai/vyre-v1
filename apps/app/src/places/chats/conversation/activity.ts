@@ -43,7 +43,13 @@ export interface ActivityLine { label: string; detail: string }
 
 /** The one line: a step in progress wins, then what is being thought, else "Thinking". `elapsed` seconds are added by the caller once they matter. */
 export function activityLine(s: ActivitySnapshot): ActivityLine {
-  const live = [...s.steps].reverse().find((x) => x.state === "live");
+  const running = s.steps.filter((x) => x.state === "live");
+  // several tools running together (a step that asked for independent reads): one line that says how many, the calls named beside it
+  if (running.length >= 2) {
+    const reads = running.every((x) => /(^|_)(list|get|search|read|query|find|history|count|counts|snapshot|status|view)(_|$)|^(read|glob|grep|websearch|webfetch|toolsearch)$/i.test(x.name.replace(/^mcp__[a-z0-9]+__/i, "")));
+    return { label: `${reads ? "Reading" : "Working on"} ${running.length} things`, detail: running.map((x) => stepLabel(x.name, x.detail)).join(" · ") };
+  }
+  const live = running[running.length - 1];
   if (live) return { label: stepLabel(live.name, live.detail), detail: "" };
   const t = thinkingExcerpt(s.thinking);
   return { label: "Thinking", detail: t };

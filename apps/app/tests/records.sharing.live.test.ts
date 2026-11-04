@@ -138,16 +138,19 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
       await sheet(A);
       await A.getByTestId("as-audience-pick-added").click();
       await A.waitForFunction(() => document.querySelector('[data-testid="as-audience-pick-added"]')?.getAttribute("aria-selected") === "true");
-      for (const [who, level] of [[bea, "Can edit"], [cal, "Can view"]] as const) {
+      // the sheet picks everyone first, each with their own level, and one Share gives them all and closes it
+      for (const [who, level] of [[bea, "Can edit records"], [cal, "Can view records"]] as const) {
         await A.getByTestId("as-search").fill(who.name);
         await A.getByTestId(`as-row-person:${who.id}`).click();
-        if (level !== "Can view") {
+        if (level !== "Can view records") {
           await A.getByTestId(`as-role-person:${who.id}`).click();
           await A.getByText(level, { exact: true }).last().click();
         }
-        await A.getByTestId("as-add").click();
-        await A.getByRole("button", { name: new RegExp(`Level for ${who.name}: ${level}`) }).waitFor();
       }
+      await A.getByTestId("as-add").click();
+      await A.getByTestId("records-share").waitFor({ state: "detached" });
+      await sheet(A);
+      for (const [who, level] of [[bea, "Can edit records"], [cal, "Can view records"]] as const) await A.getByRole("button", { name: new RegExp(`Level for ${who.name}: ${level}`) }).waitFor();
       await sheet(A);
       await snap(A, "ada-sheet-added");
       const shares = (await api(ada, "access.shares_of", { resource: deal })).shares as Array<{ grant: { subject: { id: string }; level: string }; through: string }>;

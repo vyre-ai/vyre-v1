@@ -2,6 +2,7 @@
 // the place itself; opening an item (a chat, a record, a file) puts it on top and Back returns to where you came from. The places are the same modules the desktop draws; the ones that
 // have a list and a detail (Chats) draw one at a time under their compact width. Automations and the Console are not on the phone (owner ruling, 3 Nov): a link to either draws the
 // Chat-about-it line, whose action opens an Ask with the assistant about that item.
+import { PhoneNotices } from "../noticeslot/PhoneNotices.tsx";
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { View } from "react-native";
@@ -106,5 +107,5 @@ export function PhoneHost({ session, location, needsYou, registerGo, onSignOut, 
   };
   // another Space needing you is a dot on the You tab, where the Space switcher is
   const youDot = session ? othersNeedingYou(session.runtime.knownSpaces ?? [], session.def.spaceId).length > 0 : false;
-  return <MobileShell {...(start.current.initialEntry ? { initialEntry: start.current.initialEntry } : {})} renderScreen={render} needsYou={needsYou} initialTab={start.current.initialTab} ownsHeader={(entry) => entry.screen.startsWith("apps:") && placeOf(entry)?.hash !== ""} headerBack={headerBack} youDot={youDot} />;
+  return <MobileShell {...(start.current.initialEntry ? { initialEntry: start.current.initialEntry } : {})} renderScreen={render} needsYou={needsYou} initialTab={start.current.initialTab} ownsHeader={(entry) => entry.screen.startsWith("apps:") && placeOf(entry)?.hash !== ""} headerBack={headerBack} youDot={youDot} notices={<PhoneNotices />} />;
 }

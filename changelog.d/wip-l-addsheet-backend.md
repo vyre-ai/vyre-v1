@@ -1,6 +1,6 @@
 ## What's new
-- An agent can now answer in a chat in its own way: set per chat to answer everything, answer only when tagged, or just listen. It can be limited to certain topics or hours, and told to keep replies short or give full detail.
-- An agent set to Listening reads the chat and never speaks, even when tagged, until someone pokes it.
+- An agent can now answer in a chat in its own way: set per chat to answer everything, answer only when mentioned, or just listen. It can be limited to certain topics or hours, and told to keep replies short or give full detail.
+- An agent set to Only listens reads the chat and never speaks, even when mentioned, until someone pokes it.
 - Poke an agent to start one turn for it right now. It reads the last 12 messages and tool calls, answers the person who poked, and its reply says "Poked by" that person. An agent that runs outside Vyre gets the poke in its queue.
 - An agent can read further back in the chat it is working in, 100 messages at a time, and nowhere else.
 - A chat or channel can make an agent for itself: a name, a one-line brief and a model. It listens in that chat, stays off the Agents page, and goes to Trash with the chat.

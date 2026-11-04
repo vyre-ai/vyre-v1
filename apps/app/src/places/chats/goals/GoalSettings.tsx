@@ -43,8 +43,10 @@ function RhythmEditor({ g, patch, close }: { g: Goal; patch: Patch; close(): voi
   const rhythm = every === "hours" ? { every, hours: h } : every === "week" ? { every, at, day } : { every, at };
   return (
     <View style={{ gap: 8 }}>
+      {/* ui-rows-lint: not a list (segmented choice buttons) */}
       <View style={st.row}>{(["day", "hours", "week"] as const).map((k) => <Mini key={k} label={k === "day" ? "Every day" : k === "hours" ? "Every few hours" : "Every week"} primary={every === k} testID={`goal-rhythm-${k}`} onPress={() => setEvery(k)} />)}</View>
       {every === "hours" ? <View style={st.row}><Text style={st.note}>Every</Text>{input(hours, setHours, "number", "Hours", 70)}<Text style={st.note}>hours</Text></View> : null}
+      {/* ui-rows-lint: not a list (day choice buttons) */}
       {every === "week" ? <View style={st.row}>{DAYS.map((d, i) => <Mini key={d} label={d.slice(0, 3)} primary={day === i} onPress={() => setDay(i)} />)}</View> : null}
       {every !== "hours" ? <View style={st.row}><Text style={st.note}>At</Text>{input(at, setAt, "time", "Time")}</View> : null}
       <View style={st.row}><Mini label={quiet ? "Quiet hours on" : "Quiet hours off"} primary={quiet} testID="goal-quiet-toggle" onPress={() => setQuiet(!quiet)} />
@@ -85,6 +87,7 @@ function PermissionsBlock({ g, canEdit, patch }: { g: Goal; canEdit: boolean; pa
       <Text style={st.name}>It may do without asking</Text>
       {g.permissions.length === 0 ? <Text style={st.value}>Nothing yet. It asks you before anything leaves the Space.</Text> : null}
       {g.permissions.map((p) => (
+        // ui-rows-lint: not a list (each row carries its own remove control and is not pressable)
         <View key={`${p.act}-${p.target}-${p.label}`} style={st.perm}>
           <View style={{ flex: 1, minWidth: 0 }}><Text style={st.value}>{p.label}</Text><Text style={st.note}>{p.granted ? "Allowed" : "Allowed once you start the goal"}</Text></View>
           {canEdit ? <RemoveX label={`Remove ${p.label}`} testID={`goal-perm-remove-${p.target}`} onPress={() => save(g.permissions.filter((x) => x !== p), "Removed.")} /> : null}
@@ -131,6 +134,7 @@ export function GoalSettings({ g, nameOf, offsetMin, canEdit, patch, pick, remov
       <View testID="goal-people" style={st.setting}>
         <Text style={st.name}>People</Text>
         {people.map((p) => (
+          // ui-rows-lint: not a list (each row carries its own change or remove control and is not pressable)
           <View key={`${p.role}-${p.id}`} testID={`goal-person-${p.id}`} style={st.perm}>
             <Avatar {...avatarOf({ id: p.id, name: nameOf(p.id), kind: p.kind === "agent" ? "agent" : "person" })} size={20} />
             <Text style={[st.value, { flex: 1 }]}>{nameOf(p.id)}</Text>

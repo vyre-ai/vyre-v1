@@ -1,87 +1,19 @@
-// Notification UI model (spec 2.24, 3.0 title bar, 4.11): which banners show, how repeats collapse, the dots and counts on places,
-// and the title-bar line for the offline queue. Pure functions; the banner stack is a small store.
+// Notification UI model (spec 2.24, 3.0 title bar, 4.11): which notifications need the person now, how repeats collapse, the dots and counts on places, and the title-bar line for the offline queue.
+// Pure functions. What needs the person now is shown in the top bar's notifications slot (shell/noticeslot/bridge.ts).
 import type { CapMap } from "../../../../../generated/types.ts";
 
 export type Notification = CapMap["notifications.list"]["out"]["notifications"][number];
 export type NotificationAction = Notification["actions"][number];
 export type PlaceId = Notification["place"];
 
-/** At most this many banners are on screen; the rest wait behind them (spec 2.24). */
-export const MAX_BANNERS = 3;
-/** A banner leaves after this long unless it is hovered; Interrupt notifications also stay in Needs you. */
-export const BANNER_TTL_MS = 12000;
-
 /** Same key collapses to one banner: the kind plus what it is about (a thread, a task), else the kind plus the title. */
 export function collapseKey(n: Pick<Notification, "kind" | "subject" | "title">): string {
   return n.subject ? `${n.kind}|${n.subject.type}:${n.subject.id}` : `${n.kind}|${n.title}`;
 }
 
-export interface Banner {
-  key: string;
-  /** The newest notification under this key. */
-  item: Notification;
-  /** How many arrived under the key and are still on screen (a repeat in a thread collapses into one banner with a count). */
-  count: number;
-  shownAt: number;
-}
-
-/** Only an Interrupt notification gets a banner. Badge and digest levels show as dots and in While you were away. */
+/** Only an Interrupt notification needs the person now (it goes to the top bar's notifications slot). Badge and digest levels show as dots and in While you were away. */
 export function wantsBanner(n: Notification): boolean {
   return n.level === "interrupt" && n.seenAt === undefined;
-}
-
-export class BannerStack {
-  private all: Banner[] = [];
-  private listeners = new Set<() => void>();
-  private snap: { visible: readonly Banner[]; waiting: number } = { visible: [], waiting: 0 };
-
-  private readonly now: () => number;
-  constructor(now: () => number = Date.now) { this.now = now; }
-
-  subscribe = (fn: () => void): (() => void) => { this.listeners.add(fn); return () => { this.listeners.delete(fn); }; };
-  getSnapshot = (): { visible: readonly Banner[]; waiting: number } => this.snap;
-
-  private publish(): void {
-    this.snap = { visible: this.all.slice(0, MAX_BANNERS), waiting: Math.max(0, this.all.length - MAX_BANNERS) };
-    for (const l of this.listeners) l();
-  }
-
-  /** A notification arrived. A repeat under the same key replaces the banner's text and moves it to the top with the count raised. */
-  push(n: Notification): void {
-    if (!wantsBanner(n)) return;
-    const key = collapseKey(n);
-    const at = this.all.findIndex((b) => b.key === key);
-    const prev = at >= 0 ? this.all[at] : undefined;
-    if (at >= 0) this.all.splice(at, 1);
-    // the same row again (the server collapsed a burst into it) carries its own count; another row under the key adds to it
-    const count = prev && prev.item.id === n.id ? Math.max(1, n.count) : (prev?.count ?? 0) + Math.max(1, n.count);
-    this.all.unshift({ key, item: n, count, shownAt: this.now() });
-    this.publish();
-  }
-
-  dismiss(key: string): void {
-    const next = this.all.filter((b) => b.key !== key);
-    if (next.length === this.all.length) return;
-    this.all = next;
-    this.publish();
-  }
-
-  /** Drops banners older than the TTL (a hovered one is held by the caller passing its key). */
-  expire(hold?: string): void {
-    const t = this.now();
-    const next = this.all.filter((b) => b.key === hold || t - b.shownAt < BANNER_TTL_MS);
-    if (next.length === this.all.length) return;
-    this.all = next;
-    this.publish();
-  }
-
-  /** A notification was seen elsewhere (marked seen): its banner goes. */
-  seen(ids: readonly string[]): void {
-    const next = this.all.filter((b) => !ids.includes(b.item.id));
-    if (next.length === this.all.length) return;
-    this.all = next;
-    this.publish();
-  }
 }
 
 /* ---------- places ---------- */
@@ -128,22 +60,12 @@ export function queueLine(online: boolean, waiting: number, conflicts = 0): Queu
   return null;
 }
 
-/* ---------- arrivals ---------- */
+/* ---------- what needs the person ---------- */
 
-/** The read the banners watch: my unseen Interrupt notifications, newest first. */
+/** The read the slot watches: my unseen Interrupt notifications, newest first. */
 export const BANNER_QUERY = { level: "interrupt", unseenOnly: true, limit: 20 } as const;
 
-/**
- * The banners to raise from a fresh read of my unseen Interrupt notifications: only what arrived since the last read. The first read only learns what is already there (a launch does not
- * replay old banners); a row that came back with a higher count (a burst in one thread) is raised again, collapsed into its banner.
- */
-export function arrivals(known: ReadonlyMap<string, number> | null, items: readonly Notification[]): { raise: Notification[]; known: Map<string, number> } {
-  const next = new Map(items.map((n) => [n.id, n.count] as const));
-  if (known === null) return { raise: [], known: next };
-  return { raise: items.filter((n) => wantsBanner(n) && (known.get(n.id) ?? 0) < n.count), known: next };
-}
-
-/** What a banner's press opens: the thing it is about (a thread opens beside its message, a task on its page), else its place. */
+/** What a notice's action opens: the thing it is about (a thread opens beside its message, a task on its page), else its place. */
 export function bannerTarget(n: Pick<Notification, "subject" | "place">): { subject: { type: string; id: string } } | { place: PlaceId } {
   return n.subject ? { subject: n.subject } : { place: n.place };
 }

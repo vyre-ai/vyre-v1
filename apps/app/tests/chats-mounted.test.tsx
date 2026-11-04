@@ -478,7 +478,7 @@ test("a click on an agent opens its chat with the agent's pane beside it; the pa
   assert.equal(shown().pane, true);
   const out = html(s, shown());
   assert.ok(has(out, 'data-testid="chats-right-pane"') && has(out, 'data-testid="conversation"'), "the shared side pane beside the chat");
-  for (const tab of ["Computer", "Threads"]) assert.ok(has(out, tab), `${tab}: the pane fits its other tabs behind a menu when it is narrow`);
+  for (const tab of ["Computer", "Chats"]) assert.ok(has(out, tab), `${tab}: the pane fits its other tabs behind a menu when it is narrow (the Threads tab is called Chats: no chat is called a thread)`);
   const side = inSlot(s);
   assert.ok(side.title === "Chats" && has(side.out, 'data-testid="sidebar-head"') && !has(side.out, "switch Space"), "the sidebar header reads Chats (the slot's title)");
   assert.ok(has(side.out, 'data-testid="new-menu"') && !has(side.out, 'data-testid="sidebar-toggle"'), "New stays; the panel toggle is the slot's hide button");

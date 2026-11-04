@@ -30,6 +30,7 @@ const messageRow = t.obj({
   id: emlId, mailboxId: id.mailbox, inboxIds: t.arr(id.mailbox), threadId: t.str(), direction: t.enm('in', 'out'), status: msgStatus,
   from: recipient, to: t.arr(recipient), cc: t.arr(recipient), subject: t.str(), snippet: t.str(), sentAt: t.ts(), contactId: t.opt(id.record),
   isPrivate: t.bool(), draftedByAgent: t.opt(id.agent),
+  earlier: t.opt(t.obj({ at: t.ts(), text: t.str(), subject: t.str() }, { description: 'An agent draft that replaced an earlier one from the same agent on the same thread: when the earlier was written and what it said' })),
 });
 const messageDetail = t.obj({
   message: messageRow, text: t.opt(t.str()), html: t.opt(t.str()),
@@ -198,7 +199,7 @@ const manifest = defineManifest({
         mailboxId: id.mailbox, senderId: t.opt(t.str({ description: 'An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time', examples: ['mbx_a1b2c3'] })), route: t.opt(t.enm('mailbox', 'space_domain')), ...composed, sendAt: t.opt(t.ts()),
         unsubscribe: t.opt(t.bool()),   // carry an unsubscribe link and the List-Unsubscribe headers: every Automations email does
       },
-      out: { messageId: t.opt(emlId), status: t.enm('queued', 'sent', 'held', 'suppressed'), taskId: t.opt(id.task), suppressed: t.arr(email) },
+      out: { messageId: t.opt(emlId), status: t.enm('queued', 'sent', 'held', 'suppressed'), taskId: t.opt(id.task), suppressed: t.arr(email), note: t.opt(t.str({ description: 'Set when the Space sending window or speed limit held the message: why, and when it leaves' })) },
       on: ['mailbox', '/mailboxId'], level: 'use', gate: 'send', emits: ['message.sent', 'message.suppressed', 'message.failed'], tool: 'inbox', offline: 'queue', cli: 'vyre mail send',
       errors: ['permission.needs_approval', 'validation.precondition_failed', 'provider.auth_failed', 'provider.rate_limited', 'permission.above_clearance'],
       ex: { input: { idempotencyKey: 'idem_1', mailboxId: 'mbx_a1b2c3', to: [{ address: 'maya@example.com' }], subject: 'Hello', text: 'Hi Maya' }, output: { messageId: 'eml_a1b2c3', status: 'queued', suppressed: [] } },
@@ -299,6 +300,10 @@ const manifest = defineManifest({
   ],
   settings: [
     setting('mail.provider', 'space', 'comms', 'Space sending provider', t.enm('resend', 'mailgun'), 'resend'),
+    // Console > Messaging > Rules, sending limits. mail.send and telephony.send_sms read them (lib/send-limits.ts): over the daily limit a send is refused (send_cap_reached), outside the window or over the speed it is queued
+    setting('send.cap', 'space', 'comms', 'Most messages the Space sends in a day', t.int({ minimum: 1, maximum: 100000 }), 2000),
+    setting('send.window', 'space', 'comms', 'When messages may leave, in the recipient\'s time zone', t.enm('8-20', '9-17', 'any'), '8-20'),
+    setting('send.throttle', 'space', 'comms', 'How many messages leave in a minute', t.int({ minimum: 1, maximum: 600 }), 20),
     setting('comms.agents_may_send', 'space', 'comms', 'Agents can send email, texts and calls for the person who asked', t.bool(), true),
   ],
 });
