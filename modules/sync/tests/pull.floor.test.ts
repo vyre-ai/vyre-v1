@@ -78,3 +78,20 @@ test("the person who was always there, and a newcomer added with earlier message
   assert.deepEqual(ids(await pull(LEO, "dev_leo")), ["msg_new", "msg_new_reply", "msg_old", "msg_old_reply"], "no fromAt: the whole chat");
   assert.equal((await snapshot(LEO, "dev_leo")).length, 4);
 });
+
+test("asking again with Include earlier messages lifts the start: the next pull of each of the newcomer's devices sends the earlier rows; a start set later hides what was sent", async () => {
+  const { s, pull } = world();
+  const append = (entity: string, id: string, fields: Record<string, unknown>, n: number): void => {
+    s.host.append({ type: "sync.row", sv: 1, trace_id: TRACE, actor: "svc_seed", hlc: `0000009${String(n).padStart(4, "0")}-0000-srv`, vis: "space", payload: { entity, id, op: "patch", fields } });
+  };
+  const first = await pull(MAYA, "dev_laptop");
+  const phone = await pull(MAYA, "dev_phone");
+  assert.deepEqual(ids(first), ["msg_new", "msg_new_reply"]);
+  assert.deepEqual(ids(phone), ["msg_new", "msg_new_reply"]);
+  // the start is lifted: fromAt becomes 0
+  append("thread_member", "thm_maya", { fromAt: 0 }, 1);
+  const after = await s.handlers["sync.pull"]({ trace: { traceId: TRACE }, principal: MAYA, deviceId: "dev_laptop", deviceClass: "desktop" }, { cursor: first.next, epoch: 0, entities: ["message"] });
+  assert.deepEqual(ids(after), ["msg_old", "msg_old_reply"], "the laptop is sent what it was missing");
+  const afterPhone = await s.handlers["sync.pull"]({ trace: { traceId: TRACE }, principal: MAYA, deviceId: "dev_phone", deviceClass: "desktop" }, { cursor: phone.next, epoch: 0, entities: ["message"] });
+  assert.deepEqual(ids(afterPhone), ["msg_old", "msg_old_reply"], "so is the second device");
+});

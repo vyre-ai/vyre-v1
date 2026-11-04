@@ -128,6 +128,18 @@ export class MemberFloor {
     return cur;
   }
 
+  /**
+   * Names the starts a person holds right now (every thread_member row of theirs with a fromAt). It joins the access stamp (pull.ts rescanChanged), so when a start is set, moved or lifted (they were
+   * added without earlier messages, or asked again with them) a device whose rows were checked under the old one has them checked again: the rows now readable are sent, the rest are hidden.
+   */
+  stamp(person: string): string {
+    const rows = this.db.all<{ t: string | null; f: unknown }>(
+      "SELECT json_extract(fields, '$.thread.v') AS t, json_extract(fields, '$.fromAt.v') AS f FROM sync_rows WHERE entity = 'thread_member' AND deleted = 0 AND json_extract(fields, '$.principal.v') = ? ORDER BY 1", person,
+    );
+    const marks = rows.filter((r) => r.f !== null && r.f !== undefined && r.f !== 0).map((r) => `${r.t}@${String(r.f)}`);
+    return marks.length === 0 ? "-" : marks.join(",");
+  }
+
   /** The earliest time this person reads in this chat; 0 when all of it. */
   of(person: string, thread: string): number {
     const root = this.rootOf(thread);

@@ -143,7 +143,8 @@ function settle(list: Emission[]): { changes: Change[]; hide: Hide[] } {
 function rescanChanged(d: PullDeps, who: Who, viewer: Viewer, window: Window, cursor: number, trace: string, onScope?: (entity: string, rows: number) => void): void {
   const db = d.db;
   ensureStamp(db);
-  const stamp = d.cache.stamp(who.person, d.now());
+  // the access state plus the person's chat starts: a start that moves is a change of what they may read, though no grant changed
+  const stamp = `${d.cache.stamp(who.person, d.now())}|${new MemberFloor(db).stamp(who.person)}`;
   const had = db.get<{ stamp: string }>("SELECT stamp FROM sync_scope_stamp WHERE person = ? AND device = ?", who.person, who.device)?.stamp;
   if (had === stamp || !d.append) return;
   if (had === undefined) {
