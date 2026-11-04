@@ -137,6 +137,7 @@ export function InstalledForSpace({ call, nameOf = (id) => id, onAddSkill }: { c
           <Text style={quiet}>Nothing installed yet. Install a skill, plugin or tool server from a link.</Text>
           <SmallButton primary label="Install" testID="installed-add-empty" onPress={() => setAdding(true)} />
         </View>
+      // ui-rows-lint: not a list (a divider around rows that are each a ui/Row already)
       ) : list.map((i, n) => {
         const hold = needsYou(i);
         const u = updates[i.installId];
