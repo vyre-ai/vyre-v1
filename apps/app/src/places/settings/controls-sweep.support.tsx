@@ -5,6 +5,9 @@ import { SettingsDataProvider } from "./data.tsx";
 import { SettingsPlace } from "./SettingsPlace.tsx";
 import { createSampleSettings, harbor, northwind } from "./sample.ts";
 
+// The saved line (SAVED_MS) and the pages' polls hold a timer for seconds; a timer must not keep the test process alive after the last test, which is what made each file take 9 s for 1.3 s of tests
+for (const k of ["setInterval", "setTimeout"] as const) { const orig = globalThis[k] as (...a: unknown[]) => { unref?: () => void }; (globalThis as Record<string, unknown>)[k] = (...a: unknown[]) => { const h = orig(...a); h?.unref?.(); return h; }; }
+
 interface N { props: Record<string, unknown>; children?: (N | string)[] }
 const pressables = (n: N, out: Map<string, N> = new Map()): string[] => {
   const id = (n.props?.["data-testid"] ?? n.props?.testID) as string | undefined;
