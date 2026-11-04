@@ -178,6 +178,8 @@ export type DriverEvent =
   | { type: "text"; text: string }
   | { type: "thinking"; text: string }
   | { type: "tool_call"; id: string; name: string; input: unknown }
+  /** The model finished a step that asked for tools and now waits for their results: the calls yielded since the last step are the whole batch. Only a driver with parallelTools says it. */
+  | { type: "tool_wait" }
   | { type: "block"; kind: string; payload?: unknown }
   /**
    * inputTokens counts every input token, cache reads and writes included. The optional fields are present only when the provider reported them: cache reads and writes, reasoning tokens
@@ -248,6 +250,8 @@ export interface EngineSession {
   cancel(): Promise<void>;
   close(): Promise<void>;
   readonly warm: boolean;
+  /** The session yields every tool call of a step, then tool_wait, and takes each result by id in any order: the engine may run independent calls together. */
+  readonly parallelTools?: boolean;
   /** Latency the provider itself injected before the first event (fake providers); real drivers omit it. */
   readonly providerLatencyMs?: number;
 }

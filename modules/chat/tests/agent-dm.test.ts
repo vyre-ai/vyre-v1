@@ -18,7 +18,7 @@ function world(w: World = {}) {
   const tasks = w.tasks ?? [];
   const hn = harness({
     calls: {
-      "agents.get": () => ({ agent: { kind: w.kind ?? "assistant" } }),
+      "agents.get": () => ({ agent: { kind: w.kind ?? "assistant", name: "Intake" } }),
       "access.principals.get": (i) => { const id = (i["principal"] as { id: string }).id; return NAMES[id] ? { principal: { id, kind: "person", name: NAMES[id], status: "active" } } : (() => { throw Object.assign(new Error("nope"), { code: "validation.not_found" }); })(); },
       "access.principals.list": () => ({ principals: Object.entries(NAMES).map(([id, name]) => ({ id, name })) }),
       "devices.presence": (i) => ({ people: (i["people"] as string[]).map((p) => ({ personId: p, state: "online", lastSeenAt: NOW - 60_000, ...(w.presence?.[p] as object ?? {}) })) }),
@@ -247,6 +247,8 @@ test("a Space agent messages a teammate as itself in its own chat with them; the
   assert.deepEqual(members, [MAYA], "the teammate is in it, the person who asked is not");
   assert.deepEqual(hn.rows("SELECT agentId FROM chat_thread_agent WHERE thread = ?", out.threadId).map((r) => r["agentId"]), [INTAKE], "the agent leads its own chat");
   assert.equal((await h["chat.message_person"]!(agent, { to: MAYA, body: "A second note.", idempotencyKey: key() })).threadId, out.threadId, "the same chat the next time");
+  assert.equal(hn.rows("SELECT title FROM chat_thread WHERE id = ?", out.threadId)[0]!["title"], "Intake", "named after the agent");
+  assert.match(String(msgs(hn, origin).find((m) => m["kind"] === "quiet" && /^Sent to Maya in Intake's chat with them/.test(String(m["body"])))?.["body"]), /\(private to them\)\.$/, "Dana's chat says where it went");
 
   // Maya replies there: one short line goes to the chat the agent was asked in, with the words clipped and no turn started by it
   const long = "Friday works. ".repeat(40);

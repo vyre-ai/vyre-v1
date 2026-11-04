@@ -13,6 +13,7 @@ import { atool, create, defineManifest, ev, field, list, read, rtype, screen, se
 import { id, pageIn, pageOut, principalRef, versionRow } from './_common.ts';
 import { pluginCapabilities, pluginEvents, pluginScreens } from './_agents-plugins.ts';
 import { connectionCapabilities, connectionEvents } from './_agents-connections.ts';
+import { installCapabilities } from './_agents-install.ts';
 import { skillScopeCapabilities, skillScopeEvents, skillScopeScreens } from './_agents-skills.ts';
 
 const agentStatus = t.enm('awake', 'working', 'asleep', 'paused');
@@ -23,7 +24,7 @@ const limits = t.obj({
 const agentRow = t.obj({
   agentId: id.agent, name: t.str(), kind: t.opt(t.enm('assistant', 'teammate', 'agent')), runtime: t.opt(t.enm('vyre', 'outside')), face: t.str({ description: 'DiceBear Notionists seed tinted per Space', examples: ['intake'] }), role: t.opt(t.str({ description: 'The "use me when" line' })),
   status: agentStatus, pausedReason: t.opt(t.str()), pausedBy: t.opt(t.str()), ownerId: id.user, folderId: id.folder,
-  model: t.opt(t.str()), fallbackModel: t.opt(t.str()), accountPolicy: t.enm('asker', 'key'), accountKey: t.opt(t.str({ description: 'Vault handle, never a value', examples: ['#Team_Anthropic_Key'] })),
+  model: t.opt(t.str()), fallbackModel: t.opt(t.str()), helperModels: t.opt(t.enm('same_provider', 'any', 'ask')), accountPolicy: t.enm('asker', 'key'), accountKey: t.opt(t.str({ description: 'Vault handle, never a value', examples: ['#Team_Anthropic_Key'] })),
   accountFallback: t.arr(t.str({ description: 'Vault handles, best first: tried in this order when the chat key fails, before the Space backups' })),
   memoryKey: t.opt(t.str({ description: 'Vault handle that pays for this agent memory upkeep; never a value', examples: ['#Team_Anthropic_Key'] })),
   workKey: t.opt(t.str({ description: 'Vault handle of the AI account that pays for this agent\'s own work (routines, watchers, helpers); absent is Automatic, the cheapest Space AI account kept for it; never a value', examples: ['#Team_Anthropic_Key'] })),
@@ -296,6 +297,7 @@ export default defineManifest({
       in: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool() }, out: { skill: skillRow }, perm: 'agents.manage', level: 'manage', idem: 'key', emits: ['skill.changed'], audit: 'always', tool: 'agents', mcpName: 'skills_set_enabled', errors: ['validation.not_found'],
     }),
     ...skillScopeCapabilities,
+    ...installCapabilities,
   ],
   events: [
     ev('skill.added', 'A skill was added to the Space library or to one agent', { p: { name: t.str(), tier: t.enm('space', 'agent'), agentId: t.opt(id.agent), source: t.str(), by: t.str() }, subject: ['entity', '/name'] }),

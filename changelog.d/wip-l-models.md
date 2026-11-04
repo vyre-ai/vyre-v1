@@ -8,3 +8,4 @@
 - Connecting, removing or changing an AI sign-in or key makes Vyre check that account's models again.
 - Vyre remembers your last three distinct model picks, so when one fails it tries the others before the Space default.
 - A model you pick is checked right away, even when it is past the background check's limit.
+- Helpers can read one catalog of the AI accounts you can use, with each model's abilities (tools, images, context), a cost tier (cheap, standard or strong) and whether Vyre found it available.

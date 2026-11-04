@@ -246,6 +246,8 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         if (stop === "filtered" && text === "" && pending.length === 0) { yield { type: "error", code: "provider.filtered", message: "The provider declined to answer." }; return; }
 
         if (pending.length > 0) {
+          // the step is complete: these calls are the whole batch, and results may come back in any order
+          yield { type: "tool_wait" };
           messages.push({ role: "assistant", text, calls: pending });
           for (const p of pending) {
             const r = await waitFor(p.id, ac.signal);
@@ -289,6 +291,7 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
 
   return {
     get warm() { return sends > 0; },
+    parallelTools: true,
     send: (input) => send(input),
     sendToolResult(callId, result) { results.set(callId, result); poke(); },
     inject(msg) { injected.push(msg); },

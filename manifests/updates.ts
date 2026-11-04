@@ -16,7 +16,7 @@ export default defineManifest({
     ev('update.rolled_back', 'The server rolled back to a previous version', { p: { from: version, to: version }, subject: ['entity', '/to'] }),
   ],
   capabilities: [
-    read('updates.status', 'Current version, channel, available version and last update result', { out: { current: version, channel, available: t.opt(version), lastResult: t.opt(t.enm('ok', 'failed', 'rolled_back')) }, perm: 'server.update', tool: 'engineer' }),
+    read('updates.status', 'Current version, channel, available version and last update result', { out: { current: t.opt(version), managedElsewhere: t.opt(t.bool({ description: 'True on a server that was not installed with vyre-server (run from source, or updated by its host): it is updated outside Vyre, and there is no running version to report here' })), channel, available: t.opt(version), lastResult: t.opt(t.enm('ok', 'failed', 'rolled_back')) }, perm: 'server.update', tool: 'engineer' }),
     write('updates.channel_set', 'Choose the update channel', { in: { channel }, out: { ok: t.bool() }, perm: 'server.update', level: 'manage', audit: 'always', tool: 'engineer' }),
     read('updates.check', 'Check for a newer server version and the apps it supports', { out: { available: t.opt(version), notes: t.opt(t.str()), supportedApps: t.arr(t.str()) }, perm: 'server.update', tool: 'engineer' }),
     write('updates.apply', 'Update the server: backup first, apply, health check, roll back on failure', { in: { to: t.opt(version) }, out: { runId: id.run }, perm: 'server.update', level: 'manage', risk: 'high', audit: 'always', run: { kind: 'update', stoppable: false }, emits: ['update.started', 'update.completed', 'update.failed'], team: true, tool: 'engineer' }),

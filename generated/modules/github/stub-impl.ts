@@ -4,6 +4,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "github.actions.secrets": async () => ({"count":1} as unknown) as never,
   "github.app.complete": async () => ({"appId":1,"installUrl":"example","slug":"example"} as unknown) as never,
   "github.app.create_manifest": async () => ({"manifest":{},"postUrl":"example","state":"example"} as unknown) as never,
   "github.app.get": async () => ({"events":["example"],"id":1,"name":"example","permissions":{},"slug":"example"} as unknown) as never,
@@ -17,6 +18,15 @@ export const handlers: Handlers<HandlerCtx> = {
   "github.issue.create": async () => ({"issue":{"assignees":["example"],"author":"example","body":"example","labels":["example"],"number":1,"repo":"vyre-ai/website","state":"open","title":"example","url":"example"}} as unknown) as never,
   "github.issue.get": async () => ({"issue":{"assignees":["example"],"author":"example","body":"example","labels":["example"],"number":1,"repo":"vyre-ai/website","state":"open","title":"example","url":"example"}} as unknown) as never,
   "github.issue.update": async () => ({"issue":{"assignees":["example"],"author":"example","body":"example","labels":["example"],"number":1,"repo":"vyre-ai/website","state":"open","title":"example","url":"example"}} as unknown) as never,
+  "github.me.approve": async () => ({"approved":true} as unknown) as never,
+  "github.me.complete": async () => ({"login":"example","source":"space"} as unknown) as never,
+  "github.me.connect": async () => ({"authUrl":"example","source":"space","state":"example"} as unknown) as never,
+  "github.me.disconnect": async () => ({"disconnected":true} as unknown) as never,
+  "github.me.policy.get": async () => ({"policy":{"comment":"always","merge":"always","open_pr":"always","push_branch":"always","push_default":"always","read":"always"}} as unknown) as never,
+  "github.me.policy.set": async () => ({"policy":{"comment":"always","merge":"always","open_pr":"always","push_branch":"always","push_default":"always","read":"always"}} as unknown) as never,
+  "github.me.reach": async () => ({"login":"example","orgs":[{"install":"all","login":"example","url":"example"}],"repos":[{"installationId":1,"repo":"vyre-ai/website"}]} as unknown) as never,
+  "github.me.status": async () => ({"connected":true,"connectedAt":1760000000000,"login":"example","needsReconnect":true,"source":"space"} as unknown) as never,
+  "github.me.usage": async () => ({"uses":[{"action":"example","at":1760000000000,"consumer":"example","repo":"vyre-ai/website"}]} as unknown) as never,
   "github.pull_request.ask_author_fix": async () => ({"attempt":1,"taskId":"tsk_a1b2c3"} as unknown) as never,
   "github.pull_request.checks": async () => ({"runs":[{"conclusion":"example","name":"example","status":"example","url":"example"}],"state":"none"} as unknown) as never,
   "github.pull_request.close": async () => ({"closed":true} as unknown) as never,
@@ -32,4 +42,8 @@ export const handlers: Handlers<HandlerCtx> = {
   "github.receive_webhook": async () => ({"accepted":true} as unknown) as never,
   "github.repo.get": async () => ({"defaultBranch":"example","description":"example","private":true,"repo":"vyre-ai/website","url":"example"} as unknown) as never,
   "github.repos.list": async () => ({"next":"example","repos":[{"defaultBranch":"example","private":true,"repo":"vyre-ai/website","url":"example"}],"total":1} as unknown) as never,
+  "github.runners.jit_config": async () => ({"jitConfig":"example","runnerId":1} as unknown) as never,
+  "github.runners.remove": async () => ({"removed":true} as unknown) as never,
+  "github.session_env": async () => ({"env":{},"expiresAt":1760000000000,"gitConfig":["example"],"repos":["vyre-ai/website"],"skipped":["vyre-ai/website"]} as unknown) as never,
+  "github.token": async () => ({"expiresAt":1760000000000,"handle":"#Dana_Lawmatics","permissions":{},"repo":"vyre-ai/website"} as unknown) as never,
 };

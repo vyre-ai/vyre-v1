@@ -39,7 +39,12 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.flow_card": Handler<"chat.flow_card", X>;
   "chat.fork": Handler<"chat.fork", X>;
   "chat.handoff": Handler<"chat.handoff", X>;
+  "chat.helper.note": Handler<"chat.helper.note", X>;
+  "chat.helper.note_seen": Handler<"chat.helper.note_seen", X>;
+  "chat.helper.notes": Handler<"chat.helper.notes", X>;
+  "chat.helper.restart": Handler<"chat.helper.restart", X>;
   "chat.helper.start": Handler<"chat.helper.start", X>;
+  "chat.helper.steer": Handler<"chat.helper.steer", X>;
   "chat.helpers.list": Handler<"chat.helpers.list", X>;
   "chat.history.page": Handler<"chat.history.page", X>;
   "chat.history.search": Handler<"chat.history.search", X>;
@@ -49,6 +54,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.messages.list": Handler<"chat.messages.list", X>;
   "chat.note_offer.answer": Handler<"chat.note_offer.answer", X>;
   "chat.note_offer.make": Handler<"chat.note_offer.make", X>;
+  "chat.noted": Handler<"chat.noted", X>;
   "chat.open_as_chat": Handler<"chat.open_as_chat", X>;
   "chat.open_tab": Handler<"chat.open_tab", X>;
   "chat.people_status": Handler<"chat.people_status", X>;
@@ -94,8 +100,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "threads.list": Handler<"threads.list", X>;
   "threads.make_channel": Handler<"threads.make_channel", X>;
   "threads.mark_read": Handler<"threads.mark_read", X>;
+  "threads.mark_unread_from": Handler<"threads.mark_unread_from", X>;
   "threads.members.add": Handler<"threads.members.add", X>;
   "threads.members.remove": Handler<"threads.members.remove", X>;
+  "threads.move": Handler<"threads.move", X>;
   "threads.outside_agent.add": Handler<"threads.outside_agent.add", X>;
   "threads.outside_agent.remove": Handler<"threads.outside_agent.remove", X>;
   "threads.poke": Handler<"threads.poke", X>;

@@ -39,8 +39,28 @@ export interface GithubHost {
   storeSecrets(ctx: GithubCtx, items: { name: string; value: string }[]): Promise<void>;
   /** Hold an installation token behind a filler and return its handle; git injects the token at the last moment. */
   fillerHandle(ctx: GithubCtx, a: { token: string; expiresAt: number; repo?: string }): Promise<string>;
+  /** A person's own connection (optional: a server without it answers "not set up"). The OAuth client, the code and refresh exchanges, and the person's Vault (Mine) for the refresh token. */
+  user?: UserHost;
   /** The Space's public address (https://...), where GitHub can reach /hooks/github and send the manifest redirect. */
   publicUrl(ctx: GithubCtx): Promise<string>;
+}
+
+export interface UserTokens { accessToken: string; refreshToken: string; expiresAt: number; /** a ticket the host minted for the GitHub identity just verified; identity.github_link takes it in place of a code */ linkTicket?: string }
+export interface UserHost {
+  /** The OAuth client to use: the Space's own GitHub App when an admin set one up, otherwise the default Vyre app. */
+  app(ctx: GithubCtx): Promise<{ clientId: string; source: "space" | "vyre" }>;
+  exchange(ctx: GithubCtx, a: { code: string; verifier: string; redirectUri: string }): Promise<UserTokens>;
+  /** GitHub rotates the refresh token on each refresh: the new one comes back. A refresh GitHub refuses throws provider.auth_failed. */
+  refresh(ctx: GithubCtx, a: { refreshToken: string }): Promise<UserTokens>;
+  revoke(ctx: GithubCtx, a: { accessToken: string }): Promise<void>;
+  /** Tokens a sign-in with GitHub left for this GitHub id (taken once), or null. */
+  adopt(ctx: GithubCtx, a: { githubId: string }): Promise<{ login: string; accessToken: string; refreshToken: string; expiresAt: number } | null>;
+  /** The person's own Vault, Mine item "GitHub". */
+  keep(ctx: GithubCtx, person: string, a: { refreshToken: string }): Promise<void>;
+  recall(ctx: GithubCtx, person: string): Promise<string | null>;
+  forget(ctx: GithubCtx, person: string): Promise<void>;
+  /** Where GitHub sends the person back after allowing the app. */
+  redirectUri(ctx: GithubCtx): Promise<string>;
 }
 
 let host: GithubHost | null = null;
@@ -59,8 +79,8 @@ export const API_VERSION = "2022-11-28";
 export const APP_ROW = "app";
 export const HANDLE = { webhook: "#GitHub_App_Webhook_Secret" } as const;
 /** What the App asks GitHub for. contents write is for pushes through the filler; the rest is what the pull request and issue pages need. */
-export const APP_PERMISSIONS: Record<string, string> = { contents: "write", pull_requests: "write", issues: "write", checks: "read", metadata: "read" };
-export const APP_EVENTS = ["push", "pull_request", "issues", "check_run", "workflow_run"];
+export const APP_PERMISSIONS: Record<string, string> = { contents: "write", pull_requests: "write", issues: "write", checks: "read", metadata: "read", actions: "read", administration: "write", secrets: "read" };
+export const APP_EVENTS = ["push", "pull_request", "issues", "check_run", "workflow_run", "workflow_job"];
 export const MAX_FIX_ROUNDS = 3;
 
 // ---- readers
@@ -113,6 +133,15 @@ export function numberOf(ctx: Pick<GithubCtx, "trace">, v: unknown, what = "The 
 // ---- schema
 
 const ready = new WeakSet<object>();
+const readyMe = new WeakSet<object>();
+const meSql = readFileSync(fileURLToPath(new URL("./migrations/0002_github_me.sql", import.meta.url)), "utf8");
+/** The tables of a person's own connection, made on first use (the first migration's tables are made by ensure). */
+export function ensureMe(ctx: Pick<GithubCtx, "db">): void {
+  if (readyMe.has(ctx.db)) return;
+  try { ctx.db.all(`SELECT "person" FROM github_use WHERE "person" = ?`, "probe"); }
+  catch { for (const statement of statements(meSql)) ctx.db.run(statement); }
+  readyMe.add(ctx.db);
+}
 const migrationSql = readFileSync(fileURLToPath(new URL("./migrations/0001_github.sql", import.meta.url)), "utf8");
 
 export function statements(sql: string): string[] {
@@ -154,7 +183,7 @@ export interface Answer {
   text: string;
 }
 
-export type Auth = { as: "none" } | { as: "app" } | { as: "installation"; installationId: number };
+export type Auth = { as: "none" } | { as: "app" } | { as: "installation"; installationId: number } | { as: "user"; token: string };
 
 export interface Request {
   method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
@@ -229,9 +258,9 @@ export async function installationToken(ctx: GithubCtx, installationId: number, 
 }
 
 /** A new installation token (always from GitHub). `repositories` narrows it to those repositories. */
-export async function mintToken(ctx: GithubCtx, installationId: number, repositories?: string[]): Promise<Cached> {
+export async function mintToken(ctx: GithubCtx, installationId: number, repositories?: string[], permissions?: Record<string, string>): Promise<Cached> {
   const a = await raw(ctx, {
-    method: "POST", path: `/app/installations/${installationId}/access_tokens`, auth: { as: "app" }, ...(repositories ? { body: { repositories } } : {}),
+    method: "POST", path: `/app/installations/${installationId}/access_tokens`, auth: { as: "app" }, ...(repositories || permissions ? { body: { ...(repositories ? { repositories } : {}), ...(permissions ? { permissions } : {}) } } : {}),
   });
   if (a.status >= 300) throw refusal(ctx, a.status, a.json);
   const token = text(a.json.token);
@@ -245,6 +274,7 @@ export async function mintToken(ctx: GithubCtx, installationId: number, reposito
 export async function raw(ctx: GithubCtx, c: Request): Promise<Answer> {
   if (c.auth.as === "none") return send(ctx, c, null);
   if (c.auth.as === "app") return send(ctx, c, await needHost(ctx).appJwt(ctx));
+  if (c.auth.as === "user") return send(ctx, c, c.auth.token);
   const installationId = c.auth.installationId;
   let answer = await send(ctx, c, await installationToken(ctx, installationId));
   if (answer.status === 401) answer = await send(ctx, c, await installationToken(ctx, installationId, true));

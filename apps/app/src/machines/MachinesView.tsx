@@ -2,13 +2,15 @@
 // component, the same words, the same Add a server. A machine page has four interactive charts over 1 h, 24 h, 7 d and 30 d with hover values, what runs by agent and chat, what it can run,
 // its health, its limits (nickname, most turns and agent computers at once, Drain) and the agents pinned to it. On a member's own computer an admin sees its name, whether it is online, its capacity
 // and Vyre's own work, and nothing else (the report carries no more).
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Row } from "../../../../ui/src/Row/index.tsx";
 import { Segmented } from "../../../../ui/src/Segmented/index.tsx";
 import { TextField } from "../../../../ui/src/TextField/index.tsx";
-import { useMenu } from "../../../../ui/src/Menu/index.tsx";
+import { menuTrigger, useMenu } from "../../../../ui/src/Menu/index.tsx";
+import { machineMenu } from "../places/chats/menus/kinds-b.ts";
+import { copyToClipboard, createMenuApiB, vyreLink } from "../places/chats/menus/actions-b.ts";
 import { Dot, Glyph } from "../console/shell/glyphs.tsx";
 import { Chart } from "./Chart.tsx";
 import { AddServerSheet, copyText, useAddServer } from "./AddServer.tsx";
@@ -71,7 +73,7 @@ export function MachinesView(props: MachinesViewProps): ReactElement {
     if (!data) return <Text style={s.note} testID="machines-loading">{error ? "Couldn't load the machines. Check access and try again." : "Loading machines"}</Text>;
     const m = open ? data.machines.find((x) => x.serverId === open) : undefined;
     if (m) return <MachinePage {...props} row={m} width={width} narrow={narrow} onBack={() => pick(null)} onChanged={() => void reload()} />;
-    return <MachineList data={data} who={who} narrow={narrow} now={now} onOpen={pick} onAdd={add.open} onApprove={add.approve} onDecline={add.decline} scope={scope} extra={props.extra} />;
+    return <MachineList data={data} who={who} narrow={narrow} now={now} onOpen={pick} onAdd={add.open} onApprove={add.approve} onDecline={add.decline} scope={scope} extra={props.extra} call={call} reload={reload} />;
   })();
   return (
     <View testID="machines" style={s.page}>
@@ -98,9 +100,30 @@ function Tile({ icon, label, big, sub, warn }: { icon: string; label: string; bi
   );
 }
 
-export function MachineList({ data, who, narrow, now, onOpen, onAdd, onApprove, onDecline, scope, extra }: { data: MachinesOut; who(id: string): string; narrow: boolean; now: number; onOpen(id: string): void; onAdd(): void; onApprove?(serverId: string): void; onDecline?(serverId: string): void; scope: AddScope; extra?: ReactNode }): ReactElement {
+export function MachineList({ data, who, narrow, now, onOpen, onAdd, onApprove, onDecline, scope, extra, call, reload }: { call?: Call; reload?(): Promise<void>; data: MachinesOut; who(id: string): string; narrow: boolean; now: number; onOpen(id: string): void; onAdd(): void; onApprove?(serverId: string): void; onDecline?(serverId: string): void; scope: AddScope; extra?: ReactNode }): ReactElement {
   const ms = ordered(data.machines), st = strip(ms, data.alerts);
   const order = placementOrder(ms);
+  const menu = useMenu();
+  const api = useMemo(() => (call ? createMenuApiB({ call }) : null), [call]);
+  const [menuNote, setMenuNote] = useState("");
+  /** The row's own menu (chats/menus/kinds-b.ts): what the person may do to this machine, from who it belongs to and whether they are an admin. */
+  const rowMenu = (m: MachineRow, x: number, y: number): void => {
+    const once = (run: () => Promise<void>, note: string): void => { if (!api) return; setMenuNote(""); void run().then(() => { setMenuNote(note); void reload?.(); }, (e: unknown) => setMenuNote(e instanceof Error ? e.message : "That did not work.")); };
+    const own = m.mine, admin = data.admin;
+    const confirm = (): void => menu.show([{ head: `Remove ${displayName(m)} from the Space?` }, { label: "Remove", danger: true, onSelect: () => once(() => (admin ? api!.serverRemove(m.serverId) : api!.myComputerRemove(m.serverId)), `${displayName(m)} removed`) }, { label: "Cancel" }], x, y, "other");
+    menu.show(machineMenu(
+      { name: displayName(m), draining: m.drain, canDrain: api !== null && (admin || own), canFix: api !== null && (own || (admin && m.kind !== "linked")), canRemove: api !== null && m.kind === "server" && (admin || own) },
+      {
+        open: () => onOpen(m.serverId),
+        drain: (on) => once(() => api!.machineDrain(m.serverId, on), on ? `${displayName(m)} is draining` : `${displayName(m)} takes new work again`),
+        clearCaches: () => once(() => api!.machineFix(m.serverId, "clear_caches"), "Cleared old caches"),
+        stopIdle: () => once(() => api!.machineFix(m.serverId, "stop_idle"), "Stopped idle sessions"),
+        pinAgent: () => onOpen(m.serverId),
+        copyAddress: () => copyToClipboard(vyreLink("machine", m.serverId)),
+        remove: confirm,
+      },
+    ), x, y, "context", { label: displayName(m) });
+  };
   return (
     <View testID="machines-list">
       <View style={s.top}>
@@ -127,8 +150,11 @@ export function MachineList({ data, who, narrow, now, onOpen, onAdd, onApprove, 
       <Block title={scope === "space" ? "All machines" : "My computers and servers"} count={ms.length} testID="machines-table">
         {/* ui-rows-lint: not a list (the table's column headings) */}
         {narrow ? null : <View style={[s.mrow, s.mheadRow]} testID="machines-head"><View style={s.mname}><Text style={s.mheadText}>Machine</Text></View><View style={s.cells}>{["Status", "CPU", "Memory", "Disk", "Running", "Can run", "Room left"].map((h) => <View key={h} style={s.cell}><Text style={s.mheadText}>{h}</Text></View>)}</View></View>}
-        {ms.map((m) => <MachineRowView key={m.serverId} m={m} who={who} narrow={narrow} now={now} onOpen={() => onOpen(m.serverId)} />)}
+        {/* ui-rows-lint: not a list (a table of machines: one row per machine with Status, CPU, Memory, Disk, Running, Can run and Room left cells under shared column headings, hover painted across the full row) */}
+        {ms.map((m) => <MachineRowView key={m.serverId} m={m} who={who} narrow={narrow} now={now} onOpen={() => onOpen(m.serverId)} onMenu={(x, y) => rowMenu(m, x, y)} />)}
       </Block>
+      {menu.element}
+      {menuNote ? <Text accessibilityRole="alert" style={s.note} testID="machine-menu-note">{menuNote}</Text> : null}
       {extra}
       <Text style={s.foot}>On a member's own computer an admin sees its name, whether it is online, its capacity and Vyre's own work. Its files and processes stay private to that member.</Text>
       {order.length > 0 ? (
@@ -151,11 +177,11 @@ export function placementOrder(ms: readonly MachineRow[]): { name: string; label
   return out;
 }
 
-function MachineRowView({ m, who, narrow, now, onOpen }: { m: MachineRow; who(id: string): string; narrow: boolean; now: number; onOpen(): void }): ReactElement {
+function MachineRowView({ m, who, narrow, now, onOpen, onMenu }: { m: MachineRow; who(id: string): string; narrow: boolean; now: number; onOpen(): void; onMenu(x: number, y: number): void }): ReactElement {
   const st = statusOf(m, now), cells = loadCells(m), runs = runsLines(m), can = canNames(m.can);
   const dot = st.tone;
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${displayName(m)}. ${st.word}`} testID={`machine-${m.serverId}`} onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [s.mrow, !m.online && { opacity: 0.7 }, hovered === true && { backgroundColor: "var(--hover)" as string }, pointer]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${displayName(m)}. ${st.word}`} testID={`machine-${m.serverId}`} onPress={onOpen} {...menuTrigger(onMenu)} style={({ hovered }: { hovered?: boolean }) => [s.mrow, !m.online && { opacity: 0.7 }, hovered === true && { backgroundColor: "var(--hover)" as string }, pointer]}>
       <View style={s.mname}>
         <View style={s.ico}><Glyph name={m.kind === "linked" ? "device" : "server"} size={16} color="var(--ink-2)" /></View>
         <View style={{ flexShrink: 1 }}>

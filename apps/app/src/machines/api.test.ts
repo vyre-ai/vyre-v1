@@ -1,3 +1,4 @@
+// @tsx
 // The Machines module's answers made into the page's shapes: a row, an alert, a machine's series, the waiting computers, and the calls the page makes.
 import test from "node:test";
 import assert from "node:assert/strict";

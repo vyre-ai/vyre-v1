@@ -2,6 +2,7 @@
 // whole registry and fails when a held capability has none, so a new one cannot reach a person as a capability name. Titles read the same: "Approve: Delete a file".
 export const HOLD_PHRASES: Readonly<Record<string, string>> = {
   "agents.delete": "delete an agent", "agents.set_owner": "hand an agent to someone else",
+  "access.make_owner": "hand something to someone else as its owner", "automations.set_owner": "hand an automation to someone else", "github.me.approve": "use your GitHub for this repository", "install.apply": "install what it found at a link", "notes.set_owner": "hand a note to someone else", "talk.space.configure": "turn Voice on or off for everyone", "talk.space.disconnect": "remove the Space's Voice key",
   "automations.code_reach": "run a code step that reaches outside sites", "automations.delete": "delete an automation",
   "automations.http_send": "send a request to an outside address", "automations.read_docs": "read an outside documentation page",
   "automations.read_link": "open a web page", "backup.delete": "delete a backup", "backup.restore": "restore from a backup", "backup.run": "back up the Space now",
@@ -56,4 +57,6 @@ export const HOLD_PHRASES: Readonly<Record<string, string>> = {
   "views.share_external": "share a view with someone outside the Space",
   "webhooks.replay_delivery": "send a past webhook delivery again", "webhooks.send_delivery": "deliver an event to a webhook", "webhooks.test": "send a test event to a webhook",
   "zoom.meetings.create": "create a Zoom meeting", "zoom.meetings.delete": "delete a Zoom meeting", "zoom.meetings.update": "change a Zoom meeting",
+  "access.make_owner": "make someone an owner of the Space", "automations.set_owner": "hand an automation to someone else", "notes.set_owner": "hand a note to someone else",
+  "github.me.approve": "approve a use of your GitHub", "install.apply": "install something from a link", "talk.space.configure": "change Talk for everyone", "talk.space.disconnect": "remove the Talk key for everyone",
 };

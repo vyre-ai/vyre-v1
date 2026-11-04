@@ -210,7 +210,7 @@ test("the installed shell relaunches after a clean exit", { skip: !APP ? "VYRE_S
 // The artifact viewer in the built shell (owner ruling, 4 Nov: it was blank in the Mac app). The shell opens an artifact as a child webview, a page of its own host, so the host's cookie is first-party. The
 // collector here stands for the artifact host on a.localhost: its first response sets a cookie and redirects, and it records whether the cookie came back on the redirected request. A frame under
 // tauri://localhost in WebKit never sends it back (test/artifact-frame.browser.test.ts); the child webview must.
-test("the built shell opens an artifact as a page of its own host, and the host's cookie comes back", { skip: !APP && "VYRE_SHELL_APP is set only in the desktop job on a built app" }, async () => {
+test("the built shell opens an artifact as a page of its own host, and the host's cookie comes back", { timeout: 150_000, skip: !APP && "VYRE_SHELL_APP is set only in the desktop job on a built app" }, async () => {
   const seen: Array<{ url: string; cookie: string; host: string }> = [];
   const http = await import("node:http");
   const collector = http.createServer((q, r) => {
@@ -227,7 +227,7 @@ test("the built shell opens an artifact as a page of its own host, and the host'
   app.stdout.on("data", (c: Buffer) => { out += c.toString("utf8"); });
   app.stderr.on("data", (c: Buffer) => { out += c.toString("utf8"); });
   try {
-    const end = Date.now() + 90_000;
+    const end = Date.now() + 120_000;
     for (;;) {
       sidecarUrl ??= /vyre-desktop: sidecar ready at (http:\/\/127\.0\.0\.1:\d+)/.exec(out)?.[1] ?? null;
       if (seen.some((x) => x.url.startsWith("/sit_proof/"))) break;

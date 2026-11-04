@@ -12,6 +12,8 @@ export interface CompatOptions {
   cacheKey: boolean;
   /** OpenRouter: ask for cost in the usage chunk, refuse training on the prompt, and mark the Anthropic prefix. */
   router: boolean;
+  /** Send parallel_tool_calls: true with the tools, so the model may ask for several independent calls in one step. */
+  parallelCalls?: boolean;
   /** Keep only these model ids in the model list. */
   modelFilter?: RegExp;
   defaultMaxOutput: number;
@@ -156,6 +158,8 @@ export function openaiCompatible(o: CompatOptions): ProviderAdapter {
           ...(o.cacheKey ? { prompt_cache_key: req.prefixHash } : {}),
           ...(o.router ? { usage: { include: true }, provider: { data_collection: "deny" } } : {}),
           ...(tools.length > 0 ? { tools } : {}),
+          // several independent calls in one step, when the provider takes the switch (OpenAI, OpenRouter, xAI, OpenCode Go); a local or custom server is left to its own default
+          ...(tools.length > 0 && o.parallelCalls === true ? { parallel_tool_calls: true } : {}),
           ...reasoning,
           messages: wireMessages(req, mark),
         },
@@ -172,13 +176,13 @@ export function openaiCompatible(o: CompatOptions): ProviderAdapter {
   };
 }
 
-export const openai = openaiCompatible({ id: "openai", base: "https://api.openai.com/v1", tokenField: "max_completion_tokens", cacheKey: true, router: false, modelFilter: /^(gpt|o\d|chatgpt|codex)/i, defaultMaxOutput: 16_384 });
-export const openrouter = openaiCompatible({ id: "openrouter", base: "https://openrouter.ai/api/v1", tokenField: "max_tokens", cacheKey: false, router: true, defaultMaxOutput: 16_384 });
-export const xai = openaiCompatible({ id: "xai", base: "https://api.x.ai/v1", tokenField: "max_tokens", cacheKey: false, router: false, defaultMaxOutput: 16_384 });
+export const openai = openaiCompatible({ id: "openai", parallelCalls: true, base: "https://api.openai.com/v1", tokenField: "max_completion_tokens", cacheKey: true, router: false, modelFilter: /^(gpt|o\d|chatgpt|codex)/i, defaultMaxOutput: 16_384 });
+export const openrouter = openaiCompatible({ id: "openrouter", parallelCalls: true, base: "https://openrouter.ai/api/v1", tokenField: "max_tokens", cacheKey: false, router: true, defaultMaxOutput: 16_384 });
+export const xai = openaiCompatible({ id: "xai", parallelCalls: true, base: "https://api.x.ai/v1", tokenField: "max_tokens", cacheKey: false, router: false, defaultMaxOutput: 16_384 });
 
 // OpenCode Go (opencode.ai docs, 30 Oct 2026): chat completions at /inference/go/openai/v1/chat/completions, the model list at /inference/go/v1/models. Auth is a bearer key from the OpenCode Console (the docs
 // show the key being pasted into /connect and do not name the header; Bearer is the OpenAI-compatible default). Needs a real account to prove. Models behind other wire formats (Responses, Anthropic Messages) are not served by this adapter.
-export const opencodeGo = openaiCompatible({ id: "opencode_go", base: "https://opencode.ai/inference/go/openai/v1", tokenField: "max_tokens", cacheKey: false, router: false, defaultMaxOutput: 16_384, modelsUrl: "https://opencode.ai/inference/go/v1/models", opencode: true });
+export const opencodeGo = openaiCompatible({ id: "opencode_go", parallelCalls: true, base: "https://opencode.ai/inference/go/openai/v1", tokenField: "max_tokens", cacheKey: false, router: false, defaultMaxOutput: 16_384, modelsUrl: "https://opencode.ai/inference/go/v1/models", opencode: true });
 /** A server on this computer or network that speaks Chat Completions (Ollama at :11434, LM Studio at :1234, llama.cpp server at :8080). No key. The account names its own address. */
 export const local = openaiCompatible({ id: "local", base: "http://localhost:11434/v1", tokenField: "max_tokens", cacheKey: false, router: false, defaultMaxOutput: 8_192 });
 /** An endpoint a Space registered (providers.custom_add). The account names the address; the key, when there is one, comes from the Vault by handle. */

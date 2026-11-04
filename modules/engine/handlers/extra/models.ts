@@ -3,6 +3,7 @@
 // the policy or the open label forbids is still listed, greyed, with the reason, so the picker can say why. Nothing here holds a secret value.
 // A subscription engine (Codex, Claude Code, Grok) lists what the vendor's own CLI offers that account, saved per account and refreshed when the menu opens (live-models.ts); an API key's
 // models are the provider's own list (providers.test). Every row is named the way the vendor names it.
+import { readFileSync } from "node:fs";
 import { windowFor } from "../../../../agent/src/transcript/windows.ts";
 import { actorOf, raise } from "../../projections.ts";
 import { completerOf, ensureRuntime } from "../../runtime.ts";
@@ -18,7 +19,7 @@ import type { Label, Policy } from "./config.ts";
 
 interface ProviderRow {
   id: string; providerKey: string; name: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; handle?: string; itemId: string;
-  engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; spaceKey?: boolean;
+  engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; spaceKey?: boolean; keepsNothing?: boolean;
   /** Handles of sign-ins of the same account folded into this row. */
   aliases?: string[];
 }
@@ -40,6 +41,9 @@ export function driverOf(p: Pick<ProviderRow, "engine" | "connection" | "provide
   if (p.connection === "local_model") return "local";
   return DRIVER_SET.has(p.providerKey) ? (p.providerKey as Driver) : "openrouter";
 }
+
+/** Does this account keep nothing of what it is sent: a local model always, any other only when an owner or admin said so. */
+const keeps = (p: Pick<ProviderRow, "connection" | "keepsNothing">): boolean => p.connection === "local_model" || p.keepsNothing === true;
 
 async function myProviders(ctx: EngineCtx): Promise<ProviderRow[]> {
   const out = (await ctx.call("providers.list", {})) as { providers: ProviderRow[] };
@@ -141,7 +145,7 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
     }
     for (const model of models) {
       if (refused.has(model)) continue;
-      const why = blockedBy(policy, { provider: p.providerKey, model, ...(label === undefined ? {} : { label }) });
+      const why = blockedBy(policy, { provider: p.providerKey, model, ...(label === undefined ? {} : { label }), keepsNothing: keeps(p) });
       const spent = why === null ? out.get(model) : undefined;
       const lm = live.get(`${p.providerKey}/${model}`);
       // a pick saved as the alias (sonnet) ran out under that name: the row it resolves to is greyed too
@@ -210,7 +214,8 @@ export function providerState(driver: Driver, all: readonly ProviderRow[], polic
   const keys = [driver, ...mine.map((p) => p.providerKey)];
   let why: "label_provider" | "policy_model" | null = null;
   for (const k of keys) {
-    const w = blockedBy(policy, { provider: k, ...(label === undefined ? {} : { label }) });
+    // Restricted records need an account that keeps nothing: a driver is open to them when any of its accounts does
+    const w = blockedBy(policy, { provider: k, ...(label === undefined ? {} : { label }), keepsNothing: driver === "local" || mine.some(keeps) });
     if (w === null) { why = null; break; }
     why = w;
   }
@@ -240,4 +245,70 @@ export async function probePick(ctx: EngineCtx, model: string): Promise<void> {
       probeModels(ctx.db, ref, [model], async (r, m) => { await ctx.call("engine.complete", { accountRef: r, prompt: PROBE_PROMPT, model: m }); }, ctx.now, isCli ? { parallel: CLI_PROBE_PARALLEL, timeoutMs: CLI_PROBE_TIMEOUT_MS } : {});
     }
   } catch (e) { ctx.log.warn("a picked model was not checked", { error: e instanceof Error ? e.message : "unknown" }); }
+}
+
+
+// ---- the catalog for helpers (owner, 4 Nov 2026) ----
+// Helpers pick models across the accounts a person can use. This is the one read they need: every account with its models, what each model can do, what it costs as a tier, and whether the
+// probe found it available. It reads saved lists and the probe's marks only (no vendor call), so it is cheap to ask on every pick.
+
+export type CostTier = "cheap" | "standard" | "strong";
+export type Availability = "ok" | "checking" | "unavailable" | "unverified";
+export interface CatalogModel { id: string; title: string; tools: boolean; vision: boolean; context: number; tier: CostTier; allowed: boolean; available: Availability }
+export interface CatalogAccount { ref: string; label: string; provider: string; kind: "api_key" | "subscription" | "local"; usable: boolean; why?: string; models: CatalogModel[] }
+
+const PRICES = JSON.parse(readFileSync(new URL("../../prices.json", import.meta.url), "utf8")) as { providers: Record<string, Record<string, { in: number; out: number }>> };
+
+/**
+ * The cost tier of a model: from the list price when Vyre has one (input dollars per million tokens: up to 1 cheap, up to 6 standard, above strong), else from the model's name. A name Vyre does
+ * not know is standard, never guessed cheaper.
+ */
+export function costTier(model: string, provider: string): CostTier {
+  const price = PRICES.providers[provider === "claude-code" ? "anthropic" : provider]?.[model];
+  if (price) return price.in <= 1 ? "cheap" : price.in <= 6 ? "standard" : "strong";
+  const m = model.toLowerCase();
+  if (/(^|[-_/.])(haiku|mini|nano|flash|lite|small|tiny|free|instant)([-_.]|$)/.test(m)) return "cheap";
+  if (/(^|[-_/.])(opus|fable|ultra|max|pro|large|reasoner|thinking)([-_.]|$)/.test(m)) return "strong";
+  return "standard";
+}
+
+/** What a model can do, by its family: every current hosted family calls tools; the ones that read images are named. A local or custom model is taken to call tools and not to read images. */
+export function abilities(model: string, provider: string): { tools: boolean; vision: boolean } {
+  const m = model.toLowerCase();
+  const hosted = /claude|gpt|^o\d|gemini|grok/.test(m) || ["anthropic", "openai", "google", "xai", "claude-code", "codex", "grok"].includes(provider);
+  return { tools: !/embed|whisper|tts|image-gen|dall-e/.test(m), vision: hosted && !/embed|whisper|tts|instruct-text|coder-only|haiku-3(\b|-)/.test(m) };
+}
+
+export async function modelsCatalog(ctx: EngineCtx, input: { accountRef?: string }): Promise<{ accounts: CatalogAccount[] }> {
+  const [all, policy] = await Promise.all([myProviders(ctx), readPolicy(ctx)]);
+  const chosen = input.accountRef === undefined ? all : all.filter((p) => (p.handle ?? p.itemId) === input.accountRef || (p.aliases ?? []).includes(input.accountRef as string));
+  const watching = completerOf() !== null;
+  const out: CatalogAccount[] = [];
+  for (const p of chosen) {
+    const ref = p.handle ?? p.itemId;
+    const driver = driverOf(p);
+    const cli = p.connection === "subscription" && LIVE_DRIVERS.has(driver);
+    const kind = p.connection === "subscription" ? "subscription" : p.connection === "local_model" ? "local" : "api_key";
+    const base = { ref, label: p.name, provider: p.providerKey, kind } as const;
+    if (p.state !== "ok") { out.push({ ...base, usable: false, why: p.state === "needs_sign_in" ? "Sign in again" : "Not working just now", models: [] }); continue; }
+    let ids: string[] = [];
+    let titles = new Map<string, string>();
+    if (cli) {
+      const got = await modelsFor(ctx.db, { ref, driver }, actorOf(ctx), { now: ctx.now, passive: true });
+      ids = got.models.map((m) => m.id);
+      titles = new Map(got.models.map((m) => [m.id, m.title ?? m.id]));
+    } else if (p.spaceKey === true) {
+      try { ids = ((await ctx.call("providers.space_key.get", {})) as { models?: string[] }).models ?? []; } catch { ids = []; }
+    } else ids = savedTested(ctx.db, ref);
+    const bad = unavailableFor(ctx.db, ref, ctx.now());
+    const good = confirmedFor(ctx.db, ref, ctx.now());
+    const models: CatalogModel[] = ids.map((id) => {
+      const blocked = blockedBy(policy, { provider: p.providerKey, model: id }) !== null;
+      // a CLI's own list is what the vendor offers that sign-in; an API key's models are confirmed by the probe, or still being checked
+      const available: Availability = bad.has(id) ? "unavailable" : good.has(id) ? "ok" : cli && !watching ? "ok" : watching ? "checking" : "unverified";
+      return { id, title: titles.get(id) ?? prettyModel(id), ...abilities(id, p.providerKey), context: windowFor(id, p.providerKey), tier: costTier(id, p.providerKey), allowed: !blocked, available };
+    });
+    out.push({ ...base, usable: models.some((m) => m.allowed && m.available !== "unavailable"), models });
+  }
+  return { accounts: out };
 }
