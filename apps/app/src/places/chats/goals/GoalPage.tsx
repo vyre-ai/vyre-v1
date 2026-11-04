@@ -17,6 +17,7 @@ import { Conversation } from "../conversation/Conversation.tsx";
 import type { ConversationData } from "../conversation/data.tsx";
 import type { Changes } from "../conversation/use-follow.ts";
 import { formatActivity } from "../../../../../../lib/words/activity.ts";
+import { offsetMinAt } from "../../../../../../lib/zones.ts";
 import { useGoal } from "./data.ts";
 import type { Call } from "./data.ts";
 import { Bar, TONE } from "./GoalRow.tsx";
@@ -425,7 +426,7 @@ function Plan({ data, nameOf, openTask, edit, onDraft, onRemove, onAdd, onRename
 }
 
 export function Activity({ data, me, nameOf, now, zones, openTask }: { data: GoalPageData; me: string; nameOf(id: string): string; now: number; zones: Zones; openTask(id: string): void }): ReactElement {
-  const viewer = { me, nameOf, zones };
+  const viewer = { me, nameOf, zones, offsetMin: offsetMinAt(now, zones.space) };   // activity lines read their {at:} times in the Space zone, like every time on the page
   const days = byDay(data.activity, now, zones);
   if (days.length === 0) return <Text style={[st.small, st.pad]}>Nothing yet.</Text>;
   return (

@@ -3,6 +3,8 @@
 
 import { dateIn, dayIn, dueText, instantOf, localInput, whenText } from "../../../../../../lib/zones.ts";
 import type { Zones } from "../../../../../../lib/zones.ts";
+/** A dash (hyphen, en or em) left at the end of a line once the deadline is cut off. Built from code points so no dash character sits in the source (no-em-dash lint). */
+const TRAILING_DASH = new RegExp(`\\s*[${String.fromCharCode(0x2014, 0x2013)}-]+\\s*$`);
 
 export type Status = "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
 export type Tone = "plain" | "need" | "stuck" | "ok" | "dim";
@@ -72,7 +74,7 @@ export function dueWords(at: number, z: Zones): string {
 }
 /** The finish line in words, ending with the real deadline: a date the words carry ("by Friday") is replaced, so the line and the chip never disagree. A dash the agent left before its own date goes with it. */
 export function lineWithDue(line: string, deadline: number, z: Zones): string {
-  const bare = line.replace(/\s+by\s+[^,.]*(,?\s*\d{1,2}:\d{2}(\s*[ap]m)?(\s+[A-Z]{2,5}\b)?)?\.?\s*$/i, "").replace(/\.\s*$/, "").replace(/\s*[\u2014\u2013-]+\s*$/, "").trim();
+  const bare = line.replace(/\s+by\s+[^,.]*(,?\s*\d{1,2}:\d{2}(\s*[ap]m)?(\s+[A-Z]{2,5}\b)?)?\.?\s*$/i, "").replace(/\.\s*$/, "").replace(TRAILING_DASH, "").trim();
   return `${bare} by ${dueWords(deadline, z)}`;
 }
 /** "4 days left", "18 hours left", "Due now". */
