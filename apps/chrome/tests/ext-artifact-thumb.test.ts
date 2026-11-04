@@ -1,10 +1,10 @@
 // The picture of an artifact: taken once, at load plus about a second, from the tab the person is looking at, small and masked; sent through the bridge as artifact.thumb; never for a page that is not an artifact.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createArtifacts, THUMB_MAX } from "../src/worker/artifacts.js";
+import { artifactHostOf, artifactOfTab, createArtifacts, THUMB_MAX } from "../src/worker/artifacts.js";
 import { BRIDGE_OPS } from "../src/worker/protocol.js";
 
-function world(o: { active?: boolean; sizes?: number[]; opResult?: unknown } = {}) {
+function world(o: { active?: boolean; sizes?: number[]; opResult?: unknown; tabUrl?: string } = {}) {
   const listeners: ((id: number, info: any) => void)[] = [];
   const ops: { op: string; input: any }[] = [];
   const waits: number[] = [];
@@ -13,7 +13,7 @@ function world(o: { active?: boolean; sizes?: number[]; opResult?: unknown } = {
   const ext = {
     tabs: {
       create: async () => ({ id: 7 }),
-      get: async () => ({ id: 7, active: o.active ?? true, windowId: 1, incognito: false }),
+      get: async () => ({ id: 7, active: o.active ?? true, windowId: 1, incognito: false, url: o.tabUrl }),
       captureVisibleTab: async () => "data:image/png;base64,AAAA",
       onUpdated: { addListener: (f: any) => listeners.push(f), removeListener: (f: any) => { const i = listeners.indexOf(f); if (i >= 0) listeners.splice(i, 1); } },
     },
@@ -21,7 +21,7 @@ function world(o: { active?: boolean; sizes?: number[]; opResult?: unknown } = {
   };
   const bridge = { op: async (op: string, input: any) => { ops.push({ op, input }); if (op === "artifact.open") return { url: "https://a.vyre.run/x/" + "a".repeat(48) }; return o.opResult ?? { set: true }; } };
   const paint = async (_raw: string, _where: any, opts: any) => { paints.push(opts); return { dataUrl: "data:image/webp;base64," + "A".repeat(sizes.shift() ?? 100), width: 480, height: 320, masked: 0 }; };
-  const art = createArtifacts({ ext: ext as any, bridge, store: { get: async () => ({}) }, wait: async (ms: number) => { waits.push(ms); }, paint });
+  const art = createArtifacts({ ext: ext as any, bridge, store: { get: async () => ({ spaces: [{ webUrl: "https://harbor.vyre.run" }] }) }, wait: async (ms: number) => { waits.push(ms); }, paint });
   return { art, listeners, ops, waits, paints };
 }
 
@@ -69,4 +69,46 @@ test("the Space keeping or declining the picture is told back, and the bridge li
   const w = world({ opResult: { set: false } });
   assert.deepEqual(await w.art.thumb(7, "sit_abc"), { set: false });
   assert.ok("artifact.thumb" in BRIDGE_OPS);
+});
+
+test("the artifact host of a Space: <name>-a.vyre.run through the relay, a.<address> served directly, a.localhost on this computer", () => {
+  assert.equal(artifactHostOf("https://harbor.vyre.run"), "harbor-a.vyre.run");
+  assert.equal(artifactHostOf("https://space.example.org"), "a.space.example.org");
+  assert.equal(artifactHostOf("http://localhost:7421"), "a.localhost:7421");
+  assert.equal(artifactHostOf("not an address"), null);
+});
+
+test("a tab on the signed-in Space's artifact host is an artifact; other hosts, the app itself and the one-time code address are not", () => {
+  const spaces = ["https://harbor.vyre.run"];
+  assert.equal(artifactOfTab("https://harbor-a.vyre.run/sit_abc123/", spaces), "sit_abc123");
+  assert.equal(artifactOfTab("https://harbor-a.vyre.run/sit_abc123/page.html", spaces), "sit_abc123");
+  assert.equal(artifactOfTab("https://harbor.vyre.run/sit_abc123/", spaces), null, "the app's origin never serves an artifact");
+  assert.equal(artifactOfTab("https://evil-a.vyre.run/sit_abc123/", spaces), null, "a Space the person is not signed in to");
+  assert.equal(artifactOfTab("https://harbor-a.vyre.run/x/" + "a".repeat(48), spaces), null);
+});
+
+test("a person who opens the plain link themselves gets the picture taken too, once, with no artifact.open", async () => {
+  const w = world({ tabUrl: "https://harbor-a.vyre.run/sit_xyz/" });
+  w.art.watchTabs();
+  assert.equal(w.listeners.length, 1);
+  w.listeners[0]!(7, { status: "loading" });
+  w.listeners[0]!(7, { status: "complete" });
+  for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));
+  const sent = w.ops.filter((o) => o.op === "artifact.thumb");
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0]!.input.artifactId, "sit_xyz");
+  assert.equal(w.ops.some((o) => o.op === "artifact.open"), false);
+  // loading it again soon after does not ask again
+  w.listeners[0]!(7, { status: "complete" });
+  for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));
+  assert.equal(w.ops.filter((o) => o.op === "artifact.thumb").length, 1);
+});
+
+test("a tab that is not an artifact is left alone", async () => {
+  const w = world({ tabUrl: "https://news.example.com/" });
+  w.art.watchTabs();
+  w.listeners[0]!(7, { status: "complete" });
+  for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));
+  assert.equal(w.ops.length, 0);
+  assert.equal(w.paints.length, 0);
 });

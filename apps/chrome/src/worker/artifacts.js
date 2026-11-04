@@ -6,6 +6,27 @@
 import { pageOf } from "./match.js";
 import { maskedShot } from "./shot.js";
 
+/** The artifact host a Space serves its artifacts from: <name>-a.vyre.run for one reached through the relay, a.<address> for one served directly (a.localhost on this computer). @param {string} webUrl */
+export function artifactHostOf(webUrl) {
+  let u;
+  try { u = new URL(webUrl); } catch { return null; }
+  if (u.hostname.endsWith(".vyre.run")) return `${u.hostname.slice(0, -".vyre.run".length)}-a.vyre.run`;
+  if (u.hostname === "localhost" || u.hostname.endsWith(".localhost")) return `a.localhost${u.port ? `:${u.port}` : ""}`;
+  return `a.${u.host}`;
+}
+
+/** The artifact a tab is showing, when its address is on the artifact host of a Space the person is signed in to: https://<artifact host>/<sit_id>/... @param {string} href @param {string[]} spaces the Spaces' web addresses */
+export function artifactOfTab(href, spaces) {
+  let u;
+  try { u = new URL(href); } catch { return null; }
+  if (!spaces.some((w) => artifactHostOf(w) === u.host)) return null;
+  const m = /^\/(sit_[a-z0-9]{1,64})(\/|$)/.exec(u.pathname);
+  return m ? (m[1] ?? null) : null;
+}
+
+/** How long one artifact is left alone after its picture was tried. */
+export const THUMB_RETRY_MS = 30_000;
+
 /** The largest picture the Space keeps (characters of its data URL). */
 export const THUMB_MAX = 60_000;
 /** How long after the page loads the picture is taken, so it shows the page and not its loading. */
@@ -30,8 +51,13 @@ export function createArtifacts({ ext, bridge, store, wait = (ms) => new Promise
    * blacked out first (maskedShot); only the tab the person sees. The Space keeps it only when there is none or the artifact changed, so a repeat is harmless. Nothing is read from the page but the boxes.
    * @param {number} tabId @param {string} artifactId
    */
+  /** @type {Map<string, number>} */
+  const tried = new Map();
   async function thumb(tabId, artifactId) {
     if (!/^sit_[a-z0-9]+$/.test(artifactId)) return { set: false, why: "no_artifact" };
+    const now = Date.now();
+    if ((tried.get(artifactId) ?? 0) > now - THUMB_RETRY_MS) return { set: false, why: "recent" };
+    tried.set(artifactId, now);
     await wait(THUMB_AFTER_MS);
     let shot = null;
     for (const quality of [0.7, 0.5, 0.35]) {
@@ -51,8 +77,26 @@ export function createArtifacts({ ext, bridge, store, wait = (ms) => new Promise
     const f = (id, info) => { if (id !== tabId || !info || info.status !== "complete") return; on.removeListener(f); void thumb(tabId, artifactId); };
     on.addListener(f);
   }
+  /** Any tab that finishes loading an artifact on a signed-in Space's artifact host gets its picture taken (the person opened it themselves, by the plain link). The Space decides whether to keep it. */
+  function watchTabs() {
+    const on = ext.tabs.onUpdated;
+    if (!on) return;
+    on.addListener((id, info) => {
+      if (!info || info.status !== "complete") return;
+      void (async () => {
+        let tab;
+        try { tab = ext.tabs.get ? await ext.tabs.get(id) : null; } catch { return; }
+        if (!tab || typeof tab.url !== "string") return;
+        const kept = await store.get(["spaces"]);
+        const spaces = (Array.isArray(kept["spaces"]) ? kept["spaces"] : []).map((x) => String(x && x.webUrl));
+        const aid = artifactOfTab(tab.url, spaces);
+        if (aid) await thumb(id, aid);
+      })();
+    });
+  }
   return {
     thumb,
+    watchTabs,
     /** The hosts of the Spaces the person is signed in to here, for the content script to know which links are ours. */
     async hosts() {
       const kept = await store.get(["spaces"]);
