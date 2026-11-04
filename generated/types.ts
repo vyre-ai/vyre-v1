@@ -20148,6 +20148,11 @@ export type MailDraftsListOut = {
       contactId?: string;
       isPrivate: boolean;
       draftedByAgent?: string;
+      earlier?: {
+        at: number;
+        text: string;
+        subject: string;
+      };
     }>;
   next?: string;
   total?: number;
@@ -20408,6 +20413,11 @@ export type MailMessageGetOut = {
     contactId?: string;
     isPrivate: boolean;
     draftedByAgent?: string;
+    earlier?: {
+      at: number;
+      text: string;
+      subject: string;
+    };
   };
   text?: string;
   html?: string;
@@ -20465,6 +20475,11 @@ export type MailMessageListOut = {
       contactId?: string;
       isPrivate: boolean;
       draftedByAgent?: string;
+      earlier?: {
+        at: number;
+        text: string;
+        subject: string;
+      };
     }>;
   next?: string;
   total?: number;
@@ -20506,6 +20521,11 @@ export type MailMessageSearchOut = {
       contactId?: string;
       isPrivate: boolean;
       draftedByAgent?: string;
+      earlier?: {
+        at: number;
+        text: string;
+        subject: string;
+      };
     }>;
   next?: string;
   total?: number;
@@ -20543,6 +20563,11 @@ export type MailMessageSetPrivateOut = {
     contactId?: string;
     isPrivate: boolean;
     draftedByAgent?: string;
+    earlier?: {
+      at: number;
+      text: string;
+      subject: string;
+    };
   };
 };
 export type MailRouteListIn = {

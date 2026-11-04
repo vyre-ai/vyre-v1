@@ -62,3 +62,9 @@
 - No tool is called to see if it works: a call whose arguments are placeholders (example.com, a bare "test", foo and bar, __probe ids, lorem ipsum) is refused before it runs, with "Don't call tools to test them. Call with the real thing the person asked for, or don't call." No card, hold, task or message reaches the chat. Every agent is told the same in its rules.
 - On update, a one-time clean-up closes open question cards and drops holds whose content is a placeholder, and their tasks leave Needs you. Nothing else is touched.
 - The Notes guidance moved from working-in-vyre into its own small skill, working-with-notes, so working-in-vyre stays under its line cap.
+
+## What's new (Inbox drafts)
+
+- An agent's draft in Inbox says who drafted it by name ("Assistant drafted a reply"), never by id, and the line under it reads "Sends from techmanager@... when you press Send" in place of "Gate: <id> sends from ...".
+- One pending draft per thread per agent: a new draft from the same agent on the same thread takes the old one's place. The card says Updated with the time and the earlier draft is one click away.
+- By contact shows only drafts to or from that contact. A draft is filed under a contact only when one of its recipients is that contact's address, and a draft already filed under the wrong contact is left out of the list.

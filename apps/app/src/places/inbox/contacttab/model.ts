@@ -450,25 +450,30 @@ export interface DraftCard {
   mailboxId: string;
   contactId?: string;
   to: string[];
+  /** The address or number it sends from, for the plain line under the draft. */
+  from: string;
+  /** When the agent last wrote it, and the draft it replaced: "Updated 5:45 AM" with the earlier text one click away. */
+  updatedAt: number;
+  earlier?: { at: number; text: string; subject: string };
 }
 
 /** An agent's draft for this contact, as the card shows it. A draft with no agent name is the person's own saved draft and is not a card. */
-export function draftCards(drafts: readonly DraftRow[], titles: ReadonlyMap<string, string>, agentNames: ReadonlyMap<string, string>): DraftCard[] {
+export function draftCards(drafts: readonly DraftRow[], titles: ReadonlyMap<string, string>, agentNames: ReadonlyMap<string, string>, addresses: ReadonlyMap<string, string> = new Map()): DraftCard[] {
   const out: DraftCard[] = [];
   for (const d of drafts) {
     if (d.status !== "draft" || !d.draftedByAgent) continue;
     // a draft addressed to a phone number (no @) is a text: it has no subject and sends from a number
     const text = d.to.length > 0 && d.to.every((t) => !t.address.includes("@"));
     out.push({
-      id: d.id, agent: agentNames.get(d.draftedByAgent) ?? d.draftedByAgent, channel: text ? "sms" : "email", subject: text ? "" : d.subject, body: d.snippet, via: titles.get(d.mailboxId) ?? d.mailboxId, mailboxId: d.mailboxId, ...(d.contactId ? { contactId: d.contactId } : {}), to: d.to.map((t) => t.address),
+      id: d.id, agent: agentNames.get(d.draftedByAgent) ?? "An agent", channel: text ? "sms" : "email", subject: text ? "" : d.subject, body: d.snippet, via: titles.get(d.mailboxId) ?? d.mailboxId, mailboxId: d.mailboxId, from: addresses.get(d.mailboxId) ?? titles.get(d.mailboxId) ?? (/^\+?[\d\s()-]{7,}$/.test(d.mailboxId) ? d.mailboxId : ""), updatedAt: d.sentAt, ...(d.earlier ? { earlier: d.earlier } : {}), ...(d.contactId ? { contactId: d.contactId } : {}), to: d.to.map((t) => t.address),
     });
   }
   return out;
 }
 
-/** The line under an agent's draft: who sends, from where, and that a person approves first (spec 2.14: every agent send passes the Gate). */
-export function gateLine(agent: string, via: string): string {
-  return `Gate: ${agent} sends from ${via} after you approve`;
+/** The plain line under an agent's draft: where it sends from and that nothing goes until the person presses Send. No system words and no ids. */
+export function sendsLine(from: string): string {
+  return from ? `Sends from ${from} when you press Send` : "Sends when you press Send";
 }
 
 /** After Send on a draft the capability may answer `held`: the send waits for approval in Needs you. */
