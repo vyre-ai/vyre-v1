@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PERSON_TABS, PersonProfile, personActions } from "./PersonProfile.tsx";
-import { cityOf, hoursWords, lastActive, localTime, personLine, presenceWord, publicLines, responsibleFor } from "./person-model.ts";
+import { cityOf, hoursWords, lastActive, localTime, personLine, notifyWords, paceWords, presenceWord, publicLines, responsibleFor } from "./person-model.ts";
 
 const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 const has = (s: string, n: string): boolean => s.includes(n);
@@ -85,4 +85,15 @@ test("About shows the public part of the profile only: current public facts, nev
   const f = (text: string, place: string, status: string): { text: string; place: string; status: string } => ({ text, place, status });
   assert.deepEqual(publicLines({ public: [f("Prefers short replies", "public", "current"), f("Out on Friday", "public", "closed"), f("Takes calls after 4", "private", "current"), f("  ", "public", "current")] }), ["Prefers short replies"]);
   assert.deepEqual(publicLines(null), []);
+});
+
+test("how they respond: the reply time and the notification level in words, and nothing for a level that is not known", () => {
+  assert.equal(paceWords("minutes"), "Usually within minutes");
+  assert.equal(paceWords("hour"), "Usually within the hour");
+  assert.equal(paceWords("day"), "Usually the same day");
+  assert.equal(paceWords("unknown"), "Not enough to tell");
+  assert.equal(notifyWords("all"), "All messages");
+  assert.equal(notifyWords("mentions"), "Mentions only");
+  assert.equal(notifyWords("off"), "Off");
+  assert.equal(notifyWords(undefined), undefined);
 });

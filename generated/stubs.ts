@@ -438,6 +438,7 @@ export function stubs(ctx: CallCtx) {
       noted: call("chat.noted"),
       open_as_chat: call("chat.open_as_chat"),
       open_tab: call("chat.open_tab"),
+      pace_of: call("chat.pace_of"),
       people_status: call("chat.people_status"),
       pin: call("chat.pin"),
       pins: {

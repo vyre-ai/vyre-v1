@@ -17,6 +17,11 @@ test("person profile, team: pressing a person in the chat's People popover opens
     const agent = (await w.owner.ok("agents.create", { name: "Ember", role: "You help.", idempotencyKey: "pf-agent" })).agent.agentId as string;
     const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agent], idempotencyKey: "pf-chat" })).thread.threadId as string;
     await w.owner.ok("threads.members.add", { threadId, personId: sara.id });
+    // three asks of Sara in this chat, each answered within seconds: her usual reply time reads "within minutes"
+    for (let i = 0; i < 3; i++) {
+      await w.owner.ok("chat.post", { threadId, body: `Sara, can you look at item ${i + 1}?`, idempotencyKey: `pf-ask-${i}` });
+      await sara.ok("chat.post", { threadId, body: `Done with item ${i + 1}`, idempotencyKey: `pf-ans-${i}` });
+    }
     // what Sara set about herself, and a project the two can see: the role line, About and Shared context draw from these
     await sara.ok("settings.set", { key: "profile.timezone", value: "Europe/Berlin" });
     await sara.ok("settings.set", { key: "profile.title", value: "Account lead" });
@@ -41,6 +46,8 @@ test("person profile, team: pressing a person in the chat's People popover opens
     assert.match(await me.page.getByTestId("person-header").innerText(), /Account lead.*for sara/i, "the role line carries their local time");
     await me.page.getByTestId(`row-person-project-${projectId}`).waitFor({ timeout: 15_000 });   // Shared context lists the project you both see
     await me.page.getByText(PUBLIC_FACT).first().waitFor({ timeout: 15_000 });   // About shows the public line
+    await me.page.getByText("Usually within minutes").first().waitFor({ timeout: 15_000 });   // how she responds here: from the chat the two of you are in
+    await me.page.getByText("All messages").first().waitFor({ timeout: 15_000 });
     await me.page.waitForTimeout(1500);
     assert.equal((await me.page.locator("body").innerText()).includes(PRIVATE_FACT), false, "the private fact never reaches the page");
     await shoot(me.page, OUT, "chat-person-wide");

@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, mcp, members.
 
-## Capabilities (110)
+## Capabilities (111)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -58,6 +58,7 @@ Requires: engine, mcp, members.
 - [chat.noted](../capabilities/chat.noted.md): The quiet line memory leaves in a place other people share when it remembers something: "Noted: decision, go with Harbor" with Undo. One link-card line; Undo is memory.undo on the fact
 - [chat.open_as_chat](../capabilities/chat.open_as_chat.md): Open an Ask pane as a normal chat so it appears in Recent
 - [chat.open_tab](../capabilities/chat.open_tab.md): Open a side tab beside the chat for the person (a file, record, diff, terminal); respects the person tab setting and posts a line
+- [chat.pace_of](../capabilities/chat.pace_of.md): How a teammate answers, for their profile: usual reply time over the last 30 days, and for one chat how they hear about it. Reads only chats you are in with them
 - [chat.people_status](../capabilities/chat.people_status.md): Your teammates as you see them: online, away or offline and when last seen, their local time and working hours, and when a message to them would go. Only people in this Space, never anything private
 - [chat.pin](../capabilities/chat.pin.md): Mark a message as pinned (a content marker, not a Star)
 - [chat.pins.list](../capabilities/chat.pins.list.md): Pinned messages of a thread

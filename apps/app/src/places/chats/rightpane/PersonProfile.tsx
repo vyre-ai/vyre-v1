@@ -9,7 +9,7 @@ import { LeadIcon } from "./parts.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { ProfileHeader } from "./ProfileHeader.tsx";
 import type { HeaderAction, Presence } from "./ProfileHeader.tsx";
-import { cityOf, hoursWords, lastActive, localTime, personLine, presenceWord, publicLines, responsibleFor } from "./person-model.ts";
+import { cityOf, hoursWords, lastActive, localTime, notifyWords, paceWords, personLine, presenceWord, publicLines, responsibleFor } from "./person-model.ts";
 import type { PresenceState } from "./person-model.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 
@@ -35,6 +35,8 @@ export interface PersonProfileProps {
   /** Opens the Add people and agents sheet on the open chat; without it the third action is Mention. */
   onAdd?: (() => void) | undefined;
   openThread?(threadId: string): void; openFile?(fileId: string): void; openTask?(taskId: string): void;
+  /** The chat this profile was opened from: how they hear about it (Notifies) is read for it. */
+  threadId?: string | undefined;
   /** Opens a project the two of you can see (Shared context). */
   openProject?(projectId: string): void;
   initialTab?: PersonTab;
@@ -69,6 +71,7 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
   const pub = useRead<PublicOut>(p.call, "settings.public_of", { personId: p.id }, (o) => o as PublicOut);
   const roles = useRead<{ id: string; project: string; role: string }[]>(p.call, "projects.roles_of", { personId: p.id }, (o) => (o as CapMap["projects.roles_of"]["out"]).roles.map((r) => ({ id: r.projectId, project: r.title, role: ROLE_WORD[r.role] ?? r.role })));
   const shared = useRead<ThreadRow[]>(p.call, "threads.list", { kind: ["chat"], mine: true, order: "latest", limit: 60 }, (o) => (o as CapMap["threads.list"]["out"]).threads.filter((t) => t.members.some((m) => m.kind === "person" && m.id === p.id)));
+  const pace = useRead<CapMap["chat.pace_of"]["out"]>(p.call, "chat.pace_of", { personId: p.id, ...(p.threadId ? { threadId: p.threadId } : {}) }, (o) => o as CapMap["chat.pace_of"]["out"]);
   const known = useRead<string[]>(p.call, "memory.profile.get", { personId: p.id }, (o) => publicLines(o as CapMap["memory.profile.get"]["out"]));
   const state = presence?.state as PresenceState | undefined;
   const time = localTime(p.now(), pub?.timezone);
@@ -91,7 +94,7 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
         ))}
       </View>
       <ScrollView style={st.body} contentContainerStyle={st.content}>
-        {tab === "about" ? <About {...p} chats={shared ?? []} known={known ?? []} roles={roles ?? []} first={first} state={state} lastSeenAt={presence?.lastSeenAt} pub={pub} time={time} /> : null}
+        {tab === "about" ? <About {...p} pace={pace} chats={shared ?? []} known={known ?? []} roles={roles ?? []} first={first} state={state} lastSeenAt={presence?.lastSeenAt} pub={pub} time={time} /> : null}
         {tab === "chats" ? <Chats {...p} first={first} /> : null}
         {tab === "files" ? <Files {...p} first={first} /> : null}
         {tab === "tasks" ? <Tasks {...p} first={first} /> : null}
@@ -104,7 +107,7 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
 const label = (t: string): ReactElement => <Text key={t} style={st.label}>{t}</Text>;
 const kv = (k: string, v: string | undefined): ReactElement | null => (v === undefined || v === "" ? null : <View key={k} style={st.kv}><Text style={st.k}>{k}</Text><Text style={[st.v, st.vEnd]}>{v}</Text></View>);
 
-function About(p: PersonProfileProps & { chats: readonly ThreadRow[]; known: readonly string[]; roles: readonly { id: string; project: string; role: string }[]; first: string; state: PresenceState | undefined; lastSeenAt: number | undefined; pub: PublicOut | null; time: string | undefined }): ReactElement {
+function About(p: PersonProfileProps & { pace: CapMap["chat.pace_of"]["out"] | null; chats: readonly ThreadRow[]; known: readonly string[]; roles: readonly { id: string; project: string; role: string }[]; first: string; state: PresenceState | undefined; lastSeenAt: number | undefined; pub: PublicOut | null; time: string | undefined }): ReactElement {
   const roles = p.roles;
   const resp = responsibleFor(p.title ?? p.pub?.title, roles);
   const away = p.state === "away";
@@ -113,7 +116,9 @@ function About(p: PersonProfileProps & { chats: readonly ThreadRow[]; known: rea
     <View testID="person-about">
       {label("Responsible for")}<Text testID="person-resp" style={st.body14}>{resp}</Text>
       {p.state !== undefined ? <>{label("Right now")}<View style={st.now}><View style={[st.dot, { backgroundColor: (away ? "var(--warn)" : p.state === "online" ? "var(--ok)" : "var(--ink-4)") as string }]} /><View><Text style={st.v}>{presenceWord(p.state)}</Text>{now ? <Text style={st.sub}>{now}</Text> : null}</View></View></> : null}
-      {p.pub?.hours || p.pub?.timezone ? <>{label(`How ${p.first} responds here`)}
+      {p.pace !== null || p.pub?.hours || p.pub?.timezone ? <>{label(`How ${p.first} responds here`)}
+        {p.pace !== null ? kv("Replies", paceWords(p.pace.replies)) : null}
+        {kv("Notifies", notifyWords(p.pace?.notifies))}
         {kv("Available", p.pub?.hours ? hoursWords(p.pub.hours) : undefined)}
         {kv("Their time", p.time && p.pub?.timezone ? `${p.time} · ${cityOf(p.pub.timezone)}` : undefined)}</> : null}
       {p.roles.length > 0 || p.chats.length > 0 ? <>{label("Shared context")}

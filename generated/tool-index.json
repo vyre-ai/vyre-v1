@@ -1466,6 +1466,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_pace_of",
+      "summary": "How a teammate answers, for their profile: usual reply time over the last 30 days, and for one chat how they hear about it. Reads only chats you are in with them",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_pin",
       "summary": "Mark a message as pinned (a content marker, not a Star)",
       "toolset": "chats"

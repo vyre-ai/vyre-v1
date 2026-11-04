@@ -391,7 +391,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       onMention={() => fill.set(`@${nameOf(rightTab.id)} `)}
       onEdit={() => act({ t: "agent-form", agentId: rightTab.id })}
       agentPane={agentTabData}
-      person={{ now: Date.now, ...(phone ? { dial: (n: string) => phone.dial(n) } : {}), ...(threadId !== null ? { onAdd: () => add.open({ threadId }) } : {}), openThread: (id) => go.thread(id), openFile: (id) => rt.open({ subject: { type: "file", id } }), openProject: (id) => rt.open({ subject: { type: "project", id } }), openTask: openSideTask, copy: (text) => { copy(text); setLine("Copied the name"); } }}
+      person={{ now: Date.now, ...(phone ? { dial: (n: string) => phone.dial(n) } : {}), ...(threadId !== null ? { onAdd: () => add.open({ threadId }) } : {}), openThread: (id) => go.thread(id), openFile: (id) => rt.open({ subject: { type: "file", id } }), openProject: (id) => rt.open({ subject: { type: "project", id } }), ...(chatShown !== null ? { threadId: chatShown } : {}), openTask: openSideTask, copy: (text) => { copy(text); setLine("Copied the name"); } }}
     />
   ) : null;
   let right: ReactElement | null = null;
