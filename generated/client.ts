@@ -20,6 +20,10 @@ export function createClient(transport: Transport) {
         set_engineer_mcp: call("access.actors.set_engineer_mcp", 1),
         update: call("access.actors.update", 1),
       },
+      agents_can_call: {
+        get: call("access.agents_can_call.get", 1),
+        set: call("access.agents_can_call.set", 1),
+      },
       audience_set: call("access.audience_set", 1),
       automation_senders: call("access.automation_senders", 1),
       check: call("access.check", 1),

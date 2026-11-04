@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (71)
+## Capabilities (73)
 
 - [access.actors.create](../capabilities/access.actors.create.md): Register an outside actor and issue a one-time token (works once, within 10 minutes)
 - [access.actors.list](../capabilities/access.actors.list.md): List outside actors (registered external tools such as Claude Code or Codex)
@@ -12,6 +12,8 @@ Requires: files.
 - [access.actors.revoke](../capabilities/access.actors.revoke.md): Revoke the token of an outside actor in one click
 - [access.actors.set_engineer_mcp](../capabilities/access.actors.set_engineer_mcp.md): Allow or stop an outside actor using the Engineer MCP toolset
 - [access.actors.update](../capabilities/access.actors.update.md): Change the roles or declared provider of an outside actor
+- [access.agents_can_call.get](../capabilities/access.agents_can_call.get.md): Whether other agents may hand work to this agent (On unless a person turned it Off); engine and chat check it before one agent calls another
+- [access.agents_can_call.set](../capabilities/access.agents_can_call.set.md): A person with Manage on an agent says whether other agents in the Space may hand work to it (On unless turned Off)
 - [access.audience_set](../capabilities/access.audience_set.md): Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record's Files folder can follow its record
 - [access.automation_senders](../capabilities/access.automation_senders.md): A person's press gives a Space Automation use of the mailboxes and numbers its send steps name, inside that person's own access, and takes back what no step names any more
 - [access.check](../capabilities/access.check.md): Access checker: can principal P do action A on resource R, with each step in plain words

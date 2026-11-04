@@ -15,6 +15,7 @@ import {
   NO_MATCH,
   NO_OUTSIDE,
   OUTSIDE_NOTE,
+  accessCount,
   accessSubtitle,
   actionLabel,
   addLines,
@@ -93,6 +94,7 @@ export type {
   ShareInput,
   ShareItemType,
   ShareLevel,
+  ShareResourceType,
   ShareRow,
   ShareSheetProps,
   ShareSubjectKind,
@@ -328,7 +330,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
   /* ---------- the views ---------- */
 
   const title = add ? "Add people and agents" : `Share “${share?.itemName ?? ""}”`;
-  const subtitle = add ? `to ${add.target.name}` : share ? (share.records?.subtitle ?? share.subtitle ?? accessSubtitle(share.itemType, share.shares.length + 1, share.itemLabel)) : "";
+  const subtitle = add ? `to ${add.target.name}` : share ? (share.records?.subtitle ?? share.subtitle ?? accessSubtitle(share.itemType, accessCount({ shares: share.shares, itemType: share.itemType, resourceId: share.resourceId, ownerId: share.ownerId, ownerName: share.ownerName, folderName: share.folderName }), share.itemLabel)) : "";
   const placeholder = picks.length > 0 ? "Add another" : add ? "Add people or agents" : type === "agent" ? "Add people or groups" : "Add people, groups or agents";
 
   const main = (
@@ -357,8 +359,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
       <ScrollView style={st.body} keyboardShouldPersistTaps="handled" testID="as-body">
         {picks.length > 0 ? <><View style={st.sectRow}><Text style={st.sectText}>{add ? "Adding" : "Sharing with"}</Text></View>{picks.map(pickRow)}</> : null}
         {share ? <AccessList p={share} offered={share.levels} cleared={cleared} onCleared={(k) => setCleared((c) => [...c, k])} /> : null}
-        {share ? <View style={st.sectRow}><Text style={st.sectText}>Add more</Text></View> : null}
-        {section("Suggested", secs.suggested, "You work with these most")}
+        {section("Suggested", secs.suggested, share ? undefined : "You work with these most")}
         {secs.invite === null ? null : (
           <View>
             <View style={st.sectRow}><Text style={st.sectText}>Invite</Text></View>
@@ -378,7 +379,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
         {section("People", secs.people)}
         {section("Groups and roles", secs.groups)}
         {section("Agents", secs.agents)}
-        {secs.outside.length > 0 ? section("Your outside agents", secs.outside, OUTSIDE_NOTE(props.ownerName)) : (type === "agent" || q.trim() !== "" || !noOutside ? null : (
+        {secs.outside.length > 0 ? section("Your outside agents", secs.outside, OUTSIDE_NOTE(props.ownerName)) : (share || type === "agent" || q.trim() !== "" || !noOutside ? null : (
           <View>
             <View style={st.sectRow}><Text style={st.sectText}>Your outside agents</Text></View>
             <Text style={st.empty} testID="as-no-outside">{NO_OUTSIDE}</Text>

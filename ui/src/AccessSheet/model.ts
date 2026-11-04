@@ -2,6 +2,7 @@
 // The builders at the bottom return exactly the inputs of the capabilities the hosts call (CapMap[...]["in"]), so the sheet and the contract cannot drift.
 
 import type { CapMap } from "../../../generated/types.ts";
+import type { MenuEntry } from "../Menu/index.tsx";
 import { DEFAULT_AGENT_SETTINGS } from "./props.ts";
 import type {
   AccessDirectory,
@@ -78,6 +79,7 @@ export const ITEM_DEFS: Readonly<Record<ShareItemType, ItemDef>> = {
   },
   artifact: { label: "artifact", levels: L3, def: "view", tail: "They see the latest version and its comments." },
   project: { label: "project", levels: L3, def: "view", tail: "They see the project's chats, files folder and records." },
+  automation: { label: "automation", levels: L3, def: "view", tail: "View sees it, its runs and its history. Edit changes and pauses it. Manage also shares and deletes it." },
   vault: {
     label: "Vault item",
     levels: [{ id: "use", label: "Can use without seeing" }, { id: "view", label: "Can view" }, { id: "edit", label: "Can edit" }],
@@ -86,7 +88,7 @@ export const ITEM_DEFS: Readonly<Record<ShareItemType, ItemDef>> = {
   },
   agent: {
     label: "agent",
-    levels: [{ id: "view", label: "Can chat with" }, { id: "use", label: "Can use in their work" }, { id: "edit", label: "Can edit" }, { id: "manage", label: "Can manage" }],
+    levels: [{ id: "view", label: "Can chat with" }, { id: "use", label: "Can use" }, { id: "edit", label: "Can edit" }, { id: "manage", label: "Can manage" }],
     def: "view",
     tail: "",
   },
@@ -182,7 +184,8 @@ export function shareLines(i: ShareLinesInput): Line[] {
   const label = i.label ?? def.label;
   const out: Line[] = [];
   const P = i.picks;
-  if (P.length === 0) return i.type === "agent" ? [{ id: "levels", tone: "note", text: agentLevelsLine(i.name) }] : [];
+  // nothing picked: no legend. Each level says what it gives inside its own picker menu (levelHint)
+  if (P.length === 0) return [];
   const levels = levelDefs(i.type).map((l) => l.id);
   for (const lv of levels) {
     const names = P.filter((p) => p.role === lv && p.kind !== "guest" && p.kind !== "outside" && p.kind !== "agent" && p.kind !== "new" && p.kind !== "space").map((p) => p.name);
@@ -243,7 +246,7 @@ export function addLines(i: AddLinesInput): Line[] {
 
 /** The footer when nothing is picked. */
 export function idleLine(mode: "add" | "share", type?: ShareItemType, name?: string): string {
-  if (mode === "share" && type === "agent") return agentLevelsLine(name ?? "it");
+  void type; void name;
   return mode === "add" ? "Pick who to add. You will see what they get before you confirm." : "Pick who to share with. You will see what they get before you confirm.";
 }
 
@@ -396,16 +399,21 @@ export function sections(i: SectionsInput): Sections {
   const fits = (e: AccessEntry): boolean => !i.taken.has(ek(e)) && (q === "" || e.name.toLowerCase().includes(q));
   // sharing an agent goes to people and groups only
   const allowed = (e: AccessEntry): boolean => !(agentShare && (e.kind === "agent" || e.kind === "outside"));
-  const suggested = q === "" ? (d.suggested ?? []).filter((e) => fits(e) && allowed(e)) : [];
+  const first = q === "" ? (d.suggested ?? []).filter((e) => fits(e) && allowed(e)) : [];
+  // Share mode with nothing typed: one short Suggested list (five rows at most) of people, then groups and agents; typing searches everything
+  const pool = i.mode === "share" && q === "" ? [...first, ...(d.people ?? []), ...(d.groups ?? []), ...(i.itemType === "agent" ? [] : d.agents ?? [])].filter((e) => fits(e) && allowed(e)) : first;
+  const dedup = [...new Map(pool.map((e) => [ek(e), e] as const)).values()];
+  const suggested = i.mode === "share" && q === "" ? dedup.slice(0, 5) : first;
   const seen = new Set(suggested.map(ek));
   const rest = (list: readonly AccessEntry[] | undefined): AccessEntry[] => (list ?? []).filter((e) => fits(e) && allowed(e) && !seen.has(ek(e)));
   const invite = q !== "" && isEmail(i.query) && !i.taken.has(guestKey(i.query)) ? i.query.trim() : null;
   return {
     suggested,
-    people: rest(d.people),
-    groups: i.mode === "share" ? rest(d.groups) : [],
-    space: i.mode === "share" && d.space !== undefined && fits(d.space) && allowed(d.space) ? d.space : null,
-    agents: agentShare ? [] : rest(d.agents),
+    people: i.mode === "share" && q === "" ? [] : rest(d.people),
+    groups: i.mode === "share" ? (q === "" ? [] : rest(d.groups)) : [],
+    // the General access row at the top is the Space; it is found by typing, not listed a second time
+    space: i.mode === "share" && q !== "" && d.space !== undefined && fits(d.space) && allowed(d.space) ? d.space : null,
+    agents: agentShare || (i.mode === "share" && q === "") ? [] : rest(d.agents),
     outside: agentShare ? [] : rest(d.outside),
     invite,
   };
@@ -685,9 +693,11 @@ export function sheetRows<R extends AccessRowLike>(shares: readonly R[], type: S
 }
 
 export function rowSub(row: { subjectKind: ShareSubjectKind; via: string }, folderName?: string): string {
-  if (row.via === "folder") return folderName ? `From the folder ${folderName}` : "From the folder";
-  if (row.via === "space") return "Everyone in the Space";
-  return ({ person: "Person", group: "Group", role: "Role", agent: "Agent", link: "Link" } as Record<ShareSubjectKind, string>)[row.subjectKind];
+  // never "Not in a folder" above "From the folder": with no folder named, what is inherited comes from the Space
+  if (row.via === "folder") return folderName ? `From the folder ${folderName}` : "From the Space";
+  if (row.via === "space") return "From the Space";
+  // a person has no label under their name (their title or email, when the host has one); a group, role or agent says what it is
+  return ({ person: "", group: "Group", role: "Role", agent: "Agent", link: "Link" } as Record<ShareSubjectKind, string>)[row.subjectKind];
 }
 
 export function accessSubtitle(type: ShareItemType, count: number, label?: string): string {
@@ -714,6 +724,120 @@ export function takenFromRows(directory: AccessDirectory, rows: readonly { subje
     for (const e of list ?? []) {
       const s = subjectOfPick({ kind: e.kind, id: e.id, ...(e.subject === undefined ? {} : { subject: e.subject }) });
       if (have.has(`${s.kind}:${s.id}`)) out.add(ek(e));
+    }
+  }
+  return out;
+}
+
+/* ---------- the access view: one deduped list for the sheet and for the count behind it ---------- */
+
+export const EVERYONE_IDS: readonly string[] = ["grp_everyone", "space"];
+
+export interface AccessViewInput {
+  shares: readonly ShareRow[];
+  itemType: ShareItemType;
+  /** The item's own id: an item never lists itself. */
+  resourceId: string;
+  ownerId?: string | undefined;
+  ownerName: string;
+  folderName?: string | undefined;
+  /** The server's answer to "agents in the Space can call this", when it gives one. */
+  agentsOn?: boolean | undefined;
+}
+
+export interface AccessView {
+  owner: { id: string | null; name: string };
+  /** "Everyone in the Space": the level, or null for No access. `row` is the grant behind it. */
+  general: { level: ShareLevel | null; row: ShareRow | null };
+  /** People, groups and roles, each once at their highest level, the owner and the Space left out. */
+  people: ShareRow[];
+  /** Agents: the Space line (on when agents in the Space hold access) and only the ones added on purpose. */
+  agents: { on: boolean; inherited: boolean; specific: ShareRow[] };
+  link: ShareRow | null;
+  /** Where inherited rows come from. */
+  inheritedFrom: string;
+  /** The owner, the people, the groups and roles, the agents added on purpose, and the Space when it holds access. The same number is behind the sheet. */
+  count: number;
+  /** Nobody but the owner, and nothing general. */
+  empty: boolean;
+}
+
+const VIA_RANK: Record<ShareRow["via"], number> = { owner: 3, grant: 2, folder: 1, space: 0 };
+
+export const isEveryoneRow = (r: Pick<ShareRow, "subjectKind" | "subjectId">): boolean => r.subjectKind === "group" && EVERYONE_IDS.includes(r.subjectId);
+
+/** Merge the same subject into one row at its highest level; at the same level the direct grant wins, so it can be removed. */
+function onePerSubject(type: ShareItemType, rows: readonly ShareRow[]): ShareRow[] {
+  const best = new Map<string, ShareRow>();
+  for (const r of rows) {
+    const key = `${r.subjectKind}:${r.subjectId}`;
+    const have = best.get(key);
+    if (!have) { best.set(key, r); continue; }
+    const d = levelRank(type, r.level) - levelRank(type, have.level);
+    if (d > 0 || (d === 0 && VIA_RANK[r.via] > VIA_RANK[have.via])) best.set(key, r);
+  }
+  return [...best.values()];
+}
+
+export function accessView(i: AccessViewInput): AccessView {
+  const byAccess = (a: ShareRow, b: ShareRow): number => levelRank(i.itemType, b.level) - levelRank(i.itemType, a.level) || a.name.localeCompare(b.name);
+  const rows = i.shares.filter((r) => {
+    if (r.subjectKind === "agent" && (r.subjectId === i.resourceId || r.privateAgent === true)) return false;
+    if (i.ownerId !== undefined && r.subjectKind === "person" && r.subjectId === i.ownerId) return false;
+    return r.via !== "owner";
+  });
+  const merged = onePerSubject(i.itemType, rows);
+  const link = merged.find((r) => r.subjectKind === "link") ?? null;
+  const everyone = merged.find(isEveryoneRow) ?? null;
+  const people = merged.filter((r) => (r.subjectKind === "person" || r.subjectKind === "group" || r.subjectKind === "role") && !isEveryoneRow(r)).sort(byAccess);
+  const agentRows = merged.filter((r) => r.subjectKind === "agent").sort(byAccess);
+  const specific = agentRows.filter((r) => r.via === "grant");
+  const inherited = agentRows.some((r) => r.via !== "grant");
+  const count = 1 + people.length + specific.length + (everyone ? 1 : 0);
+  return {
+    owner: { id: i.ownerId ?? null, name: i.ownerName },
+    general: { level: everyone ? everyone.level : null, row: everyone },
+    people, agents: { on: i.agentsOn ?? (inherited || specific.length > 0), inherited, specific }, link,
+    inheritedFrom: i.folderName ? `From the folder ${i.folderName}` : "From the Space",
+    count, empty: people.length === 0 && specific.length === 0 && everyone === null && !inherited,
+  };
+}
+
+/** The line under the title and the count behind the sheet's button: one number, from the same view. */
+export function accessCount(i: AccessViewInput): number {
+  return accessView(i).count;
+}
+
+/** The one-line description of a level, for the picker's menu. */
+export function levelHint(type: ShareItemType, level: ShareLevel): string {
+  if (type === "agent") return ({ view: "Chat with it. It works with what they can see.", use: "Give it tasks and use it in their own work.", edit: "Change how it works.", manage: "Share it, pause it and delete it." } as Record<ShareLevel, string>)[level];
+  if (type === "vault") return ({ use: "Agents and automations use it. The value stays hidden.", view: "See the value and use it.", edit: "See, use and change it.", manage: "Also share it." } as Record<ShareLevel, string>)[level];
+  if (type === "automation") return ({ view: "See it, its runs and its history.", use: "Run it.", edit: "Change it and pause it.", manage: "Also share it and delete it." } as Record<ShareLevel, string>)[level];
+  return ({ view: "Open it and read it.", use: "Open it and use it.", edit: "Change it.", manage: "Also share it, move it and delete it." } as Record<ShareLevel, string>)[level];
+}
+
+/* ---------- the Add menu: a plain people picker for places that only need to pick someone (a routine's new owner) ---------- */
+
+export interface DirectoryEntry { id: string; name: string; sub?: string }
+export interface ShareDirectory { people?: readonly DirectoryEntry[]; groups?: readonly DirectoryEntry[]; roles?: readonly DirectoryEntry[]; agents?: readonly DirectoryEntry[] }
+
+/** People, Groups, Roles, Agents; entries that already have access show a check and do nothing. */
+export function addMenu(directory: ShareDirectory, shares: readonly { subjectKind: string; subjectId: string }[], onAdd: (subject: { kind: ShareSubjectKind; id: string }, name: string) => void): MenuEntry[] {
+  const have = new Set(shares.map((r) => `${r.subjectKind}:${r.subjectId}`));
+  const out: MenuEntry[] = [];
+  const groups: readonly { head: string; kind: ShareSubjectKind; list: readonly DirectoryEntry[] | undefined }[] = [
+    { head: "People", kind: "person", list: directory.people },
+    { head: "Groups", kind: "group", list: directory.groups },
+    { head: "Roles", kind: "role", list: directory.roles },
+    { head: "Agents", kind: "agent", list: directory.agents },
+  ];
+  for (const g of groups) {
+    if (g.list === undefined || g.list.length === 0) continue;
+    if (out.length > 0) out.push({ separator: true });
+    out.push({ head: g.head });
+    for (const e of g.list) {
+      const added = have.has(`${g.kind}:${e.id}`);
+      out.push({ label: e.name, checked: added, ...(added ? {} : { onSelect: () => onAdd({ kind: g.kind, id: e.id }, e.name) }) });
     }
   }
   return out;

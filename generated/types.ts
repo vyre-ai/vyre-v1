@@ -86,6 +86,19 @@ export type AccessActorsUpdateOut = {
     lastSeenAt?: number;
   };
 };
+export type AccessAgentsCanCallGetIn = {
+  agentId: string;
+};
+export type AccessAgentsCanCallGetOut = {
+  on: boolean;
+};
+export type AccessAgentsCanCallSetIn = {
+  agentId: string;
+  on: boolean;
+};
+export type AccessAgentsCanCallSetOut = {
+  on: boolean;
+};
 export type AccessAudienceSetIn = {
   resource: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
@@ -1261,6 +1274,8 @@ export type AccessSharesOfOut = {
       };
       through: "direct" | "group" | "role" | "folder" | "owner";
     }>;
+  mine?: "view" | "use" | "edit" | "manage";
+  agentsCanCall?: boolean;
   audience?: "space" | "added" | "me";
   exporters?: "admins" | "viewers" | "chosen";
   inherits?: string;
@@ -41789,6 +41804,8 @@ export interface CapMap {
   "access.actors.revoke": { in: AccessActorsRevokeIn; out: AccessActorsRevokeOut };
   "access.actors.set_engineer_mcp": { in: AccessActorsSetEngineerMcpIn; out: AccessActorsSetEngineerMcpOut };
   "access.actors.update": { in: AccessActorsUpdateIn; out: AccessActorsUpdateOut };
+  "access.agents_can_call.get": { in: AccessAgentsCanCallGetIn; out: AccessAgentsCanCallGetOut };
+  "access.agents_can_call.set": { in: AccessAgentsCanCallSetIn; out: AccessAgentsCanCallSetOut };
   "access.audience_set": { in: AccessAudienceSetIn; out: AccessAudienceSetOut };
   "access.automation_senders": { in: AccessAutomationSendersIn; out: AccessAutomationSendersOut };
   "access.check": { in: AccessCheckIn; out: AccessCheckOut };

@@ -66,6 +66,8 @@ type Out = {
       };
       through: "direct" | "group" | "role" | "folder" | "owner";
     }>;
+  mine?: "view" | "use" | "edit" | "manage";
+  agentsCanCall?: boolean;
   audience?: "space" | "added" | "me";
   exporters?: "admins" | "viewers" | "chosen";
   inherits?: string;
@@ -98,6 +100,7 @@ type Out = {
     }
   },
   "output": {
+    "agentsCanCall": true,
     "audience": "space",
     "can": {
       "edit": true,
@@ -107,6 +110,7 @@ type Out = {
     },
     "exporters": "admins",
     "inherits": "example",
+    "mine": "view",
     "outside": true,
     "shares": [
       {
