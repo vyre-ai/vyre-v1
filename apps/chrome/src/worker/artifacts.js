@@ -4,6 +4,12 @@
 // cookie, and only a link it recognises is taken over: anything else, a failure, or a Space that is not signed in loads as it always did.
 
 import { pageOf } from "./match.js";
+import { maskedShot } from "./shot.js";
+
+/** The largest picture the Space keeps (characters of its data URL). */
+export const THUMB_MAX = 60_000;
+/** How long after the page loads the picture is taken, so it shows the page and not its loading. */
+export const THUMB_AFTER_MS = 1000;
 
 /** The address a link points at when it is an artifact link, else null. @param {unknown} href */
 export function artifactLink(href) {
@@ -16,10 +22,37 @@ export function artifactLink(href) {
 }
 
 /**
- * @param {{ ext: { tabs: { create(o: any): Promise<any> } }, bridge: { op(o: string, i?: Record<string, any>): Promise<any> }, store: { get(k: string[]): Promise<Record<string, any>> } }} deps
+ * @param {{ ext: { tabs: { create(o: any): Promise<any>, get?(id: number): Promise<any>, captureVisibleTab?(w: number, o: any): Promise<string>, onUpdated?: { addListener(f: (id: number, info: any) => void): void, removeListener(f: (id: number, info: any) => void): void } }, scripting?: any }, bridge: { op(o: string, i?: Record<string, any>): Promise<any> }, store: { get(k: string[]): Promise<Record<string, any>> }, wait?: (ms: number) => Promise<void>, paint?: any }} deps
  */
-export function createArtifacts({ ext, bridge, store }) {
+export function createArtifacts({ ext, bridge, store, wait = (ms) => new Promise((r) => setTimeout(r, ms)), paint }) {
+  /**
+   * The first time an artifact opens in a tab (and after it changes), keep a small picture of it. Once, at load plus about a second; scaled to 480 px wide webp under 60 KB, with password and card fields
+   * blacked out first (maskedShot); only the tab the person sees. The Space keeps it only when there is none or the artifact changed, so a repeat is harmless. Nothing is read from the page but the boxes.
+   * @param {number} tabId @param {string} artifactId
+   */
+  async function thumb(tabId, artifactId) {
+    if (!/^sit_[a-z0-9]+$/.test(artifactId)) return { set: false, why: "no_artifact" };
+    await wait(THUMB_AFTER_MS);
+    let shot = null;
+    for (const quality of [0.7, 0.5, 0.35]) {
+      try { shot = await maskedShot(/** @type {any} */ (ext), tabId, { maxW: 480, quality, type: "image/webp", ...(paint ? { paint } : {}) }); } catch { shot = null; }
+      if (!shot) return { set: false, why: "not_visible" };
+      if (shot.dataUrl.length <= THUMB_MAX) break;
+      shot = null;
+    }
+    if (!shot) return { set: false, why: "too_large" };
+    try { const out = await bridge.op("artifact.thumb", { artifactId, thumb: shot.dataUrl }); return { set: !!(out && out.set) }; } catch { return { set: false, why: "error" }; }
+  }
+  /** Once the tab says it has loaded, take its picture. @param {number} tabId @param {string} artifactId */
+  function thumbWhenLoaded(tabId, artifactId) {
+    const on = ext.tabs.onUpdated;
+    if (!on) return;
+    /** @type {(id: number, info: any) => void} */
+    const f = (id, info) => { if (id !== tabId || !info || info.status !== "complete") return; on.removeListener(f); void thumb(tabId, artifactId); };
+    on.addListener(f);
+  }
   return {
+    thumb,
     /** The hosts of the Spaces the person is signed in to here, for the content script to know which links are ours. */
     async hosts() {
       const kept = await store.get(["spaces"]);
@@ -41,7 +74,9 @@ export function createArtifacts({ ext, bridge, store }) {
       }
       const url = out && typeof out.url === "string" ? out.url : "";
       if (!pageOf(url)) return { handled: false, why: "bad_address" };
-      await ext.tabs.create({ url });
+      const tab = await ext.tabs.create({ url });
+      const aid = link ? link.id : String(what.id ?? "");
+      if (tab && typeof tab.id === "number" && aid) thumbWhenLoaded(tab.id, aid);
       return { handled: true };
     },
   };

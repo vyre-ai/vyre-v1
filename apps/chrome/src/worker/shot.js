@@ -82,7 +82,7 @@ async function dataUrlOf(blob) {
 
 /**
  * Paint the boxes black on a captured image and scale it down to at most `maxW` pixels wide. Runs in the worker (OffscreenCanvas).
- * @param {string} dataUrl @param {{ rects: any[], vw: number, vh: number }} where @param {{ maxW?: number, quality?: number }} [o]
+ * @param {string} dataUrl @param {{ rects: any[], vw: number, vh: number }} where @param {{ maxW?: number, quality?: number, type?: string }} [o]
  * @returns {Promise<{ dataUrl: string, width: number, height: number, masked: number }>}
  */
 export async function paintMask(dataUrl, where, o = {}) {
@@ -110,7 +110,7 @@ export async function paintMask(dataUrl, where, o = {}) {
     d.drawImage(full, 0, 0, out.width, out.height);
   }
   bmp.close?.();
-  const jpeg = await out.convertToBlob({ type: "image/jpeg", quality: o.quality ?? 0.8 });
+  const jpeg = await out.convertToBlob({ type: o.type ?? "image/jpeg", quality: o.quality ?? 0.8 });
   return { dataUrl: await dataUrlOf(jpeg), width: out.width, height: out.height, masked: boxes.length };
 }
 
@@ -118,7 +118,7 @@ export async function paintMask(dataUrl, where, o = {}) {
  * Take a masked screenshot of a tab that is visible in its window. Null when the page cannot be asked where its secret fields are (then nothing is captured),
  * or the tab is not the visible one.
  * @param {{ tabs: { captureVisibleTab(windowId: number, o: any): Promise<string>, get(id: number): Promise<any> }, scripting: { executeScript(o: any): Promise<any[]> } }} ext
- * @param {number} tabId @param {{ maxW?: number, quality?: number, paint?: typeof paintMask }} [o]
+ * @param {number} tabId @param {{ maxW?: number, quality?: number, type?: string, paint?: typeof paintMask }} [o]
  */
 export async function maskedShot(ext, tabId, o = {}) {
   const tab = await ext.tabs.get(tabId);
