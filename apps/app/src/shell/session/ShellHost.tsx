@@ -16,7 +16,7 @@ import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
 import type { Hit } from "../cmdk/model.ts";
 import { formatHash, parseHash } from "../hash/hash.ts";
 import { tabKey } from "../tabs/store.ts";
-import { titleAsk, typeTitleAsk } from "../tabs/titles.ts";
+import { followTitle, titleAsk, typeTitleAsk } from "../tabs/titles.ts";
 import type { PlaceId } from "../rail/kits.ts";
 import { createShellHub } from "../spaces/hub.ts";
 import { INBOX_TIP, followInboxSources, rememberInbox, seedInbox, takeInboxTip } from "../rail/inbox-sources.ts";
@@ -201,15 +201,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     const ask = target.subject ? titleAsk(target.subject, target.args) : typeTitleAsk(location.place, target.args);
     if (!ask) return;
     const key = tabKey(location.place, location.hash);
-    let off = false;
-    // the name, else the next read (a chat's first message), else the ask's own empty name ("New chat")
-    const read = (a: typeof ask): Promise<string | null> => session.call(a.cap, a.input).then((out) => a.name(out) ?? (a.next ? read(a.next) : null), () => null);
-    const run = (): void => { void read(ask).then((name) => { const t = name ?? ask.empty; if (!off && t) hub.retitle(key, t); }); };
-    run();
-    // a chat's name follows the chat: it is read again when the chat changes
-    const live = target.subject && (target.subject.type === "thread" || target.subject.type === "chat") ? session.hooks.capQuery("threads.get", { threadId: target.subject.id }) : null;
-    const stop = live ? live.subscribe(run) : undefined;
-    return () => { off = true; stop?.(); };
+    return followTitle(session, target, ask, (t) => hub.retitle(key, t));
   }, [session, hub, location.place, location.hash]);
 
   // Inbox is on the rail once something flows in: the answer follows the mailbox, calendar and number reads (and their change events), and is kept for the next launch
