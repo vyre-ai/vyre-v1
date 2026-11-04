@@ -198,3 +198,31 @@ test("the Chat tab's header carries the chat's find and pane, and More is the pr
     for (const id of ["find-button", "pane-button", "helpers-button"]) assert.equal(find(root, id), null, `${id} only on the Chat tab`);
   } finally { off(); }
 });
+
+test("roles are set in the people popover: a project's Lead gets Change role (Lead, Member, Reviewer, Guest) through projects.members.set; a member gets no role control", async () => {
+  const { act } = await import("react");
+  const off = installDom(); widen(1280);
+  try {
+    for (const lead of [true, false]) {
+      const t = setup();
+      // the popover's rows and who may change them come from the overview's people: Maya is the Lead, Omar a member
+      if (!lead) t.data = { ...t.data, me: { id: "usr_omar", name: "Omar Haddad" } };
+      const root = await mount(createRoot, page(t));
+      await flush(); await flush();
+      await press(find(root, "project-members")); await flush();
+      const open = find(root, lead ? "people-row-usr_omar" : "people-row-usr_maya")?.props["onContextMenu"] as ((e: unknown) => void) | undefined;
+      assert.equal(typeof open, "function", "a row opens its menu");
+      await act(async () => { open?.({ preventDefault() {}, nativeEvent: { pageX: 20, pageY: 20 }, pageX: 20, pageY: 20, clientX: 20, clientY: 20 }); });
+      await flush();
+      assert.equal(find(root, "menu-item-Change role") !== null, lead, lead ? "the Lead may change a role" : "a member may not");
+      if (!lead) continue;
+      await press(find(root, "menu-item-Change role")); await flush();
+      for (const w of ["Lead", "Member", "Reviewer", "Guest"]) assert.ok(find(root, `menu-item-${w}`), w);
+      await press(find(root, "menu-item-Reviewer")); await flush();
+      const set = t.calls.filter((c) => c.cap === "projects.members.set").map((c) => c.input);
+      assert.equal(set.length, 1);
+      assert.deepEqual([set[0]!["projectId"], set[0]!["principal"], set[0]!["role"]], ["pj_0", "usr_omar", "reviewer"]);
+      assert.equal(typeof set[0]!["idempotencyKey"], "string", "the call carries its key");
+    }
+  } finally { off(); }
+});
