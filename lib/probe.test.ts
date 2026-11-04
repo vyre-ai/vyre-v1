@@ -25,3 +25,11 @@ test("internal words become people's words in what a model reads", () => {
   assert.equal(peopleWords("Two holds are open and this hold expired."), "Two approvals are open and this approval expired.");
   assert.equal(peopleWords("Hold the line while it runs"), "Hold the line while it runs", "ordinary words are left alone");
 });
+
+test("a word the tool's own schema lists as a choice is not a placeholder, but the same word where the schema asks for free text still is", () => {
+  const schema = { properties: { list: { properties: { cursor: { properties: { kind: { enum: ["none", "page", "cursor"] } } } } }, title: { type: "string" } } };
+  assert.equal(probeIn({ list: { cursor: { kind: "none" } } }, "", "", schema), null);
+  assert.equal(probeIn({ list: { cursor: { kind: "none" } } }), "none", "without the schema the word is still caught");
+  assert.equal(probeIn({ title: "none" }, "", "", schema), "none");
+  assert.equal(probeIn({ rows: [{ kind: "none" }] }, "", "", { properties: { rows: { items: { properties: { kind: { enum: ["none"] } } } } } }), null);
+});

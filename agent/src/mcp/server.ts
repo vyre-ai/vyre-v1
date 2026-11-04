@@ -187,7 +187,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     if (!t) return { invalid: `Unknown tool: ${p.name}` };
     const traceId = s.ctx.trace?.traceId ?? hex(16);
     // no tool is called to see if it works, and none with placeholder content: refused before it reaches the chat, a hold, a task or a person's list
-    if (probeIn(args) !== null) {
+    if (probeIn(args, "", "", t.inputSchema) !== null) {
       const error = makeError("validation.bad_input", traceId, { message: PROBE_MESSAGE, details: { tool: t.name, reason: "placeholder" } });
       deps.onCall?.(s.caller, t.name, "error", { cap: t.cap, threadId: s.ctx.thread.threadId });
       return { result: textResult({ error }, true, { error }) };
