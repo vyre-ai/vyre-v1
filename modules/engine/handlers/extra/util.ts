@@ -17,7 +17,7 @@ export interface TurnOut {
   /** The server of the person's the turn ran on, when the chat was pinned to one. */
   nodeId?: string;
   /** Where the turn ran, in order (its computer, then the server it went on to when the computer slept). */
-  ranOn?: Array<{ kind: "computer" | "server" | "space"; name: string }>;
+  ranOn?: Array<{ kind: "computer" | "server" | "space"; name: string; note?: string }>;
 }
 
 /** The contract's turn row from an engine_turns row. */

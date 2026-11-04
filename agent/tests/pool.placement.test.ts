@@ -145,3 +145,16 @@ test("a crew teammate's thread runs on the host, whatever device is online and w
   assert.equal(placeTurn(base).placement, "device", "an ordinary private chat runs on the device");
   assert.deepEqual(placeTurn({ ...base, thread: { ...base.thread, crew: true } }), { placement: "host", reason: "crew" });
 });
+
+test("Automatic skips a busy machine for the next one with room and says where it would have gone and why not", () => {
+  const busy: PlaceDevice = { ...laptop, name: "Irfad's MacBook Pro", busy: true, busyWhy: "it was busy, 4 of 4 turns running" };
+  const mini: PlaceDevice = { id: "dev_mini", role: "daemon", online: true, engines: ["claude_code"], lastSeen: 50, name: "Irfad's Mac mini" };
+  assert.deepEqual(placeTurn(input({ asker: { devices: [busy, mini] } })), { placement: "device", reason: "other_device", deviceId: "dev_mini", moved: { from: "Irfad's MacBook Pro", why: "it was busy, 4 of 4 turns running" } }, "the order is kept, the busy one is passed over");
+  assert.equal(placeTurn(input({ asker: { devices: [laptop, mini] } })).moved, undefined, "nothing moved when the first has room");
+  const server = { serverId: "srv_box", name: "Berlin box", online: true };
+  assert.deepEqual(placeTurn(input({ asker: { devices: [busy], servers: [server] } })), { placement: "host", reason: "own_server", nodeId: "srv_box", moved: { from: "Irfad's MacBook Pro", why: "it was busy, 4 of 4 turns running" } }, "then their servers");
+  assert.deepEqual(placeTurn(input({ asker: { devices: [busy], servers: [{ ...server, busy: true, busyWhy: "its disk was nearly full" }] } })), { placement: "host", reason: "space", moved: { from: "Irfad's MacBook Pro", why: "it was busy, 4 of 4 turns running" } }, "then the Space's server");
+  const all = placeTurn(input({ asker: { devices: [busy], servers: [{ ...server, busy: true }] }, space: { shared: true, busy: true } }));
+  assert.deepEqual([all.placement, all.deviceId, all.moved], ["device", "dev_laptop", undefined], "every one busy: the first in the order takes it and the turn queues there");
+  assert.equal(placeTurn(input({ asker: { devices: [{ ...busy, busy: true }], chosen: { target: "device", deviceId: "dev_laptop" } } })).reason, "chosen_device", "a pin is never moved, busy or not");
+});

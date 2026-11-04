@@ -9,7 +9,7 @@ import { activityTitle, ago, money, namedResource } from "../../shell/format.ts"
 import { Dot, Glyph } from "../../shell/glyphs.tsx";
 import type { Tone } from "../../shell/glyphs.tsx";
 import { Empty, Group, Lead, LinkButton, Section, pointer } from "../../shell/ui.tsx";
-import { useAction } from "../shared.tsx";
+import { useAction, useRead } from "../shared.tsx";
 import { TeamNowSection } from "./TeamNow.tsx";
 
 type Out = CapMap["console.overview"]["out"];
@@ -48,6 +48,8 @@ export function Overview(): ReactElement {
   const q = useScreenQuery<Out>("console.overview", "overview", {});
   const width = useWindowDimensions().width, compact = width > 0 && width < 720;   // an unmeasured screen (a static render) keeps the desktop layout
   const act = useAction(() => (data.screens as { invalidate?: () => void }).invalidate?.());
+  // machine alerts (a disk nearly full, memory pressure, a machine offline with pinned work, a failed backup, an update waiting): a line here, a dot on Machines, one Inbox line for each admin
+  const machineAlerts = useRead<CapMap["network.machine_alerts"]["out"]>("network.machine_alerts").data?.alerts ?? [];
   if (q.status !== "ready") return <Text style={s.loading} accessibilityRole="progressbar">Loading</Text>;
   // the two kinds a press here settles: a stuck join is retried now, and #general is renamed to #vyre or kept (never renamed without asking)
   const fix = (a: Attention, i: number): ReactElement | null => {
@@ -64,6 +66,7 @@ export function Overview(): ReactElement {
   const now = data.clock().now;
   const tiles: { page: string; label: string; icon: string; big: string; sub: string; tone?: Tone }[] = [
     { page: "server", label: "Server", icon: "server", big: HEALTH_LABEL[o.health], sub: o.attention.length ? `${o.attention.length} need${o.attention.length === 1 ? "s" : ""} you` : "Nothing waiting", tone: HEALTH_TONE[o.health] },
+    { page: "machines", label: "Machine alerts", icon: "server", big: machineAlerts.length ? String(machineAlerts.length) : "All clear", sub: machineAlerts.length ? [...new Set(machineAlerts.map((a) => a.kind))].join(", ") : "Every machine is fine", ...(machineAlerts.length ? { tone: "warn" as Tone } : {}) },
     { page: "people", label: "Members", icon: "people", big: String(o.usage.members), sub: "in this Space" },
     { page: "agents", label: "Agents", icon: "agent", big: String(o.usage.agents), sub: "in the register" },
     { page: "spend", label: "Turns today", icon: "pulse", big: o.usage.turnsToday.toLocaleString("en-US"), sub: "across people and agents" },
@@ -71,11 +74,11 @@ export function Overview(): ReactElement {
   ];
   return (
     <View testID="overview">
-      <Section title="Needs you" count={o.attention.length || ""}>
+      <Section title="Needs you" count={o.attention.length + machineAlerts.length || ""}>
         <Group testID="attention">
-          {o.attention.length === 0 ? (
+          {o.attention.length + machineAlerts.length === 0 ? (
             <View style={s.none} testID="attention-none"><Glyph name="ok" size={15} color="var(--ok)" /><Text style={s.noneText}>Nothing needs you</Text></View>
-          ) : o.attention.map((a, i) => (
+          ) : [...o.attention.map((a, i) => (
             <Row
               key={`${a.kind}-${a.ref ?? i}`}
               id={`attn-${a.kind}-${a.ref ?? i}`}
@@ -85,14 +88,18 @@ export function Overview(): ReactElement {
               {...(compact ? {} : { trailing: fix(a, i) ?? <LinkButton label={a.next} onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])} testID={`attn-go-${i}`} /> })}
               onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])}
             />
-          ))}
+          )), ...machineAlerts.map((a) => (
+            <Row key={a.alertId} id={`attn-machine-${a.alertId}`} title={a.title} note={a.detail} leading={<Lead><Glyph name={a.kind === "offline" ? "server" : "warn"} size={16} color="var(--warn)" /></Lead>}
+              {...(compact ? {} : { trailing: <LinkButton label="Open" onPress={() => data.nav.openPage("machines", { machineId: a.serverId })} testID={`attn-machine-go-${a.serverId}`} /> })}
+              onPress={() => data.nav.openPage("machines", { machineId: a.serverId })} />
+          ))]}
         </Group>
         {/* ui-rows-lint: not a list (the buttons of the rows above, on a phone) */}
         {compact ? <View style={s.compactFix}>{o.attention.map((a, i) => { const f = fix(a, i); return f ? <View key={`fix-${i}`}>{f}</View> : null; })}</View> : null}
         {act.note ? <Text accessibilityRole="status" style={s.note} testID="attn-note">{act.note}</Text> : null}
       </Section>
       <TeamNowSection />
-      <Section title="Server">
+      <Section title="Health">
         <View style={s.grid} testID="tiles">
           {/* ui-rows-lint: not a list (overview tiles) */}
           {tiles.map((t) => (

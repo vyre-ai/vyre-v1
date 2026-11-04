@@ -26,7 +26,7 @@ const DEFAULT_SAMPLE_PERCENT = 5;
 /** The server a turn ran on, when its chat was pinned to one, and every place it ran, in order (node-turns.ts). */
 function withNode(ctx: EngineCtx, r: Row): Row {
   const node = nodeOfTurn(ctx.db, str(r["turn_id"]));
-  const ran = whereOfTurn(ctx.db, str(r["turn_id"])).map((w) => ({ kind: w.kind, name: w.name }));
+  const ran = whereOfTurn(ctx.db, str(r["turn_id"])).map((w) => ({ kind: w.kind, name: w.name, ...(w.note ? { note: w.note } : {}) }));
   return { ...r, ...(node === undefined || node.startsWith("device:") ? {} : { node_id: node }), ...(ran.length > 0 ? { ran_on: ran } : {}) };
 }
 

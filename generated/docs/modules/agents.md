@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, notes, runs, terminal.
 
-## Capabilities (94)
+## Capabilities (96)
 
 - [agents.assistant_of](../capabilities/agents.assistant_of.md): A person's own Assistant, for the server's modules that work for them; only the server and the person themself are answered
 - [agents.builtin_skill.get](../capabilities/agents.builtin_skill.get.md): Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer
@@ -26,6 +26,8 @@ Requires: chat, engine, mcp, memory, notes, runs, terminal.
 - [agents.outside.seen](../capabilities/agents.outside.seen.md): System: an outside agent called a tool: its status follows
 - [agents.outside.usable](../capabilities/agents.outside.usable.md): May the person asking give this agent work? An outside agent takes work from its owner only; every other agent says yes
 - [agents.pause](../capabilities/agents.pause.md): Pause an agent with a reason; the status shows who paused it
+- [agents.pause_person](../capabilities/agents.pause_person.md): Pause every agent of one person, or let them run again. Audited, and the person is told. Answers how many changed, never which
+- [agents.people_summary](../capabilities/agents.people_summary.md): For each person whose agents you cannot see (their Assistant, the agents they keep private): how many, what they spent this month against their cap, and whether they are paused. Never names or content
 - [agents.restore](../capabilities/agents.restore.md): Restore an agent from Trash
 - [agents.restore_version](../capabilities/agents.restore_version.md): Restore AGENT.md or agent.toml to an earlier version
 - [agents.resume](../capabilities/agents.resume.md): Resume a paused agent

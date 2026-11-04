@@ -1772,6 +1772,42 @@ const routes0: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/agents/pause_person",
+    "cap": "agents.pause_person",
+    "v": 1,
+    "module": "agents",
+    "effects": "write",
+    "permission": "agents.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/agents/people_summary",
+    "cap": "agents.people_summary",
+    "v": 1,
+    "module": "agents",
+    "effects": "read",
+    "permission": "agents.manage",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/agents/restore",
     "cap": "agents.restore",
     "v": 1,
@@ -5503,7 +5539,10 @@ const routes0: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes1: Route[] = [
   {
     "method": "POST",
     "path": "/v1/chat/question/ask",
@@ -5541,10 +5580,7 @@ const routes0: Route[] = [
     "offline": "patch",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes1: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/chat/recent",
@@ -11032,7 +11068,10 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/engine/switch",
@@ -11069,10 +11108,7 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes2: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/engine/turn/enqueue",
@@ -16597,7 +16633,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": true,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/governance/tombstones/list",
@@ -16633,10 +16672,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "delete"
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/health/caddy",
@@ -22066,7 +22102,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/memory/promote",
@@ -22102,10 +22141,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/memory/promotion/reject",
@@ -24351,6 +24387,186 @@ const routes4: Route[] = [
     "effects": "read",
     "permission": "server.network",
     "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/machine",
+    "cap": "network.machine",
+    "v": 1,
+    "module": "network",
+    "effects": "read",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/machine_alerts",
+    "cap": "network.machine_alerts",
+    "v": 1,
+    "module": "network",
+    "effects": "read",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/machine_alerts_notify",
+    "cap": "network.machine_alerts_notify",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/machine_fix",
+    "cap": "network.machine_fix",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/machine_move_record",
+    "cap": "network.machine_move_record",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/machine_moves",
+    "cap": "network.machine_moves",
+    "v": 1,
+    "module": "network",
+    "effects": "read",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/machine_pin",
+    "cap": "network.machine_pin",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/machine_place",
+    "cap": "network.machine_place",
+    "v": 1,
+    "module": "network",
+    "effects": "read",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/machine_set",
+    "cap": "network.machine_set",
+    "v": 1,
+    "module": "network",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/network/machines",
+    "cap": "network.machines",
+    "v": 1,
+    "module": "network",
+    "effects": "read",
+    "permission": null,
+    "level": "use",
     "resource": {
       "type": "space"
     },
@@ -27402,7 +27618,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/records/merge",
@@ -27628,10 +27847,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/records/search",
@@ -32913,7 +33129,10 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/tasks/ask",
@@ -33139,10 +33358,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/tasks/digest",

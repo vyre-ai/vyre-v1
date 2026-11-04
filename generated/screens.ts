@@ -2790,6 +2790,44 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "console.machines",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleMachines",
+    "caller": "principal",
+    "queries": {
+      "machines": {
+        "cap": "network.machines",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "set": {
+        "cap": "network.machine_set",
+        "input": {
+          "serverId": "/state/serverId"
+        }
+      },
+      "pin": {
+        "cap": "network.machine_pin",
+        "input": {
+          "serverId": "/state/serverId",
+          "agentId": "/state/agentId",
+          "pinned": "/state/pinned"
+        }
+      }
+    },
+    "needs": [
+      "console.access"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.mcp-sessions",
     "module": "mcp",
     "place": "console",
