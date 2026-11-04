@@ -50,6 +50,7 @@ import { setAgentFaces } from "../../../../../../ui/src/Avatar/assistant.ts";
 import { useDirectory } from "../../../shell/providers/automations-parts.tsx";
 import { ProfilePane, afterClose, profileTab, withTab } from "../rightpane/ProfilePane.tsx";
 import type { ProfileTab } from "../rightpane/ProfilePane.tsx";
+import type { TabKey } from "../rightpane/model.ts";
 import { ReplyDetailsPane } from "../details/ReplyDetailsPane.tsx";
 import { readReplyDetails } from "../details/read.ts";
 import type { Call } from "../details/read.ts";
@@ -182,6 +183,9 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   // right tabs: what was opened from a chat, closable, after the pane's own. Pressing any face or name opens that profile here, person or agent.
   const [rightTabs, setRightTabs] = useState<readonly ProfileTab[]>([]);
   const [rightOn, setRightOn] = useState<string | null>(null);
+  // a hook line in the chat opens the pane on Hooks, at that hook
+  const [paneTab, setPaneTab] = useState<TabKey | undefined>(undefined);
+  const [hookSel, setHookSel] = useState<string | null>(null);
   // the task open beside the chat it was pressed in; it closes when the chat changes
   const [sideTask, setSideTask] = useState<string | null>(null);
   const openSideTask = useCallback((id: string): void => setSideTask(id), []);
@@ -274,7 +278,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       const wired = wireConversation(rt, go, { threadId, list, nameOf, leadId, fill, ...(focus ? { focus } : {}), ...(focusN ? { focusN } : {}) });
       // a task link in the chat opens beside it, where it was pressed
       const openBeside = (kind: string, id: string): void => { if (kind === "task") openSideTask(id); else wired.nav.openBeside(kind, id); };
-      return { ...wired, nav: { ...wired.nav, openAgent: profile, openBeside, openDetails: (tid: string, mid: string) => replyDetails(tid, mid) } };
+      return { ...wired, nav: { ...wired.nav, openAgent: profile, openBeside, openDetails: (tid: string, mid: string) => replyDetails(tid, mid), openHooks: (_tid: string, hookId?: string) => { setPaneTab("hooks"); setHookSel(hookId ?? null); setRightOn(null); go.openPane(); } } };
     },
     [rt, go, threadId, list, nameOf, leadId, fill, focus, focusN, profile, openSideTask, replyDetails],
   );
@@ -374,7 +378,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       </View>
     );
   } else if (shown.pane && paneCtx && route.view === "chat") {
-    right = <View style={st.pane}><AgentPane data={paneCtx} open onToggle={go.togglePane} {...(window ? { window } : {})} extra={{ tabs: rightSpecs, active: rightOn, onSelect: setRightOn, onClose: closeRight, body: rightBody }} /></View>;
+    right = <View style={st.pane}><AgentPane data={paneCtx} open onToggle={go.togglePane} {...(paneTab ? { tab: paneTab, onTab: (t: TabKey) => setPaneTab(t) } : {})} hookSel={hookSel} {...(window ? { window } : {})} extra={{ tabs: rightSpecs, active: rightOn, onSelect: setRightOn, onClose: closeRight, body: rightBody }} /></View>;
   } else if (rightOn !== null) {
     right = (
       <View style={st.pane}>

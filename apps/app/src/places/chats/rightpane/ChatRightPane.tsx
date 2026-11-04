@@ -21,6 +21,7 @@ import { MemoryTab } from "./MemoryTab.tsx";
 import { KnowsTab } from "../memory/KnowsTab.tsx";
 import { RoutinesTab } from "./RoutinesTab.tsx";
 import { TerminalPaneTab } from "./TerminalPaneTab.tsx";
+import { HooksTab } from "./HooksTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN, PANE_SCREEN } from "./ThreadsTab.tsx";
 import { CrewTab } from "./CrewTab.tsx";
 import { DEFAULT_TAB, PANE_KEY, PANE_WIDTH_GUESS, TABS, tabsOf } from "./model.ts";
@@ -39,6 +40,8 @@ export interface ChatRightPaneProps {
   /** The tab shown. Leave `tab` out and the pane keeps its own; `initialTab` is where it starts. */
   tab?: TabKey;
   initialTab?: TabKey;
+  /** The hook to show and flash when the Hooks tab was opened from a line in the chat. */
+  hookSel?: string | null;
   onTab?: (tab: TabKey) => void;
   /** Pins which rows are drawn (tests and screenshots draw them all); the shell leaves it out and the lists window by scroll. */
   window?: VirtualWindow;
@@ -84,7 +87,7 @@ export function ChatRightPaneLoading({ open, onToggle }: { open: boolean; onTogg
   );
 }
 
-function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, paneWidth, openRoutine, extra }: ChatRightPaneProps): ReactElement {
+function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, onTab, window, paneWidth, openRoutine, extra }: ChatRightPaneProps): ReactElement {
   const data = usePaneData();
   const online = useOnline();
   const menu = useMenu();
@@ -114,7 +117,10 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   // the Crew tab appears once teammates work for this chat
   const crewQ = useScreenQuery<CapMap["engine.crew.list"]["out"]>(PANE_SCREEN, "crew", { threadId: data.threadId });
   const hasCrew = crewQ.status === "ready" && crewQ.data.jobs.length > 0;
-  const tabs = useMemo(() => tabsOf(data.terminal !== undefined, hasCrew).filter((t) => !(noComputers && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, noComputers, data.terminal, hasCrew]);
+  // the Hooks tab appears once the chat has hooks, or when a hook line opened it
+  const hooksQ = useScreenQuery<CapMap["hooks.list"]["out"]>(PANE_SCREEN, "hooks", { threadId: data.threadId });
+  const hasHooks = (hooksQ.status === "ready" && hooksQ.data.hooks.length > 0) || tab === "hooks";
+  const tabs = useMemo(() => tabsOf(data.terminal !== undefined, hasCrew, hasHooks).filter((t) => !(noComputers && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, noComputers, data.terminal, hasCrew, hasHooks]);
   const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);
   const { strip, select } = useFittedTabs(tabs, tab, paneNow, {
@@ -151,6 +157,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
         <View testID={`pane-body-${tab}`} style={st.body}>
           {tab === "computer" ? <ComputerTab deps={deps} {...(window ? { window } : {})} /> : null}
           {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
+          {tab === "hooks" ? <HooksTab deps={deps} selected={hookSel ?? null} {...(window ? { window } : {})} /> : null}
           {tab === "crew" ? <CrewTab deps={deps} {...(window ? { window } : {})} /> : null}
           {tab === "files" ? <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} /> : null}
           {tab === "terminal" && data.terminal ? <TerminalPaneTab data={data.terminal} /> : null}

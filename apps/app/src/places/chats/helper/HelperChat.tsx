@@ -16,6 +16,8 @@ import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx
 type ThreadOut = CapMap["threads.get"]["out"];
 type MessagesOut = CapMap["chat.messages.list"]["out"];
 
+import { HelperHooks } from "./HelperHooks.tsx";
+import type { HelperHooksOut } from "./HelperHooks.tsx";
 export const HELPER_SCREEN = "chats.helper-chat";
 
 export function HelperChat({ data }: { data?: HelperChatData }): ReactElement {
@@ -36,6 +38,7 @@ function HelperView(): ReactElement {
   const [line, setLine] = useState("");
   const threadQ = useScreenQuery<ThreadOut>(HELPER_SCREEN, "thread", { threadId: data.threadId });
   const messagesQ = useScreenQuery<MessagesOut>(HELPER_SCREEN, "messages", { threadId: data.threadId });
+  const hooksQ = useScreenQuery<HelperHooksOut>(HELPER_SCREEN, "hooks", { threadId: data.threadId });
   const stop = useMemo(() => async (): Promise<void> => {
     try { await data.call("engine.stop", { threadId: data.threadId }); setLine("Stopped. The helper's steps so far are kept."); } catch { setLine("Could not stop it. Try again."); }
   }, [data]);
@@ -95,6 +98,7 @@ function HelperView(): ReactElement {
       <ScrollView testID="helper-feed" style={{ flex: 1 }} contentContainerStyle={st.feed}>
         <Text style={st.daysep}>{`Helper of ${owner}${parent ? ` · from “${parent.title}”` : ""}`}</Text>
         {messages.length === 0 ? <States kind="empty" icon="chat" title="Nothing yet. The helper has not started." /> : feed}
+        {hooksQ.status === "ready" ? <HelperHooks hooks={hooksQ.data.hooks} helperThreadId={data.threadId} lead={owner} {...(data.nav.openHooks ? { open: data.nav.openHooks } : {})} /> : null}
       </ScrollView>
       {line ? <View testID="helper-line" style={st.note}><Text style={st.noteText}>{line}</Text></View> : null}
       <View testID="helper-readonly" style={st.readonly}>

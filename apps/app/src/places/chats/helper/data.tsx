@@ -8,6 +8,8 @@ import type { Clock } from "./model.ts";
 export interface HelperNav {
   /** The chat or thread an address-bar part names; also "Reply in ...". */
   openThread(threadId: string): void;
+  /** A hook row: the lead's Hooks tab at that hook. Left out where the shell has none. */
+  openHooks?(hookId: string): void;
 }
 
 export interface Connection { get(): "online" | "offline"; subscribe(l: () => void): () => void }

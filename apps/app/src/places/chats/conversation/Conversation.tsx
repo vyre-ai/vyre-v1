@@ -520,6 +520,7 @@ function ConversationView(): ReactElement {
     },
     ...(data.activityOf ? { activityOf: (id: string) => data.activityOf!(id) } : {}),
     nameOf,
+    ...(data.nav.openHooks ? { openHooks: (hookId: string | undefined) => data.nav.openHooks?.(thread.threadId, hookId) } : {}),
     openMessage: (threadId, messageId) => (messageId === "" ? data.nav.openThread(threadId) : data.nav.openThread(threadId, messageId)),
     share: (id, x, y) => void act.shareTargets(data, thread.threadId).then((targets) => {
       const entries: MenuEntry[] = [];
