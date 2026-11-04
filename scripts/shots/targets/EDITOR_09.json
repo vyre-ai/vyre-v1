@@ -1,0 +1,1 @@
+{ "targets": [ { "id": "EDITOR_09-edit", "route": "/m/EDITOR_09", "proto": "files,{skin}", "waitFor": "[data-testid=md-out]", "note": "Overview with live blocks." }, { "id": "EDITOR_09-read", "route": "/m/EDITOR_09?mode=read", "proto": "files,{skin}", "waitFor": "[data-testid=md-out]", "note": "Overview read mode." } ] }

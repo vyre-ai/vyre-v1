@@ -8,3 +8,4 @@
 - Records: a record has Open, Star, Share, Copy Link and Delete in its menu (S stars it), and a record type in the sidebar has Open, Star, Copy Name and Edit Type.
 - Artifacts: an artifact row has Open, Share, Copy Link, Rename and Delete (Delete asks first) in its menu.
 - A message menu has Mark Unread From Here, and a chat menu has Move to Project. A task menu has Follow and Copy Link.
+- Voice can use ElevenLabs as well as Deepgram. An admin adds a key for each and picks which one covers people (Console, Voice). Check now runs a real one-second grant against the picked provider.

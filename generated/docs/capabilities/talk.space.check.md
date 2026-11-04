@@ -1,6 +1,6 @@
 # talk.space.check
 
-Check the Space key with the provider now
+Check the Space key now: a real one-second grant against the provider the Space picked, with the key from the Vault
 
 | | |
 |---|---|
@@ -39,6 +39,7 @@ type Out = {
   checkedAt?: number;
   state?: "ok" | "failing";
   peopleOwnKey?: number;
+  keyed?: Array<string>;
 };
 ```
 
@@ -60,6 +61,9 @@ type Out = {
   "output": {
     "checkedAt": 1760000000000,
     "itemId": "vit_a1b2c3",
+    "keyed": [
+      "deepgram"
+    ],
     "on": true,
     "peopleOwnKey": 1,
     "provider": "deepgram",

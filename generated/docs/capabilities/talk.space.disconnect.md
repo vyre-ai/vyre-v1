@@ -39,6 +39,7 @@ type Out = {
   checkedAt?: number;
   state?: "ok" | "failing";
   peopleOwnKey?: number;
+  keyed?: Array<string>;
 };
 ```
 
@@ -59,6 +60,9 @@ type Out = {
   "output": {
     "checkedAt": 1760000000000,
     "itemId": "vit_a1b2c3",
+    "keyed": [
+      "deepgram"
+    ],
     "on": true,
     "peopleOwnKey": 1,
     "provider": "deepgram",

@@ -11,7 +11,7 @@ import { chatExtensions, endTalk, replaceDoc } from "./chatnode.ts";
 import { placed } from "./talk.ts";
 
 const schema = getSchema(chatExtensions());
-const chips = (d: ChatNode): string[] => (d.content?.[0]?.content ?? []).filter((n) => n.type === "chip").map((n) => String(n.attrs?.["text"]));
+const chips = (d: ChatNode): string[] => (d.content?.[0]?.content ?? []).filter((n) => n.type === "chip").map((n) => String(n.attrs?.["label"]));
 const start = (text: string, ranges: { start: number; end: number; kind: string }[]): EditorState => EditorState.create({ doc: schema.nodeFromJSON(chatDoc(text, ranges)), plugins: [history()] });
 const docOf = (s: EditorState): ChatNode => s.doc.toJSON() as ChatNode;
 

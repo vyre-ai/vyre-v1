@@ -124,6 +124,7 @@ export function GithubAppPage(): ReactElement {
       <Section title="The Space's installation">
         <Group>
           {installs.length === 0 ? <Row id="gh-no-install" title="Not installed" note="Install the app on your GitHub org so CI and Space crews can reach its repos" leading={<GhMark />} trailing={app ? <Button small label="Install" testID="gh-install" onPress={() => open(installUrl(app.slug))} /> : undefined} /> : null}
+          {/* ui-rows-lint: not a list (a divider around rows that are each a ui/Row already) */}
           {installs.map((i, n) => <Line key={i.id} index={n}><Row id={`gh-install-${i.id}`} title={i.account} note={`${i.repositorySelection === "all" ? "All repositories" : "Selected repositories"}. CI and Space crews use it`} leading={<GhMark />} trailing={<Button small label="Change" testID={`gh-change-${i.id}`} onPress={() => open(changeUrl(i.id))} />} /></Line>)}
         </Group>
         <Foot top={14} testID="gh-foot-own">{`${data.space.name} uses its own GitHub app. Reconnect once.`}</Foot>

@@ -26,7 +26,7 @@ import type { Fact, FactStatus, Layer, MemCtx, SourceKind } from "../projections
 import { heuristicExtract } from "./facts.ts";
 import { kindOf, placeOf } from "../place.ts";
 import type { Place } from "../place.ts";
-import { postNoted } from "../shared.ts";
+import { postNoted, writeSharedWith } from "../shared.ts";
 import { chatAudience } from "../../../lib/audience.ts";
 import type { Audience } from "../../../lib/audience.ts";
 import type { CaptureMessage } from "./facts.ts";
@@ -223,7 +223,8 @@ export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> 
     // the free rules: the quota is spent, the account is paused or out, or no cheap model is there
     countRulePass(ctx, asker, day);
     for (const c of heuristicExtract(mineOnly)) {
-      if (shared && !SELF_KINDS.has(c.kind)) continue;
+      // in a place others read, the asker's own lines of every kind become the place's memory (the kinds a model keeps are the model's call); elsewhere only what they say about themselves
+      if (shared && !place && !SELF_KINDS.has(c.kind)) continue;
       addFact(w, { text: c.text, kind: c.kind, messageId: c.messageId, key: `${input.threadId}:${c.messageId}:${c.index}` }, tally);
     }
   }
@@ -310,14 +311,25 @@ const lineLink = (threadId: string, messageId: string): string => `/chats/${thre
 
 function write(w: Writer, f: { text: string; kind: string; messageId: string; key: string; replaces?: string; why?: string }, status: FactStatus): Fact {
   const { ctx, target } = w;
-  const fact = insertFact(ctx, {
+  let note: { replaced?: Fact; disputedWith?: Fact; questionId?: string } = {};
+  const base = {
     layer: target.layer, ownerRef: target.ownerRef, agentId: target.agentId, projectId: target.projectId, kind: f.kind, text: f.text, validFrom: ctx.now(), sourceKind: w.sourceKind,
     sourceRef: w.threadId, sourcePerson: actorOf(ctx), proposedBy: ctx.principal.id, status, lowRisk: w.low(f.kind),
-    links: [["capture", f.key], ["message", f.messageId], ...w.audience], sourceLink: lineLink(w.threadId, f.messageId), how: "learn", who: w.who,
-    ...(f.replaces ? { replaces: f.replaces } : {}), ...(f.why ? { why: f.why } : {}),
-    ...(w.place && w.heard ? { place: { kind: w.place.kind, id: w.place.id, ...(w.place.parent ? { parent: w.place.parent } : {}) }, placeThread: w.threadId, audience: w.heard, msgId: f.messageId, span: f.text } : {}),
-  });
-  if (w.place && status === "current") void postNoted(ctx, { threadId: w.threadId, factId: fact.id, kind: kindOf(f.kind), text: f.text });
+    links: [["capture", f.key], ["message", f.messageId], ...w.audience] as Array<[string, string]>, sourceLink: lineLink(w.threadId, f.messageId), how: "learn" as const, who: w.who,
+  };
+  let fact: Fact;
+  if (w.place && w.heard && !f.replaces) {
+    // what a person says in a place others read goes through the one door: replace by subject, dispute a clash, keep its place and message
+    const out = writeSharedWith(ctx, { ...base, threadId: w.threadId, heard: w.heard, msgId: f.messageId, span: f.text }, w.place);
+    fact = out.fact; note = out;
+    if (out.deduped) return fact;
+  } else {
+    fact = insertFact(ctx, {
+      ...base, ...(f.replaces ? { replaces: f.replaces } : {}), ...(f.why ? { why: f.why } : {}),
+      ...(w.place && w.heard ? { place: { kind: w.place.kind, id: w.place.id, ...(w.place.parent ? { parent: w.place.parent } : {}) }, placeThread: w.threadId, audience: w.heard, msgId: f.messageId, span: f.text } : {}),
+    });
+  }
+  if (w.place && status === "current") void postNoted(ctx, { threadId: w.threadId, factId: fact.id, kind: kindOf(f.kind), text: f.text, ...(note.replaced ? { replaces: note.replaced.id } : {}), ...(note.disputedWith ? { disputed: true } : {}), ...(note.questionId && note.disputedWith ? { question: { questionId: note.questionId, a: { text: note.disputedWith.text, by: note.disputedWith.sourcePerson, at: note.disputedWith.learnedAt }, b: { text: f.text, by: fact.sourcePerson, at: fact.learnedAt } } } : {}) });
   emitProposed(ctx, fact);
   emitLearned(ctx, fact, status === "current", w.who);
   if (status === "current") emitAccepted(ctx, fact, true);

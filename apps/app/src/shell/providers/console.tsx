@@ -51,7 +51,6 @@ import { ServersPage } from "../../console/pages/Servers.tsx";
 import { AgentComputersPage } from "../../console/pages/AgentComputersPage.tsx";
 import { CiRunnersPage } from "../../console/pages/CiRunners.tsx";
 import { GithubAppPage } from "../../console/pages/GithubApp.tsx";
-import { BillingPage } from "../../console/pages/Billing.tsx";
 import { SpaceDeletePage } from "../../console/pages/SpaceDelete.tsx";
 import { ExportPage } from "../../console/pages/ExportPage.tsx";
 import { SendRulesPage } from "../../console/pages/SendRules.tsx";
@@ -85,7 +84,6 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "agentcomputers") return <AgentComputersPage />;
   if (id === "ci") return <CiRunnersPage />;
   if (id === "ghapp") return <GithubAppPage />;
-  if (id === "billing") return <BillingPage />;
   if (id === "spacedel") return <SpaceDeletePage />;
   if (id === "export") return <ExportPage />;
   if (id === "sendrules") return <SendRulesPage />;
