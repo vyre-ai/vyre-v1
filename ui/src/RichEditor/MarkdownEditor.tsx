@@ -382,6 +382,10 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
     setLinkAt(href);
   }, []);
 
+  // Keys typed while the editor is still loading (it is imported on demand) land in this stand-in field, and are put into the editor the moment it exists, so nothing typed early is lost.
+  const shim = useRef<{ value: string; focus(): void } | null>(null);
+  useEffect(() => { if (web && view === "styled" && props.autoFocus === true) shim.current?.focus?.(); }, [view]);
+
   // Web, styled: TipTap on the page's document.
   useEffect(() => {
     if (!web || view !== "styled") return undefined;
@@ -462,7 +466,9 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
       e.view.dom.setAttribute("data-empty", last.current.trim() === "" ? "true" : "false");
       made = e;
       setEditor(e);
-      if (cb.current.autoFocus) e.commands.focus("end");
+      const early = shim.current?.value ?? "";
+      if (cb.current.autoFocus || early !== "") e.commands.focus("end");
+      if (early !== "") e.commands.insertContent(early);
     })();
     return () => { gone = true; made?.destroy(); editorRef.current = null; setEditor(null); setBubble(null); };
     // eslint-disable-next-line
@@ -581,7 +587,8 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
     body = <RawMarkdown value={props.value} onChange={onRawChange} editable={editable} label={props.label} placeholder={placeholder} autoFocus={props.autoFocus === true} jump={props.jump ?? null} onNote={say} minHeight={minHeight}
       {...(props.onSave ? { onSave: props.onSave } : {})} {...(props.onModEnter ? { onModEnter: props.onModEnter } : {})} {...(props.focusKey ? { focusKey: props.focusKey } : {})} {...(props.onEscape ? { onEscape: props.onEscape } : {})} {...(props.onBlur ? { onBlur: props.onBlur } : {})} />;
   } else {
-    body = createElement("div", { ref: (el: unknown) => { host.current = el; }, "data-testid": "markdown-editor-host", style: { minHeight } });
+    body = createElement("div", { ref: (el: unknown) => { host.current = el; }, "data-testid": "markdown-editor-host", style: { minHeight } },
+      editor === null ? createElement("textarea", { ref: (el: unknown) => { shim.current = el as never; }, "data-testid": "markdown-editor-early", "aria-label": props.label, placeholder, rows: 1, style: { width: "100%", border: 0, outline: "none", background: "transparent", resize: "none", font: "inherit", color: "inherit", padding: 0 } }) : null);
   }
 
   return (

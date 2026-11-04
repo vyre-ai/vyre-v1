@@ -62,3 +62,10 @@ test("the [[ and @ menus open on the trigger and its query, and close once the t
   assert.deepEqual(findTrigger("@Aliza", "@"), { query: "Aliza", length: 6 });
   assert.equal(findTrigger("mail me@example.com", "@"), null, "an @ inside an address is not a mention");
 });
+
+test("an editor opened to type in has a stand-in field that takes keys until TipTap has loaded; one not opened to type in has none", () => {
+  const open = clean(renderToStaticMarkup(<MarkdownEditor label="Note" value="" autoFocus onChange={() => undefined} />));
+  assert.match(open, /data-testid="markdown-editor-early"/, "keys typed while the editor loads are not lost");
+  const read = clean(renderToStaticMarkup(<MarkdownEditor label="Note" value="x" mode="read" />));
+  assert.doesNotMatch(read, /markdown-editor-early/);
+});

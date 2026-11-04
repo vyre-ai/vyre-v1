@@ -20,3 +20,4 @@
 - A chip for an email thread in a reply opens the Inbox conversation that holds it (new read capability inbox.thread_conversation, mapped through the stored provider thread id).
 - The composer's memory switch uses the memory glyph instead of a lock: "Remembering this chat. Press to stop." and, when off, a crossed glyph with "Not remembering this chat".
 - Opening an Inbox conversation from an email-thread link lands on that thread: it opens, scrolls into view and is marked for about two seconds.
+- A new note (and any editor opened to type in) no longer drops the first letters: keys typed while the editor loads go into a stand-in field and are put into the editor the moment it exists.
