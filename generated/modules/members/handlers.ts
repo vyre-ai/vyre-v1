@@ -23,6 +23,15 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "members.invites.list": Handler<"members.invites.list", X>;
   "members.invites.preview": Handler<"members.invites.preview", X>;
   "members.invites.revoke": Handler<"members.invites.revoke", X>;
+  "members.join_link.create": Handler<"members.join_link.create", X>;
+  "members.join_link.disable": Handler<"members.join_link.disable", X>;
+  "members.join_link.get": Handler<"members.join_link.get", X>;
+  "members.join_link.preview": Handler<"members.join_link.preview", X>;
+  "members.join_link.request": Handler<"members.join_link.request", X>;
+  "members.join_link.rotate": Handler<"members.join_link.rotate", X>;
+  "members.join_requests.approve": Handler<"members.join_requests.approve", X>;
+  "members.join_requests.decline": Handler<"members.join_requests.decline", X>;
+  "members.join_requests.list": Handler<"members.join_requests.list", X>;
   "members.joins.list": Handler<"members.joins.list", X>;
   "members.joins.retry": Handler<"members.joins.retry", X>;
   "members.reactivate": Handler<"members.reactivate", X>;

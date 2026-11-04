@@ -1,0 +1,5 @@
+{
+  "targets": [
+    { "id": "TABS_02-shell", "route": "/m/TABS_02", "proto": "chat,{skin}", "waitFor": "[data-testid='tab-strip']", "note": "The real shell: Files, Chats once, two named chats, one blank New chat (New chat was pressed and went to it), Records. Even spacing, one longest title." }
+  ]
+}

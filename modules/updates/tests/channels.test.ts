@@ -224,6 +224,18 @@ test("history lists updates newest first", async () => {
   assert.equal(out.updates[0]!.at, NOW + 60_000);
 });
 
+test("status: a server without vyre-server answers that it is updated outside Vyre, not a refusal", async () => {
+  const w = await ready();
+  const normal = await call("updates.status", w.ctx, {}) as { current?: string; managedElsewhere?: boolean };
+  assert.equal(typeof normal.current, "string");
+  assert.equal(normal.managedElsewhere, undefined);
+  w.installer.current = async () => { throw Object.assign(new Error("vyre-server is not installed on this server"), { code: "ENOENT" }); };
+  const r = await call("updates.status", w.ctx, {}) as { current?: string; managedElsewhere?: boolean; channel: string };
+  assert.deepEqual([r.managedElsewhere, r.current, typeof r.channel], [true, undefined, "string"]);
+  w.installer.current = async () => { throw new Error("vyre-server could not say which version is running"); };
+  await assert.rejects(call("updates.status", w.ctx, {}), "any other failure is still a failure");
+});
+
 test("health: a missing vyre-server reads healthy with a hint; any other failure to check is degraded with the reason", async () => {
   const w = await ready();
   w.installer.current = async () => { throw Object.assign(new Error("vyre-server is not installed on this server"), { code: "ENOENT" }); };

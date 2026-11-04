@@ -67,6 +67,8 @@ export interface ChatRightPaneData {
   people?: readonly DirectoryEntry[];
   /** What the Knows tab reads and writes (facts in scope for this chat and this asker, live and editable). Left out where the shell has none: the tab then shows the agent's own facts as it always did. */
   memory?: ChatMemoryData;
+  /** The shared Share sheet on something the pane lists (a skill), drawn by the shell, which has the runtime the sheet reads through. */
+  renderShare?(resource: { type: string; id: string; name: string }, onClose: () => void): ReactElement;
 }
 
 const Ctx = createContext<ChatRightPaneData | null>(null);

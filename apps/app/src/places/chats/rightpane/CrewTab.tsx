@@ -13,6 +13,8 @@ import type { CrewJob } from "./model.ts";
 import { usePaneAdd } from "./add.tsx";
 import { Face, LeadIcon, PaneList, TextButton } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
+import { useCrew } from "../crew/context.tsx";
+import { CrewOverview, CrewPeek } from "../crew/pane.tsx";
 
 type CrewOut = CapMap["engine.crew.list"]["out"];
 
@@ -51,5 +53,20 @@ export function CrewTab({ deps, window }: { deps: PaneDeps; window?: VirtualWind
       ),
     });
   }
-  return <><PaneList entries={entries} {...(window ? { window } : {})} testID="crew-list" />{add.element}</>;
+  const list = <><PaneList entries={entries} {...(window ? { window } : {})} testID="crew-list" />{add.element}</>;
+  // with the live read of the chat's crew (the strip's own), the pane shows the overview or one helper's peek; the teammate list below keeps Merge, Run again and Stop for code work
+  const crew = useCrew();
+  const status = crew?.status ?? null;
+  if (crew && status && status.members.length > 0) {
+    const sel = crew.selected !== null ? status.members.find((m) => m.id === crew.selected) : undefined;
+    return (
+      <>
+        {sel
+          ? <CrewPeek member={sel} call={data.call} {...(data.nameOf ? { nameOfId: data.nameOf } : {})} onBack={() => crew.show(null)} onOpenChat={(id) => data.nav.openHelper(id)} onRefresh={crew.refresh} />
+          : <CrewOverview status={status} call={data.call} threadId={data.threadId} onPeek={(id) => crew.show(id)} onRefresh={crew.refresh} />}
+        {jobs.length > 0 && !sel ? list : null}
+      </>
+    );
+  }
+  return list;
 }

@@ -1,0 +1,1 @@
+{ "targets": [ { "id": "EDITOR_08-early", "route": "/m/EDITOR_08", "proto": "files,{skin}", "waitFor": "[data-testid=typed]", "note": "Typing right after the editor opens." } ] }

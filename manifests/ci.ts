@@ -6,7 +6,7 @@
 // DECISION: one machine, one job, then deleted (a just-in-time runner takes exactly one job). A sweeper every 2 minutes deletes any machine tagged vyre-ci that is older than the job limit plus 10 minutes, or has no live run.
 // DECISION: at the concurrency limit a job waits in a queue and starts when a machine frees; at the monthly cap it is refused and the admins are told once a month.
 // DECISION: settings are an admin's (connectors.manage) and audited. Reads of runs are for anyone who can see the project; the cost is for admins.
-import { defineManifest, ev, read, t, write } from '../packages/contracts/src/index.ts';
+import { defineManifest, ev, read, screen, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut } from './_common.ts';
 
 const repo = t.str({ pattern: '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$', examples: ['vyre-ai/website'] });
@@ -66,6 +66,14 @@ export default defineManifest({
     }),
     write('ci.sweep', 'Host only: every 2 minutes, delete any machine tagged vyre-ci that is too old or has no live run, and start queued jobs that now fit', {
       ...V, in: {}, out: { deleted: t.int({ minimum: 0 }), started: t.int({ minimum: 0 }) }, emits: ['ci.run_swept', 'ci.run_started', 'ci.run_failed'], offline: 'online', errors: [],
+    }),
+  ],
+  screens: [
+    // Console, Computers, CI runners (admins): the settings and the month's cost; the runs are read per repository by the page
+    screen('console.ci', 'console', 'ui:ConsoleCi', {
+      q: { settings: ['ci.settings.get', {}, true], cost: ['ci.cost.month', {}, true] },
+      a: { set: ['ci.settings.set', {}] },
+      needs: ['connectors.manage'], empty: 'CI runners are off', primary: 'Turn on',
     }),
   ],
 });

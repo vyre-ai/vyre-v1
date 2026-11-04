@@ -24,6 +24,11 @@ import type { Who } from "../trail.ts";
 import { actorOf, autoMergeKinds, bm25, ensure, mintId, num, raise, readFact, rowsOf } from "../projections.ts";
 import type { Fact, FactStatus, Layer, MemCtx, SourceKind } from "../projections.ts";
 import { heuristicExtract } from "./facts.ts";
+import { kindOf, placeOf } from "../place.ts";
+import type { Place } from "../place.ts";
+import { postNoted, writeSharedWith } from "../shared.ts";
+import { chatAudience } from "../../../lib/audience.ts";
+import type { Audience } from "../../../lib/audience.ts";
 import type { CaptureMessage } from "./facts.ts";
 
 // ---- seams for the sibling lanes
@@ -184,6 +189,8 @@ export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> 
   let chars = 0;
   for (const m of fresh) {
     if (sealedBody(m) || IMPORTED_PREAMBLE.test(String(m.body ?? ""))) continue;
+    // a system or quiet line (a "Noted" line, a card) is the product talking, even when it is posted under a person's name
+    if ((m as { kind?: string }).kind === "system" || (m as { kind?: string }).kind === "quiet") continue;
     const mine = m.author.kind === "person" && m.author.id === asker;
     // other people's lines never reach the pass: what they said is not this person's to keep
     if (!mine && m.author.kind !== "agent") continue;
@@ -196,13 +203,16 @@ export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> 
 
   const kinds = mode === "propose" ? [] : await autoMergeKinds(ctx);
   const statusFor = (kind: string): FactStatus => (mode === "auto" || kinds.includes(kind) ? "current" : "proposed");
-  const target = seams.target({ asker, agentId, threadId: input.threadId });
+  // rule 8: what a person says in a place other people read is that place's memory, not their private one; their own one-to-one chats stay private
+  const place = shared && agentId ? await placeOf(ctx, input.threadId) : null;
+  const heard = place ? await chatAudience((cap, i) => ctx.call(cap, i), input.threadId) : null;
+  const target = place && agentId ? { layer: "agent" as const, ownerRef: agentId, agentId, projectId: null } : seams.target({ asker, agentId, threadId: input.threadId });
   const audience = seams.audience({ threadId: input.threadId, shared, people });
   const who: Who = agentId ? { actor: agentId, kind: "agent" } : whoIs(ctx);
   const sourceKind: SourceKind = t.kind === "channel" ? "channel" : "chat";
   const known = liveFacts(ctx, target);
   const keepLessons = await lessonsOn(ctx);
-  const w: Writer = { ctx, threadId: input.threadId, target, audience, who, sourceKind, statusFor, low: (kind) => kinds.includes(kind), known, mode, lessons: keepLessons, shared, agentId };
+  const w: Writer = { ctx, threadId: input.threadId, target, audience, who, sourceKind, statusFor, low: (kind) => kinds.includes(kind), known, mode, lessons: keepLessons, shared, agentId, ...(place && heard ? { place, heard } : {}) };
   const tally: Tally = { proposed: 0, merged: 0, updated: 0, closed: 0 };
 
   const tz = await timezoneOf(ctx);
@@ -213,7 +223,8 @@ export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> 
     // the free rules: the quota is spent, the account is paused or out, or no cheap model is there
     countRulePass(ctx, asker, day);
     for (const c of heuristicExtract(mineOnly)) {
-      if (shared && !SELF_KINDS.has(c.kind)) continue;
+      // in a place others read, the asker's own lines of every kind become the place's memory (the kinds a model keeps are the model's call); elsewhere only what they say about themselves
+      if (shared && !place && !SELF_KINDS.has(c.kind)) continue;
       addFact(w, { text: c.text, kind: c.kind, messageId: c.messageId, key: `${input.threadId}:${c.messageId}:${c.index}` }, tally);
     }
   }
@@ -293,19 +304,32 @@ export function relatedOf(known: Fact[], said: CaptureMessage[]): Fact[] {
 
 interface Writer {
   ctx: MemCtx; threadId: string; target: LearnTarget; audience: Array<[string, string]>; who: Who; sourceKind: SourceKind; statusFor(kind: string): FactStatus; low(kind: string): boolean;
-  known: Fact[]; mode: CaptureMode | null; lessons: boolean; shared: boolean; agentId: string | null;
+  known: Fact[]; mode: CaptureMode | null; lessons: boolean; shared: boolean; agentId: string | null; place?: Place; heard?: Audience;
 }
 
 const lineLink = (threadId: string, messageId: string): string => `/chats/${threadId}#${messageId}`;
 
 function write(w: Writer, f: { text: string; kind: string; messageId: string; key: string; replaces?: string; why?: string }, status: FactStatus): Fact {
   const { ctx, target } = w;
-  const fact = insertFact(ctx, {
+  let note: { replaced?: Fact; disputedWith?: Fact; questionId?: string } = {};
+  const base = {
     layer: target.layer, ownerRef: target.ownerRef, agentId: target.agentId, projectId: target.projectId, kind: f.kind, text: f.text, validFrom: ctx.now(), sourceKind: w.sourceKind,
     sourceRef: w.threadId, sourcePerson: actorOf(ctx), proposedBy: ctx.principal.id, status, lowRisk: w.low(f.kind),
-    links: [["capture", f.key], ["message", f.messageId], ...w.audience], sourceLink: lineLink(w.threadId, f.messageId), how: "learn", who: w.who,
-    ...(f.replaces ? { replaces: f.replaces } : {}), ...(f.why ? { why: f.why } : {}),
-  });
+    links: [["capture", f.key], ["message", f.messageId], ...w.audience] as Array<[string, string]>, sourceLink: lineLink(w.threadId, f.messageId), how: "learn" as const, who: w.who,
+  };
+  let fact: Fact;
+  if (w.place && w.heard && !f.replaces) {
+    // what a person says in a place others read goes through the one door: replace by subject, dispute a clash, keep its place and message
+    const out = writeSharedWith(ctx, { ...base, threadId: w.threadId, heard: w.heard, msgId: f.messageId, span: f.text }, w.place);
+    fact = out.fact; note = out;
+    if (out.deduped) return fact;
+  } else {
+    fact = insertFact(ctx, {
+      ...base, ...(f.replaces ? { replaces: f.replaces } : {}), ...(f.why ? { why: f.why } : {}),
+      ...(w.place && w.heard ? { place: { kind: w.place.kind, id: w.place.id, ...(w.place.parent ? { parent: w.place.parent } : {}) }, placeThread: w.threadId, audience: w.heard, msgId: f.messageId, span: f.text } : {}),
+    });
+  }
+  if (w.place && status === "current") void postNoted(ctx, { threadId: w.threadId, factId: fact.id, kind: kindOf(f.kind), text: f.text, ...(note.replaced ? { replaces: note.replaced.id } : {}), ...(note.disputedWith ? { disputed: true } : {}), ...(note.questionId && note.disputedWith ? { question: { questionId: note.questionId, a: { text: note.disputedWith.text, by: note.disputedWith.sourcePerson, at: note.disputedWith.learnedAt }, b: { text: f.text, by: fact.sourcePerson, at: fact.learnedAt } } } : {}) });
   emitProposed(ctx, fact);
   emitLearned(ctx, fact, status === "current", w.who);
   if (status === "current") emitAccepted(ctx, fact, true);

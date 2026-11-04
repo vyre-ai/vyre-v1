@@ -1,0 +1,39 @@
+{
+  "targets": [
+    {
+      "id": "CTXMENU_01-agent",
+      "route": "/m/CTXMENU_01?kind=agent",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='row-f:agt_intake']",
+      "note": "Right-click on an agent: Message, Open Profile, its computer, Pause, Star, Mute, Delete Agent last."
+    },
+    {
+      "id": "CTXMENU_01-agentmember",
+      "route": "/m/CTXMENU_01?kind=agentmember",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='row-f:agt_intake']",
+      "note": "The same agent for a member: no Pause, Wake or Sleep, Delete."
+    },
+    {
+      "id": "CTXMENU_01-chat",
+      "route": "/m/CTXMENU_01?kind=chat",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='row-c:c1']",
+      "note": "Right-click on a chat: Open, Open in New Tab, Rename, Star, Mark as Unread, Mute, Archive, Delete chat last."
+    },
+    {
+      "id": "CTXMENU_01-person",
+      "route": "/m/CTXMENU_01?kind=person",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='row-c:c1']",
+      "note": "Right-click on a person: Message, Mark as Read or Unread, Mute."
+    },
+    {
+      "id": "CTXMENU_01-channel",
+      "route": "/m/CTXMENU_01?kind=channel",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='row-ch:intake']",
+      "note": "Right-click on a channel: Open, Mark as Read, Star, Mute, Copy Link, Leave Channel."
+    }
+  ]
+}

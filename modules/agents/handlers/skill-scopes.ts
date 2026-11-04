@@ -18,7 +18,7 @@ type Files = Record<string, string>;
 const str = (v: unknown): string => (typeof v === "string" ? v : String(v ?? ""));
 const parse = <T>(v: unknown, d: T): T => { try { return v === null || v === undefined || str(v) === "" ? d : JSON.parse(str(v)) as T; } catch { return d; } };
 const me = (ctx: AgentsCtx): string => askerOf(ctx);
-const isAdmin = (ctx: AgentsCtx): boolean => ctx.authorize?.({ perm: "agents.manage", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
+export const isAdmin = (ctx: AgentsCtx): boolean => ctx.authorize?.({ perm: "agents.manage", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
 
 // ---- rows -------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -26,13 +26,13 @@ export interface Own {
   id: string; owner: string; projectId: string; name: string; description: string; text: string; files: Files; source: string; version: string; perms: SkillPerms;
   setup: Record<string, string>; agents: string[]; enabled: boolean; at: number; updatedAt: number;
 }
-const ownOf = (r: Row): Own => ({
+export const ownOf = (r: Row): Own => ({
   id: str(r["id"]), owner: str(r["owner"]), projectId: str(r["project_id"]), name: str(r["name"]), description: str(r["description"]), text: str(r["text"]), files: parse<Files>(r["files_json"], {}),
   source: str(r["source"]), version: str(r["version"]), perms: parse<SkillPerms>(r["perms_json"], NO_PERMS), setup: parse<Record<string, string>>(r["setup_json"], {}), agents: parse<string[]>(r["agents_json"], ["*"]),
   enabled: Number(r["enabled"]) === 1, at: Number(r["at"]), updatedAt: Number(r["updated_at"]),
 });
-const ownById = (ctx: AgentsCtx, id: string): Own | null => { const r = (ctx.db.all("SELECT * FROM agents_skill_own WHERE id = ?", id) as Row[])[0]; return r ? ownOf(r) : null; };
-const ownsOf = (ctx: AgentsCtx, owner: string): Own[] => (ctx.db.all("SELECT * FROM agents_skill_own WHERE owner = ? ORDER BY name", owner) as Row[]).map(ownOf);
+export const ownById = (ctx: AgentsCtx, id: string): Own | null => { const r = (ctx.db.all("SELECT * FROM agents_skill_own WHERE id = ?", id) as Row[])[0]; return r ? ownOf(r) : null; };
+export const ownsOf = (ctx: AgentsCtx, owner: string): Own[] => (ctx.db.all("SELECT * FROM agents_skill_own WHERE owner = ? ORDER BY name", owner) as Row[]).map(ownOf);
 const sharesOf = (ctx: AgentsCtx, skillId: string): string[] => (ctx.db.all("SELECT recipient FROM agents_skill_shares WHERE skill_id = ? ORDER BY recipient", skillId) as Row[]).map((r) => str(r["recipient"]));
 
 interface Receipt { state: "added" | "not_now"; perms: SkillPerms; agents: string[]; enabled: boolean }
@@ -65,7 +65,7 @@ export interface Policy { scriptsAdminOnly: boolean }
 export const policyOf = (ctx: AgentsCtx): Policy => ({ scriptsAdminOnly: meta(ctx.db, "skills.policy.scripts_admin_only") === "1" });
 
 /** D26: with the admin's rule on, a skill that runs scripts or starts a server on this server is added only by an admin. */
-function checkPolicy(ctx: AgentsCtx, perms: SkillPerms, name: string): void {
+export function checkPolicy(ctx: AgentsCtx, perms: SkillPerms, name: string): void {
   if (!policyOf(ctx).scriptsAdminOnly || !runsCode(perms) || isAdmin(ctx)) return;
   raise(ctx, "permission.role_lacks_permission", `${name} runs scripts or starts a tool server, and an admin set that only admins add those here. Ask an admin to add it for the Space.`, { name });
 }
@@ -113,8 +113,8 @@ export function renameClashes<T extends Listed>(list: readonly T[], names: Reado
   return list.map((s) => out.get(s) ?? s);
 }
 
-const bodyOf = (text: string, name: string): string => { const r = parseSkill(text, name); return r.ok ? r.skill.body : text; };
-const fileList = (f: Files): Array<{ path: string; text: string }> => Object.entries(f).map(([path, text]) => ({ path, text }));
+export const bodyOf = (text: string, name: string): string => { const r = parseSkill(text, name); return r.ok ? r.skill.body : text; };
+export const fileList = (f: Files): Array<{ path: string; text: string }> => Object.entries(f).map(([path, text]) => ({ path, text }));
 const usedBy = (agents: readonly string[], agentId: string | undefined): boolean => agentId === undefined || agents.includes("*") || agents.includes(agentId);
 
 /**
@@ -131,6 +131,15 @@ export function personalSkills(ctx: AgentsCtx, agentId: string | undefined, proj
   for (const o of ownsOf(ctx, person)) {
     if (!o.enabled || !usedBy(o.agents, agentId) || !inProject(o)) continue;
     out.push({ name: o.name, description: o.description, tier: "mine", source: o.source, system: false, enabled: true, bytes: Buffer.byteLength(o.text, "utf8"), updatedAt: o.updatedAt, at: o.at, text: o.text, body: bodyOf(o.text, o.name), files: fileList(o.files), skillId: o.id });
+  }
+  // an agent's own skills, and the ones another owner granted it to use: they are in its list on anyone's turn, beside the asker's
+  if (agentId) {
+    const held = (ctx.db.all("SELECT o.*, g.level AS g_level FROM agents_skill_own o LEFT JOIN agents_skill_grants g ON g.skill_id = o.id AND g.agent_id = ? WHERE o.enabled = 1 AND (o.owner = ? OR g.agent_id IS NOT NULL) ORDER BY o.name", agentId, agentId) as Row[]);
+    for (const r of held) {
+      const o = ownOf(r);
+      if (!inProject(o) || out.some((x) => x.skillId === o.id)) continue;
+      out.push({ name: o.name, description: o.description, tier: o.owner === agentId ? "mine" : "shared", source: o.source, system: false, enabled: true, bytes: Buffer.byteLength(o.text, "utf8"), updatedAt: o.updatedAt, at: o.at, ...(o.owner === agentId ? {} : { sharer: o.owner }), text: o.text, body: bodyOf(o.text, o.name), files: fileList(o.files), skillId: o.id });
+    }
   }
   for (const o of offeredTo(ctx, person)) {
     const c = cardState(ctx, o, person);
@@ -289,7 +298,7 @@ export async function skillsPreview(ctx: AgentsCtx, input: { link?: string; zip?
 
 // ---- Mine, written ----------------------------------------------------------------------------------------------------------------------------------------
 
-function checkFiles(ctx: AgentsCtx, files: Files): void {
+export function checkFiles(ctx: AgentsCtx, files: Files): void {
   let total = 0;
   for (const [p, t] of Object.entries(files)) {
     if (p.startsWith("/") || p.split("/").includes("..") || p.length > 200) raise(ctx, "validation.bad_input", `${p} is not a path inside the skill.`);

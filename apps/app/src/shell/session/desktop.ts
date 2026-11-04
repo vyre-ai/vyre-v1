@@ -13,7 +13,7 @@ import type { StoredSession, VerifiedSpace } from "./stored.ts";
 export type { DesktopDeepLink } from "../../../../../client/src/connection/desktop-link.ts";
 
 export type DesktopRoute =
-  | { kind: "signin"; address: string }
+  | { kind: "signin"; address: string; /** a link to one thing in that Space (vyre://open?address=&kind=&id=): it opens once signed in, through reach */ item?: { kind: string; id: string } }
   /** An app outside Vyre asked to join a Space this computer is signed in to: the Allow sheet. Never a sign-in to an address a link named. */
   | { kind: "allow"; address: string; request: string }
   | { kind: "pair"; address: string; code: string; /** a phone opened the pairing link in its browser */ phone?: true }
@@ -120,6 +120,7 @@ export function routeDesktopLink(link: DesktopDeepLink): DesktopRoute | null {
   const space = address(link.params["address"]);
   const request = link.params["allow"];
   if (link.action === "open" && space && typeof request === "string" && /^oar_[a-z0-9]{1,64}$/.test(request)) return { kind: "allow", address: space, request };
+  if (link.action === "open" && space && /^[a-z_]{2,24}$/.test(link.params["kind"] ?? "") && /^[A-Za-z0-9_.-]{1,128}$/.test(link.params["id"] ?? "")) return { kind: "signin", address: space, item: { kind: link.params["kind"]!, id: link.params["id"]! } };
   if (link.action === "open" || link.action === "signin") return space ? { kind: "signin", address: space } : null;
   if (link.action === "pair") {
     const code = link.params["code"];

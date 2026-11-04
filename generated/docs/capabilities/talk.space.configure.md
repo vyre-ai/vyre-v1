@@ -1,6 +1,6 @@
 # talk.space.configure
 
-Turn Talk for everyone on or off, and keep the key. An agent's change stops at the Gate for someone who may approve it
+Turn Talk for everyone on or off, and pick which provider (Deepgram or ElevenLabs) covers people; its key must be added first. An agent's change stops at the Gate for someone who may approve it
 
 | | |
 |---|---|
@@ -25,7 +25,8 @@ Turn Talk for everyone on or off, and keep the key. An agent's change stops at t
 
 ```ts
 type In = {
-  on: boolean;
+  on?: boolean;
+  provider?: string;
 };
 ```
 
@@ -41,6 +42,7 @@ type Out = {
   checkedAt?: number;
   state?: "ok" | "failing";
   peopleOwnKey?: number;
+  keyed?: Array<string>;
 };
 ```
 
@@ -59,11 +61,15 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "on": true
+    "on": true,
+    "provider": "elevenlabs"
   },
   "output": {
     "checkedAt": 1760000000000,
     "itemId": "vit_a1b2c3",
+    "keyed": [
+      "deepgram"
+    ],
     "on": true,
     "peopleOwnKey": 1,
     "provider": "deepgram",

@@ -38,7 +38,8 @@ const ready = new WeakSet<object>();
 function ensureNodeTable(db: Db): void {
   if (ready.has(db)) return;
   db.run(TABLE); db.run(WHERE); db.run(USING); db.run(ONCE);
-  try { db.run(NOTE); } catch { /* the column is already there */ }
+  // a store made before the note column gets it: probed by name, added once
+  try { db.all("SELECT note FROM engine_turn_where LIMIT 1"); } catch { db.run(NOTE); }
   ready.add(db);
 }
 

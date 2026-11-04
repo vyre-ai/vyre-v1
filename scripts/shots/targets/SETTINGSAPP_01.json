@@ -1,0 +1,67 @@
+{
+  "targets": [
+    {
+      "id": "SETTINGSAPP_01-profile",
+      "route": "/m/SETTINGSAPP_01?part=profile",
+      "proto": "settings,{skin}",
+      "waitFor": "[data-testid='settings-place']",
+      "note": "Settings: profile"
+    },
+    {
+      "id": "SETTINGSAPP_01-ai",
+      "route": "/m/SETTINGSAPP_01?part=ai",
+      "proto": "settings,{skin}",
+      "waitFor": "[data-testid='settings-place']",
+      "note": "Settings: ai"
+    },
+    {
+      "id": "SETTINGSAPP_01-github",
+      "route": "/m/SETTINGSAPP_01?part=github",
+      "proto": "settings,{skin}",
+      "waitFor": "[data-testid='settings-place']",
+      "note": "Settings: github"
+    },
+    {
+      "id": "SETTINGSAPP_01-notifications",
+      "route": "/m/SETTINGSAPP_01?part=notifications",
+      "proto": "settings,{skin}",
+      "waitFor": "[data-testid='settings-place']",
+      "note": "Settings: notifications"
+    },
+    {
+      "id": "SETTINGSAPP_01-appearance",
+      "route": "/m/SETTINGSAPP_01?part=appearance",
+      "proto": "settings,{skin}",
+      "waitFor": "[data-testid='settings-place']",
+      "note": "Settings: appearance"
+    },
+    {
+      "id": "SETTINGSAPP_01-computer",
+      "route": "/m/SETTINGSAPP_01?part=computer",
+      "proto": "settings,{skin}",
+      "waitFor": "[data-testid='settings-place']",
+      "note": "Settings: computer"
+    },
+    {
+      "id": "SETTINGSAPP_01-signin",
+      "route": "/m/SETTINGSAPP_01?part=signin",
+      "proto": "settings,{skin}",
+      "waitFor": "[data-testid='settings-place']",
+      "note": "Settings: signin"
+    },
+    {
+      "id": "SETTINGSAPP_01-moved-vault",
+      "route": "/m/SETTINGSAPP_01?part=moved-vault",
+      "proto": "settings,{skin}",
+      "waitFor": "[data-testid='settings-place']",
+      "note": "Settings: moved-vault"
+    },
+    {
+      "id": "SETTINGSAPP_01-moved-inbox",
+      "route": "/m/SETTINGSAPP_01?part=moved-inbox",
+      "proto": "settings,{skin}",
+      "waitFor": "[data-testid='settings-place']",
+      "note": "Settings: moved-inbox"
+    }
+  ]
+}

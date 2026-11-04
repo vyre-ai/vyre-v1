@@ -12,7 +12,7 @@ import { applyRememberedPick, stateOf } from "./control.ts";
 
 interface ProviderRow {
   id: string; providerKey: string; name: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; handle?: string; itemId: string;
-  engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; address?: string; keyless?: boolean; itemName?: string; spaceKey?: boolean;
+  engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; keepsNothing?: boolean; address?: string; keyless?: boolean; itemName?: string; spaceKey?: boolean;
   /** A sign-in's name: the one the person gave it, else the provider and its account. */
   displayName?: string;
   /** Handles of sign-ins of the same account folded into this row. */
@@ -22,7 +22,7 @@ interface ProviderRow {
   /** A Space AI account (owner ruling 9): what it pays for, whether team chats reach this person, whether it hit its cap, and the models it serves. */
   uses?: SpaceUses; teamChatsForMe?: boolean; capped?: boolean; capCents?: number | null; models?: string[];
 }
-interface ThreadOut { thread: { starter: string; agents: Array<{ agentId: string; accountRef?: string; provider?: string; model?: string }> } }
+interface ThreadOut { thread: { label?: string; starter: string; agents: Array<{ agentId: string; accountRef?: string; provider?: string; model?: string }> } }
 interface AgentOut { agent: { accountPolicy: "asker" | "key"; accountKey?: string; workKey?: string; accountFallback?: string[]; model?: string } }
 interface PolicyOut { allowedAccounts: "any" | "company" }
 interface DefaultsOut { fallback: Array<{ accountRef?: string }> }
@@ -82,7 +82,7 @@ export async function load(ctx: Pick<Ctx, "actingFor" | "principal" | "call">): 
     rows.push({
       ref, driver: driverOf(p), provider: p.providerKey, kind: p.connection === "subscription" ? "subscription" : "api_key", title: p.name,
       mine: p.scope === "mine", ownerId: p.scope === "mine" ? me : null, status: STATUS[p.state], lastProbeAt: null, spaceMayUse: p.spaceMayUse,
-      ...(p.spaceKey === true ? { spaceKey: true } : {}), ...(under ? { older: true } : {}),
+      ...(p.spaceKey === true ? { spaceKey: true } : {}), ...(under ? { older: true } : {}), ...(p.keepsNothing === true || p.connection === "local_model" ? { keepsNothing: true } : {}),
       ...(p.scope === "shared" && p.uses ? { uses: p.uses, ...(p.teamChatsForMe !== undefined ? { teamChatsForMe: p.teamChatsForMe } : {}), ...(p.capped === true ? { capped: true } : {}), cost: costTier(driverOf(p)) } : {}),
       ...(p.models?.length ? { models: p.models } : {}),
     });
@@ -111,7 +111,7 @@ export async function accountsList(ctx: Ctx, input: { place?: "chat" | "automati
         ...(r.lastProbeAt !== null ? { lastProbeAt: r.lastProbeAt } : {}), ...(r.spaceKey === true ? { spaceKey: true } : {}),
         ...(aliases.length > 0 ? { aliases } : {}), ...(older.length > 0 ? { older } : {}),
         ...(idByRef.get(r.ref) ? { providerId: idByRef.get(r.ref)! } : {}),
-        provider: r.provider, ...(itemByRef.get(r.ref) ? { itemId: itemByRef.get(r.ref)! } : {}), ...(r.uses ? { uses: r.uses } : {}), ...(r.capped === true ? { capped: true } : {}), ...(capOf.has(r.ref) ? { capCents: capOf.get(r.ref)! } : {}),
+        provider: r.provider, ...(itemByRef.get(r.ref) ? { itemId: itemByRef.get(r.ref)! } : {}), ...(r.uses ? { uses: r.uses } : {}), ...(r.keepsNothing === true ? { keepsNothing: true } : {}), ...(r.capped === true ? { capped: true } : {}), ...(capOf.has(r.ref) ? { capCents: capOf.get(r.ref)! } : {}),
         ...(r.models?.length ? { models: [...r.models] } : {}),
         ...(place && checks ? usableHere(r, place, { me, policy: checks.policy, onServer: checks.onServer, ...(input.model ? { model: input.model } : {}), ...(input.agentId ? { agentId: input.agentId } : {}), ...(input.explicit === true ? { explicit: true } : {}), ...(input.runsAs ? { runsAs: input.runsAs } : {}) }) : {}),
       };
@@ -164,7 +164,8 @@ export async function accountResolve(ctx: Ctx, input: { threadId: string; agentI
     policy: policy.allowedAccounts,
     accounts: accounts.rows,
     onServer: placement.placement !== "device" && !personal,
-    ...(input.unavailable?.length ? { unavailable: input.unavailable.map(c) } : {}),
+    // a thread with Restricted data runs only on an account that keeps nothing: every other account is passed over
+    ...((input.unavailable?.length || t.thread.label === "restricted") ? { unavailable: [...(input.unavailable ?? []).map(c), ...(t.thread.label === "restricted" ? accounts.rows.filter((r) => r.keepsNothing !== true).map((r) => r.ref) : [])] } : {}),
   });
   // the Vault item behind the account, so the turn worker can meter usage against it (record_usage itemId)
   const itemId = res.accountRef ? accounts.itemByRef.get(res.accountRef) : undefined;

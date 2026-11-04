@@ -45,7 +45,7 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
   const page = await context.newPage();
   const errors: string[] = [];
   const refused: string[] = [];
-  page.on("pageerror", (e) => errors.push(e.message.slice(0, 200)));
+  page.on("pageerror", (e) => errors.push(`${new URL(page.url()).pathname}${new URL(page.url()).hash.slice(0, 40)}: ${e.message.slice(0, 120)}`));
   page.on("response", (r) => { const u = new URL(r.url()); if (u.pathname.startsWith("/v1/") && r.status() >= 400) void r.text().then((b) => refused.push(`${r.status()} ${u.pathname} ${b.slice(0, 160)}`)).catch(() => undefined); });
   fs.mkdirSync(SHOTS, { recursive: true });
   const failures: string[] = [];
@@ -326,6 +326,9 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       // the pane is a chat's: open the chat from the first step (Chats lands on a new chat)
       await page.getByText(/^hello from the walk/).first().click({ timeout: 15_000 });
       const tab = page.getByTestId("tab-terminal").or(page.getByTestId("tab-terminal-selected")).first();
+      // Chats opens on the new-chat landing: the pane belongs to a chat, so open the one the walk had earlier
+      const earlier = page.locator('[data-testid^="row-c:"]').first();
+      await earlier.click({ timeout: 15_000 });
       if (!(await tab.isVisible().catch(() => false))) await page.getByRole("button", { name: /pane/i }).first().click({ timeout: 10_000 });
       await tab.waitFor({ timeout: 15_000 });
       await tab.click({ timeout: 10_000 });

@@ -26,13 +26,23 @@ test("without a runtime the Vault draws its loading frame", () => {
 test("a click that leaves the Vault goes out through the shell's door", () => {
   const s = createSampleVault();
   const opened: string[] = [];
-  const d = vaultData(sampleRuntime({ screens: s.data.screens, call: s.data.call, opened }));
+  const d = vaultData(sampleRuntime({ screens: s.data.screens, call: s.data.call, opened }), undefined, { id: "usr_ada", consolePages: new Set(["backups", "actors"]) });
   d.nav.openAdvanced();
-  d.nav.openBackups();
+  d.nav.openBackups!();
   d.nav.openDevices();
-  d.nav.openOutsideActors();
+  d.nav.openOutsideActors!();
   d.nav.openAgent("agt_intake");
   assert.deepEqual(opened, ["vault.layout", "console.backups", "devices.mine", "console.outside-actors", "chats.agent-page"]);
+});
+
+test("a Member's Vault has no door to Backups or Outside actors: a link is never shown to a page the person cannot open", () => {
+  const s = createSampleVault();
+  const rt = sampleRuntime({ screens: s.data.screens, call: s.data.call });
+  for (const viewer of [null, { id: "usr_maya", consolePages: new Set<string>() }]) {
+    const d = vaultData(rt, undefined, viewer);
+    assert.equal(d.nav.openBackups, undefined);
+    assert.equal(d.nav.openOutsideActors, undefined);
+  }
 });
 
 test("Vault hashes route share, export, Advanced, and requests into their real surfaces", () => {

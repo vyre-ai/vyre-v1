@@ -17,7 +17,7 @@ test('Usage renders actual totals and pricing note separately from spend control
 });
 test('Speed renders units and direction correctly and never equates missing samples with healthy',()=>{
  const html=draw(<Speed/>,{'console.speed':{rows:[{budgetId:'startup',unit:'ms',sense:'max',p50:50,p95:1500,budgetP95:1000,worstTraceId:'a'.repeat(32),over:true}]}});
- assert.match(html,/1500 ms/);assert.match(html,/Outside budget/);assert.match(html,/Worst trace/);
+ assert.match(html,/1500 ms/);assert.match(html,/Outside budget/);assert.match(html,/Slowest request/);
  assert.equal(speedValue('ms',42),'42 ms');
  assert.match(draw(<Speed/>,{'console.speed':{rows:[]}}),/No speed samples/);
 });

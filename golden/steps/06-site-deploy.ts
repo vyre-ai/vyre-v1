@@ -45,15 +45,16 @@ export async function runSite(live: readonly string[]): Promise<{ events: Observ
     await trail.step("an artifact is private: its owner opens it, a member it is not shared with cannot", async () => {
       const pub = expectStatus(await s.call("sites.artifact_publish", admin, { idempotencyKey: "golden-6-art", title: "Numbers", html: "<p>42</p>" }), 200, "sites.artifact_publish");
       const open = expectStatus(await s.call("sites.artifact_open", admin, { idempotencyKey: "golden-6-open", artifactId: pub.artifactId }), 200, "sites.artifact_open");
-      const r = await fetch(`${s.d.url}${open.path}`);
-      assert.equal(await r.text(), "<p>42</p>");
-      assert.match(String(r.headers.get("content-security-policy")), /sandbox allow-scripts/);
+      const r = await openArtifact(s.d.url, open);
+      assert.equal(r.body, "<p>42</p>");
+      assert.match(r.csp, /sandbox allow-scripts/);
       const other = s.signedIn("usr_noah");
       const seen = await s.call("sites.artifact_open", other, { idempotencyKey: "golden-6-open-bob", artifactId: pub.artifactId });
       assert.ok(seen.status === 403 || seen.status === 404, `a member it is not shared with is refused: ${seen.status} ${short(seen.body)}`);
       const again = expectStatus(await s.call("sites.artifact_publish", admin, { idempotencyKey: "golden-6-art2", title: "Numbers", html: "<p>43</p>" }), 200, "sites.artifact_publish");
       assert.equal(again.artifactId, pub.artifactId, "the same title updates the same link");
-      assert.equal(await (await fetch(`${s.d.url}${open.path}`)).text(), "<p>43</p>");
+      const open2 = expectStatus(await s.call("sites.artifact_open", admin, { idempotencyKey: "golden-6-open2", artifactId: pub.artifactId }), 200, "sites.artifact_open");
+      assert.equal((await openArtifact(s.d.url, open2)).body, "<p>43</p>");
     }, ["a site is made, not yet served"]);
     return { events: await s.events(), trail };
   } finally { await s.stop(); }
@@ -63,4 +64,19 @@ export default async function steps(): Promise<Observed[]> {
   const { events, trail } = await runSite([]);
   if (trail.failures.length) throw new Error(`flow 6 failed:\n${trail.report()}`);
   return events;
+}
+
+/** Open an artifact the way a browser does: the one-time code on the artifact host (Host header a.localhost:<port> for a Space on this computer), then the clean address with the cookie it set. Returns the page. */
+export async function openArtifact(base: string, open: { path: string; url?: string }): Promise<{ status: number; body: string; csp: string; code: number }> {
+  const http = await import("node:http");
+  const u = new URL(base);
+  const host = open.url ? new URL(open.url).host : u.host;
+  const get = (path: string, cookie?: string): Promise<{ status: number; headers: import("node:http").IncomingHttpHeaders; body: string }> => new Promise((resolve, reject) => {
+    const r = http.request({ host: u.hostname, port: u.port, path, method: "GET", headers: { host, ...(cookie ? { cookie } : {}) } }, (res) => { const c: Buffer[] = []; res.on("data", (x: Buffer) => c.push(x)); res.on("end", () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(c).toString("utf8") })); });
+    r.on("error", reject); r.end();
+  });
+  const first = await get(open.path);
+  const cookie = /(__vyre_a=[^;]+)/.exec(String(first.headers["set-cookie"]?.[0] ?? ""))?.[1];
+  const page = await get(String(first.headers.location ?? "/"), cookie);
+  return { status: page.status, body: page.body, csp: String(page.headers["content-security-policy"] ?? ""), code: first.status };
 }

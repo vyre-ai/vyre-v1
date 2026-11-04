@@ -454,7 +454,7 @@ test("send_as through Graph answers with the message id only", async () => {
   assert.equal(r.calls("ms.mail.send_message").length, 1);
 });
 
-test("send_as is a person's own mail: no window, no cap, but a suppressed recipient refuses the whole send", async () => {
+test("send_as is a person's own mail: never held by the window, but a suppressed recipient refuses the whole send", async () => {
   const r = rig({ suppressed: { "gone@acme.test": "unsubscribe" } });
   r.goto(SATURDAY_3AM);
   await sendAs(r.ctx, { mailboxId: "mbx_maya", to: [{ address: "pat@acme.test" }], subject: "Hi", text: "x", idempotencyKey: "as-3" });

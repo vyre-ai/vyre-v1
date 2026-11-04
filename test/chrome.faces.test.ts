@@ -12,7 +12,7 @@ test("faces.js is what scripts/avatars/chrome-faces.ts writes from the library (
 });
 
 test("every drawn face is there, with no tint rect and no script", async () => {
-  const m = await import("../src/ui/faces.js");
+  const m = await import("../apps/chrome/src/ui/faces.js");
   for (const fam of ["faces", "friends", "blobs", "glass"]) {
     const list = (m.FACE_SVGS as Record<string, string[]>)[fam]!;
     assert.equal(list.length, 24, fam);

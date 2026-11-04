@@ -1,6 +1,6 @@
 # space.deleted
 
-The Space was deleted by its owner
+The Space was deleted: its owner scheduled it and the date passed
 
 | | |
 |---|---|

@@ -258,6 +258,11 @@ export default defineManifest({
     health('github.app', 'GitHub App', 'github.health', 'Check the GitHub App key in the Vault and that the App is still installed on the organisation.', { pauses: ['sync'] }),
   ],
   screens: [
+    // Console, Apps, GitHub (admins): the Space's own GitHub app, its Vault values, creating it and its installation
+    screen('console.github-app', 'console', 'ui:ConsoleGithubApp', {
+      a: { create: ['github.app.create_manifest', { org: '/draft/org' }], complete: ['github.app.complete', { code: '/state/code', state: '/state/state' }] },
+      needs: ['connectors.manage'], empty: 'Using the Vyre GitHub app', primary: 'Create one for us',
+    }),
     screen('github.pull-request', 'records', 'ui:PullRequestPage', {
       q: {
         pullRequest: ['github.pull_request.get', { repo: '/state/repo', number: '/state/number' }, true], files: ['github.pull_request.list_files', { repo: '/state/repo', number: '/state/number' }, true],

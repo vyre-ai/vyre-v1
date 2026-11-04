@@ -9,7 +9,7 @@ export interface TalkHostDeps { vault: Pick<VaultPort, "secret">; fetch: SeamFet
 /** Structural: the module's own TalkHost accepts this (host never imports a module). */
 export interface TalkHostSeam {
   check(ctx: Pick<SeamCtx, "trace">, p: { provider: string; apiKey: string }): Promise<void>;
-  mint(ctx: Pick<SeamCtx, "trace" | "space">, p: { provider: string; handle: string; asker?: string; own: boolean }): Promise<{ token: string; expiresIn: number }>;
+  mint(ctx: Pick<SeamCtx, "trace" | "space">, p: { provider: string; handle: string; asker?: string; own: boolean; ttl?: number }): Promise<{ token: string; expiresIn: number }>;
 }
 
 const refused = (trace: string, name: string, why: GrantFailure, stored: { own: boolean } | null): never => {
@@ -42,7 +42,7 @@ export function createTalkHost(d: TalkHostDeps): TalkHostSeam {
         if (e instanceof Error && /locked/i.test(e.message)) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your Vault is locked. Unlock it, then press the mic again.", details: { reason: "vault_locked" } });
         throw fail("validation.precondition_failed", ctx.trace.traceId, { message: p.own ? "Talk needs a key." : "The Space key is gone from the Vault. An admin can add it again in Console, Voice.", details: { reason: "no_key" } });
       }
-      return grant(ctx.trace.traceId, p.provider, key, TOKEN_SECONDS, { own: p.own });
+      return grant(ctx.trace.traceId, p.provider, key, p.ttl ?? TOKEN_SECONDS, { own: p.own });
     },
   };
 }

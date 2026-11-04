@@ -9,15 +9,14 @@ const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 /** The repository a project is linked to by its Linked tab: a "repository" rule first, then the repository of a linked pull request or commit (ref "owner/name#12" or "owner/name@sha"). */
 async function repoFromLinks(ctx: CiCtx, projectId: string): Promise<string | null> {
-  try {
-    const got = (await ctx.call("projects.links.list", { projectId })) as { links?: Array<{ kind: string; ref: string }>; rules?: Array<{ kind: string; repo?: string }> };
-    for (const r of got.rules ?? []) if (r.kind === "repo" && r.repo && REPO.test(r.repo)) return r.repo.toLowerCase();
-    for (const l of got.links ?? []) {
-      if (l.kind !== "github.pr" && l.kind !== "github.commit") continue;
-      const repo = l.ref.split(/[#@]/)[0] ?? "";
-      if (REPO.test(repo)) return repo.toLowerCase();
-    }
-  } catch { /* a base without links, or a project the caller may not read */ }
+  // no catch: a project the caller may not read already failed at projects.get, and a Space without this capability must fail loudly, not quietly give no CI
+  const got = (await ctx.call("projects.links.list", { projectId })) as { links?: Array<{ kind: string; ref: string }>; rules?: Array<{ kind: string; repo?: string }> };
+  for (const r of got.rules ?? []) if (r.kind === "repo" && r.repo && REPO.test(r.repo)) return r.repo.toLowerCase();
+  for (const l of got.links ?? []) {
+    if (l.kind !== "github.pr" && l.kind !== "github.commit") continue;
+    const repo = l.ref.split(/[#@]/)[0] ?? "";
+    if (REPO.test(repo)) return repo.toLowerCase();
+  }
   return null;
 }
 

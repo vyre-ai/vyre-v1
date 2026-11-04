@@ -90,6 +90,9 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openChannel: a.openThread,
     openNeedsYou: (taskId) => rt.open({ screen: "tasks.needs-you", ...(taskId ? { args: { taskId } } : {}) }),
     openAllAgents: () => rt.open({ screen: "chats.all-agents" }),
+    // the agent page opens on a tab: Instructions are the first thing in its Settings tab
+    openAgent: (agentId, section) => rt.open({ screen: "chats.agent-page", args: { agentId, ...(section === "instructions" ? { tab: "settings" } : section ? { tab: section } : {}) } }),
+    openChatTab: (threadId) => rt.open({ subject: { type: "thread", id: threadId }, background: true }),
     openArtifacts: () => rt.open({ screen: "chats.artifacts" }),
     openSearch: () => rt.open({ screen: "shell.cmdk" }),
     openSpaceSwitcher: () => rt.open({ screen: "spaces.switcher" }),

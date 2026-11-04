@@ -77,7 +77,8 @@ test("start: the just-in-time runner comes first, then one machine tagged for th
   await w.turnOn();
   await w.job("queued", { jobId: 20 });
   assert.equal(w.state.jit.length, 1);
-  assert.deepEqual(w.state.jit[0], { repo: "northwind/site", name: w.state.jit[0]!["name"], labels: ["vyre"] });
+  assert.deepEqual(w.state.jit[0], { repo: "northwind/site", name: w.state.jit[0]!["name"], labels: ["vyre"], idempotencyKey: w.state.jit[0]!["idempotencyKey"] });
+  assert.match(String(w.state.jit[0]!["idempotencyKey"]), /^jit-cir_[a-z0-9]{12}$/);
   assert.match(String(w.state.jit[0]!["name"]), /^vyre-ci-[a-z0-9]{12}$/);
   const [d] = w.state.droplets;
   assert.ok(d);

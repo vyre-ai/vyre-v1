@@ -1,5 +1,5 @@
 // The eight spaces capabilities that had no packet: spaces.get, spaces.update, spaces.matrix, spaces.export, spaces.leave,
-// spaces.transfer_ownership, spaces.delete and spaces.switch_address (spec 2.1, 3.13; ARCH 7.0, 7.13). The switcher tile, stars, follows and the
+// spaces.transfer_ownership, spaces.delete (which schedules, 14 days out), spaces.delete_cancel, spaces.delete_due (the host's minute job) and spaces.switch_address (spec 2.1, 3.13; ARCH 7.0, 7.13). The switcher tile, stars, follows and the
 // first-run checklist are P-L7_07's; the host wires these over the `later` stubs in handlers/index.ts when it flips spaces live (P-L7_LIVE).
 //
 // The profile name, logo and kind live in spaces_profile (P-L7_07). What only these capabilities need (legal name, defaults, the address, when the
@@ -35,6 +35,18 @@ export const SCHEMA: readonly string[] = [
   created_at INTEGER NOT NULL,
   deleted_at INTEGER
 )`,
+  // the scheduled deletion: when it was asked for, by whom, and when the data goes. One row while it is scheduled; cancelling removes it
+  `CREATE TABLE IF NOT EXISTS spaces_deletion (
+  id TEXT PRIMARY KEY,
+  due_at INTEGER NOT NULL,
+  scheduled_at INTEGER NOT NULL,
+  by_person TEXT NOT NULL
+)`,
+  // when each Space export finished (spaces.export records it once the zip is saved): Delete this Space asks for one from the last day
+  `CREATE TABLE IF NOT EXISTS spaces_export_log (
+  run_id TEXT PRIMARY KEY,
+  at INTEGER NOT NULL
+)`,
   // the Space image as it was when it was chosen: a copy of the picture, so the join and sign-in pages can show it to someone who is not signed in yet (they cannot read Files)
   `CREATE TABLE IF NOT EXISTS spaces_image (
   id TEXT PRIMARY KEY,
@@ -44,6 +56,11 @@ export const SCHEMA: readonly string[] = [
   updated_at INTEGER NOT NULL
 )`,
 ];
+
+/** A deletion waits this long after the owner asks, so an admin can cancel. */
+export const DELETE_DELAY_MS = 14 * 24 * 60 * 60 * 1000;
+/** An export counts for the delete check when it finished within this long. */
+export const EXPORT_FRESH_MS = 24 * 60 * 60 * 1000;
 
 /** What a Space image may be: a picture a browser draws everywhere, small enough to travel with the join and sign-in pages. Console crops and shrinks it to a square first. */
 export const IMAGE_TYPES: readonly string[] = ["image/png", "image/jpeg", "image/webp", "image/gif"];
@@ -126,6 +143,8 @@ export interface Profile {
   defaults: Record<string, unknown>;
   createdAt: number;
   deletedAt?: number;
+  /** When the data goes, while the Space is scheduled for deletion. */
+  deletionAt?: number;
 }
 
 export const NAME_MAX = 120;
@@ -153,10 +172,12 @@ function readProfile(ctx: ExtraCtx): Profile {
   const host = str(extra?.["address_host"]);
   const legalName = str(extra?.["legal_name"]), logoFileId = str(base["logo_file_id"]);
   const deletedAt = typeof extra?.["deleted_at"] === "number" ? extra["deleted_at"] : undefined;
+  const due = asRow(ctx.db.all("SELECT due_at FROM spaces_deletion WHERE id = ?", ctx.space)[0]);
+  const deletionAt = typeof due?.["due_at"] === "number" ? due["due_at"] : undefined;
   return {
     id: ctx.space, name, ...(legalName ? { legalName } : {}), ...(logoFileId ? { logoFileId } : {}), kind,
     address: { mode: mode === "relay" || mode === "own_domain" || mode === "device" ? mode : kind === "personal" ? "device" : "relay", ...(host ? { host } : {}) },
-    defaults, createdAt: typeof extra?.["created_at"] === "number" ? extra["created_at"] : ctx.now(), ...(deletedAt !== undefined ? { deletedAt } : {}),
+    defaults, createdAt: typeof extra?.["created_at"] === "number" ? extra["created_at"] : ctx.now(), ...(deletedAt !== undefined ? { deletedAt } : {}), ...(deletionAt !== undefined ? { deletionAt } : {}),
   };
 }
 
@@ -165,7 +186,7 @@ async function spaceRow(ctx: ExtraCtx, p: Profile) {
   const [owner, fingerprint, hostedOn, madeAt, observedAddress] = await Promise.all([d.owner(), d.fingerprint(), d.hostedOn?.(), d.createdAt?.(), p.kind === 'personal' ? undefined : d.address?.()]);
   return {
     id: p.id, name: p.name, ...(p.legalName ? { legalName: p.legalName } : {}), ...(p.logoFileId ? { logoFileId: p.logoFileId } : {}), kind: p.kind, owner, fingerprint,
-    address: observedAddress ?? p.address, ...(hostedOn ? { hostedOn } : {}), defaults: p.defaults, createdAt: madeAt ?? p.createdAt,
+    address: observedAddress ?? p.address, ...(hostedOn ? { hostedOn } : {}), defaults: p.defaults, createdAt: madeAt ?? p.createdAt, ...(p.deletionAt !== undefined ? { deletionAt: p.deletionAt } : {}),
   };
 }
 
@@ -285,7 +306,16 @@ export async function exportAll(ctx: ExtraCtx, input: { idempotencyKey?: string 
   const out = asRow(await ctx.call("backup.export_start" as never, { idempotencyKey: `spaces.export:${input.idempotencyKey ?? ctx.trace.traceId}` }));
   const runId = str(out?.["runId"]);
   if (!runId) return failWith(ctx.trace.traceId, "internal.unexpected", "The export did not start.");
+  // the zip is saved when the backup call returns: this is the time Delete this Space counts
+  ctx.db.run("INSERT OR REPLACE INTO spaces_export_log (run_id, at) VALUES (?, ?)", runId, ctx.now());
   return { runId };
+}
+
+/** When the newest finished export was taken, or nothing when there is none. */
+export async function exportLatest(ctx: ExtraCtx, _input: Record<string, unknown>) {
+  live(ctx);
+  const r = asRow(ctx.db.all("SELECT at FROM spaces_export_log ORDER BY at DESC LIMIT 1")[0]);
+  return typeof r?.["at"] === "number" ? { at: r["at"] } : {};
 }
 
 export async function leave(ctx: ExtraCtx, input: { confirm: boolean }) {
@@ -314,17 +344,53 @@ export async function transferOwnership(ctx: ExtraCtx, input: { to: string }) {
   return { ok: true };
 }
 
-export async function deleteSpace(ctx: ExtraCtx, input: { confirmName: string }) {
-  const d = need(ctx);
+export async function deleteSpace(ctx: ExtraCtx, input: { confirmName: string; withoutExport?: boolean }) {
+  need(ctx);
   const p = live(ctx);
   if (!(await isOwner(ctx))) return failWith(ctx.trace.traceId, "permission.role_lacks_permission", "Only the owner can delete the Space.");
   // the name outsiders see is the one to type; a Space without a legal name asks for its name
   const expected = p.legalName ?? p.name;
   if (input.confirmName !== expected) return failWith(ctx.trace.traceId, "validation.precondition_failed", `Type ${expected} exactly to delete this Space.`);
-  await d.deleteSpace();
-  ctx.db.run("UPDATE spaces_profile_extra SET deleted_at = ? WHERE id = ?", ctx.now(), ctx.space);
-  ctx.emit("space.deleted" as never, `entity/${ctx.principal.id}`, { by: ctx.principal.id });
+  // already scheduled: the same answer again, the date does not move
+  if (p.deletionAt !== undefined) return { ok: true, deletionAt: p.deletionAt };
+  // an export from the last day, or the owner says so: nothing is scheduled without one of the two
+  if (input.withoutExport !== true) {
+    const last = asRow(ctx.db.all("SELECT at FROM spaces_export_log ORDER BY at DESC LIMIT 1")[0]);
+    const at = typeof last?.["at"] === "number" ? last["at"] : undefined;
+    if (at === undefined || ctx.now() - at > EXPORT_FRESH_MS) {
+      return failWith(ctx.trace.traceId, "validation.precondition_failed", "Take an export first, or choose to delete without one.", { reason: "export_required" });
+    }
+  }
+  const deletionAt = ctx.now() + DELETE_DELAY_MS;
+  ctx.db.run("INSERT OR REPLACE INTO spaces_deletion (id, due_at, scheduled_at, by_person) VALUES (?, ?, ?, ?)", ctx.space, deletionAt, ctx.now(), ctx.principal.id);
+  ctx.emit("space.deletion_scheduled" as never, `entity/${ctx.principal.id}`, { by: ctx.principal.id, at: deletionAt });
+  return { ok: true, deletionAt };
+}
+
+/** Undo a scheduled deletion: the schedule is cleared, everyone who administers the Space is told through the event. */
+export async function deleteCancel(ctx: ExtraCtx, _input: Record<string, unknown>) {
+  const p = live(ctx);
+  if (ctx.principal.kind !== "person") return failWith(ctx.trace.traceId, "validation.precondition_failed", "Only a person can cancel a deletion.");
+  if (p.deletionAt === undefined) return failWith(ctx.trace.traceId, "validation.precondition_failed", "This Space is not scheduled for deletion.", { reason: "not_scheduled" });
+  ctx.db.run("DELETE FROM spaces_deletion WHERE id = ?", ctx.space);
+  ctx.emit("space.deletion_cancelled" as never, `entity/${ctx.principal.id}`, { by: ctx.principal.id });
   return { ok: true };
+}
+
+/** The host's minute job: once the date has passed, the Space's data is removed (the host driver) and the Space is marked deleted. Before the date, and with nothing scheduled, it does nothing. */
+export async function deleteDue(ctx: ExtraCtx, _input: Record<string, unknown>) {
+  if (ctx.principal.kind !== "service") return failWith(ctx.trace.traceId, "permission.no_grant", "Only the host removes a Space whose date has passed.");
+  ensureSchema(ctx);
+  const row = asRow(ctx.db.all("SELECT due_at, by_person FROM spaces_deletion WHERE id = ?", ctx.space)[0]);
+  const dueAt = row?.["due_at"], by = str(row?.["by_person"]);
+  if (typeof dueAt !== "number" || !by || ctx.now() < dueAt) return { deleted: false };
+  const profile = asRow(ctx.db.all("SELECT deleted_at FROM spaces_profile_extra WHERE id = ?", ctx.space)[0]);
+  if (typeof profile?.["deleted_at"] === "number") return { deleted: false };
+  await need(ctx).deleteSpace();
+  ctx.db.run("UPDATE spaces_profile_extra SET deleted_at = ? WHERE id = ?", ctx.now(), ctx.space);
+  ctx.db.run("DELETE FROM spaces_deletion WHERE id = ?", ctx.space);
+  ctx.emit("space.deleted" as never, `entity/${by}`, { by });
+  return { deleted: true };
 }
 
 const HOST = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;

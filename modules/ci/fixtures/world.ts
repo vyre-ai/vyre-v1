@@ -1,5 +1,7 @@
 // A Space's CI in one process: a real SQLite database behind the host's table guard for ci_* tables, a clock, a fake cloud (droplets that can be created, listed and deleted), and stand-ins for the
 // github, projects and git modules. No real cloud or GitHub call is ever made.
+import { registry } from "../../../generated/registry.ts";
+import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import { scopedDb } from "../../../host/src/ctx/db.ts";
 import { consumers, handlers } from "../impl.ts";
 import { sweep } from "../handlers/runner.ts";
@@ -70,6 +72,11 @@ export function world(f: Fakes = {}) {
     authorize: () => ({ effect: who.admin || who.id === "svc_host" ? "allow" : "deny" }),
     call: async (cap, input) => {
       const i = input as Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+      // every call to another module is checked against that capability's frozen input schema: a call to one that does not exist, or with the wrong shape, fails the test
+      const def = registry.capabilities.filter((c) => c.name === cap).sort((a, b) => b.v - a.v)[0];
+      if (!def) throw new Error(`${cap} is not in the registry`);
+      const misfit = validate(def.input, i, "", registry.$defs);
+      if (misfit.length) throw new Error(`${cap} was called with input its contract refuses: ${misfit.join("; ")}`);
       if (cap === "github.runners.jit_config") {
         if (st.jitFails) throw Object.assign(new Error("x"), { error: { code: "provider.auth_failed" } });
         st.jit.push(i);
@@ -87,14 +94,20 @@ export function world(f: Fakes = {}) {
       if (cap === "projects.get") {
         const ok = who.admin || who.kind === "service" || (st.members[i["projectId"]] ?? []).includes(who.id);
         if (!ok) throw Object.assign(new Error("no"), { error: { code: "permission.no_grant" } });
-        return { project: { projectId: i["projectId"], folderId: `fld_${i["projectId"]}` } };
+        return { project: { projectId: i["projectId"], folderId: `fld_${String(i["projectId"]).slice(4)}` } };
       }
       if (cap === "projects.links.list") {
         const projectId = String(i["projectId"]);
-        return { links: st.linkedPrs[projectId] ? [{ kind: "github.pr", ref: `${st.linkedPrs[projectId]}#12` }] : [], rules: st.linkRules[projectId] ? [{ kind: "repo", repo: st.linkRules[projectId] }] : [] };
+        const out = {
+          links: st.linkedPrs[projectId] ? [{ linkId: "lnk_a1b2c3", projectId, kind: "github.pr", ref: `${st.linkedPrs[projectId]}#12`, source: "manual", addedBy: "usr_admin", addedAt: st.now }] : [],
+          rules: st.linkRules[projectId] ? [{ ruleId: "rul_a1b2c3", kind: "repo", repo: st.linkRules[projectId], by: "usr_admin", at: st.now }] : [],
+        };
+        const bad = validate(registry.capabilities.filter((c) => c.name === cap).sort((a, b) => b.v - a.v)[0]!.output, out, "", registry.$defs);
+        if (bad.length) throw new Error(`the fake projects.links.list answers what its contract refuses: ${bad.join("; ")}`);
+        return out;
       }
       if (cap === "git.status") {
-        const projectId = String(i["folderId"]).slice(4), repo = st.noRemote.has(projectId) ? undefined : Object.entries(st.links).find(([, p]) => p === projectId)?.[0];
+        const projectId = `prj_${String(i["folderId"]).slice(4)}`, repo = st.noRemote.has(projectId) ? undefined : Object.entries(st.links).find(([, p]) => p === projectId)?.[0];
         return { remotes: repo ? [{ name: "origin", url: `https://github.com/${repo}.git` }] : [] };
       }
       throw new Error(`no ${cap}`);

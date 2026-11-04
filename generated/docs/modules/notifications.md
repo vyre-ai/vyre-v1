@@ -2,7 +2,7 @@
 
 Lane L6. Kind module. Version 0.1.0.
 
-Requires: chat, ci, machines, runs, tasks, vault.
+Requires: chat, ci, machines, members, runs, spaces, tasks, vault.
 
 ## Capabilities (21)
 

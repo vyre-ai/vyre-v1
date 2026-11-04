@@ -154,7 +154,7 @@ async function start(ctx: CiCtx, s: Settings, run: Run, price: number): Promise<
   const name = `vyre-ci-${run.runId.slice(4)}`;
   let runnerId: number | null = null, dropletId: string | null = null;
   try {
-    const jit = (await ctx.call("github.runners.jit_config", { repo: run.repo, name, labels: s.labels })) as { runnerId: number; jitConfig: string };
+    const jit = (await ctx.call("github.runners.jit_config", { repo: run.repo, name, labels: s.labels, idempotencyKey: `jit-${run.runId}` })) as { runnerId: number; jitConfig: string };
     runnerId = jit.runnerId;
     const made = await cloud(ctx, s, {
       method: "POST", path: "/v2/droplets",

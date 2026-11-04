@@ -1,6 +1,6 @@
 # spaces.delete
 
-Owner only: delete the Space after typing its legal name
+Owner only: schedule the Space for deletion 14 days out after typing its legal name. Needs an export from the last 24 hours, or withoutExport. Everything keeps working until the date
 
 | | |
 |---|---|
@@ -19,13 +19,14 @@ Owner only: delete the Space after typing its legal name
 | HTTP | POST /v1/spaces/delete |
 | MCP tool | spaces_delete (meta) |
 | CLI | none |
-| Emits | space.deleted |
+| Emits | space.deletion_scheduled |
 
 ## Input
 
 ```ts
 type In = {
   confirmName: string;
+  withoutExport?: boolean;
 };
 ```
 
@@ -34,6 +35,7 @@ type In = {
 ```ts
 type Out = {
   ok: boolean;
+  deletionAt: number;
 };
 ```
 
@@ -51,9 +53,11 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "confirmName": "example"
+    "confirmName": "example",
+    "withoutExport": true
   },
   "output": {
+    "deletionAt": 1760000000000,
     "ok": true
   }
 }
