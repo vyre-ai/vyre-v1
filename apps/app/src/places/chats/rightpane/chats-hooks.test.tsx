@@ -62,14 +62,14 @@ test("Edit offers the three kinds, Save writes the new words through hooks.set, 
   const s = createSample("northwind", { hooks: true });
   const { d, notes } = deps(s);
   const h = hooksOf(s).find((x) => x.id === "hok_chat")!;
-  assert.deepEqual(draftOf(h), { event: "outward.before", kind: "check", what: "Check the address is in Contacts" });
+  assert.deepEqual(draftOf(h), { event: "outward.before", kind: "check", what: "Check the address is in Contacts", only: "any" });
   assert.equal(setInput(h, { ...draftOf(h), what: "   " }, s.data.threadId), null);
-  const input = setInput(h, { event: "tool.before", kind: "command", what: "check-address.sh" }, s.data.threadId)!;
+  const input = setInput(h, { event: "tool.before", kind: "command", what: "check-address.sh", only: "any" }, s.data.threadId)!;
   assert.deepEqual([input["id"], input["kind"], input["command"], input["event"]], ["hok_chat", "command", "check-address.sh", "tool.before"]);
   assert.equal(await hookSave(d, input), true);
   assert.equal(notes.at(-1)?.text, "Hook saved");
   assert.equal(whatOf(hooksOf(s).find((x) => x.id === "hok_chat")!), "check-address.sh");
-  const action = setInput(h, { event: "turn.end", kind: "action", what: "chat.post" }, s.data.threadId)!;
+  const action = setInput(h, { event: "turn.end", kind: "action", what: "chat.post", only: "any" }, s.data.threadId)!;
   assert.equal(action["cap"], "chat.post");
   assert.ok(html(s).includes('data-testid="hook-edit-hok_chat"'));
 });

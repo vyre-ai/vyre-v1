@@ -42,7 +42,7 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
     const made = [
       quiet("msg_hook1", "Intake added a hook in this chat: before any email, check the address is in Contacts", "added"),
       quiet("msg_hook2", "Intake set a hook for its helpers: before a helper opens a link, only open links from the quotes you were sent", "added", { hookId: "hok_run", scope: "run" }),
-      quiet("msg_hook3", "A hook stopped this: the address isn't in Contacts", "blocked", { reason: "the address isn't in Contacts" }),
+      quiet("msg_hook3", "A hook stopped this: the address isn't in Contacts", "blocked", { reason: "the address isn't in Contacts", agentId: "agt_intake", next: [{ label: "Add Harbor Supply to Contacts", ask: "Please add Harbor Supply to Contacts, then send the email" }, { label: "Send once without adding", ask: "Send it once without adding them, I will check it myself" }] }),
     ];
     s.replica.put("messages", made.map((m) => ({ id: m.messageId, ...m })));
     return { ...s.data, nav: { ...s.data.nav, openHooks: () => undefined } };

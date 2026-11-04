@@ -48,6 +48,24 @@
       "after": "[data-testid='pane-notice']",
       "note": "After Remove: the hook is gone and the notice at the foot says Hook removed, with Undo.",
       "proto": "chat,at:crew;t=55;hooks=hchat,{skin}"
+    },
+    {
+      "id": "HOOKS_01-tab-when",
+      "route": "/m/HOOKS_01?view=tab",
+      "waitFor": "[data-testid='hooks-list']",
+      "steps": [
+        [
+          "click",
+          "[data-testid='hook-edit-hok_chat']"
+        ],
+        [
+          "click",
+          "[data-testid='hook-event-hok_chat']"
+        ]
+      ],
+      "after": "[data-testid='hook-form-hok_chat']",
+      "note": "The When picker open: a quiet menu of plain choices, never pills.",
+      "proto": "chat,at:crew;t=55;hooks=hchat,{skin}"
     }
   ]
 }

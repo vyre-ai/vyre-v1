@@ -1,6 +1,6 @@
 // Running the hooks of one event (lane l-hooks). Order: Space, person, agent, chat, run; an admin's block ends it, so it wins. A hook only ever stops work or adds a note or runs its own action; there is no
 // answer here that approves, loosens or skips anything. A hook that errors or runs out of time is logged and shown, never a block.
-import { BLOCKING, matches, namesOf, parseCheck, redact, scopeRank } from "../../lib/hooks.ts";
+import { BLOCKING, matches, namesOf, parseCheck, plainTools, redact, scopeRank, validNext } from "../../lib/hooks.ts";
 import type { HookFire, HookVerdict } from "../../agent/src/tools/hooks.ts";
 import { applicable, logRun, helpersActive, link, lineage, takePass } from "./projections.ts";
 import type { HooksCtx, Rec } from "./projections.ts";
@@ -31,7 +31,7 @@ export function payloadOf(f: HookFire): Record<string, unknown> {
   };
 }
 
-type Out = { block?: string; note?: string; outcome: string; detail?: string };
+type Out = { block?: string; note?: string; next?: Array<{ label: string; ask: string }>; outcome: string; detail?: string };
 const withTimeout = <T>(p: Promise<T>, ms: number): Promise<T | "timeout"> => new Promise((ok, bad) => {
   const t = setTimeout(() => ok("timeout"), ms);
   p.then((v) => { clearTimeout(t); ok(v); }, (e) => { clearTimeout(t); bad(e); });
@@ -42,7 +42,7 @@ async function runOne(ctx: HooksCtx, h: Rec, who: Who, f: HookFire, payload: Rec
   if (h.kind === "command") {
     const r = await withTimeout(hostSeams.command(who, { command: h.spec.command ?? "", ...(h.spec.args ? { args: h.spec.args } : {}), timeoutSec: h.timeoutSec }, payload), ms + 2000);
     if (r === "timeout" || r.timedOut) return { outcome: "timeout" };
-    if (r.code === 2) return { outcome: "blocked", block: redact(r.stderr.trim() || r.stdout.trim() || "a hook stopped it") };
+    if (r.code === 2) return { outcome: "blocked", block: plainTools(redact(r.stderr.trim() || r.stdout.trim() || "a hook stopped it")) };
     if (r.code !== 0) return { outcome: "error", detail: redact(r.stderr.trim() || `exit ${r.code}`, 160) };
     const out = r.stdout.trim();
     return NOTE_FROM_STDOUT.has(f.event) && out !== "" ? { outcome: "note", note: redact(out, 600) } : { outcome: "ok" };
@@ -51,8 +51,8 @@ async function runOne(ctx: HooksCtx, h: Rec, who: Who, f: HookFire, payload: Rec
     const r = await withTimeout(hostSeams.check(who, h.spec.instruction ?? "", payload, h.timeoutSec).then((a) => a ?? viaEngine(ctx, who, h.spec.instruction ?? "", payload)), ms + 2000);
     if (r === "timeout") return { outcome: "timeout" };
     if (r === null) return { outcome: "skipped", detail: "no AI account could answer" };
-    if (r.decision === "block") return { outcome: "blocked", block: redact(r.reason) };
-    if (r.decision === "note") return { outcome: "note", note: redact(r.note, 600) };
+    if (r.decision === "block") return { outcome: "blocked", block: plainTools(redact(r.reason)), ...(r.next && validNext(r.next).length > 0 ? { next: validNext(r.next) } : {}) };
+    if (r.decision === "note") return { outcome: "note", note: plainTools(redact(r.note, 600)) };
     return { outcome: "ok" };
   }
   const cap = h.spec.cap ?? "";
@@ -62,7 +62,7 @@ async function runOne(ctx: HooksCtx, h: Rec, who: Who, f: HookFire, payload: Rec
 }
 
 /** A check is read by a small model on the asker's own AI account: the account that would pay for the turn, asked through the engine (engine.complete is for the Space's own jobs, which this is). */
-export const CHECK_SYSTEM = "You check one rule against one event for a workspace assistant. Answer with exactly one line: ALLOW, or BLOCK: <short reason a person can read>, or NOTE: <one short line for the assistant to keep in mind>. Do not explain. Never answer with a key, a password or any secret.";
+export const CHECK_SYSTEM = "You check one rule against one event for a workspace assistant. Answer with one line: ALLOW, or BLOCK: <short reason a person can read>, or NOTE: <one short line for the assistant to keep in mind>. After a BLOCK you may add up to two lines, each NEXT: <a button label of a few words> | <one plain sentence the person would say to the assistant to get past this the right way>. Use plain words: no links, no tool names, no code. Do not explain. Never answer with a key, a password or any secret.";
 async function viaEngine(ctx: HooksCtx, who: Who, instruction: string, payload: Record<string, unknown>): Promise<CheckAnswer | null> {
   if (!ctx.call || !who.threadId) return null;
   const acct = (await ctx.call("engine.account.resolve", { threadId: who.threadId, agentId: who.agentId, askerId: who.asker, kind: "agent_work" })) as { accountRef?: string | null; allowed?: boolean } | undefined;
@@ -72,10 +72,10 @@ async function viaEngine(ctx: HooksCtx, who: Who, instruction: string, payload: 
 }
 
 const said = new Map<string, number>();
-async function say(ctx: HooksCtx, threadId: string, body: string, kind: "blocked" | "failed", h: Rec, reason?: string, tool?: string): Promise<void> {
+async function say(ctx: HooksCtx, threadId: string, body: string, kind: "blocked" | "failed", h: Rec, reason?: string, tool?: string, next?: Array<{ label: string; ask: string }>, agentId?: string): Promise<void> {
   if (!ctx.call) return;
   try {
-    await ctx.call("chat.hook_line", { threadId, body, kind, hookId: h.id, scope: h.scope, by: h.madeBy, byKind: h.madeByKind, ...(reason ? { reason } : {}), ...(tool ? { tool } : {}) });
+    await ctx.call("chat.hook_line", { threadId, body, kind, hookId: h.id, scope: h.scope, by: h.madeBy, byKind: h.madeByKind, ...(reason ? { reason } : {}), ...(tool ? { tool } : {}), ...(next ? { next } : {}), ...(agentId ? { agentId } : {}) });
   } catch (e) { ctx.log?.warn("a hook line was not posted", { error: e instanceof Error ? e.message : String(e) }); }
 }
 
@@ -131,9 +131,9 @@ export async function fire(ctx: HooksCtx, f: HookFire): Promise<HookVerdict> {
     }
     if (o.note) verdict.notes.push(o.note);
     if (o.block) {
-      verdict.block = { reason: o.block, hookId: h.id, by: h.madeBy, scope: h.scope };
+      verdict.block = { reason: o.block, hookId: h.id, by: h.madeBy, scope: h.scope, ...(o.next ? { next: o.next } : {}) };
       ctx.emit("hook.blocked", f.threadId, { hookId: h.id, event: f.event, threadId: f.threadId, agentId: f.agentId, reason: o.block, scope: h.scope, by: h.madeBy });
-      await say(ctx, f.threadId, `A hook stopped this: ${o.block}`, "blocked", h, o.block, f.tool);
+      await say(ctx, f.threadId, `A hook stopped this: ${o.block}`, "blocked", h, o.block, f.tool, o.next, f.agentId);
       break;
     }
   }

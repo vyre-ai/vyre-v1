@@ -65,3 +65,22 @@ test("an added hook offers Edit, which opens it; a line with nothing to offer dr
     assert.equal(find(none, "hook-act-edit-m1"), null);
   } finally { off(); }
 });
+
+test("the steps a check wrote are buttons: each sends its sentence to the assistant as the person's own message; the generic ones stay", async () => {
+  const off = installDom();
+  try {
+    const s = setup();
+    const line = { ...blocked, agentId: "agt_intake", next: [{ label: "Add them to Contacts", ask: "Please add Harbor Supply to Contacts" }, { label: "Send without adding", ask: "Send it once without adding them" }] };
+    const root = await mount(createRoot, s.el(line));
+    for (const a of ["details", "once", "ask"]) assert.ok(find(root, `hook-act-${a}-m1`), a);
+    assert.match(textOf(find(root, "hook-next-0-m1")), /Add them to Contacts/);
+    assert.match(textOf(find(root, "hook-next-1-m1")), /Send without adding/);
+    await press(find(root, "hook-next-0-m1"));
+    await flush();
+    assert.equal(s.calls.length, 1);
+    assert.deepEqual([s.calls[0]!.cap, (s.calls[0]!.input as Record<string, unknown>)["body"], (s.calls[0]!.input as Record<string, unknown>)["threadId"], (s.calls[0]!.input as { mentions: unknown[] }).mentions], ["chat.post", "Please add Harbor Supply to Contacts", "thr_1", [{ kind: "agent", id: "agt_intake" }]]);
+    assert.match(textOf(find(root, "hook-said-m1")), /Sent\./);
+    const none = await mount(createRoot, s.el({ ...blocked, next: line.next }));
+    assert.equal(find(none, "hook-next-0-m1"), null, "no agent to send to, no step buttons");
+  } finally { off(); }
+});

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { PaneDeps } from "./actions.ts";
@@ -10,9 +11,9 @@ import { hookPause, hookRemove, hookSave } from "./actions.ts";
 import { PANE_SCREEN } from "./ThreadsTab.tsx";
 import { agoLabel } from "./model.ts";
 import { usePaneData, useScreenQuery } from "./data.tsx";
-import { EVENT_ORDER, EVENT_WORDS, KIND_ORDER, KIND_WORDS, canRemoveNote, countLine, titleOf, draftOf, grouped, kindWord, lastRan, madeBy, restoreInput, setInput, whatOf } from "./hooks-model.ts";
+import { ACTION_CHOICES, ACTION_EVENTS, EVENT_ORDER, EVENT_WORDS, KIND_ORDER, KIND_WORDS, canRemoveNote, countLine, titleOf, draftOf, grouped, kindWord, lastRan, madeBy, restoreInput, setInput, whatOf } from "./hooks-model.ts";
 import type { Draft, Hook, HookKind, HookRun } from "./hooks-model.ts";
-import { PaneList, TextButton } from "./parts.tsx";
+import { Icon, PaneList, TextButton } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
 
 type HooksOut = CapMap["hooks.list"]["out"];
@@ -31,10 +32,9 @@ export function HookCard({ h, threadId, deps, selected, nameOf, ran, startEditin
       <Text testID={`hook-title-${h.id}`} style={s.when}>{titleOf(h)}</Text>
       {edit ? (
         <View testID={`hook-form-${h.id}`} style={s.form}>
-          <Text style={s.label}>When</Text>
-          <View style={s.chips}>{EVENT_ORDER.map((e) => <Chip key={e} text={EVENT_WORDS[e]!} on={draft.event === e} id={`hook-event-${h.id}-${e}`} onPress={() => setDraft({ ...draft, event: e })} />)}</View>
-          <Text style={s.label}>What it does</Text>
-          <View style={s.chips}>{KIND_ORDER.map((k) => <Chip key={k} text={KIND_WORDS[k]} on={draft.kind === k} id={`hook-kind-${h.id}-${k}`} onPress={() => setDraft({ ...draft, kind: k as HookKind })} />)}</View>
+          <Pick label="When" id={`hook-event-${h.id}`} value={draft.event} options={EVENT_ORDER.map((e) => ({ key: e, title: EVENT_WORDS[e]! }))} onChange={(event) => setDraft({ ...draft, event })} />
+          {ACTION_EVENTS.has(draft.event) ? <Pick label="Only for" id={`hook-only-${h.id}`} value={draft.only} options={ACTION_CHOICES.map((c) => ({ key: c.key, title: c.title }))} onChange={(only) => setDraft({ ...draft, only })} /> : null}
+          <Pick label="What it does" id={`hook-kind-${h.id}`} value={draft.kind} options={KIND_ORDER.map((k) => ({ key: k, title: KIND_WORDS[k] }))} onChange={(kind) => setDraft({ ...draft, kind: kind as HookKind })} />
           <TextInput testID={`hook-what-${h.id}`} accessibilityLabel="What it does" value={draft.what} onChangeText={(what) => setDraft({ ...draft, what })} style={s.input} multiline />
           <View style={s.acts}>
             <TextButton label="Save" primary onPress={save} testID={`hook-save-${h.id}`} />
@@ -56,8 +56,26 @@ export function HookCard({ h, threadId, deps, selected, nameOf, ran, startEditin
   );
 }
 
-function Chip({ text, on, id, onPress }: { text: string; on: boolean; id: string; onPress: () => void }): ReactElement {
-  return <Pressable accessibilityRole="button" accessibilityState={{ selected: on }} testID={id} onPress={onPress} style={[s.chip, on && s.chipOn]}><Text style={[s.chipText, on && s.chipTextOn]}>{text}</Text></Pressable>;
+/** A quiet picker for a short list: the label above, the choice below with a chevron, and a menu that opens under it (the same control as the Console sheet's When). Never a row of pills. */
+export function entriesOf(options: ReadonlyArray<{ key: string; title: string }>, value: string, onChange: (key: string) => void): Array<{ label: string; checked: boolean; onSelect: () => void }> {
+  return options.map((o) => ({ label: o.title, checked: o.key === value, onSelect: () => onChange(o.key) }));
+}
+function Pick({ label, id, value, options, onChange }: { label: string; id: string; value: string; options: ReadonlyArray<{ key: string; title: string }>; onChange: (key: string) => void }): ReactElement {
+  const menu = useMenu();
+  return (
+    <View style={s.pick}>
+      <Text style={s.label}>{label}</Text>
+      <Pressable
+        accessibilityRole="button" accessibilityLabel={label} testID={id}
+        onPress={(event) => { const r = (event.currentTarget as unknown as { getBoundingClientRect?(): { left: number; bottom: number } })?.getBoundingClientRect?.(); menu.show(entriesOf(options, value, onChange), r?.left ?? 20, r?.bottom ?? 100, "other"); }}
+        style={s.pickBtn}
+      >
+        <Text testID={`${id}-value`} numberOfLines={1} style={s.pickText}>{options.find((o) => o.key === value)?.title ?? "Choose…"}</Text>
+        <Icon name="chev" size={11} color="var(--ink-3)" />
+      </Pressable>
+      {menu.element}
+    </View>
+  );
 }
 
 export function HooksTab({ deps, window, selected }: { deps: PaneDeps; window?: VirtualWindow; selected?: string | null }): ReactElement {
@@ -95,11 +113,9 @@ const s = StyleSheet.create({
   locked: { fontSize: 12, marginLeft: 9, color: "var(--ink-4)" as string },
   form: { marginTop: 6 },
   label: { marginTop: 6, fontSize: 11.5, color: "var(--ink-3)" as string },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
-  chip: { paddingHorizontal: 10, height: 26, justifyContent: "center", borderRadius: 13, boxShadow: "inset 0 0 0 1px var(--line)" } as object,
-  chipOn: { backgroundColor: "var(--accent)" as string },
-  chipText: { fontSize: 12.5, color: "var(--ink-2)" as string },
-  chipTextOn: { color: "var(--accent-ink)" as string },
+  pick: { marginTop: 6 },
+  pickBtn: { marginTop: 4, height: 32, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, borderRadius: 9, backgroundColor: "var(--raised)" as string },
+  pickText: { flexShrink: 1, fontSize: 13.5, color: "var(--ink)" as string },
   input: { marginTop: 6, minHeight: 36, padding: 8, borderRadius: 9, fontSize: 13.5, color: "var(--ink)" as string, backgroundColor: "var(--sunk)" as string },
   foot: { margin: 12, fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
 });

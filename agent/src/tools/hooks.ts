@@ -24,7 +24,7 @@ export interface HookFire {
 }
 export interface HookVerdict {
   /** The first block, if any: the reason a person reads, who made the hook, and which. */
-  block: { reason: string; hookId: string; by: string; scope: string } | null;
+  block: { reason: string; hookId: string; by: string; scope: string; next?: Array<{ label: string; ask: string }> } | null;
   /** Lines to add to the model's context. */
   notes: string[];
   ran: number;

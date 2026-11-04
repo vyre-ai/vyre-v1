@@ -111,11 +111,17 @@ export function pokeLine(m: Pick<Message, "blocks">, nameOf: (id: string) => str
 }
 
 /** The quiet line a hook leaves (lane l-hooks): its words, what happened to it, and the hook it is about, so the line can offer Details or Edit. */
-export interface HookLine { line: string; kind: string; hookId?: string; reason?: string; by?: string; subject?: string; scope?: string }
+export interface HookLine { line: string; kind: string; hookId?: string; reason?: string; by?: string; subject?: string; scope?: string; agentId?: string; /** Up to two steps a check wrote: a button label and what pressing it says to the assistant */ next?: Array<{ label: string; ask: string }> }
 export function hookLineOf(m: Pick<Message, "blocks">): HookLine | null {
   const d = m.blocks.find((x) => x.type === "hook")?.data as { line?: unknown; kind?: unknown; hookId?: unknown; reason?: unknown } | null | undefined;
   if (!d || typeof d.line !== "string" || typeof d.kind !== "string") return null;
-  return { line: d.line, kind: d.kind, ...(typeof d.hookId === "string" ? { hookId: d.hookId } : {}), ...(typeof d.reason === "string" ? { reason: d.reason } : {}), ...(typeof (d as { by?: unknown }).by === "string" ? { by: (d as { by: string }).by } : {}), ...(typeof (d as { subject?: unknown }).subject === "string" ? { subject: (d as { subject: string }).subject } : {}), ...(typeof (d as { scope?: unknown }).scope === "string" ? { scope: (d as { scope: string }).scope } : {}) };
+  return { line: d.line, kind: d.kind, ...(typeof d.hookId === "string" ? { hookId: d.hookId } : {}), ...(typeof d.reason === "string" ? { reason: d.reason } : {}), ...(typeof (d as { by?: unknown }).by === "string" ? { by: (d as { by: string }).by } : {}), ...(typeof (d as { subject?: unknown }).subject === "string" ? { subject: (d as { subject: string }).subject } : {}), ...(typeof (d as { scope?: unknown }).scope === "string" ? { scope: (d as { scope: string }).scope } : {}), ...(typeof (d as { agentId?: unknown }).agentId === "string" ? { agentId: (d as { agentId: string }).agentId } : {}), ...nextOf((d as { next?: unknown }).next) };
+}
+/** The steps a check offered, read from the block: at most two, each a short label and a plain sentence; anything else is dropped. */
+function nextOf(v: unknown): { next?: Array<{ label: string; ask: string }> } {
+  if (!Array.isArray(v)) return {};
+  const next = v.filter((x): x is { label: string; ask: string } => !!x && typeof (x as { label?: unknown }).label === "string" && typeof (x as { ask?: unknown }).ask === "string" && (x as { label: string }).label.length <= 40 && (x as { ask: string }).ask.length <= 200).slice(0, 2);
+  return next.length > 0 ? { next } : {};
 }
 /** The words of a line as this reader sees them: a line about a person names them as the reader does ("Maya Chen let a hook go by once: ..."), never "Someone". */
 export function hookLineText(h: HookLine, nameOf: (id: string) => string): string {

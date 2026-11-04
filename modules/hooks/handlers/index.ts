@@ -2,7 +2,7 @@
 //   Space hooks are an admin's. Person hooks are the person's own. An agent sets hooks only for itself (agent, chat and run scope) and for the helpers it starts (run scope), as checks, notes and its own
 //   actions: nothing an agent makes can loosen a Space or person hook, skip the Gate, approve a held act or reach past the agent's own reach, because a hook can only stop work, add a note or run an
 //   action through the normal pipeline as the agent. An admin can turn agent-made hooks off for the whole Space.
-import { HOOK_EVENTS, HOOK_KINDS, HOOK_SCOPES, plainLine, redact } from "../../../lib/hooks.ts";
+import { HOOK_EVENTS, HOOK_KINDS, HOOK_SCOPES, plainLine, plainTools, redact } from "../../../lib/hooks.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import type { HookFire } from "../../../agent/src/tools/hooks.ts";
 import { ACTION_DENIED, fire as fireHooks } from "../eval.ts";
@@ -86,7 +86,7 @@ function clean(ctx: HooksCtx, i: SetIn): { spec: Spec; line: string; timeoutSec:
     if (ACTION_DENIED.test(cap)) raise(ctx, "permission.no_grant", "A hook cannot approve, grant or change hooks, settings or access.");
     spec = { cap, input: i.input ?? {} };
   }
-  const line = redact((i.summary ?? "").trim() || plainLine({ event: i.event, kind: i.kind, matcher: i.matcher ?? "", ...(spec.instruction ? { instruction: spec.instruction } : {}), ...(spec.cap ? { cap: spec.cap } : {}), ...(spec.command ? { command: spec.command } : {}) }), 200);
+  const line = plainTools(redact((i.summary ?? "").trim() || plainLine({ event: i.event, kind: i.kind, matcher: i.matcher ?? "", ...(spec.instruction ? { instruction: spec.instruction } : {}), ...(spec.cap ? { cap: spec.cap } : {}), ...(spec.command ? { command: spec.command } : {}) }), 200));
   return { spec, line, timeoutSec };
 }
 
@@ -236,7 +236,7 @@ export function policySet(ctx: HooksCtx, i: { agentHooks: boolean }): { agentHoo
 }
 
 /** What the engine, the tool session and the CLI shim ask for. The asker is the caller; the agent and thread are the event's. */
-export async function fire(ctx: HooksCtx, i: Omit<HookFire, "asker"> & { asker?: string }): Promise<{ block: { reason: string; hookId: string; by: string; scope: string } | null; notes: string[]; ran: number }> {
+export async function fire(ctx: HooksCtx, i: Omit<HookFire, "asker"> & { asker?: string }): Promise<{ block: { reason: string; hookId: string; by: string; scope: string; next?: Array<{ label: string; ask: string }> } | null; notes: string[]; ran: number }> {
   ensure(ctx.db);
   const a = actorOf(ctx, "fire");
   // a trusted service (the engine) names the person whose turn it is; a person or an agent can only ask for themselves, and only about an agent they can see

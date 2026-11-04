@@ -34,3 +34,10 @@ test("the lead words of a hook line are the name before added, or A hook stopped
   assert.deepEqual(hookLead("Maya Chen let a hook go by once: x"), ["Maya Chen", " let a hook go by once: x"]);
   assert.deepEqual(hookLead("nothing to lead"), ["", "nothing to lead"]);
 });
+
+test("steps in a block's data are read: at most two, each a short label and sentence", () => {
+  const l = hookLineOf(msg({ line: "A hook stopped this: x", kind: "blocked", hookId: "h", agentId: "agt_a", next: [{ label: "A", ask: "Do a" }, { label: "B", ask: "Do b" }, { label: "C", ask: "Do c" }, { label: 5, ask: "x" }] }))!;
+  assert.equal(l.agentId, "agt_a");
+  assert.deepEqual(l.next, [{ label: "A", ask: "Do a" }, { label: "B", ask: "Do b" }]);
+  assert.equal(hookLineOf(msg({ line: "x", kind: "blocked", hookId: "h", next: "nope" }))!.next, undefined);
+});
