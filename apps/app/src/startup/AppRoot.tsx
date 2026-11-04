@@ -1,7 +1,6 @@
 // The production root, without a router. Every place is registered behind its dynamic loader before the first render; the session gate shows sign-in or the shell with the
 // Space's real data, and the address follows the shell through window.history (UrlSync). On the web index.web.tsx mounts this directly; the static export renders it through
 // expo-router (app/_layout.tsx), which only makes a page per route for deep links and the daemon.
-import { OpenLink } from "../shell/reach/OpenLink.tsx";
 import { holdOpen, parseOpenPath } from "../shell/reach/open-link.ts";
 import { Component, Suspense, lazy, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
@@ -71,7 +70,6 @@ function AppRoute(): ReactElement {
     <StartupUpdate>
       <SessionGate baseUrl={hydrationBaseUrl(path !== null)} onHub={setHub} voice={loadTwilioDevice} />
       {hub ? <UrlSync hub={hub} /> : null}
-      {hub ? <OpenLink hub={hub} /> : null}
       {hub ? <WhatsNewOnce /> : null}
     </StartupUpdate>
   );
