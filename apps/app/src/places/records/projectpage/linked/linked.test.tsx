@@ -6,6 +6,7 @@ import { find, flush, installDom, mount, press, textOf, typeInto } from "../../.
 import type { Node } from "../../../../../../../ui/src/testing/dom.ts";
 import { ProjectPageDataProvider } from "../data.tsx";
 import { LinkedTab } from "./LinkedTab.tsx";
+import { ProjectLinked } from "./index.tsx";
 import type { LinkedTabProps } from "./LinkedTab.tsx";
 import { createSampleLinked, NOW } from "./sample.ts";
 import { EMPTY_RULE, GROUPS, askResource, countFor, failedRun, filterLinks, fixAsk, groupOf, levelOf, linkOfHit, parseAddress, reachOf, ruleBody, ruleProblem, ruleText, runLine, runLook, titleOf, toneOf } from "./model.ts";
@@ -118,7 +119,7 @@ test("the access test: a member who cannot open one linked item sees only its ki
     const text = textOf(find(root, "link-lnk_5"));
     assert.ok(text.includes("A file you don't have access to") && text.includes("You can't open this"));
     assert.ok(!text.includes("Fee schedule"), "its name is never shown");
-    await tap(root, "link-open-lnk_5");
+    await tap(root, "row-lk-lnk_5");
     assert.deepEqual(targets, [], "nothing opens: there is no place this person can open");
     assert.ok(find(root, "link-peek-lnk_5"), "a read-only peek shows instead");
     assert.ok(textOf(find(root, "link-peek-lnk_5")).includes("Linked by Lena Ortiz"));
@@ -127,7 +128,7 @@ test("the access test: a member who cannot open one linked item sees only its ki
     assert.equal(writes(s.calls, "access.request")[0]!.input["level"], "view");
     assert.ok(find(root, "link-asked-lnk_5"), "it says it asked");
     assert.equal(find(root, "link-ask-lnk_5"), null, "and does not ask twice");
-    await tap(root, "link-open-lnk_5");
+    await tap(root, "row-lk-lnk_5");
     assert.equal(find(root, "link-peek-lnk_5"), null, "pressing again closes the peek");
   } finally { restore(); }
 });
@@ -135,11 +136,11 @@ test("the access test: a member who cannot open one linked item sees only its ki
 test("opening a link goes where reach says: a file, a record and a chat through the page, a task through the shell, a pull request at its own address", async () => {
   const { root, s, urls, targets, restore } = await tab();
   try {
-    await tap(root, "link-open-lnk_4"); await tap(root, "link-open-lnk_2"); await tap(root, "link-open-lnk_6");
+    await tap(root, "row-lk-lnk_4"); await tap(root, "row-lk-lnk_2"); await tap(root, "row-lk-lnk_6");
     assert.deepEqual(s.opened, ["file:fil_1", "record:invoice/rec_1042", "thread:thr_intake"]);
-    await tap(root, "link-open-lnk_1");
+    await tap(root, "row-lk-lnk_1");
     assert.deepEqual(targets, ["chats:subject=task:tsk_1"]);
-    await tap(root, "link-open-lnk_7");
+    await tap(root, "row-lk-lnk_7");
     assert.deepEqual(urls, ["https://github.com/northwind/website/pull/214"]);
   } finally { restore(); }
 });
@@ -159,7 +160,7 @@ test("Show filters the groups, with the count of each, and Link something is off
   const ro = await tab({}, { canEdit: false });
   try {
     for (const id of ["linked-add", "rule-new", "rule-remove-rul_1"]) assert.equal(find(ro.root, id), null, `${id} is for editors`);
-    assert.ok(find(ro.root, "link-open-lnk_4"), "reading is for everyone");
+    assert.ok(find(ro.root, "row-lk-lnk_4"), "reading is for everyone");
   } finally { ro.restore(); }
 });
 
@@ -219,7 +220,7 @@ test("Link something: search shows what is not linked yet, a pick links it, a pa
     assert.equal(writes(s.calls, "projects.links.link")[2]!.input["kind"], "url");
     await tap(root, "link-done");
     assert.equal(find(root, "link-sheet"), null);
-    assert.ok(find(root, "link-open-lnk_101"), "the new link is on the page");
+    assert.ok(find(root, "row-lk-lnk_101"), "the new link is on the page");
   } finally { restore(); }
 });
 
@@ -311,5 +312,36 @@ test("a read that fails says so instead of showing an empty tab", async () => {
     await flush();
     try { assert.ok(find(root, "linked-failed"));
     assert.equal(find(root, "linked-empty"), null); } finally { await act(async () => { (made as { unmount(): void } | null)?.unmount(); }); }
+  } finally { restore(); }
+});
+
+test("the shell's tab body mounts the tab, reading the project and the viewer's rights from the page", async () => {
+  const restore = installDom();
+  try {
+    const s = createSampleLinked();
+    const base = s.data.call;
+    s.data.call = async (cap, input) => (cap === "projects.get" ? { project: { title: "Rivera account" } } : base(cap, input));
+    const { createRoot } = await import("test-renderer");
+    let made: { unmount(): void } | null = null;
+    const root = await mount(() => { const r = createRoot(); made = r; return r; }, <ProjectPageDataProvider value={s.data}><ProjectLinked projectId="prj_rivera" space={{ id: "spc", kind: "team", name: "Northwind" }} canEdit={false} /></ProjectPageDataProvider>);
+    await flush();
+    try { assert.ok(find(root, "project-linked")); assert.equal(find(root, "linked-add"), null, "no control the person cannot use"); } finally { await act(async () => { (made as { unmount(): void } | null)?.unmount(); }); }
+  } finally { restore(); }
+});
+
+test("with the page's own doors, a task, a pull request and the fix card go through data.nav", async () => {
+  const restore = installDom();
+  try {
+    const s = createSampleLinked();
+    const seen: string[] = [];
+    Object.assign(s.data.nav, { openItem: (t: string, id: string) => void seen.push(`item:${t}:${id}`), openUrl: (u: string) => void seen.push(`url:${u}`), askAssistant: (t: string) => void seen.push(`ask:${t.slice(0, 30)}`) });
+    const { createRoot } = await import("test-renderer");
+    let made: { unmount(): void } | null = null;
+    const root = await mount(() => { const r = createRoot(); made = r; return r; }, <ProjectPageDataProvider value={s.data}><LinkedTab projectId="prj_rivera" projectTitle="Rivera account" canEdit /></ProjectPageDataProvider>);
+    await flush();
+    try {
+      await tap(root, "row-lk-lnk_1"); await tap(root, "row-lk-lnk_7"); await tap(root, "ci-fix-ask");
+      assert.deepEqual(seen, ["item:task:tsk_1", "url:https://github.com/northwind/website/pull/214", "ask:@Assistant the checks failed i"]);
+    } finally { await act(async () => { (made as { unmount(): void } | null)?.unmount(); }); }
   } finally { restore(); }
 });

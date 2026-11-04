@@ -4,6 +4,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Row } from "../../../../../../../ui/src/Row/index.tsx";
+import { ReachRow } from "../../../../../../../ui/src/Row/ReachRow.tsx";
 import { menuTrigger, useMenu } from "../../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../../ui/src/Menu/index.tsx";
 import { act, hint } from "../../../../shell/reach/reach.ts";
@@ -21,7 +23,7 @@ export interface LinkedTabProps {
   /** The person may change the project: link, unlink, make rules. */
   canEdit: boolean;
   /** One quiet line at the foot of the page. */
-  say(text: string): void;
+  say?(text: string): void;
   /** Where a reach target opens (the shell's door). Without it only files, records and chats open, through the page's own navigation. */
   open?(target: Target): void;
   openUrl?(url: string): void;
@@ -41,8 +43,10 @@ function anchor(): { x: number; y: number } {
   return b ? { x: Math.max(8, b.right - 200), y: b.bottom + 4 } : { x: 8, y: 48 };
 }
 
-export function LinkedTab({ projectId, projectTitle = "this project", canEdit, say, open, openUrl, askAssistant, show: first = "All" }: LinkedTabProps): ReactElement {
+export function LinkedTab({ projectId, projectTitle = "this project", canEdit, say: sayProp, open, openUrl: urlProp, askAssistant: askProp, show: first = "All" }: LinkedTabProps): ReactElement {
   const d = useProjectPageData();
+  const openUrl = urlProp ?? d.nav.openUrl;
+  const askAssistant = askProp ?? d.nav.askAssistant;
   const [data, setData] = useState<Out | null>(null);
   const [runs, setRuns] = useState<readonly Run[]>([]);
   const [repo, setRepo] = useState<string | null>(null);
@@ -54,6 +58,7 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
   const [asked, setAsked] = useState<ReadonlySet<string>>(new Set());
   const [problem, setProblem] = useState<string | null>(null);
   const menu = useMenu();
+  const say = (text: string): void => { if (sayProp) sayProp(text); else setNotice({ text }); };
   const meId = d.me?.id ?? "me";
   const viewer: Viewer = useMemo(() => ({ id: meId }), [meId]);
 
@@ -92,7 +97,7 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
         if (l.kind === "file") { d.nav.openFile(l.ref); return; }
         if (l.kind === "chat") { d.nav.openThread(l.ref); return; }
         if (l.kind === "record") { const i = l.ref.indexOf("/"); if (i > 0) { d.nav.openRecord(l.ref.slice(0, i), l.ref.slice(i + 1)); return; } }
-        if (open) open(target); else say(`Opens ${titleOf(l)}`);
+        if (d.nav.openItem) d.nav.openItem(itemTypeOf(l), l.ref); else if (open) open(target); else say(`Opens ${titleOf(l)}`);
       },
       peek: () => setPeek((cur) => (cur === l.linkId ? null : l.linkId)),
     });
@@ -165,19 +170,25 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
     const by = byLine(l, meId, d.nameOf);
     const tone = toneOf(l.state);
     const id = l.linkId;
-    return (
-      <View key={id} testID={`link-${id}`} {...menuTrigger((x, y) => rowMenu(l, x, y))}>
-        <View style={st.row}>
-          <Pressable accessibilityRole={locked ? "button" : "link"} accessibilityLabel={locked ? `${titleOf(l)}. Show what this is` : `Open ${titleOf(l)}`} accessibilityHint={hint(r) ?? undefined} testID={`link-open-${id}`} onPress={() => openLink(l)} style={({ hovered }: { hovered?: boolean }) => [st.main, hovered === true && st.hover]}>
-            <View style={st.kind}><Text style={st.kindText}>{locked ? "\u{1F512}︎" : KIND_MARK[l.kind]}</Text></View>
-            <View style={st.names}>
-              <Text numberOfLines={1} style={[st.title, locked && st.titleLocked]}>{titleOf(l)}</Text>
-              <Text numberOfLines={1} style={st.sub}>{locked ? `You can't open this · ${by.by}` : by.by}{by.auto ? <Text testID={`link-auto-${id}`} accessibilityLabel="Linked by a rule" style={st.auto}>{" AUTO "}</Text> : null}</Text>
-            </View>
-            {!locked && l.state ? <Text style={[st.state, tone === "ok" && st.ok, tone === "bad" && st.bad, tone === "warn" && st.warn]} testID={`link-state-${id}`}>{l.state}</Text> : null}
-          </Pressable>
-          {(!locked || canEdit) ? <Pressable accessibilityRole="button" accessibilityLabel={`More for ${titleOf(l)}`} testID={`link-more-${id}`} onPress={() => { const a = anchor(); rowMenu(l, a.x, a.y); }} style={({ hovered }: { hovered?: boolean }) => [st.more, hovered === true && st.hover]}><Text style={st.moreText}>{"…"}</Text></Pressable> : null}
+    const subject = isOutside(l) ? undefined : { type: itemTypeOf(l), id: l.kind === "record" && l.ref.includes("/") ? l.ref.slice(l.ref.indexOf("/") + 1) : l.ref };
+    const rowProps = {
+      id: `lk-${id}`, title: titleOf(l), tall: true,
+      note: locked ? `You can't open this \u00B7 ${by.by}` : by.by,
+      ...(hint(r) ? { hint: hint(r)! } : {}),
+      leading: <View style={st.kind}><Text style={st.kindText}>{locked ? "\u{1F512}\uFE0E" : KIND_MARK[l.kind]}</Text></View>,
+      ...(by.auto ? { titleMarks: <Text testID={`link-auto-${id}`} accessibilityLabel="Linked by a rule" style={st.auto}>AUTO</Text> } : {}),
+      trailing: (
+        <View style={st.trail}>
+          {!locked && l.state ? <Text style={[st.state, tone === "ok" && st.ok, tone === "bad" && st.bad, tone === "warn" && st.warn]} testID={`link-state-${id}`}>{l.state}</Text> : null}
+          {(!locked || canEdit) ? <Pressable accessibilityRole="button" accessibilityLabel={`More for ${titleOf(l)}`} testID={`link-more-${id}`} onPress={() => { const a = anchor(); rowMenu(l, a.x, a.y); }} style={({ hovered }: { hovered?: boolean }) => [st.more, hovered === true && st.hover]}><Text style={st.moreText}>{"\u2026"}</Text></Pressable> : null}
         </View>
+      ),
+      domProps: menuTrigger((x, y) => rowMenu(l, x, y)),
+    };
+    // a row that opens something asks the Space's link policy how to draw (ui/reach), so a link and its hover never disagree; what the viewer cannot open is a peek row of our own (Ask for access)
+    return (
+      <View key={id} testID={`link-${id}`}>
+        {locked ? <Row {...rowProps} locked onPress={() => openLink(l)} /> : <ReachRow {...rowProps} {...(subject ? { subject } : {})} onPress={() => openLink(l)} />}
         {peek === id ? (
           <View testID={`link-peek-${id}`} accessibilityRole="summary" style={st.peek}>
             <Text style={st.peekTitle}>{titleOf(l)}</Text>
@@ -255,6 +266,7 @@ const st = StyleSheet.create({
   gh: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 30, marginBottom: 2 },
   gt: { fontSize: 13, fontWeight: "600", color: "var(--ink-2)" as string },
   row: { flexDirection: "row", alignItems: "center" },
+  trail: { flexDirection: "row", alignItems: "center", gap: 6 },
   main: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10, minHeight: 50, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8 },
   kind: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   kindText: { fontSize: 13, color: "var(--ink-2)" as string },
