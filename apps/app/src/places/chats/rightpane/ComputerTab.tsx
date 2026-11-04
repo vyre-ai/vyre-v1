@@ -122,6 +122,7 @@ export function NoneBody({ hosts, canProvision, onProvision, name = "this agent"
       {v.kind === "cannot" ? (
         <View testID="computer-cannot" style={st.cannot}>
           <View style={st.cannotHead}><Icon name="warn" size={14} color="var(--warn)" /><Text style={st.cannotTitle}>It cannot run here yet</Text></View>
+          {/* ui-rows-lint: not a list (the reasons it cannot run, as sentences under one heading) */}
           {v.reasons.map((r) => <Text key={r} style={st.none}>{r}</Text>)}
         </View>
       ) : null}
@@ -129,6 +130,7 @@ export function NoneBody({ hosts, canProvision, onProvision, name = "this agent"
         <>
           <Text style={st.label}>Where it runs</Text>
           <View testID="computer-hosts" style={{ gap: 6 }}>
+            {/* ui-rows-lint: not a list (a radio group: one machine is chosen, and each choice says whether it can run there) */}
             {list.map((h) => {
               const on = chosen?.hostId === h.hostId;
               return (
