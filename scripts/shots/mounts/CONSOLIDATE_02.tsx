@@ -486,7 +486,7 @@ export default function Mount(): ReactNode {
     let opened = false, done = false;
     const iv = setInterval(() => {
       if (done) return;
-      if (doc?.querySelector("[data-testid='menu-item-ElevenLabs (speaking)']")) { fire("[data-testid='menu-item-ElevenLabs (speaking)']"); done = true; return; }
+      if (doc?.querySelector("[data-testid='menu-item-ElevenLabs']")) { fire("[data-testid='menu-item-ElevenLabs']"); done = true; return; }
       if (!opened && doc?.querySelector("[data-testid='voice-provider-pick']")) { fire("[data-testid='voice-provider-pick']", true); opened = true; }
     }, 250);
     return () => clearInterval(iv);
