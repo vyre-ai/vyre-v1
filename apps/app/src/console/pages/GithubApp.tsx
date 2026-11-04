@@ -7,10 +7,11 @@ import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
-import { Group, Lead, Section } from "../shell/ui.tsx";
+import { Group, Lead, Line, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Switch } from "../../places/settings/ui.tsx";
-import { GithubAppLine } from "./CiRunners.tsx";
+import { LogoTile } from "../../places/vault/layout/parts.tsx";
+import { GithubAppLine, IconTile } from "./CiRunners.tsx";
 import type { CiSettings } from "./CiRunners.tsx";
 import { Actions, Button, Field, FormSheet, Note, ReadState, useAction, useRead } from "./shared.tsx";
 
@@ -46,6 +47,17 @@ export function postManifest(out: { manifest: unknown; postUrl: string }): void 
   Object.assign(input, { type: "hidden", name: "manifest", value: JSON.stringify(out.manifest) });
   form.appendChild(input); doc.body.appendChild(form); form.submit();
 }
+
+/** The helper line under a card: 12px, muted, with a gap above and the section gap below. */
+function Foot({ children, top = 8, testID = "gh-foot" }: { children: string; top?: number; testID?: string }): ReactElement {
+  return <Text accessibilityRole="status" testID={testID} style={{ fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string, marginTop: top, paddingHorizontal: 2 }}>{children}</Text>;
+}
+/** An App details value: always muted. A value that is missing says "Not set". */
+export const valueWord = (value: string | number | null | undefined): string => value === null || value === undefined || value === "" ? "Not set" : String(value);
+/** A secret never shows: "Set in Vault" when it is saved there, "Not set" when it is not. */
+export const secretWord = (isSet: boolean): string => isSet ? "Set in Vault" : "Not set";
+const Value = ({ children }: { children: string }): ReactElement => <Text style={{ fontSize: 13, color: "var(--ink-3)" as string }}>{children}</Text>;
+const GhMark = (): ReactElement => <Lead><LogoTile name="github" size={30} /></Lead>;
 
 export function GithubAppPage(): ReactElement {
   const data = useConsoleData();
@@ -87,37 +99,38 @@ export function GithubAppPage(): ReactElement {
   return <View testID="console-github-app">
     <Section title="GitHub app">
       <Group>
-        <Row id="gh-own" title="Use our own GitHub app" note={ownLine(on, complete, data.space.name)} leading={<Lead><Glyph name="code" size={16} color="var(--ink-3)" /></Lead>} trailing={<Switch on={on} label="Use our own GitHub app" testID="gh-own-switch" disabled={action.busy} onChange={flip} />} />
+        <Row id="gh-own" title="Use our own GitHub app" note={ownLine(on, complete, data.space.name)} leading={<GhMark />} trailing={<Switch on={on} label="Use our own GitHub app" testID="gh-own-switch" disabled={action.busy} onChange={flip} />} />
         {confirm ? <View testID="gh-off-confirm" style={{ padding: 12, gap: 10 }}>
           <Text style={{ fontSize: 13, color: "var(--ink)" as string }}>Go back to the Vyre GitHub app? Members connect GitHub once more. Their repos and permissions stay.</Text>
           <Actions><Button label="Switch back" testID="gh-off-yes" disabled={action.busy} onPress={() => void action.run("members.sign_in_github.clear", {}, "Members use the Vyre GitHub app").then(() => { setConfirm(false); setWantOwn(false); })} /><Button label="Cancel" testID="gh-off-cancel" onPress={() => setConfirm(false)} /></Actions>
         </View> : null}
       </Group>
+      {on ? null : <Foot top={14} testID="gh-foot-off">The Vyre GitHub app needs nothing from you. Switch to your own app if your GitHub org requires it, or you want its name on the permission screen.</Foot>}
     </Section>
     {on ? <>
       <Section title="App details">
         <Group>
-          <Row id="gh-app-id" title="App id" note={app ? "Kept in Vault" : "Not set"} trailing={<Text style={{ fontSize: 13, color: "var(--ink)" as string }}>{app ? String(app.id) : "Not set"}</Text>} />
-          <Row id="gh-app-key" title="Private key" note={app ? "Kept in Vault" : "Not set"} trailing={<Text style={{ fontSize: 13, color: "var(--ink-3)" as string }}>{app ? "Set" : "Not set"}</Text>} />
-          <Row id="gh-client-id" title="Client id" note={g.clientId ? "Saved" : "Not set"} trailing={<Text style={{ fontSize: 13, color: "var(--ink)" as string }}>{g.clientId ?? "Not set"}</Text>} />
-          <Row id="gh-client-secret" title="Client secret" note={g.secretSet ? "Kept in Vault" : "Not set"} trailing={<Text style={{ fontSize: 13, color: "var(--ink-3)" as string }}>{g.secretSet ? "Set" : "Not set"}</Text>} />
+          <Line index={0}><Row id="gh-app-id" title="App id" leading={<IconTile icon="key2" />} note={app ? "Vault: GITHUB_APP_ID" : "Not set"} trailing={<Value>{valueWord(app?.id)}</Value>} /></Line>
+          <Line index={1}><Row id="gh-app-key" title="Private key" leading={<IconTile icon="key2" />} note={app ? "Vault: GITHUB_APP_PRIVATE_KEY" : "Not set"} trailing={<Value>{secretWord(Boolean(app))}</Value>} /></Line>
+          <Line index={2}><Row id="gh-client-id" title="Client id" leading={<IconTile icon="key2" />} note={g.clientId ? "Saved" : "Not set"} trailing={<Value>{valueWord(g.clientId)}</Value>} /></Line>
+          <Line index={3}><Row id="gh-client-secret" title="Client secret" leading={<IconTile icon="key2" />} note={g.secretSet || app ? "Vault: GITHUB_APP_CLIENT_SECRET" : "Not set"} trailing={<Value>{secretWord(Boolean(g.secretSet || app))}</Value>} /></Line>
         </Group>
-        <Actions>
-          {app ? null : <Button label="Create one for us" testID="gh-create" onPress={() => setSheet("create")} />}
-          <Button label={g.secretSet ? "Change client id and secret" : "Use an app we already made"} testID="gh-keys" onPress={() => setSheet("keys")} />
-        </Actions>
-        <Note>{app ? "Created for this Space. The keys are in Vault." : "Create one opens GitHub, which asks you to confirm the app. The keys go straight into Vault."}</Note>
+        <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+          {app ? null : <Button small label="Create one for us" testID="gh-create" onPress={() => setSheet("create")} />}
+          <Button small label={g.secretSet ? "Change client id and secret" : "Use an app we already made"} testID="gh-keys" onPress={() => setSheet("keys")} />
+        </View>
+        <Foot>{app ? "Created for this Space. The keys are in Vault." : "Create one opens GitHub, which asks you to confirm the app. The keys go straight into Vault."}</Foot>
       </Section>
       <Section title="The Space's installation">
         <Group>
-          {installs.length === 0 ? <Row id="gh-no-install" title="Not installed" note="Install the app on your GitHub org so CI and Space crews can reach its repos" leading={<Lead><Glyph name="code" size={16} color="var(--ink-3)" /></Lead>} trailing={app ? <Button label="Install" testID="gh-install" onPress={() => open(installUrl(app.slug))} /> : undefined} /> : null}
-          {installs.map((i) => <Row key={i.id} id={`gh-install-${i.id}`} title={i.account} note={`${i.repositorySelection === "all" ? "All repositories" : "Selected repositories"}. CI and Space crews use it`} leading={<Lead><Glyph name="code" size={16} color="var(--ink-3)" /></Lead>} trailing={<Button label="Change" testID={`gh-change-${i.id}`} onPress={() => open(changeUrl(i.id))} />} />)}
+          {installs.length === 0 ? <Row id="gh-no-install" title="Not installed" note="Install the app on your GitHub org so CI and Space crews can reach its repos" leading={<GhMark />} trailing={app ? <Button small label="Install" testID="gh-install" onPress={() => open(installUrl(app.slug))} /> : undefined} /> : null}
+          {installs.map((i, n) => <Line key={i.id} index={n}><Row id={`gh-install-${i.id}`} title={i.account} note={`${i.repositorySelection === "all" ? "All repositories" : "Selected repositories"}. CI and Space crews use it`} leading={<GhMark />} trailing={<Button small label="Change" testID={`gh-change-${i.id}`} onPress={() => open(changeUrl(i.id))} />} /></Line>)}
         </Group>
-        {app ? <Actions><Button label="Check again" testID="gh-recheck" disabled={action.busy} onPress={() => void action.run("github.installations.list", {}, "Checked").then((out) => { if (out) refresh(); })} /></Actions> : null}
+        <Foot top={14} testID="gh-foot-own">{`${data.space.name} uses its own GitHub app. Reconnect once.`}</Foot>
+        {app ? <View style={{ marginTop: 12, flexDirection: "row" }}><Button small label="Check again" testID="gh-recheck" disabled={action.busy} onPress={() => void action.run("github.installations.list", {}, "Checked").then((out) => { if (out) refresh(); })} /></View> : null}
       </Section>
       {ci.data ? <GithubAppLine settings={ci.data} /> : null}
-      <Note>{`When this is on and complete, every member sees "${data.space.name} uses its own GitHub app. Reconnect once." in Settings, GitHub. Their repos and permissions stay.`}</Note>
-    </> : <Note>The Vyre GitHub app needs nothing from you. Switch to your own app if your GitHub org requires it, or you want its name on the permission screen.</Note>}
+    </> : null}
     {action.note ? <Note>{action.note}</Note> : null}
     {sheet === "keys" ? <KeysSheet sign={g} onClose={() => setSheet(null)} onDone={() => { setSheet(null); refresh(); }} /> : null}
     {sheet === "create" ? <CreateSheet callback={g.callbackUrl} onClose={() => setSheet(null)} onDone={refresh} /> : null}

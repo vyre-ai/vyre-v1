@@ -312,7 +312,7 @@ const s = StyleSheet.create({
   tabOn: { borderBottomColor: "var(--accent)" as string },
   tabText: { fontSize: 13.5, fontWeight: "500", color: "var(--ink-3)" as string },
   tabTextOn: { color: "var(--ink)" as string },
-  views: { flexDirection: "row", flexWrap: "wrap", gap: 18, marginBottom: 18 },
+  views: { flexDirection: "row", flexWrap: "wrap", gap: 18, marginTop: 22, marginBottom: 18 },
   view: { paddingVertical: 2 },
   viewText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-3)" as string },
   viewTextOn: { color: "var(--ink)" as string },

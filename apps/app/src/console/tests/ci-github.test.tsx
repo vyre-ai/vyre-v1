@@ -6,8 +6,8 @@ import { find, flush, installDom, mount, press, textOf, typeInto } from "../../.
 import type { Node } from "../../../../../ui/src/testing/dom.ts";
 import { ConsoleDataProvider } from "../shell/data.tsx";
 import { createSampleConsole, SAMPLE_NOW } from "../shell/sample.ts";
-import { CAPS, CiRunnersPage, dollars, durationWord, isPaused, pickEntries, raisedCap, runUrl, runWord, settingEntries } from "../pages/CiRunners.tsx";
-import { GithubAppPage, appComplete, installUrl, manifestReturn, ownLine, postManifest } from "../pages/GithubApp.tsx";
+import { CAPS, CiRunnersPage, STACK_BELOW, stackPickers, stackRunEnd, accountWord, dayStart, dollars, durationWord, isPaused, longestToday, pickEntries, raisedCap, runTitle, runUrl, runWord, runsToday, settingEntries, sinceWord, todayBreakdown } from "../pages/CiRunners.tsx";
+import { GithubAppPage, secretWord, valueWord, appComplete, installUrl, manifestReturn, ownLine, postManifest } from "../pages/GithubApp.tsx";
 import { dataWith } from "./sheet-helper.tsx";
 
 const SETTINGS = { enabled: false, provider: "digitalocean", vaultKeyRef: "#Northwind_DO", region: "nyc3", size: "s-4vcpu-8gb", image: "ubuntu-24-04-x64", maxConcurrent: 3, monthlyCapUsd: 50, maxJobMinutes: 30, labels: ["vyre"] };
@@ -41,7 +41,8 @@ const tap = async (root: Node, id: string) => { const n = find(root, id); assert
 
 test("the words: dollars, how long, the state of a run, the next cap up, the paused rule", () => {
   assert.equal(dollars(4.12), "$4.12"); assert.equal(dollars(50), "$50"); assert.equal(dollars(0.01), "$0.01");
-  assert.equal(durationWord(228_000), "3 m 48 s"); assert.equal(durationWord(58_000), "58 s");
+  assert.equal(durationWord(228_000), "3\u00a0m\u00a048\u00a0s"); assert.equal(durationWord(58_000), "58\u00a0s");
+  assert.equal(durationWord(180_000), "3\u00a0m\u00a000\u00a0s", "a number and its unit never split across lines");
   assert.deepEqual(runWord(run("a") as never), { word: "Failed", tone: "bad" });
   assert.deepEqual(runWord(run("a", { conclusion: "success" }) as never), { word: "Passed", tone: "ok" });
   assert.deepEqual(runWord(run("a", { state: "running" }) as never), { word: "Running", tone: "warn" });
@@ -56,6 +57,23 @@ test("the words: dollars, how long, the state of a run, the next cap up, the pau
   assert.ok(settingEntries("monthlyCapUsd", 50, 30, () => undefined as never).some((x) => /below this month's cost/.test(x.label)));
 });
 
+test("the day's numbers: only today's runs count, and the breakdown adds up to the count", () => {
+  const day = dayStart(SAMPLE_NOW);
+  const rows = [run("t1"), run("t2", { conclusion: "success", endedAt: SAMPLE_NOW - 10 * min }), run("t3", { state: "running", endedAt: null }), run("t4", { state: "swept", conclusion: null }), run("t5", { state: "queued", startedAt: null, endedAt: null }),
+    run("y1", { queuedAt: day - 1, startedAt: day - 40 * min, endedAt: day - 1 }), run("y2", { queuedAt: day - 5 * min, startedAt: day - 90 * min, endedAt: day - 5 * min, conclusion: "success" })] as never[];
+  const today = runsToday(rows, SAMPLE_NOW);
+  assert.deepEqual(today.map((r) => r.runId), ["t1", "t2", "t3", "t4", "t5"], "yesterday's runs are not today's");
+  const b = todayBreakdown(today);
+  assert.equal(b.total, 5); assert.equal(b.parts.reduce((n, p) => n + p.n, 0), b.total, "the parts add up");
+  assert.equal(b.line, "1 failed, 1 passed, 1 stopped, 1 running, 1 waiting");
+  assert.equal(todayBreakdown([]).line, "Nothing yet today");
+  assert.equal(longestToday(today, SAMPLE_NOW), 12 * min + 0, "the longest is a run of today (a running one counts to now), never yesterday's 40 min");
+  assert.equal(longestToday([], SAMPLE_NOW), undefined);
+  assert.equal(sinceWord("2026-11"), "1 Nov"); assert.equal(runTitle("Checks / tests"), "Checks · tests"); assert.equal(runTitle("tests"), "tests");
+  assert.equal(accountWord([{ name: "DigitalOcean, Northwind", handle: "#Northwind_DO" }], "#Northwind_DO"), "DigitalOcean, Northwind (Vault)");
+  assert.equal(accountWord([], "#Northwind_DO"), "#Northwind_DO"); assert.equal(accountWord([], null), "Not set");
+});
+
 test("off: it says what CI runners are and has Turn on, and no cost or run is drawn", async () => {
   const { root, restore } = await ci({ "ci.settings.get": settingsOut() });
   try {
@@ -64,6 +82,7 @@ test("off: it says what CI runners are and has Turn on, and no cost or run is dr
     assert.match(text, /Run your GitHub checks on throwaway machines from your own cloud account\. Nothing runs on people's computers\./);
     assert.match(text, /GitHub minutes are never used, and the Space server never runs a job\./);
     assert.ok(find(root, "ci-turn-on") && !find(root, "row-ci-month"));
+    assert.ok(find(root, "ci-off") && !find(root, "row-ci-off"), "one centered card, not a row");
   } finally { restore(); }
 });
 
@@ -105,12 +124,15 @@ test("on: the month's cost against the cap, the runs with their states and cost,
   const { root, calls, restore } = await ci({ "ci.settings.get": settingsOut({ enabled: true }), "ci.cost.month": cost() });
   try {
     const text = textOf(root);
-    assert.match(text, /\$4\.12 of \$50 · 212 jobs/);
+    assert.match(text, /This month\s*\$4\.12 of \$50\s*212 jobs since 1 Oct/);
+    assert.ok(find(root, "ci-bar") && find(root, "ci-longest") && find(root, "ci-today"), "four tiles");
+    assert.match(textOf(find(root, "ci-today")), /Runs today\s*3\s*1 failed, 1 passed, 1 stopped/);
     assert.match(text, /Machines running now/); assert.match(text, /Up to 3 at once/); assert.match(text, /The limit is 30 min per job/);
     assert.deepEqual(calls.filter((c) => c.cap === "ci.runs.list").map((c) => c.input), [{ repo: "northwind/website", limit: 50 }], "the runs are read for each repository that cost something");
     assert.equal(textOf(find(root, "ci-run-state-cir_1")).trim(), "Failed");
     assert.equal(textOf(find(root, "ci-run-state-cir_2")).trim(), "Passed");
-    assert.match(textOf(find(root, "row-ci-run-cir_1")), /northwind\/website · 12 min ago · 4 m 00 s · 3 tests failing/);
+    assert.match(textOf(find(root, "row-ci-run-cir_1")), /northwind\/website · 12 min ago · 4\sm\s00\ss · 3 tests failing/);
+    assert.ok(find(root, "icon-tile-xc") && find(root, "icon-tile-ok") && find(root, "icon-tile-clock"), "a status tile leads each run");
     assert.match(text, /Pull requests from outside the team/); assert.match(text, /Never used for CI/);
     assert.ok(!find(root, "row-ci-paused"));
   } finally { restore(); }
@@ -133,10 +155,21 @@ test("a run opens a sheet that reads ci.runs.get and links to the job on GitHub"
 test("Cleanup shows the last sweep and its Details sheet lists every machine the sweeper deleted", async () => {
   const { root, restore } = await ci({ "ci.settings.get": settingsOut({ enabled: true }), "ci.cost.month": cost() });
   try {
-    assert.match(textOf(find(root, "row-ci-cleanup")), /Removed a machine that ran past the time limit, 3 min ago/);
+    assert.match(textOf(find(root, "row-ci-cleanup")), /Sweeper[\s\S]*Removed a machine that ran past the time limit, 3 min ago/);
+    assert.ok(find(root, "icon-tile-trash"));
     await tap(root, "ci-cleanup-open");
     const text = textOf(find(root, "ci-log-sheet"));
     assert.match(text, /Cleanup log/); assert.match(text, /Removed a machine that ran past the time limit/); assert.match(text, /northwind\/website · e2e/);
+  } finally { restore(); }
+});
+
+test("the cloud account is a pick that reads the Vault item's name and saves its handle", async () => {
+  const { root, calls, restore } = await ci({ "ci.settings.get": settingsOut({ enabled: true }), "ci.cost.month": cost(), "vault.items.list": { items: [{ id: "vit_1", name: "DigitalOcean, Northwind", handle: "#Northwind_DO" }, { id: "vit_2", name: "DigitalOcean, Labs", handle: "#Labs_DO" }], counts: {} } });
+  try {
+    assert.match(textOf(find(root, "row-ci-cloud")), /DigitalOcean, Northwind \(Vault\)/); assert.ok(!/#Northwind_DO/.test(textOf(find(root, "row-ci-cloud"))));
+    await tap(root, "ci-pick-account"); await tap(root, "menu-item-DigitalOcean, Labs");
+    assert.deepEqual(writes(calls, "ci.settings.set").map((c) => c.input), [{ vaultKeyRef: "#Labs_DO" }]);
+    for (const icon of ["key", "globe", "cpu", "play", "clock", "card"]) assert.ok(find(root, `icon-tile-${icon}`), `${icon} tile`);
   } finally { restore(); }
 });
 
@@ -157,6 +190,7 @@ test("paused at the cap: the line says so and Raise cap calls ci.settings.set wi
   const { root, calls, restore } = await ci({ "ci.settings.get": settingsOut({ enabled: true }), "ci.cost.month": cost({ spentUsd: 50.2, leftUsd: 0, paused: true }) });
   try {
     assert.match(textOf(find(root, "row-ci-paused")), /CI paused: this month's cap of \$50 is reached/);
+    assert.match(textOf(find(root, "section-Needs you")), /Needs you/, "the paused line is the Needs you row");
     await tap(root, "ci-raise-cap");
     assert.deepEqual(writes(calls, "ci.settings.set").map((c) => c.input), [{ monthlyCapUsd: 100 }]);
   } finally { restore(); }
@@ -236,6 +270,7 @@ test("off: members use the Vyre GitHub app, and nothing else is drawn but the li
     assert.match(text, /Use our own GitHub app/); assert.match(text, /Off\. Members use the Vyre GitHub app/);
     assert.match(text, /The Vyre GitHub app needs nothing from you\./);
     assert.ok(!find(root, "gh-create") && !find(root, "gh-keys"));
+    assert.equal((find(root, "gh-foot-off") as { props: { style: { marginTop: string } } }).props.style.marginTop, "14px", "the footnote sits 14px under the card");
   } finally { restore(); }
 });
 
@@ -248,6 +283,21 @@ test("switching on shows the values from Vault, Create one for us and the instal
     for (const t of ["App id", "Private key", "Client id", "Client secret", "Not installed"]) assert.match(text, new RegExp(t));
     assert.ok(find(root, "gh-create") && find(root, "gh-keys"));
     assert.match(text, /Northwind uses its own GitHub app\. Reconnect once\./);
+  } finally { restore(); }
+});
+
+test("own app: id, key and secret say Vault, each has a key tile; the installation and the footer name the Space", async () => {
+  const two = { ...MADE, "github.installations.list": { installations: [{ id: 77, account: "northwind", repositorySelection: "selected" }, { id: 78, account: "northwind-labs", repositorySelection: "all" }] } };
+  const { root, restore } = await gh({ "members.sign_in_github.get": SIGN({ clientId: "Iv1.abc", secretSet: true, source: "space" }), "ci.settings.get": settingsOut() }, two);
+  try {
+    const text = textOf(root);
+    assert.match(textOf(find(root, "row-gh-app-id")), /Vault: GITHUB_APP_ID/); assert.match(textOf(find(root, "row-gh-app-key")), /Vault: GITHUB_APP_PRIVATE_KEY/); assert.match(textOf(find(root, "row-gh-client-secret")), /Vault: GITHUB_APP_CLIENT_SECRET/);
+    assert.ok(find(root, "logo-github"), "the GitHub mark leads");
+    assert.match(text, /The Space's installation/);
+    assert.match(text, /Northwind uses its own GitHub app\. Reconnect once\./);
+    const top = (id: string): unknown => (find(root, id)?.parent as { props: { style?: { borderTopWidth?: unknown } } } | null)?.props?.style?.borderTopWidth;
+    assert.ok(find(root, "row-gh-install-77") && find(root, "row-gh-install-78"), "two installation rows");
+    assert.ok(top("row-gh-install-78") === 1 || top("row-gh-install-78") === "1px", "a 1px divider between the two installation rows");
   } finally { restore(); }
 });
 
@@ -318,4 +368,17 @@ test("when the app needs new permissions the GitHub tab says so with Accept on G
     await tap(root, "ci-github-accept");
     assert.deepEqual(opened, ["url:https://github.com/organizations/northwind/settings/installations/7/permissions/update"]);
   } finally { restore(); }
+});
+
+test("a setting's picker stacks under its label below 760 wide, and not on a wide or an unmeasured screen", () => {
+  assert.equal(STACK_BELOW, 760);
+  assert.equal(stackPickers(390), true); assert.equal(stackPickers(759), true);
+  assert.equal(stackPickers(760), false); assert.equal(stackPickers(1440), false); assert.equal(stackPickers(0), false);
+  assert.equal(stackRunEnd(390), true); assert.equal(stackRunEnd(1440), false);
+});
+
+test("App details values: a secret reads Set in Vault, a missing value reads Not set", () => {
+  assert.equal(secretWord(true), "Set in Vault"); assert.equal(secretWord(false), "Not set");
+  assert.equal(valueWord(undefined), "Not set"); assert.equal(valueWord(null), "Not set"); assert.equal(valueWord(""), "Not set");
+  assert.equal(valueWord(42), "42"); assert.equal(valueWord("Iv1.abc"), "Iv1.abc");
 });

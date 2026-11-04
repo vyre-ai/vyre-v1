@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../ui/src/testing/dom.ts";
-import { InstalledForSpace, forWords, loseWords } from "../pages/InstalledForSpace.tsx";
+import { InstalledForSpace, KIND_LABEL, forWords, loseWords, metaLines, readyWord } from "../pages/InstalledForSpace.tsx";
 
 const NAMES: Record<string, string> = { usr_dana: "Dana", usr_maya: "Maya", agt_scout: "Scout" };
 const nameOf = (id: string): string => NAMES[id] ?? id;
@@ -42,22 +42,32 @@ test("the words: who it is for and who loses it", () => {
   assert.match(loseWords(mk({ installed: { for: "me" } }) as never, nameOf), /^Dana and their agents will lose it/);
 });
 
-test("a row says kind, source and commit, who it is for, who installed it, and Update available; it reads install.list for the whole Space", async () => {
+test("kind words and the two meta lines", () => {
+  assert.deepEqual([KIND_LABEL.skill, KIND_LABEL.plugin, KIND_LABEL.mcp_local, KIND_LABEL.mcp_remote], ["Skill", "Plugin", "MCP server", "Remote MCP"]);
+  const at = Date.UTC(2026, 10, 4, 9);
+  assert.equal(metaLines(mk({ at, installed: { for: "space", version: "1.2.0" } }) as never, nameOf, null), "Dana installed it 4 Nov · for Everyone in the Space\nCommit a41f9c2 · v1.2.0");
+  assert.equal(metaLines(mk({ at, commit: "" }) as never, nameOf, null), "Dana installed it 4 Nov · for Everyone in the Space\nNot pinned, it runs on their side");
+  assert.equal(readyWord(PLAN({ version: "1.3.0" }) as never), "v1.3.0 is ready"); assert.equal(readyWord(PLAN() as never), "7d03be8 is ready");
+});
+
+test("a row says kind, who installed it and when, who it is for, the commit, and that an update is ready; it reads install.list for the whole Space", async () => {
   const w = await world([mk({})]);
   try {
     const t = textOf(find(w.root, "row-install-row-ins_1"));
-    assert.match(t, /sql-reader/); assert.match(t, /Skill · acme\/sql-reader at a41f9c2 · For Everyone in the Space · Installed by Dana · Update available/);
+    assert.match(t, /sql-reader/); assert.match(t, /Skill/); assert.match(t, /Dana installed it 1 Jan · for Everyone in the Space/); assert.match(t, /Commit a41f9c2/); assert.match(t, /7d03be8 is ready/);
+    assert.match(textOf(find(w.root, "install-update-ins_1")), /See changes/); assert.ok(find(w.root, "icon-tile-spark"), "a skill has the spark tile");
     assert.deepEqual(caps(w.calls, "install.list").map((c) => c.input), [{ all: true }]);
     assert.deepEqual(caps(w.calls, "install.check_update").map((c) => c.input), [{ installId: "ins_1" }]);
     assert.ok(!/Company only|principal|grant|scope|capability/i.test(textOf(w.root)));
   } finally { w.restore(); }
 });
 
-test("Update shows the diff first, then Update calls install.apply with the plan and its card", async () => {
+test("See changes shows the diff first, then Update calls install.apply with the plan and its card", async () => {
   const w = await world([mk({})]);
   try {
     await press(find(w.root, "install-update-ins_1")); await flush();
     assert.match(textOf(find(w.root, "install-update-sheet")), /sql-reader a41f9c2 to 7d03be8[\s\S]*- old[\s\S]*\+ new/);
+    assert.match(textOf(find(w.root, "install-update-access")), /New access: none\./);
     assert.equal(caps(w.calls, "install.apply").length, 0, "looking changes nothing");
     await press(find(w.root, "install-update-go")); await flush();
     const a = caps(w.calls, "install.apply");
@@ -73,7 +83,7 @@ test("a failed update and an update that reaches somewhere new both say Needs yo
     assert.match(textOf(find(bad.root, "row-install-row-ins_1")), /Needs you: Update failed\. The card did not match\./);
   } finally { bad.restore(); }
   const reach = await world([mk({})], { plan: { needs: { domains: ["api.example.com"], vaultKeys: [], files: [] } } });
-  try { assert.match(textOf(find(reach.root, "row-install-row-ins_1")), /Needs you: The update wants to reach api\.example\.com/); assert.match(textOf(reach.root), /1 needs you/); } finally { reach.restore(); }
+  try { assert.match(textOf(find(reach.root, "row-install-row-ins_1")), /Needs you: The update wants to reach api\.example\.com/); await press(find(reach.root, "install-update-ins_1")); assert.match(textOf(find(reach.root, "install-update-access")), /New access: it now also reaches api\.example\.com/); assert.match(textOf(reach.root), /1 needs you/); } finally { reach.restore(); }
 });
 
 test("Remove asks first, names who loses it, and Remove calls install.remove", async () => {
@@ -81,6 +91,7 @@ test("Remove asks first, names who loses it, and Remove calls install.remove", a
   try {
     await press(find(w.root, "install-remove-ins_1"));
     assert.match(textOf(find(w.root, "install-remove-who")), /Everyone in the Space will lose it/);
+    assert.match(textOf(find(w.root, "install-remove-sheet")), /Remove sql-reader\?[\s\S]*Agents that use it lose it at once\. People can install it again from the link\./);
     assert.equal(caps(w.calls, "install.remove").length, 0, "the first press only asks");
     await press(find(w.root, "install-remove-go")); await flush();
     assert.deepEqual(caps(w.calls, "install.remove").map((c) => c.input["installId"]), ["ins_1"]);
