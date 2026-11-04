@@ -27,6 +27,7 @@ export const handlers = {
   "spaces.onboarding.seen": onboardingSeen,
   "spaces.switch_address": later,
   "spaces.switcher": switcher,
+  "spaces.timezone.set": later,
   "spaces.transfer_ownership": later,
   "spaces.update": later,
   "stars.list": starsList,

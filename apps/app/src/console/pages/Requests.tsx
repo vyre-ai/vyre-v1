@@ -32,15 +32,15 @@ export function RequestsPage(): ReactElement {
   const joining = joinAsked.data?.requests ?? [];
   const line = askedLine(waiting.length + joining.length);
   return <View testID="console-requests">
-    {line ? <Group testID="requests-asked"><Row id="requests-asked-line" title={line} note="Approve or decline below." /></Group> : null}
+    {line ? <Group testID="requests-asked"><Row id="requests-asked-line" title={line} note="Allow or deny below." /></Group> : null}
     <OpenInvites key={rev} roleName={roleName} showEmpty right={<Button label="New invite" testID="newinvite" onPress={() => setInviting(true)} />} />
     {joinLink.data ? <JoinLinkSection link={joinLink.data.link} requests={joining} roles={roles.data.roles} roleName={roleName} refresh={() => { joinLink.refresh(); joinAsked.refresh(); }} /> : null}
     <Section title="Asked for access" count={waiting.length} testID="requests-list">
       <Group>
         {waiting.map((r) => <Row key={r.id} id={`request-${r.id}`} title={names.identity({ kind: "person", id: r.requester })} note={`Wants ${r.level} access to ${names.resource(r.resource)} · ${new Date(r.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}${r.note ? ` · ${r.note}` : ""}`}
           trailing={<Actions>
-            <Button label="Decline" testID={`request-decline-${r.id}`} disabled={action.busy} onPress={() => void action.run("access.requests.decline", { requestId: r.id }, "Declined.")} />
-            <Button label="Approve" testID={`request-approve-${r.id}`} disabled={action.busy} onPress={() => void action.run("access.requests.approve", { requestId: r.id, level: r.level }, "Approved.")} />
+            <Button label="Deny" testID={`request-decline-${r.id}`} disabled={action.busy} onPress={() => void action.run("access.requests.decline", { requestId: r.id }, "Denied.")} />
+            <Button label="Allow" testID={`request-approve-${r.id}`} disabled={action.busy} onPress={() => void action.run("access.requests.approve", { requestId: r.id, level: r.level }, "Allowed.")} />
           </Actions>} />)}
         {waiting.length === 0 ? <Row id="requests-none" title="No one is waiting" note="When someone asks for access, you can approve it here." /> : null}
       </Group>

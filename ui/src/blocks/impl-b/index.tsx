@@ -255,7 +255,7 @@ export function AccessRequestBlock({ block, host }: BlockViewPropsB): ReactEleme
     [host, block, level],
   );
   const menu = useCallback(
-    () => baseMenu(host, "access_request", block, state === "waiting" && view === "approver" ? [{ key: "approve", label: "Approve" }, { key: "decline", label: "Decline", danger: true }] : [], run),
+    () => baseMenu(host, "access_request", block, state === "waiting" && view === "approver" ? [{ key: "approve", label: "Allow" }, { key: "decline", label: "Deny", danger: true }] : [], run),
     [host, block, state, view, run],
   );
   if (view === "requester") {
@@ -300,8 +300,8 @@ export function AccessRequestBlock({ block, host }: BlockViewPropsB): ReactEleme
             }}
           />
           <View style={styles.grow} />
-          <Btn id={`blk-access_request-${block.id}-approve`} label="Approve" primary onPress={() => run("approve")} />
-          <Btn id={`blk-access_request-${block.id}-decline`} label="Decline" onPress={() => run("decline")} />
+          <Btn id={`blk-access_request-${block.id}-approve`} label="Allow" primary onPress={() => run("approve")} />
+          <Btn id={`blk-access_request-${block.id}-decline`} label="Deny" onPress={() => run("decline")} />
         </View>
       ) : (
         <StatusLine tone={state === "granted" ? "ok" : "plain"} testID={`blk-access_request-${block.id}-state`} text={requestStateLine(state, level)} />

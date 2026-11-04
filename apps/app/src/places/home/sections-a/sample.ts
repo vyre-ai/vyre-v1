@@ -51,7 +51,7 @@ const people: Principal[] = [
   { id: "grp_billing", name: "Billing team", kind: "group" }, { id: "rol_reviewer", name: "Reviewer", kind: "role" },
 ];
 
-const approve = [{ key: "approve", label: "Approve" }, { key: "send_back", label: "Send back", note: "required" as const }];
+const approve = [{ key: "approve", label: "Allow" }, { key: "send_back", label: "Deny", note: "required" as const }];
 const review = [{ key: "review", label: "Review" }, { key: "send_back", label: "Send back", note: "required" as const }];
 const unblock = [{ key: "unblock", label: "Unblock" }];
 

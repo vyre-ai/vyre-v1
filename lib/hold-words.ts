@@ -1,6 +1,7 @@
 // A held act in a person's words, in one place: the Gate titles the approval task with it and the card reads the same (lane l-chrome2a). "send message" is "send a message", "automations.read_link" is "open example.com",
 // and no module name or raw field name is shown. Nothing here decides anything.
 import { HOLD_PHRASES } from "./hold-phrases.ts";
+import { validZone, zoneName } from "./zones.ts";
 import { outwardOf } from "./outward.ts";
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
@@ -60,6 +61,11 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
     return url ? `open ${hostOfLink(url)}` : "open a link";
   }
   if (cap === "automations.read_docs") return "read the documentation";
+  // "Ada wants to change the Space time zone to Pacific Time": the zone is named in the person's words, not as an id
+  if (cap === "spaces.timezone.set") {
+    const zone = str(obj(input)["timezone"]);
+    return zone && validZone(zone) ? `change the Space time zone to ${zoneName(zone)}` : "change the Space time zone";
+  }
   return null;
 }
 

@@ -32,7 +32,7 @@ export function RunsTab({ automationId, version }: { automationId: string; versi
   const menu = (r: Run, x: number, y: number): void => show([
     { label: "Open to the Side", onSelect: () => data.nav.openRun(r.id) },
     ...(needsAttention(r, handled) ? [{ label: "Retry", onSelect: () => retry(r) }] : []),
-    { label: "Copy Trace Id", onSelect: () => void (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard?.writeText(r.traceId) },
+    { label: "Copy error details", onSelect: () => void (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard?.writeText(r.traceId) },
   ], x, y, "context", { label: r.name ?? "Run" });
 
   return (

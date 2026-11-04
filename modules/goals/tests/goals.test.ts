@@ -341,7 +341,7 @@ test("the brief tells the lead why it was woken, the pace, the plan, what waits 
   assert.match(text, /- VY-\d+ Remind Lab 7 \[todo\]/);
   assert.match(text, /Standing permissions \(these acts go without asking, in this goal's chats only\): Send email from the Lab template\./);
   assert.match(text, /The goal's folder in Files/);
-  assert.match(text, /The owner's time now: Wed 4 Nov, 10:00 \(Asia\/Karachi\)\. Write every time in check-ins, summaries and the retrospective in this zone/, "times are the owner's, from their profile");
+  assert.match(text, /The time now: Wed 4 Nov, 10:00 \(Asia\/Karachi\)\. Write every time in check-ins, summaries and the retrospective in this zone/, "times are the owner's, from their profile");
 });
 
 test("the goal's folder keeps what its tasks hand in and what people drop in its chat, once each", async () => {
@@ -481,4 +481,14 @@ test("goals.count says how many goals a project has and nothing else; only the s
   assert.equal(JSON.stringify(out).includes("Second"), false);
   assert.equal((await w.call("goals.count", { projectId: "prj_none" }, host)).count, 0);
   await assert.rejects(() => w.call("goals.count", { projectId: "prj_lab8" }, { id: STRANGER, kind: "person" }), (e: { error?: { code?: string } }) => e.error?.code === "validation.not_found");
+});
+
+test("a new goal starts in the Space's time zone, not its creator's; a Space with none gives the creator's own", async () => {
+  const space = world({ fakes: { "spaces.get": () => ({ space: { timezone: "America/Los_Angeles" } }) } });
+  const made = await space.call("goals.create", labGoal({ plan: [step("reminder", "Remind Lab 7 attendees")] }));
+  assert.equal(made.goal.zone, "America/Los_Angeles", "the Space's zone, though the owner's profile says Karachi");
+  const bad = world({ fakes: { "spaces.get": () => ({ space: { timezone: "Mars/Olympus" } }) } });
+  assert.equal((await bad.call("goals.create", labGoal({ plan: [step("reminder", "Remind Lab 7 attendees")] }))).goal.zone, "Asia/Karachi", "a zone no runtime knows is not taken");
+  const none = world();
+  assert.equal((await none.call("goals.create", labGoal({ plan: [step("reminder", "Remind Lab 7 attendees")] }))).goal.zone, "Asia/Karachi");
 });

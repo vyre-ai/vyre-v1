@@ -124,7 +124,7 @@ test("a row that differs from the Space default shows Reset, and Reset puts the 
 test("controls follow the value: a switch, a choice, a field and hours", () => {
   const by = (k: string): SettingRow => rowsOf(createSampleSettings(northwind)).find((r) => r.key === k)!;
   assert.equal(controlFor(by("chat.agent_tabs")).kind, "switch");
-  assert.equal(controlFor(by("profile.timezone")).kind, "choice");
+  assert.equal(controlFor(by("profile.timezone")).kind, "zone");
   assert.equal(controlFor(by("profile.handle")).kind, "text");
   assert.equal(controlFor(by("profile.working_hours")).kind, "hours");
 });

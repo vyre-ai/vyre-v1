@@ -104,3 +104,33 @@ test("Appearance: Make a skin saves one skin into the look; Paste a link finds a
     assert.equal(v.mine.length, 1); assert.equal(v.mine[0]!.accent, "#E4572E");
   } finally { restore(); }
 });
+
+test("Profile: Your time zone is a city picker; choosing a city saves profile.timezone, and Use this computer's time zone saves this computer's", async () => {
+  const { root, calls, restore } = await open("profile");
+  try {
+    const picker = find(root, "ctl-profile.timezone");
+    assert.ok(picker, "the row has the zone picker");
+    assert.match(textOf(root), /Your time zone/);
+    await press(picker);
+    const at = new Date();
+    const hm = (zone: string): string => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: zone }).format(at);
+    await press(find(root, `menu-item-Pakistan Standard Time, Karachi, ${hm("Asia/Karachi")}`) ?? find(root, `menu-item-Pakistan Time, Karachi, ${hm("Asia/Karachi")}`));
+    const sets = calls("settings.set").filter((c) => (c.input as { key: string }).key === "profile.timezone");
+    assert.deepEqual(sets.at(-1)!.input, { key: "profile.timezone", value: "Asia/Karachi" });
+    await press(find(root, "ctl-profile.timezone"));
+    await press(find(root, "menu-item-Use this computer's time zone"));
+    const device = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+    assert.deepEqual(calls("settings.set").filter((c) => (c.input as { key: string }).key === "profile.timezone").at(-1)!.input, { key: "profile.timezone", value: device });
+  } finally { restore(); }
+});
+
+test("Profile: the Space's time zone is a read-only row with where to change it", async () => {
+  const { root, restore } = await open("profile");
+  try {
+    assert.match(textOf(root), /Space time zone/);
+    assert.match(textOf(root), /shared places show times in .*\. Your time follows beside them\./);
+    assert.match(textOf(root), /Matches this computer\.|This computer is in /, "the line says what this computer is");
+    assert.equal(find(root, "reset-profile.timezone"), null, "a time zone has no Reset");
+    assert.ok(find(root, "space-timezone-readonly"));
+  } finally { restore(); }
+});

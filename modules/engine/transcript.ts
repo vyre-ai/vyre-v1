@@ -58,7 +58,8 @@ export function withTranscript(open: OpenSession, call: Call, now: () => number 
   const written = new Map<string, number>();
   // What a tool returned is the asker's private turn detail: it is not in the shared transcript (chat.transcript.append keeps it for them), so an API engine, which keeps no session of its own
   // between turns, would forget its own work. It is kept here per chat, agent and asker, and only a later turn for that same person is given it.
-  const recent = new Map<string, string[][]>();
+  // Each entry is stamped with the number of the message that started its turn, so a person who joined the chat later is never given what a tool returned before they came (historyFromSeq).
+  const recent = new Map<string, Array<{ seq: number; lines: string[] }>>();
   const keyOf = (i: TurnInput): string => `${i.threadId}|${i.agent.id}|${i.asker}`;
   const append = async (threadId: string, turnId: string, rows: Row[], asker: string): Promise<void> => {
     if (rows.length === 0) return;
@@ -71,7 +72,8 @@ export function withTranscript(open: OpenSession, call: Call, now: () => number 
       send: {
         value: (given: TurnInput) => (async function* (): AsyncGenerator<DriverEvent> {
           const api = !CLI_DRIVERS.has(spec.account?.driver ?? "");
-          const kept = api ? (recent.get(keyOf(given)) ?? []).flat() : [];
+          const from = given.context?.historyFromSeq;
+          const kept = api ? (recent.get(keyOf(given)) ?? []).filter((e) => from === undefined || e.seq >= from).flatMap((e) => e.lines) : [];
           let text = kept.join("\n");
           if (text.length > RESULTS_CHARS) text = `…${text.slice(text.length - RESULTS_CHARS)}`;
           const input: TurnInput = text !== "" && given.context ? { ...given, context: { ...given.context, sections: [...given.context.sections, { id: "results", stable: false, text }] } } : given;
@@ -88,7 +90,7 @@ export function withTranscript(open: OpenSession, call: Call, now: () => number 
             const rows = rowsOf(parts);
             builder = null;
             const lines = resultLines(parts);
-            if (api && lines.length > 0) recent.set(keyOf(input), [...(recent.get(keyOf(input)) ?? []), lines].slice(-KEEP_RESULT_TURNS));
+            if (api && lines.length > 0) recent.set(keyOf(input), [...(recent.get(keyOf(input)) ?? []), { seq: input.trigger?.threadSeq ?? Number.MAX_SAFE_INTEGER, lines }].slice(-KEEP_RESULT_TURNS));
             const write = async (out: Row[]): Promise<void> => {
               await append(input.threadId, turnIdOf("a", input.turnId), out, input.asker);
               const n = (written.get(input.threadId) ?? 0) + 1;

@@ -6,6 +6,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { TextField } from "../../../../../../ui/src/TextField/index.tsx";
 import { Mini, RemoveX } from "./GoalEdit.tsx";
+import type { Zones } from "../../../../../../ui/src/Time/index.tsx";
 import { budgetOf, dueWords, fromLocalInput, rhythmWords, toLocalInput } from "./model.ts";
 import type { Goal, Permission } from "./model.ts";
 
@@ -110,11 +111,11 @@ function PermissionsBlock({ g, canEdit, patch }: { g: Goal; canEdit: boolean; pa
   );
 }
 
-export function GoalSettings({ g, nameOf, offsetMin, canEdit, patch, pick, removeHelper }: {
-  g: Goal; nameOf(id: string): string; offsetMin: number; canEdit: boolean; patch: Patch; pick(w: "lead" | "owner" | "helpers"): void; removeHelper(id: string): void;
+export function GoalSettings({ g, nameOf, zones, canEdit, patch, pick, removeHelper }: {
+  g: Goal; nameOf(id: string): string; zones: Zones; canEdit: boolean; patch: Patch; pick(w: "lead" | "owner" | "helpers"): void; removeHelper(id: string): void;
 }): ReactElement {
   const b = budgetOf(g);
-  const [due, setDue] = useState(toLocalInput(g.deadline, offsetMin));
+  const [due, setDue] = useState(toLocalInput(g.deadline, zones));
   const people: Array<{ id: string; kind: string; role: string }> = [{ id: g.owner, kind: "person", role: "Owner" }, { id: g.leadAgentId, kind: "agent", role: "Leads" }, ...g.helpers.map((h) => ({ id: h.id, kind: h.kind, role: "Helps" }))];
   return (
     <ScrollView testID="goal-details" contentContainerStyle={st.pad}>
@@ -123,10 +124,10 @@ export function GoalSettings({ g, nameOf, offsetMin, canEdit, patch, pick, remov
         <Setting testID="goal-set-target" name="Target" value={`${g.finish.target ?? ""}${g.finish.unit ? ` ${g.finish.unit}` : ""}`} canEdit={canEdit}
           editor={(close) => <TargetEditor g={g} patch={patch} close={close} />} />
       ) : null}
-      <Setting testID="goal-set-deadline" name="Deadline" value={dueWords(g.deadline, offsetMin)} canEdit={canEdit}
+      <Setting testID="goal-set-deadline" name="Deadline" value={dueWords(g.deadline, zones)} canEdit={canEdit}
         editor={(close) => {
-          const next = fromLocalInput(due, offsetMin);
-          return <View style={st.row}>{input(due, setDue, "datetime-local", "Deadline", 200)}<Mini label="Save" primary disabled={next === null} testID="goal-set-deadline-save" onPress={() => { if (next !== null && next !== g.deadline) patch({ deadline: next }, `Deadline moved to ${dueWords(next, offsetMin)}.`, { deadline: g.deadline }); close(); }} /></View>;
+          const next = fromLocalInput(due, zones);
+          return <View style={st.row}>{input(due, setDue, "datetime-local", "Deadline", 200)}<Mini label="Save" primary disabled={next === null} testID="goal-set-deadline-save" onPress={() => { if (next !== null && next !== g.deadline) patch({ deadline: next }, `Deadline moved to ${dueWords(next, zones)}.`, { deadline: g.deadline }); close(); }} /></View>;
         }} />
       <Setting testID="goal-set-checkins" name="Check-ins" value={rhythmWords(g)} note="It also wakes when a task finishes, the number moves, or you answer." canEdit={canEdit} editor={(close) => <RhythmEditor g={g} patch={patch} close={close} />} />
       <Setting testID="goal-set-budget" name="Budget" value={b.text} note="Warns you at 80%. Pauses and asks you at 100%. Runs on the owner's AI account." canEdit={canEdit} editor={(close) => <BudgetEditor g={g} patch={patch} close={close} />} />

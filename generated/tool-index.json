@@ -7082,6 +7082,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_overview_doc_restore",
+      "summary": "Bring an older version of the Overview back: its blocks become the page again, as a new revision (so the restore can be undone)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_overview_doc_save",
       "summary": "Save the whole Overview page from the editor, as Markdown (or blocks); baseRev is the revision it was opened at, and a page changed since says so instead of overwriting",
       "toolset": "records"
@@ -8644,6 +8650,12 @@
       "deferred": false,
       "name": "spaces_switcher",
       "summary": "This Space tile for the switcher: name, logo, kind, role, and whether it needs the person (red dot)",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "spaces_timezone_set",
+      "summary": "Set the Space time zone (an IANA name). Shared places read times in it; each person sees their own beside it. Deadlines keep their moment. An agent needs an admin to approve",
       "toolset": "meta"
     },
     {

@@ -22,3 +22,37 @@ jobs:
           grep -E "^ℹ skipped 0$" computer-lifecycle.out
           grep -E "^ℹ pass 1$" computer-lifecycle.out
           grep -E "^ℹ fail 0$" computer-lifecycle.out
+  install-heavy:
+    # The Linux installer on real Docker (scripts/install/linux/install.heavy.test.sh): its test in install.test.ts is skipped by name without VYRE_HEAVY_DOCKER=1, and no other
+    # workflow set it, so the install, update, rollback and uninstall checks never ran (5 Nov). A skipped test is not a pass: the release needs this one run, none skipped.
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
+        run: bash scripts/ci-iolock.sh shared
+      - name: Standalone docker compose (the v1 hosts have no compose plugin), pinned and checksum-verified, as check.yml's heavy job does
+        id: compose
+        run: |
+          v=v2.40.3
+          case "$(uname -m)" in
+            x86_64) a=x86_64; sum=dba9d98e1ba5bfe11d88c99b9bd32fc4a0624a30fafe68eea34d61a3e42fd372 ;;
+            aarch64) a=aarch64; sum=d26373b19e89160546d15407516cc59f453030d9bc5b43ba7faf16f7b4980137 ;;
+            *) echo "unsupported arch"; exit 1 ;;
+          esac
+          d="$RUNNER_TEMP/compose"; mkdir -p "$d"
+          curl -fsSL -o "$d/docker-compose" "https://github.com/docker/compose/releases/download/$v/docker-compose-linux-$a"
+          echo "$sum  $d/docker-compose" | sha256sum -c -
+          chmod +x "$d/docker-compose"; "$d/docker-compose" version
+          echo "bin=$d/docker-compose" >> "$GITHUB_OUTPUT"
+      - name: python3 serves the test's release channel over 127.0.0.1 HTTP (install.heavy.test.sh)
+        run: python3 --version
+      - name: The Linux install on real Docker, none skipped (scripts/install/linux/install.test.ts)
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+          VYRE_COMPOSE_BIN: ${{ steps.compose.outputs.bin }}
+        run: |
+          set -o pipefail
+          node --test --test-force-exit --test-timeout=1500000 --test-reporter=spec scripts/install/linux/install.test.ts 2>&1 | tee install-heavy.out
+          grep -E "^ℹ skipped 0$" install-heavy.out
+          grep -E "^ℹ fail 0$" install-heavy.out

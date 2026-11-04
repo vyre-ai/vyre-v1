@@ -8,7 +8,7 @@ import type { Message } from "./model.ts";
 
 const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&amp;", "&");
 
-test("a stop draws as a quiet line with Details, Allow this once and Ask an admin, then the agent's reply with the steps as buttons inside it", () => {
+test("a stop draws as a quiet line with Details (the rest once it is known the person may decide), then the agent's reply with the steps as buttons inside it", () => {
   const s = createSample("idle");
   const rows = (s.replica.rows("messages") as unknown as (Message & { id: string })[]).filter((m) => m.threadId === s.data.threadId).sort((a, b) => a.threadSeq - b.threadSeq);
   const last = rows[rows.length - 1]!;
@@ -19,7 +19,7 @@ test("a stop draws as a quiet line with Details, Allow this once and Ask an admi
   const out = clean(renderToStaticMarkup(<Conversation data={{ ...s.data, nav: { ...s.data.nav, openHooks: () => undefined } }} />));
   const line = out.indexOf('data-testid="event-msg_stop"'), steps = out.indexOf('data-testid="hook-steps-msg_reply"'), replyAt = out.indexOf("I did not send it.");
   assert.ok(line >= 0 && replyAt > line && steps > replyAt, "the line, then the reply, then the steps inside the reply");
-  for (const a of ["details", "once", "ask"]) assert.ok(out.includes(`data-testid="hook-act-${a}-msg_stop"`), a);
+  assert.ok(out.includes('data-testid="hook-act-details-msg_stop"'), "Details shows at once; Allow, Always allow and Deny or Ask an admin follow when it is known whether the person may decide");
   assert.ok(!out.includes('data-testid="hook-next-0-msg_stop"'), "the line does not carry the steps");
   assert.ok(out.includes("Add Harbor Supply to Contacts") && out.includes("Send once without adding"));
 });

@@ -417,6 +417,9 @@ export default defineManifest({
       in: { ...threadT, body: t.str({ maxLength: 400 }), kind: t.enm('added', 'changed', 'removed', 'paused', 'resumed', 'blocked', 'failed', 'allowed', 'asked'), hookId: t.opt(t.str()), scope: t.opt(t.str()), by: t.opt(t.str()), byKind: t.opt(t.enm('admin', 'person', 'agent')), reason: t.opt(t.str({ maxLength: 300 })), tool: t.opt(t.str({ maxLength: 80 })), subject: t.opt(t.str({ maxLength: 200 })), agentId: t.opt(id.agent), next: t.opt(t.arr(t.obj({ label: t.str({ maxLength: 40 }), ask: t.str({ maxLength: 200 }) }), { maxItems: 2 })) },
       out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', errors: ['validation.bad_input', 'validation.not_found'],
     }),
+    write('chat.hook_resolve', 'Hooks module only: mark a stop line answered (allowed this time, always allowed, or denied), for everyone in the chat', {
+      in: { ...threadT, messageId: id.message, resolution: t.enm('allowed', 'always', 'denied'), by: t.str(), what: t.opt(t.str({ maxLength: 200 })) }, out: { ok: t.bool() }, on: ['thread', '/threadId'], level: 'use', errors: ['validation.not_found'],
+    }),
     write('chat.note_offer.answer', 'Save or dismiss an offer to keep something from this chat as a note. Save makes the person\'s own private note that links back to the message', {
       in: { ...threadT, blockId: id.block, decision: t.enm('save', 'dismiss') }, out: { state: t.enm('saved', 'dismissed'), noteId: t.opt(t.str()) },
       on: ['thread', '/threadId'], level: 'use', offline: 'online', agent: false, errors: ['validation.not_found', 'validation.precondition_failed'],
@@ -694,8 +697,8 @@ export default defineManifest({
     }, 'Plan: {{title}} ({{steps.length}} steps)', {
       waitsForAnswer: true, opens: { tab: 'file', input: { fileId: '/docFileId' } },
       actions: [
-        { key: 'approve', label: 'Approve', cap: 'chat.approve_plan', input: { threadId: '/threadId', planId: '/planId' } },
-        { key: 'reject', label: 'Reject', cap: 'chat.plan.reject', input: { threadId: '/threadId', planId: '/planId' } },
+        { key: 'approve', label: 'Allow', cap: 'chat.approve_plan', input: { threadId: '/threadId', planId: '/planId' } },
+        { key: 'reject', label: 'Deny', cap: 'chat.plan.reject', input: { threadId: '/threadId', planId: '/planId' } },
       ],
     }),
     block('note_offer', {

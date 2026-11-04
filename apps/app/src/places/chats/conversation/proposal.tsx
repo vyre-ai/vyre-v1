@@ -108,8 +108,8 @@ export function AgentFileProposal({ block, host, changes }: { block: Block; host
   }
   const menu = (x: number, y: number): void => {
     show([
-      ...(d.canAccept ? [{ label: "Accept", onSelect: accept }, { label: "Edit…", onSelect: () => setEditing(true) }] : [{ label: `Suggest to ${d.owner || "the Owner"}`, onSelect: suggest }]),
-      { label: "Reject", onSelect: reject },
+      ...(d.canAccept ? [{ label: "Allow", onSelect: accept }, { label: "Edit…", onSelect: () => setEditing(true) }] : [{ label: `Suggest to ${d.owner || "the Owner"}`, onSelect: suggest }]),
+      { label: "Deny", onSelect: reject },
       { separator: true as const },
       { label: `Open ${d.file}`, onSelect: open },
     ], x, y, "context", { label: `${d.file} change` });
@@ -146,14 +146,14 @@ export function AgentFileProposal({ block, host, changes }: { block: Block; host
           </>
         ) : d.canAccept ? (
           <>
-            <TextButton label="Accept" dark icon="check" testID={`proposal-${id}-accept`} onPress={accept} />
+            <TextButton label="Allow" dark icon="check" testID={`proposal-${id}-accept`} onPress={accept} />
             <TextButton label="Edit" ring icon="edit" testID={`proposal-${id}-edit-open`} onPress={() => setEditing(true)} />
-            <TextButton label="Reject" icon="x" testID={`proposal-${id}-reject`} onPress={reject} />
+            <TextButton label="Deny" icon="x" testID={`proposal-${id}-reject`} onPress={reject} />
           </>
         ) : (
           <>
             <TextButton label={`Suggest to ${d.owner || "the Owner"}`} dark icon="check" testID={`proposal-${id}-suggest`} onPress={suggest} />
-            <TextButton label="Reject" icon="x" testID={`proposal-${id}-reject`} onPress={reject} />
+            <TextButton label="Deny" icon="x" testID={`proposal-${id}-reject`} onPress={reject} />
           </>
         )}
       </View>

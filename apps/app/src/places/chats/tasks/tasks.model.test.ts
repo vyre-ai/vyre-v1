@@ -157,3 +157,15 @@ test("a team task I took, or one offered to me, is mine, not Waiting on others (
   assert.deepEqual(s.waiting.map((r) => r.id), ["x"]);
   assert.deepEqual([...s.now, ...s.next].map((r) => r.id).sort(), ["o", "t"]);
 });
+
+test("a due chip in a Space's zone: the day is the Space's day, hover names both zones, a plain offset still works", () => {
+  const z = { space: "America/Los_Angeles", viewer: "Asia/Karachi" };
+  const now = Date.parse("2026-11-05T15:00:00Z");     // Thu 7:00 AM Pacific, Thu 8:00 PM Karachi
+  const tonight = Date.parse("2026-11-06T06:00:00Z");  // Thu 10:00 PM Pacific, Fri 11:00 AM Karachi
+  const chip = dueLabel(tonight, now, z);
+  assert.deepEqual([chip.text, chip.late], ["Today", false], "it is still Thursday in the Space");
+  assert.match(chip.title ?? "", /^Thu 5 Nov 2026, 10:00 PM Pacific Time\. Your time: Fri 6 Nov, 11:00 AM Pakistan/);
+  assert.equal(dueLabel(Date.parse("2026-11-05T05:00:00Z"), now, z).late, true, "last night in the Space");
+  assert.equal(dueLabel(Date.parse("2026-12-12T20:00:00Z"), now, z).text, "12 Dec");
+  assert.equal(dueLabel(NOW, NOW, 0).title, undefined, "a fixed offset has no hover");
+});

@@ -116,7 +116,7 @@ test("Team: Mia's agent messages Noah for her; his reply comes back; asked for n
     await agentSaid(chat, /^Asked Adam to approve\./);
     const dmAdam = (await api("usr_mia", "chat.start", { kind: "chat", agentIds: [], personId: "usr_adam", idempotencyKey: "dm-open-adam" })).data.thread.threadId as string;
     assert.equal((await list("usr_adam", dmAdam)).filter((m) => /10% Rivera discount/.test(m.body ?? "")).length, 0, "the card alone, its words not said twice");
-    const inDm = await waitFor(async () => (await list("usr_adam", dmAdam)).flatMap((m) => m.blocks ?? []).find((b) => b.type === "link_card" && b.data?.["lead"] === "Approve") ?? null, 30_000, () => hostLog(d));
+    const inDm = await waitFor(async () => (await list("usr_adam", dmAdam)).flatMap((m) => m.blocks ?? []).find((b) => b.type === "link_card" && b.data?.["lead"] === "Allow") ?? null, 30_000, () => hostLog(d));
     const approveId = String((inDm.data?.["target"] as { id?: string }).id);
     const noahTasks = (await api("usr_adam", "tasks.list", { scope: "mine", kinds: ["approve"] })).data.tasks as Array<{ id: string }>;
     assert.ok(noahTasks.some((t) => t.id === approveId), "the Approve task is Adam's");

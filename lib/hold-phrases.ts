@@ -2,7 +2,7 @@
 // whole registry and fails when a held capability has none, so a new one cannot reach a person as a capability name. Titles read the same: "Approve: Delete a file".
 export const HOLD_PHRASES: Readonly<Record<string, string>> = {
   "agents.delete": "delete an agent", "agents.set_owner": "hand an agent to someone else",
-  "access.make_owner": "hand something to someone else as its owner", "automations.set_owner": "hand an automation to someone else", "github.me.approve": "use your GitHub for this repository", "install.apply": "install what it found at a link", "notes.set_owner": "hand a note to someone else", "talk.space.configure": "turn Voice on or off for everyone", "talk.space.disconnect": "remove the Space's Voice key",
+  "spaces.timezone.set": "change the Space time zone", "access.make_owner": "hand something to someone else as its owner", "automations.set_owner": "hand an automation to someone else", "github.me.approve": "use your GitHub for this repository", "install.apply": "install what it found at a link", "notes.set_owner": "hand a note to someone else", "talk.space.configure": "turn Voice on or off for everyone", "talk.space.disconnect": "remove the Space's Voice key",
   "automations.code_reach": "run a code step that reaches outside sites", "automations.delete": "delete an automation",
   "automations.http_send": "send a request to an outside address", "automations.read_docs": "read an outside documentation page",
   "automations.read_link": "open a web page", "backup.delete": "delete a backup", "backup.restore": "restore from a backup", "backup.run": "back up the Space now",
