@@ -30,7 +30,6 @@ type In = {
   agentId?: string;
   threadId?: string;
   days?: number;
-  until?: number;
   recipient?: boolean;
 };
 ```
@@ -73,8 +72,7 @@ type Out = {
     "days": 1,
     "recipient": true,
     "target": "example",
-    "threadId": "thr_a1b2c3",
-    "until": 1760000000000
+    "threadId": "thr_a1b2c3"
   },
   "output": {
     "rule": {

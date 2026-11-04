@@ -113,15 +113,26 @@ export function ranTogether(members: readonly Pick<CrewMember, "startedAt" | "en
   return `Ran together: ${span(wall)} instead of ${span(sum)}`;
 }
 
-/** The one-sentence total for the Crew pane. */
+/** The one calm sentence of totals for the Crew pane: who is where, how long, how many tokens, what it cost. Only what is known. */
 export function totalsLine(t: CrewTotals): string {
   if (t.members === 0) return "No helpers yet";
-  const bits = [`${t.done} of ${t.members} done`];
-  if (t.needsYou > 0) bits.push(`${t.needsYou} needs you`);
+  const bits: string[] = [];
   if (t.working > 0) bits.push(`${t.working} working`);
+  if (t.needsYou > 0) bits.push(`${t.needsYou} needs you`);
+  if (t.done > 0) bits.push(`${t.done} done`);
   if (t.failed > 0) bits.push(`${t.failed} failed`);
+  if (t.stopped > 0) bits.push(`${t.stopped} stopped`);
   bits.push(span(t.elapsedMs));
+  if (t.tokensIn + t.tokensOut > 0) bits.push(`${tokens(t.tokensIn + t.tokensOut)} tokens`);
+  if (t.costMicros > 0) bits.push(money(t.costMicros));
   return bits.join(" · ");
+}
+
+/** A long name cut in the middle, so two helpers with the same start can still be told apart. */
+export function middle(text: string, max = 18): string {
+  if (text.length <= max) return text;
+  const keep = max - 1, head = Math.ceil(keep / 2), tail = Math.floor(keep / 2);
+  return `${text.slice(0, head)}…${text.slice(text.length - tail)}`;
 }
 
 /** Input against output as fractions of the sum, for the token bar. */
@@ -171,3 +182,10 @@ export const holdsOf = <T extends Pick<CrewMember, "state"> & { holdTaskId?: str
 
 /** The id a helper's face is drawn from: its own, so each helper has a stable face of its own, distinct within a crew and the same after a reload, even when they all run as the same agent. */
 export const faceSeed = (m: Pick<CrewMember, "id">): string => m.id;
+
+/** The muted part of a row's first line: what it was asked, then whose helper it is. A helper called by its title says only whose it is. */
+export function jobLine(m: Pick<CrewMember, "title"> & { name?: string | undefined }, parentName?: string): string {
+  const role = roleOf(m);
+  const whose = parentName ? `${parentName}'s helper` : "";
+  return [role, whose].filter((x) => x !== "").join(" · ");
+}

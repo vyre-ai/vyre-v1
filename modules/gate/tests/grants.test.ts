@@ -183,20 +183,6 @@ test("Always allow is a row: scoped, with an expiry, read live, and taken back a
   assert.equal(await granted(allowed(h)), false, "expired");
 });
 
-test("Today is an Always allow that ends at the end of the person's day: it holds until then, ends after, and cannot reach past a day and a half or into the past", async () => {
-  const h = harness();
-  const until = h.now() + 5 * HOUR;
-  const { rule } = await allow(h, alice, { agentId: bot.id, until });
-  assert.equal(rule.expiresAt, until, "ends when the day ends, not in 30 days");
-  assert.equal(await granted(allowed(h)), true);
-  h.advance(6 * HOUR);
-  assert.equal(await granted(allowed(h)), false, "the day is over");
-  await assert.rejects(allow(h, alice, { agentId: bot.id, until: h.now() - 1 }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(allow(h, alice, { agentId: bot.id, until: h.now() + 40 * HOUR }), (e) => codeOf(e) === "validation.bad_input");
-  const plain = await allow(h, alice, { agentId: bot.id });
-  assert.equal(plain.rule.expiresAt, h.now() + 30 * 24 * HOUR, "Always still lasts as it did");
-});
-
 test("Always allow: only a person, one agent or chat, an outward act needs an admin, money never", async () => {
   const h = harness();
   await assert.rejects(allow(h, as(bot, { actingFor: alice.id })), (e) => codeOf(e) === "permission.role_lacks_permission");

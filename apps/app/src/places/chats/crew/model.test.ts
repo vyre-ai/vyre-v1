@@ -1,7 +1,7 @@
 // The crew model: every sentence a person reads about the crew, from the numbers engine.crew.status returns.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { faceSeed, holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
+import { middle, faceSeed, holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
 import type { CrewMember, CrewTotals } from "./model.ts";
 
 const T = (o: Partial<CrewTotals> = {}): CrewTotals => ({ members: 3, working: 0, done: 3, needsYou: 0, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: 41_000, ...o });
@@ -34,7 +34,10 @@ test("the strip's line counts them, says who needs you, and the light follows", 
   assert.equal(stripTitle(T({ members: 0, done: 0 })), "");
   assert.equal(stripTone(T({ needsYou: 1 })), "need"); assert.equal(stripTone(T({ working: 1 })), "live"); assert.equal(stripTone(T()), "idle");
   assert.deepEqual(counts(T({ working: 2, needsYou: 1, done: 0 })), { active: 3, needsYou: 1 });
-  assert.equal(totalsLine(T({ done: 1, working: 2, failed: 0 })), "1 of 3 done · 2 working · 41 s");
+  assert.equal(totalsLine(T({ done: 1, working: 2, failed: 0 })), "2 working · 1 done · 41 s");
+  assert.equal(totalsLine(T({ done: 2, working: 0, needsYou: 0, members: 2, tokensIn: 60_000, tokensOut: 15_000, costMicros: 130_000 })), "2 done · 41 s · 75k tokens · $0.13");
+  assert.equal(middle("Crew test: subagent 1", 16), "Crew tes…agent 1");
+  assert.equal(middle("Orin", 16), "Orin");
 });
 
 test("rows sort needs you, failed, working, then the rest, and Show keeps one kind", () => {

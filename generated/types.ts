@@ -14592,7 +14592,6 @@ export type GateAllowSetIn = {
   agentId?: string;
   threadId?: string;
   days?: number;
-  until?: number;
   recipient?: boolean;
 };
 export type GateAllowSetOut = {
