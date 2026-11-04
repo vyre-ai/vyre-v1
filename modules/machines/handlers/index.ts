@@ -126,7 +126,13 @@ async function context(ctx: MachinesCtx) {
   const v = viewerOf(ctx);
   const [dir, comps] = await Promise.all([directory(ctx, v), agentComputers(ctx)]);
   const pins = pinsOf(ctx);
-  const recs = allMachines(ctx).filter((r) => mayList(r, v) && !gone(r, dir));
+  const reported = allMachines(ctx).filter((r) => mayList(r, v) && !gone(r, dir));
+  // a server the Space approved that has not reported yet (or has never connected) is still the Space's: it is listed, offline, so an admin can open it and remove it
+  const known = new Set(reported.map((r) => r.machineId));
+  const waiting: Rec[] = v.admin ? [...dir.entries()].filter(([id, d]) => /^srv_/.test(id) && !d.removed && !known.has(id)).map(([id, d]) => ({
+    machineId: id, kind: "server", name: d.name || id, ownerId: null, nickname: null, maxTurns: null, maxAgentComputers: null, drain: false, specs: null, load: null, runs: null, can: [], vyre: null, version: null, latencyMs: null, lastSeen: null, firstSeen: ctx.now(),
+  })) : [];
+  const recs = [...reported, ...waiting];
   return { v, dir, comps, pins, recs, turns: await turnCounter(ctx) };
 }
 
