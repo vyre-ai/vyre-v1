@@ -110,7 +110,7 @@ export async function fire(ctx: HooksCtx, f: HookFire): Promise<HookVerdict> {
         const r = await withTimeout(hostSeams.plugin(who, plugin, { session_id: f.threadId, hook_event_name: CLAUDE_NAME[f.event], tool_name: f.tool ?? f.cap ?? "", tool_input: payload["tool_input"], tool_response: payload["tool_response"] }), (plugin.timeoutSec ?? 30) * 1000 + 2000);
         o = r === "timeout" || r.timedOut ? { outcome: "timeout" } : r.code === 2 ? { outcome: "blocked", block: redact(r.stderr.trim() || r.stdout.trim() || "a plugin hook refused it") } : { outcome: "ok" };
       } else o = await runOne(ctx, h, who, f, payload);
-    } catch (e) { o = { outcome: "error", detail: redact(e instanceof Error ? e.message : String(e), 160) }; }
+    } catch (e) { ctx.log?.warn("a hook failed", { hook: h.id, event: f.event, error: e instanceof Error ? e.message : String(e), ...((e as { error?: { details?: unknown } })?.error?.details ? { details: (e as { error: { details: unknown } }).error.details } : {}) }); if (process.env["VYRE_HOOKS_DEBUG"]) console.error("HOOKFAIL", e); o = { outcome: "error", detail: redact(e instanceof Error ? e.message : String(e), 160) }; }
     verdict.ran++;
     const ms = Date.now() - t0;
     if (o.outcome === "blocked" && !BLOCKING.has(f.event)) o = { outcome: "ok", detail: "this event cannot be stopped" };

@@ -25,8 +25,8 @@ if (process.argv[3] === "hook") {
     let payload = {};
     try { payload = JSON.parse(raw); } catch {}
     const done = (r) => {
-      if (r && r.block) { process.stderr.write(String(r.block).slice(0, 400) + "\n"); process.exit(2); }
-      if (r && Array.isArray(r.notes) && r.notes.length > 0) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: r.notes.join("\n") } }) + "\n");
+      if (r && r.block) { process.stderr.write(String(r.block).slice(0, 400) + "\\n"); process.exit(2); }
+      if (r && Array.isArray(r.notes) && r.notes.length > 0) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: r.notes.join("\\n") } }) + "\\n");
       process.exit(0);
     };
     if (!sock || !token) done(null);
@@ -40,12 +40,12 @@ if (process.argv[3] === "hook") {
     let buf = "";
     c.on("error", () => done(null));
     c.on("connect", () => {
-      c.write(JSON.stringify({ auth: token }) + "\n");
-      c.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "vyre/hook", params: { event, payload } }) + "\n");
+      c.write(JSON.stringify({ auth: token }) + "\\n");
+      c.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "vyre/hook", params: { event, payload } }) + "\\n");
     });
     c.on("data", (d) => {
       buf += d;
-      const i = buf.indexOf("\n");
+      const i = buf.indexOf("\\n");
       if (i < 0) return;
       let r = null;
       try { r = JSON.parse(buf.slice(0, i)).result; } catch {}

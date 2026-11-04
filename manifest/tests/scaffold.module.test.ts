@@ -86,7 +86,7 @@ test("a scaffolded module builds: it is written, registered, and its generated t
   assert.equal(r.written.length, 9);
   for (const p of r.written) assert.ok(fs.existsSync(path.join(root, p)), p);
   assert.deepEqual(modulesOf(root).modules.find((m) => m.id === "widgets"), { id: "widgets", owner: "L1", status: "stub" });
-  assert.equal(modulesOf(root).modules.length, 77);
+  assert.equal(modulesOf(root).modules.length, 78);
   const run = nodeTest(root, ["modules/widgets/tests/widgets.contract.test.ts", "modules/widgets/tests/widgets.space.test.ts"]);
   assert.equal(run.status, 0, run.stdout + run.stderr);
   assert.match(run.stdout, /# pass 1\b/);

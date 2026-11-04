@@ -282,7 +282,7 @@ async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: Resolv
   await h.call("engine.turn.record_usage", { turnId: turn.id, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut, costMicros: costMicrosOf(turn, account), model: turn.model ?? defaultModelLabel(account), ...(account?.itemId ? { itemId: account.itemId } : {}) }, turn.asker);
 }
 
-export interface CompleteIn { account: ResolvedAccount; system?: string; prompt: string; model?: string }
+export interface CompleteIn { account: ResolvedAccount; system?: string; prompt: string; model?: string; /** Work as this agent (a hook's check runs as the agent whose event it reads); absent: the memory upkeep pseudo-agent. */ agentId?: string }
 export interface CompleteOut { text: string; tokensIn: number; tokensOut: number }
 let completer: ((i: CompleteIn) => Promise<CompleteOut>) | null = null;
 let compactor: Compactor | null = null;
@@ -295,7 +295,7 @@ export const completerOf = (): typeof completer => completer;
 async function oneShot(openSession: OpenSession, i: CompleteIn, now: () => number): Promise<CompleteOut> {
   const n = now();
   const threadId = `oneshot_${n.toString(36)}`;
-  const agent = { id: "memory-upkeep", name: "Memory upkeep", mode: "lead" as const, ...(i.system ? { role: i.system } : {}), ...(i.model ? { model: i.model } : {}), accountRef: i.account.ref };
+  const agent = { id: i.agentId ?? "memory-upkeep", name: i.agentId ? "Hook check" : "Memory upkeep", mode: "lead" as const, ...(i.system ? { role: i.system } : {}), ...(i.model ? { model: i.model } : {}), accountRef: i.account.ref };
   // lean: the system prompt is the job's own, with no tools, MCP, settings, memory files or skills, so a learning pass on a CLI costs a few hundred tokens more than its prompt, not thousands
   const session = await openSession({ threadId, agent, asker: i.account.payer, turnId: `trn_${n.toString(36)}`, traceId: "0".repeat(32), account: i.account, tools: "none", lean: true });
   let text = "";
