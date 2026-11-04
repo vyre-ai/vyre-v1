@@ -87,3 +87,16 @@ test("without a session that says parallelTools, or without a classifier, calls 
   assert.equal(b.peak(), 1);
   assert.deepEqual(b.p.sessions[0]?.toolResults.map((r) => r.id), ["c1", "c2"]);
 });
+
+test("three reads take about one read's time, not three", async () => {
+  const t0 = Date.now();
+  const t = run([call("c1", "r_a"), call("c2", "r_b"), call("c3", "r_c")], { ms: 80 });
+  await t.engine.idle("T");
+  const together = Date.now() - t0;
+  const s0 = Date.now();
+  const s = run([call("c1", "r_a"), call("c2", "r_b"), call("c3", "r_c")], { ms: 80, parallel: false });
+  await s.engine.idle("T");
+  const alone = Date.now() - s0;
+  assert.ok(together < 170, `together ${together} ms`);
+  assert.ok(alone >= 240, `one at a time ${alone} ms`);
+});
