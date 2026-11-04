@@ -1,3 +1,4 @@
+// @tsx  (it imports the Add sheet, a .tsx module)
 // The Add people and agents footer against a booted daemon (lane l-addsheet): the sheet tells a newcomer which files folder and which records they get, so those names must be the real ones the
 // server holds, never the chat's own name. A chat made about a record names that record by its title and the chat's folder by its folder name; a project names its own folder and, only when
 // records are linked to it, its records; a plain chat has neither and the sentence says nothing about them.
