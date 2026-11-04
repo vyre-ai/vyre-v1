@@ -7,12 +7,12 @@ import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from
 import type { ViewStyle } from "react-native";
 import { Avatar } from "../Avatar/index.tsx";
 import { menuTrigger, useMenu } from "../Menu/index.tsx";
-import { AccessIcon } from "../AccessSheet/index.tsx";
+import { AccessIcon, AccessSheetShell, AccessViewHead } from "../AccessSheet/index.tsx";
 import { Overlay } from "../Overlay/index.tsx";
-import { TITLE, footerOf, memberMenu, walk } from "./model.ts";
+import { TITLE, footerOf, memberMenu, placeOf, walk } from "./model.ts";
 import type { MemberAction, MemberPerms, MemberRow, PeopleWhere } from "./model.ts";
 
-export { TITLE, footerOf, memberMenu, walk } from "./model.ts";
+export { TITLE, WIDTH, footerOf, memberMenu, placeOf, walk } from "./model.ts";
 export type { MemberAction, MemberKind, MemberMenuItem, MemberPerms, MemberRow, PeopleWhere } from "./model.ts";
 
 export interface PeoplePopoverProps {
@@ -22,7 +22,8 @@ export interface PeoplePopoverProps {
   meId?: string;
   perms: MemberPerms;
   /** Where the trigger is: the popover sits under it, its right edge to the trigger's. */
-  anchor: { x: number; y: number };
+  /** The trigger's box: its right edge and bottom, and its left edge when known. A trigger in the left half of the window opens rightwards from its left edge, one in the right half leftwards from its right edge. */
+  anchor: { x: number; y: number; left?: number };
   onOpen(row: MemberRow): void;
   onAction(action: MemberAction, row: MemberRow): void;
   /** The footer action: "overview" opens the project's Overview People section, "add" opens the Add sheet. */
@@ -61,39 +62,53 @@ export function PeoplePopover({ where, rows, meId, perms, anchor, onOpen, onActi
   }, [at, count, rows, footer.id, onClose, onOpen, onFooter]);
   // the prototype's widths: about 215 for a chat, 260 for a project. A phone has no popover: the same rows open as the app's bottom sheet.
   const phone = win.width > 0 && win.width < 640;
-  const width = Math.min(where === "chat" ? 215 : 260, (win.width || 1024) - 16);
-  const left = Math.max(8, Math.min(anchor.x - width, (win.width || 1024) - width - 8));
-  const top = Math.max(8, anchor.y + 4);
+  const spot = placeOf(anchor, win.width || 1024, where);
+  const { left, top, width } = spot;
   const place = (phone ? { position: web ? "fixed" : "absolute", left: 0, right: 0, bottom: 0 } : { position: web ? "fixed" : "absolute", left, top, width }) as unknown as ViewStyle;
   const rowMenu = (r: MemberRow, x: number, y: number): void => {
     const items = memberMenu(r, perms, meId);
     menu.show(items.map((i) => ({ label: i.label, ...(i.danger ? { danger: true } : {}), onSelect: () => onAction(i.id, r) })), x, y, "context", { label: `${r.name}` });
   };
+  const rowsView = (
+    <>
+      {each(rows, (r, i) => (
+            <Pressable
+              key={`${r.kind}:${r.id}`} accessibilityRole="button" accessibilityLabel={`${r.name}, ${r.role}`} testID={`people-row-${r.id}`}
+              onPress={() => onOpen(r)} {...menuTrigger((x, y) => rowMenu(r, x, y))}
+              style={({ hovered }: { hovered?: boolean }) => [st.row, phone && st.rowPhone, (hovered === true || at === i) && st.lit, at === i && st.kb]}
+            >
+              <Avatar name={r.name} seedId={r.id} {...(r.kind === "person" ? {} : { kind: "agent" as const })} size={24} />
+              <Text style={st.name} numberOfLines={1}>{r.id === meId ? "You" : r.name}</Text>
+              <Text style={st.role} numberOfLines={1} testID={`people-role-${r.id}`}>{r.role}</Text>
+            </Pressable>
+      ))}
+      <View style={st.rule} />
+      <Pressable
+        accessibilityRole="button" accessibilityLabel={footer.label} testID="people-footer" onPress={() => onFooter(footer.id)}
+        style={({ hovered }: { hovered?: boolean }) => [st.row, phone && st.rowPhone, (hovered === true || at === rows.length) && st.lit, at === rows.length && st.kb]}
+      >
+        <View style={st.ic}><AccessIcon name={footer.id === "add" ? "plus" : "people"} size={15} color="var(--ink-2)" /></View>
+        <Text style={st.name}>{footer.label}</Text>
+      </Pressable>
+    </>
+  );
+  if (phone) {
+    // a phone has no popover: the same rows sit in the app's own bottom sheet (the one the Add people and agents sheet uses), with its scrim, corners and header
+    return (
+      <AccessSheetShell phone label={TITLE} testID="people-popover" onClose={onClose}>
+        <AccessViewHead title={TITLE} onClose={onClose} />
+        <View style={st.sheetBody}>{rowsView}</View>
+        {menu.element}
+      </AccessSheetShell>
+    );
+  }
   return (
     <Overlay>
       <View style={st.layer}>
         <Pressable accessibilityLabel="Close" accessible={false} onPress={onClose} testID="people-scrim" style={StyleSheet.absoluteFill} />
         <View role="dialog" aria-modal={false} accessibilityLabel={TITLE} testID="people-popover" {...(web ? ({ dataSet: { sheet: phone ? "phone" : "popover" } } as object) : {})} style={[st.pop, phone && st.sheet, { boxShadow: "var(--sh-pop)" } as unknown as ViewStyle, place]}>
           <Text style={st.head} accessibilityRole="header" testID="people-title">{TITLE}</Text>
-          {each(rows, (r, i) => (
-            <Pressable
-              key={`${r.kind}:${r.id}`} accessibilityRole="button" accessibilityLabel={`${r.name}, ${r.role}`} testID={`people-row-${r.id}`}
-              onPress={() => onOpen(r)} {...menuTrigger((x, y) => rowMenu(r, x, y))}
-              style={({ hovered }: { hovered?: boolean }) => [st.row, (hovered === true || at === i) && st.lit, at === i && st.kb]}
-            >
-              {r.kind === "person" ? <Avatar name={r.name} seedId={r.id} size={24} /> : <Avatar name={r.name} seedId={r.id} kind="agent" size={24} />}
-              <Text style={st.name} numberOfLines={1}>{r.id === meId ? "You" : r.name}</Text>
-              <Text style={st.role} numberOfLines={1} testID={`people-role-${r.id}`}>{r.role}</Text>
-            </Pressable>
-          ))}
-          <View style={st.rule} />
-          <Pressable
-            accessibilityRole="button" accessibilityLabel={footer.label} testID="people-footer" onPress={() => onFooter(footer.id)}
-            style={({ hovered }: { hovered?: boolean }) => [st.row, (hovered === true || at === rows.length) && st.lit, at === rows.length && st.kb]}
-          >
-            <View style={st.ic}><AccessIcon name={footer.id === "add" ? "plus" : "people"} size={15} color="var(--ink-2)" /></View>
-            <Text style={st.name}>{footer.label}</Text>
-          </Pressable>
+          {rowsView}
         </View>
         {menu.element}
       </View>
@@ -112,5 +127,7 @@ const st = StyleSheet.create({
   role: { fontSize: 12, color: "var(--ink-3)" as string, paddingLeft: 12 },
   ic: { width: 22, alignItems: "center", justifyContent: "center" },
   sheet: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 14 },
+  rowPhone: { height: 44 },
+  sheetBody: { paddingHorizontal: 10, paddingBottom: 14 },
   rule: { height: 1, backgroundColor: "var(--line)" as string, marginVertical: 5, marginHorizontal: 6 },
 });

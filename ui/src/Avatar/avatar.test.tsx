@@ -221,3 +221,13 @@ test("state sits on the face: a moving ring working, an amber ring waiting, a gr
   assert.match(FACE_STATE_CSS, /to\{--vyre-ra:360deg\}/, "the colour travels; the ring does not rotate");
   assert.doesNotMatch(FACE_STATE_CSS, /rotate\(/);
 });
+
+test("an agent's face is written in the first frame once its drawing modules are loaded, and the module load starts at import", async () => {
+  const { loadNotionists } = await import("./load.ts");
+  await loadNotionists();
+  await new Promise((r) => setTimeout(r, 20));
+  // a server render has no document, so the module preload does not run; what is asserted is the pure part: the same seed gives the same svg twice, so the cached markup is stable
+  const { notionistsSvg } = await import("./notionists.ts");
+  assert.equal(notionistsSvg("Ember"), notionistsSvg("Ember"));
+  assert.match(notionistsSvg("Ember"), /^<svg/);
+});

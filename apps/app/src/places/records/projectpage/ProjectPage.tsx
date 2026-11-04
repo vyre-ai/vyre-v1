@@ -65,7 +65,7 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
   const [added, setAdded] = useState(0);
   const add = useAddSheet({ call: d.call, me: d.me ?? { id: "me", name: "You" }, nameOf: d.nameOf, newKey: () => globalThis.crypto.randomUUID(), toast: (text) => setNote(text) }, { onDone: () => { setAdded((n) => n + 1); void read(); } });
   // the people popover of the head (the same component the chats use)
-  const [people, setPeople] = useState<{ x: number; y: number } | null>(null);
+  const [people, setPeople] = useState<{ x: number; y: number; left?: number } | null>(null);
   useEffect(() => {
     if (!note) return undefined;
     const t = setTimeout(() => setNote(null), 4500);
@@ -118,7 +118,7 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
       <View style={s.strip} testID="project-strip" accessibilityLabel="Project at a glance">
         <Text style={s.stripText}>{plural(p.openTasks, "open task")}</Text>
         <Text style={[s.stripText, p.lateTasks > 0 && s.late]} testID="project-late">{p.lateTasks > 0 ? `${p.lateTasks} late` : "None late"}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="People and agents" aria-haspopup="dialog" testID="project-members" onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { right: number; bottom: number } } }) => { const r = e.currentTarget?.getBoundingClientRect?.(); setPeople(r ? { x: r.right, y: r.bottom } : { x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 }); }}><Text style={s.stripText}>{plural(p.memberCount, "person", "people")}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="People and agents" aria-haspopup="dialog" testID="project-members" onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; right: number; bottom: number } } }) => { const r = e.currentTarget?.getBoundingClientRect?.(); setPeople(r ? { x: r.right, y: r.bottom, left: r.left } : { x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 }); }}><Text style={s.stripText}>{plural(p.memberCount, "person", "people")}</Text></Pressable>
       </View>
       {d.nav.openGoal ? <GoalsOf scope="project" id={projectId} call={d.call} changes={d.changes} now={d.now()} offsetMin={0} nameOf={d.nameOf} openGoal={d.nav.openGoal} testID="project-goals" /> : null}
       <TabStrip underline tabs={TAB_SPECS} active={tab} onSelect={(k) => { setTab(k as TabKey); onTabChange?.(k as TabKey); }} />
@@ -148,7 +148,7 @@ function Section({ title, count, children, id }: { title: string; count?: number
 }
 
 /** The head's people popover for a project: one row per member with the project role, Manage on the Overview in the footer. Lead (or whoever manages) may change a role or remove. */
-function ProjectPeople({ o, projectId, at, onClose, toOverview, menu, reload, say }: { o: Overview; projectId: string; at: { x: number; y: number }; onClose(): void; toOverview(): void; menu: ReturnType<typeof useMenu>; reload(): void; say(e: unknown): void }): ReactElement {
+function ProjectPeople({ o, projectId, at, onClose, toOverview, menu, reload, say }: { o: Overview; projectId: string; at: { x: number; y: number; left?: number }; onClose(): void; toOverview(): void; menu: ReturnType<typeof useMenu>; reload(): void; say(e: unknown): void }): ReactElement {
   const d = useProjectPageData();
   const rows: MemberRow[] = o.people.map((m) => ({ id: m.principal, name: d.nameOf(m.principal), kind: m.kind === "agent" ? "agent" : "person", role: ROLE_WORDS[m.role] }));
   const meRole = d.me ? o.people.find((m) => m.principal === d.me?.id)?.role : undefined;
