@@ -52,3 +52,14 @@ export function footerOf(s: ReplySummary | undefined, turns: readonly LiveTurn[]
 
 /** A footer with nothing in the thread and nobody writing draws no line. */
 export const showsFooter = (f: Footer | null, s: ReplySummary | undefined): boolean => f !== null && (f.writing || (s?.count ?? 0) > 0);
+
+/**
+ * Whether agents reply in threads in a chat, from the chat's row. The server says it outright (`agentRepliesInThreads`); a copy of the row kept on the device holds the person's own choice (`repliesIn`, empty when
+ * they never chose) and the kind, from which the default follows: on for a channel, off for a chat.
+ */
+export function repliesOf(t: { kind: string; agentRepliesInThreads?: boolean | undefined; repliesIn?: number | boolean | null | undefined }): boolean | undefined {
+  if (t.agentRepliesInThreads !== undefined) return t.agentRepliesInThreads;
+  if (!hasSwitch(t)) return undefined;
+  if (t.repliesIn !== undefined && t.repliesIn !== null) return t.repliesIn === true || t.repliesIn === 1;
+  return t.kind === "channel";
+}

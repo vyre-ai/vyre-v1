@@ -7,6 +7,7 @@ import { createBridge } from "../handlers/bridge.ts";
 import type { AgentPost, Bridge } from "../handlers/bridge.ts";
 import { harness } from "../fixtures/harness.ts";
 import { scriptedProvider } from "../../../agent/src/turn-engine/scripted-session.ts";
+import { toolRunnerFrom } from "../../../agent/src/turn-engine/tools.ts";
 import type { DriverEvent } from "../../../agent/src/turn-engine/types.ts";
 import type { EngineCtx } from "../projections.ts";
 
@@ -16,7 +17,7 @@ const LEAD = "agt_intake";
 interface Row { messageId: string; threadId: string; threadSeq: number; author: { kind: string; id: string }; body: string; blocks: unknown[]; mentions: unknown[]; depth: number }
 const reply = (text: string): DriverEvent[] => [{ type: "text", text }, { type: "usage", inputTokens: 5, outputTokens: 2 }, { type: "done" }];
 
-function setup(o: { kind?: string; on?: boolean; script?: DriverEvent[]; agents?: Array<{ agentId: string; mode: "lead" | "listen" }> }) {
+function setup(o: { kind?: string; on?: boolean; script?: DriverEvent[]; held?: boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen" }> }) {
   const h = harness();
   const chat: Row[] = [];
   const made: Array<{ threadId: string; messageId: string }> = [];
@@ -53,7 +54,8 @@ function setup(o: { kind?: string; on?: boolean; script?: DriverEvent[]; agents?
   bridge = createBridge({ postAs });
   const provider = scriptedProvider({ script: o.script ?? reply("Done.") });
   const open = bridge.tap(provider.openSession);
-  const engine = h.runtime({ openSession: (spec) => open(spec), schedule: () => () => {} });
+  const held = toolRunnerFrom(async () => ({ kind: "held", result: { ok: false, content: { held: true } }, taskId: "tsk_gate1" }));
+  const engine = h.runtime({ openSession: (spec) => open(spec), schedule: () => () => {}, ...(o.held ? { callTool: held } : {}) });
   bridge.attach(engine);
   async function say(body: string, where = MAIN, mentions: Array<{ kind: "agent" | "person"; id: string }> = [], id = `msg_p${chat.length + 1}`) {
     chat.push({ messageId: id, threadId: where, threadSeq: chat.length + 1, author: { kind: "person", id: "usr_dana" }, body, blocks: [], mentions, depth: 0 });
@@ -129,4 +131,18 @@ test("a person's @mention of a listening agent in the chat is answered in the th
   const s = setup({ agents: [{ agentId: LEAD, mode: "listen" }] });
   const { id } = await s.say("@Intake what is due?", MAIN, [{ kind: "agent", id: LEAD }]);
   assert.equal(agentPosts(s)[0]!.threadId, `thr_under_${id}`);
+});
+
+test("an approval asked in the thread rises to the chat as one quiet line that opens the thread; the thread keeps the card", async () => {
+  const s = setup({ held: true, script: [{ type: "text", text: "Booking." }, { type: "tool_call", id: "call_1", name: "mail_send", input: { to: "pat@acme.test" } }, { type: "done" }] });
+  const { id } = await s.say("Book the vendor call.");
+  const thread = `thr_under_${id}`;
+  const inThread = agentPosts(s).filter((r) => r.threadId === thread);
+  assert.ok(inThread.some((r) => JSON.stringify(r.blocks).includes('"waiting"')), "the thread holds the waiting turn");
+  const quiet = s.chat.filter((r) => r.threadId === MAIN && r.author.kind === "agent");
+  assert.equal(quiet.length, 1, "one line in the chat");
+  const blocks = JSON.stringify(quiet[0]!.blocks);
+  assert.match(blocks, /needs your OK/);
+  assert.ok(blocks.includes(thread), "and it names the thread it opens");
+  assert.equal(quiet[0]!.body, "", "no words of the work come to the chat");
 });

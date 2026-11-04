@@ -19,7 +19,7 @@ import { replySummaries } from "../conversation/replies.ts";
 import * as actions from "../conversation/actions.ts";
 import { ThreadPane } from "./ThreadPane.tsx";
 import { alsoSentIds } from "./also-sent.ts";
-import { footerOf, mmss, SWITCH_TITLE } from "./model.ts";
+import { footerOf, mmss, repliesOf, SWITCH_TITLE } from "./model.ts";
 
 const widen = (width: number): void => Dimensions.set({ window: { width, height: 844, scale: 1, fontScale: 1 } });
 const at = (h: number, min: number): number => Date.UTC(2025, 9, 24, h, min, 0);
@@ -247,6 +247,13 @@ test("pure: the footer words, the timer and the also-sent lookup", () => {
   const w = footerOf(sums.get("m2"), [{ turnId: "x", threadId: "t2", agentId: "agt_intake", store: undefined as never, state: "writing", startedAt: SAMPLE_NOW - 65_000 }], SAMPLE_NOW, clock)!;
   assert.deepEqual([w.writing, w.head, w.agentId, w.when], [true, "Working · 1:05", "agt_intake", null]);
   assert.equal(footerOf(undefined, [], SAMPLE_NOW, clock), null);
+  // the switch, from a row the server answered and from a copy kept on the device
+  assert.equal(repliesOf({ kind: "channel", agentRepliesInThreads: false }), false);
+  assert.equal(repliesOf({ kind: "channel" }), true, "a channel defaults on");
+  assert.equal(repliesOf({ kind: "chat" }), false, "a direct chat defaults off");
+  assert.equal(repliesOf({ kind: "channel", repliesIn: 0 }), false, "the person's own choice wins");
+  assert.equal(repliesOf({ kind: "chat", repliesIn: 1 }), true);
+  assert.equal(repliesOf({ kind: "thread" }), undefined, "a thread has no such choice");
   assert.deepEqual([...alsoSentIds([{ blocks: [{ type: "from_thread", data: { threadId: "t1", messageId: "a" } }, { type: "from_thread", data: { threadId: "t9", messageId: "b" } }, { type: "from_thread", data: { threadId: "t1", messageId: "" } }] }, {}], "t1")], ["a"]);
 });
 

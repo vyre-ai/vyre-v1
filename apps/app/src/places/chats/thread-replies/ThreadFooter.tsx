@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Face } from "../needsyou/parts.tsx";
 import { ReplyLine } from "../conversation/ReplyLine.tsx";
-import { useConversationData } from "../conversation/data.tsx";
+import { useConversationData, useOnline } from "../conversation/data.tsx";
 import type { LiveTurn } from "../../../shell/session/turn-streams.ts";
 import type { ReplySummary } from "../conversation/replies.ts";
 import type { Clock } from "../rightpane/model.ts";
@@ -14,9 +14,26 @@ import { footerOf, showsFooter } from "./model.ts";
 const NO_TURNS: readonly LiveTurn[] = [];
 const noSub = (): (() => void) => () => undefined;
 
-/** The live turns of one thread, from the live socket. A host with no live link has none. */
+/**
+ * The live turns of one thread, from the live socket. A host with no live link has none. A chat opened while an agent is already writing in the thread under a message asks what it has written so far
+ * (engine.live_turns), as the thread's own page does, and the live pieces carry on from there.
+ */
 export function useThreadTurns(threadId: string): readonly LiveTurn[] {
-  const { live } = useConversationData();
+  const data = useConversationData();
+  const { live } = data;
+  const online = useOnline();
+  useEffect(() => {
+    if (!live || !online) return undefined;
+    let gone = false;
+    const fetchNow = (): void => {
+      try {
+        void Promise.resolve(data.call("engine.live_turns", { threadId })).then((r) => { if (!gone) live.seed(threadId, (r as { turns?: { turnId: string; agentId: string; text: string }[] }).turns ?? []); }, () => undefined);
+      } catch { /* no live read here: the footer then waits for the live pieces */ }
+    };
+    fetchNow();
+    const off = live.onGap((th) => { if (th === threadId) fetchNow(); });
+    return () => { gone = true; off(); };
+  }, [data, live, online, threadId]);
   const read = (): readonly LiveTurn[] => (live ? live.turnsOf(threadId) : NO_TURNS);
   return useSyncExternalStore(live ? live.subscribe : noSub, read, read);
 }

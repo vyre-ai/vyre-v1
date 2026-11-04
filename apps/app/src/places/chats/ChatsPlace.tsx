@@ -1,7 +1,7 @@
 // The Chats place (spec 3.2): the sidebar (Needs you, Agents, Channels, Chats) in the shell's slot on the left, the open chat in the middle, the agent's pane on the right. It only composes what exists: ChatsSidebar,
 // Conversation and ChatRightPane (which draws its tabs in the shared TabStrip inside the shared SidePane). The shell gives it the three data bags; the pane toggle's state lives here because
 // it also drives the chat header's button. The sidebar is drawn by the shell in its shared place sidebar slot (collapse, search, and on a phone the list before the chat); under 640 px the pane is left out.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, View, useWindowDimensions } from "react-native";
 import { ChatRightPane } from "./rightpane/ChatRightPane.tsx";
@@ -27,16 +27,19 @@ export interface ChatsPlaceProps {
   paneOpen?: boolean;
   /** Pins which rows are drawn (tests and screenshots draw them all). */
   window?: VirtualWindow;
+  /** Starts with this thread open beside the chat (a sheet on a phone): tests and screenshots. */
+  initialReplies?: string;
 }
 
-export function ChatsPlace({ sidebar, conversation, pane, paneOpen = true, window }: ChatsPlaceProps): ReactElement {
+export function ChatsPlace({ sidebar, conversation, pane, paneOpen = true, window, initialReplies }: ChatsPlaceProps): ReactElement {
   const width = useWindowDimensions().width;
   const wide = width === 0 || width >= WIDE;
   const [open, setOpen] = useState(paneOpen);
   // The chat's own button toggles the same pane the pane's toggle does.
   // A thread under a message opens beside the chat on a wide screen (a tab in the pane) and as a full-screen sheet on a phone (agents reply in threads).
-  const [replies, setReplies] = useState<string | null>(null);
-  useEffect(() => { setReplies(null); }, [conversation.threadId]);
+  const [replies, setReplies] = useState<string | null>(initialReplies ?? null);
+  const chatId = useRef(conversation.threadId);
+  useEffect(() => { if (chatId.current !== conversation.threadId) { chatId.current = conversation.threadId; setReplies(null); } }, [conversation.threadId]);
   const openReplies = useCallback((threadId: string): void => { setReplies(threadId); if (wide) setOpen(true); }, [wide]);
   const chat = useMemo<ConversationData>(() => ({ ...conversation, nav: { ...conversation.nav, togglePane: () => setOpen((o) => !o), openReplies } }), [conversation, openReplies]);
   const extra = replies !== null && wide ? { tabs: [{ key: "thread", title: THREAD_TITLE }], active: "thread", onSelect: () => undefined, onClose: () => setReplies(null), body: <ThreadPane data={chat} threadId={replies} /> } : undefined;

@@ -8,7 +8,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { CONVERSATION_SCREEN, Conversation } from "../conversation/Conversation.tsx";
 import { ConversationDataProvider, useScreenQuery } from "../conversation/data.tsx";
 import type { ConversationData } from "../conversation/data.tsx";
-import { EMPTY_THREAD, REPLY_PLACEHOLDER } from "./model.ts";
+import { EMPTY_THREAD, REPLY_PLACEHOLDER, repliesOf } from "./model.ts";
 import { ThreadSwitch, useReplySwitch } from "./ThreadSwitch.tsx";
 import { alsoSentIds } from "./also-sent.ts";
 
@@ -27,7 +27,7 @@ function Body({ data, threadId }: { data: ConversationData; threadId: string }):
   const empty = mine.status === "ready" && mine.data.messages.length === 0;
   const alsoSent = useMemo(() => (chat.status === "ready" ? alsoSentIds(chat.data.messages, threadId) : undefined), [chat, threadId]);
   const row = useScreenQuery<ThreadOut>(CONVERSATION_SCREEN, "thread", { threadId: data.threadId });
-  const sw = useReplySwitch(data, data.threadId, row.status === "ready" ? row.data.thread.agentRepliesInThreads : undefined);
+  const sw = useReplySwitch(data, data.threadId, row.status === "ready" ? repliesOf(row.data.thread) : undefined);
   const inner = useMemo(() => threadData(data, threadId, {
     ...(empty ? { tail: <View style={st.empty}><Text testID="thread-empty" style={st.emptyText}>{EMPTY_THREAD}</Text></View> } : {}),
     ...(alsoSent ? { alsoSent } : {}),

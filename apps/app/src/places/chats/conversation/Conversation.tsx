@@ -60,7 +60,7 @@ import { FaceButton, Glyph, IconButton, RenameField, TextButton } from "./parts.
 import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine } from "./hops.ts";
 import { addedAgentMentions, askPost, pickerAgents, unansweredOwn } from "./askagent.ts";
 import { MemorySwitch } from "./memory-switch.tsx";
-import { SWITCH_TITLE, hasSwitch } from "../thread-replies/model.ts";
+import { SWITCH_TITLE, hasSwitch, repliesOf } from "../thread-replies/model.ts";
 import { useReplySwitch } from "../thread-replies/ThreadSwitch.tsx";
 import type { AgentMeta } from "./askagent.ts";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
@@ -201,7 +201,7 @@ function ConversationView(): ReactElement {
   const memoryEntries = useMemoryEntries();
   const threadQ = useScreenQuery<ThreadOut>(CONVERSATION_SCREEN, "thread", { threadId: data.threadId });
   const messagesQ = useScreenQuery<MessagesOut>(CONVERSATION_SCREEN, "messages", { threadId: data.threadId });
-  const repliesSwitch = useReplySwitch(data, data.threadId, threadQ.status === "ready" ? threadQ.data.thread.agentRepliesInThreads : undefined);
+  const repliesSwitch = useReplySwitch(data, data.threadId, threadQ.status === "ready" ? repliesOf(threadQ.data.thread) : undefined);
   const helpersQ = useScreenQuery<HelpersOut>(CONVERSATION_SCREEN, "helpers", { threadId: data.threadId });
   const [shown, setShown] = useState(WINDOW);
   const [older, setOlder] = useState<Message[]>([]);
@@ -757,12 +757,13 @@ function ConversationView(): ReactElement {
             );
           })() : null}
           {crew?.status && crew.status.members.length > 0 ? <CrewIsland status={crew.status} onPress={() => crew.show(null)} /> : null}
+          {thread.kind === "thread" && thread.parentThreadId ? <View testID="also-to-chat-row" style={st.alsoRow}><AlsoToChat on={alsoOn} onChange={setAlso} /></View> : null}
           <Composer
             key={`composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
             testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={data.placeholder ?? placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}
             {...(place.chip ? { runsChip: place.chip } : {})}
             agents={composerAgents} mode={mode} onMode={chooseChatMode}
-            barExtra={<><MemorySwitch threadId={thread.threadId} call={data.call} say={say} />{thread.kind === "thread" && thread.parentThreadId ? <AlsoToChat on={alsoOn} onChange={setAlso} /> : null}</>}
+            barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
             suggest={composerSuggest(data)} preview={(item) => previewOf(data, item)}
             renderPanel={(agent, close, narrowPanel) => <ChatBrain data={data} thread={thread} agent={agent} accounts={accounts} mode={mode} onMode={chooseChatMode} close={close} narrow={narrowPanel} say={say} {...(place.runs ? { runs: place.runs } : {})} onCompact={(keep, always) => void compactChat(data, keep, always, agent.id).then((line) => { if (line === null) say(keep ? `Compacted, keeping ${keep}` : "Compacted"); }, fail("Could not compact."))} />}
             onAddPeople={() => add.open({ threadId: thread.threadId })}
@@ -844,6 +845,8 @@ function OlderPage({ before, onPage }: { before: number; onPage: (page: Messages
 }
 
 const st = StyleSheet.create({
+  /** "Also post to the chat" sits above a thread's composer, as the prototype draws it, so the composer's own bar keeps its room in a narrow pane. */
+  alsoRow: { paddingHorizontal: 20, paddingTop: 2 },
   outsideOffline: { paddingHorizontal: 16, paddingBottom: 6, fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string, textAlign: "center" },
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   head: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 20, paddingRight: 10 },
