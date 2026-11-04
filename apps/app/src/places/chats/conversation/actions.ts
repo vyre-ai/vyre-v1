@@ -35,8 +35,9 @@ export const REFS_BLOCK = "refs";
  * A send. chat.post goes first, with a key that makes a retry safe. An interrupt then asks the engine to take the new message now (engine.interrupt with its id); a plain send
  * is left in the queue for the agent's next step.
  */
-export async function sendMessage(data: ConversationData, input: { text: string; mentions: readonly Mention[]; key: string; kind: SendKind; working: boolean; replyTo?: string; refs?: readonly Ref[]; attachments?: readonly string[] }): Promise<SendResult> {
+export async function sendMessage(data: ConversationData, input: { text: string; mentions: readonly Mention[]; key: string; kind: SendKind; working: boolean; replyTo?: string; refs?: readonly Ref[]; attachments?: readonly string[]; alsoToChat?: boolean }): Promise<SendResult> {
   const post = postInput(data.threadId, input.text, input.mentions, input.key, input.replyTo);
+  if (input.alsoToChat === true) (post as { alsoToChat?: boolean }).alsoToChat = true;
   if (input.attachments && input.attachments.length > 0) post.attachments = [...input.attachments];
   if (input.refs && input.refs.length > 0) post.blocks = [{ type: REFS_BLOCK, v: 1, data: { refs: input.refs.map((r) => ({ kind: r.kind, id: r.id, title: r.title })) } }];
   // An Ask pane is about a place: its messages carry where the person is, so "this" means the object on screen.
@@ -72,15 +73,6 @@ export async function stopAgent(data: ConversationData, agentId?: string): Promi
 
 export async function stopAll(data: ConversationData): Promise<void> {
   await data.call("engine.stop_all", { threadId: data.threadId } satisfies CapMap["engine.stop_all"]["in"]);
-}
-
-/** Leads or Listening for one agent. The engine keeps one lead per thread: making another agent lead turns the old lead into a listener and says which. */
-export async function setMode(data: ConversationData, agentId: string, mode: AgentMode): Promise<CapMap["engine.set_mode"]["out"]> {
-  return (await data.call("engine.set_mode", { threadId: data.threadId, agentId, mode } satisfies CapMap["engine.set_mode"]["in"])) as CapMap["engine.set_mode"]["out"];
-}
-
-export async function addAgent(data: ConversationData, agentId: string): Promise<void> {
-  await data.call("threads.add_agent", { threadId: data.threadId, agentId, mode: "listen" } satisfies CapMap["threads.add_agent"]["in"]);
 }
 
 export async function removeAgent(data: ConversationData, agentId: string): Promise<void> {
@@ -149,6 +141,19 @@ export async function turnDetail(data: ConversationData, turnId: string): Promis
   return rows;
 }
 
+/** Ask again: the turn that made this reply runs once more (engine.turn.of_message finds it, engine.turn.retry runs it). Rejects when the message was not made by a turn. */
+export async function regenerate(data: ConversationData, messageId: string): Promise<void> {
+  const out = (await data.call("engine.turn.of_message", { threadId: data.threadId, messageId } satisfies CapMap["engine.turn.of_message"]["in"])) as CapMap["engine.turn.of_message"]["out"] | null;
+  const turnId = out?.turn?.turnId;
+  if (!turnId) throw new Error("no turn made this reply");
+  await retryTurn(data, turnId);
+}
+
+/** Mark this chat unread from one message on: the read point goes back to just before it. */
+export async function markUnreadFrom(data: ConversationData, seq: number): Promise<void> {
+  await data.call("threads.mark_unread_from", { threadId: data.threadId, seq } satisfies CapMap["threads.mark_unread_from"]["in"]);
+}
+
 export async function retryTurn(data: ConversationData, turnId: string): Promise<void> {
   await data.call("engine.turn.retry", { turnId } satisfies CapMap["engine.turn.retry"]["in"]);
 }
@@ -200,7 +205,12 @@ export async function hasWorkingAccount(data: ConversationData): Promise<boolean
   return out.accounts.some((a) => a.status === "ok");
 }
 
-/** A private chat never gains people: @mentioning a person offers "Start a channel with them", a new channel linked back. */
+/** @mentioning a person who is not in a private chat offers "Add <name>" first (this chat becomes a group chat; they read from now on), and "Start a channel instead" second, a new channel linked back. */
+export async function addPerson(data: ConversationData, personId: string, fromStart = false): Promise<void> {
+  await data.call("threads.members.add", { threadId: data.threadId, personId, ...(fromStart ? { fromStart: true } : {}) } satisfies CapMap["threads.members.add"]["in"]);
+}
+
+/** Starts a channel with the person: a new channel linked back to the chat. */
 export async function startChannel(data: ConversationData, personId: string, key: string): Promise<void> {
   await data.call("threads.make_channel", { threadId: data.threadId, personId, idempotencyKey: key } satisfies CapMap["threads.make_channel"]["in"]);
 }
@@ -467,4 +477,18 @@ export async function takeBackQueued(data: ConversationData, threadId: string, m
   if (!out.dropped) return false;
   await data.call("chat.delete_message", { threadId, messageId } as CapMap["chat.delete_message"]["in"]).catch(() => undefined);
   return true;
+}
+
+/** Stop every helper of this chat that is still working. */
+export async function stopHelpers(data: ConversationData): Promise<void> {
+  await data.call("engine.helpers.stop_all", { threadId: data.threadId });
+}
+
+/** Start a helper again from the brief its failed or stopped sibling was given: the same title and words, on a fresh helper. */
+export async function retryHelper(data: ConversationData, helperThreadId: string, key: string): Promise<void> {
+  const th = (await data.call("threads.get", { threadId: helperThreadId })) as { thread?: { title?: string } };
+  const msgs = (await data.call("chat.messages.list", { threadId: helperThreadId })) as { messages: Array<{ body: string }> };
+  const brief = msgs.messages[0]?.body ?? "";
+  if (brief === "") throw new Error("This helper has no brief to start again from.");
+  await data.call("chat.helper.start", { threadId: data.threadId, title: th.thread?.title ?? "Helper", instruction: brief, idempotencyKey: key });
 }

@@ -25,6 +25,10 @@ export interface ConversationNav {
   openNote?(noteId: string): void;
   /** A card's file, record or diff opens beside the chat. A "computer" card or the Computer chip passes the agent's id. */
   openBeside(kind: string, id: string): void;
+  /** The Skills tab of the pane, with this skill lit (Open on an install card). */
+  openSkills?(name: string): void;
+  /** A card's "Open in browser": an address outside the app. Left out where the shell has no browser. */
+  openUrl?(url: string): void;
   /** A goal's page (a goal card's Open). Left out where the shell has no such page. */
   openGoal?(goalId: string): void;
   /** The channel menu's "Connect an outside agent": the sheet for this channel (P-L9b_23). Left out where the shell has no such sheet. */

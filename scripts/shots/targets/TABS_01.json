@@ -1,0 +1,6 @@
+{
+  "targets": [
+    { "id": "TABS_01-before", "route": "/m/TABS_01?part=before", "proto": "chat,{skin}", "waitFor": "[data-testid='tabs-shot']", "note": "Before: Chats shown three times (the place and two chats named Chats) and a New chat tab." },
+    { "id": "TABS_01-after", "route": "/m/TABS_01?part=after", "proto": "chat,{skin}", "waitFor": "[data-testid='tabs-shot']", "note": "After: each chat is named for itself (its name, else New chat) and Chats opened again from the rail adds nothing." }
+  ]
+}

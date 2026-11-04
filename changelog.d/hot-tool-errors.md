@@ -1,1 +1,0 @@
-- An agent no longer sees a trace id or any internal id when a tool fails: it gets the error code and a plain sentence, and is told not to paste ids or traces. The trace travels beside the result, for the turn details. A tool that crashes on the server says which tool failed and that nothing was changed, in place of a bare 500.

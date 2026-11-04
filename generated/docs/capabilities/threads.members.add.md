@@ -1,6 +1,6 @@
 # threads.members.add
 
-Add a person to a thread; a private chat never gains people, so this offers a channel instead
+Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker's private profile there. A chat's own agents become visible to the newcomer.
 
 | | |
 |---|---|
@@ -27,6 +27,7 @@ Add a person to a thread; a private chat never gains people, so this offers a ch
 type In = {
   threadId: string;
   personId: string;
+  fromStart?: boolean;
 };
 ```
 
@@ -61,9 +62,18 @@ type Out = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
+    sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
     path?: Array<{
@@ -90,7 +100,6 @@ type Out = {
 - permission.no_grant
 - validation.bad_input
 - validation.not_found
-- validation.precondition_failed
 
 ## Example
 
@@ -98,6 +107,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "fromStart": true,
     "personId": "usr_a1b2c3",
     "threadId": "thr_a1b2c3"
   },
@@ -108,10 +118,17 @@ type Out = {
           "accountRef": "example",
           "agentId": "agt_a1b2c3",
           "effort": "low",
+          "hoursFrom": "09:00",
+          "hoursTo": "09:00",
           "mode": "lead",
           "model": "claude-sonnet-5-5",
+          "owned": true,
           "provider": "anthropic",
-          "watches": true
+          "quiet": true,
+          "style": "short",
+          "topics": "example",
+          "watches": true,
+          "when": "always"
         }
       ],
       "channelId": "chn_a1b2c3",
@@ -119,6 +136,7 @@ type Out = {
       "createdAt": 1760000000000,
       "folderId": "fld_a1b2c3",
       "following": true,
+      "joinedAt": {},
       "kind": "chat",
       "lastMessageAt": 1760000000000,
       "listed": true,
@@ -151,6 +169,7 @@ type Out = {
       "replyCount": 1,
       "scopeId": "example",
       "scopeType": "record",
+      "sharedAt": 1760000000000,
       "starter": "example",
       "threadId": "thr_a1b2c3",
       "title": "example",

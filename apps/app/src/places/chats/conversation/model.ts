@@ -100,7 +100,21 @@ export const isErrorBlock = (b: MessageBlock): boolean => b.type === "error";
 /** Everything else is a native card: terminal, changeset, question, plan, deploy, file, and so on. */
 /** Blocks that are data for the page, not a card: the links of a message (drawn inside its text) and the line a fork starts with (drawn as a link). */
 // on_behalf, relay and agent_dm say who an agent's message to a teammate speaks for and carry a reply back (lane l-agentdm): they shape the header and the line, never a card of their own
-const QUIET_BLOCKS = new Set(["refs", "fork_origin", "on_behalf", "relay", "agent_dm"]);
+const QUIET_BLOCKS = new Set(["refs", "fork_origin", "on_behalf", "relay", "agent_dm", "poke", "poked"]);
+
+/** The quiet line a poke leaves in the chat: "Sara poked Docs", with the note after it. The block carries the ids, so the words follow each reader's names. */
+export function pokeLine(m: Pick<Message, "blocks">, nameOf: (id: string) => string): string | null {
+  const b = m.blocks.find((x) => x.type === "poke");
+  const d = b?.data as { by?: unknown; agentId?: unknown; note?: unknown } | null | undefined;
+  if (!d || typeof d.by !== "string" || typeof d.agentId !== "string") return null;
+  return `${nameOf(d.by)} poked ${nameOf(d.agentId)}${typeof d.note === "string" && d.note !== "" ? `: ${d.note}` : ""}`;
+}
+
+/** "Poked by Sara": the quiet line under a reply an agent wrote because a person poked it. */
+export function pokedBy(m: Pick<Message, "blocks">, nameOf: (id: string) => string): string | null {
+  const d = m.blocks.find((x) => x.type === "poked")?.data as { by?: unknown } | null | undefined;
+  return d && typeof d.by === "string" ? `Poked by ${nameOf(d.by)}` : null;
+}
 export const isCard = (b: MessageBlock): boolean => !isStep(b) && !isToolStep(b) && !isErrorBlock(b) && !isTurnStatus(b) && !QUIET_BLOCKS.has(b.type);
 export { isSystemLine, isTurnStatus, statusView, withoutAnswered } from "./status.ts";
 export type { StatusView } from "./status.ts";
@@ -385,6 +399,8 @@ export interface Pending {
   files?: readonly PendingFile[];
   /** Links picked for [[ ]] or # chips, sent as the message's refs. */
   refs?: readonly PendingRef[];
+  /** From a thread: also post these words to the chat the thread hangs in. */
+  alsoToChat?: boolean;
 }
 
 export interface PendingFile { name: string; file?: unknown; size?: number; mime?: string; fileId?: string }
@@ -500,17 +516,7 @@ export function matchLine(n: number, at: number, query: string): string {
   return n === 0 ? "No matches" : `${at + 1} of ${n}`;
 }
 
-export interface Participant { id: string; name: string; kind: "person" | "agent"; role: string }
 
-/** Everyone in the thread for the participants menu: people first, then agents with their mode. */
-export function participants(t: Thread, nameOf: (id: string) => string): Participant[] {
-  const out: Participant[] = [];
-  for (const m of t.members) {
-    if (m.kind === "person") out.push({ id: m.id, name: nameOf(m.id), kind: "person", role: "Person" });
-  }
-  for (const a of t.agents) out.push({ id: a.agentId, name: nameOf(a.agentId), kind: "agent", role: t.agents.length === 1 ? "Agent" : a.mode === "lead" ? "Replies to everything" : "Only when @mentioned" });
-  return out;
-}
 
 /** A thread that has closed takes no messages until it is reopened. */
 export const isClosed = (t: Thread): boolean => t.closedAt !== undefined;

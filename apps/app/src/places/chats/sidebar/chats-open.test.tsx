@@ -54,7 +54,8 @@ test("the open row is the chat, else the channel of its thread, else the importe
 /* ---------- the drawn list follows the page ---------- */
 
 test("selection follows the open page across a tab switch, a link and Cmd-K for every row type, and nothing is selected when the page has no row", async () => {
-  const { root, show } = await drawn(createRoot, { imported: IMPORTED, open: "t:c1", artifacts: true });
+  // a Team Space has channels and no imported sessions; a Personal Space has imported sessions and no channels: two draws cover every row type
+  const { root, show } = await drawn(createRoot, { open: "t:c1", artifacts: true });
   assert.deepEqual(selectedRows(root), ["c:c1"], "the open chat");
   const channel = rowIds(root, "row-ch:")[0]!.slice("row-ch:".length);
   await show(`t:th_${channel}`);
@@ -66,14 +67,27 @@ test("selection follows the open page across a tab switch, a link and Cmd-K for 
   assert.deepEqual(selectedRows(root), ["nav:tasks"]);
   await show("artifacts");
   assert.deepEqual(selectedRows(root), ["artifacts"]);
-  await show("i:isc_a");
-  assert.deepEqual(selectedRows(root), ["i:isc_a"], "an imported transcript");
   await show("t:c3");
-  assert.deepEqual(selectedRows(root), ["c:c3"], "Cmd-K to another chat: the imported row is no longer lit while you are not in it");
+  assert.deepEqual(selectedRows(root), ["c:c3"], "Cmd-K to another chat");
   await show(null);
   assert.deepEqual(selectedRows(root), [], "a new chat has no row: nothing is selected");
   await show("t:thr_nowhere");
   assert.deepEqual(selectedRows(root), [], "a chat with no row in the list: nothing");
+  const personal = await drawn(createRoot, { imported: IMPORTED, open: "t:c1" });
+  assert.deepEqual(selectedRows(personal.root), ["c:c1"], "the open chat, in a Personal Space");
+  await personal.show("i:isc_a");
+  assert.deepEqual(selectedRows(personal.root), ["i:isc_a"], "an imported transcript");
+  await personal.show("t:c3");
+  assert.deepEqual(selectedRows(personal.root), ["c:c3"], "Cmd-K to another chat: the imported row is no longer lit while you are not in it");
+});
+
+test("an imported transcript is selected while it is open and not once Cmd-K goes to a chat (a Personal Space lists imported sessions)", async () => {
+  const { root, show } = await drawn(createRoot, { imported: IMPORTED, open: "t:c1" });
+  assert.deepEqual(selectedRows(root), ["c:c1"], "the open chat");
+  await show("i:isc_a");
+  assert.deepEqual(selectedRows(root), ["i:isc_a"], "an imported transcript");
+  await show("t:c3");
+  assert.deepEqual(selectedRows(root), ["c:c3"], "Cmd-K to another chat: the imported row is no longer lit while you are not in it");
 });
 
 test("a press opens the page but the selection waits for it: a row stays unselected until the place shows it", async () => {

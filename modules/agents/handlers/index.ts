@@ -1,7 +1,7 @@
 // Handler table of the agents module: all the capabilities of manifests/agents.ts. The record, lifecycle, configuration and versions are in crud.ts; routines, suggestions, the Agent template and
 // Vyre's own text are in routines.ts.
 import {
-  assistantOf, configGet, configMaySave, configValidate, connectOutside, create, get, limitsGet, list, memoryKeyGet, pause, remove, restore, setOwner, restoreVersion, resume, roleLineSet, instructionAppend, snapshotTake, status, summary, update, versions, visibilitySet,
+  assistantOf, configGet, configMaySave, configValidate, connectOutside, create, get, limitsGet, list, memoryKeyGet, pause, remove, restore, setOwner, restoreVersion, resume, roleLineSet, instructionAppend, snapshotTake, status, summary, update, versions, visibilitySet, peopleSummary, pausePerson,
 } from "./crud.ts";
 import { builtinSkillGet, builtinSkillsList, guideGet, routineDelegate, routineDelete, routineRunNow, routineSave, routinesList, suggestionAccept, suggestionDismiss, suggestionPropose, suggestionsList, templateApply, templateGet, templatePreview } from "./routines.ts";
 
@@ -11,10 +11,23 @@ import {
 } from "./plugins.ts";
 import { connectionAddMine, connectionChecked, connectionForget, connectionUpdate, connectionsHome, policyGet, policySet as connectionsPolicySet, registrySearch } from "./connections.ts";
 import { enqueue, next, seen, usable } from "./outside.ts";
+import { mineAddShared, apply, checkUpdate, fromLink, installGet, installList, installRemove, skillsOfAgents, skillsGrant, skillsGrants, skillsHistory, skillsSave, skillsUndo } from "./install.ts";
 import { skillsAdd, skillsList, skillsLoad, skillsRemove, skillsSetEnabled } from "./skills.ts";
 import { mineAdd, mineRemove, mineSet, mineUpdate, policySet, share, sharedDecide, skillsMembers, skillsPage, skillsPreview, skillsView, spaceAdopt, spaceInstall, spaceSetup, spaceUpdate } from "./skill-scopes.ts";
 
 export const handlers = {
+  "install.apply": apply,
+  "install.check_update": checkUpdate,
+  "install.from_link": fromLink,
+  "install.get": installGet,
+  "install.list": installList,
+  "install.remove": installRemove,
+  "skills.of_agents": skillsOfAgents,
+  "skills.grant": skillsGrant,
+  "skills.grants": skillsGrants,
+  "skills.history": skillsHistory,
+  "skills.save": skillsSave,
+  "skills.undo": skillsUndo,
   "agents.outside.connect": connectOutside,
   "agents.outside.enqueue": enqueue,
   "agents.outside.seen": seen,
@@ -60,7 +73,7 @@ export const handlers = {
   "skills.view": skillsView,
   "skills.preview": skillsPreview,
   "skills.members": skillsMembers,
-  "skills.mine.add": mineAdd,
+  "skills.mine.add": mineAddShared,
   "skills.mine.set": mineSet,
   "skills.mine.remove": mineRemove,
   "skills.mine.update": mineUpdate,
@@ -72,6 +85,8 @@ export const handlers = {
   "skills.space.setup": spaceSetup,
   "skills.policy.set": policySet,
   "agents.list": list,
+  "agents.people_summary": peopleSummary,
+  "agents.pause_person": pausePerson,
   "agents.get": get,
   "agents.memory_key.get": memoryKeyGet,
   "agents.assistant_of": assistantOf,

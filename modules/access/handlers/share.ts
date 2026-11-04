@@ -11,7 +11,7 @@ import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
 import type { ResourceType } from "../../../packages/contracts/src/types.ts";
 import type { AccessCtx, AccessStore, Cond, Db, GrantRec, Level, Ref, ResourceRec, ResourceRef, SubjectRef } from "../projections.ts";
-import { changed, EVERYONE, fnv, grantView, isExpr, labelRank, nid, page, pkey, raise, storeOf } from "../projections.ts";
+import { agentLevel, changed, EVERYONE, fnv, grantView, isExpr, isPrivateAgent, labelRank, nid, page, pkey, raise, storeOf } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
 
 export type Via = "owner" | "grant" | "folder" | "space";
@@ -398,6 +398,8 @@ function assertFlags(ctx: ShareCtx, store: AccessStore, res: ResourceRec, next: 
 
 /** Sharing a record or a record type needs Manage, or Edit with the right to share it on. */
 function mayShareOn(ctx: ShareCtx, store: AccessStore, res: ResourceRec, have: Level): boolean {
+  // an agent is shared by whoever manages it (Share's fourth level: share, rename, delete), not by an editor
+  if (res.type === "agent") return atLeast(res.type, have, "manage");
   if (!RECORDS.has(res.type) || atLeast(res.type, have, "manage")) return true;
   const snap = store.snapshot();
   const acting = actingId(ctx);
@@ -496,6 +498,7 @@ export async function joinShare(ctx: ShareCtx, input: { resource: ResourceRef; p
   const res = resourceOf(ctx, store, input.resource);
   const subject: SubjectRef = { kind: "person", id: input.person };
   checkSubject(ctx, store, subject);
+  input = { ...input, level: agentLevel(res.type, input.level) };
   if (!atLeast(res.type, levelFor(store, input.inviter, res, ctx.now()), input.level)) raise(trace, "permission.not_contained", "The person who sent the invite can no longer give this.");
   const have = [...store.grants.values()].find((g) => g.subject.kind === "person" && g.subject.id === input.person && g.resource.id === res.id && g.source === input.source);
   if (have) return { grant: grantView(have) };
@@ -509,7 +512,7 @@ export async function joinShare(ctx: ShareCtx, input: { resource: ResourceRef; p
 }
 
 export async function share(ctx: ShareCtx, input: {
-  resource: ResourceRef; subject: SubjectRef; level: Level; conditions?: Cond; source?: string; idempotencyKey?: string; export?: boolean; reshare?: boolean;
+  resource: ResourceRef; subject: SubjectRef; level: Level; conditions?: Cond; source?: string; idempotencyKey?: string; export?: boolean; reshare?: boolean; notify?: { message?: string };
 }) {
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
@@ -517,6 +520,9 @@ export async function share(ctx: ShareCtx, input: {
   const key = input.idempotencyKey ? `share:${ctx.principal.id}:${input.idempotencyKey}` : "";
   if (key) { const hit = ss.idem.get(key); if (hit) return hit as { grant: GrantRec }; }
   const res = resourceOf(ctx, store, input.resource);
+  input = { ...input, level: agentLevel(res.type, input.level) };   // Can chat with is Can use
+  // a person's Assistant (and an outside agent they connected) is theirs alone: nobody else can be given it, whatever the level
+  if (res.type === "agent" && isPrivateAgent(store, res.id)) raise(trace, "validation.precondition_failed", "This agent is private: it is your Assistant or an outside agent you connected, and it stays yours alone. Share a shared agent instead.");
   checkSubject(ctx, store, input.subject);
   let cond = checkConditions(ctx, input.conditions);
   if (input.subject.kind === "link") cond = checkLink(ctx, store, res, input.subject, input.level, cond);
@@ -553,6 +559,12 @@ export async function share(ctx: ShareCtx, input: {
   }
   changed(ctx, store, "assignment");
   if (res.type === "folder") ctx.emit("folder.shared", res.id, { folderId: res.id, subject: grant.subject, level: grant.level, removed: false });
+  // the sharer asked to tell the person: one notification and Inbox line, never for oneself
+  if (input.notify !== undefined && created && grant.subject.kind === "person" && grant.subject.id !== ctx.principal.id) {
+    const byName = store.principals.get(actingId(ctx) ?? ctx.principal.id)?.name ?? "Someone";
+    const note = input.notify.message?.trim();
+    ctx.emit("access.shared_with", grant.subject.id, { to: grant.subject.id, resource: grant.resource, level: grant.level, byName, title: titleOf(ss, res), ...(note ? { message: note } : {}) });
+  }
   commit(ctx, store, ss, wasFresh, [res.id], false);
   const out = { grant: grantView(grant) };
   if (key) ss.idem.set(key, out);
@@ -661,6 +673,14 @@ export async function deciders(ctx: ShareCtx, input: { resource: ResourceRef }):
   return { people };
 }
 
+/** Someone else's private agent: their Assistant or an outside agent they connected. Only its own person sees it listed. */
+function hiddenAgent(ctx: ShareCtx, store: AccessStore, agentId: string): boolean {
+  if (!isPrivateAgent(store, agentId)) return false;
+  const owner = store.principals.get(agentId)?.owner;
+  const me = actingId(ctx) ?? ctx.principal.id;
+  return owner !== me;
+}
+
 export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) {
   const store = storeOf(ctx);
   const res = resourceOf(ctx, store, input.resource);
@@ -683,13 +703,17 @@ export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) 
   all.sort((a, b) => (a.id < b.id ? -1 : 1));
   for (const g of all) {
     if (g.conditions.expiresAt !== undefined && g.conditions.expiresAt <= now) continue;
+    // an item never lists itself, and nobody sees another person's private agent (an Assistant, an outside agent) by name
+    if (g.subject.kind === "agent" && (g.subject.id === res.id || hiddenAgent(ctx, store, g.subject.id))) continue;
     const ancestor = g.resource.id !== "*" && g.resource.id !== res.id;
     const through = ancestor ? "folder" : g.subject.kind === "group" ? "group" : g.subject.kind === "role" ? "role" : "direct";
     shares.push({ grant: grantView(g), through });
   }
-  if (!RECORDS.has(res.type)) return { shares };
+  const mine = callerLevel(ctx, store, res) ?? undefined;
+  const agentsCanCall = res.type === "agent" ? res.row?.["agentsCanCall"] !== false : undefined;
+  if (!RECORDS.has(res.type)) return { shares, ...(mine ? { mine } : {}), ...(agentsCanCall === undefined ? {} : { agentsCanCall }) };
   const audience = audienceOf(res);
-  const out: { shares: typeof shares; audience: Audience; exporters: Exporters; inherits?: string; outside?: boolean; can: Rights } = { shares, audience, exporters: exportersOf(store, res), can: rightsOf(ctx, store, res) };
+  const out: { shares: typeof shares; mine?: Level; audience: Audience; exporters: Exporters; inherits?: string; outside?: boolean; can: Rights } = { shares, ...(mine ? { mine } : {}), audience, exporters: exportersOf(store, res), can: rightsOf(ctx, store, res) };
   if (res.type === "record_type") out.outside = res.row?.["outside"] === true;
   // a record follows its type until it is cut off from it
   if (res.type === "record" && audience === "space" && res.parentId !== null && store.resources.get(res.parentId)?.type === "record_type") out.inherits = res.parentId;
@@ -779,6 +803,58 @@ export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef;
   changed(ctx, store, "assignment");
   commit(ctx, store, ss, wasFresh, [res.id], false);
   return { audience: audienceOf(res), exporters: exportersOf(store, res), outside: res.row?.["outside"] === true };
+}
+
+/** The owner hands an item to another active person. The previous owner keeps Manage as a grant of their own, so handing it over never locks them out. */
+export async function makeOwner(ctx: ShareCtx, input: { resource: ResourceRef; personId: string }) {
+  const store = storeOf(ctx);
+  const ss = shareOf(ctx);
+  const trace = ctx.trace.traceId;
+  if (ctx.principal.kind !== "person") raise(trace, "permission.no_grant", "Only a person hands over ownership.");
+  const res = resourceOf(ctx, store, input.resource);
+  if (res.ownerId !== ctx.principal.id) raise(trace, "permission.no_grant", "Only the owner hands this over.");
+  const to = store.principals.get(input.personId);
+  if (!to || to.kind !== "person" || to.status !== "active") raise(trace, "validation.bad_input", "Pick an active person in this Space.");
+  if (input.personId === ctx.principal.id) raise(trace, "validation.bad_input", "It is already yours.");
+  const wasFresh = isFresh(ctx, store, ss);
+  const from = res.ownerId;
+  // whatever the new owner held directly on it is now the owner's, so those grants go
+  for (const g of [...store.grants.values()]) if (g.resource.id === res.id && g.subject.kind === "person" && g.subject.id === input.personId && g.source === undefined) dropGrant(ctx, store, g);
+  res.ownerId = input.personId;
+  if (from) {
+    const g: GrantRec = { id: nid("gnt"), subject: { kind: "person", id: from }, resource: { type: res.type, id: res.id }, level: "manage", conditions: {}, by: ctx.principal.id, createdAt: ctx.now() };
+    store.grants.set(g.id, g);
+    ctx.emit("grant.created", g.id, { grantId: g.id, subject: g.subject, resource: g.resource, level: g.level });
+  }
+  changed(ctx, store, "assignment");
+  commit(ctx, store, ss, wasFresh, [res.id], false);
+  return { ok: true };
+}
+
+/** Whether other agents may hand work to this agent. On unless a person turned it Off. */
+export async function agentsCanCallGet(ctx: ShareCtx, input: { agentId: string }) {
+  const store = storeOf(ctx);
+  const res = store.resources.get(input.agentId);
+  if (!res || res.type !== "agent") raise(ctx.trace.traceId, "validation.not_found", "no such agent");
+  return { on: res.row?.["agentsCanCall"] !== false };
+}
+
+/** A person with Manage on the agent turns calls from other agents On or Off. An agent never does. */
+export async function agentsCanCallSet(ctx: ShareCtx, input: { agentId: string; on: boolean }) {
+  const store = storeOf(ctx);
+  const ss = shareOf(ctx);
+  const trace = ctx.trace.traceId;
+  if (ctx.principal.kind !== "person" || (actingId(ctx) !== undefined && actingId(ctx) !== ctx.principal.id)) raise(trace, "permission.no_grant", "Only a person changes who may call an agent.");
+  const res = store.resources.get(input.agentId);
+  if (!res || res.type !== "agent") raise(trace, "validation.not_found", "no such agent");
+  must(ctx, store, res, "manage", "changing who may call this agent");
+  const wasFresh = isFresh(ctx, store, ss);
+  const row: Record<string, unknown> = { ...(res.row ?? {}) };
+  if (input.on) delete row["agentsCanCall"]; else row["agentsCanCall"] = false;
+  if (Object.keys(row).length > 0) res.row = row; else delete res.row;
+  changed(ctx, store, "assignment");
+  commit(ctx, store, ss, wasFresh, [res.id], false);
+  return { on: input.on };
 }
 
 /** What differs from its type among the rows of one type, and whether the caller was given the type or a row by name (not just the role they hold). */

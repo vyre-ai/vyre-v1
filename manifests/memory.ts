@@ -129,6 +129,17 @@ export default defineManifest({
       },
       out: { quotes: t.arr(quoteRow) }, label: 'filter', tool: 'memory', mcpName: 'memory_quote', agent: { planMode: 'allowed' }, cli: 'vyre memory quote', rate: { n: 120, perSeconds: 60, scope: 'principal' },
     }),
+    read('memory.place.list', 'Knows tab: what Vyre remembers in one place, each with kind, state, who said it, the message and words; with linked places (scope linked) and Space markers (scope space) the caller may open. canEdit says whether Edit and Remove show', {
+      in: { placeKind: t.enm('chat', 'channel', 'project', 'task', 'goal', 'record'), placeId: t.str(), history: t.opt(t.bool({ description: 'Include replaced and removed ones' })) },
+      out: { facts: t.arr(t.json()) }, label: 'filter', tool: 'memory', mcpName: 'memory_place_list', agent: { planMode: 'allowed' }, errors: ['validation.bad_input'],
+    }),
+    write('memory.place.archive', 'A place was archived or deleted: its memory is archived (restorable by an admin) or deleted with it. Whoever may edit the place\'s memory, or an admin', {
+      in: { placeKind: t.enm('chat', 'channel', 'project', 'task', 'goal', 'record'), placeId: t.str(), action: t.enm('archive', 'delete') }, out: { facts: t.int({ minimum: 0 }) },
+      emits: ['memory.removed'], tool: 'memory', offline: 'online', errors: ['validation.bad_input'],
+    }),
+    write('memory.source_removed', 'A message was deleted: what memory derived from it is dropped, and a statement it replaced holds again', {
+      in: { threadId: id.thread, messageId: id.message }, out: { dropped: t.int({ minimum: 0 }) }, emits: ['memory.removed'], tool: 'memory', offline: 'online', idem: 'natural', risk: 'low',
+    }),
     read('memory.keys.get', 'The account that pays for memory upkeep: yours for personal memory, and for an admin the Space\'s with the accounts it can be picked from and the keys picked for projects', {
       in: {}, out: { personal: keyPicker, admin: t.bool(), space: t.opt(keyPicker), projectKeys: t.opt(t.rec(t.str())) }, label: 'check', tool: 'memory',
     }),

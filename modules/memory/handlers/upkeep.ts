@@ -461,6 +461,8 @@ export async function questionResolve(ctx: MemCtx, input: { questionId: string; 
     if (r === "drop") trashFact(ctx, a, { reason: "stale", action: "delete", source: "question" });
   }
   ctx.db.run("UPDATE memory_questions SET status = 'resolved', resolved_at = ?, resolved_by = ?, resolution = ? WHERE id = ?", ctx.now(), actorOf(ctx), r, input.questionId);
+  // a dispute is over once someone answered it: what stays is no longer disputed
+  ctx.db.run("UPDATE memory_facts SET state = NULL WHERE state = 'disputed' AND id IN (?, ?)", a.id, b?.id ?? a.id);
   trail(ctx, { action: "resolve", factId: a.id, layer: a.layer, ownerRef: a.ownerRef, agentId: a.agentId, projectId: a.projectId, reason: r, detail: { questionId: input.questionId, kind } });
   return { ok: true, resolution: r };
 }

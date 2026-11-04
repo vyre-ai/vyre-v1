@@ -64,6 +64,7 @@ const progress = t.obj({
   value: t.opt(t.num()), target: t.opt(t.num()), start: t.opt(t.num()), percent: t.opt(t.int({ minimum: 0, maximum: 100 })), readAt: t.opt(t.ts()), error: t.opt(t.str()),
   itemsDone: t.opt(t.int()), items: t.opt(t.int()), tasksDone: t.int(), tasks: t.int(),
 });
+const seat = t.obj({ kind: t.enm('person', 'agent'), id: t.str(), inChat: t.bool(), error: t.opt(t.str()) });
 const goalRow = t.obj({
   id: goalId, title: t.str(), outcome: t.opt(t.str()), finish, deadline: t.ts(), owner: id.user, leadAgentId: id.agent, helpers: t.arr(who),
   projectId: t.opt(id.project), recordIds: t.arr(id.record), budget, rhythm, zone: t.str({ examples: ['Asia/Karachi'] }), quiet: t.nullable(quiet), permissions: t.arr(permission),
@@ -112,32 +113,36 @@ export default defineManifest({
         permissions: t.opt(t.arr(permission, { maxItems: 10 })), plan: t.opt(t.arr(planChild, { maxItems: 50 })), stuckAfter: t.opt(t.int({ minimum: 1, maximum: 20 })),
         sourceThreadId: t.opt(id.thread), start: t.opt(t.bool()),
       },
-      out: { goal: goalRow, overlaps: t.arr(t.obj({ goalId, title: t.str(), recordId: id.record })) }, level: 'member',
+      out: { goal: goalRow, overlaps: t.arr(t.obj({ goalId, title: t.str(), recordId: id.record })), seated: t.arr(seat), plan: t.obj({ drafted: t.int(), attached: t.int() }) }, level: 'member',
       emits: EMITS, tool: 'tasks', mcpName: 'goals_create', cli: 'vyre goals create',
       errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
-    write('goals.confirm', 'Start a drafted goal: the owner presses Start on its card. The standing permissions it names hold from this press', {
-      in: { ...target, permissions: t.opt(t.arr(t.str(), { description: 'The labels of the permissions to grant; all when omitted' })) }, out: { goal: goalRow }, level: 'member',
+    write('goals.confirm', 'Start a drafted goal: the owner presses Start on its card, or an agent acting for the owner starts it with messageId, the message in which the owner asked for it, in the goal chat and under 15 minutes old. An agent start grants no permission. The standing permissions it names hold from this press', {
+      in: { ...target, permissions: t.opt(t.arr(t.str(), { description: 'The labels of the permissions to grant; all when omitted' })), messageId: t.opt(id.message) }, out: { goal: goalRow }, level: 'member',
       emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     read('goals.get', 'One goal: its finish line and progress, the plan as tasks, who is helping, what waits on whom, budget used and the latest activity', {
-      in: target, out: { goal: goalRow, tasks: t.arr(taskLine), waiting: t.arr(waitLine), activity: t.arr(activity), readings: t.arr(reading) }, level: 'member', tool: 'tasks', mcpName: 'goals_get', label: 'check',
+      in: target, out: { goal: goalRow, draftPlan: t.opt(t.arr(planChild)), tasks: t.arr(taskLine), waiting: t.arr(waitLine), activity: t.arr(activity), readings: t.arr(reading) }, level: 'member', tool: 'tasks', mcpName: 'goals_get', label: 'check',
       errors: ['validation.not_found'],
     }),
     read('goals.list', 'Goals by scope: mine, the ones I help with, a project, a record, a task, or all I can see', {
       in: { scope: t.enm('mine', 'helping', 'project', 'record', 'task', 'all'), projectId: t.opt(id.project), recordId: t.opt(id.record), taskId: t.opt(id.task), open: t.opt(t.bool()) },
       out: { goals: t.arr(goalLine) }, level: 'member', tool: 'tasks', mcpName: 'goals_list', label: 'filter', cli: 'vyre goals list',
     }),
+    read('goals.count', 'How many goals a project has, whoever may open them: a number and nothing else (never a title). Only a manager of the project or the system may ask; the Overview uses it to say how many goals a reader may not open', {
+      in: { projectId: id.project }, out: { count: t.int({ minimum: 0 }) }, level: 'member', tool: 'tasks',
+    }),
     read('goals.activity', 'The activity of a goal, newest first: every reading, wake-up, step, task and status change, and why', {
       in: { ...target, before: t.opt(t.ts()), limit: t.opt(t.int({ minimum: 1, maximum: 200 })) }, out: { activity: t.arr(activity) }, level: 'member', tool: 'tasks', errors: ['validation.not_found'],
     }),
-    write('goals.update', 'Change a goal: its finish line, deadline, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)', {
+    write('goals.update', 'Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)', {
       in: {
         ...target, title: t.opt(t.str({ minLength: 1, maxLength: 140 })), outcome: t.opt(t.str()), finish: t.opt(finish), deadline: t.opt(t.ts()), budget: t.opt(budget), rhythm: t.opt(rhythm),
         quiet: t.opt(t.nullable(quiet)), zone: t.opt(t.str()), helpers: t.opt(t.arr(who, { maxItems: 20 })), projectId: t.opt(t.nullable(id.project)), recordIds: t.opt(t.arr(id.record, { maxItems: 50 })),
         permissions: t.opt(t.arr(permission, { maxItems: 10 })), stuckAfter: t.opt(t.int({ minimum: 1, maximum: 20 })),
+        leadAgentId: t.opt(id.agent), owner: t.opt(id.user), plan: t.opt(t.arr(planChild, { maxItems: 50, description: 'A draft goal only: the drafted plan, replaced whole' })),
       },
-      out: { goal: goalRow }, level: 'member', emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
+      out: { goal: goalRow, seated: t.opt(t.arr(seat)) }, level: 'member', emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('goals.pause', 'Pause a goal: no wake-ups and none of its tasks wake their agents until it is resumed', {
       in: { ...target, reason: t.opt(t.str()) }, out: { goal: goalRow }, level: 'member', emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
@@ -163,7 +168,7 @@ export default defineManifest({
     }),
     write('goals.plan', 'Add tasks to the plan of a goal: each with its brief, what done means, who does it (an agent, a person, a group) and what it waits on. They are tasks like any other and show "Part of" the goal', {
       in: { ...target, children: t.arr(planChild, { minItems: 1, maxItems: 50 }) },
-      out: { tasks: t.arr(t.obj({ key: t.str(), taskId: id.task, created: t.bool() })) }, level: 'member', emits: EMITS, tool: 'tasks', mcpName: 'goals_plan_update',
+      out: { tasks: t.arr(t.obj({ key: t.str(), taskId: id.task, created: t.bool() })), drafted: t.opt(t.int({ description: 'For a draft goal: how many steps the drafted plan holds now. They become tasks when the owner starts it' })) }, level: 'member', emits: EMITS, tool: 'tasks', mcpName: 'goals_plan_update',
       errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('goals.report', 'Post the check-in in the goal chat: the real number against the pace, what changed and why, what was done, the next best step. One per wake-up; short and specific', {

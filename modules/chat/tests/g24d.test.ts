@@ -30,8 +30,8 @@ async function refuses(hn: Harness, name: string, code: string, run: () => Promi
   assert.ok((cap(name).errors as readonly string[]).includes(code), `${name} does not declare ${code}`);
 }
 
-test("the table holds the fourteen capabilities of this group, all frozen chat capabilities, each example input valid", () => {
-  assert.equal(NAMES.length, 14);   // plus chat.question.withdraw (l-learn2)
+test("the table holds the nineteen capabilities of this group, all frozen chat capabilities, each example input valid", () => {
+  assert.equal(NAMES.length, 19);   // the 13, plus chat.question.withdraw (l-learn2), chat.helper.steer (l-crews: ask a running helper) and the three helper notes (chat.helper.note, chat.helper.note_seen, chat.helper.notes), plus chat.helper.restart (Change model)
   for (const name of NAMES) {
     const c = cap(name);
     assert.equal(c.module, "chat", name);
@@ -257,7 +257,7 @@ test("helpers count against the chat's one budget of agent turns (owner ruling, 
 });
 
 test("handoff opens a linked thread for the other agent and counts the hop", async () => {
-  const hn = harness({ calls: { "settings.get": () => ({ row: { value: 2 } }) } });
+  const hn = harness({ calls: { "settings.get": () => ({ row: { value: 2 } }), "access.agents_can_call.get": () => ({ on: true }) } });
   const threadId = await chatOf(hn);
   const input = { threadId, toAgentId: REVIEWER, note: "Please review the draft." };
   const out = await ok(hn, "chat.handoff", input, () => g["chat.handoff"](hn.agent(INTAKE), input));
@@ -276,4 +276,15 @@ test("handoff opens a linked thread for the other agent and counts the hop", asy
   await refuses(hn, "chat.handoff", "validation.bad_input", () => g["chat.handoff"](hn.agent(INTAKE), { threadId, toAgentId: INTAKE, note: "me" }));
   await refuses(hn, "chat.handoff", "validation.bad_input", () => g["chat.handoff"](hn.agent(INTAKE), { threadId, toAgentId: "usr_dana", note: "x" }));
   await refuses(hn, "chat.handoff", "validation.not_found", () => g["chat.handoff"](hn.agent(INTAKE), { threadId: "thr_none", toAgentId: REVIEWER, note: "x" }));
+});
+
+test("handoff: an agent is refused when the other agent has calls from agents turned Off; a person is not asked", async () => {
+  const hn = harness({ calls: { "settings.get": () => ({ row: { value: 2 } }), "access.agents_can_call.get": () => ({ on: false }) } });
+  const threadId = await chatOf(hn);
+  const input = { threadId, toAgentId: REVIEWER, note: "Please review the draft." };
+  await refuses(hn, "chat.handoff", "permission.no_grant", () => g["chat.handoff"](hn.agent(INTAKE), input));
+  assert.equal(hn.named("agent.handoff").length, 0, "nothing was handed over");
+  hn.clear();
+  assert.equal((await g["chat.handoff"](hn.ctx, input)).depth, 1, "a person may still hand work on");
+  assert.equal(hn.callLog.some((c) => c.cap === "access.agents_can_call.get"), false);
 });

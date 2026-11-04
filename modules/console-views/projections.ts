@@ -12,7 +12,7 @@ import type { CapName, ErrorCode, VyreError } from "../../packages/contracts/src
 export type ViewCtx = Pick<Ctx, "space" | "principal" | "trace" | "now" | "call" | "authorize">;
 
 export type State = "healthy" | "degraded" | "down";
-export type AttentionKind = "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel" | "no_ai_account";
+export type AttentionKind = "failing_check" | "expiring_certificate" | "failed_run" | "stuck_update" | "limit_hit" | "access_review_due" | "join_stuck" | "home_channel" | "no_ai_account" | "space_deletion_scheduled";
 export interface Attention { kind: AttentionKind; title: string; ref?: string; since: number; next: string }
 export interface ActivityRow { at: number; actor: string; action: string; resource?: string }
 
@@ -63,7 +63,7 @@ export async function ask(ctx: ViewCtx, cap: string, input: Record<string, unkno
 
 // ---- attention
 
-const KIND_ORDER: Record<AttentionKind, number> = { no_ai_account: 0, failing_check: 1, expiring_certificate: 2, stuck_update: 3, failed_run: 4, join_stuck: 5, limit_hit: 6, access_review_due: 7, home_channel: 8 };
+const KIND_ORDER: Record<AttentionKind, number> = { space_deletion_scheduled: -1, no_ai_account: 0, failing_check: 1, expiring_certificate: 2, stuck_update: 3, failed_run: 4, join_stuck: 5, limit_hit: 6, access_review_due: 7, home_channel: 8 };
 
 function checkItems(health: Record<string, unknown> | null, now: number): Attention[] {
   const found: { item: Attention; state: State }[] = [];
@@ -152,6 +152,18 @@ function aiItems(space: Record<string, unknown> | null, providers: Record<string
   return [{ kind: "no_ai_account", title: "Your team has no AI account", since: now, next: "Set a Space AI key, or share a key with the Space, so every member's chats get replies." }];
 }
 
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+/** A deletion waits this long after it is scheduled; the Overview line says since when. */
+const DELETION_DELAY_MS = 14 * DAY_MS;
+
+/** The Space is scheduled for deletion: the date, and the way to cancel. Every admin sees it until the date passes or it is cancelled. */
+function deletionItems(space: Record<string, unknown> | null, now: number): Attention[] {
+  const at = num(asRow(space?.["space"])?.["deletionAt"]);
+  if (at === undefined) return [];
+  const d = new Date(at);
+  return [{ kind: "space_deletion_scheduled", title: `Scheduled for deletion on ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`, since: Math.min(now, at - DELETION_DELAY_MS), next: "Cancel deletion" }];
+}
+
 export interface Gathered { health: State; attention: Attention[] }
 
 /** Health and attention in one pass, so the Overview and console.attention agree. */
@@ -173,7 +185,7 @@ export async function gather(ctx: ViewCtx): Promise<Gathered> {
   // health.status unreadable is itself a reason to look: degraded, never silently healthy
   const state: State = isState(overall) ? overall : "degraded";
   const kept = asRow(keep?.["row"])?.["value"] === true;
-  const items = [...checkItems(health, now), ...certItems(net, now), ...updateItems(up, now), ...runItems(runs), ...joinItems(joins), ...reviewItems(reviews), ...(kept ? [] : homeItems(home, now)), ...aiItems(space, providers, now)];
+  const items = [...checkItems(health, now), ...certItems(net, now), ...updateItems(up, now), ...runItems(runs), ...joinItems(joins), ...reviewItems(reviews), ...(kept ? [] : homeItems(home, now)), ...aiItems(space, providers, now), ...deletionItems(space, now)];
   const rank = (a: Attention): number => KIND_ORDER[a.kind];
   const attention = items.map((a, i) => ({ a, i })).sort((x, y) => rank(x.a) - rank(y.a) || x.i - y.i).map((x) => x.a).slice(0, ATTENTION_MAX);
   if (!health) attention.unshift({ kind: "failing_check", title: "Health could not be read", since: now, next: "Open Diagnostics and run the checks." });
@@ -262,7 +274,7 @@ export const NAV: readonly NavGroup[] = [
   ] },
   { key: "ai", title: "AI", pages: [
     { key: "console.ai-models", title: "Models and providers", perm: "ai.models" }, { key: "gate.rules", title: "Gate rules", perm: "policy.manage" },
-    { key: "console.ai-spend", title: "Spend and limits", perm: "ai.spend" },
+    { key: "console.ai-voice", title: "Voice", perm: "policy.manage" }, { key: "console.ai-spend", title: "Spend and limits", perm: "ai.spend" },
     { key: "console.ai-review", title: "Review sampling", perm: "ai.incidents" }, { key: "console.ai-incidents", title: "Incidents", perm: "ai.incidents" },
   ] },
   { key: "comms", title: "Comms", pages: [
@@ -272,12 +284,12 @@ export const NAV: readonly NavGroup[] = [
   { key: "integrations", title: "Integrations", pages: [
     { key: "company.setup", title: "Connect your company", perm: "connectors.manage" }, { key: "google.setup", title: "Google Workspace", perm: "connectors.manage" }, { key: "microsoft.setup", title: "Microsoft 365", perm: "connectors.manage" },
     { key: "console.integrations", title: "Connectors and connections", perm: "connectors.manage" }, { key: "events.webhooks", title: "Webhooks", perm: "connectors.manage" },
-    { key: "console.mcp-sessions", title: "API keys", perm: "access.manage" },
+    { key: "console.github-app", title: "GitHub", perm: "connectors.manage" }, { key: "console.mcp-sessions", title: "API keys", perm: "access.manage" },
   ] },
-  { key: "infrastructure", title: "Infrastructure", pages: [
-    { key: "console.network", title: "Network", perm: "server.network" }, { key: "console.server-updates", title: "Updates", perm: "server.update" },
+  { key: "infrastructure", title: "Machines", pages: [
+    { key: "console.machines", title: "Machines", perm: C }, { key: "console.network", title: "Network", perm: "server.network" }, { key: "console.server-updates", title: "Updates", perm: "server.update" },
     { key: "console.server-logs", title: "Logs", perm: "server.logs" }, { key: "console.diagnostics", title: "Diagnostics", perm: C },
-    { key: "console.support-bundle", title: "Support bundle", perm: "server.logs" }, { key: "console.speed", title: "Speed", perm: C },
+    { key: "console.ci", title: "CI runners", perm: "connectors.manage" }, { key: "console.support-bundle", title: "Support bundle", perm: "server.logs" }, { key: "console.speed", title: "Speed", perm: C },
   ] },
   { key: "audit", title: "Audit log", pages: [{ key: "audit.log", title: "Audit log", perm: "audit.read" }] },
   { key: "space", title: "Space", pages: [{ key: "spaces.console", title: "Space settings", perm: "policy.manage" }] },

@@ -2,6 +2,7 @@
 // and puts a Needs you card "Raise once or Stop" in front of the person who pays. Real SQLite, fake provider, events checked against the frozen schema.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { handlers } from "../impl.ts";
 import { capsSet, isPaused, pauseAll, raiseLimit, recordUsage, resumeAll, spendGet, usageQuery } from "../handlers/spend.ts";
 import { ensure } from "../projections.ts";
@@ -230,6 +231,13 @@ test("record_usage refuses a turn this host does not know and bad numbers", asyn
 
 // ---- usage
 
+/** A ctx whose agents.get names the agents the asker may see (here: these ids, each named by its id); any other agent is someone's private one and is refused, as agents.get does. */
+const seeing = (h: ReturnType<typeof harness>, ids: string[]) => ({ ...h.ctx, async call(cap: string, input: unknown) {
+  const b = input as { agentId?: string };
+  if (cap === "agents.get" && b.agentId && ids.includes(b.agentId)) return { agent: { agentId: b.agentId, name: b.agentId } };
+  throw new Error("not found");
+} });
+
 test("usage groups by day, person, agent or model; a person without ai.spend sees only their own", async () => {
   const h = harness();
   ensure(h.db);
@@ -241,14 +249,14 @@ test("usage groups by day, person, agent or model; a person without ai.spend see
   put("trn_b", "agt_docs", "usr_dana", "gpt-5", 1_760_000_000_000 + 1000, 300);
   put("trn_c", AGENT, "usr_sam", "claude-sonnet-5-5", 1_760_000_000_000 + DAY, 200);
 
-  const byAgent = (await usageQuery(h.ctx, { by: "agent" }));
+  const byAgent = (await usageQuery(seeing(h, [AGENT, "agt_docs"]), { by: "agent" }));
   assert.deepEqual(byAgent.rows.map((r) => [r.key, r.totals.turns, r.totals.costMicros]), [["agt_docs", 1, 300], ["agt_intake", 2, 700]]);
   assert.deepEqual(byAgent.totals, { turns: 3, tokensIn: 300, tokensOut: 30, costMicros: 1000, cachedIn: 0 });
   assert.deepEqual(contractErrors("engine.usage.query", "out", byAgent), []);
   assert.deepEqual((await usageQuery(h.ctx, { by: "day" })).rows.map((r) => [r.key, r.totals.costMicros]), [["2025-10-10", 200], ["2025-10-09", 800]]);
   assert.deepEqual((await usageQuery(h.ctx, { by: "model" })).rows.map((r) => r.key), ["claude-sonnet-5-5", "gpt-5"]);
   assert.deepEqual((await usageQuery(h.ctx, { by: "person", personId: "usr_sam" })).rows.map((r) => [r.key, r.totals.costMicros]), [["usr_sam", 200]]);
-  assert.deepEqual((await usageQuery(h.ctx, { by: "agent", from: 1_760_000_000_000 + DAY })).totals.costMicros, 200, "from limits the range");
+  assert.deepEqual((await usageQuery(seeing(h, [AGENT, "agt_docs"]), { by: "agent", from: 1_760_000_000_000 + DAY })).totals.costMicros, 200, "from limits the range");
 
   h.setManager(false);
   const mine = (await usageQuery(h.ctx, { by: "person" }));
@@ -256,7 +264,7 @@ test("usage groups by day, person, agent or model; a person without ai.spend see
   assert.deepEqual((await usageQuery(h.ctx, { by: "person", personId: "usr_sam" })).rows.map((r) => r.key), ["usr_dana"], "asking for someone else still gives my own");
 });
 
-test("usage by agent and by person names them, with the agent's face; someone else's private agent is named as its person; an agent nobody can name is a plain word", async () => {
+test("usage by agent and by person names them, with the agent's face; an agent the asker may not see folds into People's own agents, never named", async () => {
   const h = harness();
   await usageQuery(h.ctx, { by: "day" });   // makes the tables
   h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "trn_n1", THREAD, AGENT, "usr_dana", "m", 1_760_000_000_000, 10, 1, 5);
@@ -270,7 +278,9 @@ test("usage by agent and by person names them, with the agent's face; someone el
   } };
   h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "trn_n3", THREAD, "agt_simba", "usr_olivia", "m", 1_760_000_000_000, 10, 1, 5);
   const agents = await usageQuery(ctx, { by: "agent" });
-  assert.deepEqual(agents.rows.map((r) => [r.key, r.title, r.face ?? null]).sort(), [["agt_gone", "An agent", null], [AGENT, "Intake", "scout"], ["agt_simba", "Olivia Reyes (Agent)", null]].sort());
+  // a private agent the asker may not see is not named, not even through the principal directory: it folds into one line (owner ruling 4 Nov)
+  assert.deepEqual(agents.rows.map((r) => [r.key, r.title, r.face ?? null, r.totals.turns]).sort(), [[AGENT, "Intake", "scout", 1], ["personal", "People's own agents", null, 2]].sort());
+  assert.ok(!JSON.stringify(agents).includes("Olivia") && !JSON.stringify(agents).includes("agt_simba") && !JSON.stringify(agents).includes("agt_gone"), "no private agent's name or id");
   assert.deepEqual((await usageQuery(ctx, { by: "person" })).rows.map((r) => [r.key, r.title]).sort(), [["usr_dana", "Dana Reyes"], ["usr_olivia", "usr_olivia"], ["usr_sam", "usr_sam"]]);
   assert.deepEqual(contractErrors("engine.usage.query", "out", agents), []);
 });
@@ -295,10 +305,10 @@ test("record_usage keeps the Vault item a turn ran on, usage.query filters by it
   h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", "trn_other", THREAD, "agt_docs", "usr_sam", "gpt-5", 1_760_000_000_000, 7, 7, 1);
   // Worked out from the inputs, not read off a run: record_usage adds each call to the turn's row (ON CONFLICT ... tokens_in + excluded.tokens_in), so t1 holds (10 + 1) in and (5 + 1) out,
   // 11 + 6 = 17 tokens. trn_other is a different turn on a different key and is not counted.
-  const onKey = (await usageQuery(h.ctx, { by: "agent", itemId: "vit_aaaaaaaaaaaa" }));
+  const onKey = (await usageQuery(seeing(h, [AGENT, "agt_docs"]), { by: "agent", itemId: "vit_aaaaaaaaaaaa" }));
   assert.deepEqual(onKey.rows.map((r) => [r.key, r.totals.turns, r.totals.tokensIn + r.totals.tokensOut]), [[AGENT, 1, 17]], "only the turns on that key");
   assert.equal((await usageQuery(h.ctx, { by: "agent", itemId: "vit_nokeyatall00" })).totals.turns, 0);
-  assert.equal((await usageQuery(h.ctx, { by: "agent" })).totals.turns, 2, "without the filter every turn counts");
+  assert.equal((await usageQuery(seeing(h, [AGENT, "agt_docs"]), { by: "agent" })).totals.turns, 2, "without the filter every turn counts");
   h.setManager(false);
   assert.deepEqual((await usageQuery(h.ctx, { by: "person", itemId: "vit_aaaaaaaaaaaa" })).rows.map((r) => r.key).every((k) => k === h.ctx.principal.id), true, "a person sees only their own turns on the key");
   hold.release(0);
@@ -311,4 +321,29 @@ test('spend reads cannot expose another person or Space totals without spend-man
   assert.throws(()=>spendGet(h.ctx,{scope:'person',scopeId:'usr_sam'}),error=>codeOf(error)==='permission.no_grant');
   assert.throws(()=>spendGet(h.ctx,{scope:'space'}),error=>codeOf(error)==='permission.no_grant');
   assert.equal(spendGet(h.ctx,{scope:'person'}).monthMicros,0);
+});
+
+test("Settings > AI usage is this person's own turns this month: an admin who manages AI spend asking with their own id and the start of the month gets only their rows", async () => {
+  const h = harness();
+  ensure(h.db);
+  const DAY = 86_400_000;
+  const monthStart = 1_760_000_000_000;
+  const put = (turn: string, person: string, model: string, at: number, cost: number): void => {
+    h.db.run("INSERT INTO engine_usage (turn_id, thread_id, agent_id, person_id, model, at, tokens_in, tokens_out, cost_micros) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", turn, THREAD, AGENT, person, model, at, 100, 10, cost);
+  };
+  put("trn_old", "usr_dana", "claude-sonnet-5-5", monthStart - 3 * DAY, 900);   // last month
+  put("trn_mine", "usr_dana", "claude-sonnet-5-5", monthStart + DAY, 500);
+  put("trn_sam", "usr_sam", "gpt-5", monthStart + DAY, 300);                    // another member
+  const everything = await usageQuery(h.ctx, { by: "model" });
+  assert.equal(everything.totals.costMicros, 1700, "without the scope, a manager is handed the whole Space for all time: this was the bug");
+  const mine = await usageQuery(h.ctx, { by: "model", personId: "usr_dana", from: monthStart });
+  assert.deepEqual(mine.rows.map((r) => [r.key, r.totals.costMicros]), [["claude-sonnet-5-5", 500]], "only the admin's own rows, this month");
+  assert.equal(mine.totals.costMicros, 500);
+});
+
+test("the Settings usage screen forwards the person and the start of the month to engine.usage.query", () => {
+  const reg = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { screens: { id: string; queries: Record<string, { cap: string; input: Record<string, string> }> }[] };
+  const q = reg.screens.find((s) => s.id === "settings.models-usage")!.queries["usage"]!;
+  assert.equal(q.cap, "engine.usage.query");
+  assert.deepEqual(Object.keys(q.input).sort(), ["by", "from", "personId", "to"]);
 });

@@ -29,6 +29,8 @@ test("production Apps: create a form, reload its real editor, install a saved dr
     const fixtureCompany = await context.request.post(`${web.origin}/v1/records/create`, { headers: { authorization: `Bearer ${token}` }, data: { type: "company", fields: { name: "Fixture relation company" }, idempotencyKey: "apps-company-fixture" } });
     assert.equal(fixtureCompany.status(), 200, await fixtureCompany.text());
     await page.goto(`${web.origin}/sites`, { waitUntil: "load" });
+    // the Apps place opens on Sites now: pick the Forms group before its New button exists
+    await page.getByTestId("apps-head-forms").click();
     await page.getByTestId("apps-new-group").click();
     await page.getByRole("menuitem", { name: "New form", exact: true }).click();
     await page.getByTestId("apps-create-form").waitFor({ timeout: 30_000 });
@@ -95,10 +97,11 @@ test("production Apps: create a form, reload its real editor, install a saved dr
     await page.getByTestId("apps-head-domains").click();
     await page.getByTestId("apps-new-group").click();
     await page.getByRole("menuitem", { name: "Add sending domain", exact: true }).click();
-    await page.getByTestId("apps-create-domain").waitFor({ timeout: 20_000 });
-    await page.getByLabel("Domain name", { exact: true }).fill("mail.fixture.example");
-    await page.getByRole("button", { name: "Review domain", exact: true }).click();
-    await page.getByTestId("apps-confirm-domain").waitFor();
+    // sending domains are added in the Console (Sending domains, with Add domain open); an admin is taken there
+    await page.getByTestId("domain-new-object").waitFor({ timeout: 20_000 });
+    await page.getByTestId("domain-name").fill("mail.fixture.example");
+    await page.getByTestId("domain-create").waitFor({ timeout: 10_000 });
+    assert.equal(await page.getByTestId("domain-create").getAttribute("aria-disabled"), null, "a valid domain can be added");
     const appRefusals = refused.filter((line) => /\/v1\/(forms|templates|mail\/domain|email_builder)\//.test(line));
     assert.equal(appRefusals.length, 0, appRefusals.join("\n")); assert.deepEqual(errors, []);
     const out = process.env["VYRE_APPS_SHOTS"];

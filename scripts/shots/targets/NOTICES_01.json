@@ -1,0 +1,48 @@
+{
+  "targets": [
+    {
+      "id": "NOTICES_01-none",
+      "route": "/m/NOTICES_01?part=none",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='title-search']",
+      "note": "Top bar: No notice."
+    },
+    {
+      "id": "NOTICES_01-none-setup",
+      "route": "/m/NOTICES_01?part=none&setup=1",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='title-search']",
+      "note": "Top bar: No notice with the Finish setup pill."
+    },
+    {
+      "id": "NOTICES_01-lock",
+      "route": "/m/NOTICES_01?part=lock",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='title-search']",
+      "note": "Top bar: The lock."
+    },
+    {
+      "id": "NOTICES_01-lock-setup",
+      "route": "/m/NOTICES_01?part=lock&setup=1",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='title-search']",
+      "note": "Top bar: The lock with the Finish setup pill."
+    },
+    {
+      "id": "NOTICES_01-three",
+      "route": "/m/NOTICES_01?part=three",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='title-search']",
+      "note": "Top bar: Three notices, popover open.",
+      "click": "[data-testid='notice-slot'], [data-testid='notice-bell']"
+    },
+    {
+      "id": "NOTICES_01-three-setup",
+      "route": "/m/NOTICES_01?part=three&setup=1",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='title-search']",
+      "note": "Top bar: Three notices, popover open with the Finish setup pill.",
+      "click": "[data-testid='notice-slot'], [data-testid='notice-bell']"
+    }
+  ]
+}

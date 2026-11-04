@@ -71,3 +71,15 @@
 - Edit and Send on an agent draft in Inbox use the stored draft, not the card preview: Edit opens the draft in its own card with every character of its body and Save keeps its recipients and thread; Send goes to the draft's own recipients and Cc from its own mailbox, filed under its own contact, never to or under the thread that happens to be open. A body that ends in a cut-off marker the person did not type is never sent.
 - A draft is filed under a contact only when one of the people it is addressed to is that contact. Someone on Cc, copied on two contacts' threads, files it under no one.
 - mail.send sends an agent's draft as it is stored: its own recipients, Cc, Bcc, subject and every character of its body, whatever the caller holds. An agent draft that ends in a cut-off marker and has not been saved by a person is refused with a plain message, and nothing is sent.
+
+## What's new (Approvals)
+
+- An approval nobody answered does not wait for ever. After 7 days, or once the chat it was asked in or its task closed, it expires as "Not sent, it waited 7 days": the call is never sent, its task closes and the agent is told the plain reason. At start the same check clears what earlier releases left behind.
+- Needs you groups approvals that have waited days under Older, after what just arrived, in place of mixing them.
+- Agents are told never to say "Gate", "hold" or other internal words to people, and what a model reads from a failed tool says approval in their place.
+- An approval nobody answered for 7 days now reads "Not sent, it waited 7 days" in Needs you, under Withdrawn, with only Dismiss left.
+- The Personal claim live test now expects the route it opened on (/chat), not /home.
+- Live browser tests follow today's product: the invite error sits behind "Use another account" for a device already in the Space, Back on the join sheet is "back", Apps forms are opened from the Forms group first, the record Ask pane is the record chat, a short piece of work opens from the summary beside the name, the onboarding screen closes from its x on a phone, and sign-out waits for the server to revoke the key.
+- A direct message always carries the person's name in the sidebar, as it does on its tab.
+- A withdrawn request names its own key in the footer ("A dismiss"), not "A approve".
+- Add sending domain in Apps opens the Console's Sending domains with Add domain ready, and is not shown to anyone who cannot open the Console.

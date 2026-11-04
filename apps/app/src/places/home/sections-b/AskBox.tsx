@@ -36,7 +36,7 @@ export function AskBox(): ReactElement {
   const [pickedId, setPickedId] = useState(assistant.id);
   const picked = agents.find((x) => x.id === pickedId) ?? agents[0] ?? { id: assistant.id, name: assistant.name, assistant: true };
 
-  const send = (p: ComposerSend): void => {
+  const send = (p: ComposerSend): Promise<void> | void => {
     const text = askText(p.text) ?? (p.files.length > 0 ? "" : null);
     if (text === null) return;
     // what the composer holds beyond the words travels with them: @names become mentions, # links become refs, and files (dropped, pasted or picked) are stored the way a chat stores its own.
@@ -46,11 +46,11 @@ export function AskBox(): ReactElement {
     const fresh = p.files.filter((f) => f.fileId === undefined);
     const kept = p.files.flatMap((f) => (f.fileId === undefined ? [] : [f.fileId]));
     const stored = fresh.length > 0 ? uploadAttachments(uploadDeps({ call: data.call, ...(rt?.putBlob ? { putBlob: rt.putBlob.bind(rt) } : {}) }), fresh, `home-ask-files-${at}`) : Promise.resolve([]);
-    void stored.then((ids) => startAsk({ call: data.call, note: line.note }, picked.id, text, at, { mentions, refs, ...(ids.length + kept.length > 0 ? { attachments: [...ids, ...kept] } : {}) }), (e: unknown) => {
-      line.note(e instanceof Error && e.message !== "" ? e.message : "Could not keep those files. Try again.", () => undefined);
-      return null;
+    // a failed start gives the draft back with the reason under the box (the shared composer), as the landing does
+    return stored.then((ids) => startAsk({ call: data.call, note: line.note }, picked.id, text, at, { mentions, refs, ...(ids.length + kept.length > 0 ? { attachments: [...ids, ...kept] } : {}) }), (e: unknown) => {
+      throw new Error(e instanceof Error && e.message !== "" ? e.message : "Could not keep those files.");
     }).then((thread) => {
-      if (thread === null) return;
+      if (thread === null) throw new Error("Could not start that chat.");
       data.nav.openSubject({ type: "thread", id: thread });
     });
   };

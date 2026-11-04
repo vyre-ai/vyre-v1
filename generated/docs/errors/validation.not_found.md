@@ -6,8 +6,11 @@ HTTP 404. Retryable: no.
 
 ## Raised by
 
+- access.agents_can_call.get
+- access.agents_can_call.set
 - access.exceptions.remove
 - access.exceptions.set
+- access.make_owner
 - agents.builtin_skill.get
 - agents.config.get
 - agents.config.validate
@@ -28,6 +31,3 @@ HTTP 404. Retryable: no.
 - agents.set_owner
 - agents.snapshot.take
 - agents.status
-- agents.summary
-- agents.update
-- agents.versions

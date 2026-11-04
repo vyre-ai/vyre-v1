@@ -14,6 +14,10 @@ export interface BlockHost {
   open: (tab: string, input: Record<string, unknown>) => void;
   /** Opens a link outside the app (a preview URL). */
   openUrl?: (url: string) => void;
+  /** Who is looking, so a card can say "Private to you" and not "Shared by". */
+  meId?: string;
+  /** A person's name for an id. */
+  nameOf?: (id: string) => string;
 }
 
 export interface BlockActionSpec {

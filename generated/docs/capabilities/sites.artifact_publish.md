@@ -33,6 +33,7 @@ type In = {
   port?: number;
   computerId?: string;
   artifactId?: string;
+  thumb?: string;
   idempotencyKey: string;
 };
 ```
@@ -70,6 +71,7 @@ type Out = {
     "idempotencyKey": "idem_1",
     "path": "example",
     "port": 1,
+    "thumb": "example",
     "title": "example"
   },
   "output": {

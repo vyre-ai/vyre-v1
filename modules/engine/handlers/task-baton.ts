@@ -225,7 +225,7 @@ export async function onTaskEvent(ctx: Pick<EngineCtx, "db">, host: BatonHost, e
   if (fresh && sameSeat && before?.threadId) {
     for (const was of before.woken) {
       if (targets.includes(was)) continue;
-      try { await engine.stop(before.threadId, { agentId: was }); } catch (e) { host.log?.("the agent the task left could not be stopped", { taskId: task.id, agentId: was, error: e instanceof Error ? e.message : String(e) }); }
+      try { await engine.stop(before.threadId, { agentId: was, reason: "moved" }); } catch (e) { host.log?.("the agent the task left could not be stopped", { taskId: task.id, agentId: was, error: e instanceof Error ? e.message : String(e) }); }
     }
   }
   const answered = [...(fresh ? [] : before?.answered ?? []), ...(answeredChild ? [answeredChild] : [])].slice(-50);

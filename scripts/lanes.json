@@ -38,6 +38,7 @@
         "modules/terminal/",
         "modules/mcp/",
         "modules/notes/",
+        "modules/machines/",
         "package-lock.json"
       ],
       "modules": [
@@ -48,7 +49,8 @@
         "computers",
         "terminal",
         "mcp",
-        "notes"
+        "notes",
+        "machines"
       ]
     },
     {
@@ -113,6 +115,7 @@
         "modules/twilio/",
         "modules/zoom/",
         "modules/github/",
+        "modules/ci/",
         "modules/stripe/",
         "package-lock.json"
       ],
@@ -130,6 +133,7 @@
         "twilio",
         "zoom",
         "github",
+        "ci",
         "stripe"
       ]
     },
@@ -176,6 +180,7 @@
         "modules/settings/",
         "modules/vault/",
         "modules/vault-requests/",
+        "modules/talk/",
         "modules/audit/",
         "modules/governance/",
         "package-lock.json"
@@ -189,6 +194,7 @@
         "settings",
         "vault",
         "vault-requests",
+        "talk",
         "audit",
         "governance"
       ]
@@ -434,6 +440,7 @@
     "forms": "L8",
     "gate": "L6",
     "git": "L4",
+    "ci": "L5",
     "github": "L5",
     "google": "L5",
     "governance": "L7a",
@@ -447,6 +454,7 @@
     "logs": "L7b",
     "mail": "L5",
     "mailgun": "L5",
+    "machines": "L2",
     "mcp": "L2",
     "meetings": "L5",
     "members": "L7a",
@@ -483,6 +491,7 @@
     "updates": "L7b",
     "vault": "L7a",
     "vault-requests": "L7a",
+    "talk": "L7a",
     "zoom": "L5"
   }
 }

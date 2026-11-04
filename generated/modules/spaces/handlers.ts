@@ -8,7 +8,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "follows.list": Handler<"follows.list", X>;
   "follows.toggle": Handler<"follows.toggle", X>;
   "spaces.delete": Handler<"spaces.delete", X>;
+  "spaces.delete_cancel": Handler<"spaces.delete_cancel", X>;
+  "spaces.delete_due": Handler<"spaces.delete_due", X>;
   "spaces.export": Handler<"spaces.export", X>;
+  "spaces.export_latest": Handler<"spaces.export_latest", X>;
   "spaces.get": Handler<"spaces.get", X>;
   "spaces.image": Handler<"spaces.image", X>;
   "spaces.leave": Handler<"spaces.leave", X>;

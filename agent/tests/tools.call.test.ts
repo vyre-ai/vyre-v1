@@ -17,7 +17,7 @@ test("catalog: every generated tool joins its capability; the frozen default lis
   for (const t of catalog.all) assert.ok(caps.has(t.cap), t.name);
   const stricter = catalog.all.filter((t) => t.effects === "outward").length;
   // 77 until rc.8 added twelve gated outward tools: Dropbox files (create_folder, delete, restore, upload), Google Docs insert/replace text, mounts doc/sheet edits and Excel workbook writes.
-  assert.equal(stricter, 89);  // campaigns_launch left with Campaigns; mcp_call (a connection's tool called from a CLI engine, l-skills1) is gated outward
+  assert.equal(stricter, 90);  // campaigns_launch left with Campaigns; mcp_call (a connection's tool called from a CLI engine, l-skills1) is gated outward; google_gmail_delete_draft (l-chrome2a) is too
 });
 
 test("catalog: a tool whose capability is missing, or a duplicate name, is a build error not a quiet gap", () => {
@@ -209,4 +209,47 @@ test("a value the person typed themselves passes the probe guard; the same value
   const half = await session.call(ctx({ said: "make a lead called test" }), "records_create", input);
   assert.equal(half.kind, "error");
   assert.deepEqual(invoked, []);
+});
+
+test("what a model reads from a failed tool says approval, never Gate or hold", async () => {
+  const loaded = loadGenerated();
+  const session = createToolSession({
+    catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => "trace_fixed",
+    invoke: async () => { throw new HostError(makeError("permission.needs_approval", "tr_x", { message: "This send is held at the Gate. The hold waits for a person." })); },
+  });
+  const out = await session.call(ctx(), "mail_send", { to: ["maya@northwind.com"], subject: "Retainer", body: "Dear Maya, the retainer is attached." });
+  assert.equal(out.kind, "error");
+  if (out.kind !== "error") return;
+  const seen = JSON.stringify(out.result.content);
+  assert.ok(!/\bGate\b|\bholds?\b/i.test(seen), seen);
+  assert.match(seen, /approval/);
+});
+
+// Times in a calendar, mail, inbox or task result are said in the person's zone too (the owner's Assistant worked a meeting's day out from epoch numbers and got it wrong).
+test("a result of a timed capability carries <key>Local in the asker's zone; another capability's result is untouched; no known zone means no change", async () => {
+  const g = loadGenerated();
+  const output = { event: { start: "2026-11-05T22:00:00Z", title: "Call" }, items: [{ createdAt: 1_793_916_000_000 }] };
+  const make = (zone: string | undefined) => createToolSession({
+    catalog: g.catalog, defaults: new Set([...g.defaults, "calendar_list_calendars", "agents_list"]), levelFor: () => null, canEngineer: () => false, traceId: () => "t",
+    ...(zone ? { zoneOf: () => zone } : {}),
+    invoke: async () => ({ status: "ok", output, traceId: "t" }),
+  });
+  const dataOf = async (zone: string | undefined, tool: string) => ((await make(zone).call(ctx(), tool, {})).result.content as { data: typeof output & { event: Record<string, string> } }).data;
+  const shown = await dataOf("Asia/Karachi", "calendar_list_calendars");
+  assert.equal(shown.event["startLocal"], "Friday 6 November 2026, 03:00 (Asia/Karachi, UTC+5)");
+  assert.equal(shown.event["start"], "2026-11-05T22:00:00Z");
+  assert.match((shown.items[0] as unknown as Record<string, string>)["createdAtLocal"]!, /^Friday 6 November 2026/);
+  assert.equal((await dataOf(undefined, "calendar_list_calendars")).event["startLocal"], undefined, "no zone known: the result is as it was");
+  assert.equal((await dataOf("Asia/Karachi", "agents_list")).event["startLocal"], undefined, "agents are not a timed capability");
+});
+
+test("a model error keeps a plain reason word and drops an id-shaped one", async () => {
+  const { modelError } = await import("../src/tools/model-error.ts");
+  const kept = modelError(makeError("validation.precondition_failed", "trc_1", { message: "That file is an agent's settings.", details: { reason: "agent_settings", tool: "files_save" } }));
+  assert.equal(kept.details?.reason, "agent_settings");
+  assert.equal(modelError(makeError("internal.unexpected", "trc_2", { message: "x", details: { reason: "server_error" } })).details?.reason, "server_error");
+  const dropped = modelError(makeError("validation.not_found", "trc_3", { message: "No usr_5cf430c0313aa78673 here.", details: { reason: "agt_01a1a388abcd" } }));
+  assert.equal(dropped.details?.reason, undefined);
+  assert.equal(dropped.message.includes("usr_5cf430c0313aa78673"), false);
+  assert.equal(modelError(makeError("validation.precondition_failed", "trc_4", { message: "y", details: { reason: "agent_settings" } })).details?.reason, "agent_settings", "a second call gets the same answer");
 });

@@ -16,7 +16,7 @@ function withRoutes(h: Harness, routes: Record<string, (input: unknown) => unkno
 
 const prov = (o: Record<string, unknown>) => ({ providerKey: "anthropic", name: "Anthropic", connection: "api_key", scope: "mine", engine: "anthropic", spaceMayUse: false, state: "ok", ...o });
 const PROVIDERS = [
-  prov({ id: "prv_a", handle: "#Dana_Anthropic", itemId: "vit_a" }),
+  prov({ id: "prv_a", handle: "#Dana_Anthropic", itemId: "vit_a", keepsNothing: true }),
   prov({ id: "prv_o", providerKey: "openai", name: "OpenAI", engine: "openai", handle: "#Dana_OpenAI", itemId: "vit_o" }),
   prov({ id: "prv_c", providerKey: "anthropic", name: "Claude Code", connection: "subscription", engine: "claude-code", handle: "#Dana_Claude", itemId: "vit_c", state: "needs_sign_in" }),
 ];
@@ -30,7 +30,7 @@ test("policy is empty by default, saved per key, validated, and tells the settin
   const h = harness();
   const settingsSet: unknown[] = [];
   const stored: Record<string, unknown> = { "engine.agent_hops": 6 };
-  const ctx = withRoutes(h, { "settings.get": (i) => ({ row: { value: stored[(i as { key: string }).key] ?? null } }), "settings.set_space": (i) => { settingsSet.push(i); return {}; } });
+  const ctx = withRoutes(h, { ...routes, "settings.get": (i) => ({ row: { value: stored[(i as { key: string }).key] ?? null } }), "settings.set_space": (i) => { settingsSet.push(i); return {}; } });
   const before = await H["engine.policy.get"](ctx, {});
   assert.deepEqual(before, { allowedAccounts: "any", allowedModels: [], allowedProviders: [], labelProviders: {}, hops: { agentHops: 6, reviewLoops: 2, ciFixLoops: 3 } });
   assert.deepEqual(contractErrors("engine.policy.get", "out", before), []);
@@ -176,6 +176,7 @@ test("use_policy.export writes the policy as a Markdown file in the shared knowl
   const h = harness();
   const created: Array<Record<string, unknown>> = [];
   const ctx = withRoutes(h, {
+    ...routes,
     "files.tree": () => ({ roots: [{ key: "recent", title: "Recent", kind: "virtual", count: 0 }, { key: "knowledge", title: "Knowledge", kind: "folder", folderId: "fld_know", count: 2 }] }),
     "files.create": (i) => { created.push(i as Record<string, unknown>); return { file: { fileId: "fil_policy" } }; },
   });
@@ -199,7 +200,14 @@ test("route.preview says who will reply with the same route() the server uses", 
   const two = await H["engine.route.preview"](ctx, { threadId: "thr_1", mentions: [{ kind: "agent", id: "agt_docs" }, { kind: "agent", id: "agt_intake" }] });
   assert.equal(two.line, "Docs and Intake will reply");
   assert.deepEqual(contractErrors("engine.route.preview", "out", two), []);
-  assert.equal((await H["engine.route.preview"](ctx, { threadId: "thr_1", mentions: [{ kind: "person", id: "usr_sam" }] })).line, "Goes to the person you named; no agent will reply. Ask Intake too", "a person named is addressed, so the lead stays quiet and the line offers it (hot/route)");
+  // a person named who is in the chat is addressed: no agent replies, and the lead is offered (7e9d7acba)
+  assert.equal((await H["engine.route.preview"](ctx, { threadId: "thr_1", mentions: [{ kind: "person", id: "usr_sam" }] })).line, "Goes to the person you named; no agent will reply. Ask Intake too");
+  // a person named who is not in the chat is only a reference: the lead still answers
+  const members = withRoutes(h, { "threads.get": () => ({ thread: { members: [{ kind: "person", id: "usr_dana" }], agents: [{ agentId: "agt_intake", mode: "lead", name: "Intake" }] } }) });
+  assert.deepEqual(await H["engine.route.preview"](members, { threadId: "thr_1", mentions: [{ kind: "person", id: "usr_sam" }] }), { responders: ["agt_intake"], line: "Intake will reply" });
+  // no agent in the chat at all: the composer asks for a mention
+  const none = withRoutes(h, { "threads.get": () => ({ thread: { agents: [] } }) });
+  assert.equal((await H["engine.route.preview"](none, { threadId: "thr_1" })).line, "No agent will reply. @mention one");
   await assert.rejects(H["engine.route.preview"](h.ctx, { threadId: "thr_missing" }), (e) => codeOf(e) === "validation.not_found");
 });
 
@@ -232,3 +240,23 @@ test("review: sampled turns wait for a person; fine closes them, flagged opens a
   assert.deepEqual(assertEventsConform(h), []);
 });
 
+
+test("Restricted may be given only to a provider with an account that keeps nothing; a turn on Restricted data runs only on such an account", async () => {
+  const h = harness();
+  const ctx = withRoutes(h, { ...routes, "threads.get": () => ({ thread: { threadId: "thr_x", label: "restricted", agents: [] } }) });
+  // OpenAI has no account that keeps nothing: refused, and nothing is written
+  await assert.rejects(H["engine.policy.set"](ctx, { labelProviders: { restricted: ["openai"] } }), (e) => codeOf(e) === "validation.bad_input");
+  assert.equal(h.named("engine.policy_changed").length, 0, "a refused change records nothing");
+  // the local driver is always allowed, and Anthropic has an account an admin marked
+  assert.deepEqual(await H["engine.policy.set"](ctx, { labelProviders: { restricted: ["anthropic", "local"] } }), { ok: true });
+  // a provider already on the list may stay when the same list is saved again, even after its account was unmarked
+  const off = withRoutes(h, { ...routes, "providers.list": () => ({ providers: PROVIDERS.map((p) => ({ ...p, keepsNothing: false })) }) });
+  assert.deepEqual(await H["engine.policy.set"](off, { labelProviders: { restricted: ["anthropic", "local"] } }), { ok: true });
+  // with no label list at all, a Restricted thread still reaches only providers that keep nothing
+  const open = withRoutes(h, { ...routes, "threads.get": () => ({ thread: { threadId: "thr_x", label: "restricted", agents: [] } }) });
+  await H["engine.policy.set"](open, { labelProviders: {} });
+  const list = await H["engine.providers.list"](open, { threadId: "thr_x" });
+  assert.equal(list.providers.find((p) => p.driver === "anthropic")?.allowed, true);
+  assert.equal(list.providers.find((p) => p.driver === "openai")?.allowed, false);
+  assert.match(list.providers.find((p) => p.driver === "openai")?.reason ?? "", /restricted records may not go/);
+});

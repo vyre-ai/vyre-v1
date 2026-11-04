@@ -27,7 +27,9 @@ test("the line names who it went to; a card with a body or buttons is a full car
   assert.equal(linkCardLine({ icon: "fact", lead: "Remembered", title: "Tuesday launch" }, names), "Remembered");
   assert.equal(isFullCard(base), false);
   assert.equal(isFullCard({ ...base, body: "words" }), true);
-  assert.equal(isFullCard({ ...base, actions: [{ key: "a", label: "A" }] }), true);
+  assert.equal(isFullCard({ ...base, actions: [{ key: "a", label: "A" }, { key: "b", label: "B" }] }), true);
+  // one button and no words stays a line, the button a link at its end (the Noted line with Undo)
+  assert.equal(isFullCard({ ...base, actions: [{ key: "a", label: "A" }] }), false);
 });
 
 test("a press on the name opens the target; a button runs its action and reads as done", async () => {
@@ -68,7 +70,7 @@ test("a work card says what its thing is doing now, and hides the name from a re
   assert.deepEqual(opened, ["run_1"]);
   const hidden = await mount(createRoot, <LinkCard id="w2" data={{ icon: "task", lead: "Task created", title: "Secret merger plan", target: { type: "task", id: "tsk_9" } }} nameOf={names} onOpen={(t) => opened.push(t.id)} hidden />);
   assert.ok(!textOf(find(hidden, "link-card-w2")).includes("Secret merger plan"), "the name is not shown");
-  assert.match(textOf(find(hidden, "link-card-w2")), /Not shared with you/);
+  assert.match(textOf(find(hidden, "link-card-w2")), /A task you don't have access to/);
   assert.equal(typeof find(hidden, "link-card-w2-open")!.props.onClick, "undefined", "and it is not a link: it opens nothing");
   assert.deepEqual(opened, ["run_1"]);
 });

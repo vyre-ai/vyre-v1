@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright-core";
+import { SECTIONS, resolve, sectionOf, tabOf } from "../src/console/shell/sections.ts";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding} from "./real-app-harness.test.ts";
 
 const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
@@ -52,13 +53,6 @@ test("production Console: every page draws at desktop and phone, light and graph
     const groupOf = async (id: string): Promise<string[]> => ((await api("access.groups.get", { groupId: id })).group.members as { id: string }[]).map((m) => m.id);
     const rolesOf = async (personId: string): Promise<string[]> => (await api("access.principals.get", { principal: { kind: "person", id: personId } })).principal.roles as string[];
 
-    const goPeople = async (p: Page = page): Promise<void> => {
-      await p.goto(`${web.origin}/console`, { waitUntil: "load" }); await p.getByTestId("console").waitFor({ timeout: 30_000 });
-      const group = p.getByTestId("navgroup-Access"); if ((await group.getAttribute("aria-expanded")) !== "true") await group.click();
-      await p.getByTestId("row-nav-people").click(); await p.getByTestId("console-people").waitFor();
-    };
-    const rowOf = (id: string) => page.getByTestId(`row-object-row-console-person-${id}`);
-    const pickRow = async (id: string): Promise<void> => { await rowOf(id).click({ button: "right" }); await page.getByRole("menuitem", { name: /^Select$/ }).click(); };
     const matrix = async (name: string, navigate: (p: Page) => Promise<void>): Promise<void> => {
       for (const [skin, size, w, h] of MATRIX) {
         const view = await context.newPage(); await view.setViewportSize({ width: w, height: h });
@@ -67,48 +61,76 @@ test("production Console: every page draws at desktop and phone, light and graph
         await view.screenshot({ path: path.join(shots, `${name}-${size}-${skin === "paper" ? "light" : "graphite"}.png`), animations: "disabled" }); await view.close();
       }
     };
-    /** Phone width has no side navigation: the search button opens the "Go to" list. */
-    /** Wait for the server to show what the UI just did (a note can come and go with the sheet). */
-    const eventually = async (read: () => Promise<boolean>, what: string): Promise<void> => { for (let i = 0; i < 60; i++) { if (await read()) return; await new Promise((r) => setTimeout(r, 200)); } assert.fail(what); };
-    const goTo = async (p: Page, testId: string, title: string, group: string): Promise<void> => {
-      if (p.viewportSize()!.width < 720) { await p.getByTestId("console-search").click(); await p.getByRole("menuitem", { name: title, exact: true }).click(); }
-      else { const g = p.getByTestId(`navgroup-${group}`); if ((await g.getAttribute("aria-expanded")) !== "true") await g.click(); await p.getByTestId(`row-nav-${testId}`).click(); }
-    };
-    const toPeople = async (p: Page): Promise<void> => { await goTo(p, "people", "People", "Access"); await p.getByTestId("console-people").waitFor(); };
 
-    // every Console page, reached through the real navigation (the side list on desktop, the grouped Go to menu on a phone), at four renderings: it must draw (no crash card, no loading forever),
-    // stay inside the screen (no sideways overflow of the page itself) and leave no page error
-    const pages: [string, string, string][] = [["overview","Overview",""],["usage","Usage",""],["people","People","Access"],["groups","Groups","Access"],["roles","Roles","Access"],["grants","Grants","Access"],["policies","Policies","Access"],["checker","Access checker","Access"],["reviews","Access reviews","Access"],["sessions","Sessions and devices","Access"],["agents","Agents register","Agents and actors"],["actors","Outside actors","Agents and actors"],["computers","Agent computers","Agents and actors"],["template","Agent template","Agents and actors"],["schema","Schema","Data"],["labels","Sensitivity labels","Data"],["retention","Retention","Data"],["holds","Holds","Data"],["erase","Erase a person","Data"],["backups","Backups","Data"],["models","Models and providers","AI"],["gate","Gate rules","AI"],["spend","Spend and limits","AI"],["review","Review sampling","AI"],["incidents","Incidents","AI"],["aipolicy","AI use policy","AI"],["domains","Sending domains","Comms"],["numbers","Numbers","Comms"],["inboxes","Shared inboxes","Comms"],["texting","Texting registration","Comms"],["connectors","Connectors","Integrations"],["connections","Connections","Integrations"],["webhooks","Webhooks","Integrations"],["keys","API keys","Integrations"],["network","Network","Infrastructure"],["server","Server","Infrastructure"],["updates","Updates","Infrastructure"],["diagnostics","Diagnostics","Infrastructure"],["support","Support bundle","Infrastructure"],["speed","Speed","Infrastructure"],["audit","Audit log",""],["space","Space",""]];
+    // the Console is ten places, each with a quiet tab strip (the plan in SETTINGS-CONSOLE-IA.md): the places, their order and their tabs are pinned here, so a place or tab that goes missing fails loudly
+    const PLACES: [string, string[]][] = [["Home", ["Home"]], ["People", ["Members", "Teams", "Roles", "Requests"]], ["Agents", ["Space agents", "Outside agents", "Skills and plugins", "Activity", "Defaults for new agents"]],
+      ["AI", ["AI accounts", "What each provider may see", "Spend and limits", "Approvals", "Review", "Voice", "AI use policy"]], ["Data", ["Record types", "Labels", "Keep and delete", "Backups", "Export"]],
+      ["Messaging", ["Email", "Phone and texting", "Rules"]], ["Apps", ["Connected apps", "GitHub", "Developers"]], ["Computers", ["Overview", "Servers", "Agent computers", "CI runners", "Diagnostics"]],
+      ["Security", ["Sign-in", "Access reviews", "Audit log"]], ["Space", ["General", "Transfer or delete"]]];
+    assert.deepEqual(SECTIONS.map((x) => [x.title, x.tabs.map((tab) => tab.label)]), PLACES, "the ten places and their tabs");
+    // every page of every tab, reached through the real navigation (the side list, tab and view), at two renderings: it must draw (no crash card, no loading forever),
+    // stay inside the screen (no sideways overflow of the page itself) and leave no page error. Old page ids still land on their place, so the old names are checked once on desktop below.
+    const pages: [string, string][] = SECTIONS.flatMap((x) => x.tabs.flatMap((tab) => tab.views.map((view): [string, string] => [view.page, x.title])));
     const only = process.env["VYRE_PARITY_AREA"];
     const problems: string[] = [];
-    await t.test("every page, four renderings", async () => {
-      for (const [skin, size, w, h] of [["paper", "desktop", 1280, 900], ["graphite", "desktop", 1280, 900], ["paper", "phone", 390, 844], ["graphite", "phone", 390, 844]] as const) {
-        const p = await context.newPage(); await p.setViewportSize({ width: w, height: h });
-        const pageErrors: string[] = []; p.on("pageerror", (e) => pageErrors.push(e.message));
-        for (const [id, title, group] of pages) {
-          if (only && group !== only && !(only === "Account" && group === "")) continue;
+    /** One page through the navigation: the place row, the tab, then the view under the tab's text switch. */
+    const open = async (p: Page, id: string): Promise<void> => {
+      const section = sectionOf(id)!, tab = tabOf(id)!;
+      await p.getByTestId(`row-nav-${section.id}`).click({ timeout: 60_000 }); if (section.tabs.length > 1) await p.getByTestId(`tab-${tab.views[0]!.page}`).click(); if (tab.views[0]!.page !== id) await p.getByTestId(`view-${id}`).click();
+      await p.getByTestId(`page-${id}`).waitFor({ timeout: 15_000 });
+    };
+    await t.test("every page, desktop, light and graphite", async () => {
+      for (const [skin, size, w, h] of [["paper", "desktop", 1280, 900], ["graphite", "desktop", 1280, 900]] as const) {
+        const pageErrors: string[] = [];
+        for (const [id, place] of pages) {
+          if (only && place !== only) continue;
           const where = `${id} ${size} ${skin}`;
+          // a fresh tab per page: a renderer crash on one page is that page's problem, not every page after it
+          const p = await context.newPage(); await p.setViewportSize({ width: w, height: h });
+          p.on("pageerror", (e) => pageErrors.push(e.message)); const logged: string[] = []; p.on("console", (m) => { if (m.type() === "error") logged.push(m.text().slice(0, 500)); });
           try {
             await p.goto(`${web.origin}/console?skin=${skin}`, { waitUntil: "load" }); await p.getByTestId("console").waitFor({ timeout: 30_000 });
-            if (w < 720) { await p.getByTestId("console-search").click(); await p.getByRole("menuitem", { name: title, exact: true }).click(); }
-            else { if (group) { const g = p.getByTestId(`navgroup-${group}`); if ((await g.getAttribute("aria-expanded")) !== "true") await g.click(); } await p.getByTestId(`row-nav-${id}`).click(); }
+            await open(p, id);
             await p.waitForFunction(() => !document.body.innerText.split("\n").some((line) => line.trim() === "Loading…"), null, { timeout: 15_000 }).catch(() => problems.push(`${where}: still loading after 15 s`));
             await p.waitForTimeout(300);
-            if (await p.getByText("Couldn’t draw this page").count()) problems.push(`${where}: the page crashed`);
-            // the dot beside "Console" must tell the truth: it reads the server's own overall health (health.status), on every page and in every rendering
-            let dot: string | null = null, overall: string | undefined;
-            for (let i = 0; i < 30; i++) { overall = (await call("health.status", {})).data?.overall as string | undefined; dot = await p.getByTestId("console-health").getAttribute("aria-label").catch(() => null); if (dot === `Server ${overall}`) break; await p.waitForTimeout(500); }   // the dot catches up with a change within a few seconds
-            if (dot !== `Server ${overall}`) problems.push(`${where}: the health dot reads ${JSON.stringify(dot)} but the server reports ${JSON.stringify(overall)}`);
+            if (await p.getByText("Couldn’t draw this page").count()) { await p.getByText("Details", { exact: true }).click({ timeout: 2000 }).catch(() => undefined); problems.push(`${where}: the page crashed: ${(await p.getByText("Couldn’t draw this page").locator("xpath=../..").innerText().catch(() => "")).replace(/\s+/g, " ").slice(0, 400)}`); }
+            if (await p.getByText("is not implemented in this candidate yet").count()) problems.push(`${where}: the page is not implemented`);
+            // the place's title and one-sentence subtitle sit under the page, and the tab strip shows the place's tabs (the Home place has a single tab and no strip)
+            const section = sectionOf(id)!;
+            if ((await p.getByTestId("page-subtitle").innerText().catch(() => null)) !== section.subtitle) problems.push(`${where}: the subtitle is not ${JSON.stringify(section.subtitle)}`);
+            if (section.tabs.length > 1 && !(await p.getByTestId(`tab-${tabOf(id)!.views[0]!.page}`).count())) problems.push(`${where}: the tab strip does not show its tab`);
+            // inside the app there is no stray health dot beside the title (owner ruling, 4 Nov 2026): Home's Health row says how the server is
+            if (await p.getByTestId("console-health").count()) problems.push(`${where}: a health dot sits beside the title`);
             const overflow = await p.evaluate(() => ({ doc: document.documentElement.scrollWidth - window.innerWidth, body: document.body.scrollWidth - window.innerWidth }));
             if (overflow.doc > 2 || overflow.body > 2) problems.push(`${where}: the page is ${Math.max(overflow.doc, overflow.body)} px wider than the screen`);
             await p.screenshot({ path: path.join(shots, `${id}-${size}-${skin === "paper" ? "light" : "graphite"}.png`), animations: "disabled" });
-          } catch (e) { problems.push(`${where}: ${String(e).split("\n")[0]!.slice(0, 140)}`); }
+          } catch (e) { problems.push(`${where}: ${String(e).split("\n")[0]!.slice(0, 140)}`); await p.getByText("Details", { exact: true }).click({ timeout: 2000 }).catch(() => undefined); fs.writeFileSync(path.join(shots, `fail-${where.replaceAll(" ", "-")}.txt`), `${pageErrors.join("\n")}\n${logged.join("\n")}\n${await p.locator("body").innerText().catch(() => "")}`); await p.screenshot({ path: path.join(shots, `fail-${where.replaceAll(" ", "-")}.png`) }).catch(() => undefined); }
+          await p.close().catch(() => undefined);
         }
         if (pageErrors.length) problems.push(`${size} ${skin}: page errors ${pageErrors.slice(0, 2).join(" | ")}`);
-        await p.close();
       }
       fs.writeFileSync(path.join(shots, "problems.txt"), problems.join("\n"));
       assert.deepEqual(problems, []);
+    });
+    // the phone: the Console opens on a computer (owner ruling, 3 Nov 2026), so a phone never draws a Console page; it offers to chat about it, and the screen stays inside the width
+    await t.test("on a phone the Console offers a chat instead of a page, light and graphite", async () => {
+      for (const skin of ["paper", "graphite"]) {
+        const p = await context.newPage(); await p.setViewportSize({ width: 1280, height: 900 });
+        await p.goto(`${web.origin}/console?skin=${skin}`, { waitUntil: "load" }); await p.getByTestId("console").waitFor({ timeout: 30_000 });
+        await p.setViewportSize({ width: 390, height: 844 });
+        await p.getByText("The Console opens on a computer. You can chat about it here.").waitFor({ timeout: 10_000 });
+        assert.equal(await p.getByTestId("console").count(), 0, `no Console page on a phone (${skin})`);
+        const overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+        assert.ok(overflow <= 2, `the phone screen is ${overflow} px wider than the screen (${skin})`);
+        await p.screenshot({ path: path.join(shots, `console-phone-${skin === "paper" ? "light" : "graphite"}.png`), animations: "disabled" }); await p.close();
+      }
+    });
+    // the page ids of the old Console still land on their place: the old Computers register opens Computers, an old invites address opens Requests
+    await t.test("an old page id lands on its new place", async () => {
+      for (const [old, now] of [["computers", "machines"], ["checker", "people"], ["invites", "requests"], ["connectors", "apps"], ["runs", "activity"]] as const) {
+        assert.equal(resolve(old), now, `${old} redirects to ${now}`);
+        assert.ok(sectionOf(old), `${old} has a place`);
+      }
     });
     assert.deepEqual(errors, []);
   } catch (error) {

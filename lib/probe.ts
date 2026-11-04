@@ -37,3 +37,18 @@ export function probeIn(v: unknown, key = "", said = ""): string | null {
   }
   return null;
 }
+
+// ---- people's words
+
+export const PEOPLE_RULE = "Never say \"Gate\", \"hold\" or other internal words to people. Say \"an approval is waiting for you\" and what it is for.";
+
+/** Internal words made into people's words in what a model reads from a tool: "held at the Gate" is "waiting for approval", "the Gate" is "approval", a hold is an approval. */
+export function peopleWords(text: string): string {
+  return text
+    .replace(/\b(?:held|waiting|stopped|parked) (?:at|by|in) the Gate\b/gi, "waiting for approval")
+    .replace(/\bthe Gate(?:'s)?\b/g, "approval")
+    .replace(/\bGate\b/g, "approval")
+    .replace(/\b(?:a|the|this) (?:gate )?hold\b/gi, (m) => `${m.split(" ")[0]} approval`)
+    .replace(/\bapproval holds?\b/gi, "approval")
+    .replace(/\bholds\b/gi, "approvals");
+}

@@ -5,8 +5,8 @@ import { FolderTree } from "../../../ui/src/FolderTree/index.tsx";
 import type { FolderNode } from "../../../ui/src/FolderTree/index.tsx";
 import { LockedState } from "../../../ui/src/LockedState/index.tsx";
 import { NeedsTeamSpace } from "../../../ui/src/NeedsTeamSpace/index.tsx";
-import { ShareSheet } from "../../../ui/src/ShareSheet/index.tsx";
-import type { ShareRow } from "../../../ui/src/ShareSheet/index.tsx";
+import { AccessSheet } from "../../../ui/src/AccessSheet/index.tsx";
+import type { ShareRow } from "../../../ui/src/AccessSheet/index.tsx";
 
 export const title = "Folders, sharing and locked states";
 
@@ -33,10 +33,10 @@ export default function Mount() {
   if (part === "share") {
     return (
       <View style={{ flex: 1, justifyContent: "center", padding: 16 }}>
-        <ShareSheet
-          resourceType="folder" resourceId="fld_intake" resourceName="Intake" target="folder" ownerName="Irfad Imtiaz"
-          levels={["view", "use", "edit", "manage"]} shares={SHARES} allowExternal={false} density="regular"
-          directory={{ people: [{ id: "prs_maya", name: "Maya Chen" }] }}
+        <AccessSheet
+          mode="share" itemType="file" itemLabel="folder" resourceType="folder" resourceId="fld_intake" itemName="Intake" target="folder" ownerName="Irfad Imtiaz" onClose={() => undefined}
+          levels={["view", "edit", "manage"]} shares={SHARES} allowExternal={false} density="regular"
+          directory={{ people: [{ id: "prs_maya", name: "Maya Chen", kind: "person" }] }}
         />
       </View>
     );

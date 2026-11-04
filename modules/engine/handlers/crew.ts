@@ -63,6 +63,14 @@ export async function repoGet(ctx: EngineCtx, input: { projectId: string }) {
   try { const head = await repoHead(r.path); return { repo: { projectId: input.projectId, path: r.path, baseBranch: r.base, branch: head.branch } }; } catch { return { repo: { projectId: input.projectId, path: r.path, baseBranch: r.base, branch: "" } }; }
 }
 
+/** The repository of a chat that has its own work folder (a crew started in a chat with no project). */
+export async function chatRepoGet(ctx: EngineCtx, input: { threadId: string }) {
+  ensure(ctx.db);
+  const r = repoRow(ctx, input.threadId);
+  if (!r) return { repo: null };
+  try { const head = await repoHead(r.path); return { repo: { threadId: input.threadId, path: r.path, baseBranch: r.base, branch: head.branch } }; } catch { return { repo: { threadId: input.threadId, path: r.path, baseBranch: r.base, branch: "" } }; }
+}
+
 /** The teammate's folder, made on the first call and left alone after. `dataDir` is the Space's; `asker` and `agentId` name the folder (it is per person, thread and agent). */
 export async function ensureWorkspace(dataDir: string, asker: string, threadId: string, agentId: string, w: { repo: string; base: string; branch: string; name: string }): Promise<{ dir: string; created: boolean }> {
   const dir = workFolder(dataDir, asker, threadId, agentId);

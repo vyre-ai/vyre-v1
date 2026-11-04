@@ -1,15 +1,21 @@
 // callTool (ARCH 6.7): every tool call is one capability invoke, as the agent acting for the asker. Nothing here decides access, Gate or audit; the invoke pipeline does,
 // and no mode (Ask, Allow, Auto) or plan state can make this module skip it. We only (a) refuse what was never offered this turn, (b) route the answer back as a tool result.
+import { nextReads } from "./next.ts";
 import { HostError, makeError } from "../../../host/src/routes/errors.ts";
 import type { CtxSeed, Invoke } from "../../../host/src/invoke.ts";
 import { heldCard, recordWork, workCardOf } from "./work-cards.ts";
 import { modelError } from "./model-error.ts";
 import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
+import { limited, shapeOutput } from "./compact.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
 import type { LocalDecision } from "./local.ts";
 import type { Refusal, ToolCtx, ToolDef, ToolResult, ToolSet } from "./types.ts";
+import { withLocalTimes } from "../../../lib/time-convert.ts";
+
+/** The capabilities whose results are times a person schedules by. */
+const TIMED = /^(?:calendar|mail|inbox|tasks|meetings|events)\./;
 
 export type ToolOutcome =
   /** `parkOn`: a question asked of the person (ask_question): the turn waits on its block and makes no further model call until it is answered. */
@@ -38,6 +44,10 @@ export interface CallDeps extends AccessDeps {
   dynamic?: DynamicTools;
   hooks?: CallHooks;
   invoke: Invoke;
+  /** The asker's time zone, when known: a calendar, mail, inbox or task result then carries each time in it as well (lib/time-convert.ts withLocalTimes). */
+  zoneOf?(ctx: ToolCtx): string | undefined;
+  /** Name the tool that reads one item after a list result, and list it at once. For a session whose model sees a live tool list (the API driver); a CLI engine through MCP lists once, so it is left out there. */
+  nextHints?: boolean;
   traceId?(): string;
   /** Local tools only: what Ask, Allow and Auto say. Fails closed: a missing policy refuses a local tool. */
   localPolicy?(t: ToolDef, ctx: ToolCtx, input: unknown): LocalDecision;
@@ -61,6 +71,8 @@ const hex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(
 
 export function createToolSession(deps: CallDeps): ToolSession {
   const loadedBy = new Map<string, Set<string>>();
+  /** The searches each turn has made, so the same one is not run twice. */
+  const searchedIn = new Map<string, Set<string>>();
   const newTrace = deps.traceId ?? ((): string => hex(16));
   const loadedSet = (threadId: string): Set<string> => {
     let s = loadedBy.get(threadId);
@@ -118,6 +130,16 @@ export function createToolSession(deps: CallDeps): ToolSession {
     if (t.name === "tool_search") {
       const query = (input as { query?: unknown } | null)?.query;
       if (typeof query !== "string" || query.trim() === "") return fail("validation.bad_input", traceId, { details: { errors: ["/query: required"], tool: t.name } });
+      // The same search twice in one turn finds the same tools: the second time says so instead of searching again (a model went round this loop nineteen times).
+      if (ctx.turnId) {
+        const key = query.trim().toLowerCase().replace(/\s+/g, " ");
+        let asked = searchedIn.get(ctx.turnId);
+        if (!asked) { asked = new Set(); searchedIn.set(ctx.turnId, asked); if (searchedIn.size > 200) searchedIn.delete(searchedIn.keys().next().value as string); }
+        if (asked.has(key)) {
+          return { kind: "result", traceId, result: { ok: true, content: { data: { tools: [], hint: "You already searched for that in this turn. What it found can be called now; call one of those tools, or change the words. If nothing fits, answer with what you have and say what is missing." } } } };
+        }
+        asked.add(key);
+      }
       const found = api.search(ctx, query);
       return {
         kind: "result", traceId,
@@ -160,7 +182,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
       ...(t.effects !== "read" && t.planMode === "blocked" ? { askable: true } : {}),
     };
     try {
-      const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : unstringified(t.inputSchema, input), seed);
+      const res = await deps.invoke(t.cap, isDynamic && deps.dynamic ? deps.dynamic.input(ctx, t, input) : limited(t.cap, unstringified(t.inputSchema, input)), seed);
       if (res.status === "held") {
         recordWork(ctx.turnId, heldCard(t.cap, res.taskId, input));
         return {
@@ -175,8 +197,20 @@ export function createToolSession(deps: CallDeps): ToolSession {
         if (typeof made === "string") await deps.invoke("chat.flow_card", { threadId: ctx.thread.threadId, automationId: made, idempotencyKey: `flow-card:${made}` }, seed).catch(() => undefined);
       }
       recordWork(ctx.turnId, workCardOf(t.cap, input, res.output));
-      const content: { data: unknown; blocks?: string[] } = { data: res.output };
+      // the calendar and mail reads come back to a model as compact rows with a count and a size (compact.ts); the full answer is what the hooks and the work card see
+      const shaped = isDynamic ? null : shapeOutput(t.cap, res.output);
+      // times in the person's zone beside the ISO and epoch ones, for the tools that return times people schedule by
+      const zone = TIMED.test(t.cap) ? deps.zoneOf?.(ctx) : undefined;
+      const data = shaped ? shaped.data : res.output;
+      const content: { data: unknown; meta?: unknown; blocks?: string[]; next?: string } = { data: zone ? withLocalTimes(data, zone) : data, ...(shaped ? { meta: shaped.meta } : {}) };
       if (t.blocks.length > 0) content.blocks = t.blocks;
+      // a list names the tool that reads one item, and that tool is listed from now on: no search to find it
+      const reads = deps.nextHints === true ? nextReads(t.name) : [];
+      if (reads.length > 0) {
+        const set = toolsFor(deps, ctx), offered = new Set([...set.listed, ...set.searchable].map((x) => x.name));
+        const ready = reads.filter((n) => offered.has(n));
+        if (ready.length > 0) { for (const n of ready) loadedSet(ctx.thread.threadId).add(n); content.next = `To read one of these, call ${ready.join(" or ")} with its id. ${ready.length > 1 ? "They are" : "It is"} ready to call now.`; }
+      }
       if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
       const asked = t.cap === "chat.question.ask" ? (res.output as { blockId?: unknown } | null)?.blockId : undefined;
       return { kind: "result", traceId: res.traceId, result: { ok: true, content }, ...(typeof asked === "string" ? { parkOn: { blockId: asked } } : {}) };

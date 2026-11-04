@@ -16,3 +16,4 @@ Area: records. Risk: medium. Applies to: record_type, record.
 
 - records.export
 - spaces.export
+- spaces.export_latest

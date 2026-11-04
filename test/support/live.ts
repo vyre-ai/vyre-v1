@@ -1,5 +1,6 @@
 // Shared pieces of the booted-daemon chat tests (test/chat-brain.live.test.ts): a seeded data directory, a daemon with a model stand-in, capability calls over HTTP, and a chat that waits for a reply.
 // Nothing inside the daemon is faked. The model vendor stand-in is an OpenSession the test supplies.
+import type { SeamFetch } from "../../host/src/seams/ports.ts";
 import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -28,7 +29,7 @@ export function seededDir(): string {
 }
 
 /** `standIn` null with `engineCli` boots the real driver around a CLI process (the fake claude of host/tests/fixtures/fake-cli-driver). */
-export async function boot(dir: string, standIn: OpenSession | null, extra: { engineCli?: unknown; now?: () => number } = {}): Promise<Daemon> {
+export async function boot(dir: string, standIn: OpenSession | null, extra: { engineCli?: unknown; now?: () => number; seams?: unknown; realVault?: boolean } = {}): Promise<Daemon> {
   return startDaemon({
     ...(extra.now ? { now: extra.now } : {}),
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
@@ -43,9 +44,11 @@ export async function boot(dir: string, standIn: OpenSession | null, extra: { en
     }),
     fetch: caddyFetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
-    vault: { secret: async () => KEY, signRs256: async () => "" },
+    ...(extra.realVault ? {} : { vault: { secret: async () => KEY, signRs256: async () => "" } }),
+    ...(extra.seamFetch ? { seams: { fetch: extra.seamFetch } } : {}),
     ...(standIn ? { engineOpenSession: standIn } : {}),
     ...(extra.engineCli !== undefined ? { engineCli: extra.engineCli as never } : {}),
+    ...(extra.seams !== undefined ? { seams: extra.seams as never } : {}),
   });
 }
 
@@ -189,4 +192,27 @@ export function scriptedModel(plan: (input: TurnInput, run: RunTool) => AsyncGen
       inject() {}, async cancel() {}, async close() {},
     } as EngineSession;
   };
+}
+
+/** The provider endpoints a ChatGPT (Codex) device sign-in talks to, approved at once: boot with `seams: { fetch: codexSeams }`, then connectCodex(d). */
+export const codexSeams = async (url: string): Promise<{ status: number; text(): Promise<string>; arrayBuffer(): Promise<ArrayBuffer> }> => {
+  const reply = (status: number, json: unknown) => ({ status, text: async () => JSON.stringify(json), arrayBuffer: async () => new ArrayBuffer(0) });
+  if (url === "https://auth.openai.com/api/accounts/deviceauth/usercode") return reply(200, { device_auth_id: "dev_live", user_code: "LIVE-1234", interval: "2" });
+  if (url === "https://auth.openai.com/api/accounts/deviceauth/token") return reply(200, { authorization_code: "AC-live", code_challenge: "c", code_verifier: "V-live" });
+  if (url === "https://auth.openai.com/oauth/token") return reply(200, { id_token: "a.b.c", access_token: "codex-access-LIVE-0123456789", refresh_token: "rt-live" });   // secret-scan: fake
+  return reply(404, {});
+};
+
+/** The person's ChatGPT account, signed in the way a person does it (after connect(d) has unlocked the Vault). */
+export async function connectCodex(d: Daemon): Promise<void> {
+  const flow = await call(d, "providers.subscription_start", { idempotencyKey: "cb-codex-flow", providerKey: "codex" });
+  assert.equal(flow.status, 200, JSON.stringify(flow.data));
+  // the first answer is "waiting" until the device flow's interval has passed
+  let done = await call(d, "providers.subscription_complete", { flowId: flow.data.flowId });
+  for (let i = 0; i < 5 && done.data.waiting === true; i++) {
+    await new Promise<void>((r) => setTimeout(r, 2_200));
+    done = await call(d, "providers.subscription_complete", { flowId: flow.data.flowId });
+  }
+  assert.equal(done.status, 200, JSON.stringify(done.data));
+  assert.equal(done.data.provider?.providerKey, "codex", JSON.stringify(done.data));
 }

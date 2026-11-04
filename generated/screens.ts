@@ -321,7 +321,7 @@ export const screens: ScreenIndexEntry[] = [
     "module": "access",
     "place": "shell",
     "slot": "sheet",
-    "builtin": "ui:ShareSheet",
+    "builtin": "ui:AccessSheet",
     "caller": "principal",
     "queries": {
       "shares": {
@@ -2482,6 +2482,43 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "console.ai-voice",
+    "module": "talk",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleAiVoice",
+    "caller": "principal",
+    "queries": {
+      "space": {
+        "cap": "talk.space.status",
+        "input": {},
+        "live": true
+      },
+      "me": {
+        "cap": "talk.status",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "configure": {
+        "cap": "talk.space.configure",
+        "input": {}
+      },
+      "check": {
+        "cap": "talk.space.check",
+        "input": {}
+      }
+    },
+    "needs": [
+      "policy.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.backups",
     "module": "console-views",
     "place": "console",
@@ -2535,6 +2572,39 @@ export const screens: ScreenIndexEntry[] = [
     },
     "needs": [
       "server.backups"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.ci",
+    "module": "ci",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleCi",
+    "caller": "principal",
+    "queries": {
+      "settings": {
+        "cap": "ci.settings.get",
+        "input": {},
+        "live": true
+      },
+      "cost": {
+        "cap": "ci.cost.month",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "set": {
+        "cap": "ci.settings.set",
+        "input": {}
+      }
+    },
+    "needs": [
+      "connectors.manage"
     ],
     "perf": {
       "firstPaintMs": 50,
@@ -2675,6 +2745,37 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "console.github-app",
+    "module": "github",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleGithubApp",
+    "caller": "principal",
+    "queries": {},
+    "actions": {
+      "create": {
+        "cap": "github.app.create_manifest",
+        "input": {
+          "org": "/draft/org"
+        }
+      },
+      "complete": {
+        "cap": "github.app.complete",
+        "input": {
+          "code": "/state/code",
+          "state": "/state/state"
+        }
+      }
+    },
+    "needs": [
+      "connectors.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.integrations",
     "module": "connectors",
     "place": "console",
@@ -2783,6 +2884,43 @@ export const screens: ScreenIndexEntry[] = [
     },
     "needs": [
       "policy.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.machines",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleMachines",
+    "caller": "principal",
+    "queries": {
+      "machines": {
+        "cap": "machines.list",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "set": {
+        "cap": "machines.set",
+        "input": {
+          "machineId": "/state/machineId"
+        }
+      },
+      "fix": {
+        "cap": "machines.fix",
+        "input": {
+          "machineId": "/state/machineId",
+          "fix": "/state/fix"
+        }
+      }
+    },
+    "needs": [
+      "console.access"
     ],
     "perf": {
       "firstPaintMs": 50,
@@ -2970,6 +3108,23 @@ export const screens: ScreenIndexEntry[] = [
     "perf": {
       "firstPaintMs": 100,
       "completeMs": 300
+    }
+  },
+  {
+    "id": "console.page",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsolePage",
+    "caller": "principal",
+    "queries": {},
+    "actions": {},
+    "needs": [
+      "console.access"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
     }
   },
   {
@@ -7558,7 +7713,8 @@ export const screens: ScreenIndexEntry[] = [
         "input": {
           "by": "/state/by",
           "from": "/state/from",
-          "to": "/state/to"
+          "to": "/state/to",
+          "personId": "/state/personId"
         },
         "live": true
       }
@@ -7970,6 +8126,10 @@ export const screens: ScreenIndexEntry[] = [
       }
     },
     "actions": {
+      "cancel": {
+        "cap": "spaces.delete_cancel",
+        "input": {}
+      },
       "update": {
         "cap": "spaces.update",
         "input": {
@@ -7993,7 +8153,8 @@ export const screens: ScreenIndexEntry[] = [
       "delete": {
         "cap": "spaces.delete",
         "input": {
-          "confirmName": "/state/confirmName"
+          "confirmName": "/state/confirmName",
+          "withoutExport": "/state/withoutExport"
         },
         "confirm": "Delete the Space for everyone?"
       },

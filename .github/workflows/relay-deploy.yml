@@ -67,7 +67,7 @@ jobs:
       - name: relay/worker, dry run
         working-directory: relay/worker
         run: |
-          "$W" deploy --dry-run -c "$CONFIG" --outdir /tmp/relay-out 2>&1 | tee /tmp/relay-dry.txt
+          "$W" deploy --dry-run -c "$CONFIG" --var "RELAY_VERSION:$(node -p "require('../../package.json').version")" --outdir /tmp/relay-out 2>&1 | tee /tmp/relay-dry.txt
           grep -E "ROUTES|HOSTS|ASSETS" /tmp/relay-dry.txt
       - uses: actions/upload-artifact@v4
         with:
@@ -108,7 +108,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          "$W" deploy -c "$CONFIG"
+          "$W" deploy -c "$CONFIG" --var "RELAY_VERSION:$(node -p "require('../../package.json').version")"
       - name: wildcard route and record (edge=${{ inputs.edge }})
         if: ${{ inputs.target == 'production' && inputs.edge != 'none' }}
         env:

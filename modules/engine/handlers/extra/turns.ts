@@ -14,6 +14,7 @@ import { ensureExtra } from "./schema.ts";
 import { ensureInfo, saveTurnInfo } from "./reply-info.ts";
 import type { TurnInfo } from "../../../../agent/src/turn-engine/types.ts";
 import { num, optStr, pageOf, rows, str, turnOf } from "./util.ts";
+import { isSystemCall } from "../../../../lib/trust.ts";
 import type { ErrShape, Row, TurnOut, TurnState } from "./util.ts";
 
 type Kind = "message" | "interrupt" | "wake" | "handoff";
@@ -26,7 +27,7 @@ const DEFAULT_SAMPLE_PERCENT = 5;
 /** The server a turn ran on, when its chat was pinned to one, and every place it ran, in order (node-turns.ts). */
 function withNode(ctx: EngineCtx, r: Row): Row {
   const node = nodeOfTurn(ctx.db, str(r["turn_id"]));
-  const ran = whereOfTurn(ctx.db, str(r["turn_id"])).map((w) => ({ kind: w.kind, name: w.name }));
+  const ran = whereOfTurn(ctx.db, str(r["turn_id"])).map((w) => ({ kind: w.kind, name: w.name, ...(w.note ? { note: w.note } : {}) }));
   return { ...r, ...(node === undefined || node.startsWith("device:") ? {} : { node_id: node }), ...(ran.length > 0 ? { ran_on: ran } : {}) };
 }
 
@@ -363,6 +364,21 @@ export function turnsList(ctx: EngineCtx, input: { threadId: string; state?: Tur
   const all = rows(ctx, `SELECT * FROM engine_turns WHERE thread_id = ?${where} ORDER BY started_at DESC, qseq DESC`, input.threadId, ...(states ?? [])).map((r) => turnOf(withNode(ctx, r)));
   const p = pageOf(all, input);
   return { turns: p.items, ...(p.next === undefined ? {} : { next: p.next }), total: p.total };
+}
+
+/**
+ * The turns running now with the machine each runs on (the Machines page's "what runs here"): the agent, the asker, when it started and where. No message, title or file: a private chat's content is not
+ * for whoever reads a machine. Never a person's call: the Machines module asks, from inside the Space.
+ */
+export function turnsRunning(ctx: EngineCtx, _input: Record<string, never>): { turns: Array<{ turnId: string; agentId: string; asker: string; startedAt: number; where: { kind: "computer" | "server" | "space"; name: string; nodeId?: string } }> } {
+  ensureExtra(ctx.db);
+  if (!isSystemCall(ctx as { depth?: number; principal?: { kind: string; id: string } })) return raise(ctx, "permission.no_grant", "Only the Space reads which turns are running.");
+  const out = rows(ctx, "SELECT * FROM engine_turns WHERE state = 'running' ORDER BY started_at DESC LIMIT 200").map((r) => withNode(ctx, r));
+  return { turns: out.map((t) => {
+    const ran = (Array.isArray(t["ran_on"]) ? (t["ran_on"] as Array<{ kind: "computer" | "server" | "space"; name: string; nodeId?: string }>) : []).at(-1);
+    const node = nodeOfTurn(ctx.db, str(t["turn_id"]));
+    return { turnId: str(t["turn_id"]), agentId: str(t["agent_id"]), asker: str(t["asker"]), startedAt: num(t["started_at"]), where: { kind: ran?.kind ?? "space", name: ran?.name ?? "the Space's server", ...(node ? { nodeId: node } : {}) } };
+  }) };
 }
 
 // ---- retry

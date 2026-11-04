@@ -32,6 +32,8 @@ type In = {
   model?: string;
   provider?: string;
   effort?: "low" | "medium" | "high" | "max";
+  account?: string;
+  why?: string;
   crew?: boolean;
   taskId?: string;
 };
@@ -68,9 +70,18 @@ type Out = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     createdAt: number;
     closedAt?: number;
+    joinedAt?: Record<string, unknown>;
+    sharedAt?: number;
     replyCount?: number;
     lastMessageAt?: number;
     path?: Array<{
@@ -105,6 +116,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "account": "example",
     "agentId": "agt_a1b2c3",
     "crew": true,
     "effort": "low",
@@ -113,7 +125,8 @@ type Out = {
     "provider": "example",
     "taskId": "tsk_a1b2c3",
     "threadId": "thr_a1b2c3",
-    "title": "example"
+    "title": "example",
+    "why": "cheap reader"
   },
   "output": {
     "blockId": "blk_a1b2c3",
@@ -123,10 +136,17 @@ type Out = {
           "accountRef": "example",
           "agentId": "agt_a1b2c3",
           "effort": "low",
+          "hoursFrom": "09:00",
+          "hoursTo": "09:00",
           "mode": "lead",
           "model": "claude-sonnet-5-5",
+          "owned": true,
           "provider": "anthropic",
-          "watches": true
+          "quiet": true,
+          "style": "short",
+          "topics": "example",
+          "watches": true,
+          "when": "always"
         }
       ],
       "channelId": "chn_a1b2c3",
@@ -134,6 +154,7 @@ type Out = {
       "createdAt": 1760000000000,
       "folderId": "fld_a1b2c3",
       "following": true,
+      "joinedAt": {},
       "kind": "chat",
       "lastMessageAt": 1760000000000,
       "listed": true,
@@ -166,6 +187,7 @@ type Out = {
       "replyCount": 1,
       "scopeId": "example",
       "scopeType": "record",
+      "sharedAt": 1760000000000,
       "starter": "example",
       "threadId": "thr_a1b2c3",
       "title": "example",

@@ -18,7 +18,7 @@ import { preview, withMode } from "./lead.ts";
 import type {
   AgentMode, DriverEvent, EngineAgent, EngineEvent, EngineSession, IncomingMessage, OpenSession, OpenThread, Placement, PreviewResult,
   QueueItem, ReceiveResult, SpendRow, StoredMessage, ToolResult, ToolTrace, TurnInfo, TurnRow,
-  AccountQuery, ResolvedAccount,
+  AccountQuery, ModelQuery, ResolvedAccount,
 } from "./types.ts";
 import type { RoutePolicy, RouteMention } from "../../../lib/route.ts";
 
@@ -28,6 +28,8 @@ export interface ToolContext {
   said?: string;
 }
 /** A tool call parked at the Gate: the task that decides it, and the Run when the call belongs to one. */
+/** Most reads run together in one step. */
+export const MAX_PARALLEL = 6;
 export interface HeldCall { taskId: string; runId?: string }
 export type ToolRunResult = ToolResult & { held?: HeldCall; /** a question asked of the person: park on its block, no further model call until it is answered */ parkOn?: { blockId: string } };
 export type ToolRunner = (call: { id: string; name: string; input: unknown }, ctx: ToolContext) => Promise<ToolRunResult>;
@@ -57,6 +59,11 @@ export interface EngineOptions {
    * this turn; null means nothing is left and the turn fails as it did. Only before the turn produced anything: a half-written answer is never repeated on another account.
    */
   nextAccount?: (q: AccountQuery) => Promise<ResolvedAccount | null>;
+  /**
+   * The model the turn asked for is not available on the account (the engine said so, engine.model_unavailable) and nothing was said yet: the host picks the next best model, makes it the chat's pick,
+   * says so in one quiet line and answers the account that serves it; the turn runs again at once. Null: nothing else to try, the turn fails as it did. A throw with a `code` ends the turn with that code.
+   */
+  nextModel?: (q: ModelQuery) => Promise<ResolvedAccount | null>;
   /** No account could be found for a turn: raise the Unblock task for the starter; when it is answered the host calls wake() to run the turn again. */
   onNoAccount?: (info: { threadId: string; turnId: string; agentId: string; asker: string; routine: boolean }) => Promise<void> | void;
   /**
@@ -86,6 +93,13 @@ export interface EngineOptions {
   /** Where a queued item should run (ARCH 6.3). Default: here. */
   place?: (thread: OpenThread, item: QueueItem) => Placement;
   callTool?: ToolRunner;
+  /**
+   * Says whether a tool is an independent read that can run together with others ("read") or must run on its own, in order ("other": writes, outward acts, anything the Gate can hold, anything that
+   * asks the person). Without it every call runs alone, as before. Only used for a session that says parallelTools.
+   */
+  toolClass?: (name: string) => "read" | "other";
+  /** Most reads run at the same time. Default 6. */
+  maxParallel?: number;
   /** Repeating timer, returns its canceller. Default setInterval (unref'd). */
   schedule?: (fn: () => void, ms: number) => () => void;
   /** Messages included as transcript window in each turn input. */
@@ -122,9 +136,12 @@ const KEEP_TURNS = 5_000;
 const ACCOUNT_FAILURE: ReadonlySet<string> = new Set(["provider.auth_failed", "auth.expired", "provider.rate_limited", "provider.overloaded"]);
 /** The vendor is busy (owner ruling, 3 Nov 2026): one more try on the same account before the backup takes the turn. Not a limit. */
 const OVERLOADED = "provider.overloaded";
+const MODEL_GONE = "engine.model_unavailable";
+/** How many models a turn moves through before it gives up. */
+const MAX_MODEL_SWITCHES = 4;
 const MAX_FALLBACKS = 8;
 
-interface Running { turnId: string; agentId: string; asker: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean }
+interface Running { turnId: string; agentId: string; asker: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean; /** why it was cancelled, said in the chat */ why?: string }
 /** Agent-to-agent hand-offs that may follow one person's message, and how many times one pair may pass it between them. */
 const MENTION_HOPS = 3;
 const MAX_PAIR_PASSES = 2;
@@ -147,7 +164,7 @@ export interface TurnEngine {
    * Stop button: cancel the running turn. `agentId` limits it to one agent (its running turn, its queued rows, its parked turns).
    * `clearQueue` stops everything in the thread: running, queued and parked (stop all).
    */
-  stop(threadId: string, opts?: { agentId?: string; clearQueue?: boolean }): Promise<StopResult>;
+  stop(threadId: string, opts?: { agentId?: string; clearQueue?: boolean; /** why, in a word the chat turns into a sentence: stop (a person pressed Stop), limit, left, moved */ reason?: string }): Promise<StopResult>;
   /** Take a message that is waiting in the queue out of it (it stays in the chat; the agent will not answer it). Returns how many queued rows were cancelled: 0 when it is not waiting, as when its turn has started. */
   dropQueued(threadId: string, messageId: string): number;
   /** "Stop and send" for a message that is already stored: cancel the running turn and queue the responders first. Without a message it only cancels. */
@@ -165,6 +182,8 @@ export interface TurnEngine {
   setStarter(threadId: string, starter: string): void;
   /** Change the model, engine or paying account an agent runs on in this thread, from its next turn. */
   setAgent(threadId: string, agentId: string, patch: { model?: string; accountRef?: string }): void;
+  /** Replace how and when an agent answers in this thread (Listening, When, topics, hours, style): a field left out is cleared. Used before a message is routed, so a change made in the chat is the engine's from the next message. */
+  setSettings(threadId: string, agentId: string, s: Pick<EngineAgent, "quiet" | "when" | "topics" | "hoursFrom" | "hoursTo" | "style">): void;
   agents(threadId: string): EngineAgent[];
   /** The composer line "Intake will reply". */
   preview(threadId: string, draft: { author: IncomingMessage["author"]; mentions?: readonly RouteMention[]; depth?: number }): PreviewResult;
@@ -239,11 +258,15 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
 
   function ingest(st: ThreadState, m: IncomingMessage, interrupt: boolean): ReceiveResult {
     if (m.people) st.thread.people = [...m.people];
-    return dispatch(st, store(st, m), interrupt, m.replyToPerson, m.job, m.asker);
+    return dispatch(st, store(st, m), interrupt, m.replyToPerson, m.job, m.asker, m.poke, m.minutes);
   }
 
-  function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean, replyToPerson?: string, job?: string, asker?: string): ReceiveResult {
-    const r = route({ agents: st.thread.agents, kind: st.thread.kind, ...(st.thread.people ? { people: st.thread.people } : {}) }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined, text: msg.body }, opts.policy);
+  /** The queue rows that are a poke: their turn reads the last 12 messages and no more. */
+  const pokeRows = new Set<string>();
+  const POKE_WINDOW = 12;
+
+  function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean, replyToPerson?: string, job?: string, asker?: string, poke?: { agentId: string; by: string }, minutes?: number): ReceiveResult {
+    const r = route({ agents: st.thread.agents, kind: st.thread.kind, ...(st.thread.personal ? { personal: true } : {}), ...(st.thread.people ? { people: st.thread.people } : {}) }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined, text: msg.body, ...(poke ? { poke: poke.agentId } : {}), ...(minutes === undefined ? {} : { minutes }) }, opts.policy);
     let responders = r.responders;
     // a round where a person spoke to all the agents: each answers alone, and no answer sets off another agent (the lead posts no summary) unless it @mentions one or the person asks again
     if (msg.author.kind === "person") { if (r.reason === "all") askedAll.set(st.thread.id, new Set(responders)); else askedAll.delete(st.thread.id); }
@@ -278,7 +301,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     for (const agentId of responders) if (outside.has(agentId)) emit({ type: "agent.outside_asked", threadId: st.thread.id, messageId: msg.id, agentId, asker: msg.author.id, body: msg.body });
     responders = responders.filter((id) => !outside.has(id));
     const qseqs = responders.map((agentId) => enqueue(st, { kind, agentId, from, messageId: msg.id, priority: interrupt ? PRIORITY_INTERRUPT : 0, routine }).qseq);
-    if (interrupt && st.running) void cancelRunning(st);
+    if (poke) for (const q of qseqs) pokeRows.add(`${st.thread.id}:${q}`);
+    if (interrupt && st.running) void cancelRunning(st, "interrupt");
     if (qseqs.length > 0) kick(st);
     return { responders, reason: r.reason, qseqs, messageId: msg.id, ...(chain && qseqs.length > 0 ? { chain } : {}) };
   }
@@ -295,10 +319,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     return n;
   }
 
-  async function cancelRunning(st: ThreadState): Promise<void> {
+  async function cancelRunning(st: ThreadState, why: string): Promise<void> {
     const run = st.running;
     if (!run || run.cancelled) return;
     run.cancelled = true;
+    run.why = why;
     try { await run.session?.cancel(); } catch { /* the turn is ending either way */ }
   }
 
@@ -423,7 +448,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       // a store that is gone (the host shut down under a running turn) ends the beat quietly: a throw out of a timer would take the whole process with it
       let held: boolean;
       try { held = leases.renew(st.thread.id, opts.holder, now()); } catch { stopBeat(); return; }
-      if (!held) { run.lostLease = true; void cancelRunning(st); }
+      if (!held) { run.lostLease = true; void cancelRunning(st, "lease"); }
       else if (!inTool && hr() - lastSeen > idleMs) hush(Object.assign(new Error("the session went quiet"), { code: "turn_timeout" }));
     }, HEARTBEAT_MS);
 
@@ -454,6 +479,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       }
       const failedRefs: string[] = [];
       const busyTried = new Set<string>();
+      let modelSwitches = 0;
       for (;;) {
       const session = await opts.openSession({ threadId: st.thread.id, agent, asker, turnId: turn.id, traceId: turn.traceId, ...(paying ? { account: paying } : {}) });
       run.session = session;
@@ -463,16 +489,69 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       let switchTo: ResolvedAccount | null = null;
       const input = {
         threadId: st.thread.id, turnId: turn.id, agent, trigger, asker,
-        history: st.messages.slice(-historyWindow),
+        history: st.messages.slice(-(pokeRows.has(`${st.thread.id}:${item.qseq}`) ? POKE_WINDOW : historyWindow)),
         listeners: st.thread.agents.filter((a) => a.mode === "listen" && a.id !== agent.id).map((a) => (a.role === undefined ? { id: a.id } : { id: a.id, role: a.role })),
         ...(wait && wait.resolution ? { resumed: { taskId: wait.taskId, callId: wait.callId, toolName: wait.toolName, approved: wait.resolution.approved, result: wait.resolution.result } } : {}),
       };
       if (wait) waits.remove(wait.taskId);
       const t0 = enqueuedHr.get(`${item.threadId}:${item.qseq}`) ?? hr();
       let ended = false;
+      // A step that asks for several tools: the calls are collected (the session yields them, then tool_wait) and run together when they are independent reads; everything else runs after, one at a time, in order.
+      const parallel = session.parallelTools === true && opts.toolClass !== undefined;
+      const batch: { id: string; name: string; input: unknown }[] = [];
+      const runBatch = async (calls: readonly { id: string; name: string; input: unknown }[]): Promise<"ok" | "parked" | "cancelled"> => {
+        const toolCtx = { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker };
+        const cap = Math.max(1, opts.maxParallel ?? MAX_PARALLEL);
+        const results = new Map<string, ToolRunResult>();
+        const traces = new Map<string, ToolTrace | null>();
+        for (const c of calls) traces.set(c.id, traceTool(info, { id: c.id, name: c.name, startedAt: now(), ...detailOf(c.input) }));
+        const done = (c: { id: string }, r: ToolRunResult): void => {
+          results.set(c.id, r);
+          const tr = traces.get(c.id);
+          if (tr) { tr.endedAt = now(); tr.ok = r.ok; if (r.held) tr.held = r.held.taskId; }
+        };
+        const reads = calls.filter((c) => opts.toolClass!(c.name) === "read");
+        const rest = calls.filter((c) => !reads.includes(c));
+        inTool = true;
+        try {
+          for (let i = 0; i < reads.length && !run.cancelled && !run.lostLease && parked === null; i += cap) {
+            const wave = reads.slice(i, i + cap);
+            const settled = await Promise.allSettled(wave.map((c) => runTool(opts.callTool, c, toolCtx)));
+            settled.forEach((s, k) => {
+              const c = wave[k]!;
+              const r: ToolRunResult = s.status === "fulfilled" ? s.value : { ok: false, content: { code: "tool_error", message: "the tool failed" } };
+              done(c, r);
+              if (r.held && parked === null) parked = { callId: c.id, name: c.name, held: r.held };
+            });
+          }
+          for (const c of rest) {
+            if (run.cancelled || run.lostLease || parked !== null) break;
+            const r = await runTool(opts.callTool, c, toolCtx);
+            done(c, r);
+            if (r.held) parked = { callId: c.id, name: c.name, held: r.held };
+          }
+        } finally { inTool = false; lastSeen = hr(); }
+        if (run.cancelled || run.lostLease) return "cancelled";
+        // results go back in the order the model asked, a held call's has none (the turn parks on it)
+        for (const c of calls) {
+          const r = results.get(c.id);
+          if (!r || r.held) continue;
+          session.sendToolResult(c.id, { ok: r.ok, content: r.content });
+          flush("tool_result");
+        }
+        if (parked !== null) return "parked";
+        steerBoundary(st, run, turn);
+        return "ok";
+      };
       for await (const ev of guarded(session.send(input) as AsyncIterable<DriverEvent>, quiet)) {
         lastSeen = hr();
         if (run.cancelled || run.lostLease) break;
+        if (batch.length > 0 && ev.type !== "tool_call") {
+          const calls = batch.splice(0, batch.length);
+          const how = await runBatch(calls);
+          if (how === "cancelled") break;
+          if (how === "parked") { ended = true; break; }
+        }
         switch (ev.type) {
           case "text":
           case "thinking":
@@ -488,9 +567,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           case "tool_call": {
             flush("text");
             flush("tool_call");
-            inTool = true;
             afterTool = true;
             queue.touch(st.thread.id, item.qseq);
+            if (parallel) { batch.push({ id: ev.id, name: ev.name, input: ev.input }); break; }
+            inTool = true;
             const trace = traceTool(info, { id: ev.id, name: ev.name, startedAt: now(), ...detailOf(ev.input) });
             const result = await runTool(opts.callTool, { id: ev.id, name: ev.name, input: ev.input }, { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker, said: saidSince(st, item.agentId) }).finally(() => { inTool = false; lastSeen = hr(); });
             if (trace) { trace.endedAt = now(); trace.ok = result.ok; if (result.held) trace.held = result.held.taskId; }
@@ -551,6 +631,17 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
               ended = true;
               break;
             }
+            // The model is not there on this account, before the turn said anything: the next best model answers, and the person never retries by hand.
+            if (ev.code === MODEL_GONE && opts.nextModel && paying && reply === "" && blockIdx === 0 && modelSwitches < MAX_MODEL_SWITCHES) {
+              modelSwitches += 1;
+              try { switchTo = await opts.nextModel({ threadId: st.thread.id, agentId: item.agentId, askerId: asker, account: paying, message: ev.message }); }
+              catch (e) {
+                const code = (e as { code?: unknown } | null)?.code;
+                if (typeof code === "string") { flush("text"); turn.error = { code, message: e instanceof Error ? e.message : code }; ended = true; break; }
+                switchTo = null;
+              }
+              if (switchTo) { ended = true; break; }
+            }
             // A key that is refused or out of quota, before the turn said anything: the next account in the agent's order takes it, and the failed one is skipped.
             if (opts.nextAccount && paying && ACCOUNT_FAILURE.has(ev.code) && reply === "" && blockIdx === 0 && failedRefs.length < MAX_FALLBACKS) {
               try { switchTo = await opts.nextAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: asker, unavailable: [...failedRefs, paying.ref], ...(ev.code === OVERLOADED ? { why: "overloaded" as const } : {}) }); }
@@ -572,7 +663,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       }
       if (switchTo) {
         try { await session.close(); } catch { /* dropped */ }
-        info.switches.push({ at: now(), from: paying?.ref ?? "", to: switchTo.ref, why: lastCode });
+        if (lastCode !== MODEL_GONE) info.switches.push({ at: now(), from: paying?.ref ?? "", to: switchTo.ref, why: lastCode });
         paying = switchTo;
         continue;
       }
@@ -584,6 +675,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       if (!run.cancelled) turn.error = { code, message: e instanceof Error ? e.message : "the turn failed" };
     } finally {
       stopBeat();
+      pokeRows.delete(`${st.thread.id}:${item.qseq}`);
       // a hung session may never close: give it a few seconds, then drop it so the turn can end
       try { await Promise.race([run.session?.close(), new Promise<void>((done) => { const h = setTimeout(done, 5000); if (typeof h === "object" && "unref" in h) h.unref(); })]); } catch { /* a session that will not close is dropped */ }
     }
@@ -616,7 +708,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     recordSpend(turn);
     try { await opts.onTurnEnd?.(turn, paying ?? null); } catch { /* metering must never fail the turn */ }
     if (turn.state === "completed") emit({ type: "turn.completed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId });
-    else if (turn.state === "cancelled") emit({ type: "turn.cancelled", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId });
+    else if (turn.state === "cancelled") emit({ type: "turn.cancelled", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, ...(run.why ? { reason: run.why } : {}) });
     else emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}) });
     // The agent's answer is a message like any other: it can @mention the next agent, which counts a hop.
     if (turn.state === "completed" && (reply !== "" || mentions.length > 0)) {
@@ -670,7 +762,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           released.push({ turnId: w.turnId, agentId: w.agentId, taskId: w.taskId });
         }
       }
-      if (hit) await cancelRunning(st);
+      if (hit) await cancelRunning(st, o?.reason ?? "stop");
       return { stopped, released, dropped };
     },
     dropQueued(threadId, messageId) { need(threadId); return dropRows(threadId, messageId); },
@@ -679,7 +771,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       const run = st.running !== null && !st.running.cancelled ? st.running : null;
       const cancelled = run ? [{ turnId: run.turnId, agentId: run.agentId }] : [];
       if (messageId === undefined) {
-        if (run) await cancelRunning(st);
+        if (run) await cancelRunning(st, "interrupt");
         return { cancelled, queued: false, qseqs: [] };
       }
       const msg = findMessage(st, messageId);
@@ -723,6 +815,14 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       const st = need(threadId);
       if (!st.thread.agents.some((a) => a.id === agentId)) throw new RangeError(`no agent ${agentId} in this thread`);
       st.thread.agents = st.thread.agents.map((a) => (a.id === agentId ? { ...a, ...(patch.model === undefined ? {} : { model: patch.model }), ...(patch.accountRef === undefined ? {} : { accountRef: patch.accountRef }) } : a));
+    },
+    setSettings(threadId, agentId, x) {
+      const st = need(threadId);
+      st.thread.agents = st.thread.agents.map((a) => {
+        if (a.id !== agentId) return a;
+        const { quiet: _q, when: _w, topics: _t, hoursFrom: _f, hoursTo: _o, style: _s, ...rest } = a;
+        return { ...rest, ...(x.quiet === true ? { quiet: true } : {}), ...(x.when !== undefined && x.when !== "always" ? { when: x.when } : {}), ...(x.topics ? { topics: x.topics } : {}), ...(x.hoursFrom ? { hoursFrom: x.hoursFrom } : {}), ...(x.hoursTo ? { hoursTo: x.hoursTo } : {}), ...(x.style ? { style: x.style } : {}) };
+      });
     },
     agents: (threadId) => need(threadId).thread.agents.map((a) => ({ ...a })),
     preview(threadId, draft) {

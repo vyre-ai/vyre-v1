@@ -10,12 +10,16 @@ import { DeferredPlan as Plan } from "../../../../../../ui/src/Plan/DeferredPlan
 import type { PlanTask } from "../../../../../../ui/src/Plan/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";
+import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { projectMenu } from "../../chats/menus/kinds-b.ts";
+import { copyToClipboard, createMenuApiB, vyreLink } from "../../chats/menus/actions-b.ts";
 import { GoalsOf } from "../../chats/goals/GoalsList.tsx";
 import { useProjectPageData } from "./data.tsx";
 import { ROLE_WORDS, TAB_SPECS, ago, dateWords, dueWords, editsBetween, isoDay, planStages, planTasks, plural } from "./model.ts";
 import type { Overview, PlanOut, TabKey } from "./model.ts";
 import { ImportedHistory } from "./ImportedHistory.tsx";
 import { TeammatesTab } from "./TeammatesTab.tsx";
+import { useAddSheet } from "../../chats/addsheet/index.ts";
 
 export interface ProjectPageProps {
   projectId: string;
@@ -34,6 +38,9 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
   const [tab, setTab] = useState<TabKey>(first);
   useEffect(() => setTab(first), [first]);
   const [note, setNote] = useState<string | null>(null);
+  const menu = useMenu();
+  const [mine, setMine] = useState<{ manage: boolean; edit: boolean; starred: boolean }>({ manage: false, edit: false, starred: false });
+  const api = useMemo(() => createMenuApiB(d), [d]);
   const say = useCallback((e: unknown): void => setNote(e instanceof Error ? e.message : "That did not work."), []);
 
   const read = useCallback(async (): Promise<void> => {
@@ -41,9 +48,19 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
       const overview = (await d.call("projects.overview", { projectId })) as Overview;
       const plan = (await d.call("projects.plan", { projectId })) as PlanOut;
       setLoad({ status: "ready", overview, plan });
+      // what the right-click menu offers follows the person's role on the project and whether they starred it
+      try {
+        const members = (await d.call("projects.members.list", { projectId })) as { members?: { principal: string; role: string }[] };
+        const stars = (await d.call("stars.list", {})) as { stars?: { resource: { type: string; id: string } }[] };
+        const role = (members.members ?? []).find((m) => m.principal === d.me?.id)?.role?.toLowerCase();
+        setMine({ manage: role === "lead", edit: role === "lead" || role === "member", starred: (stars.stars ?? []).some((x) => x.resource.type === "project" && x.resource.id === projectId) });
+      } catch { /* the menu then offers only what anyone may do */ }
     } catch { setLoad({ status: "gone" }); }
   }, [d, projectId]);
   useEffect(() => { void read(); }, [read]);
+  // the one Add people and agents sheet for this project: the members count and the Teammates tab both open it
+  const [added, setAdded] = useState(0);
+  const add = useAddSheet({ call: d.call, me: d.me ?? { id: "me", name: "You" }, nameOf: d.nameOf, newKey: () => globalThis.crypto.randomUUID(), toast: (text) => setNote(text) }, { onDone: () => { setAdded((n) => n + 1); void read(); } });
   useEffect(() => {
     if (!note) return undefined;
     const t = setTimeout(() => setNote(null), 4500);
@@ -78,7 +95,14 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
 
   return (
     <View style={s.frame} testID="project-page" accessibilityLabel={`Project, ${p.title}`}>
-      <View style={s.head}>
+      {menu.element}
+      <View style={s.head} testID="project-head" {...menuTrigger((x, y) => menu.show(projectMenu({ title: p.title, starred: mine.starred, archived: p.archivedAt !== undefined, manage: mine.manage, edit: mine.edit }, {
+        star: (on) => { void api.projectStar(projectId, on).then(() => { setMine((m) => ({ ...m, starred: on })); setNote(on ? "Starred" : "Star removed"); }, say); },
+        share: () => d.nav.openRecordPage(p.type, p.recordId), addPeople: () => add.open({ projectId }),
+        pinFile: () => { setTab("files"); onTabChange?.("files"); },
+        archive: () => { void api.projectArchive(projectId).then(() => { setNote("Archived. It left the lists and still opens; Unarchive brings it back."); void read(); }, say); },
+        unarchive: () => { void api.projectUnarchive(projectId).then(() => { setNote("Back in the lists"); void read(); }, say); }, copyLink: () => { copyToClipboard(vyreLink("project", projectId)); setNote("Link copied"); },
+      }), x, y, "context", { label: p.title }))}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text accessibilityRole="header" aria-level={1} numberOfLines={1} style={s.title} testID="project-title">{p.title}</Text>
           <View style={s.facts}>{facts}</View>
@@ -89,10 +113,10 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
       <View style={s.strip} testID="project-strip" accessibilityLabel="Project at a glance">
         <Text style={s.stripText}>{plural(p.openTasks, "open task")}</Text>
         <Text style={[s.stripText, p.lateTasks > 0 && s.late]} testID="project-late">{p.lateTasks > 0 ? `${p.lateTasks} late` : "None late"}</Text>
-        <Text style={s.stripText}>{plural(p.memberCount, "person", "people")}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Add people and agents" testID="project-members" onPress={() => add.open({ projectId })}><Text style={s.stripText}>{plural(p.memberCount, "person", "people")}</Text></Pressable>
       </View>
       {d.nav.openGoal ? <GoalsOf scope="project" id={projectId} call={d.call} changes={d.changes} now={d.now()} offsetMin={0} nameOf={d.nameOf} openGoal={d.nav.openGoal} testID="project-goals" /> : null}
-      <TabStrip tabs={TAB_SPECS} active={tab} onSelect={(k) => { setTab(k as TabKey); onTabChange?.(k as TabKey); }} />
+      <TabStrip underline tabs={TAB_SPECS} active={tab} onSelect={(k) => { setTab(k as TabKey); onTabChange?.(k as TabKey); }} />
       {tab === "overview" ? <OverviewTab o={o} now={now} /> : null}
       {tab === "plan" ? (
         <View style={s.planBody} testID="project-plan">
@@ -101,8 +125,9 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
       ) : null}
       {tab === "files" ? <FilesTab o={o} /> : null}
       {tab === "chat" ? <ChatTab o={o} projectId={projectId} channelName={`#${p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`} now={now} /> : null}
-      {tab === "teammates" ? <TeammatesTab projectId={projectId} /> : null}
+      {tab === "teammates" ? <TeammatesTab projectId={projectId} refresh={added} onAdd={() => add.open({ projectId })} /> : null}
       {note ? <Text style={s.note} accessibilityLiveRegion="polite" testID="project-note">{note}</Text> : null}
+      {add.element}
     </View>
   );
 }
