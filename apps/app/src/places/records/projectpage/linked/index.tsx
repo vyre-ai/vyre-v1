@@ -4,8 +4,8 @@ import { LinkedTab } from "./LinkedTab.tsx";
 import { usePageTitle } from "./title.ts";
 import type { ProjectTabProps } from "../tabs.ts";
 
-export function ProjectLinked({ projectId, canEdit }: ProjectTabProps): ReactElement {
-  return <LinkedTab projectId={projectId} projectTitle={usePageTitle(projectId)} canEdit={canEdit} />;
+export function ProjectLinked({ projectId, canEdit, space }: ProjectTabProps): ReactElement {
+  return <LinkedTab projectId={projectId} projectTitle={usePageTitle(projectId)} canEdit={canEdit} spaceName={space.name} />;
 }
 
 export { LinkedTab } from "./LinkedTab.tsx";

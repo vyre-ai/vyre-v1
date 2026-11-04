@@ -39,7 +39,7 @@ export interface Sample {
   state: { links: Link[]; rules: Rule[]; asked: string[] };
 }
 
-export function createSampleLinked(o: { ci?: boolean; empty?: boolean; me?: string } = {}): Sample {
+export function createSampleLinked(o: { ci?: boolean; empty?: boolean; me?: string; accept?: "personal" | "org" } = {}): Sample {
   const state = { links: o.empty ? [] : LINKS(), rules: o.empty ? [] : RULES(), asked: [] as string[] };
   const calls: Sample["calls"] = [];
   const opened: string[] = [];
@@ -64,7 +64,7 @@ export function createSampleLinked(o: { ci?: boolean; empty?: boolean; me?: stri
         state.rules = next;
         return { rules: next };
       }
-      case "ci.project.get": return { linked: withCi, repo: withCi ? "northwind/website" : null, enabled: withCi, labels: ["vyre"], live: 1, queued: 0 };
+      case "ci.project.get": return { linked: withCi, repo: withCi ? "northwind/website" : null, enabled: withCi, labels: ["vyre"], live: 1, queued: 0, appNeedsAccept: o.accept !== undefined, acceptUrl: o.accept === "personal" ? "https://github.com/settings/installations/1" : null, orgAcceptUrl: o.accept === "org" ? "https://github.com/organizations/northwind/settings/installations/1" : null };
       case "ci.runs.list": return { runs: withCi ? RUNS() : [] };
       case "search.recent.list": case "search.query": {
         const q = String(i["q"] ?? "").toLowerCase();

@@ -30,6 +30,8 @@ export interface LinkedTabProps {
   /** Starts a chat with the Assistant (the fix card's button). Without it the card has no button. */
   askAssistant?(text: string): void;
   show?: Show;
+  /** The Space's name, for the GitHub app's permission line. */
+  spaceName?: string;
 }
 
 type Notice = { text: string; undo?: () => Promise<void> };
@@ -43,13 +45,14 @@ function anchor(): { x: number; y: number } {
   return b ? { x: Math.max(8, b.right - 200), y: b.bottom + 4 } : { x: 8, y: 48 };
 }
 
-export function LinkedTab({ projectId, projectTitle = "this project", canEdit, say: sayProp, open, openUrl: urlProp, askAssistant: askProp, show: first = "All" }: LinkedTabProps): ReactElement {
+export function LinkedTab({ projectId, projectTitle = "this project", canEdit, say: sayProp, open, openUrl: urlProp, askAssistant: askProp, show: first = "All", spaceName = "This Space" }: LinkedTabProps): ReactElement {
   const d = useProjectPageData();
   const openUrl = urlProp ?? d.nav.openUrl;
   const askAssistant = askProp ?? d.nav.askAssistant;
   const [data, setData] = useState<Out | null>(null);
   const [runs, setRuns] = useState<readonly Run[]>([]);
   const [repo, setRepo] = useState<string | null>(null);
+  const [accept, setAccept] = useState<{ url: string; org: boolean } | null>(null);
   const [failed, setFailed] = useState(false);
   const [show, setShow] = useState<Show>(first);
   const [sheet, setSheet] = useState<"link" | "rule" | null>(null);
@@ -69,12 +72,15 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
     } catch { setFailed(true); }
     // CI shows only for a project whose repository is linked and runners are on; a refusal here just means no CI rows
     try {
-      const ci = (await d.call("ci.project.get", { projectId })) as { linked: boolean; repo: string | null; enabled: boolean };
+      const ci = (await d.call("ci.project.get", { projectId })) as { linked: boolean; repo: string | null; enabled: boolean; appNeedsAccept?: boolean; acceptUrl?: string | null; orgAcceptUrl?: string | null };
+      // the GitHub app was given new permissions: someone has to accept them on GitHub (the personal address, or the organization's)
+      const url = ci.orgAcceptUrl ?? ci.acceptUrl ?? null;
+      setAccept(ci.appNeedsAccept === true && url !== null ? { url, org: ci.orgAcceptUrl != null } : null);
       if (ci.linked && ci.enabled) {
         setRepo(ci.repo);
         setRuns(((await d.call("ci.runs.list", { projectId, limit: 10 })) as { runs: Run[] }).runs);
       } else { setRepo(null); setRuns([]); }
-    } catch { setRepo(null); setRuns([]); }
+    } catch { setRepo(null); setRuns([]); setAccept(null); }
   }, [d, projectId]);
   useEffect(() => { void read(); }, [read]);
   useEffect(() => {
@@ -212,6 +218,12 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
         <Pressable accessibilityRole="button" accessibilityLabel={`Show: ${show}`} testID="linked-show" onPress={showMenu} style={({ hovered }: { hovered?: boolean }) => [st.show, hovered === true && st.hover]}><Text style={st.showText}>{"Show: "}<Text style={st.showOn}>{show}</Text>{" ▾"}</Text></Pressable>
         {canEdit ? <Pressable accessibilityRole="button" testID="linked-add" onPress={() => setSheet("link")} style={st.primary}><Text style={st.primaryText}>Link something</Text></Pressable> : null}
       </View>
+      {accept !== null ? (
+        <View testID="ci-accept" accessibilityRole="alert" style={st.notice}>
+          <Text style={st.noticeText}>{`${spaceName}'s GitHub app needs new permissions`}</Text>
+          <Pressable accessibilityRole="button" testID="ci-accept-go" onPress={() => { if (openUrl) openUrl(accept.url); else (globalThis as { open?: (u: string, t: string, f: string) => void }).open?.(accept.url, "_blank", "noopener"); }} style={st.askBtn}><Text style={st.askText}>Accept</Text></Pressable>
+        </View>
+      ) : null}
       {failed ? <Text accessibilityRole="alert" testID="linked-failed" style={st.bad}>Linked items could not be read. Try again.</Text> : null}
       {notice !== null ? (
         <View testID="linked-notice" accessibilityLiveRegion="polite" style={st.notice}>

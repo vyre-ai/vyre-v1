@@ -15,7 +15,7 @@ const only = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",
 const sizeOnly = (args.find((a) => a.startsWith("--size=")) ?? "").slice(7);
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync("/root/wt/base/node_modules/.bin/expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync(`${REPO}/node_modules/.bin/expo export --platform web --output-dir dist`, { cwd: appDir, stdio: "inherit", env: exportEnv() });
 }
 fs.mkdirSync(out, { recursive: true });
 const SIZES = { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };

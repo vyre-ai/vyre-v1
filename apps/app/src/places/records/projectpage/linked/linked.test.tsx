@@ -345,3 +345,16 @@ test("with the page's own doors, a task, a pull request and the fix card go thro
     } finally { await act(async () => { (made as { unmount(): void } | null)?.unmount(); }); }
   } finally { restore(); }
 });
+
+test("when the GitHub app needs new permissions the tab says so and Accept opens GitHub (the organization's address when there is one)", async () => {
+  const a = await tab({ accept: "personal" }, { spaceName: "Northwind" });
+  try {
+    assert.ok(textOf(find(a.root, "ci-accept")).includes("Northwind's GitHub app needs new permissions"));
+    await tap(a.root, "ci-accept-go");
+    assert.deepEqual(a.urls, ["https://github.com/settings/installations/1"]);
+  } finally { a.restore(); }
+  const o = await tab({ accept: "org" });
+  try { await tap(o.root, "ci-accept-go"); assert.deepEqual(o.urls, ["https://github.com/organizations/northwind/settings/installations/1"]); } finally { o.restore(); }
+  const none = await tab();
+  try { assert.equal(find(none.root, "ci-accept"), null); } finally { none.restore(); }
+});
