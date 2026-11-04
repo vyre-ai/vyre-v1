@@ -382,10 +382,9 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
   nodeRef: (node: unknown) => void;
 }): ReactElement {
   const report = isReportItem(entry);
-  // the approved prototype highlight: the hovered row fills with the accent (danger rows with the danger colour) and its ink turns to the accent ink
-  const base = entry.danger === true ? "var(--danger)" : "var(--ink)";
-  const ink = lit ? "var(--accent-ink)" : base;
-  const wash = lit ? { backgroundColor: entry.danger === true ? "var(--danger)" : "var(--accent)" } : null;
+  // owner, 5 Nov: hover and focus are a subtle fill, never the full accent; the ink stays as it is (a danger row keeps its danger ink)
+  const ink = entry.danger === true ? "var(--danger)" : "var(--ink)";
+  const wash = lit ? { backgroundColor: "var(--sel)" } : null;
   return (
     <Pressable
       ref={nodeRef}
@@ -407,8 +406,8 @@ function MenuRow({ entry, lit, onHover, onChoose, nodeRef }: {
       {entry.mark !== undefined ? (Platform.OS === "web"
         ? createElement("span", { title: entry.mark, "aria-label": entry.mark, role: "img", "data-mark": "true", "data-testid": `menu-mark-${entry.label}`, style: { width: 7, height: 7, borderRadius: 4, marginLeft: "auto", flexShrink: 0, background: "var(--warn)" } })
         : <View accessibilityLabel={entry.mark} style={styles.mark} />) : null}
-      {entry.count !== undefined ? <Text style={[styles.count, lit ? { color: ink, opacity: 0.8 } : null]} testID={`menu-count-${entry.label}`}>{entry.count}</Text> : null}
-      {entry.hint !== undefined ? <Text style={[styles.hint, lit ? { color: ink, opacity: 0.8 } : null]} testID={`menu-hint-${entry.label}`}>{entry.hint}</Text> : null}
+      {entry.count !== undefined ? <Text style={[styles.count, null]} testID={`menu-count-${entry.label}`}>{entry.count}</Text> : null}
+      {entry.hint !== undefined ? <Text style={[styles.hint, null]} testID={`menu-hint-${entry.label}`}>{entry.hint}</Text> : null}
       {entry.checked === true ? <Text style={[styles.check, entry.count !== undefined && styles.checkAfterCount, { color: ink }]}>{"✓"}</Text> : null}
     </Pressable>
   );

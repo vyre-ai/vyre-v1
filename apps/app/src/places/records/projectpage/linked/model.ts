@@ -11,16 +11,18 @@ export type Rule = Out["rules"][number];
 export type LinkKind = Link["kind"];
 export type Run = CapMap["ci.runs.list"]["out"]["runs"][number];
 
-export const GROUPS = ["Tasks", "Records", "Files", "Chats", "Code", "Sites"] as const;
+export const GROUPS = ["Files", "Records", "Code", "Money", "Chats"] as const;
 export type Group = (typeof GROUPS)[number];
 export type Show = "All" | Group;
 export const SHOWS: readonly Show[] = ["All", ...GROUPS];
 
 const GROUP_OF: Readonly<Record<LinkKind, Group>> = {
-  task: "Tasks", record: "Records", calendar_event: "Records", file: "Files", chat: "Chats", mail_thread: "Chats",
-  "github.pr": "Code", "github.commit": "Code", "ci.run": "Code", artifact: "Sites", url: "Sites",
+  file: "Files", url: "Files", record: "Records", task: "Records", calendar_event: "Records", artifact: "Records", chat: "Chats", mail_thread: "Chats",
+  "github.pr": "Code", "github.commit": "Code", "ci.run": "Code",
 };
-export const groupOf = (l: { kind: LinkKind }): Group => GROUP_OF[l.kind];
+/** A record of an invoice type is money; every other record is a record. */
+const isMoney = (l: { kind: LinkKind; ref: string }): boolean => l.kind === "record" && /^(invoice|invoices|bill|payment)s?\//i.test(l.ref);
+export const groupOf = (l: { kind: LinkKind; ref?: string }): Group => (l.ref !== undefined && isMoney({ kind: l.kind, ref: l.ref }) ? "Money" : GROUP_OF[l.kind]);
 
 /** What each kind is called where a sentence needs it. */
 export const KIND_WORD: Readonly<Record<LinkKind, string>> = {

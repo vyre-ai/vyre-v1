@@ -197,7 +197,7 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
     };
     // a row that opens something asks the Space's link policy how to draw (ui/reach), so a link and its hover never disagree; what the viewer cannot open is a peek row of our own (Ask for access)
     return (
-      <View key={id} testID={`link-${id}`}>
+      <View key={id} testID={`link-${id}`} style={st.rowBox}>
         {locked ? <Row {...rowProps} locked onPress={() => openLink(l)} /> : <ReachRow {...rowProps} {...(subject ? { subject } : {})} onPress={() => openLink(l)} />}
         {peek === id ? (
           <View testID={`link-peek-${id}`} accessibilityRole="summary" style={st.peek}>
@@ -280,11 +280,13 @@ const st = StyleSheet.create({
   hover: { backgroundColor: "var(--hover)" },
   primary: { height: 30, paddingHorizontal: 13, borderRadius: 9, justifyContent: "center", backgroundColor: "var(--accent)" as string },
   primaryText: { fontSize: 13, fontWeight: "500", color: "var(--accent-ink)" as string },
-  group: { marginBottom: 6 },
-  gh: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 30, marginBottom: 2 },
+  group: { marginBottom: 0 },
+  gh: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24, marginTop: 14, marginBottom: 2 },
   gt: { fontSize: 13, fontWeight: "600", color: "var(--ink-2)" as string },
   row: { flexDirection: "row", alignItems: "center" },
   // the "..." column is fixed: a locked row's lock sits at the right edge, so every row leaves its room
+  // about 50 px a row: the 44 px ui/Row and a little air
+  rowBox: { paddingVertical: 3 },
   trail: { flexDirection: "row", alignItems: "center", gap: 6, marginRight: 17 },
   main: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10, minHeight: 50, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8 },
   kind: { width: 28, height: 28, marginRight: 10, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },

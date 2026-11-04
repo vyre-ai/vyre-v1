@@ -36,14 +36,18 @@ const writes = (calls: { cap: string }[], cap: string) => calls.filter((c) => c.
 const L = (id: string): Link => LINKS().find((l) => l.linkId === id)!;
 
 test("links group, count and read as words", () => {
-  assert.deepEqual([...GROUPS], ["Tasks", "Records", "Files", "Chats", "Code", "Sites"]);
+  assert.deepEqual([...GROUPS], ["Files", "Records", "Code", "Money", "Chats"]);
   assert.equal(groupOf(L("lnk_7")), "Code");
   assert.equal(groupOf({ kind: "mail_thread" }), "Chats");
-  assert.equal(groupOf({ kind: "url" }), "Sites");
+  assert.equal(groupOf({ kind: "url" }), "Files");
+  assert.equal(groupOf(L("lnk_1")), "Records", "a task is a record");
+  assert.equal(groupOf(L("lnk_2")), "Money", "an invoice is money");
+  assert.equal(groupOf(L("lnk_9")), "Records", "a page is a record");
   assert.equal(filterLinks(LINKS(), "Files").length, 2);
+  assert.equal(filterLinks(LINKS(), "Money").length, 2);
   assert.equal(countFor(LINKS(), RUNS(), "All"), 9 + 3, "the CI runs count with the links");
   assert.equal(countFor(LINKS(), RUNS(), "Code"), 2 + 3);
-  assert.equal(countFor(LINKS(), RUNS(), "Tasks"), 1);
+  assert.equal(countFor(LINKS(), RUNS(), "Records"), 2, "a task and a page");
   assert.deepEqual(["Paid", "Merged", "Overdue", "Closed", "Draft", "Open", undefined].map(toneOf), ["ok", "ok", "bad", "bad", "warn", "", ""]);
 });
 
@@ -108,7 +112,7 @@ test("the tab: groups, the total, the auto mark on what a rule linked, the rules
   const { root, restore } = await tab();
   try {
     const text = textOf(root);
-    for (const g of ["Tasks", "Records", "Files", "Chats", "Code", "Sites", "Link automatically"]) assert.ok(text.includes(g), g);
+    for (const g of ["Records", "Files", "Chats", "Code", "Money", "Link automatically"]) assert.ok(text.includes(g), g);
     assert.equal(textOf(find(root, "linked-total")), "12");
     assert.ok(find(root, "link-auto-lnk_2") && find(root, "link-auto-lnk_7"), "a rule's links are marked auto");
     assert.equal(find(root, "link-auto-lnk_1"), null, "a hand link is not");
@@ -158,7 +162,8 @@ test("Show filters the groups, with the count of each, and Link something is off
   const { root, restore } = await tab();
   try {
     await tap(root, "linked-show");
-    for (const g of ["All", "Tasks", "Records", "Files", "Chats", "Code", "Sites"]) assert.ok(find(root, `menu-item-${g}`), g);
+    for (const g of ["All", "Files", "Records", "Code", "Money", "Chats"]) assert.ok(find(root, `menu-item-${g}`), g);
+    assert.equal(find(root, "menu-item-Tasks"), null); assert.equal(find(root, "menu-item-Sites"), null);
     assert.equal(textOf(find(root, "menu-count-Code")), "5");
     await tap(root, "menu-item-Files");
     assert.ok(find(root, "linked-group-Files") && !find(root, "linked-group-Code") && !find(root, "linked-group-Records"));
@@ -308,8 +313,8 @@ test("an empty project says what Linked is for, and a filter with nothing in it 
     assert.ok(find(root, "linked-empty") && find(root, "rules-empty"));
     assert.equal(textOf(find(root, "linked-total")), "0");
   } finally { restore(); }
-  const f = await tab({}, { show: "Sites" });
-  try { assert.ok(find(f.root, "linked-group-Sites") && !find(f.root, "linked-none")); } finally { f.restore(); }
+  const f = await tab({}, { show: "Money" });
+  try { assert.ok(find(f.root, "linked-group-Money") && !find(f.root, "linked-none")); } finally { f.restore(); }
 });
 
 test("a read that fails says so instead of showing an empty tab", async () => {
