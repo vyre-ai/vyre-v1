@@ -41,3 +41,31 @@ export function foldHelperRows<M extends Msg>(messages: readonly M[]): M[] {
   return out;
 }
 
+
+/**
+ * Helpers started one after another by the same agent are one strip, not a stack of cards (prototype p-crew). The first start line carries one `crew_strip` block that lists every helper's block; the others
+ * leave the timeline. Only lines that hold nothing but a helper start group, so the agent's own words stay where they are. A crew teammate's start is not a helper and is left alone.
+ */
+export function groupHelperStrips<M extends Msg & { author?: unknown }>(messages: readonly M[]): M[] {
+  const startOf = (m: M): Block | undefined => {
+    const b = helperOf(m);
+    return b && typeof rec(b.data)["helperThreadId"] === "string" && m.blocks.every((x) => x === b) ? b : undefined;
+  };
+  const out: M[] = [];
+  let run: { first: M; blocks: Block[]; who: string } | null = null;
+  const flush = (): void => {
+    if (!run) return;
+    out.push({ ...run.first, blocks: [{ type: "crew_strip", id: `strip-${run.first.messageId}`, data: { blocks: run.blocks } }] });
+    run = null;
+  };
+  for (const m of messages) {
+    const b = startOf(m);
+    const who = JSON.stringify((m as { author?: unknown }).author ?? "");
+    if (b && run && run.who === who) { run.blocks.push(b); continue; }
+    flush();
+    if (b) { run = { first: m, blocks: [b], who }; continue; }
+    out.push(m);
+  }
+  flush();
+  return out;
+}

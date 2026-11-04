@@ -2,6 +2,9 @@
 // cards (question, plan, terminal, changeset, file) sit under the text; an error is one inline row (what, why, next). Hover shows Copy and Edit and the rest; right-click opens the same
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
 import { HelperRow } from "./helper-row.tsx";
+import { CrewStrip } from "../crew/strip.tsx";
+import { memberFromBlock, memberOf } from "../crew/status.ts";
+import type { CrewStatusOut } from "../crew/model.ts";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -120,6 +123,8 @@ export interface MessageActions {
   nameOf?(id: string): string;
   /** Open another chat on a message (the line a fork starts with). */
   openMessage?(threadId: string, messageId: string): void;
+  /** The crew strip: the live read, the open peek, and what its buttons do. Without it the strip draws from the helpers' own blocks and its rows do nothing. */
+  crew?: { status: CrewStatusOut | null; selected: string | null; peek(helperThreadId: string): void; stopAll(): void; openPane(): void; retry(helperThreadId: string): void };
   /** What files and links in a message need: lookups, opening beside the chat, copying. Left out in a place that cannot open them. */
   files?: Pick<ConversationData, "call" | "nav" | "copy" | "threadId" | "changes">;
   /** The agents of this chat (for a Mount card, which shares the new folder with them) and the sheet that connects a folder. Left out where the shell has no Files. */
@@ -438,6 +443,16 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         if (isQuote(b.type)) return <QuoteCard key={b.id} id={b.id} data={b.data} />;
         if (isChromeHeld(b.type)) return <HeldSendCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
         if (isChromeStep(b.type)) return <ChromeStepCard key={b.id} id={b.id} data={b.data} agentId={item.who.id} agentName={item.who.name} actions={actions.chrome} />;
+        if (b.type === "crew_strip") {
+          const blocks = ((b.data as { blocks?: Array<{ data?: unknown; state?: string }> } | null)?.blocks ?? []);
+          const live = actions.crew?.status ?? null;
+          const members = blocks.map((x) => { const own = memberFromBlock(x, m.threadId); return memberOf(live, own.id) ?? own; });
+          const rows = members.length;
+          const totals = live && members.every((x) => memberOf(live, x.id) !== undefined) && live.members.filter((x) => x.kind === "helper").length === rows ? live.totals
+            : { members: rows, working: members.filter((x) => x.state === "working").length, done: members.filter((x) => x.state === "done").length, needsYou: members.filter((x) => x.state === "needs_you").length, failed: members.filter((x) => x.state === "failed").length, stopped: members.filter((x) => x.state === "stopped").length, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: Math.max(0, ...members.map((x) => x.elapsedMs)) };
+          const c = actions.crew;
+          return <CrewStrip key={b.id} members={members} totals={totals} selectedId={c?.selected ?? null} onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))} {...(c ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) } : {})} />;
+        }
         if (b.type === "helper" && !isCrewStart(b)) return <HelperRow key={b.id} block={b} onOpen={(id) => actions.openMessage?.(id, "")} />;
         if (isPartOneType(b.type)) return <BlockViewA key={b.id} block={b} host={actions.host} />;
         return <Card key={b.id} line={cardLine(b)} actions={actions} />;

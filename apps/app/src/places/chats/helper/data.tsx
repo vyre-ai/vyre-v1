@@ -21,6 +21,8 @@ export interface HelperChatData {
   /** The helper's thread. */
   threadId: string;
   nameOf(id: string): string;
+  /** Who is looking: the person who started the helper may ask it something while it works. */
+  me?: { id: string };
   nav: HelperNav;
   clock(): Clock;
 }

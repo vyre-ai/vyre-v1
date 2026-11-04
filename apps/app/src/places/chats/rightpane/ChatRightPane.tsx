@@ -23,6 +23,7 @@ import { RoutinesTab } from "./RoutinesTab.tsx";
 import { TerminalPaneTab } from "./TerminalPaneTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN, PANE_SCREEN } from "./ThreadsTab.tsx";
 import { CrewTab } from "./CrewTab.tsx";
+import { useCrew } from "../crew/context.tsx";
 import { DEFAULT_TAB, PANE_KEY, PANE_WIDTH_GUESS, TABS, tabsOf } from "./model.ts";
 import { TabMeasure, useFittedTabs, useTitleWidths } from "./fit.tsx";
 import type { TabKey } from "./model.ts";
@@ -113,7 +114,11 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   const facts = summaryQ.status === "ready" ? summaryQ.data.memoryFacts : 0;
   // the Crew tab appears once teammates work for this chat
   const crewQ = useScreenQuery<CapMap["engine.crew.list"]["out"]>(PANE_SCREEN, "crew", { threadId: data.threadId });
-  const hasCrew = crewQ.status === "ready" && crewQ.data.jobs.length > 0;
+  const crewLive = useCrew();
+  const hasCrew = (crewQ.status === "ready" && crewQ.data.jobs.length > 0) || (crewLive?.status?.members.length ?? 0) > 0;
+  // "Show it in the pane" on a helper row or the strip: this tab, and nothing else changes
+  useEffect(() => { if (crewLive && crewLive.seq > 0) { setOwn("crew"); onTab?.("crew"); } // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [crewLive?.seq]);
   const tabs = useMemo(() => tabsOf(data.terminal !== undefined, hasCrew).filter((t) => !(noComputers && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, noComputers, data.terminal, hasCrew]);
   const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);

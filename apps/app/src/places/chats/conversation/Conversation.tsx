@@ -2,7 +2,10 @@
 // agent's mode menu), Helpers while any run, Stop and Stop all while any work, the pane toggle and a menu. Under it the last 50 messages (older ones stream in on request), the agent's
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
-import { foldHelperRows } from "./helper-rows.ts";
+import { foldHelperRows, groupHelperStrips } from "./helper-rows.ts";
+import { useCrew } from "../crew/context.tsx";
+import { crewChipOf } from "../crew/model.ts";
+import { CrewIsland } from "../crew/island.tsx";
 import { readReplyDetails } from "../details/read.ts";
 import type { Call } from "../details/read.ts";
 import { DECIDED_LINE, isDecided } from "../../../shell/decided.ts";
@@ -302,6 +305,10 @@ function ConversationView(): ReactElement {
     data.call("settings.get", { key: "engine.agent_hops" }).then((out) => { if (live) setHopLimit(limitOf((out as { row?: { value?: unknown } } | null)?.row?.value)); }, () => undefined);
     return () => { live = false; };
   }, [data.threadId]);  // eslint-disable-line react-hooks/exhaustive-deps
+  // the crew of this chat: read again when the chat gets a new message (a helper started or reported)
+  const crew = useCrew();
+  const messageCount = messagesQ.status === "loading" ? 0 : messagesQ.data.messages.length;
+  useEffect(() => { crew?.refresh(); }, [messageCount]);  // eslint-disable-line react-hooks/exhaustive-deps
   // the agents.list rows the Ask-an-agent picker labels its agents from, read when it first opens
   const agentMeta = useRef<readonly AgentMeta[] | null>(null);
   if (failed) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
@@ -374,7 +381,7 @@ function ConversationView(): ReactElement {
   const timelineMessages = byOrder([...win.rows, ...collect(liveView ? stillPending(pending, win.rows) : [], (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i)), ...ghosts]);
   const pendingState = new Map<string, "sending" | "failed">();
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
-  const folded = foldHelperRows(timelineMessages);
+  const folded = groupHelperStrips(foldHelperRows(timelineMessages));
   const woven = data.activity ? weave(folded, data.activity.events).filter((m) => keepItem(m, data.activity!.show)) : folded;
   const items = timeline(woven, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock(), shared: thread.members.filter((p) => p.kind === "person").length >= 2 });
   const lastLive = [...timelineMessages].reverse().find((m) => data.streamOf(m.messageId) !== undefined);
@@ -387,6 +394,8 @@ function ConversationView(): ReactElement {
   const ownTurn = runningFor === undefined || runningFor === data.me.id;
   const canSteer = ownTurn && !(leadDriver !== undefined && act.CANNOT_STEER.has(leadDriver));   // a chat on Codex or Grok keeps its message queued: they read nothing mid-turn
   const helpers = (helpersQ.status === "loading" ? [] : helpersQ.data.helpers).filter((h) => h.status === "running");
+  // the header chip counts from the crew read (the strip's own): how many are on it and how many wait for you; the pane opens on the overview
+  const crewChip = crew?.status && crew.status.members.length > 0 ? crewChipOf(crew.status.totals) : null;
 
   /* ---------- menus: all open under the button that asked ---------- */
   const faceList = faces(thread, nameOf, working);
@@ -523,6 +532,11 @@ function ConversationView(): ReactElement {
     ...(data.activityOf ? { activityOf: (id: string) => data.activityOf!(id) } : {}),
     nameOf,
     openMessage: (threadId, messageId) => (messageId === "" ? data.nav.openThread(threadId) : data.nav.openThread(threadId, messageId)),
+    ...(crew ? { crew: {
+      status: crew.status, selected: crew.selected, peek: (id: string) => crew.show(id), openPane: () => crew.show(null),
+      stopAll: () => void act.stopHelpers(data).then(() => crew.refresh(), fail("Could not stop the helpers.")),
+      retry: (id: string) => void act.retryHelper(data, id, data.newKey()).then(() => crew.refresh(), fail("Could not start it again.")),
+    } } : {}),
     share: (id, x, y) => void act.shareTargets(data, thread.threadId).then((targets) => {
       const entries: MenuEntry[] = [];
       for (const to of targets) entries.push({ label: to.label, onSelect: () => void act.shareTo(data, thread.threadId, id, to, data.newKey()).catch(fail("Could not share it.")) });
@@ -618,7 +632,8 @@ function ConversationView(): ReactElement {
         {isWorking ? <View testID="conversation-live" accessibilityLabel="Working" style={st.live}><View style={st.liveDot} /></View> : null}
         <View style={{ flex: 1 }} />
         {online ? null : <Text testID="conversation-offline" style={st.meta}>Offline</Text>}
-        {helpers.length > 0 ? <IconButton icon="helper" label={`${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`} badge={helpers.length} testID="helpers-button" onPress={helpersMenu} /> : null}
+        {crewChip ? <IconButton icon="helper" label={crewChip.label} badge={crewChip.active > 0 ? crewChip.active : crewChip.total} testID="helpers-button" onPress={() => crew!.show(null)} />
+          : helpers.length > 0 ? <IconButton icon="helper" label={`${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`} badge={helpers.length} testID="helpers-button" onPress={helpersMenu} /> : null}
         {isWorking ? <IconButton icon="stop" label={stopLabel(working, nameOf)} danger testID="stop-button" onPress={stopMenu} /> : null}
         <IconButton icon="people" label={`${thread.members.length} in this chat`} badge={thread.members.length} testID="participants-button" onPress={peopleMenu} />
         <IconButton icon="search" label="Find in chat" active={finding} testID="find-button" onPress={() => setFinding((f) => !f)} />
@@ -717,6 +732,7 @@ function ConversationView(): ReactElement {
         <View testID="conversation-closed" style={st.closed}><Text style={st.lineText}>This thread is closed.</Text><TextButton label="Reopen" onPress={() => void data.call("threads.reopen", { threadId: thread.threadId }).catch(fail("Could not reopen."))} testID="reopen" /></View>
       ) : (
         <View style={st.composerBox}>
+          {crew?.status && crew.status.members.length > 0 ? <CrewIsland status={crew.status} onPress={() => crew.show(null)} /> : null}
           <Composer
             key={`composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
             testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={data.placeholder ?? placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}

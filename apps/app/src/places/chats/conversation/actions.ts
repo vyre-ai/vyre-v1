@@ -464,3 +464,17 @@ export async function takeBackQueued(data: ConversationData, threadId: string, m
   await data.call("chat.delete_message", { threadId, messageId } as CapMap["chat.delete_message"]["in"]).catch(() => undefined);
   return true;
 }
+
+/** Stop every helper of this chat that is still working. */
+export async function stopHelpers(data: ConversationData): Promise<void> {
+  await data.call("engine.helpers.stop_all", { threadId: data.threadId });
+}
+
+/** Start a helper again from the brief its failed or stopped sibling was given: the same title and words, on a fresh helper. */
+export async function retryHelper(data: ConversationData, helperThreadId: string, key: string): Promise<void> {
+  const th = (await data.call("threads.get", { threadId: helperThreadId })) as { thread?: { title?: string } };
+  const msgs = (await data.call("chat.messages.list", { threadId: helperThreadId })) as { messages: Array<{ body: string }> };
+  const brief = msgs.messages[0]?.body ?? "";
+  if (brief === "") throw new Error("This helper has no brief to start again from.");
+  await data.call("chat.helper.start", { threadId: data.threadId, title: th.thread?.title ?? "Helper", instruction: brief, idempotencyKey: key });
+}
