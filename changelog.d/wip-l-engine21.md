@@ -35,6 +35,8 @@
 - The artifact host comes from the Space's address: `<name>-a.vyre.run` for a relay name and `a.<domain>` for your own domain, with its own Caddy route. The installer prints the DNS record to add. `VYRE_ARTIFACT_HOST=off` turns it off.
 - The keyed `/a/<id>/k/<token>/` artifact address is gone everywhere (Worker, relay, public path). A Space on this computer opens artifacts on `a.localhost:<port>`.
 - The per-chat placement words are read again when a machine is drained, hits its limits, runs out of room or has room again (`network.machine_changed`). The Moved-from line under Ran on comes from l-machines.
+- The skills index in a turn shows 130 characters of each description again (it was cut to 90, which hid "test before enabling" from the chat benchmark).
+- In the Mac and Windows app an artifact opens as a page of its own host (a child webview over the viewer), because WebKit keeps no cookie that a cross-site frame sets. Browsers and Chrome still frame it.
 
 ## What's new
 - Agents on Claude Code or Codex can work in a goal's folder: it shows as goal/ and their changes are saved to Vyre.

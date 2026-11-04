@@ -488,7 +488,7 @@ export async function onHost(request, env, name, artifact = false) {
   if (DOOR.test(url.pathname)) return onDoor(request, env, name, info, online);
   // an artifact's plain address: the app opens it for whoever is signed in
   const plain = /^\/a\/([a-z0-9_]{1,80})\/?$/.exec(url.pathname);
-  if (plain && request.method === "GET") return new Response(null, { status: 302, headers: { location: `/#screen=apps.artifacts&selected=${plain[1]}`, "cache-control": "no-store" } });
+  if (plain && request.method === "GET") return new Response(null, { status: 302, headers: { location: `/#subject=artifact:${plain[1]}`, "cache-control": "no-store" } });
   if (url.pathname === "/__vyre/info.json") {
     const s = await all();
     return json(200, { name, label: info.label || "", route: info.route, relay: relayWss, online: await online(), ...(members.length ? { computers: routes.map((r, i) => ({ label: r.label, online: Boolean(s[i]?.online), seenAt: s[i]?.seenAt ?? null })) } : {}) });

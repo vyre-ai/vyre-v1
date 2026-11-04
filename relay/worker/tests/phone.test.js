@@ -318,7 +318,7 @@ test("/a/: a plain artifact address opens the app; an address with a token in it
   const { asked } = await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, { "content-type": "text/html", "set-cookie": "x=1" }, "<p>made</p>"));
   const plain = await call(rt, "https://harbor.vyre.run/a/sit_abc");
   assert.equal(plain.status, 302);
-  assert.equal(plain.headers.get("location"), "/#screen=apps.artifacts&selected=sit_abc");
+  assert.equal(plain.headers.get("location"), "/#subject=artifact:sit_abc");
   const res = await call(rt, `https://harbor.vyre.run/a/sit_abc/k/${token}/index.html`, { headers: { cookie: "s=1", authorization: "Bearer x" } });
   assert.notEqual(await res.text(), "<p>made</p>", "a token in the address serves nothing");
   assert.equal(res.headers.get("set-cookie"), null);

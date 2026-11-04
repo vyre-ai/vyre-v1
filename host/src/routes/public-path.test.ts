@@ -72,7 +72,7 @@ test("an artifact's plain address opens the app, and only a token below it serve
   try {
     const r = await fetch(`${s.url}/a/sit_abc`, { redirect: "manual" });
     assert.equal(r.status, 302);
-    assert.equal(r.headers.get("location"), "/#screen=apps.artifacts&selected=sit_abc");
+    assert.equal(r.headers.get("location"), "/#subject=artifact:sit_abc");
     // a token in the address is gone: the public path answers nothing for it
     const miss = await fetch(`${s.url}/a/sit_abc/k/${"0".repeat(48)}/`);
     assert.ok(!(await miss.text()).includes("the page"), "the public path serves no artifact for it; the app takes the request");

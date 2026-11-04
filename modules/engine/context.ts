@@ -473,7 +473,7 @@ export function createContextBuilder(d: ContextDeps) {
         // nearest first (the agent's own, then the Space's, then Vyre's), so a long list keeps the ones this Space added
         const shown = others.slice(0, SKILL_INDEX_MAX);
         const more = others.length - shown.length;
-        parts.push(`Other skills, by name. When one fits what you are doing, load it with load_skill {name} and follow it:\n${shown.map((s) => `- ${s.name}: ${one(s.description, 90)}${s.note ? ` (${one(s.note, 120)})` : ""}`).join("\n")}${more > 0 ? `\n... and ${more} more: skills_list names them all.` : ""}`);
+        parts.push(`Other skills, by name. When one fits what you are doing, load it with load_skill {name} and follow it:\n${shown.map((s) => `- ${s.name}: ${one(s.description, 130)}${s.note ? ` (${one(s.note, 120)})` : ""}`).join("\n")}${more > 0 ? `\n... and ${more} more: skills_list names them all.` : ""}`);
       }
       add("skills", true, parts.join("\n\n"));
       if (focusName && idx.some((s) => s.name === focusName)) {
