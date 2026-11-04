@@ -131,7 +131,7 @@ export async function proposeFact(ctx: MemCtx, input: ProposeIn) {
   };
   // rule 1, 3 and 5: memory saved from a place keeps that place, the message and the words, replaces an older statement of the same person, and disputes a different person's
   let f: Fact;
-  let note: { replaced?: Fact; disputedWith?: Fact } = {};
+  let note: { replaced?: Fact; disputedWith?: Fact; questionId?: string } = {};
   if (heard && from !== undefined) {
     const msg = input.sourceKind === "chat" || input.sourceKind === "channel" ? input.sourceRef : undefined;
     const w = await writeShared(ctx, { ...common, threadId: from, heard, ...(msg && msg !== from && msg.startsWith("msg_") ? { msgId: msg, span: text } : {}) });
@@ -142,7 +142,7 @@ export async function proposeFact(ctx: MemCtx, input: ProposeIn) {
   if (status === "current") emitAccepted(ctx, f, true);
   if (byAgent) emitLearned(ctx, f, status === "current");
   // rule 4: an agent's memory in a place other people share is said in it, with Undo. A person's own "remember this" already leaves its card (chat.remember).
-  if (heard && from !== undefined && byAgent && status === "current" && othersRead(heard, actor)) await postNoted(ctx, { threadId: from, factId: f.id, kind: kindOf(f.kind), text: f.text, ...(note.replaced ? { replaces: note.replaced.id } : {}), ...(note.disputedWith ? { disputed: true } : {}) });
+  if (heard && from !== undefined && byAgent && status === "current" && othersRead(heard, actor)) await postNoted(ctx, { threadId: from, factId: f.id, kind: kindOf(f.kind), text: f.text, ...(note.replaced ? { replaces: note.replaced.id } : {}), ...(note.disputedWith ? { disputed: true } : {}), ...(note.questionId && note.disputedWith ? { question: { questionId: note.questionId, a: note.disputedWith.text, b: f.text } } : {}) });
   return { fact: factOut(f), merged: status === "current" };
 }
 
@@ -714,6 +714,14 @@ export async function pointer(ctx: MemCtx, input: { threadId: string; agentId: s
     ctx.db.run("INSERT OR IGNORE INTO memory_pointer_log (thread_id, ref, at) VALUES (?, ?, ?)", input.threadId, ref, ctx.now());
   }
   if (lines.length === 0) return { lines: [], tokens: 0, skipped: "duplicate" as const, ...lock };
+  // the agent can only say who said it if it is told a name: resolved as the asker reads people (a name the asker may not see stays an id)
+  const names = new Map<string, string>();
+  for (const l of lines) for (const m of l.fact?.matchAll(/said by (usr_[a-z0-9]+)/g) ?? []) {
+    if (!names.has(m[1]!)) {
+      try { const t = ((await ctx.call("search.resolve", { kind: "person", itemId: m[1] })) as { hit?: { title?: string } }).hit?.title; if (t) names.set(m[1]!, t); } catch { /* the id stays */ }
+    }
+  }
+  if (names.size > 0) for (const l of lines) if (l.fact) l.fact = l.fact.replace(/said by (usr_[a-z0-9]+)/g, (_x, id: string) => `said by ${names.get(id) ?? id}`);
   return { lines, tokens: tokenCount, ...lock };
 }
 
@@ -1077,7 +1085,7 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
       msgId: c.messageId, span: c.text,
     };
     let f: Fact;
-    let note: { replaced?: Fact; disputedWith?: Fact } = {};
+    let note: { replaced?: Fact; disputedWith?: Fact; questionId?: string } = {};
     if (layer !== "person") {
       const w = await writeShared(ctx, { ...base, threadId: input.threadId, heard });
       if (w.deduped) continue;
@@ -1088,7 +1096,7 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
     proposed++;
     if (status === "current") { emitAccepted(ctx, f, true); merged++; }
     // rule 4: nothing is remembered silently in a place other people share
-    if (layer !== "person" && status === "current" && (heard.space || heard.people.length > 1)) await postNoted(ctx, { threadId: input.threadId, factId: f.id, kind: kindOf(f.kind), text: f.text, ...(note.replaced ? { replaces: note.replaced.id } : {}), ...(note.disputedWith ? { disputed: true } : {}) });
+    if (layer !== "person" && status === "current" && (heard.space || heard.people.length > 1)) await postNoted(ctx, { threadId: input.threadId, factId: f.id, kind: kindOf(f.kind), text: f.text, ...(note.replaced ? { replaces: note.replaced.id } : {}), ...(note.disputedWith ? { disputed: true } : {}), ...(note.questionId && note.disputedWith ? { question: { questionId: note.questionId, a: note.disputedWith.text, b: f.text } } : {}) });
   }
   ctx.emit("memory.captured", input.threadId, { threadId: input.threadId, proposed, merged });
   return { proposed, merged };

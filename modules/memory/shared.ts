@@ -11,7 +11,7 @@ import type { Audience } from "../../lib/audience.ts";
 const TRACKED = new Set(["decision", "commitment", "preference", "role", "fact"]);
 
 export interface SharedIn extends Omit<NewFact, "place" | "placeThread" | "audience"> { threadId: string; heard: Audience }
-export interface SharedOut { fact: Fact; deduped?: boolean; replaced?: Fact; disputedWith?: Fact }
+export interface SharedOut { fact: Fact; deduped?: boolean; replaced?: Fact; disputedWith?: Fact; questionId?: string }
 
 /** Current facts in the same place and layer that are on the same subject, newest first. */
 function neighbours(ctx: MemCtx, n: SharedIn, placeKind: string, placeId: string): Fact[] {
@@ -43,19 +43,21 @@ export async function writeShared(ctx: MemCtx, n: SharedIn): Promise<SharedOut> 
   // a marker that pointed at the older statement follows the one that replaced it
   if (replaced) ctx.db.run("UPDATE memory_facts SET promoted_from = ? WHERE promoted_from = ? AND state = 'marker'", fact.id, replaced.id);
   if (replaced) trail(ctx, { action: "edit", factId: fact.id, layer: fact.layer, ownerRef: fact.ownerRef, agentId: fact.agentId, projectId: fact.projectId, reason: "a newer statement on the same subject", detail: { replaces: replaced.id } });
+  let questionId: string | undefined;
   if (clash) {
     ctx.db.run("UPDATE memory_facts SET state = 'disputed' WHERE id = ?", clash.id);
+    questionId = mintId("qst", now);
     ctx.db.run(
       "INSERT INTO memory_questions (id, kind, fact_a, fact_b, layer, owner_ref, agent_id, project_id, status, created_at, run_id) VALUES (?, 'contradiction', ?, ?, ?, ?, ?, ?, 'open', ?, NULL)",
-      mintId("qst", now), clash.id, fact.id, fact.layer, fact.ownerRef, fact.agentId, fact.projectId, now,
+      questionId, clash.id, fact.id, fact.layer, fact.ownerRef, fact.agentId, fact.projectId, now,
     );
     trail(ctx, { action: "flag", factId: fact.id, layer: fact.layer, ownerRef: fact.ownerRef, agentId: fact.agentId, projectId: fact.projectId, reason: "two people, one subject", detail: { other: clash.id } });
   }
-  return { fact: { ...fact, ...(clash ? { state: "disputed" } : {}) }, ...(replaced ? { replaced } : {}), ...(clash ? { disputedWith: clash } : {}) };
+  return { fact: { ...fact, ...(clash ? { state: "disputed" } : {}) }, ...(replaced ? { replaced } : {}), ...(clash ? { disputedWith: clash } : {}), ...(questionId ? { questionId } : {}) };
 }
 
 /** The line a room sees when something is remembered in it. Data only: kind, words, and the fact Undo acts on. The chat module draws it. */
-export interface NotedLine { threadId: string; factId: string; kind: string; text: string; replaces?: string; disputed?: boolean }
+export interface NotedLine { threadId: string; factId: string; kind: string; text: string; replaces?: string; disputed?: boolean; question?: { questionId: string; a: string; b: string } }
 
 /** Post the quiet "Noted: decision, go with Harbor . Undo" line through the chat module. Silent failure here would be remembering without telling the room, so a failure is logged, never swallowed quietly. */
 export async function postNoted(ctx: MemCtx, line: NotedLine): Promise<boolean> {

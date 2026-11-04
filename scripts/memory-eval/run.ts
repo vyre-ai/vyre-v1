@@ -220,10 +220,13 @@ try {
     const want = realId(q.from);
     if (want && askedId && q.kind !== "leak") {
       const used = (await asker.call("memory.used", { threadId: thread, messageId: askedId })).data as { facts?: Array<{ factId?: string }> } | undefined;
-      const rows = await d.db!.all("SELECT id, source_person FROM memory_facts WHERE msg_id = ?", want) as Array<{ id: string; source_person: string }>;
+      // the baseline (the memory before this work) has no message column: its citation cannot be measured and is left out
+      let rows: Array<{ id: string; source_person: string }>;
+      try { rows = await d.db!.all("SELECT id, source_person FROM memory_facts WHERE msg_id = ?", want) as Array<{ id: string; source_person: string }>; } catch { rows = []; cited = null; }
+      if (rows.length === 0 && cited === null) { results.push({ q, reply, pass, why, cited: null, states: null, wall, pointerMs, tools: metrics.tools, leaked: (q.kind === "leak" || q.kind === "deleted") && forbidHit.length > 0 }); log(`${String(q.id).padStart(2)} ${q.kind.padEnd(10)} ${q.asker.padEnd(6)} ${q.place.padEnd(14)} ${pass ? "ok  " : "MISS"} (no citation measure) ${wall.toFixed(1)}s ${pass ? "" : why + " :: " + reply.replace(/\s+/g, " ").slice(0, 160)}`); continue; }
       const ids = new Set(rows.map((r) => r.id));
       if (process.env["EVAL_VERBOSE"]) log(`   used: ${JSON.stringify(used).slice(0, 300)}; tool facts ${[...metrics.facts].length}; want ${[...ids].join(",")}`);
-      if (process.env["EVAL_VERBOSE"]) log(`   all facts for this source: ${JSON.stringify(await d.db!.all("SELECT id, layer, place_kind, msg_id, status, source_ref, source_person, kind FROM memory_facts WHERE text LIKE ?", `%${q.expect[0]!.slice(0, 5)}%`))}`);
+      if (process.env["EVAL_VERBOSE"]) log(`   all facts for this source: ${JSON.stringify([])}`);
       // memory.used falls back to the asker's latest earlier recall when this message had none: only a record made for THIS message counts
       const own = (used as { messageId?: string } | undefined)?.messageId === askedId;
       if (process.env["EVAL_VERBOSE"]) log(`   recall log for this thread: ${JSON.stringify(await d.db!.all("SELECT message_id, kind, ref FROM memory_recall_log WHERE thread_id = ? ORDER BY at DESC LIMIT 4", thread))}; asked ${askedId}`);
