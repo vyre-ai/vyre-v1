@@ -19,9 +19,10 @@ export function CiGroup({ repo, runs, now, projectTitle, askAssistant }: { repo:
         const look = runLook(r);
         return (
           <View key={r.runId} testID={`ci-run-${r.runId}`} accessibilityLabel={`${r.jobName}, ${RUN_WORD[look]}`}>
-            <Row id={`ci-run-${r.runId}`} inert tall title={r.jobName} note={look === "failed" && r.note ? `${runLine(r, now)} · ${r.note}` : runLine(r, now)}
+            <Row id={`ci-run-${r.runId}`} inert tall title={r.jobName} note={runLine(r, now)}
               leading={<View style={st.mark}><Text style={[st.markText, look === "failed" && st.bad, look === "passed" && st.ok, look === "running" && st.accent]}>{MARK[look]}</Text></View>}
-              trailing={<Text testID={look === "failed" && r.note ? `ci-why-${r.runId}` : undefined} style={[st.state, look === "failed" && st.bad, look === "passed" && st.ok]}>{RUN_WORD[look]}</Text>} />
+              trailing={<Text style={[st.state, look === "failed" && st.bad, look === "passed" && st.ok]}>{RUN_WORD[look]}</Text>} />
+            {look === "failed" && r.note ? <Text numberOfLines={2} testID={`ci-why-${r.runId}`} style={st.why}>{r.note}</Text> : null}
           </View>
         );
       })}

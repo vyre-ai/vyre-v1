@@ -205,7 +205,7 @@ test("Link something: search shows what is not linked yet, a pick links it, a pa
     await typeInto(find(root, "link-search"), "terms"); await flush();
     assert.ok(writes(s.calls, "search.query").some((c) => c.input["q"] === "terms"));
     assert.ok(find(root, "link-pick-file:fil_terms") && !find(root, "link-pick-chat:thr_billing"));
-    await tap(root, "link-pick-file:fil_terms");
+    await tap(root, "row-link-pick-file:fil_terms");   // the pick is the ui/Row
     assert.deepEqual(writes(s.calls, "projects.links.link").map((c) => [c.input["kind"], c.input["ref"], c.input["label"]]), [["file", "fil_terms", "Service terms.pdf"]]);
     assert.equal(find(root, "link-pick-file:fil_terms"), null, "it leaves the offers once linked");
     assert.ok(textOf(find(root, "linked-notice")).includes("Linked Service terms.pdf"));
@@ -229,7 +229,7 @@ test("Link something: a refused link says why and a search with no answer offers
   try {
     await tap(root, "linked-add");
     s.fail("projects.links.link", "You can only link things you can open.");
-    await tap(root, "link-pick-file:fil_terms");
+    await tap(root, "row-link-pick-file:fil_terms");   // the pick is the ui/Row
     assert.ok(textOf(find(root, "link-line")).includes("You can only link things you can open."));
     await typeInto(find(root, "link-search"), "zzzz"); await flush();
     assert.ok(find(root, "link-nothing"));
