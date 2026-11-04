@@ -12,7 +12,7 @@ Requires: nothing.
 - [hooks.policy.get](../capabilities/hooks.policy.get.md): Whether agents may make hooks in this Space
 - [hooks.policy.set](../capabilities/hooks.policy.set.md): Space admins: allow or turn off hooks made by agents for the whole Space. Hooks agents already made stay but do not run while it is off
 - [hooks.remove](../capabilities/hooks.remove.md): Remove a hook you made
-- [hooks.runs.list](../capabilities/hooks.runs.list.md): What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first
+- [hooks.runs.list](../capabilities/hooks.runs.list.md): What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first. since and outcomes narrow it before the limit; scope space is a Space admin's read of every Space hook's runs (anyone else gets only what they could see anyway)
 - [hooks.set](../capabilities/hooks.set.md): Add or change a hook that runs at an event (before a tool, before anything leaves Vyre, a message, a turn end, a helper) as a command, a check or one action. For yourself: scope agent, chat or run. It can stop something, add a note or run its own action; never skip a rule
 
 ## Events (2)

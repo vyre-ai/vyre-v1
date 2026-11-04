@@ -1,7 +1,7 @@
 // Console > Agents > Hooks: each control is pressed by its testID and the capability it calls is read back. Four hooks: an admin's command, one an agent made, a paused one and one that stopped something lately.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { HooksPage, lastRunWords, madeByWords, needsYou, whereWords } from "../pages/Hooks.tsx";
+import { HooksPage, LATELY, lastRunWords, madeByWords, needsYou, restoreInput, whereWords } from "../pages/Hooks.tsx";
 import { createRoot } from "test-renderer";
 import { mountPage } from "./page-kit.tsx";
 import type { Hook } from "../../places/chats/rightpane/hooks-model.ts";
@@ -58,6 +58,7 @@ test("the list: the Space's hooks and the ones Space agents made, with who made 
     assert.deepEqual(p.called("hooks.list").map((c) => c.input), [{ scope: "space" }, { scope: "agent", agentId: "agt_a" }], "the Space list, then each Space agent");
     assert.equal(p.called("agents.list")[0]?.input["section"], "space", "only Space agents are read");
     assert.ok(p.has("hooks-add") && !p.has("hooks-empty"));
+    assert.deepEqual(p.called("hooks.runs.list").map((c) => c.input), [{ limit: 200 }, { scope: "space", since: NOW - LATELY, outcomes: ["blocked", "error", "timeout"], limit: 200 }], "the strip asks the server for the Space's bad runs of the last week");
   } finally { p.restore(); }
 });
 
@@ -79,7 +80,7 @@ test("Pause pauses a running hook and Resume turns a paused one back on", async 
   } finally { p.restore(); }
 });
 
-test("Remove asks first, then removes that one hook", async () => {
+test("Remove is a quiet button; it asks first with a red Remove, then says Removed with an Undo that makes the same hook again", async () => {
   const p = await mountPage(createRoot, <HooksPage />, ROWS, answer(), clock);
   try {
     await p.press("hook-remove-hk_agent");
@@ -90,6 +91,10 @@ test("Remove asks first, then removes that one hook", async () => {
     await p.press("hook-remove-hk_agent");
     await p.press("hook-remove-confirm");
     assert.deepEqual(p.called("hooks.remove").map((c) => c.input), [{ id: "hk_agent" }]);
+    assert.ok(p.has("hook-removed") && p.text().includes("Removed."), "a Removed note");
+    await p.press("hook-undo");
+    assert.deepEqual(p.called("hooks.set").map((c) => c.input), [{ scope: "agent", event: "turn.end", kind: "action", cap: "notes.add", input: {}, timeoutSec: 10, summary: "After a turn ends, add a line to the weekly notes", helpers: false, paused: false, agentId: "agt_a" }], "Undo sets the removed hook again with its own fields");
+    assert.ok(!p.has("hook-removed"), "the note goes once it is undone");
   } finally { p.restore(); }
 });
 
@@ -98,14 +103,21 @@ test("Add a hook opens the sheet; Add hook stays off until it says what to do, t
   try {
     await p.press("hooks-add");
     assert.ok(p.has("hook-sheet") && p.has("hook-what"), "the sheet is open");
+    const sheet = p.text();
+    for (const w of ["When", "Do this", "Only for", "Leave as Any action to run every time.", "Stop after (seconds)", "Add hook", "Cancel", "Check with an instruction"]) assert.ok(sheet.includes(w), `the sheet says ${w}`);
+    assert.doesNotMatch(sheet, /matcher|\bkind\b|timeout|time limit/i, "plain words, not field names");
     await p.press("sheet-submit");
     assert.equal(p.called("hooks.set").length, 0, "nothing is saved without words");
     await p.type("hook-what", "Confirm the file is not marked private");
-    await p.type("hook-matcher", "files.*");
     await p.press("sheet-submit");
-    assert.deepEqual(p.called("hooks.set").map((c) => c.input), [{ scope: "space", event: "tool.before", kind: "check", matcher: "files.*", instruction: "Confirm the file is not marked private", timeoutSec: 10 }]);
+    assert.deepEqual(p.called("hooks.set").map((c) => c.input), [{ scope: "space", event: "tool.before", kind: "check", instruction: "Confirm the file is not marked private", timeoutSec: 10 }]);
     assert.ok(!p.has("hook-sheet"), "the sheet closes once it is saved");
   } finally { p.restore(); }
+});
+
+test("restoreInput carries a command hook's arguments and a check hook's matcher", () => {
+  assert.deepEqual(restoreInput(hook("a", { kind: "command", spec: { command: "fmt", args: ["--all"] }, matcher: "files.*" })), { scope: "space", event: "tool.before", kind: "command", matcher: "files.*", command: "fmt", args: ["--all"], timeoutSec: 10, summary: "Line of a", helpers: false, paused: false });
+  assert.deepEqual(restoreInput(hook("b", { spec: { instruction: "Be careful" }, paused: true })), { scope: "space", event: "tool.before", kind: "check", instruction: "Be careful", timeoutSec: 10, summary: "Line of b", helpers: false, paused: true });
 });
 
 test("a hook the person cannot change has Pause and Remove off", async () => {
@@ -146,5 +158,20 @@ test("no label on the page uses the words the Console dropped", async () => {
     await p.press("hooks-add");
     assert.doesNotMatch(p.text(), /\b(principal|grant|actor|schema|gate|suppression|retention|tenant|scope|capability|trace)s?\b/i);
     assert.doesNotMatch(p.text(), /!|—/);
+    assert.doesNotMatch(p.text(), /Company only|by label|capabilit/i);
   } finally { p.restore(); }
+});
+
+test("Only for is a plain-words picker defaulting to Any action; each choice maps to a matcher on the server's names", async () => {
+  const { ACTION_CHOICES, matcherFor, choiceFor, matches, namesOf } = await import("../../../../../lib/hooks.ts");
+  assert.deepEqual(ACTION_CHOICES.map((c) => c.title), ["Any action", "Sending an email", "Sending a text", "Running a command", "Changing a file", "Opening a link", "Moving money"]);
+  assert.equal(matcherFor("any"), "", "Any action is no limit");
+  assert.equal(choiceFor(matcherFor("email")), "email");
+  assert.equal(choiceFor("something.else"), "any");
+  const email = matcherFor("email");
+  assert.ok(namesOf({ cap: "mail.send" }).some((n) => matches(email, n)) && namesOf({ cap: "resend.send_email" }).some((n) => matches(email, n)));
+  assert.ok(!namesOf({ cap: "files.write" }).some((n) => matches(email, n)));
+  assert.ok(namesOf({ tool: "Bash" }).some((n) => matches(matcherFor("command"), n)));
+  assert.ok(namesOf({ cap: "stripe.charge" }).some((n) => matches(matcherFor("money"), n)), "a family name matches");
+  for (const c of ACTION_CHOICES) assert.doesNotMatch(c.title, /_|\./, "no tool names on the page");
 });

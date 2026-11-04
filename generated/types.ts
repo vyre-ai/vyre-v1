@@ -19287,6 +19287,9 @@ export type HooksRunsListIn = {
   hookId?: string;
   threadId?: string;
   limit?: number;
+  since?: number;
+  outcomes?: Array<"ok" | "blocked" | "note" | "error" | "timeout" | "skipped">;
+  scope?: "space";
 };
 export type HooksRunsListOut = {
   runs: Array<{
