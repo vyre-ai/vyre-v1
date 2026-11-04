@@ -69,7 +69,7 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
   /** Each asker's time zone (profile.timezone), read with the rest of what a turn depends on. */
   const zones = new Map<string, string>();
   const levelKey = (asker: string, scope: { type: string; id: string }): string => `${asker}|${scope.type}|${scope.id}`;
-  const session = createToolSession({ invoke: d.invoke, catalog, defaults, zoneOf: (c) => zones.get(c.asker), levelFor: (asker, scope) => levels.get(levelKey(asker, scope)) ?? null, canEngineer: () => false,
+  const session = createToolSession({ nextHints: true, invoke: d.invoke, catalog, defaults, zoneOf: (c) => zones.get(c.asker), levelFor: (asker, scope) => levels.get(levelKey(asker, scope)) ?? null, canEngineer: () => false,
     // A local tool (terminal, Chrome, screen, files on the agent computer) follows the chat's mode, held to the owner's floor (the floor of Settings, This computer: Terminal prompts, Chrome prompts),
     // with the hard walls of the call itself (a path that leaves the work folder is refused, a delete outside it always asks). A "prompt" is not a refusal and not a silent run: the call is held at the Gate and
     // the person answers it in the chat. Settings are read as the asker before the turn (the tool session asks synchronously); one that cannot be read means the strictest mode.
