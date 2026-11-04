@@ -92,7 +92,7 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number): boolean
       // a person's own assistant or outside agent: to everyone else it is named as its person (owner ruling 3 Nov). Kept beside the cursor in access_fields (a key with no dot is no field label).
       const id = str(p["agentId"]);
       if (!id) return false;
-      return setPrivate(store, id, p["private"] === true);
+      return setPrivate(store, id, p["private"] === true, p["assistant"] === true);
     }
     case "principal.role_set": {
       const holder = str(p["holder"]), given = str(p["role"]);

@@ -1,0 +1,5 @@
+{
+  "targets": [
+    { "id": "EDITOR_01-mentions", "route": "/m/EDITOR_01", "proto": "chat,{skin}", "waitFor": "[data-testid=\"composer-field\"]", "note": "The chat composer with a ten-line draft and three @mentions: each wash box sits on its own name." }
+  ]
+}

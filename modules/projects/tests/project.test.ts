@@ -344,8 +344,8 @@ test("only someone who manages the project can change who is on it, and the same
   const h = harness();
   const p = await mkProject(h);
   h.allowOnly((a) => a.level === "view" || a.level === "edit");
-  await refused(run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }), "validation.not_found");
-  await refused(run(h, "projects.members.remove", { projectId: p.projectId, principal: DANA }), "validation.not_found");
+  await refused(run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }), "permission.no_grant");
+  await refused(run(h, "projects.members.remove", { projectId: p.projectId, principal: DANA }), "permission.no_grant");
   h.allowOnly(() => true);
   const k = key();
   const one = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member", idempotencyKey: k });
@@ -420,7 +420,7 @@ test("share_out makes a read-only link that can expire, for someone who manages 
   assert.deepEqual(h.named("project.shared_out").map((e) => e.payload), [{ projectId: p.projectId, expiresAt: NOW + 7 * DAY }]);
   await refused(run(h, "projects.share_out", { projectId: p.projectId, expiresAt: NOW - DAY }), "validation.bad_input");
   h.allowOnly((a) => a.level !== "manage");
-  await refused(run(h, "projects.share_out", { projectId: p.projectId }), "validation.not_found");
+  await refused(run(h, "projects.share_out", { projectId: p.projectId }), "permission.no_grant");
 });
 
 const HOST = { kind: "service", id: "svc_host" } as const;
@@ -449,7 +449,7 @@ test("unshare_out revokes one link at once and the others stay", async () => {
   assert.deepEqual(await run(h, "projects.unshare_out", { projectId: p.projectId, url: a.url }), { revoked: false }, "twice is not an error");
   await refused(run(h, "projects.unshare_out", { projectId: p.projectId, url: "/elsewhere/x" }), "validation.bad_input");
   h.allowOnly((x) => x.level !== "manage");
-  await refused(run(h, "projects.unshare_out", { projectId: p.projectId, url: b.url }), "validation.not_found");
+  await refused(run(h, "projects.unshare_out", { projectId: p.projectId, url: b.url }), "permission.no_grant");
 });
 
 test("shared_view shows the client the title, status, goal, update and next milestones and nothing of people, threads or files; a stranger cannot call it", async () => {
@@ -504,7 +504,7 @@ test("teammates: one yes makes an agent for the project with a role, the lead co
   assert.deepEqual(await run(h, "projects.teammates.remove", { projectId: p.projectId, agentId: rev.agentId, idempotencyKey: key() }), { removed: false });
   await refused(run(h, "projects.teammates.create", { projectId: p.projectId, name: " ", role: "member", idempotencyKey: key() }), "validation.bad_input");
   h.allowOnly((a) => a.level === "view" || a.level === "edit");
-  await refused(run(h, "projects.teammates.create", { projectId: p.projectId, name: "No rights", role: "member", idempotencyKey: key() }), "validation.not_found");
+  await refused(run(h, "projects.teammates.create", { projectId: p.projectId, name: "No rights", role: "member", idempotencyKey: key() }), "permission.no_grant");
 });
 
 test("share_out fails closed: a link outside the Space is made only when the type positively says outside is on", async () => {

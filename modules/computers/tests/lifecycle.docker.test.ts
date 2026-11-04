@@ -81,7 +81,7 @@ test("create makes a stopped container, and an image that is not on the host is 
   assert.deepEqual(f.calls, [`imageExists ${DEFAULT_COMPUTER_IMAGE}`, "create vyre-comp-abc"]);
   assert.equal(f.running.size, 0);
   f.setImage(false);
-  await assert.rejects(() => host.create({ computerId: "cmt_two", agentId: "agt_two", tabLimit: 8, idleSleepMinutes: 10 }), /not on this host/);
+  await assert.rejects(() => host.create({ computerId: "cmt_two", agentId: "agt_two", tabLimit: 8, idleSleepMinutes: 10 }), /not on this server/);
   assert.equal(f.created.has("vyre-comp-two"), false);
 });
 

@@ -219,6 +219,7 @@ export const BlockView = memo(function BlockView({ block, caret = false, onLink,
     case "details":
       return (
         <DetailsBlock id={block.key} open={block.open} summary={inlineNodes(block.summary, onLink, renderLink)}>
+          {/* ui-rows-lint: not a list (the blocks of a collapsible section: paragraphs, lists, code) */}
           {block.blocks.map((b) => <BlockView key={b.key} block={b} {...(onLink ? { onLink } : {})} {...(renderLink ? { renderLink } : {})} {...(renderCode ? { renderCode } : {})} />)}
         </DetailsBlock>
       );

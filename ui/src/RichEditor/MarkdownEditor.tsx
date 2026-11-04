@@ -534,6 +534,7 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
             <MenuIcon icon={FORMAT_ICONS["chevron"] ?? ""} size={14} color="var(--ink-3)" />
           </Pressable>
           <View style={st.sep} />
+          {/* ui-rows-lint: not a list (the formatting toolbar's buttons) */}
           {shown.map((c, i) => (
             <View key={c.id} style={st.item}>
               {c.id === "bullets" || (i === 5 && !shown.some((x) => x.id === "bullets")) ? <View style={st.sep} /> : null}
@@ -552,6 +553,7 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
 
   const bubbleNode = bubble !== null && editor !== null && barOn ? (
     <View style={[st.bubble, { left: bubble.left, top: bubble.top }]} testID="md-bubble" accessibilityRole="toolbar" accessibilityLabel="Format selection" {...webProps({ onMouseDown: (e: { preventDefault(): void }) => e.preventDefault() })}>
+      {/* ui-rows-lint: not a list (the selection bubble's format buttons, a toolbar) */}
       {FORMAT_COMMANDS.filter((c) => ["bold", "italic", "link", "code"].includes(c.id)).map((c) => <FmtButton key={c.id} id={`bubble-${c.id}`} label={c.label} keys={c.keys} icon={c.icon} on={active.includes(c.id)} onPress={run(c)} />)}
       <View style={st.sep} />
       <Pressable accessibilityRole="button" accessibilityLabel="Turn into" testID="md-bubble-turn" onPress={(e: unknown) => { const at = rectOf(e); show(TURN.map((t) => ({ label: t.label, onSelect: () => { if (editor) t.run(editor); } })), at.x, at.y, "other"); }} {...webProps({ title: "Turn into" })} style={({ hovered }: Hover) => [st.turn, hovered === true && st.toolHover]}>
@@ -602,6 +604,7 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
 export function ViewSwitch({ view, onView }: { view: MarkdownView; onView: (v: MarkdownView) => void }): ReactElement {
   return (
     <View accessibilityRole="radiogroup" accessibilityLabel="Styled or Markdown" style={st.seg} testID="md-view">
+      {/* ui-rows-lint: not a list (a two-way segmented switch: Styled or Markdown) */}
       {(["styled", "raw"] as const).map((v) => (
         <Pressable key={v} accessibilityRole="radio" accessibilityLabel={v === "styled" ? "Styled" : "Markdown"} accessibilityState={{ checked: view === v }} onPress={() => onView(v)} testID={`md-view-${v}`}
           style={({ hovered }: Hover) => [st.segBtn, view === v && st.segOn, hovered === true && view !== v && st.toolHover]}>

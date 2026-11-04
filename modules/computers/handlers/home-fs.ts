@@ -112,7 +112,7 @@ export function createContainerHomeFs(d: { http: DockerHttp; container: string; 
       const made = await d.http({
         method: "POST", path: "/containers/create", query: { name }, timeoutMs,
         json: {
-          Image: d.image, Entrypoint: [], Cmd: ["sh", "-c", script, "sh", ...files.map(dir), "::", ...dirs.map(dir)], User: `${d.user.uid}:${d.user.gid}`, NetworkDisabled: true,
+          Image: d.image, Entrypoint: [], Labels: { "vyre.computer": `cmt_${d.container.replace(/^vyre-comp-/, "")}`, "vyre.helper": "home-rm" }, Cmd: ["sh", "-c", script, "sh", ...files.map(dir), "::", ...dirs.map(dir)], User: `${d.user.uid}:${d.user.gid}`, NetworkDisabled: true,
           HostConfig: { VolumesFrom: [d.container], CapDrop: ["ALL"], SecurityOpt: ["no-new-privileges:true"], NetworkMode: "none", Privileged: false, AutoRemove: false },
         },
       });

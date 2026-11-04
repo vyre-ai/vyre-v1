@@ -5,9 +5,9 @@
 // retried, a forgotten password goes straight to recovery, and Sign out always leaves.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { isLoopbackUrl, keyStatusOnOwnNode } from "../../../../../client/src/gateway/local-key.ts";
-import { rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
-import { OFFLINE_OWN, SESSION_OVER, WRONG_PASSWORD, passwordKeyState, unlockWithPassword } from "./key-unlock.ts";
+import { isLoopbackUrl, keyDoor, keyStatusOnOwnNode, serverKeyState } from "../../../../../client/src/gateway/local-key.ts";
+import { keyIsKept, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
+import { OFFLINE_OWN, SESSION_OVER, WRONG_PASSWORD, passwordKeyState, remoteGateState, unlockWithPassword } from "./key-unlock.ts";
 export { hasPasswordKey, passwordKeyState, unlockWithPassword } from "./key-unlock.ts";
 import { Bar, Button, ErrorLine, Field, Group, JoinFrame, Links, Opening, Panel, Step, TextButton, Title, useHoldFirstFrame } from "../../join/kit.tsx";
 import { whenUsable } from "../../startup/marks.ts";
@@ -19,7 +19,7 @@ export const LOCK_WAIT_MS = 30_000;
 /** The app is mounted but not drawn yet: the first frame stays until the first place is usable. */
 function HoldUntilUsable(): null { useHoldFirstFrame(whenUsable); return null; }
 
-export function LockScreen({ name, onUnlock, onForgot, onSignOut, notice }: { name: string; onUnlock: (password: string) => Promise<void>; onForgot?: () => void; onSignOut?: () => void; /** a line to start with: the Space on this computer did not answer */ notice?: string }): ReactElement {
+export function LockScreen({ name, onUnlock, onForgot, onSignOut, onSkip, notice }: { name: string; onUnlock: (password: string) => Promise<void>; onForgot?: () => void; onSignOut?: () => void; /** a Space server: go on without unlocking; the Mine items stay closed */ onSkip?: () => void; /** a line to start with: the Space on this computer did not answer */ notice?: string }): ReactElement {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(notice ?? "");
@@ -44,7 +44,7 @@ export function LockScreen({ name, onUnlock, onForgot, onSignOut, notice }: { na
   const gone = error === SESSION_OVER;
   return (
     <JoinFrame>
-      <Panel hug below={<LockLinks {...(onForgot ? { onForgot } : {})} {...(onSignOut && !gone ? { onSignOut } : {})} />} bar={<Bar cont={gone && onSignOut ? <Button label="Sign in" onPress={onSignOut} testID="lock-signout" /> : <Button label={busy ? "Unlocking" : "Unlock"} onPress={submit} busy={busy} disabled={password === "" || held} testID="lock-unlock" />} />}>
+      <Panel hug below={<LockLinks {...(onForgot ? { onForgot } : {})} {...(onSignOut && !gone ? { onSignOut } : {})} {...(onSkip && !gone ? { onSkip } : {})} />} bar={<Bar cont={gone && onSignOut ? <Button label="Sign in" onPress={onSignOut} testID="lock-signout" /> : <Button label={busy ? "Unlocking" : "Unlock"} onPress={submit} busy={busy} disabled={password === "" || held} testID="lock-unlock" />} />}>
         <Step id="lock">
           <Title title={name ? `Welcome back, ${name}` : "Welcome back"} />
           <Group>
@@ -58,9 +58,9 @@ export function LockScreen({ name, onUnlock, onForgot, onSignOut, notice }: { na
 }
 
 /** The two ways out of the lock screen, under the sheet's primary. */
-function LockLinks({ onForgot, onSignOut }: { onForgot?: () => void; onSignOut?: () => void }): ReactElement | null {
-  if (!onForgot && !onSignOut) return null;
-  return <Links>{onForgot ? <TextButton label="Forgot password" onPress={onForgot} testID="lock-forgot" /> : null}{onSignOut ? <TextButton label="Sign out" onPress={onSignOut} testID="lock-signout" /> : null}</Links>;
+function LockLinks({ onForgot, onSignOut, onSkip }: { onForgot?: () => void; onSignOut?: () => void; onSkip?: () => void }): ReactElement | null {
+  if (!onForgot && !onSignOut && !onSkip) return null;
+  return <Links>{onSkip ? <TextButton label="Not now" onPress={onSkip} testID="lock-skip" /> : null}{onForgot ? <TextButton label="Forgot password" onPress={onForgot} testID="lock-forgot" /> : null}{onSignOut ? <TextButton label="Sign out" onPress={onSignOut} testID="lock-signout" /> : null}</Links>;
 }
 
 /** An account with no password key: nothing to unlock here, said plainly, with the way on. */
@@ -82,7 +82,9 @@ type GateState = "checking" | "locked" | "offline" | "nopassword" | "open";
 /** Shows `children` once this computer holds the key (or at once for a Space that is not on this computer). While the app runs it hands the key back to a daemon that restarted. */
 export function KeyGate({ baseUrl, token, name, onSignOut, onForgot, children }: { baseUrl: string; token: string; name: string; onSignOut?: () => void; /** go to recovery for this account; without it Forgot password signs out */ onForgot?: () => void; children: ReactNode }): ReactElement | null {
   const own = isLoopbackUrl(baseUrl);
-  const [state, setState] = useState<GateState>(own ? "checking" : "open");
+  // a Space server reached over https: it holds the person's key only while an unlocked device hands it over, so the app asks at launch
+  const remote = !own && keyDoor(baseUrl) !== null;
+  const [state, setState] = useState<GateState>(own || remote ? "checking" : "open");
   const alive = useRef(true);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   useEffect(() => {
@@ -106,6 +108,16 @@ export function KeyGate({ baseUrl, token, name, onSignOut, onForgot, children }:
     })();
     return () => { live = false; };
   }, [own, baseUrl, token]);
+  useEffect(() => {
+    if (!remote) return undefined;
+    let live = true;
+    void remoteGateState({
+      kept: keyIsKept, rehand: () => rehandKey(baseUrl, token),
+      serverHolds: async () => { const k = await serverKeyState(baseUrl, token); return k === null ? null : k.held; },
+      passwordKey: () => passwordKeyState(baseUrl, token),
+    }).then((next) => { if (live) setState(next); }, () => { if (live) setState("open"); });
+    return () => { live = false; };
+  }, [remote, baseUrl, token]);
   // while the app is open: a daemon that lost the key (a restart) gets it back from this app's memory, silently
   useEffect(() => {
     if (!own || state !== "open") return undefined;
@@ -116,7 +128,7 @@ export function KeyGate({ baseUrl, token, name, onSignOut, onForgot, children }:
   if (state === "nopassword") return <NoPasswordKey onContinue={() => setState("open")} {...(onSignOut ? { onSignOut } : {})} />;
   if (state === "locked" || state === "offline") {
     const forgot = onForgot ?? onSignOut;
-    return <LockScreen name={name} {...(forgot ? { onForgot: forgot } : {})} {...(onSignOut ? { onSignOut } : {})} {...(state === "offline" ? { notice: OFFLINE_OWN } : {})} onUnlock={async (password) => { await unlockWithPassword(baseUrl, token, password); if (alive.current) setState("open"); }} />;
+    return <LockScreen name={name} {...(forgot ? { onForgot: forgot } : {})} {...(onSignOut ? { onSignOut } : {})} {...(remote ? { onSkip: () => setState("open") } : {})} {...(state === "offline" ? { notice: OFFLINE_OWN } : {})} onUnlock={async (password) => { await unlockWithPassword(baseUrl, token, password); if (alive.current) setState("open"); }} />;
   }
   return <><HoldUntilUsable />{children}</>;
 }

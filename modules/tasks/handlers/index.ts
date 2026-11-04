@@ -11,8 +11,11 @@ import { digest } from "./digest.ts";
 import { clock } from "./clock.ts";
 import { plan } from "./plan.ts";
 import { remove, restore } from "./remove.ts";
+import { isAgentId, withReversals } from "../../../lib/reversal.ts";
+import { historyOf } from "../projections.ts";
+import type { TasksCtx } from "../projections.ts";
 
-export const handlers = {
+const base = {
   "tasks.by_key": byKey,
   "tasks.clock": clock,
   "tasks.delete": remove,
@@ -53,3 +56,14 @@ export const handlers = {
   "tasks.working_notes.set": notesSet,
   "tasks.held_revise": heldRevise,
 };
+
+/** A person bringing back a task an agent deleted teaches that agent (lib/reversal.ts, memory.corrections.record). The task keeps who did what, so no event lookup is needed. */
+export const handlers = withReversals(base, {
+  "tasks.restore": {
+    actOf: (ctx: TasksCtx, i: { taskId: string }) => {
+      const gone = historyOf(ctx.db, i.taskId).find((h) => h.type === "deleted");
+      return gone && isAgentId(gone.by) ? { agentId: gone.by, ref: gone.eventId } : null;
+    },
+    was: (_i: unknown, o: { task?: { title?: string } }) => `deleted the task${o?.task?.title ? ` "${o.task.title}"` : ""}`,
+  },
+});

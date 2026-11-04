@@ -1,19 +1,137 @@
 {
   "targets": [
-    { "id": "NOTES_01-grid", "route": "/m/NOTES_01?part=grid", "proto": "grid,{skin}", "waitFor": "[data-testid='notes-pinned']", "note": "Notes in the Chats sidebar under Tasks and Threads, and the grid: Take a note, Pinned, then Others in columns about 236 wide." },
-    { "id": "NOTES_01-take", "route": "/m/NOTES_01?part=take", "proto": "take,{skin}", "waitFor": "[data-testid='take-open']", "note": "Take a note open in place: title, text, the bar with colour, labels, image, pin, who sees it and Close." },
-    { "id": "NOTES_01-paste", "route": "/m/NOTES_01?part=paste", "proto": "paste,{skin}", "waitFor": "[data-testid='take-link']", "note": "A pasted image is the note's picture; a pasted link was read into a card with title, image and site name." },
-    { "id": "NOTES_01-reading", "route": "/m/NOTES_01?part=reading", "proto": "paste,{skin}", "waitFor": "[data-testid='take-reading']", "note": "The pasted link while Vyre reads it: Reading <url>." },
-    { "id": "NOTES_01-clip", "route": "/m/NOTES_01?part=clip", "proto": "clip,{skin}", "waitFor": "[data-testid='note-dialog']", "note": "A page clipped from Vyre for Chrome, opened: screenshot, the selection as a quote, the address, Clipped with Vyre for Chrome." },
-    { "id": "NOTES_01-open", "route": "/m/NOTES_01?part=open", "proto": "open,{skin}", "waitFor": "[data-testid='note-dialog']", "note": "A note opened over the grid, edited in place, with Ask about this note, Turn into task and Turn into record." },
-    { "id": "NOTES_01-share", "route": "/m/NOTES_01?part=share", "proto": "share,{skin}", "waitFor": "[data-testid='share-sheet']", "note": "The share sheet: add a person, the owner, the Space Off, and which agents can read it." },
-    { "id": "NOTES_01-labels", "route": "/m/NOTES_01?part=labels", "proto": "labels,{skin}", "waitFor": "[data-testid='menu']", "note": "The label filter, a ui/Menu with ticks and counts, Shared with me, From Chrome, With images and Clear the filter, on Lab 8." },
-    { "id": "NOTES_01-ask", "route": "/m/NOTES_01?part=ask", "proto": "ask,{skin}", "waitFor": "[data-testid='notes-ask-pane']", "note": "Ask about this note: Ask Vyre on the right about the note, the grid stays." },
-    { "id": "NOTES_01-task", "route": "/m/NOTES_01?part=task", "proto": "task,{skin}", "waitFor": "[data-testid='task-sheet']", "note": "Turn into task, filled from the note: title, for, due, keep it in Notes." },
-    { "id": "NOTES_01-record", "route": "/m/NOTES_01?part=record", "proto": "record,{skin}", "waitFor": "[data-testid='record-field-name']", "note": "Turn into record: the type and its fields filled from the note." },
-    { "id": "NOTES_01-empty", "route": "/m/NOTES_01?part=empty", "proto": "empty,{skin}", "waitFor": "[data-testid='notes-empty']", "note": "No notes yet, and the four ways to make one." },
-    { "id": "NOTES_01-phone", "route": "/m/NOTES_01?part=phone", "proto": "phone,{skin}", "waitFor": "[data-testid='notes-pinned']", "note": "The phone: two columns, Take a note above the tab bar." },
-    { "id": "NOTES_01-phone-note", "route": "/m/NOTES_01?part=phone-note", "proto": "phone,{skin}", "waitFor": "[data-testid='note-phone-page']", "note": "A note open on the phone, its bar at the foot." },
-    { "id": "NOTES_01-phone-sheet", "route": "/m/NOTES_01?part=phone-sheet", "proto": "phone,{skin}", "waitFor": "[data-testid='note-action-sheet']", "note": "The note's actions as a sheet (a long press or More)." }
+    {
+      "id": "NOTES_01-grid",
+      "route": "/m/NOTES_01?part=grid",
+      "proto": "grid,{skin}",
+      "waitFor": "[data-testid='notes-pinned']",
+      "note": "Notes in the Chats sidebar under Tasks and Threads, and the grid: Take a note, Pinned, then Others in columns about 236 wide."
+    },
+    {
+      "id": "NOTES_01-take",
+      "route": "/m/NOTES_01?part=take",
+      "proto": "take,{skin}",
+      "waitFor": "[data-testid='take-open']",
+      "note": "Take a note open in place: title, text, the bar with colour, labels, image, pin, who sees it and Close."
+    },
+    {
+      "id": "NOTES_01-paste",
+      "route": "/m/NOTES_01?part=paste",
+      "proto": "paste,{skin}",
+      "waitFor": "[data-testid='take-link']",
+      "note": "A pasted image is the note's picture; a pasted link was read into a card with title, image and site name."
+    },
+    {
+      "id": "NOTES_01-reading",
+      "route": "/m/NOTES_01?part=reading",
+      "proto": "paste,{skin}",
+      "waitFor": "[data-testid='take-reading']",
+      "note": "The pasted link while Vyre reads it: Reading <url>."
+    },
+    {
+      "id": "NOTES_01-clip",
+      "route": "/m/NOTES_01?part=clip",
+      "proto": "clip,{skin}",
+      "waitFor": "[data-testid='note-dialog']",
+      "note": "A page clipped from Vyre for Chrome, opened: screenshot, the selection as a quote, the address, Clipped with Vyre for Chrome."
+    },
+    {
+      "id": "NOTES_01-open",
+      "route": "/m/NOTES_01?part=open",
+      "proto": "open,{skin}",
+      "waitFor": "[data-testid='note-dialog']",
+      "note": "A note opened over the grid, edited in place, with Ask about this note, Turn into task and Turn into record."
+    },
+    {
+      "id": "NOTES_01-share",
+      "route": "/m/NOTES_01?part=share",
+      "proto": "share,{skin}",
+      "waitFor": "[data-testid='share-sheet']",
+      "note": "The share sheet: add a person, the owner, the Space Off, and which agents can read it."
+    },
+    {
+      "id": "NOTES_01-labels",
+      "route": "/m/NOTES_01?part=labels",
+      "proto": "labels,{skin}",
+      "waitFor": "[data-testid='menu']",
+      "note": "The label filter, a ui/Menu with ticks and counts, Shared with me, From Chrome, With images and Clear the filter, on Lab 8."
+    },
+    {
+      "id": "NOTES_01-ask",
+      "route": "/m/NOTES_01?part=ask",
+      "proto": "ask,{skin}",
+      "waitFor": "[data-testid='notes-ask-pane']",
+      "note": "Ask about this note: Ask Vyre on the right about the note, the grid stays."
+    },
+    {
+      "id": "NOTES_01-task",
+      "route": "/m/NOTES_01?part=task",
+      "proto": "task,{skin}",
+      "waitFor": "[data-testid='task-sheet']",
+      "note": "Turn into task, filled from the note: title, for, due, keep it in Notes."
+    },
+    {
+      "id": "NOTES_01-record",
+      "route": "/m/NOTES_01?part=record",
+      "proto": "record,{skin}",
+      "waitFor": "[data-testid='record-field-name']",
+      "note": "Turn into record: the type and its fields filled from the note."
+    },
+    {
+      "id": "NOTES_01-empty",
+      "route": "/m/NOTES_01?part=empty",
+      "proto": "empty,{skin}",
+      "waitFor": "[data-testid='notes-empty']",
+      "note": "No notes yet, and the four ways to make one."
+    },
+    {
+      "id": "NOTES_01-phone",
+      "route": "/m/NOTES_01?part=phone",
+      "proto": "phone,{skin}",
+      "waitFor": "[data-testid='notes-pinned']",
+      "note": "The phone: two columns, Take a note above the tab bar."
+    },
+    {
+      "id": "NOTES_01-phone-note",
+      "route": "/m/NOTES_01?part=phone-note",
+      "proto": "phone,{skin}",
+      "waitFor": "[data-testid='note-phone-page']",
+      "note": "A note open on the phone, its bar at the foot."
+    },
+    {
+      "id": "NOTES_01-phone-sheet",
+      "route": "/m/NOTES_01?part=phone-sheet",
+      "proto": "phone,{skin}",
+      "waitFor": "[data-testid='note-action-sheet']",
+      "note": "The note's actions as a sheet (a long press or More)."
+    },
+    {
+      "id": "NOTES_01-from",
+      "route": "/m/NOTES_01?part=from",
+      "proto": "chat,at:notes-from,{skin}",
+      "waitFor": "[data-testid='note-from']",
+      "note": "A note saved from a chat, opened: the From line with the chat, the time and Open message. Cleaned up open note: centered over an even dim, its card hidden behind it, the pin and an X at the top right, one action row, no Close at the foot."
+    },
+    {
+      "id": "NOTES_01-single",
+      "route": "/m/NOTES_01?part=single",
+      "proto": "chat,at:notes-grid,{skin}",
+      "waitFor": "[data-testid^='note-n12']",
+      "note": "One note with an image and a link, the first a person makes: the grid shows the note card alone under Take a note, with no stray line beside it."
+    },
+    {
+      "id": "NOTES_01-single-open",
+      "route": "/m/NOTES_01?part=single-open",
+      "proto": "chat,at:notes-open,{skin}",
+      "waitFor": "[data-testid='note-dialog']",
+      "note": "The same note opened: the link card is a card with the site, title and description."
+    },
+    {
+      "id": "NOTES_01-phone-from",
+      "route": "/m/NOTES_01?part=phone-from",
+      "proto": "chat,at:notes-from,{skin}",
+      "waitFor": "[data-testid='note-from']",
+      "note": "A note saved from a chat, on the phone: the From line with the chat, the time and Open message."
+    }
   ]
 }

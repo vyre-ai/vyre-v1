@@ -14,9 +14,12 @@ test("the lock screen names the person, asks for the password and offers Unlock"
   assert.match(t, /Unlock/);
 });
 
-test("a Space that is not on this computer never shows the lock: it keeps its existing flows", () => {
-  const html = renderToStaticMarkup(<KeyGate baseUrl="https://team.example.com" token="t" name="Irfad"><p>the shell</p></KeyGate>);
-  assert.match(html, /the shell/);
+test("a Space server over https is checked at launch behind the calm loading state; an address with no key door goes straight in", () => {
+  const checked = renderToStaticMarkup(<KeyGate baseUrl="https://team.example.com" token="t" name="Irfad"><p>the shell</p></KeyGate>);
+  assert.match(checked, /data-testid="lock-checking"/);
+  assert.doesNotMatch(text(checked), /the shell/, "no shell flash before it is known whether the key is held");
+  const plain = renderToStaticMarkup(<KeyGate baseUrl="http://10.0.0.2:7777" token="t" name="Irfad"><p>the shell</p></KeyGate>);
+  assert.match(plain, /the shell/, "plain http to another machine never holds a key");
 });
 
 test("on this computer a calm loading state shows until the daemon answers: no blank page, no shell flash behind the lock", () => {
@@ -79,4 +82,26 @@ test("an open app that holds the key asks the Space again every beat and hands i
   forgetKey();
   assert.equal(watchKey("http://10.0.0.2:7777", () => "tok", { set, clear, rehand })(), undefined, "no key door, nothing watched");
   assert.equal(ticks.length, 1);
+});
+
+test("the launch lock for a Space server: shown only when no one holds the key and the account has a password; Not now is offered there", async () => {
+  const { remoteGateState } = await import("./key-unlock.ts");
+  const calls: string[] = [];
+  const mk = (o: { kept?: boolean; holds?: boolean | null; pw?: "yes" | "no" | "unknown" }) => ({
+    kept: () => o.kept === true,
+    rehand: async () => { calls.push("rehand"); return true; },
+    serverHolds: async () => { calls.push("asked"); return o.holds === undefined ? false : o.holds; },
+    passwordKey: async () => o.pw ?? "yes",
+  });
+  assert.equal(await remoteGateState(mk({ kept: true })), "open", "an app that holds the key hands it over and goes in");
+  assert.deepEqual(calls, ["rehand"]);
+  calls.length = 0;
+  assert.equal(await remoteGateState(mk({ holds: true })), "open", "the server already holds it (another device unlocked)");
+  assert.equal(await remoteGateState(mk({ holds: null })), "open", "a server that did not answer is not read as locked");
+  assert.equal(await remoteGateState(mk({ holds: false, pw: "no" })), "open", "an account that signed in another way has no password to ask for");
+  assert.equal(await remoteGateState(mk({ holds: false, pw: "unknown" })), "open");
+  assert.equal(await remoteGateState(mk({ holds: false, pw: "yes" })), "locked", "relaunched, the server lost it, nobody holds it: the lock shows");
+  const t = text(renderToStaticMarkup(<LockScreen name="Irfad" onUnlock={async () => undefined} onSkip={() => undefined} />));
+  assert.match(t, /Not now/);
+  assert.doesNotMatch(text(renderToStaticMarkup(<LockScreen name="Irfad" onUnlock={async () => undefined} />)), /Not now/, "the lock on this computer has no way round");
 });

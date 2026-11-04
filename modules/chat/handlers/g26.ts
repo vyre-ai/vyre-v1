@@ -28,26 +28,34 @@ export async function recentWithUnread(ctx: ChatCtx, input: { filter?: "all" | "
   const filter = input.filter ?? "all";
   // The group's function knows the listing rules; the unread filter is applied here on the counts it cannot see.
   const base = (await recent(ctx, { filter: filter === "unread" ? "all" : filter })) as Record<Section, Row[]> & { nextUnread: string | null };
+  // what is new in the replies to messages I follow (the inline threads I am in: a reply or a mention joins me), counted by the same read cursor. A task's replies are the task's (Tasks shows
+  // them, and its status lines are not conversation), and replies I muted stay quiet. The total is `threadsUnread`; each chat also carries the count of its own, for its bold row.
+  let threadsUnread = 0;
+  const muted = mutedOf(ctx, asker);
+  const mine = ctx.db.all(
+    `SELECT id, parentThreadId FROM chat_thread WHERE kind = 'thread' AND deleted_at IS NULL AND (scopeType IS NULL OR scopeType <> 'task')
+       AND id IN (SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL) ORDER BY rowid DESC LIMIT ?`, asker, THREADS_MAX,
+  ) as Row[];
+  const repliesIn = new Map<string, number>();
+  for (const r of mine) {
+    if (muted.has(String(r["id"]))) continue;
+    const n = unreadOf(ctx, String(r["id"]), asker);
+    threadsUnread += n;
+    if (n > 0 && r["parentThreadId"]) repliesIn.set(String(r["parentThreadId"]), (repliesIn.get(String(r["parentThreadId"])) ?? 0) + n);
+  }
   const out: Record<Section, Row[]> = { starred: [], today: [], yesterday: [], earlier: [], archived: [] };
   let nextUnread: string | null = null;
   for (const s of SECTIONS) {
     for (const row of base[s] ?? []) {
-      const unread = unreadOf(ctx, String(row["threadId"]), asker);
-      if (filter === "unread" && unread === 0) continue;
-      out[s].push({ ...row, unread });
+      const id = String(row["threadId"]);
+      const unread = unreadOf(ctx, id, asker);
+      const replies = repliesIn.get(id) ?? 0;
+      if (filter === "unread" && unread === 0 && replies === 0) continue;
+      out[s].push({ ...row, unread, ...(replies > 0 ? { repliesUnread: replies } : {}) });
       // an archived chat is quiet: its unread never picks the "next unread" chat
-      if (nextUnread === null && unread > 0 && s !== "archived") nextUnread = String(row["threadId"]);
+      if (nextUnread === null && (unread > 0 || replies > 0) && s !== "archived") nextUnread = id;
     }
   }
-  // the Threads row: what is new in the inline threads I am in (a reply or a mention joins me), counted by the same read cursor. A task's thread is the task's (Tasks shows it, and its
-  // status lines are not conversation), and a thread I muted stays quiet
-  let threadsUnread = 0;
-  const muted = mutedOf(ctx, asker);
-  const mine = ctx.db.all(
-    `SELECT id FROM chat_thread WHERE kind = 'thread' AND deleted_at IS NULL AND (scopeType IS NULL OR scopeType <> 'task')
-       AND id IN (SELECT thread FROM chat_thread_member WHERE principal = ? AND deleted_at IS NULL) ORDER BY rowid DESC LIMIT ?`, asker, THREADS_MAX,
-  ) as Row[];
-  for (const r of mine) if (!muted.has(String(r["id"]))) threadsUnread += unreadOf(ctx, String(r["id"]), asker);
   return { ...out, nextUnread, threadsUnread };
 }
 

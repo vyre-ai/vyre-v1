@@ -547,3 +547,8 @@ export function collect<T, U>(list: readonly T[], fn: (item: T, index: number) =
   for (const [i, x] of list.entries()) out.push(fn(x, i));
   return out;
 }
+
+/** May the @ menu offer this agent? Everyone sees every agent offered to them; a guest only the agents this chat allows (the ones in it). */
+export function mentionable(item: string | { t: string; ref?: string | undefined }, guest: boolean, inThread: ReadonlyMap<string, unknown>): boolean {
+  return !guest || (typeof item !== "string" && item.ref !== undefined && inThread.has(item.ref));
+}

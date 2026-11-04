@@ -282,10 +282,10 @@ async function hiddenSteps(ctx: AutoCtx): Promise<Set<string>> {
   return new Set([...(s.code.available ? [] : ["code"]), ...(s.ai.available ? [] : ["ai"])]);
 }
 
-async function providersOf(ctx: AutoCtx, explicit = false): Promise<AccountLite[] | null> {
+async function providersOf(ctx: AutoCtx, kind: Automation["kind"], explicit = false): Promise<AccountLite[] | null> {
   if (!ctx.call) return null;
   try {
-    const r = (await ctx.call("engine.accounts.list", { place: "automation", ...(explicit ? { explicit: true } : {}) })) as { accounts?: AccountLite[] } | null;
+    const r = (await ctx.call("engine.accounts.list", { place: "automation", runsAs: kind === "space" ? "space" : "person", ...(explicit ? { explicit: true } : {}) })) as { accounts?: AccountLite[] } | null;
     return Array.isArray(r?.accounts) ? r!.accounts : [];
   } catch {
     return null;
@@ -302,8 +302,8 @@ async function aiAccountIssues(ctx: AutoCtx, kind: Automation["kind"], def: Defi
   const nodes = def.nodes.filter((n) => n.key === "ai");
   if (nodes.length === 0) return [];
   // an account the step itself names is the person's own choice for it, so a Space account is not checked against what it is kept for; the automation's own account and Automatic are
-  const forAutomation = await providersOf(ctx);
-  const forStep = def.nodes.some((n) => n.key === "ai" && typeof ({ ...(n.ai ?? {}), ...n.input } as Record<string, unknown>)["keyId"] === "string") ? await providersOf(ctx, true) : forAutomation;
+  const forAutomation = await providersOf(ctx, kind);
+  const forStep = def.nodes.some((n) => n.key === "ai" && typeof ({ ...(n.ai ?? {}), ...n.input } as Record<string, unknown>)["keyId"] === "string") ? await providersOf(ctx, kind, true) : forAutomation;
   const out: Issue[] = [];
   for (const n of nodes) {
     const have = { ...(n.ai ?? {}), ...n.input } as Record<string, unknown>;

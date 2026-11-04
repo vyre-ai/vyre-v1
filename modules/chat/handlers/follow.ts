@@ -66,8 +66,8 @@ export function followersOf(ctx: Pick<ChatCtx, "db">, t: ThreadRec): string[] {
 
 export async function follow(ctx: ChatCtx, input: { threadId: string; mode: "follow" | "mute" | "leave" }) {
   const t = load(ctx, input.threadId);
-  if (ctx.principal.kind !== "person" && ctx.actingFor === undefined) raise(ctx, "validation.bad_input", "A person follows a thread.");
-  if (t.kind !== "thread") raise(ctx, "validation.bad_input", "Only a thread is followed. Leave a chat or a channel from its own menu.", { kind: t.kind });
+  if (ctx.principal.kind !== "person" && ctx.actingFor === undefined) raise(ctx, "validation.bad_input", "A person follows replies.");
+  if (t.kind !== "thread") raise(ctx, "validation.bad_input", "Only replies to a message are followed. Leave a chat or a channel from its own menu.", { kind: t.kind });
   if (input.mode !== "follow" && input.mode !== "mute" && input.mode !== "leave") raise(ctx, "validation.bad_input", "Follow, mute or leave.");
   const person = askerOf(ctx);
   const was = isMember(ctx.db, t.id, person);

@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "EDITOR_04-reply",
+      "route": "/m/EDITOR_04",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='reply']",
+      "note": "A chat reply with a table, a checklist, a code block with Copy, a quote and inline code."
+    }
+  ]
+}

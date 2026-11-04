@@ -29,6 +29,7 @@ type In = {
   model?: string;
   agentId?: string;
   explicit?: boolean;
+  runsAs?: "person" | "space";
 };
 ```
 
@@ -56,8 +57,23 @@ type Out = {
           name: string;
         }>;
       providerId?: string;
+      provider?: string;
+      itemId?: string;
+      uses?: {
+        teamChats?: {
+          who: "everyone" | Array<string>;
+        };
+        automations?: true;
+        goals?: true;
+        agentWork?: {
+          which: "all" | Array<string>;
+        };
+      };
       models?: Array<string>;
       usable?: boolean;
+      code?: string;
+      capped?: boolean;
+      capCents?: number | null;
       why?: string;
     }>;
 };
@@ -79,7 +95,8 @@ type Out = {
     "agentId": "agt_a1b2c3",
     "explicit": true,
     "model": "example",
-    "place": "chat"
+    "place": "chat",
+    "runsAs": "person"
   },
   "output": {
     "accounts": [
@@ -88,7 +105,11 @@ type Out = {
           "#Team_Anthropic_Key"
         ],
         "base": "example",
+        "capCents": 1,
+        "capped": true,
+        "code": "example",
         "driver": "anthropic",
+        "itemId": "vit_a1b2c3",
         "keyless": true,
         "kind": "api_key",
         "lastProbeAt": 1760000000000,
@@ -105,12 +126,23 @@ type Out = {
           }
         ],
         "ownerId": "usr_a1b2c3",
+        "provider": "anthropic",
         "providerId": "prv_a1b2c3",
         "ref": "#Team_Anthropic_Key",
         "spaceKey": true,
         "status": "ok",
         "title": "example",
         "usable": true,
+        "uses": {
+          "agentWork": {
+            "which": "all"
+          },
+          "automations": true,
+          "goals": true,
+          "teamChats": {
+            "who": "everyone"
+          }
+        },
         "why": "example"
       }
     ]

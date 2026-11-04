@@ -98,3 +98,11 @@ export const threadMessage = t.obj({
   attachments: t.arr(t.obj({ attachmentId: t.str(), name: t.str(), mime: t.str(), size: t.int() })), isPrivate: t.bool(), rfcMessageId: t.opt(t.str()), inReplyTo: t.opt(t.str()),
 });
 export const threadRole = t.enm('started', 'to', 'cc', 'added_later', 'none');
+
+/** What a Space AI account may pay for (owner ruling 9). Each use is off unless named. */
+export const spaceUses = t.obj({
+  teamChats: t.opt(t.obj({ who: t.union(t.lit('everyone'), t.arr(id.group, { minItems: 1 })) }, { description: 'A member\'s own chat, only when they have no account of their own that can pay: everyone, or the people in these groups' })),
+  automations: t.opt({ ...t.lit(true), description: 'Automation steps' }),
+  goals: t.opt({ ...t.lit(true), description: 'Goal turns and wake-ups' }),
+  agentWork: t.opt(t.obj({ which: t.union(t.lit('all'), t.arr(id.agent, { minItems: 1 })) }, { description: 'Work an agent does with no asker (routines, watchers, helpers): every agent, or these' })),
+}, { description: 'What a Space AI account may pay for' });

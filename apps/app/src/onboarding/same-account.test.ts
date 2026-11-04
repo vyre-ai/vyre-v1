@@ -4,11 +4,11 @@ import { copyAccount, copyableAccounts } from "./same-account.ts";
 import type { CapCall } from "../shell/session/caps.ts";
 
 const fake = (answers: Record<string, unknown>) => { const calls: Array<[string, any]> = []; return { calls, call: (async (c: string, i: any) => { calls.push([c, i]); const a = answers[c]; if (a instanceof Error) throw a; return a; }) as unknown as CapCall }; };
-const row = (over: Record<string, unknown>) => ({ id: "prv_1", providerKey: "anthropic", name: "Anthropic", connection: "api_key", scope: "mine", itemId: "itm_1", state: "ok", ...over });
+const row = (over: Record<string, unknown>) => ({ ref: "#Anthropic", providerId: "prv_1", provider: "anthropic", name: "Anthropic", title: "Anthropic", kind: "api_key", mine: true, itemId: "itm_1", status: "ok", ...over });
 
 test("only a working key in Mine can be copied; a subscription sign-in or a Shared key cannot", async () => {
-  const p = fake({ "providers.list": { providers: [row({}), row({ id: "prv_2", connection: "subscription" }), row({ id: "prv_3", scope: "shared" }), row({ id: "prv_4", state: "failing" })] } });
-  assert.deepEqual((await copyableAccounts(p.call)).map((a) => a.providerId), ["prv_1"]);
+  const p = fake({ "engine.accounts.list": { accounts: [row({}), row({ providerId: "prv_2", kind: "subscription" }), row({ providerId: "prv_3", mine: false }), row({ providerId: "prv_4", status: "failed" }), row({ providerId: "prv_5", base: "http://localhost:11434" })] } });
+  assert.deepEqual((await copyableAccounts(p.call)).map((a) => a.providerId), ["prv_1"], "a local model endpoint is not a key to copy either");
 });
 
 test("a yes reveals the one key in the Personal Space and adds it to the team's Mine folder, and nothing else", async () => {

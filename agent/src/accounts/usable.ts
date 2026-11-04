@@ -23,15 +23,15 @@ export const WHY: Readonly<Record<SkipWhy, string>> = {
 };
 
 /** Usable here, or the reason it is not. `model` narrows to accounts that list it; `me` is the person picking. */
-export function usableHere(row: AccountRow, place: Place, o: { me: string; policy: "any" | "company"; onServer: boolean; model?: string; agentId?: string; explicit?: boolean }): { usable: true } | { usable: false; why: string } {
+export function usableHere(row: AccountRow, place: Place, o: { me: string; policy: "any" | "company"; onServer: boolean; model?: string; agentId?: string; explicit?: boolean; runsAs?: "person" | "space" }): { usable: true } | { usable: false; why: string; code: SkipWhy } {
   // a signed-out or failing account says so first, whatever else would also stop it
-  if (row.status === "expired") return { usable: false, why: WHY.expired };
-  if (row.status === "failed") return { usable: false, why: WHY.failed };
+  if (row.status === "expired") return { usable: false, why: WHY.expired, code: "expired" };
+  if (row.status === "failed") return { usable: false, why: WHY.failed, code: "failed" };
   const req: ResolveRequest = {
     starter: o.me, trigger: TRIGGER[place], agent: { agentId: o.agentId ?? "", accountPolicy: "asker" }, backupRefs: [], policy: o.policy, accounts: [row],
     ...(o.model ? { model: o.model } : {}), onServer: o.onServer,
   };
-  // a Space account is checked against the work of the place; the person's own account is theirs for chats and needs the switch elsewhere
-  const why = skipReason(row, req, o.me, { ...(row.mine ? {} : { use: place !== "space" && o.explicit !== true }), ...(o.model ? { space: !row.mine } : {}) });
-  return why === null ? { usable: true } : { usable: false, why: WHY[why] };
+  // a Space account is checked against the work of the place ("Used for" decides what a Space account pays for; an automation that runs as a person may use any account that person may use); the person's own account is theirs for chats and needs the switch elsewhere
+  const why = skipReason(row, req, o.me, { ...(row.mine ? {} : { use: place !== "space" && o.explicit !== true && !(place === "automation" && o.runsAs === "person") }), ...(o.model ? { space: !row.mine } : {}) });
+  return why === null ? { usable: true } : { usable: false, why: WHY[why], code: why };
 }

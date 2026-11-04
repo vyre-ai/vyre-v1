@@ -45,6 +45,10 @@ test("the agent strip shows only when an AI will answer: the lead; an @mentioned
   assert.match(lead, /data-testid="composer-strip"/);
   assert.match(lead, /Intake will answer on Sonnet 5\.5, high effort/);
   assert.match(lead, /aria-label="Effort 3 of 4"/, "effort bars");
+  assert.doesNotMatch(lead, /composer-unavailable|Not available here/, "a pick that can run says nothing");
+  const off = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lead="Intake" lists={lists} agents={[{ ...agents[0]!, unavailable: true }, agents[1]!]} />));
+  assert.match(off, /data-testid="composer-unavailable"[^>]*>Not available here</, "the remembered pick cannot run here: one quiet line");
+  assert.match(off, /Intake will answer on Sonnet 5\.5, not available here, high effort/, "and the label says so");
   const people = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} />));
   assert.doesNotMatch(people, /composer-strip/, "people only: no strip");
   const mentioned = clean(renderToStaticMarkup(<Composer whoWillAnswer="" lists={lists} agents={agents} value="@Docs can you check" />));
