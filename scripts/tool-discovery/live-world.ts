@@ -65,8 +65,9 @@ let spent = 0;
 try {
   // a little real data for the real handlers to read (a failure here only means the reads come back empty)
   const day = 24 * 3600 * 1000, t0 = Date.now();
-  for (const [i, title] of ["Standup", "Client call", "Review contracts"].entries()) await api("calendar.create_event", { idempotencyKey: `seed-ev-${i}`, title, startsAt: t0 + day + i * 3600_000, endsAt: t0 + day + (i + 1) * 3600_000 }).catch((e: unknown) => console.log(`seed event ${i}: ${scrub(String(e)).slice(0, 120)}`));
-  await api("goals.create", { idempotencyKey: "seed-goal", outcome: "Sign five new clients this quarter", title: "Five new clients" }).catch((e: unknown) => console.log(`seed goal: ${scrub(String(e)).slice(0, 160)}`));
+  const cal = await api("calendar.create_calendar", { idempotencyKey: "seed-cal", title: "Work" }).then((o: { calendar?: { id?: string } }) => o.calendar?.id).catch((e: unknown) => { console.log(`seed calendar: ${scrub(String(e)).slice(0, 300)}`); return undefined; });
+  for (const [i, title] of ["Standup", "Client call", "Review contracts"].entries()) await api("calendar.create_event", { idempotencyKey: `seed-ev-${i}`, ...(cal ? { calendarId: cal } : {}), title, startsAt: t0 + day + i * 3600_000, endsAt: t0 + day + (i + 1) * 3600_000 }).catch((e: unknown) => console.log(`seed event ${i}: ${scrub(String(e)).slice(0, 500)}`));
+  await api("goals.create", { idempotencyKey: "seed-goal", title: "Five new clients", outcome: "Sign five new clients this quarter", finish: { kind: "owner", line: "Five new clients have signed" }, deadline: t0 + 30 * day, leadAgentId: assistant }).catch((e: unknown) => console.log(`seed goal: ${scrub(String(e)).slice(0, 160)}`));
   const rows: Record<string, { mode: string; calls: number[]; tokensIn: number[]; wall: number[]; first: number[]; batch: number[]; done: number }> = {};
   for (let r = 0; r < RUNS; r++) for (const task of TASKS) for (const parallel of r % 2 === 0 ? [false, true] : [true, false]) {
     if (spent > BUDGET) { console.log(`stopping: estimated spend $${spent.toFixed(3)} passed the $${BUDGET} cap`); break; }
@@ -85,6 +86,7 @@ try {
       await new Promise((r2) => setTimeout(r2, 300));
     }
     const wall = (Date.now() - t1) / 1000;
+    if (reply === "") { const th = (await call(d, "threads.get", { threadId: thread })).data; console.log(`  no answer; thread state: ${scrub(JSON.stringify(th)).slice(0, 300)}`); const { hostLog } = await import("../../test/support/eco-live.ts"); console.log(`  host log: ${scrub(hostLog(d)).slice(0, 900)}`); break; }
     const m = current.m;
     spent += m.tokensIn * PRICE_IN + m.tokensOut * PRICE_OUT;
     const k = `${task.id}|${mode}`;
