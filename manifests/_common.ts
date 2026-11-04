@@ -70,7 +70,7 @@ export const purgeOut = { removed: t.int({ minimum: 0 }), more: t.bool(), skippe
 
 // A reply's Details (engine.turn.of_message, chat.reply_details). A count that is absent was not reported by the provider: never shown as 0.
 const turnCost = t.obj({
-  source: t.enm('subscription', 'reported', 'catalog', 'estimate', 'unknown'), micros: t.opt(t.int()),
+  source: t.enm('subscription', 'reported', 'catalog', 'estimate', 'unknown', 'flat'), micros: t.opt(t.int()),
   lines: t.opt(t.arr(t.obj({ kind: t.enm('input', 'output', 'cache_read', 'cache_write'), tokens: t.int(), perMillion: t.num(), micros: t.int() }))),
   priceAsOf: t.opt(t.str({ examples: ['2026-10-06'] })), missing: t.opt(t.arr(t.str())),
 });
@@ -78,7 +78,7 @@ export const replyTurn = t.obj({
   turnId: id.turn, traceId: id.trace, agentId: id.agent, asker: t.str(), model: t.str(), effort: t.opt(t.str()), engine: t.str(), provider: t.opt(t.str()),
   accountKind: t.opt(t.enm('api_key', 'subscription')), shared: t.opt(t.bool()), accountRef: t.opt(t.str({ description: 'Vault handle or subscription account reference; never a secret value' })), state: t.enm('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled'),
   paid: t.opt(t.str({ description: 'Who paid and why, in a plain line (the asker\'s and AI-spend managers\' only)' })),
-  ranOn: t.arr(t.obj({ kind: t.str(), name: t.str() })),
+  ranOn: t.arr(t.obj({ kind: t.str(), name: t.str(), note: t.opt(t.str()) })),
   timing: t.obj({ queuedAt: t.opt(t.ts()), startedAt: t.ts(), firstTokenAt: t.opt(t.ts()), endedAt: t.opt(t.ts()) }),
   tokens: t.obj({ in: t.int(), out: t.int(), context: t.opt(t.int({ description: 'What the model was shown in the last call of the turn: the real size of the context. `in` adds up every call' })), cacheRead: t.opt(t.int()), cacheWrite: t.opt(t.int()), reasoning: t.opt(t.int()) }),
   cost: t.opt(turnCost),

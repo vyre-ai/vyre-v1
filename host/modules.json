@@ -227,6 +227,11 @@
       "status": "live"
     },
     {
+      "id": "machines",
+      "owner": "L2",
+      "status": "live"
+    },
+    {
       "id": "notes",
       "owner": "L2",
       "status": "live"
@@ -368,6 +373,11 @@
     },
     {
       "id": "vault-requests",
+      "owner": "L7a",
+      "status": "live"
+    },
+    {
+      "id": "talk",
       "owner": "L7a",
       "status": "live"
     },

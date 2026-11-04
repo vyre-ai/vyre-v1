@@ -26,6 +26,8 @@ import { withAudienceReset } from "./audience-reset.ts";
 import { withChatSettings } from "./chat-settings.ts";
 import { withSpaceKeyTurns } from "./space-key-turns.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
+import { createModelSwitch } from "./model-switch.ts";
+import { markConfirmed } from "./model-health.ts";
 import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
 import { skipLocked } from "./locked-account.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
@@ -44,7 +46,7 @@ import { createCompactor, withCompaction } from "./compact.ts";
 import type { Compactor } from "./compact.ts";
 import { keepEvery, keepsSession, resumeId, saveResumeId } from "./cli-sessions.ts";
 import { recordAccountLimits } from "./handlers/usage.ts";
-import { learnAfterTurn } from "./learn.ts";
+import { learnAfterTurn, titleAfterTurn } from "./learn.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
 import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
 import { ensureExtra } from "./handlers/extra/schema.ts";
@@ -114,6 +116,8 @@ export interface EngineHostSeam {
   extend?: (engine: TurnEngine) => void;
   /** Told at shutdown with the promise of the engine's close (CLI sessions ended, the sign-ins they refreshed saved), so the daemon waits for it before its databases close. */
   closing?: (done: Promise<void>) => void;
+  /** Set by the module when a later host half has replaced this one while its opener was still open: closes that opener. The seam wiring calls it when this daemon stops. */
+  retire?: () => Promise<void>;
   /** Told how many turns run here now, each time it changes (the desktop shell waits for 0 before it updates the app). */
   turns?: (running: number) => void;
 }
@@ -138,11 +142,11 @@ export function setEngineHost(h: EngineHostSeam | null): void {
     const done = (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve()).then(() => closeDefaultSandbox()).catch(() => undefined);
     host?.closing?.(done);
   }
-  // Two daemons in one process (tests): the next host half replaces the first before the first has been unwired. The first one's opener (its CLI sessions, MCP socket and egress proxy) is closed
-  // now and handed to its host half to wait for; before, it was dropped here and never closed.
-  else if (closeOpener && host) {
-    const old = closeOpener;
-    host.closing?.(old().catch(() => undefined));
+  // Two daemons in one process: the next host half replaces the first while the first daemon may still be running (its turns go on through the opener it built), so its opener is NOT closed here.
+  // It is handed to the first host half as `retire`, which the seam wiring calls when that daemon stops without holding the seam any more; before, the opener was dropped here and never closed.
+  else if (closeOpener && host && h !== host) {
+    const old = host, close = closeOpener;
+    old.retire = () => { const done = close().catch(() => undefined); old.closing?.(done); return done; };
   }
   closeOpener = null;
   host = h;
@@ -288,6 +292,8 @@ let compactor: Compactor | null = null;
 export const compactorOf = (): Compactor | null => compactor;
 /** One request and one answer on an account, through the same opener the turn engine uses: for jobs that need a model but are not a chat (memory upkeep). Null before the runtime exists. */
 export const completerOf = (): typeof completer => completer;
+/** Tests: stand in for the runtime's one-request completer. */
+export const bindCompleter = (c: typeof completer): void => { completer = c; };
 
 /** Run one turn of a pseudo-agent on the account and collect its text and token counts. */
 async function oneShot(openSession: OpenSession, i: CompleteIn, now: () => number): Promise<CompleteOut> {
@@ -494,6 +500,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         return row ? providerOfDriver(row.driver) : undefined;
       },
     });
+    const modelSwitch = createModelSwitch({ call: h.call, db: ctx.db, accountFor: runnableAccount(h), now, ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) });
     const engine = createTurnEngine({
       holder: h.holder, openSession: withHeldNotes(withChatSettings(withSpaceKeyTurns(withTurnContext(goalFolder(nativeSkills(withCompaction(withTranscript(withRecall(withAudienceReset(bridge ? bridge.tap(openSession) : openSession, { db: ctx.db, call: h.call, now, ...(opener ? { drop: (threadId: string) => opener.pool.drop(threadId) } : {}), ...(h.log ? { log: h.log } : {}) }), h.call), h.call, now), ctx.db))), turnContext, async (spec) => runningLine(spec, await placeWords(spec))), { call: h.call, db: ctx.db, now, ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) }), h.call)), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
@@ -501,12 +508,14 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
       resolveAccount: (q) => limitSwitch.resolve(q),
       nextAccount: (q) => limitSwitch.next(q),
+      nextModel: async (q) => { try { return await modelSwitch(q); } catch (e) { if (typeof (e as { code?: unknown } | null)?.code !== "string") h.log?.("the model swap failed", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); throw e; } },
       onNoAccount: async (info) => {
         try { await unblock(h, ctx.db, info); }
         catch (e) { h.log?.("could not open the Unblock task for a turn with no account", { threadId: info.threadId, asker: info.asker, error: e instanceof Error ? e.message : String(e) }); throw e; }
       },
       // memory learns from the turn in the background (learn.ts): scheduled here, never awaited, so the reply is not held for it
-      onTurnEnd: (turn, account) => { roller.ranOn(turn.id, account); learnAfterTurn(h, turn, account); return meter(h, turn, account); },
+      onQuestionsLeft: async (turn, blocks) => { for (const blockId of blocks) { try { await h.call("chat.question.withdraw", { threadId: turn.threadId, blockId }, turn.agentId); } catch { /* it stays in its chat */ } } },
+      onTurnEnd: (turn, account) => { if (turn.state === "completed" && account && turn.model) { try { markConfirmed(ctx.db, account.ref, turn.model, now()); } catch { /* a mark that stays only hides a model a little longer */ } } roller.ranOn(turn.id, account); learnAfterTurn(h, turn, account); titleAfterTurn(h, turn, account); return meter(h, turn, account); },
       onLimits: (account, reading) => recordAccountLimits(ctx.db, account.ref, reading, now()),
       // the answer check (gap 6): an answer built on something not everyone in the chat may open goes to the asker privately
       ...(h.mayAll ? {
@@ -526,10 +535,10 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     // The reviewer seat: after a lead turn completes, the chat's reviewer is asked to check it.
     // Every turn this engine runs is reported to engine.turn.record under the engine's own id, in order per turn, so the turn list, review sampling and the agent's Working status see it.
     const recording = new Map<string, Promise<void>>();
-    const report = (turnId: string, ev: Extract<EngineEvent, { type: "turn.started" | "turn.completed" | "turn.failed" | "turn.cancelled" }>): void => {
+    const report = (turnId: string, ev: Extract<EngineEvent, { type: "turn.started" | "turn.completed" | "turn.failed" | "turn.cancelled" | "turn.waiting" | "turn.resumed" }>): void => {
       const turn = engine.turns().find((t) => t.id === turnId);
       if (!turn) return;
-      const phase = ev.type === "turn.started" ? "started" : ev.type === "turn.completed" ? "completed" : ev.type === "turn.failed" ? "failed" : "cancelled";
+      const phase = ev.type === "turn.started" ? "started" : ev.type === "turn.waiting" ? "waiting" : ev.type === "turn.completed" || ev.type === "turn.resumed" ? "completed" : ev.type === "turn.failed" ? "failed" : "cancelled";
       const input = {
         threadId: turn.threadId, turnId, agentId: turn.agentId, phase, qseq: turn.qseq, asker: turn.asker, ...(turn.model ? { model: turn.model } : {}),
         ...(phase === "started" ? {} : { tokensIn: turn.tokensIn, tokensOut: turn.tokensOut }),
@@ -575,7 +584,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         void h.call("engine.turn.record", { threadId: ev.threadId, turnId: ev.turnId, agentId: ev.agentId, phase: "failed", qseq: ev.qseq ?? 0, ...(ev.asker ? { asker: ev.asker } : {}), code: ev.code }, ev.asker)
           .catch((err: unknown) => h.log?.("a lost turn could not be recorded", { turnId: ev.turnId, error: err instanceof Error ? err.message : String(err) }));
       }
-      else if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") report(ev.turnId, ev);
+      else if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled" || ev.type === "turn.resumed" || (ev.type === "turn.waiting" && ev.reason === "approval")) report(ev.turnId, ev);
       if (ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") {
         // a routine's run ends with the turn it woke (handlers/routine-run.ts)
         void finishRoutineRun(ctx, { call: h.call, ...(h.log ? { log: h.log } : {}) }, ev as Parameters<typeof finishRoutineRun>[2], (id) => engine.turns().find((t) => t.id === id)?.qseq)

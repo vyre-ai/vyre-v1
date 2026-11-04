@@ -25,6 +25,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "agents.outside.seen": Handler<"agents.outside.seen", X>;
   "agents.outside.usable": Handler<"agents.outside.usable", X>;
   "agents.pause": Handler<"agents.pause", X>;
+  "agents.pause_person": Handler<"agents.pause_person", X>;
+  "agents.people_summary": Handler<"agents.people_summary", X>;
   "agents.restore": Handler<"agents.restore", X>;
   "agents.restore_version": Handler<"agents.restore_version", X>;
   "agents.resume": Handler<"agents.resume", X>;

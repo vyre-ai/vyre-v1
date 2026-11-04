@@ -1,9 +1,9 @@
 // One handler per tasks capability (30). State changes and reads live in state.ts; act, delegate, escalate and stuck detection in act.ts.
 import { act, delegate, escalate } from "./act.ts";
-import { ask, block, decide, review, submit } from "./baton.ts";
+import { agentOnIt, ask, block, decide, review, submit } from "./baton.ts";
 import {
   assign, countNeedsYou, create, dependenciesAdd, dependenciesRemove, followersAdd, followersRemove, get, history, linksAdd, linksRemove, list, myWorkList,
-  needsYouList, notesDelete, notesSet, release, snooze, take, transition, update, withdraw,
+  needsYouList, heldRevise, notesDelete, notesSet, release, snooze, take, transition, update, withdraw,
 } from "./state.ts";
 
 import { byKey, index, rev } from "./index-read.ts";
@@ -47,6 +47,7 @@ const base = {
   "tasks.release": release,
   "tasks.review": review,
   "tasks.snooze": snooze,
+  "tasks.agent_on_it": agentOnIt,
   "tasks.submit": submit,
   "tasks.take": take,
   "tasks.transition": transition,
@@ -54,6 +55,7 @@ const base = {
   "tasks.withdraw": withdraw,
   "tasks.working_notes.delete": notesDelete,
   "tasks.working_notes.set": notesSet,
+  "tasks.held_revise": heldRevise,
 };
 
 /** A person bringing back a task an agent deleted teaches that agent (lib/reversal.ts, memory.corrections.record). The task keeps who did what, so no event lookup is needed. */

@@ -35,7 +35,7 @@ type In = {
 ```ts
 type Out = {
   people: Array<{
-      personId: string;
+      handle: string;
       name: string;
       state: "online" | "away" | "offline" | "unknown";
       lastSeenAt?: number;
@@ -47,6 +47,7 @@ type Out = {
       mutedUntil?: number;
       wouldGo: string;
     }>;
+  how: string;
 };
 ```
 
@@ -69,16 +70,17 @@ type Out = {
     "q": "example"
   },
   "output": {
+    "how": "example",
     "people": [
       {
         "awayUntil": 1760000000000,
+        "handle": "aliza-3c6",
         "hours": "Mon to Fri, 09:00 to 17:00",
         "inHours": true,
         "lastSeenAt": 1760000000000,
         "localTime": "3:40 PM",
         "mutedUntil": 1760000000000,
         "name": "example",
-        "personId": "usr_a1b2c3",
         "state": "online",
         "timezone": "Asia/Karachi",
         "wouldGo": "example"

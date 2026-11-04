@@ -14,9 +14,10 @@ import { MarkdownBlocks, StreamText } from "../../../../../../ui/src/stream/inde
 import type { StreamStore } from "../../../../../../ui/src/stream/index.ts";
 import { KeptAside } from "./KeptAside.tsx";
 import { LinkCard } from "../../../../../../ui/src/blocks/link-card/LinkCard.tsx";
+import { DraftCard, ProviderDraftCard } from "./draft-card.tsx";
 import { linkCardOf } from "../../../../../../ui/src/blocks/link-card/model.ts";
 import type { LinkCardData } from "../../../../../../ui/src/blocks/link-card/model.ts";
-import { doneByState, heldTaskOf, probeOf, stateOf } from "../../../../../../ui/src/blocks/link-card/state.ts";
+import { doneByState, draftOf, heldTaskOf, probeOf, providerDraftOf, stateOf } from "../../../../../../ui/src/blocks/link-card/state.ts";
 import type { CardState } from "../../../../../../ui/src/blocks/link-card/state.ts";
 import { useThreadMemory } from "../memory/thread.tsx";
 import { rememberMessage } from "../memory/actions.ts";
@@ -62,6 +63,12 @@ import { ReplyLine } from "./ReplyLine.tsx";
 import { MARK } from "./marks.ts";
 import type { ReplySummary } from "./replies.ts";
 import type { Clock } from "../rightpane/model.ts";
+
+/** A principal id left in someone's words (an agent printed `usr_...`) shows as the name it stands for, when the Space knows it. */
+export function namedIds(body: string, nameOf?: (id: string) => string): string {
+  if (!nameOf || !/usr_[0-9a-f]{8,}/.test(body)) return body;
+  return body.replace(/\busr_[0-9a-f]{8,}\b/g, (id) => { const n = nameOf(id); return n && n !== id && !n.startsWith("usr_") ? n : id; });
+}
 
 export interface MessageActions {
   copy(text: string): void;
@@ -219,12 +226,16 @@ export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: ()
 /** Actions by who wrote it and where: an agent's message copies, threads, forks and pins; your own with an agent copies and edits; people talking get reactions and threads. Fork never appears where only people talk. The rest is under More. */
 export function HoverBar({ m, mine, a, onEdit, visible, byAgent = false }: { m: Message; mine: boolean; a: MessageActions; onEdit: () => void; visible: boolean; byAgent?: boolean }): ReactElement {
   const bar: { icon: GlyphName; label: string; run: (x: number, y: number) => void }[] = [];
+  const memory = useThreadMemory();
   const talk = m.kind !== "system" && m.kind !== "quiet";
   if (byAgent) {
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     bar.push({ icon: "reply", label: "Reply in thread", run: () => a.openThread(m.messageId) });
     if (a.fork && talk) bar.push({ icon: "fork", label: "Fork from here", run: () => a.fork!(m.messageId) });
     if (talk) bar.push({ icon: "pin", label: m.pinned ? "Unpin" : "Pin", run: () => a.setPinned(m.messageId, !m.pinned) });
+    // an agent's answer in a chat of people can become work or a memory in one tap, from here and from the long-press sheet; nothing of it is drawn at rest
+    if (a.withPeople === true && a.makeTask && talk && m.body.trim() !== "") bar.push({ icon: "task", label: "Make task", run: () => a.makeTask!(m.messageId) });
+    if (a.withPeople === true && memory && talk && m.body.trim() !== "") bar.push({ icon: "remember", label: "Remember", run: () => { void rememberMessage(memory.memory, memory.threadId, { messageId: m.messageId, body: m.body }, memory.flash); } });
   } else if (mine && a.humanChat !== true) {
     bar.push({ icon: "copy", label: "Copy", run: () => a.copy(m.body) });
     if (m.kind === "text") bar.push({ icon: "edit", label: "Edit", run: onEdit });
@@ -361,8 +372,10 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   const person = item.who.kind === "person";
   // a crew result card says it all (who, what changed, the teammate's words): the message's own text is for the lead agent that wakes on it, so the card stands alone
   const crewCard = m.blocks.some(isCrewResult) || crewStart !== undefined;
-  const chips = useRefChips(m.body, actions.files);
-  const blocks = stream || crewCard ? null : bodyBlocks(chips.body === m.body ? m.messageId : `${m.messageId}#${chips.body.length}:${chips.body.slice(-24)}`, chips.body);
+  // a person's id that slips into an agent's words reads as their name
+  const words = namedIds(m.body, actions.nameOf);
+  const chips = useRefChips(words, actions.files);
+  const blocks = stream || crewCard ? null : bodyBlocks(chips.body === words ? m.messageId : `${m.messageId}#${chips.body.length}:${chips.body.slice(-24)}`, chips.body);
   const runCfg = actions.runCode;
   const renderCode = useMemo(() => (runCfg ? (b: { lang: string; text: string; closed: boolean }) => { const c = commandOf(b.lang, b.text, b.closed); return c ? <RunCode command={c} cfg={runCfg} /> : null; } : undefined), [runCfg]);
   const subjects = useSubjectBlocks(blocks);
@@ -415,6 +428,9 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         const lc = linkCardOf(b);
         const held = lc && actions.files ? heldTaskOf(lc) : null;
         if (held !== null) return parked.has(held) ? null : <ApprovalCard key={b.id} taskId={held} agent={item.who.name} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files!} />;
+        const draft = lc && actions.files ? draftOf(lc) : null;
+        if (lc && actions.files && providerDraftOf(lc)) return <ProviderDraftCard key={b.id} card={lc} agent={item.who.name} agentId={item.who.id} data={actions.files} />;
+        if (draft !== null) return <DraftCard key={b.id} draftId={draft} agent={item.who.name} agentId={item.who.id} data={actions.files!} />;
         if (lc) return <LinkCardView key={b.id} id={b.id} data={lc} actions={actions} size={14} trusted={m.kind === "system"} />;
         if (isAccessRequest(b.type) && actions.files) return <AccessRequestCard key={b.id} block={b.data as never} data={actions.files} />;
         if (isRedactRequest(b.type) && actions.files) return <RedactRequestCard key={b.id} block={b.data as never} agent={item.who.name} data={{ ...actions.files, nameOf: actions.nameOf ?? ((x: string) => x) }} />;
@@ -432,7 +448,6 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
       {collect(statuses, (x) => (x.kind === "note" ? <Text key={x.id} testID={`status-${x.id}`} style={st.edited}>{x.text}</Text>
         : x.kind === "wait" ? <View key={x.id} testID={`status-${x.id}`} style={st.waitRow}><Text style={st.edited}>{x.text}</Text><TextButton link label={x.action.label} testID={`status-${x.action.key}`} onPress={() => actions.errorNext(x.action.key)} /></View>
         : x.kind === "approval" && actions.files ? <ApprovalCard key={x.id} taskId={x.taskId} agent={item.who.name} agentId={item.who.id} {...(item.who.face ? { face: item.who.face } : {})} data={actions.files} /> : null))}
-      {item.who.kind === "agent" && actions.withPeople === true && !stream && m.body.trim() !== "" ? <ReplyActions m={m} actions={actions} /> : null}
       {item.who.forPerson && actions.agentMute && actions.agentMute.offerFor === m.messageId && onBehalfOf(m)?.teammate === actions.agentMute.me ? (
         <Pressable accessibilityRole="button" testID={`agent-mute-${m.messageId}`} onPress={() => actions.agentMute!.mute(item.who.forPerson!)}>
           <Text style={[st.via, st.muteLine]}>{`Mute agent messages from ${firstName(item.who.name.replace(/ \(Agent\)$/, ""))} for today`}</Text>
@@ -460,19 +475,6 @@ function Reactions({ m, a, mine }: { m: Message; a: MessageActions; mine: boolea
 }
 
 /* ---------- native cards ---------- */
-
-/** Under an agent's answer in a chat of people: Make task and Remember, one tap each, so an answer both people read can become work without a form. They are the message menu's own actions. */
-function ReplyActions({ m, actions }: { m: Message; actions: MessageActions }): ReactElement {
-  const memory = useThreadMemory();
-  const [done, setDone] = useState<ReadonlySet<string>>(new Set());
-  const mark = (k: string): void => setDone((d) => new Set(d).add(k));
-  return (
-    <View testID={`reply-actions-${m.messageId}`} style={st.replyActs}>
-      {actions.makeTask ? <TextButton label={done.has("task") ? "Task made" : "Make task"} testID={`reply-task-${m.messageId}`} onPress={() => { if (!done.has("task")) { actions.makeTask!(m.messageId); mark("task"); } }} /> : null}
-      {memory ? <TextButton label={done.has("remember") ? "Remembered" : "Remember"} testID={`reply-remember-${m.messageId}`} onPress={() => { if (!done.has("remember")) { void rememberMessage(memory.memory, memory.threadId, { messageId: m.messageId, body: m.body }, memory.flash); mark("remember"); } }} /> : null}
-    </View>
-  );
-}
 
 /** A link card in the conversation: names by the chat's own lookup, a fact opens the Knows tab of the pane (where the chat has memory), anything else opens beside the chat. */
 function LinkCardView({ id, data, actions, size, trusted }: { id: string; data: LinkCardData; actions: MessageActions; size: number; trusted: boolean }): ReactElement {
@@ -611,7 +613,6 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
 }
 
 export const st = StyleSheet.create({
-  replyActs: { flexDirection: "row", gap: 4, marginTop: 4, marginLeft: -6 },
   day: { alignSelf: "center", fontSize: 12, color: "var(--ink-3)" as string, marginTop: 18, marginBottom: 6 },
   eventCard: { flexShrink: 1, minWidth: 0 },
   event: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, marginBottom: 2 },

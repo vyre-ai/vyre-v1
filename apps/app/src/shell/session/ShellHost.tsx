@@ -1,3 +1,4 @@
+import{applyAppearance,restoreAppearance}from'../appearance.ts';
 import{sessionTheme}from'./space-theme.ts';
 import{sessionCatalogue}from'./space-catalog.ts';
 // The authenticated application shell. Kept behind SessionGate's lazy boundary so a signed-out
@@ -41,8 +42,10 @@ import type { StoredSession } from "./stored.ts";
 import { VaultUnlockHost } from "./VaultUnlockHost.tsx";
 import { teamActions } from "./team-actions.ts";
 import { ReportHost } from "../report/ReportHost.tsx";
-import { NotificationsHost } from "../notifications/Host.tsx";
-import type { NotificationsHostProps } from "../notifications/Host.tsx";
+import { useNotificationNotices, useUpdateNotice } from "../noticeslot/bridge.ts";
+import type { NotificationNoticesProps, UpdateSource } from "../noticeslot/bridge.ts";
+import { desktopUpdates, localStore, setUpdateState } from "../../startup/update/store.ts";
+import { FROM_KEY, noteUpdateFrom } from "../../startup/update/model.ts";
 import { isMacShell, lockedIdentity, storeLock } from "./entry.ts";
 import { anyUnread } from "../../places/chats/sidebar/model.ts";
 import type { RecentOut } from "../../places/chats/sidebar/model.ts";
@@ -90,7 +93,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     return h;
   }, [given, catalogueKey, stored.def.spaceId, stored.personId]);
   const location = useHubState(hub);
-  const theme=useMemo(()=>sessionTheme(activeStored),[stored.personId,stored.def.spaceId,activeStored.def.skinDefault]);
+  const theme=useMemo(()=>{applyAppearance(restoreAppearance(activeStored.personId));return sessionTheme(activeStored);},[stored.personId,stored.def.spaceId,activeStored.def.skinDefault]);
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [searchOpen, setSearchOpen] = useState(initialSearchOpen);
@@ -202,7 +205,11 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     if (!ask) return;
     const key = tabKey(location.place, location.hash);
     let off = false;
-    session.call(ask.cap, ask.input).then((out) => { const name = ask.name(out); if (!off && name) hub.retitle(key, name); }, () => undefined);
+    session.call(ask.cap, ask.input).then((out) => {
+      const name = ask.name(out);
+      if (!off && name) hub.retitle(key, name);
+      if (ask.resolve) void ask.resolve(out, session.call, session.me.id).then((full) => { if (!off && full) hub.retitle(key, full); }, () => undefined);
+    }, () => undefined);
     return () => { off = true; };
   }, [session, hub, location.place, location.hash]);
 
@@ -314,13 +321,28 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   // the onboarding screen opens over whatever the shell shows, the first time a person enters a Space and when asked
   // the Personal Space on this computer, so a Team Space can offer "use the same AI account" (never copied without a yes)
   const personalCall = useMemo(() => { const p = catalogue.find((item) => item.def.kind === "personal" && item.def.spaceId !== stored.def.spaceId && isLoopbackUrl(item.baseUrl)); return p ? createCapCaller({ baseUrl: p.baseUrl, token: () => p.token }) : null; }, [catalogueKey, stored.def.spaceId]);
-  // the banners: my unseen Interrupt notifications, read live; pressing one opens what it is about
-  const banners = useMemo<NotificationsHostProps | null>(() => (session ? {
+  // what needs me (replies, mentions, held approvals, alerts) and an update that is ready are persisting notices in the top bar's slot; pressing one opens what it is about
+  const banners = useMemo<NotificationNoticesProps | null>(() => (session ? {
     query: (cap, input) => session.hooks.capQuery(cap, input),
     call: (cap, input) => session.call(cap, input),
     open: (t) => { if (t.subject) session.runtime.open({ subject: t.subject }); else if (t.place) hub.go(t.place as PlaceId); },
   } : null), [session, hub]);
-  const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}><>{el}<VaultUnlockHost /><ReportHost call={session?.call ?? null} place={location.place} />{banners ? <NotificationsHost {...banners} /> : null}</></OnboardingHost>;
+  useNotificationNotices(banners);
+  const updateSource = useMemo<UpdateSource | null>(() => {
+    const u = desktopUpdates();
+    if (!u) return null;
+    return {
+      state: updateState, subscribe: subscribeUpdates,
+      install: async () => {
+        const check = updateState().check;
+        if (check) noteUpdateFrom(localStore(), check.current);
+        setUpdateState({ installing: true });
+        try { await u.install(() => undefined); } catch { /* the Settings page says it did not finish */ } finally { try { localStore()?.removeItem(FROM_KEY); } catch { /* nothing kept */ } setUpdateState({ installing: false }); }
+      },
+    };
+  }, []);
+  useUpdateNotice(updateSource);
+  const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}><>{el}<VaultUnlockHost /><ReportHost call={session?.call ?? null} place={location.place} /></></OnboardingHost>;
   if (deadConsole) return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   // on a computer the Console is a place in the shell; at its own address nothing surrounds it. In the app on a phone it is not there (owner ruling, 3 Nov): PhoneHost draws the Chat-about-it line
   if (consoleDoor && location.place !== "console") return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;

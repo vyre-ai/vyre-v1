@@ -55,6 +55,10 @@ test("an agent drafts, the owner presses Start: no grant before the press, the d
   assert.equal(card.blocks![0]!.data.kind, "draft");
   assert.deepEqual(card.blocks![0]!.data.plan, ["Ask Aliza for two reels (Ask Aliza for two reels worked for Lab 7)"]);
   await assert.rejects(w.call("goals.confirm", { goalId: goal.id }, lead), /Only the owner starts a goal/);
+  const feed = (await w.call("goals.activity", { goalId: goal.id }, owner)).activity as Array<{ kind: string; text: string; tpl?: string }>;
+  const made = feed.find((a) => a.kind === "created")!;
+  assert.match(made.tpl!, /^\{who:agt_[^}]+\} drafted this goal for \{who:usr_[^}]+\}\.$/, "stored with names to fill in, not with 'an agent' or 'the owner'");
+  assert.doesNotMatch(made.text, /\{who:|an agent|the owner/);
   const started = (await w.call("goals.confirm", { goalId: goal.id }, owner)).goal;
   assert.equal(started.status, "active");
   assert.equal(started.permissions[0].granted, true);
@@ -384,4 +388,85 @@ test("a watched page is a source: the number it last read, or how many times it 
   assert.match(none.progress.error, /watch could not read the page: timed out/);
   const gone = (await w.call("goals.create", watched(undefined, "wch_other"))).goal;
   assert.match(gone.progress.error, /watch is gone/);
+});
+
+test("a goal drafted by an agent takes plan steps before Start, and they become tasks when the owner presses Start", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal({ plan: [step("a", "First step")] }), lead);
+  assert.equal(goal.status, "draft");
+  const added = await w.call("goals.plan", { goalId: goal.id, children: [step("b", "Second step")] }, lead);
+  assert.deepEqual(added.tasks, []);
+  assert.equal(added.drafted, 2);
+  assert.equal([...w.state.tasks.values()].filter((t) => t.title.endsWith("step")).length, 0, "no task before Start");
+  await w.call("goals.confirm", { goalId: goal.id }, owner);
+  const titles = [...w.state.tasks.values()].map((t) => t.title);
+  assert.ok(titles.includes("First step") && titles.includes("Second step"));
+});
+
+test("goals.create reports what happened to each helper: seated when the chat took them, the reason when it did not", async () => {
+  const ok = world({ count: 10 });
+  const made = await ok.call("goals.create", labGoal(), lead);
+  assert.deepEqual(made.seated.map((s: { id: string; inChat: boolean }) => [s.id, s.inChat]).sort(), [[HELPER, true], [ALIZA, true]]);
+  assert.deepEqual(made.plan, { drafted: 0, attached: 0 });
+  const bad = world({ count: 10, failMembers: "A private chat never gains people." });
+  const failed = await bad.call("goals.create", labGoal(), lead);
+  const aliza = failed.seated.find((s: { id: string }) => s.id === ALIZA);
+  assert.equal(aliza.inChat, false);
+  assert.match(aliza.error, /never gains people/);
+  const activity = (await bad.call("goals.activity", { goalId: failed.goal.id }, owner)).activity;
+  assert.ok(activity.some((a: { kind: string; text: string }) => a.kind === "error" && /Could not add/.test(a.text)), "the failure is in the activity");
+  // goals.update says the same when helpers change
+  const upd = await ok.call("goals.update", { goalId: made.goal.id, helpers: [{ kind: "person", id: ALIZA }] }, owner);
+  assert.deepEqual(upd.seated.map((s: { id: string; inChat: boolean }) => [s.id, s.inChat]), [[ALIZA, true]]);
+});
+
+test("the owner edits a draft in place: title, finish line, deadline, lead, owner, helpers and the drafted plan, each through goals.update", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal({ plan: [step("a", "First step"), step("b", "Second step")] }), lead);
+  const got = await w.call("goals.get", { goalId: goal.id }, owner);
+  assert.deepEqual(got.draftPlan.map((c: { key: string }) => c.key), ["a", "b"], "a draft shows its drafted plan");
+  const edit = await w.call("goals.update", {
+    goalId: goal.id, title: "Lab 8: 320 sign-ups", finish: { ...goal.finish, line: "Luma registrations reach 320" }, deadline: T0 + 6 * DAY, leadAgentId: HELPER,
+    helpers: [{ kind: "person", id: ALIZA }], plan: [step("b", "Second step first"), step("c", "A new step")],
+  }, owner);
+  assert.equal(edit.goal.title, "Lab 8: 320 sign-ups");
+  assert.equal(edit.goal.finish.line, "Luma registrations reach 320");
+  assert.equal(edit.goal.deadline, T0 + 6 * DAY);
+  assert.equal(edit.goal.leadAgentId, HELPER);
+  assert.deepEqual(edit.seated.map((s: { id: string; inChat: boolean }) => [s.id, s.inChat]), [[ALIZA, true]]);
+  assert.ok(w.state.calls.some((c) => c.cap === "threads.add_agent" && c.input.agentId === HELPER && c.input.mode === "lead"), "the new lead takes the chat");
+  const again = await w.call("goals.get", { goalId: goal.id }, owner);
+  assert.deepEqual(again.draftPlan.map((c: { key: string }) => c.key), ["b", "c"]);
+  const acts = (await w.call("goals.activity", { goalId: goal.id }, owner)).activity;
+  assert.ok(acts.some((a: { kind: string; text: string }) => a.kind === "edit" && /title/.test(a.text) && /plan/.test(a.text)), "the edit is in the activity");
+  // the owner can hand the goal to someone else; what the old owner allowed does not carry over
+  const handed = await w.call("goals.update", { goalId: goal.id, owner: ALIZA }, owner);
+  assert.equal(handed.goal.owner, ALIZA);
+  assert.ok(handed.goal.permissions.every((p: { granted: boolean }) => p.granted === false));
+  // a stranger cannot, and a running goal's plan is its tasks
+  await assert.rejects(w.call("goals.update", { goalId: goal.id, title: "x" }, { id: STRANGER, kind: "person", origin: "app" }));
+  const live = await w.call("goals.create", labGoal({ idempotencyKey: "k2" }));
+  await assert.rejects(w.call("goals.update", { goalId: live.goal.id, plan: [step("z", "Nope")] }, owner), /Only a draft/);
+});
+
+test("the agent that drafted a goal may add to its plan before Start; another agent may not", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal(), { id: "agt_drafter", kind: "agent", actingFor: OWNER });
+  const added = await w.call("goals.plan", { goalId: goal.id, children: [step("x", "A step")] }, { id: "agt_drafter", kind: "agent", actingFor: OWNER });
+  assert.equal(added.drafted, 1);
+  await assert.rejects(w.call("goals.plan", { goalId: goal.id, children: [step("y", "Another")] }, { id: "agt_other", kind: "agent", actingFor: OWNER }), /lead agent or the owner/);
+});
+
+test("an agent starts a draft only when the owner just asked in their own message; otherwise the draft stays and the card waits", async () => {
+  const w = world({ count: 10 });
+  const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
+  const { goal } = await w.call("goals.create", labGoal({ sourceThreadId: "thr_chat" }), agent);
+  assert.equal(goal.status, "draft");
+  assert.ok(w.state.posts.some((p) => p.threadId === "thr_chat" && p.blocks?.[0]?.data.kind === "draft"), "the card with Start is in the chat");
+  for (const messageId of [undefined, "msg_other", "msg_owner_old"]) {
+    await assert.rejects(w.call("goals.confirm", { goalId: goal.id, ...(messageId ? { messageId } : {}) }, agent), /Only the owner starts a goal/);
+  }
+  const started = (await w.call("goals.confirm", { goalId: goal.id, messageId: "msg_owner_start" }, agent)).goal;
+  assert.equal(started.status, "planning");
+  assert.ok(started.permissions.every((p: { granted: boolean }) => p.granted === false), "an agent's start grants no permission");
 });

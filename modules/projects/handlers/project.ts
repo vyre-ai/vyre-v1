@@ -222,12 +222,11 @@ export async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
     }
     const ch = await call<{ channel?: { channelId?: string; mainThreadId?: string } }>(ctx, "channels.create", {
       name: o.title, visibility: "invite", recordId, folderId, memberIds: ids.filter((i) => i.startsWith("usr_")), agentIds: ids.filter((i) => i.startsWith("agt_")),
+      // the first agent leads, so a plain message in the project's chat is answered (a channel's listeners wait to be named)
+      ...(ids.some((i) => i.startsWith("agt_")) ? { leadAgentId: ids.find((i) => i.startsWith("agt_")) } : {}),
     }, { idempotencyKey: `prj-channel:${o.key}` });
     channelId = ch.channel?.channelId;
     threadId = ch.channel?.mainThreadId;
-    // the first agent in it leads, so a plain message in the project's chat is answered (a channel's listeners wait to be named)
-    const lead1 = ids.find((i) => i.startsWith("agt_"));
-    if (lead1 && threadId) await tolerant(ctx, "engine.set_mode", { threadId, agentId: lead1, mode: "lead", idempotencyKey: `prj-lead:${o.key}` }, {});
     if (!channelId) raise(ctx, "internal.unexpected", "The project channel was not created.");
   }
 
@@ -348,6 +347,20 @@ export async function list(ctx: ProjectsCtx, input: In): Promise<unknown> {
   }
   const pg = page(rows, input.cursor, input.limit);
   return clean({ projects: await out(pg.rows), next: pg.next, total: pg.total });
+}
+
+/** The projects where one person holds a role, and which role, limited to the projects the asker can see: a profile says "Lead on Client portal launch" and never names a project the viewer has no way into. */
+export async function rolesOf(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const who = me(ctx);
+  const person = input.personId;
+  if (typeof person !== "string" || !person.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.");
+  const shown = allProjects(ctx.db).filter((p) => memberOf(ctx.db, p.projectId, person) !== undefined && (isMember(ctx.db, p.projectId, who) || p.createdBy === who || allows(ctx, "view", p.projectId)));
+  const roles = await Promise.all(shown.map(async (p) => {
+    const row = projectRow(ctx, p, await readRecord(ctx, p), []);
+    return { projectId: p.projectId, title: row.title, role: memberOf(ctx.db, p.projectId, person)!.role };
+  }));
+  return { roles };
 }
 
 export async function overview(ctx: ProjectsCtx, input: In): Promise<unknown> {

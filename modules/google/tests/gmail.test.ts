@@ -15,7 +15,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  createDraft, getAttachment, getMessage, getProfile, getThread, listHistory, listLabels, listMessages, modifyLabels, parseAddresses, pollInterval, pullMailbox, sendMessage,
+  createDraft, deleteDraft, getAttachment, getMessage, getProfile, getThread, listHistory, listLabels, listMessages, modifyLabels, parseAddresses, pollInterval, pullMailbox, sendMessage,
   stopWatch, trashMessage, watch,
 } from "../handlers/gmail.ts";
 import { act, codeOf, CONN, contractErrors, fixture, harness, NOW, seedDelegation } from "../fixtures/harness.ts";
@@ -303,4 +303,13 @@ test("Google's refusals map to the error catalogue without passing Google's text
   await assert.rejects(() => listLabels(h.ctx, act), (e) => codeOf(e) === "provider.network");
   h.on("GET", `${BASE}/labels`, { body: "<html>not json</html>" });
   await assert.rejects(() => listLabels(h.ctx, act), (e) => codeOf(e) === "provider.bad_response");
+});
+
+test("a draft its person decided not to send is deleted in Gmail, and nothing is sent", async () => {
+  const h = ready();
+  h.on("DELETE", `${BASE}/drafts/dr1`, { body: {} });
+  assert.deepEqual(await deleteDraft(h.ctx, { ...act, draftId: "dr1" }), { deleted: true });
+  assert.equal(h.hits(`${BASE}/drafts/dr1`).length, 1);
+  assert.equal(h.hits(`${BASE}/messages/send`).length, 0);
+  assert.deepEqual(contractErrors("google.gmail.delete_draft", "out", { deleted: true }), []);
 });

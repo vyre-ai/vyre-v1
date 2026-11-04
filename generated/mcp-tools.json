@@ -3333,6 +3333,51 @@
     },
     {
       "blocks": [],
+      "cap": "agents.pause_person",
+      "deferred": false,
+      "description": "Pause every agent of one person, or let them run again. Audited, and the person is told. Answers how many changed, never which",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "paused": {
+            "type": "boolean"
+          },
+          "personId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "personId",
+          "paused"
+        ],
+        "type": "object"
+      },
+      "name": "agents_pause_person",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.people_summary",
+      "deferred": false,
+      "description": "For each person whose agents you cannot see (their Assistant, the agents they keep private): how many, what they spent this month against their cap, and whether they are paused. Never names or content",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_people_summary",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "agents.restore",
       "deferred": false,
       "description": "Restore an agent from Trash",
@@ -4159,6 +4204,10 @@
             "minimum": 1,
             "type": "integer"
           },
+          "thumb": {
+            "description": "A small picture of the page taken at publish, as a png, jpeg or webp data URL (about 120 by 80)",
+            "type": "string"
+          },
           "title": {
             "type": "string"
           }
@@ -4180,7 +4229,7 @@
       ],
       "cap": "chat.question.ask",
       "deferred": false,
-      "description": "Ask the person a structured question (single, multi or free text); the turn parks until it is answered",
+      "description": "Ask the person a structured question (single, multi or free text); the turn parks until it is answered and makes no further model call; a question of fewer than three words, or only a test, is refused",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -9412,6 +9461,13 @@
               "idem_1"
             ],
             "minLength": 1,
+            "type": "string"
+          },
+          "leadAgentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
             "type": "string"
           },
           "memberIds": {
@@ -17368,6 +17424,32 @@
     },
     {
       "blocks": [],
+      "cap": "engine.crew.chat_repo",
+      "deferred": false,
+      "description": "The repository of a chat that has its own work folder for the crew, or nothing yet",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_crew_chat_repo",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "engine.crew.repo.get",
       "deferred": false,
       "description": "The project's repository for the crew, or nothing when none is set",
@@ -17375,7 +17457,10 @@
       "inputSchema": {
         "properties": {
           "projectId": {
-            "description": "A project, or a chat (a thread id) that has its own work folder",
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -17778,6 +17863,21 @@
       "name": "engine_interrupt",
       "planMode": "blocked",
       "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.last_pick.get",
+      "deferred": false,
+      "description": "The model the caller last picked in a chat (any agent): a new chat starts on it. Empty when they have not picked one yet",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "engine_last_pick_get",
+      "planMode": "allowed",
+      "toolset": "meta",
       "v": 1
     },
     {
@@ -18780,6 +18880,21 @@
         "type": "object"
       },
       "name": "engine_turns_list",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.turns.running",
+      "deferred": false,
+      "description": "Engine only: the turns running now with the machine each runs on (agent, asker, start, place; no message or title), for the Machines page",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "engine_turns_running",
       "planMode": "allowed",
       "toolset": "chats",
       "v": 1
@@ -24499,7 +24614,7 @@
       "blocks": [],
       "cap": "goals.confirm",
       "deferred": false,
-      "description": "Start a drafted goal: the owner presses Start on its card. The standing permissions it names hold from this press",
+      "description": "Start a drafted goal: the owner presses Start on its card, or an agent acting for the owner starts it with messageId, the message in which the owner asked for it, in the goal chat and under 15 minutes old. An agent start grants no permission. The standing permissions it names hold from this press",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -24508,6 +24623,13 @@
               "gol_a1b2c3"
             ],
             "pattern": "^gol_[a-z0-9]+$",
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
             "type": "string"
           },
           "permissions": {
@@ -25663,7 +25785,7 @@
       "blocks": [],
       "cap": "goals.update",
       "deferred": false,
-      "description": "Change a goal: its finish line, deadline, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)",
+      "description": "Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -25877,7 +25999,21 @@
             "maxItems": 20,
             "type": "array"
           },
+          "leadAgentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
           "outcome": {
+            "type": "string"
+          },
+          "owner": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
             "type": "string"
           },
           "permissions": {
@@ -25920,6 +26056,147 @@
               "type": "object"
             },
             "maxItems": 10,
+            "type": "array"
+          },
+          "plan": {
+            "description": "A draft goal only: the drafted plan, replaced whole",
+            "items": {
+              "properties": {
+                "approver": {
+                  "properties": {
+                    "id": {
+                      "examples": [
+                        "agt_a1b2c3"
+                      ],
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "person",
+                        "agent",
+                        "group",
+                        "role"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "assigned": {
+                  "properties": {
+                    "id": {
+                      "examples": [
+                        "agt_a1b2c3"
+                      ],
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "person",
+                        "agent",
+                        "group",
+                        "role"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "brief": {
+                  "type": "string"
+                },
+                "dependsOn": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 50,
+                  "type": "array"
+                },
+                "doneMeans": {
+                  "items": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "maxItems": 20,
+                  "type": "array"
+                },
+                "due": {
+                  "description": "Milliseconds since the Unix epoch",
+                  "examples": [
+                    1760000000000
+                  ],
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "impact": {
+                  "description": "What it should do to the number",
+                  "examples": [
+                    "+40 to +60 registrations"
+                  ],
+                  "type": "string"
+                },
+                "key": {
+                  "examples": [
+                    "reminder"
+                  ],
+                  "maxLength": 60,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "reviewer": {
+                  "properties": {
+                    "id": {
+                      "examples": [
+                        "agt_a1b2c3"
+                      ],
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "person",
+                        "agent",
+                        "group",
+                        "role"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "id"
+                  ],
+                  "type": "object"
+                },
+                "title": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "why": {
+                  "description": "Why this step, in one line: what you learned that says it will move the number",
+                  "examples": [
+                    "Lab 7 attendees registered at 31% after one reminder last time"
+                  ],
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title",
+                "why",
+                "assigned"
+              ],
+              "type": "object"
+            },
+            "maxItems": 50,
             "type": "array"
           },
           "projectId": {
@@ -27891,6 +28168,51 @@
         "type": "object"
       },
       "name": "google_gmail_create_draft",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "google.gmail.delete_draft",
+      "deferred": true,
+      "description": "Delete a draft from the member mailbox (the draft an agent made and its person decided not to send)",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "draftId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "draftId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_gmail_delete_draft",
       "planMode": "blocked",
       "toolset": "inbox",
       "v": 1
@@ -30749,6 +31071,32 @@
     },
     {
       "blocks": [],
+      "cap": "inbox.thread_conversation",
+      "deferred": false,
+      "description": "The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "description": "The provider thread id, as mail_thread_get and the mail search give it",
+            "examples": [
+              "18c2a1f04e9b"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "inbox_thread_conversation",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "inbox.threads",
       "deferred": false,
       "description": "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role",
@@ -32785,6 +33133,269 @@
       },
       "name": "logs_trace",
       "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.alerts",
+      "deferred": false,
+      "description": "What needs a look: disk under 10% free, memory pressure, a machine offline with pinned work, an update waiting, a failed backup. Each says what to do",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "machines_alerts",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.alerts_notify",
+      "deferred": false,
+      "description": "Host only: send each new machine alert to the Inbox once while it lasts, and tell the placement caches when a machine ran out of room or has room again",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "machines_alerts_notify",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.fix",
+      "deferred": false,
+      "description": "Press a Doctor Fix on a machine: clear old caches, stop idle engine sessions, or restart a service. The host runs it; an admin for the Space server and servers, the owner for their own computer. Audited",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fix": {
+            "enum": [
+              "clear_caches",
+              "stop_idle",
+              "restart_service"
+            ],
+            "type": "string"
+          },
+          "machineId": {
+            "type": "string"
+          },
+          "service": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,40}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "machineId",
+          "fix"
+        ],
+        "type": "object"
+      },
+      "name": "machines_fix",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.get",
+      "deferred": false,
+      "description": "One machine with its series for 1 hour (60 one-minute points), 24 hours (144 ten-minute), 7 days (168 hourly) and 30 days (180 four-hourly), its alerts and, for the Space server, the doctor's findings. A gap is a bucket with only its time",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "machineId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "machineId"
+        ],
+        "type": "object"
+      },
+      "name": "machines_get",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.list",
+      "deferred": false,
+      "description": "Every machine you may see with its load, what Vyre runs on it, what it can run and its room left; agent computers nested under their host. An admin sees all, a member their own; on a member's computer an admin sees only name, online, capacity and Vyre's own work",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "machines_list",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.move_record",
+      "deferred": false,
+      "description": "Engine only: keep the line of a turn that Automatic moved off a machine with no room",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "type": "string"
+          },
+          "asker": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "turnId": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "why"
+        ],
+        "type": "object"
+      },
+      "name": "machines_move_record",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.moves",
+      "deferred": false,
+      "description": "Recent moves, Space-wide: each turn Automatic sent to another machine because the first in the order had no room, newest first. A member sees their own",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "machines_moves",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.rooms",
+      "deferred": false,
+      "description": "Room left on the machines you name (ids as machines.list gives them): the number placement skips a busy machine by, and the plain words for why (\"4 of 4 turns\"). Only machines you may see; used by engine.placement.decide",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "type": "object"
+      },
+      "name": "machines_rooms",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.set",
+      "deferred": false,
+      "description": "Name a machine, set the most turns or agent computers it takes at once, drain it (no new work, what runs finishes) or pin an agent to it. A server is an admin's (and its owner's); a person's own computer is theirs, and an admin may only drain it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "drain": {
+            "type": "boolean"
+          },
+          "machineId": {
+            "type": "string"
+          },
+          "maxAgentComputers": {
+            "maximum": 32,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxTurns": {
+            "maximum": 64,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "nickname": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pinAgent": {
+            "properties": {
+              "agentId": {
+                "examples": [
+                  "agt_a1b2c3"
+                ],
+                "pattern": "^agt_[a-z0-9]+$",
+                "type": "string"
+              },
+              "pinned": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "agentId",
+              "pinned"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "machineId"
+        ],
+        "type": "object"
+      },
+      "name": "machines_set",
+      "planMode": "blocked",
       "toolset": "engineer",
       "v": 1
     },
@@ -38444,7 +39055,7 @@
       "blocks": [],
       "cap": "chat.message_person",
       "deferred": true,
-      "description": "Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour",
+      "description": "Message a teammate. An Assistant writes for its person in their direct chat, signed as them (Agent). Any other agent writes as itself in its own chat with them. Cards allowed; waits for away and after hours unless urgent; 3 an hour",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -38512,10 +39123,7 @@
             "type": "string"
           },
           "to": {
-            "examples": [
-              "usr_a1b2c3"
-            ],
-            "pattern": "^usr_[a-z0-9]+$",
+            "description": "The handle people_status gives, or the person's name",
             "type": "string"
           },
           "urgent": {
@@ -42456,6 +43064,7 @@
               "task.returned",
               "task.finished",
               "task.due",
+              "machine.alert",
               "item.shared"
             ],
             "type": "string"
@@ -42921,6 +43530,7 @@
               "task.returned",
               "task.finished",
               "task.due",
+              "machine.alert",
               "item.shared"
             ],
             "type": "string"
@@ -45396,6 +46006,32 @@
       "name": "projects_reschedule",
       "planMode": "blocked",
       "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.roles_of",
+      "deferred": false,
+      "description": "The projects where one person holds a role, and which role, limited to the projects the asker can see",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "personId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "personId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_roles_of",
+      "planMode": "allowed",
+      "toolset": "records",
       "v": 1
     },
     {
@@ -48433,6 +49069,36 @@
     },
     {
       "blocks": [],
+      "cap": "runs.people_counts",
+      "deferred": false,
+      "description": "How many Runs each person's own agents have, counted and never listed: an admin sees the number, not the work",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "statuses": {
+            "items": {
+              "enum": [
+                "queued",
+                "running",
+                "waiting",
+                "succeeded",
+                "failed",
+                "stopped"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "name": "runs_people_counts",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "runs.preview_undo",
       "deferred": false,
       "description": "Show what Undo this run would reverse and what it cannot (sent messages and deployments)",
@@ -50670,7 +51336,7 @@
       "blocks": [],
       "cap": "sessions.list",
       "deferred": false,
-      "description": "List the current owner private imported session archive in this Personal Space",
+      "description": "List the current owner private imported session archive in this Personal Space; in any other Space the list is empty and personalOnly is true",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -50720,6 +51386,79 @@
       "name": "sessions_rename",
       "planMode": "blocked",
       "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "settings.contact.status",
+      "deferred": false,
+      "description": "Whether my email and phone are verified, whether a code is waiting, and whether this Space can send one (no phone line: no Verify)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "settings_contact_status",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "settings.contact.verify_confirm",
+      "deferred": false,
+      "description": "Confirm the code that was sent; the tick shows only after this",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "email",
+              "phone"
+            ],
+            "type": "string"
+          },
+          "code": {
+            "maxLength": 12,
+            "minLength": 4,
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "code"
+        ],
+        "type": "object"
+      },
+      "name": "settings_contact_verify_confirm",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "settings.contact.verify_start",
+      "deferred": false,
+      "description": "Send a 6-digit code to my email or phone through the Space mail sender or its phone line; it lasts 10 minutes, 3 an hour",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "email",
+              "phone"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel"
+        ],
+        "type": "object"
+      },
+      "name": "settings_contact_verify_start",
+      "planMode": "blocked",
+      "toolset": "meta",
       "v": 1
     },
     {
@@ -51537,6 +52276,36 @@
     },
     {
       "blocks": [],
+      "cap": "sites.artifact_thumb_set",
+      "deferred": false,
+      "description": "Keep a small picture of an artifact, taken when someone opened it (the Vyre for Chrome extension sends it). It is set only when there is none yet or the artifact changed since the last one",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "artifactId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "thumb": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactId",
+          "thumb"
+        ],
+        "type": "object"
+      },
+      "name": "sites_artifact_thumb_set",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sites.build",
       "deferred": false,
       "description": "Build the site from its repo (the site agent runs in the repo); test and verify",
@@ -51560,6 +52329,32 @@
         "type": "object"
       },
       "name": "sites_build",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.chat_viewing",
+      "deferred": false,
+      "description": "The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_chat_viewing",
       "planMode": "blocked",
       "toolset": "sites",
       "v": 1
@@ -58533,6 +59328,139 @@
     },
     {
       "blocks": [],
+      "cap": "talk.ask_key",
+      "deferred": true,
+      "description": "Post the secret card that asks for a Talk key in this chat: their own, or the Space's. The value goes straight to the Vault and never into the chat",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "provider": {
+            "examples": [
+              "deepgram"
+            ],
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "mine",
+              "space"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "talk_ask_key",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "talk.configure",
+      "deferred": true,
+      "description": "Change a person's Talk: on or off, provider, language, model. An agent may do this for the person it acts for. Keys go through talk_ask_key",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "language": {
+            "examples": [
+              "es"
+            ],
+            "type": "string"
+          },
+          "model": {
+            "examples": [
+              "nova-3"
+            ],
+            "type": "string"
+          },
+          "on": {
+            "type": "boolean"
+          },
+          "provider": {
+            "examples": [
+              "deepgram"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "talk_configure",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "talk.space.check",
+      "deferred": true,
+      "description": "Check the Space key with the provider now",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "talk_space_check",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "talk.space.configure",
+      "deferred": true,
+      "description": "Turn Talk for everyone on or off, and keep the key. An agent's change stops at the Gate for someone who may approve it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "on": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "on"
+        ],
+        "type": "object"
+      },
+      "name": "talk_space_configure",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "talk.space.status",
+      "deferred": true,
+      "description": "Talk for everyone in the Space: whether a key is set, on or off, who set it, when it was last checked and how many people use their own key",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "talk_space_status",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "talk.status",
+      "deferred": true,
+      "description": "Talk for the person asking: on or off, provider, language, model and what covers them (their own key, the Space key or nothing). Never a key",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "talk_status",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.ask",
       "deferred": false,
       "description": "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",
@@ -59066,6 +59994,40 @@
         "type": "object"
       },
       "name": "tasks_act",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.agent_on_it",
+      "deferred": false,
+      "description": "Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads \"<Agent> is on it for you\". Only that person, or the host, may say so",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_agent_on_it",
       "planMode": "blocked",
       "toolset": "tasks",
       "v": 1
@@ -63527,6 +64489,49 @@
       "name": "threads_update",
       "planMode": "blocked",
       "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.time_convert",
+      "deferred": false,
+      "description": "Convert a time between time zones, or turn \"tomorrow 2pm\" into a time. Use it for any time not already in the person's zone; never work out zones, dates or epoch numbers yourself",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "from": {
+            "description": "The zone it was said in: PT, ET, PKT, UTC or America/Los_Angeles. Default: the person's",
+            "maxLength": 60,
+            "type": "string"
+          },
+          "to": {
+            "description": "The zones to show it in",
+            "items": {
+              "maxLength": 60,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "when": {
+            "description": "The time as said: \"Thursday 5 Nov 2pm\", \"tomorrow 14:00\", \"2026-11-05 14:00\", \"in 3 hours\"",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "zone": {
+            "description": "The person's zone, when it is known; the profile's is used otherwise",
+            "maxLength": 60,
+            "type": "string"
+          }
+        },
+        "required": [
+          "when"
+        ],
+        "type": "object"
+      },
+      "name": "time_convert",
+      "planMode": "allowed",
+      "toolset": "meta",
       "v": 1
     },
     {

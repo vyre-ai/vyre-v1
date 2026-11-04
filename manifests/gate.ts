@@ -49,6 +49,7 @@ export default defineManifest({
   events: [
     ev('gate.requested', 'A gated act stopped and became an Approve task with the exact preview', { p: { holdId, act: actKey, capName: t.str(), taskId: id.task, principal: principalRef, actingFor: t.opt(t.str()), runId: t.opt(id.run), expiresAt: t.ts(), askedBy: t.opt(principalRef) }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject' }),
     ev('gate.approved', 'A gated act was approved and released', { p: { holdId, act: actKey, taskId: id.task, by: t.str(), forPerson: t.opt(t.str()), askedBy: t.opt(principalRef), ...heldFrom }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject' }),
+    ev('gate.revised', 'A held message was edited before it was sent: the approval is bound to the new words', { p: { holdId, act: actKey, taskId: id.task, by: t.str(), was: t.str({ maxLength: 20000 }), now: t.str({ maxLength: 20000 }) }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject' }),
     ev('gate.denied', 'A gated act was sent back or dropped', { p: { holdId, act: actKey, taskId: id.task, by: t.str(), mode: t.enm('send_back', 'drop'), note: t.opt(t.str()), askedBy: t.opt(principalRef), ...heldFrom }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject' }),
     ev('gate.expired', 'A hold timed out: dropped or escalated to a delegate or role', { p: { holdId, act: actKey, taskId: id.task, outcome: t.enm('dropped', 'escalated'), escalatedTo: t.opt(t.str()), askedBy: t.opt(principalRef) }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject', trigger: { title: 'A gated act expires', fields: ['/act'] } }),
     ev('gate.rule_changed', 'A Gate rule changed (Space default, owner floor or per-agent override)', { p: { act: actKey, scope: t.enm('space', 'floor', 'agent'), agentId: t.opt(id.agent), by: t.str() }, subject: ['entity', '/act'], retention: 'audit' }),
@@ -79,7 +80,7 @@ export default defineManifest({
       in: { ids: t.arr(t.str(), { minItems: 1 }) }, out: { returned: t.int() }, perm: null, level: 'view', idem: 'natural',
     }),
     write('gate.allow.set', 'Always allow: a rule the Gate reads, for one agent or one chat, one act and one target, with an expiry. Local changes are a person\'s to allow; an outward act needs an admin; money is never allowed this way', {
-      in: { act: actKey, target: t.str({ minLength: 1 }), agentId: t.opt(id.agent), threadId: t.opt(id.thread), days: t.opt(t.int({ minimum: 1, maximum: 90 })) },
+      in: { act: actKey, target: t.str({ minLength: 1 }), agentId: t.opt(id.agent), threadId: t.opt(id.thread), days: t.opt(t.int({ minimum: 1, maximum: 90 })), recipient: t.opt(t.bool()) },
       out: { rule: allowRow }, perm: null, level: 'view', audit: 'always', errors: ['validation.bad_input', 'permission.role_lacks_permission'],
     }),
     read('gate.allow.list', 'What may go without asking: your Always allow rules and the automations your press gave permission to', {
@@ -96,13 +97,19 @@ export default defineManifest({
       in: { url: t.str(), threads: t.arr(id.thread, { minItems: 1 }) }, out: { known: t.bool() }, perm: null, level: 'view',
     }),
     write('gate.grants.ask', 'What a person asks for in their own message: one single-use grant per act and target, read from their words by the server before the turn starts', {
-      in: { threadId: id.thread, messageId: id.message, asked: t.arr(t.obj({ act: actKey, target: t.str() })), links: t.opt(t.arr(t.str())) },
+      in: { threadId: id.thread, messageId: id.message, asked: t.arr(t.obj({ act: actKey, target: t.str() })), links: t.opt(t.arr(t.str())), since: t.opt(t.ts({ description: 'When the agent last replied in the thread: what was asked since then still counts, so a second message with no extra words does not take back the first' })) },
       out: { ok: t.bool() }, perm: null, level: 'view', idem: 'natural',
     }),
     write('gate.release', 'Re-invoke the parked capability with an approval token bound to the payload hash, then resume the turn or step', {
       in: { holdId, taskId: id.task, approvalToken: t.str({ description: 'Approval token, valid 10 minutes, bound to the payload hash' }) },
       out: { result: t.json() }, on: ['task', '/taskId'], level: 'use', emits: ['gate.approved'], audit: 'always', idem: 'natural',
       errors: ['permission.expired', 'validation.precondition_failed'],
+    }),
+    // The edit of a held message: the stored call is rewritten (its words only), the hash the approval is bound to is made again, and the task's card shows it was edited by the person. The person who may approve it
+    // may revise it; the agent cannot, and a held act that is not a message cannot be edited. Approving after the edit sends the edited words.
+    write('gate.holds.revise', 'Change what a held message says before it is sent. The approval is bound to the new words and the card says it was edited', {
+      in: { holdId, taskId: id.task, body: t.str({ maxLength: 20000 }), title: t.opt(t.str({ maxLength: 300 })) }, out: { ok: t.bool(), edited: t.int() }, on: ['task', '/taskId'], level: 'use', emits: ['gate.revised'], audit: 'always',
+      errors: ['validation.precondition_failed', 'permission.no_grant'],
     }),
     write('gate.deny', 'Deny a hold: send back with a note for the asker thread, or drop the call', {
       in: { holdId, taskId: id.task, mode: t.enm('send_back', 'drop'), note: t.opt(t.str()) }, out: { ok: t.bool() }, on: ['task', '/taskId'], level: 'use', emits: ['gate.denied'], audit: 'always',

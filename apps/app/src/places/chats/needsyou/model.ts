@@ -76,6 +76,15 @@ export function sortItems(items: readonly Item[]): Item[] {
   return [...items.filter((i) => i.task.state !== "canceled"), ...items.filter((i) => i.task.state === "canceled")];
 }
 
+/** An ask this old is "Older": it waited days for a person, and sits apart from what just arrived instead of mixed with it. */
+export const OLDER_MS = 3 * 24 * 3_600_000;
+
+/** The list in order, with what just arrived first and what has waited days after it (each keeps the queue's order). */
+export function splitOlder(items: readonly Item[], now: number): { fresh: Item[]; older: Item[] } {
+  const older = items.filter((i) => now - i.task.createdAt >= OLDER_MS);
+  return { fresh: items.filter((i) => !older.includes(i)), older };
+}
+
 /** The id to select after `id` leaves the list: the next row, else the one before, else none. */
 export function nextSelection(list: readonly Item[], id: string): string | null {
   const i = list.findIndex((x) => x.task.id === id);

@@ -51,6 +51,7 @@ type Out = {
     ranOn: Array<{
         kind: string;
         name: string;
+        note?: string;
       }>;
     timing: {
       queuedAt?: number;
@@ -67,7 +68,7 @@ type Out = {
       reasoning?: number;
     };
     cost?: {
-      source: "subscription" | "reported" | "catalog" | "estimate" | "unknown";
+      source: "subscription" | "reported" | "catalog" | "estimate" | "unknown" | "flat";
       micros?: number;
       lines?: Array<{
           kind: "input" | "output" | "cache_read" | "cache_write";
@@ -168,7 +169,8 @@ type Out = {
       "ranOn": [
         {
           "kind": "example",
-          "name": "example"
+          "name": "example",
+          "note": "example"
         }
       ],
       "shared": true,

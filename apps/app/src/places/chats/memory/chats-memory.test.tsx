@@ -373,7 +373,7 @@ const KNOWS_READS = (s: ChatMemorySample): Array<[string, unknown]> => [
 const pane = async (s: ChatMemorySample): Promise<string> => { await s.warm(KNOWS_READS(s)); return clean(renderToStaticMarkup(<ChatRightPane data={s.pane} open onToggle={() => undefined} tab="memory" paneWidth={340} window={{ start: 0, end: 500 }} />)); };
 
 test("the right pane tab is named Knows and reads the facts in scope for this chat, grouped Space, Project, Agent and You", async () => {
-  assert.deepEqual(TABS.map((t) => t.title), ["Computer", "Threads", "Files", "Knows", "Routines"]);
+  assert.deepEqual(TABS.map((t) => t.title), ["About", "Computer", "Chats", "Files", "Knows", "Routines"]);
   const out = await pane(await withWarm());
   assert.ok(has(out, ">Knows<") && has(out, 'data-testid="pane-body-memory"') && has(out, 'data-testid="knows-list"'));
   inOrder(out, ["What Assistant knows here", "for you · 17", KNOWS_SCOPE, ">Space<", ">Project<"]);

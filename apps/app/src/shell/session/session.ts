@@ -31,7 +31,8 @@ import { assistantName } from "../../../../../ui/src/Avatar/assistant.ts";
 import type { Dial, Scheduler } from "../../../../../client/src/connection/index.ts";
 import { PLACE_QUERIES, WARM_ORDER } from "./prefetch.ts";
 import { directoryOf, standInsOf } from "./private-agents.ts";
-import { setStandIns } from "../../../../../ui/src/Avatar/assistant.ts";
+import { setAgentFaces, setAgentStatuses, setStandIns } from "../../../../../ui/src/Avatar/assistant.ts";
+import { setFaceImageLoader } from "../../../../../ui/src/Avatar/faceimages.ts";
 import { createRemoteScreenHooks } from "./remote-hooks.ts";
 import type { RemoteHooks } from "./remote-hooks.ts";
 import { onRetryLoads } from "../../../../../ui/src/States/retry.ts";
@@ -318,6 +319,13 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   const warmTimers: ReturnType<typeof setTimeout>[] = [];
   WARM_ORDER.filter((place) => !offRail.includes(place)).forEach((place, i) => { warmTimers.push(setTimeout(() => prefetchPlace(place), o.warmAfterMs === undefined ? 1500 + i * 250 : o.warmAfterMs + i * 250)); });
 
+  // the pictures of uploaded agent faces are files in the agents' folders: read once as the person, kept for the session
+  setFaceImageLoader(async (fileId) => {
+    const out = (await call("files.read", { fileId, as: "base64" })) as { base64?: string; mime?: string };
+    if (typeof out.base64 !== "string" || typeof out.mime !== "string") throw new Error("not a picture");
+    return `data:${out.mime};base64,${out.base64}`;
+  });
+
   const connections = hooks.capQuery<Out<"connections.list">>("connections.list", {});
   const principalsList = hooks.capQuery<Out<"access.principals.list">>("access.principals.list", {});
   const groupsList = hooks.capQuery<Out<"access.groups.list">>("access.groups.list", {});
@@ -330,6 +338,13 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     const list = new Map<string, Principal>([[me.id, me]]);
     // the agents this person may use are what agents.list answers (the agents module's visibility rule); any other agent is someone else's private one, credited to its person ("Irfad Imtiaz (Agent)") and never offered
     const usable = ag?.status === "ready" ? new Set((ag.data as Out<"agents.list">).agents.map((a) => a.agentId)) : null;
+    // what was picked on an agent's page shows on every face of that agent, in every place (not only Chats)
+    if (ag?.status === "ready") {
+      const rows = (ag.data as Out<"agents.list">).agents;
+      setAgentFaces(rows.map((a) => ({ id: a.agentId, face: a.face })));
+      // how each agent is doing shows on every one of its faces, in every place
+      setAgentStatuses(rows.map((a) => ({ id: a.agentId, status: a.status })));
+    }
     if (p?.status === "ready") {
       const dir = directoryOf((p.data as Out<"access.principals.list">).principals, own, me.id, usable);
       for (const x of dir) list.set(x.id, x);

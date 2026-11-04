@@ -78,7 +78,7 @@ const searchHit = t.obj({
   thread: t.obj({ kind: threadKind, title: t.opt(t.str()), channelName: t.opt(t.str()), agentIds: t.arr(id.agent), memberIds: t.arr(t.str()) }),
 });
 const personStatus = t.obj({
-  personId: id.user, name: t.str(), state: t.enm('online', 'away', 'offline', 'unknown'), lastSeenAt: t.opt(t.ts()), awayUntil: t.opt(t.ts()),
+  handle: t.str({ description: 'A short handle for the person that message_person takes; people are named, never shown by id', examples: ['aliza-3c6'] }), name: t.str(), state: t.enm('online', 'away', 'offline', 'unknown'), lastSeenAt: t.opt(t.ts()), awayUntil: t.opt(t.ts()),
   timezone: t.opt(t.str({ examples: ['Asia/Karachi'] })), localTime: t.opt(t.str({ examples: ['3:40 PM'] })), hours: t.opt(t.str({ examples: ['Mon to Fri, 09:00 to 17:00'] })), inHours: t.bool(),
   mutedUntil: t.opt(t.ts()), wouldGo: t.str({ description: 'When a message to them would go, in words' }),
 });
@@ -378,6 +378,14 @@ export default defineManifest({
       tool: 'chats', label: 'filter', mcpName: 'chat_search', agent: { planMode: 'allowed' }, rate: { n: 60, perSeconds: 60, scope: 'principal' },
     }),
     // ---- native blocks, plan mode
+    write('chat.title_make', 'Name a chat from its first real request: 2 to 5 plain words, on a cheap model of the account that ran the turn or from the request\'s own words, never from a greeting. Made again once if the first came from a thin request; never after a person renamed the chat', {
+      in: {
+        ...threadT,
+        account: t.opt(t.obj({ ref: t.str(), driver: t.str(), kind: t.opt(t.str()), payer: t.opt(t.str()), spaceKey: t.opt(t.bool()) }, { description: 'The account the turn ran on' })),
+      },
+      out: { made: t.bool(), title: t.opt(t.str()), why: t.opt(t.enm('renamed', 'not_a_chat', 'direct', 'small_talk', 'done', 'has_title')) },
+      on: ['thread', '/threadId'], level: 'use', emits: ['thread.updated'], errors: ['validation.not_found', 'permission.no_grant'],
+    }),
     write('chat.note_offer.make', 'Offer to save something from this chat as a note: a small card with a preview of the note, Save and Not now. At most once per topic and rarely; says offered false with a reason when the person has it off or it is too soon', {
       in: { ...threadT, title: t.str({ maxLength: 200 }), body: t.str({ maxLength: 4000 }), topic: t.str({ description: 'What it is about, in a few words; the same topic is offered once in a chat' }), messageId: t.opt(id.message) },
       out: { offered: t.bool(), why: t.opt(t.enm('off', 'already_offered', 'too_soon', 'declined_recently')), blockId: t.opt(id.block), messageId: t.opt(id.message) },
@@ -391,7 +399,10 @@ export default defineManifest({
       in: { ...threadT, blockId: id.block, answer: t.json() }, out: { ok: t.bool() }, on: ['thread', '/threadId'], level: 'use',
       emits: ['block.answered'], tool: 'chats', offline: 'queue', errors: ['validation.precondition_failed'],
     }),
-    write('chat.question.ask', 'Ask the person a structured question (single, multi or free text); the turn parks until it is answered', {
+    write('chat.question.withdraw', 'Take back a question: its turn ended without waiting for it. The card closes as withdrawn and its task leaves the Needs you list. Only the agent that asked, or a person in the chat', {
+      in: { ...threadT, blockId: id.block }, out: { withdrawn: t.bool() }, on: ['thread', '/threadId'], level: 'use', emits: ['block.withdrawn'], errors: ['validation.not_found', 'permission.no_grant'],
+    }),
+    write('chat.question.ask', 'Ask the person a structured question (single, multi or free text); the turn parks until it is answered and makes no further model call; a question of fewer than three words, or only a test, is refused', {
       in: {
         ...threadT, prompt: t.str(), mode: t.enm('single', 'multi', 'free'), options: t.opt(t.arr(option)), allowOther: t.opt(t.bool()),
         card: t.opt(t.obj({ kind: t.enm('terminal'), command: t.str(), host: t.opt(t.enm('agent_computer', 'space_server', 'device')), risk: t.opt(t.enm('read', 'change', 'danger')) })),
@@ -445,17 +456,17 @@ export default defineManifest({
     // ---- an agent reaches a teammate for its person (owner ruling 3 Nov, lane l-agentdm): who is in, a message in the person's own direct chat, the teammate's mute
     read('chat.people_status', 'Your teammates as you see them: online, away or offline and when last seen, their local time and working hours, and when a message to them would go. Only people in this Space, never anything private', {
       in: { personIds: t.opt(t.arr(id.user, { maxItems: 50 })), q: t.opt(t.str({ description: 'Part of a name; omitted: everyone' })) },
-      out: { people: t.arr(personStatus) }, level: 'view', tool: 'chats', mcpName: 'people_status', deferred: true, agent: { planMode: 'allowed' }, label: 'filter',
+      out: { people: t.arr(personStatus), how: t.str({ description: 'How your messages go: as yourself in your own chat with each person, or for the person you work for, signed as them (Agent)' }) }, level: 'view', tool: 'chats', mcpName: 'people_status', deferred: true, agent: { planMode: 'allowed' }, label: 'filter',
     }),
-    write('chat.message_person', 'Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour', {
+    write('chat.message_person', 'Message a teammate. An Assistant writes for its person in their direct chat, signed as them (Agent). Any other agent writes as itself in its own chat with them. Cards allowed; waits for away and after hours unless urgent; 3 an hour', {
       in: {
-        to: id.user, body: t.str({ maxLength: 4000 }), timing: t.opt(t.enm('now', 'online', 'at')), at: t.opt(t.ts()), urgent: t.opt(t.bool()),
+        to: t.str({ description: 'The handle people_status gives, or the person\'s name' }), body: t.str({ maxLength: 4000 }), timing: t.opt(t.enm('now', 'online', 'at')), at: t.opt(t.ts()), urgent: t.opt(t.bool()),
         card: t.opt(t.obj({
           kind: t.enm('approval', 'review', 'key'), title: t.str({ minLength: 1, maxLength: 200, description: 'What to approve or review, or the key\'s name' }), detail: t.opt(t.str({ maxLength: 2000 })),
           fields: t.opt(t.arr(t.str({ pattern: '^[A-Za-z][A-Za-z0-9_]*$' }), { maxItems: 10, description: 'A key card: the field names wanted' })),
         })),
       },
-      out: { state: t.enm('sent', 'scheduled'), threadId: id.thread, messageId: t.opt(id.message), dueAt: t.opt(t.ts()), when: t.str(), taskId: t.opt(id.task), requestId: t.opt(t.str()) },
+      out: { state: t.enm('sent', 'scheduled'), threadId: id.thread, messageId: t.opt(id.message), dueAt: t.opt(t.ts()), when: t.str(), as: t.enm('person', 'self'), taskId: t.opt(id.task), requestId: t.opt(t.str()) },
       level: 'view', idem: 'key', gate: { act: 'send', when: "actor.kind != 'person'" }, emits: ['thread.started', 'message.received', 'message.direct', 'message.mentioned', 'thread.replied', 'thread.unarchived'], audit: 'always',
       tool: 'chats', mcpName: 'message_person', deferred: true, agent: { planMode: 'blocked' }, errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
@@ -489,7 +500,7 @@ export default defineManifest({
     }),
     // ---- channels
     create('channels.create', 'Create a channel: public to the Team Space or invite-only, with any mix of people and agents', {
-      in: { name: t.str({ examples: ['intake'] }), visibility: t.enm('public', 'invite'), topic: t.opt(t.str()), memberIds: t.opt(t.arr(id.user)), agentIds: t.opt(t.arr(id.agent)), folderId: t.opt(id.folder), recordId: t.opt(id.record) },
+      in: { name: t.str({ examples: ['intake'] }), visibility: t.enm('public', 'invite'), topic: t.opt(t.str()), memberIds: t.opt(t.arr(id.user)), agentIds: t.opt(t.arr(id.agent)), leadAgentId: t.opt(id.agent), folderId: t.opt(id.folder), recordId: t.opt(id.record) },
       out: { channel: channelRow }, perm: 'channels.create', emits: ['channel.created', 'thread.started', 'channel.agent_added', 'channel.member_added'], tool: 'chats', offline: 'queue', cli: 'vyre channels create',
     }),
     read('channels.home', "The Space's first channel: #vyre, or an older Space's #general (legacy: Console offers to rename it). Null in a Personal Space", {
@@ -613,6 +624,9 @@ export default defineManifest({
     ev('block.answered', 'A waiting block was answered; the answer is queued as a wake', {
       p: { threadId: id.thread, blockId: id.block, by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',
     }),
+    ev('block.withdrawn', 'A question was taken back by the agent that asked it; its task is closed', {
+      p: { threadId: id.thread, blockId: id.block }, subject: ['thread', '/threadId'], vis: 'participants',
+    }),
     ev('tab.opened', 'An agent opened a side tab for a person (delivered live to that person devices)', {
       p: { threadId: id.thread, personId: id.user, targetType: t.str(), targetId: t.str(), agentId: id.agent }, subject: ['thread', '/threadId'], vis: 'owner',
     }),
@@ -631,11 +645,11 @@ export default defineManifest({
         { key: 'reject', label: 'Reject', cap: 'chat.plan.reject', input: { threadId: '/threadId', planId: '/planId' } },
       ],
     }),
-    block('poked', { by: id.user, agentId: id.agent }, 'Poked by {{by}}'),
-    block('poke', { agentId: id.agent, by: id.user, note: t.opt(t.str()) }, '{{by}} poked an agent'),
     block('note_offer', {
       threadId: id.thread, blockId: id.block, person: t.opt(id.user), title: t.str(), body: t.str(), topic: t.str(), messageId: t.opt(id.message), state: t.enm('offered', 'saved', 'dismissed'), noteId: t.opt(t.str()),
     }, 'Offer to save a note: {{title}}', { actions: [{ key: 'save', label: 'Save', cap: 'chat.note_offer.answer', input: { threadId: '/threadId', blockId: '/blockId', decision: 'save' } }, { key: 'dismiss', label: 'Not now', cap: 'chat.note_offer.answer', input: { threadId: '/threadId', blockId: '/blockId', decision: 'dismiss' } }] }),
+    block('poked', { by: id.user, agentId: id.agent }, 'Poked by {{by}}'),
+    block('poke', { agentId: id.agent, by: id.user, note: t.opt(t.str()) }, '{{by}} poked an agent'),
     block('tab_opened', { targetType: t.str(), targetId: t.str(), title: t.str(), agentId: id.agent }, 'Opened {{title}} beside the chat', { opens: { tab: 'target', input: { type: '/targetType', id: '/targetId' } } }),
     block('helper', {
       threadId: id.thread, parentThreadId: id.thread, title: t.str(), status: t.enm('running', 'done', 'failed', 'stopped'), agentId: id.agent, model: t.opt(t.str()),

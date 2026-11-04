@@ -40,8 +40,11 @@ export function createArtifactHostRoute(d: ArtifactHostDeps): { handle(req: http
   return {
     handle(req, res) {
       const ah = d.host();
-      const hostName = String(req.headers.host ?? "").toLowerCase().replace(/:\d+$/, "").replace(/\.$/, "");
-      if (!ah || hostName !== ah.toLowerCase()) return false;
+      const asked = String(req.headers.host ?? "").toLowerCase().replace(/\.$/, "");
+      const hostName = asked.replace(/:\d+$/, "");
+      // a.localhost:<port> (a Space on this computer) is matched with its port; every other host is matched by name, as Caddy and the relay hand it over
+      const local = ah !== null && /^a\.localhost(:\d+)?$/.test(ah);
+      if (!ah || (local ? asked !== ah.toLowerCase() : hostName !== ah.toLowerCase())) return false;
       const url = new URL(req.url ?? "/", `https://${hostName}`);
       const method = (req.method ?? "GET").toUpperCase();
       const code = CODE.exec(url.pathname);
@@ -51,7 +54,7 @@ export function createArtifactHostRoute(d: ArtifactHostDeps): { handle(req: http
         void d.exchange(code[1] as string).then((got) => {
           if (!got) { say(res, 404, "This link has ended", "It was good for one use. Open the page from Vyre again.", d.appOrigin() ? { href: d.appOrigin() as string, label: "Open Vyre" } : undefined); return; }
           // inside the desktop app's viewer the page is framed from the app's origin, where a Lax cookie is not sent: that one use is partitioned to the framing app
-          const attrs = embed ? "Secure; SameSite=None; Partitioned" : "Secure; SameSite=Lax";
+          const attrs = local ? (embed ? "SameSite=None; Secure; Partitioned" : "SameSite=Lax") : embed ? "Secure; SameSite=None; Partitioned" : "Secure; SameSite=Lax";
           res.writeHead(302, { location: `/${got.siteId}/`, "set-cookie": `${ARTIFACT_COOKIE}=${got.token}; Path=/; HttpOnly; ${attrs}; Max-Age=${got.maxAgeSeconds}`, "cache-control": "no-store", "referrer-policy": "no-referrer", "content-length": "0" });
           res.end();
         }).catch(() => say(res, 502, "Not answering", "Try again soon."));

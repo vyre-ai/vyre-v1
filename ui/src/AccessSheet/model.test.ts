@@ -484,7 +484,7 @@ test("no string shown to people holds an em dash or a section sign", async () =>
 
 /* ---------- accessView: the rules behind the Dex sheet ---------- */
 
-import { accessCount, accessSubtitle, accessView, generalSub, levelDefs, levelHint, redundantVia, rowSub } from "./model.ts";
+import { accessCount, accessSubtitle, accessView, generalSub, levelHint, redundantVia, rowSub } from "./model.ts";
 import type { ShareRow as Row } from "./props.ts";
 
 const r = (o: Partial<Row> & Pick<Row, "subjectKind" | "subjectId">): Row => ({ name: o.subjectId, level: "view", via: "grant", fromFolderId: null, ...o });

@@ -31,7 +31,7 @@ const agentRow = t.obj({
   toolsAllowed: t.arr(t.str()), toolsDenied: t.arr(t.str()), vaultKeys: t.arr(t.str()), limits, captureMode, hasComputer: t.bool(), templateVersion: t.int(),
   createdAt: t.ts(), lastActiveAt: t.opt(t.ts()),
   teammateOf: t.opt(t.str({ description: 'The project, or the chat, this teammate belongs to' })),
-  chatOf: t.opt(id.thread),   // l-addsheet, next to teammateOf: an agent a chat or channel made for itself (teammateOf is that chat too); it is not on the Agents page and goes with the chat
+  chatOf: t.opt(id.thread),   // an agent a chat or channel made for itself: it is not on the Agents page and goes with the chat
 });
 const routineRow = t.obj({
   routineId: t.id('rtn'), agentId: id.agent, title: t.str(), cron: t.opt(t.str({ examples: ['0 9 * * 1-5'], description: 'The schedule of a schedule routine; a watcher has none' })), prompt: t.str(), channelId: t.opt(id.channel), enabled: t.bool(),
@@ -106,6 +106,13 @@ export default defineManifest({
     read('agents.list', 'List agents you are in or that are shared with you (admins may toggle All in the Space)', { level: 'member',
       in: listIn, out: { agents: t.arr(agentRow), ...pageOut }, tool: 'agents', label: 'filter', cli: 'vyre agents list',
     }),
+    // People's own agents (owner ruling 4 Nov): an admin governs them without opening them. No name, instruction or chat is in either answer.
+    read('agents.people_summary', 'For each person whose agents you cannot see (their Assistant, the agents they keep private): how many, what they spent this month against their cap, and whether they are paused. Never names or content', {
+      in: {}, out: { people: t.arr(t.obj({ personId: id.user, assistant: t.bool(), privateAgents: t.int({ minimum: 0 }), spendMonthMicros: t.int({ minimum: 0 }), capMicros: t.opt(t.int({ minimum: 0 })), paused: t.bool() })) }, perm: 'agents.manage', level: 'manage', tool: 'agents',
+    }),
+    write('agents.pause_person', 'Pause every agent of one person, or let them run again. Audited, and the person is told. Answers how many changed, never which', {
+      in: { personId: id.user, paused: t.bool() }, out: { changed: t.int({ minimum: 0 }) }, perm: 'agents.manage', level: 'manage', emits: ['agent.paused', 'agent.resumed'], audit: 'always', tool: 'agents', idem: 'natural',
+    }),
     read('agents.get', 'Read one agent: record, status, limits and the effective configuration', {
       in: target, out: { agent: agentRow }, on: ['agent', '/agentId'], tool: 'agents', label: 'check', errors: ['validation.not_found'],
     }),
@@ -132,7 +139,7 @@ export default defineManifest({
       in: {
         name: t.str({ examples: ['Intake'] }), role: t.opt(t.str()), face: t.opt(t.str()), model: t.opt(t.str()), ownerId: t.opt(id.user), computer: t.opt(t.bool()),
         templateKey: t.opt(t.str()), tools: t.opt(t.obj({ allowed: t.arr(t.str()), denied: t.arr(t.str()) })), limits: t.opt(limits),
-        projectId: t.opt(t.str({ description: 'Make a teammate of this project, or of this chat (a thread id): it shows with its crew and not on the Agents page' })), threadId: t.opt(id.thread),   // threadId (l-addsheet) says the same for a chat and also marks it chat-owned
+        projectId: t.opt(t.str({ description: 'Make a teammate of this project, or of this chat (a thread id): it shows with its crew and not on the Agents page' })), threadId: t.opt(id.thread),
       },
       out: { agent: agentRow }, perm: 'agents.create', emits: ['agent.created'], tool: 'agents', offline: 'queue', cli: 'vyre agents create',
       errors: ['validation.duplicate'],

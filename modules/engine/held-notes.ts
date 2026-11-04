@@ -37,8 +37,10 @@ export function withHeldNotes(open: OpenSession): OpenSession {
       cancel: () => s.cancel(),
       close: () => s.close(),
       get warm() { return s.warm; },
+      // the model that really runs is the inner session's word (a turn moved to another model records that one, not the one asked for)
+      get model() { return (s as { model?: string }).model; },
       ...(s.providerLatencyMs !== undefined ? { providerLatencyMs: s.providerLatencyMs } : {}),
-    };
+    } as EngineSession;
     return out;
   };
 }

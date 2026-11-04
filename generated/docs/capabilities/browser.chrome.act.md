@@ -35,6 +35,7 @@ type In = {
   };
   threadId?: string;
   summary?: string;
+  reason?: string;
   idempotencyKey: string;
 };
 ```
@@ -71,6 +72,7 @@ type Out = {
     },
     "heldId": "hld_a1b2c3",
     "idempotencyKey": "idem_1",
+    "reason": "example",
     "summary": "example",
     "threadId": "thr_a1b2c3"
   },

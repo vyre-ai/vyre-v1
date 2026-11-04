@@ -97,3 +97,35 @@ test("the Keychain write-back puts nothing of the sign-in in a process's argumen
   assert.equal(kc.read(CLAUDE_KEYCHAIN), "stored");
   assert.deepEqual(runs[1]!.args, ["find-generic-password", "-s", "Claude Code-credentials", "-w"]);
 });
+
+test("a person's computer reports its load to the Space at once and then every 30 seconds, until the link ends", async () => {
+  const { runDeviceLink } = await import("../src/compute/device-link.ts");
+  const sent: Array<Record<string, unknown>> = [];
+  let open = (): void => undefined, closeIt = (): void => undefined;
+  const socket = () => ({
+    send: (s: string) => { sent.push(JSON.parse(s) as Record<string, unknown>); },
+    close: () => closeIt(),
+    onOpen: (f: () => void) => { open = f; },
+    onClose: (f: () => void) => { closeIt = f; },
+    onMessage: () => undefined,
+  });
+  const ac = new AbortController();
+  let n = 0;
+  const done = runDeviceLink({
+    server: "https://space.example", token: "vst_x", dataDir: os.tmpdir(), name: "Maya's MacBook", engines: ["claude_code"], launcher: { spawn: async () => { throw new Error("none"); } },
+    socket: socket as never, signal: ac.signal, log: () => undefined, retryMs: 5, sleep: () => Promise.reject(new Error("stopped")),
+    report: () => ({ specs: { cores: 8 }, n: ++n }), reportMs: 20,
+  });
+  await new Promise((r) => setTimeout(r, 5));
+  open();
+  await new Promise((r) => setTimeout(r, 70));
+  ac.abort();
+  await done;
+  assert.equal(sent[0]?.["t"], "hello");
+  const reports = sent.filter((m) => m["t"] === "report");
+  assert.ok(reports.length >= 3, `a report at once and then on the timer, got ${reports.length}`);
+  assert.deepEqual((reports[0]?.["report"] as { n: number }).n, 1);
+  const after = sent.length;
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(sent.length, after, "nothing is sent once the link has ended");
+});

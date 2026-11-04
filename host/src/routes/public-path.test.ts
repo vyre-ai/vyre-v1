@@ -72,12 +72,10 @@ test("an artifact's plain address opens the app, and only a token below it serve
   try {
     const r = await fetch(`${s.url}/a/sit_abc`, { redirect: "manual" });
     assert.equal(r.status, 302);
-    assert.equal(r.headers.get("location"), "/#screen=apps.artifacts&selected=sit_abc");
+    assert.equal(r.headers.get("location"), "/#subject=artifact:sit_abc");
+    // a token in the address is gone: the public path answers nothing for it
     const miss = await fetch(`${s.url}/a/sit_abc/k/${"0".repeat(48)}/`);
-    assert.equal(miss.status, 404);
-    assert.ok(String(miss.headers.get("content-security-policy")).includes(PUBLIC_SANDBOX));
-    // framed by the app's own origins only: this one, and the desktop app's (Mac and Windows); a public site is not an artifact and is not restricted
-    assert.ok(String(miss.headers.get("content-security-policy")).includes(APP_FRAME_ANCESTORS));
+    assert.ok(!(await miss.text()).includes("the page"), "the public path serves no artifact for it; the app takes the request");
     assert.match(APP_FRAME_ANCESTORS, /^frame-ancestors 'self' tauri:\/\/localhost http:\/\/tauri\.localhost https:\/\/tauri\.localhost$/);
     assert.ok(!String((await fetch(`${s.url}/p/nothing/`)).headers.get("content-security-policy")).includes("frame-ancestors"));
   } finally { await s.close(); }
@@ -89,5 +87,6 @@ test("the desktop shell's own CSP lets its artifact viewer frame a Space's addre
   const csp = conf.app?.security?.csp ?? "";
   const frame = /(?:^|;)\s*frame-src ([^;]+)/.exec(csp)?.[1] ?? "";
   assert.ok(frame.split(/\s+/).includes("https:"), `frame-src names https: (a Space's own address); csp: ${csp}`);
+  assert.ok(frame.split(/\s+/).includes("http://a.localhost:*"), "and a.localhost, where a Space on this computer serves its artifacts");
   assert.ok(!/frame-src[^;]*\*(?:\s|;|$)/.test(csp.replace(/:\*/g, "")), "no bare wildcard");
 });

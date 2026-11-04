@@ -199,7 +199,7 @@ test("route.preview says who will reply with the same route() the server uses", 
   const two = await H["engine.route.preview"](ctx, { threadId: "thr_1", mentions: [{ kind: "agent", id: "agt_docs" }, { kind: "agent", id: "agt_intake" }] });
   assert.equal(two.line, "Docs and Intake will reply");
   assert.deepEqual(contractErrors("engine.route.preview", "out", two), []);
-  assert.equal((await H["engine.route.preview"](ctx, { threadId: "thr_1", mentions: [{ kind: "person", id: "usr_sam" }] })).line, "Goes to the person you named; no agent will reply. Ask Intake too", "a person named is addressed, so the lead stays quiet and the line offers it (hot/route)");
+  assert.equal((await H["engine.route.preview"](ctx, { threadId: "thr_1", mentions: [{ kind: "person", id: "usr_sam" }] })).line, "Goes to the person you named; no agent will reply. Ask Intake too");
   await assert.rejects(H["engine.route.preview"](h.ctx, { threadId: "thr_missing" }), (e) => codeOf(e) === "validation.not_found");
 });
 

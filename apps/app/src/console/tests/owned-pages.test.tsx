@@ -97,7 +97,7 @@ test("Integrations pages expose connector, connection, webhook and one-time API 
 
 test("Console provider dispatches every owned page to a real surface", async () => {
   const provider = await import("../../shell/providers/console.tsx");
-  const owned = ["agents", "actors", "computers", "template", "schema", "labels", "domains", "numbers", "inboxes", "texting", "connectors", "connections", "webhooks", "keys"];
+  const owned = ["agents", "actors", "machines", "template", "schema", "labels", "domains", "numbers", "inboxes", "texting", "connectors", "connections", "webhooks", "keys"];
   for (const id of owned) {
     const page = provider.consolePageFor?.(id, {});
     assert.ok(page, `${id} has a page component`);

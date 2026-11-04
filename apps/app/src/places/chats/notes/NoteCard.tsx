@@ -59,11 +59,11 @@ export const NoteCard = memo(function NoteCard({ n, image, who, selected, tabbab
               <Text numberOfLines={1} style={s.linkedText}>{l.title}</Text>
             </View>
           ))}
-          <View style={[s.metaRow, phone ? { marginTop: 7 } : null]}>
+          {n.labels.length || shared ? <View style={[s.metaRow, phone ? { marginTop: 7 } : null]}>
             {n.labels.length ? <View style={s.lb}><Ico name="tag" size={12} color="var(--ink-4)" /><Text numberOfLines={1} style={s.meta}>{n.labels.join(", ")}</Text></View> : null}
             <View style={s.grow} />
             {shared}
-          </View>
+          </View> : null}
         </View>
         {phone ? null : (
           <View style={[s.tools, { backgroundColor: ring }]} {...dom({ dataSet: { nfade: "off" } })}>

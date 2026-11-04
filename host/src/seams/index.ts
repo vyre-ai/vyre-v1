@@ -25,6 +25,8 @@ import { createPluginsHost } from "./plugins.ts";
 import { createSourcesSecretResolver } from "./sources.ts";
 import type { SourcesSecretResolver } from "./sources.ts";
 import type { MsHostSeam, MsSeamDeps } from "./microsoft.ts";
+import { createTalkHost } from "./talk.ts";
+import type { TalkHostSeam } from "./talk.ts";
 import type { FetchedResponse, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort } from "./ports.ts";
 
 export { createGithubHost, createStripeHost, createTwilioHost, createZoomHost };
@@ -66,6 +68,8 @@ export interface SeamSetters {
   setZoomHost?: ((h: ZoomHostSeam | null) => void) | undefined;
   /** Dropbox as a file source (live folders L3): the app key and secret, sign-in and refresh, uploads and downloads */
   setDropboxHost?: ((h: DropboxHostSeam | null) => void) | undefined;
+  /** Talk: the provider's grant, with the key read from the Vault at the last moment */
+  setTalkHost?: ((h: TalkHostSeam | null) => void) | undefined;
   [name: string]: ((driver: never) => void) | undefined;
 }
 
@@ -123,6 +127,7 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.free
   setTwilioHost: (d: SeamDriverDeps) => createTwilioHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, publicUrl: d.publicUrl }),
   setZoomHost: (d: SeamDriverDeps) => createZoomHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs }),
   setDropboxHost: (d: SeamDriverDeps) => createDropboxHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
+  setTalkHost: (d: SeamDriverDeps) => createTalkHost({ vault: d.vault, fetch: d.fetch }),
   setPluginsHost: (d: SeamDriverDeps) => createPluginsHost({ fetch: d.fetch }),
   setGithubHost: (d: SeamDriverDeps) => createGithubHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, filler: d.filler, publicUrl: d.publicUrl }),
 });
@@ -182,6 +187,7 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
   const missing: MissingDriver[] = [];
   const called: ((driver: unknown) => void)[] = [];
   const names: string[] = [];
+  const drivers: unknown[] = [];
   for (const [name, fn] of Object.entries(setters)) {
     if (typeof fn !== "function") continue;
     const module = deps.owners?.get(name);
@@ -196,6 +202,7 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
     names.push(name);
     holders.set(name, me);
     stacks.set(name, [...(stacks.get(name) ?? []), { me, driver }]);
+    drivers.push(driver);
     const legacy = LEGACY[name];
     if (legacy) state[legacy] = "wired";
   }
@@ -206,7 +213,12 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
         const name = names[i]!;
         const rest = (stacks.get(name) ?? []).filter((x) => x.me !== me);
         stacks.set(name, rest);
-        if (holders.get(name) !== me) return;
+        if (holders.get(name) !== me) {
+          // a later daemon holds the seam: this one's own leftovers (an engine opener the module retired when it was replaced) are closed now
+          const mine = drivers[i];
+          try { void (mine as { retire?: () => Promise<void> } | undefined)?.retire?.(); } catch { /* shutting down */ }
+          return;
+        }
         holders.delete(name);
         try { set(null); } catch { /* shutting down: one module's refusal must not keep the others wired */ }
         // the daemon that wired before this one and is still running gets its seam back

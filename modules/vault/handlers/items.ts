@@ -31,7 +31,7 @@ export function filler(ctx: VaultCtx) {
 }
 
 /** The words of a Mine item that cannot open because its owner's key is not on this node: they open when the owner is signed in, and nothing else needs doing. */
-export const MINE_CLOSED = "Your Mine items open while you are signed in to Vyre. Sign in on this Space, in the app or the browser, and this goes on by itself.";
+export const MINE_CLOSED = "Your sign-ins are locked on this server. Unlock Vyre to use them.";
 
 /** The wrap key of the signed-in owner, or a refusal. */
 async function ownerWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {

@@ -23,7 +23,7 @@ Requires: schema.
 - [sessions.delete](../capabilities/sessions.delete.md): Remove an imported session from Vyre: its copied transcript is dropped and a later import of the same source session skips it. The original Claude Code or Codex files on the computer are never touched, and a chat continued from it stays and keeps working
 - [sessions.get](../capabilities/sessions.get.md): Read an immutable imported session transcript owned by the signed-in person
 - [sessions.import](../capabilities/sessions.import.md): Copy previewed local Codex or Claude Code sessions into immutable owner-private Vyre conversations; provider adapters supply visible user and assistant text and, on assistant messages, the tool calls with their one-line summaries and the start of their results (credentials removed)
-- [sessions.list](../capabilities/sessions.list.md): List the current owner private imported session archive in this Personal Space
+- [sessions.list](../capabilities/sessions.list.md): List the current owner private imported session archive in this Personal Space; in any other Space the list is empty and personalOnly is true
 - [sessions.rename](../capabilities/sessions.rename.md): Give an imported session a new title in Vyre. Only the title shown changes: the copied transcript and its source provenance stay as they were
 
 ## Events (8)

@@ -150,9 +150,11 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   useEffect(() => onImportedChange(() => setReread((n) => n + 1)), []);
   useEffect(() => {
     let off = false;
+    // only a Personal Space keeps imported coding sessions; a Team Space refuses the read (422), so it is not asked
+    if (!personal) { setArchive([]); return undefined; }
     void (Promise.resolve().then(() => data.call("sessions.list", {})) as Promise<{ sessions?: Partial<ImportedRow>[] } | undefined>).then((r) => { if (!off) setArchive(importedRows(r?.sessions)); }, () => { if (!off) setArchive([]); });
     return () => { off = true; };
-  }, [data.call, recentQ, reread]);
+  }, [data.call, recentQ, reread, personal]);
   const imported = useMemo(() => archive.filter((r) => r.archived !== true && matchesQuery(query, r.title, providerName(r.provider))), [archive, query]);
   const archivedImported = useMemo(() => archive.filter((r) => r.archived === true && matchesQuery(query, r.title, providerName(r.provider))), [archive, query]);
   const liveImported = useMemo(() => archive.filter((r) => r.archived !== true).length, [archive]);
@@ -499,7 +501,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
       case "more": return <Pressable accessibilityRole="button" accessibilityLabel={e.label} testID={`row-${e.key}`} onPress={() => open(e)} style={st.more}><Text style={st.moreText}>{e.label}</Text></Pressable>;
       case "chat": {
         const r = e.row;
-        const title = displayTitle(r, data.clock().offsetMin);
+        const title = displayTitle(r);
         return wrap(
           <Hot>{(over) => (
             <Row

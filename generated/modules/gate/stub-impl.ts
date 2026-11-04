@@ -18,6 +18,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "gate.grants.take": async () => ({"granted":true,"spent":["example"]} as unknown) as never,
   "gate.holds.get": async () => ({"hold":{"act":"send","actingFor":"example","askedBy":{"id":"usr_a1b2c3","kind":"person"},"capName":"mail.send","createdAt":1760000000000,"expiresAt":1760000000000,"id":"hld_a1b2c3","payloadHash":"example","principal":{"id":"usr_a1b2c3","kind":"person"},"runId":"run_a1b2c3","state":"held","taskId":"tsk_a1b2c3"}} as unknown) as never,
   "gate.holds.list": async () => ({"holds":[{"act":"send","actingFor":"example","askedBy":{"id":"usr_a1b2c3","kind":"person"},"capName":"mail.send","createdAt":1760000000000,"expiresAt":1760000000000,"id":"hld_a1b2c3","payloadHash":"example","principal":{"id":"usr_a1b2c3","kind":"person"},"runId":"run_a1b2c3","state":"held","taskId":"tsk_a1b2c3"}],"next":"example","total":1} as unknown) as never,
+  "gate.holds.revise": async () => ({"edited":1,"ok":true} as unknown) as never,
   "gate.links.known": async () => ({"known":true} as unknown) as never,
   "gate.park": async () => ({"holdId":"hld_a1b2c3","runId":"run_a1b2c3","taskId":"tsk_a1b2c3"} as unknown) as never,
   "gate.release": async () => ({"result":{}} as unknown) as never,

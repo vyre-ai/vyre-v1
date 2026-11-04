@@ -168,7 +168,7 @@ export interface Sample {
   push(delta: string): void;
 }
 
-export interface SampleOptions { online?: boolean; streamText?: string; /** The signed-in person can only view this chat: they may add viewers, not members. */ viewOnly?: boolean }
+export interface SampleOptions { online?: boolean; streamText?: string; /** the chat's stored title (the sample has "Rivera intake"; "" is a chat with none yet) */ title?: string; /** the chat's members, in place of the sample's (a group chat for the header faces) */ members?: Thread["members"]; /** The signed-in person can only view this chat: they may add viewers, not members. */ viewOnly?: boolean }
 
 const HELD_TEXT = "I read the standard engagement letter and filled in the **consult fee** from the fee schedule. Two things need your eye:\n\n1. The retainer is `$2,500`, which Maya has not confirmed\n2. Elena's address is the old one from the web form";
 
@@ -183,7 +183,9 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
   let online = o.online ?? true;
   let held: (() => void)[] | null = null;
   let counter = 0;
-  const { thread, messages, helpers } = build(variant);
+  const built = build(variant);
+  const { messages, helpers } = built;
+  const thread: Thread = { ...built.thread, ...(o.title === undefined ? {} : { title: o.title }), ...(o.members === undefined ? {} : { members: o.members }) };
 
   replica.put("threads", [{ id: thread.threadId, ...thread }]);
   replica.put("messages", messages.map((m) => ({ id: m.messageId, ...m })));

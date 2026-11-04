@@ -5,6 +5,9 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "settings.contact.status": async (ctx) => { throw new VyreErr(notImplemented("settings.contact.status", ctx.trace)); },
+  "settings.contact.verify_confirm": async (ctx) => { throw new VyreErr(notImplemented("settings.contact.verify_confirm", ctx.trace)); },
+  "settings.contact.verify_start": async (ctx) => { throw new VyreErr(notImplemented("settings.contact.verify_start", ctx.trace)); },
   "settings.copy_profile": async (ctx) => { throw new VyreErr(notImplemented("settings.copy_profile", ctx.trace)); },
   "settings.copy_source": async (ctx) => { throw new VyreErr(notImplemented("settings.copy_source", ctx.trace)); },
   "settings.floor_set": async (ctx) => { throw new VyreErr(notImplemented("settings.floor_set", ctx.trace)); },

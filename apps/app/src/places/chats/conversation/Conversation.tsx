@@ -5,7 +5,6 @@
 import { readReplyDetails } from "../details/read.ts";
 import type { Call } from "../details/read.ts";
 import { DECIDED_LINE, isDecided } from "../../../shell/decided.ts";
-import { rememberFirstLine } from "../sidebar/titles.ts";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
@@ -45,6 +44,7 @@ import { ThreadParent } from "./ThreadParent.tsx";
 import { replySummaries } from "./replies.ts";
 import type { ReplySummary } from "./replies.ts";
 import type { LiveQuery } from "../../../../../../client/src/index.ts";
+import { useChatViewing, useOpenPublished } from "./artifact-open.ts";
 import { useAddSheet } from "../addsheet/index.ts";
 import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, usePickUnavailable, useUsage } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
@@ -62,8 +62,8 @@ import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
-  WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
-  directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
+  WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
+  directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeline, otherPeople, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
@@ -263,7 +263,7 @@ function ConversationView(): ReactElement {
   /* ---------- sending: the message is on the page before chat.post answers ---------- */
   const run = useCallback((p: Pending) => {
     // the first message sent from this device names the chat on this device (the server never puts message text in a title)
-    if (emptyRef.current) { emptyRef.current = false; rememberFirstLine(data.threadId, p.body); }
+    emptyRef.current = false;
     void (async () => {
       // files first: each is stored in Files under a key derived from this send, so a retry finds the same files and attaches them again
       const kept = (p.files ?? []).flatMap((f) => (f.fileId !== undefined ? [f.fileId] : []));
@@ -289,6 +289,9 @@ function ConversationView(): ReactElement {
   const muteSeen = useRef<ReadonlySet<string>>(readMuteSeen());
   const [mutedHere, setMutedHere] = useState<ReadonlySet<string>>(new Set());
   const failed = failureOf(threadQ, messagesQ);
+  // an artifact an agent publishes in a turn this person asked opens in a tab while this chat is open: say it is open, and open the cards marked for this person (lane l-engine21)
+  useChatViewing(data.call, data.threadId);
+  useOpenPublished(messagesQ.status === "loading" ? undefined : messagesQ.data.messages, data.me.id, (artifactId) => data.nav.openBeside("artifact", artifactId));
   // the chat's budget of agent turns: the Space's Policies setting, else 8 (owner ruling, 3 Nov)
   const [hopLimit, setHopLimit] = useState(DEFAULT_AGENT_HOPS);
   useEffect(() => {
@@ -445,6 +448,9 @@ function ConversationView(): ReactElement {
   if (muteOffer) rememberMuteSeen(muteOffer);
   const host: BlockHost = {
     invoke: (cap, input) => data.call(cap, input),
+    meId: data.me.id,
+    nameOf,
+    ...(data.nav.openUrl ? { openUrl: data.nav.openUrl } : {}),
     open: (tab, input) => { const id = Object.values(input).find((v): v is string => typeof v === "string"); data.nav.openBeside(tab, id ?? ""); },
   };
   const openDetails = data.nav.openDetails;
@@ -497,7 +503,7 @@ function ConversationView(): ReactElement {
     // the buttons on an agent's cards from the person's own Chrome (browser.chrome.act): they act only for the person whose Chrome it is, and say why when it is not open here
     chrome: {
       send: async (h, edits) => { const r = (await data.call("browser.chrome.act", { action: "send", agentId: h.agentId, heldId: h.heldId, ...(edits ? { edits } : {}), threadId: thread.threadId, idempotencyKey: `chrsend:${h.heldId}` })) as { done: boolean }; return { sent: r.done }; },
-      drop: async (h) => { await data.call("browser.chrome.act", { action: "drop", agentId: h.agentId, heldId: h.heldId, threadId: thread.threadId, summary: h.summary, idempotencyKey: `chrdrop:${h.heldId}` }); },
+      drop: async (h, reason) => { await data.call("browser.chrome.act", { action: "drop", agentId: h.agentId, heldId: h.heldId, threadId: thread.threadId, summary: h.summary, ...(reason ? { reason } : {}), idempotencyKey: `chrdrop:${h.heldId}` }); },
       watch: async (agentId) => { await data.call("browser.chrome.act", { action: "watch", agentId, idempotencyKey: data.newKey() }); },
       takeOver: async (agentId) => { await data.call("browser.chrome.act", { action: "takeover", agentId, idempotencyKey: data.newKey() }); },
     },
@@ -558,7 +564,8 @@ function ConversationView(): ReactElement {
   const note = data.head || (compact && thread.kind === "ask") ? "" : threadKindNote(thread, nameOf);
   const title = titleOf(thread, nameOf, data.me.id);
   // a direct chat is named for the other person and wears their face
-  const dmWith = thread.title ? null : directWith(thread, data.me.id);
+  const dmWith = directWith(thread, data.me.id);
+  const others = otherPeople(thread, data.me.id);
   const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn);
 
   // A mounted folder or file dragged from Files is shared with this chat's agents (desktop); the line says so and can take it back
@@ -593,6 +600,13 @@ function ConversationView(): ReactElement {
             <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
           </Pressable>
         )}
+        {!dmWith && others.length > 0 ? (
+          <View testID="conversation-people" accessibilityLabel={`With ${others.map((p) => nameOf(p)).join(", ")}`} style={st.faces}>
+            {/* ui-rows-lint: not a list (the faces of the people in the chat) */}
+            {others.slice(0, narrow ? 3 : 4).map((p) => <Face key={p} name={nameOf(p)} seedId={p} kind="person" size={20} />)}
+            {others.length > (narrow ? 3 : 4) ? <Text style={st.meta}>{`+${others.length - (narrow ? 3 : 4)}`}</Text> : null}
+          </View>
+        ) : null}
         {leadFace && !narrow ? <FaceButton key={leadFace.agentId} name={leadFace.name} seedId={leadFace.agentId} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} {...(title !== leadFace.name ? { label: leadFace.name } : {})} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
         <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this chat" style={st.faces}>
           {collect(narrow ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} seedId={f.agentId} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}

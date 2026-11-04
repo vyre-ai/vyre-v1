@@ -43,6 +43,7 @@ import { validators as m_inbox, eventValidators as m_inbox_ev } from './validato
 import { validators as m_journeys, eventValidators as m_journeys_ev } from './validators/journeys.ts';
 import { validators as m_kits, eventValidators as m_kits_ev } from './validators/kits.ts';
 import { validators as m_logs, eventValidators as m_logs_ev } from './validators/logs.ts';
+import { validators as m_machines, eventValidators as m_machines_ev } from './validators/machines.ts';
 import { validators as m_mail, eventValidators as m_mail_ev } from './validators/mail.ts';
 import { validators as m_mailgun, eventValidators as m_mailgun_ev } from './validators/mailgun.ts';
 import { validators as m_mcp, eventValidators as m_mcp_ev } from './validators/mcp.ts';
@@ -72,6 +73,7 @@ import { validators as m_spaces, eventValidators as m_spaces_ev } from './valida
 import { validators as m_steps_core, eventValidators as m_steps_core_ev } from './validators/steps-core.ts';
 import { validators as m_stripe, eventValidators as m_stripe_ev } from './validators/stripe.ts';
 import { validators as m_sync, eventValidators as m_sync_ev } from './validators/sync.ts';
+import { validators as m_talk, eventValidators as m_talk_ev } from './validators/talk.ts';
 import { validators as m_tasks, eventValidators as m_tasks_ev } from './validators/tasks.ts';
 import { validators as m_telephony, eventValidators as m_telephony_ev } from './validators/telephony.ts';
 import { validators as m_templates, eventValidators as m_templates_ev } from './validators/templates.ts';
@@ -126,6 +128,7 @@ export const validators: Record<string, { in: Check; out: Check }> = {
   ...m_journeys,
   ...m_kits,
   ...m_logs,
+  ...m_machines,
   ...m_mail,
   ...m_mailgun,
   ...m_mcp,
@@ -155,6 +158,7 @@ export const validators: Record<string, { in: Check; out: Check }> = {
   ...m_steps_core,
   ...m_stripe,
   ...m_sync,
+  ...m_talk,
   ...m_tasks,
   ...m_telephony,
   ...m_templates,
@@ -208,6 +212,7 @@ export const eventValidators: Record<string, Check> = {
   ...m_journeys_ev,
   ...m_kits_ev,
   ...m_logs_ev,
+  ...m_machines_ev,
   ...m_mail_ev,
   ...m_mailgun_ev,
   ...m_mcp_ev,
@@ -237,6 +242,7 @@ export const eventValidators: Record<string, Check> = {
   ...m_steps_core_ev,
   ...m_stripe_ev,
   ...m_sync_ev,
+  ...m_talk_ev,
   ...m_tasks_ev,
   ...m_telephony_ev,
   ...m_templates_ev,
