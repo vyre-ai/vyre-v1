@@ -32,6 +32,9 @@ test("running helpers: a held request, Change model, a person messaging a helper
   fs.mkdirSync(shots, { recursive: true });
 
   let lead = ""; let chat = ""; let dir = ""; let owner = "";
+  // the restart turn of Change model is held until the person has asked the helper something, so the helper is still at work when they do
+  let release!: () => void;
+  const restartGate = new Promise<void>((resolve) => { release = resolve; });
   const model = scriptedModel(async function* (input, run) {
     const body = input.trigger?.body ?? "";
     if (input.agent.id === lead && input.threadId === chat) {
@@ -68,7 +71,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
       yield* run("read_link", { url: "https://pine-works.example/quote?ref=harbor-compare" });
       yield { type: "text", text: "Summary written." };
     }
-  });
+  }, { gate: (input) => (/Starting again/.test(input.trigger?.body ?? "") ? restartGate : undefined) });
   const fresh = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-helper-rows-")));
   dir = fresh;
   const d = await boot(fresh, model, { config: loadConfig(["--data-dir", fresh, "--port", "0", "--space", "spc_fresh", "--space-name", "Crew Co"], {}, "1.2.3") });
@@ -146,6 +149,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
       await shot(`crew-t27-held-${mode}-${size}`);
       // the quotes helper reports: the answer marks what came from which helper with chips
       await page.getByText(/Pine Works is cheaper/).first().waitFor({ timeout: 90_000 }).catch(async (e) => { await guard.check("FAILED-answer"); await shoot(page, `FAILED-answer-${mode}`); throw e; });
+      await page.locator('[data-testid^="cite-"]').first().waitFor({ timeout: 20_000 }).catch(() => undefined);
       console.log("CITE_CHIPS", mode, await page.locator('[data-testid^="cite-"]').count());
       await page.locator('[data-testid="cite-2"]').first().hover().catch(() => undefined);
       await page.waitForTimeout(400);
@@ -174,6 +178,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
         await page.getByText(/Brief from/).first().waitFor({ timeout: 20_000 });
         await page.getByLabel(/^Ask .* something$/).first().fill("Keep it short.", { timeout: 15_000 }).catch(async (e) => { await shoot(page, `FAILED-ask-box-${mode}`); console.log("MEMBER", JSON.stringify(await api("engine.crew.status", { threadId: chat }).then((r: any) => r.members.map((m: any) => [m.title, m.state, m.step])))); throw e; });
         await page.getByTestId("helper-ask-send").click();
+      release();
         await page.getByText("Noted. I will keep it short.").first().waitFor({ timeout: 100_000 }).catch(async (e) => { await guard.check("FAILED-reply"); await shoot(page, `FAILED-reply-${mode}`); throw e; });
         assert.ok(await page.getByText(/replying to you/).count() > 0, "the helper says whom it answers");
         await shot(`crew-chat1-ask-${mode}-${size}`);
