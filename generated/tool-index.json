@@ -3788,6 +3788,12 @@
     },
     {
       "deferred": false,
+      "name": "goals_count",
+      "summary": "How many goals a project has, whoever may open them: a number and nothing else (never a title). Only a manager of the project or the system may ask; the Overview uses it to say how many goals a reader may not open",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "goals_create",
       "summary": "Give an agent a goal with a finish line: it plans the work as tasks, works across days, posts progress, asks for approvals and says when it is stuck. Drafted by an agent, it waits for its owner to press Start",
       "toolset": "tasks"
@@ -6541,6 +6547,18 @@
       "toolset": "chats"
     },
     {
+      "deferred": false,
+      "name": "overview_edit",
+      "summary": "Edit the Overview by ops: insert, update, move, delete a block, or set_property on a custom field of the project. One revision for the call, carrying its author; an agent's edit leaves one quiet line in the project channel",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "overview_get",
+      "summary": "Read the Overview as Markdown with every block led by its id, the project's custom fields and the kinds of live block, so overview_edit can name what to change",
+      "toolset": "records"
+    },
+    {
       "deferred": true,
       "name": "people_status",
       "summary": "Your teammates as you see them: online, away or offline and when last seen, their local time and working hours, and when a message to them would go. Only people in this Space, never anything private",
@@ -6794,6 +6812,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_crew",
+      "summary": "The helpers working for a project with a live state (Working, Done or Needs you) and what each is on, from the crews of the project's chats, and the project's teammates",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_file_chat",
       "summary": "File a private chat under the project; it stays private and the agent gets the project memory and folder",
       "toolset": "records"
@@ -6802,6 +6826,12 @@
       "deferred": false,
       "name": "projects_files_folder",
       "summary": "The folder that holds a record's files: a project's own, else Files > Projects > Record files > the record (made on first use unless create is false, with the record's access mirrored onto it)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_for_channel",
+      "summary": "The project a channel belongs to, if there is one the caller may see",
       "toolset": "records"
     },
     {
@@ -6824,8 +6854,38 @@
     },
     {
       "deferred": false,
+      "name": "projects_links_link",
+      "summary": "Link something to a project; an agent that may edit the project can too. A web address or CI run may bring its own state, label and address",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_links_list",
+      "summary": "What is linked to a project (records, files, chats, tasks, artifacts, mail threads, calendar events, pull requests, commits, CI runs, web addresses), each with its state read live from the source, and the rules that link by themselves",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_links_rules_set",
+      "summary": "Set the rules that link matching new items to the project: a repository, a record filter or an email domain",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_links_unlink",
+      "summary": "Take a link off a project; an item a rule linked is remembered as an exception and never comes back by rule",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_list",
       "summary": "List the projects the caller is in (Agents, Projects and Journeys show only those you are in)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_live_block_query",
+      "summary": "Evaluate a live block for the reader: the rows they may open, how many they may not (hidden), and for a metric its value. The block stores only its spec",
       "toolset": "records"
     },
     {
@@ -6860,6 +6920,48 @@
     },
     {
       "deferred": false,
+      "name": "projects_overview_doc_apply_template",
+      "summary": "Put a template's blocks on a project's Overview, replacing the page (one revision, so Undo brings the old page back)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_get",
+      "summary": "The Overview page: its blocks (text, headings and live blocks that hold only a spec), its revision and the project's custom fields for the page header",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_history",
+      "summary": "The Overview's revisions, newest first, each with who made it and what changed",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_save",
+      "summary": "Save the whole Overview page from the editor, as Markdown (or blocks); baseRev is the revision it was opened at, and a page changed since says so instead of overwriting",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_templates_list",
+      "summary": "The Space's Overview page templates: Client account, Software project and Hiring, and any saved since",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_templates_save",
+      "summary": "Save a page template for the Space, from a project's Overview or from blocks; an agent can too",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_undo",
+      "summary": "Undo the latest change to the Overview: the blocks and any property it set go back as they were; the undo is a revision too",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_pin_file",
       "summary": "Pin a file to the Overview",
       "toolset": "records"
@@ -6886,6 +6988,12 @@
       "deferred": false,
       "name": "projects_roles_of",
       "summary": "The projects where one person holds a role, and which role, limited to the projects the asker can see",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_set",
+      "summary": "Set how the project stands (On track, At risk, Off track, On hold or Done) by hand, or null to go back to the reading from the late tasks; audited, and the Overview says who set it",
       "toolset": "records"
     },
     {
@@ -6940,6 +7048,18 @@
       "deferred": false,
       "name": "projects_unshare_out",
       "summary": "Revoke a read-only link to the project Overview; the link answers not found at once",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_update_draft",
+      "summary": "Draft the status update again from the project facts, on the asker's own AI account; it is kept as the draft and posted only by Post",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_update_edit",
+      "summary": "Edit the status update's draft in place",
       "toolset": "records"
     },
     {

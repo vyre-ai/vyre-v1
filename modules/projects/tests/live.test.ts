@@ -6,8 +6,8 @@ import { handlers } from "../impl.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "projects").map((c) => c.name).sort();
 
-test("projects live: the handler map equals the manifest's 28 capabilities", () => {
-  assert.equal(mine.length, 28);
+test("projects live: the handler map equals the manifest's 48 capabilities", () => {
+  assert.equal(mine.length, 48);   // 47 of l-projview and the one l-crews added
   assert.deepEqual(Object.keys(handlers).sort(), mine);
   for (const name of mine) assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);
 });

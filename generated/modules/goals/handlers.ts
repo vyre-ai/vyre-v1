@@ -11,6 +11,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "goals.checklist.tick": Handler<"goals.checklist.tick", X>;
   "goals.complete": Handler<"goals.complete", X>;
   "goals.confirm": Handler<"goals.confirm", X>;
+  "goals.count": Handler<"goals.count", X>;
   "goals.create": Handler<"goals.create", X>;
   "goals.extend": Handler<"goals.extend", X>;
   "goals.finish": Handler<"goals.finish", X>;

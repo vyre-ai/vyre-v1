@@ -26,7 +26,7 @@ Post the status update (by the lead, or drafted weekly by an agent) to the proje
 ```ts
 type In = {
   projectId: string;
-  text: string;
+  text?: string;
   status?: string;
 };
 ```
