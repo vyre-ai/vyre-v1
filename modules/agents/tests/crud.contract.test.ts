@@ -36,8 +36,8 @@ const withMarket = async (hn: Harness) => {
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 96 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 96);   // agents.people_summary and agents.pause_person (l-consolidate), then 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2, agents.instruction.append (lessons)
+test("the handler table covers exactly the 105 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 105);   // 105 with the nine of install-from-link and agent skills (wip/l-install); agents.people_summary and agents.pause_person (l-consolidate), then 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2, agents.instruction.append (lessons)
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -72,6 +72,11 @@ const fetching = async <T>(f: () => Promise<T>): Promise<T> => {
 };
 const withMine = async (hn: Harness) => ({ s: (await h["skills.mine.add"]!(hn.ctx, { text: SK("deploy-checks", "Run the checks before a deploy."), idempotencyKey: k() })).skill });
 const withSharedTo = async (hn: Harness, to: { to?: string[]; space?: boolean }) => { const { s } = await withMine(hn); await h["skills.share"]!(hn.ctx, { skillId: s.skillId, ...to, idempotencyKey: k() }); return { s }; };
+const withSaved = async (hn: Harness) => ({ s: (await h["skills.save"]!(hn.ctx, { text: SK("triage", "Sort new requests.") })).skill });
+const withRepo = async (hn: Harness): Promise<void> => {
+  void hn;
+  setPluginsHost({ async fetchTree() { return { files: { "SKILL.md": SK("pdf-forms", "Fill PDF forms from a record.") }, revision: "a".repeat(40), skipped: [] }; } });
+};
 const withLinked = (hn: Harness) => fetching(async () => ({ s: (await h["skills.mine.add"]!(hn.ctx, { text: SK("pdf", "Fill and read PDFs."), source: "github:acme/skills@main/skills/pdf", idempotencyKey: k() })).skill }));
 const withSpaceSkill = async (hn: Harness) => ({ s: (await h["skills.space.install"]!(hn.ctx, { text: SK("pdf", "Fill and read PDFs."), source: "github:acme/skills@main/skills/pdf", idempotencyKey: k() })).skill });
 
@@ -262,6 +267,24 @@ const scenarios: Scenario[] = [
   { cap: "skills.mine.update", setup: withLinked, run: (hn, st) => fetching(() => h["skills.mine.update"]!(hn.ctx, { skillId: st.s.skillId, idempotencyKey: k() })) },
   { cap: "skills.share", setup: withMine, run: (hn, st) => h["skills.share"]!(hn.ctx, { skillId: st.s.skillId, to: [MAYA], idempotencyKey: k() }) },
   { cap: "skills.shared.decide", setup: (hn) => withSharedTo(hn, { to: [MAYA] }), run: (hn, st) => h["skills.shared.decide"]!(hn.person(MAYA), { skillId: st.s.skillId, decision: "add", idempotencyKey: k() }) },
+  // install from a link and agent-owned skills (wip/l-install): one path each here; the flows are in install.test.ts
+  { cap: "install.from_link", setup: (hn) => withRepo(hn), run: (hn) => h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" }) },
+  { cap: "install.from_link", run: (hn) => h["install.from_link"]!(hn.ctx, { url: "not a link" }), expect: "validation.bad_input" },
+  { cap: "install.apply", setup: async (hn) => { await withRepo(hn); return (await h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" })).plan; }, run: (hn, p) => h["install.apply"]!(hn.ctx, { planId: p.planId, for: "me", idempotencyKey: k() }) },
+  { cap: "install.apply", run: (hn) => h["install.apply"]!(hn.ctx, { planId: "ins_none", for: "me", idempotencyKey: k() }), expect: "validation.not_found" },
+  { cap: "install.check_update", setup: async (hn) => { await withRepo(hn); const p = (await h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" })).plan; await h["install.apply"]!(hn.ctx, { planId: p.planId, for: "me", idempotencyKey: k() }); return (await h["install.list"]!(hn.ctx, {})).installs[0]; }, run: (hn, i) => h["install.check_update"]!(hn.ctx, { installId: i.installId }) },
+  { cap: "install.check_update", run: (hn) => h["install.check_update"]!(hn.ctx, { installId: "ins_none" }), expect: "validation.not_found" },
+  { cap: "install.list", run: (hn) => h["install.list"]!(hn.ctx, {}) },
+  { cap: "skills.save", run: (hn) => h["skills.save"]!(hn.ctx, { text: SK("triage", "Sort new requests.") }) },
+  { cap: "skills.save", run: (hn) => h["skills.save"]!(hn.ctx, { text: "no front matter" }), expect: "validation.bad_input" },
+  { cap: "skills.history", setup: withSaved, run: (hn, st) => h["skills.history"]!(hn.ctx, { skillId: st.s.skillId }) },
+  { cap: "skills.history", run: (hn) => h["skills.history"]!(hn.ctx, { skillId: "sko_none" }), expect: "validation.not_found" },
+  { cap: "skills.undo", setup: async (hn) => { const st = await withSaved(hn); await h["skills.save"]!(hn.ctx, { skillId: st.s.skillId, text: SK("triage", "Sort new requests.", "again") }); return st; }, run: (hn, st) => h["skills.undo"]!(hn.ctx, { skillId: st.s.skillId }) },
+  { cap: "skills.undo", setup: withSaved, run: (hn, st) => h["skills.undo"]!(hn.ctx, { skillId: st.s.skillId }), expect: "validation.precondition_failed" },
+  { cap: "skills.grant", setup: async (hn) => ({ ...(await withSaved(hn)), a: await mk(hn) }), run: (hn, st) => h["skills.grant"]!(hn.ctx, { skillId: st.s.skillId, agentId: st.a.agentId, level: "use" }) },
+  { cap: "skills.grant", setup: withSaved, run: (hn, st) => h["skills.grant"]!(hn.ctx, { skillId: st.s.skillId, agentId: "agt_none", level: "use" }), expect: "validation.not_found" },
+  { cap: "skills.grants", setup: withSaved, run: (hn, st) => h["skills.grants"]!(hn.ctx, { skillId: st.s.skillId }) },
+  { cap: "skills.grants", run: (hn) => h["skills.grants"]!(hn.ctx, { skillId: "sko_none" }), expect: "validation.not_found" },
   { cap: "skills.space.install", run: (hn) => h["skills.space.install"]!(hn.ctx, { text: SK("house-style", "Write in the house style."), idempotencyKey: k() }) },
   { cap: "skills.space.update", setup: withSpaceSkill, run: (hn) => fetching(() => h["skills.space.update"]!(hn.ctx, { name: "pdf", idempotencyKey: k() })) },
   { cap: "skills.space.adopt", setup: (hn) => withSharedTo(hn, { space: true }), run: (hn, st) => h["skills.space.adopt"]!(hn.ctx, { skillId: st.s.skillId, idempotencyKey: k() }) },

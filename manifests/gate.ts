@@ -38,6 +38,7 @@ export default defineManifest({
     gateAct('enroll_node', 'Admit a computer to the Space', 'high', 'record_card', { approvers: { default: 'asker', peopleOnly: true } }),
     gateAct('connection_change', 'Change a company-wide connection', 'high', 'table', { approvers: { default: 'asker', peopleOnly: true } }),
     gateAct('push_protected', 'Push to a protected branch', 'high', 'diff', { appliesTo: { actors: ['agent', 'automation'], humanToo: true } }),
+    gateAct('install', 'Install from a link', 'high', 'table', { approvers: { default: 'asker', peopleOnly: true } }),
     gateAct('secret_export', 'Export secrets', 'high', 'table', { appliesTo: { actors: ['agent', 'automation'], humanToo: true } }),
     gateAct('site_promote', 'Promote a site to production', 'high', 'deploy', { appliesTo: { actors: ['agent', 'automation'], humanToo: true } }),
     gateAct('signature_send', 'Send a document for signature', 'high', 'file'),

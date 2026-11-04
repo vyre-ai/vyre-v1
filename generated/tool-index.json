@@ -4550,6 +4550,30 @@
     },
     {
       "deferred": false,
+      "name": "install_apply",
+      "summary": "Install what a plan says, for the person, for one agent, or for everyone in the Space (admin only). An agent asking is held at the Gate as a card with the plan; the person presses Install",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_check_update",
+      "summary": "Read an install's repository again. A newer commit gives an update plan with the diff; nothing changes until the plan is applied",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_from_link",
+      "summary": "Read a GitHub link (pinned to a commit) or an MCP server address and say what it is: a skill, a plugin, a local MCP server, a remote MCP server or a site, what it does, what it needs (network, Vault keys, files) and who can get it. Nothing is installed",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_list",
+      "summary": "What was installed from links, by the person asking",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "journeys_create",
       "summary": "Create a Journey and its record type (cloned from the Projects template) on a subject record type",
       "toolset": "automations"
@@ -7877,6 +7901,36 @@
       "name": "sites_update",
       "summary": "Rename a site, change its settings, its source, its CPU and memory, auto deploy on push, where it runs or who may reach it. Making it public takes it down until it is published again",
       "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "skill_grant",
+      "summary": "Give an agent use, edit or manage of a skill, or take it back (level null). Use puts it in the agent's list; edit lets it save versions; manage lets it share the skill on",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_grants",
+      "summary": "Who owns a skill and which agents hold it, at what level",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_history",
+      "summary": "The versions of a skill, newest first, each with who saved it and what changed",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_save",
+      "summary": "Write a skill as its owner (the person, or an agent they own; an agent writes its own) or as an agent given edit: a new skill, or a new version of one. Every save is a version",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_undo",
+      "summary": "Undo the latest version of a skill; the version before it comes back as a new version, and undoing again brings the undone one back",
+      "toolset": "agents"
     },
     {
       "deferred": false,

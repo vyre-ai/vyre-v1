@@ -1390,6 +1390,12 @@ export function stubs(ctx: CallCtx) {
       unmatch: call("inbox.unmatch"),
       unmatched: call("inbox.unmatched"),
     },
+    install: {
+      apply: call("install.apply"),
+      check_update: call("install.check_update"),
+      from_link: call("install.from_link"),
+      list: call("install.list"),
+    },
     invites: {
       accept_create_account: call("invites.accept_create_account"),
     },
@@ -2360,6 +2366,9 @@ export function stubs(ctx: CallCtx) {
     },
     skills: {
       add: call("skills.add"),
+      grant: call("skills.grant"),
+      grants: call("skills.grants"),
+      history: call("skills.history"),
       list: call("skills.list"),
       load: call("skills.load"),
       members: call("skills.members"),
@@ -2375,6 +2384,7 @@ export function stubs(ctx: CallCtx) {
       },
       preview: call("skills.preview"),
       remove: call("skills.remove"),
+      save: call("skills.save"),
       set_enabled: call("skills.set_enabled"),
       share: call("skills.share"),
       shared: {
@@ -2386,6 +2396,7 @@ export function stubs(ctx: CallCtx) {
         setup: call("skills.space.setup"),
         update: call("skills.space.update"),
       },
+      undo: call("skills.undo"),
       view: call("skills.view"),
     },
     source_rules: {

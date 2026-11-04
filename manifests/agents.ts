@@ -13,6 +13,7 @@ import { atool, create, defineManifest, ev, field, list, read, rtype, screen, se
 import { id, pageIn, pageOut, principalRef, versionRow } from './_common.ts';
 import { pluginCapabilities, pluginEvents, pluginScreens } from './_agents-plugins.ts';
 import { connectionCapabilities, connectionEvents } from './_agents-connections.ts';
+import { installCapabilities } from './_agents-install.ts';
 import { skillScopeCapabilities, skillScopeEvents, skillScopeScreens } from './_agents-skills.ts';
 
 const agentStatus = t.enm('awake', 'working', 'asleep', 'paused');
@@ -296,6 +297,7 @@ export default defineManifest({
       in: { name: t.str(), agentId: t.opt(id.agent), enabled: t.bool() }, out: { skill: skillRow }, perm: 'agents.manage', level: 'manage', idem: 'key', emits: ['skill.changed'], audit: 'always', tool: 'agents', mcpName: 'skills_set_enabled', errors: ['validation.not_found'],
     }),
     ...skillScopeCapabilities,
+    ...installCapabilities,
   ],
   events: [
     ev('skill.added', 'A skill was added to the Space library or to one agent', { p: { name: t.str(), tier: t.enm('space', 'agent'), agentId: t.opt(id.agent), source: t.str(), by: t.str() }, subject: ['entity', '/name'] }),

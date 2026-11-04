@@ -1,0 +1,178 @@
+# install.check_update
+
+Read an install's repository again. A newer commit gives an update plan with the diff; nothing changes until the plan is applied
+
+| | |
+|---|---|
+| Module | agents |
+| Version | 1 (since 1.0.0) |
+| Effects | write |
+| Permission | grant only |
+| Grant level | use |
+| Risk | low |
+| Resource | space |
+| Gate | none |
+| Idempotency | none |
+| Offline | online |
+| Audit | always |
+| Team Space only | no |
+| HTTP | POST /v1/install/check_update |
+| MCP tool | install_check_update (agents) |
+| CLI | none |
+| Emits | none |
+
+## Input
+
+```ts
+type In = {
+  installId: string;
+};
+```
+
+## Output
+
+```ts
+type Out = {
+  changed: boolean;
+  plan?: {
+    planId: string;
+    state: string;
+    kind: "skill" | "plugin" | "mcp_local" | "mcp_remote" | "site";
+    flavor?: "claude" | "codex";
+    name: string;
+    summary: string;
+    repo: string;
+    commit: string;
+    url: string;
+    path?: string;
+    needs: {
+      domains: Array<string>;
+      vaultKeys: Array<string>;
+      files: Array<string>;
+    };
+    runs?: {
+      command: string;
+      args: Array<string>;
+    };
+    skills: Array<string>;
+    problems: Array<string>;
+    who: Array<{
+        key: "me" | "agent" | "space";
+        label: string;
+        allowed: boolean;
+        adminOnly?: boolean;
+      }>;
+    runOn?: Array<{
+        key: "sandbox" | "space";
+        label: string;
+        needs?: string;
+      }>;
+    diff?: {
+      from: string;
+      to: string;
+      added: Array<string>;
+      removed: Array<string>;
+      changed: Array<{
+          path: string;
+          plus: Array<string>;
+          minus: Array<string>;
+        }>;
+    };
+  };
+};
+```
+
+## Errors
+
+- internal.unexpected
+- permission.above_clearance
+- permission.no_grant
+- provider.unavailable
+- validation.bad_input
+- validation.not_found
+- validation.precondition_failed
+
+## Example
+
+```json
+{
+  "name": "example",
+  "input": {
+    "installId": "ins_a1b2c3"
+  },
+  "output": {
+    "changed": true,
+    "plan": {
+      "commit": "example",
+      "diff": {
+        "added": [
+          "example"
+        ],
+        "changed": [
+          {
+            "minus": [
+              "example"
+            ],
+            "path": "example",
+            "plus": [
+              "example"
+            ]
+          }
+        ],
+        "from": "example",
+        "removed": [
+          "example"
+        ],
+        "to": "example"
+      },
+      "flavor": "claude",
+      "kind": "skill",
+      "name": "example",
+      "needs": {
+        "domains": [
+          "example"
+        ],
+        "files": [
+          "example"
+        ],
+        "vaultKeys": [
+          "example"
+        ]
+      },
+      "path": "example",
+      "planId": "ins_a1b2c3",
+      "problems": [
+        "example"
+      ],
+      "repo": "example",
+      "runOn": [
+        {
+          "key": "sandbox",
+          "label": "example",
+          "needs": "example"
+        }
+      ],
+      "runs": {
+        "args": [
+          "example"
+        ],
+        "command": "example"
+      },
+      "skills": [
+        "example"
+      ],
+      "state": "example",
+      "summary": "example",
+      "url": "example",
+      "who": [
+        {
+          "adminOnly": true,
+          "allowed": true,
+          "key": "me",
+          "label": "example"
+        }
+      ]
+    }
+  }
+}
+```

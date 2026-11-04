@@ -11,10 +11,20 @@ import {
 } from "./plugins.ts";
 import { connectionAddMine, connectionChecked, connectionForget, connectionUpdate, connectionsHome, policyGet, policySet as connectionsPolicySet, registrySearch } from "./connections.ts";
 import { enqueue, next, seen, usable } from "./outside.ts";
+import { apply, checkUpdate, fromLink, installList, skillsGrant, skillsGrants, skillsHistory, skillsSave, skillsUndo } from "./install.ts";
 import { skillsAdd, skillsList, skillsLoad, skillsRemove, skillsSetEnabled } from "./skills.ts";
 import { mineAdd, mineRemove, mineSet, mineUpdate, policySet, share, sharedDecide, skillsMembers, skillsPage, skillsPreview, skillsView, spaceAdopt, spaceInstall, spaceSetup, spaceUpdate } from "./skill-scopes.ts";
 
 export const handlers = {
+  "install.apply": apply,
+  "install.check_update": checkUpdate,
+  "install.from_link": fromLink,
+  "install.list": installList,
+  "skills.grant": skillsGrant,
+  "skills.grants": skillsGrants,
+  "skills.history": skillsHistory,
+  "skills.save": skillsSave,
+  "skills.undo": skillsUndo,
   "agents.outside.connect": connectOutside,
   "agents.outside.enqueue": enqueue,
   "agents.outside.seen": seen,

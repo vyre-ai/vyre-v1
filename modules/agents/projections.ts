@@ -1,4 +1,5 @@
 // @reads /modules/agents/migrations/0001_agents.sql
+// @reads /modules/agents/migrations/0012_install.sql
 // Rows of the agents module (the agent, its routines, suggestions, snapshots and the template state), the agent.toml reader and writer, the checks a configuration must pass, the ports to Files
 // (every file of an agent is a file in Agents/<name>), and the small pure helpers the handlers share (status, cron, unified diffs).
 // Every statement names an agents_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
@@ -53,7 +54,7 @@ export const askerOf = (ctx: Pick<AgentsCtx, "principal" | "actingFor">): string
 
 // ---- schema -----------------------------------------------------------------------------------------------------------------------------------------
 
-const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql", "0008_skill_scopes.sql", "0009_connections_home.sql", "0010_routine_by.sql", "0011_chat_owned.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql", "0008_skill_scopes.sql", "0009_connections_home.sql", "0010_routine_by.sql", "0011_chat_owned.sql", "0012_install.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
@@ -61,7 +62,7 @@ const ready = new WeakSet<object>();
 /** Make sure the agents tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT kind, runtime FROM agents_agent WHERE id = ?", "probe"); db.all("SELECT id FROM agents_outside_jobs WHERE id = ?", "probe"); db.all("SELECT owner, used_by_json FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_catalog WHERE id = ?", "probe"); db.all("SELECT id FROM agents_skill_receipts WHERE id = ?", "probe"); db.all("SELECT routineId FROM agents_routine_by WHERE routineId = ?", "probe"); db.all("SELECT routineId FROM agents_routine_last WHERE routineId = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT key FROM agents_meta WHERE key = ?", "probe"); db.all("SELECT routineId FROM agents_routine_watch WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_skills WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT kind, runtime FROM agents_agent WHERE id = ?", "probe"); db.all("SELECT id FROM agents_outside_jobs WHERE id = ?", "probe"); db.all("SELECT owner, used_by_json FROM agents_mcp_connections WHERE id = ?", "probe"); db.all("SELECT id FROM agents_mcp_catalog WHERE id = ?", "probe"); db.all("SELECT id FROM agents_skill_receipts WHERE id = ?", "probe"); db.all("SELECT routineId FROM agents_routine_by WHERE routineId = ?", "probe"); db.all("SELECT routineId FROM agents_routine_last WHERE routineId = ?", "probe"); db.all("SELECT id FROM agents_install WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 
