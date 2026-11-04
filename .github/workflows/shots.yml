@@ -93,7 +93,7 @@ jobs:
           sudo -n sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           bwrap --version
           sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
-          if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
+          if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib --symlink usr/lib64 /lib64 --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
       - name: Real app end to end against the production export (apps/app/tests/real-app.e2e.test.ts)
         run: |
           set -o pipefail
@@ -155,7 +155,7 @@ jobs:
           sudo -n sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           bwrap --version
           sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
-          if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
+          if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib --symlink usr/lib64 /lib64 --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
       - name: Browser walks against the production export, none skipped
         env:
           WALKS: ${{ inputs.walks }}
