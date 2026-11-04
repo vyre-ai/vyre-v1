@@ -60,6 +60,8 @@ const hex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(
 
 export function createToolSession(deps: CallDeps): ToolSession {
   const loadedBy = new Map<string, Set<string>>();
+  /** The searches each turn has made, so the same one is not run twice. */
+  const searchedIn = new Map<string, Set<string>>();
   const newTrace = deps.traceId ?? ((): string => hex(16));
   const loadedSet = (threadId: string): Set<string> => {
     let s = loadedBy.get(threadId);
@@ -113,6 +115,16 @@ export function createToolSession(deps: CallDeps): ToolSession {
     if (t.name === "tool_search") {
       const query = (input as { query?: unknown } | null)?.query;
       if (typeof query !== "string" || query.trim() === "") return fail("validation.bad_input", traceId, { details: { errors: ["/query: required"], tool: t.name } });
+      // The same search twice in one turn finds the same tools: the second time says so instead of searching again (a model went round this loop nineteen times).
+      if (ctx.turnId) {
+        const key = query.trim().toLowerCase().replace(/\s+/g, " ");
+        let asked = searchedIn.get(ctx.turnId);
+        if (!asked) { asked = new Set(); searchedIn.set(ctx.turnId, asked); if (searchedIn.size > 200) searchedIn.delete(searchedIn.keys().next().value as string); }
+        if (asked.has(key)) {
+          return { kind: "result", traceId, result: { ok: true, content: { data: { tools: [], hint: "You already searched for that in this turn. What it found can be called now; call one of those tools, or change the words. If nothing fits, answer with what you have and say what is missing." } } } };
+        }
+        asked.add(key);
+      }
       const found = api.search(ctx, query);
       return {
         kind: "result", traceId,

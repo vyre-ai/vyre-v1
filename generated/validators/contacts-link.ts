@@ -73,13 +73,13 @@ if ("at" in o333) lf(o333["at"], p + "/at", e, L15);
 
 function d_s_689b8918ea(v: unknown, p: string, e: string[]): void {
 {
-const x510 = v;
-const g510 = typeOf(x510);
-const b510: string[] = []; lf(x510, p, b510, L0); if (b510.length) e.push(...b510);
-if (g510 === "object") {
-if (g510 === 'object') { const o510 = x510 as Record<string, unknown>;
-if (!("address" in o510)) e.push(p + "/address" + ': required');
-if ("address" in o510) d_s_ab2b680688(o510["address"], p + "/address", e);
+const x492 = v;
+const g492 = typeOf(x492);
+const b492: string[] = []; lf(x492, p, b492, L0); if (b492.length) e.push(...b492);
+if (g492 === "object") {
+if (g492 === 'object') { const o492 = x492 as Record<string, unknown>;
+if (!("address" in o492)) e.push(p + "/address" + ': required');
+if ("address" in o492) d_s_ab2b680688(o492["address"], p + "/address", e);
 }
 }
 }

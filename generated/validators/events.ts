@@ -50,13 +50,13 @@ if ("durationMs" in o141) lf(o141["durationMs"], p + "/durationMs", e, L2);
 
 function d_s_6b21f82790(v: unknown, p: string, e: string[]): void {
 {
-const x518 = v;
-const g518 = typeOf(x518);
-const b518: string[] = []; lf(x518, p, b518, L0); if (b518.length) e.push(...b518);
-if (g518 === "object") {
-if (g518 === 'object') { const o518 = x518 as Record<string, unknown>;
-if (!("webhook" in o518)) e.push(p + "/webhook" + ': required');
-if ("webhook" in o518) d_s_85f04c7d4f(o518["webhook"], p + "/webhook", e);
+const x500 = v;
+const g500 = typeOf(x500);
+const b500: string[] = []; lf(x500, p, b500, L0); if (b500.length) e.push(...b500);
+if (g500 === "object") {
+if (g500 === 'object') { const o500 = x500 as Record<string, unknown>;
+if (!("webhook" in o500)) e.push(p + "/webhook" + ': required');
+if ("webhook" in o500) d_s_85f04c7d4f(o500["webhook"], p + "/webhook", e);
 }
 }
 }
