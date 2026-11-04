@@ -63176,7 +63176,7 @@
                 },
                 "label": {
                   "examples": [
-                    "Approve"
+                    "Allow"
                   ],
                   "type": "string"
                 },
