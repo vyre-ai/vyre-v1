@@ -21,7 +21,7 @@ export const NO_MODEL_WORDS = "None of your AI accounts can answer right now.";
 
 /** The quiet line for a swap. */
 export function modelSwapLine(from: string, to: string): string {
-  return `${from} isn't available right now, so ${to} answered. It's off your list until it works again.`;
+  return `${from} isn't available on this account, so this reply used ${to}.`;
 }
 
 export interface ModelSwitchDeps {

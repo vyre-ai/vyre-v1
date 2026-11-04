@@ -49,7 +49,7 @@ test("a refused model: the turn runs on the next one with one quiet line, the mo
     assert.doesNotMatch(String(got.reply), /beam-free/);
     assert.deepEqual(got.errors, [], "no error card");
     assert.equal(got.notes.length, 1);
-    assert.match(String(got.notes[0]), /^Beam Free isn't available right now, so .+ answered\. It's off your list until it works again\.$/);
+    assert.match(String(got.notes[0]), /^Beam Free isn't available on this account, so this reply used .+\.$/);
     assert.doesNotMatch(String(got.notes[0]), /--model|—|engine\./);
 
     // the refused model is off her list, and a new chat starts on the model that answered

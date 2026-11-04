@@ -3,10 +3,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { candidates, createModelSwitch, modelSwapLine, NO_MODEL_WORKS } from "../model-switch.ts";
-import { REST_MS, clearUnavailable, confirmedFor, forgetAll, forgetProvider, markConfirmed, noteAccount, markUnavailable, resetProbes, unavailableFor } from "../model-health.ts";
+import { REST_MS, clearUnavailable, confirmedFor, forgetAll, forgetProvider, markConfirmed, noteAccount, markUnavailable, probing, resetProbes, unavailableFor } from "../model-health.ts";
 import { bindCompleter } from "../runtime.ts";
 import { recallPick, recentPicks, rememberPick } from "../last-pick.ts";
-import { modelsList } from "../handlers/extra/models.ts";
+import { modelsList, probePick } from "../handlers/extra/models.ts";
 import { bindModelLister, resetLiveModels } from "../live-models.ts";
 import { harness } from "../fixtures/harness.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -71,8 +71,8 @@ test("a refused model: the next one answers, one quiet line, the model is off th
   assert.equal(got?.ref, "#B");
   assert.equal(s.model(), "glm-5.3", "the same provider is tried first");
   assert.equal(s.posts.length, 1);
-  assert.equal(s.posts[0]!.blocks[0]!.data.text, "Beam Free isn't available right now, so GLM 5.3 answered. It's off your list until it works again.");
-  assert.equal(modelSwapLine("A", "B"), "A isn't available right now, so B answered. It's off your list until it works again.");
+  assert.equal(s.posts[0]!.blocks[0]!.data.text, "Beam Free isn't available on this account, so this reply used GLM 5.3.");
+  assert.equal(modelSwapLine("A", "B"), "A isn't available on this account, so this reply used B.");
   assert.doesNotMatch(s.posts[0]!.blocks[0]!.data.text, /—|--|beam-free|glm-5\.3/);
   assert.deepEqual([...unavailableFor(s.h.ctx.db, "#A", 5_000)], ["beam-free"]);
   assert.equal(recallPick(s.h.ctx.db, "dana", "intake")?.model, "glm-5.3");
@@ -82,7 +82,7 @@ test("a model no account can pay for is passed over; with none left the turn end
   const some = setup((m) => m === "claude-sonnet-5-5");
   assert.ok(await some.sw(q));
   assert.equal(some.model(), "claude-sonnet-5-5");
-  assert.match(some.posts[0]!.blocks[0]!.data.text, /Claude Sonnet 5.5 answered/);
+  assert.match(some.posts[0]!.blocks[0]!.data.text, /this reply used Claude Sonnet 5.5\.$/);
   const none = setup(() => false);
   await assert.rejects(() => none.sw(q), (e: { code?: string; message: string }) => e.code === NO_MODEL_WORKS && e.message === "None of your AI accounts can answer right now.");
   assert.equal(none.posts.length, 0);
@@ -193,4 +193,38 @@ test("a CLI account's listed models are checked one at a time with the CLI's own
     assert.equal(peak, 1, "one at a time per CLI");
     assert.deepEqual(asked.sort(), ["beam-free", "gpt-6.1-sol", "gpt-7-nova"]);
   } finally { bindCompleter(null); bindModelLister(null); resetProbes(); resetLiveModels(); }
+});
+
+test("a model that was never checked (past the cap, or still checking) and refused on its first turn: the next model answers, one quiet line, hidden for that account only", async () => {
+  const s = setup(() => true);
+  assert.equal(confirmedFor(s.h.ctx.db, "#A", 5_000).has("beam-free"), false, "never probed");
+  assert.ok(await s.sw(q));
+  assert.equal(s.posts.length, 1);
+  assert.equal(s.posts[0]!.blocks[0]!.data.text, "Beam Free isn't available on this account, so this reply used GLM 5.3.");
+  assert.deepEqual([...unavailableFor(s.h.ctx.db, "#A", 5_000)], ["beam-free"]);
+  assert.deepEqual([...unavailableFor(s.h.ctx.db, "#Other", 5_000)], [], "another account that serves it keeps it");
+});
+
+test("a picked model is checked at once, past the cap, and a refusal hides it", async () => {
+  resetLiveModels(); resetProbes();
+  const many = Array.from({ length: 30 }, (_, i) => `m-${String(i).padStart(2, "0")}`);
+  bindCompleter(async () => ({ text: "ok", tokensIn: 1, tokensOut: 1 }));
+  try {
+    const h = harness();
+    const asked: string[] = [];
+    const ctx: EngineCtx = { ...h.ctx, call: async (cap: string, input: unknown) => {
+      if (cap === "providers.list") return { providers: [OPENCODE] };
+      if (cap === "providers.test") return { ok: true, models: many };
+      if (cap === "engine.complete") { const m = (input as { model: string }).model; asked.push(m); if (m === "m-29") throw new Error("model_not_found"); return { text: "ok" }; }
+      return h.ctx.call(cap, input);
+    } };
+    await modelsList(ctx, { refresh: true });   // saves the tested list; checks the first 12
+    await Promise.all(probing(["#Dana_Opencode"]));
+    asked.length = 0;
+    assert.equal(confirmedFor(ctx.db, "#Dana_Opencode", ctx.now()).has("m-29"), false, "past the cap: not checked by the background run yet");
+    await probePick(ctx, "m-29");
+    await Promise.all(probing(["#Dana_Opencode"]));
+    assert.deepEqual(asked, ["m-29"], "the picked model, and nothing else");
+    assert.deepEqual([...unavailableFor(ctx.db, "#Dana_Opencode", ctx.now())], ["m-29"]);
+  } finally { bindCompleter(null); resetProbes(); }
 });

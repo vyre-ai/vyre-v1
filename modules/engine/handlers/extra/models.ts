@@ -221,3 +221,23 @@ export function providerState(driver: Driver, all: readonly ProviderRow[], polic
     ...(why === null ? {} : { reason: reasonText(why, label) }),
   };
 }
+
+/**
+ * A model was just picked: check it on every account that lists it, now, whether or not it is within the background check's cap. Reads only saved or shipped lists (no vendor call of its own), starts nothing
+ * when the model is already confirmed or known bad, and never throws.
+ */
+export async function probePick(ctx: EngineCtx, model: string): Promise<void> {
+  try {
+    if (completerOf() === null || model === "auto") return;
+    const all = await myProviders(ctx);
+    for (const p of all) {
+      if (p.state !== "ok" || p.spaceKey === true) continue;
+      const ref = p.handle ?? p.itemId;
+      const isCli = p.connection === "subscription" && LIVE_DRIVERS.has(driverOf(p));
+      const listed = isCli ? (await modelsFor(ctx.db, { ref, driver: driverOf(p) }, actorOf(ctx), { now: ctx.now, passive: true })).models.map((m) => m.id) : savedTested(ctx.db, ref);
+      if (!listed.includes(model)) continue;
+      if (confirmedFor(ctx.db, ref, ctx.now()).has(model) || unavailableFor(ctx.db, ref, ctx.now()).has(model)) continue;
+      probeModels(ctx.db, ref, [model], async (r, m) => { await ctx.call("engine.complete", { accountRef: r, prompt: PROBE_PROMPT, model: m }); }, ctx.now, isCli ? { parallel: CLI_PROBE_PARALLEL, timeoutMs: CLI_PROBE_TIMEOUT_MS } : {});
+    }
+  } catch (e) { ctx.log.warn("a picked model was not checked", { error: e instanceof Error ? e.message : "unknown" }); }
+}
