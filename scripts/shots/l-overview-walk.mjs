@@ -56,7 +56,7 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   await page.waitForTimeout(600);
   check(`${tag}: picking Milestones inserts a third live block`, (await page.locator(T("live-milestones")).count()) === 1);
   // a block's settings
-  await page.locator(T("live-edit")).first().click();
+  await page.locator(`${T("live-tasks")} ${T("live-edit")}`).first().click();
   await page.waitForSelector(T("live-settings"), { timeout: 5000 });
   await page.screenshot({ path: path.join(out, `overview-settings-${tag}.png`) });
   await page.click(T("live-spec-status-late"));
