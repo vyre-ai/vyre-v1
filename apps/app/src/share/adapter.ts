@@ -83,7 +83,7 @@ export const LEVELS: Readonly<Record<ShareKind, readonly LevelOption[]>> = {
   ],
   agent: [
     OPT("view", "Can chat with", "They can talk to the agent. It works with what they can see."),
-    OPT("use", "Can use in their work", "They can give it tasks, put it in their automations and projects."),
+    OPT("use", "Can use", "They can give it tasks, put it in their automations and projects."),
     OPT("edit", "Can edit", "They can change how it works."),
     OPT("manage", "Can manage", "They can also share it, pause it and delete it."),
   ],

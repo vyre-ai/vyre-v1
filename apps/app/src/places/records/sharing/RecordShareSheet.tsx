@@ -18,7 +18,7 @@ export interface ShareDirectory { people?: readonly { id: string; name: string }
 
 const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as ViewStyle["position"];
 
-export function RecordShareSheet({ target, directory, onClose }: { target: ShareTarget; directory: ShareDirectory; onClose(): void }): ReactElement {
+export function RecordShareSheet({ target, directory, spaceName, onClose }: { target: ShareTarget; directory: ShareDirectory; spaceName?: string; onClose(): void }): ReactElement {
   const data = useRecordsData();
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 720;
@@ -54,7 +54,7 @@ export function RecordShareSheet({ target, directory, onClose }: { target: Share
   return shell(
     <View style={s.stack}>
       <AccessSheet
-        mode="share" itemType={target.type === "record_type" ? "rtype" : "record"} resourceType={target.type} resourceId={target.id} itemName={target.name} target="item" ownerName={ownerName} {...(m.owner ? { ownerId: m.owner.id } : {})}
+        mode="share" itemType={target.type === "record_type" ? "rtype" : "record"} resourceType={target.type} resourceId={target.id} itemName={target.name} target="item" {...(spaceName ? { spaceName } : {})} ownerName={ownerName} {...(m.owner ? { ownerId: m.owner.id } : {})}
         levels={RECORD_LEVELS} shares={m.rows} allowExternal={false} density={phone ? "compact" : "regular"} directory={sheetDirectory({ people: directory.people ?? [], groups: directory.groups ?? [], roles: directory.roles ?? [], agents: directory.agents ?? [] })}
         {...(target.typeName ? { folderName: target.typeName } : {})} {...(out.mine ? { maxLevel: out.mine } : {})} records={records}
         onShare={(i: ShareInput) => run(data.call("access.share", shareCall(res, i.subject, i.level)))}

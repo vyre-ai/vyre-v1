@@ -45,7 +45,7 @@ export function FolderShareSheet({ rt, folderId, resource, onClose }: { rt: Shel
     <View style={s.stack}>
       <AccessSheet
         mode="share" itemType={itemType} resourceType={type as ShareResourceType} resourceId={folderId} itemName={name} {...(type === "folder" ? { itemLabel: "folder" } : {})} target={type === "folder" ? "folder" : "item"}
-        {...(type === "site" ? { subtitle: "Artifact. The people you add can open it in Vyre." } : {})} ownerName={m.owner?.name ?? "Space owner"} {...(m.owner ? { ownerId: m.owner.id } : {})}
+        {...(type === "site" ? { subtitle: "Artifact. The people you add can open it in Vyre." } : {})} spaceName={rt.space.name} ownerName={m.owner?.name ?? "Space owner"} {...(m.owner ? { ownerId: m.owner.id } : {})}
         levels={RECORD_LEVELS} shares={rows} allowExternal={false} density="regular" directory={sheetDirectory(directory)}
         {...(state.data.mine ? { maxLevel: state.data.mine } : {})}
         onShare={(i: ShareInput) => run(rt.call("access.share", { resource: { type, id: folderId }, subject: i.subject, level: i.level }))}

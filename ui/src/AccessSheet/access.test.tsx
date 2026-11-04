@@ -307,9 +307,8 @@ test("share a note: title, subtitle, who has access, and the level choices come 
   assert.match(html, /General access/);
   assert.match(html, /Owner/);
   assert.match(html, /aria-label="Level for Omar Reyes: Can edit"/);
-  assert.match(html, /Anyone in the Space/);
+  assert.match(html, /Everyone in the Space/, "General access");
   assert.match(html, /placeholder="Add people, groups or agents"/);
-  assert.match(html, /Groups and roles/);
   assert.match(html, /Pick who to share with\./);
 });
 
@@ -336,6 +335,7 @@ test("share, the Space row and an email: the Space is a group grant; a guest is 
     const shared: { subject: unknown }[] = [];
     const guests: unknown[] = [];
     const root = await mount(createRoot, <AccessSheet {...share({ itemType: "note", directory: sharePeople, onShare: (i) => shared.push(i), onInviteGuest: (g) => guests.push(g) })} />);
+    await typeInto(find(root, "as-search"), "space");
     await press(find(root, "as-row-space:space"));
     await typeInto(find(root, "as-search"), "joe@weinbergerlaw.com");
     assert.match(textOf(root), /Sees only this note/);
@@ -374,8 +374,8 @@ test("share an agent: four levels, no agents or outside agents as recipients, th
     const root = await mount(createRoot, <AccessSheet {...share({ itemType: "agent", itemName: "Ember", resourceType: "agent", resourceId: "agt_ember", directory: sharePeople, shares: [] })} />);
     await press(find(root, "as-row-person:usr_omar"));
     await press(find(root, "as-role-person:usr_omar"));
-    for (const l of ["Can chat with", "Can use in their work", "Can edit", "Can manage"]) assert.ok(find(root, `menu-item-${l}`), l);
-    await press(find(root, "menu-item-Can use in their work"));
+    for (const l of ["Can chat with", "Can use", "Can edit", "Can manage"]) assert.ok(find(root, `menu-item-${l}`), l);
+    await press(find(root, "menu-item-Can use"));
     assert.match(textOf(find(root, "as-line-lv-use")), /Omar Reyes can use Ember in their automations, tasks and crews, on their own account\./);
     assert.match(textOf(find(root, "as-line-pays")), /Whoever uses Ember pays with their own AI account\. Ember reaches for them only what they can reach themselves\./);
     await typeInto(find(root, "as-search"), "a@b.co");
@@ -481,7 +481,8 @@ test("share, phone: a bottom sheet and a short button", async () => {
   await onPhone(390, async () => {
     await withDom(async () => {
       const root = await mount(createRoot, <AccessSheet {...share({ density: "compact", itemType: "note", directory: sharePeople })} />);
-      for (const k of ["person:usr_sara", "group:grp_fin", "space:space"]) await press(find(root, `as-row-${k}`));
+      await press(find(root, "as-row-person:usr_sara"));
+      for (const [q, k] of [["fin", "group:grp_fin"], ["space", "space:space"]] as const) { await typeInto(find(root, "as-search"), q); await press(find(root, `as-row-${k}`)); }
       assert.match(textOf(find(root, "as-add")), /^\s*Share 3\s*$/);
       assert.equal(find(root, "as-sheet")?.props["data-sheet"], "phone");
     });
@@ -529,10 +530,11 @@ test("Dex: general access is one row at the top, and the folder words stay true"
 test("Dex: agents get one line, with On or Off", () => {
   const html = ssr(<AccessSheet {...dex()} />);
   assert.match(html, /Agents in this Space can call Dex/);
-  assert.match(html, /On/);
+  assert.match(html, /role="switch"[^>]*aria-checked="true"|aria-checked="true"[^>]*role="switch"/, "a switch, on");
+  assert.doesNotMatch(html, />On</, "no On or Off text button");
   const off = ssr(<AccessSheet {...dex({ shares: [] })} />);
   assert.match(off, /Agents in this Space can call Dex/);
-  assert.match(off, /Off/);
+  assert.match(off, /aria-checked="false"/);
   assert.match(off, /Nobody else yet/, "truly empty");
 });
 
@@ -567,11 +569,11 @@ test("Dex: the agents line follows the server's answer and flips through onAgent
   await withDom(async () => {
     const flips: boolean[] = [];
     const root = await mount(createRoot, <AccessSheet {...dex({ shares: [], agentsOn: false, onAgents: (on) => flips.push(on) })} />);
-    assert.match(textOf(root), /Off/);
+    assert.equal(find(root, "as-agents-toggle")?.props["aria-checked"], false);
     await press(find(root, "as-agents-toggle"));
     assert.deepEqual(flips, [true]);
   });
-  assert.match(ssr(<AccessSheet {...dex({ shares: [], agentsOn: true })} />), /On/);
+  assert.match(ssr(<AccessSheet {...dex({ shares: [], agentsOn: true })} />), /aria-checked="true"/);
 });
 
 test("a person gives no more than they have: a level above maxLevel is not in a row's menu", async () => {
@@ -601,4 +603,34 @@ test("an outside agent on Here now has an x that calls onRemoveHere; earlierMess
     await press(find(shown, "as-row-person:usr_sara"));
     assert.ok(find(shown, "as-earlier"), "on by default");
   });
+});
+
+test("only an agent has the agents line, and it wears the generic mark, never an agent's own face", async () => {
+  const note = ssr(<AccessSheet {...share({ itemType: "note", itemName: "Lab 8 run of show", resourceType: "file", resourceId: "n1", directory: sharePeople })} />);
+  assert.doesNotMatch(note, /Agents in this Space can call/);
+  assert.doesNotMatch(note, /Agents added below only/);
+  for (const itemType of ["file", "record", "rtype", "artifact", "project", "vault", "automation"] as const) assert.doesNotMatch(ssr(<AccessSheet {...share({ itemType, directory: sharePeople })} />), /can call/, itemType);
+  await withDom(async () => {
+    const root = await mount(createRoot, <AccessSheet {...dex()} />);
+    assert.ok(find(root, "as-agents"));
+    assert.equal(find(root, "as-acc-agents")?.props["data-agent-face"], undefined);
+  });
+});
+
+test("General access says the Space's name on every item", () => {
+  for (const itemType of ["note", "file", "agent", "vault", "automation"] as const) assert.match(ssr(<AccessSheet {...share({ itemType, spaceName: "Northwind", directory: sharePeople })} />), /Everyone in Northwind/, itemType);
+});
+
+test("a person has no \"Person\" line under their name, and the owner row neither", () => {
+  const html = ssr(<AccessSheet {...dex({ shares: [{ subjectKind: "person", subjectId: "usr_kai", name: "Kai Lund", level: "edit", via: "grant", fromFolderId: null }] })} />);
+  assert.match(html, /Kai Lund/);
+  assert.doesNotMatch(html, />Person</);
+});
+
+test("share mode shows one Suggested list of at most five, and no Add more", () => {
+  const people = Array.from({ length: 9 }, (_, n) => ({ id: `usr_${n}`, name: `Person ${n}`, kind: "person" as const }));
+  const html = ssr(<AccessSheet {...share({ itemType: "note", directory: { ...sharePeople, people, suggested: [] } })} />);
+  assert.match(html, /Suggested/);
+  assert.doesNotMatch(html, /Add more/);
+  assert.equal((html.match(/data-testid="as-row-person:usr_/g) ?? []).length, 5);
 });

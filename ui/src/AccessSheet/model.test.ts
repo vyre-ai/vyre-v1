@@ -84,7 +84,7 @@ test("each item type offers its own levels with its own words", () => {
   assert.deepEqual(names("project"), ["Can view", "Can edit", "Can manage"]);
   assert.deepEqual(names("rtype"), ["Can view records", "Can edit records", "Can manage the type"]);
   assert.deepEqual(names("vault"), ["Can use without seeing", "Can view", "Can edit"]);
-  assert.deepEqual(names("agent"), ["Can chat with", "Can use in their work", "Can edit", "Can manage"]);
+  assert.deepEqual(names("agent"), ["Can chat with", "Can use", "Can edit", "Can manage"]);
   assert.equal(levelName("agent", "view"), "Can chat with", "chat with is the view level");
   assert.equal(levelName("vault", "use"), "Can use without seeing");
   assert.equal(levelName("note", "owner"), "Owner");
@@ -294,15 +294,20 @@ test("Enter takes the top match: the first suggestion, else the first person, gr
   assert.equal(topMatch(sections({ directory: dir, query: "zzz", mode: "add", taken: none })), null);
 });
 
-test("share mode adds the Space and groups; sharing an agent offers people and groups only", () => {
+test("share mode: one short Suggested list of five at most; typing finds the Space, groups and agents; an agent is shared with people and groups only", () => {
   const s = sections({ directory: dir, query: "", mode: "share", itemType: "note", taken: none });
-  assert.equal(s.space?.name, "Anyone in the Space");
-  assert.deepEqual(s.groups.map((e) => e.name), ["Finance"]);
-  assert.equal(s.agents.length, 2);
+  assert.equal(s.space, null, "General access at the top is the Space; it is not offered twice");
+  assert.ok(s.suggested.length > 0 && s.suggested.length <= 5);
+  assert.deepEqual([s.people, s.groups, s.agents], [[], [], []], "one list, not four");
+  const many = { ...dir, people: Array.from({ length: 9 }, (_, n) => ({ id: `usr_${n}`, name: `Person ${n}`, kind: "person" as const })) };
+  assert.equal(sections({ directory: many, query: "", mode: "share", itemType: "note", taken: none }).suggested.length, 5, "capped at five");
+  assert.equal(sections({ directory: dir, query: "space", mode: "share", itemType: "note", taken: none }).space?.name, "Anyone in the Space");
+  assert.deepEqual(sections({ directory: dir, query: "fin", mode: "share", itemType: "note", taken: none }).groups.map((e) => e.name), ["Finance"]);
+  assert.ok(sections({ directory: dir, query: "mi", mode: "share", itemType: "note", taken: none }).agents.length > 0);
   const a = sections({ directory: dir, query: "", mode: "share", itemType: "agent", taken: none });
   assert.deepEqual(a.agents, []);
   assert.deepEqual(a.outside, []);
-  assert.deepEqual(a.suggested.map((e) => e.name), ["Sara Malik"], "the Assistant is not offered as a recipient");
+  assert.ok(!a.suggested.some((e) => e.kind === "agent"), "the Assistant is not offered as a recipient of an agent");
 });
 
 test("rows that already hold access are taken, including the Space row", () => {

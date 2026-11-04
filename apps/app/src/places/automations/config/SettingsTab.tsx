@@ -230,7 +230,7 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
       {share && shares.phase === "ready" ? (
         <Overlay label="Share" onClose={() => setShare(false)} testID="share-overlay">
           <AccessSheet
-            mode="share" itemType="automation" resourceType="automation" resourceId={a.id} itemName={a.name} target="item" ownerName={data.name(a.ownerId)} ownerId={a.ownerId} levels={["view", "edit", "manage"]}
+            mode="share" itemType="automation" resourceType="automation" resourceId={a.id} itemName={a.name} target="item" ownerName={data.name(a.ownerId)} ownerId={a.ownerId} {...(data.spaceName ? { spaceName: data.spaceName } : {})} levels={["view", "edit", "manage"]}
             shares={shareRows(shares.out, data.name, a.id)} allowExternal={false} density="regular"
             directory={sheetDirectory(extras.directory)}
             onShare={(i: ShareInput) => { void saved.run("Access changed", async () => { await data.call("access.share", i); shares.reload(); }); }}

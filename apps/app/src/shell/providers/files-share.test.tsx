@@ -16,7 +16,7 @@ function rig(out: unknown) {
   const q = { subscribe: () => () => undefined, getSnapshot: () => state };
   const people = { status: "ready", data: Object.entries(names).map(([id, name]) => ({ id, name, kind: "person" })) };
   const rt = {
-    me: { id: "usr_ada", name: "Ada" },
+    me: { id: "usr_ada", name: "Ada" }, space: { id: "spc", kind: "team", name: "Northwind" },
     call: async (cap: string, input: unknown) => { calls.push({ cap, input }); return cap === "files.list" ? { folders: [{ folderId: "fld_clients", name: "Clients" }] } : {}; },
     screens: { capQuery: () => q },
     principals: { subscribe: () => () => undefined, getSnapshot: () => people },
@@ -40,7 +40,7 @@ test("a folder: the Access sheet lists the owner once, Bea on the folder, Cal fr
   try {
     const s = await open(shares("manage"));
     const text = textOf(s.tree);
-    for (const word of ["Clients", "General access", "People", "Ada", "Owner", "Bea", "Cal", "Can edit", "Can view"]) assert.ok(text.includes(word), word);
+    for (const word of ["Clients", "General access", "Everyone in Northwind", "People", "Ada", "Owner", "Bea", "Cal", "Can edit", "Can view"]) assert.ok(text.includes(word), word);
     assert.ok(!text.includes("Not in a folder") && !text.includes("never lowered"), text);
   } finally { restore(); }
 });

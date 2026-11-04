@@ -88,7 +88,7 @@ export const ITEM_DEFS: Readonly<Record<ShareItemType, ItemDef>> = {
   },
   agent: {
     label: "agent",
-    levels: [{ id: "view", label: "Can chat with" }, { id: "use", label: "Can use in their work" }, { id: "edit", label: "Can edit" }, { id: "manage", label: "Can manage" }],
+    levels: [{ id: "view", label: "Can chat with" }, { id: "use", label: "Can use" }, { id: "edit", label: "Can edit" }, { id: "manage", label: "Can manage" }],
     def: "view",
     tail: "",
   },
@@ -399,16 +399,21 @@ export function sections(i: SectionsInput): Sections {
   const fits = (e: AccessEntry): boolean => !i.taken.has(ek(e)) && (q === "" || e.name.toLowerCase().includes(q));
   // sharing an agent goes to people and groups only
   const allowed = (e: AccessEntry): boolean => !(agentShare && (e.kind === "agent" || e.kind === "outside"));
-  const suggested = q === "" ? (d.suggested ?? []).filter((e) => fits(e) && allowed(e)) : [];
+  const first = q === "" ? (d.suggested ?? []).filter((e) => fits(e) && allowed(e)) : [];
+  // Share mode with nothing typed: one short Suggested list (five rows at most) of people, then groups and agents; typing searches everything
+  const pool = i.mode === "share" && q === "" ? [...first, ...(d.people ?? []), ...(d.groups ?? []), ...(i.itemType === "agent" ? [] : d.agents ?? [])].filter((e) => fits(e) && allowed(e)) : first;
+  const dedup = [...new Map(pool.map((e) => [ek(e), e] as const)).values()];
+  const suggested = i.mode === "share" && q === "" ? dedup.slice(0, 5) : first;
   const seen = new Set(suggested.map(ek));
   const rest = (list: readonly AccessEntry[] | undefined): AccessEntry[] => (list ?? []).filter((e) => fits(e) && allowed(e) && !seen.has(ek(e)));
   const invite = q !== "" && isEmail(i.query) && !i.taken.has(guestKey(i.query)) ? i.query.trim() : null;
   return {
     suggested,
-    people: rest(d.people),
-    groups: i.mode === "share" ? rest(d.groups) : [],
-    space: i.mode === "share" && d.space !== undefined && fits(d.space) && allowed(d.space) ? d.space : null,
-    agents: agentShare ? [] : rest(d.agents),
+    people: i.mode === "share" && q === "" ? [] : rest(d.people),
+    groups: i.mode === "share" ? (q === "" ? [] : rest(d.groups)) : [],
+    // the General access row at the top is the Space; it is found by typing, not listed a second time
+    space: i.mode === "share" && q !== "" && d.space !== undefined && fits(d.space) && allowed(d.space) ? d.space : null,
+    agents: agentShare || (i.mode === "share" && q === "") ? [] : rest(d.agents),
     outside: agentShare ? [] : rest(d.outside),
     invite,
   };
@@ -690,7 +695,8 @@ export function rowSub(row: { subjectKind: ShareSubjectKind; via: string }, fold
   // never "Not in a folder" above "From the folder": with no folder named, what is inherited comes from the Space
   if (row.via === "folder") return folderName ? `From the folder ${folderName}` : "From the Space";
   if (row.via === "space") return "From the Space";
-  return ({ person: "Person", group: "Group", role: "Role", agent: "Agent", link: "Link" } as Record<ShareSubjectKind, string>)[row.subjectKind];
+  // a person has no label under their name (their title or email, when the host has one); a group, role or agent says what it is
+  return ({ person: "", group: "Group", role: "Role", agent: "Agent", link: "Link" } as Record<ShareSubjectKind, string>)[row.subjectKind];
 }
 
 export function accessSubtitle(type: ShareItemType, count: number, label?: string): string {
@@ -803,7 +809,7 @@ export function accessCount(i: AccessViewInput): number {
 
 /** The one-line description of a level, for the picker's menu. */
 export function levelHint(type: ShareItemType, level: ShareLevel): string {
-  if (type === "agent") return ({ view: "Chat with it. It works with what they can see.", use: "Give it tasks and put it in their own work.", edit: "Change how it works.", manage: "Share it, pause it and delete it." } as Record<ShareLevel, string>)[level];
+  if (type === "agent") return ({ view: "Chat with it. It works with what they can see.", use: "Give it tasks and use it in their own work.", edit: "Change how it works.", manage: "Share it, pause it and delete it." } as Record<ShareLevel, string>)[level];
   if (type === "vault") return ({ use: "Agents and automations use it. The value stays hidden.", view: "See the value and use it.", edit: "See, use and change it.", manage: "Also share it." } as Record<ShareLevel, string>)[level];
   if (type === "automation") return ({ view: "See it, its runs and its history.", use: "Run it.", edit: "Change it and pause it.", manage: "Also share it and delete it." } as Record<ShareLevel, string>)[level];
   return ({ view: "Open it and read it.", use: "Open it and use it.", edit: "Change it.", manage: "Also share it, move it and delete it." } as Record<ShareLevel, string>)[level];

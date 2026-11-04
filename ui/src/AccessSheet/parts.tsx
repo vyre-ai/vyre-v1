@@ -50,6 +50,7 @@ export function each<T>(list: readonly T[], make: (item: T, index: number) => Re
 /* ---------- icons ---------- */
 
 const PATHS: Readonly<Record<string, string>> = {
+  bot: '<rect x="3" y="5.5" width="10" height="7.5" rx="2"/><path d="M8 2.2v3.3M6 9v.6M10 9v.6"/><circle cx="8" cy="2" r=".7"/>',
   gear: '<circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.7M8 12.5v1.7M1.8 8h1.7M12.5 8h1.7M3.6 3.6l1.2 1.2M11.2 11.2l1.2 1.2M3.6 12.4l1.2-1.2M11.2 4.8l1.2-1.2"/>',
   mail: '<rect x="2" y="3.5" width="12" height="9" rx="2"/><path d="M2.8 5l5.2 4 5.2-4"/>',
   back: '<path d="M10 3.5L5.5 8l4.5 4.5"/>',
@@ -63,7 +64,7 @@ const PATHS: Readonly<Record<string, string>> = {
   search: '<circle cx="7" cy="7" r="4"/><path d="M10 10l3.5 3.5"/>',
   chev: '<path d="M4 6l4 4 4-4"/>',
 };
-const GLYPH: Readonly<Record<string, string>> = { gear: "⚙", mail: "@", back: "‹", point: "⚡", people: "☖", lock: "•", term: ">_", plus: "+", x: "×", check: "✓", search: "⌕", chev: "▾" };
+const GLYPH: Readonly<Record<string, string>> = { bot: "◍", gear: "⚙", mail: "@", back: "‹", point: "⚡", people: "☖", lock: "•", term: ">_", plus: "+", x: "×", check: "✓", search: "⌕", chev: "▾" };
 
 export function Icon({ name, size = 14, color = t("ink-3") }: { name: string; size?: number; color?: string }): ReactElement {
   if (!web) return <Text style={{ color, fontSize: size, lineHeight: size + 2 }}>{GLYPH[name] ?? ""}</Text>;
@@ -85,6 +86,21 @@ export function Face({ kind, id, name, assistant, size = 28 }: { kind: PickKind;
   if (kind === "guest") return <Tile size={size}><Icon name="mail" size={Math.round(size * 0.55)} color={t("ink-2")} /></Tile>;
   if (kind === "new") return <Tile size={size}><Text style={{ color: t("ink-2"), fontSize: Math.round(size * 0.46), fontWeight: "600" }}>{(name.trim()[0] ?? "?").toUpperCase()}</Text></Tile>;
   return <Avatar name={name} seedId={id} kind="group" size={size} />;
+}
+
+/** The generic agents mark: for a line about agents as a whole, never one agent's own face. */
+export function AgentsMark({ size = 28 }: { size?: number }): ReactElement {
+  return <Tile size={size}><Icon name="bot" size={Math.round(size * 0.55)} color={t("ink-2")} /></Tile>;
+}
+
+/** A switch with no words beside it: the row says what it does. */
+export function Toggle({ on, label, onChange, disabled, testID }: { on: boolean; label: string; onChange?(next: boolean): void; disabled?: boolean; testID?: string }): ReactElement {
+  const off = disabled === true || onChange === undefined;
+  return (
+    <Pressable accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: on, disabled: off }} aria-checked={on} disabled={off} testID={testID} onPress={() => onChange?.(!on)} style={[st.track, on && st.trackOn, off && st.off, { marginRight: 8 }]}>
+      <View style={[st.knob, on && st.knobOn]} />
+    </Pressable>
+  );
 }
 
 /* ---------- controls ---------- */
@@ -451,17 +467,17 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
         </View>
       )}
       <View style={st.listHead}><Text style={st.listHeadText}>People</Text><Text style={st.listHeadText} testID="as-count">{v.count}</Text></View>
-      <SlotRow id="as-acc-owner" title={p.ownerName} note="Person" leadWidth={36} lead={<Face kind="person" id={p.ownerId ?? p.ownerName} name={p.ownerName} size={28} />} trail={<Text style={st.ownerText}>Owner</Text>} />
+      <SlotRow id="as-acc-owner" title={p.ownerName} leadWidth={36} lead={<Face kind="person" id={p.ownerId ?? p.ownerName} name={p.ownerName} size={28} />} trail={<Text style={st.ownerText}>Owner</Text>} />
       {rec && rec.audience === "space" && rec.follows === undefined ? <SlotRow id="as-acc-space-rec" title="Everyone in the Space" note="As their role allows" leadWidth={36} lead={<Face kind="group" id="space" name="Everyone" size={28} />} trail={<Text style={st.ownerText}>Their role</Text>} /> : null}
       {rec && rec.audience === "added" ? <SlotRow id="as-acc-admins" title="Admins" note="Always" leadWidth={36} lead={<Face kind="group" id="admins" name="Admins" size={28} />} trail={<Text style={st.ownerText}>{lname("manage")}</Text>} /> : null}
       {v.people.map((r) => rowNode(r))}
       {v.empty && !rec ? <Text style={st.empty} testID="as-nobody">Nobody else yet.</Text> : null}
-      {rec ? null : (
+      {rec || type !== "agent" ? null : (
         <View testID="as-agents">
           <Text style={st.sect}>Agents</Text>
           <SlotRow
-            id="as-acc-agents" title={`Agents in this Space can call ${p.itemName}`} note={v.agents.on ? "Other agents can hand work to it" : "No other agent can hand work to it"} leadWidth={36} lead={<Face kind="agent" id="agents" name="Agents" size={28} />}
-            trail={p.onAgents ? <View style={st.trail}><Pill label={v.agents.on ? "On" : "Off"} testID="as-agents-toggle" onPress={() => p.onAgents?.(!v.agents.on)} /></View> : <Text style={st.ownerText} testID="as-agents-state">{v.agents.on ? "On" : "Off"}</Text>}
+            id="as-acc-agents" title={`Agents in this Space can call ${p.itemName}`} note={v.agents.on ? "Other agents can hand work to it" : "No other agent can hand work to it"} leadWidth={36} lead={<AgentsMark />}
+            trail={<Toggle on={v.agents.on} label={`Agents in this Space can call ${p.itemName}`} testID="as-agents-toggle" {...(p.onAgents ? { onChange: p.onAgents } : {})} />}
           />
           {v.agents.specific.map((r) => rowNode(r))}
         </View>

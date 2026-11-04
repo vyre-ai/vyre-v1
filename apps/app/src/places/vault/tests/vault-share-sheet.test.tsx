@@ -29,7 +29,7 @@ test("the sheet lists the owner once and who holds the item, with the Vault's ow
   try {
     const s = await open("manage");
     const text = textOf(s.tree);
-    for (const word of ["GoHighLevel", "Owner", "General access", "Maya", "Omar", "Can edit", "Can view", "Can use without seeing"]) assert.ok(text.includes(word), word);
+    for (const word of ["GoHighLevel", "Owner", "General access", "Maya", "Omar", "Can edit", "Can view"]) assert.ok(text.includes(word), word);
     assert.ok(!text.includes("never lowered"), "no legend");
   } finally { restore(); }
 });

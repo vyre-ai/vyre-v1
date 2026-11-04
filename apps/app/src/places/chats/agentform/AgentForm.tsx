@@ -37,7 +37,7 @@ export interface AgentFormProps {
   /** Opens Vault > AI accounts, where an admin keeps accounts for this work. */
   openVault?(): void;
   /** Absent in a Personal Space, where nobody else can use it. */
-  sharing?: { directory: ConfigDirectory; meName: string; meId: string; nameOf(id: string): string };
+  sharing?: { directory: ConfigDirectory; meName: string; meId: string; nameOf(id: string): string; spaceName?: string };
 }
 
 const EMPTY: AgentDraft = { name: "", does: "", face: "", instructions: "", model: "", fallbackModel: "", computer: "none", workKey: "" };
@@ -244,7 +244,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
       {sharing && sharingOpen && agentId !== null && shares ? (
         <Overlay label="Who can use it" onClose={() => setSharingOpen(false)} testID="agent-share-overlay">
           <AccessSheet
-            mode="share" itemType="agent" resourceType="agent" resourceId={agentId} itemName={d.name} target="item" ownerName={sharing.meName} ownerId={sharing.meId} levels={["view", "use", "edit", "manage"]}
+            mode="share" itemType="agent" resourceType="agent" resourceId={agentId} itemName={d.name} target="item" ownerName={sharing.meName} ownerId={sharing.meId} {...(sharing.spaceName ? { spaceName: sharing.spaceName } : {})} levels={["view", "use", "edit", "manage"]}
             shares={shareRows(shares, sharing.nameOf, agentId)} allowExternal={false} density="compact" newKey={newKey}
             {...(shares.agentsCanCall === undefined ? {} : { agentsOn: shares.agentsCanCall })}
             onAgents={(on) => { void Promise.resolve(call("access.agents_can_call.set", { agentId, on, idempotencyKey: newKey() })).then(loadShares, () => say("Could not change who can call this agent.")); }}

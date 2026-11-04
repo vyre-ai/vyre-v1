@@ -26,7 +26,7 @@ const SIMPLE: Array<[Exclude<ShareKind, "note">, string[]]> = [
   ["vault_folder", ["Can use without seeing", "Can view", "Can edit"]],
   ["record_type", ["Can view records", "Can edit records", "Can manage the type"]],
   ["record", ["Can view", "Can edit", "Can manage"]],
-  ["agent", ["Can chat with", "Can use in their work", "Can edit", "Can manage"]],
+  ["agent", ["Can chat with", "Can use", "Can edit", "Can manage"]],
   ["file", ["Can view", "Can edit", "Can manage"]],
   ["folder", ["Can view", "Can edit", "Can manage"]],
   ["artifact", ["Can view", "Can edit", "Can manage"]],
