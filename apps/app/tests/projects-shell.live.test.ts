@@ -119,7 +119,7 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
       await ok("the project page");
       // the Chat tab is the project channel's own thread for everyone on the project, never a fresh draft chat (the new-chat home) and never a silent blank
       assert.equal(await p.getByTestId("project-chat-main").getByText("What are we working on?").count(), 0, `${who}: the project chat opened the new-chat home instead of the project's channel (${await p.getByTestId("project-chat-main").innerText().then((t) => t.slice(0, 200))})`);
-      assert.equal(await p.getByTestId("project-chat-unavailable").count(), 0, `${who}: the project chat is not available`);
+      assert.equal(await p.getByTestId("project-chat-unavailable").count(), 0, `${who}: the project chat is not available: ${await p.getByTestId("project-chat-unavailable").innerText().catch(() => "")}`);
       await both(p, `projects-2-project-${who}-${size}`);
       // the regression: pressing Plan opens the Plan
       await p.getByTestId("tab-plan").click();
