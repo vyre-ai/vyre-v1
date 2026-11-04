@@ -91,10 +91,10 @@ export function HeldSendCard({ id, data, agentId, agentName, actions }: { id: st
 
 export function ChromeStepCard({ id, data, agentId, agentName, actions }: { id: string; data: unknown; agentId: string; agentName?: string | undefined; actions?: ChromeCardActions | undefined }): ReactElement | null {
   const found = stepCardOf(data);
+  const [showSaw, setShowSaw] = useState(found?.open ?? false);   // above the early return: hooks run on every render
   if (!found) return null;
   const c = { ...found, agent: found.agent === "An agent" && agentName ? agentName : found.agent };
   const live = c.state === "using" || c.state === "waiting";
-  const [showSaw, setShowSaw] = useState(c.open);
   return (
     <View testID={`chrome-step-${id}`} accessibilityLabel={stepWords(c)} style={s.step}>
       {c.thumb ? <Image testID={`chrome-step-${id}-thumb`} source={{ uri: c.thumb }} style={s.thumb} resizeMode="cover" accessibilityIgnoresInvertColors /> : <View style={s.tile}><Text style={s.tileText}>{(c.site[0] ?? "?").toUpperCase()}</Text></View>}

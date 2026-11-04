@@ -56,7 +56,7 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
     setText("");
   };
 
-  const useAccount = (account: AccountOption, planned: Extract<AskTurn, { kind: "use" | "choose" | "paste" }>): boolean => {
+  const pickAccount = (account: AccountOption, planned: Extract<AskTurn, { kind: "use" | "choose" | "paste" }>): boolean => {
     const linkedResult = linkAccount(def, { account, stepKey: planned.stepKey, nodeId: selectedId, action: planned.action });
     if ("error" in linkedResult) { say(linkedResult.error); return false; }
     onChange(linkedResult.def);
@@ -87,7 +87,7 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
           account = accountFromCreate(created, planned.app);
         } catch { account = null; }
       }
-      const linked = account ? useAccount(account, planned) : false;
+      const linked = account ? pickAccount(account, planned) : false;
       say(savedLine(built.name, linked));
     } catch (err) {
       setValues({});
@@ -207,13 +207,13 @@ export function AskTab({ def, selectedId, accounts, steps, onChange, onOpenChat,
         {lines.map((line, i) => <Text key={`${line.who}-${i}`} style={line.who === "you" ? s.you : s.copy}>{line.say}</Text>)}
         {turn?.kind === "use" ? (
           <View style={s.row}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Use ${turn.account.title}`} testID="ask-use" onPress={() => { if (useAccount(turn.account, turn)) say(`Linked ${turn.account.title} to the step.`); }} style={s.btn}><Text style={s.btnText}>Use {turn.account.title}</Text></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Use ${turn.account.title}`} testID="ask-use" onPress={() => { if (pickAccount(turn.account, turn)) say(`Linked ${turn.account.title} to the step.`); }} style={s.btn}><Text style={s.btnText}>Use {turn.account.title}</Text></Pressable>
             {readOffer({ stepKey: turn.stepKey, effect: turn.stepKey === "connector_request" ? (proposals.find((item) => item.action === turn.action)?.effect ?? null) : null, connectionId: turn.account.id, connector: turn.account.app, action: turn.action, input: {} }).kind !== "hold" ? <Pressable accessibilityRole="button" accessibilityLabel="Try this read" testID="ask-try-read" onPress={() => void tryRead({ stepKey: turn.stepKey, effect: turn.stepKey === "connector_request" ? (proposals.find((item) => item.action === turn.action)?.effect ?? null) : null, connectionId: turn.account.id, connector: turn.account.app, action: turn.action, input: {} })} style={s.btn}><Text style={s.btnText}>Try this read</Text></Pressable> : null}
           </View>
         ) : null}
         {/* ui-rows-lint: not a list (account pick buttons) */}
         {turn?.kind === "choose" ? turn.accounts.map((account) => (
-          <Pressable key={account.id} accessibilityRole="button" accessibilityLabel={`Use ${account.title}`} testID={`ask-pick-${account.id}`} onPress={() => { if (useAccount(account, turn)) say(`Linked ${account.title} to the step.`); }} style={s.btn}><Text style={s.btnText}>{account.title}</Text></Pressable>
+          <Pressable key={account.id} accessibilityRole="button" accessibilityLabel={`Use ${account.title}`} testID={`ask-pick-${account.id}`} onPress={() => { if (pickAccount(account, turn)) say(`Linked ${account.title} to the step.`); }} style={s.btn}><Text style={s.btnText}>{account.title}</Text></Pressable>
         )) : null}
         {turn?.kind === "sign_in" ? <Pressable accessibilityRole="button" accessibilityLabel="Sign in" testID="ask-sign-in" onPress={() => onConnect({ service: turn.service, kind: "connection" })} style={s.btn}><Text style={s.btnText}>Sign in</Text></Pressable> : null}
         {turn?.kind === "paste" ? <PasteBoxes slots={turn.slots} values={values} busy={busy} onChange={(key, value) => setValues((cur) => ({ ...cur, [key]: value }))} onSave={() => void save(turn)} /> : null}
