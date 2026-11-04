@@ -128,6 +128,39 @@ test("errors from invoke come back as tool errors with their code; an unexpected
   assert.ok(!JSON.stringify(b).includes("postgres://"));
 });
 
+const LEAK = /\b(?:[a-z]{2,6}_[a-z0-9]{8,}|[0-9a-f]{16,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b|\b500\b/i;
+
+test("no tool error a model receives carries a trace id, an internal id or a bare 500; the full error with its trace stays beside it for the Details", async () => {
+  const loaded = loadGenerated();
+  const TRACE = "6bc64f781807dd96d50562e8114b4df5";
+  const failures: Array<() => never> = [
+    () => { throw new TypeError("Cannot read properties of undefined (reading 'length') at thr_01a1a392662d48efb1762dffc795f3a3"); },
+    () => { throw new HostError(makeError("validation.not_found", TRACE, { message: "Record rec_01a1a392662d48efb1762dffc795f3a3 is not here.", details: { recordId: "rec_01a1a392662d48efb1762dffc795f3a3" }, next: [{ kind: "ask_access", label: "Ask for access to rec_01a1a392662d48efb1762dffc795f3a3", action: { cap: "access.request" as never, input: { id: "x" } } }] })); },
+    () => { throw new HostError(makeError("permission.no_grant", TRACE)); },
+    () => { throw new HostError(makeError("internal.unexpected", TRACE, { message: "Something went wrong on our side.", details: { traceId: TRACE } })); },
+  ];
+  for (const f of failures) {
+    const session = createToolSession({ catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => TRACE, invoke: async () => f() });
+    const out = await session.call(ctx(), "memory_search", { q: "notes" });
+    assert.equal(out.kind, "error");
+    if (out.kind !== "error") continue;
+    const seen = JSON.stringify(out.result.content);
+    assert.ok(!LEAK.test(seen), `the model would read: ${seen}`);
+    assert.ok(!seen.includes(TRACE), "no trace in what the model reads");
+    assert.match(out.error.traceId, /^[0-9a-f]{16,}$/, "the full error keeps its trace for the Details");
+  }
+});
+
+test("a crash inside the server reaches the agent as a plain sentence naming the tool and what to do", async () => {
+  const loaded = loadGenerated();
+  const session = createToolSession({ catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => "trace_fixed", invoke: async () => { throw new TypeError("boom"); } });
+  const out = await session.call(ctx(), "memory_search", { q: "notes" });
+  const content = out.kind === "error" ? (out.result.content as { error: { code: string; message: string } }).error : null;
+  assert.equal(content?.code, "internal.unexpected");
+  assert.match(content?.message ?? "", /memory_search could not finish on the server just now, and nothing was changed/);
+  assert.match(content?.message ?? "", /Do not paste ids or traces/);
+});
+
 test("an unknown tool is a validation error and never reaches invoke", async () => {
   const { session, calls } = makeSession();
   const out = await session.call(ctx(), "does_not_exist", {});
@@ -135,3 +168,14 @@ test("an unknown tool is a validation error and never reaches invoke", async () 
   assert.equal(calls.length, 0);
 });
 
+
+test("a model error keeps a plain reason word and drops an id-shaped one", async () => {
+  const { modelError } = await import("../src/tools/model-error.ts");
+  const kept = modelError(makeError("validation.precondition_failed", "trc_1", { message: "That file is an agent's settings.", details: { reason: "agent_settings", tool: "files_save" } }));
+  assert.equal(kept.details?.reason, "agent_settings");
+  assert.equal(modelError(makeError("internal.unexpected", "trc_2", { message: "x", details: { reason: "server_error" } })).details?.reason, "server_error");
+  const dropped = modelError(makeError("validation.not_found", "trc_3", { message: "No usr_5cf430c0313aa78673 here.", details: { reason: "agt_01a1a388abcd" } }));
+  assert.equal(dropped.details?.reason, undefined);
+  assert.equal(dropped.message.includes("usr_5cf430c0313aa78673"), false);
+  assert.equal(modelError(makeError("validation.precondition_failed", "trc_4", { message: "y", details: { reason: "agent_settings" } })).details?.reason, "agent_settings", "a second call gets the same answer");
+});

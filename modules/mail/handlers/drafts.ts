@@ -78,7 +78,7 @@ export async function draft(ctx: MailCtx, input: DraftIn): Promise<DraftOut> {
   const subject = input.subject ?? (existing ? str(existing, "subject") : parent ? replySubject(str(parent, "subject")) : "");
   const bodyText = text ?? (existing ? textOf(ctx, str(existing, "id")) : undefined);
   const bodyHtml = input.html ?? (existing ? htmlOf(ctx, str(existing, "id")) : undefined);
-  const contactId = input.contactId ?? strOrNull(existing, "contactId") ?? strOrNull(parent, "contactId");
+  const contactId = contactFor(ctx, [input.contactId ?? null, strOrNull(existing, "contactId"), strOrNull(parent, "contactId")], lists.to, parent);
   const agentId = ctx.principal.kind === "agent" && isId("agt", ctx.principal.id) ? ctx.principal.id : null;
   const now = ctx.now();
   const draftId = existing ? str(existing, "id") : newId("eml", now);
@@ -143,10 +143,12 @@ export async function draftsList(
   if (input.mailboxId) { where.push(`"mailboxId" = ?`); args.push(input.mailboxId); }
   if (input.contactId) { where.push(`"contactId" = ?`); args.push(input.contactId); }
   const rows = rowsOf(ctx.db.all(`SELECT * FROM mail_message WHERE ${where.join(" AND ")} ORDER BY updated_at DESC`, ...args));
+  // By contact shows only what is addressed to that contact: a draft filed under a contact by mistake is left out
+  const ofContact = input.contactId ? rows.filter((r) => contactFor(ctx, [input.contactId!], readParties(str(r, "toAddresses")), null) === input.contactId) : rows;
 
   // Drafts are mail: a caller sees the drafts of mailboxes they may read.
   const verdict = new Map<string, boolean>();
-  const visible = rows.filter((r) => {
+  const visible = ofContact.filter((r) => {
     const id = str(r, "mailboxId");
     if (!verdict.has(id)) verdict.set(id, can(ctx, "view", { type: "mailbox", id }));
     return verdict.get(id) === true;
@@ -273,4 +275,26 @@ function rowOut(row: Row): MessageRowOut {
   if (contactId) out.contactId = contactId;
   if (agent) out.draftedByAgent = agent;
   return out;
+}
+
+/**
+ * The contact a draft belongs to (By contact shows only messages and drafts to or from that contact). A TO recipient that already carries a contact says which; otherwise the contact the draft came with
+ * (the agent's own, the draft's, or the thread's) holds only if a TO recipient is an address that contact has written from or been written to at. Only the people a draft is addressed to count: someone on Cc
+ * (copied on two contacts' threads) never files it under herself or under the other contact.
+ */
+export function contactFor(ctx: MailCtx, candidates: readonly (string | null)[], recipients: readonly Party[], parent: Row | null): string | null {
+  const named = recipients.find((p) => typeof (p as { contactId?: unknown }).contactId === "string");
+  if (named) return (named as { contactId: string }).contactId;
+  const to = new Set(recipients.map((p) => p.address.toLowerCase()));
+  for (const candidate of [...new Set(candidates.filter((c): c is string => typeof c === "string" && c !== ""))]) {
+    if (to.size === 0) return candidate;
+    const known = new Set<string>();
+    const add = (v: unknown): void => { if (typeof v === "string" && v !== "") for (const a of v.match(/[^\s"<>,;\[\]{}:]+@[^\s"<>,;\[\]{}:]+/g) ?? []) known.add(a.toLowerCase().replace(/[.,;]+$/, "")); };
+    for (const r of ctx.db.all(`SELECT "fromAddress", "toAddresses", direction, status FROM mail_message WHERE "contactId" = ? AND deleted_at IS NULL`, candidate) as Row[]) { if (r["status"] === "draft") continue; if (r["direction"] === "in") add(r["fromAddress"]); else add(r["toAddresses"]); }   // the contact is who wrote in, or who we wrote to: never someone only copied
+    if (parent && strOrNull(parent, "contactId") === candidate) { if (str(parent, "direction") === "in") add(parent["fromAddress"]); else add(parent["toAddresses"]); }
+    // a contact with no mail on record yet cannot be checked: the draft keeps what it was given
+    if (known.size === 0) return candidate;
+    for (const a of to) if (known.has(a)) return candidate;
+  }
+  return null;
 }

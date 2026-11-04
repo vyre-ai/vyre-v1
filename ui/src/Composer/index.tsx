@@ -293,6 +293,10 @@ export interface WhoContext {
   listening?: readonly string[];
   agents?: readonly ListItem[];
   people?: readonly ListItem[];
+  /** The people in the chat, by name, when known: someone named who is not among them is only talked about, and the lead answers. Left out: everyone named is taken to be in the chat. */
+  members?: readonly string[];
+  /** The lead's name, so a message that names it in words is answered by it even when it speaks to a person. */
+  leadName?: string;
   /** The thread kind when known: in a channel a lone listening agent still waits to be named, as the engine routes it (lib/route.ts). */
   kind?: string;
 }
@@ -323,14 +327,17 @@ export const NO_AGENT_LINE = "No agent will reply. @mention one";
 export function whoAnswers(text: string, ctx: WhoContext): WhoAnswer {
   const agentNames = mentionsIn(text, ctx.agents);
   const personNames = mentionsIn(text, ctx.people);
+  const inChat = (n: string): boolean => ctx.members === undefined || ctx.members.some((x) => firstWord(x).toLowerCase() === firstWord(n).toLowerCase());
   const thread: RouteThread = {
     ...(ctx.kind === undefined ? {} : { kind: ctx.kind }),
+    ...(ctx.members === undefined ? {} : { people: personNames.filter(inChat) }),
     agents: [
-      ...(ctx.lead === undefined ? [] : [{ id: ctx.lead, mode: "lead" as const }]),
+      ...(ctx.lead === undefined ? [] : [{ id: ctx.lead, ...(ctx.leadName ? { name: ctx.leadName } : {}), mode: "lead" as const }]),
       ...(ctx.listening ?? []).filter((n) => n !== ctx.lead).map((id) => ({ id, mode: "listen" as const })),
     ],
   };
   const message: RouteMessage = {
+    text,
     author: { kind: "person", id: "me" },
     mentions: [...agentNames.map((id) => ({ kind: "agent" as const, id })), ...personNames.map((id) => ({ kind: "person" as const, id }))],
   };
@@ -338,7 +345,7 @@ export function whoAnswers(text: string, ctx: WhoContext): WhoAnswer {
   if (result.responders.length > 0) return { line: `${result.responders.join(" and ")} will reply`, responders: result.responders, dim: false, reason: result.reason };
   if (result.reason === "person_addressed") {
     const who = firstWord(personNames[0] ?? "They");
-    return { line: `${who} will see this · no agent will reply`, responders: [], dim: true, reason: result.reason };
+    return { line: `Goes to ${who}; no agent will reply${ctx.leadName ? `. Ask ${ctx.leadName} too` : ""}`, responders: [], dim: true, reason: result.reason };
   }
   // owner ruling, 3 Nov 2026: agents listen until named, and the line says so plainly
   return { line: NO_AGENT_LINE, responders: [], dim: true, reason: result.reason };
@@ -522,6 +529,8 @@ export interface ComposerProps extends ComposerShellProps {
   lists?: ComposerLists;
   /** Agents that listen in this thread (answer only when @mentioned). The lead comes from `lead`. */
   listening?: readonly string[];
+  /** The people in this thread, by name: someone named who is not among them is only talked about (lib/route.ts). */
+  members?: readonly string[];
   /** Kept for callers; # is one grouped search now. */
   agentChat?: boolean;
   /** The thread's folder chip. Picking a folder with # sets it; removing the chip clears it. */
@@ -681,6 +690,16 @@ function AgentStrip({ list, narrow, onPress, open, face, mode, runsChip, ring }:
   );
 }
 
+/**
+ * How far the field's text has scrolled. React Native Web hands a multiline TextInput's onScroll the DOM scroll event, which carries no `contentOffset` (that is a native-only field), so the
+ * wash behind a long draft stayed at 0 while the text scrolled under it and the boxes slid onto the wrong words (owner report, rc.20). The textarea's own scrollTop is the truth.
+ */
+export function scrollTopOf(e: unknown): number {
+  const ev = e as { nativeEvent?: { contentOffset?: { y?: number }; target?: { scrollTop?: number } }; target?: { scrollTop?: number }; currentTarget?: { scrollTop?: number } } | null;
+  const y = ev?.nativeEvent?.contentOffset?.y ?? ev?.currentTarget?.scrollTop ?? ev?.target?.scrollTop ?? ev?.nativeEvent?.target?.scrollTop ?? 0;
+  return Number.isFinite(y) ? Math.max(0, y) : 0;
+}
+
 /** The field's tokens, drawn behind the text: a wash under each #link, @mention and [[link]]. The text itself stays the field's own. */
 function TokenBackdrop({ text, ranges, scrollY, style, pad }: { text: string; ranges: readonly TokenRange[]; scrollY: number; style: TextStyle; pad: readonly (ViewStyle | false)[] }): ReactElement {
   const parts: ReactElement[] = [];
@@ -742,7 +761,7 @@ export function Composer(props: ComposerProps): ReactElement {
   const lists = props.lists ?? {};
   const hasLead = props.lead !== undefined && props.lead.length > 0;
   const whoCtx: WhoContext | undefined = hasLead || lists.agents !== undefined || lists.people !== undefined
-    ? { ...(hasLead ? { lead: props.lead as string } : {}), ...(props.listening === undefined ? {} : { listening: props.listening }), ...(lists.agents === undefined ? {} : { agents: lists.agents }), ...(lists.people === undefined ? {} : { people: lists.people }), ...(props.agentChat === false ? { kind: "channel" } : {}) }
+    ? { ...(hasLead ? { lead: props.lead as string } : {}), ...(props.listening === undefined ? {} : { listening: props.listening }), ...(props.members === undefined ? {} : { members: props.members }), ...(hasLead ? { leadName: props.lead as string } : {}), ...(lists.agents === undefined ? {} : { agents: lists.agents }), ...(lists.people === undefined ? {} : { people: lists.people }), ...(props.agentChat === false ? { kind: "channel" } : {}) }
     : undefined;
   const who = answerLine(state.text, props.whoWillAnswer, whoCtx);
   const answerers = props.sendsOutside === true || props.hideWho === true ? [] : answering(who.responders, props.agents);
@@ -856,6 +875,12 @@ export function Composer(props: ComposerProps): ReactElement {
     typeSymbol("#");
   };
   const cycleMode = (): void => { if (props.mode && props.onMode) props.onMode(nextMode(props.mode)); };
+
+  // a draft that shrinks or grows moves the text under the wash without always raising a scroll event: read the field's own scrollTop after every change
+  useEffect(() => {
+    const el = input.current as unknown as { scrollTop?: number } | null;
+    if (web && el && typeof el.scrollTop === "number") setScrollY(el.scrollTop);
+  }, [state.text, web]);
 
   const names = useMemo(() => [...(lists.agents ?? []), ...(lists.people ?? [])].map((x) => (typeof x === "string" ? x : x.t)), [lists.agents, lists.people]);
   const ranges = useMemo(() => tokenRanges(state.text, state.refs, names), [state.text, state.refs, names]);
@@ -1118,7 +1143,7 @@ export function Composer(props: ComposerProps): ReactElement {
         onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })}
         onKeyPress={onKeyPress as never}
         onContentSizeChange={(e) => setHeight(Math.max(MIN_FIELD, Math.min(MAX_FIELD, Math.ceil(e.nativeEvent.contentSize.height))))}
-        onScroll={(e) => setScrollY(e.nativeEvent.contentOffset?.y ?? 0)}
+        onScroll={(e) => setScrollY(scrollTopOf(e))}
         onFocus={onFocus}
         onBlur={onBlur}
         testID="composer-field"

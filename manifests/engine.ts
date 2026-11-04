@@ -174,7 +174,7 @@ export default defineManifest({
       in: { ...threadT, agentId: t.opt(id.agent), driver: driverId, model: t.str(), provider: t.opt(t.str()), effort: t.opt(effort), accountRef: t.opt(accountRef) },
       out: { engine: t.str(), model: t.str(), quietLine: t.str({ examples: ['Switched to Codex, picked up from the summary and the last 20 turns'] }), handoffTurns: t.int() },
       on: ['thread', '/threadId'], level: 'use', emits: ['turn.engine_switched', 'agent.model_changed'], tool: 'meta', mcpName: 'switch_model',
-      agent: { planMode: 'blocked', blocks: ['model_switch'] }, errors: ['permission.provider_label', 'permission.limit', 'provider.auth_failed'],
+      agent: { planMode: 'blocked', blocks: ['model_switch'] }, errors: ['permission.provider_label', 'permission.limit', 'provider.auth_failed', 'validation.precondition_failed'],
     }),
     // engine.compact: Claude Code compacts its own session (/compact with the words); for Codex, Grok and API engines Vyre writes a summary that starts with the words and the engine starts again from
     // it (modules/engine/compact.ts). `always` keeps the words for every compaction of the chat, the engines' automatic ones too; ticked with no words it clears them.
@@ -287,7 +287,9 @@ export default defineManifest({
         pin: t.opt(t.obj({ ref: accountRef, used: t.bool(), why: t.opt(t.enm('unknown', 'expired', 'failed', 'policy_company', 'not_yours', 'space_may_not_use', 'failed_this_turn', 'capped', 'no_model', 'not_used_for')) }, { description: 'The account the chat, agent or step is pinned to; when it did not pay, why' })),
         cappedFrom: t.opt(accountRef),
         via: t.opt({ ...t.enm('thread', 'chat_key', 'work', 'step', 'space', 'backup'), description: 'Which rule chose the account when it was not the asker\'s own: the chat\'s pick, the agent\'s Chat key, its own-work account, a step\'s account, a Space account kept for the work, or a backup' }),
-        why: t.opt({ ...t.enm('no_account', 'expired', 'failed', 'policy'), description: 'When no account can pay: why. expired and failed name the person\'s own account' }),
+        why: t.opt({ ...t.enm('no_account', 'expired', 'failed', 'policy', 'no_model'), description: 'When no account can pay: why. expired and failed name the person\'s own account; no_model means the model picked for the chat is served by no account that can pay, and servedModels lists what those accounts serve' }),
+        model: t.opt(t.str({ description: 'With why no_model: the model that was picked' })),
+        servedModels: t.opt(t.arr(t.str(), { description: 'With why no_model: the models the accounts that could pay do serve' })),
         modelFallback: t.opt(t.obj({ from: t.str({ description: 'The model the chat asked for' }), to: t.opt(t.str({ description: 'The account\'s default model the turn runs on instead; absent: the engine\'s own default for that account' })) }, { description: 'No account that serves the chat\'s model could pay: a team chat or agent work runs on this account\'s default model, and the chat says so' })),
       }, on: ['thread', '/threadId'],
     }),

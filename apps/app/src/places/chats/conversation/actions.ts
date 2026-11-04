@@ -168,6 +168,13 @@ export async function errorAction(data: ConversationData, key: string, turnId: s
     if (turnId) await retryTurn(data, turnId);
     return;
   }
+  // the picked model cannot run on this server: the chat runs on this person's own computer, where their own sign-in is, and the turn that stopped runs again
+  if (key === "run_on_my_computer") {
+    await data.call("engine.placement.set", { threadId: data.threadId, target: "device" } satisfies CapMap["engine.placement.set"]["in"]);
+    if (turnId) await retryTurn(data, turnId);
+    return;
+  }
+  if (key === "pick_model") { say("Choose another model in the composer."); return; }
   if (key === "connect_ai" || key === "open_vault") { if (data.nav.openAiSetup) data.nav.openAiSetup(); else say("Open the Vault and add an AI account."); return; }
   if (installProgram(key) !== undefined) { if (turnId) await retryTurn(data, turnId); else say("Send your message again to set it up."); return; }
   // Windows: WSL needs admin and a restart, which only the person can do; the steps, word for word (sandbox/src/wsl/wsl.ts TURN_ON_WSL_STEPS)

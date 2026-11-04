@@ -227,11 +227,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   function ingest(st: ThreadState, m: IncomingMessage, interrupt: boolean): ReceiveResult {
+    if (m.people) st.thread.people = [...m.people];
     return dispatch(st, store(st, m), interrupt, m.replyToPerson, m.job, m.asker);
   }
 
   function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean, replyToPerson?: string, job?: string, asker?: string): ReceiveResult {
-    const r = route({ agents: st.thread.agents, kind: st.thread.kind }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined, text: msg.body }, opts.policy);
+    const r = route({ agents: st.thread.agents, kind: st.thread.kind, ...(st.thread.people ? { people: st.thread.people } : {}) }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined, text: msg.body }, opts.policy);
     let responders = r.responders;
     // a round where a person spoke to all the agents: each answers alone, and no answer sets off another agent (the lead posts no summary) unless it @mentions one or the person asks again
     if (msg.author.kind === "person") { if (r.reason === "all") askedAll.set(st.thread.id, new Set(responders)); else askedAll.delete(st.thread.id); }
@@ -345,12 +346,13 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // The account that pays comes from engine.account.resolve when the host wires it; without it the engine keeps its own starter/steerer choice (unit tests).
     let resolveFailed = false;
     let resolveCode: string | undefined;
+    let resolveMessage: string | undefined;
     // a chain with no person behind it stops and asks: nothing is admitted, resolved or paid for, and the chat says a person has to ask
     const orphan = !wait && payer.personless === true;
     const refused = orphan
       ? { code: "no_asker", message: "No person asked for this, so it did not run." }
       : opts.admit ? await opts.admit({ threadId: st.thread.id, agentId: item.agentId, asker: wait?.asker ?? payer.asker }).catch(() => null) : null;
-    const account = opts.resolveAccount && !refused ? await opts.resolveAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: wait?.asker ?? payer.asker, ...(item.routine ? { kind: "agent_work" as const } : item.kind === "wake" ? { kind: "wake" as const } : {}) }).catch((e: unknown) => { resolveFailed = true; resolveCode = (e as { code?: unknown } | null)?.code as string | undefined; return null; }) : undefined;
+    const account = opts.resolveAccount && !refused ? await opts.resolveAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: wait?.asker ?? payer.asker, ...(item.routine ? { kind: "agent_work" as const } : item.kind === "wake" ? { kind: "wake" as const } : {}) }).catch((e: unknown) => { resolveFailed = true; resolveCode = (e as { code?: unknown } | null)?.code as string | undefined; if (typeof resolveCode === "string" && resolveCode.startsWith("engine.") && e instanceof Error) resolveMessage = e.message; return null; }) : undefined;
     // a refused personless turn is recorded for nobody: not the starter, whose access it never had
     const asker = orphan ? "" : wait?.asker ?? (account ? account.payer : payer.asker);
     const reason = wait ? ("starter" as const) : payer.reason;
@@ -401,7 +403,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     try {
       if (refused) throw Object.assign(new Error(refused.message), { code: refused.code });
       if (!agent) throw Object.assign(new Error("agent is not in this thread"), { code: "unknown_agent" });
-      if (account === null && resolveFailed) throw Object.assign(new Error("the account could not be resolved just now"), { code: typeof resolveCode === "string" ? resolveCode : "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
+      if (account === null && resolveFailed) throw Object.assign(new Error(resolveMessage ?? "the account could not be resolved just now"), { code: typeof resolveCode === "string" ? resolveCode : "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
       if (account === null) {
         // Nobody has a usable key for this turn: no session, the turn ends as failed (no_account) until they add one.
         try { await opts.onNoAccount?.({ threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker, routine: item.routine }); } catch { /* the Unblock is best effort; the turn still ends as no_account */ }

@@ -24,6 +24,9 @@ export interface HarnessOptions {
   raw?: RawDb;
   principal?: EngineCtx["principal"];
   threads?: ThreadSpec[];
+  /** The accounts and model rows the switch reads (engine.accounts.list, engine.models.list). Absent: they cannot be read. */
+  accounts?: Array<{ ref: string; driver: string; status?: string }>;
+  modelRows?: Array<{ model: string; allowed: boolean; alias?: string }>;
   /** The caller may manage AI spend (ai.spend). Default true. */
   manager?: boolean;
   /** tasks.create fails (the tasks module is down). */
@@ -68,6 +71,8 @@ export function harness(o: HarnessOptions = {}) {
         if (!t) throw new Error("no such thread");
         return { thread: { threadId: t.threadId, ...(t.kind === undefined ? {} : { kind: t.kind }), ...(t.starter === undefined ? {} : { starter: t.starter }), agents: t.agents } };
       }
+      if (cap === "engine.accounts.list" && o.accounts) return { accounts: o.accounts.map((a) => ({ status: "ok", ...a })) };
+      if (cap === "engine.models.list" && o.modelRows) return { models: o.modelRows };
       if (cap === "tasks.create") {
         if (tasksFail) throw new Error("tasks is down");
         return { task: { id: `tsk_card${++tasks}` } };
