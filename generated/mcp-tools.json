@@ -62090,7 +62090,7 @@
       "blocks": [],
       "cap": "talk.space.check",
       "deferred": true,
-      "description": "Check the Space key with the provider now",
+      "description": "Check the Space key now: a real one-second grant against the provider the Space picked, with the key from the Vault",
       "effects": "write",
       "inputSchema": {
         "properties": {},
@@ -62105,17 +62105,20 @@
       "blocks": [],
       "cap": "talk.space.configure",
       "deferred": true,
-      "description": "Turn Talk for everyone on or off, and keep the key. An agent's change stops at the Gate for someone who may approve it",
+      "description": "Turn Talk for everyone on or off, and pick which provider (Deepgram or ElevenLabs) covers people; its key must be added first. An agent's change stops at the Gate for someone who may approve it",
       "effects": "write",
       "inputSchema": {
         "properties": {
           "on": {
             "type": "boolean"
+          },
+          "provider": {
+            "examples": [
+              "elevenlabs"
+            ],
+            "type": "string"
           }
         },
-        "required": [
-          "on"
-        ],
         "type": "object"
       },
       "name": "talk_space_configure",

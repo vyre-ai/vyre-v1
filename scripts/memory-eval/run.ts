@@ -136,7 +136,8 @@ try {
     } else if (op.op === "capture") {
       for (const [key, thread] of Object.entries(threadOf) as Array<[PlaceKey, string]>) {
         const who = PLACES[key].owner;
-        await me[who].call("memory.capture", { threadId: thread, reason: "closed", idempotencyKey: `cap-${thread}-${op.day}` }).catch(() => undefined);
+        const cr = await me[who].call("memory.capture", { threadId: thread, reason: "closed", idempotencyKey: `cap-${thread}-${op.day}` }).catch((e: unknown) => ({ status: 0, data: String(e) }));
+        if (process.env["EVAL_VERBOSE"] && key === "atlas_thread") log(`   capture atlas_thread day ${op.day}: ${cr.status} ${JSON.stringify(cr.data).slice(0, 200)} msgs ${(((await me[who].call("chat.messages.list", { threadId: thread })).data.messages as unknown[]) ?? []).length}`);
       }
     }
   }

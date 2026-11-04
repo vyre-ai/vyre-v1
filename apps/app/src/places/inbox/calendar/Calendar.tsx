@@ -297,6 +297,11 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
     setDrag({ kind: "create", day, top: rect.top, y0: e.clientY - rect.top, y1: e.clientY - rect.top });
     attach();
   };
+  /** The menu trigger's long press listens to pointer down too; both run, the menu's first. */
+  const withPointerDown = (t: Record<string, unknown>, also: (e: PointerLike) => void): Record<string, unknown> => {
+    const own = t["onPointerDown"] as ((e: PointerLike) => void) | undefined;
+    return { ...t, onPointerDown: (e: PointerLike): void => { own?.(e); also(e); } };
+  };
   const startEvent = (ev: EventRow, kind: "move" | "resize") => (e: PointerLike): void => {
     if (e.button !== undefined && e.button !== 0) return;
     e.stopPropagation?.();
@@ -589,7 +594,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
           const ghost = drag?.kind === "create" && drag.day === d ? dragCreate(d, drag.y0, drag.y1) : draft && startOfDay(draft.startsAt, off) === d ? draft : null;
           return (
             <View key={d} style={[s.ccol, isWeekend(d, off) && s.ccolWeekend, d === today && s.ccolToday]} testID={`col:${d}`} {...({ onPointerDown: startCreate(d), onDoubleClick: (e: PointerLike) => { const r = e.currentTarget?.getBoundingClientRect?.(); if (r) withDraft(clickCreate(d, e.clientY - r.top)); } } as object)}
-              {...menuTrigger((x, y) => menu.show(dayMenuEntries({ newHere: () => withDraft(clickCreate(d, 9 * HH)), goDay: () => { dispatch({ type: "mode", mode: "day" }); dispatch({ type: "go", day: d }); } }), x, y))}>
+              {...withPointerDown(menuTrigger((x, y) => menu.show(dayMenuEntries({ newHere: () => withDraft(clickCreate(d, 9 * HH)), goDay: () => { dispatch({ type: "mode", mode: "day" }); dispatch({ type: "go", day: d }); } }), x, y)), startCreate(d))}>
               {each(dayStripes(d), (st) => (
                 <View key={st.top} testID={`stripe:${d}:${st.top}`} accessibilityLabel={`${whoLabel(st.who, names)} busy`} pointerEvents="none" style={[s.busy, { top: st.top, height: st.height, backgroundColor: `color-mix(in srgb, var(--ink) ${st.alpha}%, transparent)` }]} />
               ))}

@@ -12,7 +12,7 @@ export interface ContextMenuOptions {
   /** Runs just before the entries are asked for (read what the words depend on). */
   before?: () => void;
 }
-export interface ContextMenu {
+export interface RowMenu {
   element: ReactElement | null;
   /** Props for the row: right-click, Menu key, Shift+F10, long press, and the hint keys. */
   on(entries: (at: { x: number; y: number }) => readonly MenuEntry[] | null, o?: ContextMenuOptions): Record<string, unknown>;
@@ -25,7 +25,7 @@ interface KeyLike { key?: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey
 const typing = (t: KeyLike["target"]): boolean => t !== undefined && (t.isContentEditable === true || /^(input|textarea|select)$/i.test(t.tagName ?? ""));
 
 /** `shared` is the menu a screen already has (its useMenu), so a row's menu and the screen's other menus are one surface; without it the hook has its own. */
-export function useContextMenu(shared?: Pick<ReturnType<typeof useMenu>, "show" | "hide" | "element">): ContextMenu {
+export function useContextMenu(shared?: Pick<ReturnType<typeof useMenu>, "show" | "hide" | "element">): RowMenu {
   const own = useMenu();
   const menu = shared ?? own;
   const open = (entries: (at: { x: number; y: number }) => readonly MenuEntry[] | null, x: number, y: number, o: ContextMenuOptions = {}): void => {
