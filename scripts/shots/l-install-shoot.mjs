@@ -44,7 +44,8 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   await jump();
   const bottom = () => page.evaluate(() => { for (const e of document.querySelectorAll("*")) if (e.scrollHeight > e.clientHeight + 40 && getComputedStyle(e).overflowY !== "visible" && getComputedStyle(e).overflowY !== "hidden") e.scrollTop = e.scrollHeight; }).then(() => page.waitForTimeout(300));
   for (const sel of [].concat(t.click ?? [])) { await page.click(sel).catch(() => { found = false; }); await page.waitForTimeout(700); await guard.check(`${t.id} ${skin} ${size}: after click ${sel}`); await page.mouse.move(2, 2); await jump(); }
-  await bottom();
+  // a chat feed ends at its last message; the pane and the Console page are shot where they open
+  if (t.route.includes("part=chat")) await bottom();
   await guard.check(`${t.id} ${skin} ${size}: before the shot`);
   await page.waitForTimeout(600);
   const file = path.join(out, `${t.id.replace("INSTALL_02-", "")}-${skin}-${size}.png`);
