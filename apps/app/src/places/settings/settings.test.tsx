@@ -20,6 +20,8 @@ import type { SampleSettings } from "./sample.ts";
 
 const html = (s: SampleSettings, props: SettingsProps = {}): string =>
   renderToStaticMarkup(<SettingsDataProvider value={s.data}><SettingsPlace width={1280} {...props} /></SettingsDataProvider>).replaceAll("<!-- -->", "");
+import { MailPage } from "./MailPage.tsx";
+const mailHtml = (s: SampleSettings): string => renderToStaticMarkup(<SettingsDataProvider value={s.data}><SavedProvider><MailPage /></SavedProvider></SettingsDataProvider>).replaceAll("<!-- -->", "");
 const has = (s: string, needle: string): boolean => s.includes(needle);
 const tag = (out: string, id: string): string => out.match(new RegExp(`<[^>]*data-testid="${id}"[^>]*>`))?.[0] ?? "";
 const rowsOf = (s: SampleSettings): SettingRow[] => (s.data.screens.query("settings.page", "rows", {}).getSnapshot() as { data: { rows: SettingRow[] } }).data.rows;
@@ -63,11 +65,11 @@ test("search finds rows by words in any order, ranks a title that starts with th
 
 test("the page list in a Team Space is You, then one way to the Console, and no Space pages", () => {
   const out = html(createSampleSettings(northwind));
-  assert.deepEqual(PAGES.filter((p) => p.group === "you").map((p) => p.title), ["Profile", "Notifications", "Appearance", "AI", "Memory and privacy", "Notes", "Skills", "Connected", "Email and calendar", "Sign-in and devices", "This computer", "About Vyre"]);
+  assert.deepEqual(PAGES.filter((p) => p.group === "you" && p.hidden !== true).map((p) => p.title), ["Profile", "Your AI", "GitHub", "Notifications", "Appearance", "This device", "Privacy and security"]);
   assert.deepEqual(PAGES.filter((p) => p.group === "space").map((p) => p.title), ["Space", "People and access", "Agents and rules", "Data", "Connected apps", "Advanced"]);
-  for (const p of PAGES) assert.equal(has(out, `data-testid="row-page-${p.key}"`), p.group === "you", p.key);
+  for (const p of PAGES) assert.equal(has(out, `data-testid="row-page-${p.key}"`), p.group === "you" && p.hidden !== true, p.key);
   const at = (t: string): number => { const i = out.indexOf(`>${t}<`); assert.ok(i >= 0, t); return i; };
-  assert.ok(at("You") < at("Profile") && at("This computer") < at("Console"));
+  assert.ok(at("You") < at("Profile") && at("This device") < at("Console"));
   assert.ok(!has(html(createSampleSettings(harbor)), 'data-testid="row-open-console"'), "a member has no way there");
   assert.match(tag(out, "row-page-profile"), /var\(--sel\)/);
   assert.doesNotMatch(tag(out, "row-page-ai"), /var\(--sel\)/);
@@ -161,7 +163,7 @@ test("AI: defaults, how agents work with you, usage with bars, the accounts and 
 });
 
 test("Email and calendar lists mailboxes with their state and a way to pause, calendars, your numbers, and the connect tiles to add another", () => {
-  const out = html(createSampleSettings(northwind), { initialPage: "mail" });
+  const out = mailHtml(createSampleSettings(northwind));
   assert.ok(has(out, "irfad@northwind.example") && has(out, "Google, private to you") && has(out, "Syncing") && has(out, "Pause"));
   assert.ok(has(out, "irfad.imtiaz@outlook.example") && has(out, "Paused") && has(out, "Resume"));
   assert.ok(has(out, 'data-testid="mailbox-remove-mbx_1"') && has(out, 'data-testid="calendar-remove-cld_work"'), "a source of your own can be removed here");
@@ -169,7 +171,7 @@ test("Email and calendar lists mailboxes with their state and a way to pause, ca
   assert.ok(has(out, 'data-testid="mail-add"') && has(out, 'data-testid="connect-gmail"') && has(out, 'data-testid="connect-outlook"') && has(out, 'data-testid="connect-imap"'), "the Inbox's own mail tiles, to add another");
   assert.ok(!has(out, 'data-testid="connect-twilio"'), "numbers are set up in the Console and assigned, not connected here");
   assert.ok(has(out, "Through your Space") && has(out, "Google Workspace") && has(out, "Microsoft 365") && has(out, "Connected by your admin"), "what the admin connected for this person, by suite");
-  const empty = html(createSampleSettings(harbor), { initialPage: "mail" });
+  const empty = mailHtml(createSampleSettings(harbor));
   assert.ok(has(empty, 'data-testid="mail-empty"') && has(empty, 'data-testid="connect-gmail"') && has(empty, 'data-testid="connect-outlook"') && has(empty, 'data-testid="connect-imap"'), "nothing connected: the connect tiles");
   assert.ok(!has(empty, 'data-testid="mail-sources"') && !has(empty, ">Connect a channel<"), "no empty lists and no second heading");
   assert.ok(!has(empty, 'data-testid="connect-twilio"') && !has(empty, "Numbers assigned to you"), "no Twilio tile, and no numbers section without numbers");
@@ -183,9 +185,9 @@ test("removing the last source empties Email and calendar back to the connect ti
   await s.data.call("mail.mailbox.disconnect", { mailboxId: "mbx_1" });
   await s.data.call("mail.mailbox.disconnect", { mailboxId: "mbx_2" });
   await s.data.call("calendar.delete_calendar", { calendarId: "cld_work" });
-  assert.ok(has(html(s, { initialPage: "mail" }), 'data-testid="mail-sources"'), "a number assigned to you still flows in");
+  assert.ok(has(mailHtml(s), 'data-testid="mail-sources"'), "a number assigned to you still flows in");
   s.replica.remove("numbers", ["num_main"]);
-  const out = html(s, { initialPage: "mail" });
+  const out = mailHtml(s);
   assert.ok(has(out, 'data-testid="mail-empty"') && has(out, 'data-testid="connect-gmail"'));
 });
 
@@ -302,7 +304,7 @@ test("model helpers: hours, clock, times in a zone, summaries, lists and where a
 
 test("sections: every row of a page lands in a section, and a row no section names is kept", () => {
   const rows = rowsOf(createSampleSettings(northwind));
-  for (const p of PAGES.filter((x) => x.group === "you")) {
+  for (const p of PAGES.filter((x) => x.group === "you" && x.key !== "github" && x.hidden !== true || x.key === "memory" || x.key === "notes")) {
     const secs = sectionsFor(p.key as YouPage, rows);
     const placed = secs.flatMap((x) => x.rows.map((r) => r.key));
     assert.equal(new Set(placed).size, placed.length, `${p.key}: no row twice`);
@@ -347,10 +349,10 @@ const personalSpace = { ...northwind, id: "northwind" as const, name: "Personal"
 test("a Personal Space has no Console, shows its own Space rows here, and no team-only rows or suite section", () => {
   const s = createSampleSettings({ ...personalSpace, id: "harbor" as const });
   const conn = html(s, { initialPage: "connected" });
-  assert.ok(!has(html(s, { initialPage: "mail" }), "Through your Space") && !has(html(s, { initialPage: "mail" }), "Ask your admin"), "a Personal Space has no admin and no suites");
-  const mine = html(createSampleSettings(personalSpace), { initialPage: "mail" });
+  assert.ok(!has(mailHtml(s), "Through your Space") && !has(mailHtml(s), "Ask your admin"), "a Personal Space has no admin and no suites");
+  const mine = mailHtml(createSampleSettings(personalSpace));
   assert.ok(has(mine, "irfad@northwind.example") && !has(mine, "Through your Space"), "a Personal Space with its own Google mail still has no suite section");
-  assert.ok(has(html(s, { initialPage: "mail" }), 'data-testid="connect-gmail"'));
+  assert.ok(has(mailHtml(s), 'data-testid="connect-gmail"'));
   assert.ok(has(conn, 'data-testid="space-group"'), "its Space rows have nowhere else to live");
   assert.ok(!has(conn, 'data-testid="row-open-console"') && has(conn, 'data-testid="row-page-data"') && !has(conn, 'data-testid="row-page-people"'));
   const ai = html(s, { initialPage: "ai" });
@@ -377,7 +379,7 @@ test("a notification kind's level is a choice that saves, says why when refused,
 
 test("Settings has a Notes page with the one switch: offers to save useful things from chats as notes, on by default", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "notes" });
-  assert.ok(has(out, 'data-testid="page-notes"'), "the page");
+  assert.ok(has(out, 'data-testid="page-ai"'), "folded into Your AI");
   assert.ok(has(out, "Offer to save things from chats as notes"), "the switch");
-  assert.ok(PAGES.some((p) => p.key === "notes" && p.title === "Notes" && p.group === "you"));
+  assert.ok(PAGES.some((p) => p.key === "notes" && p.hidden === true));
 });

@@ -9,6 +9,8 @@ export interface SpaceTile { id: string; name: string; addr: string; kind: "pers
 
 export interface SettingsNav {
   openVault(): void;
+  /** Inbox with its Add an account sheet open. */
+  openInbox?(): void;
   /** Vault > Connections, where every connection lives (owner ruling D28). Absent: the Vault itself. */
   openConnections?(): void;
   openSpace(id: string): void;

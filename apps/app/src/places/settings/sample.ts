@@ -214,6 +214,12 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   replica.resolve("settings.list", (_t, input) => ({ rows: rowsNow().filter((r) => (input.page ? r.page === input.page : true) && (input.scope ? r.scope === input.scope : true)) }) as CapMap["settings.list"]["out"]);
   replica.resolve("settings.search", (_t, input) => ({ rows: searchRows(rowsNow(), input.q).map((h) => ({ key: h.key, page: h.page, title: h.title, score: h.score })) }) as CapMap["settings.search"]["out"]);
   replica.resolve("settings.copy_source", () => { const o = replica.rows("other")[0] as unknown as Record<string, unknown> | undefined; const { id: _i, ...rest } = o ?? {}; return rest as CapMap["settings.copy_source"]["out"]; });
+  let ghOn = space.id === "northwind";
+  const ghPolicy: Record<string, string> = { read: "always", push_branch: "ask", push_default: "never", open_pr: "ask", comment: "always", merge: "never" };
+  replica.resolve("github.me.status", () => (ghOn ? { connected: true, login: "irfad7", source: "vyre", needsReconnect: space.id === "northwind" } : { connected: false, needsReconnect: false }) as CapMap["github.me.status"]["out"]);
+  replica.resolve("github.me.reach", () => ({ login: "irfad7", orgs: [{ login: "irfad7", install: "all", url: "https://github.com/settings/installations/1" }, { login: "vyre-ai", install: "selected", url: "https://github.com/organizations/vyre-ai/settings/installations/2" }, { login: "northwind", install: "none", url: null }], repos: [{ repo: "vyre-ai/vyre-v1", installationId: 2 }, { repo: "vyre-ai/site", installationId: 2 }, { repo: "irfad7/notes", installationId: 1 }] }) as CapMap["github.me.reach"]["out"]);
+  replica.resolve("github.me.policy.get", () => ({ policy: { ...ghPolicy } }) as unknown as CapMap["github.me.policy.get"]["out"]);
+  replica.resolve("github.me.usage", () => ({ uses: [{ consumer: "crews", repo: "vyre-ai/vyre-v1", action: "Opened a pull request", at: 1 }, { consumer: "ci", repo: "vyre-ai/site", action: "Read code", at: 2 }] }) as CapMap["github.me.usage"]["out"]);
   replica.resolve("devices.mine", () => ({ devices: (replica.rows("devices") as unknown as Row[]).filter((x) => x["revokedAt"] === undefined), sessions: [] }) as unknown as CapMap["devices.mine"]["out"]);
   replica.resolve("notifications.mute.list", () => ({ mutes: (replica.rows("mutes") as unknown as { target: { kind: string; id: string }; until: number }[]).map((m) => ({ target: m.target, until: m.until })) }) as CapMap["notifications.mute.list"]["out"]);
   replica.resolve("notifications.kinds.list", () => ({
@@ -268,6 +274,9 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     "engine.defaults.set": (i: { provider?: string; model?: string; fallback?: { provider: string; model: string }[] }) => { const cur = replica.rows("defaults")[0]!; replica.put("defaults", [{ ...cur, ...(i.provider ? { provider: i.provider } : {}), ...(i.model ? { model: i.model } : {}), ...(i.fallback ? { fallback: i.fallback } : {}) }]); return { ok: true }; },
     "notifications.kind.set_level": (i: { kind: string; level: string }) => { if (i.kind === "approval.requested" && i.level !== "interrupt") throw new Error("Approval reminders never go below Interrupt."); return { kind: i.kind, level: i.level, channels: [] }; },
     "notifications.mute.clear": (i: { target: { id: string } }) => { replica.remove("mutes", [i.target.id]); return { ok: true }; },
+    "github.me.connect": () => ({ authUrl: "https://github.com/login/oauth/authorize?state=x", state: "x", source: "vyre" }),
+    "github.me.disconnect": () => { ghOn = false; return { disconnected: true }; },
+    "github.me.policy.set": (i: { policy: Record<string, string> }) => { Object.assign(ghPolicy, i.policy); return { policy: { ...ghPolicy } }; },
     "devices.revoke": (i: { deviceId: string }) => { const cur = replica.rows("devices").find((x) => x.id === i.deviceId); if (cur) replica.put("devices", [{ ...cur, revokedAt: SAMPLE_NOW }]); return { ok: true }; },
     "devices.revoke_others": () => { let n = 0; for (const x of replica.rows("devices")) if (!x["current"] && x["revokedAt"] === undefined) { replica.put("devices", [{ ...x, revokedAt: SAMPLE_NOW }]); n++; } return { revoked: n }; },
     "mail.mailbox.pause": (i: { mailboxId: string }) => { const m = replica.rows("mailboxes").find((x) => x.id === i.mailboxId); if (m) replica.put("mailboxes", [{ ...m, state: "paused" }]); return { ok: true }; },
@@ -304,6 +313,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     },
   };
   const nav: SettingsNav = {
+    openLink: (l) => void opened.push(`link:${l}`),
     openVault: () => void opened.push("vault"), openSpace: (id) => void opened.push(`space:${id}`), connect: (k) => void opened.push(`connect:${k}`),
     choosePhoto: async () => "fil_sample", previewSkin: (id) => void previews.push(id), manageSecurity: (kind, id) => void opened.push(`security:${kind}:${id}`),
   };
