@@ -13988,6 +13988,7 @@ export type GateGrantsAskIn = {
       target: string;
     }>;
   links?: Array<string>;
+  since?: number;
 };
 export type GateGrantsAskOut = {
   ok: boolean;

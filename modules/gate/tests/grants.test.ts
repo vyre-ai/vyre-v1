@@ -236,3 +236,16 @@ test("an outside agent working as its person under the setup grant has pressed n
   assert.equal((await set(h, { ...alice, origin: "mcp" })).grants.length, 0);
   assert.equal(await granted(stepTake(h, ["lee@acme.test"])), false, "its sends still stop for a person at run time");
 });
+
+test("an ask is taken back by the next message only when the agent has replied since it: a second message with no words keeps the first", async () => {
+  const h = harness();
+  const askFor = (messageId: string, asked: { act: string; target: string }[], since?: number) => h.call("gate.grants.ask", { threadId: "thr_chat", messageId, asked, ...(since !== undefined ? { since } : {}) }, alice as never);
+  await askFor("msg_1", [{ act: "send", target: "" }], h.now() - 1000);   // the agent last replied before the first message
+  h.advance(1000);
+  await askFor("msg_2", [], h.now() - 2000);                              // no reply since: the first ask stays
+  assert.equal(await granted(take(h, ["lee@acme.test"])), true, "the yes still holds after a message with no words");
+  await askFor("msg_3", [{ act: "send", target: "" }], h.now() - 5000);
+  h.advance(1000);
+  await askFor("msg_4", [], h.now());                                     // the agent replied after message 3: it is taken back
+  assert.equal(await granted(take(h, ["lee@acme.test"])), false);
+});

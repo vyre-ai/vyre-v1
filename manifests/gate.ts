@@ -97,7 +97,7 @@ export default defineManifest({
       in: { url: t.str(), threads: t.arr(id.thread, { minItems: 1 }) }, out: { known: t.bool() }, perm: null, level: 'view',
     }),
     write('gate.grants.ask', 'What a person asks for in their own message: one single-use grant per act and target, read from their words by the server before the turn starts', {
-      in: { threadId: id.thread, messageId: id.message, asked: t.arr(t.obj({ act: actKey, target: t.str() })), links: t.opt(t.arr(t.str())) },
+      in: { threadId: id.thread, messageId: id.message, asked: t.arr(t.obj({ act: actKey, target: t.str() })), links: t.opt(t.arr(t.str())), since: t.opt(t.ts({ description: 'When the agent last replied in the thread: what was asked since then still counts, so a second message with no extra words does not take back the first' })) },
       out: { ok: t.bool() }, perm: null, level: 'view', idem: 'natural',
     }),
     write('gate.release', 'Re-invoke the parked capability with an approval token bound to the payload hash, then resume the turn or step', {
