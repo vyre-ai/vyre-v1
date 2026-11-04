@@ -42,7 +42,7 @@ export const t = {
   str: (o: Partial<JsonSchema> = {}): S => ({ type: 'string', ...o }),
   int: (o: Partial<JsonSchema> = {}): S => ({ type: 'integer', ...o }),
   num: (o: Partial<JsonSchema> = {}): S => ({ type: 'number', ...o }),
-  bool: (): S => ({ type: 'boolean' }),
+  bool: (o: { description?: string } = {}): S => ({ type: 'boolean', ...o }),   // a description tells an agent what true means (the result of sites.artifact_publish says opened only when the app opened it)
   nul: (): S => ({ type: 'null' }),
   id: (prefix: string): S => ({ type: 'string', pattern: `^${prefix}_[a-z0-9]+$`, examples: [`${prefix}_a1b2c3`] }),
   ts: (): S => ({ type: 'integer', minimum: 0, examples: [1760000000000], description: 'Milliseconds since the Unix epoch' }),
