@@ -200,3 +200,7 @@ export function saveFailure(e: unknown): { stale: boolean; text: string } {
   const stale = err?.code === "validation.precondition_failed" && (err.details?.reason === "stale_revision" || /changed the page/i.test(err.message ?? ""));
   return { stale, text: stale ? "Someone changed this page. Reload it to see their change; your edit here is not saved." : (err?.message || "The page could not be saved.") };
 }
+
+/** A project's stage as a person reads it ("planning" is "Planning"): the one function the header, the Status property and the Status block all use. */
+export const STAGE_WORD: Readonly<Record<string, string>> = { planning: "Planning", active: "Active", hold: "On hold", done: "Done" };
+export const stageWord = (x: string): string => STAGE_WORD[x] ?? (x === "" ? x : x.charAt(0).toUpperCase() + x.slice(1));

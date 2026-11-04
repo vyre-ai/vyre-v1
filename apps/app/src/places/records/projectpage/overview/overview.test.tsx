@@ -509,3 +509,8 @@ test("a metric waits for the record types before it speaks, so it never says 'ro
     assert.match(textOf(find(late, "live-metric-line")), /unpaid across 3 invoices/);
   } finally { off(); }
 });
+
+test("one function names a project's stage for the header, the Status property and the Status block", async () => {
+  const { stageWord } = await import("./model.ts");
+  assert.deepEqual(["planning", "active", "hold", "done", "on_track", ""].map(stageWord), ["Planning", "Active", "On hold", "Done", "On_track", ""]);
+});

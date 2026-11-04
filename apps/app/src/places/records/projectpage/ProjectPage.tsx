@@ -31,6 +31,7 @@ import { useAddSheet } from "../../chats/addsheet/index.ts";
 import { PeoplePopover } from "../../../../../../ui/src/PeoplePopover/index.tsx";
 import type { MemberAction, MemberRow } from "../../../../../../ui/src/PeoplePopover/index.tsx";
 import { itemLink } from "../../../share/rows.ts";
+import { stageWord } from "./overview/model.ts";
 
 export interface ProjectPageProps {
   projectId: string;
@@ -125,7 +126,6 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
   const at = (e: unknown): { x: number; y: number } => { const t = (e as { nativeEvent?: { pageX?: number; pageY?: number }; clientX?: number; clientY?: number } | undefined); return { x: t?.clientX ?? t?.nativeEvent?.pageX ?? 24, y: (t?.clientY ?? t?.nativeEvent?.pageY ?? 40) + 12 }; };
   const health = p.health;
   // with no health set the pill says the stage the Overview shows, so the header and the Status property never disagree
-  const stageWord = (x: string | undefined): string | undefined => (x ? ({ active: "Active", hold: "On hold", done: "Done" } as Record<string, string>)[x] ?? x.charAt(0).toUpperCase() + x.slice(1) : undefined);
   const lead = p.lead;
   const counts: Partial<Record<ProjectTabKey, number>> = { plan: plan.tasks.filter((t) => t.status === "awaiting_approval" || t.status === "in_review").length };
   const tabs = PROJECT_TABS.map((t) => ({ key: t.key, title: counts[t.key] ? `${t.title} ${counts[t.key]}` : t.title }));
@@ -143,11 +143,11 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
           <Pressable accessibilityRole="button" accessibilityLabel={mine.starred ? "Unstar" : "Star"} accessibilityState={{ selected: mine.starred }} testID="project-star" onPress={() => { const on = !mine.starred; void api.projectStar(projectId, on).then(() => { setMine((m) => ({ ...m, starred: on })); setNote(on ? "Starred" : "Star removed"); }, say); }} style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, hovered === true && s.hover]}>
             <Text style={[s.star, mine.starred && s.starOn]}>{mine.starred ? "\u2605" : "\u2606"}</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Status: ${health ? HEALTH_LABEL[health] : stageWord(p.status) ?? "Not set"}`} testID="project-health" disabled={!canEdit}
+          <Pressable accessibilityRole="button" accessibilityLabel={`Status: ${health ? HEALTH_LABEL[health] : p.status ? stageWord(p.status) : "Not set"}`} testID="project-health" disabled={!canEdit}
             onPress={(e: unknown) => { const q = at(e); menu.show([...HEALTH_ORDER.map((h) => ({ label: HEALTH_LABEL[h], onSelect: () => setHealth(h) })), ...(health ? [{ separator: true as const }, { label: "Clear", onSelect: () => setHealth(null) }] : [])], q.x, q.y, "other", { label: "Status" }); }}
             style={({ hovered }: { hovered?: boolean }) => [s.pill, hovered === true && canEdit && s.hover]}>
             <View style={[s.dot, { backgroundColor: HEALTH_COLOR[health ?? "none"] }]} />
-            <Text style={s.pillText}>{health ? HEALTH_LABEL[health] : stageWord(p.status) ?? "No status"}</Text>
+            <Text style={s.pillText}>{health ? HEALTH_LABEL[health] : p.status ? stageWord(p.status) : "No status"}</Text>
           </Pressable>
           {lead ? (
             <View style={s.pill} testID="project-lead"><Avatar name={d.nameOf(lead)} size={18} /><Text style={s.pillText}>{d.nameOf(lead)}</Text></View>
