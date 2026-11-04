@@ -264,6 +264,12 @@ pub fn run() {
                 if let Ok(url) = std::env::var("VYRE_SHELL_ARTIFACT_PROOF_URL") {
                     if url.starts_with("http://127.0.0.1:") && url[17..].bytes().all(|b| b.is_ascii_digit()) {
                         let shown = format!("http://a.localhost:{}/x/proofcode1", &url[17..]);
+                        {
+                            // what the system resolver says about a.localhost, for the CI log: a webview that cannot resolve it never makes the request
+                            use std::net::ToSocketAddrs;
+                            let probe = format!("a.localhost:{}", &url[17..]);
+                            std::thread::spawn(move || eprintln!("vyre-desktop: a.localhost resolves to {:?}", probe.to_socket_addrs().map(|a| a.collect::<Vec<_>>())));
+                        }
                         let _ = webview.eval(ARTIFACT_PROOF.replace("__ARTIFACT_URL__", &shown));
                     }
                 }
