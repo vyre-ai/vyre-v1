@@ -49,6 +49,9 @@ export const TEAMMATE_TOOLS: readonly string[] = ["people_status", "message_pers
  */
 export const CORE_READ_TOOLS: readonly string[] = ["inbox_counts", "inbox_list_by_thread", "inbox_thread", "mail_thread_get", "mail_message_get"];
 
+/** Reads that still run alone: they change what the agent can call, ask the person, park the turn, or hand the work on. */
+export const SEQUENTIAL_READS: ReadonlySet<string> = new Set(["tool_search", "ask_question", "plan_propose", "wait_for", "handoff", "switch_model", "load_skill", "vault_request"]);
+
 export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
   if (!catalog || !defaults) {
     const reg = JSON.parse(read("generated/registry.json")) as { capabilities: RegistryCapRow[]; agentTools: AgentToolRow[] };
@@ -101,6 +104,11 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
       levels.set(levelKey(t.asker, scope), lvl?.level ?? null);
     }
   };
-  const tools = createApiTools({ session, space: d.space, system: (spec, input) => d.system(spec, input), prepare, rules: (id) => rules.get(id), thread: (id) => facts.get(id), ...(d.usage ? { used: (agentId: string, tool: string) => { if (!defaults!.has(tool)) d.usage!.record(agentId, tool); } } : {}), ...(d.plugins ? { extra: d.plugins.extra } : {}) });
-  return tools;
+  // independent reads (no effect, no Gate rule, nothing local) may run together; everything else runs alone and in order
+  const toolClass = (name: string): "read" | "other" => {
+    const t = catalog!.byName(name);
+    return t !== undefined && t.effects === "read" && !t.gated && t.local === "none" && !SEQUENTIAL_READS.has(name) ? "read" : "other";
+  };
+  const tools = createApiTools({ session, space: d.space, system: (spec, input) => d.system(spec, input), prepare, rules: (id) => rules.get(id), thread: (id) => facts.get(id), isRead: (n: string) => toolClass(n) === "read", ...(d.usage ? { used: (agentId: string, tool: string) => { if (!defaults!.has(tool)) d.usage!.record(agentId, tool); } } : {}), ...(d.plugins ? { extra: d.plugins.extra } : {}) });
+  return { ...tools, toolClass };
 }

@@ -32,3 +32,8 @@ test("it is in the stable rules section of a turn's context", async () => {
   const src = readFileSync(new URL("../context.ts", import.meta.url), "utf8");
   assert.match(src, /add\("rules", true, .*CAPABILITY_MAP\)/);
 });
+
+test("the stable rules ask for independent tool calls to be made together", () => {
+  const src = readFileSync(new URL("../context.ts", import.meta.url), "utf8");
+  assert.match(src, /When steps do not depend on each other, call their tools together in one step/);
+});

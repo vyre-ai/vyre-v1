@@ -519,7 +519,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           return s;
         },
       } : {}),
-      ...(apiTools ? { callTool: apiTools.runner } : {}),
+      ...(apiTools ? { callTool: apiTools.runner, ...(apiTools.toolClass ? { toolClass: apiTools.toolClass } : {}) } : {}),
       // a chat pinned to a computer that is not linked waits in the queue for it: the turn does not start (nothing reads "Working"), the chat says so once, and it starts when the computer links
       ...(h.nodes?.devices ? { place: (thread: { id: string }) => (waitsForComputer(ctx.db, h.nodes, thread.id) ? "device" as const : "host" as const) } : {}),
     });
