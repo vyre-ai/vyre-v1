@@ -72,6 +72,7 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   "engine.timeout": { message: "The engine did not answer in time.", retryable: true },
   "engine.session_gone": { message: "The engine lost this chat's earlier session.", cause: "Try again: it starts from the chat's summary.", retryable: true },
   "engine.model_unavailable": { message: "That model cannot run here.", next: [{ key: "pick_model", label: "Choose another model" }, { key: "run_on_my_computer", label: "Run it on my computer" }], retryable: false },
+  "engine.no_model_works": { message: "None of your AI accounts can answer right now.", cause: "Check your AI accounts, then try again.", next: [{ key: "connect_ai", label: "Open AI accounts" }], retryable: true },
   "engine.no_account": { message: "Connect your AI to get replies.", cause: "No AI account is saved for this chat yet.", next: [{ key: "connect_ai", label: "Connect your AI" }], retryable: false },
   "engine.account_unavailable": { message: "Your AI account could not be reached just now.", next: [{ key: "connect_ai", label: "Check your AI account" }], retryable: true },
   "engine.account_unsupported": { message: "This engine cannot run on this kind of account yet.", cause: "Use an API key for it.", next: [{ key: "connect_ai", label: "Use an API key" }], retryable: false },

@@ -1,7 +1,7 @@
 // A turn that ended without a reply is a plain sentence with one action, never a card named after its internal status.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { installProgram, isTurnStatus, statusView, withoutAnswered } from "./status.ts";
+import { installProgram, isTurnStatus, statusView, withoutAnswered, wordsFor } from "./status.ts";
 
 const block = (data: Record<string, unknown>) => ({ id: "b1", type: "turn_status", v: 1, state: "done", data, traceId: "t" }) as never;
 
@@ -134,4 +134,11 @@ test("sandbox.unavailable says the engine cannot run safely here and offers an A
   assert.match(d.cause ?? "", /sandbox/);
   assert.deepEqual(d.next, [{ key: "connect_ai", label: "Use an API key" }]);
   assert.equal(d.retryable, false);
+});
+
+test("no model works: one plain card that says what to do, with Open AI accounts and no code in the words", () => {
+  const w = wordsFor("engine.no_model_works");
+  assert.equal(w.message, "None of your AI accounts can answer right now.");
+  assert.deepEqual(w.next, [{ key: "connect_ai", label: "Open AI accounts" }]);
+  assert.doesNotMatch(`${w.message} ${w.cause ?? ""}`, /engine\.|--/);
 });

@@ -6,6 +6,7 @@
 import { windowFor } from "../../../../agent/src/transcript/windows.ts";
 import { actorOf, raise } from "../../projections.ts";
 import { ensureRuntime } from "../../runtime.ts";
+import { unavailableFor } from "../../model-health.ts";
 import { LIVE_DRIVERS, modelsFor, savedTested, saveTested } from "../../live-models.ts";
 import type { LiveModel, ModelsState } from "../../live-models.ts";
 import type { EngineCtx } from "../../projections.ts";
@@ -125,7 +126,10 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
   for (const { p, models } of found) {
     // a model this account ran out of is listed greyed, with when it comes back when the provider said (engine.usage.get shows its meter full)
     const out = modelLimits(ctx.db, p.handle ?? p.itemId, ctx.now());
+    // a model this account just refused is not offered until it works again (model-health.ts)
+    const refused = unavailableFor(ctx.db, p.handle ?? p.itemId, ctx.now());
     for (const model of models) {
+      if (refused.has(model)) continue;
       const why = blockedBy(policy, { provider: p.providerKey, model, ...(label === undefined ? {} : { label }) });
       const spent = why === null ? out.get(model) : undefined;
       const lm = live.get(`${p.providerKey}/${model}`);
