@@ -20,7 +20,7 @@
 // /compute/stream with the person's own signed-in session (`Authorization: Bearer vst_...`), not a node credential. Its node id is `device:<device id>`, it belongs to that person, and the Space
 // starts a process on it only for that person's own turns (spawnProc's `person`); the device refuses any other as the second lock. It says which engines it runs once, in its hello
 //   device -> Space  {t:"hello", engines:[...], name?}         Space -> device  {t:"ready", person, device}
-//   node or device -> Space  {t:"report", report}  every 30 s: its specs, load, what Vyre runs on it and what it can run (machines, lib/machines.ts)
+//   node or device -> Space  {t:"report", report}  every 30 s: its specs, load, what Vyre runs on it and what it can run (machines, host/src/machines/report.ts); the Space pings every 30 s and the answer {t:"pong", at} gives the round trip
 // A session that is signed out or revoked drops the socket within `recheckMs`, like a removed node.
 //
 // And one request to a port on a computer on this node, for a site or an artifact (portFetch), and one question for the machine (ask): no job row, so a read can use them.
@@ -58,15 +58,15 @@ export const deviceNode = (deviceId: string): string => `device:${deviceId}`;
 
 export interface ComputeStreamDeps {
   /** Who holds this credential, if still admitted (the network module's node_poll). */
-  poll(credential: string): Promise<{ serverId: string } | null>;
+  poll(credential: string): Promise<{ serverId: string; owner?: string } | null>;
   /** A person's signed-in session, for their own computer's link: the person and the device, if the session is live and the device is a computer (not a phone or a browser). Absent: no device links. */
   device?(token: string): Promise<{ person: string; device: string; name?: string } | null>;
   /** Spend a viewer's ticket for this computer: the node it lives on, who the ticket was issued to, and whether that person holds the controls. Null when the ticket is not good. */
   open(ticket: string, computerId: string): Promise<{ nodeId: string; personId: string; input: boolean } | null>;
   /** Does this person still hold the controls of this computer? */
   mayInput(computerId: string, personId: string): Promise<boolean>;
-  /** A computer's report of its load, specs and what it runs, every 30 s (machines: lib/machines.ts). `serverId` is set for a node that joined with a credential; `device` for a person's own computer. The host stores it. */
-  report?(from: { nodeId: string; serverId?: string; device?: DeviceLink }, report: unknown): void;
+  /** A computer's report of its load, specs and what it runs, every 30 s (machines: host/src/machines/report.ts). `serverId` is set for a node that joined with a credential (`owner` is who added it); `device` for a person's own computer; `latencyMs` is the Space's own measure of the round trip. The host hands it to the Machines module. */
+  report?(from: { nodeId: string; serverId?: string; owner?: string; device?: DeviceLink; latencyMs?: number }, report: unknown): void;
   now?: () => number;
   /** How often a connected node's credential is checked again. Default 2 s. */
   recheckMs?: number;
@@ -125,6 +125,8 @@ export interface ComputeStream {
   connected(nodeId: string): boolean;
   /** Turns running on this node now: the engine processes the Space started there (all nodes' when none is named). Zero for a node that is not connected. */
   running(nodeId?: string): number;
+  /** Turns running on this node now: the engine processes the Space started there (all nodes' when none is named). Zero for a node that is not connected. */
+  running(nodeId?: string): number;
   /** One HTTP request to a port on a computer on this node. */
   portFetch(nodeId: string, a: { computerId: string; port: number; request: PortRequest }, sink: PortSink): void;
   /** One question for the machine: its answer, or a rejection when it cannot say. */
@@ -138,7 +140,7 @@ export interface ComputeStream {
   close(): void;
 }
 
-interface NodeConn { nodeId: string; credential: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number; secure: boolean; address: string; device?: DeviceLink }
+interface NodeConn { nodeId: string; credential: string; peer: Peer; views: Set<string>; procs: Set<string>; lastSeen: number; secure: boolean; address: string; device?: DeviceLink; pingAt?: number; rtt?: number; pinger?: ReturnType<typeof setInterval> }
 interface ProcState {
   id: string; nodeId: string; started(pid: number | undefined): void; failed(e: RelayError): void; out(bytes: Buffer, err: boolean): void; exit(x: RelayExit): void;
 }
@@ -202,7 +204,9 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       p?.exit({ code: null, signal: "SIGKILL" });
     }
   }
+  const stopPing = (n: NodeConn): void => { if (n.pinger) { clearInterval(n.pinger); delete n.pinger; } };
   function dropNode(n: NodeConn, code: number): void {
+    stopPing(n);
     const was = nodes.get(n.nodeId) === n;
     if (was) nodes.delete(n.nodeId);
     for (const id of [...n.views]) dropView(id, false);
@@ -231,7 +235,14 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       if (old) dropNode(old, 4000);
       nodes.set(conn.nodeId, conn);
       peer.send(JSON.stringify(device ? { t: "ready", person: device.person, device: device.deviceId } : { t: "ready" }));
+      // the Space measures the round trip to each machine with a ping every 30 s; the answer comes back as a pong
+      if (deps.report) {
+        const ping = (): void => { if (peer.open) { conn.pingAt = now(); peer.send(JSON.stringify({ t: "ping", at: conn.pingAt })); } };
+        conn.pinger = setInterval(ping, 30_000); conn.pinger.unref?.();
+        ping();
+      }
       peer.onClose(() => {
+        stopPing(conn);
         const was = nodes.get(conn.nodeId) === conn;
         if (was) nodes.delete(conn.nodeId);
         for (const id of [...conn.views]) dropView(id, false);
@@ -263,9 +274,10 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
         let m: { t?: unknown; view?: unknown; reason?: unknown; data?: unknown; proc?: unknown; pid?: unknown; err?: unknown; code?: unknown; signal?: unknown };
         try { m = JSON.parse(data.toString("utf8")) as typeof m; } catch { return; }
         if (m.t === "hb") return;
+        if (m.t === "pong") { const at = (m as { at?: unknown }).at; if (typeof at === "number" && at === conn.pingAt) conn.rtt = Math.max(0, now() - at); return; }
         if (m.t === "report") {
-          // the load of this computer, reported by it: kept as it came (made safe by lib/machines.ts cleanReport), only from the socket it belongs to
-          try { deps.report?.({ nodeId: conn.nodeId, ...(who ? { serverId: who.serverId } : {}), ...(conn.device ? { device: conn.device } : {}) }, (m as unknown as { report?: unknown }).report); } catch { /* a report that cannot be stored is dropped; the next one comes in 30 s */ }
+          // the load of this computer, reported by it (made safe by parseReport in the Machines module), only from the socket it belongs to
+          try { deps.report?.({ nodeId: conn.nodeId, ...(who ? { serverId: who.serverId, ...(who.owner ? { owner: who.owner } : {}) } : {}), ...(conn.device ? { device: conn.device } : {}), ...(conn.rtt !== undefined ? { latencyMs: conn.rtt } : {}) }, (m as unknown as { report?: unknown }).report); } catch { /* a report that cannot be stored is dropped; the next one comes in 30 s */ }
           return;
         }
         if (typeof m.t === "string" && m.t.startsWith("port_")) {
@@ -482,6 +494,7 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       ports.set(id, { nodeId, sink, timer });
       n.peer.send(JSON.stringify({ t: "port_req", id, computerId: a.computerId, port: a.port, method: a.request.method, path: a.request.path, headers: a.request.headers, ...(a.request.body?.length ? { body: Buffer.from(a.request.body).toString("base64") } : {}) }));
     },
+    running(nodeId) { return nodeId === undefined ? [...nodes.values()].reduce((n, c) => n + c.procs.size, 0) : (nodes.get(nodeId)?.procs.size ?? 0); },
     running(nodeId) { return nodeId === undefined ? [...nodes.values()].reduce((n, c) => n + c.procs.size, 0) : (nodes.get(nodeId)?.procs.size ?? 0); },
     peerAddress(nodeId) { return nodes.get(nodeId)?.address ?? null; },
     devices(person) {

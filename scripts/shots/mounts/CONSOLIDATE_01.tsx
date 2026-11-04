@@ -57,11 +57,27 @@ const detailOf = (m: MachineRow, range: "24h" | "7d", privacy: MachineOut["priva
   work: privacy === "full" ? WORK : [], alerts: [], privacy,
 });
 
+/** The sample machines as machines.list answers them (the fixtures above are in the shape the page draws). */
+const apiRow = (m: MachineRow): Record<string, unknown> => ({
+  machineId: m.serverId, kind: m.kind === "linked" ? "computer" : m.kind, name: m.name, ...(m.nickname ? { nickname: m.nickname } : {}), ...(m.owner ? { ownerId: m.owner } : {}), mine: m.mine, online: m.online, draining: m.drain, restricted: m.private,
+  ...(m.lastSeenAt ? { lastSeenAt: m.lastSeenAt } : {}), ...(m.latencyMs ? { latencyMs: m.latencyMs } : {}), ...(m.version ? { version: m.version } : {}), ...(m.private ? {} : { os: m.os, arch: m.arch, diskBytes: m.diskBytes }), cores: m.cores, memBytes: m.memBytes,
+  ...(m.load && m.memBytes && m.diskBytes ? { load: { cpuPct: m.load.cpu, memUsedBytes: (m.load.memPct / 100) * m.memBytes, diskFreeBytes: m.load.diskFreeBytes, netInBps: 0, netOutBps: 0 } } : {}),
+  ...(m.vyre && m.memBytes ? { vyreLoad: { cpuPct: m.vyre.cpu, memBytes: (m.vyre.memPct / 100) * m.memBytes } } : {}),
+  runs: m.runs, can: m.can, limits: { maxTurns: m.limits.maxTurns ?? 4, maxAgentComputers: m.limits.maxAgentComputers ?? 2 }, pinned: m.pins.map((agentId) => ({ agentId })),
+  room: { score: m.room.n, tightest: m.room.why === "turn limit" ? "turns" : m.room.why }, alerts: 0, agentComputers: [],
+});
+const KIND = { disk: "disk_low", memory: "memory_pressure", offline: "offline_pinned", update: "update_waiting", backup: "backup_failed" } as const;
+
 function call(): (cap: string, input: unknown) => Promise<unknown> {
   return async (cap, input) => {
-    const i = input as { serverId?: string; range?: string };
-    if (cap === "network.machines") return answer(ALL, ALERTS);
-    if (cap === "network.machine") { const m = ALL.find((x) => x.serverId === i.serverId) ?? berlin; return detailOf(m, i.range === "7d" ? "7d" : "24h", m.private ? "vyre_only" : "full"); }
+    const i = input as { serverId?: string; machineId?: string; range?: string };
+    if (cap === "machines.list") return { machines: ALL.map(apiRow), summary: { online: ALL.length, total: ALL.length, agentComputers: 0, roomAvg: 50 } };
+    if (cap === "machines.alerts") return { alerts: ALERTS.map((a) => ({ alertId: a.alertId, machineId: a.serverId, kind: KIND[a.kind], severity: "warn", title: a.title, detail: a.detail, next: "" })) };
+    if (cap === "network.servers") return { servers: [] };
+    if (cap === "machines.get") {
+      const m = ALL.find((x) => x.serverId === i.machineId) ?? berlin, d = detailOf(m, "24h", m.private ? "vyre_only" : "full"), pts = (r: "24h" | "7d") => detailOf(m, r, m.private ? "vyre_only" : "full").series.points.map((p) => ({ t: p.t, ...(m.private ? { vyreCpuPct: p.cpu ?? 0, vyreMemBytes: ((p.mem ?? 0) / 100) * (m.memBytes ?? 0) } : { cpuPct: p.cpu ?? 0, memPct: p.mem ?? 0, diskFreePct: 100 - (p.disk ?? 0), netInBps: (p.netIn ?? 0) * 1e6, netOutBps: (p.netOut ?? 0) * 1e6 }) }));
+      return { machine: apiRow(m), series: { "1h": pts("24h").slice(0, 60), "24h": pts("24h"), "7d": pts("7d"), "30d": pts("7d") }, findings: d.findings, alerts: [], privacy: d.privacy, work: d.work.map((w) => ({ kind: "turn", agentId: "agt_scout", what: w.what, where: w.where, minutes: 3 })) };
+    }
     if (cap === "computers.hosts") return { available: true, hosts: [] };
     if (cap === "computers.list") return { computers: [] };
     if (cap === "agents.list") return { agents: [{ id: "agt_scout", name: "Scout" }, { id: "agt_billing", name: "Billing" }] };
@@ -71,7 +87,7 @@ function call(): (cap: string, input: unknown) => Promise<unknown> {
 
 function consoleData(): ReturnType<typeof createSampleConsole>["data"] {
   const base = createSampleConsole().data, c = call();
-  return { ...base, call: async (cap: string, input: Record<string, unknown>) => (cap.startsWith("network.machine") || cap.startsWith("computers.") || cap === "agents.list" ? c(cap, input) : (base.call as never as (a: string, b: unknown) => Promise<unknown>)(cap, input)) as never, name: who };
+  return { ...base, call: async (cap: string, input: Record<string, unknown>) => (cap.startsWith("machines.") || cap === "network.servers" || cap.startsWith("computers.") || cap === "agents.list" ? c(cap, input) : (base.call as never as (a: string, b: unknown) => Promise<unknown>)(cap, input)) as never, name: who };
 }
 
 const noop = (): void => undefined;
@@ -80,7 +96,7 @@ export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "machines"), []);
   const cons = useMemo(() => consoleData(), []);
-  const settings = useMemo(() => { const s = createSampleSettings(); const c = call(); return { ...s.data, call: (cap: string, input: unknown) => (cap.startsWith("network.machine") || cap === "computers.hosts" || cap === "agents.list" ? c(cap, input) : s.data.call(cap, input)) }; }, []);
+  const settings = useMemo(() => { const s = createSampleSettings(); const c = call(); return { ...s.data, call: (cap: string, input: unknown) => (cap.startsWith("machines.") || cap === "network.servers" || cap === "computers.hosts" || cap === "agents.list" ? c(cap, input) : s.data.call(cap, input)) }; }, []);
   if (part === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   const frame = (children: ReactNode): ReactNode => <View style={{ flex: 1, minHeight: 900, backgroundColor: "var(--win)" as string, padding: 24, alignItems: "center" }}><View style={{ width: "100%", maxWidth: 1200 }}>{children}</View></View>;
   const detailPart = (m: MachineRow, range: "24h" | "7d", hover: number | null, privacy: MachineOut["privacy"] = "full"): ReactNode => frame(<MachineDetail m={m} detail={detailOf(m, range, privacy)} own={privacy === "full"} range={range} tab="overview" hover={hover} chartW={Math.floor((Math.min(1200, (globalThis as { innerWidth?: number }).innerWidth ?? 1200) - 56 - 14) / 2) - 28} narrow={((globalThis as { innerWidth?: number }).innerWidth ?? 1200) < 760} who={who} now={NOW} goto={noop} onRange={noop} onTab={noop} onHover={noop} onBack={noop} placement={null} />);

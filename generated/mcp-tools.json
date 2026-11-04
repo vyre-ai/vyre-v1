@@ -18572,6 +18572,21 @@
     },
     {
       "blocks": [],
+      "cap": "engine.turns.running",
+      "deferred": false,
+      "description": "Engine only: the turns running now with the machine each runs on (agent, asker, start, place; no message or title), for the Machines page",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "engine_turns_running",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "engine.usage.get",
       "deferred": false,
       "description": "For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated",
@@ -32559,6 +32574,269 @@
     },
     {
       "blocks": [],
+      "cap": "machines.alerts",
+      "deferred": false,
+      "description": "What needs a look: disk under 10% free, memory pressure, a machine offline with pinned work, an update waiting, a failed backup. Each says what to do",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "machines_alerts",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.alerts_notify",
+      "deferred": false,
+      "description": "Host only: send each new machine alert to the Inbox once while it lasts, and tell the placement caches when a machine ran out of room or has room again",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "machines_alerts_notify",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.fix",
+      "deferred": false,
+      "description": "Press a Doctor Fix on a machine: clear old caches, stop idle engine sessions, or restart a service. The host runs it; an admin for the Space server and servers, the owner for their own computer. Audited",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fix": {
+            "enum": [
+              "clear_caches",
+              "stop_idle",
+              "restart_service"
+            ],
+            "type": "string"
+          },
+          "machineId": {
+            "type": "string"
+          },
+          "service": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,40}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "machineId",
+          "fix"
+        ],
+        "type": "object"
+      },
+      "name": "machines_fix",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.get",
+      "deferred": false,
+      "description": "One machine with its series for 1 hour (60 one-minute points), 24 hours (144 ten-minute), 7 days (168 hourly) and 30 days (180 four-hourly), its alerts and, for the Space server, the doctor's findings. A gap is a bucket with only its time",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "machineId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "machineId"
+        ],
+        "type": "object"
+      },
+      "name": "machines_get",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.list",
+      "deferred": false,
+      "description": "Every machine you may see with its load, what Vyre runs on it, what it can run and its room left; agent computers nested under their host. An admin sees all, a member their own; on a member's computer an admin sees only name, online, capacity and Vyre's own work",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "machines_list",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.move_record",
+      "deferred": false,
+      "description": "Engine only: keep the line of a turn that Automatic moved off a machine with no room",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "type": "string"
+          },
+          "asker": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "turnId": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "why"
+        ],
+        "type": "object"
+      },
+      "name": "machines_move_record",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.moves",
+      "deferred": false,
+      "description": "Recent moves, Space-wide: each turn Automatic sent to another machine because the first in the order had no room, newest first. A member sees their own",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "machines_moves",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.rooms",
+      "deferred": false,
+      "description": "Room left on the machines you name (ids as machines.list gives them): the number placement skips a busy machine by, and the plain words for why (\"4 of 4 turns\"). Only machines you may see; used by engine.placement.decide",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "type": "object"
+      },
+      "name": "machines_rooms",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.set",
+      "deferred": false,
+      "description": "Name a machine, set the most turns or agent computers it takes at once, drain it (no new work, what runs finishes) or pin an agent to it. A server is an admin's (and its owner's); a person's own computer is theirs, and an admin may only drain it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "drain": {
+            "type": "boolean"
+          },
+          "machineId": {
+            "type": "string"
+          },
+          "maxAgentComputers": {
+            "maximum": 32,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxTurns": {
+            "maximum": 64,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "nickname": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pinAgent": {
+            "properties": {
+              "agentId": {
+                "examples": [
+                  "agt_a1b2c3"
+                ],
+                "pattern": "^agt_[a-z0-9]+$",
+                "type": "string"
+              },
+              "pinned": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "agentId",
+              "pinned"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "machineId"
+        ],
+        "type": "object"
+      },
+      "name": "machines_set",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.attachment.save",
       "deferred": false,
       "description": "Save an attachment into Files",
@@ -41263,263 +41541,6 @@
     },
     {
       "blocks": [],
-      "cap": "network.machine",
-      "deferred": false,
-      "description": "One machine with its history for a range (1 hour, 24 hours, 7 days or 30 days), what runs on it by agent and chat, and its Doctor findings",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "range": {
-            "enum": [
-              "1h",
-              "24h",
-              "7d",
-              "30d"
-            ],
-            "type": "string"
-          },
-          "serverId": {
-            "examples": [
-              "srv_local",
-              "srv_dev_a1b2c3"
-            ],
-            "pattern": "^srv_[a-z0-9_]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "serverId"
-        ],
-        "type": "object"
-      },
-      "name": "network_machine",
-      "planMode": "allowed",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "network.machine_alerts",
-      "deferred": false,
-      "description": "The machine alerts the asker may see: disk under 10 percent free, memory pressure, a machine offline with pinned work, a failed backup, an update waiting (the Console dot and the Inbox line)",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {},
-        "type": "object"
-      },
-      "name": "network_machine_alerts",
-      "planMode": "allowed",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "network.machine_fix",
-      "deferred": false,
-      "description": "Press a Doctor Fix on a machine: clear old caches, stop idle engine sessions, or restart a service. The host runs it; an admin for the Space server and servers it holds, the owner for their own computer. Audited",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "fix": {
-            "enum": [
-              "clear_caches",
-              "stop_idle",
-              "restart_service"
-            ],
-            "type": "string"
-          },
-          "serverId": {
-            "examples": [
-              "srv_local",
-              "srv_dev_a1b2c3"
-            ],
-            "pattern": "^srv_[a-z0-9_]+$",
-            "type": "string"
-          },
-          "service": {
-            "pattern": "^[a-z][a-z0-9_.-]{0,40}$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "serverId",
-          "fix"
-        ],
-        "type": "object"
-      },
-      "name": "network_machine_fix",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "network.machine_moves",
-      "deferred": false,
-      "description": "Recent moves, Space-wide: each turn Automatic sent to another machine because the first in the order had no room, newest first. A member sees their own",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "limit": {
-            "maximum": 200,
-            "minimum": 1,
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "name": "network_machine_moves",
-      "planMode": "allowed",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "network.machine_pin",
-      "deferred": false,
-      "description": "Pin an agent to a machine so its turns always run there (waiting when it is away), or let it go",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "agentId": {
-            "type": "string"
-          },
-          "pinned": {
-            "type": "boolean"
-          },
-          "serverId": {
-            "examples": [
-              "srv_local",
-              "srv_dev_a1b2c3"
-            ],
-            "pattern": "^srv_[a-z0-9_]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "serverId",
-          "agentId",
-          "pinned"
-        ],
-        "type": "object"
-      },
-      "name": "network_machine_pin",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "network.machine_place",
-      "deferred": false,
-      "description": "Which machine a turn goes to, given the places to try in order: the first with room, skipping a busy one, and why it moved (the Ran on line)",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "order": {
-            "items": {
-              "examples": [
-                "srv_local",
-                "srv_dev_a1b2c3"
-              ],
-              "pattern": "^srv_[a-z0-9_]+$",
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "order"
-        ],
-        "type": "object"
-      },
-      "name": "network_machine_place",
-      "planMode": "allowed",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "network.machine_set",
-      "deferred": false,
-      "description": "Set a machine's nickname, the most turns or agent computers it takes at once (empty for no limit) and Drain: no new work lands on a drained machine and what runs finishes",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "drain": {
-            "type": "boolean"
-          },
-          "maxAgentComputers": {
-            "anyOf": [
-              {
-                "maximum": 64,
-                "minimum": 0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "maxTurns": {
-            "anyOf": [
-              {
-                "maximum": 64,
-                "minimum": 0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "nickname": {
-            "anyOf": [
-              {
-                "maxLength": 40,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "serverId": {
-            "examples": [
-              "srv_local",
-              "srv_dev_a1b2c3"
-            ],
-            "pattern": "^srv_[a-z0-9_]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "serverId"
-        ],
-        "type": "object"
-      },
-      "name": "network_machine_set",
-      "planMode": "blocked",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "network.machines",
-      "deferred": false,
-      "description": "Every machine that runs Vyre work: the Space server, added servers and linked computers, with load, room left and alerts. A member's own computer shows an admin only name, online, capacity and Vyre's work",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {},
-        "type": "object"
-      },
-      "name": "network_machines",
-      "planMode": "allowed",
-      "toolset": "engineer",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "network.my_computer_approve",
       "deferred": false,
       "description": "Admit your own waiting computer",
@@ -41962,7 +41983,7 @@
       "blocks": [],
       "cap": "network.server_join_code",
       "deferred": false,
-      "description": "Make a join code to add a cloud box or office Mac for compute. A nickname names it once it arrives",
+      "description": "Make a join code to add a cloud box or office Mac for compute",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -41971,13 +41992,6 @@
               "idem_1"
             ],
             "minLength": 1,
-            "type": "string"
-          },
-          "nickname": {
-            "examples": [
-              "berlin-box"
-            ],
-            "maxLength": 40,
             "type": "string"
           }
         },

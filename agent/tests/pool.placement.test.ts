@@ -158,3 +158,20 @@ test("Automatic skips a busy machine for the next one with room and says where i
   assert.deepEqual([all.placement, all.deviceId, all.moved], ["device", "dev_laptop", undefined], "every one busy: the first in the order takes it and the turn queues there");
   assert.equal(placeTurn(input({ asker: { devices: [{ ...busy, busy: true }], chosen: { target: "device", deviceId: "dev_laptop" } } })).reason, "chosen_device", "a pin is never moved, busy or not");
 });
+
+test("an agent pinned to a machine is tried there first, a chat's own pin wins, and a pinned machine with no room or off passes the turn on with the reason", () => {
+  const mac: PlaceDevice = { id: "dev_mac", role: "daemon", online: true, engines: ["claude_code"], lastSeen: 300, name: "Dana's MacBook" };
+  const mini: PlaceDevice = { id: "dev_mini", role: "daemon", online: true, engines: ["claude_code"], lastSeen: 100, name: "Dana's Mac mini" };
+  const base = (over: Partial<PlaceInput["asker"]>): PlaceInput => ({ thread: { kind: "chat", persons: 1 }, item: { kind: "message" }, agent: { hasComputer: false }, engine: "claude_code", asker: { devices: [mac, mini], localRuns: true, runtimeOptIn: true, ...over } });
+  // the mini is older, but the agent lives there
+  assert.deepEqual(placeTurn(base({ agentPin: { kind: "device", id: "dev_mini", name: "Dana's Mac mini" } })), { placement: "device", reason: "other_device", deviceId: "dev_mini" });
+  assert.deepEqual(placeTurn(base({ agentPin: { kind: "space", id: "space", name: "the Space server" } })), { placement: "host", reason: "space" });
+  // no room on the pinned machine: the next with room takes it, and the line says why
+  const busyMini = { ...mini, busy: true, busyWhy: "it was busy, 2 of 2 turns running" };
+  assert.deepEqual(placeTurn(base({ devices: [mac, busyMini], agentPin: { kind: "device", id: "dev_mini", name: "Dana's Mac mini" } })), { placement: "device", reason: "other_device", deviceId: "dev_mac", moved: { from: "Dana's Mac mini", why: "it was busy, 2 of 2 turns running" } });
+  // pinned machine off (not among the places that can take the turn): goes on from it
+  assert.deepEqual(placeTurn(base({ devices: [mac, { ...mini, online: false }], agentPin: { kind: "device", id: "dev_mini", name: "Dana's Mac mini" } })), { placement: "device", reason: "other_device", deviceId: "dev_mac", moved: { from: "Dana's Mac mini", why: "it is offline" } });
+  // the chat's own pin wins over the agent's
+  assert.equal(placeTurn(base({ chosen: { target: "device", deviceId: "dev_mac" }, agentPin: { kind: "device", id: "dev_mini", name: "Dana's Mac mini" } })).deviceId, "dev_mac");
+  assert.equal(placeTurn(base({ chosen: { target: "space" }, agentPin: { kind: "device", id: "dev_mini", name: "x" } })).reason, "chosen_space");
+});

@@ -201,7 +201,7 @@ export function routed(inner: OpenSession, o: RouteDeps): OpenSession {
     // Automatic passed over a busy machine: the Space-wide Recent moves list (Console, Machines) keeps the line
     if (decided.moved && spec.turnId) void (async () => {
       const to = decided.placement === "device" ? relay.devices?.(spec.asker).find((l) => l.deviceId === decided.deviceId)?.name ?? "your computer" : decided.nodeId ? (await o.serverName?.(decided.nodeId, spec.asker).catch(() => undefined)) ?? "your server" : await spaceName();
-      await o.call("network.machine_move_record", { turnId: spec.turnId, asker: spec.asker, agentId: spec.agent.id, threadId: spec.threadId, from: decided.moved!.from, to, why: decided.moved!.why });
+      await o.call("machines.move_record", { turnId: spec.turnId, asker: spec.asker, agentId: spec.agent.id, threadId: spec.threadId, from: decided.moved!.from, to, why: decided.moved!.why });
     })().catch(() => undefined);
     if (decided.placement === "device" && decided.deviceId) {
       const pinned = decided.reason === "chosen_device";
