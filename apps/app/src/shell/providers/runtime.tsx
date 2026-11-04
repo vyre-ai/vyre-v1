@@ -16,6 +16,8 @@ export interface ShellTarget {
   screen?: string;
   subject?: { type: string; id: string };
   args?: Record<string, unknown>;
+  /** A move inside the place and item already open (a tab of the page the person is on, a view, a filter): it was reached through the door once, so it is not asked again. */
+  local?: boolean;
   /** Open it in a tab behind the one the person is in (Cmd-click, middle click). */
   background?: boolean;
 }
