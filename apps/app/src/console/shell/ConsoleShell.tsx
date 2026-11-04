@@ -23,6 +23,7 @@ import { DEFAULT_PAGE, PAGES, PAGE_NOTE, pageById, visiblePages } from "./nav.ts
 import { OLD_NAMES, landing, nowIn, resolve, sectionOf, visibleSections, visibleTabs } from "./sections.ts";
 import type { PageDef } from "./nav.ts";
 import { Lead, PageHelpContext, pointer } from "./ui.tsx";
+import { NeedsHere } from "./NeedsHere.tsx";
 import { Info } from "../../../../../ui/src/Tip/index.tsx";
 import { openOnboarding } from "../../onboarding/store.ts";
 
@@ -237,10 +238,12 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
             {embedded && health ? <View style={s.health} testID="console-health" accessibilityLabel={`Server ${HEALTH_LABEL[health].toLowerCase()}`}><Dot tone={HEALTH_TONE[health]} size={8} /></View> : null}
             {embedded ? <><View style={{ flex: 1 }} /><Pressable accessibilityRole="button" accessibilityLabel="Setup guide" testID="console-setup-guide" onPress={() => { openOnboarding(); }} style={[s.chip, pointer]}><Glyph name="ok" size={14} color="var(--ink-2)" /><Text style={s.chipText}>Setup guide</Text></Pressable></> : null}
           </View>
+          {here ? <Text style={s.subtitle} testID="page-subtitle">{here.subtitle}</Text> : null}
           {strip}
           <ScrollView style={{ flex: 1 }} contentContainerStyle={s.content}>
             <View style={def.id === "audit" ? s.wide : def.id === "machines" || def.id === "permissions" || def.id === "roles" ? s.machines : s.column}>
               {views}
+              <NeedsHere page={page} />
               <PageHelpContext.Provider value={registerHelp}><ShellDataGate value={shellData}>{body}</ShellDataGate></PageHelpContext.Provider>
             </View>
           </ScrollView>
@@ -282,6 +285,7 @@ const s = StyleSheet.create({
   main: { flex: 1, minWidth: 0 },
   pages: { flexDirection: "row", alignItems: "center", gap: 6, height: 32 },
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 24, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  subtitle: { fontSize: 13, color: "var(--ink-3)" as string, paddingHorizontal: 24, paddingTop: 10, paddingBottom: 4 },
   title: { fontSize: 14.5, fontWeight: "600", color: "var(--ink)" as string },
   content: { padding: 24, alignItems: "center", flexGrow: 1 },
   column: { width: "100%", maxWidth: 960 },

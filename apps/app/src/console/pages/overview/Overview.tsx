@@ -21,15 +21,15 @@ export const HEALTH_TONE: Readonly<Record<Out["health"], Tone>> = { healthy: "ok
 
 /** The page each kind of attention item is dealt with on. */
 export const ATTENTION_PAGE: Readonly<Record<Attention["kind"], string>> = {
-  join_stuck: "people",
+  join_stuck: "requests",
   home_channel: "overview",
-  failing_check: "server",
+  failing_check: "diagnostics",
   expiring_certificate: "network",
-  failed_run: "agents",
-  stuck_update: "server",
+  failed_run: "activity",
+  stuck_update: "servers",
   limit_hit: "spend",
   access_review_due: "reviews",
-  no_ai_account: "models",
+  no_ai_account: "aiaccounts",
 };
 
 export const ATTENTION_SENTENCE: Readonly<Record<Attention["kind"], string>> = {
