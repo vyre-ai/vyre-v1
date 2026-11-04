@@ -22,7 +22,6 @@ import { TeammatesTab } from "./TeammatesTab.tsx";
 import { useAddSheet } from "../../chats/addsheet/index.ts";
 import { PeoplePopover } from "../../../../../../ui/src/PeoplePopover/index.tsx";
 import type { MemberAction, MemberRow } from "../../../../../../ui/src/PeoplePopover/index.tsx";
-import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { itemLink } from "../../../share/rows.ts";
 
 export interface ProjectPageProps {
@@ -67,7 +66,6 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
   const add = useAddSheet({ call: d.call, me: d.me ?? { id: "me", name: "You" }, nameOf: d.nameOf, newKey: () => globalThis.crypto.randomUUID(), toast: (text) => setNote(text) }, { onDone: () => { setAdded((n) => n + 1); void read(); } });
   // the people popover of the head (the same component the chats use)
   const [people, setPeople] = useState<{ x: number; y: number } | null>(null);
-  const menu = useMenu();
   useEffect(() => {
     if (!note) return undefined;
     const t = setTimeout(() => setNote(null), 4500);
@@ -136,7 +134,6 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
       {note ? <Text style={s.note} accessibilityLiveRegion="polite" testID="project-note">{note}</Text> : null}
       {add.element}
       {people ? <ProjectPeople o={o} projectId={projectId} at={people} onClose={() => setPeople(null)} toOverview={() => { setPeople(null); setTab("overview"); onTabChange?.("overview"); }} menu={menu} reload={() => { void read(); }} say={say} /> : null}
-      {menu.element}
     </View>
   );
 }

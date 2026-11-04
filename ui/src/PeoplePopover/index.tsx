@@ -6,7 +6,8 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
 import { Avatar } from "../Avatar/index.tsx";
-import { MenuIcon, menuTrigger, useMenu } from "../Menu/index.tsx";
+import { menuTrigger, useMenu } from "../Menu/index.tsx";
+import { AccessIcon } from "../AccessSheet/index.tsx";
 import { Overlay } from "../Overlay/index.tsx";
 import { TITLE, footerOf, memberMenu, walk } from "./model.ts";
 import type { MemberAction, MemberPerms, MemberRow, PeopleWhere } from "./model.ts";
@@ -88,7 +89,7 @@ export function PeoplePopover({ where, rows, meId, perms, anchor, onOpen, onActi
             accessibilityRole="button" accessibilityLabel={footer.label} testID="people-footer" onPress={() => onFooter(footer.id)}
             style={({ hovered }: { hovered?: boolean }) => [st.row, (hovered === true || at === rows.length) && st.lit, at === rows.length && st.kb]}
           >
-            <View style={st.ic}><MenuIcon icon={footer.id === "add" ? "plus" : "people"} size={15} color="var(--ink-2)" /></View>
+            <View style={st.ic}><AccessIcon name={footer.id === "add" ? "plus" : "people"} size={15} color="var(--ink-2)" /></View>
             <Text style={st.name}>{footer.label}</Text>
           </Pressable>
         </View>
