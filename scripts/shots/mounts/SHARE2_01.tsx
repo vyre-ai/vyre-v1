@@ -1,9 +1,11 @@
 // Mount for lane l-share2 (owner, 4 Nov): the Share sheet of each kind of item, all the one Access sheet. ?part=dex is Dex over the rows rc.20 listed (the owner's screenshot); note, vault, vaultfolder, rtype, record, folder, artifact and automation draw the sheet with the props that place passes.
 // The query is read after mount (rule 25), so the first frame is empty and the client draws the same one.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import type { ShareSheetProps } from "../../../ui/src/AccessSheet/index.tsx";
+import { AgentForm } from "../../../apps/app/src/places/chats/agentform/AgentForm.tsx";
+import { createConfigSample, northwind } from "../../../apps/app/src/places/automations/config/sample.ts";
 import { AccessSheet } from "../../../ui/src/AccessSheet/index.tsx";
 import type { ShareRow } from "../../../ui/src/AccessSheet/index.tsx";
 
@@ -43,10 +45,43 @@ const PARTS: Record<string, ShareSheetProps> = {
   automation: { ...BASE, itemType: "automation", resourceType: "automation", resourceId: "aut_weekly", itemName: "Weekly report", target: "item", levels: ["view", "edit", "manage"], shares: [P("usr_omar", "Omar Reyes", "edit")] },
 };
 
+// The real click path: Chats > Dex's page > Who can use it > Share. access.shares_of answers what the server holds for Dex (the rows rc.20 listed, the server now leaves out the self and private agents).
+const g = (kind: string, id: string, level: string, resource = "agt_dex") => ({ id: `gnt_${id}`, subject: { kind, id }, resource: { type: "agent", id: resource }, level, conditions: {}, by: "usr_irfad", createdAt: 0 });
+const DEX_SHARES = {
+  mine: "manage", agentsCanCall: true,
+  shares: [
+    { grant: g("person", "usr_irfad", "manage"), through: "owner" },
+    { grant: g("person", "usr_irfad", "manage", "fld_agents"), through: "folder" },
+    { grant: g("agent", "agt_docs", "edit", "fld_agents"), through: "folder" },
+    { grant: g("group", "grp_everyone", "use"), through: "group" },
+  ],
+};
+
+function DexPath(): ReactNode {
+  const sample = useMemo(() => createConfigSample(northwind), []);
+  const call = useMemo(() => async (cap: string, input: unknown): Promise<unknown> => {
+    if (cap === "access.shares_of") return DEX_SHARES;
+    if (cap === "agents.get") return { agent: { agentId: "agt_dex", name: "Dex", role: "Takes the second look", face: "pick-dex", model: "claude-sonnet-5-5", folderId: "fld_dex" } };
+    if (cap === "files.list") return { files: [], folders: [] };
+    if (cap === "vault.items.list") return { items: [] };
+    if (cap === "engine.models.list") return { models: [{ model: "claude-sonnet-5-5", title: "Sonnet 5.5", allowed: true }] };
+    if (cap === "providers.list") return { providers: [] };
+    if (cap === "providers.space_key.get") return { mayManage: true };
+    void input;
+    return {};
+  }, []);
+  return (
+    <View style={{ height: 900, backgroundColor: "var(--win)" as string }}>
+      <AgentForm agentId="agt_dex" call={call} newKey={() => "k"} onDone={() => undefined} onCancel={() => undefined} say={() => undefined} openVault={() => undefined} sharing={{ directory: sample.extras.directory, meName: "Irfad", meId: "usr_irfad", nameOf: (id) => (id === "usr_irfad" ? "Irfad" : sample.data.name(id)) }} />
+    </View>
+  );
+}
+
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "dex"), []);
   if (part === null) return <View />;
+  if (part === "dexpath") return <DexPath />;
   const props = PARTS[part] ?? PARTS["dex"]!;
   return <AccessSheet {...props} />;
 }

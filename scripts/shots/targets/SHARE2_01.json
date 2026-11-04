@@ -62,6 +62,15 @@
       "proto": "chats,{skin}",
       "waitFor": "[data-testid='as-access']",
       "note": "Share sheet: automation."
+    },
+    {
+      "id": "SHARE2_01-dexpath",
+      "route": "/m/SHARE2_01?part=dexpath",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='agent-share']",
+      "click": "[data-testid='agent-share']",
+      "note": "Click path: Dex's page, Who can use it, Share. The sheet opens over the page.",
+      "protoClick": "[data-a='newagent']"
     }
   ]
 }

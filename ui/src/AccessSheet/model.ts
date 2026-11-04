@@ -184,7 +184,8 @@ export function shareLines(i: ShareLinesInput): Line[] {
   const label = i.label ?? def.label;
   const out: Line[] = [];
   const P = i.picks;
-  if (P.length === 0) return i.type === "agent" ? [{ id: "levels", tone: "note", text: agentLevelsLine(i.name) }] : [];
+  // nothing picked: no legend. Each level says what it gives inside its own picker menu (levelHint)
+  if (P.length === 0) return [];
   const levels = levelDefs(i.type).map((l) => l.id);
   for (const lv of levels) {
     const names = P.filter((p) => p.role === lv && p.kind !== "guest" && p.kind !== "outside" && p.kind !== "agent" && p.kind !== "new" && p.kind !== "space").map((p) => p.name);
@@ -245,7 +246,7 @@ export function addLines(i: AddLinesInput): Line[] {
 
 /** The footer when nothing is picked. */
 export function idleLine(mode: "add" | "share", type?: ShareItemType, name?: string): string {
-  if (mode === "share" && type === "agent") return agentLevelsLine(name ?? "it");
+  void type; void name;
   return mode === "add" ? "Pick who to add. You will see what they get before you confirm." : "Pick who to share with. You will see what they get before you confirm.";
 }
 

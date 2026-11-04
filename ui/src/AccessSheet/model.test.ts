@@ -14,7 +14,6 @@ import {
   addCalls,
   addLines,
   agentCreateInput,
-  agentLevelsLine,
   agentSettingsInput,
   canGiveLevel,
   channelMembersInput,
@@ -150,9 +149,7 @@ test("sharing an agent: the pays-with-their-own-account note, and the four level
   assert.equal(picked[0], "Omar Reyes can use Ember in their automations, tasks and crews, on their own account.");
   assert.ok(picked.includes("Whoever uses Ember pays with their own AI account. Ember reaches for them only what they can reach themselves."));
   const idle = shareLines({ type: "agent", name: "Ember", ownerName: "Irfad", picks: [] });
-  assert.equal(idle.length, 1);
-  assert.equal(idle[0]?.text, agentLevelsLine("Ember"));
-  for (const part of ["Can chat with", "Can use in their work", "Can edit", "Can manage"]) assert.match(idle[0]?.text ?? "", new RegExp(part));
+  assert.equal(idle.length, 0, "no legend: each level describes itself in its picker menu");
   assert.equal(shareLines({ type: "note", name: "x", ownerName: "I", picks: [] }).length, 0);
 });
 
@@ -254,7 +251,7 @@ test("the earlier switch shows when a person, not only a guest or an agent, is p
   assert.equal(showsEarlier([sara("", "agent", "Docs")]), false);
   assert.equal(idleLine("add"), "Pick who to add. You will see what they get before you confirm.");
   assert.equal(idleLine("share", "note"), "Pick who to share with. You will see what they get before you confirm.");
-  assert.equal(idleLine("share", "agent", "Ember"), agentLevelsLine("Ember"));
+  assert.equal(idleLine("share", "agent", "Ember"), "Pick who to share with. You will see what they get before you confirm.");
 });
 
 /* ---------- the lists ---------- */

@@ -460,7 +460,7 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
         <View testID="as-agents">
           <Text style={st.sect}>Agents</Text>
           <SlotRow
-            id="as-acc-agents" title={`Agents in this Space can call ${p.itemName}`} note={v.agents.inherited ? v.inheritedFrom : "Agents added below only"} leadWidth={36} lead={<Face kind="agent" id="agents" name="Agents" size={28} />}
+            id="as-acc-agents" title={`Agents in this Space can call ${p.itemName}`} note={v.agents.on ? "Other agents can hand work to it" : "No other agent can hand work to it"} leadWidth={36} lead={<Face kind="agent" id="agents" name="Agents" size={28} />}
             trail={p.onAgents ? <View style={st.trail}><Pill label={v.agents.on ? "On" : "Off"} testID="as-agents-toggle" onPress={() => p.onAgents?.(!v.agents.on)} /></View> : <Text style={st.ownerText} testID="as-agents-state">{v.agents.on ? "On" : "Off"}</Text>}
           />
           {v.agents.specific.map((r) => rowNode(r))}

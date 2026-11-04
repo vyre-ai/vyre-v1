@@ -369,7 +369,7 @@ test("share an agent: four levels, no agents or outside agents as recipients, th
   assert.doesNotMatch(html, /Claude Code/);
   assert.doesNotMatch(html, /aria-label="Share with Docs"/);
   assert.match(html, /placeholder="Add people or groups"/);
-  assert.match(html, /Can chat with: talk to Ember and add it to their chats\. Can use in their work/);
+  assert.doesNotMatch(html, /Can chat with: talk to Ember/, "no legend paragraph");
   await withDom(async () => {
     const root = await mount(createRoot, <AccessSheet {...share({ itemType: "agent", itemName: "Ember", resourceType: "agent", resourceId: "agt_ember", directory: sharePeople, shares: [] })} />);
     await press(find(root, "as-row-person:usr_omar"));
@@ -518,7 +518,10 @@ test("Dex: general access is one row at the top, and the folder words stay true"
   assert.match(html, /Can use/);
   assert.doesNotMatch(html, /Not in a folder/);
   assert.doesNotMatch(html, /From the folder/, "an item with no folder says the Space");
-  assert.match(html, /From the Space/, "the Dex agent line is inherited from the Space");
+  assert.match(html, /Other agents can hand work to it/);
+  const inherited = ssr(<AccessSheet {...dex({ shares: [{ subjectKind: "person", subjectId: "usr_kai", name: "Kai Lund", level: "edit", via: "space", fromFolderId: null }] })} />);
+  assert.match(inherited, /From the Space/, "inherited access says the Space when there is no folder");
+  assert.doesNotMatch(inherited, /From the folder|Nobody else yet/);
   assert.doesNotMatch(html, /Nobody else yet/);
   assert.doesNotMatch(html, /never lowered|open it and use it/i, "no legend");
 });
