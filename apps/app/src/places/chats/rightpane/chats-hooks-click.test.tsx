@@ -143,6 +143,11 @@ test("an always-allow rule shows in the hook's row in plain words and Remove cal
     const h = hook({ allowed: [{ id: "alw_1", what: "sending an email", by: "usr_a", createdAt: 1 }] } as Partial<Hook>);
     const root = await mount(createRoot, card(d, h));
     assert.match(textOf(find(root, "hook-allowed-alw_1")), /Always allowed for\s+sending an email/);
+    // the rule's button ends that one exception and says so; "Remove" is the hook's own and appears once
+    assert.match(textOf(find(root, "hook-allowed-remove-alw_1")), /^Stop allowing$/);
+    const removes = (n: unknown): number => { const x = n as { props?: Record<string, unknown>; children?: unknown[] } | string | null; if (!x || typeof x === "string") return 0; return (typeof x.props?.["testID"] === "string" && /^hook-remove-/.test(x.props["testID"] as string) ? 1 : 0) + (x.children ?? []).reduce((a: number, c) => a + removes(c), 0 as number); };
+    assert.equal(removes(root), 1, "one Remove in the card: the hook's");
+    assert.ok(!textOf(find(root, "hook-allowed-alw_1")).includes("Remove"), "the rule row has no Remove");
     await press(find(root, "hook-allowed-remove-alw_1"));
     await flush();
     assert.deepEqual(calls, [{ cap: "hooks.allow_remove", input: { id: "alw_1" } }]);

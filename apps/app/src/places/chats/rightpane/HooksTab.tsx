@@ -50,7 +50,7 @@ export function HookCard({ h, threadId, deps, selected, nameOf, ran, agentName =
           {(h.allowed ?? []).map((r) => (
             <View key={r.id} testID={`hook-allowed-${r.id}`} style={s.allowed}>
               <Text style={s.allowedText}>Always allowed for {r.what}</Text>
-              {h.canChange ? <TextButton label="Remove" onPress={() => { void hookAllowRemove(deps, r.id, r.what); }} testID={`hook-allowed-remove-${r.id}`} /> : null}
+              {h.canChange ? <TextButton label="Stop allowing" onPress={() => { void hookAllowRemove(deps, r.id, r.what); }} testID={`hook-allowed-remove-${r.id}`} /> : null}
             </View>
           ))}
           <View style={s.acts}>
