@@ -10,6 +10,7 @@ import type { ImportedData } from "../imported/ImportedSession.tsx";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { PhoneProfile } from "./PhoneProfile.tsx";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -390,7 +391,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       onMention={() => fill.set(`@${nameOf(rightTab.id)} `)}
       onEdit={() => act({ t: "agent-form", agentId: rightTab.id })}
       agentPane={agentTabData}
-      person={{ now: Date.now, ...(phone ? { dial: (n: string) => phone.dial(n) } : {}), ...(threadId !== null ? { onAdd: () => add.open({ threadId }) } : {}), openThread: (id) => go.thread(id), openFile: (id) => rt.open({ subject: { type: "file", id } }), openTask: openSideTask, copy: (text) => { copy(text); setLine("Copied the name"); } }}
+      person={{ now: Date.now, ...(phone ? { dial: (n: string) => phone.dial(n) } : {}), ...(threadId !== null ? { onAdd: () => add.open({ threadId }) } : {}), openThread: (id) => go.thread(id), openFile: (id) => rt.open({ subject: { type: "file", id } }), openProject: (id) => rt.open({ subject: { type: "project", id } }), openTask: openSideTask, copy: (text) => { copy(text); setLine("Copied the name"); } }}
     />
   ) : null;
   let right: ReactElement | null = null;
@@ -419,16 +420,20 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     );
   } else if (shown.pane && paneCtx && route.view === "chat") {
     right = <View style={st.pane}><AgentPane data={paneFull ?? paneCtx} open onToggle={go.togglePane} {...(window ? { window } : {})} extra={{ tabs: rightSpecs, active: rightOn, onSelect: setRightOn, onClose: closeRight, body: rightBody }} /></View>;
+  } else if (rightOn !== null && narrow) {
+    // a profile on a phone is a full-screen page with a back arrow and the name, over the bottom nav (PhoneProfile)
+    const t = rightTab;
+    right = <PhoneProfile title={t === undefined ? "Profile" : t.kind === "details" ? t.title : t.kind === "assistant" ? "Assistant" : nameOf(t.id)} onBack={() => closeRight(rightOn)}>{rightBody}</PhoneProfile>;
   } else if (rightOn !== null) {
-    // a profile on a phone is the full-screen sheet, like the task and the terminal
     right = (
-      <View testID="chats-profile-pane" style={narrow ? st.terminalFull : st.pane}>
-        <SidePane paneKey="chats-right-pane" toggle={{ open: true, onPress: () => setRightOn(null) }} title="Profile" tabs={rightSpecs} activeTab={rightOn} onSelectTab={setRightOn} onCloseTab={closeRight} defaultWidth={narrow ? width : 372} {...(narrow ? { max: 1 } : {})}>
+      <View style={st.pane}>
+        <SidePane paneKey="chats-right-pane" toggle={{ open: true, onPress: () => setRightOn(null) }} title="Profile" tabs={rightSpecs} activeTab={rightOn} onSelectTab={setRightOn} onCloseTab={closeRight} defaultWidth={372}>
           {rightBody}
         </SidePane>
       </View>
     );
   }
+
 
   const showMain = !(narrow && right !== null);
   return (

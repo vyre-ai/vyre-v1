@@ -17,6 +17,11 @@ test("person profile, team: pressing a person in the chat's People popover opens
     const agent = (await w.owner.ok("agents.create", { name: "Ember", role: "You help.", idempotencyKey: "pf-agent" })).agent.agentId as string;
     const threadId = (await w.owner.ok("chat.start", { kind: "chat", agentIds: [agent], idempotencyKey: "pf-chat" })).thread.threadId as string;
     await w.owner.ok("threads.members.add", { threadId, personId: sara.id });
+    // what Sara set about herself, and a project the two can see: the role line, About and Shared context draw from these
+    await sara.ok("settings.set", { key: "profile.timezone", value: "Europe/Berlin" });
+    await sara.ok("settings.set", { key: "profile.title", value: "Account lead" });
+    const projectId = (await w.owner.ok("projects.create", { type: "project", title: "Client portal launch", idempotencyKey: "pf-project" })).projectId as string;
+    await w.owner.ok("projects.members.set", { projectId, principal: sara.id, role: "lead" });
     const me = await seat(s, w.owner, "Owner");
 
     await open(me, s, `/chat#screen=chats.conversation&threadId=${threadId}`);
@@ -28,6 +33,8 @@ test("person profile, team: pressing a person in the chat's People popover opens
     assert.ok(await me.page.getByTestId("person-header").count() >= 1, "the person header");
     assert.ok(await me.page.getByTestId("profile-message").count() + (await me.page.getByTestId("person-header").getByText("Message").count()) >= 1, "Message is offered");
     assert.ok(await me.page.getByTestId("participants-button").count() >= 1, "the chat is still open beside it");
+    assert.match(await me.page.getByTestId("person-header").innerText(), /Account lead.*for sara/i, "the role line carries their local time");
+    await me.page.getByTestId(`row-person-project-${projectId}`).waitFor({ timeout: 15_000 });   // Shared context lists the project you both see
     await me.page.waitForTimeout(1500);
     await shoot(me.page, OUT, "chat-person-wide");
 
@@ -37,8 +44,13 @@ test("person profile, team: pressing a person in the chat's People popover opens
     await me.page.getByTestId("participants-button").click();
     await me.page.getByTestId(`people-row-${sara.id}`).click();
     await me.page.getByTestId(`profile-${sara.id}`).waitFor({ timeout: 15_000 });
+    assert.ok(await me.page.getByTestId("phone-profile-back").count() === 1, "a back arrow");
+    // where the bottom nav would be, the page the profile draws is on top
+    assert.equal(await me.page.evaluate("(function(){var e=document.elementFromPoint(195,window.innerHeight-20);return !!(e&&e.closest('[data-testid=phone-profile]'))})()"), true, "the profile covers the bottom nav");
     await me.page.waitForTimeout(1500);
     await shoot(me.page, OUT, "chat-person-phone");
+    await me.page.getByTestId("phone-profile-back").click();
+    await me.page.getByTestId("phone-profile").waitFor({ state: "detached", timeout: 10_000 });
     assert.deepEqual(me.errors, [], "no page errors");
   } finally { await s.close(); }
 });

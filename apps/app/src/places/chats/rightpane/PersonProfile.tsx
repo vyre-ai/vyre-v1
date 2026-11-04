@@ -35,6 +35,8 @@ export interface PersonProfileProps {
   /** Opens the Add people and agents sheet on the open chat; without it the third action is Mention. */
   onAdd?: (() => void) | undefined;
   openThread?(threadId: string): void; openFile?(fileId: string): void; openTask?(taskId: string): void;
+  /** Opens a project the two of you can see (Shared context). */
+  openProject?(projectId: string): void;
   initialTab?: PersonTab;
 }
 
@@ -65,7 +67,7 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
   const first = p.name.split(/\s+/)[0] ?? p.name;
   const presence = useRead<PresenceOut | undefined>(p.call, "devices.presence", { people: [p.id] }, (o) => (o as CapMap["devices.presence"]["out"]).people[0]);
   const pub = useRead<PublicOut>(p.call, "settings.public_of", { personId: p.id }, (o) => o as PublicOut);
-  const roles = useRead<{ project: string; role: string }[]>(p.call, "projects.roles_of", { personId: p.id }, (o) => (o as CapMap["projects.roles_of"]["out"]).roles.map((r) => ({ project: r.title, role: ROLE_WORD[r.role] ?? r.role })));
+  const roles = useRead<{ id: string; project: string; role: string }[]>(p.call, "projects.roles_of", { personId: p.id }, (o) => (o as CapMap["projects.roles_of"]["out"]).roles.map((r) => ({ id: r.projectId, project: r.title, role: ROLE_WORD[r.role] ?? r.role })));
   const known = useRead<string[]>(p.call, "memory.profile.get", { personId: p.id }, (o) => publicLines(o as CapMap["memory.profile.get"]["out"]));
   const state = presence?.state as PresenceState | undefined;
   const time = localTime(p.now(), pub?.timezone);
@@ -101,7 +103,7 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
 const label = (t: string): ReactElement => <Text key={t} style={st.label}>{t}</Text>;
 const kv = (k: string, v: string | undefined): ReactElement | null => (v === undefined || v === "" ? null : <View key={k} style={st.kv}><Text style={st.k}>{k}</Text><Text style={[st.v, st.vEnd]}>{v}</Text></View>);
 
-function About(p: PersonProfileProps & { known: readonly string[]; roles: readonly { project: string; role: string }[]; first: string; state: PresenceState | undefined; lastSeenAt: number | undefined; pub: PublicOut | null; time: string | undefined }): ReactElement {
+function About(p: PersonProfileProps & { known: readonly string[]; roles: readonly { id: string; project: string; role: string }[]; first: string; state: PresenceState | undefined; lastSeenAt: number | undefined; pub: PublicOut | null; time: string | undefined }): ReactElement {
   const roles = p.roles;
   const resp = responsibleFor(p.title ?? p.pub?.title, roles);
   const away = p.state === "away";
@@ -110,6 +112,9 @@ function About(p: PersonProfileProps & { known: readonly string[]; roles: readon
     <View testID="person-about">
       {label("Responsible for")}<Text testID="person-resp" style={st.body14}>{resp}</Text>
       {p.state !== undefined ? <>{label("Right now")}<View style={st.now}><View style={[st.dot, { backgroundColor: (away ? "var(--warn)" : p.state === "online" ? "var(--ok)" : "var(--ink-4)") as string }]} /><View><Text style={st.v}>{presenceWord(p.state)}</Text>{now ? <Text style={st.sub}>{now}</Text> : null}</View></View></> : null}
+      {p.roles.length > 0 ? <>{label("Shared context")}{p.roles.map((r) => (
+        <Row key={r.id} id={`person-project-${r.id}`} title={r.project} note={`Project · ${r.role}`} leading={<LeadIcon name="folder" />} onPress={() => p.openProject?.(r.id)} />
+      ))}</> : null}
       {p.pub?.timezone || p.pub?.hours || p.pub?.pronouns || p.known.length > 0 ? label(`About ${p.first}`) : null}
       {kv("Local time", p.time && p.pub?.timezone ? `${p.time} · ${cityOf(p.pub.timezone)}` : undefined)}
       {kv("Working hours", p.pub?.hours ? `${hoursWords(p.pub.hours)}, ${p.first}'s time` : undefined)}
