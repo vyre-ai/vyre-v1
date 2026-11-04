@@ -199,8 +199,10 @@ export function QuietLine({ text, testID }: { text: string; testID: string }): R
  * An agent's draft: the one held card (chats/conversation/held-card.tsx), with the words it had: who drafted it, "Updated 5:45 AM" and the earlier draft one click away, the Gate line, and Send, Edit and
  * Don't send. Edit is in the card, on the draft's own full stored text and for this draft only, never in the thread's composer, so what is sent is what the card shows. Send goes with the edited words.
  */
-export function DraftBlock({ d, offsetMin = 0, onSend, onDrop, loadText, onSave, editor }: {
+export function DraftBlock({ d, offsetMin = 0, nameOf, onSend, onDrop, loadText, onSave, editor }: {
   d: DraftCard; offsetMin?: number;
+  /** The name the threads give an address, so To reads as a person and not an address. */
+  nameOf?(address: string): string | undefined;
   /** Send, with the words the card holds: answers the line the card ends on ("Sent from ...", "Waits for approval"); a refusal is the card's own error. */
   onSend(text: string, subject: string): Promise<string>;
   /** Don't send, with the person's reason (empty when none). */
@@ -219,7 +221,8 @@ export function DraftBlock({ d, offsetMin = 0, onSend, onDrop, loadText, onSave,
   return (
     <View testID={`draft:${d.id}`} style={s.drWrap}>
       <HeldCard
-        testID={`draft:${d.id}`} agent={d.agent} title={`${d.agent} drafted a ${d.channel === "sms" ? "text" : "reply"}`} to={d.to.slice(0, 1).map((t) => ({ name: t, seed: t, kind: "person" as const }))} verb=""
+        testID={`draft:${d.id}`} agent={d.agent} title={`${d.agent} drafted a ${d.channel === "sms" ? "text" : "reply"}`} to={[]} verb="" headFace={{ name: d.agent, seed: d.agentId ?? d.agent, kind: "agent" }}
+        peopleRows={[{ label: "To", people: d.toParties.map((p) => ({ name: p.name || nameOf?.(p.address) || p.address, seed: p.address })) }, { label: "Cc", people: d.ccParties.map((p) => ({ name: p.name || nameOf?.(p.address) || p.address, seed: p.address })) }]}
         schedule={d.earlier ? `Updated ${clockTime(d.updatedAt, offsetMin)}` : null} subject={d.channel === "sms" ? undefined : subject} body={text} edited={edited}
         fields={d.via ? [["From", d.via]] : []} state="waiting" doneLine={done ?? "Sent"} editable editSubject={d.channel !== "sms"}
         {...(d.earlier ? { earlier: { text: d.earlier.text } } : {})} {...(editor ? { editor } : {})} sendLabel="Send" stoppedNote={sendsLine(d.from)}

@@ -494,3 +494,18 @@ test("Inbox draft card: Edit is in the card on the draft's full text, Send goes 
   assert.deepEqual(dropped, ["Wrong tone"]);
   assert.match(textOf(again), /Not sent/);
 });
+
+test("an agent's draft shows who it goes to above the subject, with Cc when there is one, and the drafter's own face", () => {
+  const { out } = tab("elena");
+  assert.ok(has(out, 'data-testid="draft:dr_elena-people-to"'), "a To row");
+  const at = out.indexOf('data-testid="draft:dr_elena-people-to"');
+  assert.ok(at > 0 && at < out.indexOf("Re: Lease documents for Thursday", at), "To sits above the subject");
+  assert.ok(!has(out, 'data-testid="draft:dr_elena-people-cc"'), "no Cc row when nobody is copied");
+  assert.ok(has(out, 'data-testid="face-Intake"'), "the drafter's face is the agent's own");
+  const s = createContactTabSample();
+  const rows = (s.replica.run("mail.drafts.list", { contactId: "ct_elena" })!.data).drafts.map((r) => ({ ...r, cc: [{ address: "sam@firm.example", name: "Sam Cole" }] }));
+  const [card] = draftCards(rows, titles(northwind), new Map([["agt_intake", "Intake"]]));
+  const html = renderToStaticMarkup(<DraftBlock d={card!} offsetMin={0} onSend={async () => ""} onDrop={async () => undefined} loadText={async () => ""} onSave={async () => undefined} />).replaceAll("<!-- -->", "");
+  assert.ok(has(html, 'data-testid="draft:dr_elena-people-cc"') && has(html, "Sam Cole"), "Cc names the person copied");
+  assert.ok(has(html, "Intake"), "the agent is named");
+});

@@ -382,7 +382,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             case "note": return <QuietLine key={f.key} text={f.item.title ?? f.item.preview ?? ""} testID={`note:${f.item.id}`} />;
           }
         })}
-        {each(cards, (d) => <DraftBlock key={d.id} d={d} offsetMin={clock.offsetMin} onSend={(text, subject) => draftSend(d, text, subject)} onDrop={(reason) => draftDrop(d, reason)} loadText={() => draftText(d)} onSave={(text, subject) => draftSave(d, text, subject)} />)}
+        {each(cards, (d) => <DraftBlock key={d.id} d={d} offsetMin={clock.offsetMin} nameOf={(a) => names.get(a.toLowerCase())} onSend={(text, subject) => draftSend(d, text, subject)} onDrop={(reason) => draftDrop(d, reason)} loadText={() => draftText(d)} onSave={(text, subject) => draftSave(d, text, subject)} />)}
       </ScrollView>
 
       <View style={s.cmpWrap} testID="contact-composer">
