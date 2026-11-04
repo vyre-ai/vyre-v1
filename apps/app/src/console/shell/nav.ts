@@ -63,7 +63,7 @@ export const PAGES: readonly PageDef[] = [
   p("keys", "API keys", "Integrations", "code", "console.access", "console.mcp-sessions"),
   p("machines", "Machines", "Infrastructure", "monitor", "console.access", "console.machines"),
   p("network", "Address and network", "Infrastructure", "globe", "server.network", "console.network"),
-  p("server", "Server", "Infrastructure", "server", "server.logs", "console.server-logs"),
+  p("server", "Server logs", "Infrastructure", "server", "server.logs", "console.server-logs"),
   p("updates", "Updates", "Infrastructure", "up", "server.update", "console.server-updates"),
   p("diagnostics", "Diagnostics", "Infrastructure", "wrench", "console.access", "console.diagnostics"),
   p("support", "Support bundle", "Infrastructure", "life", "server.logs", "console.support-bundle"),
