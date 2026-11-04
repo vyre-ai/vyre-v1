@@ -1,7 +1,7 @@
 // An artifact opens at a one-time code for its own host (never the app's origin): framed in the app it asks for the partitioned cookie, opened in a browser it does not.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { artifactAddress } from "./artifact-address.ts";
+import { artifactAddress, plainLink } from "./artifact-address.ts";
 
 test("the artifact host's code is framed with ?embed=1 and opened in a browser as it is; the keyed address of a Space with no artifact host is unchanged", () => {
   const code = "a".repeat(48);
@@ -11,4 +11,8 @@ test("the artifact host's code is framed with ?embed=1 and opened in a browser a
   const keyed = { path: `/a/sit_1/k/${code}/`, url: `https://mla.vyre.run/a/sit_1/k/${code}/` };
   assert.equal(artifactAddress(keyed, undefined, true), keyed.url);
   assert.equal(artifactAddress({ path: "/a/sit_1/k/t/" }, "https://x.test/", true), "https://x.test/a/sit_1/k/t/");
+});
+
+test("the link to copy is the plain /a/<id> on the app, never a one-time code or a keyed address", () => {
+  assert.equal(plainLink("https://mla.vyre.run/", "sit_1"), "https://mla.vyre.run/a/sit_1");
 });

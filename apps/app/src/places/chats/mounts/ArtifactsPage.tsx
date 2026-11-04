@@ -10,6 +10,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { nameLookup } from "../../../shell/providers/records-live.ts";
 import { infoOf } from "./ArtifactView.tsx";
+import { plainLink } from "./artifact-address.ts";
 import { LIST_PAGE } from "./RepliesPage.tsx";
 
 type Row = CapMap["sites.list"]["out"]["sites"][number];
@@ -60,7 +61,7 @@ export function ArtifactsPage({ rt }: { rt: ShellRuntime }): ReactElement {
                 <ArtifactCard
                   grid info={a} meId={rt.me.id} now={now} nameOf={nameOf}
                   onOpen={() => open(a.id)} onShare={() => open(a.id, true)}
-                  onCopyLink={() => void address(a.id).then((u) => { void (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard?.writeText?.(u); }, () => undefined)}
+                  onCopyLink={() => { void (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard?.writeText?.(plainLink(rt.baseUrl, a.id)); }}
                   onBrowser={() => void address(a.id).then((u) => rt.openUrl(u), () => undefined)}
                   onDelete={a.owner === rt.me.id ? () => void Promise.resolve(rt.call("sites.delete", { siteId: a.id })).then(() => load(), () => undefined) : undefined}
                   onFrom={(chatId) => rt.open({ subject: { type: "thread", id: chatId } })}

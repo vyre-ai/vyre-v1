@@ -76,6 +76,7 @@ type Out = {
     chatId?: string;
     chatTitle?: string;
     sharedWith?: Array<string>;
+    sharedAudience?: Array<"link" | "space">;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -204,6 +205,9 @@ type Out = {
       "port": 1,
       "productionUrl": "example",
       "repoFolderId": "fld_a1b2c3",
+      "sharedAudience": [
+        "link"
+      ],
       "sharedWith": [
         "example"
       ],

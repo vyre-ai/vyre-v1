@@ -239,8 +239,17 @@ async function artifactExtras(ctx: Ctx, r: Row): Promise<Record<string, unknown>
   }
   try {
     const sh = (await ctx.call("access.shares_of", { resource: { type: "site", id: str(r.id) } })) as { shares?: { through?: string; grant?: { subject?: { kind?: string; id?: string } } }[] };
-    const ids = [...new Set((sh.shares ?? []).filter((x) => x.through === "direct" && x.grant?.subject?.kind !== "link" && typeof x.grant?.subject?.id === "string" && x.grant.subject.id !== str(r.owner)).map((x) => (x.grant?.subject as { id: string }).id))];
-    if (ids.length > 0) out["sharedWith"] = ids;
+    const people = new Set<string>();
+    const audience = new Set<string>();
+    for (const x of sh.shares ?? []) {
+      const sub = x.grant?.subject;
+      if (!sub || typeof sub.id !== "string" || x.through === "owner") continue;
+      if (sub.kind === "link") audience.add("link");
+      else if (sub.kind === "group" && sub.id === "grp_everyone") audience.add("space");
+      else if (sub.kind === "person" && sub.id !== str(r.owner)) people.add(sub.id); // direct or inherited from a folder
+    }
+    if (people.size > 0) out["sharedWith"] = [...people];
+    if (audience.size > 0) out["sharedAudience"] = [...audience];
   } catch { /* a person who cannot read the shares sees none */ }
   return out;
 }

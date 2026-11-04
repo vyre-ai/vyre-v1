@@ -38,3 +38,10 @@ test("a row's picture, source chat and shared people reach the card, the people 
   assert.deepEqual(i.sharedWith, ["Sara"]);
   assert.equal(infoOf({ siteId: "s", name: "N", kind: "artifact", owner: "me", state: "ready" } as never).from, undefined);
 });
+
+test("a permission refusal is told apart from a slow or broken page", async () => {
+  const { refused } = await import("./ArtifactView.tsx");
+  assert.equal(refused({ error: { code: "permission.no_grant" } }), true);
+  assert.equal(refused({ error: { code: "internal.timeout" } }), false);
+  assert.equal(refused(new Error("x")), false);
+});

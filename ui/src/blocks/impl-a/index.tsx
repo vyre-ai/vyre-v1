@@ -490,7 +490,7 @@ export function DeployBlock({ block, host }: BlockViewProps): ReactElement {
 /* ---------- mount ---------- */
 
 /** What sites.get says about an artifact that the card shows. */
-interface SiteBits { name?: string; owner?: string; access?: ArtifactInfo["access"]; updatedAt?: number; thumb?: string; chatId?: string; chatTitle?: string; sharedWith?: string[] }
+interface SiteBits { name?: string; owner?: string; access?: ArtifactInfo["access"]; updatedAt?: number; thumb?: string; chatId?: string; chatTitle?: string; sharedWith?: string[]; sharedAudience?: ("link" | "space")[] }
 
 /** Something a model made to show: a card with its picture, one quiet line, and Open, Copy link and "...". The whole card opens it. */
 export function ArtifactBlock({ block, host }: BlockViewProps): ReactElement {
@@ -511,7 +511,7 @@ export function ArtifactBlock({ block, host }: BlockViewProps): ReactElement {
   }, [host, id]);
   const trigger = useMemo(() => menuTrigger((x, y) => show([{ label: "Open", onSelect: () => void openTab(host, "artifact", block.data) }, { separator: true }, { label: "Copy trace id", onSelect: () => copyText(block.traceId) }], x, y, "context", { label: "artifact block" })), [host, block, show]);
   const me = host.meId ?? site?.owner ?? "";
-  const info: ArtifactInfo = { id, name: site?.name ?? title, owner: site?.owner ?? me, access: site?.access, updatedAt: site?.updatedAt, thumb: site?.thumb ?? (typeof data.thumb === "string" ? data.thumb : undefined), from: site?.chatId !== undefined && site.chatTitle !== undefined ? { id: site.chatId, title: site.chatTitle } : undefined, sharedWith: site?.sharedWith?.map((id) => host.nameOf?.(id) ?? id) };
+  const info: ArtifactInfo = { id, name: site?.name ?? title, owner: site?.owner ?? me, access: site?.access, updatedAt: site?.updatedAt, thumb: site?.thumb ?? (typeof data.thumb === "string" ? data.thumb : undefined), from: site?.chatId !== undefined && site.chatTitle !== undefined ? { id: site.chatId, title: site.chatTitle } : undefined, sharedWith: site?.sharedWith?.map((id) => host.nameOf?.(id) ?? id), audience: site?.sharedAudience };
   const address = useCallback(async (): Promise<string | null> => {
     try {
       const o = (await host.invoke("sites.artifact_open", { artifactId: id, idempotencyKey: `card-${id}-${Date.now()}` })) as { path: string; url?: string };
@@ -524,7 +524,7 @@ export function ArtifactBlock({ block, host }: BlockViewProps): ReactElement {
       <ArtifactCard
         info={info} meId={me} now={Date.now()} {...(host.nameOf ? { nameOf: host.nameOf } : {})} testID={`blk-artifact-${block.id}-card`}
         onOpen={() => void openTab(host, "artifact", block.data)}
-        onCopyLink={() => void address().then((u) => { if (u) copyText(u); })}
+        onCopyLink={() => copyText(`${((globalThis as { location?: { origin?: string } }).location?.origin ?? "").replace(/\/+$/, "")}/a/${id}`)}
         onShare={() => host.open("artifact-share", { artifactId: id })}
         onBrowser={() => void address().then((u) => { if (u) host.openUrl?.(u); })}
         onDelete={info.owner === me ? () => void Promise.resolve(host.invoke("sites.delete", { siteId: id })).then(() => setGone(true), () => undefined) : undefined}

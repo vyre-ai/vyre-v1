@@ -23,6 +23,8 @@ test("the quiet line reads Page, who can see it, when it changed", () => {
   assert.equal(subline({ ...A, sharedWith: ["Sara", "Omar"] }, "me", NOW), "Page · Shared with Sara and Omar · updated 3:53");
   assert.equal(sharingLine({ ...A, sharedWith: ["Aliza"] }, "me"), "Shared with Aliza");
   assert.equal(sharingLine({ ...A, access: "space" }, "me"), "Shared with the Space");
+  assert.equal(sharingLine({ ...A, sharedWith: ["Sara"], audience: ["space", "link"] }, "me"), "Shared with Sara, everyone in the Space and anyone with the link");
+  assert.equal(sharingLine({ ...A, audience: ["link"] }, "me"), "Shared with anyone with the link");
   assert.equal(sharingLine({ ...A, owner: "sara" }, "me", () => "Sara"), "Shared by Sara");
   assert.equal(subline({ ...A, updatedAt: undefined }, "me", NOW), "Page · Private to you");
 });

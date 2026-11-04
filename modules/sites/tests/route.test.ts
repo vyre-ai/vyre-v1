@@ -192,7 +192,7 @@ test("an artifact keeps its picture and the chat that made it, and reads back th
     call: async (cap: string) => {
       calls.push(cap);
       if (cap === "threads.get") return { thread: { title: "Monthly numbers" } };
-      if (cap === "access.shares_of") return { shares: [{ through: "direct", grant: { subject: { kind: "person", id: "usr_sara" } } }, { through: "direct", grant: { subject: { kind: "link", id: "lnk_1" } } }, { through: "ancestor", grant: { subject: { kind: "person", id: "usr_omar" } } }] };
+      if (cap === "access.shares_of") return { shares: [{ through: "direct", grant: { subject: { kind: "person", id: "usr_sara" } } }, { through: "direct", grant: { subject: { kind: "link", id: "lnk_1" } } }, { through: "folder", grant: { subject: { kind: "person", id: "usr_omar" } } }, { through: "group", grant: { subject: { kind: "group", id: "grp_everyone" } } }, { through: "owner", grant: { subject: { kind: "person", id: w.ctx.principal.id } } }] };
       return {};
     },
   };
@@ -203,7 +203,8 @@ test("an artifact keeps its picture and the chat that made it, and reads back th
     assert.equal(got.site.thumb, thumb);
     assert.equal(got.site.chatId, "thr_1");
     assert.equal(got.site.chatTitle, "Monthly numbers");
-    assert.deepEqual(got.site.sharedWith, ["usr_sara"], "direct people only: not a link, not an inherited grant");
+    assert.deepEqual(got.site.sharedWith, ["usr_sara", "usr_omar"], "people with a grant, direct or from a folder; never the owner");
+    assert.deepEqual(got.site.sharedAudience, ["link", "space"], "a link and the whole Space say so");
     const list = await h["sites.list"]!(ctx, { kind: "artifact" });
     assert.equal(list.sites[0].chatTitle, "Monthly numbers");
     // a republish from another chat keeps the first chat as the source, and without a picture keeps the old one

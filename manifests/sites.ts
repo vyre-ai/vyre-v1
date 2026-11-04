@@ -20,7 +20,7 @@ const addon = t.obj({ kind: t.enm('postgres', 'redis'), state: t.enm('starting',
 const siteRow = t.obj({
   siteId: id.site, name: t.str(), kind: t.enm('site', 'app', 'api', 'worker', 'artifact'), owner: t.str(), repoFolderId: t.opt(id.folder), stagingUrl: t.opt(t.str()), productionUrl: t.opt(t.str()), state,
   slug: t.opt(t.str({ description: 'The name in the address: /p/<slug>' })), url: t.opt(t.str({ description: 'Where it is served, once live' })), computerId: t.opt(id.computer), port: t.opt(t.int()), folderId: t.opt(id.folder),
-  access: t.opt(access), live: t.opt(t.bool()), blocked: t.opt(t.bool()), updatedAt: t.opt(t.ts()), thumb: t.opt(t.str()), chatId: t.opt(t.str()), chatTitle: t.opt(t.str()), sharedWith: t.opt(t.arr(t.str())),
+  access: t.opt(access), live: t.opt(t.bool()), blocked: t.opt(t.bool()), updatedAt: t.opt(t.ts()), thumb: t.opt(t.str()), chatId: t.opt(t.str()), chatTitle: t.opt(t.str()), sharedWith: t.opt(t.arr(t.str())), sharedAudience: t.opt(t.arr(t.enm('link', 'space'))),
   deployed: t.opt(t.bool()), source: t.opt(source), lastDeploy: t.opt(dep), limits: t.opt(limits), addons: t.opt(t.arr(addon)),
   autoDeploy: t.opt(t.bool()), passwordSet: t.opt(t.bool()),
 });

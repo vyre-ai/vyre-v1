@@ -14,6 +14,8 @@ export interface ArtifactInfo {
   from?: { id: string; title: string } | undefined;
   /** People it is shared with by name, when known (otherwise the access level says it). */
   sharedWith?: readonly string[] | undefined;
+  /** Who else can open it without a name: anyone with the link, everyone in the Space. */
+  audience?: readonly ("link" | "space")[] | undefined;
 }
 
 export type ArtifactFilter = "Mine" | "Shared with me" | "All";
@@ -38,7 +40,8 @@ const join = (names: readonly string[]): string => (names.length > 1 ? `${names.
 /** Who can see it, in the words a person uses. */
 export function sharingLine(a: ArtifactInfo, meId: string, nameOf: (id: string) => string = (id) => id): string {
   if (a.owner !== meId) return `Shared by ${nameOf(a.owner)}`;
-  if (a.sharedWith !== undefined && a.sharedWith.length > 0) return `Shared with ${join(a.sharedWith)}`;
+  const who = [...(a.sharedWith ?? []), ...(a.audience?.includes("space") ? ["everyone in the Space"] : []), ...(a.audience?.includes("link") ? ["anyone with the link"] : [])];
+  if (who.length > 0) return `Shared with ${join(who)}`;
   if (a.access === "public") return "Public link";
   if (a.access === "space") return "Shared with the Space";
   if (a.access === "password") return "Password link";
