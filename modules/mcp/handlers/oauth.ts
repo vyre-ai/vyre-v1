@@ -207,7 +207,7 @@ export async function onHoldAnswered(ctx: OauthCtx, event: { name: string; paylo
   const asked = event.payload.askedBy !== undefined;
   const ran = asked ? `${String(row["tool"])} ran as the person you act for.${await answerOf(ctx, event.payload.holdId)}` : `${String(row["tool"])} ran.`;
   const text = yes ? `Approved. ${ran}` : event.name === "gate.expired" ? `Nobody answered. ${String(row["tool"])} did not run.` : `Not approved. ${String(row["tool"])} did not run.${typeof event.payload.note === "string" ? ` ${event.payload.note}` : ""}`;
-  await ctx.call("agents.outside.enqueue", { agentId: String(row["agent_id"]), kind: "answer", taskId, ...(row["thread_id"] ? { threadId: String(row["thread_id"]) } : {}), asker: String(row["person"]), title: yes ? "Approved" : "Not approved", text });
+  await ctx.call("agents.outside.enqueue", { agentId: String(row["agent_id"]), kind: "answer", taskId, ...(row["thread_id"] ? { threadId: String(row["thread_id"]) } : {}), asker: String(row["person"]), title: yes ? "Allowed" : "Denied", text });
   return [taskId];
 }
 

@@ -18,7 +18,7 @@ export const INITIAL_STATE: Record<TaskKind, TaskState> = {
 };
 export const KIND_ACTIONS: Record<TaskKind, ActionDef[]> = {
   work: [],
-  approve: [{ key: "approve", label: "Approve", note: "optional" }, { key: "reject", label: "Send back", note: "required" }],
+  approve: [{ key: "approve", label: "Allow", note: "optional" }, { key: "reject", label: "Send back", note: "required" }],
   review: [{ key: "approve", label: "Looks good", note: "optional" }, { key: "send_back", label: "Send back", note: "required" }],
   answer: [{ key: "answer", label: "Answer", note: "optional" }, { key: "dismiss", label: "Dismiss", note: "optional" }],
   unblock: [{ key: "resolved", label: "Done, continue", note: "optional" }, { key: "cannot", label: "Can't do this", note: "required" }],

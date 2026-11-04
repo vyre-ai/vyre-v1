@@ -694,8 +694,8 @@ export default defineManifest({
     }, 'Plan: {{title}} ({{steps.length}} steps)', {
       waitsForAnswer: true, opens: { tab: 'file', input: { fileId: '/docFileId' } },
       actions: [
-        { key: 'approve', label: 'Approve', cap: 'chat.approve_plan', input: { threadId: '/threadId', planId: '/planId' } },
-        { key: 'reject', label: 'Reject', cap: 'chat.plan.reject', input: { threadId: '/threadId', planId: '/planId' } },
+        { key: 'approve', label: 'Allow', cap: 'chat.approve_plan', input: { threadId: '/threadId', planId: '/planId' } },
+        { key: 'reject', label: 'Deny', cap: 'chat.plan.reject', input: { threadId: '/threadId', planId: '/planId' } },
       ],
     }),
     block('note_offer', {

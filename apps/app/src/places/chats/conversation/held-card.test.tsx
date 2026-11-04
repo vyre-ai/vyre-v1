@@ -169,12 +169,12 @@ test("a timed send reads in the recipient's time first and yours after; yours al
   assert.ok(!t.includes("their time"), "no zone, no their time");
 });
 
-test("the ... menu offers Always let Dex message Aliza Rizvi: one rule for that agent and recipient, then it sends; no wider button on the card", async () => {
+test("the ... menu offers Always allow Dex to message Aliza Rizvi: one rule for that agent and recipient, then it sends; no wider button on the card", async () => {
   const w = world([DM]);
   const root = await mount(createRoot, card(w.d));
   assert.equal(find(root, "approval-tsk_1-always"), null, "quiet until the menu opens");
   await press(find(root, "approval-tsk_1-more"));
-  assert.match(textOf(root), /Always let Dex message Aliza Rizvi/);
+  assert.match(textOf(root), /Always allow Dex to message Aliza Rizvi/);
   await press(find(root, "approval-tsk_1-always"));
   await flush();
   const set = w.calls.find((c) => c.cap === "gate.allow.set");

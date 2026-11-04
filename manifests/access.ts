@@ -274,8 +274,8 @@ export default defineManifest({
     block('access_request', { requestId: t.id('arq'), requester: t.str(), resource: resourceRef, resourceTitle: t.str(), level, note: t.opt(t.str()), state: t.enm('waiting', 'granted', 'declined') },
       'Access request: {{requester}} asks for {{level}} on {{resourceTitle}}. {{note}}', {
         actions: [
-          { key: 'approve', label: 'Approve', cap: 'access.requests.approve', input: { requestId: '/requestId', level: '/level' } },
-          { key: 'decline', label: 'Decline', cap: 'access.requests.decline', input: { requestId: '/requestId' } },
+          { key: 'approve', label: 'Allow', cap: 'access.requests.approve', input: { requestId: '/requestId', level: '/level' } },
+          { key: 'decline', label: 'Deny', cap: 'access.requests.decline', input: { requestId: '/requestId' } },
         ],
       }),
   ],
