@@ -70,7 +70,11 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
         const agents = (await call("agents.list", { limit: 20 })).agents as Array<{ agentId: string }>;
         const chat = (await call("chat.start", { kind: "chat", agentIds: [agents[0]!.agentId], idempotencyKey: "plain-chat" })).thread.threadId as string;
         await p.goto(`${web.origin}/chat#subject=thread:${chat}`, { waitUntil: "load" });
-        await p.getByTestId("conversation").waitFor({ timeout: 30_000 });
+        await p.getByTestId("conversation").waitFor({ timeout: 30_000 }).catch(async (e: Error) => {
+          const ids = await p.evaluate(() => [...document.querySelectorAll("[data-testid]")].map((x) => x.getAttribute("data-testid")).slice(0, 40));
+          await p.screenshot({ path: path.join(shots, "debug-plain-chat.png") });
+          throw new Error(`no conversation at ${p.url()}: ${JSON.stringify(ids)} body=${(await p.locator("body").innerText()).slice(0, 200)} / ${e.message.slice(0, 50)}`);
+        });
         await p.waitForTimeout(800);
         assert.equal(await p.getByText("Couldn't draw this page").count(), 0, "a plain chat draws");
         await ok("a plain chat");
