@@ -438,3 +438,14 @@ test("project rows carry the accept line when the GitHub App needs new permissio
   assert.equal(p.acceptUrl, "https://github.com/settings/installations/555");
   assert.equal(p.orgAcceptUrl, "https://github.com/organizations/northwind/settings/installations/555");
 });
+
+test("a Space whose projects cannot be listed fails loudly instead of quietly giving no CI", async () => {
+  const w = world();
+  await w.turnOn();
+  const c = w.ctxFor({ id: "svc_host", kind: "service" });
+  const base = c.call.bind(c);
+  c.call = async (cap, input) => { if (cap === "projects.links.list") throw Object.assign(new Error("no such capability"), { error: { code: "internal.unavailable" } }); return base(cap, input); };
+  w.state.noRemote.add("prj_site");
+  const { consumers } = await import("../impl.ts");
+  await assert.rejects(consumers["ci.workflow_job"].run(c, { name: "workflow_job.queued", payload: { repo: "northwind/site", jobId: 140, runId: 640, name: "build", labels: ["self-hosted", "vyre"], fork: "no" } }), (e: any) => e.error.code === "internal.unavailable");   // eslint-disable-line @typescript-eslint/no-explicit-any
+});

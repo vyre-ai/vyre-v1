@@ -47,11 +47,11 @@ export async function projectOfRepo(ctx: CiCtx, repo: string): Promise<string | 
     let cursor: string | undefined;
     for (let page = 0; page < 10; page++) {
       let res: { projects?: Row[]; next?: string };
-      try { res = (await ctx.call("projects.list", { limit: 100, ...(cursor ? { cursor } : {}) })) as { projects?: Row[]; next?: string }; } catch { break; }
+      res = (await ctx.call("projects.list", { limit: 100, ...(cursor ? { cursor } : {}) })) as { projects?: Row[]; next?: string };   // a failure here is loud: CI must not quietly see no projects
       for (const p of res.projects ?? []) {
         const projectId = String(p["projectId"] ?? "");
         if (!projectId) continue;
-        try { const r = await repoOfProject(ctx, projectId); if (r && !byRepo.has(r)) byRepo.set(r, projectId); } catch { /* not readable */ }
+        try { const r = await repoOfProject(ctx, projectId); if (r && !byRepo.has(r)) byRepo.set(r, projectId); } catch (e) { if (!/^(permission|validation\.not_found)/.test((e as { error?: { code?: string } })?.error?.code ?? "")) throw e; /* a project the caller may not read is skipped; anything else is loud */ }
       }
       cursor = res.next;
       if (!cursor) break;
