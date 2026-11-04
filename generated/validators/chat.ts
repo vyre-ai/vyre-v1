@@ -3019,6 +3019,7 @@ if ("routineOwner" in o1936) lf(o1936["routineOwner"], p + "/via" + "/routineOwn
 }
 if ("clientId" in o1932) lf(o1932["clientId"], p + "/clientId", e, L82);
 if ("screen" in o1932) d_s_c1faba3335(o1932["screen"], p + "/screen", e);
+if ("alsoToChat" in o1932) lf(o1932["alsoToChat"], p + "/alsoToChat", e, L3);
 if ("idempotencyKey" in o1932) lf(o1932["idempotencyKey"], p + "/idempotencyKey", e, L48);
 }
 }
@@ -5020,6 +5021,7 @@ if ("hasBlocks" in o6629) lf(o6629["hasBlocks"], p + "/hasBlocks", e, L3);
 if ("via" in o6629) lf(o6629["via"], p + "/via", e, L16);
 if ("actingFor" in o6629) lf(o6629["actingFor"], p + "/actingFor", e, L16);
 if ("job" in o6629) lf(o6629["job"], p + "/job", e, L3);
+if ("copy" in o6629) lf(o6629["copy"], p + "/copy", e, L3);
 if ("typed" in o6629) lf(o6629["typed"], p + "/typed", e, L3);
 if ("poke" in o6629) {
 {

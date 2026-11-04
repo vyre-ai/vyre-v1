@@ -12,7 +12,15 @@ export type HelperState = "working" | "done" | "needs_you" | "failed" | "stopped
 export interface HelperStatus {
   /** Which model, provider and account it runs on, and why; the model it actually used when that was another. */
   provider?: string; accountLabel?: string; model?: string; why?: string; fellBackFrom?: string;
+  /** The held request a helper waits on, when it needs a person: the task that Allow, Always allow and Deny answer. */
+  holdTaskId?: string;
   threadId: string; title: string; agentId: string; state: HelperState; step?: string; found?: string; startedAt: number; endedAt?: number; elapsedMs: number; tokensIn: number; tokensOut: number; costMicros: number;
+}
+
+type HoldMsg = { blocks?: Array<{ type?: string; data?: { state?: string; taskId?: string } }> };
+/** The held request a helper's chat ends on: the newest turn status that is waiting with a task. */
+export function holdOf(messages: readonly HoldMsg[]): string | undefined {
+  return [...messages].reverse().flatMap((m) => [...(m.blocks ?? [])].reverse()).find((b) => b.type === "turn_status" && b.data?.state === "waiting" && typeof b.data.taskId === "string")?.data?.taskId;
 }
 
 export async function helpersStatus(ctx: EngineCtx, input: { threadId: string }): Promise<{ helpers: HelperStatus[] }> {
@@ -36,6 +44,13 @@ export async function helpersStatus(ctx: EngineCtx, input: { threadId: string })
         found = oneLine([...ms].reverse().find((m) => m.author?.kind === "agent" && (m.body ?? "").trim() !== "")?.body ?? "");
       } catch { /* no words to quote */ }
     }
+    let holdTaskId: string | undefined;
+    if (state === "needs_you") {
+      try {
+        const ms = ((await ctx.call("chat.messages.list", { threadId: h.threadId })) as { messages: HoldMsg[] }).messages;
+        holdTaskId = holdOf(ms);
+      } catch { /* the card then shows in the helper's own chat */ }
+    }
     const step = state === "working" ? live.find((l) => l.step)?.step : undefined;
     const pick = h.pick ?? {};
     const used = last ? String(last["model"] ?? "") : "";
@@ -44,7 +59,7 @@ export async function helpersStatus(ctx: EngineCtx, input: { threadId: string })
     const fellBackFrom = picked && used !== "" && used !== "unknown" && used !== picked ? picked : typeof pick["fellBackFrom"] === "string" ? (pick["fellBackFrom"] as string) : undefined;
     out.push({
       ...(typeof pick["provider"] === "string" ? { provider: pick["provider"] as string } : {}), ...(typeof pick["accountLabel"] === "string" ? { accountLabel: pick["accountLabel"] as string } : {}), ...(model ? { model } : {}), ...(typeof pick["why"] === "string" ? { why: pick["why"] as string } : {}), ...(fellBackFrom ? { fellBackFrom } : {}),
-      threadId: h.threadId, title: h.title, agentId: h.agentId, state, ...(step ? { step } : {}), ...(found ? { found } : {}), startedAt, ...(endedAt !== undefined ? { endedAt } : {}),
+      threadId: h.threadId, title: h.title, agentId: h.agentId, state, ...(holdTaskId ? { holdTaskId } : {}), ...(step ? { step } : {}), ...(found ? { found } : {}), startedAt, ...(endedAt !== undefined ? { endedAt } : {}),
       elapsedMs: Math.max(0, (endedAt ?? now) - startedAt), tokensIn: turns.reduce((n, t) => n + num(t["tokens_in"]), 0), tokensOut: turns.reduce((n, t) => n + num(t["tokens_out"]), 0), costMicros: turns.reduce((n, t) => n + num(t["cost_micros"]), 0),
     });
   }

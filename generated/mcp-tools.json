@@ -10832,6 +10832,10 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "alsoToChat": {
+            "description": "From a thread: also put these words in the chat the thread hangs in, marked as coming from the thread",
+            "type": "boolean"
+          },
           "attachments": {
             "items": {
               "examples": [

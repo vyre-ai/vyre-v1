@@ -7346,6 +7346,7 @@ export type ChatPostIn = {
     actions?: Array<string>;
     focus?: string;
   };
+  alsoToChat?: boolean;
   idempotencyKey: string;
 };
 export type ChatPostOut = {
@@ -10929,6 +10930,7 @@ export type EngineCrewStatusOut = {
       name?: string;
       agentId: string;
       state: "working" | "done" | "needs_you" | "failed" | "stopped";
+      holdTaskId?: string;
       step?: string;
       found?: string;
       startedAt: number;
@@ -11133,6 +11135,7 @@ export type EngineHelpersStatusOut = {
       why?: string;
       fellBackFrom?: string;
       state: "working" | "done" | "needs_you" | "failed" | "stopped";
+      holdTaskId?: string;
       step?: string;
       found?: string;
       startedAt: number;
@@ -46172,6 +46175,7 @@ export type MessageReceivedPayload = {
   via?: string;
   actingFor?: string;
   job?: boolean;
+  copy?: boolean;
   typed?: boolean;
   poke?: {
     agentId: string;

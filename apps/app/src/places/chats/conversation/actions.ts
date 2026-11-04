@@ -35,8 +35,9 @@ export const REFS_BLOCK = "refs";
  * A send. chat.post goes first, with a key that makes a retry safe. An interrupt then asks the engine to take the new message now (engine.interrupt with its id); a plain send
  * is left in the queue for the agent's next step.
  */
-export async function sendMessage(data: ConversationData, input: { text: string; mentions: readonly Mention[]; key: string; kind: SendKind; working: boolean; replyTo?: string; refs?: readonly Ref[]; attachments?: readonly string[] }): Promise<SendResult> {
+export async function sendMessage(data: ConversationData, input: { text: string; mentions: readonly Mention[]; key: string; kind: SendKind; working: boolean; replyTo?: string; refs?: readonly Ref[]; attachments?: readonly string[]; alsoToChat?: boolean }): Promise<SendResult> {
   const post = postInput(data.threadId, input.text, input.mentions, input.key, input.replyTo);
+  if (input.alsoToChat === true) (post as { alsoToChat?: boolean }).alsoToChat = true;
   if (input.attachments && input.attachments.length > 0) post.attachments = [...input.attachments];
   if (input.refs && input.refs.length > 0) post.blocks = [{ type: REFS_BLOCK, v: 1, data: { refs: input.refs.map((r) => ({ kind: r.kind, id: r.id, title: r.title })) } }];
   // An Ask pane is about a place: its messages carry where the person is, so "this" means the object on screen.

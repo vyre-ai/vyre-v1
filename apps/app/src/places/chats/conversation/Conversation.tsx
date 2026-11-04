@@ -6,6 +6,7 @@ import { foldHelperRows, groupHelperStrips } from "./helper-rows.ts";
 import { useCrew } from "../crew/context.tsx";
 import { crewChipOf } from "../crew/model.ts";
 import { CrewIsland } from "../crew/island.tsx";
+import { AlsoToChat } from "../crew/also.tsx";
 import { readReplyDetails } from "../details/read.ts";
 import type { Call } from "../details/read.ts";
 import { DECIDED_LINE, isDecided } from "../../../shell/decided.ts";
@@ -275,7 +276,7 @@ function ConversationView(): ReactElement {
       const kept = (p.files ?? []).flatMap((f) => (f.fileId !== undefined ? [f.fileId] : []));
       const fresh = (p.files ?? []).filter((f) => f.fileId === undefined);
       const attachments = [...(fresh.length > 0 ? await act.uploadAttachments(data, fresh, `chat-attach:${p.key}`) : []), ...kept];
-      return act.sendMessage(data, { text: p.body, mentions: p.mentions, key: p.key, kind: p.kind, working: p.working, ...(p.refs && p.refs.length > 0 ? { refs: p.refs } : {}), attachments });
+      return act.sendMessage(data, { text: p.body, mentions: p.mentions, key: p.key, kind: p.kind, working: p.working, ...(p.refs && p.refs.length > 0 ? { refs: p.refs } : {}), attachments, ...(p.alsoToChat === true ? { alsoToChat: true } : {}) });
     })().then(
       (r) => setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, messageId: r.messageId, state: "sending" as const } : x))),
       (e) => { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "failed" as const } : x))); say(`Not sent.${p.files && p.files.length > 0 && e instanceof Error && e.message.length < 120 ? ` ${e.message}.` : ""} Retry or discard it.`); },
@@ -305,6 +306,10 @@ function ConversationView(): ReactElement {
     data.call("settings.get", { key: "engine.agent_hops" }).then((out) => { if (live) setHopLimit(limitOf((out as { row?: { value?: unknown } } | null)?.row?.value)); }, () => undefined);
     return () => { live = false; };
   }, [data.threadId]);  // eslint-disable-line react-hooks/exhaustive-deps
+  // "Also post to the chat", for a thread: on for the next message only
+  const [alsoOn, setAlso] = useState(false);
+  const also = useRef(false);
+  also.current = alsoOn;
   // the crew of this chat: read again when the chat gets a new message (a helper started or reported)
   const crew = useCrew();
   const messageCount = messagesQ.status === "loading" ? 0 : messagesQ.data.messages.length;
@@ -364,7 +369,8 @@ function ConversationView(): ReactElement {
     const mentions = mentionsIn(payload.text, data.directory);
     const refs = act.sendRefs(payload);
     const files = payload.files.map((f) => ({ name: f.name, ...(f.file !== undefined ? { file: f.file } : {}), ...(f.size !== undefined ? { size: f.size } : {}), ...(f.mime ? { mime: f.mime } : {}), ...(f.fileId !== undefined ? { fileId: f.fileId } : {}) }));
-    const p: Pending = { key, body: payload.text, at: data.clock().now, state: "sending", kind: sendKind(kind, isWorking), mentions, working: isWorking, ...(files.length > 0 ? { files } : {}), ...(refs.length > 0 ? { refs } : {}) };
+    const p: Pending = { key, body: payload.text, at: data.clock().now, state: "sending", kind: sendKind(kind, isWorking), mentions, working: isWorking, ...(files.length > 0 ? { files } : {}), ...(refs.length > 0 ? { refs } : {}), ...(also.current ? { alsoToChat: true } : {}) };
+    if (also.current) { also.current = false; setAlso(false); }
     setPending((cur) => [...cur, p]);
     setLine("");
     setTyped("");
@@ -738,7 +744,7 @@ function ConversationView(): ReactElement {
             testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={data.placeholder ?? placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}
             {...(place.chip ? { runsChip: place.chip } : {})}
             agents={composerAgents} mode={mode} onMode={chooseChatMode}
-            barExtra={<MemorySwitch threadId={thread.threadId} call={data.call} say={say} />}
+            barExtra={<><MemorySwitch threadId={thread.threadId} call={data.call} say={say} />{thread.kind === "thread" && thread.parentThreadId ? <AlsoToChat on={alsoOn} onChange={setAlso} /> : null}</>}
             suggest={composerSuggest(data)} preview={(item) => previewOf(data, item)}
             renderPanel={(agent, close, narrowPanel) => <ChatBrain data={data} thread={thread} agent={agent} accounts={accounts} mode={mode} onMode={chooseChatMode} close={close} narrow={narrowPanel} say={say} {...(place.runs ? { runs: place.runs } : {})} onCompact={(keep, always) => void compactChat(data, keep, always, agent.id).then((line) => { if (line === null) say(keep ? `Compacted, keeping ${keep}` : "Compacted"); }, fail("Could not compact."))} />}
             onAddPeople={() => add.open({ threadId: thread.threadId })}

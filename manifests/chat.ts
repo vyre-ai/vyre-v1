@@ -273,7 +273,7 @@ export default defineManifest({
       in: {
         ...threadT, body: t.str(), blocks: t.opt(t.arr(t.obj({ type: t.str(), v: t.int({ minimum: 1 }), data: t.json() }))), attachments: t.opt(t.arr(id.file)),
         replyTo: t.opt(id.message), mentions: t.opt(t.arr(mention)), via: t.opt(t.obj({ routineOwner: id.user })), clientId: t.opt(id.message),
-        screen: t.opt(screenContext),
+        screen: t.opt(screenContext), alsoToChat: t.opt(t.bool({ description: 'From a thread: also put these words in the chat the thread hangs in, marked as coming from the thread' })),
       },
       out: { message: messageRow }, on: ['thread', '/threadId'], level: 'use', idem: 'key',
       emits: ['message.received', 'message.mentioned', 'message.direct', 'thread.replied', 'thread.unarchived', 'agent.engaged'], tool: 'chats', offline: 'queue', hook: true, cli: 'vyre chat post',
@@ -587,7 +587,7 @@ export default defineManifest({
     ev('channel.erased', 'A channel was erased for good with its messages (ids only)', { p: { channelId: id.channel }, subject: ['entity', '/channelId'], retention: 'audit' }),
     ev('transcripts.purged', 'Chat transcripts past their retention were removed (a count)', { p: { removed: t.int({ minimum: 0 }) }, subject: ['entity', '/removed'], retention: 'audit' }),
     ev('message.received', 'A message was posted in a thread (ids and counts only, never the text)', {
-      p: { messageId: id.message, threadId: id.thread, threadSeq: t.int(), author: principalRef, kind: t.str(), depth: t.int(), mentions: t.arr(mention), hasBlocks: t.bool(), via: t.opt(id.user), actingFor: t.opt(id.user), job: t.opt(t.bool()), typed: t.opt(t.bool()), poke: t.opt(t.obj({ agentId: id.agent, by: id.user, outside: t.opt(t.bool()) })) },
+      p: { messageId: id.message, threadId: id.thread, threadSeq: t.int(), author: principalRef, kind: t.str(), depth: t.int(), mentions: t.arr(mention), hasBlocks: t.bool(), via: t.opt(id.user), actingFor: t.opt(id.user), job: t.opt(t.bool()), copy: t.opt(t.bool()), typed: t.opt(t.bool()), poke: t.opt(t.obj({ agentId: id.agent, by: id.user, outside: t.opt(t.bool()) })) },
       subject: ['thread', '/threadId'], label: 'subject', retention: 'transcripts', trigger: { title: 'A message is posted', fields: ['/threadId', '/author/kind'] },
     }),
     ev('message.edited', 'A message was edited', { p: { messageId: id.message, threadId: id.thread }, subject: ['thread', '/threadId'], label: 'subject', retention: 'transcripts' }),

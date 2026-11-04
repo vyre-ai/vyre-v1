@@ -41,6 +41,7 @@ type Out = {
       name?: string;
       agentId: string;
       state: "working" | "done" | "needs_you" | "failed" | "stopped";
+      holdTaskId?: string;
       step?: string;
       found?: string;
       startedAt: number;
@@ -123,6 +124,7 @@ type Out = {
           }
         ],
         "found": "example",
+        "holdTaskId": "tsk_a1b2c3",
         "id": "thr_a1b2c3",
         "kind": "helper",
         "merged": true,

@@ -530,3 +530,12 @@ test("the poke of an outside agent is left to its queue: nothing runs here", asy
   assert.deepEqual(res, { skipped: "poke_outside" });
   assert.equal(s.provider.sessions.length, n);
 });
+
+test("a copy of a thread message into its chat (Also post to the chat) is read, not answered", async () => {
+  const s = setup({ script: reply("x") });
+  await s.say("Hello");
+  const n = s.provider.sessions.length;
+  const res = await s.bridge.onEvent(s.ctx, { name: "message.received", payload: { messageId: "msg_copy1", threadId: T, author: { kind: "person", id: "usr_dana" }, mentions: [], depth: 0, copy: true } });
+  assert.deepEqual(res, { skipped: "copy" });
+  assert.equal(s.provider.sessions.length, n);
+});

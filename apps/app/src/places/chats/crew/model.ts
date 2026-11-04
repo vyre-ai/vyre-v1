@@ -163,3 +163,7 @@ export function testsWords(t: CrewMember["tests"]): string {
   if (t.state === "passing") return t.passed !== undefined ? `${t.passed} tests passing` : "Tests passing";
   return t.failed !== undefined ? `${t.failed} failing` : "Tests failing";
 }
+
+/** The helpers that wait for a person's yes with a held request to answer: each one's request is drawn as an approval card under the strip. */
+export const holdsOf = <T extends Pick<CrewMember, "state"> & { holdTaskId?: string }>(members: readonly T[]): Array<T & { holdTaskId: string }> =>
+  members.filter((m): m is T & { holdTaskId: string } => m.state === "needs_you" && typeof m.holdTaskId === "string" && m.holdTaskId !== "");

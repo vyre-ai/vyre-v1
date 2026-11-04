@@ -27,3 +27,11 @@ test("a command that is not a test run, or a tool that is not a shell, changes n
   noteSteps(db, "thr_2", [{ phase: "call", id: "b", name: "Read" }, { phase: "input", id: "b", detail: "npm test notes.md" }, { phase: "result", id: "b", ok: true }], 2);
   assert.equal(testsOf(db, "thr_2"), undefined);
 });
+
+test("a helper that waits on a person points at its held request: the newest waiting turn status with a task", async () => {
+  const { holdOf } = await import("../handlers/helpers.ts");
+  assert.equal(holdOf([]), undefined);
+  assert.equal(holdOf([{ blocks: [{ type: "turn_status", data: { state: "waiting" } }] }]), undefined, "waiting with no task is not a card");
+  assert.equal(holdOf([{ blocks: [{ type: "turn_status", data: { state: "waiting", taskId: "tsk_old" } }] }, { blocks: [{ type: "text" }] }, { blocks: [{ type: "turn_status", data: { state: "waiting", taskId: "tsk_new" } }] }]), "tsk_new");
+  assert.equal(holdOf([{ blocks: [{ type: "turn_status", data: { state: "done", taskId: "tsk_x" } }] }]), undefined);
+});

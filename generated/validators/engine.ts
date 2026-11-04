@@ -1282,6 +1282,7 @@ if ("title" in o2540) lf(o2540["title"], p + "/members" + '/' + i2539 + "/title"
 if ("name" in o2540) lf(o2540["name"], p + "/members" + '/' + i2539 + "/name", e, L1);
 if ("agentId" in o2540) lf(o2540["agentId"], p + "/members" + '/' + i2539 + "/agentId", e, L10);
 if ("state" in o2540) lf(o2540["state"], p + "/members" + '/' + i2539 + "/state", e, L609);
+if ("holdTaskId" in o2540) lf(o2540["holdTaskId"], p + "/members" + '/' + i2539 + "/holdTaskId", e, L25);
 if ("step" in o2540) lf(o2540["step"], p + "/members" + '/' + i2539 + "/step", e, L1);
 if ("found" in o2540) lf(o2540["found"], p + "/members" + '/' + i2539 + "/found", e, L1);
 if ("startedAt" in o2540) lf(o2540["startedAt"], p + "/members" + '/' + i2539 + "/startedAt", e, L17);
@@ -1764,6 +1765,7 @@ if ("model" in o2568) lf(o2568["model"], p + "/helpers" + '/' + i2567 + "/model"
 if ("why" in o2568) lf(o2568["why"], p + "/helpers" + '/' + i2567 + "/why", e, L1);
 if ("fellBackFrom" in o2568) lf(o2568["fellBackFrom"], p + "/helpers" + '/' + i2567 + "/fellBackFrom", e, L1);
 if ("state" in o2568) lf(o2568["state"], p + "/helpers" + '/' + i2567 + "/state", e, L609);
+if ("holdTaskId" in o2568) lf(o2568["holdTaskId"], p + "/helpers" + '/' + i2567 + "/holdTaskId", e, L25);
 if ("step" in o2568) lf(o2568["step"], p + "/helpers" + '/' + i2567 + "/step", e, L1);
 if ("found" in o2568) lf(o2568["found"], p + "/helpers" + '/' + i2567 + "/found", e, L1);
 if ("startedAt" in o2568) lf(o2568["startedAt"], p + "/helpers" + '/' + i2567 + "/startedAt", e, L17);

@@ -444,6 +444,8 @@ export function createBridge(o: BridgeOptions): Bridge {
     if (!engine) return { skipped: "engine_not_running" };
     if (messageId === "" || threadId === "") return { skipped: "no_ids" };
     if (messageId.startsWith(BRIDGE_PREFIX)) return { skipped: "own_post" };
+    // a copy of a thread message into its chat ("Also post to the chat") is for reading, not for answering: the thread already woke whoever it was for
+    if (p["copy"] === true) return { skipped: "copy" };
     // a poke of an outside agent went to its own queue when it was made (threads.poke): nothing runs here for it
     if ((p["poke"] as { outside?: unknown } | undefined)?.outside === true) return { skipped: "poke_outside" };
     // the computer the person is using (step 1 of where a turn runs): the device their message came from

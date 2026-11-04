@@ -28,7 +28,7 @@ export async function crewStatus(ctx: EngineCtx, input: { threadId: string }) {
   const mates = new Set((ctx.db.all("SELECT thread_id FROM engine_crew_job WHERE lead_thread_id = ?", input.threadId) as Row[]).map((r) => String(r["thread_id"])));
   for (const h of (await helpersStatus(ctx, input)).helpers.filter((x) => !mates.has(x.threadId))) {
     members.push({
-      kind: "helper", id: h.threadId, parentThreadId: input.threadId, title: h.title, agentId: h.agentId, state: h.state, ...(h.step ? { step: h.step } : {}), ...(h.found ? { found: h.found } : {}), startedAt: h.startedAt,
+      kind: "helper", id: h.threadId, parentThreadId: input.threadId, title: h.title, agentId: h.agentId, state: h.state, ...(h.holdTaskId ? { holdTaskId: h.holdTaskId } : {}), ...(h.step ? { step: h.step } : {}), ...(h.found ? { found: h.found } : {}), startedAt: h.startedAt,
       ...(h.endedAt !== undefined ? { endedAt: h.endedAt } : {}), elapsedMs: h.elapsedMs, ...(h.model ? { model: h.model } : {}), ...(h.provider ? { provider: h.provider } : {}), ...(h.accountLabel ? { accountLabel: h.accountLabel } : {}),
       ...(h.why ? { why: h.why } : {}), ...(h.fellBackFrom ? { fellBackFrom: h.fellBackFrom } : {}), tokensIn: h.tokensIn, tokensOut: h.tokensOut, costMicros: h.costMicros,
     });

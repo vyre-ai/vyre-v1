@@ -203,3 +203,37 @@ test("Change model lists the other models the person may use, confirms with what
   assert.equal(refreshed, 1);
   assert.equal(calls.find((c) => c.cap === "engine.helper_models")!.input["threadId"], "thr_0", "the catalogue is read for the chat the helper belongs to");
 });
+
+test("citations: [1] and [2] after a claim become chips for the helpers in the order they started; a number with no helper, and code, stay as written; a chip shows who and what, and opens the peek", async () => {
+  const { citeBody, citeRender, citable, CITE_HOST } = await import("./cite.tsx");
+  const a = M({ id: "a", name: "Tess", startedAt: 5, found: "Thursday at 14:00 is free." }), b = M({ id: "b", name: "Orin", title: "Harbor quote", startedAt: 1, found: "Harbor: $4,180.", agentId: "agt_orin" });
+  assert.deepEqual(citable([a, b, M({ id: "t", kind: "teammate" as never, startedAt: 0 })]).map((m) => m.id), ["b", "a"], "helpers only, in the order they started");
+  assert.equal(citeBody("Harbor costs more [1]. Thursday works [2].", 2), `Harbor costs more [1](${CITE_HOST}1). Thursday works [2](${CITE_HOST}2).`);
+  assert.equal(citeBody("A third [3] and a link [1](http://x) and a note[a].", 2), "A third [3] and a link [1](http://x) and a note[a].", "no helper behind 3; an existing link is left; only plain numbers");
+  assert.equal(citeBody("Run `a[1]` now [1].", 1), `Run \`a[1]\` now [1](${CITE_HOST}1).`, "code is left alone");
+  assert.equal(citeBody("No helpers [1].", 0), "No helpers [1].");
+  const opened: string[] = [];
+  const render = citeRender([a, b], (m) => opened.push(m.id))!;
+  const root = await mount(createRoot, <>{render(`${CITE_HOST}1`, "1", 0)}{render(`${CITE_HOST}2`, "2", 1)}{render("http://x", "x", 2)}</>);
+  assert.ok(find(root, "cite-1") && find(root, "cite-2"));
+  await press(find(root, "cite-1")); assert.deepEqual(opened, ["b"], "[1] is the first helper that started");
+  assert.equal(render("http://other", "x", 3), null, "other links are not ours");
+});
+
+test("Also post to the chat is one checkbox that flips, and a copy from a thread says where it came from", async () => {
+  const { AlsoToChat, FROM_THREAD_LINE } = await import("./also.tsx");
+  let on = false;
+  const root = await mount(createRoot, <AlsoToChat on={on} onChange={(v) => { on = v; }} />);
+  assert.match(textOf(find(root, "also-to-chat")), /Also post to the chat/);
+  await press(find(root, "also-to-chat")); assert.equal(on, true);
+  assert.equal(FROM_THREAD_LINE, "Also sent to the chat from a thread");
+});
+
+test("a message from a thread with Also post to the chat on goes to chat.post with the flag; off, without it", async () => {
+  const { sendMessage } = await import("../conversation/actions.ts");
+  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const data = { threadId: "thr_th", call: async (cap: string, input: unknown) => { calls.push({ cap, input: input as Record<string, unknown> }); return { message: { messageId: "m1", threadSeq: 1 } }; } } as never;
+  await sendMessage(data, { text: "Decision: book Thursday.", mentions: [], key: "k1", kind: "send" as never, working: false, alsoToChat: true });
+  await sendMessage(data, { text: "Working", mentions: [], key: "k2", kind: "send" as never, working: false });
+  assert.equal(calls[0]!.input["alsoToChat"], true); assert.equal(calls[1]!.input["alsoToChat"], undefined);
+});

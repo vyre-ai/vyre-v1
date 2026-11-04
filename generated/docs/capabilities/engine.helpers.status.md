@@ -43,6 +43,7 @@ type Out = {
       why?: string;
       fellBackFrom?: string;
       state: "working" | "done" | "needs_you" | "failed" | "stopped";
+      holdTaskId?: string;
       step?: string;
       found?: string;
       startedAt: number;
@@ -81,6 +82,7 @@ type Out = {
         "endedAt": 1760000000000,
         "fellBackFrom": "example",
         "found": "example",
+        "holdTaskId": "tsk_a1b2c3",
         "model": "example",
         "provider": "example",
         "startedAt": 1760000000000,
