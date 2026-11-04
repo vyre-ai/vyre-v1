@@ -488,8 +488,14 @@ export async function apply(ctx: AgentsCtx, input: In) {
       const s = skillsInTree(files, p.name).skills[0];
       if (!s) raise(ctx, "validation.bad_input", "The skill could not be read again.");
       if (forWho === "space") { await spaceInstall(ctx, { text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit) }); }
-      else if (forWho === "agent") { const o = saveFor(ctx, { owner: agentId, text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit), summary: `installed from ${p.repo}` }); done["skillId"] = o.id; }
-      else { const out = await mineAdd(ctx, { text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit) }); done["skillId"] = out.skill.skillId; }
+      else if (forWho === "agent") { const o = saveFor(ctx, { owner: agentId, text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit), summary: `Installed from a link · ${short(p.commit)}` }); done["skillId"] = o.id; }
+      else {
+        const out = await mineAdd(ctx, { text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit) });
+        done["skillId"] = out.skill.skillId;
+        // the history of a skill installed from a link starts with where it came from and the exact commit
+        const mine = ownById(ctx, out.skill.skillId);
+        if (mine && revsOf(ctx, mine.id).length === 0) ctx.db.run("INSERT INTO agents_skill_rev (skill_id, rev, text, files_json, by_who, author_kind, summary, undo_of, at) VALUES (?, 1, ?, ?, ?, ?, ?, NULL, ?)", mine.id, mine.text, JSON.stringify(mine.files), me(ctx), authorKind(ctx), `Installed from a link · ${short(p.commit)}`, ctx.now());
+      }
       break;
     }
     case "plugin": case "mcp_local": {

@@ -54,7 +54,7 @@ export function scripted(kind: string): Call {
       };
       case "skills.of_agents": return { skills: [{ skillId: "sko_5", name: "Write a brief", description: "", agentId: "agt_mira", agentName: "Mira", version: "1.4", source: "agent", rev: 2, updatedAt: NOV4 }, { skillId: "sko_6", name: "Review a pull request", description: "", agentId: "agt_ember", agentName: "Ember", version: "0.9", source: "github:acme/review-kit@3be07d1", rev: 1, updatedAt: NOV4 }] };
       case "skills.members": return { skills: [] };
-      case "skills.history": return { revisions: [{ rev: 1, by: "usr_irfad", authorKind: "person", summary: "Installed from a link", at: NOV4 }] };
+      case "skills.history": return { revisions: [{ rev: 1, by: "usr_irfad", authorKind: "person", summary: "Installed from a link · a41f9c2", at: NOV4 }] };
       default: void i; return undefined;
     }
   };

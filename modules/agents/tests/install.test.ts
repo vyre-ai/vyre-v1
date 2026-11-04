@@ -179,6 +179,16 @@ test("Run it on the Space deploys a local MCP server on Sites behind a route wit
   assert.equal(JSON.stringify(sites).includes("secret"), false, "only the Vault handle goes, never a value");
 });
 
+test("a skill installed from a link starts its history with where it came from and the exact commit, for a person and for an agent", async () => {
+  const { hn } = world();
+  const mine = (await call(hn, "install.apply", { planId: (await plan(hn, "acme/pdf-skill")).planId, for: "me" })).installed;
+  const revs = (await call(hn, "skills.history", { skillId: mine.skillId })).revisions;
+  assert.deepEqual(revs.map((r: { summary: string }) => r.summary), ["Installed from a link · aaaaaaa"]);
+  const agent = await agentOf(hn, hn.ctx, "Intake");
+  const theirs = (await call(hn, "install.apply", { planId: (await plan(hn, "acme/pdf-skill")).planId, for: "agent", agentId: agent })).installed;
+  assert.deepEqual((await call(hn, "skills.history", { skillId: theirs.skillId })).revisions.map((r: { summary: string }) => r.summary), ["Installed from a link · aaaaaaa"]);
+});
+
 test("an update shows the diff and waits to be applied; nothing updates by itself", async () => {
   const { hn } = world();
   const p = await plan(hn, "acme/pdf-skill");
