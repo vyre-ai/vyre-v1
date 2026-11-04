@@ -294,3 +294,18 @@ test("the turn's own status is not a step: it shows neither in the peek nor in t
   await flush();
   assert.ok(find(root, "crew-step-x2")); assert.equal(find(root, "crew-step-x1"), null);
 });
+
+test("the peek carries the helper's hooks, from the one hooks component: asked for by the helper's thread, headed Hooks for <name>, its lead's rules marked From the lead", async () => {
+  const calls: Array<{ cap: string; input: unknown }> = [];
+  const call = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push({ cap, input });
+    if (cap === "chat.helper.notes") return { notes: [{ messageId: "m1", who: "brief", authorId: "agt_lead", body: "Read the quote." }] };
+    if (cap === "hooks.list") return { hooks: [{ id: "hok_own", scope: "run", threadId: "thr_b", line: "before a helper acts, ask", kind: "check", spec: { instruction: "x" }, event: "tool.before", matcher: "", paused: false, madeBy: "agt_lead" }] };
+    return {};
+  };
+  const root = await mount(createRoot, <CrewPeek member={three()[1]!} call={call} nameOfId={() => "Assistant"} onBack={() => undefined} onOpenChat={() => undefined} onRefresh={() => undefined} />);
+  await flush();
+  assert.deepEqual(calls.find((c) => c.cap === "hooks.list")!.input, { threadId: "thr_b" });
+  assert.match(textOf(find(root, "helper-hooks")), /Hooks for Orin/);
+  assert.match(textOf(find(root, "helper-hook-hok_own")), /From Assistant/);
+});

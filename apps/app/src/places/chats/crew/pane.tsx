@@ -7,6 +7,7 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-na
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { blockLine } from "../helper/model.ts";
+import { HelperHooksSection } from "../helper/HelperHooks.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { HelperChip, MemberRing, timeOf, useNow } from "./strip.tsx";
 import { clock, isCode, keyAction, testsWords, lineOf, modelTag, money, nameOf, ranTogether, roleOf, shows, sorted, span, stateWord, timeline, tokenSplit, tokens, totalsLine, faceSeed, middle, totalsParts, sortedBy } from "./model.ts";
@@ -192,6 +193,7 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
       {member.state === "working" && member.step && !steps.some((x) => x.state === "live") ? <View style={st.step}><View style={[st.stepDot, { backgroundColor: "var(--accent)" as string }]} /><Text testID="crew-peek-step" numberOfLines={1} style={st.rowLine}>{member.step}</Text></View> : null}
       {member.model ? <><Text style={st.section}>Runs on</Text><Text testID="crew-peek-model" style={st.rowLine}>{modelTag(member)}{member.accountLabel ? ` · ${member.accountLabel}` : ""}</Text></> : null}
       {live || member.state === "failed" || member.state === "stopped" ? <ChangeModel member={member} call={call} onDone={onRefresh} /> : null}
+      <HelperHooksSection threadId={member.id} call={call} lead={brief ? (nameOfId?.(brief.authorId) ?? "the agent") : "the agent"} name={nameOf(member)} />
       {member.found ? <><Text style={st.section}>Answer</Text><Text testID="crew-peek-answer" style={st.rowLine}>{member.found}</Text></> : null}
       {isCode(member) ? <><Text style={st.section}>Code</Text><Text testID="crew-peek-code" style={st.mono}>{member.branch} · +{member.added ?? 0} −{member.deleted ?? 0} · {member.files?.length ?? 0} files{member.tests ? ` · ${testsWords(member.tests)}` : ""}</Text></> : null}
       {log.length > 0 ? <Text style={st.section}>Notes</Text> : null}

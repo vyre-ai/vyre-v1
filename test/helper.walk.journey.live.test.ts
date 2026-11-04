@@ -152,7 +152,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
       await page.getByTestId("helpers-button").first().click({ timeout: 15_000 });
       await page.getByTestId("crew-overview").first().waitFor({ timeout: 20_000 });
       await shoot(page, `crew-over-${mode}-${size}`);
-      await page.locator('[data-testid^="crew-chip-"][role="button"]').first().click({ timeout: 15_000 });
+      await page.getByTestId("crew-overview").locator('[data-testid^="crew-chip-"][role="button"]').first().click({ timeout: 15_000 });
       await page.getByTestId("crew-peek").first().waitFor({ timeout: 20_000 });
       await shoot(page, `crew-peek1-${mode}-${size}`);
       if (mode === "light") {
