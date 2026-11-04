@@ -6,6 +6,17 @@
   <dict>
     <key>NSAllowsLocalNetworking</key>
     <true/>
+    <!-- the artifact host of a Space on this computer is http://a.localhost:<port>: loopback, but neither an unqualified name nor .local, so Local Networking alone does not cover it -->
+    <key>NSExceptionDomains</key>
+    <dict>
+      <key>localhost</key>
+      <dict>
+        <key>NSIncludesSubdomains</key>
+        <true/>
+        <key>NSExceptionAllowsInsecureHTTPLoads</key>
+        <true/>
+      </dict>
+    </dict>
   </dict>
   <key>NSMicrophoneUsageDescription</key>
   <string>Vyre listens only while you press the mic, so your words land in the message.</string>
