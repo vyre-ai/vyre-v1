@@ -3,7 +3,7 @@
 // The query is read after mount (the static export keeps the first frame's markup), so the first frame is empty and the client draws the same one.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { Text, View } from "react-native";
+import { Text, View, useWindowDimensions } from "react-native";
 import { ChatsMounted } from "../../../apps/app/src/places/chats/mounts/ChatsMounted.tsx";
 import { SidebarSlot, SidebarSlotProvider } from "../../../apps/app/src/shell/sidebar/index.ts";
 import { createMountSample } from "../../../apps/app/src/places/chats/mounts/sample.ts";
@@ -64,13 +64,15 @@ export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "card"), []);
   const rt = useMemo(() => (part === null ? null : runtime(part)), [part]);
+  // a phone shows one column: the page without the sidebar, as the shell stacks it
+  const narrow = useWindowDimensions().width < 560;
   if (part === null || rt === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   if (part === "card") return <Card rt={rt} />;
   const initial = part === "view" || part === "loading" || part === "error" ? step(START, { t: "artifact", artifactId: "sit_pr" }) : step(START, { t: "artifacts" });
   return (
     <SidebarSlotProvider deviceId="d1" personId={ME} spaceId="mla" place="chats" epoch={1} compact={false} storage={{ getItem: () => null, setItem: () => undefined }}>
       <View style={{ flex: 1, flexDirection: "row", minHeight: 0, backgroundColor: "var(--win)" as string }}>
-        <SidebarSlot />
+        {narrow ? null : <SidebarSlot />}
         <View style={{ flex: 1, minWidth: 0 }}><ChatsMounted key={part} rt={rt} initial={initial} window={{ start: 0, end: 500 }} openInNewTab={() => undefined} /></View>
       </View>
     </SidebarSlotProvider>
