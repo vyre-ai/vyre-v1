@@ -101,8 +101,8 @@ export function ranWhat(r: Pick<HookRun, "outcome" | "tool">): string {
     default: return on ? `checked${on}` : "ran";
   }
 }
-/** "Last ran 2 min ago, stopped files_tree", or "Never ran". `runs` are newest first, as hooks.runs.list gives them. */
-export function lastRan(hookId: string, runs: readonly HookRun[], ago: (ts: number) => string): string {
+/** "Last ran 2 min ago, stopped sending an email", or "Not run in this chat yet": a chat's read covers only the runs in that chat, so a hook that ran elsewhere is not "never run" here. Pass `everywhere` only where the read covers every run the viewer may see (the Console list): then it is "Never ran". `runs` are newest first, as hooks.runs.list gives them. */
+export function lastRan(hookId: string, runs: readonly HookRun[], ago: (ts: number) => string, everywhere = false): string {
   const r = runs.find((x) => x.hookId === hookId);
-  return r ? `Last ran ${ago(r.at)}, ${ranWhat(r)}` : "Never ran";
+  return r ? `Last ran ${ago(r.at)}, ${ranWhat(r)}` : everywhere ? "Never ran" : "Not run in this chat yet";
 }

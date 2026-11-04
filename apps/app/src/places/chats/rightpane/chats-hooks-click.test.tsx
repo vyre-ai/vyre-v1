@@ -22,7 +22,7 @@ function deps() {
   const d: PaneDeps = { call: async (cap, input) => { calls.push({ cap, input: input as Record<string, unknown> }); return {}; }, note: (text, undo) => notes.push({ text, ...(undo ? { undo } : {}) }) };
   return { d, calls, notes };
 }
-const card = (d: PaneDeps, h: Hook, ran = "Never ran") => <HookCard h={h} threadId="thr_1" deps={d} selected={false} nameOf={(id) => (id === "agt_intake" ? "Intake" : "Irfad Imtiaz")} ran={ran} />;
+const card = (d: PaneDeps, h: Hook, ran = "Not run in this chat yet") => <HookCard h={h} threadId="thr_1" deps={d} selected={false} nameOf={(id) => (id === "agt_intake" ? "Intake" : "Irfad Imtiaz")} ran={ran} />;
 
 test("Edit opens the form with the hook's words; Cancel throws a change away", async () => {
   const off = installDom();
@@ -116,8 +116,9 @@ test("Last ran reads from the newest run: when, and what it did", async () => {
   const ago = (ts: number): string => `${Math.round((600_000 - ts) / 60_000)} min ago`;
   const run = (o: Partial<HookRun>): HookRun => ({ id: 1, hookId: "hok_1", event: "tool.before", outcome: "blocked", ms: 3, at: 480_000, ...o } as HookRun);
   assert.equal(lastRan("hok_1", [run({ tool: "mail_send" })], ago), "Last ran 2 min ago, stopped sending an email");
-  assert.equal(lastRan("hok_1", [], ago), "Never ran");
-  assert.equal(lastRan("hok_other", [run({})], ago), "Never ran");
+  assert.equal(lastRan("hok_1", [], ago), "Not run in this chat yet", "a chat's read covers only this chat");
+  assert.equal(lastRan("hok_other", [run({})], ago), "Not run in this chat yet");
+  assert.equal(lastRan("hok_1", [], ago, true), "Never ran", "where the read covers every run the viewer may see");
   assert.equal(titleOf({ line: "before any email, check the address is in Contacts", event: "outward.before" }), "Before any email");
   assert.equal(titleOf({ line: "", event: "turn.end" }), "When a turn ends");
   assert.equal(ranWhat({ outcome: "allowed_once", tool: "mail_send" }), "let through once, sending an email");
