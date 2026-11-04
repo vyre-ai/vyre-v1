@@ -100,9 +100,12 @@ function HelperView(): ReactElement {
       continue;
     }
     const byPerson = m.author.id.startsWith("usr_");
+    // the helper's answer to a person's line says whom it answers, as the prototype does
+    const prev = messages[messages.indexOf(m) - 1];
+    const toPerson = !byPerson && prev !== undefined && prev !== messages[0] && prev.author.id.startsWith("usr_") ? (data.me?.id === prev.author.id ? "you" : data.nameOf(prev.author.id)) : "";
     feed.push(
       <View key={m.messageId} testID={`msg-${m.messageId}`} style={st.msg}>
-        <View style={st.by}><Face name={who} seedId={m.author.id} size={20} /><Text style={st.who}>{byPerson && data.me?.id === m.author.id ? "You" : who}</Text><Text style={st.time}>{whenLabel(m.createdAt, clock)}</Text></View>
+        <View style={st.by}><Face name={who} seedId={m.author.id} size={20} /><Text style={st.who}>{byPerson && data.me?.id === m.author.id ? "You" : who}</Text><Text style={st.time}>{whenLabel(m.createdAt, clock)}</Text>{toPerson !== "" ? <Text testID={`reply-to-${m.messageId}`} style={st.time}>{`replying to ${toPerson}`}</Text> : null}</View>
         {hasWork && !workShown ? <Work summary={summary} messages={work} /> : null}
         {m.body ? <Text style={st.body}>{m.body}</Text> : null}
       </View>,
@@ -130,7 +133,7 @@ function HelperView(): ReactElement {
         {messages.length === 0 ? <States kind="empty" icon="chat" title="Nothing yet. The helper has not started." /> : feed}
       </ScrollView>
       {line ? <View testID="helper-line" style={st.note}><Text style={st.noteText}>{line}</Text></View> : null}
-      {status === "running" && data.me?.id !== undefined ? <AskBox threadId={data.threadId} call={data.call} say={setLine} /> : null}
+      {status === "running" && data.me?.id !== undefined ? <AskBox threadId={data.threadId} name={thread.title ?? "the helper"} call={data.call} say={setLine} /> : null}
       <View testID="helper-readonly" style={st.readonly}>
         <Icon name="lock" size={14} />
         <Text style={st.readonlyText}>{READ_ONLY_NOTE}</Text>
@@ -141,7 +144,7 @@ function HelperView(): ReactElement {
 }
 
 /** Ask the helper something while it works: it goes to the helper as the person's own words (chat.helper.steer). */
-function AskBox({ threadId, call, say }: { threadId: string; call: (cap: string, input: unknown) => Promise<unknown>; say: (t: string) => void }): ReactElement {
+function AskBox({ threadId, name, call, say }: { threadId: string; name: string; call: (cap: string, input: unknown) => Promise<unknown>; say: (t: string) => void }): ReactElement {
   const [text, setText] = useState("");
   const send = (): void => {
     const body = text.trim();
@@ -150,7 +153,7 @@ function AskBox({ threadId, call, say }: { threadId: string; call: (cap: string,
   };
   return (
     <View style={st.ask}>
-      <TextInput testID="helper-ask" value={text} onChangeText={setText} onSubmitEditing={send} placeholder="Message this helper" placeholderTextColor="var(--ink-4)" style={st.askInput} />
+      <TextInput testID="helper-ask" value={text} onChangeText={setText} onSubmitEditing={send} accessibilityLabel={`Ask ${name} something`} placeholder="Ask it something" placeholderTextColor="var(--ink-4)" style={st.askInput} />
       <Pressable accessibilityRole="button" accessibilityLabel="Send" testID="helper-ask-send" onPress={send} style={st.askSend}><Text style={st.askSendT}>↑</Text></Pressable>
     </View>
   );

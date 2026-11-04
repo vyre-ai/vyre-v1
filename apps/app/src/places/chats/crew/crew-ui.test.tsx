@@ -157,10 +157,12 @@ test("the helper chat keeps all three senders: the brief and a follow-up from th
   assert.match(textOf(find(root, "msg-m4")), /You/);
   assert.match(textOf(find(root, "msg-m4")), /Also tell me the filing date\./);
   assert.equal(find(root, "helper-work"), null, "notes are not steps");
+  assert.match(textOf(find(root, "reply-to-m5")), /replying to you/, "the helper answers the person and says so");
   await typeInto(find(root, "helper-ask"), "And the acreage."); await press(find(root, "helper-ask-send")); await flush();
   const steer = s.calls.find((c) => c.cap === "chat.helper.steer")!;
   assert.equal((steer.input as { body: string }).body, "And the acreage.");
   assert.match(textOf(find(root, "helper-line")), /Sent/);
+  assert.ok(find(root, "helper-ask"), "the box asks it something");
 });
 
 test("Show keeps one kind of helper and checks the one showing; the token bar splits input from output; code rows say what the tests did", async () => {
