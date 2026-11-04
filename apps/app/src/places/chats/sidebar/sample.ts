@@ -210,7 +210,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
       task: {
         id: n.taskId, kind: n.kind, title: n.title, state: "todo", blocked: n.kind === "unblock", blocks: [], assigned: { kind: "person", id: "usr_irfad" }, fileIds: [], dependsOn: [], followers: [], workingNotes: {},
         reviewLoops: 0, createdBy: n.by, createdAt: at(10, 24, 8), updatedAt: at(10, 24, 9),
-        actions: n.kind === "approve" ? [{ key: "approve", label: "Approve" }] : n.kind === "review" ? [{ key: "review", label: "Looks good" }] : [],
+        actions: n.kind === "approve" ? [{ key: "approve", label: "Allow" }] : n.kind === "review" ? [{ key: "review", label: "Looks good" }] : [],
       } as NeedsItem["task"],
     }));
     return { items: items.slice(0, input.limit ?? 50), total: Math.max(space.needsTotal, items.length) } as CapMap["tasks.needs_you"]["out"];

@@ -105,8 +105,8 @@ export function RunLines({ run, lines, name, me, actions, canRetry, openThoughts
             </View>
             {run.status === "waiting" && l.taskId ? (
               <View style={c.waitb}>
-                <QuietButton label="Approve" icon="check" tone="filled" testID="approve" onPress={() => actions.decide(l.taskId!, "approve")} />
-                <QuietButton label="Decline" testID="decline" onPress={() => actions.decide(l.taskId!, "reject")} />
+                <QuietButton label="Allow" icon="check" tone="filled" testID="approve" onPress={() => actions.decide(l.taskId!, "approve")} />
+                <QuietButton label="Deny" testID="decline" onPress={() => actions.decide(l.taskId!, "reject")} />
               </View>
             ) : null}
           </View>

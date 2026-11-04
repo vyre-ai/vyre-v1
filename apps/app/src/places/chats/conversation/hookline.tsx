@@ -1,4 +1,4 @@
-// What a hook line in the chat offers (lane l-hooks, the approved prototype): "Edit" on an added hook; on "A hook stopped this" Details, Allow this once and Ask an admin. Each is one capability, and the server
+// What a hook line in the chat offers (lane l-hooks, the approved prototype): "Edit" on an added hook; on "A hook stopped this" Details, Allow (this once) and Ask an admin. Each is one capability, and the server
 // applies the access rule: a Space hook is let go by an admin only, and anyone may ask. A refusal is said in its own words, never a bare error.
 import { useState } from "react";
 import type { ReactElement } from "react";
@@ -8,7 +8,7 @@ import { hookLead } from "./model.ts";
 import type { HookLine, HookLineAct } from "./model.ts";
 import { hookLineActs } from "./model.ts";
 
-const LABEL: Readonly<Record<HookLineAct, string>> = { details: "Details", edit: "Edit", once: "Allow this once", ask: "Ask an admin" };
+const LABEL: Readonly<Record<HookLineAct, string>> = { details: "Details", edit: "Edit", once: "Allow", ask: "Ask an admin" };
 
 export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietStyle, stepsBelow = false }: {
   id: string; line: HookLine; /** The steps are drawn inside the agent's reply below this line */ stepsBelow?: boolean; threadId: string; call(cap: string, input: unknown): Promise<unknown>; open?: (hookId: string) => void; linkStyle: object; quietStyle: object; 

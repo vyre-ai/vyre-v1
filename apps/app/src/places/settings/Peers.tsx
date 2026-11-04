@@ -64,7 +64,7 @@ export function PeersBody({ peers, requests, conflicts = [], runner = null, now,
         key={`req-${r.requestId}`} id={`peer.request.${r.requestId}`} first={rows.length === 0} label={`${r.name} wants to use this Personal Space`} sub={`Check that it shows ${r.code}`}
         lead={<Dot on={false} why="Waiting for you" />}
         control={<>
-          <SmallButton label="Decline" testID={`peer-decline-${r.requestId}`} disabled={busy} onPress={() => onDecline(r.requestId)} />
+          <SmallButton label="Deny" testID={`peer-decline-${r.requestId}`} disabled={busy} onPress={() => onDecline(r.requestId)} />
           <SmallButton label="Allow" testID={`peer-allow-${r.requestId}`} disabled={busy} onPress={() => onAllow(r.requestId)} />
         </>}
       />,

@@ -102,13 +102,13 @@ export function MemoryTab({ deps, spaceName, window }: { deps: PaneDeps; spaceNa
       entries.push({
         key: `p-${f.factId}`, type: "block",
         node: (
-          <PressableCard testID={`proposed-${f.factId}`} menu={[{ label: "Accept", onSelect: () => void accept(deps, f) }, { label: "Reject", onSelect: () => void reject(deps, f) }, { separator: true }, { label: "Show Source", onSelect: () => source(f) }]} title={f.text}>
+          <PressableCard testID={`proposed-${f.factId}`} menu={[{ label: "Allow", onSelect: () => void accept(deps, f) }, { label: "Deny", onSelect: () => void reject(deps, f) }, { separator: true }, { label: "Show Source", onSelect: () => source(f) }]} title={f.text}>
             <Text style={st.cardText}>{f.text}</Text>
             <View style={st.cardFoot}>
               <Text style={st.hint}>from <Text onPress={() => source(f)} style={st.srcLink} testID={`proposed-source-${f.factId}`}>{from}</Text>{` · ${learnedWhen(f.learnedAt, clock)}`}</Text>
               <View style={st.acts}>
-                <Tool icon="check" label="Accept" onPress={() => void accept(deps, f)} testID={`accept-${f.factId}`} />
-                <Tool icon="x" label="Reject" onPress={() => void reject(deps, f)} testID={`reject-${f.factId}`} />
+                <Tool icon="check" label="Allow" onPress={() => void accept(deps, f)} testID={`accept-${f.factId}`} />
+                <Tool icon="x" label="Deny" onPress={() => void reject(deps, f)} testID={`reject-${f.factId}`} />
               </View>
             </View>
           </PressableCard>
