@@ -224,7 +224,7 @@ export interface MachineDetailProps {
   onRange(r: Range): void; onTab(t: Tab): void; onHover(f: number | null): void; onBack(): void; placement: ReactNode;
 }
 
-/** One machine's page, drawn from what network.machine answered: nothing here fetches, so the same page serves the Console, Settings and the tests. */
+/** One machine's page, drawn from what machines.get answered: nothing here fetches, so the same page serves the Console, Settings and the tests. */
 export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narrow, who, now, goto, onFix, fixed, onRange, onTab, onHover, onBack, placement }: MachineDetailProps): ReactElement {
   const st = statusOf(m, now);
   const bad = detail ? detail.findings.filter((f) => f.state !== "healthy").length : 0;

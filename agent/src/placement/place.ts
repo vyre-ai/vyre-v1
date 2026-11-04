@@ -39,7 +39,7 @@ export interface PlaceDevice {
   lastSeen?: number;
   /** What the person calls it ("Dana's MacBook"). */
   name?: string;
-  /** Too busy to take a turn now (room left under the threshold, lib/machines.ts); `busyWhy` says in a few words. Automatic skips it for the next with room. */
+  /** Too busy to take a turn now (room left under the threshold, lib/room-left.ts); `busyWhy` says in a few words. Automatic skips it for the next with room. */
   busy?: boolean;
   busyWhy?: string;
 }
