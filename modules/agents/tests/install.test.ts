@@ -537,3 +537,12 @@ test("a skill is an access resource: it is born with its owner named, nobody cal
   assert.equal(hn.named("skill.mine_changed").find((e) => e.payload["skillId"] === mine.skillId)?.payload["ownerId"], DANA, "born with its owner named");
   assert.equal((await call(hn, "skills.history", { skillId: mine.skillId })).revisions.length, 1);
 });
+
+test("versionBelow: a lower version is older, compared as numbers; no version to compare is not called older", async () => {
+  const { versionBelow } = await import("../handlers/install.ts");
+  assert.equal(versionBelow("1.2.0", "1.3.0"), true);
+  assert.equal(versionBelow("1.3.0", "1.2.0"), false);
+  assert.equal(versionBelow("1.9.0", "1.10.0"), true, "numbers, not text");
+  assert.equal(versionBelow("v2.1.0", "2.1.0"), false);
+  assert.equal(versionBelow(undefined, "1.0.0"), null, "no version to compare: not called older");
+});
