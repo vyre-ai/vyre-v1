@@ -133,6 +133,22 @@
       "waitFor": "[data-avatar='agent']",
       "steps": [],
       "note": "The Add people and agents sheet with agent faces."
+    },
+    {
+      "id": "AVATARS_01-needs",
+      "route": "/m/P-L9b_22?screen=needs&faces=1",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-avatar='agent']",
+      "steps": [],
+      "note": "Needs you: the cards where an agent is the sender (a mention, a held send) with the agent's face."
+    },
+    {
+      "id": "AVATARS_01-tasks-review",
+      "route": "/m/TASKS_01?view=review&faces=1",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-avatar='agent']",
+      "steps": [],
+      "note": "A review handed to you by an agent, with its face."
     }
   ]
 }
