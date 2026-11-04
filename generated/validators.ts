@@ -73,6 +73,7 @@ import { validators as m_spaces, eventValidators as m_spaces_ev } from './valida
 import { validators as m_steps_core, eventValidators as m_steps_core_ev } from './validators/steps-core.ts';
 import { validators as m_stripe, eventValidators as m_stripe_ev } from './validators/stripe.ts';
 import { validators as m_sync, eventValidators as m_sync_ev } from './validators/sync.ts';
+import { validators as m_talk, eventValidators as m_talk_ev } from './validators/talk.ts';
 import { validators as m_tasks, eventValidators as m_tasks_ev } from './validators/tasks.ts';
 import { validators as m_telephony, eventValidators as m_telephony_ev } from './validators/telephony.ts';
 import { validators as m_templates, eventValidators as m_templates_ev } from './validators/templates.ts';
@@ -157,6 +158,7 @@ export const validators: Record<string, { in: Check; out: Check }> = {
   ...m_steps_core,
   ...m_stripe,
   ...m_sync,
+  ...m_talk,
   ...m_tasks,
   ...m_telephony,
   ...m_templates,
@@ -240,6 +242,7 @@ export const eventValidators: Record<string, Check> = {
   ...m_steps_core_ev,
   ...m_stripe_ev,
   ...m_sync_ev,
+  ...m_talk_ev,
   ...m_tasks_ev,
   ...m_telephony_ev,
   ...m_templates_ev,

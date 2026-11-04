@@ -346,6 +346,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.console.ai-voice",
+      "place": "console",
+      "screen": "console.ai-voice"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.console.backups",
       "place": "console",
       "screen": "console.backups"

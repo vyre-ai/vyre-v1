@@ -32,6 +32,12 @@
     },
     {
       "deferred": false,
+      "name": "access_agents_can_call_get",
+      "summary": "Whether other agents may hand work to this agent (On unless a person turned it Off); engine and chat check it before one agent calls another",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "access_audience_set",
       "summary": "Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record's Files folder can follow its record",
       "toolset": "meta"
@@ -1388,6 +1394,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_history_page",
+      "summary": "Older messages and tool calls of THIS chat before a given message number, at most 100 at a time, oldest first inside the page; the agent reads further back than the window it was given. It refuses any other chat than the one the agent is working in",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_make_task",
       "summary": "Turn a message into a task: the title is its first line, the task points back at it and a \"Task created\" card in the thread links to the task. An agent may do it for the person it acts for",
       "toolset": "chats"
@@ -1444,6 +1456,12 @@
       "deferred": false,
       "name": "chat_react",
       "summary": "Add or remove a reaction",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_read_floor",
+      "summary": "Where the caller's reading of one chat starts: the time they were added without Include earlier messages, or nothing when they read all of it. The engine tells an agent so before it answers them",
       "toolset": "chats"
     },
     {
@@ -2546,6 +2564,12 @@
     },
     {
       "deferred": false,
+      "name": "engine_crew_chat_repo",
+      "summary": "The repository of a chat that has its own work folder for the crew, or nothing yet",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "engine_crew_repo_get",
       "summary": "The project's repository for the crew, or nothing when none is set",
       "toolset": "chats"
@@ -3645,7 +3669,7 @@
     {
       "deferred": false,
       "name": "goals_confirm",
-      "summary": "Start a drafted goal: the owner presses Start on its card. The standing permissions it names hold from this press",
+      "summary": "Start a drafted goal: the owner presses Start on its card, or an agent acting for the owner starts it with messageId, the message in which the owner asked for it, in the goal chat and under 15 minutes old. An agent start grants no permission. The standing permissions it names hold from this press",
       "toolset": "tasks"
     },
     {
@@ -3741,7 +3765,7 @@
     {
       "deferred": false,
       "name": "goals_update",
-      "summary": "Change a goal: its finish line, deadline, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)",
+      "summary": "Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)",
       "toolset": "tasks"
     },
     {
@@ -5637,7 +5661,7 @@
     {
       "deferred": true,
       "name": "message_person",
-      "summary": "Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour",
+      "summary": "Message a teammate. An Assistant writes for its person in their direct chat, signed as them (Agent). Any other agent writes as itself in its own chat with them. Cards allowed; waits for away and after hours unless urgent; 3 an hour",
       "toolset": "chats"
     },
     {
@@ -7664,6 +7688,12 @@
     },
     {
       "deferred": false,
+      "name": "sites_artifact_thumb_set",
+      "summary": "Keep a small picture of an artifact, taken when someone opened it (the Vyre for Chrome extension sends it). It is set only when there is none yet or the artifact changed since the last one",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_build",
       "summary": "Build the site from its repo (the site agent runs in the repo); test and verify",
       "toolset": "sites"
@@ -8449,6 +8479,42 @@
       "toolset": "records"
     },
     {
+      "deferred": true,
+      "name": "talk_ask_key",
+      "summary": "Post the secret card that asks for a Talk key in this chat: their own, or the Space's. The value goes straight to the Vault and never into the chat",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_configure",
+      "summary": "Change a person's Talk: on or off, provider, language, model. An agent may do this for the person it acts for. Keys go through talk_ask_key",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_space_check",
+      "summary": "Check the Space key with the provider now",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_space_configure",
+      "summary": "Turn Talk for everyone on or off, and keep the key. An agent's change stops at the Gate for someone who may approve it",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_space_status",
+      "summary": "Talk for everyone in the Space: whether a key is set, on or off, who set it, when it was last checked and how many people use their own key",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_status",
+      "summary": "Talk for the person asking: on or off, provider, language, model and what covers them (their own key, the Space key or nothing). Never a key",
+      "toolset": "meta"
+    },
+    {
       "deferred": false,
       "name": "task_ask",
       "summary": "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",
@@ -8972,6 +9038,18 @@
     },
     {
       "deferred": false,
+      "name": "threads_agent_create",
+      "summary": "Make an agent for this chat or channel and add it as listening in one step: a name, a one-line brief (use me for) and a model. It belongs to the chat: it is not on the Agents page, and it is removed with the chat or when it is removed from it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_agent_settings_set",
+      "summary": "Set how and when one agent answers in one chat: mode lead (answers everything), listen (when tagged) or quiet (listening, posts only when poked); when always, topics or hours; topics, hours and style (short or full). A tag or a poke still reaches an agent that is not quiet",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_archive",
       "summary": "Archive a chat for me: it leaves my list and waits in my Archived section; the others in a group chat still see it. New messages do not bring it back, an @mention of me does",
       "toolset": "chats"
@@ -8996,6 +9074,12 @@
     },
     {
       "deferred": false,
+      "name": "threads_invite_guest",
+      "summary": "Invite someone by email as a guest of this channel chat only: no files folder, no records, no other chats. level view reads, reply also writes. Only the channel owner or a manager invites; a private chat becomes a channel first",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_list",
       "summary": "List threads by kind, folder, scope or record; or the threads I am in, newest reply first",
       "toolset": "chats"
@@ -9015,13 +9099,31 @@
     {
       "deferred": false,
       "name": "threads_members_add",
-      "summary": "Add a person to a thread; a private chat never gains people, so this offers a channel instead",
+      "summary": "Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker's private profile there. A chat's own agents become visible to the newcomer.",
       "toolset": "chats"
     },
     {
       "deferred": false,
       "name": "threads_members_remove",
       "summary": "Remove a person from a thread",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_outside_agent_add",
+      "summary": "Bring an outside agent into this chat with exactly this chat, its project, files folder and record, each tagged with the chat; it shows as \"<person> (Agent)\" and removing it ends access at once. You can only give what you hold",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_outside_agent_remove",
+      "summary": "Take an outside agent out of this chat and end every grant that bringing it in gave, at once",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_poke",
+      "summary": "Poke an agent: one turn for it now, even if it is listening. It reads the last 12 messages and tool calls, answers the poker, and its reply carries \"Poked by <person>\". An outside agent gets the poke in its queue",
       "toolset": "chats"
     },
     {
