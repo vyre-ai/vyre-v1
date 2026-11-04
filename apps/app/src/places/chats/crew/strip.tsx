@@ -71,7 +71,7 @@ export function HelperChip({ m, now, selected = false, index = 0, last = false, 
         {m.state === "done" || m.state === "failed" ? <View testID={`${id}-badge`} style={[st.badge, m.state === "failed" && st.badgeFail]}><Text style={st.badgeMark}>{m.state === "done" ? "✓" : "!"}</Text></View> : null}
       </View>
       <View style={st.main}>
-        <View style={st.l1}><Text numberOfLines={1} style={st.name}>{name}</Text>{jobLine(m, compact ? undefined : parentName) !== "" ? <Text numberOfLines={1} testID={`${id}-role`} style={st.role}>{jobLine(m, compact ? undefined : parentName)}</Text> : null}</View>
+        <View style={st.l1}><Text numberOfLines={1} style={st.name}>{name}</Text>{jobLine(m, compact ? undefined : parentName) !== "" && !(compact && m.kind === "teammate") ? <Text numberOfLines={1} testID={`${id}-role`} style={st.role}>{jobLine(m, compact ? undefined : parentName)}</Text> : null}</View>
         <Text numberOfLines={1} testID={`${id}-line`} style={[st.line, m.state === "failed" && st.lineFail, m.state === "needs_you" && st.lineWait]}>{lineOf(m)}</Text>
         {code || tag ? (
           <View style={st.l3}>
@@ -95,16 +95,27 @@ export function CrewStrip({ members, totals, selectedId, parentName, merge, onPe
   if (members.length === 0) return null;
   const tone = stripTone(totals);
   ensureCss();
+  // Review all is the primary button until the crew has been looked at; then it reads Reviewed and Merge is the primary
+  const [reviewed, setReviewed] = useState(false);
+  const winW = useWindowDimensions().width;
+  const compactHead = winW > 0 && winW < 640;
+  const mergeButtons = merge ? (
+    <>
+      {reviewed ? <Text testID="crew-strip-reviewed" style={st.headBtnText}>Reviewed</Text> : <Pressable accessibilityRole="button" testID="crew-strip-review" onPress={() => { setReviewed(true); merge.onReview(); }} style={[st.headBtn, { backgroundColor: "var(--accent)" as string }]}><Text style={[st.headBtnText, { color: "var(--accent-ink)" as string }]}>Review all</Text></Pressable>}
+      <Pressable accessibilityRole="button" testID="crew-strip-merge" onPress={merge.onMerge} style={[st.headBtn, reviewed && { backgroundColor: "var(--accent)" as string }]}><Text style={[st.headBtnText, reviewed && { color: "var(--accent-ink)" as string }]}>Merge</Text></Pressable>
+    </>
+  ) : null;
   return (
     <View testID="crew-strip" accessibilityRole="summary" {...(web ? { dataSet: { tone } } : {})} style={st.strip}>
       <View style={st.head}>
         <View testID="crew-strip-dot" style={[st.dot, tone === "idle" && { backgroundColor: "var(--ok)" as string }, tone === "need" && { backgroundColor: "var(--warn)" as string }]} {...(web && tone !== "idle" ? { className: "vy-cw-dot" } : {})} />
         <Text numberOfLines={1} testID="crew-strip-title" style={st.title}>{stripTitle(totals)}</Text>
-        {merge && merge.state === "ready" ? <><Pressable accessibilityRole="button" testID="crew-strip-review" onPress={merge.onReview} style={st.headBtn}><Text style={st.headBtnText}>Review all</Text></Pressable><Pressable accessibilityRole="button" testID="crew-strip-merge" onPress={merge.onMerge} style={[st.headBtn, { backgroundColor: "var(--accent)" as string }]}><Text style={[st.headBtnText, { color: "var(--accent-ink)" as string }]}>Merge</Text></Pressable></> : null}
-        {merge && merge.state === "merged" ? <Text testID="crew-strip-merged" style={st.headBtnText}>Merged</Text> : null}
+        {merge && merge.state === "ready" && !compactHead ? mergeButtons : null}
+        {merge && merge.state === "merged" ? <Text testID="crew-strip-merged" style={st.headBtnText}>✓ Merged</Text> : null}
         {live && onStopAll ? <Pressable accessibilityRole="button" testID="crew-strip-stop-all" onPress={onStopAll} style={st.headBtn}><Text style={st.headBtnText}>Stop all</Text></Pressable> : null}
         {onOpenPane ? <Pressable accessibilityRole="button" accessibilityLabel="Open Crew" testID="crew-strip-pane" onPress={onOpenPane} style={st.headBtn}><Glyph name="pane" size={14} /></Pressable> : null}
       </View>
+      {merge && merge.state === "ready" && compactHead ? <View testID="crew-strip-actions" style={st.headRow}>{mergeButtons}</View> : null}
       <View style={st.list}>
         {/* ui-rows-lint: not a list (the chips of one strip: each a face in a ring with a state, a name, a line and a clock, drawn together as the prototype p-crew shows them) */}
         {members.map((m, i) => <HelperChip key={m.id} m={m} now={now} index={i} last={i === members.length - 1} {...(parentName ? { parentName } : {})} selected={selectedId === m.id} onPress={onPeek} {...(onRetry ? { onRetry } : {})} />)}
@@ -121,6 +132,7 @@ const st = StyleSheet.create({
   headBtn: { height: 27, paddingHorizontal: 10, borderRadius: 8, justifyContent: "center" },
   headBtnText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   list: { gap: 0 },
+  headRow: { flexDirection: "row", gap: 6, paddingHorizontal: 12, paddingBottom: 8 },
   chip: { flexDirection: "row", alignItems: "center", gap: 12, minHeight: 56, paddingVertical: 8, paddingLeft: 12, paddingRight: 12 },
   chipDivide: { borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   badge: { position: "absolute", right: -2, bottom: -2, width: 16, height: 16, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--ok)" as string, borderWidth: 2, borderColor: "var(--raised)" as string },

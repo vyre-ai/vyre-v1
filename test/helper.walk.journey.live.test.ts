@@ -31,7 +31,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
   const shots = process.env["VYRE_CREW_SHOTS"] ?? fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-shots-"));
   fs.mkdirSync(shots, { recursive: true });
 
-  let lead = ""; let chat = ""; let dir = ""; let owner = "";
+  let lead = ""; let chat = ""; let dir = ""; let owner = ""; let decisionThread = "";
   // the restart turn of Change model is held until the person has asked the helper something, so the helper is still at work when they do
   let release!: () => void;
   const restartGate = new Promise<void>((resolve) => { release = resolve; });
@@ -62,7 +62,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
     }
     if (/Keep it short/.test(body)) { yield { type: "text", text: "Noted. I will keep it short." }; return; }
     if (/Starting again on/.test(body)) { yield { type: "text", text: "Restarted. Thursday at 14:00 is free." }; return; }
-    if (/Calendar job/.test(body)) { await new Promise((r) => setTimeout(r, 60_000)); yield { type: "text", text: "Thursday at 14:00 is free." }; return; }
+    if (/Calendar job/.test(body)) { yield* run("tool_search", { query: "calendar events" }); await new Promise((r) => setTimeout(r, 60_000)); yield { type: "text", text: "Thursday at 14:00 is free." }; return; }
     if (/Quotes job/.test(body)) { await new Promise((r) => setTimeout(r, 20_000)); yield { type: "text", text: "Harbor is $4,180 in two weeks. Pine Works is $3,920 in four." }; return; }
     if (/Writer job/.test(body)) {
       await new Promise((r) => setTimeout(r, 8_000));
@@ -124,6 +124,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
     // a thread under the first message, and a reply sent also to the chat
     const first = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ messageId: string }>)[0]!.messageId;
     const th = (await api("chat.thread", { threadId: chat, messageId: first })).thread.threadId as string;
+    // a person's reply in the thread, sent also to the chat (the walk has no agent that can post into an inline thread)
     await api("chat.post", { threadId: th, body: "Decision: book Thursday 14:00 and go with Harbor.", alsoToChat: true, idempotencyKey: "w-also" });
     const copied = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ body: string; blocks: Array<{ type: string }> }>).some((m) => m.body.startsWith("Decision:") && m.blocks.some((b) => b.type === "from_thread"));
     assert.ok(copied, "Also post to the chat puts the decision in the chat, marked from the thread");
