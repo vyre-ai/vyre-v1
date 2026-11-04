@@ -8,9 +8,9 @@ import { find, flush, installDom, mount, press, textOf, typeInto } from "../../.
 import type { Node } from "../../../../../../ui/src/testing/dom.ts";
 import { createStreamStore } from "../../../../../../ui/src/stream/index.ts";
 import type { LiveTurn } from "../../../shell/session/turn-streams.ts";
-import { Island } from "./Island.tsx";
+import { FEED_SELECTOR, Island } from "./Island.tsx";
 import type { IslandProps } from "./Island.tsx";
-import { cardSeen, choiceForKey, pillChoices, questionsOf } from "./island.ts";
+import { cardSeen, choiceForKey, pillChoices, questionCardSelector, questionsOf } from "./island.ts";
 import type { IslandQuestion } from "./island.ts";
 import type { Message } from "./model.ts";
 
@@ -213,7 +213,8 @@ test("a question whose card is on screen is not in the pill; it appears when the
   const doc = (globalThis as { document: Record<string, unknown> }).document;
   const feed = { top: 100, bottom: 700 };
   let card: { top: number; bottom: number } | null = { top: 200, bottom: 400 };
-  doc["querySelector"] = (q: string) => (q.includes("conversation-feed") ? { getBoundingClientRect: () => feed } : q.includes("blk-question-blk_size") && card ? { getBoundingClientRect: () => card } : null);
+  const feedEl = { getBoundingClientRect: () => feed };
+  doc["querySelector"] = (q: string) => (q === questionCardSelector("blk_size") && card ? { getBoundingClientRect: () => card, closest: (c: string) => (c === FEED_SELECTOR ? feedEl : null) } : null);
   await act(async () => { await new Promise((r) => setTimeout(r, 620)); });
   await flush();
   assert.equal(find(s.root, "island-question"), null, "the card is on screen: the pill is just Working");

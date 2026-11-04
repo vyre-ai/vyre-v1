@@ -135,7 +135,7 @@ function Card({ type, block, testID, menu, children }: { type: PartOneType; bloc
   const { element, show } = useMenu();
   const trigger = useMemo(() => menuTrigger((x, y) => show(menu(), x, y, "context", { label: `${type} block` })), [menu, show, type]);
   return (
-    <View testID={testID} accessibilityLabel={`${type} block`} {...webProps({ dataSet: { blockType: type, blockV: String(block.v), traceId: block.traceId } })} {...trigger} style={[styles.card, RING]}>
+    <View testID={testID} accessibilityLabel={`${type} block`} {...webProps({ dataSet: { blockType: type, blockId: block.id, blockV: String(block.v), traceId: block.traceId } })} {...trigger} style={[styles.card, RING]}>
       {children}
       {element}
     </View>

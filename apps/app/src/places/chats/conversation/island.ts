@@ -127,3 +127,9 @@ export function cardSeen(card: BoxLike | null | undefined, feed: BoxLike | null 
   if (!card || !feed) return false;
   return card.top >= feed.top - 40 && card.bottom < feed.bottom - 100;
 }
+
+/**
+ * Where a question's card is on the page: the product's own marks on every block card (data-block-type and data-block-id, set by the shared Card), never a test id. The Island reads the card's place
+ * with this and a test renders the real card to check it still matches.
+ */
+export const questionCardSelector = (blockId: string): string => `[data-block-type="question"][data-block-id="${blockId.replace(/["\\]/g, "")}"]`;

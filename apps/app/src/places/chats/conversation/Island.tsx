@@ -14,7 +14,7 @@ import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
 import type { ActivityStore, LiveTurn } from "../../../shell/session/turn-streams.ts";
 import { turnRowId } from "../../../shell/session/turn-streams.ts";
 import { elapsedWords } from "./activity.ts";
-import { agentOf, capFaces, cardSeen, choiceForKey, hoverOf, islandOpen, pillChoices, wordOf } from "./island.ts";
+import { agentOf, capFaces, cardSeen, choiceForKey, hoverOf, islandOpen, pillChoices, questionCardSelector, wordOf } from "./island.ts";
 import type { IslandAgent, IslandQuestion } from "./island.ts";
 import { Glyph } from "./parts.tsx";
 
@@ -46,8 +46,10 @@ const typing = (t: unknown): boolean => {
   const tag = (e.tagName ?? "").toUpperCase();
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.isContentEditable === true || (typeof e.closest === "function" && !!e.closest('[contenteditable="true"],[data-testid="composer-field"]'));
 };
-type El = { getBoundingClientRect(): { top: number; bottom: number } };
+type El = { getBoundingClientRect(): { top: number; bottom: number }; closest?(q: string): El | null };
 type Finder = { querySelector(q: string): El | null };
+/** The product's mark on a chat's scroller (the shared Feed sets it); the card is read against the scroller it sits in. */
+export const FEED_SELECTOR = "[data-vyre-feed]";
 /** The ids of the question cards now on screen in the chat feed: read from the page now and again on every scroll and each half second (a card is drawn by the chat, not by the Island). */
 function useSeenCards(ids: readonly string[]): ReadonlySet<string> {
   const [seen, setSeen] = useState<ReadonlySet<string>>(new Set());
@@ -56,8 +58,7 @@ function useSeenCards(ids: readonly string[]): ReadonlySet<string> {
     const d = (globalThis as { document?: Finder & Doc }).document;
     if (!d || ids.length === 0) { setSeen((s) => (s.size === 0 ? s : new Set())); return undefined; }
     const read = (): void => {
-      const feed = d.querySelector('[data-testid="conversation-feed"]');
-      const now = new Set(ids.filter((id) => cardSeen(d.querySelector(`[data-testid="blk-question-${id}"]`)?.getBoundingClientRect(), feed?.getBoundingClientRect())));
+      const now = new Set(ids.filter((id) => { const card = d.querySelector(questionCardSelector(id)); return cardSeen(card?.getBoundingClientRect(), card?.closest?.(FEED_SELECTOR)?.getBoundingClientRect()); }));
       setSeen((cur) => (cur.size === now.size && [...now].every((x) => cur.has(x)) ? cur : now));
     };
     read();

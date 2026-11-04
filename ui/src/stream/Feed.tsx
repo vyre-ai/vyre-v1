@@ -72,7 +72,7 @@ export function Feed({ children, followKey, store, follow = true, startAway = fa
   }, [followKey, version, follow, endKey]);
 
   return (
-    <ScrollView ref={ref} testID={testID} accessibilityLabel={away ? "Conversation, scrolled up" : "Conversation"} onScroll={onScroll} scrollEventThrottle={16} style={[{ flex: 1 }, GUTTER]} contentContainerStyle={contentStyle}>
+    <ScrollView ref={ref} testID={testID} {...(Platform.OS === "web" ? { dataSet: { vyreFeed: "stream" } } : {})} accessibilityLabel={away ? "Conversation, scrolled up" : "Conversation"} onScroll={onScroll} scrollEventThrottle={16} style={[{ flex: 1 }, GUTTER]} contentContainerStyle={contentStyle}>
       {children}
     </ScrollView>
   );

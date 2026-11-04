@@ -10,6 +10,7 @@ import { Conversation } from "./Conversation.tsx";
 import { createSample } from "./sample.ts";
 import type { ConversationData } from "./data.tsx";
 import type { Message } from "./model.ts";
+import { questionCardSelector } from "./island.ts";
 
 installComposerForTests(Composer);
 
@@ -43,4 +44,15 @@ test("an agent's question is the pill when its card cannot be seen: the question
   assert.doesNotMatch(out, /data-testid="island-choice-10gb"/, "only the recommended choice is in the pill");
   assert.match(out, /data-testid="island-other"/);
   assert.doesNotMatch(out, /data-testid="island-pill"/, "the question replaces the Working pill");
+});
+
+test("the Island finds the question's card by the product's own marks: the selector it uses matches the card the chat really draws, whatever the test ids are", () => {
+  const out = html(world(true).data);
+  const sel = /^\[data-block-type="(\w+)"\]\[data-block-id="([\w-]+)"\]$/.exec(questionCardSelector("blk_size"));
+  assert.ok(sel, "the selector is the two data attributes");
+  assert.match(out, new RegExp(`data-block-type="${sel![1]}"[^>]*data-block-id="${sel![2]}"|data-block-id="${sel![2]}"[^>]*data-block-type="${sel![1]}"`), "a card with those marks is on the page");
+});
+
+test("the chat's scroller carries the product mark the Island reads the card against", () => {
+  assert.match(html(world(true).data), /data-vyre-feed="stream"/);
 });
