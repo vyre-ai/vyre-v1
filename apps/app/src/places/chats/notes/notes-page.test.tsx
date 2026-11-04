@@ -157,3 +157,18 @@ test("the opened note says where it was saved from, with a way to the message; a
   assert.deepEqual(fromLine({ from: { at, readable: false } }, now), { text: "From a chat you can no longer read, 9:12", open: null });
   assert.equal(fromLine({}, now), null);
 });
+
+test("a note's menu lists what fits it with the keys that work, and Pin reaches notes.pin", async () => {
+  installDom();
+  const { rt, calls } = scripted();
+  const store = createNotesStore((c, i) => rt.call(c, i), () => undefined, () => T0);
+  const root = await mount(createRoot, <NotesPage rt={rt} nameOf={(id) => id} store={store} />);
+  await flush();
+  await press(find(root, "note-more-n2"));
+  await flush();
+  const labels = ids(root, "menu-item-").map((t) => t.slice("menu-item-".length));
+  assert.deepEqual(labels, ["Open", "Pin", "Colour", "Labels", "Share", "Ask about this note", "Turn into task", "Turn into record", "Copy link", "Make a copy", "Delete"]);
+  await press(find(root, "menu-item-Pin"));
+  await flush();
+  assert.deepEqual(calls.filter((c) => c.cap === "notes.pin").map((c) => c.input), [{ noteId: "n2", pinned: true }]);
+});
