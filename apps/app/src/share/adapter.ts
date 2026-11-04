@@ -63,13 +63,13 @@ const OPT = (id: Level, label: string, gets: string): LevelOption => ({ id, labe
 export const LEVELS: Readonly<Record<ShareKind, readonly LevelOption[]>> = {
   vault_item: [
     OPT("use", "Can use without seeing", "Their agents and automations can use it. They never see the value."),
-    OPT("view", "Can view", "They can see the value and use it."),
-    OPT("edit", "Can edit", "They can see it, use it and change it."),
+    OPT("view", "Can see", "They can see the value and use it."),
+    OPT("manage", "Can manage", "They can change it, share it and delete it."),
   ],
   vault_folder: [
     OPT("use", "Can use without seeing", "Everything in the folder can be used, none of it seen."),
-    OPT("view", "Can view", "They can see and use everything in the folder."),
-    OPT("edit", "Can edit", "They can see, use and change everything in the folder."),
+    OPT("view", "Can see", "They can see and use everything in the folder."),
+    OPT("manage", "Can manage", "They can change, share and delete everything in the folder."),
   ],
   record_type: [
     OPT("view", "Can view records", "They can open every record of this type."),
@@ -82,10 +82,9 @@ export const LEVELS: Readonly<Record<ShareKind, readonly LevelOption[]>> = {
     OPT("manage", "Can manage", "They can also share it and delete it."),
   ],
   agent: [
-    OPT("view", "Can chat with", "They can talk to the agent. It works with what they can see."),
-    OPT("use", "Can use", "They can give it tasks, put it in their automations and projects."),
-    OPT("edit", "Can edit", "They can change how it works."),
-    OPT("manage", "Can manage", "They can also share it, pause it and delete it."),
+    OPT("use", "Can use", "Chat with it and put it to work in their own chats, tasks, automations and crews, on their own AI account."),
+    OPT("edit", "Can edit", "Change its instructions, context and tools."),
+    OPT("manage", "Can manage", "Share it, move it and delete it."),
   ],
   note: [
     OPT("view", "Can view", "They can read the note."),

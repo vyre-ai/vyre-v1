@@ -60,6 +60,7 @@ export function stubs(ctx: CallCtx) {
         set: call("access.labels.set"),
       },
       lists: call("access.lists"),
+      make_owner: call("access.make_owner"),
       policies: {
         list: call("access.policies.list"),
         reset: call("access.policies.reset"),
@@ -256,6 +257,7 @@ export function stubs(ctx: CallCtx) {
       schedule_choose: call("automations.schedule_choose"),
       senders: call("automations.senders"),
       set_enabled: call("automations.set_enabled"),
+      set_owner: call("automations.set_owner"),
       steps: {
         list: call("automations.steps.list"),
       },
@@ -1918,6 +1920,7 @@ export function stubs(ctx: CallCtx) {
       pin: call("notes.pin"),
       restore: call("notes.restore"),
       search: call("notes.search"),
+      set_owner: call("notes.set_owner"),
       share: call("notes.share"),
       to_record: call("notes.to_record"),
       to_task: call("notes.to_task"),

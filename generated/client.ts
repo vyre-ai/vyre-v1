@@ -60,6 +60,7 @@ export function createClient(transport: Transport) {
         set: call("access.labels.set", 1),
       },
       lists: call("access.lists", 1),
+      make_owner: call("access.make_owner", 1),
       policies: {
         list: call("access.policies.list", 1),
         reset: call("access.policies.reset", 1),
@@ -256,6 +257,7 @@ export function createClient(transport: Transport) {
       schedule_choose: call("automations.schedule_choose", 1),
       senders: call("automations.senders", 1),
       set_enabled: call("automations.set_enabled", 1),
+      set_owner: call("automations.set_owner", 1),
       steps: {
         list: call("automations.steps.list", 1),
       },
@@ -1918,6 +1920,7 @@ export function createClient(transport: Transport) {
       pin: call("notes.pin", 1),
       restore: call("notes.restore", 1),
       search: call("notes.search", 1),
+      set_owner: call("notes.set_owner", 1),
       share: call("notes.share", 1),
       to_record: call("notes.to_record", 1),
       to_task: call("notes.to_task", 1),

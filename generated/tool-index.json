@@ -866,6 +866,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_set_owner",
+      "summary": "Hand a Space Automation to another person as its accountable owner; the previous owner keeps Manage",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_steps_list",
       "summary": "The step palette: every step kind with category, input and output schema, effects and Gate act",
       "toolset": "automations"

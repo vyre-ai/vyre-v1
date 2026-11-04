@@ -82,14 +82,14 @@ export const ITEM_DEFS: Readonly<Record<ShareItemType, ItemDef>> = {
   automation: { label: "automation", levels: L3, def: "view", tail: "View sees it, its runs and its history. Edit changes and pauses it. Manage also shares and deletes it." },
   vault: {
     label: "Vault item",
-    levels: [{ id: "use", label: "Can use without seeing" }, { id: "view", label: "Can view" }, { id: "edit", label: "Can edit" }],
+    levels: [{ id: "use", label: "Can use without seeing" }, { id: "view", label: "Can see" }, { id: "edit", label: "Can edit" }, { id: "manage", label: "Can manage" }],
     def: "use",
     tail: "The value is never shown or sent in chat to anyone who can only use it.",
   },
   agent: {
     label: "agent",
-    levels: [{ id: "view", label: "Can chat with" }, { id: "use", label: "Can use" }, { id: "edit", label: "Can edit" }, { id: "manage", label: "Can manage" }],
-    def: "view",
+    levels: [{ id: "use", label: "Can use" }, { id: "edit", label: "Can edit" }, { id: "manage", label: "Can manage" }],
+    def: "use",
     tail: "",
   },
 };
@@ -106,7 +106,7 @@ export function levelDefs(type: ShareItemType, offered?: readonly ShareLevel[]):
 
 export function levelName(type: ShareItemType, level: ShareLevel | "owner"): string {
   if (level === "owner") return "Owner";
-  return ITEM_DEFS[type].levels.find((l) => l.id === level)?.label ?? level;
+  return ITEM_DEFS[type].levels.find((l) => l.id === level)?.label ?? `Can ${level}`;
 }
 
 /** How high a level is for this item (the Vault's lowest is Can use without seeing). */
@@ -141,10 +141,9 @@ export const VIEW_ONLY_NOTE = "You can view here, so you can add people as viewe
 /** "view and edit “Q4 invoices”": what the level lets them do, to finish "Sara can ...". */
 export function shareVerb(type: ShareItemType, level: ShareLevel, name: string): string {
   if (type === "agent") {
-    if (level === "view") return `chat with ${name} and add it to their chats`;
-    if (level === "use") return `use ${name} in their automations, tasks and crews, on their own account`;
-    if (level === "edit") return `edit ${name}'s instructions (AGENT.md), skills and memory settings`;
-    return `share, rename and delete ${name}`;
+    if (level === "view" || level === "use") return `use ${name} in their chats, tasks and automations`;
+    if (level === "edit") return `change ${name}'s instructions, context and tools`;
+    return `share, move and delete ${name}`;
   }
   const q = `“${name}”`;
   if (type === "vault" && level === "use") return `use ${q} in actions without seeing its value`;
@@ -159,13 +158,17 @@ export interface Line {
   text: string;
 }
 
-export function sharedBy(type: ShareItemType, name: string): string {
-  return `Whoever uses ${name} pays with their own AI account. ${name} reaches for them only what they can reach themselves.`;
+export function sharedBy(type: ShareItemType, name: string, who: readonly string[] = []): string {
+  void type;
+  if (who.length === 0) return `Whoever uses ${name} pays with their own AI account, and ${name} only sees what they can see.`;
+  const them = who.length === 1 ? `${who[0]}'s` : "their";
+  const subject = who.length === 1 ? (who[0] as string) : joinNames(who);
+  return `${subject} ${who.length === 1 ? "pays" : "pay"} with ${them} own AI account, and ${name} only sees what ${subject} can see.`;
 }
 
 /** The footer of an agent share with nobody picked: the four levels. */
 export function agentLevelsLine(name: string): string {
-  return `Can chat with: talk to ${name} and add it to their chats. Can use in their work: also in their automations, tasks and crews, on their own account. Can edit: its instructions (AGENT.md), skills and memory settings. Can manage: share, rename and delete. Whoever uses it pays with their own AI account.`;
+  return `Can use: chat with ${name} and put it to work in your own chats, tasks, automations and crews, on your own AI account. Can edit: change its instructions, context and tools. Can manage: share it, move it and delete it.`;
 }
 
 export interface ShareLinesInput {
@@ -189,7 +192,12 @@ export function shareLines(i: ShareLinesInput): Line[] {
   const levels = levelDefs(i.type).map((l) => l.id);
   for (const lv of levels) {
     const names = P.filter((p) => p.role === lv && p.kind !== "guest" && p.kind !== "outside" && p.kind !== "agent" && p.kind !== "new" && p.kind !== "space").map((p) => p.name);
-    if (names.length > 0) out.push({ id: `lv-${lv}`, tone: "plain", text: `${joinNames(names)} can ${shareVerb(i.type, lv, i.name)}.` });
+    if (names.length > 0) {
+      const text = i.type === "agent" && (lv === "use" || lv === "view")
+        ? `${joinNames(names)} can use ${i.name} in ${possessiveOf(names)} chats, tasks and automations.`
+        : `${joinNames(names)} can ${shareVerb(i.type, lv, i.name)}.`;
+      out.push({ id: `lv-${lv}`, tone: "plain", text });
+    }
     if (P.some((p) => p.kind === "space" && p.role === lv)) out.push({ id: `space-${lv}`, tone: "plain", text: `Anyone in the Space can ${shareVerb(i.type, lv, i.name)}.` });
   }
   const guests = P.filter((p) => p.kind === "guest");
@@ -198,7 +206,10 @@ export function shareLines(i: ShareLinesInput): Line[] {
     out.push({ id: `out-${o.id}`, tone: "lock", text: `${o.name} reaches it through MCP tools scoped to exactly this ${label}, never wider. It shows as ${i.ownerName} (Agent), is audited, and removing it ends access at once.` });
   }
   if (P.some((p) => p.kind === "space")) out.push({ id: "space", tone: "note", text: "Anyone in the Space can find it from search." });
-  if (i.type === "agent") out.push({ id: "pays", tone: "note", text: sharedBy(i.type, i.name) });
+  if (i.type === "agent") {
+    const people = P.filter((p) => p.kind === "person" || p.kind === "group" || p.kind === "role").map((p) => p.name);
+    out.push({ id: "pays", tone: "note", text: sharedBy(i.type, i.name, people) });
+  }
   const tail = `${def.tail}${i.limited === true ? " You can give only what you have yourself." : ""}`.trim();
   if (tail !== "") out.push({ id: "tail", tone: "note", text: tail });
   return out;
@@ -247,7 +258,7 @@ export function addLines(i: AddLinesInput): Line[] {
 /** The footer when nothing is picked. */
 export function idleLine(mode: "add" | "share", type?: ShareItemType, name?: string): string {
   void type; void name;
-  return mode === "add" ? "Pick who to add. You will see what they get before you confirm." : "Pick who to share with. You will see what they get before you confirm.";
+  return mode === "add" ? "Pick who to add. You will see what they get before you confirm." : "";
 }
 
 /** Whether the "Include earlier messages" switch shows: a person, not a guest, is picked. */
@@ -287,6 +298,8 @@ export interface RoleContext {
   itemType?: ShareItemType | undefined;
   offered?: readonly ShareLevel[] | undefined;
   giving?: Giving;
+  /** Share mode: the level Everyone already holds. A new person starts one level above it. */
+  general?: ShareLevel | null | undefined;
 }
 
 /** The roles a pick can take. Locked ones stay in the list, greyed. Agents have no role list: they open the settings popover. */
@@ -295,12 +308,13 @@ export function roleOptions(kind: AccessPick["kind"], c: RoleContext): RoleOptio
   const g = c.giving ?? {};
   if (c.mode === "add") {
     if (kind === "guest") return ADD_ROLES.guest.map((r) => ({ ...r, locked: false }));
-    return ADD_ROLES.person.map((r) => ({ ...r, locked: r.id === "member" && isViewOnly(g) }));
+    return ADD_ROLES.person.filter((r) => !(r.id === "member" && isViewOnly(g))).map((r) => ({ ...r, locked: false }));
   }
   const type = c.itemType ?? "note";
   const defs = levelDefs(type, c.offered);
   const list = kind === "guest" ? defs.slice(0, 1) : defs;
-  return list.map((l) => ({ id: l.id, label: l.label, locked: !canGiveLevel(type, l.id, g) }));
+  // a level above the giver's own is not offered at all (owner, 4 Nov: hide, never disable)
+  return list.filter((l) => canGiveLevel(type, l.id, g)).map((l) => ({ id: l.id, label: l.label, locked: false }));
 }
 
 export function roleLabel(o: RoleOption): string {
@@ -311,14 +325,17 @@ export function roleName(kind: AccessPick["kind"], role: string, c: RoleContext)
   return roleOptions(kind, c).find((o) => o.id === role)?.label ?? role;
 }
 
-/** The role a new pick starts at: add mode, Member (or Can view when the person can only view); a guest Can view; share mode, the item's lowest offered level. */
+/** The role a new pick starts at: add mode, Member (or Can view when the person can only view); a guest Can view; share mode, the level above the general one, else the item's default. */
 export function defaultRole(kind: AccessPick["kind"], c: RoleContext): string {
   if (isAgentKind(kind)) return "";
   const g = c.giving ?? {};
   if (c.mode === "add") return kind === "guest" ? "gview" : isViewOnly(g) ? "view" : "member";
   const defs = levelDefs(c.itemType ?? "note", c.offered);
   const want = ITEM_DEFS[c.itemType ?? "note"].def;
-  const first = defs.find((l) => l.id === want) ?? (defs[0] as LevelDef);
+  // a new person starts one level above what Everyone already holds, so the grant adds something (owner, 4 Nov); with nothing general, the item's own default
+  const at = c.general ? defs.findIndex((l) => l.id === c.general) : -1;
+  const above = at >= 0 ? defs.slice(at + 1).find((l) => canGiveLevel(c.itemType ?? "note", l.id, g)) : undefined;
+  const first = above ?? defs.find((l) => l.id === want) ?? (defs[0] as LevelDef);
   return first.id;
 }
 
@@ -697,7 +714,7 @@ export function rowSub(row: { subjectKind: ShareSubjectKind; via: string }, fold
   if (row.via === "folder") return folderName ? `From the folder ${folderName}` : "From the Space";
   if (row.via === "space") return "From the Space";
   // a person has no label under their name (their title or email, when the host has one); a group, role or agent says what it is
-  return ({ person: "", group: "Group", role: "Role", agent: "Agent", link: "Link" } as Record<ShareSubjectKind, string>)[row.subjectKind];
+  return ({ person: "", group: "Team", role: "Role", agent: "Agent", link: "Link" } as Record<ShareSubjectKind, string>)[row.subjectKind];
 }
 
 export function accessSubtitle(type: ShareItemType, count: number, label?: string): string {
@@ -810,10 +827,36 @@ export function accessCount(i: AccessViewInput): number {
 
 /** The one-line description of a level, for the picker's menu. */
 export function levelHint(type: ShareItemType, level: ShareLevel): string {
-  if (type === "agent") return ({ view: "Chat with it. It works with what they can see.", use: "Give it tasks and use it in their own work.", edit: "Change how it works.", manage: "Share it, pause it and delete it." } as Record<ShareLevel, string>)[level];
-  if (type === "vault") return ({ use: "Agents and automations use it. The value stays hidden.", view: "See the value and use it.", edit: "See, use and change it.", manage: "Also share it." } as Record<ShareLevel, string>)[level];
-  if (type === "automation") return ({ view: "See it, its runs and its history.", use: "Run it.", edit: "Change it and pause it.", manage: "Also share it and delete it." } as Record<ShareLevel, string>)[level];
-  return ({ view: "Open it and read it.", use: "Open it and use it.", edit: "Change it.", manage: "Also share it, move it and delete it." } as Record<ShareLevel, string>)[level];
+  const by: Record<ShareItemType, Partial<Record<ShareLevel, string>>> = {
+    agent: { use: "Chat with it and put it to work in their own chats, tasks, automations and crews, on their own AI account.", edit: "Change its instructions, context and tools.", manage: "Share it, move it and delete it." },
+    vault: { use: "Agents and automations use it. The value stays hidden.", view: "See the value and use it.", edit: "See, use and change it.", manage: "Change it, share it and delete it." },
+    automation: { view: "See it, its runs and its history.", use: "Run it.", edit: "Change it and pause it.", manage: "Share it and delete it." },
+    note: { view: "Read it.", edit: "Read it and change it.", manage: "Share it, move it and delete it." },
+    file: { view: "Open everything inside.", edit: "Open and change everything inside.", manage: "Share it, move it and delete it." },
+    artifact: { view: "Open it and read it.", edit: "Open it and change it.", manage: "Share it, move it and delete it." },
+    project: { view: "Open the project and its work.", edit: "Change the plan, tasks and files.", manage: "Share it and delete it." },
+    record: { view: "Open this record.", edit: "Open it and change it.", manage: "Share it and delete it." },
+    rtype: { view: "Open every record of this type.", edit: "Open and change every record of this type.", manage: "Change its fields and views, and share it." },
+  };
+  return by[type][level] ?? "";
+}
+
+/** The line under "Everyone in Northwind": what the chosen level means, or that nobody but the people added can open it. */
+export function generalSub(type: ShareItemType, level: ShareLevel | null, spaceName: string, itemName: string): string {
+  if (level === null) return "Only people added can open it";
+  const verb = type === "vault" && level === "use" ? "use it without seeing it" : ({ view: "view", use: "use", edit: "edit", manage: "manage" } as Record<ShareLevel, string>)[level];
+  return type === "vault" && level === "use" ? `Anyone in ${spaceName} can ${verb}` : `Anyone in ${spaceName} can ${verb} ${itemName}`;
+}
+
+/** "Already has access through Everyone in Northwind": a person at or below the general level gains nothing from their own grant. */
+export function redundantVia(type: ShareItemType, general: ShareLevel | null, level: ShareLevel, spaceName: string): string | null {
+  if (general === null) return null;
+  return levelRank(type, level) <= levelRank(type, general) ? `Already has access through Everyone in ${spaceName}` : null;
+}
+
+/** Joins names the way a sentence does, with the possessive of each: "Omar", "Omar and Sara". Pronouns are never guessed. */
+export function possessiveOf(names: readonly string[]): string {
+  return names.length === 1 ? `${names[0]}'s` : "their";
 }
 
 /* ---------- the Add menu: a plain people picker for places that only need to pick someone (a routine's new owner) ---------- */
@@ -821,13 +864,13 @@ export function levelHint(type: ShareItemType, level: ShareLevel): string {
 export interface DirectoryEntry { id: string; name: string; sub?: string }
 export interface ShareDirectory { people?: readonly DirectoryEntry[]; groups?: readonly DirectoryEntry[]; roles?: readonly DirectoryEntry[]; agents?: readonly DirectoryEntry[] }
 
-/** People, Groups, Roles, Agents; entries that already have access show a check and do nothing. */
+/** People, Teams, Roles, Agents; entries that already have access show a check and do nothing. */
 export function addMenu(directory: ShareDirectory, shares: readonly { subjectKind: string; subjectId: string }[], onAdd: (subject: { kind: ShareSubjectKind; id: string }, name: string) => void): MenuEntry[] {
   const have = new Set(shares.map((r) => `${r.subjectKind}:${r.subjectId}`));
   const out: MenuEntry[] = [];
   const groups: readonly { head: string; kind: ShareSubjectKind; list: readonly DirectoryEntry[] | undefined }[] = [
     { head: "People", kind: "person", list: directory.people },
-    { head: "Groups", kind: "group", list: directory.groups },
+    { head: "Teams", kind: "group", list: directory.groups },
     { head: "Roles", kind: "role", list: directory.roles },
     { head: "Agents", kind: "agent", list: directory.agents },
   ];

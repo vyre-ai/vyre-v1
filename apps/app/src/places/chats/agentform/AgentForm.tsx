@@ -10,7 +10,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConfigDirectory } from "../../automations/config/data.tsx";
 import { Overlay } from "../../automations/config/Overlay.tsx";
 import { Switch } from "../../automations/config/parts.tsx";
-import { shareRows, sheetDirectory } from "../../../share/rows.ts";
+import { copyItemLink, shareRows, sheetDirectory, withNotify } from "../../../share/rows.ts";
 import { AccessSheet, accessCount } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { MarkdownEditor } from "../../../../../../ui/src/RichEditor/index.tsx";
@@ -245,12 +245,13 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
       {sharing && sharingOpen && agentId !== null && shares ? (
         <Overlay label="Who can use it" onClose={() => setSharingOpen(false)} testID="agent-share-overlay">
           <AccessSheet
-            mode="share" itemType="agent" resourceType="agent" resourceId={agentId} itemName={d.name} target="item" ownerName={sharing.meName} ownerId={sharing.meId} {...(sharing.spaceName ? { spaceName: sharing.spaceName } : {})} levels={["view", "use", "edit", "manage"]}
+            mode="share" itemType="agent" resourceType="agent" resourceId={agentId} itemName={d.name} target="item" ownerName={sharing.meName} ownerId={sharing.meId} {...(sharing.spaceName ? { spaceName: sharing.spaceName } : {})} levels={["use", "edit", "manage"]} meId={sharing.meId} notifyPeople onCopyLink={() => copyItemLink("agent", agentId)}
+            onMakeOwner={(s) => { void Promise.resolve(call("agents.set_owner", { agentId, ownerId: s.id, idempotencyKey: newKey() })).then(() => { loadShares(); say("Ownership handed over. You are a manager now."); }, () => say("Could not make them the owner.")); }}
             shares={shareRows(shares, sharing.nameOf, agentId)} allowExternal={false} density="compact" newKey={newKey}
             {...(shares.agentsCanCall === undefined ? {} : { agentsOn: shares.agentsCanCall })}
             onAgents={(on) => { void Promise.resolve(call("access.agents_can_call.set", { agentId, on, idempotencyKey: newKey() })).then(loadShares, () => say("Could not change who can call this agent.")); }}
             directory={sheetDirectory(sharing.directory)}
-            onShare={(i: ShareInput) => { void Promise.resolve(call("access.share", i)).then(loadShares, () => say("Could not change access.")); }}
+            onShare={(i: ShareInput, opts) => { void Promise.resolve(call("access.share", withNotify(i, opts))).then(loadShares, () => say("Could not change access.")); }}
             onUnshare={(i: UnshareInput) => { void Promise.resolve(call("access.unshare", i)).then(loadShares, () => say("Could not change access.")); }}
             onClose={() => setSharingOpen(false)}
           />

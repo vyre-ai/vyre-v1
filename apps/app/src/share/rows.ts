@@ -29,3 +29,24 @@ export const entries = (list: readonly { id: string; name: string; sub?: string 
 export function sheetDirectory(d: { people: readonly { id: string; name: string }[]; groups: readonly { id: string; name: string }[]; roles: readonly { id: string; name: string }[]; agents: readonly { id: string; name: string }[] }) {
   return { people: entries(d.people, "person"), groups: entries(d.groups, "group"), roles: entries(d.roles, "role"), agents: entries(d.agents, "agent") };
 }
+
+/** access.share (or vault.share) input from what the sheet hands back, with the Notify people choice folded in as `notify`. */
+export function withNotify<T extends Record<string, unknown>>(input: T, opts?: { notify: boolean; message?: string }): T & { notify?: { message?: string } } {
+  if (!opts || !opts.notify) return input;
+  return { ...input, notify: opts.message ? { message: opts.message } : {} };
+}
+
+/**
+ * The item's own link: an artifact has its address on the Space (/a/<id>); every other kind has its vyre:// deep link, the one Copy Link gives elsewhere (vyre://note/<id>, vyre://agent/<id>).
+ * Never the address of the page the person happens to be on.
+ */
+export function itemLink(type: string, id: string, origin = (globalThis as { location?: { origin?: string } }).location?.origin ?? ""): string {
+  if (type === "site") return `${origin}/a/${id}`;
+  const kind = type === "record_type" ? "record_type" : type === "vault_item" || type === "vault_folder" ? "vault" : type;
+  return `vyre://${kind}/${id}`;
+}
+
+export function copyItemLink(type: string, id: string): void {
+  const g = globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } };
+  void g.navigator?.clipboard?.writeText(itemLink(type, id));
+}

@@ -680,6 +680,17 @@ export type AccessListsOut = {
   next?: string;
   total?: number;
 };
+export type AccessMakeOwnerIn = {
+  resource: {
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    id: string;
+  };
+  personId: string;
+  idempotencyKey: string;
+};
+export type AccessMakeOwnerOut = {
+  ok: boolean;
+};
 export type AccessPoliciesListIn = {
   kind?: "gate" | "spend" | "limit" | "provider_label" | "retention" | "sign_in" | "sharing" | "vault";
 };
@@ -1206,6 +1217,9 @@ export type AccessShareIn = {
   source?: string;
   export?: boolean;
   reshare?: boolean;
+  notify?: {
+    message?: string;
+  };
   idempotencyKey: string;
 };
 export type AccessShareOut = {
@@ -3932,6 +3946,106 @@ export type AutomationsSetEnabledIn = {
   enabled: boolean;
 };
 export type AutomationsSetEnabledOut = {
+  automation: {
+    id: string;
+    name: string;
+    description?: string;
+    kind: "personal" | "space";
+    groupId?: string;
+    ownerId: string;
+    status: "on" | "off" | "draft" | "paused";
+    pausedReason?: string;
+    version: number;
+    definition: {
+      triggers: Array<{
+          key: string;
+          config?: Record<string, unknown>;
+          filter?: unknown;
+        }>;
+      nodes: Array<{
+          id: string;
+          key: string;
+          title?: string;
+          input: Record<string, unknown>;
+          next?: Array<string>;
+          branches?: Array<{
+              label: string;
+              to: string;
+              when?: string;
+            }>;
+          onError?: {
+            mode: "fail" | "continue" | "retry" | "route" | "skip" | "substitute";
+            max?: number;
+            route?: string;
+            codes?: Array<string>;
+            output?: unknown;
+          };
+          ai?: {
+            agentId?: string;
+            keyId?: string;
+            backupKeyId?: string;
+            assigned?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            timeoutMinutes?: number;
+            nudgeMinutes?: number;
+            escalateTo?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            mode?: "answer" | "task";
+            doneMeans?: Array<string>;
+          };
+          askBeforeSending?: boolean;
+        }>;
+      start?: Array<string>;
+      allowSelfTrigger?: boolean;
+      ai?: {
+        keyId?: string;
+        backupKeyId?: string;
+      };
+    };
+    followers: Array<string>;
+    alerts: {
+      who: Array<{
+          kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+          id: string;
+        }>;
+      when: {
+        mode: "every" | "after_n";
+        n?: number;
+      };
+      where: {
+        needsYou: boolean;
+        dm: boolean;
+        channelId?: string;
+      };
+      escalation: Array<{
+          to: {
+            kind: "person" | "agent" | "actor" | "service" | "group" | "role" | "link";
+            id: string;
+          };
+          afterHours: number;
+        }>;
+    };
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+export type AutomationsSetOwnerIn = {
+  automationId: string;
+  ownerId: string;
+};
+export type AutomationsSetOwnerOut = {
   automation: {
     id: string;
     name: string;
@@ -27146,6 +27260,60 @@ export type NotesSearchOut = {
       updatedAt: number;
     }>;
 };
+export type NotesSetOwnerIn = {
+  noteId: string;
+  personId: string;
+};
+export type NotesSetOwnerOut = {
+  note: {
+    noteId: string;
+    owner: string;
+    title: string;
+    body: string;
+    color: "" | "rose" | "sand" | "sage" | "sky" | "lilac" | "slate";
+    pinned: boolean;
+    labels: Array<string>;
+    hasImage: boolean;
+    link?: {
+      url: string;
+      title?: string;
+      siteName?: string;
+      description?: string;
+      preview?: "image" | "icon";
+    };
+    clip?: {
+      url: string;
+      title?: string;
+      selection?: string;
+      hasShot: boolean;
+      at: number;
+    };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
+    };
+    linked: Array<{
+        kind: "task" | "record";
+        id: string;
+        title: string;
+        at: number;
+      }>;
+    share: {
+      people: Array<{
+          personId: string;
+          role: "edit" | "view";
+        }>;
+      space: "off" | "view" | "edit";
+    };
+    mine: boolean;
+    canEdit: boolean;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
 export type NotesShareIn = {
   noteId: string;
   people?: Array<{
@@ -27153,6 +27321,9 @@ export type NotesShareIn = {
       role: "edit" | "view" | "remove";
     }>;
   space?: "off" | "view" | "edit";
+  notify?: {
+    message?: string;
+  };
 };
 export type NotesShareOut = {
   note: {
@@ -27469,7 +27640,7 @@ export type NotificationsDigestCollectIn = {
 };
 export type NotificationsDigestCollectOut = {
   items: Array<{
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
       title: string;
       at: number;
       subject?: {
@@ -27480,19 +27651,19 @@ export type NotificationsDigestCollectOut = {
     }>;
 };
 export type NotificationsKindSetLevelIn = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
   level?: "interrupt" | "badge" | "digest";
   channels?: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindSetLevelOut = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
   level: "interrupt" | "badge" | "digest";
   channels: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindsListIn = Record<string, unknown>;
 export type NotificationsKindsListOut = {
   kinds: Array<{
-      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -27513,7 +27684,7 @@ export type NotificationsListIn = {
 export type NotificationsListOut = {
   notifications: Array<{
       id: string;
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -27627,7 +27798,7 @@ export type NotificationsRulesSetOut = {
 };
 export type NotificationsSendIn = {
   to: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
   subject?: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
@@ -41424,6 +41595,9 @@ export type VaultShareIn = {
     id: string;
   };
   level: "view" | "use" | "edit" | "manage";
+  notify?: {
+    message?: string;
+  };
   idempotencyKey: string;
 };
 export type VaultShareOut = {
@@ -42001,6 +42175,7 @@ export interface CapMap {
   "access.labels.list": { in: AccessLabelsListIn; out: AccessLabelsListOut };
   "access.labels.set": { in: AccessLabelsSetIn; out: AccessLabelsSetOut };
   "access.lists": { in: AccessListsIn; out: AccessListsOut };
+  "access.make_owner": { in: AccessMakeOwnerIn; out: AccessMakeOwnerOut };
   "access.policies.list": { in: AccessPoliciesListIn; out: AccessPoliciesListOut };
   "access.policies.reset": { in: AccessPoliciesResetIn; out: AccessPoliciesResetOut };
   "access.policies.set": { in: AccessPoliciesSetIn; out: AccessPoliciesSetOut };
@@ -42135,6 +42310,7 @@ export interface CapMap {
   "automations.schedule_choose": { in: AutomationsScheduleChooseIn; out: AutomationsScheduleChooseOut };
   "automations.senders": { in: AutomationsSendersIn; out: AutomationsSendersOut };
   "automations.set_enabled": { in: AutomationsSetEnabledIn; out: AutomationsSetEnabledOut };
+  "automations.set_owner": { in: AutomationsSetOwnerIn; out: AutomationsSetOwnerOut };
   "automations.steps.list": { in: AutomationsStepsListIn; out: AutomationsStepsListOut };
   "automations.stop": { in: AutomationsStopIn; out: AutomationsStopOut };
   "automations.templates.list": { in: AutomationsTemplatesListIn; out: AutomationsTemplatesListOut };
@@ -43341,6 +43517,7 @@ export interface CapMap {
   "notes.pin": { in: NotesPinIn; out: NotesPinOut };
   "notes.restore": { in: NotesRestoreIn; out: NotesRestoreOut };
   "notes.search": { in: NotesSearchIn; out: NotesSearchOut };
+  "notes.set_owner": { in: NotesSetOwnerIn; out: NotesSetOwnerOut };
   "notes.share": { in: NotesShareIn; out: NotesShareOut };
   "notes.to_record": { in: NotesToRecordIn; out: NotesToRecordOut };
   "notes.to_task": { in: NotesToTaskIn; out: NotesToTaskOut };
@@ -44074,6 +44251,17 @@ export type AccessRequestedPayload = {
   level: "view" | "use" | "edit" | "manage";
   requester: string;
   taskId: string;
+};
+export type AccessSharedWithPayload = {
+  to: string;
+  resource: {
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    id: string;
+  };
+  level: "view" | "use" | "edit" | "manage";
+  byName: string;
+  title: string;
+  message?: string;
 };
 export type AccessReviewClosedPayload = {
   reviewId: string;
@@ -46279,7 +46467,7 @@ export type NotesUpdatedPayload = {
 export type NotificationCappedPayload = {
   person: string;
   agentId: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
   perHour: number;
 };
 export type NotificationDelegateChangedPayload = {
@@ -46292,7 +46480,7 @@ export type NotificationDelegateChangedPayload = {
 export type NotificationDeliveredPayload = {
   notificationId: string;
   person: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
   level: "interrupt" | "badge" | "digest";
   place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
   subject?: {
@@ -48037,6 +48225,7 @@ export interface EventMap {
   "access.exception_set": AccessExceptionSetPayload;
   "access.granted": AccessGrantedPayload;
   "access.requested": AccessRequestedPayload;
+  "access.shared_with": AccessSharedWithPayload;
   "access_review.closed": AccessReviewClosedPayload;
   "access_review.opened": AccessReviewOpenedPayload;
   "account.linked": AccountLinkedPayload;

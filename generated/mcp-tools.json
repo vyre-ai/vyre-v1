@@ -2590,6 +2590,15 @@
             ],
             "type": "string"
           },
+          "notify": {
+            "description": "Tell the person: a notification and an Inbox line (\"Irfad shared Dex with you\"), with this optional message",
+            "properties": {
+              "message": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
           "reshare": {
             "type": "boolean"
           },
@@ -6476,6 +6485,40 @@
         "type": "object"
       },
       "name": "automations_set_enabled",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.set_owner",
+      "deferred": false,
+      "description": "Hand a Space Automation to another person as its accountable owner; the previous owner keeps Manage",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ownerId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "automationId",
+          "ownerId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_set_owner",
       "planMode": "blocked",
       "toolset": "automations",
       "v": 1
@@ -42980,7 +43023,8 @@
               "task.returned",
               "task.finished",
               "task.due",
-              "machine.alert"
+              "machine.alert",
+              "item.shared"
             ],
             "type": "string"
           },
@@ -43445,7 +43489,8 @@
               "task.returned",
               "task.finished",
               "task.due",
-              "machine.alert"
+              "machine.alert",
+              "item.shared"
             ],
             "type": "string"
           },
@@ -65959,6 +66004,14 @@
               "manage"
             ],
             "type": "string"
+          },
+          "notify": {
+            "properties": {
+              "message": {
+                "type": "string"
+              }
+            },
+            "type": "object"
           },
           "resource": {
             "properties": {
