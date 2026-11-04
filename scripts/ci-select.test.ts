@@ -102,6 +102,10 @@ test("failures and @nocache files are never cached; env change misses", async ()
   assert.equal(cache.m.size, 0);
   assert.equal(isNoCache("// @nocache\nimport x"), true);
   assert.equal(isNoCache("const a = '// @nocache';"), false);
+  // a test that scans the tree reads files outside its import closure, so its pass is never replayed (hooks-order passed from the cache after a bad hook landed)
+  assert.equal(isNoCache("for (const e of fs.readdirSync(dir)) check(e);"), true);
+  assert.equal(isNoCache("spawnSync('git', ['ls-files', 'apps'])"), true);
+  assert.equal(isNoCache("import x from './x.ts';\nx();"), false);
   await recordResult(cache, s.keys.get("lib/x.test.ts"), { ok: true, ms: 5, tests: 1 });
   const other = await splitByCache(["lib/x.test.ts"], fwd, read, { ...env, node: "v25" }, cache);
   assert.deepEqual(other.run, ["lib/x.test.ts"]);
