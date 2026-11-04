@@ -50,7 +50,7 @@ const st = StyleSheet.create({
   label: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   row: { paddingHorizontal: 8, marginHorizontal: -8, borderRadius: 10 },
   rowIn: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
-  over: { backgroundColor: "color-mix(in srgb, var(--ink) 5%, transparent)" as string },
+  over: { backgroundColor: "var(--hover)" as string },
   text: { flex: 1, minWidth: 0 },
   when: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
   what: { marginTop: 1, fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string },
