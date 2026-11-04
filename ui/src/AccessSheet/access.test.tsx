@@ -634,3 +634,13 @@ test("share mode shows one Suggested list of at most five, and no Add more", () 
   assert.doesNotMatch(html, /Add more/);
   assert.equal((html.match(/data-testid="as-row-person:usr_/g) ?? []).length, 5);
 });
+
+test("the People count is the rows listed under People; the subtitle counts everyone with access from the same deduped list", async () => {
+  await withDom(async () => {
+    const root = await mount(createRoot, <AccessSheet {...dex()} />);
+    assert.equal(textOf(find(root, "as-count")).trim(), "1", "only Irfad is listed under People");
+    assert.match(textOf(root), /Agent · 2 with access/, "the owner and Everyone");
+    const more = await mount(createRoot, <AccessSheet {...dex({ shares: [{ subjectKind: "person", subjectId: "usr_kai", name: "Kai Lund", level: "edit", via: "grant", fromFolderId: null }, { subjectKind: "person", subjectId: "usr_kai", name: "Kai Lund", level: "view", via: "folder", fromFolderId: null }] })} />);
+    assert.equal(textOf(find(more, "as-count")).trim(), "2", "Kai once");
+  });
+});

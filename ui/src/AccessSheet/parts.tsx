@@ -467,7 +467,7 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
           />
         </View>
       )}
-      <View style={st.listHead}><Text style={st.listHeadText}>People</Text><Text style={st.listHeadText} testID="as-count">{v.count}</Text></View>
+      <View style={st.listHead}><Text style={st.listHeadText}>People</Text><Text style={st.listHeadText} testID="as-count">{1 + v.people.length}</Text></View>
       <View style={st.plain}><SlotRow id="as-acc-owner" title={p.ownerName} leadWidth={36} lead={<Face kind="person" id={p.ownerId ?? p.ownerName} name={p.ownerName} size={28} />} trail={<Text style={st.ownerText}>Owner</Text>} /></View>
       {rec && rec.audience === "space" && rec.follows === undefined ? <SlotRow id="as-acc-space-rec" title="Everyone in the Space" note="As their role allows" leadWidth={36} lead={<Face kind="group" id="space" name="Everyone" size={28} />} trail={<Text style={st.ownerText}>Their role</Text>} /> : null}
       {rec && rec.audience === "added" ? <SlotRow id="as-acc-admins" title="Admins" note="Always" leadWidth={36} lead={<Face kind="group" id="admins" name="Admins" size={28} />} trail={<Text style={st.ownerText}>{lname("manage")}</Text>} /> : null}
