@@ -92,7 +92,10 @@ export function holdShort(cap: string, input: unknown, n: HoldNames = {}): strin
   }
   if (cap === "files.share_external") return `share ${n.file ?? "a file"} with a link for someone outside the Space`;
   const w = wantsFromInput(cap, obj(input)) ?? HOLD_PHRASES[cap] ?? WANTS[cap] ?? (cap === "" ? "do a step" : capPhrase(cap));
-  return w;
+  // a bare verb ("change", "edit") says nothing alone: name what it acts on from the capability's own scope ("change a record", "edit a file")
+  const parts = cap.split(".");
+  const scope = parts.length > 1 && !INTERNAL_SCOPES.has(parts[0]!) ? parts[0]!.replace(/[_-]+/g, " ").replace(/ies$/, "y").replace(/s$/, "") : "";
+  return !/\s/.test(w) && scope ? `${w} ${aOrAn(scope)} ${scope}` : w;
 }
 
 /** The one sentence every surface says for a held act an agent asked for: the card, the footer under the ask, the top bar and the task. No "Approve:" in front. */

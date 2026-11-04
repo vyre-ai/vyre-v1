@@ -73,3 +73,10 @@ test("a hold nobody named keeps the act's own words", async () => {
   await h.call("gate.park", parkInput({ decisionId: "s_plain", capName: "stripe.refund.create", input: { chargeId: "ch_1", amount: 500 }, act: "pay" }), as(bot));
   assert.equal((h.callsTo("tasks.create")[0]!.input as { title: string }).title, "Approve: Refund a payment");
 });
+
+test("a hold for a bare verb names what it acts on from the capability's scope", async () => {
+  const rec = await parkAs({ capName: "records.update", input: { type: "contact", recordId: "rec_1", patch: { name: "Renamed" } }, act: "approve" }, "s_rec");
+  assert.equal(rec.title, "Intake wants to change a record");
+  const file = await parkAs({ capName: "files.write", input: { fileId: "fil_1" }, act: "approve" }, "s_file");
+  assert.equal(file.title, "Intake wants to edit a file");
+});
