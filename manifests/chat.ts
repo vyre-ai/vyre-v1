@@ -491,7 +491,7 @@ export default defineManifest({
       in: threadT, out: { marked: t.int() }, on: ['thread', '/threadId'], level: 'use', tool: 'chats', errors: ['validation.not_found'],
     }),
     read('chat.helper.notes', 'The notes in a helper chat with who sent each: the person, the agent that started it, or the helper', {
-      in: threadT, out: { notes: t.arr(t.obj({ messageId: id.message, authorId: t.str(), who: t.enm('brief', 'person', 'parent', 'helper'), body: t.str(), kind: t.opt(t.str()), state: t.opt(t.str()), seenAt: t.opt(t.ts()) })) },
+      in: threadT, out: { notes: t.arr(t.obj({ messageId: id.message, authorId: t.str(), who: t.enm('brief', 'person', 'parent', 'helper'), body: t.str(), kind: t.opt(t.str()), state: t.opt(t.str()), seenAt: t.opt(t.ts()), restart: t.opt(t.bool()), model: t.opt(t.str()) })) },
       on: ['thread', '/threadId'], tool: 'chats',
     }),
     read('chat.helpers.list', 'Helpers running under a chat, with status', {

@@ -6955,6 +6955,8 @@ export type ChatHelperNotesOut = {
       kind?: string;
       state?: string;
       seenAt?: number;
+      restart?: boolean;
+      model?: string;
     }>;
 };
 export type ChatHelperRestartIn = {

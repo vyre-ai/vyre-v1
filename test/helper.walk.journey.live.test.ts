@@ -47,7 +47,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
         yield* run("crew_start", { threadId: input.threadId, idempotencyKey: "w-code", title: "Fix the invoice date bug", brief: "Fix the invoice date bug and add a test." });
         yield { type: "text", text: "Three helpers and a coder are on it. I will bring it together when they are back." };
       } else if (/Compare the quotes/.test(body) && input.trigger?.author.kind === "agent") {
-        yield { type: "text", text: "Harbor costs more up front but is ready in two weeks [2]. Pine Works is cheaper but takes four [2]. The calendar check is still running [1]." };
+        yield { type: "text", text: "Harbor costs more up front but is ready in two weeks [2]. Pine Works is cheaper but takes four [3]. The calendar check is still running [1]." };
       }
       return;
     }

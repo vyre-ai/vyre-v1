@@ -12,6 +12,7 @@ import type { HelperChatData } from "./data.tsx";
 import { READ_ONLY_NOTE, addressParts, blockLine, byOrder, helperStatus, metaLine, parentOf, whenLabel, workSummary } from "./model.ts";
 import type { Message } from "./model.ts";
 import type { CrewMember } from "../crew/model.ts";
+import { modelName } from "../../../../../../lib/model-names.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 
 type ThreadOut = CapMap["threads.get"]["out"];
@@ -103,13 +104,15 @@ function HelperView(): ReactElement {
         <View key={m.messageId} testID="helper-brief" accessibilityLabel={`Brief from ${who}`} style={st.brief}>
           <View style={st.briefTop}><Face name={who} seedId={m.author.id} size={16} /><Text style={st.briefHead}>{`Brief from ${who}`}</Text><Text style={st.time}>{whenLabel(m.createdAt, clock)}</Text></View>
           {m.body ? <Text style={st.body}>{m.body}</Text> : null}
-          {thread.agents[0]?.model ? <Text testID="helper-brief-model" style={st.time}>{thread.agents[0].model}</Text> : null}
+          {thread.agents[0]?.model ? <Text testID="helper-brief-model" style={st.time}>{modelName(thread.agents[0].model)}</Text> : null}
         </View>,
       );
       continue;
     }
     // a note between the helper and the agent that started it keeps its sender: a follow-up is the agent's, a question or progress is the helper's, a steer is the person's (own words, no block)
     if (note) {
+      // a restart is a quiet line, not a message from anyone: "Restarted on Opus 5.5"
+      if (note.data["restart"] === true) { feed.push(<Text key={m.messageId} testID={`restart-${m.messageId}`} style={st.restartLine}>{`Restarted${typeof note.data["model"] === "string" ? ` on ${note.data["model"]}` : ""}`}</Text>); continue; }
       const down = note.data["direction"] === "down";
       const asking = note.data["kind"] === "question";
       feed.push(
@@ -209,6 +212,7 @@ function Work({ summary, messages }: { summary: string; messages: readonly Messa
 }
 
 const st = StyleSheet.create({
+  restartLine: { alignSelf: "center", fontSize: 12, color: "var(--ink-3)" as string },
   noteBlock: { alignSelf: "stretch", gap: 6, padding: 12, borderRadius: 10, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--sunk)" as string },
   noteDown: { borderLeftWidth: 3, borderLeftColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
   ask: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },

@@ -189,7 +189,7 @@ test("Change model lists the other models the person may use, confirms with what
   const { modelChoices, restartWords } = await import("./pane.tsx");
   const cat = { accounts: [{ ref: "#A", provider: "anthropic", label: "Claude · Maya", models: [{ model: "claude-haiku-5-5", tier: "cheap", available: true }, { model: "claude-opus-5-5", tier: "strong", available: true }, { model: "claude-sonnet-5-5", available: false }] }, { ref: "#B", provider: "openai", label: "OpenAI · Maya", models: [{ model: "gpt-6", tier: "strong", available: true }] }] };
   assert.deepEqual(modelChoices(cat, "claude-haiku-5-5").map((c) => c.model), ["claude-opus-5-5", "gpt-6"], "not the one it runs on, not an unavailable one");
-  assert.equal(restartWords("Orin", "gpt-6", 20_000), "Restart Orin on gpt-6? It has used $0.02 so far and starts over.");
+  assert.equal(restartWords("Orin", "gpt-6", 20_000), "Restart Orin on GPT-6? It has used $0.02 so far and starts over.");
   const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
   const call = async (cap: string, input: unknown): Promise<unknown> => { calls.push({ cap, input: input as Record<string, unknown> }); return cap === "engine.helper_models" ? cat : cap === "chat.helper.notes" ? { notes: [] } : {}; };
   let refreshed = 0;
@@ -198,7 +198,7 @@ test("Change model lists the other models the person may use, confirms with what
   await press(find(root, "crew-peek-change-model")); await flush();
   assert.ok(find(root, "row-crew-change-claude-opus-5-5") && find(root, "row-crew-change-gpt-6")); assert.equal(find(root, "row-crew-change-claude-haiku-5-5"), null);
   await press(find(root, "row-crew-change-gpt-6"));
-  assert.match(textOf(find(root, "crew-change-confirm")), /Restart Orin on gpt-6\? It has used \$0\.02 so far and starts over\./);
+  assert.match(textOf(find(root, "crew-change-confirm")), /Restart Orin on GPT-6\? It has used \$0\.02 so far and starts over\./);
   await press(find(root, "crew-change-cancel")); assert.equal(find(root, "crew-change-confirm"), null);
   await press(find(root, "row-crew-change-gpt-6")); await press(find(root, "crew-change-go")); await flush();
   const call2 = calls.find((c) => c.cap === "engine.helpers.change_model")!;
@@ -262,7 +262,7 @@ test("the peek lists the steps it has taken in plain words, says what it runs on
   await flush();
   const text = textOf(find(root, "crew-peek"));
   assert.match(text, /Steps/); assert.match(text, /Opened the vendor page/); assert.doesNotMatch(text, /headless Chrome/i, "no engine name in a step");
-  assert.match(textOf(find(root, "crew-peek-model")), /glm-5\.3\s*·\s*OpenCode Go/);
+  assert.match(textOf(find(root, "crew-peek-model")), /GLM 5\.3\s*·\s*OpenCode Go/);
   await press(find(root, "crew-peek-retry")); await flush();
   const start = calls.find((c) => c.cap === "chat.helper.start")!;
   assert.deepEqual([start.input["threadId"], start.input["instruction"]], ["thr_0", "Read the price table."]);

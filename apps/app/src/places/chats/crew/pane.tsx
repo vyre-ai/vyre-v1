@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { accountName, modelName } from "../../../../../../lib/model-names.ts";
 import { blockLine } from "../helper/model.ts";
 import { HelperHooksSection } from "../helper/HelperHooks.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -82,7 +83,7 @@ export function CrewOverview({ status, call, threadId, onPeek, onRefresh, initia
       </View>
       {together ? <Text testID="crew-ran-together" style={st.together}>{together}</Text> : null}
 
-      <View style={st.kv}><Text style={st.k}>Total cost</Text><Text testID="crew-cost" style={st.v}>{money(status.totals.costMicros)}</Text></View>
+      {status.totals.costMicros > 0 ? <View style={st.kv}><Text style={st.k}>Total cost</Text><Text testID="crew-cost" style={st.v}>{money(status.totals.costMicros)}</Text></View> : null}
       <View style={st.kv}><Text style={st.k}>Total time</Text><Text testID="crew-time" style={st.v}>{span(status.totals.elapsedMs)}</Text></View>
       {status.totals.tokensIn + status.totals.tokensOut > 0 ? (
         <View testID="crew-tokens" style={{ gap: 5, marginTop: 6 }}>
@@ -104,7 +105,7 @@ export function modelChoices(cat: Cat, current?: string): Array<{ account: strin
 }
 
 /** The confirm line: what restarting costs, in what the helper has really used so far. */
-export const restartWords = (name: string, model: string, spentMicros: number): string => `Restart ${name} on ${model}? It has used ${money(spentMicros)} so far and starts over.`;
+export const restartWords = (name: string, model: string, spentMicros: number): string => `Restart ${name} on ${modelName(model)}? It has used ${money(spentMicros)} so far and starts over.`;
 
 function ChangeModel({ member, call, onDone }: { member: CrewMember; call: Call; onDone: () => void }): ReactElement {
   const [open, setOpen] = useState(false);
@@ -128,13 +129,13 @@ function ChangeModel({ member, call, onDone }: { member: CrewMember; call: Call;
             <Pressable accessibilityRole="button" testID="crew-change-cancel" onPress={() => setPick(null)} style={st.pill}><Text style={st.pillText}>Cancel</Text></Pressable>
           </View>
         </>
-      ) : cat === null ? <Text style={st.hint}>Reading the models…</Text> : choices.length === 0 ? <Text testID="crew-change-none" style={st.hint}>No other model is available right now.</Text> : choices.map((c) => <Row key={`${c.account}:${c.model}`} id={`crew-change-${c.model}`} title={c.model} note={`${c.accountLabel}${c.tier ? ` · ${c.tier}` : ""}`} onPress={() => setPick(c)} />)}
+      ) : cat === null ? <Text style={st.hint}>Reading the models…</Text> : choices.length === 0 ? <Text testID="crew-change-none" style={st.hint}>No other model is available right now.</Text> : choices.map((c) => <Row key={`${c.account}:${c.model}`} id={`crew-change-${c.model}`} title={modelName(c.model)} note={`${accountName(c.accountLabel)}${c.tier ? ` · ${c.tier}` : ""}`} onPress={() => setPick(c)} />)}
       {err ? <Text testID="crew-change-error" style={st.hint}>{err}</Text> : null}
     </View>
   );
 }
 
-type Note = { messageId: string; who: "brief" | "person" | "parent" | "helper"; authorId: string; body: string; kind?: string; state?: string; seenAt?: number };
+type Note = { messageId: string; who: "brief" | "person" | "parent" | "helper"; authorId: string; body: string; kind?: string; state?: string; seenAt?: number; restart?: boolean };
 const WHO = { brief: "Brief", person: "You", parent: "Agent", helper: "Helper" } as const;
 
 export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh }: { member: CrewMember; call: Call; nameOfId?: (id: string) => string; onBack: () => void; onOpenChat: (threadId: string) => void; onRefresh: () => void }): ReactElement {
@@ -161,7 +162,7 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
     return () => { dead = true; if (t) clearInterval(t); };
   }, [call, member.id, member.state, live]);
   const brief = notes.find((n) => n.who === "brief");
-  const log = notes.filter((n) => n.who !== "brief" && n.kind !== undefined || n.who === "person");
+  const log = notes.filter((n) => n.restart !== true && (n.who !== "brief" && n.kind !== undefined || n.who === "person"));
   const retry = (): void => {
     const instruction = brief?.body ?? "";
     if (instruction === "") { setErr("There is no brief to start again from."); return; }
@@ -191,7 +192,7 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
       {/* ui-rows-lint: not a list (what the helper has done, in order: a quiet log of plain-word steps, nothing to press) */}
       {steps.slice(-6).map((x) => <View key={x.id} testID={`crew-step-${x.id}`} style={st.step}><View style={[st.stepDot, x.state === "live" && { backgroundColor: "var(--accent)" as string }]} /><Text numberOfLines={1} style={st.rowLine}>{x.title}{x.sub ? ` · ${x.sub}` : ""}</Text></View>)}
       {member.state === "working" && member.step && !steps.some((x) => x.state === "live") ? <View style={st.step}><View style={[st.stepDot, { backgroundColor: "var(--accent)" as string }]} /><Text testID="crew-peek-step" numberOfLines={1} style={st.rowLine}>{member.step}</Text></View> : null}
-      {member.model ? <><Text style={st.section}>Runs on</Text><Text testID="crew-peek-model" style={st.rowLine}>{modelTag(member)}{member.accountLabel ? ` · ${member.accountLabel}` : ""}</Text></> : null}
+      {member.model ? <><Text style={st.section}>Runs on</Text><Text testID="crew-peek-model" style={st.rowLine}>{modelTag(member)}{member.accountLabel ? ` · ${accountName(member.accountLabel)}` : ""}</Text></> : null}
       {live || member.state === "failed" || member.state === "stopped" ? <ChangeModel member={member} call={call} onDone={onRefresh} /> : null}
       <HelperHooksSection threadId={member.id} call={call} lead={brief ? (nameOfId?.(brief.authorId) ?? "the agent") : "the agent"} name={nameOf(member)} />
       {member.found ? <><Text style={st.section}>Answer</Text><Text testID="crew-peek-answer" style={st.rowLine}>{member.found}</Text></> : null}
@@ -201,8 +202,8 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
       {log.map((n) => <View key={n.messageId} testID={`crew-note-${n.messageId}`} style={st.note}><Text style={st.noteWho}>{WHO[n.who]}{n.who === "parent" && n.seenAt !== undefined ? " · seen" : ""}</Text><Text style={st.rowLine}>{n.body}</Text></View>)}
       <Text style={st.section}>Cost and time</Text>
       <View style={st.kv}><Text style={st.k}>Time</Text><Text testID="crew-peek-time" style={st.v}>{timeOf(member, now)}</Text></View>
-      <View style={st.kv}><Text style={st.k}>Cost</Text><Text testID="crew-peek-cost" style={st.v}>{money(member.costMicros)}</Text></View>
-      <View style={st.kv}><Text style={st.k}>Tokens</Text><Text testID="crew-peek-tokens" style={st.v}>{tokens(member.tokensIn)} in · {tokens(member.tokensOut)} out</Text></View>
+      {member.costMicros > 0 ? <View style={st.kv}><Text style={st.k}>Cost</Text><Text testID="crew-peek-cost" style={st.v}>{money(member.costMicros)}</Text></View> : null}
+      {member.tokensIn + member.tokensOut > 0 ? <View style={st.kv}><Text style={st.k}>Tokens</Text><Text testID="crew-peek-tokens" style={st.v}>{tokens(member.tokensIn)} in · {tokens(member.tokensOut)} out</Text></View> : null}
       <View style={st.actions}>
         <Pressable accessibilityRole="button" testID="crew-peek-open" onPress={() => onOpenChat(member.id)} style={st.pill}><Text style={st.pillText}>Open chat</Text></Pressable>
         {member.state === "failed" || member.state === "stopped" ? <Pressable accessibilityRole="button" testID="crew-peek-retry" onPress={retry} style={st.pill}><Text style={st.pillText}>Retry</Text></Pressable> : null}

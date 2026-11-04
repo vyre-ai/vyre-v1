@@ -82,7 +82,7 @@ test("Change model restarts a helper on the account and model the person picks: 
   assert.deepEqual(hn.rows("SELECT model, provider, accountRef FROM chat_thread_agent WHERE thread = ?", h).map((r) => [r["model"], r["provider"], r["accountRef"]]), [["glm-5.3", "opencode-go", "#Space_OCG"]]);
   const again = hn.rows("SELECT body, author FROM chat_message WHERE thread = ? ORDER BY threadSeq", h).map((r) => String(r["body"]));
   assert.equal(again.length, 2, "the brief, then the restart line");
-  assert.match(again[1]!, /Starting again on glm-5\.3\. Do the brief again from the start\./);
+  assert.match(again[1]!, /Starting again on GLM 5\.3\. Do the brief again from the start\./);
   const pk = pickOf(hn, h)!;
   assert.deepEqual([pk["model"], pk["accountRef"], pk["why"]], ["glm-5.3", "#Space_OCG", "you asked"]);
 });

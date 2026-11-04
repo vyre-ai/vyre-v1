@@ -2182,6 +2182,8 @@ if ("body" in o1977) lf(o1977["body"], p + "/notes" + '/' + i1976 + "/body", e, 
 if ("kind" in o1977) lf(o1977["kind"], p + "/notes" + '/' + i1976 + "/kind", e, L1);
 if ("state" in o1977) lf(o1977["state"], p + "/notes" + '/' + i1976 + "/state", e, L1);
 if ("seenAt" in o1977) lf(o1977["seenAt"], p + "/notes" + '/' + i1976 + "/seenAt", e, L17);
+if ("restart" in o1977) lf(o1977["restart"], p + "/notes" + '/' + i1976 + "/restart", e, L3);
+if ("model" in o1977) lf(o1977["model"], p + "/notes" + '/' + i1976 + "/model", e, L1);
 }
 }
 }

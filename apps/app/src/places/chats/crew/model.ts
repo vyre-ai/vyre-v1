@@ -1,6 +1,7 @@
 // The crew as a person reads it (owner, 4 Nov 2026, prototype p-crew): one pure model over engine.crew.status. Every number here comes from the read; the words are said once, in one place, so the strip in the chat,
 // the Crew pane, the Island and the header agree. Nothing here names a tool.
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { accountName, modelName } from "../../../../../../lib/model-names.ts";
 
 export type CrewStatusOut = CapMap["engine.crew.status"]["out"];
 export type CrewMember = CrewStatusOut["members"][number];
@@ -51,16 +52,17 @@ export const stateWord = (s: MemberState): string => (s === "working" ? "Working
 
 /** The role next to the name: what the helper was asked to do, short. */
 /** What it was asked, next to its name. A helper with no name of its own is called by what it was asked, so there is nothing to add. */
-export const roleOf = (m: Pick<CrewMember, "title"> & { name?: string | undefined }): string => (m.name === undefined || m.name === m.title ? "" : m.title.length > 28 ? `${m.title.slice(0, 27)}…` : m.title);
+export const roleOf = (m: Pick<CrewMember, "title"> & { name?: string | undefined; kind?: string }): string => (m.kind === "teammate" ? m.name ?? "" : m.name === undefined || m.name === m.title ? "" : m.title.length > 28 ? `${m.title.slice(0, 27)}…` : m.title);
 
 /** The name a row wears: the helper's own name, else its title. */
-export const nameOf = (m: Pick<CrewMember, "name" | "title">): string => m.name ?? m.title;
+/** The bold name of a row: what it was asked, the same for a helper and a coder. */
+export const nameOf = (m: Pick<CrewMember, "name" | "title"> & { kind?: string }): string => (m.kind === "teammate" ? m.title : m.name ?? m.title);
 
 /** The model tag of a row: the model that really ran, and where it came from when the person chose it. */
 export function modelTag(m: Pick<CrewMember, "model" | "accountLabel" | "why" | "fellBackFrom">): string {
   if (!m.model) return "";
-  const from = m.fellBackFrom ? ` (not ${m.fellBackFrom})` : "";
-  return `${m.model}${from}`;
+  const from = m.fellBackFrom ? ` (not ${modelName(m.fellBackFrom)})` : "";
+  return `${modelName(m.model)}${from}`;
 }
 
 /** The strip's one line: how many, who needs you, how long. */
@@ -219,3 +221,6 @@ export function sortedBy<T extends Pick<CrewMember, "state" | "startedAt" | "ela
   const by = (m: T): number => (key === "time" ? m.elapsedMs : key === "tokens" ? m.tokensIn + m.tokensOut : m.costMicros);
   return [...members].sort((a, b) => by(b) - by(a) || a.startedAt - b.startedAt);
 }
+
+/** The account a helper runs on, as a person reads it. */
+export const accountWords = (m: Pick<CrewMember, "accountLabel">): string => accountName(m.accountLabel);

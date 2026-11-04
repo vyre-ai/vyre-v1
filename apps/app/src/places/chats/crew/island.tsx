@@ -9,7 +9,7 @@ import type { CrewStatusOut } from "./model.ts";
 export function CrewIsland({ status, onPress }: { status: CrewStatusOut; onPress: () => void }): ReactElement | null {
   const c = counts(status.totals);
   if (c.active === 0) return null;
-  const active = status.members.filter((m) => m.state === "working" || m.state === "needs_you");
+  const active = c.needsYou > 0 ? status.members.filter((m) => m.state === "needs_you") : status.members.filter((m) => m.state === "working");
   return (
     <View style={st.wrap}>
       <Pressable accessibilityRole="button" accessibilityLabel={c.needsYou > 0 ? `${c.needsYou} helper needs you` : `${c.active} helpers working`} testID="crew-island" onPress={onPress} style={st.pill}>

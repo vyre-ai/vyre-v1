@@ -61,13 +61,23 @@ export async function helpersStatus(ctx: EngineCtx, input: { threadId: string })
       } catch { /* no words to quote */ }
     }
     let holdTaskId: string | undefined;
+    let needsWhat: string | undefined;
     if (state === "needs_you") {
       try {
         const ms = ((await ctx.call("chat.messages.list", { threadId: h.threadId })) as { messages: HoldMsg[] }).messages;
         holdTaskId = holdOf(ms);
+        // what it waits for, in the held request's own words: "Needs your OK to open pine-works.example"
+        if (holdTaskId) {
+          try {
+            const t = ((await ctx.call("tasks.get", { taskId: holdTaskId })) as { task?: { title?: string } }).task?.title ?? "";
+            const what = t.replace(/^.*?\bwants to\s+/i, "").trim();
+            if (what !== "" && what !== t) needsWhat = `Needs your OK to ${oneLine(what)}`;
+            else if (t !== "") needsWhat = `Needs your OK: ${oneLine(t)}`;
+          } catch { /* the line stays "Needs you" */ }
+        }
       } catch { /* the card then shows in the helper's own chat */ }
     }
-    const step = state === "working" ? (live.find((l) => l.step)?.step || starting) : undefined;
+    const step = state === "working" ? (live.find((l) => l.step)?.step || starting) : state === "needs_you" ? needsWhat : undefined;
     const pick = h.pick ?? {};
     const used = last ? String(last["model"] ?? "") : "";
     const picked = typeof pick["model"] === "string" ? (pick["model"] as string) : undefined;

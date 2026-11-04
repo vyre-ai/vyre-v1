@@ -60,8 +60,8 @@ test("the timeline and Ran together come from real start and end times", () => {
 
 test("code work shows branch and change, the model tag says what really ran, the token bar splits input from output", () => {
   assert.equal(isCode(M({ branch: "helper/invoice-dates" })), true); assert.equal(isCode(M()), false);
-  assert.equal(modelTag({ model: "Sonnet 5.5" }), "Sonnet 5.5");
-  assert.equal(modelTag({ model: "deepseek-v4.1-flash", fellBackFrom: "claude-sonnet-5-5" }), "deepseek-v4.1-flash (not claude-sonnet-5-5)");
+  assert.equal(modelTag({ model: "claude-sonnet-5-5" }), "Sonnet 5.5");
+  assert.equal(modelTag({ model: "deepseek-v4.1-flash", fellBackFrom: "claude-sonnet-5-5" }), "DeepSeek V4.1 Flash (not Sonnet 5.5)");
   assert.equal(modelTag({}), "");
   assert.deepEqual(tokenSplit({ tokensIn: 750, tokensOut: 250 }), { input: 0.75, output: 0.25 });
   assert.deepEqual(tokenSplit({ tokensIn: 0, tokensOut: 0 }), { input: 0, output: 0 });
