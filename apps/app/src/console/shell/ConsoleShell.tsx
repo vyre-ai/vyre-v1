@@ -253,7 +253,6 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
               </Pressable>
             ) : <Text accessibilityRole="header" aria-level={1} style={s.title}>{here?.title ?? def.title}</Text>}
             {helpLine ? <Info help={helpLine} testID="page-help" /> : null}
-            {embedded && health ? <View style={s.health} testID="console-health" accessibilityLabel={`Server ${HEALTH_LABEL[health].toLowerCase()}`}><Dot tone={HEALTH_TONE[health]} size={8} /></View> : null}
             {embedded ? <><View style={{ flex: 1 }} /><Pressable accessibilityRole="button" accessibilityLabel="Setup guide" testID="console-setup-guide" onPress={() => { openOnboarding(); }} style={[s.chip, pointer]}><Glyph name="ok" size={14} color="var(--ink-2)" /><Text style={s.chipText}>Setup guide</Text></Pressable></> : null}
           </View>
           {here ? <Text style={s.subtitle} testID="page-subtitle">{here.subtitle}</Text> : null}

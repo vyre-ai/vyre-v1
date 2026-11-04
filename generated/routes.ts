@@ -22162,6 +22162,168 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/members/join_link/create",
+    "cap": "members.join_link.create",
+    "v": 1,
+    "module": "members",
+    "effects": "write",
+    "permission": "members.invite",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/members/join_link/disable",
+    "cap": "members.join_link.disable",
+    "v": 1,
+    "module": "members",
+    "effects": "write",
+    "permission": "members.invite",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/members/join_link/get",
+    "cap": "members.join_link.get",
+    "v": 1,
+    "module": "members",
+    "effects": "read",
+    "permission": "members.invite",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/members/join_link/preview",
+    "cap": "members.join_link.preview",
+    "v": 1,
+    "module": "members",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/members/join_link/request",
+    "cap": "members.join_link.request",
+    "v": 1,
+    "module": "members",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/members/join_link/rotate",
+    "cap": "members.join_link.rotate",
+    "v": 1,
+    "module": "members",
+    "effects": "write",
+    "permission": "members.invite",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/members/join_requests/approve",
+    "cap": "members.join_requests.approve",
+    "v": 1,
+    "module": "members",
+    "effects": "write",
+    "permission": "members.invite",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/members/join_requests/decline",
+    "cap": "members.join_requests.decline",
+    "v": 1,
+    "module": "members",
+    "effects": "write",
+    "permission": "members.invite",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/members/join_requests/list",
+    "cap": "members.join_requests.list",
+    "v": 1,
+    "module": "members",
+    "effects": "read",
+    "permission": "members.invite",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": true,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/members/joins/list",
     "cap": "members.joins.list",
     "v": 1,
@@ -27428,7 +27590,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/previews/health",
@@ -27598,10 +27763,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/projects/crew",
@@ -28613,6 +28775,24 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "delete"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/providers/set_keeps_nothing",
+    "cap": "providers.set_keeps_nothing",
+    "v": 1,
+    "module": "vault",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "edit",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
   },
   {
     "method": "POST",
@@ -32969,7 +33149,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/skills/space/setup",
@@ -33149,10 +33332,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sources/health",
@@ -38485,7 +38665,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/request",
@@ -38666,10 +38849,7 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/text_check",

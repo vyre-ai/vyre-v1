@@ -14,7 +14,7 @@ import type { SigninPort } from "./use.ts";
 import { readFileSync } from "node:fs";
 import { addressProblem, builtinDefs } from "./provider-defs.ts";
 import { forget as forgetSpaceKey, spaceKeyModels, spaceKeyProviderId } from "./space-key.ts";
-import { isSpaceAccount, keepModels, setUses, spaceFields } from "./space-accounts.ts";
+import { isSpaceAccount, keepModels, keepsNothingOf, setKeepsNothing, setUses, spaceFields } from "./space-accounts.ts";
 import type { CatalogEntry } from "./provider-defs.ts";
 import { identityOfFields } from "../../../host/src/seams/signin-identity.ts";
 import { decideRefresh } from "../../../host/src/seams/signin-refresh.ts";
@@ -84,7 +84,7 @@ function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: numbe
     ...(item && str(item, "name") ? { itemName: str(item, "name") } : {}),
     ...(item && str(item, "handle") ? { handle: str(item, "handle") } : {}), agentsUsing: [],
     usage: { tokens: used?.tokens ?? 0, costCents: used?.costCents ?? 0, periodStart: monthStart(ctx.now()) }, engine: c?.engine ?? str(p, "providerKey"),
-    spaceMayUse: num(p, "spaceMayUse") === 1, state: str(p, "state"),
+    spaceMayUse: num(p, "spaceMayUse") === 1, state: str(p, "state"), keepsNothing: keepsNothingOf(ctx, p),
     ...(address ? { address: str(address, "address") } : {}), ...(c?.keyless || str(p, "connection") === "local_model" ? { keyless: true } : {}),
     ...(spaceKey !== null && spaceKey === str(p, "id") ? { spaceKey: true } : {}),
   };
@@ -241,6 +241,15 @@ export async function usesSet(ctx: VaultCtx, input: { providerId: string; uses: 
   setUses(ctx, p, input);
   // the models it serves, so a turn can tell whether it fits (a provider that does not answer leaves the list as it was)
   if (hostOf()?.probe) { try { await test(ctx, { providerId: str(p, "id") }); } catch { /* listed again on the next test */ } }
+  const used = await usageThisMonth(ctx, str(p, "itemId"));
+  return { provider: { ...rowOut(ctx, providerById(ctx, str(p, "id")), used), ...await spaceFields(ctx, p, used.costCents) } };
+}
+
+/** providers.set_keeps_nothing: an owner or admin says whether a shared account keeps nothing of what it is sent. The capability is gated on policy.manage. */
+export async function setKeepsNothingFor(ctx: VaultCtx, input: { providerId: string; keepsNothing: boolean }) {
+  ensureProviders(ctx);
+  const p = providerById(ctx, input.providerId);
+  setKeepsNothing(ctx, p, input.keepsNothing);
   const used = await usageThisMonth(ctx, str(p, "itemId"));
   return { provider: { ...rowOut(ctx, providerById(ctx, str(p, "id")), used), ...await spaceFields(ctx, p, used.costCents) } };
 }

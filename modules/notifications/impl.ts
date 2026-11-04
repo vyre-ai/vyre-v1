@@ -153,6 +153,12 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
     return { to: p.to, kind: "item.shared", ...(r?.type && r.id ? { subject: { type: r.type, id: r.id } } : {}), title: String(p.title ?? "something"), data: { from: String(p.byName ?? "Someone"), ...(typeof p.message === "string" && p.message ? { message: p.message } : {}) }, collapseKey: `item.shared:${r?.id ?? ""}:${p.to}` } as never;
   }
   if (e.name === "run.failed") return { to: String(p.owner), kind: "run.failed", subject: { type: "run", id: String(p.runId) }, data: { name: p.kind, message: p.message }, runId: String(p.runId) };
+  if (e.name === "member.join_requested") {
+    // someone opened the Request to join link and asked in: one line for each admin; it collapses while the same person's request waits
+    const name = String(p.name ?? "").trim() || "Someone";
+    const space = ctx.call ? ctx.call("spaces.get", {}).then((r) => (r as { space?: { name?: string } } | null)?.space?.name, () => undefined) : Promise.resolve(undefined);
+    return Promise.all([adminsOf(ctx), space]).then(([to, sp]) => to.map((id) => ({ to: id, kind: "member.join_requested", subject: { type: "space", id: ctx.space }, title: name, data: { name, space: sp || "the Space" }, collapseKey: `member.join_requested:${String(p.requestId ?? "")}` })));
+  }
   if (e.name === "member.joined") {
     // the line names the person, never their id: the directory answers, and "A new member" stands in when it cannot
     const filed = (name: string, space: string) => ({ to: String(p.invitedBy), kind: "member.joined", title: name, data: { name, space } });
@@ -168,7 +174,7 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
   "notifications.fanout": {
-    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused"],
+    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
       const planned = await plan(ctx, event);
       const out: string[] = [];

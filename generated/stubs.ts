@@ -1685,6 +1685,19 @@ export function stubs(ctx: CallCtx) {
         preview: call("members.invites.preview"),
         revoke: call("members.invites.revoke"),
       },
+      join_link: {
+        create: call("members.join_link.create"),
+        disable: call("members.join_link.disable"),
+        get: call("members.join_link.get"),
+        preview: call("members.join_link.preview"),
+        request: call("members.join_link.request"),
+        rotate: call("members.join_link.rotate"),
+      },
+      join_requests: {
+        approve: call("members.join_requests.approve"),
+        decline: call("members.join_requests.decline"),
+        list: call("members.join_requests.list"),
+      },
       joins: {
         list: call("members.joins.list"),
         retry: call("members.joins.retry"),
@@ -2192,6 +2205,7 @@ export function stubs(ctx: CallCtx) {
       list: call("providers.list"),
       own_people: call("providers.own_people"),
       remove: call("providers.remove"),
+      set_keeps_nothing: call("providers.set_keeps_nothing"),
       set_space_use: call("providers.set_space_use"),
       space_key: {
         get: call("providers.space_key.get"),
