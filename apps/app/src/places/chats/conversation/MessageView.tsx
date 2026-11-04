@@ -738,7 +738,7 @@ export const st = StyleSheet.create({
   eventTime: { fontSize: 11.5, color: "var(--ink-4)" as string },
   hookText: { flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 19, color: "var(--ink-2)" as string },
   hookLead: { color: "var(--ink)" as string, fontWeight: "500" },
-  hookAct: { fontSize: 12.5, color: "var(--ink-3)" as string, cursor: "pointer" } as object,
+  hookAct: { fontSize: 12.5, lineHeight: 19, color: "var(--ink-3)" as string, cursor: "pointer" } as object,
   gapTop: { marginTop: 18 },
   // the mark sits outside the message (marks.ts), so nothing touches its edge
   found: MARK.found as object,
