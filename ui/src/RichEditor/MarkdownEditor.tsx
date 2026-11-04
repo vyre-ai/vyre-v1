@@ -153,8 +153,8 @@ function RawMarkdown(p: { value: string; onChange: (v: string) => void; editable
   const area = useRef<DomTextArea | null>(null);
   const size = useCallback(() => { const a = area.current; if (a?.style) { a.style.height = "auto"; a.style.height = `${Math.max(a.scrollHeight, p.minHeight)}px`; } }, [p.minHeight]);
   useEffect(() => { size(); }, [p.value, size]);
-  useEffect(() => { if (p.autoFocus) area.current?.focus(); }, [p.autoFocus]);
-  useEffect(() => { if (p.focusKey) area.current?.focus(); }, [p.focusKey]);
+  useEffect(() => { if (p.autoFocus) area.current?.focus?.(); }, [p.autoFocus]);
+  useEffect(() => { if (p.focusKey) area.current?.focus?.(); }, [p.focusKey]);
   useEffect(() => {
     const a = area.current;
     if (!a || p.jump === null) return;
