@@ -48,8 +48,7 @@ import { KeyRequestCard, isKeyRequest } from "./keyrequest.tsx";
 import { AccessRequestCard, isAccessRequest } from "./accessrequest.tsx";
 import { RedactRequestCard, isRedactRequest } from "./redactrequest.tsx";
 import { ChecklistCard, isChecklist } from "./checklist.tsx";
-import { HookLineActs } from "./hookline.tsx";
-import { hookLead } from "./model.ts";
+import { HookLineRow, HookSteps } from "./hookline.tsx";
 import { NoteOfferCard, isNoteOffer } from "./noteoffer.tsx";
 import { InstallCard, isInstallPlan } from "../install/InstallCard.tsx";
 import { QuoteCard, WebPageCard, isQuote, isWebPage } from "./webpage.tsx";
@@ -217,17 +216,9 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
         </View>
       );
     }
-    if (hookLine) {
-      // a hook line (lane l-hooks): the lock where other lines have a dot, the lead words in ink, the way forward quiet at the right, no time
-      const words = hookLineText(hookLine, props.actions.nameOf ?? unnamed);
-      const [lead, rest] = hookLead(words);
-      return (
-        <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
-          <Glyph name="lock" size={13} color="var(--ink-4)" />
-          <Text style={st.hookText}><Text style={st.hookLead}>{lead}</Text>{rest}</Text>
-          {props.actions.files ? <HookLineActs id={item.key} line={hookLine} threadId={props.actions.files.threadId} call={props.actions.files.call} {...(props.actions.openHooks ? { open: (hookId: string) => props.actions.openHooks?.(hookId) } : {})} linkStyle={st.hookAct} quietStyle={st.hookAct} /> : null}
-        </View>
-      );
+    if (hookLine && props.actions.files) {
+      // a hook line (lane l-hooks): the lock where other lines have a dot, the lead words in ink, the way forward quiet
+      return <HookLineRow id={item.key} line={hookLine} words={hookLineText(hookLine, props.actions.nameOf ?? unnamed)} threadId={props.actions.files.threadId} call={props.actions.files.call} {...(props.actions.openHooks ? { open: (hookId: string) => props.actions.openHooks?.(hookId) } : {})} stepsBelow={item.stepsBelow === true} st={{ event: st.event, text: st.hookText, lead: st.hookLead, act: st.hookAct }} />;
     }
     return (
       <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
@@ -483,7 +474,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
       {m.via ? <Text testID={`via-${m.messageId}`} style={st.via}>{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text> : null}
       {work && (!work.short || !item.newgroup || workOpen) ? (
         <Fold testID={`work-${m.messageId}`} label={work.live ? `Working${work.now ? ` · ${work.now}` : ""}` : work.summary} open={work.live || workOpen} live={work.live} onToggle={() => setWorkOpen((o) => !o)}>
-          {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part="line" />}
+      {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part="line" />}
           {collect(work.steps, (l) => (
             <View key={l.id} testID={`step-${l.id}`} style={st.step}>
               <View style={[st.stepDot, l.state === "live" && st.stepLive, l.state === "error" && st.stepError]} />
@@ -495,6 +486,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
       ) : null}
       {stream ? <LiveBody store={stream} hideEmpty={actions.activityOf?.(m.messageId) !== undefined} testID={`body-${m.messageId}`} style={st.body} /> : m.body && !crewCard ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink || chips.renderLink || citeLink ? { renderLink: ((href, kids, key) => citeLink?.(href, kids, key) ?? chips.renderLink?.(href, kids, key) ?? subjects.renderLink?.(href, kids, key) ?? null) as NonNullable<typeof chips.renderLink> } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
       {stream && actions.activityOf?.(m.messageId) ? <ActivityLine store={actions.activityOf(m.messageId)!} stream={stream} {...(actions.faceInThread ? { face: <Face name={item.who.name} seedId={item.who.id} kind="agent" size={20} /> } : {})} /> : null}
+          {item.hookSteps && actions.files ? <HookSteps id={m.messageId} steps={item.hookSteps.next} agentId={item.hookSteps.agentId} threadId={actions.files.threadId} call={actions.files.call} /> : null}
       {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part={work ? "cards" : "all"} />}
           {crewStart && actions.openMessage ? <CrewStartLine block={crewStart} name={actions.nameOf ? actions.nameOf(String((crewStart.data as { agentId?: unknown } | null)?.agentId ?? "")) : item.who.name} onOpen={(id) => actions.openMessage?.(id, "")} /> : null}
       {actions.files && refsOf(m).length > 0 ? <MountRefs refs={refsOf(m)} data={actions.files} /> : null}
@@ -746,7 +738,7 @@ export const st = StyleSheet.create({
   eventTime: { fontSize: 11.5, color: "var(--ink-4)" as string },
   hookText: { flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 19, color: "var(--ink-2)" as string },
   hookLead: { color: "var(--ink)" as string, fontWeight: "500" },
-  hookAct: { fontSize: 12.5, color: "var(--ink-3)" as string, cursor: "pointer" } as object,
+  hookAct: { fontSize: 12.5, lineHeight: 19, color: "var(--ink-3)" as string, cursor: "pointer" } as object,
   gapTop: { marginTop: 18 },
   // the mark sits outside the message (marks.ts), so nothing touches its edge
   found: MARK.found as object,

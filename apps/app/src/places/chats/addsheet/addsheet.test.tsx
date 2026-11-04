@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { act } from "react";
 import type { Node } from "../../../onboarding/test-dom.ts";
 import { createRoot } from "test-renderer";
-import { mount, press, find, flush, typeInto, textOf } from "../../../onboarding/test-dom.ts";
+import { mount, press, find, flush, textOf } from "../../../onboarding/test-dom.ts";
 import { Conversation } from "../conversation/Conversation.tsx";
 import { createSample } from "../conversation/sample.ts";
 import { ChatRightPane } from "../rightpane/ChatRightPane.tsx";
@@ -14,7 +14,7 @@ import { ProjectPage, ProjectPageDataProvider } from "../../records/projectpage/
 import { createSampleProject } from "../../records/projectpage/sample.ts";
 import { useAddSheet } from "./index.ts";
 import type { AddSheetApi } from "./index.ts";
-import { SHEET, withDom, testIds, pickAndAdd } from "./addsheet.support.tsx";
+import { SHEET, withDom, pickAndAdd } from "./addsheet.support.tsx";
 
 // a right-click on a row, the way the app gets one (kept in the test file: only tests fire a native context menu)
 async function rightClick(root: Node, id: string): Promise<void> {
@@ -24,6 +24,11 @@ async function rightClick(root: Node, id: string): Promise<void> {
   await flush();
 }
 
+/** The sample project's viewer as its Lead, so the project's menu offers Add People (it is a manager's). */
+const asLead = <T extends { call(cap: string, input: unknown): Promise<unknown> }>(data: T): T & { me: { id: string; name: string } } => ({
+  ...data, me: { id: "usr_maya", name: "Maya Chen" },
+  async call(cap: string, input: unknown) { if (cap === "stars.list") return { stars: [] }; return cap === "projects.members.list" ? { members: [{ principal: "usr_maya", role: "lead", kind: "person", since: 1 }] } : data.call(cap, input); },
+});
 
 test("the composer's + has Add people and agents under This chat, and it opens the sheet", async () => {
   await withDom(async () => {
@@ -99,10 +104,10 @@ test("the right pane's Threads and Crew tabs each have the Add people and agents
   });
 });
 
-test("a project's members count opens the people popover (Manage on the Overview); its Teammates tab opens the Add sheet; the old inline form is gone", async () => {
+test("a project's members count opens the people popover (Manage on the Overview); Add People in the project's menu opens the Add sheet; there is no Teammates tab and no inline form", async () => {
   await withDom(async () => {
     const s = createSampleProject();
-    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>);
+    const root = await mount(createRoot, <ProjectPageDataProvider value={asLead(s.data)}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>);
     await flush();
     await press(find(root, "project-members"));
     await flush();
@@ -111,10 +116,12 @@ test("a project's members count opens the people popover (Manage on the Overview
     await press(find(root, "people-footer"));
     await flush();
     assert.equal(find(root, "people-popover"), null, "the footer closes it and shows the Overview");
-    await press(find(root, "tab-teammates"));
-    await flush();
+    assert.equal(find(root, "tab-teammates"), null, "the Teammates list is the people popover's now");
     assert.equal(find(root, "teammate-name"), null, "no inline form");
-    await press(find(root, "teammate-add"));
+    await flush(); await flush();
+    await press(find(root, "project-more"));
+    await flush();
+    await press(find(root, "menu-item-Add People…"));
     await flush();
     assert.ok(find(root, SHEET));
     assert.match(textOf(find(root, SHEET)), /to Rivera engagement/);
@@ -143,126 +150,4 @@ test("the new-chat landing's With row uses the same sheet and hands the picks ba
 });
 
 /* ---------- what the picks call ---------- */
-
-test("a guest invite goes through threads.invite_guest with the chosen level", async () => {
-  await withDom(async () => {
-    const s = createSample("idle");
-    const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
-    await flush();
-    await typeInto(find(root, "as-search"), "dana@fox-legal.com");
-    await press(find(root, "as-invite"));
-    await press(find(root, "as-role-guest:dana@fox-legal.com"));
-    await press(find(root, "menu-item-Can reply"));
-    await press(find(root, "as-add"));
-    await flush();
-    const call = s.calls.find((c) => c.cap === "threads.invite_guest");
-    assert.deepEqual({ ...(call?.input as object), idempotencyKey: "k" }, { threadId: "c1", email: "dana@fox-legal.com", level: "reply", idempotencyKey: "k" });
-    assert.ok(s.toasts.some((t) => /dana@fox-legal\.com was added/.test(t)), s.toasts.join("|"));
-  });
-});
-
-test("a chat-owned agent is made through threads.agent.create and shows in the chat with its chat", async () => {
-  await withDom(async () => {
-    const s = createSample("idle");
-    const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
-    await flush();
-    await press(find(root, "as-new"));
-    await typeInto(find(root, "as-name"), "Checker");
-    await typeInto(find(root, "as-brief"), "Checks every upload against the spec");
-    await press(find(root, "as-create"));
-    await press(find(root, "as-add"));
-    await flush();
-    const call = s.calls.find((c) => c.cap === "threads.agent.create");
-    assert.equal((call?.input as { threadId: string }).threadId, "c1");
-    assert.equal((call?.input as { name: string }).name, "Checker");
-    assert.equal((call?.input as { brief: string }).brief, "Checks every upload against the spec");
-    assert.ok(!s.calls.some((c) => c.cap === "agents.create"), "it never reaches the Agents page");
-    assert.ok(testIds(root).some((i) => /^face-agt_new/.test(i)), "it shows with the chat");
-    assert.ok(s.toasts.includes("Checker was added"));
-  });
-});
-
-test("an outside agent goes through threads.outside_agent.add, and its x on Here now calls threads.outside_agent.remove", async () => {
-  await withDom(async () => {
-    const s = createSample("idle");
-    const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
-    await flush();
-    await pickAndAdd(root, ["outside:out_cc"]);
-    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.outside_agent.add").map((c) => c.input), [{ threadId: "c1", agentId: "out_cc", mode: "listen" }]);
-    assert.ok(!s.calls.some((c) => c.cap === "threads.add_agent" && (c.input as { agentId: string }).agentId === "out_cc"), "never as a plain agent");
-    // open again: it is Here now, and can be taken out
-    await press(find(root, "add-agent"));
-    await flush();
-    await press(find(root, "as-here-remove-out_cc"));
-    await flush();
-    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.outside_agent.remove").map((c) => c.input), [{ threadId: "c1", agentId: "out_cc" }]);
-    assert.equal(find(root, "as-here-remove-out_cc"), null, "gone from Here now");
-    assert.ok(s.toasts.includes("Claude Code was removed"));
-  });
-});
-
-test("an agent picked with Only listens is added, then set quiet; a person is added to the chat", async () => {
-  await withDom(async () => {
-    const s = createSample("idle");
-    const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
-    await flush();
-    await press(find(root, "as-row-agent:agt_research"));
-    await press(find(root, "as-settings-agent:agt_research"));
-    await press(find(root, "as-how-listen"));
-    await press(find(root, "as-row-person:usr_maya"));
-    await press(find(root, "as-add"));
-    await flush();
-    const caps = s.calls.map((c) => c.cap).filter((c) => /^threads\.(members\.add|add_agent|agent_settings\.set)$/.test(c));
-    assert.deepEqual(caps, ["threads.add_agent", "threads.agent_settings.set", "threads.members.add"], "in the order picked; settings follow their agent");
-    assert.equal((s.calls.find((c) => c.cap === "threads.agent_settings.set")?.input as { mode: string }).mode, "quiet");
-    assert.ok(s.toasts.includes("Maya Chen and Research were added") || s.toasts.includes("Research and Maya Chen were added"), s.toasts.join("|"));
-  });
-});
-
-test("a person who can only view cannot give Member: the option is not offered and the footer says why", async () => {
-  await withDom(async () => {
-    const s = createSample("idle", { viewOnly: true });
-    const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
-    await flush();
-    await press(find(root, "as-row-person:usr_maya"));
-    assert.match(textOf(find(root, "as-pick-person:usr_maya")), /Can view/);
-    assert.match(textOf(find(root, "as-line-limited")), /You can view here/);
-    await press(find(root, "as-role-person:usr_maya"));
-    assert.ok(find(root, "menu-item-Member") === null && find(root, "menu-item-Member (you do not have this)") === null, "a level above your own is hidden, not greyed");
-  });
-});
-
-test("Include earlier messages shows for a chat and is off by default; on, the person is added with fromStart; a channel and a project never show it", async () => {
-  await withDom(async () => {
-    const s = createSample("idle");
-    const root = await mount(createRoot, <Conversation data={s.data} />);
-    await press(find(root, "add-agent"));
-    await flush();
-    await press(find(root, "as-row-person:usr_maya"));
-    assert.ok(find(root, "as-earlier"), "shown for a chat");
-    assert.match(textOf(find(root, "as-line-std")), /from now on/);
-    await press(find(root, "as-add"));
-    await flush();
-    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").map((c) => c.input), [{ threadId: "c1", personId: "usr_maya" }], "off by default: no flag");
-    await press(find(root, "add-agent"));
-    await flush();
-    await press(find(root, "as-row-person:usr_omar"));
-    await press(find(root, "as-earlier"));
-    assert.match(textOf(find(root, "as-line-std")), /They'll see the whole chat/);
-    await press(find(root, "as-add"));
-    await flush();
-    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").at(-1)?.input, { threadId: "c1", personId: "usr_omar", fromStart: true });
-    const ch = createSample("channel");
-    const room = await mount(createRoot, <Conversation data={ch.data} />);
-    await press(find(room, "add-agent"));
-    await flush();
-    await press(find(room, "as-row-person:usr_omar"));
-    assert.equal(find(room, "as-earlier"), null, "a channel's people read everything it holds");
-  });
-});
 

@@ -2,7 +2,7 @@
 // linked records and pinned files. Plan is the shared Plan (Timeline, Board, List, Calendar); an edit writes projects.reschedule or tasks.update, and a slip asks to move the later tasks or keep
 // their dates. Files opens the project's folder. Chat is the project's one channel: every thread of it is listed, and the arrow-out mark opens a thread as its own chat. Status, Lead and Due sit
 // under the name; the channel and the folder are icon buttons. Each action is one capability call; a refusal shows as a quiet line.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -11,12 +11,20 @@ import type { PlanTask } from "../../../../../../ui/src/Plan/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { TabStrip } from "../../../../../../ui/src/TabStrip/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { projectMenu } from "../../chats/menus/kinds-b.ts";
 import { copyToClipboard, createMenuApiB, vyreLink } from "../../chats/menus/actions-b.ts";
 import { GoalsOf } from "../../chats/goals/GoalsList.tsx";
 import { useProjectPageData } from "./data.tsx";
-import { ROLE_WORDS, TAB_SPECS, ago, dateWords, dueWords, editsBetween, isoDay, planStages, planTasks, plural } from "./model.ts";
-import type { Overview, PlanOut, TabKey } from "./model.ts";
+import { HEALTH_LABEL, HEALTH_ORDER, ROLE_WORDS, ago, dateWords, dueWords, editsBetween, isoDay, planStages, planTasks, plural } from "./model.ts";
+import type { Overview, PlanOut } from "./model.ts";
+import { DEFAULT_PROJECT_TAB, PROJECT_TABS, isProjectTab } from "./tabs.ts";
+import type { ProjectSpace, ProjectTabKey } from "./tabs.ts";
+import { ProjectOverview } from "./overview/index.tsx";
+import { ProjectLinked } from "./linked/index.tsx";
+import { KnowsTab } from "./KnowsTab.tsx";
+import { IconButton } from "../../chats/conversation/parts.tsx";
+import type { FrameStore } from "../../chats/conversation/frame.ts";
 import { ImportedHistory } from "./ImportedHistory.tsx";
 import { TeammatesTab } from "./TeammatesTab.tsx";
 import { useAddSheet } from "../../chats/addsheet/index.ts";
@@ -26,23 +34,33 @@ import { itemLink } from "../../../share/rows.ts";
 
 export interface ProjectPageProps {
   projectId: string;
-  onTabChange?: (tab: TabKey) => void;
+  onTabChange?: (tab: ProjectTabKey) => void;
   /** The tab it opens on. */
-  tab?: TabKey;
+  tab?: ProjectTabKey;
+  /** The Space it is in. */
+  space?: ProjectSpace;
+  /** The project's main chat, drawn by the host that owns the conversation (Chats: the real conversation with its composer, crew strip and side pane). Absent: the list of its chats. */
+  chatSlot?: ReactElement | null;
+  /** The controls the project's chat hands up (conversation/frame.ts): drawn in this header on the Chat tab, and its More entries follow the project's own. */
+  chatControls?: FrameStore;
   /** The Plan's view when it opens on the Plan tab. */
   planView?: "timeline" | "board" | "list" | "calendar";
 }
 
 type Load = { status: "loading" } | { status: "gone" } | { status: "ready"; overview: Overview; plan: PlanOut };
 
-export function ProjectPage({ projectId, tab: first = "overview", planView = "timeline", onTabChange }: ProjectPageProps): ReactElement {
+export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planView = "timeline", onTabChange, chatSlot, chatControls, space = { id: "", kind: "team", name: "" } }: ProjectPageProps): ReactElement {
   const d = useProjectPageData();
   const [load, setLoad] = useState<Load>({ status: "loading" });
-  const [tab, setTab] = useState<TabKey>(first);
+  const [tab, setTab] = useState<ProjectTabKey>(first);
   useEffect(() => setTab(first), [first]);
   const [note, setNote] = useState<string | null>(null);
   const menu = useMenu();
-  const [mine, setMine] = useState<{ manage: boolean; edit: boolean; starred: boolean }>({ manage: false, edit: false, starred: false });
+  const noFrame = useMemo(() => ({ subscribe: () => () => undefined, version: () => 0, get: () => null }), []);
+  const frameStore = chatControls ?? noFrame;
+  useSyncExternalStore(frameStore.subscribe, frameStore.version, frameStore.version);
+  const chat = tab === "chat" ? frameStore.get() : null;
+  const [mine, setMine] = useState<{ manage: boolean; edit: boolean; starred: boolean; people: string[] }>({ manage: false, edit: false, starred: false, people: [] });
   const api = useMemo(() => createMenuApiB(d), [d]);
   const say = useCallback((e: unknown): void => setNote(e instanceof Error ? e.message : "That did not work."), []);
 
@@ -54,9 +72,10 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
       // what the right-click menu offers follows the person's role on the project and whether they starred it
       try {
         const members = (await d.call("projects.members.list", { projectId })) as { members?: { principal: string; role: string }[] };
-        const stars = (await d.call("stars.list", {})) as { stars?: { resource: { type: string; id: string } }[] };
+        // a Space that cannot list stars still tells the person their role: the star is the only thing lost
+        const stars = (await Promise.resolve(d.call("stars.list", {})).catch(() => ({ stars: [] }))) as { stars?: { resource: { type: string; id: string } }[] };
         const role = (members.members ?? []).find((m) => m.principal === d.me?.id)?.role?.toLowerCase();
-        setMine({ manage: role === "lead", edit: role === "lead" || role === "member", starred: (stars.stars ?? []).some((x) => x.resource.type === "project" && x.resource.id === projectId) });
+        setMine({ manage: role === "lead", edit: role === "lead" || role === "member", people: (members.members ?? []).map((m) => m.principal), starred: (stars.stars ?? []).some((x) => x.resource.type === "project" && x.resource.id === projectId) });
       } catch { /* the menu then offers only what anyone may do */ }
     } catch { setLoad({ status: "gone" }); }
   }, [d, projectId]);
@@ -92,45 +111,73 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
     })();
   };
 
-  const facts: ReactElement[] = [];
-  const fact = (label: string, value: string, id: string): void => { facts.push(<View key={id} style={s.fact} testID={id}><Text style={s.k}>{label}</Text><Text style={s.v}>{value}</Text></View>); };
-  fact("Status", p.status, "project-status");
-  if (p.lead) fact("Lead", d.nameOf(p.lead), "project-lead");
-  fact("Due", p.due !== undefined ? `${dateWords(p.due)} · ${dueWords(p.due, now)}` : "No due date", "project-due");
+  const setHealth = (health: "on" | "risk" | "off" | "hold" | "done" | null): void => { void d.call("projects.set", { projectId, health }).then(() => { setNote(health === null ? "Status cleared" : `Status: ${HEALTH_LABEL[health]}`); void read(); }, say); };
+  const projectEntries = (): MenuEntry[] => projectMenu({ title: p.title, starred: mine.starred, archived: p.archivedAt !== undefined, manage: mine.manage, edit: mine.edit }, {
+    star: (on) => { void api.projectStar(projectId, on).then(() => { setMine((m) => ({ ...m, starred: on })); setNote(on ? "Starred" : "Star removed"); }, say); },
+    share: () => d.nav.openRecordPage(p.type, p.recordId), addPeople: () => add.open({ projectId }),
+    pinFile: () => pick("linked"),
+    archive: () => { void api.projectArchive(projectId).then(() => { setNote("Archived. It left the lists and still opens; Unarchive brings it back."); void read(); }, say); },
+    unarchive: () => { void api.projectUnarchive(projectId).then(() => { setNote("Back in the lists"); void read(); }, say); }, copyLink: () => { copyToClipboard(vyreLink("project", projectId)); setNote("Link copied"); },
+  });
+  // More is one menu: the project's items, a divider, then the chat's (only on the Chat tab)
+  const moreEntries = (): MenuEntry[] => { const mine = projectEntries(); const theirs = chat ? chat.chatEntries() : []; return theirs.length > 0 ? [...mine, { separator: true } as MenuEntry, ...theirs] : mine; };
+  const pick = (k: ProjectTabKey): void => { setTab(k); onTabChange?.(k); };
+  const at = (e: unknown): { x: number; y: number } => { const t = (e as { nativeEvent?: { pageX?: number; pageY?: number }; clientX?: number; clientY?: number } | undefined); return { x: t?.clientX ?? t?.nativeEvent?.pageX ?? 24, y: (t?.clientY ?? t?.nativeEvent?.pageY ?? 40) + 12 }; };
+  const health = p.health;
+  const lead = p.lead;
+  const counts: Partial<Record<ProjectTabKey, number>> = { plan: plan.tasks.filter((t) => t.status === "awaiting_approval" || t.status === "in_review").length };
+  const tabs = PROJECT_TABS.map((t) => ({ key: t.key, title: counts[t.key] ? `${t.title} ${counts[t.key]}` : t.title }));
+  const canEdit = mine.edit;
 
   return (
     <View style={s.frame} testID="project-page" accessibilityLabel={`Project, ${p.title}`}>
       {menu.element}
-      <View style={s.head} testID="project-head" {...menuTrigger((x, y) => menu.show(projectMenu({ title: p.title, starred: mine.starred, archived: p.archivedAt !== undefined, manage: mine.manage, edit: mine.edit }, {
-        star: (on) => { void api.projectStar(projectId, on).then(() => { setMine((m) => ({ ...m, starred: on })); setNote(on ? "Starred" : "Star removed"); }, say); },
-        share: () => d.nav.openRecordPage(p.type, p.recordId), addPeople: () => add.open({ projectId }),
-        pinFile: () => { setTab("files"); onTabChange?.("files"); },
-        archive: () => { void api.projectArchive(projectId).then(() => { setNote("Archived. It left the lists and still opens; Unarchive brings it back."); void read(); }, say); },
-        unarchive: () => { void api.projectUnarchive(projectId).then(() => { setNote("Back in the lists"); void read(); }, say); }, copyLink: () => { copyToClipboard(vyreLink("project", projectId)); setNote("Link copied"); },
-      }), x, y, "context", { label: p.title }))}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text accessibilityRole="header" aria-level={1} numberOfLines={1} style={s.title} testID="project-title">{p.title}</Text>
-          <View style={s.facts}>{facts}</View>
+      <View style={s.head} testID="project-head" {...menuTrigger((x, y) => menu.show(projectEntries(), x, y, "context", { label: p.title }))}>
+        <View style={s.tt}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Project menu" testID="project-menu" onPress={(e: unknown) => { const q = at(e); menu.show(projectEntries(), q.x, q.y, "other", { label: p.title }); }} style={({ hovered }: { hovered?: boolean }) => [s.titleBtn, hovered === true && s.hover]}>
+            <Text accessibilityRole="header" aria-level={1} numberOfLines={1} style={s.title} testID="project-title">{p.title}</Text>
+            <Text style={s.chev}>{"\u2304"}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={mine.starred ? "Unstar" : "Star"} accessibilityState={{ selected: mine.starred }} testID="project-star" onPress={() => { const on = !mine.starred; void api.projectStar(projectId, on).then(() => { setMine((m) => ({ ...m, starred: on })); setNote(on ? "Starred" : "Star removed"); }, say); }} style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, hovered === true && s.hover]}>
+            <Text style={[s.star, mine.starred && s.starOn]}>{mine.starred ? "\u2605" : "\u2606"}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Status: ${health ? HEALTH_LABEL[health] : "Not set"}`} testID="project-health" disabled={!canEdit}
+            onPress={(e: unknown) => { const q = at(e); menu.show([...HEALTH_ORDER.map((h) => ({ label: HEALTH_LABEL[h], onSelect: () => setHealth(h) })), ...(health ? [{ separator: true as const }, { label: "Clear", onSelect: () => setHealth(null) }] : [])], q.x, q.y, "other", { label: "Status" }); }}
+            style={({ hovered }: { hovered?: boolean }) => [s.pill, hovered === true && canEdit && s.hover]}>
+            <View style={[s.dot, { backgroundColor: HEALTH_COLOR[health ?? "none"] }]} />
+            <Text style={s.pillText}>{health ? HEALTH_LABEL[health] : "No status"}</Text>
+          </Pressable>
+          {lead ? (
+            <View style={s.pill} testID="project-lead"><Avatar name={d.nameOf(lead)} size={18} /><Text style={s.pillText}>{d.nameOf(lead)}</Text></View>
+          ) : null}
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Open the channel in Chats" testID="project-channel" onPress={() => d.nav.openChannel(p.channelId)} style={({ hovered }: { hovered?: boolean }) => [s.icon, hovered === true && s.iconOver]}><Text style={s.iconText}>#</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Open the folder in Files" testID="project-folder" onPress={() => d.nav.openFolder(p.folderId)} style={({ hovered }: { hovered?: boolean }) => [s.icon, hovered === true && s.iconOver]}><Text style={s.iconText}>{"▤"}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="People and agents" testID="project-members" aria-haspopup="dialog" onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; right: number; bottom: number } } }) => { const r = e.currentTarget?.getBoundingClientRect?.(); setPeople(r ? { x: r.right, y: r.bottom, left: r.left } : { x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 }); }} style={({ hovered }: { hovered?: boolean }) => [s.pill, hovered === true && s.hover]}>
+          {/* ui-rows-lint: not a list (up to four stacked faces on the members button) */}
+          <View style={s.stack}>{mine.people.slice(0, 4).map((id) => <View key={id} style={s.stackFace}><Avatar name={d.nameOf(id)} size={20} /></View>)}</View>
+          <Text style={s.pillText}>{String(p.memberCount)}</Text>
+        </Pressable>
+        {chat ? (
+          <>
+            {chat.helpers ? <IconButton icon="helper" label={chat.helpers.label} badge={chat.helpers.badge} testID="helpers-button" onPress={chat.helpers.onPress} /> : null}
+            {chat.stop ? <IconButton icon="stop" label={chat.stop.label} danger testID="stop-button" onPress={chat.stop.onPress} /> : null}
+            <IconButton icon="search" label="Find in chat" active={chat.find.active} testID="find-button" onPress={() => chat.find.toggle()} />
+            <IconButton icon="pane" label="Show or hide the pane" testID="pane-button" onPress={() => chat.pane.toggle()} />
+          </>
+        ) : null}
+        <Pressable accessibilityRole="button" accessibilityLabel="More" testID="project-more" onPress={(e: unknown) => { const q = at(e); menu.show(moreEntries(), q.x, q.y, "other", { label: p.title }); }} style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, hovered === true && s.hover]}><Text style={s.iconText}>{"\u2026"}</Text></Pressable>
       </View>
-      <View style={s.strip} testID="project-strip" accessibilityLabel="Project at a glance">
-        <Text style={s.stripText}>{plural(p.openTasks, "open task")}</Text>
-        <Text style={[s.stripText, p.lateTasks > 0 && s.late]} testID="project-late">{p.lateTasks > 0 ? `${p.lateTasks} late` : "None late"}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="People and agents" aria-haspopup="dialog" testID="project-members" onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; right: number; bottom: number } } }) => { const r = e.currentTarget?.getBoundingClientRect?.(); setPeople(r ? { x: r.right, y: r.bottom, left: r.left } : { x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 }); }}><Text style={s.stripText}>{plural(p.memberCount, "person", "people")}</Text></Pressable>
-      </View>
-      {d.nav.openGoal ? <GoalsOf scope="project" id={projectId} call={d.call} changes={d.changes} now={d.now()} offsetMin={0} nameOf={d.nameOf} openGoal={d.nav.openGoal} testID="project-goals" /> : null}
-      <TabStrip underline tabs={TAB_SPECS} active={tab} onSelect={(k) => { setTab(k as TabKey); onTabChange?.(k as TabKey); }} />
-      {tab === "overview" ? <OverviewTab o={o} now={now} /> : null}
+      <TabStrip underline tabs={tabs} active={tab} onSelect={(k) => pick(k as ProjectTabKey)} />
+      {tab === "chat" && chatSlot ? <View style={s.chatSlot} testID="project-chat-main">{chatSlot}</View> : null}
+      {tab === "chat" && !chatSlot ? <ChatTab o={o} projectId={projectId} channelName={`#${p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`} now={now} /> : null}
       {tab === "plan" ? (
         <View style={s.planBody} testID="project-plan">
-          <Plan today={isoDay(plan.today)} view={planView} viewKey={`project-${projectId}`} stages={planStages(plan)} tasks={tasks} onChange={save} onOpenTask={(t) => { void d.call("projects.open_task_thread", { projectId, taskId: t.id }).then((r) => d.nav.openThread((r as { threadId: string }).threadId)).catch(say); }} height={420} testID="project-plan-chart" />
+          {d.nav.openGoal ? <GoalsOf scope="project" id={projectId} call={d.call} changes={d.changes} now={d.now()} offsetMin={0} nameOf={d.nameOf} openGoal={d.nav.openGoal} testID="project-goals" /> : null}
+          <Plan today={isoDay(plan.today)} view={planView} viewKey={`project-${projectId}`} stages={planStages(plan)} tasks={tasks} onChange={save} onOpenTask={(t) => { void d.call("projects.open_task_thread", { projectId, taskId: t.id }).then((out) => { const id = (out as { threadId?: string }).threadId; if (id) d.nav.openThread(id); }, say); }} />
         </View>
       ) : null}
-      {tab === "files" ? <FilesTab o={o} /> : null}
-      {tab === "chat" ? <ChatTab o={o} projectId={projectId} channelName={`#${p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`} now={now} /> : null}
-      {tab === "teammates" ? <TeammatesTab projectId={projectId} refresh={added} onAdd={() => add.open({ projectId })} /> : null}
+      {tab === "overview" ? <ProjectOverview projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
+      {tab === "linked" ? <ProjectLinked projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
+      {tab === "knows" ? <KnowsTab projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
       {note ? <Text style={s.note} accessibilityLiveRegion="polite" testID="project-note">{note}</Text> : null}
       {add.element}
       {people ? <ProjectPeople o={o} projectId={projectId} at={people} onClose={() => setPeople(null)} toOverview={() => { setPeople(null); setTab("overview"); onTabChange?.("overview"); }} menu={menu} reload={() => { void read(); }} say={say} /> : null}
@@ -241,10 +288,24 @@ export function ChatTab({ o, channelName, now, projectId }: { o: Overview; chann
   );
 }
 
+const HEALTH_COLOR: Record<string, string> = { on: "var(--ok)", risk: "var(--warn)", off: "var(--danger)", hold: "var(--ink-3)", done: "var(--accent)", none: "var(--line-2)" };
+
 const s = StyleSheet.create({
   frame: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
-  head: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 8 },
-  title: { fontSize: 24, fontWeight: "600", letterSpacing: -0.4, color: "var(--ink)" as string },
+  head: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 8 },
+  tt: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  titleBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, maxWidth: "100%" },
+  chev: { fontSize: 13, color: "var(--ink-3)" as string, marginTop: -4 },
+  hover: { backgroundColor: "var(--hover)" as string },
+  iconBtn: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center" },
+  star: { fontSize: 16, color: "var(--ink-3)" as string },
+  starOn: { color: "var(--warn)" as string },
+  pill: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 8 },
+  pillText: { fontSize: 12.5, color: "var(--ink-2)" as string },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  stack: { flexDirection: "row", marginRight: 2 },
+  stackFace: { marginLeft: -6 },
+  title: { fontSize: 20, fontWeight: "600", letterSpacing: -0.3, color: "var(--ink)" as string },
   facts: { flexDirection: "row", flexWrap: "wrap", columnGap: 24, rowGap: 6, marginTop: 8 },
   fact: { flexDirection: "row", alignItems: "baseline", gap: 6 },
   k: { fontSize: 12, color: "var(--ink-3)" as string },
@@ -270,6 +331,7 @@ const s = StyleSheet.create({
   face: { marginRight: 10 },
   open: { alignSelf: "flex-start", height: 28, justifyContent: "center", paddingHorizontal: 10, borderRadius: 7, backgroundColor: "var(--accent-wash)" as string },
   openText: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
+  chatSlot: { flex: 1, minHeight: 0 },
   planBody: { flex: 1, minHeight: 0, paddingHorizontal: 12, paddingTop: 8 },
   note: { position: "absolute", left: 16, bottom: 14, fontSize: 12.5, color: "var(--ink-2)" as string, backgroundColor: "var(--raised)" as string, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   skHead: { height: 60, margin: 18, borderRadius: 9, backgroundColor: "var(--sunk)" as string },

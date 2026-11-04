@@ -113,6 +113,10 @@ for (const eng of ENGINES) {
       await say("Call the files_tree tool once, then tell me in one sentence what happened. If it was stopped, quote the reason.", "hc-2");
       await agentSaid(/off limits/i, 2);
       assert.ok((await messages()).some((m) => m.kind === "quiet" && /^A hook stopped this: This folder is off limits in this chat/.test(m.body ?? "")), "the chat shows A hook stopped this: <reason>");
+      // the stop is two items: the quiet line, then the agent's own message directly after it
+      const afterStop = (await messages()); const at = afterStop.findIndex((m) => m.kind === "quiet" && /^A hook stopped this: /.test(m.body ?? ""));
+      const reply = afterStop.slice(at + 1).find((m) => m.kind !== "quiet");
+      assert.ok(reply && reply.author?.kind === "agent" && (reply.body ?? "") !== "", "the agent says what happened right after the stop line");
       const runs = (await call(d, token, "hooks.runs.list", { threadId })).data.runs as Array<{ hookId: string; outcome: string }>;
       assert.ok(runs.some((r) => r.hookId === stopHook.data.hook.id && r.outcome === "blocked"), "hooks.runs.list shows the block");
 

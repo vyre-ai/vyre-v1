@@ -443,8 +443,10 @@ test("a session that ends fails the call in flight at once", async () => {
   const caller = outside({ sessionId: "ses_slow" });
   const server = createMcpServer({ catalog: g.catalog, defaults: g.defaults, invoke: slow, open: async () => caller });
   const call = server.handle({ method: "POST", headers: { authorization: "Bearer t" }, body: JSON.stringify({ jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "records_query", arguments: { type: "lead" } } }) });
-  await new Promise((r) => setTimeout(r, 10));
-  assert.equal(server.end("ses_slow"), true);
+  // the call is in flight once its session is open (the hooks layer and the tool list come first, so a fixed 10 ms was too short under load): end it then
+  let ended = false;
+  for (let i = 0; i < 200 && !ended; i++) { await new Promise((r) => setTimeout(r, 10)); ended = server.end("ses_slow"); }
+  assert.equal(ended, true, "the session was open with the call in flight");
   const out = JSON.parse((await call).body) as { result: { isError: boolean; structuredContent: { error: { code: string } } } };
   assert.equal(out.result.isError, true);
   assert.equal(out.result.structuredContent.error.code, "permission.revoked");

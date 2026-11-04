@@ -77,8 +77,9 @@ export function createSample(variant: Variant = "done", o: { online?: boolean; h
     ({ id, scope, event: "tool.before", kind, matcher: "", line, paused: false, madeBy: by, madeByKind: byKind, ...(threadId ? { threadId } : {}), helpers: true, timeoutSec: 20, createdAt: SAMPLE_NOW, updatedAt: SAMPLE_NOW, spec, mine: false, canChange: false });
   if (o.hooks) replica.put("hooks", [
     hk("hok_own", "run", thread.threadId, "before a helper opens a link, only open links from the quotes you were sent", "check", { instruction: "Only open links from the quotes" }, "agt_lead", "agent"),
+    hk("hok_chat", "chat", "c2", "before any email, check the address is in Contacts", "check", { instruction: "Check the address is in Contacts" }, "agt_lead", "agent"),
     hk("hok_run", "run", "c2", "before any search, no client names", "check", { instruction: "No client names" }, "agt_lead", "agent"),
-    hk("hok_space", "space", undefined, "before any tool call, keep to the Space rules", "command", { command: "rules.sh" }, "usr_irfad", "admin"),
+    hk("hok_space", "space", undefined, "before a helper acts, keep to the Space rules", "command", { command: "rules.sh" }, "usr_irfad", "admin"),
   ]);
   replica.resolve("hooks.list", () => ({ hooks: o.hooks ? (replica.rows("hooks") as unknown[]) : [], agentHooks: true }));
   replica.resolve("threads.get", (_t, input) => {

@@ -2,7 +2,7 @@
 // It never sends and never holds a key: it holds a short-lived token for as long as the socket takes to open. Words are never logged. Every failure is one plain line, and what is already in the field stays.
 import { TALK_SAMPLE_RATE, talkProvider } from "../../../lib/talk.ts";
 
-export interface TalkSession { provider: string; url: string; protocols: string[]; source: "own" | "space"; expiresIn: number }
+export interface TalkSession { provider: string; url: string; protocols: string[]; context?: string; source: "own" | "space"; expiresIn: number }
 export interface TalkSocket {
   binaryType?: string;
   readyState: number;
@@ -88,12 +88,16 @@ export function startTalk(deps: TalkDeps, ev: TalkEvents, opts: { warm: boolean 
   const finals: string[] = [];
   let interim = "";
   let closing: string | null = null;
-  let frame: (pcm: ArrayBuffer) => string | ArrayBuffer = (pcm) => pcm;
+  let frame: (pcm: ArrayBuffer, o?: { first?: boolean; context?: string | undefined }) => string | ArrayBuffer = (pcm) => pcm;
+  let context: string | undefined;
+  let framed = 0;
+  /** One chunk as the provider wants it; the first one carries the context line. */
+  const framePcm = (pcm: ArrayBuffer): string | ArrayBuffer => frame(pcm, { first: framed++ === 0, context });
 
   const onAudio = (pcm: ArrayBuffer, level: number): void => {
     if (phase === "closing" || phase === "done") return;
     ev.level(level);
-    if (socket?.readyState === OPEN) socket.send(frame(pcm));
+    if (socket?.readyState === OPEN) socket.send(framePcm(pcm));
     else if (backlog.length < BACKLOG_CHUNKS) backlog.push(pcm);
   };
   const quiet = (): void => {
@@ -122,13 +126,14 @@ export function startTalk(deps: TalkDeps, ev: TalkEvents, opts: { warm: boolean 
     if (!provider) { fail(LINE.generic); return; }
     closing = provider.closing;
     frame = provider.frame;
+    context = info.context;
     let s: TalkSocket;
     try { s = deps.openSocket(info.url, info.protocols); } catch { fail(LINE.down); return; }
     socket = s;
     s.binaryType = "arraybuffer";
     s.onopen = () => {
       if (phase === "done") return;
-      for (const pcm of backlog.splice(0)) s.send(frame(pcm));
+      for (const pcm of backlog.splice(0)) s.send(framePcm(pcm));
       if (phase === "closing") { s.send(provider.closing); return; }
       phase = "open";
       ev.listening();

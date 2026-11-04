@@ -12,3 +12,4 @@
 - A server that was not installed with vyre-server (run from source, updated by its host) now answers Server updates with "updated outside Vyre" instead of a refusal, so the Updates page loads without an error.
 - Saving a mailbox password for Other email (IMAP) in your own Vault now works: the server reads it as you, not as the Space, so connecting no longer fails with "did not accept the sign-in" before it reaches the mailbox. When the Vault is locked or has no such item, it says so.
 - The first-hour walk can run the crew and held-email steps through a scripted model that calls real tools (scripts/shots/first-hour-scripted.mjs).
+- A member's own mail or calendar read through the Space's Google delegation no longer tries to tell the connection it works (a call the member may not make, refused on every read): only the host's polls and checks, or someone who manages the Space connection, do.

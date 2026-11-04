@@ -133,7 +133,7 @@ export async function session(ctx: TalkCtx, _i: Record<string, never>) {
     ? await needHost(ctx).mint(ctx, { provider: p.key, handle: `${used!.handle}.${p.keyField}`, asker: person, own: true })
     : await needHost(ctx).mint(ctx, { provider: p.key, handle: `${space!.handle}.${p.keyField}`, own: false });
   const socket = p.socket({ model, language, token: minted.token, terms: await termsFor(ctx) });
-  return { provider: p.key, url: socket.url, protocols: socket.protocols, source: own ? "own" : "space", expiresIn: Math.max(1, Math.round(minted.expiresIn)) };
+  return { provider: p.key, url: socket.url, protocols: socket.protocols, ...(socket.context ? { context: socket.context } : {}), source: own ? "own" : "space", expiresIn: Math.max(1, Math.round(minted.expiresIn)) };
 }
 
 /** The words a provider mishears most: Vyre, the Space's name, and the names of its agents and people. Read as the person asking, so only what they may see; a read that fails leaves its words out and the session goes on. */

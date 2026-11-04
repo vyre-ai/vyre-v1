@@ -25,6 +25,6 @@ test("no hooks, no section", () => {
 
 test("splitHooks puts a run hook set on the helper's own thread apart from the rest", () => {
   const h = (id: string, scope: string, threadId?: string) => ({ id, scope, threadId }) as never;
-  const r = splitHooks([h("a", "run", "H"), h("b", "run", "P"), h("c", "space")], "H");
-  assert.deepEqual([r.own.map((x) => x.id), r.inherited.map((x) => x.id)], [["a"], ["b", "c"]]);
+  const r = splitHooks([h("a", "run", "H"), h("b", "run", "P"), h("c", "space"), h("d", "chat", "P")], "H");
+  assert.deepEqual([r.own.map((x) => x.id), r.chat.map((x) => x.id), r.inherited.map((x) => x.id)], [["a"], ["d"], ["b", "c"]], "the chat's own rule is shown as From this chat, apart from the rest");
 });

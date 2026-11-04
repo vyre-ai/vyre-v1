@@ -2,11 +2,11 @@
 //   Space hooks are an admin's. Person hooks are the person's own. An agent sets hooks only for itself (agent, chat and run scope) and for the helpers it starts (run scope), as checks, notes and its own
 //   actions: nothing an agent makes can loosen a Space or person hook, skip the Gate, approve a held act or reach past the agent's own reach, because a hook can only stop work, add a note or run an
 //   action through the normal pipeline as the agent. An admin can turn agent-made hooks off for the whole Space.
-import { HOOK_EVENTS, HOOK_KINDS, HOOK_SCOPES, plainLine, redact } from "../../../lib/hooks.ts";
+import { HOOK_EVENTS, HOOK_KINDS, HOOK_SCOPES, plainLine, plainTools, redact } from "../../../lib/hooks.ts";
 import { isTenantService, isTrustedService } from "../../../lib/trust.ts";
 import type { HookFire } from "../../../lib/hooks.ts";
 import { ACTION_DENIED, fire as fireHooks } from "../eval.ts";
-import { addPass, PASS_MS, agentHooksOn, allHooks, ensure, helpersActive, hookById, link, nextSeq, parentOf, raise, setAgentHooks } from "../projections.ts";
+import { addPass, PASS_MS, agentHooksOn, allHooks, ensure, helpersActive, hookById, lineage, link, nextSeq, parentOf, raise, setAgentHooks } from "../projections.ts";
 import type { HooksCtx, Rec, Spec } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -87,7 +87,7 @@ function clean(ctx: HooksCtx, i: SetIn): { spec: Spec; line: string; timeoutSec:
     if (ACTION_DENIED.test(cap)) raise(ctx, "permission.no_grant", "A hook cannot approve, grant or change hooks, settings or access.");
     spec = { cap, input: i.input ?? {} };
   }
-  const line = redact((i.summary ?? "").trim() || plainLine({ event: i.event, kind: i.kind, matcher: i.matcher ?? "", ...(spec.instruction ? { instruction: spec.instruction } : {}), ...(spec.cap ? { cap: spec.cap } : {}), ...(spec.command ? { command: spec.command } : {}) }), 200);
+  const line = plainTools(redact((i.summary ?? "").trim() || plainLine({ event: i.event, kind: i.kind, matcher: i.matcher ?? "", ...(spec.instruction ? { instruction: spec.instruction } : {}), ...(spec.cap ? { cap: spec.cap } : {}), ...(spec.command ? { command: spec.command } : {}) }), 200));
   return { spec, line, timeoutSec };
 }
 
@@ -176,7 +176,8 @@ export async function list(ctx: HooksCtx, i: { scope?: string; threadId?: string
     if (h.scope === "person") return h.personId === a.asker || a.kind === "trusted";
     if (h.scope === "agent") return i.agentId !== undefined ? h.agentId === i.agentId : h.agentId === a.id || h.forPerson === a.asker || h.madeBy === a.id;
     if (!i.threadId) return h.madeBy === a.id || h.forPerson === a.asker;
-    return h.threadId === i.threadId || (h.scope === "run" && h.threadId !== null && parentOf(ctx, i.threadId) === h.threadId);
+    // the thread's own hooks, and the chat and run hooks of every chat above it: what a helper works under
+    return h.threadId === i.threadId || ((h.scope === "run" || h.scope === "chat") && h.threadId !== null && lineage(ctx, i.threadId).includes(h.threadId));
   });
   return { hooks: rows.map((h) => outRow(h, a)), agentHooks: agentHooksOn(ctx) };
 }
@@ -209,6 +210,7 @@ export async function askAdmin(ctx: HooksCtx, i: { id: string; threadId: string;
   return { asked: true };
 }
 
+const runOut = (r: Row): Row => ({ id: r["id"], hookId: r["hook_id"], event: r["event"], threadId: r["thread_id"] ?? undefined, agentId: r["agent_id"] ?? undefined, tool: r["tool"] ?? undefined, outcome: r["outcome"], detail: r["detail"] ?? undefined, ms: r["ms"], at: r["at"] });
 const RUN_OUTCOMES = ["ok", "blocked", "note", "error", "timeout", "skipped", "allowed_once"];
 /**
  * What the hooks did lately, newest first. The caller sees the runs of hooks they could list: the Space's, their own person hooks, and the agent, chat and run hooks they made or that were made for them.
@@ -252,6 +254,15 @@ export async function runsList(ctx: HooksCtx, i: { hookId?: string; threadId?: s
   return { runs: out.map((r) => ({ id: r["id"], hookId: r["hook_id"], event: r["event"], threadId: r["thread_id"] ?? undefined, agentId: r["agent_id"] ?? undefined, tool: r["tool"] ?? undefined, outcome: r["outcome"], detail: r["detail"] ?? undefined, ms: r["ms"], at: r["at"] })) };
 }
 
+/** The newest run of each hook in one chat: one row per hook, so a busy hook never crowds the others out. */
+export async function runsLatest(ctx: HooksCtx, i: { threadId: string }): Promise<{ runs: Row[] }> {
+  ensure(ctx.db);
+  const a = actorOf(ctx, "read");
+  if (a.kind !== "trusted" && !(await mayUseThread(ctx, i.threadId))) raise(ctx, "permission.no_grant", "That chat is not one you can use.");
+  const rows = ctx.db.all("SELECT * FROM hooks_run WHERE id IN (SELECT MAX(id) FROM hooks_run WHERE thread_id = ? GROUP BY hook_id) ORDER BY id DESC", i.threadId) as Row[];
+  return { runs: rows.map(runOut) };
+}
+
 export function policyGet(ctx: HooksCtx): { agentHooks: boolean } { actorOf(ctx, "read"); ensure(ctx.db); return { agentHooks: agentHooksOn(ctx) }; }
 export function policySet(ctx: HooksCtx, i: { agentHooks: boolean }): { agentHooks: boolean } {
   ensure(ctx.db);
@@ -263,7 +274,7 @@ export function policySet(ctx: HooksCtx, i: { agentHooks: boolean }): { agentHoo
 }
 
 /** What the engine, the tool session and the CLI shim ask for. The asker is the caller; the agent and thread are the event's. */
-export async function fire(ctx: HooksCtx, i: Omit<HookFire, "asker"> & { asker?: string }): Promise<{ block: { reason: string; hookId: string; by: string; scope: string } | null; notes: string[]; ran: number }> {
+export async function fire(ctx: HooksCtx, i: Omit<HookFire, "asker"> & { asker?: string }): Promise<{ block: { reason: string; hookId: string; by: string; scope: string; next?: Array<{ label: string; ask: string }> } | null; notes: string[]; ran: number }> {
   ensure(ctx.db);
   const a = actorOf(ctx, "fire");
   // a trusted service (the engine) names the person whose turn it is; a person or an agent can only ask for themselves, and only about an agent they can see
@@ -273,6 +284,13 @@ export async function fire(ctx: HooksCtx, i: Omit<HookFire, "asker"> & { asker?:
     if (ctx.call && a.kind === "person") { try { await ctx.call("agents.get", { agentId: i.agentId }); } catch { raise(ctx, "permission.no_grant", "That agent is not one you can use."); } }
   }
   const asker = a.kind === "trusted" ? i.asker! : a.asker;
+  // a helper's very first call can come before the helper-started event has been folded in: ask the thread itself which chat it works for, so the chat's rules bind it from its first step
+  if ((i.threadKind === "helper" || i.threadKind === undefined) && parentOf(ctx, i.threadId) === null && ctx.call) {
+    try {
+      const t = (await ctx.call("threads.get", { threadId: i.threadId })) as { thread?: { kind?: string; parentThreadId?: string } };
+      if (t.thread?.kind === "helper" && typeof t.thread.parentThreadId === "string") link(ctx, i.threadId, t.thread.parentThreadId);
+    } catch { /* not readable: the event link, if it comes, will do */ }
+  }
   return fireHooks(ctx, { ...i, asker });
 }
 export { link, helpersActive };
