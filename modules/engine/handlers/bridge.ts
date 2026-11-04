@@ -540,6 +540,9 @@ export function createBridge(o: BridgeOptions): Bridge {
             const made = (await reader(ctx, authorId, home)("chat.thread", { threadId: home, messageId })) as { thread: { threadId: string } };
             if (await open(ctx, made.thread.threadId, messageId, authorId)) {
               threadId = made.thread.threadId; homeOf.set(threadId, home);
+              // the thread answers as the chat does: who leads there is who leads in the chat, as the engine holds it now
+              const inThread = new Set(eng.agents(threadId).map((x) => x.id));
+              for (const ag of eng.agents(home)) if (inThread.has(ag.id) && eng.agents(threadId).find((x) => x.id === ag.id)?.mode !== ag.mode) eng.setMode(threadId, ag.id, ag.mode);
               // what the person asked in words opens the same acts in the thread where the turn runs
               if (grantArgs) await reader(ctx, authorId, home)("gate.grants.ask", { threadId, ...grantArgs });
             }

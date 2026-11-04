@@ -48,14 +48,17 @@ test("a task's feed wakes the agent named and nudges once, and a reply to a pers
     const led = await O("engine.set_mode", { threadId: group, agentId: lead, mode: "lead" });
     assert.equal(led.status, 200, JSON.stringify(led.data));
     const q = (await O("chat.post", { threadId: group, body: "@Bea can you check this?", mentions: [{ kind: "person", id: bea.id }] })).data.message.messageId as string;
-    const before = seen.filter((s) => s.threadId === group).length;
+    // in a channel the lead answers in the thread under the asking message: the chat and the threads under it are one room here
+    const room = async (): Promise<Set<string>> => new Set([group, ...(((await call(d, "threads.list", { parentThreadId: group })).data.threads ?? []) as Array<{ threadId: string }>).map((t) => t.threadId)]);
+    const turnsIn = async (): Promise<number> => { const r = await room(); return seen.filter((s) => r.has(s.threadId)).length; };
+    const before = await turnsIn();
     const replied = await B("chat.post", { threadId: group, body: "Yes, on it.", replyTo: q });
     assert.equal(replied.status, 200, JSON.stringify(replied.data));
     await d.hooks?.pump?.();
     await new Promise((r) => setTimeout(r, 500));
     await d.hooks?.pump?.();
-    assert.equal(seen.filter((s) => s.threadId === group).length, before, "the lead stays out of it");
+    assert.equal(await turnsIn(), before, "the lead stays out of it");
     await O("chat.post", { threadId: group, body: "Thanks all, what next?" });
-    await said(d, group, /Reply to: Thanks all/);
+    await waitFor(async () => { await d.hooks?.pump?.(); for (const id of await room()) { const hit = (await bodies(d, id)).find((m) => m.author.kind === "agent" && /Reply to: Thanks all/.test(m.body ?? "")); if (hit) return hit; } return null; });
   } finally { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
