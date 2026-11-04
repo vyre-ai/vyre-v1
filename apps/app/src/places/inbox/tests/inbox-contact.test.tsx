@@ -342,7 +342,7 @@ test("model: Send needs a recipient and subject for email, a number for text, an
   assert.equal(sendBlocker({ ...base, text: "x" }, inbox, true, null), "");
 });
 
-test("menus: Follow offers Alert me on replies only while following, and the From menu checks the chosen inbox and marks the thread's own", () => {
+test("menus: Follow offers Alert me on replies only while following, and the From menu checks the chosen inbox and marks the conversation's own", () => {
   const picked: string[] = [];
   const f1 = followMenuEntries(false, false, { follow: (v) => void picked.push(`f:${v}`), alert: (v) => void picked.push(`a:${v}`) }).filter(isItem);
   assert.deepEqual(f1.map((x) => x.label), ["Follow"]);
@@ -357,7 +357,7 @@ test("menus: Follow offers Alert me on replies only while following, and the Fro
   const items2 = fromMenuEntries(choices, "mbx_hello", ["mbx_work"], (id) => void chosen.push(id));
   assert.deepEqual((items2[0] as { head: string }).head, "Send from");
   const flat: MenuItem[] = items2.filter(isItem);
-  assert.deepEqual(flat.map((x) => [x.label, x.checked]), [["Work Gmail (this thread)", false], ["Personal", false], ["hello@", true], ["support@", false], ["Client portal", false]]);
+  assert.deepEqual(flat.map((x) => [x.label, x.checked]), [["Work Gmail (this conversation)", false], ["Personal", false], ["hello@", true], ["support@", false], ["Client portal", false]]);
   flat[1]!.onSelect?.();
   assert.deepEqual(chosen, ["mbx_pers"]);
 });

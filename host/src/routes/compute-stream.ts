@@ -69,6 +69,8 @@ export interface ComputeStreamDeps {
   recheckMs?: number;
   /** A node that has said nothing for this long is dropped. Default 60 s. */
   deadMs?: number;
+  /** A person's computer reports what its Chrome did for an agent (held sends, pictures): handed on as it comes, never stored here. */
+  chromeEvent?(link: DeviceLink, event: Record<string, unknown>): void;
   /** Is this node's link private (TLS, or a peer on this machine)? Default: see linkIsSecure. A test passes its own. */
   secure?: (req: http.IncomingMessage) => boolean;
 }
@@ -122,8 +124,8 @@ export interface ComputeStream {
   connected(nodeId: string): boolean;
   /** One HTTP request to a port on a computer on this node. */
   portFetch(nodeId: string, a: { computerId: string; port: number; request: PortRequest }, sink: PortSink): void;
-  /** One question for the machine: its answer, or a rejection when it cannot say. */
-  ask(nodeId: string, kind: string, input: unknown): Promise<unknown>;
+  /** One question for the machine: its answer, or a rejection when it cannot say. `timeoutMs` is how long to wait (default 20 s). */
+  ask(nodeId: string, kind: string, input: unknown, timeoutMs?: number): Promise<unknown>;
   /** The address this node's socket came from. */
   peerAddress(nodeId: string): string | null;
   /** The person's own computers linked right now (all people's when no person is named). */
@@ -269,14 +271,19 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
           else if (m.t === "port_fail") { portDone(id); p.sink.fail(typeof r.reason === "string" ? r.reason.slice(0, 200) : "The computer did not answer."); }
           return;
         }
+        if (m.t === "chrome_event") {
+          const ev = (m as { event?: unknown }).event;
+          if (conn.device && ev && typeof ev === "object" && !Array.isArray(ev)) { try { deps.chromeEvent?.(conn.device, ev as Record<string, unknown>); } catch { /* an event never stops the link */ } }
+          return;
+        }
         if (m.t === "ask_res") {
-          const r = m as unknown as { id?: unknown; ok?: unknown; result?: unknown; reason?: unknown };
+          const r = m as unknown as { id?: unknown; ok?: unknown; result?: unknown; reason?: unknown; code?: unknown };
           const id = typeof r.id === "string" ? r.id : "";
           const a = asks.get(id);
           if (!a || a.nodeId !== conn.nodeId) return;
           clearTimeout(a.timer);
           asks.delete(id);
-          if (r.ok === true) a.ok(r.result); else a.no(new Error(typeof r.reason === "string" ? r.reason.slice(0, 200) : "The computer could not say."));
+          if (r.ok === true) a.ok(r.result); else a.no(Object.assign(new Error(typeof r.reason === "string" ? r.reason.slice(0, 200) : "The computer could not say."), typeof r.code === "string" ? { code: r.code } : {}));
           return;
         }
         if (typeof m.t === "string" && m.t.startsWith("cli_")) {
@@ -477,12 +484,12 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       return [...nodes.values()].filter((n) => n.device && n.peer.open && (person === undefined || n.device.person === person)).map((n) => ({ ...n.device!, engines: [...n.device!.engines] }));
     },
     onDevice(fn) { deviceListeners.add(fn); return () => { deviceListeners.delete(fn); }; },
-    ask(nodeId, kind, input) {
+    ask(nodeId, kind, input, timeoutMs = 20_000) {
       return new Promise((ok, no) => {
         const n = nodes.get(nodeId);
         if (!n?.peer.open) { no(new Error("The computer it runs on is not connected.")); return; }
         const id = newId();
-        const timer = setTimeout(() => { asks.delete(id); no(new Error("The computer did not answer in time.")); }, 20_000);
+        const timer = setTimeout(() => { asks.delete(id); no(new Error("The computer did not answer in time.")); }, Math.min(Math.max(timeoutMs, 1_000), 150_000));
         timer.unref?.();
         asks.set(id, { nodeId, ok, no, timer });
         n.peer.send(JSON.stringify({ t: "ask", id, kind, input }));

@@ -7,7 +7,11 @@ import type { Uses } from "./space-ai.ts";
 export type Work = "automations" | "agentWork" | "chats";
 
 /** The part of a providers.list row the picker reads. */
-export interface PickRow { id: string; name: string; handle?: string; scope: string; state?: string; spaceKey?: boolean; uses?: Uses; capCents?: number | null; capped?: boolean }
+export interface PickRow {
+  id: string; name: string; handle?: string; scope: string; state?: string; spaceKey?: boolean; uses?: Uses; capCents?: number | null; capped?: boolean;
+  /** Per kind of work, the resolver's answer from engine.accounts.list: whether the account can run it, and the word for why not ("capped": kept for it, at its monthly cap). */
+  usableIn?: Partial<Record<Work, { usable: boolean; code?: string }>>;
+}
 
 export interface AiOption {
   /** The Vault handle to store; empty is Automatic. */
@@ -25,8 +29,10 @@ export function spaceAccounts(rows: readonly PickRow[]): PickRow[] {
   return rows.filter((r) => (r.scope === "shared" || r.spaceKey === true) && typeof r.handle === "string" && r.handle !== "");
 }
 
-/** Is this Space account kept for this work (and for this agent, when the work is an agent's)? */
+/** Is this Space account kept for this work (and for this agent, when the work is an agent's)? The resolver's own answer when the row carries it; else the row's own `uses`. */
 export function keptFor(row: PickRow, work: Work, agentId?: string): boolean {
+  const said = row.usableIn?.[work];
+  if (said !== undefined) return said.usable || said.code === "capped";
   // the Chat key is an explicit override: any Space account that works may be named for chats
   if (work === "chats") return true;
   const u = row.uses ?? (row.spaceKey === true ? ALL : undefined);

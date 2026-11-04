@@ -33,6 +33,9 @@ import { heldMail } from "../needsyou/heldmail.ts";
 import { HeldMailCard } from "../needsyou/HeldMail.tsx";
 import { giveWithCare } from "./guest.ts";
 import { dueEntries, failure, priorityEntries, withVersion } from "./actions.ts";
+import { ConflictCard } from "./Conflict.tsx";
+import { clashFrom, keptPatch, LIST_NOTES, leftOut, mergeClash, mergeList } from "./conflict.ts";
+import type { Clash } from "./conflict.ts";
 import { dueLabel, holderOf, isOpenState, KIND_TITLE, planOrder, PRIORITIES } from "./model.ts";
 import type { IndexOut, TaskFull, TaskRow, Who } from "./model.ts";
 import { faceKind, LiveWords, TextMenu, useLiveTurn, webProps } from "./parts.tsx";
@@ -86,13 +89,17 @@ export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, o
   const [railOpen, setRailOpen] = useState(rail && width >= 980);
   const [line, setLine] = useState("");
   const [override, setOverride] = useState<TaskFull | null>(null);
+  // someone else changed the task while this person was editing: their words wait on a card, field by field, until they save or take the current ones
+  const [clash, setClash] = useState<Clash | null>(null);
+  const [left, setLeft] = useState("");
+  const [saving, setSaving] = useState(false);
   const [kids, setKids] = useState<readonly TaskRow[]>([]);
   const menu = useMenu();
   const task = (q.status === "ready" ? q.data.task : null);
   const shown = override && task && override.updatedAt >= task.updatedAt ? override : task;
   const versionRef = useRef<number | undefined>(undefined);
   versionRef.current = shown?.version;
-  useEffect(() => { setOverride(null); setLine(""); setMode(""); }, [taskId]);
+  useEffect(() => { setOverride(null); setLine(""); setMode(""); setClash(null); setLeft(""); }, [taskId]);
   const readKids = useCallback((): void => {
     void rt.call("tasks.index", { scope: "everyone", parentTaskId: taskId }).then((o) => setKids((o as IndexOut).rows.filter((r) => r.kind === "work").sort(planOrder)), () => setKids([]));
   }, [rt, taskId]);
@@ -101,14 +108,37 @@ export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, o
   const revValue = rev.status === "ready" ? rev.data.rev : "";
   useEffect(() => { readKids(); }, [readKids, task?.updatedAt, revValue]);
 
-  const run = useCallback(async (cap: string, input: Record<string, unknown>): Promise<boolean> => {
+  const run = useCallback(async (cap: string, input: Record<string, unknown>, again = 0): Promise<boolean> => {
     setLine("");
     try {
       const out = await rt.call(cap, { taskId, ...withVersion(cap, input, versionRef.current) }) as { task?: TaskFull };
       if (out.task) setOverride(out.task);
       return true;
-    } catch (e) { setOverride(null); setLine(failure(e, "That could not be changed.")); return false; }
+    } catch (e) {
+      setOverride(null);
+      // a list note (Done means, the ticks) two people changed: both changes are kept, written on what the note holds now, with no card
+      const merged = cap === "tasks.working_notes.set" && typeof input.key === "string" && LIST_NOTES.has(input.key) ? mergedNote(e, input) : null;
+      if (merged && again < 2) return run(cap, merged, again + 1);
+      const mine = cap === "tasks.update" ? input : cap === "tasks.working_notes.set" && input.key === "brief" ? { brief: input.value } : null;
+      const c = mine ? clashFrom(e, mine) : null;
+      if (c) { if (c.rows.length > 0) { setClash((prev) => mergeClash(prev, c)); setLeft(""); } return false; }
+      setLine(failure(e, "That could not be changed.")); return false;
+    }
   }, [rt, taskId]);
+  const saveClash = useCallback(async (): Promise<void> => {
+    if (!clash) return;
+    const patch = keptPatch(clash);
+    const clock = rt.clock();
+    const said = leftOut(clash, clock.now, clock.offsetMin);
+    if (Object.keys(patch).length === 0) { setClash(null); setLeft(said); return; }
+    setSaving(true);
+    const { brief, ...rest } = patch;
+    let ok = true;
+    if (brief !== undefined) ok = await run("tasks.working_notes.set", { key: "brief", value: String(brief), expectedFrom: String(clash.rows.find((r) => r.key === "brief")?.current ?? "") });
+    if (ok && Object.keys(rest).length > 0) ok = await run("tasks.update", { ...rest, expectedVersion: clash.version });
+    setSaving(false);
+    if (ok) { setClash(null); setLeft(said); }
+  }, [clash, rt, run]);
 
   // a task with no thread yet (a planned child before it starts) gets one when someone opens it: comments need somewhere to go
   const threadId = shown?.threadId;
@@ -132,7 +162,7 @@ export function TaskDetail({ rt, taskId, conversationFor, openTask, openAgent, o
   }
   // a move picked from a status menu that needs words opens the box for them under the head
   const begin = (m: Move): void => { if (m.ask && MODE_OF[m.ask]) { setMode(MODE_OF[m.ask]!); return; } void run(m.cap, m.input); };
-  const head = <TaskHead task={shown} rt={rt} nameOf={nameOf} run={run} line={line} menu={menu} kids={kids} openTask={openTask} openAgent={openAgent} openChat={openChat} onKids={readKids} list={list} seats={who.seats} railOpen={railOpen} onRail={rail ? () => setRailOpen((o) => !o) : undefined} show={show} onShow={setShow} mode={mode} setMode={setMode} begin={begin} {...(openFull ? { openFull } : {})} {...(back ? { back } : {})} />;
+  const head = <TaskHead task={shown} rt={rt} nameOf={nameOf} run={run} line={line} menu={menu} kids={kids} openTask={openTask} openAgent={openAgent} openChat={openChat} onKids={readKids} list={list} seats={who.seats} railOpen={railOpen} onRail={rail ? () => setRailOpen((o) => !o) : undefined} show={show} onShow={setShow} mode={mode} setMode={setMode} begin={begin} clash={clash} left={left} saving={saving} setClash={setClash} saveClash={saveClash} {...(openFull ? { openFull } : {})} {...(back ? { back } : {})} />;
   const feed = conv
     ? <Conversation key={threadId} compact data={{ ...conv, head, activity: { events, show }, placeholder: "Comment, or @ someone" }} />
     : <ScrollView contentContainerStyle={st.col}>{head}</ScrollView>;
@@ -163,13 +193,25 @@ interface HeadProps {
   task: TaskFull; rt: ShellRuntime; nameOf(id: string): string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; line: string; menu: Menu; kids: readonly TaskRow[]; list: ReadonlyArray<{ id: string; name: string; kind: string }>; seats: readonly Seat[];
   openTask(id: string): void; openAgent(id: string): void; openChat(id: string): void; onKids(): void; railOpen: boolean; onRail: (() => void) | undefined; show: ActivityShow; onShow(s: ActivityShow): void;
   mode: Mode; setMode(m: Mode): void; begin(m: Move): void; openFull?(id: string): void; back?(): void;
+  clash: Clash | null; left: string; saving: boolean; setClash(c: Clash): void; saveClash(): Promise<void>;
+}
+
+/** The retry of a refused list note write: the writer's change on top of what the note holds now. Null when the refusal is not a stale one. */
+function mergedNote(e: unknown, input: Record<string, unknown>): Record<string, unknown> | null {
+  const d = (e as { code?: string; details?: { reason?: string; current?: Record<string, string> } } | null);
+  const key = String(input.key);
+  if (d?.code !== "validation.precondition_failed" || d.details?.reason !== "stale_version" || !d.details.current || !(key in d.details.current)) return null;
+  const now = d.details.current[key];
+  return { ...input, value: mergeList(typeof input.expectedFrom === "string" ? input.expectedFrom : undefined, String(input.value), now), expectedFrom: now };
 }
 
 /** The head and every block, above the feed, scrolling with it. */
-function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, seats, openTask, openAgent, openChat, onKids, railOpen, onRail, show, onShow, mode, setMode, begin, openFull, back }: HeadProps): ReactElement {
+function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, seats, openTask, openAgent, openChat, onKids, railOpen, onRail, show, onShow, mode, setMode, begin, openFull, back, clash, left, saving, setClash, saveClash }: HeadProps): ReactElement {
   const [title, setTitle] = useState(task.title);
   const [titleH, setTitleH] = useState(34);
   useEffect(() => setTitle(task.title), [task.title]);
+  // a refused title is kept on the conflict card; the field shows what the task holds, so it never looks saved when it was not
+  useEffect(() => { if (clash) setTitle(task.title); }, [clash]);   // eslint-disable-line react-hooks/exhaustive-deps
   const view = task as unknown as TaskView;
   const turn = useLiveTurn(rt.turns, task.workerThread ?? task.threadId);
   const parent = useLive<TaskOut>(rt.screens, "tasks.page", "task", task.parentTaskId ? { route: { taskId: task.parentTaskId } } : null);
@@ -213,6 +255,7 @@ function TaskHead({ task, rt, nameOf, run, line, menu, kids, list, seats, openTa
     {turn ? <View style={st.liveLine}><LiveWords turn={turn} turns={rt.turns} name={nameOf(turn.agentId)} /></View> : null}
     <YourAction task={task} view={view} me={rt.me.id} run={run} menu={menu} list={list} mode={mode} setMode={setMode} nameOf={nameOf} />
     {line ? <Text accessibilityRole="alert" testID="task-line" style={st.error}>{line}</Text> : null}
+    {clash ? <ConflictCard clash={clash} by={clash.by ? nameOf(clash.by) : "Someone"} now={rt.clock().now} offsetMin={rt.clock().offsetMin} busy={saving} onChange={setClash} onSave={() => void saveClash()} /> : left ? <Text testID="task-conflict-left" style={st.waiting}>{left}</Text> : null}
     <TaskBody task={task} rt={rt} nameOf={nameOf} run={run} kids={kids} people={list.filter(offered)} openTask={openTask} openAgent={openAgent} onKids={onKids} />
     <View style={st.feedHead}>
       <Text style={st.blockTitle}>Activity</Text>
@@ -259,16 +302,18 @@ function SourceChip({ task, rt, openChat }: { task: TaskFull; rt: ShellRuntime; 
 
 /** Whose hands it passes through: faces and names, the holder lit. */
 function BatonPath({ steps, nameOf }: { steps: ReturnType<typeof stepsOf>; nameOf(id: string): string }): ReactElement {
+  // on a phone the path keeps to one line: short connectors, no indent
+  const tight = useWindowDimensions().width < 640;
   const out: ReactElement[] = [];
   for (const [i, s] of steps.entries()) {
-    if (i > 0) out.push(<View key={`j${i}`} style={st.pathLine} />);
+    if (i > 0) out.push(<View key={`j${i}`} style={[st.pathLine, tight && st.pathLineTight]} />);
     const title = s.key === "assigned" ? "Assigned" : s.key === "review" ? "Reviewer" : s.key === "approve" ? "Approver" : "Done";
     out.push(<View key={s.key} testID={`baton-step-${s.key}`} {...webProps({ title: s.who ? `${title}: ${nameOf(s.who.id)}` : title })} style={[st.path, s.lit === "now" ? null : s.lit === "past" ? { opacity: 0.8 } : { opacity: 0.5 }]}>
       {s.who ? <Avatar name={nameOf(s.who.id)} seedId={s.who.id} kind={faceKind(s.who)} size={24} /> : <View style={st.pathDone}><Glyph name="check" size={12} /></View>}
       <View><Text style={st.pathTitle}>{title}</Text>{s.who ? <Text style={st.pathName}>{nameOf(s.who.id)}</Text> : null}</View>
     </View>);
   }
-  return <View testID="baton-path" style={st.pathRow}>{out}</View>;
+  return <View testID="baton-path" style={[st.pathRow, tight && st.pathRowTight]}>{out}</View>;
 }
 
 /** The one action that is yours: what your seat does next. Take for a team task nobody took. Nothing when it is not your move. */
@@ -316,7 +361,7 @@ function Block({ title, right, children }: { title?: string; right?: string; chi
 /** Blocks by kind and source. */
 function TaskBody({ task, rt, nameOf, run, kids, people, openTask, openAgent, onKids }: { task: TaskFull; rt: ShellRuntime; nameOf(id: string): string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; kids: readonly TaskRow[]; people: readonly QuickPerson[]; openTask(id: string): void; openAgent(id: string): void; onKids(): void }): ReactElement {
   const brief = task.workingNotes["brief"] ?? task.why ?? task.summary;
-  const body = task.kind === "work" ? <Brief text={brief} run={run} rt={rt} taskId={task.id} /> : brief ? <Block><Text style={st.body}>{tidyBrief(brief)}</Text></Block> : null;
+  const body = task.kind === "work" ? <Brief text={brief} base={task.workingNotes["brief"] ?? ""} run={run} rt={rt} taskId={task.id} /> : brief ? <Block><Text style={st.body}>{tidyBrief(brief)}</Text></Block> : null;
   const blocks: ReactElement[] = [];
   const held = heldMail(task as never);
   if (held) blocks.push(<HeldMailCard key="mail" mail={held} call={rt.call} onOpenRecord={(id) => rt.open({ subject: { type: "record", id } })} />);
@@ -330,8 +375,15 @@ function TaskBody({ task, rt, nameOf, run, kids, people, openTask, openAgent, on
 }
 
 /** The description, written in the shared Markdown editor: a pause after typing saves it, Done (or Escape) closes the editor after saving what is pending. */
-function BriefEditor({ text, run, onDone }: { text: string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; onDone: () => void }): ReactElement {
-  const a = useAutosavedText(text, async (v) => ((await run("tasks.working_notes.set", { key: "brief", value: v.trim() })) ? true : "Could not save the description."));
+function BriefEditor({ text, base, run, onDone }: { text: string; base: string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; onDone: () => void }): ReactElement {
+  // each save says what it replaces, so an edit made meanwhile by someone else comes back as a conflict instead of being overwritten (the Tasks conflict rule)
+  const from = useRef(base);
+  const a = useAutosavedText(text, async (v) => {
+    const value = v.trim();
+    const ok = await run("tasks.working_notes.set", { key: "brief", value, expectedFrom: from.current });
+    if (ok) from.current = value;
+    return ok ? true : "Could not save the description.";
+  });
   const done = (): void => { void a.flush().then(onDone); };
   return (
     <View testID="task-brief-edit-wrap">
@@ -357,7 +409,7 @@ const tidyBrief = (text: string): string => text.replace(/^## .+$/gm, "").replac
  * What the work is, in words anyone on it can change. Files dropped on it, or pasted while it is being written, are stored the way a chat stores its uploads and linked to
  * the task, where they list under Outputs.
  */
-function Brief({ text, run, rt, taskId }: { text: string | undefined; run(cap: string, input: Record<string, unknown>): Promise<boolean>; rt: ShellRuntime; taskId: string }): ReactElement {
+function Brief({ text, base, run, rt, taskId }: { text: string | undefined; base: string; run(cap: string, input: Record<string, unknown>): Promise<boolean>; rt: ShellRuntime; taskId: string }): ReactElement {
   const [draft, setDraft] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const attach = (files: readonly DroppedFile[]): void => {
@@ -368,7 +420,7 @@ function Brief({ text, run, rt, taskId }: { text: string | undefined; run(cap: s
     }, (e: unknown) => setNote(e instanceof Error && e.message !== "" ? e.message : "Could not attach that. Try again"));
   };
   const line = note ? <Text style={st.briefAdd} testID="task-brief-files" accessibilityLiveRegion="polite">{note}</Text> : null;
-  if (draft !== null) return <DropZone testID="task-brief-drop" onFiles={attach} radius={8}><Block><BriefEditor text={text ?? ""} run={run} onDone={() => setDraft(null)} />{line}</Block></DropZone>;
+  if (draft !== null) return <DropZone testID="task-brief-drop" onFiles={attach} radius={8}><Block><BriefEditor text={text ?? ""} base={base} run={run} onDone={() => setDraft(null)} />{line}</Block></DropZone>;
   return <DropZone testID="task-brief-drop" onFiles={attach} radius={8}><Block><Pressable accessibilityRole="button" accessibilityLabel={text ? "Change what this is" : "Add what this is"} testID="task-brief" onPress={() => setDraft(text ?? "")}>
     {text ? <Text style={st.body}>{tidyBrief(text)}</Text> : <Text style={st.briefAdd}>Add what this is</Text>}
   </Pressable>{line}</Block></DropZone>;
@@ -409,10 +461,10 @@ function AnswerBlock({ task, run, nameOf }: { task: TaskFull; run(cap: string, i
 function DoneMeans({ task, run }: { task: TaskFull; run(cap: string, input: Record<string, unknown>): Promise<boolean> }): ReactElement | null {
   const items = parseList(task.workingNotes["done_means"]);
   const [more, setMore] = useState("");
-  const add = (): void => { const v = more.trim(); if (v === "") return; setMore(""); void run("tasks.working_notes.set", { key: "done_means", value: JSON.stringify([...items, v]) }); };
+  const add = (): void => { const v = more.trim(); if (v === "") return; setMore(""); void run("tasks.working_notes.set", { key: "done_means", value: JSON.stringify([...items, v]), expectedFrom: task.workingNotes["done_means"] ?? "" }); };
   if (task.kind !== "work" && items.length === 0) return null;
   const ticks = new Set(parseTicks(task.workingNotes["done_ticks"]));
-  const toggle = (i: number): void => { const n = new Set(ticks); if (n.has(i)) n.delete(i); else n.add(i); void run("tasks.working_notes.set", { key: "done_ticks", value: JSON.stringify([...n]) }); };
+  const toggle = (i: number): void => { const n = new Set(ticks); if (n.has(i)) n.delete(i); else n.add(i); void run("tasks.working_notes.set", { key: "done_ticks", value: JSON.stringify([...n]), expectedFrom: task.workingNotes["done_ticks"] ?? "" }); };
   const rows: ReactElement[] = [];
   for (const [i, m] of items.entries()) rows.push(<Pressable key={m} accessibilityRole="checkbox" accessibilityLabel={m} accessibilityState={{ checked: ticks.has(i) }} testID={`task-means-${i}`} onPress={() => toggle(i)} style={st.check}>
     <View style={[st.tick, ticks.has(i) && st.tickOn]}>{ticks.has(i) ? <Glyph name="check" size={9} color="var(--accent-ink)" /> : null}</View><Text style={st.checkText}>{m}</Text>
@@ -624,6 +676,8 @@ const st = StyleSheet.create({
   h1: { flex: 1, minWidth: 0, fontSize: 27, lineHeight: 34, fontWeight: "600", letterSpacing: -0.5, color: "var(--ink)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   pathRow: { flexDirection: "row", flexWrap: "wrap", rowGap: 8, alignItems: "center", marginTop: 18, paddingLeft: 36 },
   path: { flexDirection: "row", alignItems: "center", gap: 8 },
+  pathRowTight: { paddingLeft: 0, flexWrap: "nowrap" },
+  pathLineTight: { width: 12, marginHorizontal: 4 },
   pathLine: { width: 34, height: 1, marginHorizontal: 10, backgroundColor: "var(--line-2)" as string },
   pathDone: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   pathTitle: { fontSize: 11, lineHeight: 14, color: "var(--ink-3)" as string },

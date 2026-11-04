@@ -47,16 +47,15 @@ test("a direct message reads as the person's name, not New chat, and its face is
   assert.equal(groupRecent(recentOf([item({ threadId: "thr_dm", people: [ANA], unread: 1 })]), [], names, names)[0]!.rows[0]!.unread, 1, "Recent keeps the server's count");
 });
 
-test("an agent's face carries the unread of its own chats; Threads gets a dot for a thread I am in", () => {
+test("an agent's face carries the unread of its own chats; there is no Threads row", () => {
   const recent = recentOf([item({ threadId: "thr_s1", agents: [SCOUT], unread: 1 }), item({ threadId: "thr_s2", agents: [SCOUT], unread: 2 }), item({ threadId: "thr_two", agents: [SCOUT, "agt_b"], unread: 4 }), item({ threadId: "thr_mixed", agents: [SCOUT], people: [ANA], unread: 8 })], { threadsUnread: 3 });
   const by = agentUnread(recent);
   assert.equal(by.get(SCOUT), 3, "a group chat or one with a person is not the agent's own");
   const scout = { agentId: SCOUT, name: "Scout", status: "idle" } as never;
-  const entries = buildEntries({ faces: [scout], workingAgents: new Set(), groups: [], channels: [], filter: "all", closed: new Set(), agentUnread: by, threadsDot: true });
+  const entries = buildEntries({ faces: [scout], workingAgents: new Set(), groups: [], channels: [], filter: "all", closed: new Set(), agentUnread: by });
   const face = entries.find((e) => e.key === `f:${SCOUT}`);
   assert.ok(face && face.type === "face" && face.unread === 3);
-  const threads = entries.find((e) => e.key === "nav:threads");
-  assert.ok(threads && threads.type === "nav" && threads.dot === true);
+  assert.equal(entries.find((e) => e.key === "nav:threads"), undefined);
 });
 
 test("the rail's Chats dot: on for any unread chat, channel or thread; off when all is read; archived chats stay quiet", () => {
@@ -94,7 +93,7 @@ test("Mark as Read on an unread chat, Mark as Unread on a read one; both call th
   assert.deepEqual(calls, [["threads.mark_read", { threadId: "thr_dm", unread: true }], ["threads.mark_read", { threadId: "thr_dm" }]]);
 });
 
-test("drawn: the person you have an unread message from has the dot on their row, and the Threads row has its dot", () => {
+test("drawn: the person you have an unread message from has the dot on their row; a chat with new replies is bold with their count", () => {
   const recent = recentOf([item({ threadId: "thr_dm_ana", people: [ANA], unread: 2 }), item({ threadId: "thr_dm_ben", people: [BEN], unread: 0 })], { threadsUnread: 1 });
   const snaps: Record<string, unknown> = {
     recent: { status: "ready", data: recent },
@@ -109,7 +108,7 @@ test("drawn: the person you have an unread message from has the dot on their row
     call: async () => ({}),
     connection: { get: () => "online" as const, subscribe: () => noop },
     space: { name: "Team", otherNeedsYou: false, assistant: { agentId: "agt_asst", name: "Assistant" } },
-    nav: { openChat: noop, openAgentChat: noop, openChannel: noop, openNeedsYou: noop, openAllAgents: noop, openSearch: noop, openSpaceSwitcher: noop, openNewChannel: noop, openThreads: noop, openTasks: noop },
+    nav: { openChat: noop, openAgentChat: noop, openChannel: noop, openNeedsYou: noop, openAllAgents: noop, openSearch: noop, openSpaceSwitcher: noop, openNewChannel: noop, openTasks: noop },
     people: [{ id: BEN, name: "Ben Cole" }, { id: ANA, name: "Ana Ruiz" }],
     me: { id: "usr_me" },
     clock: () => ({ now: 1_700_000_000_000, offsetMin: 0 }),
@@ -126,5 +125,5 @@ test("drawn: the person you have an unread message from has the dot on their row
   assert.ok(rowHtml(out, `p:${ANA}`).includes('data-testid="unread-dot"'), "Ana wrote: her row has the dot");
   assert.ok(!rowHtml(out, `p:${BEN}`).includes('data-testid="unread-dot"'), "nothing new from Ben");
   assert.ok(out.indexOf(`row-p:${ANA}`) < out.indexOf(`row-p:${BEN}`), "Ana rises above Ben");
-  assert.ok(rowHtml(out, "nav:threads").includes('data-testid="unread-dot"'), "a thread I am in has something new");
+  assert.ok(!out.includes("row-nav:threads"), "no Threads row");
 });

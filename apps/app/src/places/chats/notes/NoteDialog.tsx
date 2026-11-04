@@ -1,15 +1,17 @@
 // The note opened over the grid: the layer dims the page (a press on the dimmed area closes it), the card shows the picture, the title and the text to edit in place (saved as you type),
-// a clipped page's quote and address, the link card, what the note was turned into, its labels and who sees it, then Ask about this note, Turn into task and Turn into record, and the bar:
-// colour, labels, image, share, more, Close. Esc or Cmd-Enter closes it (the page owns those keys). A note shared with you to view is read here, not edited.
+// a clipped page's quote and address, the link card, what the note was turned into, where it was saved from, its labels and who sees it, then one row: Ask about this note, Turn into task, Turn into
+// record, colour, image, share, more. The pin and an X sit at the top right. Esc or Cmd-Enter closes it (the page owns those keys). A note shared with you to view is read here, not edited.
 import { MarkdownEditor } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { useEffect, useRef, useState } from "react";
 import type { ComponentRef, ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
+import { AskButton } from "../../../../../../ui/src/AskButton/index.tsx";
+import type { AskAgent } from "../../../../../../ui/src/AskButton/index.tsx";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { Ico } from "./icons.tsx";
 import { noteFill } from "./look.ts";
-import { agentWords, openable, shareWords } from "./model.ts";
+import { agentWords, fromLine, openable, shareWords } from "./model.ts";
 import type { Note, Who } from "./model.ts";
 import { Btn, IconBtn, LinkCard, Picture, Quote, Source, dom, pressPoint, web } from "./parts.tsx";
 
@@ -34,15 +36,18 @@ export interface DialogActions {
   image(): void;
   share(): void;
   menu(x: number, y: number): void;
-  ask(): void;
+  /** Ask about this note: the Ask pane, with this agent (the Assistant when none is named). */
+  ask(agentId?: string): void;
   task(): void;
   record(): void;
   close(): void;
   openLinked(kind: "task" | "record", id: string): void;
   openUrl(url: string): void;
+  /** Open the chat message the note was saved from. */
+  openFrom(threadId: string, messageId: string): void;
 }
 
-export function NoteDialog({ n, image, who, edited, a }: { n: Note; image: string | null; who: Who; edited: string; a: DialogActions }): ReactElement {
+export function NoteDialog({ n, image, who, edited, from, askAgents, a }: { n: Note; image: string | null; who: Who; edited: string; from?: ReturnType<typeof fromLine>; askAgents: readonly AskAgent[]; a: DialogActions }): ReactElement {
   const [title, setTitle] = useState(n.title);
   const [body, setBody] = useState(n.body);
   const [bodyFocus, setBodyFocus] = useState(1);
@@ -66,15 +71,17 @@ export function NoteDialog({ n, image, who, edited, a }: { n: Note; image: strin
             value={title} editable={!ro} onChangeText={(v) => { setTitle(v); a.title(v); }} placeholder="Title" placeholderTextColor="var(--ink-3)" accessibilityLabel="Title" testID="note-title"
             style={s.mt} onKeyPress={(e) => { if ((e.nativeEvent as { key?: string }).key === "Enter") { (e as unknown as { preventDefault?: () => void }).preventDefault?.(); setBodyFocus((k) => k + 1); } }}
           />
+          {/* the pin and the X sit together at the top right; Esc and a press outside close the note too, and it is saved as you type */}
           <View style={s.pin}>
             <IconBtn icon={n.pinned ? "pinf" : "pin"} label={n.pinned ? "Unpin" : "Pin"} onPress={() => a.pin()} color={n.pinned ? "var(--ink)" : "var(--ink-3)"} over testID="note-dialog-pin" />
+            <IconBtn icon="x" label="Close (Esc)" onPress={() => a.close()} over testID="note-dialog-close" />
           </View>
           <View style={s.mbWrap}><MarkdownEditor testID="note-body" label="Note" value={body} mode={ro ? "read" : "edit"} onChange={(v) => { setBody(v); a.body(v); }} placeholder="Note" bare density="compact" minHeight={60} focusKey={bodyFocus} /></View>
           {/* a right-click on the text keeps the browser's menu; anywhere else it opens the note menu */}
           <View {...menu}>
           {n.clip ? (
             <View style={s.pad}>
-              {n.clip.selection ? <Quote text={n.clip.selection} /> : null}
+              {n.clip.selection?.trim() ? <Quote text={n.clip.selection.trim()} /> : null}
               <Source icon="clip" url={n.clip.url}>
                 {openable(n.clip.url) ? <Pressable accessibilityRole="link" onPress={() => a.openUrl(openable(n.clip!.url)!)} testID="note-open-page" style={{ marginLeft: 6 }}><Text style={s.ref}>Open page</Text></Pressable> : null}
               </Source>
@@ -91,6 +98,15 @@ export function NoteDialog({ n, image, who, edited, a }: { n: Note; image: strin
               </View>
             </View>
           ))}
+          {from ? (
+            <View style={s.pad}>
+              <View style={s.from} testID="note-from">
+                <Ico name="chat" size={13} color="var(--ink-3)" />
+                <Text numberOfLines={1} style={s.linkedText}>{from.text}</Text>
+                {from.open ? <Pressable accessibilityRole="link" onPress={() => a.openFrom(from.open!.threadId, from.open!.messageId)} testID="note-from-open"><Text style={s.ref}>Open message</Text></Pressable> : null}
+              </View>
+            </View>
+          ) : null}
           <View style={s.meta}>
             <Pressable accessibilityRole="button" accessibilityLabel="Labels" onPress={(e) => { const p = pressPoint(e); a.labels(p.x, p.y); }} style={s.lbx} testID="note-dialog-labels" {...dom({ dataSet: { nbtn: "ghost" } })}>
               <Ico name="tag" size={13} color="var(--ink-3)" /><Text style={s.metaText}>{n.labels.length ? n.labels.join(", ") : "Add a label"}</Text>
@@ -103,19 +119,17 @@ export function NoteDialog({ n, image, who, edited, a }: { n: Note; image: strin
             <View style={{ flex: 1 }} />
             <Text style={s.metaText} testID="note-edited">{edited}</Text>
           </View>
+          {/* one row: what to do with the note, then colour, image, share and more (labels are the chip above) */}
           <View style={s.acts}>
-            <Btn label="Ask about this note" icon="ask" sm onPress={() => a.ask()} title="A" testID="note-dialog-ask" />
-            <Btn label="Turn into task" icon="task" sm onPress={() => a.task()} title="T" testID="note-dialog-task" />
-            <Btn label="Turn into record" icon="record" sm onPress={() => a.record()} title="R" testID="note-dialog-record" />
-          </View>
-          <View style={[s.bar, { backgroundColor: noteFill(n.color) }]}>
+            {/* the one Ask control, as everywhere else: the face of the agent, Ask, and a chevron that picks the agent. It opens the Ask pane with this note attached */}
+            <AskButton place="notes" context={{ kind: "note", id: n.noteId, title: n.title || "Note", access: n.canEdit ? "edit" : "view" }} agents={askAgents} onAsk={(agent) => a.ask(agent.id)} testID="note-dialog-ask" />
+            <Btn label="Turn into task" icon="task" sm onPress={() => a.task()} title="Turn into a task (T)" testID="note-dialog-task" />
+            <Btn label="Turn into record" icon="record" sm onPress={() => a.record()} title="Turn into a record (R)" testID="note-dialog-record" />
+            <View style={{ flex: 1 }} />
             {ro ? null : <IconBtn icon="palette" label="Colour" onPress={a.colour} testID="note-dialog-colour" />}
-            <IconBtn icon="tag" label="Labels" onPress={a.labels} testID="note-dialog-tag" />
             {ro ? null : <IconBtn icon="image" label="Add an image" onPress={() => a.image()} testID="note-dialog-image-btn" />}
             {n.mine ? <IconBtn icon="share" label="Share" onPress={() => a.share()} testID="note-dialog-share" /> : null}
             <IconBtn icon="more" label="More" onPress={a.menu} testID="note-dialog-more" />
-            <View style={{ flex: 1 }} />
-            <Btn label="Close" kind="ghost" sm onPress={() => a.close()} title="Close (Esc)" testID="note-dialog-close" />
           </View>
           </View>
         </View>
@@ -125,24 +139,24 @@ export function NoteDialog({ n, image, who, edited, a }: { n: Note; image: strin
 }
 
 const s = StyleSheet.create({
-  layer: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 20, backgroundColor: "var(--n-scrim)" as string },
+  layer: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0, zIndex: 20, backgroundColor: "var(--n-scrim)" as string, ...(web ? ({ backdropFilter: "blur(3px)" } as object) : null) },
   scroll: { flex: 1 },
-  scrollIn: { flexGrow: 1, alignItems: "center", paddingTop: 64, paddingHorizontal: 24, paddingBottom: 24 },
+  scrollIn: { flexGrow: 1, alignItems: "center", justifyContent: "center", paddingVertical: 24, paddingHorizontal: 24 },
   stack: { width: "100%", maxWidth: 620, alignItems: "center" },
   cap: { width: "100%", flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 },
   capText: { fontSize: 12, color: "rgba(255,255,255,0.82)" },
   card: { width: "100%", borderRadius: 16, overflow: "hidden", position: "relative", ...(web ? ({ boxShadow: "var(--sh-pop)" } as object) : null) },
-  mt: { width: "100%", fontSize: 20, lineHeight: 27, fontWeight: "600", letterSpacing: -0.2, color: "var(--ink)" as string, paddingTop: 18, paddingRight: 54, paddingLeft: 20, paddingBottom: 4, ...(web ? ({ outlineStyle: "none" } as object) : null) },
-  pin: { position: "absolute", top: 12, right: 12 },
+  mt: { width: "100%", fontSize: 20, lineHeight: 27, fontWeight: "600", letterSpacing: -0.2, color: "var(--ink)" as string, paddingTop: 18, paddingRight: 84, paddingLeft: 20, paddingBottom: 4, ...(web ? ({ outlineStyle: "none" } as object) : null) },
+  pin: { position: "absolute", top: 12, right: 12, flexDirection: "row", gap: 2, zIndex: 2 },
   mbWrap: { paddingTop: 6, paddingHorizontal: 20, paddingBottom: 8 },
   mb: { width: "100%", fontSize: 15, lineHeight: 24, color: "var(--ink)" as string, paddingTop: 6, paddingHorizontal: 20, paddingBottom: 8, ...(web ? ({ outlineStyle: "none", resize: "none" } as object) : null) },
   pad: { paddingHorizontal: 20 },
   ref: { fontSize: 11.5, color: "var(--accent)" as string },
+  from: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8 },
   linked: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
   linkedText: { flex: 1, fontSize: 12, color: "var(--ink-2)" as string },
   meta: { flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap", paddingTop: 10, paddingHorizontal: 20, paddingBottom: 4 },
   lbx: { flexDirection: "row", alignItems: "center", gap: 5, height: 24, paddingHorizontal: 6, marginLeft: -6, borderRadius: 6 },
   metaText: { fontSize: 12, color: "var(--ink-3)" as string },
-  acts: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", paddingTop: 12, paddingHorizontal: 20, paddingBottom: 4, borderTopWidth: 1, borderTopColor: "var(--line)" as string, marginTop: 10 },
-  bar: { flexDirection: "row", alignItems: "center", gap: 2, paddingTop: 8, paddingHorizontal: 10, paddingBottom: 10 },
+  acts: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap", paddingTop: 12, paddingHorizontal: 16, paddingBottom: 12, borderTopWidth: 1, borderTopColor: "var(--line)" as string, marginTop: 10 },
 });

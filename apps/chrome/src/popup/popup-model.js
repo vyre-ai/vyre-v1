@@ -37,12 +37,13 @@ export function viewOf(state) {
     note = { kind: "warn", text: "This page is not secure (http), so Vyre will not fill it." };
   } else if (state.blocked === "never_fill") {
     note = { kind: "info", text: "Filling is turned off for this site.", action: { id: "fillOn", label: "Turn on" } };
-  } else if (!state.rows || state.rows.length === 0) {
-    note = { kind: "info", text: "No saved login for this site." };
+  } else if ((!state.rows || state.rows.length === 0) && !(state.cards && state.cards.length)) {
+    note = { kind: "info", text: state.cardFields ? "No saved card." : "No saved login for this site." };
   } else {
     canFill = true;
   }
-  const rows = canFill ? state.rows.map((/** @type {LoginRow} */ r) => ({ id: r.id, name: r.name, letter: letterOf(r.name), trail: r.kind === "totp" ? "Code" : "", kind: r.kind })) : [];
+  const all = [...(state.rows || []), ...(state.cards || [])];
+  const rows = canFill ? all.map((/** @type {LoginRow} */ r) => ({ id: r.id, name: r.name, letter: letterOf(r.name), trail: r.kind === "totp" ? "Code" : r.kind === "card" ? "Card" : "", kind: r.kind })) : [];
   return { spaceName, site, rows, note, canAsk: state.status === "online" && Boolean(state.page), canFill };
 }
 
@@ -55,6 +56,7 @@ export function rowMenu(row, login) {
   /** @type {({ id: string, label: string } | { sep: true })[]} */
   const items = row.kind === "totp"
     ? [{ id: "fillCode", label: "Fill Code" }]
+    : row.kind === "card" ? [{ id: "fill", label: "Fill Card" }]
     : [{ id: "fill", label: "Fill" }, { id: "fillSignIn", label: "Fill and Sign In" }];
   if (row.kind !== "totp" && login && login.fieldKeys && login.fieldKeys.includes("totp")) items.push({ id: "fillCode", label: "Fill Code" });
   items.push({ id: "openVault", label: "Open in Vault" }, { sep: true }, { id: "neverFill", label: "Never Fill on This Site" });

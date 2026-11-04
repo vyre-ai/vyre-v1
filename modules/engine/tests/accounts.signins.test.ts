@@ -76,3 +76,44 @@ test("canonical keeps a field after a folded handle and leaves every other ref a
   assert.equal(canonical(l, "#Codex_2.credentials"), "#Codex.credentials");
   assert.equal(canonical(l, "#Other"), "#Other");
 });
+
+// ---- one list for every picker: engine.accounts.list with a place
+
+const shared = (o: Prov): Prov => ({ providerKey: "anthropic", name: "Anthropic", connection: "api_key", scope: "shared", engine: "anthropic", spaceMayUse: true, state: "ok", itemId: `vit_${o.id}`, ...o });
+const MIXED: Prov[] = [
+  sub({ id: "prv_m", handle: "#My_Claude", displayName: "My Claude", models: ["claude-sonnet-5-5"] }),
+  sub({ id: "prv_bad", handle: "#Old_Codex", providerKey: "codex", engine: "codex", displayName: "Codex", state: "needs_sign_in" }),
+  shared({ id: "prv_t", handle: "#Team_Key", displayName: "Team key", uses: { teamChats: { who: "everyone" } }, teamChatsForMe: true, models: ["claude-sonnet-5-5", "claude-opus-5-5"] }),
+  shared({ id: "prv_a", handle: "#Auto_Key", displayName: "Automation key", uses: { automations: true }, models: ["claude-sonnet-5-5"] }),
+  shared({ id: "prv_c", handle: "#Capped_Key", displayName: "Capped key", uses: { teamChats: { who: "everyone" }, automations: true, agentWork: { which: "all" } }, teamChatsForMe: true, capped: true }),
+];
+const SERVER = { "spaces.get": () => ({ space: { kind: "team" } }) };
+
+test("accounts.list with a place: every picker lists the same accounts, and each says whether it runs there and why not", async () => {
+  const ctx = fake(MIXED, SERVER);
+  const bare = (await accountsList(ctx, {})).accounts.map((a) => a.ref);
+  const by = async (place: "chat" | "automation" | "agent" | "space") => (await accountsList(ctx, { place })).accounts;
+  const chat = await by("chat"), auto = await by("automation"), agent = await by("agent"), space = await by("space");
+  for (const list of [chat, auto, agent, space]) assert.deepEqual(list.map((a) => a.ref), bare, "the same accounts in every place");
+  const row = (list: typeof chat, ref: string) => list.find((a) => a.ref === ref)!;
+  // Working in the Vault, pickable in a chat; a team server needs the Space switch for it to work an automation
+  assert.equal(row(chat, "#My_Claude").usable, true);
+  assert.equal(row(auto, "#My_Claude").usable, false);
+  assert.match(String(row(auto, "#My_Claude").why), /Let the Space run work on my subscription/);
+  // a signed-out account says why everywhere
+  for (const list of [chat, auto, agent, space]) { assert.equal(row(list, "#Old_Codex").usable, false); assert.match(String(row(list, "#Old_Codex").why), /Sign in/); }
+  // Space accounts: kept for team chats runs a chat, not an automation; kept for automations the reverse; a capped one says so
+  assert.deepEqual([row(chat, "#Team_Key").usable, row(auto, "#Team_Key").usable], [true, false]);
+  assert.match(String(row(auto, "#Team_Key").why), /has not kept this account for this kind of work/);
+  assert.deepEqual([row(chat, "#Auto_Key").usable, row(auto, "#Auto_Key").usable], [false, true]);
+  assert.equal(row(chat, "#Capped_Key").usable, false);
+  assert.match(String(row(chat, "#Capped_Key").why), /monthly cap/);
+  // each one's models ride along
+  assert.deepEqual(row(chat, "#Team_Key").models, ["claude-sonnet-5-5", "claude-opus-5-5"]);
+  // a model narrows to accounts that list it
+  const sonnet = (await accountsList(ctx, { place: "chat", model: "claude-opus-5-5" })).accounts;
+  assert.equal(sonnet.find((a) => a.ref === "#Team_Key")!.usable, true);
+  assert.equal(sonnet.find((a) => a.ref === "#Auto_Key")!.usable, false);
+  // without a place nothing changes in the answer except the models
+  assert.equal("usable" in (await accountsList(ctx, {})).accounts[0]!, false);
+});

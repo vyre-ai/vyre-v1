@@ -21,7 +21,7 @@ type Payload = {
   jobId: string;
   threadId: string;
   leadThreadId: string;
-  projectId: string;
+  projectId?: string;
   agentId: string;
   branch: string;
 };

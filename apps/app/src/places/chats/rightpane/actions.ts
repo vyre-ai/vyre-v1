@@ -8,8 +8,14 @@ export interface PaneDeps {
   note(text: string, undo?: () => Promise<void> | void): void;
 }
 
+/** What the app said went wrong, in its own words, so a note never says only "try again". */
+export function reasonOf(e: unknown): string {
+  const m = e instanceof Error ? e.message.trim() : "";
+  return m.replace(/\.+$/, "").slice(0, 240);
+}
+
 async function attempt(d: PaneDeps, what: string, fn: () => Promise<void>): Promise<boolean> {
-  try { await fn(); return true; } catch { d.note(`Could not ${what}. Try again.`); return false; }
+  try { await fn(); return true; } catch (e) { const why = reasonOf(e); d.note(why ? `Could not ${what}: ${why}` : `Could not ${what}.`); return false; }
 }
 
 let seq = 0;

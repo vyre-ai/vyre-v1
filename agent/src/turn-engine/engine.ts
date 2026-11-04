@@ -119,6 +119,9 @@ const OVERLOADED = "provider.overloaded";
 const MAX_FALLBACKS = 8;
 
 interface Running { turnId: string; agentId: string; asker: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean }
+/** Agent-to-agent hand-offs that may follow one person's message, and how many times one pair may pass it between them. */
+const MENTION_HOPS = 3;
+const MAX_PAIR_PASSES = 2;
 interface ThreadState { thread: OpenThread; messages: StoredMessage[]; running: Running | null; worker: Promise<void> | null; active: boolean }
 
 const defaultSchedule = (fn: () => void, ms: number): (() => void) => {
@@ -227,15 +230,30 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   function ingest(st: ThreadState, m: IncomingMessage, interrupt: boolean): ReceiveResult {
+    if (m.people) st.thread.people = [...m.people];
     return dispatch(st, store(st, m), interrupt, m.replyToPerson, m.job, m.asker);
   }
 
   function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean, replyToPerson?: string, job?: string, asker?: string): ReceiveResult {
-    const r = route({ agents: st.thread.agents, kind: st.thread.kind }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined, text: msg.body }, opts.policy);
+    const r = route({ agents: st.thread.agents, kind: st.thread.kind, ...(st.thread.people ? { people: st.thread.people } : {}) }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined, text: msg.body }, opts.policy);
     let responders = r.responders;
     // a round where a person spoke to all the agents: each answers alone, and no answer sets off another agent (the lead posts no summary) unless it @mentions one or the person asks again
     if (msg.author.kind === "person") { if (r.reason === "all") askedAll.set(st.thread.id, new Set(responders)); else askedAll.delete(st.thread.id); }
     else if (askedAll.get(st.thread.id)?.has(msg.author.id) && r.reason !== "mention") { askedAll.get(st.thread.id)!.delete(msg.author.id); responders = []; }
+    // An agent's @mention is a hand-off: at most MENTION_HOPS of them follow one person's message, and the same two agents never pass it back and forth more than twice (owner ruling 4 Nov 2026).
+    let chain: { from: string; to: string[] } | undefined;
+    if (msg.author.kind === "agent" && job === undefined && r.reason === "mention" && responders.length > 0) {
+      if ((msg.depth ?? 0) > MENTION_HOPS) { responders = []; emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id }); }
+      else {
+        const since = st.messages.slice(); let k = since.length - 1;
+        while (k >= 0 && since[k]!.author.kind !== "person") k--;
+        const run = since.slice(k + 1);
+        const bounces = (a: string, b: string): number => run.filter((x) => x.author.kind === "agent" && ((x.author.id === a && x.mentions.some((y) => y.kind === "agent" && y.id === b)) || (x.author.id === b && x.mentions.some((y) => y.kind === "agent" && y.id === a)))).length;
+        responders = responders.filter((to) => bounces(msg.author.id, to) <= MAX_PAIR_PASSES);
+        if (responders.length === 0) emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id });
+        else chain = { from: msg.author.id, to: [...responders] };
+      }
+    }
     let routine = false;
     if (r.reason === "hop_limit") emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id });
     // Whose act this message is: a person's own, a Job's person, or for an agent's message the person it speaks for. An agent's message with nobody behind it is the agent's alone.
@@ -254,7 +272,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     const qseqs = responders.map((agentId) => enqueue(st, { kind, agentId, from, messageId: msg.id, priority: interrupt ? PRIORITY_INTERRUPT : 0, routine }).qseq);
     if (interrupt && st.running) void cancelRunning(st);
     if (qseqs.length > 0) kick(st);
-    return { responders, reason: r.reason, qseqs, messageId: msg.id };
+    return { responders, reason: r.reason, qseqs, messageId: msg.id, ...(chain && qseqs.length > 0 ? { chain } : {}) };
   }
 
   /** Per chat, the agents still answering a message a person sent to all of them. */
@@ -345,12 +363,13 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // The account that pays comes from engine.account.resolve when the host wires it; without it the engine keeps its own starter/steerer choice (unit tests).
     let resolveFailed = false;
     let resolveCode: string | undefined;
+    let resolveMessage: string | undefined;
     // a chain with no person behind it stops and asks: nothing is admitted, resolved or paid for, and the chat says a person has to ask
     const orphan = !wait && payer.personless === true;
     const refused = orphan
       ? { code: "no_asker", message: "No person asked for this, so it did not run." }
       : opts.admit ? await opts.admit({ threadId: st.thread.id, agentId: item.agentId, asker: wait?.asker ?? payer.asker }).catch(() => null) : null;
-    const account = opts.resolveAccount && !refused ? await opts.resolveAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: wait?.asker ?? payer.asker, ...(item.routine ? { kind: "agent_work" as const } : item.kind === "wake" ? { kind: "wake" as const } : {}) }).catch((e: unknown) => { resolveFailed = true; resolveCode = (e as { code?: unknown } | null)?.code as string | undefined; return null; }) : undefined;
+    const account = opts.resolveAccount && !refused ? await opts.resolveAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: wait?.asker ?? payer.asker, ...(item.routine ? { kind: "agent_work" as const } : item.kind === "wake" ? { kind: "wake" as const } : {}) }).catch((e: unknown) => { resolveFailed = true; resolveCode = (e as { code?: unknown } | null)?.code as string | undefined; if (typeof resolveCode === "string" && resolveCode.startsWith("engine.") && e instanceof Error) resolveMessage = e.message; return null; }) : undefined;
     // a refused personless turn is recorded for nobody: not the starter, whose access it never had
     const asker = orphan ? "" : wait?.asker ?? (account ? account.payer : payer.asker);
     const reason = wait ? ("starter" as const) : payer.reason;
@@ -401,7 +420,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     try {
       if (refused) throw Object.assign(new Error(refused.message), { code: refused.code });
       if (!agent) throw Object.assign(new Error("agent is not in this thread"), { code: "unknown_agent" });
-      if (account === null && resolveFailed) throw Object.assign(new Error("the account could not be resolved just now"), { code: typeof resolveCode === "string" ? resolveCode : "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
+      if (account === null && resolveFailed) throw Object.assign(new Error(resolveMessage ?? "the account could not be resolved just now"), { code: typeof resolveCode === "string" ? resolveCode : "account_unavailable" });   // a resolver that is down is not "no key": no Unblock
       if (account === null) {
         // Nobody has a usable key for this turn: no session, the turn ends as failed (no_account) until they add one.
         try { await opts.onNoAccount?.({ threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker, routine: item.routine }); } catch { /* the Unblock is best effort; the turn still ends as no_account */ }
@@ -412,6 +431,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       for (;;) {
       const session = await opts.openSession({ threadId: st.thread.id, agent, asker, turnId: turn.id, traceId: turn.traceId, ...(paying ? { account: paying } : {}) });
       run.session = session;
+      // what really runs is what the record keeps: a session that says its model (a swapped or limited one) wins over the one the chat asked for, and a swap to the account's own default is not the asked model
+      { const ran = (session as { model?: unknown }).model; if (typeof ran === "string") turn.model = ran; else if (paying?.modelFallback) turn.model = paying.modelFallback.to ?? null; }
       if (run.cancelled) await session.cancel();
       let switchTo: ResolvedAccount | null = null;
       const input = {
@@ -464,7 +485,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           case "usage":
             turn.tokensIn += ev.inputTokens;
             turn.tokensOut += ev.outputTokens;
+            // the driver says which model ran: an agent that picked none runs on the engine's own default, and a turn moved to a Space account's model ran on that one. That is the turn's model, never "unknown"
+            if (ev.model) turn.model = ev.model;
+            if (ev.contextTokens !== undefined) info.contextTokens = ev.contextTokens;
             usages += 1;
+            if (ev.contextTokens !== undefined) info.contextTokens = ev.contextTokens;
+            if (ev.model) turn.model = ev.model;   // what the engine says it ran is what is recorded
             if (ev.cacheReadTokens !== undefined) info.cacheReadTokens = (info.cacheReadTokens ?? 0) + ev.cacheReadTokens;
             if (ev.cacheWriteTokens !== undefined) info.cacheWriteTokens = (info.cacheWriteTokens ?? 0) + ev.cacheWriteTokens;
             if (ev.reasoningTokens !== undefined) info.reasoningTokens = (info.reasoningTokens ?? 0) + ev.reasoningTokens;
@@ -731,7 +757,7 @@ function noteBlock(info: TurnInfo, kind: string, payload: unknown, at: number): 
 
 /** At the end of a turn: the account that paid last, and the provider's dollar figure only when every call gave one. */
 function settleInfo(info: TurnInfo, paying: ResolvedAccount | null, usages: number, priced: number): void {
-  if (paying) info.paid = payLine({ ...(paying.via ? { via: paying.via } : {}), kind: paying.kind, ...(paying.fellBack ? { fellBack: true } : {}), ...(paying.cappedFrom ? { cappedFrom: paying.cappedFrom } : {}) });
+  if (paying) info.paid = payLine({ ...(paying.name ? { name: paying.name } : {}), ...(paying.via ? { via: paying.via } : {}), kind: paying.kind, ...(paying.shared ? { shared: true } : {}), ...(paying.spaceKey ? { spaceKey: true } : {}), ...(paying.fellBack ? { fellBack: true } : {}), ...(paying.cappedFrom ? { cappedFrom: paying.cappedFrom } : {}) });
   if (paying) info.account = { ref: paying.ref, driver: paying.driver, provider: paying.provider, kind: paying.kind, ...(paying.shared ? { shared: true } : {}), ...(paying.spaceKey ? { spaceKey: true } : {}) };
   if (usages === 0 || priced !== usages) delete info.costUsd;
 }

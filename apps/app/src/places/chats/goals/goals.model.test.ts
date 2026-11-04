@@ -49,13 +49,13 @@ test("the Goals group: what needs you first, then by the next check-in; ended go
   assert.deepEqual(out.map((g) => g.id), ["b", "c", "a", "f", "e"]);
 });
 
-test("the Chats sidebar shows Goals under Tasks and Threads, five then N more, none when there are none", () => {
+test("the Chats sidebar shows Goals under Tasks, five then N more, none when there are none", () => {
   const base = { faces: [], workingAgents: new Set<string>(), groups: [], channels: [], filter: "all" as const, closed: new Set<never>() };
   const none = buildEntries(base);
   assert.equal(none.some((e) => e.key === "h:goals"), false);
   const goals = Array.from({ length: 7 }, (_, i) => line({ id: `g${i}` }));
   const keys = buildEntries({ ...base, goals }).map((e) => e.key);
-  assert.deepEqual(keys.slice(0, 9), ["nav:tasks", "nav:threads", "h:goals", "g:g0", "g:g1", "g:g2", "g:g3", "g:g4", "m:goals"]);
+  assert.deepEqual(keys.slice(0, 8), ["nav:tasks", "h:goals", "g:g0", "g:g1", "g:g2", "g:g3", "g:g4", "m:goals"]);
   assert.equal(buildEntries({ ...base, goals, moreGoals: true }).filter((e) => e.type === "goal").length, 7);
   assert.equal(buildEntries({ ...base, goals, closed: new Set(["goals" as const]) }).filter((e) => e.type === "goal").length, 0, "the group folds");
 });

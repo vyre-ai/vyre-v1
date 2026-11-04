@@ -91,7 +91,7 @@ export async function start(ctx: ChatCtx, input: StartInput) {
 
   if (input.kind === "ask") {
     if (isRun) raise(ctx, "validation.bad_input", "A Run has a chat, not an Ask pane.");
-    if (isTask) raise(ctx, "validation.bad_input", "A task has a thread, not an Ask pane.");
+    if (isTask) raise(ctx, "validation.bad_input", "A task has a chat, not an Ask pane.");
     if (input.scopeType === undefined) raise(ctx, "validation.bad_input", "An Ask pane is about something: say which record, file, event or page.");
     if (personId !== undefined) raise(ctx, "validation.bad_input", "An Ask pane is private. Start a chat to talk to a person.");
     if (agentIds.length === 0) raise(ctx, "validation.bad_input", "Pick the agent to ask.");
@@ -99,12 +99,12 @@ export async function start(ctx: ChatCtx, input: StartInput) {
     raise(ctx, "validation.bad_input", "Pick an agent or a person to talk to.");
   }
   if (isRun) {
-    if (!input.scopeId!.startsWith("run_")) raise(ctx, "validation.bad_input", "A Run thread is named by its Run id.", { scopeId: input.scopeId });
+    if (!input.scopeId!.startsWith("run_")) raise(ctx, "validation.bad_input", "A Run chat is named by its Run id.", { scopeId: input.scopeId });
     if (personId !== undefined) raise(ctx, "validation.bad_input", "A Run chat belongs to the Run, not to a pair of people.");
   }
   if (isTask) {
-    if (!input.scopeId!.startsWith("tsk_")) raise(ctx, "validation.bad_input", "A task thread is named by its task id.", { scopeId: input.scopeId });
-    if (personId !== undefined) raise(ctx, "validation.bad_input", "A task thread belongs to the task, not to a pair of people.");
+    if (!input.scopeId!.startsWith("tsk_")) raise(ctx, "validation.bad_input", "A task chat is named by its task id.", { scopeId: input.scopeId });
+    if (personId !== undefined) raise(ctx, "validation.bad_input", "A task chat belongs to the task, not to a pair of people.");
   }
 
   // One chat per Run: starting it again opens the one that exists.

@@ -17,7 +17,7 @@ const source = (path: string): string => readFileSync(new URL(path, import.meta.
 
 test("place nav follows the prototype order", () => {
   assert.deepEqual(STUDIO_NAV.map((item) => item.label), [
-    "Automations", "Templates", "Needs you", "All runs", "Live Event Explorer", "Analytics", "Dependencies", "Packages",
+    "Automations", "Templates", "Needs you", "Watching", "All runs", "Live Event Explorer", "Analytics", "Dependencies", "Packages",
   ]);
   const slot = source("./sidebar/AutomationsSidebarSlot.tsx");
   assert.match(slot, /STUDIO_NAV/);

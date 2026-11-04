@@ -241,13 +241,16 @@ export function ChartBlock({ spec, error, source, id }: { spec: ChartSpec | null
   const t = chartTable(spec);
   const csv = [t.head, ...t.rows].map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
   const g = chartGeometry(spec);
+  // ui-rows-lint: not a list (a chart legend: a colour key per series, nothing to hover or pick)
   const legend = g.legend.length > 1 || spec.type === "pie" ? g.legend.map((l, i) => (<View key={i} style={st.lg}><View style={[st.lgDot, { backgroundColor: SERIES_COLORS[i % SERIES_COLORS.length] }]} /><Text style={st.lgText}>{l}</Text></View>)) : null;
   return (
     <Frame label={`chart · ${spec.type}${spec.title ? ` · ${spec.title}` : ""}`} testID={`block-${id}`} controls={<>{web ? <SmallBtn label="Chart" on={!table} onPress={() => setTable(false)} testID={`chart-tab-${id}`} /> : null}<SmallBtn label="Table" on={table} onPress={() => setTable(true)} testID={`table-tab-${id}`} /><SmallBtn label="Copy CSV" onPress={() => copyText(csv)} testID={`chart-csv-${id}`} /></>}>
       {!table && web ? <View style={st.chartBody} testID={`chart-${id}`}>{svgChart(g, spec)}{legend ? <View style={st.legend}>{legend}</View> : null}</View> : (
         <ScrollView horizontal showsHorizontalScrollIndicator testID={`chart-table-${id}`}>
           <View>
+            {/* ui-rows-lint: not a list (a table's header cells, side by side in one row) */}
             <View style={st.tr}>{t.head.map((h, i) => <Text key={i} style={[st.td, st.th]}>{h}</Text>)}</View>
+            {/* ui-rows-lint: not a list (a table's rows and their cells: a grid of values, nothing to hover or pick) */}
             {t.rows.map((r, ri) => <View key={ri} style={[st.tr, ri % 2 === 1 && st.trAlt]}>{r.map((c, ci) => <Text key={ci} style={st.td}>{c}</Text>)}</View>)}
           </View>
         </ScrollView>

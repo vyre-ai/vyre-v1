@@ -9,7 +9,8 @@
 // Errors are only ones the capabilities declare: a person at the controls, a held item and a bad argument are validation.bad_input; Esc, a computer still starting and a silent agentd are provider.unavailable.
 // Handles are never resolved here: "agent computer logins stay on that computer" (ARCH 6.11), agentd substitutes them at the last moment and scrubs its own output. This module scrubs again.
 import { actorOf, addStep, agentFolder, clean, hostFor, ensure, mintId, needComputer, needTeam, raise, rememberSecrets, rowsOf, setComputer } from "../../projections.ts";
-import type { CompCtx, ComputerHost, ComputerRow, Secret } from "../../projections.ts";
+import { personalChrome } from "../../projections.ts";
+import type { CompCtx, ComputerHost, ComputerRow, PersonalChrome, Secret } from "../../projections.ts";
 import { awaken } from "../lifecycle.ts";
 
 export type ToolArgs = Record<string, unknown>;
@@ -135,12 +136,36 @@ async function liveCard(ctx: CompCtx, c: ComputerRow, caption: string, fileId: s
   } catch { lastCard.delete(key); }
 }
 
-export interface Resolved { computer: ComputerRow; host: ComputerHost & ToolHost }
+export interface Resolved { computer: ComputerRow; host: ComputerHost & ToolHost; /** The person's own Chrome, not an agent computer. */ personal?: boolean }
+
+/** Name this as `computerId` to work in the person's own Chrome. An agent with no computer of its own gets it without naming it, when the person has opened their Chrome to agents. */
+export const MY_CHROME = "my-chrome";
+
+const stub = (ctx: CompCtx): ComputerRow => ({ computerId: MY_CHROME, agentId: ctx.principal.id, state: "working" } as unknown as ComputerRow);
+
+/** Is this call for the person's Chrome? Only an agent working for the person who is signed in to that Chrome, and never when it has a computer and did not ask for this. */
+async function wantsMyChrome(ctx: CompCtx, computerId: string | undefined): Promise<boolean> {
+  const port = personalChrome();
+  const asked = computerId === MY_CHROME;
+  if (asked && ctx.principal.kind !== "agent") raise(ctx, "validation.bad_input", "Your Chrome is for an agent working for you. Say which agent computer you mean.");
+  if (!port || ctx.principal.kind !== "agent") return false;
+  if (computerId !== undefined && !asked) return false;
+  if (!asked) {
+    const own = rowsOf(ctx.db, "SELECT computer_id FROM computers_computers WHERE agent_id = ?", ctx.principal.id)[0];
+    if (own) return false;
+  }
+  const person = ctx.actingFor;
+  if (!person) { if (asked) raise(ctx, "validation.bad_input", "Your Chrome is the Chrome of the person you work for, and this work is not for anyone."); return false; }
+  if (await port.available({ space: ctx.space, person })) return true;
+  if (asked) raise(ctx, "provider.unavailable", "That person's Chrome is not open to agents here. They turn it on in Vyre for Chrome, and the work has to run on their computer.");
+  return false;
+}
 
 /** Everything before the call: team Space, the computer, the caller's right to it, awake, and the controls with the agent. Returns null when the spec says to leave a sleeping computer alone. */
 export async function prepare(ctx: CompCtx, computerId: string | undefined, spec: Pick<ToolSpec, "noWake" | "duringTakeover">): Promise<Resolved | null> {
   ensure(ctx.db);
   needTeam(ctx);
+  if (await wantsMyChrome(ctx, computerId)) return { computer: stub(ctx), host: {} as ComputerHost & ToolHost, personal: true };
   let c = computerFor(ctx, computerId);
   mayUse(ctx, c);
   // The controls are the person's: the tools wait for an agent, never for the person at the controls (their own click or key through the live view is a tool call as them).
@@ -154,6 +179,7 @@ export async function prepare(ctx: CompCtx, computerId: string | undefined, spec
 
 /** One call to agentd and everything after it: scrub, remember what was filled, keep the frame, add the step. Returns the capability's output. */
 export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
+  if (r.personal) return personalCall(ctx, spec, args);
   const c = r.computer;
   let raw: ToolAnswer;
   try {
@@ -177,6 +203,57 @@ export async function call(ctx: CompCtx, r: Resolved, spec: ToolSpec, args: Tool
     await liveCard(ctx, c, words, frameFileId, at);
   }
   return out;
+}
+
+/** One tool in the person's own Chrome. What comes back is what the extension answered (it already hides secret fields and never holds a value); a held send or post also leaves its card in the chat. */
+async function personalCall(ctx: CompCtx, spec: ToolSpec, args: ToolArgs): Promise<ToolAnswer> {
+  const port = personalChrome() as PersonalChrome;
+  let raw: ToolAnswer;
+  try {
+    raw = await port.call({ tool: spec.name, args, agent: { id: ctx.principal.id, name: ctx.principal.id }, space: ctx.space, ...(ctx.thread ? { thread: ctx.thread } : {}), timeoutMs: Math.min(spec.timeoutMs ?? DEFAULT_TOOL_MS, MAX_TOOL_MS) });
+  } catch (e) {
+    const code = (e as { code?: unknown } | null)?.code;
+    const message = e instanceof Error ? e.message : "Your Chrome did not answer.";
+    raise(ctx, code === "offline" || code === "timeout" ? "provider.unavailable" : "validation.bad_input", message);
+  }
+  if (!isRecord(raw)) raise(ctx, "provider.unavailable", "Your Chrome answered with something that is not an object.");
+  const out: ToolAnswer = { ...raw };
+  // the extension names a screenshot `image`; the capability's answer is `png`
+  if (spec.name === "chrome_screenshot" && typeof out["image"] === "string" && out["png"] === undefined) { out["png"] = out["image"]; delete out["image"]; }
+  if (ctx.thread) await chromeCards(ctx, port, out);
+  return out;
+}
+
+const lastStep = new Map<string, number>();
+/** The chat's two cards for work in the person's Chrome: "Using your Chrome" once per burst, and a held item as soon as there is one. Posting never fails the tool call. */
+async function chromeCards(ctx: CompCtx, port: PersonalChrome, out: ToolAnswer): Promise<void> {
+  const thread = ctx.thread as string;
+  const agent = ctx.principal.id;
+  const at = ctx.now();
+  try {
+    const heldId = typeof out["heldId"] === "string" ? out["heldId"] : "";
+    const held = heldId ? await port.held(heldId) : null;
+    if (heldId && held) {
+      await ctx.call("browser.cards.post", { threadId: thread, idempotencyKey: `chrheld:${heldId}`, block: { type: "chrome_held", data: { heldId, agentId: agent, site: held.site ?? "", kind: held.kind ?? "send", summary: held.summary ?? "", card: held.card ?? {}, state: "waiting" } } });
+    }
+    if (heldId && held) {
+      // the step block above the held card: what the agent did, then what waits for the person
+      const plan = port.plan(agent);
+      const frameNow = port.frame(agent);
+      if (plan && plan.steps.length > 0) {
+        const steps = plan.steps.map((text, i) => ({ text, state: i < plan.done ? "done" : "todo" }));
+        steps.push({ text: `${held.kind === "post" ? "Post" : held.kind === "payment" ? "Payment" : held.kind === "delete" ? "Delete" : "Send"} waits for you`, state: "waiting" });
+        await ctx.call("browser.cards.post", { threadId: thread, idempotencyKey: `chrplan:${heldId}`, block: { type: "chrome_step", data: { agentId: agent, site: held.site || frameNow?.site || "your Chrome", thumb: frameNow?.thumb ?? null, state: "waiting", goal: plan.goal, steps } } });
+      }
+    }
+    const f = port.frame(agent);
+    const key = `${agent}|${thread}`;
+    const prev = lastStep.get(key);
+    if (f && (prev === undefined || at - prev >= LIVE_GAP_MS)) {
+      lastStep.set(key, at);
+      await ctx.call("browser.cards.post", { threadId: thread, idempotencyKey: `chrstep:${agent}:${thread}:${Math.floor(at / LIVE_GAP_MS)}`, block: { type: "chrome_step", data: { agentId: agent, site: f.site, thumb: f.thumb, state: "using" } } });
+    }
+  } catch { /* the work went through; the card is a courtesy */ }
 }
 
 /** The whole path for a tool with nothing special: prepare, call. */

@@ -2,6 +2,7 @@
 // its real components against the prototype. Each UI packet owns its own mount file; this route needs no edit to add one.
 import { Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
+import { ClientOnly } from "../../src/ClientOnly.tsx";
 import { loadMount, mountIds } from "../../src/mounts.js";
 
 export function generateStaticParams(): { id: string }[] {
@@ -14,7 +15,7 @@ export default function MountRoute() {
   const Mount = loadMount(id).default;
   return (
     <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} testID={`mount-${id}`}>
-      <Mount />
+      <ClientOnly><Mount /></ClientOnly>
     </View>
   );
 }

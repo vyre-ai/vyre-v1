@@ -45,7 +45,7 @@ export const diffOf = (ctx: AssistCtx, diffId: string): DiffRec | undefined =>
 /** The thread must exist and belong to the person; anyone else gets "not found" so a thread id leaks nothing. */
 export function ownThread(ctx: AssistCtx, threadId: string): ThreadRec {
   const t = threadById(ctx, threadId);
-  if (!t || t.person_id !== personOf(ctx)) return raise(ctx, "validation.not_found", "No such assistant thread.");
+  if (!t || t.person_id !== personOf(ctx)) return raise(ctx, "validation.not_found", "No such assistant chat.");
   return t;
 }
 

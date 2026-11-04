@@ -56,14 +56,14 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "projectId": "prj_a1b2c3"
+    "projectId": "example"
   },
   "output": {
     "repo": {
       "baseBranch": "example",
       "branch": "example",
       "path": "example",
-      "projectId": "prj_a1b2c3"
+      "projectId": "example"
     }
   }
 }

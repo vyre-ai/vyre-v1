@@ -369,7 +369,7 @@ export default defineManifest({
     read('files.agent_view', 'What an agent gets of a file now (Preview as agent): its text with [REDACTED], its name and path as agents read them, or why it gets nothing', {
       in: { fileId: id.file, versionId: t.opt(id.version) },
       out: { state: t.enm('clear', 'redacted', 'needs', 'off'), name: t.str(), path: t.str(), text: t.nullable(t.str()), boxes: t.opt(t.arr(t.obj({ page: t.int(), box: t.nullable(box) }))) },
-      on: ['file', '/fileId'], emits: ['file.needs_review'], label: 'check', agent: false,
+      on: ['file', '/fileId'], emits: ['file.needs_review', 'file.agent_read'], label: 'check', agent: false,
     }),
     read('files.agent_states', 'Redaction for AI in a folder: each file\'s badge (Reviewed, Needs review, Not available to AI), each subfolder\'s setting and how many below it wait, and the files to review next', {
       in: { folderId: id.folder },

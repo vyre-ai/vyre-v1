@@ -34,7 +34,7 @@ export function IconBtn({ icon, label, onPress, size = 28, iconSize = 16, on = f
         accessibilityRole="button" accessibilityLabel={label} testID={testID}
         onPress={(e) => { (e as unknown as { stopPropagation?: () => void }).stopPropagation?.(); const p = pressPoint(e); onPress(p.x, p.y); }}
         style={[st.ib, { width: size, height: size }, on ? st.ibOn : null, style]}
-        {...dom({ dataSet: { nbtn: "ghost", ...(over ? { nover: "true" } : {}) }, ...(tabbable ? {} : { tabIndex: -1 }) })}
+        {...dom({ title: label, dataSet: { nbtn: "ghost", ...(over ? { nover: "true" } : {}) }, ...(tabbable ? {} : { tabIndex: -1 }) })}
       >
         <Ico name={icon} size={iconSize} color={color ?? (on ? "var(--ink)" : "var(--ink-3)")} />
       </Pressable>

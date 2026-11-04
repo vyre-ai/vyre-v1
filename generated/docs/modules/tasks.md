@@ -43,7 +43,7 @@ Requires: nothing.
 - [tasks.update](../capabilities/tasks.update.md): Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)
 - [tasks.withdraw](../capabilities/tasks.withdraw.md): Withdraw open requests whose source chat or run stopped or whose item changed, or let one task go, with a note
 - [tasks.working_notes.delete](../capabilities/tasks.working_notes.delete.md): Delete a working note
-- [tasks.working_notes.set](../capabilities/tasks.working_notes.set.md): Write a working note (key and value) that any person or agent on the task can read
+- [tasks.working_notes.set](../capabilities/tasks.working_notes.set.md): Write a working note (key and value) that any person or agent on the task can read; send expectedFrom, the note as you last read it
 
 ## Events (26)
 

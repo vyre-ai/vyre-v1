@@ -2,7 +2,7 @@
 import type { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 
 /** What a guest sees of a task given to them, in plain words. */
-export const guestNote = (name: string): string => `${name} is a guest. Giving them this task lets them see the task, its thread and its files.`;
+export const guestNote = (name: string): string => `${name} is a guest. Giving them this task lets them see the task, its chat and its files.`;
 
 type Show = ReturnType<typeof useMenu>["show"];
 

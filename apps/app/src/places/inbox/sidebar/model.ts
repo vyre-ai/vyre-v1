@@ -10,7 +10,7 @@ export type Scope =
   | { kind: "number"; id: string }
   | { kind: "starred" }
   | { kind: "follow" }
-export type MainView = "list" | "calendar" | "connect" | "meetings";
+export type MainView = "list" | "calendar" | "connect" | "meetings" | "replies";
 
 export interface InboxState {
   main: MainView;
@@ -40,7 +40,7 @@ export type Counts = CapMap["inbox.counts"]["out"];
 
 export const SCREENS = { sidebar: "inbox.sidebar", list: "inbox.contact-list" } as const;
 
-export const VIEW_LABEL: Record<View, string> = { contact: "By contact", thread: "By thread", calls: "Calls only" };
+export const VIEW_LABEL: Record<View, string> = { contact: "By contact", thread: "By conversation", calls: "Calls only" };
 export const CHANNEL_LABEL: Record<Channel, string> = { email: "Email", sms: "Text", call: "Call" };
 export const CHANNELS: readonly Channel[] = ["email", "sms", "call"];
 
@@ -278,6 +278,7 @@ export type Action =
   | { type: "section"; key: string }
   | { type: "calendar" }
   | { type: "meetings" }
+  | { type: "replies" }
   | { type: "connect" }
   | { type: "calendarVisible"; id: string }
   | { type: "calendarOnly"; id: string; all: readonly string[] };
@@ -295,6 +296,7 @@ export function reduce(s: InboxState, a: Action): InboxState {
     case "section": return { ...s, closed: toggled(s.closed, a.key) };
     case "calendar": return { ...s, main: "calendar", selected: null };
     case "meetings": return { ...s, main: "meetings", selected: null };
+    case "replies": return { ...s, main: "replies", selected: null };
     case "connect": return { ...s, main: "connect", selected: null };
     case "calendarVisible": return { ...s, hiddenCalendars: toggled(s.hiddenCalendars, a.id) };
     case "calendarOnly": return { ...s, hiddenCalendars: a.all.filter((id) => id !== a.id) };

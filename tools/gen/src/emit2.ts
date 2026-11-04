@@ -18,7 +18,7 @@ interface SeedSpace {
 }
 
 export function emitExtras(full: Registry, shared: Registry, put: (p: string, c: string) => void): void {
-  put('validators.ts', compileValidators(shared));
+  for (const [p, c] of compileValidators(shared)) put(p, c);
 
   // ---- block registry types
   {
