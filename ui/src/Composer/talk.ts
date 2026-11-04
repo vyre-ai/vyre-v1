@@ -49,6 +49,7 @@ export const LINE = {
   down: "The voice service is not answering. Try again in a moment.",
   dropped: "Talk lost its connection. Your words are still here.",
   generic: "Talk could not start. Try again.",
+  notSetUp: "Voice isn't set up. Ask an admin to add a key.",
 } as const;
 
 const FINISH_MS = 2_000;

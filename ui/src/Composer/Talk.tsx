@@ -8,7 +8,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
 import { I } from "./parts.tsx";
 import { Glyph } from "./shared.tsx";
-import { openWebMic, startTalk } from "./talk.ts";
+import { LINE, openWebMic, startTalk } from "./talk.ts";
 import type { TalkDeps, TalkRun, TalkSession } from "./talk.ts";
 
 export interface TalkPort {
@@ -17,6 +17,8 @@ export interface TalkPort {
   session(): Promise<TalkSession>;
   /** The first-press sheet, or Settings' own key. True when a key is saved: from the composer, listening starts at once. */
   setup(only?: "mine" | "space"): Promise<boolean>;
+  /** Set in a team Space when nothing covers this person (no own key, no Space key): the mic then says so on a press instead of asking for a key, with a link for an admin who can add one. */
+  unset?: { admin: boolean; open(): void };
   /** Read what covers this person again, after Settings changed it. */
   refresh?(): Promise<void>;
   /** Tell the shell Talk turned out to be off. */
@@ -45,6 +47,8 @@ export interface TalkControl {
   port: TalkPort | null;
   phase: "idle" | "starting" | "listening";
   line: string | null;
+  /** The link under the line (for an admin): where the Space key is added. */
+  link: { label: string; open(): void } | null;
   pressIn(): void;
   pressOut(e?: { pointerType?: string }): void;
   /** The click a pointer press also makes is spent; a click with no pointer is the keyboard, which toggles. */
@@ -60,6 +64,7 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
   const port = useContext(TalkContext);
   const [phase, setPhase] = useState<TalkControl["phase"]>("idle");
   const [line, setLine] = useState<string | null>(null);
+  const [link, setLink] = useState<TalkControl["link"]>(null);
   const run = useRef<TalkRun | null>(null);
   const anchor = useRef<Anchor | null>(null);
   const heard = useRef("");
@@ -71,10 +76,11 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
   const latest = useRef(o);
   latest.current = o;
 
-  const say = useCallback((text: string | null) => {
+  const say = useCallback((text: string | null, withLink: TalkControl["link"] = null) => {
     if (lineTimer.current !== null) clearTimeout(lineTimer.current);
     setLine(text);
-    if (text !== null) lineTimer.current = setTimeout(() => setLine(null), LINE_MS);
+    setLink(text === null ? null : withLink);
+    if (text !== null) lineTimer.current = setTimeout(() => { setLine(null); setLink(null); }, LINE_MS);
   }, []);
   const paint = useCallback((level: number) => {
     nodes.current.forEach((n, i) => { if (n?.style) n.style.transform = `scaleY(${Math.max(0.16, Math.min(1, level * (BARS[i] ?? 1))).toFixed(2)})`; });
@@ -118,6 +124,8 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
       off(text) { over(); p.noteOff(); say(text); },
       needsKey() {
         over();
+        // a team Space with nothing set: say so (an admin gets the way to add one); never ask a member for a key they cannot be given
+        if (p.unset) { say(LINE.notSetUp, p.unset.admin ? { label: "Add a key in Console", open: p.unset.open } : null); return; }
         void p.setup().then((saved) => { if (saved) { warm.current = false; begin(); } }, () => say("Talk could not start. Try again."));
       },
     }, { warm: warm.current });
@@ -170,7 +178,7 @@ export function useTalk(o: { read(): { text: string; cursor: number }; write(tex
   }, [phase, cancel]);
   useEffect(() => () => { run.current?.cancel(); run.current = null; if (lineTimer.current !== null) clearTimeout(lineTimer.current); }, []);
 
-  return { port, phase, line, pressIn, pressOut, tapped, edited, finish, bars };
+  return { port, phase, line, link, pressIn, pressOut, tapped, edited, finish, bars };
 }
 
 const WEB_PRESS = { userSelect: "none", touchAction: "none" } as unknown as ViewStyle;
@@ -184,11 +192,11 @@ export function TalkButton({ talk }: { talk: TalkControl }): ReactElement | null
       accessibilityRole="button" accessibilityLabel={live ? "Stop listening" : "Talk"} accessibilityState={{ selected: live }} testID="composer-talk"
       onPress={talk.tapped}
       {...(web ? {
-        title: live ? "Listening. Press to stop, Esc to cancel" : "Talk",
+        title: live ? "Listening. Press to stop, Esc to cancel" : talk.port?.unset ? LINE.notSetUp : "Talk",
         onPointerDown: (e: { pointerId?: number; currentTarget?: { setPointerCapture?: (id: number) => void } }) => { if (e.pointerId !== undefined) e.currentTarget?.setPointerCapture?.(e.pointerId); talk.pressIn(); },
         onPointerUp: talk.pressOut, onPointerCancel: talk.pressOut,
       } as object : {})}
-      style={({ hovered }: { hovered?: boolean }) => [s.mic, WEB_PRESS, hovered === true && s.hover]}
+      style={({ hovered }: { hovered?: boolean }) => [s.mic, WEB_PRESS, talk.port?.unset ? s.unset : null, hovered === true && s.hover]}
     >
       {live ? (
         <View style={s.bars} testID="composer-talk-level">
@@ -203,7 +211,12 @@ export function TalkButton({ talk }: { talk: TalkControl }): ReactElement | null
 /** One plain line above the box. It floats, so the box does not move. */
 export function TalkLine({ talk }: { talk: TalkControl }): ReactElement | null {
   if (talk.line === null) return null;
-  return <Text style={s.line} testID="composer-talk-line" accessibilityRole="alert" accessibilityLiveRegion="polite">{talk.line}</Text>;
+  return (
+    <View style={s.line} testID="composer-talk-line-box">
+      <Text style={s.lineText} testID="composer-talk-line" accessibilityRole="alert" accessibilityLiveRegion="polite">{talk.line}</Text>
+      {talk.link ? <Text accessibilityRole="link" testID="composer-talk-link" onPress={talk.link.open} style={s.lineLink}>{talk.link.label}</Text> : null}
+    </View>
+  );
 }
 
 const s = StyleSheet.create({
@@ -211,5 +224,8 @@ const s = StyleSheet.create({
   hover: { backgroundColor: "var(--hover)" as string },
   bars: { flexDirection: "row", alignItems: "center", gap: 2.5, height: 16 },
   bar: { width: 2, height: 14, borderRadius: 1, backgroundColor: "var(--beacon)" as string, transform: [{ scaleY: 0.16 }], transitionProperty: "transform", transitionDuration: "110ms", transitionTimingFunction: "linear" } as object,
-  line: { position: "absolute", left: 14, right: 14, bottom: "100%", marginBottom: 8, fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string } as object,
+  line: { position: "absolute", left: 14, right: 14, bottom: "100%", marginBottom: 8, gap: 2 } as object,
+  lineText: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-2)" as string },
+  lineLink: { fontSize: 12.5, lineHeight: 18, color: "var(--accent)" as string, textDecorationLine: "underline" },
+  unset: { opacity: 0.55 },
 });

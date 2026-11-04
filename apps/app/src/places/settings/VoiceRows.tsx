@@ -12,7 +12,7 @@ type Out = CapMap["talk.status"]["out"];
 export function coverLine(status: Pick<Out, "source">, personal: boolean): { label: string; sub: string } {
   if (status.source === "own") return { label: "Your own key", sub: "Kept in your Vault" };
   if (status.source === "space") return { label: "Covered by your Space", sub: "Nothing to set up. Press the mic" };
-  return { label: "No key yet", sub: personal ? "Press the mic, or add one here" : "Press the mic, or add your own here" };
+  return { label: "No key yet", sub: personal ? "Add a key here to use the mic" : "Ask an admin to add one for everyone, or add your own here" };
 }
 
 export function VoiceRows({ found }: { found?: string | undefined }): ReactElement | null {
@@ -32,7 +32,7 @@ export function VoiceRows({ found }: { found?: string | undefined }): ReactEleme
   const removeKey = (): void => { void data.call("talk.disconnect", {}).then((o) => { setStatus(o as Out); saved.saved("Key removed"); }, (e: unknown) => saved.failed(e instanceof Error ? e.message : "That did not save.")); };
   const cover = coverLine(status, personal);
   return (
-    <Section title="Voice" testID="settings-voice">
+    <Section title="Talk" testID="settings-voice">
       <SettingsRow id="talk.on" label="Talk" sub="The mic in every chat" first found={found === "talk.on"} control={<Switch on={status.on} label="Talk" testID="ctl-voice-on" onChange={(on) => change({ on })} />} />
       <SettingsRow id="talk.cover" label={cover.label} sub={cover.sub} found={found === "talk.cover"} control={status.source === "own"
         ? <SmallButton label="Remove" onPress={removeKey} testID="ctl-voice-remove" />

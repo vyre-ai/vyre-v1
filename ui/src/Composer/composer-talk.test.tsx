@@ -193,3 +193,44 @@ test("words go in at the cursor and are spaced from what is around them", () => 
   assert.deepEqual(placed({ before: "", after: "" }, ""), { text: "", cursor: 0 });
   assert.deepEqual(placed({ before: "a", after: "b" }, ""), { text: "ab", cursor: 1 });
 });
+
+const noKey = (): never => { throw Object.assign(new Error("Talk needs a key."), { details: { reason: "no_key" } }); };
+
+test("nothing covers the person in a team Space: the press says Voice isn't set up, asks for no key, and opens no socket", async () => {
+  await withDom(async () => {
+    const t = rig({ session: async () => noKey(), unset: { admin: false, open: () => undefined } });
+    const root = await mount(createRoot, tree(t.port, <Composer whoWillAnswer="" value="keep me" />));
+    await pressIn(find(root, "composer-talk")); await pressOut(find(root, "composer-talk"));
+    await flush();
+    assert.equal(String((find(root, "composer-talk-line") as Node).children?.[0]), "Voice isn't set up. Ask an admin to add a key.");
+    assert.equal(find(root, "composer-talk-link"), null, "a member has nowhere to add one");
+    assert.equal(t.state.setups, 0, "the first-press key sheet is not opened");
+    assert.equal(t.sockets.length, 0);
+    assert.equal(field(root)!.props.value, "keep me");
+  });
+});
+
+test("an admin gets the same line and a link to where the Space key is added", async () => {
+  await withDom(async () => {
+    let opened = 0;
+    const t = rig({ session: async () => noKey(), unset: { admin: true, open: () => { opened++; } } });
+    const root = await mount(createRoot, tree(t.port, <Composer whoWillAnswer="" />));
+    await pressIn(find(root, "composer-talk")); await pressOut(find(root, "composer-talk"));
+    await flush();
+    assert.match(String((find(root, "composer-talk-line") as Node).children?.[0]), /Voice isn't set up/);
+    const link = find(root, "composer-talk-link");
+    assert.ok(link, "the link is there for an admin");
+    await press(link);
+    assert.equal(opened, 1, "pressing it opens where the Space key is added");
+  });
+});
+
+test("with a key covering them nothing changes: a Personal Space or a covered person still gets the first-press sheet when a key is missing", async () => {
+  await withDom(async () => {
+    const t = rig({ session: async () => noKey() });
+    const root = await mount(createRoot, tree(t.port, <Composer whoWillAnswer="" />));
+    await pressIn(find(root, "composer-talk")); await pressOut(find(root, "composer-talk"));
+    await flush();
+    assert.equal(t.state.setups, 1, "no unset: the sheet, as before");
+  });
+});

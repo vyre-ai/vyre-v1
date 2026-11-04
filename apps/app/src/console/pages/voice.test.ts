@@ -21,4 +21,5 @@ test("Settings says what covers a person in one line", () => {
   assert.equal(coverLine({ source: "space" }, false).label, "Covered by your Space");
   assert.equal(coverLine({ source: "own" }, false).label, "Your own key");
   assert.equal(coverLine({ source: "none" }, true).label, "No key yet");
+  assert.equal(coverLine({ source: "none" }, false).sub, "Ask an admin to add one for everyone, or add your own here", "a team Space member is told who can fix it");
 });

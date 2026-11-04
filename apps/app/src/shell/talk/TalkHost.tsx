@@ -101,7 +101,9 @@ export function TalkHost({ rt, children }: { rt: ShellRuntime | null; children: 
     },
     noteOff: () => setOff(true),
     refresh: async () => { await refresh(); },
-  } : null), [rt, off, refresh]);
+    // nothing covers this person in a team Space: the mic says so, and an admin is sent to where the Space key is added
+    ...(rt.space.kind === "team" && status?.source === "none" ? { unset: { admin: status.mayManage === true, open: () => rt.open({ screen: "console.ai-voice" }) } } : {}),
+  } : null), [rt, off, refresh, status]);
   return (
     <TalkContext.Provider value={port}>
       {children}
