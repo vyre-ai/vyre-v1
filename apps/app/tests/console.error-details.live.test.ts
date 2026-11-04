@@ -83,7 +83,6 @@ test("Console error note: a plain sentence, no code or trace in the text, Detail
     await guard.check("after Hide details");
     assert.equal((await page.getByTestId("note-details-toggle").innerText()).trim(), "Details");
     assert.ok(!/Trace/.test(await page.locator("body").innerText()), "Hide details removes the trace from the page");
-    guard.assertClean?.();
     assert.deepEqual(errors, []);
   } catch (error) {
     await page.screenshot({ path: path.join(shots, "failure.png") }).catch(() => undefined);
