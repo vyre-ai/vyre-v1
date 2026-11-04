@@ -1,9 +1,12 @@
 // Console > AI > AI accounts: one switch (may people use their own AI sign-ins), then the AI accounts the Space itself holds with who added each and whether it works.
 // Reads engine.accounts.list and engine.policy.get; writes engine.policy.set (allowedAccounts "any" or "company", read back after saving) and engine.probe_account.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
+import { LogoTile } from "../../places/vault/layout/parts.tsx";
+import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
+import type { MenuEntry } from "../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
 import { Group, Lead, Section } from "../shell/ui.tsx";
@@ -33,8 +36,15 @@ export function accountState(a: Account): { working: boolean; word: string; why:
 const firstName = (full: string): string => full.split(" ")[0] ?? full;
 const letter = (title: string): string => (title.trim()[0] ?? "?").toUpperCase();
 
-function Tile({ title }: { title: string }): ReactElement {
-  return <View style={{ width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sel)" as string }}><Text style={{ fontSize: 13, fontWeight: "600", color: "var(--ink)" as string }}>{letter(title)}</Text></View>;
+function Tile({ title }: { title: string }): ReactElement { return <LogoTile name={title} size={30} />; }
+
+/** The entries of an account's row menu: Check now probes it. */
+export function accountMenu(a: Account, check: () => void): MenuEntry[] { return [{ label: `Check ${a.name ?? a.title} now`, onSelect: check }]; }
+
+function RowMenu({ entries, testID }: { entries: MenuEntry[]; testID: string }): ReactElement {
+  const menu = useMenu();
+  const ref = useRef<unknown>(null);
+  return <><Pressable ref={(r) => { ref.current = r; }} accessibilityRole="button" accessibilityLabel="More" testID={testID} onPress={() => { const box = (ref.current as { getBoundingClientRect?: () => { left: number; bottom: number } } | null)?.getBoundingClientRect?.(); menu.show(entries, box?.left ?? 0, (box?.bottom ?? 0) + 4, "other", { label: "Account" }); }} style={{ paddingHorizontal: 6 }}><Glyph name="gear" size={14} color="var(--ink-3)" /></Pressable>{menu.element}</>;
 }
 
 export function AiAccountsPage(): ReactElement {
@@ -76,6 +86,9 @@ function AiAccounts({ accounts, policy, refresh, ownPeople }: { accounts: readon
         <Actions><Button label="Switch" testID="ai-own-switch-confirm" disabled={action.busy} onPress={() => void save("company")} /><Button label="Cancel" testID="ai-own-cancel" onPress={() => setConfirm(false)} /></Actions>
       </View> : null}
     </Group>
+    {space.some((a) => !accountState(a).working) ? <Section title="Needs you" count={space.filter((a) => !accountState(a).working).length}>
+      <Group>{space.filter((a) => !accountState(a).working).map((a) => <Row key={a.ref} id={`ai-need-${a.ref}`} title={`${a.name ?? a.title} needs attention`} note={accountState(a).why ?? ""} leading={<Lead><View style={{ width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--warn-wash, var(--sel))" as string }}><Glyph name="warn" size={15} color="var(--warn)" /></View></Lead>} trailing={<Button label="Open Vault" testID={`ai-need-vault-${a.ref}`} onPress={() => data.nav.openApp({ screen: "vault.layout" })} />} />)}</Group>
+    </Section> : null}
     <Section title="The Space's AI accounts" count={space.length} right={<Button label="Add account" testID="ai-add-account" onPress={() => data.nav.openApp({ screen: "vault.layout" })} />}>
       <Group>
         {space.length === 0 ? <Row id="ai-none" title="No AI accounts yet" note="Add one so agents have something to run on." /> : null}
@@ -84,8 +97,9 @@ function AiAccounts({ accounts, policy, refresh, ownPeople }: { accounts: readon
           const by = a.ownerId ? data.name(a.ownerId) : "";
           const note = `${st.why ? `${st.why} ` : ""}${by ? `Added by ${by}` : "Added to the Space"}`;
           return <Row key={a.ref} id={`ai-acct-${a.ref}`} title={a.name ?? a.title} note={note} leading={<Lead><Tile title={a.title} /></Lead>} trailing={<View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <Text testID={`ai-acct-state-${a.ref}`} style={{ fontSize: 12.5, color: (st.working ? "var(--ink-3)" : "var(--danger)") as string }}>{st.word}</Text>
-            <Button label="Check now" testID={`ai-acct-check-${a.ref}`} disabled={action.busy} onPress={() => void action.run<CapMap["engine.probe_account"]["out"]>("engine.probe_account", { accountRef: a.ref }, (out) => out.ok ? `${a.name ?? a.title} works` : (out.error?.message ?? `${a.name ?? a.title} needs attention`))} />
+            <Text testID={`ai-acct-state-${a.ref}`} style={{ fontSize: 12.5, color: (st.working ? "var(--ink-3)" : "var(--warn)") as string }}>{st.word}</Text>
+            {st.working ? null : <Button label="Open Vault" testID={`ai-acct-vault-${a.ref}`} onPress={() => data.nav.openApp({ screen: "vault.layout" })} />}
+            <RowMenu testID={`ai-acct-menu-${a.ref}`} entries={accountMenu(a, () => void action.run<CapMap["engine.probe_account"]["out"]>("engine.probe_account", { accountRef: a.ref }, (out) => out.ok ? `${a.name ?? a.title} works` : (out.error?.message ?? `${a.name ?? a.title} needs attention`)))} />
           </View>} />;
         })}
       </Group>

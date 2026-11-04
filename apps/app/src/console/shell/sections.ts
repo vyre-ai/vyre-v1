@@ -32,8 +32,8 @@ export const SECTIONS: readonly SectionDef[] = [
     { label: "Defaults for new agents", views: [v("template", "Defaults for new agents")] },
   ] },
   { id: "ai", title: "AI", icon: "ai", subtitle: "Which AI accounts this Space uses and what each one may see", tabs: [
-    { label: "AI accounts", views: [v("aiaccounts", "AI accounts"), v("models", "Allowed models")] },
-    { label: "What each provider may see", views: [v("aisee", "What each provider may see")] },
+    { label: "AI accounts", views: [v("aiaccounts", "AI accounts")] },
+    { label: "What each provider may see", views: [v("aisee", "What each provider may see")], extras: { aisee: ["models"] } },
     { label: "Spend and limits", views: [v("spend", "Spend and limits"), v("usage", "Usage")] },
     { label: "Approvals", views: [v("gate", "Approvals")], extras: { gate: ["def-agents"] } },
     { label: "Review", views: [v("review", "Sampling"), v("incidents", "Incidents")] },

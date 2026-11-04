@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { find, installDom, mount, press, textOf } from "../../../../../ui/src/testing/dom.ts";
 import { ConsoleDataProvider } from "../shell/data.tsx";
 import { createSampleConsole } from "../shell/sample.ts";
-import { AiAccountsPage, accountState, isSpaceAccount, ownSignIns } from "../pages/AiAccounts.tsx";
+import { AiAccountsPage, accountMenu, accountState, isSpaceAccount, ownSignIns } from "../pages/AiAccounts.tsx";
 import { dataWith } from "./sheet-helper.tsx";
 
 const NAMES: Record<string, string> = { usr_maya: "Maya Chen", usr_lena: "Lena Ortiz", usr_irfad: "Irfad Imtiaz" };
@@ -103,11 +103,18 @@ test("Add account opens Vault, the same sheet Models used", async () => {
   try { await press(find(root, "ai-add-account")); assert.deepEqual(opened, ["app:vault.layout"]); } finally { restore(); }
 });
 
-test("Check now probes that account", async () => {
-  const { root, calls, restore } = await page(ACCOUNTS, "any");
+test("Check now sits in the row menu; a row that needs attention has Open Vault", async () => {
+  const { root, calls, opened, restore } = await page(ACCOUNTS, "any");
   try {
-    await press(find(root, "ai-acct-check-acc_openai"));
-    assert.deepEqual(writes(calls, "engine.probe_account").map((c) => c.input), [{ accountRef: "acc_openai" }]);
+    assert.ok(find(root, "ai-acct-menu-acc_openai"), "Check now sits in the row's menu, not as a button on every row");
+    let ran = 0;
+    const entries = accountMenu(ACCOUNTS[1] as never, () => { ran++; });
+    assert.deepEqual(entries.map((e) => (e as { label: string }).label), ["Check OpenAI now"]);
+    (entries[0] as { onSelect(): void }).onSelect();
+    assert.equal(ran, 1);
+    await press(find(root, "ai-acct-vault-acc_openai"));
+    assert.deepEqual(opened, ["app:vault.layout"], "a row that needs attention has Open Vault");
+    assert.deepEqual(calls.filter((c) => c.cap === "engine.probe_account"), []);
   } finally { restore(); }
 });
 

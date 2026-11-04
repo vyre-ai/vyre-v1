@@ -225,7 +225,7 @@ test("the skin menu lists System, then Dark and Light skins, and checks the open
 test("inside the app the Console has no second bar: no skin, no Open the app, and the page still says what it is and how the server is", () => {
   const out = html(createSampleConsole(), { embedded: true });
   for (const id of ["console-top", "console-skin", "console-open-app", "console-search"]) assert.ok(!has(out, `data-testid="${id}"`), id);
-  assert.ok(has(out, 'data-testid="console-nav"') && has(out, 'data-testid="console-health"') && has(out, 'data-testid="page-help"'));
+  assert.ok(has(out, 'data-testid="console-nav"') && !has(out, 'data-testid="console-health"') && has(out, 'data-testid="page-help"'), "no stray health dot in the header: Home's Health row says it");
 });
 
 test("at its own address there is no app to open", () => {
@@ -258,4 +258,14 @@ test("Home: This month and Quick actions, each with a way to its page", () => {
   const out = html(createSampleConsole());
   for (const id of ["tiles-month", "quick-actions", "row-qa-invite", "row-qa-ai", "row-qa-server"]) assert.ok(has(out, `data-testid="${id}"`), id);
   assert.ok(has(out, "Invite people") && has(out, "Add an AI account") && has(out, "Add a server"));
+});
+
+test("Home: one row per problem, an icon tile and a real button, no Working now, a Sync tile", async () => {
+  const { dedupeNeeds } = await import("../pages/overview/Overview.tsx");
+  const att = [{ kind: "failing_check", title: "Disk space on the server is under 10 percent" }, { kind: "expiring_certificate", title: "Certificate renews in 12 days" }, { kind: "failing_check", title: "Records index is slow" }];
+  assert.deepEqual(dedupeNeeds(att, [{ kind: "disk" }]).map((a) => a.title), ["Certificate renews in 12 days", "Records index is slow"], "the disk check and the disk alert are one problem");
+  assert.equal(dedupeNeeds(att, []).length, 3);
+  const out = html(createSampleConsole());
+  assert.ok(!has(out, "Working now") && !has(out, 'data-testid="team-now"'));
+  assert.ok(has(out, 'data-testid="attn-go-0"') && has(out, "Sync"), "a button on the row, and the Sync tile");
 });
