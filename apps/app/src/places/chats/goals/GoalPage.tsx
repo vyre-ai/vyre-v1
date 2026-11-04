@@ -370,7 +370,7 @@ function WaitRow({ w, call, nameOf, now, offsetMin, openTask, onDone }: { w: Wai
   const buttons: ReactElement[] = [];
   if (options.length > 0) options.slice(0, 4).forEach((o, i) => buttons.push(<Btn key={o} label={o} primary={i === 0} onPress={() => act("answer", o)} testID={`goal-wait-${w.taskId}-${i}`} />));
   else if (w.kind === "approve") {
-    buttons.push(<Btn key="ok" label="Approve" primary onPress={() => act("approve")} testID={`goal-wait-${w.taskId}-approve`} />);
+    buttons.push(<Btn key="ok" label="Allow" primary onPress={() => act("approve")} testID={`goal-wait-${w.taskId}-approve`} />);
     buttons.push(<Btn key="later" label="Not now" onPress={() => void call("tasks.snooze", { taskId: w.taskId, until: now + DAY }).then(onDone, () => undefined)} testID={`goal-wait-${w.taskId}-later`} />);
   }
   buttons.push(<Btn key="open" label="Open" onPress={() => openTask(w.taskId)} testID={`goal-wait-${w.taskId}-open`} />);

@@ -32,7 +32,7 @@ export function stepsOf(task: TaskView): BatonStep[] {
   const at = here === null ? -1 : keys.indexOf(here);
   return keys.map((key, i) => {
     const who = key === "done" ? undefined : task[SLOT_OF[key]];
-    return { key, title: key === "assigned" ? "Do" : key === "review" ? "Review" : key === "approve" ? "Approve" : "Done", ...(who ? { who } : {}), lit: here === "done" ? "past" : i < at ? "past" : i === at ? "now" : "next" };
+    return { key, title: key === "assigned" ? "Do" : key === "review" ? "Review" : key === "approve" ? "Allow" : "Done", ...(who ? { who } : {}), lit: here === "done" ? "past" : i < at ? "past" : i === at ? "now" : "next" };
   });
 }
 
