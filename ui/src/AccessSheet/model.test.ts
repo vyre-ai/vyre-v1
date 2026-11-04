@@ -482,7 +482,7 @@ test("addCalls sends fromStart only when Include earlier messages is on", () => 
 
 /* ---------- accessView: the rules behind the Dex sheet ---------- */
 
-import { accessCount, accessSubtitle, accessView, levelDefs, levelHint, rowSub } from "./model.ts";
+import { accessCount, accessSubtitle, accessView, levelHint, rowSub } from "./model.ts";
 import type { ShareRow as Row } from "./props.ts";
 
 const r = (o: Partial<Row> & Pick<Row, "subjectKind" | "subjectId">): Row => ({ name: o.subjectId, level: "view", via: "grant", fromFolderId: null, ...o });
