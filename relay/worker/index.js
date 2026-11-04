@@ -202,7 +202,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const gateway = gatewayOf(url, env);
-    if (gateway) return "name" in gateway ? onHost(request, env, gateway.name) : passthrough(request, env);
+    if (gateway) return "name" in gateway ? onHost(request, env, gateway.name, gateway.artifact === true) : passthrough(request, env);
     if (url.pathname === "/health") return new Response('{"ok":true}', { headers: { "content-type": "application/json" } });
     if (!url.pathname.startsWith("/v1/")) return new Response(null, { status: 404 });
     if (url.pathname === "/v1/pair" && request.method === "OPTIONS") return new Response(null, { status: 204, headers: PAIR_PREFLIGHT });

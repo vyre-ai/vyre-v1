@@ -1396,7 +1396,9 @@ export const screens: ScreenIndexEntry[] = [
       },
       "accounts": {
         "cap": "engine.accounts.list",
-        "input": {},
+        "input": {
+          "place": "chat"
+        },
         "live": true
       }
     },

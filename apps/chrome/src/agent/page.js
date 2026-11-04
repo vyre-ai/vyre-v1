@@ -231,6 +231,79 @@ export function describeElement(idx) {
   return { tag: el.tagName.toLowerCase(), role: el.getAttribute("role") || null, attributes, text: hidden ? "" : String(el.innerText || el.textContent || "").trim().replace(/\s+/g, " ").slice(0, 500), box: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }, visible: s.display !== "none" && s.visibility !== "hidden" && r.width > 0 && r.height > 0, disabled: el.disabled === true, display: s.display, color: s.color, background: s.backgroundColor };
 }
 
+/**
+ * What a held send is about, as the person reads it on the approval card: To, From, Subject and the message, read from the form or dialog around the control (or the page).
+ * A secret field is never read. Values are cut short; the person sees the same fields on the page. @param {number | null} idx the control's index from the latest snapshot
+ */
+export function composeFacts(idx) {
+  const g = /** @type {any} */ (globalThis);
+  const els = g[Symbol.for("vyre.agent.els")];
+  const btn = idx !== null && idx !== undefined && els ? els[idx] : null;
+  const scope = (btn && btn.closest && btn.closest("form,dialog,[role=dialog]")) || g.document;
+  const secrets = g[Symbol.for("vyre.agent.secret")];
+  /** @type {Record<string, string>} */
+  const out = {};
+  /** @param {any} el */
+  const words = (el) => {
+    const bits = [el.getAttribute("aria-label"), el.getAttribute("placeholder"), el.getAttribute("name"), el.id];
+    if (el.labels) for (const l of el.labels) bits.push(l.innerText);
+    const by = el.getAttribute("aria-labelledby");
+    if (by) for (const id of by.split(/\s+/)) { const n = g.document.getElementById(id); if (n) bits.push(n.innerText); }
+    return bits.filter(Boolean).join(" ").toLowerCase();
+  };
+  for (const el of scope.querySelectorAll("input,textarea,select,[contenteditable=true],[role=textbox]")) {
+    const type = String(el.getAttribute("type") || "").toLowerCase();
+    if (type === "password" || type === "hidden" || type === "submit" || type === "button" || type === "checkbox" || type === "radio" || (secrets && secrets.has(el))) continue;
+    let value = el.tagName === "SELECT" ? String((el.selectedOptions && el.selectedOptions[0] && el.selectedOptions[0].text) || "") : "value" in el ? String(el.value) : String(el.innerText || "");
+    value = value.trim();
+    if (!value) continue;
+    const w = words(el);
+    const long = el.tagName === "TEXTAREA" || el.getAttribute("contenteditable") === "true" || el.getAttribute("role") === "textbox";
+    if (/(^|[^a-z])(to|recipients?)([^a-z]|$)/.test(w) && !out["to"]) out["to"] = value.slice(0, 200);
+    else if (/(^|[^a-z])from([^a-z]|$)/.test(w) && !out["from"]) out["from"] = value.slice(0, 200);
+    else if (/subject/.test(w) && !out["subject"]) out["subject"] = value.slice(0, 200);
+    else if ((long || /message|body|comment|text/.test(w)) && !out["message"]) out["message"] = value.slice(0, 2000);
+  }
+  out["site"] = String(g.location && g.location.hostname || "");
+  return out;
+}
+
+/**
+ * Put the person's edits into the form a held send is about, the way a person typing would: To, Subject and Message, found by the same labels composeFacts reads. Returns which of them it set.
+ * @param {{ to?: string, subject?: string, message?: string }} edits
+ */
+export function applyFacts(edits) {
+  const g = /** @type {any} */ (globalThis);
+  const secrets = g[Symbol.for("vyre.agent.secret")];
+  /** @param {any} el */
+  const words = (el) => {
+    const bits = [el.getAttribute("aria-label"), el.getAttribute("placeholder"), el.getAttribute("name"), el.id];
+    if (el.labels) for (const l of el.labels) bits.push(l.innerText);
+    return bits.filter(Boolean).join(" ").toLowerCase();
+  };
+  /** @type {string[]} */
+  const set = [];
+  for (const el of g.document.querySelectorAll("input,textarea,[contenteditable=true],[role=textbox]")) {
+    const type = String(el.getAttribute("type") || "").toLowerCase();
+    if (type === "password" || type === "hidden" || type === "submit" || type === "button" || (secrets && secrets.has(el))) continue;
+    const w = words(el);
+    const long = el.tagName === "TEXTAREA" || el.getAttribute("contenteditable") === "true" || el.getAttribute("role") === "textbox";
+    const role = /(^|[^a-z])(to|recipients?)([^a-z]|$)/.test(w) ? "to" : /subject/.test(w) ? "subject" : (long || /message|body|comment|text/.test(w)) ? "message" : "";
+    if (!role || set.includes(role) || typeof edits[/** @type {"to"|"subject"|"message"} */ (role)] !== "string") continue;
+    const value = String(edits[/** @type {"to"|"subject"|"message"} */ (role)]);
+    if (el.isContentEditable && el.tagName !== "TEXTAREA") el.innerText = value;
+    else {
+      const proto = Object.getPrototypeOf(el);
+      const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+      if (setter) setter.call(el, value); else el.value = value;
+    }
+    el.dispatchEvent(new g.Event("input", { bubbles: true }));
+    el.dispatchEvent(new g.Event("change", { bubbles: true }));
+    set.push(role);
+  }
+  return set;
+}
+
 /** The actionable control under a point, for a click by coordinates. @param {number} x @param {number} y */
 export function pointInfo(x, y) {
   const g = /** @type {any} */ (globalThis);

@@ -111,7 +111,7 @@ const s = StyleSheet.create({
     width: "100%", maxWidth: 600, alignSelf: "center", borderRadius: 14, backgroundColor: "var(--raised)" as string, marginTop: 18, marginBottom: 28,
     ...(web ? ({ boxShadow: "var(--sh-2)" } as object) : null),
   },
-  closed: { flexDirection: "row", alignItems: "center", gap: 4, height: 48, paddingLeft: 16, paddingRight: 8, marginTop: 0, marginBottom: 0, ...(web ? ({ cursor: "text" } as object) : null) },
+  closed: { flexDirection: "row", alignItems: "center", gap: 4, height: 48, paddingLeft: 16, paddingRight: 8, marginTop: 0, marginBottom: 0, ...(web ? ({ cursor: "text", boxShadow: "0 0 0 1px var(--line), var(--sh-1)" } as object) : null) },
   ph: { flex: 1, fontSize: 15, color: "var(--ink-3)" as string },
   im: { position: "relative", borderTopLeftRadius: 14, borderTopRightRadius: 14, overflow: "hidden" },
   over: { position: "absolute", right: 8, top: 8 },

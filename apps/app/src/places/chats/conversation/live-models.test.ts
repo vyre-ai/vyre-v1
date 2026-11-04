@@ -1,7 +1,7 @@
 // The composer's model menu reading the live lists (live-models.ts): the saved list at once, the fresh one swapped in, the vendor's default marked, an alias picked as its model, the quiet line.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { listedLine, loadMenuModels, menuModels, pickedRow } from "./live-models.ts";
+import { listedLine, loadMenuModels, menuModels, pickedRow, pickUnavailable } from "./live-models.ts";
 import type { MenuModel, ModelsOut } from "./live-models.ts";
 
 const NOW = Date.UTC(2026, 10, 3, 12, 0);
@@ -57,4 +57,17 @@ test("rows: the vendor's names, its default marked Default, usage greying kept, 
   assert.equal(pickedRow(rows, "claude-sonnet-5-5"), "claude-sonnet-5-5");
   assert.equal(pickedRow(rows, "gpt-x"), "gpt-x");
   assert.equal(pickedRow(null, "opus"), "opus");
+});
+
+test("a remembered pick that cannot run here is unavailable: greyed by the list, or missing from a live list; Auto, no pick and a partial saved list say nothing", () => {
+  const live = (models: ModelsOut["models"]): ModelsOut => ({ models, listed: { source: "live", refreshing: false, failed: false } });
+  const sonnet = { model: "claude-sonnet-5-5", title: "Sonnet 5.5", allowed: true, alias: "sonnet" };
+  assert.equal(pickUnavailable(live([{ ...sonnet, allowed: false, reason: "not_connected" }]), "claude-sonnet-5-5"), true, "greyed in the list");
+  assert.equal(pickUnavailable(live([sonnet]), "claude-sonnet-5-5"), false, "allowed");
+  assert.equal(pickUnavailable(live([sonnet]), "sonnet"), false, "an alias resolves to its row");
+  assert.equal(pickUnavailable(live([{ model: "glm-5.3", title: "GLM 5.3", allowed: true }]), "claude-sonnet-5-5"), true, "a live list without it");
+  assert.equal(pickUnavailable({ models: [{ model: "glm-5.3", title: "GLM 5.3", allowed: true }], listed: { source: "saved", refreshing: false, failed: false } }, "claude-sonnet-5-5"), false, "a saved list is not complete");
+  assert.equal(pickUnavailable(live([]), "claude-sonnet-5-5"), false, "an empty list says nothing");
+  for (const pick of [undefined, null, "", "auto"]) assert.equal(pickUnavailable(live([sonnet]), pick), false);
+  assert.equal(pickUnavailable(undefined, "claude-sonnet-5-5"), false);
 });

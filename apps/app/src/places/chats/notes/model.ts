@@ -123,6 +123,15 @@ export function editedWords(n: Pick<Note, "clip" | "createdAt" | "updatedAt">, n
   return `${verb} ${whenWords(n.updatedAt, now, offsetMin)}`;
 }
 
+/** Where a note was saved from, for the line on the opened note: "From: Weinberger Law prep, 9:12". Null when it came from nowhere. A chat its owner can no longer read keeps only the time. */
+export function fromLine(n: Pick<Note, "from">, now: number, offsetMin = 0): { text: string; open: { threadId: string; messageId: string } | null } | null {
+  const f = n.from;
+  if (!f) return null;
+  const when = whenWords(f.at, now, offsetMin);
+  if (!f.readable || !f.threadId || !f.messageId) return { text: `From a chat you can no longer read, ${when}`, open: null };
+  return { text: `From: ${f.title || "a chat"}, ${when}`, open: { threadId: f.threadId, messageId: f.messageId } };
+}
+
 /** A host as a link card names it when the page gave no site name. */
 export function hostOf(url: string): string {
   return url.replace(/^https?:\/\//, "").split(/[/?#]/)[0]!.replace(/^www\./, "");

@@ -218,3 +218,31 @@ export const EXPIRY_CHOICES: ReadonlyArray<{ key: Expiry; label: string; sentenc
   { key: "7d", label: "7 days", sentence: "seven-day" },
 ];
 export const expiryLabel = (e: Expiry): string => EXPIRY_CHOICES.find((c) => c.key === e)?.label ?? e;
+
+
+// ---- the three places an item comes from (owner, 4 Nov: everything in my Vault, in clear sections)
+
+/** Where an item comes from for the person looking: their own Mine, kept for them alone; the Space's, in shared folders they can change; or shared with them to use or view. */
+export type Origin = "mine" | "space" | "with-me";
+export const ORIGIN_TITLE: Readonly<Record<Origin, string>> = { mine: "Mine", "with-me": "Shared with me", space: "Space" };
+const ORIGIN_ORDER: readonly Origin[] = ["mine", "with-me", "space"];
+
+export function originOf(it: Pick<Item, "scope" | "yourLevel">): Origin {
+  if (it.scope === "mine") return "mine";
+  return it.yourLevel === "view" || it.yourLevel === "use" ? "with-me" : "space";
+}
+
+/** A header row, or an item, in the one list. */
+export type ListEntry = { header: Origin; count: number } | { item: Item };
+
+/** The items in three sections in a fixed order, each with a header and its count; an empty section has no header. Order inside a section is the list's own. */
+export function inSections(items: readonly Item[]): ListEntry[] {
+  const out: ListEntry[] = [];
+  for (const o of ORIGIN_ORDER) {
+    const mine = items.filter((it) => originOf(it) === o);
+    if (mine.length === 0) continue;
+    out.push({ header: o, count: mine.length });
+    for (const it of mine) out.push({ item: it });
+  }
+  return out;
+}

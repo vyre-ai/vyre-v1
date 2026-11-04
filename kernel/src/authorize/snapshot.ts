@@ -78,7 +78,15 @@ export class AccessSnapshot {
     this.grantsOnCache = null; this.typeWideCache = null; this.cutCache = null;
   }
 
-  putPrincipal(p: PrincipalRow): void { this.principals.set(p.id, p); this.changed(); }
+  private assistants = new Set<string>();
+  putPrincipal(p: PrincipalRow): void { this.principals.set(p.id, this.assistants.has(p.id) ? { ...p, assistant: true } : p); this.changed(); }
+  /** Marks an agent as its person's own Assistant, or clears it. */
+  setAssistant(id: string, on: boolean): void {
+    // remembered apart from the principal: the word can come before the principal does (the agent's birth and its privacy are in one commit)
+    if (on) this.assistants.add(id); else this.assistants.delete(id);
+    const p = this.principals.get(id);
+    if (p && (p.assistant === true) !== on) { this.principals.set(id, { ...p, assistant: on }); this.changed(); }
+  }
   putRole(r: RoleRow): void { this.roles.set(r.id, r); this.changed(); }
   addPrincipalRole(r: PrincipalRoleRow): void {
     const l = this.holderRoles.get(r.holder) ?? [];

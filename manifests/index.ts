@@ -5,6 +5,7 @@ import m_agents from './agents.ts';
 import m_audit from './audit.ts';
 import m_automations from './automations.ts';
 import m_backup from './backup.ts';
+import m_browser from './browser.ts';
 import m_calendar from './calendar.ts';
 import m_chat from './chat.ts';
 import m_computers from './computers.ts';
@@ -90,6 +91,7 @@ export const all: Manifest[] = [
   m_audit,
   m_automations,
   m_backup,
+  m_browser,
   m_calendar,
   m_chat,
   m_computers,

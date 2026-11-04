@@ -1,5 +1,5 @@
 // Add to Automations on a Vault item: the button starts the session with the app name and the handle (no value), the Automations that use the key are listed and open, and each blocker
-// is one sentence with a button that fixes it. The sample Space answers providers.list and automations.vault_usage; nothing here holds a key value.
+// is one sentence with a button that fixes it. The sample Space answers engine.accounts.list and automations.vault_usage; nothing here holds a key value.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
@@ -33,7 +33,7 @@ test("a key item also offers Sync to Records, and it waits behind the same block
   assert.deepEqual(v.opened.filter((x) => x.startsWith("records-sync:")), ["records-sync:vit_ghl:#Northwind_GHL"]);
   const blocked = createSampleVault();
   const base = blocked.data.call.bind(blocked.data);
-  blocked.data = { ...blocked.data, call: async (cap, input) => (cap === "providers.list" ? { providers: [] } : base(cap, input)) };
+  blocked.data = { ...blocked.data, call: async (cap, input) => (cap === "engine.accounts.list" ? { accounts: [] } : base(cap, input)) };
   const again = await open(blocked, "vit_ghl");
   await settle();
   await press(find(again, "item-sync-records"));
@@ -65,7 +65,7 @@ test("an item nothing uses says so, and an item that cannot be a connector has n
 test("with no AI account the button waits and the notice sends the person to connect one", async () => {
   const v = createSampleVault();
   const base = v.data.call.bind(v.data);
-  v.data = { ...v.data, call: async (cap, input) => (cap === "providers.list" ? { providers: [] } : base(cap, input)) };
+  v.data = { ...v.data, call: async (cap, input) => (cap === "engine.accounts.list" ? { accounts: [] } : base(cap, input)) };
   const root = await open(v, "vit_ghl");
   await settle();
   assert.match(textOf(root), /Connect one first/);
@@ -83,10 +83,10 @@ test("offline, the notice says the Vault is not reachable and offers Try again",
   assert.match(textOf(root), /Vault is not reachable/);
   await press(find(root, "item-add-automations"));
   assert.equal(v.opened.some((x) => x.startsWith("automate:")), false);
-  const before = v.calls.filter((c) => c.cap === "providers.list").length;
+  const before = v.calls.filter((c) => c.cap === "engine.accounts.list").length;
   await press(find(root, "auto-gate-fix"));
   await settle();
-  assert.ok(v.calls.filter((c) => c.cap === "providers.list").length > before, "Try again asks again");
+  assert.ok(v.calls.filter((c) => c.cap === "engine.accounts.list").length > before, "Try again asks again");
 });
 
 const withBuilder = (v: SampleVault, status: { allowed: boolean; canGrant: boolean }, personal = false) => {

@@ -1,7 +1,7 @@
 // Memory inside a chat, the pure part: what a reply used (facts and exact quotes), the words that go with it, the underline of known subjects in message text (a name or an alias of a page,
 // found without regex lookbehind and never inside code or a link), and the small rules the learned line, the right-click items and the Knows tab share. No React and no clock.
 import type { Block, Inline } from "../../../../../../ui/src/stream/markdown.ts";
-import { dateText } from "../../files/memory/know.ts";
+import { ageText, dateText } from "../../files/memory/know.ts";
 
 export type Layer = "space" | "project" | "agent" | "person";
 export type SourceKind = "chat" | "channel" | "record" | "run" | "journey" | "task" | "note" | "manual";
@@ -158,7 +158,22 @@ export const subjectOfHref = (href: string): string | null => (href.startsWith(S
 
 // ---------------------------------------------------------------- the learned line
 
-export interface LearnedRow { factId: string; text: string; subjectTitle?: string; pageId?: string; sourceRef: string; at: number; lesson?: LessonInfo }
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
+/** When something was learned, the way the app says a time that is close: "just now", "12 min ago", "3 h ago", then "yesterday" and "4 days ago". */
+export function learnedWhen(at: number, now: number): string {
+  const min = Math.floor((now - at) / 60_000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min} min ago`;
+  if (min < 1440) return `${Math.floor(min / 60)} h ago`;
+  return ageText(at, now);
+}
+/** The exact time, for the hover: "Nov 3, 2026 9:40" (UTC, so a test and a screenshot agree with the stamps in Files). */
+export function learnedExact(at: number): string {
+  const d = new Date(at);
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()} ${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+}
+
+export interface LearnedRow { factId: string; text: string; subjectTitle?: string; pageId?: string; sourceRef: string; at: number; lesson?: LessonInfo; layer?: Layer }
 
 /** The message a learned fact came from: the line its link names (`/chats/<thread>#<message>`), else its source ref (a fact remembered from one message carries that message). */
 export const messageOf = (f: { sourceRef: string; sourceLink?: string | undefined }): string => { const at = f.sourceLink?.indexOf("#") ?? -1; return f.sourceLink && at >= 0 ? f.sourceLink.slice(at + 1) : f.sourceRef; };
@@ -199,6 +214,8 @@ export function appendLine(notes: string, line: string): string {
 // ---------------------------------------------------------------- the Knows tab
 
 export const LAYER_ORDER: readonly Layer[] = ["space", "project", "agent", "person"];
+/** Who can read a fact under its message in the chat: every Learned line says it. */
+export const LAYER_SCOPE: Record<Layer, string> = { person: "Only you", agent: "Whoever uses this agent", project: "This project", space: "The Space" };
 export const LAYER_HEAD: Record<Layer, string> = { space: "Space", project: "Project", agent: "Agent", person: "You" };
 
 export interface KnowsGroup { layer: Layer; head: string; facts: ChatFact[] }

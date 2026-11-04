@@ -18,6 +18,7 @@ Counts are not written down: they change with every contract change. Run `node t
 - [audit](modules/audit.md) (L7a, module)
 - [automations](modules/automations.md) (L6, module)
 - [backup](modules/backup.md) (L7b, module)
+- [browser](modules/browser.md) (L10, module)
 - [calendar](modules/calendar.md) (L5, module)
 - [chat](modules/chat.md) (L2, module)
 - [computers](modules/computers.md) (L2, module)

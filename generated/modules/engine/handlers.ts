@@ -41,6 +41,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.mcp.read": Handler<"engine.mcp.read", X>;
   "engine.mcp.tools": Handler<"engine.mcp.tools", X>;
   "engine.models.list": Handler<"engine.models.list", X>;
+  "engine.my_ai": Handler<"engine.my_ai", X>;
   "engine.now": Handler<"engine.now", X>;
   "engine.placement.decide": Handler<"engine.placement.decide", X>;
   "engine.placement.options": Handler<"engine.placement.options", X>;

@@ -3,6 +3,8 @@
 //
 // Also here: the runtime that wires the turn engine to this module's SQL (queue, lease, messages, parked tool calls), so a second host that takes a thread over
 // with recover() replays the same message bodies, and a tool call held at the Gate parks the turn on its task (turn.waiting) until resume().
+import { forgetPlacement } from "./placement-cache.ts";
+import { recallPick } from "./last-pick.ts";
 import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { EngineOptions, TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import { handlers as table } from "./handlers/index.ts";
@@ -87,6 +89,27 @@ export const consumers = {
       if (event.name === "agent.deleted") return stopAgent(ctx, engine, id, "stopped");
       if (event.name === "agent.paused") return stopAgent(ctx, engine, id, "paused");
       return resumeAgent(ctx, engine, id, async (threadId, asker) => { await openAs(ctx, threadId, asker); });
+    },
+  },
+  /** A machine was drained, its limits changed, or it ran out of room or has room again: where a chat runs may differ now, so the per-chat placement words are read again (placement-cache.ts). */
+  "engine.placement_cache": {
+    on: ["machine.changed"],
+    run: async (): Promise<void> => { forgetPlacement(); },
+  },
+  /** A new chat starts on the model its person last picked, so the composer shows it before the first message (last-pick.ts). */
+  "engine.remembered_pick": {
+    on: ["thread.started"],
+    run: async (ctx: EngineCtx, event: { payload: { threadId: string; kind?: string; starter?: string } }): Promise<void> => {
+      const p = event.payload;
+      const h = engineHost();
+      if (!h || p.kind !== "chat" || !p.starter?.startsWith("usr_")) return;
+      await ensureRuntime(ctx);
+      const t = (await h.call("threads.get", { threadId: p.threadId }, p.starter).catch(() => null)) as { thread?: { agents?: Array<{ agentId: string; mode?: string; model?: string }> } } | null;
+      // as the person: a private chat answers only to them
+      for (const a of t?.thread?.agents ?? []) {
+        const pick = a.model ? null : recallPick(ctx.db, p.starter, a.agentId);
+        if (pick) await h.call("engine.set_model", { threadId: p.threadId, agentId: a.agentId, model: pick.model, ...(pick.provider ? { provider: pick.provider } : {}), ...(pick.effort ? { effort: pick.effort } : {}) }, p.starter).catch(() => undefined);
+      }
     },
   },
   /** A person left: nothing goes on running on their word or their account. */

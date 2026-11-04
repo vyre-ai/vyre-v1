@@ -360,3 +360,21 @@ test("the Space server's sites and automations are counted from their modules", 
   assert.deepEqual([space.runs.sites, space.runs.automations], [1, 2]);
   w.bind(null);
 });
+
+test("machines.sync: the host calls it when a turn starts or ends on a machine, and the machine's filling up or freeing is told at once", async () => {
+  const { hostCalls } = await import("../impl.ts");
+  const w = fleet();
+  let live = 1;
+  w.bind({ turns: (id) => (id === IRFAD_MAC ? live : undefined) });
+  const sync = () => hostCalls["machines.sync"](w.ctxFor(host));
+  const told = () => w.state.events.filter((e) => e.name === "machine.changed").map((e) => `${e.subject}:${(e.payload.what as string[]).join()}`);
+  sync();
+  assert.deepEqual(told(), [`${SRV}:full`], "Berlin box runs 2 of 2 turns already; Irfad's computer, 1 of 4, has room");
+  live = 4;
+  sync(); sync();
+  assert.deepEqual(told(), [`${SRV}:full`, `${IRFAD_MAC}:full`], "the fourth turn started: full, told once");
+  live = 3;
+  sync();
+  assert.deepEqual(told(), [`${SRV}:full`, `${IRFAD_MAC}:full`, `${IRFAD_MAC}:room`], "one ended: room again");
+  w.bind(null);
+});

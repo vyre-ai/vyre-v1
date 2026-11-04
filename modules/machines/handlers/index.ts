@@ -299,8 +299,18 @@ export async function alertsNotify(ctx: MachinesCtx, _input: Record<string, neve
   for (const a of fresh) { ctx.db.run("INSERT OR REPLACE INTO machines_alert_seen (alert_id, at) VALUES (?, ?)", a.alertId, ctx.now()); ctx.emit("machine.alert", a.machineId, { alertId: a.alertId, machineId: a.machineId, kind: a.kind, title: a.title, detail: a.detail }); }
   const live = new Set(now.map((a) => a.alertId));
   for (const id of seen) if (!live.has(id)) ctx.db.run("DELETE FROM machines_alert_seen WHERE alert_id = ?", id);
+  tellRoom(ctx);
+  return { sent: fresh.length };
+}
+
+/**
+ * Tell the placement caches when a machine ran out of room or has room again (machine.changed): the host calls this the moment a turn starts or ends on a machine, so a cached answer never goes on
+ * ignoring room; the minute job calls it too, for what the host cannot see (a report that brought a machine's CPU or disk past the line).
+ */
+export function tellRoom(ctx: MachinesCtx): { filled: string[]; freed: string[] } {
+  ensure(ctx.db);
   const sw = syncBusy(ctx, busyNow(ctx, (r) => hostSeams.turns(r.machineId), BUSY_BELOW));
   for (const id of sw.filled) ctx.emit("machine.changed", id, { machineId: id, what: ["full"] });
   for (const id of sw.freed) ctx.emit("machine.changed", id, { machineId: id, what: ["room"] });
-  return { sent: fresh.length };
+  return sw;
 }

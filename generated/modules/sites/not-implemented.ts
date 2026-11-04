@@ -10,6 +10,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "sites.artifact_open": async (ctx) => { throw new VyreErr(notImplemented("sites.artifact_open", ctx.trace)); },
   "sites.artifact_publish": async (ctx) => { throw new VyreErr(notImplemented("sites.artifact_publish", ctx.trace)); },
   "sites.build": async (ctx) => { throw new VyreErr(notImplemented("sites.build", ctx.trace)); },
+  "sites.chat_viewing": async (ctx) => { throw new VyreErr(notImplemented("sites.chat_viewing", ctx.trace)); },
   "sites.create": async (ctx) => { throw new VyreErr(notImplemented("sites.create", ctx.trace)); },
   "sites.db_import": async (ctx) => { throw new VyreErr(notImplemented("sites.db_import", ctx.trace)); },
   "sites.delete": async (ctx) => { throw new VyreErr(notImplemented("sites.delete", ctx.trace)); },

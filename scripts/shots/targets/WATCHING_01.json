@@ -1,0 +1,8 @@
+{
+  "targets": [
+    { "id": "WATCHING_01-list", "route": "/m/WATCHING_01?part=list", "proto": "watching,{skin}", "waitFor": "[data-testid='watching']", "note": "Automations > Watching: each watch with where it runs, how often and when it last changed." },
+    { "id": "WATCHING_01-open", "route": "/m/WATCHING_01?part=open", "proto": "watching,{skin}", "waitFor": "[data-testid='watch-change-wch_1']", "note": "A watch opened: what the page was and what it is, who checks it and where." },
+    { "id": "WATCHING_01-paused", "route": "/m/WATCHING_01?part=paused", "proto": "watching,{skin}", "waitFor": "[data-testid='watching']", "note": "A paused watch and one that cannot read its page say so in plain words." },
+    { "id": "WATCHING_01-empty", "route": "/m/WATCHING_01?part=empty", "proto": "watching,{skin}", "waitFor": "[data-testid='watching-empty']", "note": "Nothing is being watched yet, and how to start." }
+  ]
+}

@@ -23,7 +23,7 @@ export function CrewStartLine({ block, name, onOpen }: { block: Pick<MessageBloc
   const thread = typeof d["helperThreadId"] === "string" ? (d["helperThreadId"] as string) : "";
   const title = typeof d["title"] === "string" ? (d["title"] as string) : "";
   return (
-    <Pressable accessibilityRole="link" accessibilityLabel={`${name} is on ${title}. Open its thread`} testID={`crew-start-${block.id}`} disabled={thread === ""} onPress={() => onOpen(thread)} style={st.start}>
+    <Pressable accessibilityRole="link" accessibilityLabel={`${name} is on ${title}. Open its chat`} testID={`crew-start-${block.id}`} disabled={thread === ""} onPress={() => onOpen(thread)} style={st.start}>
       <Glyph name="helper" size={13} />
       <Text style={st.startText}>{`${name} is on ${title}`}</Text>
     </Pressable>

@@ -27,6 +27,11 @@
       "status": "live"
     },
     {
+      "id": "browser",
+      "owner": "L10",
+      "status": "live"
+    },
+    {
       "id": "calendar",
       "owner": "L5",
       "status": "live"

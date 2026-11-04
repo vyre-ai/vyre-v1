@@ -1,7 +1,7 @@
 // Machines module (lane l-machines). The handlers, the Space server's own 30-second report, the ingest the host calls for every other machine, and the thinning of old points.
 import { parseReport } from "../../host/src/machines/report.ts";
 import type { Report } from "../../host/src/machines/report.ts";
-import { alerts, alertsNotify, fix, get, list, moveRecord, moves, rooms, set } from "./handlers/index.ts";
+import { alerts, alertsNotify, fix, tellRoom, get, list, moveRecord, moves, rooms, set } from "./handlers/index.ts";
 import { roomsFor } from "./rooms.ts";
 import { compact, ensure, ingest, isOnline, machineById, pinsOf } from "./projections.ts";
 import type { Kind, MachinesCtx } from "./projections.ts";
@@ -36,6 +36,8 @@ export const periodic = {
 
 /** Ingest from the host: one machine's report, as it came over its socket. Never a capability: a session cannot reach it, and a report that does not parse is dropped. */
 export const hostCalls = {
+  /** A turn started or ended on a machine: who has room may have changed. */
+  "machines.sync": (ctx: MachinesCtx): { filled: string[]; freed: string[] } => tellRoom(ctx),
   "machines.ingest": (ctx: MachinesCtx, input: { machineId: string; kind: Kind; name: string; ownerId?: string; latencyMs?: number; report: unknown }): { ok: boolean } => {
     if (!/^(space|srv_[a-z0-9]{1,64}|device:[A-Za-z0-9_]{1,64})$/.test(input.machineId) || !["server", "computer", "space"].includes(input.kind)) return { ok: false };
     const report: Report | null = parseReport(input.report);

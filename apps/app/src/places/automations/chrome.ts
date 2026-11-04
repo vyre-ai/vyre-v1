@@ -4,6 +4,7 @@ export const STUDIO_NAV = [
   { id: "automations", label: "Automations" },
   { id: "templates", label: "Templates" },
   { id: "needs", label: "Needs you" },
+  { id: "watching", label: "Watching" },
   { id: "runs", label: "All runs" },
   { id: "events", label: "Live Event Explorer" },
   { id: "analytics", label: "Analytics" },
@@ -48,6 +49,8 @@ export const PACKAGES_LINE = "Save a copy of an automation's steps without secre
 export const EMPTY_PACKAGES = "No packages yet.";
 export const EMPTY_PACKAGES_NEXT = "Use Export an automation above to save one. It holds the steps only, so you can import it as a draft here or hand it to someone.";
 export const EMPTY_NEEDS_NEXT = "A run that waits for an approval, an answer or a choice after missed schedule ticks shows here until you act.";
+export const WATCHING_LINE = "Pages and parts of pages that an agent or your Chrome checks, and tells you about when they change.";
+export const EMPTY_WATCHING_NEXT = "In Chrome, right-click a page and choose Watch this with Vyre. Pick a part of the page, how often, and which agent checks it.";
 export const TEMPLATES_LINE = "Start from a working automation. Using one makes a draft that only you see.";
 
 const ACTIVE_RUN = new Set(["queued", "running", "waiting"]);

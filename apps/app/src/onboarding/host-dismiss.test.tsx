@@ -14,7 +14,7 @@ function fake(seen: boolean) {
     if (cap === "spaces.switcher") return { role: "Owner" };
     if (cap === "spaces.onboarding.flow") return { seen, steps: [] };
     if (cap === "spaces.onboarding.get") return { dismissed: false, steps: [] };
-    if (cap === "providers.list") return { providers: [] };
+    if (cap === "engine.accounts.list") return { accounts: [] };
     return { ok: true };
   }) as unknown as CapCall;
   return { calls, call };

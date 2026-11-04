@@ -4,20 +4,25 @@ import type { CapMap } from "../../../../../generated/types.ts";
 
 export type SettingRow = CapMap["settings.list"]["out"]["rows"][number];
 export type PageInfo = CapMap["settings.pages"]["out"]["pages"][number];
-export type YouPage = "profile" | "ai" | "notifications" | "appearance" | "connected" | "computer" | "signin";
+export type YouPage = "profile" | "notifications" | "appearance" | "ai" | "memory" | "notes" | "skills" | "connected" | "mail" | "signin" | "computer" | "about";
 export type SpacePage = "space" | "people" | "agents" | "data" | "apps" | "advanced";
 export type PageKey = YouPage | SpacePage;
 
 export interface PageDef { key: PageKey; title: string; group: "you" | "space"; icon: string; /** the other `page` strings a registry row can carry for this page */ pages: readonly string[] }
 
 export const PAGES: readonly PageDef[] = [
-  { key: "profile", title: "You", group: "you", icon: "person", pages: ["Memory and privacy"] },
-  { key: "ai", title: "Your AI", group: "you", icon: "chip", pages: ["Models and usage", "Chats", "Skills"] },
+  { key: "profile", title: "Profile", group: "you", icon: "person", pages: [] },
   { key: "notifications", title: "Notifications", group: "you", icon: "bell", pages: ["Notifications"] },
   { key: "appearance", title: "Appearance", group: "you", icon: "palette", pages: [] },
+  { key: "ai", title: "AI", group: "you", icon: "chip", pages: ["Models and usage", "Chats", "Memory and privacy"] },
+  { key: "memory", title: "Memory and privacy", group: "you", icon: "lock", pages: [] },
+  { key: "notes", title: "Notes", group: "you", icon: "doc", pages: ["Notes"] },
+  { key: "skills", title: "Skills", group: "you", icon: "spark", pages: ["Skills"] },
   { key: "connected", title: "Connected", group: "you", icon: "link", pages: ["Connections"] },
-  { key: "computer", title: "This device", group: "you", icon: "laptop", pages: ["This computer", "About"] },
-  { key: "signin", title: "Privacy and security", group: "you", icon: "key", pages: ["Sign-in and devices"] },
+  { key: "mail", title: "Email and calendar", group: "you", icon: "mail", pages: [] },
+  { key: "signin", title: "Sign-in and devices", group: "you", icon: "key", pages: ["Sign-in and devices"] },
+  { key: "computer", title: "This computer", group: "you", icon: "laptop", pages: ["This computer"] },
+  { key: "about", title: "About Vyre", group: "you", icon: "info", pages: ["About"] },
   { key: "space", title: "Space", group: "space", icon: "grid", pages: [] },
   { key: "people", title: "People and access", group: "space", icon: "people", pages: [] },
   { key: "agents", title: "Agents and rules", group: "space", icon: "shield", pages: [] },
@@ -27,7 +32,7 @@ export const PAGES: readonly PageDef[] = [
 ];
 
 /** Addresses from before the pages folded together still land on the right page. */
-export const OLD_PAGES: Readonly<Record<string, PageKey>> = { connections: "connected", models: "ai", privacy: "profile", keyboard: "appearance", spaces: "signin", memory: "profile", skills: "ai", mail: "connected", about: "computer" };
+export const OLD_PAGES: Readonly<Record<string, PageKey>> = { connections: "connected", models: "ai", privacy: "ai", keyboard: "appearance", spaces: "signin" };
 
 export function pageByKey(key: string): PageDef {
   return PAGES.find((p) => p.key === key) ?? PAGES[0]!;
@@ -61,9 +66,14 @@ export const SECTIONS: Readonly<Record<YouPage, readonly SectionDef[]>> = {
   notifications: [{ title: "Delivery", keys: ["notifications.email_backstop", "notifications.alert_replies", "notifications.routines_all"] }],
   appearance: [],
   ai: [{ title: "Working with agents", keys: ["engine.local_runs", "chat.agent_tabs"] }],
+  memory: [],
+  notes: [{ title: "From chats", keys: ["notes.offers"] }],
+  skills: [],
   connected: [],
+  mail: [],
   signin: [],
   computer: [],
+  about: [],
 };
 
 export interface Section { title: string; rows: SettingRow[] }
@@ -215,18 +225,20 @@ export const ROW_LABELS: Readonly<Record<string, string>> = {
   "notifications.quiet_hours": "Quiet hours",
   "engine.local_runs": "Run my chats on this computer",
   "chat.agent_tabs": "Agents can open side tabs",
+  "notes.offers": "Offer to save things from chats as notes",
 };
 /** What a row does. It shows on hover, never as a line on the page. */
 export const ROW_HELP: Readonly<Record<string, string>> = {
   "profile.timezone": "Used for your working hours, quiet hours and whatever agents schedule for you.",
   "profile.working_hours": "When you work. People and agents see it, Find a time keeps to it, and outside it only calls, urgent approvals and incidents interrupt you.",
   "notifications.email_backstop": "One email if an approval has been waiting on you for 4 hours.",
-  "notifications.alert_replies": "A reply in a thread you follow interrupts you. Off, it is a badge.",
+  "notifications.alert_replies": "A reply to a message you follow interrupts you. Off, it is a badge.",
   "notifications.routines_all": "Failures always reach you. On, successes do too.",
   "notifications.quiet_hours": "No sounds or pushes between these times. What arrives waits in one summary.",
   "notifications.hand_needs_you_to": "While you are away, what needs you goes to this person.",
   "engine.local_runs": "Your private chats run here while this computer is on. Off, they run on the Space's computer. One chat can pick its own place in the model menu.",
   "chat.agent_tabs": "Lets an agent open or switch a tab beside your chat to show you something.",
+  "notes.offers": "When something in a chat is worth keeping (a link, an answer, a decision), an agent may offer to save it as a private note. Nothing is saved until you press Save.",
   "model.default": "The model a new chat starts with. You can change it in any chat.",
   "model.fallback": "Used when the default is out of credits or down.",
 };
@@ -300,8 +312,8 @@ export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; s
   { key: "model.fallback", page: "ai", title: "Fallback model", sub: "When the default is unavailable", words: "backup" },
   { key: "usage", page: "ai", title: "Usage this month", sub: "You and your agents", words: "limit cost tokens spend" },
   { key: "open-vault", page: "ai", title: "AI accounts", sub: "Sign-ins and keys live in the Vault", words: "provider api key openai anthropic subscription" },
-  { key: "memory.about", page: "profile", title: "About you", sub: "What agents know about you, public and private", words: "profile personal private public remember forget erase" },
-  { key: "memory.keys", page: "profile", title: "Who pays for memory", sub: "Learning uses the AI account you chat with", words: "upkeep spend learning limit" },
+  { key: "memory.about", page: "memory", title: "About you", sub: "What agents know about you, public and private", words: "profile personal private public remember forget erase" },
+  { key: "memory.keys", page: "memory", title: "Who pays for memory", sub: "Learning uses the AI account you chat with", words: "upkeep spend learning limit" },
   { key: "connect-mailbox", page: "connected", title: "Connect a mailbox", sub: "Google, Microsoft or IMAP", words: "email gmail outlook" },
   { key: "connect-calendar", page: "connected", title: "Connect a calendar", sub: "Google or Microsoft", words: "events" },
   { key: "connect-twilio", page: "connected", title: "Connect Twilio", sub: "Texts and calls", words: "phone number sms" },
