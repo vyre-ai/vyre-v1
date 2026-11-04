@@ -1,0 +1,1 @@
+- Popovers: one placement rule (ui/Overlay/place.ts fitInViewport) keeps a card under its control fully inside the window: the All agents card, the terminal list and the people popover move up when the control is low and are never taller than the window.

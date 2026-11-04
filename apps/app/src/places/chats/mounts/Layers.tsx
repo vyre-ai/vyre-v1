@@ -1,9 +1,10 @@
 // The two layers the screens of this folder open: a popover that hangs under the control that opened it (All agents, the terminal list) and a sheet in the middle of the window
 // (Connect an outside agent, the terminal rules). Both draw in the shared Overlay layer over a veil that closes them, both close on Escape, and both hand back the focus they took.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
+import { fitInViewport } from "../../../../../../ui/src/Overlay/place.ts";
 import { Tool } from "../rightpane/parts.tsx";
 
 const FIXED = (Platform.OS === "web" ? "fixed" : "absolute") as "absolute";
@@ -42,13 +43,17 @@ export interface PopoverProps {
 
 export function Popover({ x, y, width = 340, label, testID, onClose, children }: PopoverProps): ReactElement {
   const win = useWindowDimensions();
+  const [height, setHeight] = useState(0);
   useDismiss(onClose);
-  const left = win.width > 0 ? Math.max(8, Math.min(x, win.width - width - 8)) : x;
-  const maxH = win.height > 0 ? Math.max(160, win.height - y - 16) : 420;
+  // the one placement rule (ui/Overlay/place.ts): under the control when there is room, moved up to stay inside the window when there is not, never taller than the window
+  const { left, top, maxHeight } = fitInViewport({ x, y, width, height, viewW: win.width, viewH: win.height });
   return (
     <Overlay>
       <Pressable accessibilityLabel="Close" accessibilityRole="button" testID={`${testID}-veil`} onPress={onClose} style={st.veil} />
-      <View testID={testID} role="dialog" aria-label={label} style={[st.pop, { left, top: y, width, maxHeight: maxH }]}>{children}</View>
+      <View
+        testID={testID} role="dialog" aria-label={label} onLayout={(e) => { const h = Math.round(e.nativeEvent.layout.height); if (h !== height) setHeight(h); }}
+        style={[st.pop, { left, top, width, maxHeight }, height === 0 && Platform.OS === "web" ? { opacity: 0 } : null]}
+      >{children}</View>
     </Overlay>
   );
 }

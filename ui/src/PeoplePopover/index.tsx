@@ -9,6 +9,7 @@ import { Avatar } from "../Avatar/index.tsx";
 import { menuTrigger, useMenu } from "../Menu/index.tsx";
 import { AccessIcon, AccessSheetShell, AccessViewHead } from "../AccessSheet/index.tsx";
 import { Overlay } from "../Overlay/index.tsx";
+import { fitInViewport } from "../Overlay/place.ts";
 import { TITLE, footerOf, memberMenu, placeOf, walk } from "./model.ts";
 import type { MemberAction, MemberPerms, MemberRow, PeopleWhere } from "./model.ts";
 
@@ -43,6 +44,7 @@ export function PeoplePopover({ where, rows, meId, perms, anchor, onOpen, onActi
   const win = useWindowDimensions();
   const menu = useMenu();
   const [at, setAt] = useState(-1);
+  const [height, setHeight] = useState(0);
   const footer = footerOf(where);
   const count = rows.length + 1;
   useEffect(() => {
@@ -63,8 +65,11 @@ export function PeoplePopover({ where, rows, meId, perms, anchor, onOpen, onActi
   // the prototype's widths: about 215 for a chat, 260 for a project. A phone has no popover: the same rows open as the app's bottom sheet.
   const phone = win.width > 0 && win.width < 640;
   const spot = placeOf(anchor, win.width || 1024, where);
-  const { left, top, width } = spot;
-  const place = (phone ? { position: web ? "fixed" : "absolute", left: 0, right: 0, bottom: 0 } : { position: web ? "fixed" : "absolute", left, top, width }) as unknown as ViewStyle;
+  const { left, width } = spot;
+  // the popover hangs under its control, and moves up to stay inside the window when the control is low (ui/Overlay/place.ts)
+  const fit = fitInViewport({ x: left, y: spot.top, width, height, viewW: win.width, viewH: win.height });
+  const top = fit.top;
+  const place = (phone ? { position: web ? "fixed" : "absolute", left: 0, right: 0, bottom: 0 } : { position: web ? "fixed" : "absolute", left, top, width, maxHeight: fit.maxHeight, ...(height === 0 && web ? { opacity: 0 } : {}) }) as unknown as ViewStyle;
   const rowMenu = (r: MemberRow, x: number, y: number): void => {
     const items = memberMenu(r, perms, meId);
     menu.show(items.map((i) => ({ label: i.label, ...(i.danger ? { danger: true } : {}), onSelect: () => onAction(i.id, r) })), x, y, "context", { label: `${r.name}` });
@@ -106,7 +111,7 @@ export function PeoplePopover({ where, rows, meId, perms, anchor, onOpen, onActi
     <Overlay>
       <View style={st.layer}>
         <Pressable accessibilityLabel="Close" accessible={false} onPress={onClose} testID="people-scrim" style={StyleSheet.absoluteFill} />
-        <View role="dialog" aria-modal={false} accessibilityLabel={TITLE} testID="people-popover" {...(web ? ({ dataSet: { sheet: phone ? "phone" : "popover" } } as object) : {})} style={[st.pop, phone && st.sheet, { boxShadow: "var(--sh-pop)" } as unknown as ViewStyle, place]}>
+        <View role="dialog" aria-modal={false} accessibilityLabel={TITLE} testID="people-popover" onLayout={(e) => { const h = Math.round(e.nativeEvent.layout.height); if (h !== height) setHeight(h); }} {...(web ? ({ dataSet: { sheet: phone ? "phone" : "popover" } } as object) : {})} style={[st.pop, phone && st.sheet, { boxShadow: "var(--sh-pop)" } as unknown as ViewStyle, place]}>
           <Text style={st.head} accessibilityRole="header" testID="people-title">{TITLE}</Text>
           {rowsView}
         </View>
@@ -118,7 +123,7 @@ export function PeoplePopover({ where, rows, meId, perms, anchor, onOpen, onActi
 
 const st = StyleSheet.create({
   layer: { position: (web ? "fixed" : "absolute") as unknown as "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99997 },
-  pop: { padding: 5, borderRadius: 12, backgroundColor: "var(--raised)" as string, minWidth: 220 },
+  pop: { padding: 5, borderRadius: 12, backgroundColor: "var(--raised)" as string, minWidth: 220, overflow: "scroll" },
   head: { paddingHorizontal: 8, paddingTop: 7, paddingBottom: 3, fontSize: 11, fontWeight: "600", color: "var(--ink-3)" as string },
   row: { flexDirection: "row", alignItems: "center", gap: 9, height: 32, paddingHorizontal: 8, borderRadius: 6 },
   lit: { backgroundColor: "var(--hover)" as string },
