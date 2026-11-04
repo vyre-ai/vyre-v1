@@ -67,6 +67,22 @@ test("a person with access goes to the page; one without gets the safe peek, nev
   }
 });
 
+test("records, record types, notes and Vault items are checked before the page opens: none lands on the page's own refusal", async () => {
+  const j = (level: string, denyNote = false): Judge => ({ viewer: () => ({ id: "u" }), consolePages: async () => new Set(), memo: new Map(), call: async (cap, input) => {
+    if (cap === "access.reach") return { items: (input as { items: Array<{ type: string; id: string }> }).items.map((x) => ({ ...x, level })) };
+    if (cap === "memory.read_note" && denyNote) throw Object.assign(new Error("no"), { code: "permission.no_grant" });
+    return {};
+  } });
+  for (const kind of ["record", "record_type", "vault"]) {
+    assert.equal((await decideOpen({ kind, id: "x1" }, j("view"))).to, "open", `${kind} with access`);
+    const d = await decideOpen({ kind, id: "x1" }, j("none"));
+    assert.equal(d.to, "peek", `${kind} without access`);
+    assert.ok(d.to === "peek" && d.ask !== null);
+  }
+  assert.equal((await decideOpen({ kind: "note", id: "n1" }, j("view"))).to, "open");
+  assert.equal((await decideOpen({ kind: "note", id: "n1" }, j("view", true))).to, "peek");
+});
+
 test("a link to something no page shows still ends somewhere: a peek that says so", async () => {
   const d = await decideOpen({ kind: "spaceship", id: "x" }, judgeOf());
   assert.equal(d.to, "peek");
@@ -100,8 +116,8 @@ test("the link acts once a Space is open: a person with access is taken there; a
       call: async (cap: string, input: unknown) => { log.calls.push([cap, input]); if (denied.includes(cap)) throw Object.assign(new Error("no"), { code: "permission.no_grant" }); return {}; },
       open: (t: unknown) => { log.opened.push(t); },
     };
-    const hub = { session: () => ({ me: { id: "usr_maya" }, def: { spaceId: "spc_1" }, runtime: rt }), go: (p: string) => { log.went.push(p); } } as never;
-    const root = await mount(createRoot, <OpenLink hub={hub} />);
+    const hub = { go: (p: string) => { log.went.push(p); } } as never;
+    const root = await mount(createRoot, <OpenLink hub={hub} rt={rt as never} me="usr_maya" spaceId="spc_1" />);
     holdOpen({ kind: "file", id: "fil_1" });
     await flush(); await flush();
     assert.deepEqual(log.opened, [{ subject: { type: "file", id: "fil_1" } }]);
