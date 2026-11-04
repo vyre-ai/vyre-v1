@@ -8,6 +8,8 @@ import { join } from "./member-key-kit.ts";
 import type { DriverEvent, EngineSession, OpenSession, TurnInput } from "../agent/src/turn-engine/types.ts";
 
 const ROOM = 300;
+/** What each one-shot request (the room digest's batch) was asked, so the test can check what the digest is built from. */
+const oneShots: string[] = [];
 
 async function run(): Promise<{ on: { ms: number; prompt: string; bytes: number }; off: { ms: number; prompt: string; bytes: number } }> {
   let sentAt = 0, seen = "", firstTextAt = 0;
@@ -15,6 +17,7 @@ async function run(): Promise<{ on: { ms: number; prompt: string; bytes: number 
   const model: OpenSession = async () => ({
     warm: true,
     async *send(input: TurnInput): AsyncGenerator<DriverEvent> {
+      if (input.threadId.startsWith("oneshot_")) { oneShots.push(String(input.trigger?.body ?? "")); yield { type: "text", text: "The room is planning a launch." }; yield { type: "done" }; return; }
       sentAt = Date.now();
       seen = JSON.stringify({ context: input.context?.sections ?? [], history: input.history.map((h) => h.body), trigger: input.trigger?.body });
       firstTextAt = Date.now();
@@ -23,7 +26,6 @@ async function run(): Promise<{ on: { ms: number; prompt: string; bytes: number 
     },
     sendToolResult() {}, inject() {}, async cancel() {}, async close() {},
   } as EngineSession);
-  process.env["VYRE_ROOM_DIGEST"] = "off";   // this test measures the roster and the recent window; the digest has its own tests (room-digest.vault.live, the real-model walk)
   const d = await boot(seededDir(), model);
   try {
     await connect(d);
@@ -70,7 +72,7 @@ async function run(): Promise<{ on: { ms: number; prompt: string; bytes: number 
     const mid = <T extends { ms: number }>(xs: T[]): T => [...xs].sort((a, b) => a.ms - b.ms)[Math.floor(xs.length / 2)]!;
     console.log(`room pack runs (ms): off ${offs.map((x) => x.ms).join(",")}; on ${ons.map((x) => x.ms).join(",")}`);
     return { on: mid(ons), off: mid(offs) };
-  } finally { delete process.env["VYRE_ROOM_PACK"]; delete process.env["VYRE_ROOM_DIGEST"]; await d.stop(); }
+  } finally { delete process.env["VYRE_ROOM_PACK"]; await d.stop(); }
 }
 
 test("a tagged agent in a 300-message room gets the roster, the recent messages with names and times, and a request in well under a second", { timeout: 560_000 }, async () => {
@@ -79,7 +81,16 @@ test("a tagged agent in a 300-message room gets the roster, the recent messages 
   const room = text.context.find((s) => s.id === "room")?.text ?? "";
   const recent = text.context.find((s) => s.id === "recent")?.text ?? "";
   assert.match(room, /People: .*\(asked you\)/);
-  assert.match(room, /Earlier: \d+ messages since/, "no digest yet, so the earlier line says how much came before");
+  // 300 messages is ten times the batch size (DIGEST_EVERY, modules/engine/room-digest.ts), so the first tag starts a digest and the tags after it carry it
+  const upTo = Number(/digest of messages up to number (\d+)/.exec(room)?.[1] ?? "0");
+  assert.ok(upTo >= 300, `the room holds a digest that covers the 300 seeded messages (up to number ${upTo})`);
+  assert.match(room, /The room is planning a launch\./, "the digest's own words are in the pack");
+  assert.ok(oneShots.length >= 1, "a digest batch ran");
+  const source = oneShots[0]!.split("New messages:\n")[1] ?? "";
+  const lines = source.split("\n").filter((l) => l.trim() !== "" && !l.startsWith("Write the updated digest"));
+  // the room is read from its newest 200 messages (the chat history window), so the first batch holds 200 of the 300 and the digest says it covers up to the newest
+  assert.ok(lines.length >= 200, `the batch read the room's messages (${lines.length} lines)`);
+  assert.ok(lines.every((l) => /^[^:]+: (Message \d+: |@Intake )/.test(l)), "the digest is built from the room's own messages and nothing else");
   assert.match(recent, /\((person|agent)\): /, "who said it");
   assert.match(room, /Agents: you \(this is you\)/);
   assert.match(recent, /\[\w{3} \d+ \w{3} \d\d:\d\d\]/, "each line has a time");

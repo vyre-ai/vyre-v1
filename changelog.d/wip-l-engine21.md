@@ -47,6 +47,7 @@
 - In a chat that gained a person, nothing an agent learned or read before the join reaches the model for anyone: not the history, not the tool results kept from earlier turns, and not the agent's own search of the chat's past (it reads from the latest join on).
 - A request made for a person while their chats run on their own computer (a memory learning pass, the room digest) no longer starts an engine process on the Space's server or spends a key there; the room digest asks as the person, and a switch (VYRE_ROOM_DIGEST=off) turns it off for measuring.
 - A reply that cannot run because the Vault is locked on this computer waits once: the chat shows one failed turn with Unlock, messages that come meanwhile fold into it instead of starting a turn that fails the same way (an owner's Mac failed 1,493 in a row), it runs once when the Vault opens, and a waiting turn no longer holds back an app update.
+- Memory learns for a member on their own API key: the learning pass and the chat's title ask the Vault as the member and run on the Space with that member's key, while a member whose chats run on their own computer and uses a CLI engine is skipped until the device runner exists (issue 875). A chat's found tools survive its engine process being started again.
 
 ## What's new
 - Agents on Claude Code or Codex can work in a goal's folder: it shows as goal/ and their changes are saved to Vyre.

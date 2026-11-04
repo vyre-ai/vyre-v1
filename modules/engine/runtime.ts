@@ -310,10 +310,10 @@ async function digestComplete(call: (cap: string, input: unknown, as?: string) =
   const run = completer;
   if (!run) throw new Error("The engine is not running on this host.");
   const { turnsRunHere } = await import("./handlers/place.ts");
-  if (!(await turnsRunHere((cap, x) => call(cap, x, i.asker), i.asker, Date.now()))) throw new Error("This person's chats run on their own computer, not here.");
   const list = (await call("engine.accounts.list", {}, i.asker)) as { accounts: Array<{ ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean; itemId?: string }> };
   const row = list.accounts.find((a) => a.ref === i.accountRef);
   if (!row) throw new Error("That account is not one the asker can run on.");
+  if (!(await turnsRunHere((cap, x) => call(cap, x, i.asker), i.asker, Date.now(), row.driver))) throw new Error("This person's chats run on their own computer, not here.");
   const account = {
     ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: i.asker, reason: "starter",
     ...(row.itemId ? { itemId: row.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}),
