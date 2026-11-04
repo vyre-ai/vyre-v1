@@ -1065,6 +1065,7 @@ d_s_8a40ef0907(a5161[i5161], p + "/sessions" + '/' + i5161, e);
 }
 }
 if ("next" in o5160) lf(o5160["next"], p + "/next", e, L1);
+if ("personalOnly" in o5160) lf(o5160["personalOnly"], p + "/personalOnly", e, L3);
 }
 }
 }
