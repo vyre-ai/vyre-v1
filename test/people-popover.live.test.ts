@@ -50,6 +50,7 @@ test("people popover, team: a chat and a project show People and agents with rol
     await open(me, s, `/records#subject=project:${projectId}`);
     await me.page.getByTestId("project-members").click();
     await me.page.getByTestId("people-popover").waitFor({ timeout: 15_000 });
+    assert.equal(await me.page.getByTestId("people-popover").getAttribute("data-sheet"), "phone", "a phone gets the bottom sheet");
     await shoot(me.page, OUT, "project-people-phone");
     assert.deepEqual(me.errors, [], "no page errors");
   } finally { await s.close(); }

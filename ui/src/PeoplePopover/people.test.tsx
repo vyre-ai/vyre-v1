@@ -127,3 +127,23 @@ test("Enter opens the row the arrows reached, Escape closes", async () => {
     assert.equal(log[log.length - 1], "close");
   } finally { g.document.addEventListener = before.add; g.document.removeEventListener = before.rem; restore(); }
 });
+
+test("the popover is 215 wide in a chat and 260 in a project; a phone gets the bottom sheet with the same rows", async () => {
+  const { Dimensions } = await import("react-native");
+  const restore = installDom();
+  try {
+    const before0 = Dimensions.get("window");
+    Dimensions.set({ window: { ...before0, width: 1280, height: 800 } });
+    const wide = await mount(createRoot, <PeoplePopover {...props().p} />);
+    Dimensions.set({ window: before0 });
+    assert.equal(find(wide, "people-popover")?.props["data-sheet"], "popover");
+    const before = Dimensions.get("window");
+    Dimensions.set({ window: { ...before, width: 390, height: 844 } });
+    try {
+      const phone = await mount(createRoot, <PeoplePopover {...props().p} />);
+      assert.equal(find(phone, "people-popover")?.props["data-sheet"], "phone");
+      for (const r of rows) assert.ok(find(phone, `people-row-${r.id}`) !== null, r.name);
+      assert.equal(textOf(find(phone, "people-footer")).trim(), "Add people and agents");
+    } finally { Dimensions.set({ window: before }); }
+  } finally { restore(); }
+});

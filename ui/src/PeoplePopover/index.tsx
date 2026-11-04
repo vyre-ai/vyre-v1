@@ -59,10 +59,12 @@ export function PeoplePopover({ where, rows, meId, perms, anchor, onOpen, onActi
     doc.addEventListener("keydown", key);
     return () => doc.removeEventListener("keydown", key);
   }, [at, count, rows, footer.id, onClose, onOpen, onFooter]);
-  const width = Math.min(260, (win.width || 1024) - 16);
+  // the prototype's widths: about 215 for a chat, 260 for a project. A phone has no popover: the same rows open as the app's bottom sheet.
+  const phone = win.width > 0 && win.width < 640;
+  const width = Math.min(where === "chat" ? 215 : 260, (win.width || 1024) - 16);
   const left = Math.max(8, Math.min(anchor.x - width, (win.width || 1024) - width - 8));
   const top = Math.max(8, anchor.y + 4);
-  const place = { position: web ? "fixed" : "absolute", left, top, width } as unknown as ViewStyle;
+  const place = (phone ? { position: web ? "fixed" : "absolute", left: 0, right: 0, bottom: 0 } : { position: web ? "fixed" : "absolute", left, top, width }) as unknown as ViewStyle;
   const rowMenu = (r: MemberRow, x: number, y: number): void => {
     const items = memberMenu(r, perms, meId);
     menu.show(items.map((i) => ({ label: i.label, ...(i.danger ? { danger: true } : {}), onSelect: () => onAction(i.id, r) })), x, y, "context", { label: `${r.name}` });
@@ -71,7 +73,7 @@ export function PeoplePopover({ where, rows, meId, perms, anchor, onOpen, onActi
     <Overlay>
       <View style={st.layer}>
         <Pressable accessibilityLabel="Close" accessible={false} onPress={onClose} testID="people-scrim" style={StyleSheet.absoluteFill} />
-        <View role="dialog" aria-modal={false} accessibilityLabel={TITLE} testID="people-popover" style={[st.pop, { boxShadow: "var(--sh-pop)" } as unknown as ViewStyle, place]}>
+        <View role="dialog" aria-modal={false} accessibilityLabel={TITLE} testID="people-popover" {...(web ? ({ dataSet: { sheet: phone ? "phone" : "popover" } } as object) : {})} style={[st.pop, phone && st.sheet, { boxShadow: "var(--sh-pop)" } as unknown as ViewStyle, place]}>
           <Text style={st.head} accessibilityRole="header" testID="people-title">{TITLE}</Text>
           {each(rows, (r, i) => (
             <Pressable
@@ -109,5 +111,6 @@ const st = StyleSheet.create({
   name: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string },
   role: { fontSize: 12, color: "var(--ink-3)" as string, paddingLeft: 12 },
   ic: { width: 22, alignItems: "center", justifyContent: "center" },
+  sheet: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 14 },
   rule: { height: 1, backgroundColor: "var(--line)" as string, marginVertical: 5, marginHorizontal: 6 },
 });
