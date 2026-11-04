@@ -176,7 +176,7 @@ export default defineManifest({
       level: 'member', in: { agentId: id.agent }, out: { on: t.bool() }, tool: 'meta', errors: ['validation.not_found'],
     }),
     write('access.make_owner', 'The owner hands an item to someone else: they become the owner and the previous owner keeps Manage', {
-      ...V, idem: 'key', in: { resource: resourceRef, personId: id.user }, out: { ok: t.bool() }, emits: ['grant.created', 'access.changed'], audit: 'always', team: true, agent: false,
+      ...V, idem: 'key', in: { resource: resourceRef, personId: id.user }, out: { ok: t.bool() }, emits: ['grant.created', 'access.changed', 'grant.revoked'], audit: 'always', team: true, agent: false,
       gate: { act: 'transfer', when: "actor.kind != 'person'" }, errors: ['permission.no_grant', 'validation.bad_input', 'validation.not_found'],
     }),
     write('access.audience_set', 'Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record\'s Files folder can follow its record', {
@@ -190,6 +190,11 @@ export default defineManifest({
     read('access.lists', 'Items of one type in a section (Personal, Shared with me, Space, Starred, Following) with folder counts', {
       ...V, in: { type: resourceType, section: t.opt(section), folder: t.opt(id.folder), ...pageIn },
       out: { rows: t.arr(listRow), counts: t.rec(t.int({ minimum: 0 })), ...pageOut }, tool: 'meta', label: 'filter',
+    }),
+
+    // ---- Where a link may go (owner, 4 Nov): what level I hold on each of a list of things, so a link renders right before it is pressed
+    read('access.reach', 'What level the caller holds on each of up to 200 things, in one call: none, view, use, edit or manage. A thing that does not exist answers none, the same as one the caller cannot see', {
+      ...V, level: 'member', space: true, in: { items: t.arr(resourceRef, { maxItems: 200 }) }, out: { items: t.arr(t.obj({ type: resourceType, id: t.str(), level: t.enm('none', 'view', 'use', 'edit', 'manage'), title: t.opt(t.str()) })) }, tool: 'meta', team: true,
     }),
 
     // ---- Ask for access (4.13)

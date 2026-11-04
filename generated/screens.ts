@@ -1751,6 +1751,13 @@ export const screens: ScreenIndexEntry[] = [
           "threadId": "/state/threadId"
         },
         "live": true
+      },
+      "hooks": {
+        "cap": "hooks.list",
+        "input": {
+          "threadId": "/state/threadId"
+        },
+        "live": true
       }
     },
     "actions": {
@@ -1828,6 +1835,20 @@ export const screens: ScreenIndexEntry[] = [
       },
       "crew": {
         "cap": "engine.crew.list",
+        "input": {
+          "threadId": "/state/threadId"
+        },
+        "live": true
+      },
+      "hooks": {
+        "cap": "hooks.list",
+        "input": {
+          "threadId": "/state/threadId"
+        },
+        "live": true
+      },
+      "hookRuns": {
+        "cap": "hooks.runs.list",
         "input": {
           "threadId": "/state/threadId"
         },
@@ -2579,6 +2600,39 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "console.ci",
+    "module": "ci",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleCi",
+    "caller": "principal",
+    "queries": {
+      "settings": {
+        "cap": "ci.settings.get",
+        "input": {},
+        "live": true
+      },
+      "cost": {
+        "cap": "ci.cost.month",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "set": {
+        "cap": "ci.settings.set",
+        "input": {}
+      }
+    },
+    "needs": [
+      "connectors.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.connector-build",
     "module": "connectors",
     "place": "console",
@@ -2705,6 +2759,74 @@ export const screens: ScreenIndexEntry[] = [
     },
     "needs": [
       "console.access"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.github-app",
+    "module": "github",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleGithubApp",
+    "caller": "principal",
+    "queries": {},
+    "actions": {
+      "create": {
+        "cap": "github.app.create_manifest",
+        "input": {
+          "org": "/draft/org"
+        }
+      },
+      "complete": {
+        "cap": "github.app.complete",
+        "input": {
+          "code": "/state/code",
+          "state": "/state/state"
+        }
+      }
+    },
+    "needs": [
+      "connectors.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.hooks",
+    "module": "hooks",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleHooks",
+    "caller": "principal",
+    "queries": {
+      "hooks": {
+        "cap": "hooks.list",
+        "input": {
+          "scope": "space"
+        },
+        "live": true
+      }
+    },
+    "actions": {
+      "set": {
+        "cap": "hooks.set",
+        "input": {}
+      },
+      "remove": {
+        "cap": "hooks.remove",
+        "input": {
+          "id": "/state/id"
+        },
+        "confirm": "Remove this hook?"
+      }
+    },
+    "needs": [
+      "agents.manage"
     ],
     "perf": {
       "firstPaintMs": 50,
@@ -3044,6 +3166,23 @@ export const screens: ScreenIndexEntry[] = [
     "perf": {
       "firstPaintMs": 100,
       "completeMs": 300
+    }
+  },
+  {
+    "id": "console.page",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsolePage",
+    "caller": "principal",
+    "queries": {},
+    "actions": {},
+    "needs": [
+      "console.access"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
     }
   },
   {
@@ -8045,6 +8184,10 @@ export const screens: ScreenIndexEntry[] = [
       }
     },
     "actions": {
+      "cancel": {
+        "cap": "spaces.delete_cancel",
+        "input": {}
+      },
       "update": {
         "cap": "spaces.update",
         "input": {
@@ -8068,7 +8211,8 @@ export const screens: ScreenIndexEntry[] = [
       "delete": {
         "cap": "spaces.delete",
         "input": {
-          "confirmName": "/state/confirmName"
+          "confirmName": "/state/confirmName",
+          "withoutExport": "/state/withoutExport"
         },
         "confirm": "Delete the Space for everyone?"
       },

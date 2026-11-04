@@ -10,7 +10,7 @@ const tick = (): Promise<void> => new Promise((r) => setImmediate(r));
 
 class FakeSocket implements TalkSocket {
   readyState = 0; binaryType?: string; onopen: TalkSocket["onopen"] = null; onmessage: TalkSocket["onmessage"] = null; onerror: TalkSocket["onerror"] = null; onclose: TalkSocket["onclose"] = null;
-  sent: (string | ArrayBuffer)[] = []; closed = false; constructor(public url: string, public protocols: string[]) {}
+  sent: (string | ArrayBuffer)[] = []; closed = false; url: string; protocols: string[]; constructor(url: string, protocols: string[]) { this.url = url; this.protocols = protocols; }
   send(d: string | ArrayBuffer): void { this.sent.push(d); }
   close(): void { this.closed = true; }
   open(): void { this.readyState = 1; this.onopen?.({}); }
@@ -215,4 +215,23 @@ test("the web mic: no API is its own error, tracks stop, and a refused mic close
   mic.stop();
   assert.equal(stopped, 1);
   assert.equal(closed, 2);
+});
+
+test("a provider that sends a context line gets it on the first chunk only, including a chunk held while the socket opened", async () => {
+  const eleven: TalkSession = { provider: "elevenlabs", url: "wss://api.elevenlabs.io/v1/speech-to-text/realtime?model_id=m", protocols: [], context: "Words that may come up: Vyre, Maya Chen.", source: "space", expiresIn: 900 };
+  const t = rig({ session: async () => eleven });
+  await tick();
+  const s = t.sockets[0]!;
+  t.speak(new Uint8Array([1]).buffer);   // held until the socket opens
+  s.open();
+  t.speak(new Uint8Array([2]).buffer);
+  t.speak(new Uint8Array([3]).buffer);
+  const sent = s.sent.map((x) => JSON.parse(x as string) as { previous_text?: string });
+  assert.equal(sent.length, 3);
+  assert.deepEqual(sent.map((x) => x.previous_text), ["Words that may come up: Vyre, Maya Chen.", undefined, undefined]);
+  const again = rig({ session: async () => SESSION });
+  await tick();
+  again.sockets[0]!.open();
+  again.speak(new Uint8Array([1]).buffer);
+  assert.ok(again.sockets[0]!.sent[0] instanceof ArrayBuffer, "Deepgram still gets raw audio");
 });

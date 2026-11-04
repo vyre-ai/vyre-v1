@@ -25,6 +25,7 @@ import m_files from './files.ts';
 import m_forms from './forms.ts';
 import m_gate from './gate.ts';
 import m_git from './git.ts';
+import m_ci from './ci.ts';
 import m_github from './github.ts';
 import m_google from './google.ts';
 import m_governance from './governance.ts';
@@ -46,6 +47,7 @@ import m_microsoft from './microsoft.ts';
 import m_mounts from './mounts.ts';
 import m_network from './network.ts';
 import m_machines from './machines.ts';
+import m_hooks from './hooks.ts';
 import m_notes from './notes.ts';
 import m_notifications from './notifications.ts';
 import m_portal from './portal.ts';
@@ -112,6 +114,7 @@ export const all: Manifest[] = [
   m_forms,
   m_gate,
   m_git,
+  m_ci,
   m_github,
   m_google,
   m_governance,
@@ -133,6 +136,7 @@ export const all: Manifest[] = [
   m_mounts,
   m_network,
   m_machines,
+  m_hooks,
   m_notes,
   m_notifications,
   m_portal,

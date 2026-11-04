@@ -4,7 +4,7 @@ export type AccessRequestBlockData = {
   requestId: string;
   requester: string;
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
     id: string;
   };
   resourceTitle: string;
@@ -146,6 +146,25 @@ export type HelperBlockData = {
       title: string;
       threadId: string;
     }>;
+};
+export type HookBlockData = {
+  threadId: string;
+  kind: "added" | "changed" | "removed" | "paused" | "resumed" | "blocked" | "failed" | "allowed" | "asked";
+  line: string;
+  hookId?: string;
+  scope?: string;
+  by?: string;
+  byKind?: "admin" | "person" | "agent";
+  reason?: string;
+  tool?: string;
+  subject?: string;
+};
+export type InstallPlanBlockData = {
+  planId: string;
+  name: string;
+  kind: "skill" | "plugin" | "mcp_local" | "mcp_remote" | "site";
+  update?: boolean;
+  installId?: string;
 };
 export type MemorySavedBlockData = {
   factId: string;
@@ -318,6 +337,8 @@ export interface BlockDataMap {
   "form_fields": FormFieldsBlockData;
   "goal": GoalBlockData;
   "helper": HelperBlockData;
+  "hook": HookBlockData;
+  "install_plan": InstallPlanBlockData;
   "memory_saved": MemorySavedBlockData;
   "model_switch": ModelSwitchBlockData;
   "mount": MountBlockData;
@@ -637,6 +658,26 @@ export const blockRegistry = [
         "threadId": "/threadId"
       }
     }
+  },
+  {
+    "type": "hook",
+    "v": 1,
+    "module": "hooks",
+    "component": "ui:BlockHook",
+    "fallback": "{{line}}",
+    "waitsForAnswer": false,
+    "actions": [],
+    "opens": null
+  },
+  {
+    "type": "install_plan",
+    "v": 1,
+    "module": "chat",
+    "component": "ui:BlockInstallPlan",
+    "fallback": "Install {{name}}?",
+    "waitsForAnswer": false,
+    "actions": [],
+    "opens": null
   },
   {
     "type": "memory_saved",

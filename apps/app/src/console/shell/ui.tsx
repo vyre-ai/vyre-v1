@@ -29,6 +29,11 @@ export const InGroup = createContext(false);
 export function Group({ children, testID }: { children: ReactNode; testID?: string }): ReactElement {
   return <View style={s.group} testID={testID}><InGroup.Provider value>{children}</InGroup.Provider></View>;
 }
+/** One row of a card at the Console's row height (54), a 1px line above every row but the first. */
+export const ROW_LINE_HEIGHT = 54;
+export function Line({ index, children }: { index: number; children: ReactNode }): ReactElement {
+  return <View style={{ minHeight: ROW_LINE_HEIGHT, justifyContent: "center", borderTopWidth: index === 0 ? 0 : 1, borderTopColor: "var(--line)" as string }}>{children}</View>;
+}
 /** The page header collects the help of Helps that sit on no card: one info mark next to the title instead of a stray icon. */
 export const PageHelpContext = createContext<((text: string) => () => void) | null>(null);
 export const useInGroup = (): boolean => useContext(InGroup);

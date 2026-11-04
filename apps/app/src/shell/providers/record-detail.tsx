@@ -76,6 +76,8 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
       openFile: (id) => rt.open({ subject: { type: "file", id } }),
       openSubject: (subject) => rt.open({ subject }),
       openGoal: (goalId: string) => rt.open({ subject: { type: "goal", id: goalId } }),
+      openPerson: (id: string) => rt.open({ subject: { type: "person", id } }),
+      openAgent: (id: string) => rt.open({ subject: { type: "agent", id } }),
       openRecord: (type, id) => rt.open({ subject: { type: "record", id }, args: { type } }),
       openChat: (_type, id) => { openAskPane({ thing: { kind: "record", id } }); },
       ask: askAboutRecord,
@@ -112,6 +114,6 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
   if (!resolved.type) return <States kind="empty" title="Opening record…" icon="records" />;
   if (!fields && resolved.type === "agent") return <AgentRecord key={recordId} rt={rt} recordId={resolved.recordId ?? recordId} />;
   return !fields && resolved.projectId !== undefined
-    ? <ProjectPageDataProvider value={projectData}><ProjectPage key={recordId} projectId={resolved.projectId!} tab={tab} onTabChange={(next) => rt.open({ subject: { type: "project", id: resolved.projectId! }, args: { tab: next } })} /></ProjectPageDataProvider>
+    ? <ProjectPageDataProvider value={projectData}><ProjectPage key={recordId} projectId={resolved.projectId!} tab={tab} onTabChange={(next) => rt.open({ subject: { type: "project", id: resolved.projectId! }, args: { tab: next }, local: true })} /></ProjectPageDataProvider>
     : <RecordPageDataProvider value={data}><RecordPage key={`${resolved.type}:${recordId}`} type={resolved.type} recordId={resolved.recordId ?? recordId} /></RecordPageDataProvider>;
 }

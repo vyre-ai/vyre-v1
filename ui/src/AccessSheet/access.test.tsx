@@ -1,5 +1,6 @@
 // ui/AccessSheet: the states of the one Add and Share sheet, drawn and pressed. Pure words and contract inputs are in model.test.ts.
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { act } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -824,4 +825,11 @@ test("the owner, the viewer and Everyone are not offered as suggestions: they ar
   assert.ok(!html.includes('data-testid="as-row-person:usr_me"'), "the viewer");
   assert.ok(!html.includes('data-testid="as-row-group:grp_everyone"'), "Everyone");
   assert.ok(html.includes('data-testid="as-row-person:usr_sara"') && html.includes('data-testid="as-row-group:grp_fin"'));
+});
+
+test("the phone sheet pads its bottom by the safe-area inset, so nothing sits under the home bar", () => {
+  const html = ssr(<AccessSheet {...add({ density: "compact" })} />);
+  void html;
+  // the shell's phone card carries the inset (shared with the people list on a phone)
+  assert.match(String(readFileSync(new URL("./parts.tsx", import.meta.url), "utf8")), /cardPhone:[^\n]*safe-area-inset-bottom/);
 });

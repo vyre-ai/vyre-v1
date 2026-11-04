@@ -50,9 +50,9 @@ export default defineManifest({
     read('settings.list', 'Rows of one page (or all) with the value that applies to me', { ...V, in: { page: t.opt(t.str()), scope: t.opt(scope) }, out: { rows: t.arr(settingRow) }, tool: 'meta' }),
     read('settings.get', 'One setting with its value, default and floor', { ...V, in: { key }, out: { row: settingRow }, tool: 'meta' }),
     write('settings.set', 'Change one of my settings; saves as made and returns the previous value so Undo is one call', {
-      ...V, in: { key, value: t.json() }, out: { row: settingRow, previous: t.json() }, emits: ['settings.changed'], tool: 'meta', offline: 'queue', errors: ['validation.field_locked'],
+      ...V, in: { key, value: t.json() }, out: { row: settingRow, previous: t.json() }, emits: ['settings.changed', 'settings.contact_unverified'], tool: 'meta', offline: 'queue', errors: ['validation.field_locked'],
     }),
-    write('settings.reset', 'Put one of my settings back to the Space default', { ...V, in: { key }, out: { row: settingRow }, emits: ['settings.changed'], tool: 'meta', offline: 'queue' }),
+    write('settings.reset', 'Put one of my settings back to the Space default', { ...V, in: { key }, out: { row: settingRow }, emits: ['settings.changed', 'settings.contact_unverified'], tool: 'meta', offline: 'queue' }),
     write('settings.set_space', 'Change a Space-wide setting (the permission of the row decides who may; policy.manage by default)', {
       ...V, in: { key, value: t.json() }, out: { row: settingRow, previous: t.json() }, perm: 'policy.manage', emits: ['settings.changed'], audit: 'always', tool: 'engineer', errors: ['validation.field_locked'],
     }),
@@ -72,7 +72,7 @@ export default defineManifest({
       ...V, in: {}, out: { photoFileId: t.opt(id.file), name: t.opt(t.str()), handle: t.opt(t.str()), timezone: t.opt(t.str()), hours: t.opt(t.json()), contact: t.opt(t.obj({ email: t.opt(t.str()), phone: t.opt(t.str()) })) }, tool: 'meta',
     }),
     write('settings.copy_profile', 'Apply values read from another Space to my profile here; the title is never copied', {
-      ...V, in: { fields: t.arr(copyFields), values: t.rec() }, out: { applied: t.arr(copyFields) }, emits: ['settings.changed'], tool: 'meta', offline: 'queue', errors: ['validation.bad_input'],
+      ...V, in: { fields: t.arr(copyFields), values: t.rec() }, out: { applied: t.arr(copyFields) }, emits: ['settings.changed', 'settings.contact_unverified'], tool: 'meta', offline: 'queue', errors: ['validation.bad_input'],
     }),
 
     // ---- Kit choice (chosen per Space or per person)
@@ -103,10 +103,7 @@ export default defineManifest({
     setting('profile.public_phone', 'person', 'profile', 'Phone teammates can call', t.str({ maxLength: 32, description: 'Optional: shown to teammates, and Call appears on the profile only when it is set and the Space has telephony' }), ''),
     setting('profile.contact', 'person', 'profile', 'Contact', t.obj({ email: t.opt(t.str()), phone: t.opt(t.str()) }), {}),
     setting('appearance.skin', 'person', 'appearance', 'Skin', t.str(), 'classic'),
-    setting('appearance.text_size', 'person', 'appearance', 'Text size', t.enm('small', 'default', 'large'), 'default'),
-    setting('appearance.density', 'person', 'appearance', 'Density', t.enm('compact', 'comfortable'), 'comfortable'),
-    setting('appearance.language', 'person', 'appearance', 'Language', t.str({ examples: ['auto', 'en', 'de'], description: 'auto follows this device' }), 'auto'),
-    setting('appearance.reduce_motion', 'person', 'appearance', 'Reduce motion', t.bool(), false),
+    setting('appearance.look', 'person', 'appearance', 'Look', t.json(), {}),
     setting('reports.send', 'person', 'privacy', 'Send problem reports to Vyre', t.bool(), true),
     setting('kit.person_choice', 'person', 'appearance', 'My Kit', t.nullable(id.kit), null),
     setting('kit.space_choice', 'space', 'spaces', 'Space Kit', t.nullable(id.kit), null),

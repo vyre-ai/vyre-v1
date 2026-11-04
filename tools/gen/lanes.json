@@ -1,10 +1,10 @@
 {
   "lanes": {
     "L1": ["sync", "conflicts", "search"],
-    "L2": ["chat", "agents", "engine", "memory", "computers", "terminal", "mcp", "notes", "machines"],
+    "L2": ["chat", "agents", "engine", "memory", "computers", "terminal", "mcp", "notes", "machines", "hooks"],
     "L3": ["records", "schema", "sources", "connectors", "projects", "import"],
     "L4": ["files", "mounts", "git", "previews", "documents", "runbooks", "dropbox"],
-    "L5": ["inbox", "mail", "calendar", "telephony", "meetings", "contacts-link", "google", "microsoft", "resend", "mailgun", "twilio", "zoom", "github", "stripe"],
+    "L5": ["inbox", "mail", "calendar", "telephony", "meetings", "contacts-link", "google", "microsoft", "resend", "mailgun", "twilio", "zoom", "github", "ci", "stripe"],
     "L6": ["automations", "journeys", "steps-core", "scheduler-api", "tasks", "goals", "runs", "gate", "notifications", "home", "events"],
     "L7a": ["access", "identity", "members", "devices", "spaces", "settings", "vault", "vault-requests", "talk", "audit", "governance"],
     "L7b": ["backup", "updates", "network", "health", "logs", "reports-client", "console-views", "console-assistant"],
@@ -21,5 +21,5 @@
     "estate-planning": "L8",
     "harbor-studio": "L8"
   },
-  "frozenCount": 77
+  "frozenCount": 79
 }

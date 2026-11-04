@@ -15,7 +15,10 @@ import { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL } from "../../lib/
 import { COMPANY_INTENT } from "../../lib/company-flow.ts";
 import { ABOUT_VYRE_INTENT, ABOUT_VYRE_SKILL } from "../../lib/about-vyre.ts";
 import { REPLY_FORMAT } from "../../lib/reply-format.ts";
+import { READ_LIMIT, isRoom, packText, recentWindow } from "./room-pack.ts";
+import type { RoomMessage } from "./room-pack.ts";
 import { offsetMinutes } from "../../lib/time-convert.ts";
+import { CAPABILITY_MAP } from "./capability-map.ts";
 
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
 /** How to name a record, file, task or chat in a reply: by link, never by id. */
@@ -35,6 +38,11 @@ export interface ContextDeps {
   skills?: SkillsPort;
   /** What the agent is waiting on in this thread: one plain line each (a held call, a wait_for, an unanswered question). */
   waiting?: (threadId: string, agentId: string) => string[] | Promise<string[]>;
+  /** The room digest store (room-digest.ts): the stored digest to read, and the call that starts a batch when one is due (never awaited). Without it a room has no digest. */
+  digests?: {
+    get(threadId: string, agentId: string): { text: string; upToSeq: number } | undefined;
+    refresh(o: { threadId: string; agentId: string; asker: string; messages: ReadonlyArray<RoomMessage>; nameOf(id: string): string }): void;
+  };
   now?: () => number;
   /** How long a read that rarely changes is kept (names, AGENT.md, the Space). Default 30 s. */
   cacheMs?: number;
@@ -372,7 +380,7 @@ export function createContextBuilder(d: ContextDeps) {
   }
 
   /** A thread hangs off a message in a conversation. An agent in it reads what it hangs off and the conversation around it, as the person it works for: what they cannot read gives nothing. */
-  async function parentOf(th: Obj | undefined, asker: string): Promise<string> {
+  async function parentOf(th: Obj | undefined, asker: string, roomPack = false): Promise<string> {
     const threadId = str(th?.["parentThreadId"]);
     if (!threadId) return "";
     const messageId = str(th?.["parentMessageId"]);
@@ -387,6 +395,8 @@ export function createContextBuilder(d: ContextDeps) {
     const out: string[] = [];
     const m = parent?.["message"] as Obj | undefined;
     if (m && words(m) !== "") out.push(`This thread hangs off this message by ${speaker(m)}:\n${cutTo(str(m["body"]) ?? "", 2_000)}`);
+    // the parent chat is a room: its roster, digest and recent messages come in the room pack, which keeps to what was said after the latest join; the loose lines here would not
+    if (roomPack) return out.join("\n\n");
     const older = str(summary?.["summary"]);
     if (older) out.push(`The conversation it came from, in short:\n${cutTo(older, 1_500)}`);
     else {
@@ -427,7 +437,7 @@ export function createContextBuilder(d: ContextDeps) {
     const always = agent ? await agentContext(agent, asker) : undefined;
     // every driver gets this context, so this line reaches Claude, Codex and Grok alike
     add("identity", true, `You are ${name} (agentId ${agentId}), an agent in Vyre.${role ? ` ${role}` : ""}${styleLine ? `\n${styleLine}` : ""}\nTo show the person anything you made, use artifact_publish: it stays private and shows as a card the person opens; say it opened in a tab only when the result says opened is true. Report only what a tool result confirms. Never leave it as a loose file or send them to localhost.${md ? `\n\nYour AGENT.md:\n${cutTo(md, 6_000)}` : ""}${always ? `\n\nWhat you always know (your context folder):\n${cutTo(always, 8_000)}` : ""}`);
-    add("rules", true, "You work for the person who asked; their access limits yours. Search Vyre memory before you ask them anything. A secret is used by Vault handle (vault_use), never by value. Anything that leaves the Space goes through the Gate and may come back held: say what is waiting and for whom. Say what you did and what you did not do. " + NAMING + "\n" + REPLY_FORMAT);
+    add("rules", true, "You work for the person who asked; their access limits yours. Search Vyre memory before you ask them anything. A secret is used by Vault handle (vault_use), never by value. Anything that leaves the Space goes through the Gate and may come back held: say what is waiting and for whom. Say what you did and what you did not do. When steps do not depend on each other, call their tools together in one step; call one after another only when a later call needs an earlier result. " + NAMING + "\n" + REPLY_FORMAT + "\n" + CAPABILITY_MAP);
 
     // where
     const people = arr(th?.["members"]).filter((m) => m["kind"] === "person").map((m) => String(m["id"]));
@@ -552,10 +562,53 @@ export function createContextBuilder(d: ContextDeps) {
     }
     if (str(digest?.["text"])) sections.push({ id: "digest", stable: false, once: true, text: `Tasks in hand (tasks_get has the detail):\n${str(digest?.["text"])}` });
 
-    add("parent", false, await parentOf(th, asker));
+    // a thread under a room (a channel, a project chat, a group chat) is answered with the room's own pack, the same as a turn in the chat: the thread's conversation comes with its own history
+    let roomTh = th;
+    let roomId = input.threadId;
+    const parentId = kind === "thread" ? str(th?.["parentThreadId"]) : undefined;
+    if (parentId) {
+      const pth = ((await read<Obj>("threads.get", { threadId: parentId }, asker))?.["thread"] as Obj | undefined) ?? undefined;
+      if (isRoom(pth)) { roomTh = pth; roomId = parentId; }
+    }
+    const inRoom = roomId !== input.threadId;
+    add("parent", false, await parentOf(th, asker, inRoom));
+
+    // a room (a group chat, a project chat, a channel): the roster, a digest of what came before, and the recent messages with names and times, from the database and with no tool call
+    let roomKeep = false;
+    let cutFromSeq: number | undefined;
+    if (isRoom(roomTh) && process.env["VYRE_ROOM_PACK"] !== "off") {   // the switch is for measuring the pack against none
+      const zoneName = str((zone?.["row"] as Obj | undefined)?.["value"]) ?? "UTC";
+      const isThread = kind === "thread" || str(th?.["parentThreadId"]) !== undefined;
+      const listed = await read<Obj>("chat.messages.list", { threadId: roomId, limit: READ_LIMIT }, asker);
+      const all = arr<Obj>(listed?.["messages"]).map((m): RoomMessage => ({ messageId: str(m["messageId"]) ?? "", threadSeq: Number(m["threadSeq"] ?? 0), author: { kind: String((m["author"] as Obj | undefined)?.["kind"] ?? ""), id: str((m["author"] as Obj | undefined)?.["id"]) ?? "" }, kind: str(m["kind"]) ?? "text", body: str(m["body"]) ?? "", createdAt: Number(m["createdAt"] ?? 0) }));
+      // the cut: what was said before the latest person came in was not said to the room, and what the agent answers is read by the whole room. So for every asker, in every turn of a shared chat,
+      // nothing from before the last join is sent to the model (a chat with one person has no join and is read whole)
+      const joins = Object.values((roomTh?.["joinedAt"] as Record<string, unknown> | undefined) ?? {}).filter((x): x is number => typeof x === "number");
+      const sharedAt = joins.length > 0 ? Math.max(...joins) : undefined;
+      const visible = sharedAt === undefined ? all : all.filter((m) => m.createdAt >= sharedAt);
+      const agentIds = new Set(agents.map((a) => a.id));
+      const win = recentWindow({ messages: all, agentId, ...(input.trigger?.id ? { triggerId: input.trigger.id } : {}), ...(sharedAt !== undefined ? { sharedAt } : {}), isThread: inRoom ? false : isThread, zone: zoneName, nameOf: who, isAgent: (id) => id.startsWith("agt_") || agentIds.has(id) });
+      const stored = d.digests?.get(roomId, agentId);
+      const digestText = stored && stored.upToSeq > 0 ? stored : undefined;
+      const rTitle = inRoom ? str(roomTh?.["title"]) : title;
+      const rKind = inRoom ? str(roomTh?.["kind"]) ?? "chat" : kind;
+      const rPeople = inRoom ? arr(roomTh?.["members"]).filter((m) => m["kind"] === "person").map((m) => String(m["id"])) : people;
+      const rAgents = inRoom ? arr(roomTh?.["agents"]).map((a) => ({ id: String(a["agentId"]), mode: String(a["mode"] ?? "") })) : agents;
+      const roster = `The room (${rTitle ? `"${one(rTitle, 80)}", ` : ""}${rKind === "channel" ? "a channel" : "a group chat"}). People: ${rPeople.slice(0, 20).map((p) => `${who(p)}${p === asker ? " (asked you)" : ""}`).join(", ") || "none"}. Agents: ${[{ id: agentId, mode: "" }, ...rAgents.filter((a) => a.id !== agentId)].slice(0, 12).map((a) => `${a.id === agentId ? "you" : who(a.id)} (${a.id === agentId ? "this is you" : a.mode === "lead" ? "lead" : "answers when tagged"})`).join(", ")}.`;
+      const pack = packText({ roster, ...(digestText ? { digest: digestText } : {}), window: win, zone: zoneName, hasMessage: input.trigger !== null });
+      add("room", true, pack.stable);
+      add("recent", false, pack.recent);
+      d.digests?.refresh({ threadId: roomId, agentId, asker, messages: visible, nameOf: who });
+      roomKeep = win.lines.length > 0;
+      if (sharedAt !== undefined && !inRoom) {
+        // every message the driver would be given for this asker starts at the first one they could read; the summary of the whole chat is the earlier turns, so it goes
+        const firstSeq = all.find((m) => m.createdAt >= sharedAt)?.threadSeq;
+        cutFromSeq = firstSeq ?? Number.MAX_SAFE_INTEGER;
+      }
+    }
 
     const older = str(summary?.["summary"]);
-    if (older) add("earlier", false, `${cutTo(older, 8_000)}\nThe full transcript is chats/${input.threadId}/transcript.md; transcript_search finds an exact line.`);
+    if (older && cutFromSeq === undefined) add("earlier", false, `${cutTo(older, 8_000)}\nThe full transcript is chats/${input.threadId}/transcript.md; transcript_search finds an exact line.`);
     const taken = d.handoff?.(input.threadId);
     if (taken) add("handoff", false, taken);
     add("screen", false, screenText(screen));
@@ -564,13 +617,20 @@ export function createContextBuilder(d: ContextDeps) {
     if (w.length > 0) add("waiting", false, w.map((x) => `- ${x}`).join("\n"));
 
     const ordered = SECTION_ORDER.flatMap((id) => sections.filter((s) => s.id === id));
-    return { sections: ordered, names: nameMap, ...(screen ? { screen } : {}), ...(older ? { keepHistory: KEEP_TURNS } : {}) };
+    return { sections: ordered, names: nameMap, ...(screen ? { screen } : {}), ...(roomKeep ? { keepHistory: 1 } : older ? { keepHistory: KEEP_TURNS } : {}), ...(cutFromSeq !== undefined ? { historyFromSeq: cutFromSeq } : {}) };
   }
 
   return { build };
 }
 
 export type ContextBuilder = ReturnType<typeof createContextBuilder>;
+
+/** The input with the history the asker may have: nothing from before they joined (historyFromSeq), then the newest keepHistory of it. */
+function withCuts(input: TurnInput, context: TurnContext): TurnInput {
+  let history = context.historyFromSeq !== undefined ? input.history.filter((h) => h.threadSeq >= (context.historyFromSeq as number)) : input.history;
+  if (context.keepHistory !== undefined && history.length > context.keepHistory) history = history.slice(-context.keepHistory);
+  return { ...input, context, history };
+}
 
 /** An OpenSession whose sessions get the turn context on every send. A context that fails to build never holds the turn: it runs without. */
 /**
@@ -597,7 +657,7 @@ export function withTurnContext(open: OpenSession, b: ContextBuilder, running?: 
             const line = running ? await running(spec) : undefined;
             if (line && context) context = { ...context, sections: [...context.sections.filter((s) => s.id !== "running"), { id: "running", stable: true, text: line }].sort((x, y) => SECTION_ORDER.indexOf(x.id) - SECTION_ORDER.indexOf(y.id)) };
           } catch { /* a turn without the line is still a turn */ }
-          yield* session.send(context ? { ...input, context, ...(context.keepHistory !== undefined && input.history.length > context.keepHistory ? { history: input.history.slice(-context.keepHistory) } : {}) } : input);
+          yield* session.send(context ? withCuts(input, context) : input);
         })(),
       },
     }) as EngineSession;

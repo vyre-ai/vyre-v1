@@ -21,10 +21,14 @@ export interface ConversationNav {
   openDetails?(threadId: string, messageId: string): void;
   /** Shows or hides the pane on the right (Computer, Threads, Files, Memory, Routines). */
   togglePane(): void;
+  /** A hook line's Edit or Details: the right pane opens on its Hooks tab at that hook. Left out where the shell has no right pane. */
+  openHooks?(threadId: string, hookId?: string): void;
   /** A saved note opens in Notes. Left out where the shell has no Notes. */
   openNote?(noteId: string): void;
   /** A card's file, record or diff opens beside the chat. A "computer" card or the Computer chip passes the agent's id. */
   openBeside(kind: string, id: string): void;
+  /** The Skills tab of the pane, with this skill lit (Open on an install card). */
+  openSkills?(name: string): void;
   /** A card's "Open in browser": an address outside the app. Left out where the shell has no browser. */
   openUrl?(url: string): void;
   /** A goal's page (a goal card's Open). Left out where the shell has no such page. */
@@ -123,6 +127,8 @@ export interface ConversationData {
   activity?: { events: readonly import("./model.ts").Message[]; show: "all" | "comments" | "updates" };
   /** The composer's words, in place of the chat's. */
   placeholder?: string;
+  /** In a thread: the messages that were also sent to the chat. They carry "Also sent to the chat". */
+  alsoSent?: ReadonlySet<string>;
   /** What the chat's memory surfaces read and write (Used N memories, quote cards, Learned lines, underlined subjects, the message menu's memory items). Left out where the shell has none: every surface then draws nothing. */
   memory?: ChatMemoryData;
 }

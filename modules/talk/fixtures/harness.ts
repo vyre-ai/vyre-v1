@@ -9,7 +9,7 @@ export const KEY = "dg_test_key_not_a_real_key"; // secret-scan: fake
 type Row = Record<string, string | number | null>;
 const insert = /^INSERT OR REPLACE INTO (\w+) \(([^)]+)\) VALUES/;
 function memory(): TalkDb & { rows: Map<string, Map<string, Row>> } {
-  const rows = new Map<string, Map<string, Row>>([["talk_prefs", new Map()], ["talk_space", new Map()]]);
+  const rows = new Map<string, Map<string, Row>>([["talk_prefs", new Map()], ["talk_space", new Map()], ["talk_space_pick", new Map()]]);
   return {
     rows,
     all(sql, ...a) {
@@ -37,7 +37,7 @@ export function world(perms: { admins?: readonly string[] } = {}) {
   const calls: { cap: string; input: unknown; by: string }[] = [];
   const events: { name: string; payload: unknown }[] = [];
   const logs: string[] = [];
-  const minted: { handle: string; asker?: string; own: boolean }[] = [];
+  const minted: { provider: string; handle: string; asker?: string; own: boolean; ttl?: number }[] = [];
   const checked: string[] = [];
   const answers = { check: null as Error | null, mint: null as Error | null };
   let n = 0;
@@ -67,6 +67,8 @@ export function world(perms: { admins?: readonly string[] } = {}) {
       if (cap === "vault.item.delete") { items.splice(items.findIndex((it) => it.id === i["itemId"]), 1); return { ok: true }; }
       if (cap === "vault.use") return { handle: items.find((it) => it.id === i["item"])!.handle };
       if (cap === "access.labels.set") { const it = items.find((x) => x.id === (i["resource"] as { id: string }).id); if (it) it.label = String(i["label"]); return {}; }
+      if (cap === "spaces.get") return { space: { name: "Hart & Reyes Law" } };
+      if (cap === "access.principals.list") return { principals: [{ kind: "person", name: "Maya Chen" }, { kind: "person", name: "Dana Wine" }, { kind: "agent", name: "Intake" }, { kind: "agent", name: "Irfad Imtiaz (Agent)", private: true }] };
       if (cap === "chat.post") return { ok: true };
       throw new Error(`unexpected call ${cap}`);
     },

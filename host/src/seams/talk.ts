@@ -9,12 +9,12 @@ export interface TalkHostDeps { vault: Pick<VaultPort, "secret">; fetch: SeamFet
 /** Structural: the module's own TalkHost accepts this (host never imports a module). */
 export interface TalkHostSeam {
   check(ctx: Pick<SeamCtx, "trace">, p: { provider: string; apiKey: string }): Promise<void>;
-  mint(ctx: Pick<SeamCtx, "trace" | "space">, p: { provider: string; handle: string; asker?: string; own: boolean }): Promise<{ token: string; expiresIn: number }>;
+  mint(ctx: Pick<SeamCtx, "trace" | "space">, p: { provider: string; handle: string; asker?: string; own: boolean; ttl?: number }): Promise<{ token: string; expiresIn: number }>;
 }
 
-const refused = (trace: string, name: string, why: GrantFailure, stored: { own: boolean } | null): never => {
+const refused = (trace: string, name: string, why: GrantFailure, stored: { own: boolean } | null, roleLine: string): never => {
   if (why === "key") throw fail("provider.auth_failed", trace, { message: stored === null ? `${name} did not accept that key. Check it and try again.` : stored.own ? `${name} no longer accepts your key. Add a new one in Settings, AI, Voice.` : `${name} no longer accepts your Space's key. An admin can replace it in Console, Voice.`, details: { reason: "revoked" } });
-  if (why === "role") throw fail("provider.auth_failed", trace, { message: "That key cannot make short-lived tokens. Make one with the Member role.", details: { reason: "role" } });
+  if (why === "role") throw fail("provider.auth_failed", trace, { message: roleLine, details: { reason: "role" } });
   if (why === "busy") throw fail("provider.rate_limited", trace, { message: `${name} is busy. Try again in a moment.` });
   throw fail("provider.unavailable", trace, { message: `${name} is not answering. Try again in a moment.` });
 };
@@ -30,7 +30,7 @@ export function createTalkHost(d: TalkHostDeps): TalkHostSeam {
       status = r.status; body = await r.text();
     } catch { throw fail("provider.network", trace, { message: `Could not reach ${p.name}. Check the connection and try again.` }); }
     const out = p.readGrant(status, body);
-    if (!out.ok) return refused(trace, p.name, out.why, stored);
+    if (!out.ok) return refused(trace, p.name, out.why, stored, p.roleLine);
     return { token: out.token, expiresIn: out.expiresIn };
   };
   return {
@@ -42,7 +42,7 @@ export function createTalkHost(d: TalkHostDeps): TalkHostSeam {
         if (e instanceof Error && /locked/i.test(e.message)) throw fail("auth.unauthenticated", ctx.trace.traceId, { message: "Your Vault is locked. Unlock it, then press the mic again.", details: { reason: "vault_locked" } });
         throw fail("validation.precondition_failed", ctx.trace.traceId, { message: p.own ? "Talk needs a key." : "The Space key is gone from the Vault. An admin can add it again in Console, Voice.", details: { reason: "no_key" } });
       }
-      return grant(ctx.trace.traceId, p.provider, key, TOKEN_SECONDS, { own: p.own });
+      return grant(ctx.trace.traceId, p.provider, key, p.ttl ?? TOKEN_SECONDS, { own: p.own });
     },
   };
 }

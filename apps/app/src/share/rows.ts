@@ -37,13 +37,18 @@ export function withNotify<T extends Record<string, unknown>>(input: T, opts?: {
 }
 
 /**
- * The item's own link: an artifact has its address on the Space (/a/<id>); every other kind has its vyre:// deep link, the one Copy Link gives elsewhere (vyre://note/<id>, vyre://agent/<id>).
- * Never the address of the page the person happens to be on.
+ * The item's own link, one that works wherever it is pasted: the Space's web address, /open/<kind>/<id>. It opens the app when it is installed and the web app otherwise, after sign-in, through the
+ * same access check as any other way in. An artifact keeps its own address (/a/<id>). Never the page the person is on, and never a vyre:// link, which only opens where the app is installed.
  */
 export function itemLink(type: string, id: string, origin = (globalThis as { location?: { origin?: string } }).location?.origin ?? ""): string {
   if (type === "site") return `${origin}/a/${id}`;
-  const kind = type === "record_type" ? "record_type" : type === "vault_item" || type === "vault_folder" ? "vault" : type;
-  return `vyre://${kind}/${id}`;
+  const kind = type === "vault_item" || type === "vault_folder" ? "vault" : type;
+  return `${origin}/open/${kind}/${id}`;
+}
+
+/** One message's own link: /open/message/<threadId>/<messageId> on the Space's web address. It opens the chat on that message, through the same access check as the chat. */
+export function messageLink(threadId: string, messageId: string, origin = (globalThis as { location?: { origin?: string } }).location?.origin ?? ""): string {
+  return `${origin}/open/message/${encodeURIComponent(threadId)}/${encodeURIComponent(messageId)}`;
 }
 
 export function copyItemLink(type: string, id: string): void {

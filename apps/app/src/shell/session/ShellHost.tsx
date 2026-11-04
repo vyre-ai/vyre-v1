@@ -1,8 +1,9 @@
-import{applyAppearance,restoreAppearance}from'../appearance.ts';
+import{lookApplier,startupPlan}from'../providers/settings-look.ts';
 import{sessionTheme}from'./space-theme.ts';
 import{sessionCatalogue}from'./space-catalog.ts';
 // The authenticated application shell. Kept behind SessionGate's lazy boundary so a signed-out
 // first paint does not parse the screen registry, virtual lists, command surface, or place chrome.
+import { OpenLink } from "../reach/OpenLink.tsx";
 import { subscribeUpdates, updateState, updateWaiting } from "../../startup/update/store.ts";
 import { ConsoleAlone, onConsoleHost } from "../console-host.ts";
 import { speed } from "../../speed/recorder.ts";
@@ -17,7 +18,8 @@ import { createGateSearch, loadRecent } from "../cmdk/gate.ts";
 import type { Hit } from "../cmdk/model.ts";
 import { formatHash, parseHash } from "../hash/hash.ts";
 import { tabKey } from "../tabs/store.ts";
-import { titleAsk, typeTitleAsk } from "../tabs/titles.ts";
+import { followTitle, screenAsk, titleAsk, typeTitleAsk } from "../tabs/titles.ts";
+import { railPlaces } from "../rail/kits.ts";
 import type { PlaceId } from "../rail/kits.ts";
 import { createShellHub } from "../spaces/hub.ts";
 import { INBOX_TIP, followInboxSources, rememberInbox, seedInbox, takeInboxTip } from "../rail/inbox-sources.ts";
@@ -93,7 +95,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     return h;
   }, [given, catalogueKey, stored.def.spaceId, stored.personId]);
   const location = useHubState(hub);
-  const theme=useMemo(()=>{applyAppearance(restoreAppearance(activeStored.personId));return sessionTheme(activeStored);},[stored.personId,stored.def.spaceId,activeStored.def.skinDefault]);
+  const theme=useMemo(()=>{const th=sessionTheme(activeStored);{const plan=startupPlan(activeStored.personId,(globalThis as{location?:{search?:string}}).location?.search??'');if(plan.look)lookApplier({me:{id:activeStored.personId},space:{id:activeStored.def.spaceId}} as never).apply(plan.look,{skin:plan.paintSkin});}return th;},[stored.personId,stored.def.spaceId,activeStored.def.skinDefault]);
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [searchOpen, setSearchOpen] = useState(initialSearchOpen);
@@ -109,7 +111,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     let off = false;
     let opened: RealSession | null = null;
     setFailed(null);
-    const options: OpenSessionOptions = { baseUrl: stored.baseUrl, token: stored.token, ...(stored.username ? { username: stored.username } : {}), spaceCards:catalogue.map(item=>item.def), ...(stored.syncEpoch !== undefined ? { syncEpoch: stored.syncEpoch } : {}), onSyncEpoch: (e) => { const now = readStored(undefined, stored.baseUrl); if (now && now.token === stored.token) writeStored({ ...now, syncEpoch: e }); }, navigate: (p, hash, background) => { navRef.current?.go(p,hash,background);if(phoneGo.current&&background!==true)phoneGo.current(p,hash); },
+    const options: OpenSessionOptions = { baseUrl: stored.baseUrl, token: stored.token, ...(stored.username ? { username: stored.username } : {}), spaceCards:catalogue.map(item=>item.def), ...(stored.syncEpoch !== undefined ? { syncEpoch: stored.syncEpoch } : {}), onSyncEpoch: (e) => { const now = readStored(undefined, stored.baseUrl); if (now && now.token === stored.token) writeStored({ ...now, syncEpoch: e }); }, notice: (text) => { navRef.current?.flash(text); }, navigate: (p, hash, background) => { navRef.current?.go(p,hash,background);if(phoneGo.current&&background!==true)phoneGo.current(p,hash); },
       shell: (screen,args) => {
         const h = navRef.current;
         if (!h) return;
@@ -168,7 +170,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   }, [team]);
   const setAway = useCallback((on: boolean): void => { flags.current.away = on; void team?.away(on); }, [team]);
   const teamProp = useMemo(() => (team ? { invite: () => { void team.invite(); }, away: setAway } : undefined), [team, setAway]);
-  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, ...(team ? { away: setAway } : {}) })) : null), [session, hub, team, setAway]);
+  const search = useMemo(() => (session ? (flags.current.terminal = session.def.terminal, createGateSearch({ runtime: session.runtime, nav: hub, state: flags.current, recent: () => recent.current, viewer: () => ({ id: session.runtime.me.id, spaceId: session.def.spaceId, places: new Set(railPlaces(hub.rail())) }), ...(team ? { away: setAway } : {}) })) : null), [session, hub, team, setAway]);
 
   useEffect(() => {
     if (!session || stored.def.kind !== "team") return undefined;
@@ -201,16 +203,10 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
   useEffect(() => {
     if (!session) return;
     const target = parseHash(location.hash);
-    const ask = target.subject ? titleAsk(target.subject, target.args) : typeTitleAsk(location.place, target.args);
+    const ask = target.subject ? titleAsk(target.subject, target.args) : screenAsk(target.screen, target.args) ?? typeTitleAsk(location.place, target.args);
     if (!ask) return;
     const key = tabKey(location.place, location.hash);
-    let off = false;
-    session.call(ask.cap, ask.input).then((out) => {
-      const name = ask.name(out);
-      if (!off && name) hub.retitle(key, name);
-      if (ask.resolve) void ask.resolve(out, session.call, session.me.id).then((full) => { if (!off && full) hub.retitle(key, full); }, () => undefined);
-    }, () => undefined);
-    return () => { off = true; };
+    return followTitle(session, ask, (t, empty) => hub.retitle(key, t, empty));
   }, [session, hub, location.place, location.hash]);
 
   // Inbox is on the rail once something flows in: the answer follows the mailbox, calendar and number reads (and their change events), and is kept for the next launch
@@ -342,7 +338,8 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     };
   }, []);
   useUpdateNotice(updateSource);
-  const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}><>{el}<VaultUnlockHost /><ReportHost call={session?.call ?? null} place={location.place} /></></OnboardingHost>;
+  // a link held from the address or the desktop acts here, where the open Space's runtime is: reach decides, then the page or the safe peek
+  const wrap = (el: ReactElement): ReactElement => <>{session ? <OpenLink hub={hub} rt={session.runtime} me={session.me.id} spaceId={session.def.spaceId} /> : null}<OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}><>{el}<VaultUnlockHost /><ReportHost call={session?.call ?? null} place={location.place} /></></OnboardingHost></>;
   if (deadConsole) return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   // on a computer the Console is a place in the shell; at its own address nothing surrounds it. In the app on a phone it is not there (owner ruling, 3 Nov): PhoneHost draws the Chat-about-it line
   if (consoleDoor && location.place !== "console") return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;

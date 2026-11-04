@@ -8,7 +8,9 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimen
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
-import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { askedCall, goalMenuEntries } from "./goal-menu.ts";
+import { TextAsk } from "../menus/TextAsk.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Conversation } from "../conversation/Conversation.tsx";
@@ -59,6 +61,7 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
   const [undo, setUndo] = useState<{ input: Record<string, unknown>; said: string } | null>(null);
   const [picker, setPicker] = useState<"lead" | "owner" | "helpers" | null>(null);
   const menu = useMenu();
+  const [asking, setAsking] = useState<"stuck" | "report" | null>(null);
   const data = state.status === "ready" ? state.data : null;
   const g = data?.goal;
   /** One capability call. `back` is the same capability's input that puts the change back: it shows as Undo. A helper the goal chat would not take is said, with the reason, never skipped. */
@@ -97,7 +100,7 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
   const edit = mayEdit(g, me);
   const saveHelpers = (next: Who[], said: string): void => { void run("goals.update", { helpers: next }, said, { helpers: g.helpers }); };
   const head = (
-    <View testID="goal-page-head" style={[st.col, phone && st.colPhone]}>
+    <View testID="goal-page-head" style={[st.col, phone && st.colPhone]} {...menuTrigger((x, y) => menu.show(goalMenuEntries(g, me, { run, ask: setAsking }), x, y, "context", { label: g.title }))}>
       <Head g={g} me={me} nameOf={nameOf} now={now} offsetMin={offsetMin} run={run} menu={menu} showPane={showPane} openAgent={openAgent} fill={fill} phone={phone} edit={edit} pick={setPicker} saveHelpers={saveHelpers} />
       {line ? (
         <View style={st.lineRow}>
@@ -133,6 +136,7 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
         onSave={(ids) => { const id = ids[0]; if (id && id !== g.owner) void run("goals.update", { owner: id }, `${nameOf(id)} owns it now. What you allowed does not carry over.`); }} /> : null}
       {picker === "helpers" ? <PeopleDialog testID="goal-pick-helpers" title="Who helps with this goal" entries={entries.filter((e) => e.id !== g.owner && e.id !== g.leadAgentId)} selected={g.helpers.map((h) => h.id)} onClose={() => setPicker(null)}
         onSave={(ids) => saveHelpers(ids.map((id) => ({ kind: entries.find((e) => e.id === id)?.kind ?? "person", id })), "Helpers changed.")} /> : null}
+      {asking ? <TextAsk title={asking === "stuck" ? "Why is this goal stuck?" : "Report progress"} label={asking === "stuck" ? "What is in the way" : "What changed and what is next"} action={asking === "stuck" ? "Mark stuck" : "Report"} multiline onClose={() => setAsking(null)} onDone={(text) => { const c = askedCall(asking, text); setAsking(null); void run(c.cap, c.input, c.done); }} /> : null}
     </View>
   );
 }

@@ -2,9 +2,9 @@
 // DECISION: a key is validated before anything is written, with the same grant Talk makes every time. A key that fails is never stored.
 // DECISION: talk.session mints from the Space key through the host with no asker, so it reads a Shared item with no grant to the member. That is what keeps the key Restricted: members never need Use on it.
 import { fail } from "../../../host/src/routes/errors.ts";
-import { talkProvider } from "../../../lib/talk.ts";
+import { boostTerms, talkProvider } from "../../../lib/talk.ts";
 import type { TalkProvider } from "../../../lib/talk.ts";
-import { catalog, dropSpace, needHost, ownKeyCount, prefsOf, putPrefs, putSpace, spaceOf } from "../projections.ts";
+import { catalog, dropSpace, needHost, ownKeyCount, prefsOf, putPick, putPrefs, putSpace, spaceOf, spaceProviders } from "../projections.ts";
 import type { Prefs, SpaceKey, TalkCtx } from "../projections.ts";
 
 type Item = { id: string; name: string; handle: string; scope: string; owner: string; folderId?: string };
@@ -29,7 +29,7 @@ function personOnly(ctx: TalkCtx): string {
 }
 function providerOf(ctx: TalkCtx, key: string): TalkProvider {
   const p = talkProvider(key);
-  if (!p) return bad(ctx, "That voice provider is not known. Deepgram is the one Vyre has.");
+  if (!p) return bad(ctx, "That voice provider is not known. Vyre has Deepgram and ElevenLabs.");
   return p;
 }
 function keyFrom(ctx: TalkCtx, p: TalkProvider, fields: readonly Field[]): string {
@@ -63,8 +63,8 @@ async function statusFor(ctx: TalkCtx, person: string, prefs: Prefs): Promise<Ro
 }
 function spaceOut(ctx: TalkCtx, s: SpaceKey | null): Row {
   const people = ownKeyCount(ctx);
-  if (!s) return { set: false, on: false, peopleOwnKey: people };
-  return { set: true, on: s.on, provider: s.provider, itemId: s.keyItem, setBy: s.setBy, checkedAt: s.checkedAt, state: s.state, peopleOwnKey: people };
+  if (!s) return { set: false, on: false, peopleOwnKey: people, keyed: [] };
+  return { set: true, on: s.on, provider: s.provider, itemId: s.keyItem, setBy: s.setBy, checkedAt: s.checkedAt, state: s.state, peopleOwnKey: people, keyed: spaceProviders(ctx) };
 }
 
 // ---- a person
@@ -119,17 +119,32 @@ export async function session(ctx: TalkCtx, _i: Record<string, never>) {
   const person = personOnly(ctx);
   const prefs = prefsOf(ctx, person);
   if (!prefs.on) refuse(ctx, "Talk is off. Turn it on in Settings, AI, Voice.", "off");
-  const p = providerOf(ctx, prefs.provider);
-  const own = await ownItem(ctx, p);
+  const mine = providerOf(ctx, prefs.provider);
+  const own = await ownItem(ctx, mine);
   const space = spaceOf(ctx);
-  if (!own && !(space?.on && space.provider === p.key)) refuse(ctx, "Talk needs a key.", "no_key");
+  if (!own && !space?.on) refuse(ctx, "Talk needs a key.", "no_key");
+  // a person's own key is for the provider they chose; the Space key is for the provider the Space chose, and the person's model and language count only when it is the same one
+  const p = own ? mine : providerOf(ctx, space!.provider);
+  const model = p.key === prefs.provider ? prefs.model : p.defaultModel;
+  const language = p.key === prefs.provider ? prefs.language : p.defaultLanguage;
   // the person's own use is a use of their item; a Space use is the audit row of this call, with no grant on the item
   const used = own ? ((await ctx.call("vault.use", { item: own.id, fields: [p.keyField], purpose: "Talk" })) as { handle: string }) : null;
   const minted = own
     ? await needHost(ctx).mint(ctx, { provider: p.key, handle: `${used!.handle}.${p.keyField}`, asker: person, own: true })
     : await needHost(ctx).mint(ctx, { provider: p.key, handle: `${space!.handle}.${p.keyField}`, own: false });
-  const socket = p.socket({ model: prefs.model, language: prefs.language, token: minted.token });
-  return { provider: p.key, url: socket.url, protocols: socket.protocols, source: own ? "own" : "space", expiresIn: Math.max(1, Math.round(minted.expiresIn)) };
+  const socket = p.socket({ model, language, token: minted.token, terms: await termsFor(ctx) });
+  return { provider: p.key, url: socket.url, protocols: socket.protocols, ...(socket.context ? { context: socket.context } : {}), source: own ? "own" : "space", expiresIn: Math.max(1, Math.round(minted.expiresIn)) };
+}
+
+/** The words a provider mishears most: Vyre, the Space's name, and the names of its agents and people. Read as the person asking, so only what they may see; a read that fails leaves its words out and the session goes on. */
+async function termsFor(ctx: TalkCtx): Promise<string[]> {
+  const ask = async <T,>(cap: string, input: unknown): Promise<T | null> => { try { return (await ctx.call(cap, input)) as T; } catch { return null; } };
+  const [space, principals] = await Promise.all([
+    ask<{ space?: { name?: string } }>("spaces.get", {}),
+    ask<{ principals?: { kind: string; name: string; private?: boolean }[] }>("access.principals.list", { status: "active" }),
+  ]);
+  const named = (kind: string): string[] => (principals?.principals ?? []).filter((x) => x.kind === kind && x.private !== true).map((x) => x.name);
+  return boostTerms({ product: "Vyre", space: space?.space?.name, agents: named("agent"), people: named("person") });
 }
 
 export async function askKey(ctx: TalkCtx, i: { scope?: "mine" | "space"; provider?: string }) {
@@ -161,7 +176,7 @@ export async function spaceConnect(ctx: TalkCtx, i: { provider: string; fields: 
   const value = keyFrom(ctx, p, i.fields);
   await needHost(ctx).check(ctx, { provider: p.key, apiKey: value });
   const field = { key: p.keyField, value, secret: true };
-  const was = spaceOf(ctx);
+  const was = spaceOf(ctx, p.key);
   let item: { id: string; handle: string };
   if (was) {
     await ctx.call("vault.item.update", { itemId: was.keyItem, fieldsSet: [field] });
@@ -178,12 +193,17 @@ export async function spaceConnect(ctx: TalkCtx, i: { provider: string; fields: 
   return spaceOut(ctx, next);
 }
 
-export async function spaceConfigure(ctx: TalkCtx, i: { on: boolean }) {
+export async function spaceConfigure(ctx: TalkCtx, i: { on?: boolean; provider?: string }) {
   const was = spaceOf(ctx);
   if (!was) return refuse(ctx, "Add a key first. An admin adds it in Console, Voice.");
-  const next = { ...was, on: i.on };
-  putSpace(ctx, next);
-  ctx.emit("talk.space_changed", `entity/${ctx.principal.id}`, { on: i.on, by: ctx.principal.id });
+  if (i.on === undefined && i.provider === undefined) bad(ctx, "Say what to change: on or off, or which provider.");
+  const provider = i.provider === undefined ? was.provider : providerOf(ctx, i.provider).key;
+  const keyed = spaceOf(ctx, provider);
+  if (!keyed) return refuse(ctx, `Add a ${providerOf(ctx, provider).name} key first, then pick it.`, "no_key");
+  const on = i.on ?? was.on;
+  putPick(ctx, provider, on);
+  const next: SpaceKey = { ...keyed, on };
+  ctx.emit("talk.space_changed", `entity/${ctx.principal.id}`, { on, by: ctx.principal.id });
   return spaceOut(ctx, next);
 }
 
@@ -191,7 +211,8 @@ export async function spaceCheck(ctx: TalkCtx, _i: Record<string, never>) {
   const was = spaceOf(ctx);
   if (!was) return refuse(ctx, "No Space key to check.");
   let state: SpaceKey["state"] = "ok";
-  try { await needHost(ctx).mint(ctx, { provider: was.provider, handle: `${was.handle}.${providerOf(ctx, was.provider).keyField}`, own: false }); }
+  // a real probe of the chosen provider with the Space's key from the Vault: a grant that lives one second, thrown away
+  try { await needHost(ctx).mint(ctx, { provider: was.provider, handle: `${was.handle}.${providerOf(ctx, was.provider).keyField}`, own: false, ttl: 1 }); }
   catch (e) {
     if ((e as { error?: { code?: string } }).error?.code !== "provider.auth_failed") throw e;
     state = "failing";
@@ -205,7 +226,7 @@ export async function spaceCheck(ctx: TalkCtx, _i: Record<string, never>) {
 export async function spaceDisconnect(ctx: TalkCtx, _i: Record<string, never>) {
   const was = spaceOf(ctx);
   if (was) await ctx.call("vault.item.delete", { itemId: was.keyItem });
-  dropSpace(ctx);
+  if (was) dropSpace(ctx, was.provider);
   if (was) ctx.emit("talk.disconnected", `entity/${was.provider}`, { scope: "space", provider: was.provider, by: ctx.principal.id }, { vis: "participants" });
-  return spaceOut(ctx, null);
+  return spaceOut(ctx, spaceOf(ctx));
 }

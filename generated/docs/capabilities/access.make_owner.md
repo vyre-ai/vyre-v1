@@ -19,14 +19,14 @@ The owner hands an item to someone else: they become the owner and the previous 
 | HTTP | POST /v1/access/make_owner |
 | MCP tool | none |
 | CLI | none |
-| Emits | grant.created, access.changed |
+| Emits | grant.created, access.changed, grant.revoked |
 
 ## Input
 
 ```ts
 type In = {
   resource: {
-    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
+    type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
     id: string;
   };
   personId: string;

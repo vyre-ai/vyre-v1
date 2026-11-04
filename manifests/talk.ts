@@ -1,4 +1,4 @@
-// talk (Talk): speak, and the words land in the composer. Transcription only, Deepgram for now, one provider seam in lib/talk.ts. A person's own key covers them; a Space key covers everyone. Own key wins.
+// talk (Talk): speak, and the words land in the composer. Transcription only, Deepgram or ElevenLabs, one provider seam in lib/talk.ts. A person's own key covers them; a Space key covers everyone. Own key wins.
 // DECISION: talk_session mints a short-lived provider token for the page. It is a write because it uses a Vault item, it keeps nothing (idem none) and no agent ever sees it. Each session is an audit row, so use is attributed per person.
 // DECISION: a Space key sits in a Restricted Shared folder (the same way the GitHub sign-in secret does): a Member has no Use on it, so no member, agent or process can fill or read it. Members reach it only through voice.session, which names no value.
 // DECISION: a key enters through a person's press only: the first-press sheet or the talk_key card. talk.connect and talk.space.connect refuse an agent. An agent may post the card, change a person's own choices for them, and ask to change the Space's, which stops at the Gate.
@@ -16,6 +16,7 @@ const status = {
 const spaceRow = {
   set: t.bool(), on: t.bool(), provider: t.opt(t.str({ examples: ['deepgram'] })), itemId: t.opt(id.vaultItem), setBy: t.opt(id.user),
   checkedAt: t.opt(t.ts()), state: t.opt(t.enm('ok', 'failing')), peopleOwnKey: t.opt(t.int({ minimum: 0 })),
+  keyed: t.opt(t.arr(t.str({ examples: ['deepgram'] }))),
 };
 const keyIn = { provider: t.str({ examples: ['deepgram'] }), fields: t.arr(t.obj({ key: t.str({ examples: ['api_key'] }), value: t.str(), secret: t.opt(t.bool()) })) };
 const providerErrors = ['provider.auth_failed', 'provider.network', 'provider.unavailable', 'provider.rate_limited'] as const;
@@ -46,7 +47,7 @@ export default defineManifest({
     }),
     write('talk.disconnect', 'A person removes their own Talk key from the Vault', { in: {}, out: status, emits: ['talk.disconnected'], audit: 'sensitive', offline: 'online', agent: false }),
     write('talk.session', 'Open one Talk session: mints a short-lived provider token and the socket address. Own key first, then the Space key. Audited per person; the key itself never leaves the server', {
-      idem: 'none', in: {}, out: { provider: t.str({ examples: ['deepgram'] }), url: t.str(), protocols: t.arr(t.str()), source: t.enm('own', 'space'), expiresIn: t.int({ minimum: 1 }) },
+      idem: 'none', in: {}, out: { provider: t.str({ examples: ['deepgram'] }), url: t.str(), protocols: t.arr(t.str()), context: t.opt(t.str()), source: t.enm('own', 'space'), expiresIn: t.int({ minimum: 1 }) },
       audit: 'always', offline: 'online', agent: false, rate: { n: 120, perSeconds: 60, scope: 'principal' }, errors: [...providerErrors, 'validation.precondition_failed'],
     }),
     write('talk.ask_key', 'Post the secret card that asks for a Talk key in this chat: their own, or the Space\'s. The value goes straight to the Vault and never into the chat', {
@@ -59,10 +60,10 @@ export default defineManifest({
     write('talk.space.connect', 'An admin adds or replaces the key that covers everyone: it is checked at once, then kept in a Restricted Shared folder. A person does this, never an agent', {
       idem: 'key', in: keyIn, out: spaceRow, perm: 'policy.manage', emits: ['talk.connected', 'talk.space_changed'], audit: 'always', offline: 'online', agent: false, errors: [...providerErrors],
     }),
-    write('talk.space.configure', 'Turn Talk for everyone on or off, and keep the key. An agent\'s change stops at the Gate for someone who may approve it', {
-      in: { on: t.bool() }, out: spaceRow, perm: 'policy.manage', gate: { act: 'approve', when: "actor.kind != 'person'", reason: 'Changes Talk for everyone in the Space' }, emits: ['talk.space_changed'], audit: 'always', tool: 'meta', deferred: true, offline: 'online', errors: ['validation.precondition_failed'],
+    write('talk.space.configure', 'Turn Talk for everyone on or off, and pick which provider (Deepgram or ElevenLabs) covers people; its key must be added first. An agent\'s change stops at the Gate for someone who may approve it', {
+      in: { on: t.opt(t.bool()), provider: t.opt(t.str({ examples: ['elevenlabs'] })) }, out: spaceRow, perm: 'policy.manage', gate: { act: 'approve', when: "actor.kind != 'person'", reason: 'Changes Talk for everyone in the Space' }, emits: ['talk.space_changed'], audit: 'always', tool: 'meta', deferred: true, offline: 'online', errors: ['validation.precondition_failed'],
     }),
-    write('talk.space.check', 'Check the Space key with the provider now', { in: {}, out: spaceRow, perm: 'policy.manage', emits: ['talk.space_checked'], tool: 'meta', deferred: true, offline: 'online', errors: ['validation.precondition_failed'] }),
+    write('talk.space.check', 'Check the Space key now: a real one-second grant against the provider the Space picked, with the key from the Vault', { in: {}, out: spaceRow, perm: 'policy.manage', emits: ['talk.space_checked'], tool: 'meta', deferred: true, offline: 'online', errors: ['validation.precondition_failed'] }),
     write('talk.space.disconnect', 'Remove the Space key from the Vault; people with their own key keep working', {
       in: {}, out: spaceRow, perm: 'policy.manage', gate: { act: 'delete', when: "actor.kind != 'person'" }, emits: ['talk.disconnected'], audit: 'always', offline: 'online', agent: false,
     }),

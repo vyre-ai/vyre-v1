@@ -71,6 +71,20 @@
       "click": "[data-testid='agent-share']",
       "note": "Click path: Dex's page, Who can use it, Share. The sheet opens over the page.",
       "protoClick": "[data-a='newagent']"
+    },
+    {
+      "id": "SHARE2_01-people-chat",
+      "route": "/m/SHARE2_01?part=people-chat",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='people-popover']",
+      "note": "The people popover (people-chat)."
+    },
+    {
+      "id": "SHARE2_01-people-project",
+      "route": "/m/SHARE2_01?part=people-project",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='people-popover']",
+      "note": "The people popover (people-project)."
     }
   ]
 }

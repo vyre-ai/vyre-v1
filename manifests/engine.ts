@@ -46,6 +46,7 @@ const accountRow = t.obj({
   status: t.enm('ok', 'expired', 'failed', 'untested'), lastProbeAt: t.opt(t.ts()),
   base: t.opt(t.str({ description: 'The address of a local or custom OpenAI-compatible endpoint' })), keyless: t.opt(t.bool()),
   spaceKey: t.opt(t.bool()),
+  keepsNothing: t.opt({ ...t.bool(), description: 'An owner or admin said this account keeps nothing of what it is sent; a local model always does. Left out when not' }),
   aliases: t.opt(t.arr(accountRef, { description: 'Other refs that show as this account: handles folded into it and its older sign-ins. A chat or agent pinned to one of them shows this account' })),
   older: t.opt(t.arr(t.obj({ ref: accountRef, providerId: t.id('prv'), name: t.str() }), { description: 'Older sign-ins of the same provider whose account cannot be read, listed under this one so a person can remove them' })),
   providerId: t.opt(t.id('prv')),
@@ -186,7 +187,7 @@ export default defineManifest({
       in: { ...threadT, agentId: t.opt(id.agent), driver: driverId, model: t.str(), provider: t.opt(t.str()), effort: t.opt(effort), accountRef: t.opt(accountRef) },
       out: { engine: t.str(), model: t.str(), quietLine: t.str({ examples: ['Switched to Codex, picked up from the summary and the last 20 turns'] }), handoffTurns: t.int() },
       on: ['thread', '/threadId'], level: 'use', emits: ['turn.engine_switched', 'agent.model_changed'], tool: 'meta', mcpName: 'switch_model',
-      agent: { planMode: 'blocked', blocks: ['model_switch'] }, errors: ['permission.provider_label', 'permission.limit', 'provider.auth_failed'],
+      agent: { planMode: 'blocked', blocks: ['model_switch'] }, errors: ['permission.provider_label', 'permission.limit', 'provider.auth_failed', 'validation.precondition_failed'],
     }),
     // engine.compact: Claude Code compacts its own session (/compact with the words); for Codex, Grok and API engines Vyre writes a summary that starts with the words and the engine starts again from
     // it (modules/engine/compact.ts). `always` keeps the words for every compaction of the chat, the engines' automatic ones too; ticked with no words it clears them.
@@ -355,6 +356,19 @@ export default defineManifest({
         use: t.obj({ today: myUse, month: myUse }),
       },
       tool: 'meta', mcpName: 'my_ai',
+    }),
+    read('engine.models_catalog', 'Every AI account the asker can use with its models, what each can do (tools, images, context), a cost tier (cheap, standard or strong) and whether the probe found it available; for helpers that pick a model across accounts. Reads saved lists and the probe\'s marks only', {
+      in: { accountRef: t.opt(accountRef) },
+      out: {
+        accounts: t.arr(t.obj({
+          ref: accountRef, label: t.str(), provider: t.str(), kind: t.enm('api_key', 'subscription', 'local'), usable: t.bool(), why: t.opt(t.str()),
+          models: t.arr(t.obj({
+            id: t.str(), title: t.str(), tools: t.bool(), vision: t.bool(), context: t.int({ minimum: 1 }), tier: t.enm('cheap', 'standard', 'strong'),
+            allowed: t.bool({ description: 'The Space policy lets this model run' }), available: t.enm('ok', 'checking', 'unavailable', 'unverified'),
+          })),
+        })),
+      },
+      tool: 'meta', mcpName: 'models_catalog',
     }),
     read('engine.probe_account', 'Test an account: reachable, signed in, models it can use', {
       in: { accountRef }, out: { ok: t.bool(), models: t.opt(t.int()), error: t.opt(errShape) }, tool: 'meta', errors: ['provider.auth_failed', 'provider.unavailable', 'provider.network'],

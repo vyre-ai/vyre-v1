@@ -60,7 +60,7 @@ test("a skill's sheet: its tool server waits for a key with Add to Vault, Used b
 test("Console: Space-wide skills, the scripts rule off by default, members' skills by name with Make Space-wide on shared ones", () => {
   const t = lists({ mode: "console", page: samplePage({ admin: true }), members: SAMPLE_MEMBERS });
   assert.match(t, /Space-wide skills apply to every member and their agents at once, with no card/);
-  assert.match(t, /Add a Space skill/);
+  assert.doesNotMatch(t, /Add a Space skill/, "the button sits in the Installed for the Space header");
   assert.match(t, /Only admins add skills that run scripts or start tool servers/);
   assert.match(t, /aria-checked="false"|Off by default/);
   assert.match(t, /pdf Maya Chen · Shared Make Space-wide/);

@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   checksState, issueAssignAgent, issueClose, issueComment, issueCreate, issueGet, issueUpdate, parseDelivery, prAskAuthorFix, prChecks, prClose, prComment, prCreate, prDiff, prGet,
-  prListFiles, prMerge, prRequestReview, prRerunChecks, prUpdate, receiveWebhook,
+  prListFiles, prMerge, prRequestReview, prRerunChecks, prUpdate, receiveWebhook, actionsSecrets, runnersJitConfig, runnersRemove,
 } from "../handlers/index.ts";
 import { codeOf, contractErrors, harness, INSTALL, NOW, payloadErrors, RECORDED, SHA } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
@@ -380,4 +380,40 @@ test("the webhook input is the frozen shape", () => {
   const input = parseDelivery("pull_request", "dlv-1", opened());
   assert.deepEqual(contractErrors("github.receive_webhook", "in", input), []);
   assert.ok(NOW > 0);
+});
+
+// ---- workflow jobs and runners (the CI module)
+
+const job = (action: string, o: Record<string, unknown> = {}) => ({ action, workflow_job: { id: 901, run_id: 77, name: "build", labels: ["self-hosted", "vyre"], head_sha: SHA, conclusion: null, ...o }, ...SOURCE });
+
+test("workflow_job: a queued job says whether its run came from a fork, and a finished job says how it ended", async () => {
+  const h = replayWorld();
+  h.on(`GET ${P}/actions/runs/77`, { status: 200, body: { head_repository: { full_name: REPO }, repository: { full_name: REPO } } });
+  await deliver(h, "workflow_job", "dlv-j1", job("queued"));
+  h.on(`GET ${P}/actions/runs/77`, { status: 200, body: { head_repository: { full_name: "someone/website" }, repository: { full_name: REPO } } });
+  await deliver(h, "workflow_job", "dlv-j2", job("queued", { id: 902 }));
+  h.on(`GET ${P}/actions/runs/77`, { status: 500, body: {} });
+  await deliver(h, "workflow_job", "dlv-j3", job("queued", { id: 903 }));
+  await deliver(h, "workflow_job", "dlv-j4", job("in_progress", { id: 904 }));
+  await deliver(h, "workflow_job", "dlv-j5", job("completed", { conclusion: "success", runner_name: "vyre-ci-abc" }));
+  assert.deepEqual(h.named("workflow_job.queued").map((e) => [e.payload["jobId"], e.payload["fork"]]), [[901, "no"], [902, "yes"], [903, "unknown"]]);
+  assert.deepEqual(h.named("workflow_job.queued")[0]!.payload["labels"], ["self-hosted", "vyre"]);
+  assert.deepEqual(h.named("workflow_job.completed").map((e) => e.payload), [{ repo: REPO, jobId: 901, runId: 77, name: "build", labels: ["self-hosted", "vyre"], runnerName: "vyre-ci-abc", conclusion: "success" }]);
+  for (const e of h.emitted) assert.deepEqual(payloadErrors(e.name, e.payload), [], e.name);
+  assert.deepEqual(contractErrors("github.receive_webhook", "in", parseDelivery("workflow_job", "x", job("queued"))), []);
+});
+
+test("runners: a just-in-time config is asked of GitHub for one repository and the secrets count is read; a failure counts as unknown", async () => {
+  const h = replayWorld();
+  h.on(`GET ${P}/installation`, { status: 200, body: { id: INSTALL } });
+  h.on(`POST ${P}/actions/runners/generate-jitconfig`, { status: 201, body: { runner: { id: 31 }, encoded_jit_config: "abc123==" } });
+  assert.deepEqual(await runnersJitConfig(h.ctx, { repo: REPO, name: "vyre-ci-x", labels: ["vyre"] }), { runnerId: 31, jitConfig: "abc123==" });
+  const sent = h.requests.find((r) => r.path.endsWith("/generate-jitconfig"));
+  assert.deepEqual(sent!.body, { name: "vyre-ci-x", runner_group_id: 1, labels: ["vyre"], work_folder: "_work" });
+  h.on(`GET ${P}/actions/secrets`, { status: 200, body: { total_count: 4, secrets: [] } });
+  assert.deepEqual(await actionsSecrets(h.ctx, { repo: REPO }), { count: 4 });
+  h.on(`GET ${P}/actions/secrets`, { status: 403, body: {} });
+  assert.deepEqual(await actionsSecrets(h.ctx, { repo: REPO }), { count: null });
+  h.on(`DELETE ${P}/actions/runners/31`, { status: 204, body: {} });
+  assert.deepEqual(await runnersRemove(h.ctx, { repo: REPO, runnerId: 31 }), { removed: true });
 });

@@ -141,6 +141,19 @@ export async function turnDetail(data: ConversationData, turnId: string): Promis
   return rows;
 }
 
+/** Ask again: the turn that made this reply runs once more (engine.turn.of_message finds it, engine.turn.retry runs it). Rejects when the message was not made by a turn. */
+export async function regenerate(data: ConversationData, messageId: string): Promise<void> {
+  const out = (await data.call("engine.turn.of_message", { threadId: data.threadId, messageId } satisfies CapMap["engine.turn.of_message"]["in"])) as CapMap["engine.turn.of_message"]["out"] | null;
+  const turnId = out?.turn?.turnId;
+  if (!turnId) throw new Error("no turn made this reply");
+  await retryTurn(data, turnId);
+}
+
+/** Mark this chat unread from one message on: the read point goes back to just before it. */
+export async function markUnreadFrom(data: ConversationData, seq: number): Promise<void> {
+  await data.call("threads.mark_unread_from", { threadId: data.threadId, seq } satisfies CapMap["threads.mark_unread_from"]["in"]);
+}
+
 export async function retryTurn(data: ConversationData, turnId: string): Promise<void> {
   await data.call("engine.turn.retry", { turnId } satisfies CapMap["engine.turn.retry"]["in"]);
 }

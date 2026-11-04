@@ -17,6 +17,11 @@ const inviteRow = t.obj({
   email: t.opt(email), expiresAt: t.ts(), createdBy: id.user, state: t.enm('open', 'accepted', 'revoked', 'expired'),
   aiKeyHandle: t.opt(id.handle), acceptedBy: t.opt(id.user), createdAt: t.ts(),
 });
+const joinLink = t.obj({
+  on: t.bool(), role: id.role, waiting: t.int({ minimum: 0, description: 'Requests through the link that wait for an admin' }), total: t.int({ minimum: 0 }),
+  address: t.opt(t.str({ description: 'The link people open; shown again whenever the link is on', examples: ['https://team.example.com/join/request/K7P2-9QXA'] })), createdAt: t.opt(t.ts()), rotatedAt: t.opt(t.ts()),
+});
+const joinRequestRow = t.obj({ id: t.id('jrq'), name: t.str(), email: email, note: t.opt(t.str()), role: id.role, state: t.enm('waiting', 'approved', 'declined'), at: t.ts(), inviteId: t.opt(id.invite) });
 const removalKind = t.enm('routines', 'automations', 'agents', 'records', 'files', 'channels', 'projects', 'mailbox_connections', 'vault_mine', 'private_chats', 'memory_from_you');
 const removalAction = t.enm('pause', 'reassign', 'revoke', 'export', 'retain', 'keep', 'delete');
 const ssoRow = t.obj({ key: t.enm('google', 'microsoft', 'okta'), title: t.str(), issuer: t.str({ maxLength: 300 }), clientId: t.str(), clientSecretHandle: id.handle, enabled: t.bool(), domainHint: t.opt(t.str()) });
@@ -44,6 +49,9 @@ export default defineManifest({
     ev('member.invited', 'An invite was made', { p: { inviteId: id.invite, role: id.role, expiresAt: t.ts() }, subject: ['entity', '/inviteId'], retention: 'audit' }),
     ev('member.invite_revoked', 'An invite was revoked', { p: { inviteId: id.invite }, subject: ['entity', '/inviteId'], retention: 'audit' }),
     ev('member.joined', 'A person accepted an invite and is active; the inviter gets a quiet line', { p: { personId: id.user, inviteId: id.invite, role: id.role, invitedBy: id.user }, subject: ['entity', '/personId'], notify: 'member.joined', trigger: { title: 'A person joins', fields: ['/role'] }, retention: 'audit' }),
+    ev('member.join_link_changed', 'The reusable Request to join link was turned on, turned off, rotated, or given another role (never the code)', { p: { change: t.enm('on', 'rotated', 'off', 'role'), role: id.role, by: id.user }, subject: ['entity', '/by'], retention: 'audit' }),
+    ev('member.join_requested', 'A person opened the Request to join link and asked to join; every admin gets a line', { p: { requestId: t.id('jrq'), name: t.str(), role: id.role }, subject: ['entity', '/requestId'], notify: 'member.join_requested', trigger: { title: 'Someone asks to join' }, retention: 'audit' }),
+    ev('member.join_request_declined', 'A request to join was declined', { p: { requestId: t.id('jrq') }, subject: ['entity', '/requestId'], retention: 'audit' }),
     ev('member.join_stuck', 'A join step (a group, a channel, a project, an agent, the first channel, their mail and calendar) failed three times; it is still tried every two minutes and shows in Console Overview', { p: { personId: id.user, step: t.str(), error: t.str(), tries: t.int({ minimum: 0 }) }, subject: ['entity', '/personId'], retention: 'audit' }),
     ev('member.removed', 'A person was removed or left; devices purge, the Space key epoch rotates', { p: { personId: id.user, by: t.str(), reason: t.opt(t.str()) }, subject: ['entity', '/personId'], trigger: { title: 'A person is removed' }, retention: 'audit' }),
     ev('member.removal_plan_applied', 'The removal wizard reassigned or paused the things the person owned (counts only)', { p: { personId: id.user, kinds: t.arr(t.obj({ kind: removalKind, action: removalAction, count: t.int({ minimum: 0 }) })) }, subject: ['entity', '/personId'], retention: 'audit' }),
@@ -63,6 +71,26 @@ export default defineManifest({
     }),
     write('members.invites.extend', 'Give an open invite a new expiry', { ...V, in: { inviteId: id.invite, expiresInDays: t.int({ minimum: 1, maximum: 90 }) }, out: { invite: inviteRow }, perm: 'members.invite', tool: 'meta', team: true }),
     write('members.invites.revoke', 'Revoke an open invite', { ...V, in: { inviteId: id.invite }, out: ok, perm: 'members.invite', emits: ['member.invite_revoked'], audit: 'always', tool: 'meta', team: true }),
+    // ---- the reusable Request to join link: people ask, an admin decides. A request is a name and an email; Approve makes a one-time invite at the link's role (members.invites.create's path), so nobody joins without an admin.
+    read('members.join_link.get', 'The reusable Request to join link: on or off, the role people join as, the address when on (shown again any time), and how many requests wait', { ...V, in: {}, out: { link: joinLink }, perm: 'members.invite', tool: 'meta', team: true }),
+    write('members.join_link.create', 'Turn the Request to join link on (the address people open), or change the role it admits at; defaults to Guest, the least role. Turning it on after Off makes a fresh address', {
+      ...V, in: { role: t.opt(id.role) }, out: { link: joinLink }, perm: 'members.invite', emits: ['member.join_link_changed'], audit: 'always', tool: 'meta', team: true, errors: ['validation.not_found', 'validation.precondition_failed'],
+    }),
+    write('members.join_link.rotate', 'Make a new Request to join address; the old one stops working at once and requests already waiting stay', { ...V, in: {}, out: { link: joinLink }, perm: 'members.invite', emits: ['member.join_link_changed'], audit: 'always', tool: 'meta', team: true, errors: ['validation.precondition_failed'] }),
+    write('members.join_link.disable', 'Turn the Request to join link off; the address stops working and requests already waiting stay', { ...V, in: {}, out: { link: joinLink }, perm: 'members.invite', emits: ['member.join_link_changed'], audit: 'always', tool: 'meta', team: true }),
+    read('members.join_link.preview', 'Request page: the Space name, logo, the role and the display fingerprint for a Request to join code', {
+      ...V, caller: 'pending', in: { code: t.str() }, out: { spaceId: id.space, spaceName: t.str(), logoFileId: t.opt(id.file), role: t.str(), fingerprint: t.str({ examples: ['ab12 cd34 ef56 7890'] }) }, errors: ['auth.invalid_code'],
+    }),
+    write('members.join_link.request', 'Ask to join through the Request to join link: a name, an email and an optional note. Nothing is created but the request; asking again from the same email is one request', {
+      ...V, caller: 'pending', in: { code: t.str(), name: t.str({ maxLength: 100 }), email, note: t.opt(t.str({ maxLength: 500 })) }, out: ok,
+      emits: ['member.join_requested'], audit: 'always', offline: 'online', rate: { n: 10, perSeconds: 60, scope: 'space' }, errors: ['auth.invalid_code', 'validation.bad_input'], team: true,
+    }),
+    read('members.join_requests.list', 'People who asked to join through the Request to join link, newest first', { ...V, in: { state: t.opt(t.enm('waiting', 'approved', 'declined')), ...pageIn }, out: { requests: t.arr(joinRequestRow), ...pageOut }, perm: 'members.invite', tool: 'meta', team: true }),
+    write('members.join_requests.approve', 'Approve a request to join: makes a one-time invite for their email at the link\'s role and returns that link once, to email or copy', {
+      ...V, in: { requestId: t.id('jrq') }, out: { invite: inviteRow, link: t.str({ description: 'Shown once; the code is stored only as a hash' }) },
+      perm: 'members.invite', emits: ['member.invited'], audit: 'always', tool: 'meta', team: true, errors: ['validation.not_found', 'validation.precondition_failed', 'validation.duplicate'],
+    }),
+    write('members.join_requests.decline', 'Decline a request to join', { ...V, in: { requestId: t.id('jrq') }, out: ok, perm: 'members.invite', emits: ['member.join_request_declined'], audit: 'always', tool: 'meta', team: true, errors: ['validation.not_found', 'validation.precondition_failed'] }),
     read('members.joins.list', 'Joins that have not finished: each new member with the steps that did not work yet, in words, how often each was tried, and whether it is stuck (three tries or more)', {
       ...V, in: { stuck: t.opt(t.bool()) }, out: { joins: t.arr(t.obj({ personId: id.user, name: t.str(), joinedAt: t.ts(), stuck: t.bool(), steps: t.arr(t.obj({ key: t.str(), title: t.str(), error: t.str(), tries: t.int({ minimum: 0 }) })) })) },
       perm: 'members.invite', tool: 'meta', team: true,

@@ -1,5 +1,6 @@
 // callTool (ARCH 6.7): every tool call is one capability invoke, as the agent acting for the asker. Nothing here decides access, Gate or audit; the invoke pipeline does,
 // and no mode (Ask, Allow, Auto) or plan state can make this module skip it. We only (a) refuse what was never offered this turn, (b) route the answer back as a tool result.
+import { nextReads } from "./next.ts";
 import { HostError, makeError } from "../../../host/src/routes/errors.ts";
 import type { CtxSeed, Invoke } from "../../../host/src/invoke.ts";
 import { heldCard, recordWork, workCardOf } from "./work-cards.ts";
@@ -10,6 +11,7 @@ import { limited, shapeOutput } from "./compact.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
 import type { LocalDecision } from "./local.ts";
+import type { HookFire, HookVerdict } from "./hooks.ts";
 import type { Refusal, ToolCtx, ToolDef, ToolResult, ToolSet } from "./types.ts";
 import { withLocalTimes } from "../../../lib/time-convert.ts";
 
@@ -37,6 +39,8 @@ export interface CallHooks {
   before?(ctx: ToolCtx, t: ToolDef, input: unknown): Promise<string | null>;
   /** Told how the call ended. Not waited for: a slow hook must not hold the model. */
   after?(ctx: ToolCtx, t: ToolDef, input: unknown, result: { ok: boolean; output: unknown }): Promise<void> | void;
+  /** The one hooks layer (modules/hooks): asked for tool.before, outward.before and tool.after. When present it answers instead of before and after. */
+  fire?(ctx: ToolCtx, f: Pick<HookFire, "event" | "tool" | "cap" | "input" | "output" | "ok">): Promise<HookVerdict>;
 }
 
 export interface CallDeps extends AccessDeps {
@@ -45,6 +49,8 @@ export interface CallDeps extends AccessDeps {
   invoke: Invoke;
   /** The asker's time zone, when known: a calendar, mail, inbox or task result then carries each time in it as well (lib/time-convert.ts withLocalTimes). */
   zoneOf?(ctx: ToolCtx): string | undefined;
+  /** Name the tool that reads one item after a list result, and list it at once. For a session whose model sees a live tool list (the API driver); a CLI engine through MCP lists once, so it is left out there. */
+  nextHints?: boolean;
   traceId?(): string;
   /** Local tools only: what Ask, Allow and Auto say. Fails closed: a missing policy refuses a local tool. */
   localPolicy?(t: ToolDef, ctx: ToolCtx, input: unknown): LocalDecision;
@@ -116,7 +122,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
     if (!reachesScope(t, ctx.thread, input)) return refused("ask_scope", ctx, t, traceId);
 
     // a tool is never called to see if it works, and never with placeholder content: refused before anything runs, so no card, hold, task or message reaches the chat
-    const placeholder = probeIn(input, "", ctx.said ?? "");
+    const placeholder = probeIn(input, "", ctx.said ?? "", t.inputSchema);
     if (placeholder !== null) return fail("validation.bad_input", traceId, { message: PROBE_MESSAGE, details: { tool: t.name, reason: "placeholder" } });
 
     const isDynamic = !deps.catalog.byName(name);
@@ -157,7 +163,15 @@ export function createToolSession(deps: CallDeps): ToolSession {
       }
     }
 
-    if (deps.hooks?.before) {
+    let hookNotes: string[] = [];
+    if (deps.hooks?.fire) {
+      const asked = async (event: "tool.before" | "outward.before"): Promise<HookVerdict | null> => deps.hooks!.fire!(ctx, { event, tool: t.name, cap: t.cap, input }).catch(() => null);
+      const v = await asked("tool.before");
+      const o = v?.block ? null : t.effects === "outward" || t.gated ? await asked("outward.before") : null;
+      const stop = v?.block ?? o?.block ?? null;
+      if (stop) return fail("permission.role_lacks_permission", traceId, { message: `A hook stopped this: ${stop.reason}`, details: { tool: t.name, reason: "hook", hookId: stop.hookId } });
+      hookNotes = [...(v?.notes ?? []), ...(o?.notes ?? [])];
+    } else if (deps.hooks?.before) {
       const reason = await deps.hooks.before(ctx, t, input).catch(() => null);
       if (reason !== null) return fail("permission.role_lacks_permission", traceId, { message: `A plugin hook stopped this: ${reason}`, details: { tool: t.name, reason: "hook" } });
     }
@@ -199,9 +213,18 @@ export function createToolSession(deps: CallDeps): ToolSession {
       // times in the person's zone beside the ISO and epoch ones, for the tools that return times people schedule by
       const zone = TIMED.test(t.cap) ? deps.zoneOf?.(ctx) : undefined;
       const data = shaped ? shaped.data : res.output;
-      const content: { data: unknown; meta?: unknown; blocks?: string[] } = { data: zone ? withLocalTimes(data, zone) : data, ...(shaped ? { meta: shaped.meta } : {}) };
+      const content: { data: unknown; meta?: unknown; blocks?: string[]; next?: string } = { data: zone ? withLocalTimes(data, zone) : data, ...(shaped ? { meta: shaped.meta } : {}) };
       if (t.blocks.length > 0) content.blocks = t.blocks;
-      if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
+      // a list names the tool that reads one item, and that tool is listed from now on: no search to find it
+      const reads = deps.nextHints === true ? nextReads(t.name) : [];
+      if (reads.length > 0) {
+        const set = toolsFor(deps, ctx), offered = new Set([...set.listed, ...set.searchable].map((x) => x.name));
+        const ready = reads.filter((n) => offered.has(n));
+        if (ready.length > 0) { for (const n of ready) loadedSet(ctx.thread.threadId).add(n); content.next = `To read one of these, call ${ready.join(" or ")} with its id. ${ready.length > 1 ? "They are" : "It is"} ready to call now.`; }
+      }
+      if (hookNotes.length > 0) (content as { hookNotes?: string[] }).hookNotes = hookNotes;
+      if (deps.hooks?.fire) void deps.hooks.fire(ctx, { event: "tool.after", tool: t.name, cap: t.cap, input, output: res.output, ok: true }).catch(() => undefined);
+      else if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
       const asked = t.cap === "chat.question.ask" ? (res.output as { blockId?: unknown } | null)?.blockId : undefined;
       return { kind: "result", traceId: res.traceId, result: { ok: true, content }, ...(typeof asked === "string" ? { parkOn: { blockId: asked } } : {}) };
     } catch (e) {

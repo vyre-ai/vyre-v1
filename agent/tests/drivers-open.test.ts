@@ -38,6 +38,7 @@ const VAULT: Record<string, Lookup> = {
   "#Team_Anthropic_Key": value(API_KEY, "vit_api"),
   "#CodexSignin.credentials": value(CODEX_FILES, "vit_codex"),
   "#GrokSignin.credentials": value(GROK_FILES, "vit_grok"),
+  "#CodexKey": value(API_KEY, "vit_codexkey"),
   "#Denied.setup_token": { kind: "denied", reason: "no_access" },
   "#Labeled.setup_token": { kind: "denied", reason: "provider_label" },
 };
@@ -50,6 +51,7 @@ const ACCOUNTS: Record<string, OpenAccount> = {
   "#CodexSub": { ref: "#CodexSub", driver: "codex", kind: "subscription", payer: "dana" },
   "#CodexSignin": { ref: "#CodexSignin", driver: "codex", kind: "subscription", payer: "dana" },
   "#GrokSignin": { ref: "#GrokSignin", driver: "grok", kind: "subscription", payer: "dana" },
+  "#CodexKey": { ref: "#CodexKey", driver: "codex", kind: "api_key", payer: "dana" },
   "#Nowhere": { ref: "#Nowhere", driver: "nonesuch", kind: "api_key", payer: "dana" },
   "#Team_Anthropic_Key": { ref: "#Team_Anthropic_Key", driver: "anthropic", kind: "api_key", payer: "dana" },
 };
@@ -337,6 +339,33 @@ for (const [driver, ref, token, tool] of [["codex", "#CodexSignin", ACCESS, "cod
     for (const h of homes) fs.rmSync(h, { recursive: true, force: true });
   });
 }
+
+test("Codex on an OpenAI API key: the Codex CLI runs with the key in its environment only, and the key is in no file, event or reply", async () => {
+  const seen: Array<Readonly<Record<string, string>>> = [];
+  const homes: string[] = [];
+  const argvs: string[][] = [];
+  const base = createLocalLauncher({ wrap: (argv) => { argvs.push([...argv]); return [process.execPath, SIGNIN_CLI, ...argv]; }, baseEnv: { PATH: process.env["PATH"] ?? "" } });
+  const launcher: Launcher = {
+    async spawn(spec) {
+      seen.push(spec.env);
+      const home = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-open-home-"));
+      homes.push(home);
+      return base.spawn({ ...spec, argv: spec.argv, env: { ...spec.env, HOME: home } });
+    },
+  };
+  const g = rig({ launcher });
+  const found = await ask(g, "authcheck", agent("#CodexKey", { model: "gpt-5-codex" }));
+  assert.equal(found.turn.state, "completed", JSON.stringify(found.turn.error));
+  assert.ok(argvs[0]?.includes("codex"), `the Codex CLI ran: ${JSON.stringify(argvs[0])}`);
+  assert.equal(seen[0]?.["CODEX_API_KEY"], API_KEY, "the key reaches the engine through its environment");
+  assert.equal(seen[0]?.["VYRE_CRED_FILES"], undefined, "no sign-in files for an API key");
+  assert.match(found.reply, /^codex /);
+  assert.equal(everything(g, ["T1"]).includes(API_KEY), false, "the key is in no event, turn, message or record");
+  const walk = (d: string): string[] => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]));
+  for (const h of homes) for (const f of walk(h)) assert.equal(fs.readFileSync(f, "utf8").includes(API_KEY), false, `the key was written to ${f}`);
+  await g.opener.close();
+  for (const h of homes) fs.rmSync(h, { recursive: true, force: true });
+});
 
 test("a Codex sign-in whose files the Vault does not hold fails the turn with engine.account_unavailable and starts no engine", async () => {
   const g = rig();

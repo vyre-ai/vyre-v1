@@ -31,7 +31,7 @@ async function refuses(hn: Harness, name: string, code: string, run: () => Promi
 }
 
 test("the table holds the nineteen capabilities of this group, all frozen chat capabilities, each example input valid", () => {
-  assert.equal(NAMES.length, 19);   // plus chat.question.withdraw (l-learn2)
+  assert.equal(NAMES.length, 19);   // the 13, plus chat.question.withdraw (l-learn2), chat.helper.steer (l-crews: ask a running helper) and the three helper notes (chat.helper.note, chat.helper.note_seen, chat.helper.notes), plus chat.helper.restart (Change model)
   for (const name of NAMES) {
     const c = cap(name);
     assert.equal(c.module, "chat", name);

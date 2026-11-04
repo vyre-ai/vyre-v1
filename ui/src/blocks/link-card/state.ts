@@ -57,3 +57,9 @@ export function stateOf(d: LinkCardData, answer: unknown): CardState | null {
 
 /** What replaces the name when the reader may not open the thing. */
 export const HIDDEN_TITLE = "Not shared with you";
+
+/** What stands in for the name of a thing the reader cannot open: what kind of thing it is and that it is theirs to ask for, never its name or anything about it. */
+export function hiddenTitle(type: string | undefined): string {
+  const kind = ({ task: "task", file: "file", folder: "folder", record: "record", thread: "chat", chat: "chat", channel: "channel", run: "run", project: "project", automation: "automation", computer: "computer", agent: "agent", goal: "goal", note: "note" } as Record<string, string>)[type ?? ""];
+  return kind ? `A ${kind} you don't have access to` : HIDDEN_TITLE;
+}

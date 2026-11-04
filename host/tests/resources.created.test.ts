@@ -304,3 +304,12 @@ test("registrar: a move registers the object again under its new folder, keeping
   // without the reader (an older wiring) a move registers nothing, as before
   assert.deepEqual(createResourceRegistrar({ events, exists: (id) => rows.has(id) }).register({ cap: { name: "x", resource: { type: "space" } }, input: {}, space: "spc_1", owner: "usr_owner", events: [ev("file.moved", { fileId: "fil_x", toFolderId: "fld_hr" })] }), []);
 });
+
+test("registrar: a new skill is registered from its birth event, owned by the person it names (a member adding their own skill is its owner without sharing it with themselves)", () => {
+  const events: SubjectDef[] = [{ name: "skill.mine_changed", subject: { type: "skill", id: "/skillId" } }];
+  const r = createResourceRegistrar({ events, exists: () => false });
+  const born = r.register({ cap: { name: "skills.mine.add", resource: { type: "space" } }, input: {}, space: "spc_1", owner: "usr_aina", events: [ev("skill.mine_changed", { skillId: "sko_a1b2c3", op: "added", ownerId: "usr_aina" })] });
+  assert.deepEqual(born.map((x) => [x.id, x.type, x.owner_id]), [["sko_a1b2c3", "skill", "usr_aina"]]);
+  const agents = r.register({ cap: { name: "skills.save", resource: { type: "space" } }, input: {}, space: "spc_1", owner: "usr_aina", events: [ev("skill.mine_changed", { skillId: "sko_a1b2c4", op: "added", ownerId: "usr_dana" })] });
+  assert.equal(agents[0]?.owner_id, "usr_dana", "an agent's skill is its owner's");
+});

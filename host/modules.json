@@ -127,6 +127,11 @@
       "status": "live"
     },
     {
+      "id": "ci",
+      "owner": "L5",
+      "status": "live"
+    },
+    {
       "id": "github",
       "owner": "L5",
       "status": "live"
@@ -228,6 +233,11 @@
     },
     {
       "id": "machines",
+      "owner": "L2",
+      "status": "live"
+    },
+    {
+      "id": "hooks",
       "owner": "L2",
       "status": "live"
     },

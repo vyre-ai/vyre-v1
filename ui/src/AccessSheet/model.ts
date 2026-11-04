@@ -77,6 +77,12 @@ export const ITEM_DEFS: Readonly<Record<ShareItemType, ItemDef>> = {
     def: "view",
     tail: "Every record of this type, and its fields.",
   },
+  skill: {
+    label: "skill",
+    levels: [{ id: "use", label: "Can use" }, { id: "edit", label: "Can edit" }, { id: "manage", label: "Can manage" }],
+    def: "use",
+    tail: "They get each new version as it is saved.",
+  },
   artifact: { label: "artifact", levels: L3, def: "view", tail: "They see the latest version and its comments." },
   project: { label: "project", levels: L3, def: "view", tail: "They see the project's chats, files folder and records." },
   automation: { label: "automation", levels: L3, def: "view", tail: "View sees it, its runs and its history. Edit changes and pauses it. Manage also shares and deletes it." },

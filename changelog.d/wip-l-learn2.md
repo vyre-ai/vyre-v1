@@ -81,3 +81,6 @@
 - The Personal claim live test now expects the route it opened on (/chat), not /home.
 - Live browser tests follow today's product: the invite error sits behind "Use another account" for a device already in the Space, Back on the join sheet is "back", Apps forms are opened from the Forms group first, the record Ask pane is the record chat, a short piece of work opens from the summary beside the name, the onboarding screen closes from its x on a phone, and sign-out waits for the server to revoke the key.
 - A direct message always carries the person's name in the sidebar, as it does on its tab.
+- A withdrawn request names its own key in the footer ("A dismiss"), not "A approve".
+- Add sending domain in Apps opens the Console's Sending domains with Add domain ready, and is not shown to anyone who cannot open the Console.
+- The accounts live test names each account once per turn, with the original messages back so the chat title call still runs.

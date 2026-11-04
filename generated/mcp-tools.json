@@ -262,7 +262,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -405,7 +406,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -473,7 +475,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -719,7 +722,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -1071,7 +1075,8 @@
                         "run",
                         "number",
                         "domain",
-                        "calendar"
+                        "calendar",
+                        "skill"
                       ],
                       "type": "string"
                     }
@@ -1356,7 +1361,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -1440,7 +1446,8 @@
               "run",
               "number",
               "domain",
-              "calendar"
+              "calendar",
+              "skill"
             ],
             "type": "string"
           }
@@ -1734,7 +1741,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -1755,6 +1763,77 @@
       },
       "name": "access_propose_change",
       "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "access.reach",
+      "deferred": false,
+      "description": "What level the caller holds on each of up to 200 things, in one call: none, view, use, edit or manage. A thing that does not exist answers none, the same as one the caller cannot see",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "items": {
+            "items": {
+              "properties": {
+                "id": {
+                  "examples": [
+                    "rec_a1b2c3"
+                  ],
+                  "type": "string"
+                },
+                "type": {
+                  "enum": [
+                    "space",
+                    "record_type",
+                    "record",
+                    "project",
+                    "folder",
+                    "file",
+                    "channel",
+                    "thread",
+                    "inbox",
+                    "mailbox",
+                    "vault_folder",
+                    "vault_item",
+                    "automation_group",
+                    "automation",
+                    "agent",
+                    "connector",
+                    "connection",
+                    "site",
+                    "form",
+                    "kit",
+                    "terminal",
+                    "computer",
+                    "task",
+                    "run",
+                    "number",
+                    "domain",
+                    "calendar",
+                    "skill"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "id"
+              ],
+              "type": "object"
+            },
+            "maxItems": 200,
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "name": "access_reach",
+      "planMode": "allowed",
       "toolset": "meta",
       "v": 1
     },
@@ -1847,7 +1926,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -2139,7 +2219,8 @@
                 "run",
                 "number",
                 "domain",
-                "calendar"
+                "calendar",
+                "skill"
               ],
               "type": "string"
             },
@@ -2638,7 +2719,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -2738,7 +2820,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -2811,7 +2894,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -4451,7 +4535,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -4639,7 +4724,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -10704,6 +10790,119 @@
     },
     {
       "blocks": [],
+      "cap": "chat.noted",
+      "deferred": false,
+      "description": "The quiet line memory leaves in a place other people share when it remembers something: \"Noted: decision, go with Harbor\" with Undo. One link-card line; Undo is memory.undo on the fact",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "disputed": {
+            "type": "boolean"
+          },
+          "factId": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "question": {
+            "properties": {
+              "a": {
+                "properties": {
+                  "at": {
+                    "description": "Milliseconds since the Unix epoch",
+                    "examples": [
+                      1760000000000
+                    ],
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "by": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "text",
+                  "by",
+                  "at"
+                ],
+                "type": "object"
+              },
+              "b": {
+                "properties": {
+                  "at": {
+                    "description": "Milliseconds since the Unix epoch",
+                    "examples": [
+                      1760000000000
+                    ],
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "by": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "text",
+                  "by",
+                  "at"
+                ],
+                "type": "object"
+              },
+              "questionId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "questionId",
+              "a",
+              "b"
+            ],
+            "type": "object"
+          },
+          "replaces": {
+            "examples": [
+              "fct_a1b2c3"
+            ],
+            "pattern": "^fct_[a-z0-9]+$",
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "factId",
+          "kind",
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "chat_noted",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.open_as_chat",
       "deferred": false,
       "description": "Open an Ask pane as a normal chat so it appears in Recent",
@@ -10725,6 +10924,39 @@
       },
       "name": "chat_open_as_chat",
       "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.pace_of",
+      "deferred": false,
+      "description": "How a teammate answers, for their profile: usual reply time over the last 30 days, and for one chat how they hear about it. Reads only chats you are in with them",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "personId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "personId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_pace_of",
+      "planMode": "allowed",
       "toolset": "chats",
       "v": 1
     },
@@ -12423,6 +12655,293 @@
       "name": "chrome_wait",
       "planMode": "blocked",
       "toolset": "computer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ci.cost.month",
+      "deferred": false,
+      "description": "What CI cost this month so far (or the month given, written 2026-11), the cap, what is left, how many runs, and the cost by repository. Admin only",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "month": {
+            "examples": [
+              "2026-11"
+            ],
+            "pattern": "^\\d{4}-\\d{2}$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "ci_cost_month",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ci.job.intake",
+      "deferred": false,
+      "description": "Host only: a job is waiting (or ended) on GitHub; start or stop its machine. Called for the workflow_job events, never by a person",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "enum": [
+              "queued",
+              "completed"
+            ],
+            "type": "string"
+          },
+          "conclusion": {
+            "type": "string"
+          },
+          "fork": {
+            "enum": [
+              "no",
+              "yes",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "jobId": {
+            "type": "integer"
+          },
+          "labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "repo": {
+            "examples": [
+              "vyre-ai/website"
+            ],
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+            "type": "string"
+          },
+          "runId": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "action",
+          "repo",
+          "jobId",
+          "runId",
+          "labels"
+        ],
+        "type": "object"
+      },
+      "name": "ci_job_intake",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ci.project.get",
+      "deferred": false,
+      "description": "Whether a project shows the CI tab: its repository is linked and runners are on. Anyone who can see the project",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "ci_project_get",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ci.runs.get",
+      "deferred": false,
+      "description": "One run",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "runId": {
+            "examples": [
+              "cir_a1b2c3"
+            ],
+            "pattern": "^cir_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "runId"
+        ],
+        "type": "object"
+      },
+      "name": "ci_runs_get",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ci.runs.list",
+      "deferred": false,
+      "description": "Runs, newest first, for one project or one repository (give one); each has its state, machine, times and cost. Anyone who can see the project",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "repo": {
+            "examples": [
+              "vyre-ai/website"
+            ],
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "starting",
+              "running",
+              "finished",
+              "failed",
+              "swept",
+              "refused"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "ci_runs_list",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ci.settings.get",
+      "deferred": false,
+      "description": "The CI settings: whether runners are on, the cloud provider, the Vault item that holds its key (never the key), region, machine size, image, how many at once, the monthly cap, the time limit and the labels. Admin only",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "ci_settings_get",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ci.settings.set",
+      "deferred": false,
+      "description": "Turn runners on or off and change their settings. Admin only, audited. Turning them on needs a key (a Vault item) and a monthly cap",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "image": {
+            "pattern": "^[A-Za-z0-9._-]{3,80}$",
+            "type": "string"
+          },
+          "labels": {
+            "items": {
+              "pattern": "^[A-Za-z0-9_.-]{1,40}$",
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "type": "array"
+          },
+          "maxConcurrent": {
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "maxJobMinutes": {
+            "maximum": 360,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "monthlyCapUsd": {
+            "maximum": 100000,
+            "minimum": 0,
+            "type": "number"
+          },
+          "region": {
+            "pattern": "^[a-z0-9]{2,10}$",
+            "type": "string"
+          },
+          "size": {
+            "pattern": "^[a-z0-9-]{3,40}$",
+            "type": "string"
+          },
+          "vaultKeyRef": {
+            "anyOf": [
+              {
+                "examples": [
+                  "#Dana_Lawmatics"
+                ],
+                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "name": "ci_settings_set",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "ci.sweep",
+      "deferred": false,
+      "description": "Host only: every 2 minutes, delete any machine tagged vyre-ci that is too old or has no live run, and start queued jobs that now fit",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "ci_sweep",
+      "planMode": "blocked",
+      "toolset": "engineer",
       "v": 1
     },
     {
@@ -19581,7 +20100,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -21757,7 +22277,8 @@
               "run",
               "number",
               "domain",
-              "calendar"
+              "calendar",
+              "skill"
             ],
             "type": "string"
           }
@@ -21843,7 +22364,8 @@
               "run",
               "number",
               "domain",
-              "calendar"
+              "calendar",
+              "skill"
             ],
             "type": "string"
           }
@@ -21950,7 +22472,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -22047,7 +22570,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -22105,7 +22629,8 @@
               "run",
               "number",
               "domain",
-              "calendar"
+              "calendar",
+              "skill"
             ],
             "type": "string"
           }
@@ -22164,7 +22689,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -22880,6 +23406,7 @@
               "signature_send",
               "spend_raise",
               "signin_change",
+              "install",
               "approve"
             ],
             "type": "string"
@@ -22972,6 +23499,7 @@
               "signature_send",
               "spend_raise",
               "signin_change",
+              "install",
               "approve"
             ],
             "type": "string"
@@ -23065,6 +23593,7 @@
               "signature_send",
               "spend_raise",
               "signin_change",
+              "install",
               "approve"
             ],
             "type": "string"
@@ -24338,10 +24867,17 @@
       "blocks": [],
       "cap": "github.pull_request.get",
       "deferred": true,
-      "description": "Read a pull request live from GitHub",
+      "description": "Read a pull request live from GitHub. A person with a connected GitHub is read as them: their policy for reading and the repositories they reach apply, and consumer (such as linked.prs) shows in Used by",
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "consumer": {
+            "examples": [
+              "linked.prs"
+            ],
+            "pattern": "^[a-z][a-z0-9_.:-]{1,60}$",
+            "type": "string"
+          },
           "number": {
             "minimum": 1,
             "type": "integer"
@@ -24897,6 +25433,32 @@
       },
       "name": "goals_confirm",
       "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "goals.count",
+      "deferred": false,
+      "description": "How many goals a project has, whoever may open them: a number and nothing else (never a title). Only a manager of the project or the system may ask; the Overview uses it to say how many goals a reader may not open",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "goals_count",
+      "planMode": "allowed",
       "toolset": "tasks",
       "v": 1
     },
@@ -30099,6 +30661,264 @@
     },
     {
       "blocks": [],
+      "cap": "hooks.list",
+      "deferred": false,
+      "description": "List hooks: the Space's, yours, and an agent's or one chat's. Each has a plain line, when it runs, what it does and who made it. Use this before you add one",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "person",
+              "agent",
+              "chat",
+              "run"
+            ],
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "hooks_list",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "hook"
+      ],
+      "cap": "hooks.remove",
+      "deferred": false,
+      "description": "Remove a hook you made",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "name": "hooks_remove",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "hooks.runs.list",
+      "deferred": false,
+      "description": "What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first. since and outcomes narrow it before the limit; scope space is a Space admin's read of every Space hook's runs (anyone else gets only what they could see anyway)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "hookId": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "outcomes": {
+            "items": {
+              "enum": [
+                "ok",
+                "blocked",
+                "note",
+                "error",
+                "timeout",
+                "skipped",
+                "allowed_once"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "scope": {
+            "enum": [
+              "space"
+            ],
+            "type": "string"
+          },
+          "since": {
+            "description": "Only runs at or after this time",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "hooks_runs",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "hook"
+      ],
+      "cap": "hooks.set",
+      "deferred": false,
+      "description": "Add or change a hook that runs at an event (before a tool, before anything leaves Vyre, a message, a turn end, a helper) as a command, a check or one action. For yourself: scope agent, chat or run. It can stop something, add a note or run its own action; never skip a rule",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "args": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "type": "array"
+          },
+          "cap": {
+            "description": "For an action hook: the one capability to call",
+            "examples": [
+              "chat.post"
+            ],
+            "type": "string"
+          },
+          "command": {
+            "description": "For a command hook: runs in the agent's own sandbox with the event as JSON on stdin; exit 2 stops it and stderr is the reason",
+            "type": "string"
+          },
+          "event": {
+            "enum": [
+              "session.start",
+              "prompt.submit",
+              "tool.before",
+              "tool.after",
+              "outward.before",
+              "turn.end",
+              "helper.start",
+              "helper.end"
+            ],
+            "type": "string"
+          },
+          "helpers": {
+            "type": "boolean"
+          },
+          "id": {
+            "description": "Give the id of a hook you made to change it",
+            "type": "string"
+          },
+          "input": {
+            "description": "Any JSON value"
+          },
+          "instruction": {
+            "description": "For a check hook: one short instruction a small model reads against the event and answers allow, block with a reason, or note",
+            "examples": [
+              "The address must be in Contacts"
+            ],
+            "maxLength": 1000,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "command",
+              "check",
+              "action"
+            ],
+            "type": "string"
+          },
+          "matcher": {
+            "description": "For tool events: a tool name, a capability, a family like mail, or a pattern. Empty is every tool",
+            "examples": [
+              "mail.send"
+            ],
+            "type": "string"
+          },
+          "paused": {
+            "type": "boolean"
+          },
+          "scope": {
+            "enum": [
+              "space",
+              "person",
+              "agent",
+              "chat",
+              "run"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "description": "The plain sentence people read in the chat",
+            "examples": [
+              "before any email, check the address is in Contacts"
+            ],
+            "maxLength": 200,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "timeoutSec": {
+            "maximum": 60,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scope",
+          "event",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "name": "hooks_set",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "hubspot.list_objects",
       "deferred": false,
       "description": "List remote objects of a type (contacts, companies, deals) for mapping",
@@ -31502,6 +32322,248 @@
       "name": "inbox_unmatched",
       "planMode": "allowed",
       "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "install.apply",
+      "deferred": false,
+      "description": "Install what a plan says, for the person, for one agent, or for everyone in the Space (admin only). An agent asking is held at the Gate as a card with the plan; the person presses Install",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "authHandle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          },
+          "card": {
+            "properties": {
+              "commit": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "needs": {
+                "properties": {
+                  "domains": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "files": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "vaultKeys": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "domains",
+                  "vaultKeys",
+                  "files"
+                ],
+                "type": "object"
+              },
+              "summary": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "kind",
+              "summary",
+              "commit",
+              "needs"
+            ],
+            "type": "object"
+          },
+          "for": {
+            "enum": [
+              "me",
+              "agent",
+              "space"
+            ],
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "planId": {
+            "examples": [
+              "ins_a1b2c3"
+            ],
+            "pattern": "^ins_[a-z0-9]+$",
+            "type": "string"
+          },
+          "runOn": {
+            "enum": [
+              "sandbox",
+              "space"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "planId",
+          "for",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "install_apply",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "install_plan"
+      ],
+      "cap": "install.check_update",
+      "deferred": false,
+      "description": "Read an install's repository again. A newer commit gives an update plan with the diff; nothing changes until the plan is applied",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "installId": {
+            "examples": [
+              "ins_a1b2c3"
+            ],
+            "pattern": "^ins_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "installId"
+        ],
+        "type": "object"
+      },
+      "name": "install_check_update",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "install_plan"
+      ],
+      "cap": "install.from_link",
+      "deferred": false,
+      "description": "Read a GitHub link (pinned to a commit) or an MCP server address and say what it is: a skill, a plugin, a local MCP server, a remote MCP server or a site, what it does, what it needs (network, Vault keys, files) and who can get it. Nothing is installed",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "url": {
+            "examples": [
+              "https://github.com/anthropics/skills/tree/main/pdf"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "name": "install_from_link",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "install.get",
+      "deferred": false,
+      "description": "One plan, as its card draws it: what it is, what it needs, the commit, who can get it, and for an update the diff",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "planId": {
+            "examples": [
+              "ins_a1b2c3"
+            ],
+            "pattern": "^ins_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "planId"
+        ],
+        "type": "object"
+      },
+      "name": "install_get",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "install.list",
+      "deferred": false,
+      "description": "What was installed from links, by the person asking (an admin may ask for the whole Space)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "all": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "install_list",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "install.remove",
+      "deferred": false,
+      "description": "Take back an install: its skill, plugin or connection is removed",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "installId": {
+            "examples": [
+              "ins_a1b2c3"
+            ],
+            "pattern": "^ins_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "installId"
+        ],
+        "type": "object"
+      },
+      "name": "install_remove",
+      "planMode": "blocked",
+      "toolset": "agents",
       "v": 1
     },
     {
@@ -36691,6 +37753,158 @@
     },
     {
       "blocks": [],
+      "cap": "members.join_link.create",
+      "deferred": false,
+      "description": "Turn the Request to join link on (the address people open), or change the role it admits at; defaults to Guest, the least role. Turning it on after Off makes a fresh address",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "role": {
+            "examples": [
+              "rol_a1b2c3"
+            ],
+            "pattern": "^rol_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "members_join_link_create",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.join_link.disable",
+      "deferred": false,
+      "description": "Turn the Request to join link off; the address stops working and requests already waiting stay",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "members_join_link_disable",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.join_link.get",
+      "deferred": false,
+      "description": "The reusable Request to join link: on or off, the role people join as, the address when on (shown again any time), and how many requests wait",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "members_join_link_get",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.join_link.rotate",
+      "deferred": false,
+      "description": "Make a new Request to join address; the old one stops working at once and requests already waiting stay",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "members_join_link_rotate",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.join_requests.approve",
+      "deferred": false,
+      "description": "Approve a request to join: makes a one-time invite for their email at the link's role and returns that link once, to email or copy",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "examples": [
+              "jrq_a1b2c3"
+            ],
+            "pattern": "^jrq_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "members_join_requests_approve",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.join_requests.decline",
+      "deferred": false,
+      "description": "Decline a request to join",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "requestId": {
+            "examples": [
+              "jrq_a1b2c3"
+            ],
+            "pattern": "^jrq_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "type": "object"
+      },
+      "name": "members_join_requests_decline",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "members.join_requests.list",
+      "deferred": false,
+      "description": "People who asked to join through the Request to join link, newest first",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "waiting",
+              "approved",
+              "declined"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "members_join_requests_list",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "members.joins.list",
       "deferred": false,
       "description": "Joins that have not finished: each new member with the steps that did not work yet, in words, how often each was tried, and whether it is stuck (three tries or more)",
@@ -38421,6 +39635,86 @@
     },
     {
       "blocks": [],
+      "cap": "memory.place.archive",
+      "deferred": false,
+      "description": "A place was archived or deleted: its memory is archived (restorable by an admin) or deleted with it. Whoever may edit the place's memory, or an admin",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "enum": [
+              "archive",
+              "delete"
+            ],
+            "type": "string"
+          },
+          "placeId": {
+            "type": "string"
+          },
+          "placeKind": {
+            "enum": [
+              "chat",
+              "channel",
+              "project",
+              "task",
+              "goal",
+              "record"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "placeKind",
+          "placeId",
+          "action"
+        ],
+        "type": "object"
+      },
+      "name": "memory_place_archive",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "memory.place.list",
+      "deferred": false,
+      "description": "Knows tab: what Vyre remembers in one place, each with kind, state, who said it, the message and words; with linked places (scope linked) and Space markers (scope space) the caller may open. canEdit says whether Edit and Remove show",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "history": {
+            "description": "Include replaced and removed ones",
+            "type": "boolean"
+          },
+          "placeId": {
+            "type": "string"
+          },
+          "placeKind": {
+            "enum": [
+              "chat",
+              "channel",
+              "project",
+              "task",
+              "goal",
+              "record"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "placeKind",
+          "placeId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_place_list",
+      "planMode": "allowed",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.profile.get",
       "deferred": false,
       "description": "Your profile in this Space, as a chat may use it: the public part always, the private part only where nobody else reads the chat (your own chats, your private Ask); with personId, that teammate's public part",
@@ -39129,6 +40423,40 @@
     },
     {
       "blocks": [],
+      "cap": "memory.source_removed",
+      "deferred": false,
+      "description": "A message was deleted: what memory derived from it is dropped, and a statement it replaced holds again",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "messageId": {
+            "examples": [
+              "msg_a1b2c3"
+            ],
+            "pattern": "^msg_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "messageId"
+        ],
+        "type": "object"
+      },
+      "name": "memory_source_removed",
+      "planMode": "blocked",
+      "toolset": "memory",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "memory.trail",
       "deferred": false,
       "description": "The trail of changes to facts and pages (who, what, when, why and source), for what the reader can see; rows are never deleted and never hold content",
@@ -39452,6 +40780,29 @@
       "name": "message_person",
       "planMode": "blocked",
       "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.models_catalog",
+      "deferred": false,
+      "description": "Every AI account the asker can use with its models, what each can do (tools, images, context), a cost tier (cheap, standard or strong) and whether the probe found it available; for helpers that pick a model across accounts. Reads saved lists and the probe's marks only",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "accountRef": {
+            "description": "Vault handle or subscription account reference; never a secret value",
+            "examples": [
+              "#Team_Anthropic_Key"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "models_catalog",
+      "planMode": "allowed",
+      "toolset": "meta",
       "v": 1
     },
     {
@@ -43399,6 +44750,7 @@
               "health.degraded",
               "problem.report",
               "member.joined",
+              "member.join_requested",
               "limit.hit",
               "vault.rotation_due",
               "reply.thread",
@@ -43407,7 +44759,11 @@
               "task.finished",
               "task.due",
               "machine.alert",
-              "item.shared"
+              "item.shared",
+              "space.deletion_scheduled",
+              "space.deletion_cancelled",
+              "ci.paused",
+              "hook.asked"
             ],
             "type": "string"
           },
@@ -43865,6 +45221,7 @@
               "health.degraded",
               "problem.report",
               "member.joined",
+              "member.join_requested",
               "limit.hit",
               "vault.rotation_due",
               "reply.thread",
@@ -43873,7 +45230,11 @@
               "task.finished",
               "task.due",
               "machine.alert",
-              "item.shared"
+              "item.shared",
+              "space.deletion_scheduled",
+              "space.deletion_cancelled",
+              "ci.paused",
+              "hook.asked"
             ],
             "type": "string"
           },
@@ -43920,7 +45281,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -44042,6 +45404,164 @@
       "name": "open_tab",
       "planMode": "blocked",
       "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_edit",
+      "deferred": false,
+      "description": "Edit the Overview by ops: insert, update, move, delete a block, or set_property on a custom field of the project. One revision for the call, carrying its author; an agent's edit leaves one quiet line in the project channel",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "baseRev": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ops": {
+            "items": {
+              "properties": {
+                "after": {
+                  "description": "Insert or move after this block id; start or end",
+                  "type": "string"
+                },
+                "block": {
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "text",
+                        "heading",
+                        "live"
+                      ],
+                      "type": "string"
+                    },
+                    "level": {
+                      "maximum": 3,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "live": {
+                      "properties": {
+                        "spec": {
+                          "additionalProperties": {
+                            "description": "Any JSON value"
+                          },
+                          "type": "object"
+                        },
+                        "type": {
+                          "enum": [
+                            "tasks",
+                            "milestones",
+                            "links",
+                            "records",
+                            "metric",
+                            "ci",
+                            "goal",
+                            "people",
+                            "status"
+                          ],
+                          "type": "string"
+                        },
+                        "view": {
+                          "enum": [
+                            "list",
+                            "table",
+                            "count",
+                            "cards"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "spec"
+                      ],
+                      "type": "object"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "type": "object"
+                },
+                "id": {
+                  "description": "The block to change, move or delete",
+                  "type": "string"
+                },
+                "key": {
+                  "description": "A custom field of the project, for set_property",
+                  "type": "string"
+                },
+                "op": {
+                  "enum": [
+                    "insert",
+                    "update",
+                    "move",
+                    "delete",
+                    "set_property"
+                  ],
+                  "type": "string"
+                },
+                "value": {
+                  "description": "Any JSON value"
+                }
+              },
+              "required": [
+                "op"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "ops"
+        ],
+        "type": "object"
+      },
+      "name": "overview_edit",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_get",
+      "deferred": false,
+      "description": "Read the Overview as Markdown with every block led by its id, the project's custom fields and the kinds of live block, so overview_edit can name what to change",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "overview_get",
+      "planMode": "allowed",
+      "toolset": "records",
       "v": 1
     },
     {
@@ -45627,6 +47147,32 @@
     },
     {
       "blocks": [],
+      "cap": "projects.archive",
+      "deferred": false,
+      "description": "Archive a project: it leaves the lists and stays readable, with its record, channel, folder and plan. A manager of the project",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_archive",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "projects.cascade",
       "deferred": false,
       "description": "Propose the cascade after something slips: which later tasks move and which dates still hold (an agent may call this too)",
@@ -45736,6 +47282,13 @@
             },
             "type": "array"
           },
+          "overviewTemplate": {
+            "description": "Overview page template id (tpl_client_account, tpl_software_project, tpl_hiring, or one saved since): the project starts on that page",
+            "examples": [
+              "tpl_software_project"
+            ],
+            "type": "string"
+          },
           "stages": {
             "items": {
               "properties": {
@@ -45792,6 +47345,32 @@
       },
       "name": "projects_create",
       "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.crew",
+      "deferred": false,
+      "description": "The helpers working for a project with a live state (Working, Done or Needs you) and what each is on, from the crews of the project's chats, and the project's teammates",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_crew",
+      "planMode": "allowed",
       "toolset": "records",
       "v": 1
     },
@@ -45862,6 +47441,32 @@
       },
       "name": "projects_files_folder",
       "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.for_channel",
+      "deferred": false,
+      "description": "The project a channel belongs to, if there is one the caller may see",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "channelId": {
+            "examples": [
+              "chn_a1b2c3"
+            ],
+            "pattern": "^chn_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_for_channel",
+      "planMode": "allowed",
       "toolset": "records",
       "v": 1
     },
@@ -45979,12 +47584,238 @@
     },
     {
       "blocks": [],
+      "cap": "projects.links.link",
+      "deferred": false,
+      "description": "Link something to a project; an agent that may edit the project can too. A web address or CI run may bring its own state, label and address",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "record",
+              "file",
+              "chat",
+              "task",
+              "artifact",
+              "mail_thread",
+              "calendar_event",
+              "github.pr",
+              "github.commit",
+              "ci.run",
+              "url"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ref": {
+            "examples": [
+              "vyre-ai/website#12"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "kind",
+          "ref"
+        ],
+        "type": "object"
+      },
+      "name": "projects_links_link",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.links.list",
+      "deferred": false,
+      "description": "What is linked to a project (records, files, chats, tasks, artifacts, mail threads, calendar events, pull requests, commits, CI runs, web addresses), each with its state read live from the source, and the rules that link by themselves",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "record",
+              "file",
+              "chat",
+              "task",
+              "artifact",
+              "mail_thread",
+              "calendar_event",
+              "github.pr",
+              "github.commit",
+              "ci.run",
+              "url"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_links_list",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.links.rules.set",
+      "deferred": false,
+      "description": "Set the rules that link matching new items to the project: a repository, a record filter or an email domain",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "rules": {
+            "items": {
+              "properties": {
+                "domain": {
+                  "examples": [
+                    "client.com"
+                  ],
+                  "type": "string"
+                },
+                "equals": {
+                  "type": "string"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "repo",
+                    "record_filter",
+                    "email_domain"
+                  ],
+                  "type": "string"
+                },
+                "recordType": {
+                  "examples": [
+                    "contact"
+                  ],
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "type": "string"
+                },
+                "repo": {
+                  "examples": [
+                    "vyre-ai/website"
+                  ],
+                  "type": "string"
+                },
+                "ruleId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "projectId",
+          "rules"
+        ],
+        "type": "object"
+      },
+      "name": "projects_links_rules_set",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.links.unlink",
+      "deferred": false,
+      "description": "Take a link off a project; an item a rule linked is remembered as an exception and never comes back by rule",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "record",
+              "file",
+              "chat",
+              "task",
+              "artifact",
+              "mail_thread",
+              "calendar_event",
+              "github.pr",
+              "github.commit",
+              "ci.run",
+              "url"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "kind",
+          "ref"
+        ],
+        "type": "object"
+      },
+      "name": "projects_links_unlink",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "projects.list",
       "deferred": false,
       "description": "List the projects the caller is in (Agents, Projects and Journeys show only those you are in)",
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "archived": {
+            "description": "true lists the archived projects instead of the others",
+            "type": "boolean"
+          },
           "cursor": {
             "type": "string"
           },
@@ -46010,6 +47841,55 @@
         "type": "object"
       },
       "name": "projects_list",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.live_block.query",
+      "deferred": false,
+      "description": "Evaluate a live block for the reader: the rows they may open, how many they may not (hidden), and for a metric its value. The block stores only its spec",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "blockId": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "spec": {
+            "additionalProperties": {
+              "description": "Any JSON value"
+            },
+            "type": "object"
+          },
+          "type": {
+            "enum": [
+              "tasks",
+              "milestones",
+              "links",
+              "records",
+              "metric",
+              "ci",
+              "goal",
+              "people",
+              "status"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_live_block_query",
       "planMode": "allowed",
       "toolset": "records",
       "v": 1
@@ -46188,6 +48068,346 @@
     },
     {
       "blocks": [],
+      "cap": "projects.overview_doc.apply_template",
+      "deferred": false,
+      "description": "Put a template's blocks on a project's Overview, replacing the page (one revision, so Undo brings the old page back)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "baseRev": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "templateId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "templateId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_overview_doc_apply_template",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_doc.get",
+      "deferred": false,
+      "description": "The Overview page: its blocks (text, headings and live blocks that hold only a spec), its revision and the project's custom fields for the page header",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_overview_doc_get",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_doc.history",
+      "deferred": false,
+      "description": "The Overview's revisions, newest first, each with who made it and what changed",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_overview_doc_history",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_doc.save",
+      "deferred": false,
+      "description": "Save the whole Overview page from the editor, as Markdown (or blocks); baseRev is the revision it was opened at, and a page changed since says so instead of overwriting",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "baseRev": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "blocks": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "text",
+                    "heading",
+                    "live"
+                  ],
+                  "type": "string"
+                },
+                "level": {
+                  "maximum": 3,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "live": {
+                  "properties": {
+                    "spec": {
+                      "additionalProperties": {
+                        "description": "Any JSON value"
+                      },
+                      "type": "object"
+                    },
+                    "type": {
+                      "enum": [
+                        "tasks",
+                        "milestones",
+                        "links",
+                        "records",
+                        "metric",
+                        "ci",
+                        "goal",
+                        "people",
+                        "status"
+                      ],
+                      "type": "string"
+                    },
+                    "view": {
+                      "enum": [
+                        "list",
+                        "table",
+                        "count",
+                        "cards"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "spec"
+                  ],
+                  "type": "object"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "markdown": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_overview_doc_save",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_doc.templates.list",
+      "deferred": false,
+      "description": "The Space's Overview page templates: Client account, Software project and Hiring, and any saved since",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "projects_overview_doc_templates_list",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_doc.templates.save",
+      "deferred": false,
+      "description": "Save a page template for the Space, from a project's Overview or from blocks; an agent can too",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "blocks": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "text",
+                    "heading",
+                    "live"
+                  ],
+                  "type": "string"
+                },
+                "level": {
+                  "maximum": 3,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "live": {
+                  "properties": {
+                    "spec": {
+                      "additionalProperties": {
+                        "description": "Any JSON value"
+                      },
+                      "type": "object"
+                    },
+                    "type": {
+                      "enum": [
+                        "tasks",
+                        "milestones",
+                        "links",
+                        "records",
+                        "metric",
+                        "ci",
+                        "goal",
+                        "people",
+                        "status"
+                      ],
+                      "type": "string"
+                    },
+                    "view": {
+                      "enum": [
+                        "list",
+                        "table",
+                        "count",
+                        "cards"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "spec"
+                  ],
+                  "type": "object"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "templateId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "name": "projects_overview_doc_templates_save",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_doc.undo",
+      "deferred": false,
+      "description": "Undo the latest change to the Overview: the blocks and any property it set go back as they were; the undo is a revision too",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "rev": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_overview_doc_undo",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "projects.pin_file",
       "deferred": false,
       "description": "Pin a file to the Overview",
@@ -46279,12 +48499,12 @@
             "type": "string"
           },
           "text": {
+            "description": "The update; left out, the draft is posted",
             "type": "string"
           }
         },
         "required": [
-          "projectId",
-          "text"
+          "projectId"
         ],
         "type": "object"
       },
@@ -46373,6 +48593,50 @@
       },
       "name": "projects_roles_of",
       "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.set",
+      "deferred": false,
+      "description": "Set how the project stands (On track, At risk, Off track, On hold or Done) by hand, or null to go back to the reading from the late tasks; audited, and the Overview says who set it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "health": {
+            "anyOf": [
+              {
+                "enum": [
+                  "on",
+                  "risk",
+                  "off",
+                  "hold",
+                  "done"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "health"
+        ],
+        "type": "object"
+      },
+      "name": "projects_set",
+      "planMode": "blocked",
       "toolset": "records",
       "v": 1
     },
@@ -46610,6 +48874,32 @@
     },
     {
       "blocks": [],
+      "cap": "projects.unarchive",
+      "deferred": false,
+      "description": "Bring an archived project back to the lists",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_unarchive",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "projects.unlink_tasks",
       "deferred": false,
       "description": "Remove a dependency arrow",
@@ -46713,6 +49003,62 @@
         "type": "object"
       },
       "name": "projects_unshare_out",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.update.draft",
+      "deferred": false,
+      "description": "Draft the status update again from the project facts, on the asker's own AI account; it is kept as the draft and posted only by Post",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_update_draft",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.update.edit",
+      "deferred": false,
+      "description": "Edit the status update's draft in place",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "projects_update_edit",
       "planMode": "blocked",
       "toolset": "records",
       "v": 1
@@ -46919,6 +49265,21 @@
     },
     {
       "blocks": [],
+      "cap": "providers.own_people",
+      "deferred": false,
+      "description": "Who runs on their own AI sign-ins: the people with a Mine provider and how many each, for the AI accounts switch (never an account name or a value)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "providers_own_people",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "providers.remove",
       "deferred": false,
       "description": "Remove a provider and its key or sign-in",
@@ -46939,6 +49300,36 @@
         "type": "object"
       },
       "name": "providers_remove",
+      "planMode": "blocked",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "providers.set_keeps_nothing",
+      "deferred": false,
+      "description": "An owner or admin says an AI account shared with the Space keeps nothing of what it is sent. Restricted data may only go to accounts that do. A local model always does",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "keepsNothing": {
+            "type": "boolean"
+          },
+          "providerId": {
+            "examples": [
+              "prv_a1b2c3"
+            ],
+            "pattern": "^prv_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "providerId",
+          "keepsNothing"
+        ],
+        "type": "object"
+      },
+      "name": "providers_set_keeps_nothing",
       "planMode": "blocked",
       "toolset": "vault",
       "v": 1
@@ -49387,7 +51778,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -50042,7 +52434,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -53995,6 +56388,182 @@
     },
     {
       "blocks": [],
+      "cap": "skills.grant",
+      "deferred": false,
+      "description": "Give an agent use, edit or manage of a skill, or take it back (level null). Use puts it in the agent's list; edit lets it save versions; manage lets it share the skill on",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "enum": [
+                  "use",
+                  "edit",
+                  "manage"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId",
+          "agentId",
+          "level"
+        ],
+        "type": "object"
+      },
+      "name": "skill_grant",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.grants",
+      "deferred": false,
+      "description": "Who owns a skill and which agents hold it, at what level",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId"
+        ],
+        "type": "object"
+      },
+      "name": "skill_grants",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.history",
+      "deferred": false,
+      "description": "The versions of a skill, newest first, each with who saved it and what changed",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId"
+        ],
+        "type": "object"
+      },
+      "name": "skill_history",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.save",
+      "deferred": false,
+      "description": "Write a skill as its owner (the person, or an agent they own; an agent writes its own) or as an agent given edit: a new skill, or a new version of one. Every save is a version",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "files": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "ownerAgentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "skill_save",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.undo",
+      "deferred": false,
+      "description": "Undo the latest version of a skill; the version before it comes back as a new version, and undoing again brings the undone one back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "skillId": {
+            "examples": [
+              "sko_a1b2c3"
+            ],
+            "pattern": "^sko_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "skillId"
+        ],
+        "type": "object"
+      },
+      "name": "skill_undo",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "skills.add",
       "deferred": false,
       "description": "Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)",
@@ -54265,6 +56834,21 @@
       },
       "name": "skills_mine_update",
       "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.of_agents",
+      "deferred": false,
+      "description": "The skills the agents a person owns keep for themselves, one row each",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "skills_of_agents",
+      "planMode": "allowed",
       "toolset": "agents",
       "v": 1
     },
@@ -55331,12 +57915,15 @@
       "blocks": [],
       "cap": "spaces.delete",
       "deferred": false,
-      "description": "Owner only: delete the Space after typing its legal name",
+      "description": "Owner only: schedule the Space for deletion 14 days out after typing its legal name. Needs an export from the last 24 hours, or withoutExport. Everything keeps working until the date",
       "effects": "write",
       "inputSchema": {
         "properties": {
           "confirmName": {
             "type": "string"
+          },
+          "withoutExport": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -55345,6 +57932,36 @@
         "type": "object"
       },
       "name": "spaces_delete",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "spaces.delete_cancel",
+      "deferred": false,
+      "description": "Owner or an admin: cancel the scheduled deletion with one click; the Space carries on and every admin is told",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "spaces_delete_cancel",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "spaces.delete_due",
+      "deferred": false,
+      "description": "Host only: when the scheduled date has passed, remove the Space's data and stop serving it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "spaces_delete_due",
       "planMode": "blocked",
       "toolset": "meta",
       "v": 1
@@ -55372,6 +57989,21 @@
       },
       "name": "spaces_export",
       "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "spaces.export_latest",
+      "deferred": false,
+      "description": "When the newest finished export of this Space was taken, or nothing when none was; Delete this Space asks for one from the last 24 hours",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "spaces_export_latest",
+      "planMode": "allowed",
       "toolset": "meta",
       "v": 1
     },
@@ -55733,7 +58365,8 @@
               "run",
               "number",
               "domain",
-              "calendar"
+              "calendar",
+              "skill"
             ],
             "type": "string"
           }
@@ -55795,7 +58428,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }
@@ -59749,7 +62383,7 @@
       "blocks": [],
       "cap": "talk.space.check",
       "deferred": true,
-      "description": "Check the Space key with the provider now",
+      "description": "Check the Space key now: a real one-second grant against the provider the Space picked, with the key from the Vault",
       "effects": "write",
       "inputSchema": {
         "properties": {},
@@ -59764,17 +62398,20 @@
       "blocks": [],
       "cap": "talk.space.configure",
       "deferred": true,
-      "description": "Turn Talk for everyone on or off, and keep the key. An agent's change stops at the Gate for someone who may approve it",
+      "description": "Turn Talk for everyone on or off, and pick which provider (Deepgram or ElevenLabs) covers people; its key must be added first. An agent's change stops at the Gate for someone who may approve it",
       "effects": "write",
       "inputSchema": {
         "properties": {
           "on": {
             "type": "boolean"
+          },
+          "provider": {
+            "examples": [
+              "elevenlabs"
+            ],
+            "type": "string"
           }
         },
-        "required": [
-          "on"
-        ],
         "type": "object"
       },
       "name": "talk_space_configure",
@@ -64438,6 +67075,38 @@
     },
     {
       "blocks": [],
+      "cap": "threads.mark_unread_from",
+      "deferred": false,
+      "description": "Mark a thread unread from one message on: the read point goes back to just before that message, so it and everything after it count as new (it never moves the point forward)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "seq": {
+            "description": "The threadSeq of the first message to count as new again",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "seq"
+        ],
+        "type": "object"
+      },
+      "name": "threads_mark_unread_from",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "threads.members.add",
       "deferred": false,
       "description": "Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker's private profile there. A chat's own agents become visible to the newcomer.",
@@ -64504,6 +67173,40 @@
         "type": "object"
       },
       "name": "threads_members_remove",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "threads.move",
+      "deferred": false,
+      "description": "Move a chat into a project: it then belongs to the project (its memory and its people). Needs Manage on the chat and the right to add to the project; audited",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "threads_move",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1
@@ -64678,6 +67381,36 @@
         "type": "object"
       },
       "name": "threads_reopen",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "threads.set_agent_replies",
+      "deferred": false,
+      "description": "Choose where the agents of a chat reply: in the thread under the message that asked them, or in the chat itself. Approvals and answers an agent marks Also send to the chat still come to the chat",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "inThreads": {
+            "type": "boolean"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "inThreads"
+        ],
+        "type": "object"
+      },
+      "name": "threads_set_agent_replies",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1
@@ -67111,7 +69844,8 @@
                   "run",
                   "number",
                   "domain",
-                  "calendar"
+                  "calendar",
+                  "skill"
                 ],
                 "type": "string"
               }

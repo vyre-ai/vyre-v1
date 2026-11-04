@@ -1,0 +1,1 @@
+- Projects: the project page's tabs are Chat, Plan, Overview, Linked and Knows, each body one component with {projectId, space, canEdit}; a tab change inside the open page is a local move and no longer goes through the link check.

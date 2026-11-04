@@ -1,3 +1,4 @@
+// @tsx
 // A chip for an email thread opens the Inbox conversation the server maps its provider thread id to; a thread the reader cannot see opens nothing.
 import test from "node:test";
 import assert from "node:assert/strict";

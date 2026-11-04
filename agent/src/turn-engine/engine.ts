@@ -28,9 +28,15 @@ export interface ToolContext {
   said?: string;
 }
 /** A tool call parked at the Gate: the task that decides it, and the Run when the call belongs to one. */
+/** Most reads run together in one step. */
+export const MAX_PARALLEL = 6;
 export interface HeldCall { taskId: string; runId?: string }
 export type ToolRunResult = ToolResult & { held?: HeldCall; /** a question asked of the person: park on its block, no further model call until it is answered */ parkOn?: { blockId: string } };
 export type ToolRunner = (call: { id: string; name: string; input: unknown }, ctx: ToolContext) => Promise<ToolRunResult>;
+
+import type { HooksPort } from "../tools/hooks.ts";
+
+const CLI_DRIVERS: ReadonlySet<string> = new Set(["claude_code", "codex", "grok"]);
 
 export interface StopResult {
   /** Turns that were running and were cancelled. */
@@ -44,6 +50,8 @@ export interface InterruptResult { cancelled: Array<{ turnId: string; agentId: s
 export type ResumeOutcome = { approved: boolean; result?: ToolResult };
 
 export interface EngineOptions {
+  /** The one hooks layer (modules/hooks): asked around every turn of every driver (session.start, prompt.submit, helper.start, turn.end, helper.end). A block stops the turn with code hook_blocked. */
+  hooks?: HooksPort;
   /** 'host:<space>' or 'device:<id>'. */
   holder: string;
   openSession: OpenSession;
@@ -91,6 +99,13 @@ export interface EngineOptions {
   /** Where a queued item should run (ARCH 6.3). Default: here. */
   place?: (thread: OpenThread, item: QueueItem) => Placement;
   callTool?: ToolRunner;
+  /**
+   * Says whether a tool is an independent read that can run together with others ("read") or must run on its own, in order ("other": writes, outward acts, anything the Gate can hold, anything that
+   * asks the person). Without it every call runs alone, as before. Only used for a session that says parallelTools.
+   */
+  toolClass?: (name: string) => "read" | "other";
+  /** Most reads run at the same time. Default 6. */
+  maxParallel?: number;
   /** Repeating timer, returns its canceller. Default setInterval (unref'd). */
   schedule?: (fn: () => void, ms: number) => () => void;
   /** Messages included as transcript window in each turn input. */
@@ -445,6 +460,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
 
     const trigger = findMessage(st, item.messageId);
     let paying: ResolvedAccount | null | undefined = account;
+    let hooksAsked = false;
     let parked: { callId: string; name: string; held: HeldCall } | null = null;
     const asked: string[] = [];
     let afterTool = false;
@@ -477,19 +493,84 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       // what really runs is what the record keeps: a session that says its model (a swapped or limited one) wins over the one the chat asked for, and a swap to the account's own default is not the asked model
       { const ran = (session as { model?: unknown }).model; if (typeof ran === "string") turn.model = ran; else if (paying?.modelFallback) turn.model = paying.modelFallback.to ?? null; }
       if (run.cancelled) await session.cancel();
+      // the hooks layer, for every driver alike: once per turn, however many accounts it tries
+      const hookNotes: string[] = [];
+      if (opts.hooks && !hooksAsked && !wait) {
+        hooksAsked = true;
+        const base = { agentId: item.agentId, asker, threadId: st.thread.id, turnId: turn.id, threadKind: st.thread.kind, engine: CLI_DRIVERS.has(paying?.driver ?? "") ? paying!.driver : "api", source: "engine" as const };
+        const ask = (f: Parameters<HooksPort["fire"]>[0]): ReturnType<HooksPort["fire"]> => opts.hooks!.fire(f).catch(() => ({ block: null, notes: [], ran: 0 }));   // a hook layer that fails says nothing
+        const stop = (v: { block: { reason: string } | null; notes: string[] }): void => { hookNotes.push(...v.notes); if (v.block) throw Object.assign(new Error(`A hook stopped this: ${v.block.reason}`), { code: "hook_blocked" }); };
+        stop(await ask({ ...base, event: "session.start" }));
+        if (st.thread.kind === "helper") stop(await ask({ ...base, event: "helper.start", ...(agent.name ? { title: agent.name } : {}) }));
+        stop(await ask({ ...base, event: "prompt.submit", prompt: trigger?.body ?? "" }));
+      }
       let switchTo: ResolvedAccount | null = null;
       const input = {
         threadId: st.thread.id, turnId: turn.id, agent, trigger, asker,
         history: st.messages.slice(-(pokeRows.has(`${st.thread.id}:${item.qseq}`) ? POKE_WINDOW : historyWindow)),
         listeners: st.thread.agents.filter((a) => a.mode === "listen" && a.id !== agent.id).map((a) => (a.role === undefined ? { id: a.id } : { id: a.id, role: a.role })),
+        ...(hookNotes.length > 0 ? { notice: hookNotes.join("\n") } : {}),
         ...(wait && wait.resolution ? { resumed: { taskId: wait.taskId, callId: wait.callId, toolName: wait.toolName, approved: wait.resolution.approved, result: wait.resolution.result } } : {}),
       };
       if (wait) waits.remove(wait.taskId);
       const t0 = enqueuedHr.get(`${item.threadId}:${item.qseq}`) ?? hr();
       let ended = false;
+      // A step that asks for several tools: the calls are collected (the session yields them, then tool_wait) and run together when they are independent reads; everything else runs after, one at a time, in order.
+      const parallel = session.parallelTools === true && opts.toolClass !== undefined;
+      const batch: { id: string; name: string; input: unknown }[] = [];
+      const runBatch = async (calls: readonly { id: string; name: string; input: unknown }[]): Promise<"ok" | "parked" | "cancelled"> => {
+        const toolCtx = { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker };
+        const cap = Math.max(1, opts.maxParallel ?? MAX_PARALLEL);
+        const results = new Map<string, ToolRunResult>();
+        const traces = new Map<string, ToolTrace | null>();
+        for (const c of calls) traces.set(c.id, traceTool(info, { id: c.id, name: c.name, startedAt: now(), ...detailOf(c.input) }));
+        const done = (c: { id: string }, r: ToolRunResult): void => {
+          results.set(c.id, r);
+          const tr = traces.get(c.id);
+          if (tr) { tr.endedAt = now(); tr.ok = r.ok; if (r.held) tr.held = r.held.taskId; }
+        };
+        const reads = calls.filter((c) => opts.toolClass!(c.name) === "read");
+        const rest = calls.filter((c) => !reads.includes(c));
+        inTool = true;
+        try {
+          for (let i = 0; i < reads.length && !run.cancelled && !run.lostLease && parked === null; i += cap) {
+            const wave = reads.slice(i, i + cap);
+            const settled = await Promise.allSettled(wave.map((c) => runTool(opts.callTool, c, toolCtx)));
+            settled.forEach((s, k) => {
+              const c = wave[k]!;
+              const r: ToolRunResult = s.status === "fulfilled" ? s.value : { ok: false, content: { code: "tool_error", message: "the tool failed" } };
+              done(c, r);
+              if (r.held && parked === null) parked = { callId: c.id, name: c.name, held: r.held };
+            });
+          }
+          for (const c of rest) {
+            if (run.cancelled || run.lostLease || parked !== null) break;
+            const r = await runTool(opts.callTool, c, toolCtx);
+            done(c, r);
+            if (r.held) parked = { callId: c.id, name: c.name, held: r.held };
+          }
+        } finally { inTool = false; lastSeen = hr(); }
+        if (run.cancelled || run.lostLease) return "cancelled";
+        // results go back in the order the model asked, a held call's has none (the turn parks on it)
+        for (const c of calls) {
+          const r = results.get(c.id);
+          if (!r || r.held) continue;
+          session.sendToolResult(c.id, { ok: r.ok, content: r.content });
+          flush("tool_result");
+        }
+        if (parked !== null) return "parked";
+        steerBoundary(st, run, turn);
+        return "ok";
+      };
       for await (const ev of guarded(session.send(input) as AsyncIterable<DriverEvent>, quiet)) {
         lastSeen = hr();
         if (run.cancelled || run.lostLease) break;
+        if (batch.length > 0 && ev.type !== "tool_call") {
+          const calls = batch.splice(0, batch.length);
+          const how = await runBatch(calls);
+          if (how === "cancelled") break;
+          if (how === "parked") { ended = true; break; }
+        }
         switch (ev.type) {
           case "text":
           case "thinking":
@@ -505,9 +586,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           case "tool_call": {
             flush("text");
             flush("tool_call");
-            inTool = true;
             afterTool = true;
             queue.touch(st.thread.id, item.qseq);
+            if (parallel) { batch.push({ id: ev.id, name: ev.name, input: ev.input }); break; }
+            inTool = true;
             const trace = traceTool(info, { id: ev.id, name: ev.name, startedAt: now(), ...detailOf(ev.input) });
             const result = await runTool(opts.callTool, { id: ev.id, name: ev.name, input: ev.input }, { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker, said: saidSince(st, item.agentId) }).finally(() => { inTool = false; lastSeen = hr(); });
             if (trace) { trace.endedAt = now(); trace.ok = result.ok; if (result.held) trace.held = result.held.taskId; }
@@ -643,6 +725,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     else turn.state = "completed";
     queue.setState(st.thread.id, item.qseq, turn.state === "cancelled" ? "cancelled" : "done");
     recordSpend(turn);
+    if (opts.hooks && hooksAsked) {
+      const base = { agentId: item.agentId, asker, threadId: st.thread.id, turnId: turn.id, threadKind: st.thread.kind, engine: CLI_DRIVERS.has(paying?.driver ?? "") ? paying!.driver : "api", source: "engine" as const, ok: turn.state === "completed" };
+      try { await opts.hooks.fire({ ...base, event: "turn.end" }); if (st.thread.kind === "helper") await opts.hooks.fire({ ...base, event: "helper.end" }); } catch { /* a hook never fails the turn */ }
+    }
     try { await opts.onTurnEnd?.(turn, paying ?? null); } catch { /* metering must never fail the turn */ }
     if (turn.state === "completed") emit({ type: "turn.completed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId });
     else if (turn.state === "cancelled") emit({ type: "turn.cancelled", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, ...(run.why ? { reason: run.why } : {}) });

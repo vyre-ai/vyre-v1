@@ -18,7 +18,7 @@ export function chatDoc(text: string, ranges: readonly ChatRange[]): ChatNode {
   for (const r of ranges) {
     if (r.start < at || r.end > text.length || r.end <= r.start) continue;
     plain(text.slice(at, r.start));
-    content.push({ type: "chip", attrs: { text: text.slice(r.start, r.end), kind: r.kind } });
+    content.push({ type: "chip", attrs: { label: text.slice(r.start, r.end), kind: r.kind } });
     at = r.end;
   }
   plain(text.slice(at));
@@ -31,14 +31,14 @@ export function chatText(doc: ChatNode): string {
   const walk = (n: ChatNode): void => {
     if (n.type === "text") out += n.text ?? "";
     else if (n.type === "hardBreak") out += "\n";
-    else if (n.type === "chip") out += String(n.attrs?.["text"] ?? "");
+    else if (n.type === "chip") out += String(n.attrs?.["label"] ?? "");
     else for (const c of n.content ?? []) walk(c);
   };
   walk(doc);
   return out;
 }
 
-const width = (n: ChatNode): number => (n.type === "text" ? (n.text ?? "").length : n.type === "hardBreak" ? 1 : n.type === "chip" ? String(n.attrs?.["text"] ?? "").length : 0);
+const width = (n: ChatNode): number => (n.type === "text" ? (n.text ?? "").length : n.type === "hardBreak" ? 1 : n.type === "chip" ? String(n.attrs?.["label"] ?? "").length : 0);
 /** The size of a node in document positions: a text is its length, an atom is 1. */
 const size = (n: ChatNode): number => (n.type === "text" ? (n.text ?? "").length : 1);
 
