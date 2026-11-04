@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { act } from "react";
 import { find, flush, installDom, mount, textOf } from "../testing/dom.ts";
-import { LONG_PRESS_MS, When, ZonesProvider, dueText, whenText } from "./index.tsx";
+import { LONG_PRESS_MS, TimePop, When, ZonesProvider, dueText, whenText } from "./index.tsx";
 
 const PT = "America/Los_Angeles", PK = "Asia/Karachi";
 const NOW = Date.parse("2026-11-05T15:00:00Z");           // 7:00 AM Pacific, 8:00 PM Karachi
@@ -45,4 +45,23 @@ test("the plain string forms: a check-in line and a deadline line, each with the
   const due = Date.parse("2026-11-07T21:00:00Z");   // Sat 7 Nov 1:00 PM Pacific, 2:00 AM Sunday Karachi
   assert.equal(dueText(due, { space: PT, viewer: PK }), "Sat 7 Nov, 1:00 PM (Sun 2:00 AM your time)");
   assert.equal(dueText(due, { space: PT, viewer: PT }), "Sat 7 Nov, 1:00 PM");
+});
+
+test("hover opens a card with the full date, the Space time and yours; leaving closes it; the card is for a time only, in your zone alone in a private place", async () => {
+  installDom();
+  const root = await mount(createRoot, <ZonesProvider value={{ space: PT, viewer: PK }}><TimePop at={NINE}><When at={NINE} now={NOW} testID="w" /></TimePop></ZonesProvider>);
+  const wrap = find(root, "time-pop");
+  assert.ok(wrap, "the wrapper listens");
+  assert.equal(find(root, "time-pop-card"), null);
+  await act(async () => { (wrap!.props["onMouseOver"] as (e: unknown) => void)({ target: {} }); });
+  assert.equal(textOf(find(root, "time-pop-date")), "Fri 6 Nov 2026");
+  assert.match(textOf(find(root, "time-pop-space")), /9:00 AM Pacific Time/);
+  assert.match(textOf(find(root, "time-pop-mine")), /Fri 6 Nov, 10:00 PM Pakistan/);
+  await act(async () => { (find(root, "time-pop")!.props["onMouseOut"] as () => void)(); });
+  assert.equal(find(root, "time-pop-card"), null, "leaving closes it");
+  await act(async () => { (find(root, "time-pop")!.props["onFocus"] as (e: unknown) => void)({ target: {} }); });
+  assert.ok(find(root, "time-pop-card"), "keyboard focus opens it too");
+  const same = await mount(createRoot, <ZonesProvider value={{ space: PT, viewer: PT }}><TimePop at={NINE}><When at={NINE} now={NOW} testID="s" /></TimePop></ZonesProvider>);
+  await act(async () => { (find(same, "time-pop")!.props["onMouseOver"] as (e: unknown) => void)({ target: {} }); });
+  assert.equal(find(same, "time-pop-mine"), null, "one zone, one line");
 });

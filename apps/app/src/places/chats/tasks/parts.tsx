@@ -13,8 +13,7 @@ import { Glyph } from "../conversation/parts.tsx";
 import { batonMarks, dueLabel, holderOf, isOpenState, KIND_TITLE, ago } from "./model.ts";
 import { canTake } from "./moves.ts";
 import type { NeedItem, TaskRow, Who } from "./model.ts";
-import { useZones } from "../../../../../../ui/src/Time/index.tsx";
-import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
+import { TimePop, useZones } from "../../../../../../ui/src/Time/index.tsx";
 
 export interface RowEnv {
   now: number; offsetMin: number; me: string; turns?: TurnStreams | undefined;
@@ -171,7 +170,7 @@ function NativeLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv
         {row.labels.length > 0 && roomy ? <Text numberOfLines={1} style={s.labels}>{`#${row.labels[0]}`}</Text> : null}
         {roomy ? <BatonMarks row={row} {...(other ? { title: `With ${env.nameOf(other.id)}` } : {})} /> : null}
         {other ? <FaceButton who={other} name={env.nameOf(other.id)} size={22} onPress={() => env.openProfile(other)} /> : null}
-        {due.text ? <Tooltip text={due.title ?? ""}><Text style={[s.due, due.late && !closed && s.late]}>{due.text}</Text></Tooltip> : <View style={s.dueGap} />}
+        {due.text ? <TimePop at={row.due as number}><Text style={[s.due, due.late && !closed && s.late]}>{due.text}</Text></TimePop> : <View style={s.dueGap} />}
       </>}
     </Pressable>
   </View>;

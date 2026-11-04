@@ -2,7 +2,7 @@
 // as it is made through settings.set, which returns the previous value so Undo is one more call. A change the Space's floor refuses says so in a sentence and the control goes back.
 import type { ReactElement } from "react";
 import { ZonePicker } from "../../../../../ui/src/ZonePicker/index.tsx";
-import { deviceZone, validZone } from "../../../../../lib/zones.ts";
+import { deviceZone, validZone, zoneCity } from "../../../../../lib/zones.ts";
 import { refreshZones } from "../../shell/zones/ZonesHost.tsx";
 import { useSaved } from "./saved.tsx";
 import { useSettingsData } from "./data.tsx";
@@ -83,17 +83,22 @@ export function SettingRowFor({ row, first, found = false }: { row: SettingRow; 
   const data = useSettingsData();
   const saved = useSaved();
   const c = controlFor(row);
-  const changed = row.source === "person" && JSON.stringify(row.value) !== JSON.stringify(row.default);
+  // a time zone has no "reset": the line under it says what this computer is, and one button uses it
+  const changed = row.key !== "profile.timezone" && row.source === "person" && JSON.stringify(row.value) !== JSON.stringify(row.default);
+  const change = useChange();
+  const device = deviceZone();
+  const zoneRow = row.key === "profile.timezone" && typeof row.value === "string";
+  const differs = zoneRow && row.value !== device;
   const reset = async (): Promise<void> => {
     const before = row.value;
     try { await data.call("settings.reset", { key: row.key }); saved.saved("Back to the default", async () => { await data.call("settings.set", { key: row.key, value: before }); saved.saved("Put back"); }); }
     catch (e) { saved.failed(e instanceof Error ? e.message : "That did not reset."); }
   };
-  const sub = row.key === "profile.timezone" && typeof row.value === "string" ? `It is ${timeIn(data.clock().now, row.value)} for you now` : subOf(row);
+  const sub = zoneRow ? `It is ${timeIn(data.clock().now, row.value as string)} for you now. ${differs ? `This computer is in ${zoneCity(device)}.` : "Matches this computer."}` : subOf(row);
   return (
     <SettingsRow
       id={row.key} label={rowLabel(row)} first={first} found={found} inline={c.kind === "switch"} {...(sub ? { sub } : {})} {...(rowHelp(row) ? { help: rowHelp(row)! } : {})}
-      control={<>{changed ? <SmallButton label="Reset" testID={`reset-${row.key}`} onPress={() => void reset()} /> : null}<SettingControl row={row} /></>}
+      control={<>{changed ? <SmallButton label="Reset" testID={`reset-${row.key}`} onPress={() => void reset()} /> : null}{differs ? <SmallButton label="Use this computer's time zone" testID="use-device-zone" onPress={() => void change(row, device).then(() => refreshZones())} /> : null}<SettingControl row={row} /></>}
     />
   );
 }

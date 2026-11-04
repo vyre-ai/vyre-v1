@@ -17,7 +17,6 @@ import { Conversation } from "../conversation/Conversation.tsx";
 import type { ConversationData } from "../conversation/data.tsx";
 import type { Changes } from "../conversation/use-follow.ts";
 import { formatActivity } from "../../../../../../lib/words/activity.ts";
-import { offsetMinAt } from "../../../../../../lib/zones.ts";
 import { useGoal } from "./data.ts";
 import type { Call } from "./data.ts";
 import { Bar, TONE } from "./GoalRow.tsx";
@@ -26,7 +25,8 @@ import { TextField } from "../../../../../../ui/src/TextField/index.tsx";
 import { GoalSettings } from "./GoalSettings.tsx";
 import { AddLine, ChecklistEdit, DeadlineEdit, DraftPlanEdit, EditText, HelpersRow, Mini, PeopleDialog, newId } from "./GoalEdit.tsx";
 import type { PickEntry } from "../../../../../../ui/src/PeoplePicker/index.tsx";
-import { When, useZones } from "../../../../../../ui/src/Time/index.tsx";
+import { TimePop, When, useZones } from "../../../../../../ui/src/Time/index.tsx";
+import { whenIn } from "../../../../../../lib/zones.ts";
 import type { Zones } from "../../../../../../ui/src/Time/index.tsx";
 import type { Goal, GoalPageData, PlanStep, TaskLine, Tone, WaitLine, Who } from "./model.ts";
 
@@ -381,7 +381,7 @@ function WaitRow({ w, call, nameOf, now, zones, openTask, onDone }: { w: WaitLin
   return (
     <View testID={`goal-wait-${w.taskId}`} style={st.wait}>
       <Text style={st.waitTitle}>{w.title}</Text>
-      <Text style={st.small}>{`${who} · since ${whenWords(w.since, now, zones)}`}</Text>
+      <Text style={st.small}>{`${who} · since ${whenIn(w.since, now, zones).text}`}</Text>
       {said ? <Text style={[st.small, { color: "var(--ok)" as string }]}>{said}</Text> : <View style={st.cardActions}>{buttons}</View>}
     </View>
   );
@@ -426,7 +426,7 @@ function Plan({ data, nameOf, openTask, edit, onDraft, onRemove, onAdd, onRename
 }
 
 export function Activity({ data, me, nameOf, now, zones, openTask }: { data: GoalPageData; me: string; nameOf(id: string): string; now: number; zones: Zones; openTask(id: string): void }): ReactElement {
-  const viewer = { me, nameOf, zones, offsetMin: offsetMinAt(now, zones.space) };   // activity lines read their {at:} times in the Space zone, like every time on the page
+  const viewer = { me, nameOf, offsetMin: 0, zone: zones.space };
   const days = byDay(data.activity, now, zones);
   if (days.length === 0) return <Text style={[st.small, st.pad]}>Nothing yet.</Text>;
   return (
@@ -437,9 +437,12 @@ export function Activity({ data, me, nameOf, now, zones, openTask }: { data: Goa
           <Text style={st.label}>{d.day}</Text>
           {d.items.map((a) => {
             const line = formatActivity(a, viewer);
+            // a list of times: each reads in the Space zone only; yours is on hover, so the list stays quiet
             return (
-              <Row key={`${a.at}-${a.kind}-${a.text.slice(0, 24)}`} id={`ga-${a.at}`} title={line.text} note={`${whenWords(a.at, now, zones)}${line.credit ? ` · ${line.credit}` : ""}`}
-                {...(a.ref?.startsWith("tsk_") ? { onPress: () => openTask(a.ref!) } : {})} />
+              <TimePop key={`${a.at}-${a.kind}-${a.text.slice(0, 24)}`} at={a.at}>
+                <Row id={`ga-${a.at}`} title={line.text} note={`${whenIn(a.at, now, zones).text}${line.credit ? ` · ${line.credit}` : ""}`}
+                  {...(a.ref?.startsWith("tsk_") ? { onPress: () => openTask(a.ref!) } : {})} />
+              </TimePop>
             );
           })}
         </View>

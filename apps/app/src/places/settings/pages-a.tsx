@@ -59,6 +59,8 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
   for (const sec of sectionsFor("profile", rows)) {
     const items: ReactElement[] = [];
     sec.rows.forEach((r, i) => items.push(<SettingRowFor key={r.key} row={r} first={i === 0} found={found === r.key} />));
+    // the Space's own zone sits right under yours, plain text: where shared places read, and that yours follows beside it
+    if (sec.rows.some((r) => r.key === "profile.timezone") && here?.kind !== "personal") items.push(<SettingsRow key="space.timezone" id="space.timezone" label="Space time zone" sub={`${here?.name ?? "This Space"}'s shared places show times in ${zoneName(zones.space)}. Your time follows beside them.`} control={<Value text={`${zoneName(zones.space)}, ${zoneCity(zones.space)}`} testID="space-timezone-readonly" />} />);
     before.push(<Section key={sec.title} title={sec.title}>{items}</Section>);
   }
   const rowFor = (r: SettingRow | undefined, i: number, node: ReactElement, label: string, sub?: string): ReactElement | null =>
@@ -83,11 +85,6 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
       </Section>
       {assistantId() ? <AssistantLook /> : null}
       {before}
-      {here?.kind === "personal" ? null : (
-        <Section title="Shared time">
-          <SettingsRow id="space.timezone" label="Space time zone" first sub="Set by an admin in Console. Shared places read in it and show your own time beside it." control={<Value text={`${zoneName(zones.space)}, ${zoneCity(zones.space)}`} testID="space-timezone-readonly" />} />
-        </Section>
-      )}
       {contact ? (
         <Section title="Contact">
           <SettingsRow id="profile.contact" label="Email" first found={found === "profile.contact"} control={<View style={{ alignItems: "flex-end", gap: 6 }}><Field value={c.email ?? ""} label="Email" placeholder="Add an email" width={260} testID="ctl-profile.contact.email" onCommit={(v) => void change(contact, { ...c, email: v })} /><ContactVerify channel="email" value={(c.email ?? "").trim()} /></View>} />

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { shortTimeIn } from "./time.ts";
 import { ERROR_WORDS, creditOf, describeError, expandWords, formatActivity, looksLikeCode, plainSentence, problemWords, shortTime, atToken, whoToken } from "./index.ts";
 import type { Viewer } from "./index.ts";
 
@@ -8,9 +9,9 @@ const viewer = (me: string, offsetMin = 300): Viewer => ({ me, nameOf: (id) => N
 const WED = Date.UTC(2026, 10, 11, 11, 16);   // Wed 11 Nov 2026 11:16 UTC = 16:16 in PKT
 
 test("a time reads once, short, in the reader's zone", () => {
-  assert.equal(shortTime(WED, 300), "Wed 11 Nov, 16:16");
-  assert.equal(shortTime(WED, 0), "Wed 11 Nov, 11:16");
-  assert.equal(expandWords(`Started. Due ${atToken(WED)}.`, viewer("usr_irfad")), "Started. Due Wed 11 Nov, 16:16.");
+  assert.equal(shortTime(WED, 300), "Wed 11 Nov, 4:16 PM");
+  assert.equal(shortTime(WED, 0), "Wed 11 Nov, 11:16 AM");
+  assert.equal(expandWords(`Started. Due ${atToken(WED)}.`, viewer("usr_irfad")), "Started. Due Wed 11 Nov, 4:16 PM.");
 });
 
 test("the reader is 'you', anyone else is named, and a sentence start is capitalised", () => {
@@ -40,7 +41,7 @@ test("snapshot: the main goal feed lines", () => {
   ].map((e) => formatActivity({ ...e, at: WED }, v));
   assert.deepEqual(lines.map((l) => `${l.credit}: ${l.text}`), [
     "Dex: Dex drafted this goal for you.",
-    "You: Started. Due Wed 11 Nov, 16:16.",
+    "You: Started. Due Wed 11 Nov, 4:16 PM.",
     "Vyre: Dex was woken because it is time for a check-in.",
     "You: Omar Reyes was mentioned in the goal chat and can now open its folder.",
     "Vyre: Moved from Planning to Active.",
@@ -50,7 +51,7 @@ test("snapshot: the main goal feed lines", () => {
 test("a stored sentence with no token reads as stored, and tpl wins when the server sent both", () => {
   const v = viewer("usr_irfad");
   assert.equal(formatActivity({ text: "Done: Pull the list", at: WED }, v).text, "Done: Pull the list");
-  assert.equal(formatActivity({ text: "Started. Due Wed 11 Nov, 11:16.", tpl: `Started. Due ${atToken(WED)}.`, at: WED }, v).text, "Started. Due Wed 11 Nov, 16:16.");
+  assert.equal(formatActivity({ text: "Started. Due Wed 11 Nov, 11:16.", tpl: `Started. Due ${atToken(WED)}.`, at: WED }, v).text, "Started. Due Wed 11 Nov, 4:16 PM.");
 });
 
 test("code-like text is caught: ids, error codes, tool names, snake_case, traces", () => {
@@ -85,4 +86,11 @@ test("problemWords: machine talk never reaches a person", () => {
   assert.equal(problemWords(new Error("Sign in first"), "x").text, "Sign in first.");
   assert.equal(problemWords({ code: "validation.not_found", message: "no such record type", traceId: "tr_1" }).text, "No such record type.");
   assert.equal(plainSentence("that invite is no longer open"), "That invite is no longer open.");
+});
+
+test("a feed line in a zone reads in it, 12 hour, daylight saving included, never as raw UTC", () => {
+  const v = { me: "usr_irfad", nameOf: (id: string) => id, offsetMin: 0, zone: "America/Los_Angeles" };
+  assert.equal(shortTimeIn(WED, "America/Los_Angeles"), "Wed 11 Nov, 3:16 AM");
+  assert.equal(expandWords(`Started. Due ${atToken(WED)}.`, v), "Started. Due Wed 11 Nov, 3:16 AM.", "the zone wins over a fixed offset");
+  assert.equal(shortTimeIn(Date.UTC(2026, 6, 11, 11, 16), "America/Los_Angeles"), "Sat 11 Jul, 4:16 AM", "summer time");
 });

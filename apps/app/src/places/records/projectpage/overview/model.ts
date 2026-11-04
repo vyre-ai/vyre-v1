@@ -85,15 +85,15 @@ export function planStatus(state: string | undefined): "todo" | "doing" | "block
 }
 
 const DAY = 86_400_000;
-const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-/** "Oct 25": a due date is a calendar day (kept at UTC midnight), so it is read in UTC through lib/zones, never by a hand-rolled formatter (shared-time ratchet). */
-const shortDay = (ms: number): string => { const p = partsIn(ms, "UTC"); return `${MON[p.month - 1]} ${p.day}`; };
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "Oct 25", the day in the Space's zone (UTC where there is none). */
+const shortDay = (ms: number, zone = "UTC"): string => { const p = partsIn(ms, zone); return `${MONTHS[p.month - 1]} ${p.day}`; };
 /** The due date of a task row: "Due Oct 25", or "2 days late" when it is open and past. */
-export function dueWords(due: number | undefined, state: string | undefined, now: number): { text: string; late: boolean } | null {
+export function dueWords(due: number | undefined, state: string | undefined, now: number, zone?: string): { text: string; late: boolean } | null {
   if (due === undefined) return null;
   const open = state !== "done" && state !== "canceled";
   if (open && due < now) { const n = Math.max(1, Math.floor((now - due) / DAY)); return { text: `${n} ${n === 1 ? "day" : "days"} late`, late: true }; }
-  return { text: `Due ${shortDay(due)}`, late: false };
+  return { text: `Due ${shortDay(due, zone)}`, late: false };
 }
 
 /** A sum or count as the page reads it: "$6,250 unpaid across 3 invoices". `unit` is the currency code of a money field. Amounts in more than one currency come as `parts` (one total each) and read
