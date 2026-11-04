@@ -36034,6 +36034,7 @@ export type SpacesGetOut = {
     hostedOn?: string;
     defaults: Record<string, unknown>;
     createdAt: number;
+    timezone?: string;
     deletionAt?: number;
   };
 };
@@ -36122,6 +36123,7 @@ export type SpacesSwitchAddressOut = {
     hostedOn?: string;
     defaults: Record<string, unknown>;
     createdAt: number;
+    timezone?: string;
     deletionAt?: number;
   };
 };
@@ -36133,6 +36135,29 @@ export type SpacesSwitcherOut = {
   role: string;
   needsYou: number;
   unread: number;
+};
+export type SpacesTimezoneSetIn = {
+  timezone: string;
+};
+export type SpacesTimezoneSetOut = {
+  space: {
+    id: string;
+    name: string;
+    legalName?: string;
+    logoFileId?: string;
+    kind: "personal" | "team";
+    owner: string;
+    fingerprint: string;
+    address: {
+      mode: "relay" | "own_domain" | "device";
+      host?: string;
+    };
+    hostedOn?: string;
+    defaults: Record<string, unknown>;
+    createdAt: number;
+    timezone?: string;
+    deletionAt?: number;
+  };
 };
 export type SpacesTransferOwnershipIn = {
   to: string;
@@ -36162,6 +36187,7 @@ export type SpacesUpdateOut = {
     hostedOn?: string;
     defaults: Record<string, unknown>;
     createdAt: number;
+    timezone?: string;
     deletionAt?: number;
   };
 };
@@ -46210,6 +46236,7 @@ export interface CapMap {
   "spaces.onboarding.seen": { in: SpacesOnboardingSeenIn; out: SpacesOnboardingSeenOut };
   "spaces.switch_address": { in: SpacesSwitchAddressIn; out: SpacesSwitchAddressOut };
   "spaces.switcher": { in: SpacesSwitcherIn; out: SpacesSwitcherOut };
+  "spaces.timezone.set": { in: SpacesTimezoneSetIn; out: SpacesTimezoneSetOut };
   "spaces.transfer_ownership": { in: SpacesTransferOwnershipIn; out: SpacesTransferOwnershipOut };
   "spaces.update": { in: SpacesUpdateIn; out: SpacesUpdateOut };
   "stars.list": { in: StarsListIn; out: StarsListOut };

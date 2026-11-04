@@ -8648,6 +8648,12 @@
     },
     {
       "deferred": false,
+      "name": "spaces_timezone_set",
+      "summary": "Set the Space time zone (an IANA name). Shared places read times in it; each person sees their own beside it. Deadlines keep their moment. An agent needs an admin to approve",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "spaces_transfer_ownership",
       "summary": "Owner only: hand the Space to another person",
       "toolset": "meta"
