@@ -1,5 +1,6 @@
 # Changelog
 
+- Console, AI, Voice, first time: a Provider picker (Deepgram for listening, ElevenLabs for speaking) comes first, then that provider's key field and its Get a key link; the key is sent with the chosen provider. The status line no longer names a provider, and the key help says what the key needs at the provider. Console, Hooks, Add a hook: the Only for hint reads "Limits this hook to one type of action. Leave it on Any action to run for all."
 - Console, Space General: Created reads as a date in the person's time zone (8 Apr 2026, 11:16) and Hosted on is plain text, with only the Space ID and key fingerprint in mono; the gap before Files is the same 22 px as between other sections; Public address for file changes is a row with Not set and a Set or Edit button; on a phone a short picker such as Yes stays on its label's line and a long Row title wraps to two lines instead of clipping.
 - Switching a chat to another engine now says up front when none of your accounts can run it ("No account here can run GPT-5. Add a Codex sign-in in Vault."), and the chat stays as it was, instead of switching and then failing on the next message.
 - A tool error keeps a plain reason word such as "agent_settings" for the model, so an agent can tell why a save was refused; only id-shaped values are taken out.

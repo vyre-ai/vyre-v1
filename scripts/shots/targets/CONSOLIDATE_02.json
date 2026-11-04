@@ -115,6 +115,12 @@
       "note": "Console Voice, variant new."
     },
     {
+      "id": "CONSOLIDATE_02-voice_new_eleven",
+      "route": "/m/CONSOLIDATE_02?part=voice_new_eleven",
+      "proto": "console,{skin}",
+      "note": "Console Voice, not set up, the provider picker set to ElevenLabs."
+    },
+    {
       "id": "CONSOLIDATE_02-aipolicy",
       "route": "/m/CONSOLIDATE_02?part=aipolicy",
       "proto": "console,{skin}",
@@ -323,6 +329,12 @@
       "route": "/m/CONSOLIDATE_02?part=hooks_only",
       "proto": "console,at:hooks,{skin}",
       "note": "Agents > Hooks, the Add a hook sheet with the Only for menu open"
+    },
+    {
+      "id": "CONSOLIDATE_02-hooks_focus",
+      "route": "/m/CONSOLIDATE_02?part=hooks_focus",
+      "proto": "console,at:hooks,{skin}",
+      "note": "Agents > Hooks, the Add a hook sheet with the Instruction field focused, menu closed"
     }
   ]
 }

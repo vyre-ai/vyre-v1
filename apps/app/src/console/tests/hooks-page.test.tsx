@@ -104,7 +104,7 @@ test("Add a hook opens the sheet; Add hook stays off until it says what to do, t
     await p.press("hooks-add");
     assert.ok(p.has("hook-sheet") && p.has("hook-what"), "the sheet is open");
     const sheet = p.text();
-    for (const w of ["When", "Do this", "Only for", "Leave as Any action to run every time.", "Stop after (seconds)", "Add hook", "Cancel", "Check with an instruction"]) assert.ok(sheet.includes(w), `the sheet says ${w}`);
+    for (const w of ["When", "Do this", "Only for", "Limits this hook to one type of action. Leave it on Any action to run for all.", "Stop after (seconds)", "Add hook", "Cancel", "Check with an instruction"]) assert.ok(sheet.includes(w), `the sheet says ${w}`);
     assert.doesNotMatch(sheet, /matcher|\bkind\b|timeout|time limit/i, "plain words, not field names");
     await p.press("sheet-submit");
     assert.equal(p.called("hooks.set").length, 0, "nothing is saved without words");

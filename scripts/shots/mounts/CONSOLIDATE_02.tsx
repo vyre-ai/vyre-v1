@@ -367,8 +367,8 @@ const answers: Record<string, Handler> = {
   // Space > Transfer or delete: the last export
   "spaces.export_latest": () => ({ at: ago(9 * DAY) }),
   // AI > Voice
-  // voice: Deepgram on (the prototype); voice_new: no key yet; voice_eleven: ElevenLabs in use with a Deepgram key already stored; voice_failing: the key stopped working
-  "talk.space.status": () => part.variant === "new" ? { set: false, on: false } : part.variant === "eleven" ? { set: true, on: true, provider: "elevenlabs", keyed: ["elevenlabs", "deepgram"], itemId: "vit_voice", setBy: "usr_irfad", checkedAt: ago(HOUR), state: "ok", peopleOwnKey: 1 } : { set: true, on: true, provider: "deepgram", keyed: ["deepgram"], itemId: "vit_voice", setBy: "usr_irfad", checkedAt: ago(4 * MIN), state: part.variant === "failing" ? "failing" : "ok", peopleOwnKey: 2 },
+  // voice: Deepgram on (the prototype); voice_new: no key yet; voice_new_eleven: the same with ElevenLabs picked; voice_eleven: ElevenLabs in use with a Deepgram key already stored; voice_failing: the key stopped working
+  "talk.space.status": () => part.variant.startsWith("new") ? { set: false, on: false } : part.variant === "eleven" ? { set: true, on: true, provider: "elevenlabs", keyed: ["elevenlabs", "deepgram"], itemId: "vit_voice", setBy: "usr_irfad", checkedAt: ago(HOUR), state: "ok", peopleOwnKey: 1 } : { set: true, on: true, provider: "deepgram", keyed: ["deepgram"], itemId: "vit_voice", setBy: "usr_irfad", checkedAt: ago(4 * MIN), state: part.variant === "failing" ? "failing" : "ok", peopleOwnKey: 2 },
   "talk.status": () => ({ on: true, provider: part.variant === "eleven" ? "elevenlabs" : "deepgram", language: "en", model: "eleven_flash_v2_5", source: "space", spaceOn: true, mayManage: true, providers: [{ key: "elevenlabs", name: "ElevenLabs", keyUrl: "https://elevenlabs.io/app/settings/api-keys", models: [{ id: "eleven_flash_v2_5", label: "Flash" }, { id: "eleven_multilingual_v2", label: "Multilingual" }], languages: [{ id: "en", label: "English" }, { id: "es", label: "Spanish" }] }, { key: "deepgram", name: "Deepgram", keyUrl: "https://console.deepgram.com", models: [{ id: "nova-3", label: "Nova 3" }], languages: [{ id: "en", label: "English" }] }] }),
   // Computers > CI runners: off by default; _on = on with the month's cost and runs; _paused = on and at the cap
   "ci.settings.get": () => ({ settings: { enabled: part.variant !== "", provider: "digitalocean", vaultKeyRef: "#Northwind_DO", region: "nyc3", size: "s-4vcpu-8gb", image: "ubuntu-24-04-x64", maxConcurrent: 3, monthlyCapUsd: 50, maxJobMinutes: 30, labels: ["vyre"] }, keyReady: true, githubApp: part.variant === "perms" ? { ready: false, installed: true, missing: ["actions: read"], acceptUrl: null, orgAcceptUrl: "https://github.com/organizations/northwind/settings/installations/5512/permissions/update" } : part.variant === "" ? { ready: false, installed: false, missing: [], acceptUrl: null, orgAcceptUrl: null } : { ready: true, installed: true, missing: [], acceptUrl: null, orgAcceptUrl: null } }),
@@ -462,14 +462,34 @@ const DEFAULTS: Record<string, string> = { memlearn: "memlearn", "def-access": "
 
 export default function Mount(): ReactNode {
   const [id, setId] = useState<string | null>(null);
-  useEffect(() => { const raw = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "overview"; const [p, v] = raw.split("_"); part.current = p!; part.variant = v ?? ""; setId(p!); }, []);
-  // hooks_add: the Add a hook sheet open over the page. hooks_only: the same sheet, then the Only for picker pressed so its menu is open.
+  useEffect(() => { const raw = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "overview"; const [p, ...v] = raw.split("_"); part.current = p!; part.variant = v.join("_"); setId(p!); }, []);
+  // hooks_add: the Add a hook sheet open over the page. hooks_only: the same sheet, then the Only for picker pressed so its menu is open. hooks_focus: the sheet with the Instruction field focused, menu closed.
   useEffect(() => {
-    if (id !== "hooks" || (part.variant !== "add" && part.variant !== "only")) return undefined;
-    const doc = (globalThis as { document?: { querySelector(s: string): { click(): void } | null } }).document;
+    if (id !== "hooks" || (part.variant !== "add" && part.variant !== "only" && part.variant !== "focus")) return undefined;
+    const doc = (globalThis as { document?: { querySelector(s: string): { click(): void; focus(): void } | null } }).document;
     const t = setTimeout(() => doc?.querySelector("[data-testid='hooks-add']")?.click(), 900);
     const t2 = part.variant === "only" ? setTimeout(() => doc?.querySelector("[aria-label='Only for']")?.click(), 1800) : undefined;
-    return () => { clearTimeout(t); if (t2) clearTimeout(t2); };
+    const t3 = part.variant === "focus" ? setTimeout(() => doc?.querySelector("[data-testid='hook-what']")?.focus(), 1800) : undefined;
+    return () => { clearTimeout(t); if (t2) clearTimeout(t2); if (t3) clearTimeout(t3); };
+  }, [id]);
+  // voice_new_eleven: no key yet, then the Provider picker pressed and ElevenLabs chosen
+  useEffect(() => {
+    if (id !== "voice" || part.variant !== "new_eleven") return undefined;
+    const doc = (globalThis as { document?: { querySelector(s: string): unknown } }).document;
+    const W = globalThis as unknown as { MouseEvent: new (t: string, o: object) => unknown };
+    const fire = (sel: string, plain = false): void => {
+      const el = doc?.querySelector(sel) as unknown as { dispatchEvent(e: unknown): void; click(): void } | null;
+      if (plain) { el?.click(); return; }
+      for (const k of ["pointerdown", "mousedown", "pointerup", "mouseup", "click"]) el?.dispatchEvent(new W.MouseEvent(k, { bubbles: true, cancelable: true, button: 0 }));
+    };
+    // poll: open the picker once it is there, choose the item once the menu is up, stop when the menu has closed on ElevenLabs
+    let opened = false, done = false;
+    const iv = setInterval(() => {
+      if (done) return;
+      if (doc?.querySelector("[data-testid='menu-item-ElevenLabs (speaking)']")) { fire("[data-testid='menu-item-ElevenLabs (speaking)']"); done = true; return; }
+      if (!opened && doc?.querySelector("[data-testid='voice-provider-pick']")) { fire("[data-testid='voice-provider-pick']", true); opened = true; }
+    }, 250);
+    return () => clearInterval(iv);
   }, [id]);
   const data = useMemo(() => consoleData(), []);
   const settings = useMemo(() => createSampleSettings().data, []);
