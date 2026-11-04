@@ -47,6 +47,8 @@ export async function saveDraft(data: InboxData, card: DraftCard, edit: { text: 
 export async function sendAgentDraft(data: InboxData, card: DraftCard, _conv: Conversation, edited: string, subject: string, key: string = newKey()): Promise<string> {
   const full = await loadDraft(data, card.id);
   const text = edited !== "" ? edited : full.text;
+  // the person's edit is saved to the draft first: the server sends the draft as stored
+  if (edited !== "" && edited !== full.text && !cutOff(edited, edited)) await saveDraft(data, card, { text: edited, subject: subject !== "" ? subject : full.subject });
   if (text.trim() === "") throw new Error("There is nothing in this draft to send.");
   // only what the person typed may end that way: the stored text and the card's preview never go out cut
   if (cutOff(text) && !(edited !== "" && edited !== card.body)) throw new Error(CUT_OFF_NOTE);
