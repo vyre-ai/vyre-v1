@@ -102,11 +102,15 @@ const guards = new Map<any, any>();
 let crashed = 0;
 const shot = async (page: any, name: string) => { await page.waitForTimeout(700); try { await guards.get(page)?.check(`before ${name}`); } catch (e) { crashed++; console.log("CRASH", String(e instanceof Error ? e.message : e).slice(0, 400)); } await page.screenshot({ path: path.join(out, name + ".png") }); console.log("shot", name); };
 const checks: string[] = [];
+let checksFailed = 0;
+let failed = false;
+/** One checked fact: its line is printed, and a fact that is not as expected fails the walk. */
+const check = (line: string, ok: boolean): void => { checks.push(line); if (!ok) { checksFailed++; checks.push(`  ^ FAILED: ${line}`); } };
 try {
   // the chat holds the ask only; the reply is in the thread
   const chatNow = await list("usr_mia", main);
   const agentInChat = chatNow.filter((m: any) => m.author?.id === agentId && !/needs your OK/.test(m.body ?? ""));
-  checks.push(`while writing: agent messages in the chat = ${agentInChat.length}`);
+  check(`while writing: agent messages in the chat = ${agentInChat.length}`, agentInChat.length === 0);
   for (const mode of ["light", "dark"] as const) {
     { const { page, ctx } = await open("usr_mia", { mode });
       await page.getByText(/Working/).first().waitFor({ timeout: 20000 }).catch(() => console.log("nowriting"));
@@ -119,7 +123,7 @@ try {
   await until(async () => /Want me to book it/.test((await list("usr_mia", thr.threadId)).map((m: any) => m.body).join(" ")), "the reply in the thread", 90000);
   const inThread = await list("usr_mia", thr.threadId);
   const inChat = await list("usr_mia", main);
-  checks.push(`after: thread messages = ${inThread.length}, agent messages in the chat = ${inChat.filter((m: any) => m.author?.id === agentId).length}`);
+  { const inMain = inChat.filter((m: any) => m.author?.id === agentId).length; check(`after: thread messages = ${inThread.length}, agent messages in the chat = ${inMain}`, inThread.length >= 1 && inMain === 0); }
   for (const mode of ["light", "dark"] as const) {
     { const { page, ctx } = await open("usr_mia", { mode });
       await shot(page, `main-done-${mode}`);
@@ -137,7 +141,7 @@ try {
   // Also sent to the chat: Mia ticks "Also post to the chat" on her reply in the thread; the chat gets a copy that names its thread, the thread's message carries the mark
   await api("usr_mia", "chat.post", { threadId: thr.threadId, body: "Decision: book Thursday 14:00 and go with Harbor.", alsoToChat: true, idempotencyKey: "w-also" });
   await until(async () => (await list("usr_mia", main)).some((m: any) => (m.blocks ?? []).some((b: any) => b.type === "from_thread")), "the copy in the chat");
-  checks.push(`also sent: copy in the chat carries from_thread = ${(await list("usr_mia", main)).some((m: any) => (m.blocks ?? []).some((b: any) => b.type === "from_thread"))}`);
+  { const has = (await list("usr_mia", main)).some((m: any) => (m.blocks ?? []).some((b: any) => b.type === "from_thread")); check(`also sent: copy in the chat carries from_thread = ${has}`, has); }
   for (const mode of ["light", "dark"] as const) {
     { const { page, ctx } = await open("usr_mia", { mode });
       await page.getByText("Also sent to the chat from a thread").first().waitFor({ timeout: 15000 }).catch(() => console.log("nocopy"));
@@ -156,14 +160,14 @@ try {
   const ask2 = (await api("usr_mia", "chat.post", { threadId: main, body: "Thanks. Note that for the summary.", mentions: [{ kind: "agent", id: agentId }], idempotencyKey: "w-ask2" })).message;
   await until(async () => (await list("usr_mia", main)).some((m: any) => m.author?.id === agentId && /Noted for the summary/.test(m.body ?? "")), "the inline reply");
   const t2 = ((await api("usr_mia", "threads.list", { parentThreadId: main })).threads ?? []).find((t: any) => t.parentMessageId === ask2.messageId);
-  checks.push(`switch off: second ask answered in the chat = ${(await list("usr_mia", main)).some((m: any) => /Noted for the summary/.test(m.body ?? ""))}, thread made = ${t2 !== undefined}`);
+  { const inline = (await list("usr_mia", main)).some((m: any) => /Noted for the summary/.test(m.body ?? "")); check(`switch off: second ask answered in the chat = ${inline}, thread made = ${t2 !== undefined}`, inline && t2 === undefined); }
   { const { page, ctx } = await open("usr_mia", { mode: "light" }); await shot(page, "main-switch-off-light"); await ctx.close(); }
   // an approval asked in a thread: one quiet line in the chat that opens the thread, the card in the thread
   await api("usr_mia", "threads.set_agent_replies", { threadId: main, inThreads: true });
   const ask3 = (await api("usr_mia", "chat.post", { threadId: main, body: "Please loop in Noah about the Thursday call.", mentions: [{ kind: "agent", id: agentId }], idempotencyKey: "w-ask3" })).message;
   const held = await until(async () => ((await api("usr_mia", "gate.holds.list", { states: ["held"] })).holds ?? []).length > 0, "a held approval", 90000);
   const quiet = await until(async () => (await list("usr_mia", main)).some((m: any) => (m.blocks ?? []).some((b: any) => b.type === "turn_status" && /needs your OK/.test(JSON.stringify(b.data)))), "the quiet line in the chat", 60000);
-  checks.push(`approval: held = ${held}, quiet line in the chat = ${quiet}, thread made under the ask = ${((await api("usr_mia", "threads.list", { parentThreadId: main })).threads ?? []).some((t: any) => t.parentMessageId === ask3.messageId)}`);
+  { const made = ((await api("usr_mia", "threads.list", { parentThreadId: main })).threads ?? []).some((t: any) => t.parentMessageId === ask3.messageId); check(`approval: held = ${held}, quiet line in the chat = ${quiet}, thread made under the ask = ${made}`, held === true && quiet === true && made); }
   for (const mode of ["light", "dark"] as const) {
     { const { page, ctx } = await open("usr_mia", { mode });
       await page.getByText(/needs your OK/).first().waitFor({ timeout: 15000 }).catch(() => console.log("noquiet"));
@@ -183,7 +187,9 @@ try {
     await page.waitForTimeout(1500);
     await shot(page, `phone-thread-approval-${mode}`); await ctx.close(); }
   }
-} catch (e) { console.log("WALK FAILED", e); }
+} catch (e) { failed = true; console.log("WALK FAILED", e); }
 console.log("CHECKS\n" + checks.join("\n"));
+if (checksFailed > 0) console.log(`CHECKS failed: ${checksFailed}`);
+if (failed) console.log("WALK FAILED: a step threw");
 console.log(crashed === 0 ? "GUARD clean: no error page and no React or script error in any shot" : `GUARD FAILED: ${crashed} crash(es)`);
-await browser.close(); web.close(); await eco.stop(d); process.exit(crashed === 0 ? 0 : 1);
+await browser.close(); web.close(); await eco.stop(d); process.exit(crashed === 0 && !failed && checksFailed === 0 ? 0 : 1);
