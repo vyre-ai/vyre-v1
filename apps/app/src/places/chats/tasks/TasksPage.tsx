@@ -167,6 +167,8 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
       priority: () => menu.show(priorityEntries(row.priority, (k, w) => void bulkPriority(act, ids, k, w)), at.x, at.y, "other", { label: "Priority" }),
       labels: () => labelMenu(ids, at),
       moveToProject: () => moveMenu(ids, at),
+      follow: () => void rt.call("tasks.get", { taskId: row.id }).then((o) => { const th = (o as CapMap["tasks.get"]["out"]).task.threadId; if (!th) { say("This task has no thread to follow yet."); return; } return rt.call("threads.follow", { threadId: th, mode: "follow" }).then(() => say("Following. Its replies reach you.")); }).catch((e: unknown) => say(failure(e, "It could not be followed."))),
+      copyLink: () => { const l = (globalThis as { location?: { origin?: string; pathname?: string } }).location; const c = (globalThis as { navigator?: { clipboard?: { writeText(x: string): unknown } } }).navigator?.clipboard; if (c) void c.writeText(`${l?.origin ?? ""}${l?.pathname ?? ""}#screen=tasks.page&taskId=${row.id}`); say("Link copied"); },
       snooze: () => menu.show(dueEntries(act, (when, words) => { if (when !== null) void snoozeQuiet(act, ids, when, words); }).filter((e) => !("label" in e && e.label === "No date")), at.x, at.y, "other", { label: "Snooze until" }),
       duplicate: () => void rt.call("tasks.create", { title: `${row.title} (copy)`, assigned: row.assigned, labels: row.labels, ...(row.due !== undefined ? { due: row.due } : {}), ...(row.priority ? { priority: row.priority } : {}), ...(row.recordId ? { recordId: row.recordId } : {}), idempotencyKey: newKey() }).then(() => say("Duplicated"), (e: unknown) => say(failure(e, "It could not be copied."))),
       remove: () => void bulkDelete(act, ids),

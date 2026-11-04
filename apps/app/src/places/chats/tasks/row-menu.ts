@@ -15,6 +15,9 @@ export interface TaskRowDo {
   labels(): void;
   moveToProject(): void;
   snooze(): void;
+  /** Follow the task's thread (threads.follow); left out where the task has none to read. */
+  follow?(): void;
+  copyLink?(): void;
   duplicate(): void;
   remove(): void;
 }
@@ -34,7 +37,9 @@ export function taskRowEntries(f: TaskRowFacts, d: TaskRowDo): MenuEntry[] {
     { label: "Move to a project…", onSelect: d.moveToProject },
     // a task nobody should see for a while: it leaves the list and comes back on the day (tasks.snooze)
     { label: "Snooze…", onSelect: d.snooze },
+    ...(d.follow ? [{ label: "Follow", onSelect: d.follow }] : []),
     { separator: true },
+    ...(d.copyLink ? [{ label: "Copy Link", onSelect: d.copyLink }] : []),
     { label: "Duplicate", onSelect: d.duplicate },
     { label: "Delete", danger: true, onSelect: d.remove },
   ];

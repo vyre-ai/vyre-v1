@@ -30,3 +30,12 @@ test("every item calls its own action", () => {
   for (const x of taskRowEntries({ done: true, selected: false }, d)) if ("onSelect" in x && x.label === "Reopen") x.onSelect?.();
   assert.deepEqual(calls, ["reopen"]);
 });
+
+test("a task with a thread to follow and a link to copy shows Follow and Copy Link, and each runs its own door", () => {
+  const did: string[] = [];
+  const e = taskRowEntries({ done: false, selected: false }, { ...d, follow: () => did.push("follow"), copyLink: () => did.push("link") });
+  const items = e.filter((x): x is Extract<typeof x, { label: string }> => "label" in x);
+  assert.deepEqual(items.map((x) => x.label).filter((l) => l === "Follow" || l === "Copy Link"), ["Follow", "Copy Link"]);
+  for (const x of items) if (x.label === "Follow" || x.label === "Copy Link") x.onSelect?.();
+  assert.deepEqual(did, ["follow", "link"]);
+});
