@@ -22,3 +22,20 @@ jobs:
           grep -E "^ℹ skipped 0$" computer-lifecycle.out
           grep -E "^ℹ pass 1$" computer-lifecycle.out
           grep -E "^ℹ fail 0$" computer-lifecycle.out
+  install-heavy:
+    # The Linux installer on real Docker (scripts/install/linux/install.heavy.test.sh): its test in install.test.ts is skipped by name without VYRE_HEAVY_DOCKER=1, and no other
+    # workflow set it, so the install, update, rollback and uninstall checks never ran (5 Nov). A skipped test is not a pass: the release needs this one run, none skipped.
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
+        run: bash scripts/ci-iolock.sh shared
+      - name: The Linux install on real Docker, none skipped (scripts/install/linux/install.test.ts)
+        env:
+          VYRE_HEAVY_DOCKER: "1"
+        run: |
+          set -o pipefail
+          node --test --test-force-exit --test-timeout=1500000 --test-reporter=spec scripts/install/linux/install.test.ts 2>&1 | tee install-heavy.out
+          grep -E "^ℹ skipped 0$" install-heavy.out
+          grep -E "^ℹ fail 0$" install-heavy.out
