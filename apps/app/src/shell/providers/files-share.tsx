@@ -5,7 +5,7 @@ import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
 import { AccessSheet } from "../../../../../ui/src/AccessSheet/index.tsx";
 import type { ShareInput, ShareItemType, ShareResourceType, UnshareInput } from "../../../../../ui/src/AccessSheet/index.tsx";
-import { shareRows, sheetDirectory } from "../../share/rows.ts";
+import { copyItemLink, shareRows, sheetDirectory, withNotify } from "../../share/rows.ts";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { RECORD_LEVELS, sheetModel } from "../../places/records/sharing/model.ts";
 import type { SharesOut } from "../../places/records/sharing/model.ts";
@@ -48,7 +48,8 @@ export function FolderShareSheet({ rt, folderId, resource, onClose }: { rt: Shel
         {...(type === "site" ? { subtitle: "Artifact. The people you add can open it in Vyre." } : {})} spaceName={rt.space.name} ownerName={m.owner?.name ?? "Space owner"} {...(m.owner ? { ownerId: m.owner.id } : {})}
         levels={RECORD_LEVELS} shares={rows} allowExternal={false} density="regular" directory={sheetDirectory(directory)}
         {...(state.data.mine ? { maxLevel: state.data.mine } : {})}
-        onShare={(i: ShareInput) => run(rt.call("access.share", { resource: { type, id: folderId }, subject: i.subject, level: i.level }))}
+        meId={rt.me.id} notifyPeople onMakeOwner={(s) => run(rt.call("access.make_owner", { resource: { type, id: folderId }, personId: s.id, idempotencyKey: `owner:${folderId}:${s.id}` }))} onCopyLink={() => copyItemLink(type, folderId)}
+        onShare={(i: ShareInput, opts) => run(rt.call("access.share", withNotify({ resource: { type, id: folderId }, subject: i.subject, level: i.level }, opts)))}
         onUnshare={(i: UnshareInput) => run(rt.call("access.unshare", { resource: i.resource, subject: i.subject }))}
         onClose={onClose}
       />

@@ -232,8 +232,6 @@ function ConversationView(): ReactElement {
   const [modeOver, setModeOver] = useState<ChatMode | null>(null);
   const [picker, setPicker] = useState<{ id: string; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
-  /** The offer to add a @mentioned person: whether they will read the earlier messages (off by default in a private chat). */
-  const [offerEarlier, setOfferEarlier] = useState(false);
   const width = useWindowDimensions().width;
   const mobileBack = useMobileBack();
   const narrow = width > 0 && width < 640;
@@ -700,21 +698,30 @@ function ConversationView(): ReactElement {
       {lead && !closed ? <NoAiLine data={data} threadId={thread.threadId} agentId={lead.agentId} /> : null}
       {parked ? <View testID="hop-parked" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{parkedLine(hopLimit)}</Text><TextButton label="Continue" testID="hop-continue" onPress={() => commandEnv().send(CONTINUE_TEXT)} /></View> : null}
       {line ? <View testID="conversation-line" accessibilityLiveRegion="polite" style={st.lineBox}><Text style={st.lineText}>{line}</Text>{undo ? <TextButton link label="Undo" testID="conversation-undo" onPress={undo} /> : null}</View> : null}
-      {personMention ? (
-        <View testID="channel-offer" style={st.offer}>
-          <Face name={nameOf(personMention.id)} seedId={personMention.id} kind="person" size={18} />
-          <Text style={st.offerText}>{`${nameOf(personMention.id).split(" ")[0]} isn't in this chat.`}</Text>
-          <TextButton primary label={`Add ${nameOf(personMention.id).split(" ")[0]}`} testID="channel-add" onPress={() => void act.addPerson(data, personMention.id, offerEarlier).then(() => { setOfferEarlier(false); say(`${nameOf(personMention.id).split(" ")[0]} was added. This is now a group chat.`); }, fail("Could not add them."))} />
-          <TextButton label="Start a channel instead" testID="channel-start" onPress={() => void act.startChannel(data, personMention.id, data.newKey()).then(() => say("Channel started, linked back to this chat."), fail("Could not start the channel."))} />
-          <Text testID="channel-offer-sees" style={st.offerText}>{offerEarlier ? "They will read the whole chat." : "They will read from now on. Earlier messages stay hidden."}</Text>
-          <TextButton link label={offerEarlier ? "Hide earlier messages" : "Include earlier messages"} testID="channel-earlier" onPress={() => setOfferEarlier((x) => !x)} />
-        </View>
-      ) : null}
       {outsideOffline && !closed ? <Text testID="outside-offline" style={st.outsideOffline}>{outsideOffline}</Text> : null}
       {closed ? (
         <View testID="conversation-closed" style={st.closed}><Text style={st.lineText}>This thread is closed.</Text><TextButton label="Reopen" onPress={() => void data.call("threads.reopen", { threadId: thread.threadId }).catch(fail("Could not reopen."))} testID="reopen" /></View>
       ) : (
         <View style={st.composerBox}>
+          {personMention ? (() => {
+            // one strip on top of the composer: who is not here, Add (they read from now on), and a caret for the other ways
+            const first = nameOf(personMention.id).split(" ")[0] ?? "";
+            const addIt = (fromStart: boolean): void => void act.addPerson(data, personMention.id, fromStart).then(() => say(`${first} was added. This is now a group chat.`), fail("Could not add them."));
+            return (
+              <View testID="channel-offer" accessibilityRole="alert" style={st.offerStrip}>
+                <Text numberOfLines={1} testID="channel-offer-text" style={st.offerStripText}>{`${first} isn't in this chat`}</Text>
+                <View style={st.offerBtns}>
+                  <TextButton primary label={`Add ${first}`} testID="channel-add" onPress={() => addIt(false)} />
+                  <IconButton icon="chevd" label="Other ways to add" size={24} testID="channel-add-menu" onPress={(x, y) => menu.show([
+                    { label: "Add, from now on", checked: true, onSelect: () => addIt(false) },
+                    { label: "Add, with earlier messages", onSelect: () => addIt(true) },
+                    { separator: true },
+                    { label: "Start a channel instead", onSelect: () => void act.startChannel(data, personMention.id, data.newKey()).then(() => say("Channel started, linked back to this chat."), fail("Could not start the channel.")) },
+                  ], x, y, "other", { label: `Add ${first}` })} />
+                </View>
+              </View>
+            );
+          })() : null}
           <Composer
             key={`composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
             testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={data.placeholder ?? placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}
@@ -829,8 +836,9 @@ const st = StyleSheet.create({
   queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
   lineBox: { paddingHorizontal: 24, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   lineText: { fontSize: 12.5, color: "var(--ink-2)" as string },
-  offer: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, alignSelf: "center", maxWidth: 760, paddingHorizontal: 24, paddingVertical: 4 },
-  offerText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-2)" as string },
+  offerStrip: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, minHeight: 38, paddingLeft: 14, paddingRight: 6, marginHorizontal: 10, marginBottom: -1, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
+  offerStripText: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-2)" as string },
+  offerBtns: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },
   closed: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
   composerBox: { alignSelf: "center", width: "100%", maxWidth: 708, paddingHorizontal: 24, paddingBottom: 16 },
 });

@@ -48,6 +48,7 @@
     "automations.schedule_choose@1": "4476f00e4a1c0e69688a4a3f15bca8886e8ec95600bc37e393716a576c59f3b6",
     "automations.senders@1": "70edf64e56cc65e6132edb9d4aeaea8b549d76dd80a3e8092bc08e30c61049c7",
     "automations.set_enabled@1": "8671e85dfecb55aef190f59f1bec68a26efbff5d5f47a44bccf5b1b712db821d",
+    "automations.set_owner@1": "9d6b345c82291140488436577ea0a02d41d6c342839196d9a602c5bd9c1781a7",
     "automations.steps.list@1": "c3aab234caf4eef8e707e89f6d1ae044975b4e8b485ad6c6d949fc5f18750743",
     "automations.stop@1": "0982ffb6da7e549a04fafef760c81c9d2dfbbefb88ba433a618c1d21e48f856e",
     "automations.templates.list@1": "8fb362343202be09901b9cce68a7a7c32352a505640fffb007a5dda60a03c6ea",

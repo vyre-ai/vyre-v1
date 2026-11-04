@@ -15,10 +15,11 @@ import { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL } from "../../lib/
 import { COMPANY_INTENT } from "../../lib/company-flow.ts";
 import { ABOUT_VYRE_INTENT, ABOUT_VYRE_SKILL } from "../../lib/about-vyre.ts";
 import { REPLY_FORMAT } from "../../lib/reply-format.ts";
+import { offsetMinutes } from "../../lib/time-convert.ts";
 
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
 /** How to name a record, file, task or chat in a reply: by link, never by id. */
-export const NAMING = "Name a record, file, task or chat as [[Name|id]], the name, a bar and its id, like [[Rivera Holdings|rec_01...]]. Never write a bare id (rec_..., file_..., task_...) in a reply; the reader sees the name as a link that opens it.";
+export const NAMING = "Name a record, file, task or chat as [[Name|id]], the name, a bar and its id, like [[Rivera Holdings|rec_01...]]. Never write a bare id (rec_..., file_..., task_...) in a reply; the reader sees the name as a link that opens it. The same form links an email thread or a calendar event, with the id a mail or calendar tool returned; for anything else write the name alone.";
 
 export { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL };
 
@@ -116,7 +117,9 @@ export function timeLine(at: number, zone?: string): string {
   let tz = zone && zone !== "" ? zone : "UTC";
   let text: string;
   try { text = fmt(tz); } catch { tz = "UTC"; text = fmt(tz); }
-  return `It is ${text.replace(" at ", ", ")} (${tz}).`;
+  const off = offsetMinutes(at, tz);
+  // the person's zone and its offset are stated, and the model is told to convert with time_convert: the owner's Assistant worked a meeting's day out wrong from epoch numbers in its head
+  return `It is ${text.replace(" at ", ", ")} (${tz}). That is UTC${off < 0 ? "-" : "+"}${Math.floor(Math.abs(off) / 60)}${Math.abs(off) % 60 ? `:${String(Math.abs(off) % 60).padStart(2, "0")}` : ""}. The person's time zone is ${tz}: say times in it. To move a time between zones, or to turn "tomorrow 2pm PT" into a time, call time_convert; never work out zones, dates or epoch numbers yourself.`;
 }
 
 /** A routine or watcher in one line the agent can act on: kind, title, when, state, id. */
@@ -141,7 +144,7 @@ const whoLabel = (w: Who | undefined, names: Readonly<Record<string, string>>): 
 const parseList = (v: unknown): string[] => { try { const p = JSON.parse(String(v)) as unknown; return Array.isArray(p) ? p.map((x) => String(x)) : []; } catch { return []; } };
 
 /** What a task says about the one reading it. Pure: the caller reads the task and the answers. Nothing here is a secret; ids, names, words the task already holds. */
-export function taskSection(t: Obj, agentId: string, names: Readonly<Record<string, string>>, answers: ReadonlyArray<{ question: string; answer: string }> = []): string {
+export function taskSection(t: Obj, agentId: string, names: Readonly<Record<string, string>>, answers: ReadonlyArray<{ question: string; answer: string }> = [], asker?: string): string {
   const notes = (t["workingNotes"] ?? {}) as Record<string, string>;
   const state = String(t["state"] ?? "");
   const slots: Array<[string, Who | undefined]> = [["assigned", t["assigned"] as Who], ["reviewer", t["reviewer"] as Who | undefined], ["approver", t["approver"] as Who | undefined]];
@@ -150,6 +153,8 @@ export function taskSection(t: Obj, agentId: string, names: Readonly<Record<stri
   const offered = turn === "assigned" && mine.length === 0 && (((t["assigned"] as Who | undefined)?.kind === "group") || ((t["assigned"] as Who | undefined)?.kind === "role"));
   const out: string[] = [`${one(t["title"], 120)} (taskId ${String(t["id"])}, ${state.replace("_", " ")}).`];
   const seat = mine.includes(turn) ? turn : undefined;
+  // the person who is asking is the Assigned: their own Assistant, or any agent acting for them, does the work as them (the Gate still holds what leaves Vyre)
+  const forAsker = !seat && turn === "assigned" && asker !== undefined && (t["assigned"] as Who | undefined)?.kind === "person" && (t["assigned"] as Who).id === asker && String(t["kind"] ?? "work") === "work";
   const kind = String(t["kind"] ?? "work");
   if (seat && kind !== "work") {
     // a request given to an agent: it is answered at its source, with the actions it offers
@@ -157,6 +162,7 @@ export function taskSection(t: Obj, agentId: string, names: Readonly<Record<stri
     const list = acts.map((a) => `${a.key} ("${a.label ?? a.key}"${a.note === "required" ? ", note required" : ""})`).join(", ");
     out.push(`This is a request of kind ${kind} for you, and it is your turn. Decide it and finish this turn with exactly one call:\ntasks_act {taskId, action, note} with action one of: ${list || "the action the request offers"}.${kind === "answer" ? " Put your answer in note." : ""}\nIf that tool is not in your list, find it with tool_search first.`);
   } else if (seat) out.push(`You are ${SEAT[seat]}, and it is your turn. Finish this turn with exactly one baton call:\n${BATON_TOOLS[seat]}.\nIf that tool is not in your list, find it with tool_search first.`);
+  else if (forAsker) out.push(`This task is assigned to ${whoLabel(t["assigned"] as Who, names)}, who is the person asking you, so doing it is yours to do for them: you act as them, with what they could do themselves. Finish this turn with exactly one baton call:\n${BATON_TOOLS["assigned"]}.\nThe thread will read "${names[agentId] ?? "Your assistant"} did this for ${whoLabel(t["assigned"] as Who, names)}". Anything that leaves Vyre is still held for their approval on a card, and their "Always let" rules apply. If that tool is not in your list, find it with tool_search first.`);
   else if (offered) out.push(`This task is offered to a group you belong to. Take it first with tasks_take {taskId}. If someone else already took it, say so in one line and end your turn. Once it is yours: ${BATON_TOOLS["assigned"]}.`);
   else if (mine.length > 0) out.push(`You are ${mine.map((m) => SEAT[m]).join(" and ")}, but the task is ${state.replace("_", " ")} and it is with ${whoLabel(slots.find(([s]) => s === turn)?.[1], names)} now. It is not your move: say so in one line and end your turn.`);
   else out.push("You are not a seat on this task. Say what you can add in one line and end your turn.");
@@ -442,10 +448,10 @@ export function createContextBuilder(d: ContextDeps) {
     if (others.length > 0) where.push(`Also here: ${others.slice(0, 12).map(who).join(", ")}.`);
     const mates = agents.filter((a) => a.id !== agentId);
     if (mates.length > 0) {
-      // the roster: who is here, their part (lead, answers when tagged), and the one line they say to use them for, so a hand-off names the right one (owner ruling 4 Nov 2026)
+      // the roster: who is here, their part (lead, answers when mentioned), and the one line they say to use them for, so a hand-off names the right one (owner ruling 4 Nov 2026)
       const brief = new Map<string, string>();
       await Promise.all(mates.slice(0, 8).map(async (a) => { try { const r = str(((await read<Obj>("agents.get", { agentId: a.id }, asker))?.["agent"] as Obj | undefined)?.["role"]); if (r) brief.set(a.id, one(r, 100)); } catch { /* no brief */ } }));
-      where.push(`Agents here: ${mates.slice(0, 8).map((a) => `${who(a.id)} (${a.mode === "lead" ? "lead" : "answers when tagged"}${brief.has(a.id) ? `; use for: ${brief.get(a.id)}` : ""})`).join("; ")}. To hand something to one, @mention it by name in your reply with what you need; it answers on ${who(asker)}'s account, and a chain of hand-offs stops after three.`);
+      where.push(`Agents here: ${mates.slice(0, 8).map((a) => `${who(a.id)} (${a.mode === "lead" ? "lead" : "answers when mentioned"}${brief.has(a.id) ? `; use for: ${brief.get(a.id)}` : ""})`).join("; ")}. To hand something to one, @mention it by name in your reply with what you need; it answers on ${who(asker)}'s account, and a chain of hand-offs stops after three.`);
     }
     // a group chat, a discussion or a channel (more than one other participant): short, like a person in Slack. A 1:1 keeps the agent's own style (owner ruling 4 Nov 2026)
     if (kind === "channel" || others.length + mates.length >= 2) where.push(GROUP_STYLE);
@@ -531,7 +537,7 @@ export function createContextBuilder(d: ContextDeps) {
     let goalTask: Obj | undefined;
     if (taskId) {
       const t = await taskOf(taskId, asker);
-      if (t) add("task", false, taskSection(t, agentId, nameMap, await answersOf(t, asker)));
+      if (t) add("task", false, taskSection(t, agentId, nameMap, await answersOf(t, asker), asker));
       goalTask = t;
     }
     const goalOfTask = str(((goalTask?.["workingNotes"] ?? {}) as Obj)["goal.id"]);

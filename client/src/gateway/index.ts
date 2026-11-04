@@ -76,7 +76,7 @@ export function vaultLocked(body: unknown): boolean {
   const e = isObj(body) && isObj(body["error"]) ? body["error"] : null;
   if (!e) return false;
   const d = isObj(e["details"]) ? e["details"] : null;
-  return d?.["reason"] === "vault_locked" || (typeof e["message"] === "string" && /vault key is locked/i.test(e["message"]));
+  return d?.["reason"] === "vault_locked" || (typeof e["message"] === "string" && /vault key is locked|sign-ins are locked/i.test(e["message"]));
 }
 
 let mints = 0;

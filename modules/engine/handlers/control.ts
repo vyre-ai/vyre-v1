@@ -4,6 +4,7 @@
 // The live engine is the TurnEngine bound at boot (projections.boundEngine). A thread that is not open on this host is opened from threads.get first,
 // with the mode, model and engine this module saved for its agents. Events are the manifest's, with the caller as `by`.
 import { recallPick, rememberPick } from "../last-pick.ts";
+import { probePick } from "./extra/models.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { EngineAgent, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
 import { noteHandoff } from "../context.ts";
@@ -176,6 +177,8 @@ export async function setModel(
   saveState(ctx, input.threadId, input.agentId, { model, provider, effort: effort ?? null, accountRef: accountRef ?? null });
   ctx.emit("agent.model_changed", input.threadId, { threadId: input.threadId, agentId: input.agentId, model, provider, by: actorOf(ctx) });
   // a person's own pick is what their next new chat starts on (last-pick.ts)
+  // a model picked now is checked now, within the background check's cap or not (model-health.ts)
+  if (input.model !== undefined) void probePick(ctx, model);
   if (input.model !== undefined && ctx.principal.kind === "person") rememberPick(ctx.db, ctx.principal.id, input.agentId, { model, provider, effort: effort ?? null }, ctx.now());
   return { model, provider, ...(effort === undefined ? {} : { effort }), ...(accountRef === undefined ? {} : { accountRef }) };
 }
@@ -192,6 +195,12 @@ export async function applyRememberedPick(ctx: EngineCtx, threadId: string, agen
     const set = await setModel(ctx, { threadId, agentId, model: pick.model, ...(pick.provider ? { provider: pick.provider } : {}), ...(pick.effort ? { effort: pick.effort as "low" | "medium" | "high" | "max" } : {}) });
     return set.model;
   } catch { return undefined; }
+}
+
+/** What this person last picked in a chat, for Settings > Your AI: the same store a new chat starts from (any agent). Nothing when they have not picked yet. */
+export async function lastPickGet(ctx: EngineCtx): Promise<{ provider?: string; model?: string; effort?: string }> {
+  const pick = recallPick(ctx.db, actorOf(ctx), "*");
+  return pick ? { model: pick.model, ...(pick.provider ? { provider: pick.provider } : {}), ...(pick.effort ? { effort: pick.effort } : {}) } : {};
 }
 
 /** Rolling handoff: the new engine starts from the summary and the last turns (spec 4.14). The summary itself is the transcript module's. */

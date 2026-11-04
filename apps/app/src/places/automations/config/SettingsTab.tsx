@@ -29,7 +29,7 @@ import { useSaved } from "./saved.ts";
 
 import { shareRows } from "../../../share/rows.ts";
 import type { AccessRow, SharesOut } from "../../../share/rows.ts";
-import { sheetDirectory } from "../../../share/rows.ts";
+import { copyItemLink, sheetDirectory, withNotify } from "../../../share/rows.ts";
 export { shareRows };
 export type { AccessRow };
 
@@ -233,7 +233,8 @@ export function SettingsTab({ automation, openPromote = false, openShare = false
             mode="share" itemType="automation" resourceType="automation" resourceId={a.id} itemName={a.name} target="item" ownerName={data.name(a.ownerId)} ownerId={a.ownerId} {...(data.spaceName ? { spaceName: data.spaceName } : {})} levels={["view", "edit", "manage"]}
             shares={shareRows(shares.out, data.name, a.id)} allowExternal={false} density="regular"
             directory={sheetDirectory(extras.directory)}
-            onShare={(i: ShareInput) => { void saved.run("Access changed", async () => { await data.call("access.share", i); shares.reload(); }); }}
+            meId={data.me.id} notifyPeople {...(a.kind === "space" ? { onMakeOwner: (s: { id: string }) => { void saved.run("Ownership handed over", async () => { await data.call("automations.set_owner", { automationId: a.id, ownerId: s.id }); shares.reload(); }); } } : {})} onCopyLink={() => copyItemLink("automation", a.id)}
+            onShare={(i: ShareInput, opts) => { void saved.run("Access changed", async () => { await data.call("access.share", withNotify(i, opts)); shares.reload(); }); }}
             onUnshare={(i: UnshareInput) => { void saved.run("Access removed", async () => { await data.call("access.unshare", i); shares.reload(); }); }}
             onClose={() => setShare(false)}
           />

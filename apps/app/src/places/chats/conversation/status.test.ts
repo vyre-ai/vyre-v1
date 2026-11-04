@@ -1,7 +1,7 @@
 // A turn that ended without a reply is a plain sentence with one action, never a card named after its internal status.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { installProgram, isTurnStatus, statusView, withoutAnswered } from "./status.ts";
+import { installProgram, isTurnStatus, statusView, withoutAnswered, wordsFor } from "./status.ts";
 
 const block = (data: Record<string, unknown>) => ({ id: "b1", type: "turn_status", v: 1, state: "done", data, traceId: "t" }) as never;
 
@@ -31,7 +31,9 @@ test("an unknown failure is a plain sentence with Retry on its turn; a timeout s
 });
 
 test("stopped and parked turns are quiet lines", () => {
-  assert.deepEqual(statusView(block({ state: "cancelled", turnId: "x" })), { kind: "note", id: "b1", text: "Stopped." });
+  // never a bare "Stopped." (owner, 4 Nov 2026): the line says why, and says so when no reason was kept (l-crews stoppedWords)
+  assert.deepEqual(statusView(block({ state: "cancelled", turnId: "x" })), { kind: "note", id: "b1", text: "Stopped, and no reason was recorded. Send it again." });
+  assert.deepEqual(statusView(block({ state: "cancelled", turnId: "x", reason: "stop" })), { kind: "note", id: "b1", text: "Stopped because Stop was pressed." });
   assert.deepEqual(statusView(block({ state: "waiting", turnId: "x" })), { kind: "note", id: "b1", text: "Waiting for your approval." });
   assert.deepEqual(statusView(block({ state: "waiting", turnId: "x", taskId: "tsk_1" })), { kind: "approval", id: "b1", taskId: "tsk_1" }, "a hold with its task is answered in the chat");
 });
@@ -70,7 +72,7 @@ test("an install that did not finish says why in a plain line and keeps the Inst
 
 test("a locked Vault is an Unlock card, not a failed reply; an unreadable one gives the reason the Vault gave", () => {
   const locked = errorOf({ state: "failed", turnId: "t", code: "engine.vault_locked" });
-  assert.equal(locked.message, "Your Vault is locked.");
+  assert.equal(locked.message, "Your sign-ins are locked on this server.");
   assert.deepEqual(locked.next, [{ key: "unlock_vault", label: "Unlock" }]);
   const unreadable = errorOf({ state: "failed", turnId: "t", code: "engine.vault_unreadable", reason: "provider.unavailable" });
   assert.equal(unreadable.message, "Your Vault could not be read just now.");
@@ -134,4 +136,17 @@ test("sandbox.unavailable says the engine cannot run safely here and offers an A
   assert.match(d.cause ?? "", /sandbox/);
   assert.deepEqual(d.next, [{ key: "connect_ai", label: "Use an API key" }]);
   assert.equal(d.retryable, false);
+});
+
+test("the chat line for a locked sign-in carries Unlock: it opens the same sheet as the banner", async () => {
+  const { statusView } = await import("./status.ts");
+  const v = statusView({ id: "b1", type: "turn_status", v: 1, data: { state: "key_locked", text: "Your sign-ins are locked on this server, so the Space AI key answered." } } as never);
+  assert.deepEqual(v, { kind: "wait", id: "b1", text: "Your sign-ins are locked on this server, so the Space AI key answered.", action: { key: "unlock_vault", label: "Unlock" } });
+});
+
+test("no model works: one plain card that says what to do, with Open AI accounts and no code in the words", () => {
+  const w = wordsFor("engine.no_model_works");
+  assert.equal(w.message, "None of your AI accounts can answer right now.");
+  assert.deepEqual(w.next, [{ key: "connect_ai", label: "Open AI accounts" }]);
+  assert.doesNotMatch(`${w.message} ${w.cause ?? ""}`, /engine\.|--/);
 });

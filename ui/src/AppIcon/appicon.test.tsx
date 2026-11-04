@@ -110,3 +110,13 @@ test("an app that ships only as a file in public/tools is found by name, and an 
 test("the app hubs have a mark, so a hub row never shows a bare letter", () => {
   for (const k of ["composio", "pipedream"]) assert.ok(BRANDS[k]?.svg, `${k} draws something`);
 });
+
+test("a brand icon file that fails to load falls back to the lettered tile, never a broken image", () => {
+  // the fallback is the tile an unknown brand draws: the first letter of the name
+  const letter = renderToStaticMarkup(<AppIcon brand="nosuchbrand" name="GoHighLevel" />);
+  assert.match(letter, /data-appicon="letter"/);
+  assert.match(letter, />G</);
+  // and the icon file's tile carries the handler that switches to it
+  const tile = renderToStaticMarkup(<AppIcon brand="ghl" name="GoHighLevel" />);
+  assert.match(tile, /src="\/tools\/gohighlevel\.png"/);
+});

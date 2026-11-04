@@ -9,6 +9,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "connections.delete": async () => ({"deleted":true} as unknown) as never,
   "connections.get": async () => ({"connection":{"connectionId":"con_a1b2c3","connector":"hubspot","createdAt":1760000000000,"filled":["example"],"handles":["#Dana_Lawmatics"],"lastSyncAt":1760000000000,"owner":{"id":"example","kind":"person"},"pausedBy":"example","scopes":["example"],"state":"pending","title":"example"}} as unknown) as never,
   "connections.list": async () => ({"connections":[{"connectionId":"con_a1b2c3","connector":"hubspot","createdAt":1760000000000,"filled":["example"],"handles":["#Dana_Lawmatics"],"lastSyncAt":1760000000000,"owner":{"id":"example","kind":"person"},"pausedBy":"example","scopes":["example"],"state":"pending","title":"example"}],"next":"example","total":1} as unknown) as never,
+  "connections.mark_working": async () => ({"stamped":true,"state":"pending"} as unknown) as never,
   "connections.pause": async () => ({"ok":true} as unknown) as never,
   "connections.reconnect": async () => ({"authUrl":"example"} as unknown) as never,
   "connections.resume": async () => ({"ok":true} as unknown) as never,

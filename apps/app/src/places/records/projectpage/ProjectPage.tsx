@@ -96,7 +96,7 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
         <Pressable accessibilityRole="button" accessibilityLabel="Add people and agents" testID="project-members" onPress={() => add.open({ projectId })}><Text style={s.stripText}>{plural(p.memberCount, "person", "people")}</Text></Pressable>
       </View>
       {d.nav.openGoal ? <GoalsOf scope="project" id={projectId} call={d.call} changes={d.changes} now={d.now()} offsetMin={0} nameOf={d.nameOf} openGoal={d.nav.openGoal} testID="project-goals" /> : null}
-      <TabStrip tabs={TAB_SPECS} active={tab} onSelect={(k) => { setTab(k as TabKey); onTabChange?.(k as TabKey); }} />
+      <TabStrip underline tabs={TAB_SPECS} active={tab} onSelect={(k) => { setTab(k as TabKey); onTabChange?.(k as TabKey); }} />
       {tab === "overview" ? <OverviewTab o={o} now={now} /> : null}
       {tab === "plan" ? (
         <View style={s.planBody} testID="project-plan">

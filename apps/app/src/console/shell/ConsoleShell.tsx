@@ -171,6 +171,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   const activeTab = tabs.find((t) => t.views.some((x) => x.page === page));
   const strip = tabs.length > 1 ? (
     <View style={s.tabs} accessibilityRole="tablist" testID="console-tabs">
+      {/* ui-rows-lint: not a list (the Console's place tabs) */}
       {tabs.map((t) => {
         const on = t === activeTab, to = t.views.find((x) => x.page === lastIn[here!.id])?.page ?? t.views[0]!.page;
         return <Pressable key={t.tab.label} accessibilityRole="tab" accessibilityState={{ selected: on }} aria-selected={on} testID={`tab-${t.tab.views[0]!.page}`} onPress={() => go(on ? t.views[0]!.page : to)} style={[s.tab, on && s.tabOn, pointer]}><Text style={[s.tabText, on && s.tabTextOn]}>{t.tab.label}</Text></Pressable>;
@@ -179,6 +180,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   ) : null;
   const views = activeTab && activeTab.views.length > 1 ? (
     <View style={s.views} accessibilityRole="tablist" testID="console-views">
+      {/* ui-rows-lint: not a list (a place's view tabs) */}
       {activeTab.views.map((x) => <Pressable key={x.page} accessibilityRole="tab" accessibilityState={{ selected: x.page === page }} aria-selected={x.page === page} testID={`view-${x.page}`} onPress={() => go(x.page)} style={[s.view, pointer]}><Text style={[s.viewText, x.page === page && s.viewTextOn]}>{x.label}</Text></Pressable>)}
     </View>
   ) : null;
@@ -196,6 +198,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
       const open = (pageState["open"] as string | undefined) ?? initialAudit?.open;
       return <Audit key={JSON.stringify(pageState)} {...(filter ? { initialFilter: filter } : {})} {...(open ? { initialOpen: open } : {})} />;
     }
+    // ui-rows-lint: not a list (extra pages drawn under the page, each its own section)
     return <>{drawn(def.id)}{extras.filter((x) => { const d = pageById(x); return d !== undefined && ok(d); }).map((x) => <View key={x} style={s.extra} testID={`extra-${x}`}>{drawn(x)}</View>)}</>;
   })();
 

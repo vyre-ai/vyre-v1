@@ -9,6 +9,7 @@ import type { SeamSetters } from "../../host/src/seams/index.ts";
 import { perSpaceStore } from "../../host/src/daemon/store.ts";
 import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { hostOnly } from "../../host/src/ctx/host-only.ts";
+import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { writeConnectorFolder, writeSourceFolder } from "./handlers/files.ts";
 import { readSource } from "./handlers/source.ts";
@@ -90,6 +91,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
       trace: ctx.trace, emit: (n, s, p, o) => ctx.emit(n, s, p, o), call: (c, i) => ctx.call(c, i),
       http: (url,init) => port&&definition&&stored?.state==='live'?port.http(execution,definition.domains,url,init):ctx.http(url,init),
       ...(ctx.log ? { log: ctx.log } : {}), ...(ctx.schedule ? { schedule: (at, cap, input) => ctx.schedule!(at, cap, input) } : {}), ...((ctx.actingFor??ctx.principal?.id)?{actor:ctx.actingFor??ctx.principal!.id}:{}),
+      trusted: isTrustedService(ctx.principal),
       canManageSpace: () => ctx.authorize({ perm: 'connectors.manage', level: 'edit' }, { type: 'space', id: ctx.space }).effect === 'allow',
       canViewSpace: () => ctx.authorize({ perm: null, level: 'view' }, { type: 'space', id: ctx.space }).effect === 'allow',
     };
@@ -130,7 +132,7 @@ const NAMES = [
   "connectors.list", "connectors.get", "connectors.init", "connectors.define", "connectors.build", "connectors.test", "connectors.run", "connectors.read", "connectors.diff", "connectors.publish", "connectors.versions",
   "connectors.rollback", "connectors.export", "connectors.remove", "connectors.health",
   "connections.list", "connections.get", "connections.create", "connections.update", "connections.set_secret", "connections.pause", "connections.resume", "connections.reconnect", "connections.complete_auth",
-  "connections.test", "connections.delete",
+  "connections.test", "connections.mark_working", "connections.delete",
   "sync_types.list", "sync_types.get", "sync_types.discover", "sync_types.create", "sync_types.update", "sync_types.preview", "sync_types.pause", "sync_types.resume", "sync_types.log",
   "sync_types.schema_changes", "sync_types.review_schema", "sync_types.confirm_deletes", "sync_types.make_native", "sync_types.resolve_conflict", "sync_types.replay_conflict", "sync_types.undo_push",
   "connectors.sync_now", "connectors.outbox.list", "connectors.outbox.retry", "connectors.outbox.cancel", "connectors.push",

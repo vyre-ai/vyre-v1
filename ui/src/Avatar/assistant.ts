@@ -45,19 +45,61 @@ export function setAssistantLook(look: string | null): void {
   emit();
 }
 
-/** An agent's face stays seeded by its id until someone picks one on its page: a picked seed starts "pick-" (the stored default is only a slug of its name). */
+/** An agent's face stays seeded by its id until someone picks one on its page: a picked seed starts "pick-" (the stored default is only a slug of its name), a face from the library starts "av1:" (agentface.ts). */
 const PICKED = "pick-";
 let picked: ReadonlyMap<string, string> = new Map();
 
+/** Every face an agent in the Space wears (as stored), for a suggestion nobody has yet. */
+let taken: readonly string[] = [];
+export const takenFaces = (): readonly string[] => taken;
+
 export function setAgentFaces(agents: readonly { id: string; face?: string | undefined }[]): void {
+  taken = agents.map((a) => a.face ?? "").filter((f) => f !== "");
   const next = new Map<string, string>();
-  for (const a of agents) if (a.face?.startsWith(PICKED) === true) next.set(a.id, a.face);
+  for (const a of agents) if (a.face?.startsWith(PICKED) === true || a.face?.startsWith("av1:") === true) next.set(a.id, a.face);
   if (next.size === picked.size && [...next].every(([id, f]) => picked.get(id) === f)) return;
   picked = next;
   emit();
 }
 
-export const pickedFace = (id: string | undefined): string => (id === undefined ? "" : picked.get(id) ?? "");
+/** Test seam for the screenshot app only: draws library faces (and their states) for sample agents that have none stored. Never set by the app. */
+let shotFace: ((id: string) => string) | null = null;
+let shotLook: ((id: string) => Look | "") | null = null;
+export function setShotFaces(face: ((id: string) => string) | null, look: ((id: string) => Look | "") | null = null): void { shotFace = face; shotLook = look; emit(); }
+
+export const pickedFace = (id: string | undefined): string => (id === undefined ? "" : picked.get(id) ?? shotFace?.(id) ?? "");
+
+/**
+ * How each agent is doing, so every face of it looks the part in every place at once: focused while it works, asleep while it sleeps, smiling for a minute and a half after it finished. Fed from agents.list by the shell.
+ * An explicit `state` on a face wins; this is what a face wears when nobody says.
+ */
+export type Look = "working" | "asleep" | "done";
+export const DONE_MS = 90_000;
+let looks: ReadonlyMap<string, Look> = new Map();
+const doneUntil = new Map<string, number>();
+const working = new Set<string>();
+
+export function setAgentStatuses(rows: readonly { id: string; status: string }[], now: number = Date.now()): void {
+  const next = new Map<string, Look>();
+  for (const r of rows) {
+    if (r.status === "working") { next.set(r.id, "working"); working.add(r.id); continue; }
+    // it was working and now is not: it just finished
+    if (working.delete(r.id)) { doneUntil.set(r.id, now + DONE_MS); setTimeout(emit, DONE_MS + 50); }
+    if (r.status === "asleep" || r.status === "paused") next.set(r.id, "asleep");
+    else if ((doneUntil.get(r.id) ?? 0) > now) next.set(r.id, "done");
+  }
+  if (next.size === looks.size && [...next].every(([id, l]) => looks.get(id) === l)) return;
+  looks = next;
+  emit();
+}
+
+/** What this agent's faces wear now, or "" for the plain face. */
+export function lookOf(id: string | undefined, now: number = Date.now()): Look | "" {
+  if (id === undefined) return "";
+  const l = looks.get(id);
+  if (l === "done" && (doneUntil.get(id) ?? 0) <= now) return "";
+  return l ?? shotLook?.(id) ?? "";
+}
 
 /** Someone else's private agent (their assistant, an outside agent they connected) wears its person's face to everyone else (owner ruling 3 Nov): agent id to person id. */
 let standIns: ReadonlyMap<string, string> = new Map();
@@ -72,7 +114,7 @@ export const assistantId = (): string => state.id;
 export const assistantLook = (): string => state.look;
 export function subscribeAssistant(l: () => void): () => void { listeners.add(l); return () => { listeners.delete(l); }; }
 /** Test seam: forget the assistant and its look. */
-export function resetAssistant(): void { state = { id: "", look: "", name: "" }; picked = new Map(); standIns = new Map(); emit(); }
+export function resetAssistant(): void { state = { id: "", look: "", name: "" }; picked = new Map(); standIns = new Map(); looks = new Map(); doneUntil.clear(); working.clear(); emit(); }
 
 export const isAssistantId = (id: string | undefined): boolean => id !== undefined && id !== "" && id === state.id;
 

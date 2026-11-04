@@ -59,3 +59,9 @@ export async function remoteGateState(d: {
   if (held === null || held === true) return "open";
   return (await d.passwordKey()) === "yes" ? "locked" : "open";
 }
+
+/**
+ * One beat of the watch while the app is open (owner, 4 Nov): after a server restart the key is gone from the server and an app relaunched since holds none. The lock notice is in the top bar until the
+ * person unlocks, whatever else they did: there is nothing to dismiss. Held again (another device unlocked) clears it.
+ */
+export const noticeAfterBeat = (now: "open" | "locked"): "show" | "clear" => (now === "locked" ? "show" : "clear");

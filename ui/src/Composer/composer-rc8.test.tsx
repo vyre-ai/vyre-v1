@@ -394,6 +394,21 @@ test("a provider with a long model list scrolls inside the Model submenu and can
   });
 });
 
+test("the + menu has Add people and agents under This chat when the place gives onAddPeople, and not otherwise", async () => {
+  await withDom(async () => {
+    const log: string[] = [];
+    const root = await mount(createRoot, <Composer whoWillAnswer="" onAddPeople={() => log.push("add")} />);
+    await press(find(root, "composer-attach"));
+    assert.match(textOf(find(root, "composer-plus")), /This chat/);
+    await press(find(root, "row-plus-people"));
+    assert.deepEqual(log, ["add"]);
+    assert.equal(find(root, "composer-plus"), null, "the menu closes");
+    const bare = await mount(createRoot, <Composer whoWillAnswer="" />);
+    await press(find(bare, "composer-attach"));
+    assert.equal(find(bare, "row-plus-people"), null);
+  });
+});
+
 test("a send that fails gives the draft back with the reason and Try again; trying again sends it", async () => {
   installDom();
   const sent: string[] = [];
@@ -413,19 +428,4 @@ test("a send that fails gives the draft back with the reason and Try again; tryi
   assert.deepEqual(sent, ["hello there", "hello there"]);
   assert.equal(find(root, "composer-send-error"), null, "a good send clears the line");
   assert.equal(find(root, "composer-field")!.props.value, "", "and the field is empty again");
-});
-
-test("the + menu has Add people and agents under This chat when the place gives onAddPeople, and not otherwise", async () => {
-  await withDom(async () => {
-    const log: string[] = [];
-    const root = await mount(createRoot, <Composer whoWillAnswer="" onAddPeople={() => log.push("add")} />);
-    await press(find(root, "composer-attach"));
-    assert.match(textOf(find(root, "composer-plus")), /This chat/);
-    await press(find(root, "row-plus-people"));
-    assert.deepEqual(log, ["add"]);
-    assert.equal(find(root, "composer-plus"), null, "the menu closes");
-    const bare = await mount(createRoot, <Composer whoWillAnswer="" />);
-    await press(find(bare, "composer-attach"));
-    assert.equal(find(bare, "row-plus-people"), null);
-  });
 });

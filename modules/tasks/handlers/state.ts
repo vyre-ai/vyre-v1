@@ -96,7 +96,7 @@ export function checkMove(ctx: TasksCtx, t: Task, to: TaskState, o: { note?: str
   const plan = planMove(t, to);
   if (!plan.ok) raise(ctx, "validation.precondition_failed", plan.why, { reason: "illegal_transition", from: t.state, to });
   const move = plan.move;
-  if (!mayAct(t, move, who)) raise(ctx, "validation.precondition_failed", "Only the person this step belongs to can do that.", { reason: "wrong_actor", action: move.action });
+  if (!mayAct(t, move, who)) raise(ctx, "validation.precondition_failed", ctx.principal.kind === "agent" ? "This step belongs to someone else. An agent can do it only for the person it is assigned to, when that person is the one asking." : "Only the person this step belongs to can do that.", { reason: "wrong_actor", action: move.action });
   const note = o.note?.trim();
   if (move.noteRequired && !note) raise(ctx, "validation.precondition_failed", "Add a note so the sender knows what to change.", { reason: "note_required", action: move.action });
   const judging = move.action === "approve_review" || move.action === "approve" || move.action === "send_back" || move.action === "reject";
@@ -524,6 +524,7 @@ export async function withdraw(ctx: TasksCtx, input: In): Promise<unknown> {
     }
     if (input.taskId !== undefined && hasSource && (t.source?.kind !== input.sourceKind || t.source?.id !== input.sourceId)) continue;
     t.state = "canceled";
+    t.workingNotes = { ...t.workingNotes, withdrawn: note };
     delete t.snoozedUntil;
     touch(ctx, ctx.db, t);
     emitTask(ctx, ctx.db, "task.withdrawn", t, { note, sourceKind: t.source?.kind, sourceId: t.source?.id }, { type: "withdrawn", by: ctx.principal.id, note });

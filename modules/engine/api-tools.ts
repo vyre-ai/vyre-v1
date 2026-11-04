@@ -40,6 +40,11 @@ let catalog: ReturnType<typeof buildCatalog> | null = null;
 let defaults: Set<string> | null = null;
 /** Listed for every turn: an agent sees who is in and can message a teammate for its person (lane l-agentdm). */
 export const TEAMMATE_TOOLS: readonly string[] = ["people_status", "message_person"];
+/**
+ * Listed for every turn too: the reads a question about the Inbox or a mail thread starts with. Found only through tool_search, a model asked "what came in about X" searched nineteen times and never
+ * had them (a 7 minute, 1.5 million token turn). Every read an asked domain starts with belongs here.
+ */
+export const CORE_READ_TOOLS: readonly string[] = ["time_convert", "inbox_counts", "inbox_list_by_thread", "inbox_thread", "mail_thread_get", "mail_message_get"];
 
 export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
   if (!catalog || !defaults) {
@@ -54,8 +59,10 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
   const facts = new Map<string, Omit<ThreadFacts, "threadId">>();
   const levels = new Map<string, Level | null>();
   const modes = new Map<string, { terminal: ModePair; chrome: ModePair }>();
+  /** Each asker's time zone (profile.timezone), read with the rest of what a turn depends on. */
+  const zones = new Map<string, string>();
   const levelKey = (asker: string, scope: { type: string; id: string }): string => `${asker}|${scope.type}|${scope.id}`;
-  const session = createToolSession({ invoke: d.invoke, catalog, defaults, levelFor: (asker, scope) => levels.get(levelKey(asker, scope)) ?? null, canEngineer: () => false,
+  const session = createToolSession({ invoke: d.invoke, catalog, defaults, zoneOf: (c) => zones.get(c.asker), levelFor: (asker, scope) => levels.get(levelKey(asker, scope)) ?? null, canEngineer: () => false,
     // A local tool (terminal, Chrome, screen, files on the agent computer) follows the chat's mode, held to the owner's floor (the floor of Settings, This computer: Terminal prompts, Chrome prompts),
     // with the hard walls of the call itself (a path that leaves the work folder is refused, a delete outside it always asks). A "prompt" is not a refusal and not a silent run: the call is held at the Gate and
     // the person answers it in the chat. Settings are read as the asker before the turn (the tool session asks synchronously); one that cannot be read means the strictest mode.
@@ -75,6 +82,8 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
       d.call("threads.get", { threadId: t.threadId }, t.asker).catch(() => undefined) as Promise<{ thread?: { kind?: ThreadFacts["kind"]; planMode?: boolean; mode?: ThreadFacts["mode"]; scopeType?: string; scopeId?: string } } | undefined>,
     ]);
     const [terminalMode, chromeMode] = await Promise.all(["security.terminal_mode", "security.chrome_mode"].map((key) => d.call!("settings.get", { key }, t.asker).catch(() => undefined) as Promise<{ row?: SettingRow } | undefined>));
+    const tz = await d.call!("settings.get", { key: "profile.timezone" }, t.asker).catch(() => undefined) as { row?: { value?: unknown } } | undefined;
+    if (typeof tz?.row?.value === "string" && tz.row.value !== "") zones.set(t.asker, tz.row.value);
     modes.set(t.asker, { terminal: modePair(terminalMode?.row, d.space), chrome: modePair(chromeMode?.row, d.space) });
     const a = agent?.agent;
     rules.set(t.agentId, { ...(a?.toolsAllowed?.length ? { allow: a.toolsAllowed } : {}), ...(a?.toolsDenied?.length ? { deny: a.toolsDenied } : {}) });
@@ -82,6 +91,7 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     const scope = th?.scopeType && th.scopeId ? { type: th.scopeType, id: th.scopeId } : undefined;
     // who is in and a message to a teammate are listed in every chat, without a tool_search (owner ruling 3 Nov, lane l-agentdm)
     session.preload(t.threadId, TEAMMATE_TOOLS);
+    session.preload(t.threadId, CORE_READ_TOOLS);
     facts.set(t.threadId, { kind: th?.kind ?? "chat", planMode: th?.planMode === true, ...(th?.mode === "ask" || th?.mode === "auto" || th?.mode === "plan" ? { mode: th.mode } : {}), ...(scope ? { scope } : {}) });
     if (th?.kind === "ask" && scope) {
       const lvl = await d.call("chat.ask_level", { threadId: t.threadId }, t.asker).catch(() => undefined) as { level?: Level | null } | undefined;

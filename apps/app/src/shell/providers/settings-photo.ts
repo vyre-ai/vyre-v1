@@ -48,9 +48,10 @@ export async function chooseProfilePhoto(rt: Pick<ShellRuntime, "call">, pick: P
   const img = await pick();
   if (!img) return null;
   if (img.size > PHOTO_MAX_BYTES) throw new Error("Choose a photo under 2 MB.");
-  const list = (await rt.call("files.list", {})) as { folders: Array<{ folderId: string; scope: string; parentId?: string | null }> };
-  const home = list.folders.find((f) => f.scope === "personal" && !f.parentId);
-  if (!home) throw new Error("There is no personal folder to keep the photo in.");
-  const made = (await rt.call("files.create", { folderId: home.folderId, name: img.name, mime: img.mime, content: { base64: img.base64 }, idempotencyKey: attemptKey() })) as { file: { fileId: string } };
+  // the Personal folder comes from the tree (its root with the key "personal"), which makes it when a new member has none yet; files.list with no folder lists that folder's children, never the folder itself
+  const tree = (await rt.call("files.tree", {})) as { roots: Array<{ key: string; folderId?: string }> };
+  const homeId = tree.roots.find((r) => r.key === "personal")?.folderId;
+  if (!homeId) throw new Error("There is no personal folder to keep the photo in.");
+  const made = (await rt.call("files.create", { folderId: homeId, name: img.name, mime: img.mime, content: { base64: img.base64 }, idempotencyKey: attemptKey() })) as { file: { fileId: string } };
   return made.file.fileId;
 }

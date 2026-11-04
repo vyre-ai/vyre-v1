@@ -51,7 +51,7 @@ function Card({ rt }: { rt: ShellRuntime }): ReactNode {
   const block = { type: "artifact", v: 1, id: "blk1", traceId: "tr_1", data: { artifactId: "sit_pr", title: "Pricing comparison" } } as never;
   return (
     <View style={{ flex: 1, alignItems: "center", backgroundColor: "var(--win)" as string, paddingTop: 80 }}>
-      <View style={{ width: 660, gap: 14 }}>
+      <View style={{ width: "100%", maxWidth: 660, paddingHorizontal: 16, gap: 14 }}>
         <View style={{ alignSelf: "flex-end", paddingVertical: 10, paddingHorizontal: 16, borderRadius: 18, backgroundColor: "var(--me)" as string }}><Text style={{ color: "var(--ink)" as string, fontSize: 15 }}>Compare our three plans on one page and publish it so Sara can see it.</Text></View>
         <Text style={{ color: "var(--ink)" as string, fontSize: 15, lineHeight: 23 }}>Done. It is live at northwind.vyre.run/a/pricing. Sara can open it with her own sign-in.</Text>
         <ArtifactBlock block={block} host={host} />

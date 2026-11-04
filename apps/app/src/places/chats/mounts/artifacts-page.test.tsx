@@ -45,3 +45,12 @@ test("a permission refusal is told apart from a slow or broken page", async () =
   assert.equal(refused({ error: { code: "internal.timeout" } }), false);
   assert.equal(refused(new Error("x")), false);
 });
+
+test("the desktop app draws the artifact as a native page, a browser as an iframe, and the native page steps aside for a menu or sheet", async () => {
+  const { frameFor, coveredBy } = await import("./ArtifactView.tsx");
+  assert.equal(frameFor(null, true), "none");
+  assert.equal(frameFor("https://a.vyre.run/x/1", true), "desktop");
+  assert.equal(frameFor("https://a.vyre.run/x/1", false), "iframe");
+  assert.equal(coveredBy({ sharing: false, menu: false, sure: false }), false);
+  for (const k of ["sharing", "menu", "sure"] as const) assert.equal(coveredBy({ sharing: false, menu: false, sure: false, [k]: true }), true, k);
+});

@@ -28,10 +28,13 @@ import { composerSymbols } from "./props.ts";
 import { closeEmoji, findEmoji } from "./emoji.ts";
 import type { ComposerAttachment, ComposerChip, ComposerRef, ComposerShellProps, ComposerSymbol } from "./props.ts";
 import { Glyph, plainText } from "./shared.tsx";
+import { TalkButton, TalkLine, useTalk } from "./Talk.tsx";
 
 export type { ComposerAttachment, ComposerChip, ComposerRef, ComposerShellProps, ComposerSymbol } from "./props.ts";
 export { COMPOSER_SYMBOLS, composerSymbols, symbolMark } from "./props.ts";
 export { Glyph, ICON_UP, plainText } from "./shared.tsx";
+export { TalkContext } from "./Talk.tsx";
+export type { TalkPort } from "./Talk.tsx";
 export { EFFORTS, MODES, answering, contextRing, deleteToken, effortBars, effortForKey, modeInfo, nextMode, sendControl, sizeLabel, stripName, tokenRanges } from "./brain.ts";
 export type { ChatMode, ComposerAgent, Effort, SendControl, TokenRange } from "./brain.ts";
 export { ModelPanel, contextFor, lowSuggestion, resetLabel } from "./ModelPanel.tsx";
@@ -613,6 +616,13 @@ const BOX_SHADOW = { boxShadow: "var(--sh-2)" } as unknown as ViewStyle;
 const FOCUS_SHADOW = BOX_SHADOW;
 const HOVER = { backgroundColor: "var(--hover)" };
 const web = Platform.OS === "web";
+/** Every control in the composer's bar is this tall and wide to press, centred on one line, with this gap between them. */
+const CTRL = 32;
+const CTRL_GAP = 8;
+/** Below this width (the composer's own, not the window's) the field takes a row to itself and the controls sit under it. */
+const STACK_BELOW = 560;
+/** True when a composer this wide (its own width, 0 while unmeasured) lays its controls under the field. */
+export const isStacked = (boxWidth: number): boolean => boxWidth > 0 && boxWidth < STACK_BELOW;
 
 const KIND_LOOK: Record<string, { icon: string; tint: string }> = {
   Record: { icon: I.record, tint: "#5a7be0" }, File: { icon: I.file, tint: "#d24b45" }, Folder: { icon: I.folder, tint: "#c98a16" }, Chat: { icon: I.chat, tint: "#7e7c77" },
@@ -760,6 +770,8 @@ export function Composer(props: ComposerProps): ReactElement {
   const menu = useMenu();
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < 520;
+  // the composer's own width (not the window's): a chat column beside a task pane is narrow in a wide window
+  const [boxW, setBoxW] = useState(0);
   // a composer opened with words in it (Ask about this file, New message) is ready to type after them
   useEffect(() => { if ((props.value ?? "") !== "") input.current?.focus?.(); }, []);
 
@@ -819,8 +831,19 @@ export function Composer(props: ComposerProps): ReactElement {
   const showMode = ai && props.mode !== undefined && props.onMode !== undefined;
 
   const patch = useCallback((next: Partial<ComposerState>) => setState((s) => ({ ...s, ...next })), []);
+  const talk = useTalk({
+    read: () => ({ text: stateRef.current.text, cursor: Math.min(stateRef.current.cursor, stateRef.current.text.length) }),
+    write: (text, cursor) => {
+      const next = { ...stateRef.current, text, cursor };
+      stateRef.current = next;
+      setState(next);
+      props.onChange?.(text);
+    },
+    focus: () => input.current?.focus?.(),
+  });
 
   const submit = useCallback((mode: SendMode) => {
+    talk.finish();
     const cur = stateRef.current;
     const answers = answerLine(cur.text, props.whoWillAnswer, whoCtx).line;
     const sent = sendNow(cur, answers, mode);
@@ -838,7 +861,7 @@ export function Composer(props: ComposerProps): ReactElement {
         setSendError({ reason: e instanceof Error && e.message.trim() !== "" ? e.message.slice(0, 200) : "It did not send.", mode });
       });
     }
-  }, [props.onSend, props.onSubmit, props.onInterrupt, props.whoWillAnswer, props.lead, props.listening, props.lists]);
+  }, [props.onSend, props.onSubmit, props.onInterrupt, props.whoWillAnswer, props.lead, props.listening, props.lists, talk.finish]);
 
   const pick = useCallback((entry: PopupEntry | undefined) => {
     const cur = stateRef.current;
@@ -977,6 +1000,7 @@ export function Composer(props: ComposerProps): ReactElement {
     const text = closed?.text ?? typed;
     const cursor = closed?.cursor ?? typedAt;
     setState((s) => ({ ...s, text, cursor, active: -1, dismissedAt: -1 }));
+    talk.edited(text, cursor);
     props.onChange?.(text);
   };
 
@@ -1142,8 +1166,11 @@ export function Composer(props: ComposerProps): ReactElement {
   const fieldText = compact ? styles.fieldCompact : styles.fieldRegular;
   // an email keeps its own two rows: its bar holds sender and format buttons; everything else is the one-line pill
   const oneLine = props.sendsOutside !== true;
+  // below about 560 px the field takes the full width on top and the controls sit under it, so the field is never squeezed to a few words wide
+  const stacked = oneLine && isStacked(boxW);
+  const row = oneLine && !stacked;
   // the field's padding, which the token wash behind it takes too: the same box, so a wash sits on its word in the one-line pill, the compact field and the regular one
-  const fieldPad: readonly (ViewStyle | false)[] = [styles.padRegular, oneLine && styles.padLine, !oneLine && compact && styles.padCompact];
+  const fieldPad: readonly (ViewStyle | false)[] = [styles.padRegular, row && styles.padLine, stacked && styles.padStack, !oneLine && compact && styles.padCompact];
   const plusNode_ = (
     <View ref={plusBtn as never}>
       <Pressable accessibilityRole="button" accessibilityLabel="Attach a file" accessibilityState={{ expanded: plusOpen }} testID="composer-attach" onPress={() => { setPanelOpen(false); setPlusOpen((x) => !x); }} {...webProps({ title: "Add" })}
@@ -1155,12 +1182,12 @@ export function Composer(props: ComposerProps): ReactElement {
   const [chatFailed, setChatFailed] = useState(false);
   const useChat = web && props.chatField !== false && !chatFailed && canMountChatField();
   const fieldNode = (
-    <View style={[styles.fieldWrap, ...fieldPad, oneLine && styles.fieldLine]} {...webProps({ dataSet: { cmpField: "1" } })}>
+    <View style={[styles.fieldWrap, ...fieldPad, row && styles.fieldLine]} {...webProps({ dataSet: { cmpField: "1" } })}>
       {useChat ? (
         <ChatField
           value={state.text} cursor={state.cursor} ranges={ranges} placeholder={props.placeholder ?? "Message"} label={props.label ?? "Message"} testID="composer-field" fontSize={compact ? 14 : 15} lineHeight={22} maxHeight={MAX_FIELD}
           onChange={onChange as never} onSelectionChange={(e) => patch({ cursor: e.nativeEvent.selection.start })} onKeyPress={onKeyPress as never} onFocus={onFocus} onBlur={onBlur}
-          controlRef={(c) => { input.current = c as never; }} onFail={() => setChatFailed(true)}
+          controlRef={(c) => { input.current = c as never; }} onFail={() => setChatFailed(true)} talking={talk.phase !== "idle"}
         />
       ) : (
         <>
@@ -1186,6 +1213,8 @@ export function Composer(props: ComposerProps): ReactElement {
       )}
     </View>
   );
+  // an app's own control beside the model strip (the memory lock) sits in the same 32 px box as the others, centred on the same line
+  const barExtraNode = props.barExtra ? <View style={styles.extraBox}>{props.barExtra}</View> : null;
   const stripNode_ = ai ? (
     <View ref={stripNode as never} style={styles.stripWrap}>
       <AgentStrip list={answerers} narrow={narrow} open={panelOpen} face={(props.agents?.length ?? 0) > 1} mode={showMode ? props.mode : undefined} runsChip={props.runsChip} ring={ring} {...(props.renderPanel ? { onPress: () => { setPlusOpen(false); setPanelOpen((x) => !x); } } : {})} />
@@ -1196,6 +1225,7 @@ export function Composer(props: ComposerProps): ReactElement {
     <DropHost bind={dropZone.bind} testID={`${props.testID ?? "composer"}-drop`}>
     <View
       style={[styles.box, compact && styles.boxCompact, focused ? FOCUS_SHADOW : BOX_SHADOW]}
+      onLayout={(e) => { const w = Math.round(e.nativeEvent.layout.width); setBoxW((cur) => (cur === w ? cur : w)); }}
       testID={props.testID ?? "composer"}
       accessibilityLabel={props.label ?? "Message"}
       {...contextProps}
@@ -1214,28 +1244,32 @@ export function Composer(props: ComposerProps): ReactElement {
       ) : null}
       {props.engineLine ? <Text style={styles.engine} testID="composer-engine-line">{props.engineLine}</Text> : null}
       {props.hideWho === true ? null : <Text style={styles.srOnly} testID="composer-who" accessibilityRole="text" accessibilityLiveRegion="polite">{who.line}</Text>}
-      {oneLine ? (
+      {row ? (
         <View style={styles.line}>
           {plusNode_}
           {fieldNode}
           {stripNode_}
-          {props.barExtra}
+          {barExtraNode}
           {props.whoExtra}
+          <TalkButton talk={talk} />
           {sendNode}
         </View>
       ) : (
         <>
           {fieldNode}
-          <View style={[styles.bar, compact && styles.barCompact]}>
+          <View style={stacked ? styles.barStack : [styles.bar, compact && styles.barCompact]}>
             {plusNode_}
-            {stripNode_}
-            {props.barExtra}
+            {stacked ? <View style={styles.spacer} /> : stripNode_}
+            {stacked ? stripNode_ : null}
+            {barExtraNode}
             {props.whoExtra}
-            <View style={styles.spacer} />
+            {stacked ? null : <View style={styles.spacer} />}
+            <TalkButton talk={talk} />
             {sendNode}
           </View>
         </>
       )}
+      <TalkLine talk={talk} />
       {plusOpen ? (
         <Pop testID="composer-plus" label="Add" style={[popLeft, styles.plusPop] as ViewStyle[]} nodeRef={(n) => { plusNode.current = n; }}>
           <View style={styles.scr}>{plusRows}</View>
@@ -1278,7 +1312,7 @@ const CHIP_ICON: Record<string, string> = { Folder: ICON_FOLDER, Record: ICON_RE
 const styles = StyleSheet.create({
   box: { position: "relative", width: "100%", borderRadius: 22, backgroundColor: "var(--raised)" as string },
   boxCompact: { borderRadius: 18 },
-  line: { flexDirection: "row", alignItems: "flex-end", gap: 2, padding: 7 },
+  line: { flexDirection: "row", alignItems: "flex-end", gap: CTRL_GAP, padding: 8 },
   recipients: { paddingTop: 10, paddingHorizontal: 14 },
   banner: { paddingTop: 8, paddingHorizontal: 14 },
   sendError: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingBottom: 10 },
@@ -1300,7 +1334,10 @@ const styles = StyleSheet.create({
   fieldWrap: { position: "relative", overflow: "hidden" },
   padRegular: { paddingTop: 12, paddingHorizontal: 16, paddingBottom: 4 },
   padCompact: { paddingTop: 10, paddingHorizontal: 12 },
-  padLine: { paddingTop: 6, paddingBottom: 6, paddingHorizontal: 6 },
+  padLine: { paddingTop: 5, paddingBottom: 5, paddingHorizontal: 6 },
+  padStack: { paddingTop: 10, paddingBottom: 2, paddingHorizontal: 15 },
+  barStack: { flexDirection: "row", alignItems: "center", gap: CTRL_GAP, paddingTop: 2, paddingHorizontal: 8, paddingBottom: 8 },
+  extraBox: { minWidth: CTRL, height: CTRL, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   fieldLine: { flex: 1, minWidth: 0 },
   field: { width: "100%", color: "var(--ink)" as string, padding: 0, margin: 0, borderWidth: 0 },
   fieldRegular: { fontSize: 15, lineHeight: 22 },
@@ -1311,9 +1348,9 @@ const styles = StyleSheet.create({
   srOnly: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   bar: { flexDirection: "row", alignItems: "center", gap: 4, paddingTop: 4, paddingHorizontal: 8, paddingBottom: 8 },
   barCompact: { paddingBottom: 6, paddingHorizontal: 6 },
-  tool: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
+  tool: { width: CTRL, height: CTRL, borderRadius: CTRL / 2, alignItems: "center", justifyContent: "center" },
   stripWrap: { flexShrink: 1, minWidth: 0 },
-  strip: { flexDirection: "row", alignItems: "center", gap: 7, height: 34, paddingHorizontal: 9, borderRadius: 17, minWidth: 0 },
+  strip: { flexDirection: "row", alignItems: "center", gap: 7, height: CTRL, paddingHorizontal: 9, borderRadius: CTRL / 2, minWidth: 0 },
   stripModelText: { fontSize: 12.5, color: "var(--ink-3)" as string, flexShrink: 1 },
   stripNote: { fontSize: 11.5, color: "var(--ink-3)" as string, flexShrink: 1, fontStyle: "italic" as const },
   mchip: { height: 20, paddingHorizontal: 7, borderRadius: 10, justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
@@ -1321,11 +1358,11 @@ const styles = StyleSheet.create({
   rchip: { height: 20, paddingHorizontal: 7, borderRadius: 10, justifyContent: "center", backgroundColor: "var(--sunk)" as string, flexShrink: 1 },
   rchipText: { fontSize: 11.5, lineHeight: 20, color: "var(--ink-3)" as string },
   spacer: { flex: 1 },
-  send: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string, marginLeft: 2, flexShrink: 0 },
+  send: { width: CTRL, height: CTRL, borderRadius: CTRL / 2, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent)" as string, flexShrink: 0 },
   sendStop: { backgroundColor: "var(--sel)" as string },
   sendOff: { backgroundColor: "var(--sel)" as string },
-  split: { flexDirection: "row", alignItems: "center", height: 34, borderRadius: 17, backgroundColor: "var(--accent)" as string, overflow: "hidden", marginLeft: 2, flexShrink: 0 },
-  splitBtn: { height: 34, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 5 },
+  split: { flexDirection: "row", alignItems: "center", height: CTRL, borderRadius: CTRL / 2, backgroundColor: "var(--accent)" as string, overflow: "hidden", flexShrink: 0 },
+  splitBtn: { height: CTRL, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", gap: 5 },
   splitHover: { opacity: 0.85 },
   splitSep: { width: 1, height: 20, backgroundColor: "var(--accent-ink)" as string, opacity: 0.25 },
   splitText: { fontSize: 12.5, fontWeight: "600", color: "var(--accent-ink)" as string },

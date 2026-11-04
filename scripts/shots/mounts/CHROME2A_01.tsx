@@ -71,10 +71,11 @@ const GATE: Record<string, { cap: string; input: Record<string, unknown>; outwar
   email: { cap: "mail.send", input: { to: ["aliza@firm.test"], subject: "Your signed deed", body: BODY }, outward: { channel: "email", to: [{ kind: "address", address: "aliza@firm.test" }], subject: "Your signed deed", body: BODY, bodyField: "body" } },
   text: { cap: "telephony.send_sms", input: { to: "+14155550123", text: "Your deed is ready. Reply YES to book a signing." }, outward: { channel: "text", to: [{ kind: "address", address: "+14155550123" }], body: "Your deed is ready. Reply YES to book a signing.", bodyField: "text" } },
   post: { cap: "chat.post", input: { threadId: "thr_team", body: "**Heads up:** the Rivera closing moved to Friday." }, outward: { channel: "post", to: [{ kind: "channel", name: "Team" }], body: "**Heads up:** the Rivera closing moved to Friday.", bodyField: "body" } },
+  event: { cap: "google.calendar.create_event", input: { summary: "Rivera closing prep", description: "Agenda\n- the deed\n- the fee", location: "https://us02web.zoom.us/j/123456", sendUpdates: "all", start: { dateTime: "2026-11-04T14:00:00-08:00", timeZone: "America/Los_Angeles" }, end: { dateTime: "2026-11-04T15:00:00-08:00", timeZone: "America/Los_Angeles" }, attendees: [{ email: "dana@client.test" }, { email: "sam@firm.test" }] }, outward: {} },
   long: { cap: "chat.message_person", input: { to: "usr_aliza", body: LONG }, outward: { channel: "message", to: [{ kind: "person", id: "usr_aliza" }], body: LONG, bodyField: "body" } },
 };
 function Gate({ part }: { part: string }): ReactNode {
-  const kind = part === "gate-email" ? "email" : part === "gate-text" ? "text" : part === "gate-post" ? "post" : part === "gate-long" ? "long" : "dm";
+  const kind = part === "gate-email" ? "email" : part === "gate-text" ? "text" : part === "gate-post" ? "post" : part === "gate-long" ? "long" : part === "gate-event" ? "event" : "dm";
   const g = GATE[kind]!;
   const state = part === "gate-sent" ? "done" : part === "gate-dropped" ? "canceled" : "awaiting_approval";
   const edited = part === "gate-edited" ? { by: "usr_olivia", at: Date.UTC(2026, 10, 4, 4, 30) } : undefined;
