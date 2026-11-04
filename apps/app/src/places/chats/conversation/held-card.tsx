@@ -117,6 +117,7 @@ export function HeldCard(p: HeldCardProps): ReactElement {
   return (
     <View testID={p.testID} style={st.card} accessibilityRole="summary" accessibilityLabel={title}>
       <View style={st.head}>
+        {/* ui-rows-lint: not a list (the faces of who it goes to) */}
         {faces.length > 0 ? <View style={st.faces}>{faces.map((r, i) => <View key={`${r.seed}${i}`} style={i > 0 ? st.faceNext : undefined}><Face name={r.name} seedId={r.seed} kind={r.kind ?? "person"} size={22} /></View>)}</View> : null}
         <View style={st.titles}>
           <Text style={st.title} numberOfLines={2}>{title}</Text>
@@ -130,6 +131,7 @@ export function HeldCard(p: HeldCardProps): ReactElement {
       ) : null}
       <View style={st.rows}>
         {(p.peopleRows ?? []).filter((r) => r.people.length > 0).map((r) => (
+          // ui-rows-lint: not a list (the people a message goes to, faces with names in one line)
           <View key={r.label} style={st.row} testID={`${p.testID}-people-${r.label.toLowerCase()}`}><Text style={st.label}>{r.label}</Text><View style={st.guests}>{r.people.slice(0, 6).map((g, i) => <View key={`${g.seed}${i}`} style={st.guest}><Face name={g.name} seedId={g.seed} kind="person" size={g.sub ? 24 : 18} /><View><Text style={st.value}>{g.name}</Text>{g.sub ? <Text style={st.sub}>{g.sub}</Text> : null}</View></View>)}{r.people.length > 6 ? <Text style={st.sub}>{`and ${r.people.length - 6} more`}</Text> : null}</View></View>
         ))}
         {editing && p.editTo ? (
@@ -140,6 +142,7 @@ export function HeldCard(p: HeldCardProps): ReactElement {
         ) : p.subject ? <View style={st.row}><Text style={st.label}>{p.subjectLabel ?? "Subject"}</Text><Text style={[st.value, p.subjectLabel ? st.strong : undefined]} testID={`${p.testID}-subject-text`}>{p.subject}</Text></View> : null}
         {!editing ? (p.fields ?? []).flatMap(([label, text]) => [
           <View key={label} style={st.row}><Text style={st.label}>{label}</Text>{(p.fieldMd ?? []).includes(label) ? <View style={{ flex: 1 }}><MarkdownText text={text} /></View> : <Text style={st.value} testID={`${p.testID}-field-${label.toLowerCase()}`}>{text}</Text>}</View>,
+          // ui-rows-lint: not a list (the invitees of an event, faces with names in one line)
           ...(label === "When" && p.invitees && (p.invitees.length > 0 || p.inviteNote) ? [<View key="who" style={st.row} testID={`${p.testID}-invitees`}><Text style={st.label}>Who</Text><View style={st.guests}>{p.invitees.slice(0, 8).map((g, i) => <View key={`${g.seed}${i}`} style={st.guest}><Face name={g.name} seedId={g.seed} kind="person" size={18} /><Text style={st.value}>{g.name}</Text></View>)}{p.invitees.length > 8 ? <Text style={st.sub}>{`and ${p.invitees.length - 8} more`}</Text> : null}{p.inviteNote ? <Text style={st.sub} testID={`${p.testID}-invite-note`}>{p.inviteNote}</Text> : null}</View></View>] : []),
         ]) : null}
       </View>

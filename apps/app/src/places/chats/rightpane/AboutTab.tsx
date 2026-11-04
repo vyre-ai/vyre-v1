@@ -48,6 +48,7 @@ export function AboutTab({ agent, name, hasComputer, computerNote, onGive, onOpe
       {hasComputer ? null : <NoComputerRow name={name} onGive={onGive} />}
       {agent?.role ? <>{label("Responsible for")}<Text testID="about-role" style={st.body}>{agent.role}</Text></> : null}
       {working.length > 0 || computerNote ? label("Right now") : null}
+      {/* ui-rows-lint: not a list (what the agent is doing right now, as status lines) */}
       {working.slice(0, 4).map((w) => <View key={w.id} style={st.now}><View style={st.nowDot} /><Text numberOfLines={2} style={st.v}>{w.title}</Text></View>)}
       {working.length === 0 && computerNote ? <View style={st.now}><View style={[st.nowDot, { backgroundColor: "var(--ink-4)" as string }]} /><Text style={st.v}>{computerNote}</Text></View> : null}
       {responds || mine?.model || mine?.effort ? label("How it responds here") : null}

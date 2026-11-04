@@ -602,6 +602,7 @@ function ConversationView(): ReactElement {
         )}
         {!dmWith && others.length > 0 ? (
           <View testID="conversation-people" accessibilityLabel={`With ${others.map((p) => nameOf(p)).join(", ")}`} style={st.faces}>
+            {/* ui-rows-lint: not a list (the faces of the people in the chat) */}
             {others.slice(0, narrow ? 3 : 4).map((p) => <Face key={p} name={nameOf(p)} seedId={p} kind="person" size={20} />)}
             {others.length > (narrow ? 3 : 4) ? <Text style={st.meta}>{`+${others.length - (narrow ? 3 : 4)}`}</Text> : null}
           </View>
