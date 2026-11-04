@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Text, View } from "react-native";
+import { Text, View, useWindowDimensions } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { ObjectPage, ObjectSection, withBaseTabs } from "../../../../../ui/src/ObjectPage/index.tsx";
@@ -69,6 +69,8 @@ export function PeoplesAgents(): ReactElement | null {
   const read = useRead<CapMap["agents.people_summary"]["out"]>("agents.people_summary", {});
   const action = useAction(read.refresh);
   const [confirm, setConfirm] = useState<string | null>(null);
+  const winW = useWindowDimensions().width;
+  const narrow = winW > 0 && winW < 720;
   if (!read.data || read.data.people.length === 0) return null;
   return (
     <Section title="People's own agents" count={read.data.people.length} testID="people-agents">
@@ -78,10 +80,14 @@ export function PeoplesAgents(): ReactElement | null {
           return (
             <View key={p.personId}>
               <Row id={`person-agents-${p.personId}`} title={name} note={summaryNote(p)} tall leading={<Lead><Avatar name={name} size={26} /></Lead>}
-                trailing={<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                {...(narrow ? {} : { trailing: <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                   <Select label={`Spend cap for ${name}`} value={capKey(p)} options={CAP_OPTIONS} disabled={action.busy} onChange={(v) => void action.run("engine.spend.caps.set", { scope: "person", scopeId: p.personId, caps: { monthMicros: Number(v) ? micros(Number(v)) : undefined } }, `${name}: spend cap ${Number(v) ? `$${v}` : "removed"}`)} />
                   <Button label={p.paused ? "Resume all" : "Pause all"} testID={`person-pause-${p.personId}`} disabled={action.busy} onPress={() => { if (p.paused) void action.run("agents.pause_person", { personId: p.personId, paused: false }, `${name}'s agents are running again`); else setConfirm(p.personId); }} />
-                </View>} />
+                </View> })} />
+              {narrow ? <View style={{ flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 48, paddingBottom: 10 }} testID={`person-controls-${p.personId}`}>
+                  <Select label={`Spend cap for ${name}`} value={capKey(p)} options={CAP_OPTIONS} disabled={action.busy} onChange={(v) => void action.run("engine.spend.caps.set", { scope: "person", scopeId: p.personId, caps: { monthMicros: Number(v) ? micros(Number(v)) : undefined } }, `${name}: spend cap ${Number(v) ? `$${v}` : "removed"}`)} />
+                  <Button label={p.paused ? "Resume all" : "Pause all"} testID={`person-pause-${p.personId}`} disabled={action.busy} onPress={() => { if (p.paused) void action.run("agents.pause_person", { personId: p.personId, paused: false }, `${name}'s agents are running again`); else setConfirm(p.personId); }} />
+                </View> : null}
               {confirm === p.personId ? <><Note>{PAUSE_NOTE(name)}</Note><Actions><Button label="Cancel" testID="person-pause-cancel" onPress={() => setConfirm(null)} /><Button label="Pause all" danger testID="person-pause-yes" disabled={action.busy} onPress={() => void action.run("agents.pause_person", { personId: p.personId, paused: true }, `${name} was told. Their agents are paused`).then(() => setConfirm(null))} /></Actions></> : null}
             </View>
           );
