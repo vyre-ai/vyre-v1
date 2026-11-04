@@ -17,7 +17,7 @@ const WATCHER = "agt_watch";
 
 interface ChatRow { messageId: string; threadId: string; threadSeq: number; author: { kind: string; id: string }; body: string; blocks: unknown[]; mentions: unknown[]; via?: { routineOwner: string }; depth: number; attachments?: string[] }
 
-function setup(opts: { account?: () => ResolvedAccount; agentModel?: string; stream?: (e: StreamEvent) => void; addressAsker?: (threadId: string, agentId: string) => boolean; refuse?: (p: AgentPost) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
+function setup(opts: { thread?: Record<string, unknown>; task?: Record<string, unknown>; account?: () => ResolvedAccount; agentModel?: string; stream?: (e: StreamEvent) => void; addressAsker?: (threadId: string, agentId: string) => boolean; refuse?: (p: AgentPost) => boolean; agents?: Array<{ agentId: string; mode: "lead" | "listen"; watches?: string }>; script: readonly DriverEvent[] | ((i: TurnInput) => readonly DriverEvent[]) }) {
   const h = harness();
   const chat: ChatRow[] = [];
   const echoes: Array<{ id: string; result: unknown }> = [];
@@ -28,7 +28,8 @@ function setup(opts: { account?: () => ResolvedAccount; agentModel?: string; str
     async call(cap: string, input: unknown) {
       const b = input as { threadId: string; messageId?: string; fileId?: string };
       if (cap === "gate.grants.ask") { asks.push(input as (typeof asks)[number]); return { asked: 1 }; }
-      if (cap === "threads.get") return { thread: { threadId: T, kind: "chat", starter: "usr_dana", agents } };
+      if (cap === "threads.get") return { thread: { threadId: T, kind: "chat", starter: "usr_dana", agents, ...(opts.thread ?? {}) } };
+      if (cap === "tasks.get") return { task: opts.task ?? {} };
       if (cap === "agents.get") { if (!opts.agentModel) throw new Error("no such agent"); return { agent: { agentId: LEAD, model: opts.agentModel } }; }
       if (cap === "chat.message.get") return { message: chat.find((r) => r.messageId === b.messageId) };
       if (cap === "files.get") { if (b.fileId === "fil_gone") throw new Error("not found"); return { file: { fileId: b.fileId, name: b.fileId === "fil_1" ? "brief.docx" : "other.pdf" } }; }
@@ -442,4 +443,17 @@ test("a turn that read something streams its text to the asker only, and shows n
   assert.ok(deltas.every((e) => e.privately === true && e.asker === "usr_dana"), JSON.stringify(deltas));
   assert.deepEqual(mid.map((t) => t.text), [""], "liveTurns shows the turn, not its words");
   clearReads(T, LEAD, "usr_dana");
+});
+
+test("a task's thread with several agents: the one that works the task answers without an @, else the one that made it; the others need one", async () => {
+  const A = "agt_maker", B = "agt_worker", C = "agt_other";
+  const agents = [{ agentId: A, mode: "listen" as const }, { agentId: B, mode: "listen" as const }, { agentId: C, mode: "listen" as const }];
+  const thread = { kind: "thread", scopeType: "task", scopeId: "tsk_1", members: [{ kind: "person", id: "usr_dana" }] };
+  const worked = setup({ script: reply("On it."), agents, thread, task: { assigned: { kind: "agent", id: B }, createdBy: A } });
+  assert.deepEqual((await worked.say("Please also check the invoices")).result, { receivedAs: [B] }, "the agent working the task");
+  const made = setup({ script: reply("On it."), agents, thread, task: { assigned: { kind: "person", id: "usr_dana" }, createdBy: A } });
+  assert.deepEqual((await made.say("Please also check the invoices")).result, { receivedAs: [A] }, "the agent that made it, when a person holds it");
+  assert.deepEqual((await made.say("and you", [{ kind: "agent", id: C }])).result, { receivedAs: [C] }, "another agent needs an @");
+  const group = setup({ script: reply("On it."), agents, thread: { ...thread, members: [{ kind: "person", id: "usr_dana" }, { kind: "person", id: "usr_aliza" }] }, task: { assigned: { kind: "agent", id: B }, createdBy: A } });
+  assert.deepEqual((await group.say("Aliza, can you look at this?", [{ kind: "person", id: "usr_aliza" }])).result, { receivedAs: [] }, "a message to the other person in the thread is for them");
 });

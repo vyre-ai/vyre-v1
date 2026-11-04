@@ -326,7 +326,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     });
   }
 
-  type ThreadGet = { thread: { kind?: string; scopeType?: string; starter?: string; members?: Array<{ kind?: string; id: string }>; agents: Array<{ agentId: string; name?: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown }> } };
+  type ThreadGet = { thread: { kind?: string; scopeType?: string; scopeId?: string; starter?: string; members?: Array<{ kind?: string; id: string }>; agents: Array<{ agentId: string; name?: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown }> } };
   const peopleOf = (g: ThreadGet): string[] | undefined => (g.thread.members ? g.thread.members.filter((x) => (x.kind ?? "person") === "person").map((x) => x.id) : undefined);
   type Row = { messageId: string; threadSeq?: number; author: { kind: string; id: string }; body: string; depth?: number; replyTo?: string; attachments?: string[]; blocks?: Array<{ type: string; data?: unknown }> };
 
@@ -384,8 +384,17 @@ export function createBridge(o: BridgeOptions): Bridge {
         if (m) own.set(a.agentId, m);
       } catch { /* an agent that cannot be read runs on the account's default */ }
     }
+    // a task's thread with several agents: the one that works the task, else the one that made it, answers without an @ (the others need one)
+    let taskLead: string | undefined;
+    if (got.thread.scopeType === "task" && !got.thread.agents.some((a) => a.mode === "lead") && got.thread.agents.length > 1) {
+      try {
+        const t = ((await read("tasks.get", { taskId: (got.thread as { scopeId?: string }).scopeId })) as { task?: { assigned?: { kind?: string; id?: string }; createdBy?: string } } | null)?.task;
+        const ids = new Set(got.thread.agents.map((a) => a.agentId));
+        taskLead = [t?.assigned?.kind === "agent" ? t.assigned.id : undefined, t?.createdBy].find((x): x is string => typeof x === "string" && ids.has(x));
+      } catch { /* no task to read: the agents listen as before */ }
+    }
     const agents: EngineAgent[] = got.thread.agents.map((a) => ({
-      id: a.agentId, ...(a.name ? { name: a.name } : {}), mode: a.mode, ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}), ...(outside.has(a.agentId) ? { outside: true } : {}),
+      id: a.agentId, ...(a.name ? { name: a.name } : {}), mode: taskLead === a.agentId ? "lead" : a.mode, ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}), ...(outside.has(a.agentId) ? { outside: true } : {}),
     }));
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.recent(threadId, 1).length === 0) {
