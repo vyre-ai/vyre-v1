@@ -181,9 +181,9 @@ export const QUESTIONS: Question[] = [
   q(25, "current", "mia", "atlas", "What storage is Atlas on now?", ["sqlite"], ["postgres"], "db2"),
   q(26, "current", "olivia", "atlas", "Who leads the Atlas design work?", ["mia"], [], "lead1"),
   q(27, "commitment", "noah", "atlas", "When is the Atlas beta invite list due?", ["wednesday"], [], "inv1"),
-  q(28, "current", "mia", "atlas", "At what time does the launch announcement go out?", ["noon"], [], "ann1"),
-  q(29, "current", "noah", "atlas", "When do we post the Atlas launch announcement?", ["noon"], [], "ann1"),
-  q(30, "current", "olivia", "atlas_thread", "What time is the announcement?", ["noon"], [], "ann1"),
+  q(28, "current", "mia", "atlas", "At what time does the launch announcement go out?", ["noon", "12:00", "12 pm", "12pm", "midday"], [], "ann1"),
+  q(29, "current", "noah", "atlas", "When do we post the Atlas launch announcement?", ["noon", "12:00", "12 pm", "12pm", "midday"], [], "ann1"),
+  q(30, "current", "olivia", "atlas_thread", "What time is the announcement?", ["noon", "12:00", "12 pm", "12pm", "midday"], [], "ann1"),
   q(31, "current", "mia", "atlas_thread", "What is the launch date again?", ["nineteenth", "march 19", "19th"], ["fifth", "march 5"], "lau2"),
   // task and goal
   q(32, "current", "olivia", "beta_task", "How many beta invites go out in each wave?", ["fifty", "50"], [], "wave1"),
