@@ -93,7 +93,7 @@ function Page({ projectId, canEdit, doc, facts, versions, types, reload, bump }:
 
   const liveView = useCallback((attrs: LiveAttrs, ro: boolean, api: LiveApi): ReactElement => (
     <ProjectPageDataProvider value={d}>
-      <LiveBlockView projectId={projectId} attrs={attrs} readOnly={ro || !canEdit} api={api} fresh={attrs.blockId !== null && fresh.has(attrs.blockId)} reload={reloadN} types={types} onSettings={(a) => setSheet({ k: "settings", attrs: a, api })} />
+      <LiveBlockView projectId={projectId} attrs={attrs} readOnly={ro || !canEdit} api={api} fresh={attrs.blockId !== null && fresh.has(attrs.blockId)} reload={reloadN} onSettings={(a) => setSheet({ k: "settings", attrs: a, api })} />
     </ProjectPageDataProvider>
   ), [d, projectId, canEdit, fresh, reloadN, types]);
 

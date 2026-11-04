@@ -130,10 +130,21 @@ function Rows({ type, rows, view, now, open }: { type: string; rows: readonly Li
   return type === "tasks" || type === "milestones" ? <TaskRows rows={rows} now={now} open={open} /> : <ItemRows rows={rows} open={open} />;
 }
 
-export function LiveBlockView({ projectId, attrs, readOnly, api, fresh = false, reload = 0, types = [], onSettings }: { projectId: string; attrs: LiveAttrs; readOnly: boolean; api: LiveApi; fresh?: boolean; reload?: number; types?: readonly TypeName[] | null; onSettings(a: LiveAttrs): void }): ReactElement {
+export function LiveBlockView({ projectId, attrs, readOnly, api, fresh = false, reload = 0, types: typesProp, onSettings }: { projectId: string; attrs: LiveAttrs; readOnly: boolean; api: LiveApi; fresh?: boolean; reload?: number; types?: readonly TypeName[] | null; onSettings(a: LiveAttrs): void }): ReactElement {
   ensureCss();
   const d = useProjectPageData();
   const menu = useMenu();
+  // the record types, for the words ("3 invoices"): a block drawn inside the editor does not re-render when its page's props change, so it reads them itself; a caller may hand them in
+  const [own, setOwn] = useState<readonly TypeName[] | null>(null);
+  useEffect(() => {
+    if (typesProp !== undefined) return undefined;
+    let alive = true;
+    void Promise.resolve(d.call("schema.types.list", {})).then(
+      (o) => { if (alive) setOwn(((o as { types?: { key: string; title?: string; plural?: string }[] }).types ?? []).map((x) => ({ key: x.key, title: x.title ?? x.key, plural: x.plural ?? x.title ?? x.key }))); },
+      () => { if (alive) setOwn([]); });
+    return () => { alive = false; };
+  }, [d, typesProp]);
+  const types = typesProp === undefined ? own : typesProp;
   // the quiet highlight after an agent's edit fades by itself
   const [lit, setLit] = useState(fresh);
   useEffect(() => { if (!fresh) return undefined; setLit(true); const id = setTimeout(() => setLit(false), 6000); return () => clearTimeout(id); }, [fresh]);
