@@ -30,7 +30,7 @@ function build(part: string) {
   s.replica.put("messages", [msg("c2", "c1", 2, me, "Find a time for the vendor call next week, and compare the two quotes.", at(9, 21))]);
   const count = part === "empty" ? 0 : part === "long" ? 60 : part === "main" ? 1 : 3;
   s.replica.put("threads", [{
-    id: "t_c2", threadId: "t_c2", kind: "thread", parentThreadId: "c1", parentMessageId: "c2", listed: false, planMode: false, members: [], agents: [{ agentId: "agt_intake", mode: "lead" }], createdAt: at(9, 22), replyCount: count, lastMessageAt: count >= 3 ? at(9, 40) : at(9, 23), repliers: [{ kind: "agent", id: "agt_intake" }], preview: part === "done" ? "Two helpers. Tess checks the vendor calendar and Orin compares the quotes, then Decision: book Thursday 14:00." : undefined,
+    id: "t_c2", threadId: "t_c2", kind: "thread", parentThreadId: "c1", parentMessageId: "c2", listed: false, planMode: false, members: [], agents: [{ agentId: "agt_intake", mode: "lead" }], createdAt: at(9, 22), replyCount: count, lastMessageAt: count >= 3 ? at(9, 40) : at(9, 23), repliers: [{ kind: "agent", id: "agt_intake" }], preview: count >= 3 ? "Two helpers. Tess checks the vendor calendar and Orin compares the quotes, then Decision: book Thursday 14:00." : undefined,
   }]);
   if (part === "long") {
     s.replica.put("messages", Array.from({ length: 60 }, (_, i) => msg(`tl${i + 1}`, "t_c2", i + 1, i % 2 === 0 ? intake : me, i % 2 === 0 ? `Checked item ${i + 1} against the quote and the calendar.` : `Thanks, go on with item ${i + 1}.`, at(9, 22, i * 10))));
