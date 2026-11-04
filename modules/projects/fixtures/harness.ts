@@ -103,6 +103,8 @@ export function fakeWorld(clock: { t: number }) {
     "channels.get": (i) => ({ channel: channels.get(i.channelId) ?? fail("validation.not_found", "no such channel") }),
     "channels.members.add": (i) => { const set = channelPeople.get(i.channelId) ?? new Set<string>(); for (const id of i.personIds as string[]) set.add(id); channelPeople.set(i.channelId, set); return { channel: channels.get(i.channelId) }; },
     "channels.members.remove": (i) => { channelPeople.get(i.channelId)?.delete(i.personId); return { channel: channels.get(i.channelId) }; },
+    "channels.agents.add": (i) => { const set = channelPeople.get(i.channelId) ?? new Set<string>(); set.add(i.agentId); channelPeople.set(i.channelId, set); return { channel: channels.get(i.channelId) }; },
+    "channels.agents.remove": (i) => { channelPeople.get(i.channelId)?.delete(i.agentId); return { channel: channels.get(i.channelId) }; },
     "chat.post": (i, o) => keyed(o, "cp", () => { posts.push({ threadId: i.threadId, body: i.body }); return { message: { messageId: next("msg") } }; }),
     "chat.thread": () => ({ thread: { threadId: next("thr") } }),
     "threads.get": (i) => (i.threadId === "thr_missing" ? fail("validation.not_found", "no such thread") : { thread: { threadId: i.threadId } }),

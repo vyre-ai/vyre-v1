@@ -589,3 +589,13 @@ test("a Space owner or admin may set and remove roles whoever leads the project;
   h.allowOnly((a) => a.perm === null && a.level === "view");   // can see it, cannot manage, no Console right
   await assert.rejects(() => run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }), /Manage/);
 });
+
+test("an agent given a project role joins the project's channel too (Lead answers, the rest listen), and leaves it when removed", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: BOT, role: "member" });
+  assert.ok(h.world.channelPeople.get(p.channelId)?.has(BOT), "the agent is in the project's channel");
+  assert.equal(h.world.calls.filter((c) => c.cap === "channels.agents.add").at(-1)?.input["mode"], "listen");
+  await run(h, "projects.members.remove", { projectId: p.projectId, principal: BOT });
+  assert.ok(!h.world.channelPeople.get(p.channelId)?.has(BOT), "and out of it when it leaves");
+});

@@ -63,6 +63,7 @@ export async function applyRole(ctx: ProjectsCtx, p: Project, principal: string,
   }
   // the project's channel is invite-only: a grant lets a person read it, but they are only IN it (and the Chat tab opens it, channels.get answers) once they are added
   if (kind === "person" && p.channelId && !ownPersonal) await tolerant(ctx, "channels.members.add", { channelId: p.channelId, personIds: [principal] }, null);
+  if (kind === "agent" && p.channelId) await tolerant(ctx, "channels.agents.add", { channelId: p.channelId, agentId: principal, mode: role === "lead" ? "lead" : "listen" }, null);
   saveMember(ctx.db, p.projectId, member);
   if (role === "lead") await writeRecord(ctx, p, { lead: principal });
   // projects.create and projects.from_channel declare project.created, not project.member_set: the first people on a project are part of its creation
@@ -112,6 +113,7 @@ export async function membersSet(ctx: ProjectsCtx, input: In): Promise<unknown> 
 export async function removeMember(ctx: ProjectsCtx, p: Project, m: Member): Promise<void> {
   for (const r of resourcesOf(p)) await call(ctx, "access.unshare", { resource: r, subject: subjectOf(m), source: sourceTag(p.projectId) });
   if (m.kind === "person" && p.channelId) await tolerant(ctx, "channels.members.remove", { channelId: p.channelId, personId: m.principal }, null);
+  if (m.kind === "agent" && p.channelId) await tolerant(ctx, "channels.agents.remove", { channelId: p.channelId, agentId: m.principal }, null);
   dropMember(ctx.db, p.projectId, m.principal);
   if (m.role === "lead") {
     const fields = await readRecord(ctx, p);
