@@ -74,9 +74,9 @@ const open = async (ctx, url) => {
 };
 const pick = async (page, trigger, city) => {
   await page.getByTestId(trigger).click();
-  await page.getByTestId("menu-search").fill(city);
+  await page.getByTestId("zone-search").fill(city);
   await page.waitForTimeout(500);
-  const items = page.locator("[data-testid^='menu-item-']").filter({ hasText: city });
+  const items = page.locator("[data-testid^='zone-row-']").filter({ hasText: city });
   console.log(`     ${city}: ${await items.count()} matching rows`);
   await items.first().click();
   await page.waitForTimeout(600);
@@ -95,7 +95,7 @@ try {
   await con.getByTestId("row-nav-space").click({ timeout: 30000 }).catch(async () => { console.log("testids: " + JSON.stringify((await con.$$eval("[data-testid]", (n) => n.map((x) => x.getAttribute("data-testid")))).slice(0, 50))); });
   say(await con.getByTestId("infra-space-timezone").waitFor({ timeout: 30000 }).then(() => true, () => false), "Console, Space, General has the Space time zone row");
   await pick(con, "infra-space-timezone", "Los Angeles");
-  const line = await con.getByTestId("row-space-timezone-confirm").innerText().catch(() => "");
+  const line = await con.getByTestId("space-timezone-confirm").innerText().catch(() => "");
   say(/will read in Pacific Time\. Deadlines already set keep their moment\./.test(line), `the confirm line reads: ${JSON.stringify(line.slice(0, 140))}`);
   await con.screenshot({ path: path.join(out, "paper-wide-1-console-confirm.png") });
   await con.getByTestId("infra-space-timezone-save").click();
@@ -217,10 +217,11 @@ try {
     say(ok, `${tag}: Console has the Space time zone row`);
     if (ok) {
       await pg.getByTestId("infra-space-timezone").click();
-      await pg.getByTestId("menu-search").fill("Los");
+      await pg.getByTestId("zone-search").fill("Los");
       await pg.waitForTimeout(400);
       await pg.screenshot({ path: path.join(out, `${tag}-console-picker.png`) });
       await pg.keyboard.press("Escape");
+      await pg.waitForTimeout(300);
       await pick(pg, "infra-space-timezone", "Tokyo");
       await pg.screenshot({ path: path.join(out, `${tag}-console-confirm.png`) });
       await pg.getByTestId("infra-space-timezone-cancel").click().catch(() => undefined);

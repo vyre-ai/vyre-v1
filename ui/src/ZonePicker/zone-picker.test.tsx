@@ -1,8 +1,8 @@
-// The zone picker: its button says the zone, the city and the time there; the list has the city with the time, one row ticked, and choosing another calls onChange once.
+// The zone picker: its button says the zone, the city and the time there; the sheet lists cities with offset and time, ticks the current one, finds by city, and choosing another calls onChange once.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
-import { find, flush, installDom, mount, press, textOf } from "../testing/dom.ts";
+import { find, flush, installDom, mount, press, textOf, typeInto } from "../testing/dom.ts";
 import { ZonePicker, zoneLine } from "./index.tsx";
 
 const NOW = Date.parse("2026-11-04T22:28:00Z");   // 2:28 PM Pacific
@@ -13,15 +13,38 @@ test("the button reads like the row: name, city, time now", () => {
   assert.equal(zoneLine("Not/AZone", NOW), "Not/AZone");
 });
 
-test("pressing it lists the zones with the time there; choosing one calls onChange with its id, choosing the current one does nothing", async () => {
+test("pressing it opens a sheet with city, UTC offset and the time there, ticks the current zone, finds by city, and choosing another calls onChange with its id", async () => {
   installDom();
   const got: string[] = [];
   const root = await mount(createRoot, <ZonePicker value="America/Los_Angeles" now={NOW} onChange={(z) => got.push(z)} testID="zp" extra={{ label: "Use this computer's time zone", onSelect: () => got.push("device") }} />);
   assert.match(textOf(find(root, "zp")), /Pacific Time, Los Angeles, 2:28 PM/);
+  assert.equal(find(root, "zone-sheet"), null);
   await press(find(root, "zp"));
   await flush();
-  assert.ok(find(root, "menu-item-Pacific Time, Los Angeles, 2:28 PM"), "the current zone is a row");
-  assert.ok(find(root, "menu-item-Pakistan Standard Time, Karachi, 3:28 AM") || find(root, "menu-item-Pakistan Time, Karachi, 3:28 AM"), "Karachi with its time");
-  await press(find(root, "menu-item-Pacific Time, Los Angeles, 2:28 PM"));
-  assert.deepEqual(got, [], "the same zone is not a change");
+  const la = find(root, "zone-row-America/Los_Angeles");
+  assert.ok(la, "the current zone is a row");
+  assert.match(textOf(la), /Los Angeles/);
+  assert.match(textOf(la), /UTC-8/);
+  assert.match(textOf(la), /2:28 PM/);
+  assert.match(textOf(la), /\u2713/, "the current one is ticked");
+  assert.ok(find(root, "zone-extra"), "the extra row leads the list");
+  await typeInto(find(root, "zone-search"), "karachi");
+  await flush();
+  assert.equal(find(root, "zone-row-America/Los_Angeles"), null, "the search narrows the list");
+  const khi = find(root, "zone-row-Asia/Karachi");
+  assert.ok(khi);
+  assert.match(textOf(khi), /UTC\+5/);
+  assert.match(textOf(khi), /3:28 AM/);
+  await press(khi);
+  await flush();
+  assert.deepEqual(got, ["Asia/Karachi"]);
+  assert.equal(find(root, "zone-sheet"), null, "choosing closes the sheet");
+  await press(find(root, "zp"));
+  await flush();
+  await press(find(root, "zone-row-America/Los_Angeles"));
+  assert.deepEqual(got, ["Asia/Karachi"], "the same zone is not a change");
+  await press(find(root, "zp"));
+  await flush();
+  await press(find(root, "zone-extra"));
+  assert.deepEqual(got, ["Asia/Karachi", "device"]);
 });
