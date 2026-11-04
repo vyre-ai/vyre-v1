@@ -40,6 +40,7 @@ function Screen({ view, caption, onPress, name, online, live }: { view: ReturnTy
           <View style={[st.line, { width: "56%" }]} />
         </View>
       </View>
+      {/* ui-rows-lint: not a list (the drawn dock of a computer picture) */}
       <View style={st.dock}>{(["globe", "terminal", "folder"] as const).map((n) => <View key={n} style={st.dockItem}><Icon name={n} size={9} color="#fff" /></View>)}</View>
       {dim ? <View style={st.center}><View style={st.wake}><Icon name="moon" size={13} color="var(--ink-2)" /><Text style={st.wakeText}>Wake</Text></View></View> : null}
       {!dim ? <View style={st.cap}><Text numberOfLines={1} style={st.capText}>{view.screen === "mine" ? "You're typing" : caption}</Text></View> : null}
@@ -99,6 +100,7 @@ export function DeskPicture({ height = 124 }: { height?: number }): ReactElement
   return (
     <View aria-hidden testID="computer-picture" style={[st.pic, { height }]}>
       <View style={st.picWin}><View style={st.picBar} /><View style={[st.line, { width: "70%", margin: 8 }]} /><View style={[st.line, { width: "50%", marginHorizontal: 8 }]} /></View>
+      {/* ui-rows-lint: not a list (the drawn dock of a computer picture) */}
       <View style={st.dock}>{(["globe", "terminal", "folder"] as const).map((n) => <View key={n} style={st.dockItem}><Icon name={n} size={9} color="#fff" /></View>)}</View>
     </View>
   );
@@ -114,6 +116,7 @@ export function NoneBody({ hosts, canProvision, onProvision, name = "this agent"
       <DeskPicture />
       <Text accessibilityRole="header" style={st.headline}>{`Give ${name} its own computer`}</Text>
       <View testID="computer-gets" style={st.gets}>
+        {/* ui-rows-lint: not a list (what the computer comes with: three lines with icons) */}
         {([["globe", "Its own Chrome, with Vyre for Chrome in it"], ["terminal", "A terminal to run commands in"], ["folder", "A files folder it shares with Vyre Files"]] as const).map(([i, w]) => (
           <View key={w} style={st.get}><Icon name={i} size={14} color="var(--accent)" /><Text style={st.getText}>{w}</Text></View>
         ))}
@@ -173,6 +176,7 @@ export function SettingUp({ name, step, where }: { name: string; step: number; w
       <Text accessibilityRole="header" style={st.headline}>{`Setting up ${name}'s computer`}</Text>
       <Text style={st.none}>{`${where ? `On ${where}. ` : ""}This takes a minute or two.`}</Text>
       <View style={{ marginTop: 8 }}>
+        {/* ui-rows-lint: not a list (setup progress: the steps as a stepper, nothing to press) */}
         {SETUP_STEPS.map((w, i) => (
           <View key={w} testID={`setup-step-${i}`} accessibilityLabel={`${w}: ${i < step ? "done" : i === step ? "now" : "waiting"}`} style={st.step}>
             <View style={[st.stepDot, i < step && st.stepDone, i === step && st.stepNow]}>{i < step ? <Icon name="check" size={11} color="#fff" width={2} /> : null}</View>
