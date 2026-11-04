@@ -10,7 +10,7 @@ const tick = (): Promise<void> => new Promise((r) => setImmediate(r));
 
 class FakeSocket implements TalkSocket {
   readyState = 0; binaryType?: string; onopen: TalkSocket["onopen"] = null; onmessage: TalkSocket["onmessage"] = null; onerror: TalkSocket["onerror"] = null; onclose: TalkSocket["onclose"] = null;
-  sent: (string | ArrayBuffer)[] = []; closed = false; constructor(public url: string, public protocols: string[]) {}
+  sent: (string | ArrayBuffer)[] = []; closed = false; url: string; protocols: string[]; constructor(url: string, protocols: string[]) { this.url = url; this.protocols = protocols; }
   send(d: string | ArrayBuffer): void { this.sent.push(d); }
   close(): void { this.closed = true; }
   open(): void { this.readyState = 1; this.onopen?.({}); }
