@@ -24,6 +24,7 @@ import { OLD_NAMES, landing, nowIn, resolve, sectionOf, visibleSections, visible
 import type { PageDef } from "./nav.ts";
 import { Lead, PageHelpContext, pointer } from "./ui.tsx";
 import { NeedsHere } from "./NeedsHere.tsx";
+import { RowWrapContext } from "../../../../../ui/src/Row/index.tsx";
 import { Info } from "../../../../../ui/src/Tip/index.tsx";
 import { openOnboarding } from "../../onboarding/store.ts";
 
@@ -31,6 +32,14 @@ export const TOP_BAR_HEIGHT = 44;
 export const NAV_WIDTH = 232;
 export const ASSISTANT_WIDTH = 340;
 export const SYSTEM_SKIN = "system";
+export const MAX_PHONE_TABS = 3;
+
+/** The tabs a strip draws when only `max` fit: the first ones, with the open tab taking the last place when it is further along. */
+export function tabsShown<T>(tabs: readonly T[], active: T | undefined, max: number): T[] {
+  if (tabs.length <= max) return [...tabs];
+  const first = tabs.slice(0, max);
+  return active !== undefined && !first.includes(active) ? [...tabs.slice(0, max - 1), active] : first;
+}
 
 export interface ConsoleShellProps {
   initialPage?: string;
@@ -170,12 +179,18 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   }
   const tabs = here ? visibleTabs(here, ok) : [];
   const activeTab = tabs.find((t) => t.views.some((x) => x.page === page));
+  // a phone has room for three tabs: the rest go in a More menu, and the open tab always shows
+  const shown = tabsShown(tabs, activeTab, narrow ? MAX_PHONE_TABS : tabs.length);
+  const moreTabs = tabs.filter((t) => !shown.includes(t));
+  const openTab = (t: (typeof tabs)[number]): void => { const on = t === activeTab, to = t.views.find((x) => x.page === lastIn[here!.id])?.page ?? t.views[0]!.page; go(on ? t.views[0]!.page : to); };
+  const moreBtn = useRef<unknown>(null);
   const strip = tabs.length > 1 ? (
     <View style={s.tabs} accessibilityRole="tablist" testID="console-tabs">
-      {tabs.map((t) => {
-        const on = t === activeTab, to = t.views.find((x) => x.page === lastIn[here!.id])?.page ?? t.views[0]!.page;
-        return <Pressable key={t.tab.label} accessibilityRole="tab" accessibilityState={{ selected: on }} aria-selected={on} testID={`tab-${t.tab.views[0]!.page}`} onPress={() => go(on ? t.views[0]!.page : to)} style={[s.tab, on && s.tabOn, pointer]}><Text style={[s.tabText, on && s.tabTextOn]}>{t.tab.label}</Text></Pressable>;
+      {shown.map((t) => {
+        const on = t === activeTab;
+        return <Pressable key={t.tab.label} accessibilityRole="tab" accessibilityState={{ selected: on }} aria-selected={on} testID={`tab-${t.tab.views[0]!.page}`} onPress={() => openTab(t)} style={[s.tab, on && s.tabOn, pointer]}><Text style={[s.tabText, on && s.tabTextOn]}>{t.tab.label}</Text></Pressable>;
       })}
+      {moreTabs.length > 0 ? <Pressable ref={(r) => { moreBtn.current = r; }} accessibilityRole="button" accessibilityLabel="More tabs" testID="tab-more" onPress={() => { const a = below(moreBtn); menu.show(moreTabs.map((t) => ({ label: t.tab.label, onSelect: () => openTab(t) })), a.x, a.y, "other", { label: "More tabs" }); }} style={[s.tab, pointer]}><Text style={s.tabText}>More</Text></Pressable> : null}
     </View>
   ) : null;
   const views = activeTab && activeTab.views.length > 1 ? (
@@ -244,7 +259,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
             <View style={def.id === "audit" ? s.wide : def.id === "machines" || def.id === "permissions" || def.id === "roles" ? s.machines : s.column}>
               {views}
               <NeedsHere page={page} />
-              <PageHelpContext.Provider value={registerHelp}><ShellDataGate value={shellData}>{body}</ShellDataGate></PageHelpContext.Provider>
+              <RowWrapContext.Provider value={narrow}><PageHelpContext.Provider value={registerHelp}><ShellDataGate value={shellData}>{body}</ShellDataGate></PageHelpContext.Provider></RowWrapContext.Provider>
             </View>
           </ScrollView>
         </View>

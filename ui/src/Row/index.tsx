@@ -4,7 +4,7 @@
 // Optional leading and trailing slots sit inside the Pressable, so the hover and selection paint stays whole-row (ruling 36): leading and trailing are centred to the text column.
 // Colours are skin tokens (CSS variables on web), so a skin switch repaints with no re-render.
 
-import { createElement, memo, useState } from "react";
+import { createContext, createElement, memo, useContext, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { RowProps } from "./props.ts";
@@ -47,6 +47,10 @@ const MARKS_S = { flex: "none", display: "flex", flexDirection: "row", alignItem
 const NOTE_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } as const;
 const NOTE2_S = { color: "var(--ink-3)", fontSize: 11.5, lineHeight: "16px", overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2 } as const;
 
+const TITLE_WRAP_S = { color: "var(--ink)", fontSize: 13, lineHeight: "18px", overflow: "hidden", display: "-webkit-box", WebkitBoxOrient: "vertical", WebkitLineClamp: 2, overflowWrap: "anywhere" } as const;
+/** On a phone a title may run to two lines instead of one clipped one (the Console turns it on below 900 wide). The row grows with it, as it does for a taller trailing slot. */
+export const RowWrapContext = createContext(false);
+
 const h = createElement;
 function WebRow({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "accent", tall = false, emphasis = false, note, selected = false, hovered = false, accentLit = false, leading, trailing, onPress, domProps }: RowProps): ReactElement {
   ensureRowCss();
@@ -54,7 +58,9 @@ function WebRow({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "
   const inkOn = filled ? { color: "var(--accent-ink)" } : null;
   const tid = (suffix: string): string | undefined => (id ? `row-${id}${suffix}` : undefined);
   const { style: extra, ...dom } = (domProps ?? {}) as { style?: Record<string, unknown> } & Record<string, unknown>;
-  const titleEl = h("span", { style: { ...(emphasis ? { ...TITLE_S, ...BOLD } : TITLE_S), ...inkOn } }, title);
+  const wrapTitle = useContext(RowWrapContext);
+  const titleBase = wrapTitle ? TITLE_WRAP_S : TITLE_S;
+  const titleEl = h("span", { style: { ...(emphasis ? { ...titleBase, ...BOLD } : titleBase), ...inkOn } }, title);
   return h(
     "div",
     {
@@ -73,7 +79,7 @@ function WebRow({ id, title, titleSuffix, titleMarks, noteLead, noteLeadTone = "
       titleSuffix || titleMarks
         ? h("div", { style: TLINE_S }, h("span", { style: emphasis ? { ...TITLE_IN_LINE_S, ...BOLD } : TITLE_IN_LINE_S }, title), titleSuffix ? h("span", { style: SUFFIX_S, "data-testid": tid("-suffix") }, titleSuffix) : null, titleMarks ? h("div", { style: MARKS_S, "data-testid": tid("-marks") }, titleMarks) : null)
         : titleEl,
-      note ? h("div", { style: { ...(tall ? NOTE2_S : NOTE_S), ...(filled ? { color: "var(--accent-ink)", opacity: 0.8 } : null) } }, noteLead ? h("span", { "data-testid": tid("-notelead"), style: noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD }, noteLead) : null, noteLead ? " \u00b7 " : null, note) : null,
+      note ? h("div", { style: { ...(tall || wrapTitle ? NOTE2_S : NOTE_S), ...(filled ? { color: "var(--accent-ink)", opacity: 0.8 } : null) } }, noteLead ? h("span", { "data-testid": tid("-notelead"), style: noteLeadTone === "warning" ? NOTE_LEAD_WARN : NOTE_LEAD }, noteLead) : null, noteLead ? " \u00b7 " : null, note) : null,
     ),
     trailing ? h("div", { style: TRAIL_S, "data-testid": tid("-trailing") }, trailing) : null,
   );

@@ -5,7 +5,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ConsoleShell } from "../shell/ConsoleShell.tsx";
+import { ConsoleShell, MAX_PHONE_TABS, tabsShown } from "../shell/ConsoleShell.tsx";
+import { Row, RowWrapContext } from "../../../../../ui/src/Row/index.tsx";
 import type { ConsoleShellProps } from "../shell/ConsoleShell.tsx";
 import { ConsoleDataProvider } from "../shell/data.tsx";
 import { PAGES, PAGE_NOTE } from "../shell/nav.ts";
@@ -73,4 +74,27 @@ test("copy: the permission labels the Console lists carry no banned word", () =>
   const hits = permissions.map((p) => (p as unknown as { label?: string; title?: string; summary?: string }).label ?? (p as unknown as { title?: string }).title ?? "").filter((l) => BANNED.test(l));
   assert.deepEqual(hits, []);
   assert.ok(permissions.length > 20);
+});
+
+test("phone: tabs that do not fit go in a More menu and the open tab always shows", () => {
+  assert.equal(MAX_PHONE_TABS, 3);
+  assert.deepEqual(tabsShown(["a", "b", "c", "d", "e"], "b", 3), ["a", "b", "c"]);
+  assert.deepEqual(tabsShown(["a", "b", "c", "d", "e"], "e", 3), ["a", "b", "e"], "the open tab takes the last place");
+  assert.deepEqual(tabsShown(["a", "b"], "b", 3), ["a", "b"], "all fit, no More");
+  const draw = (initialPage: string, width: number): string => renderToStaticMarkup(<ConsoleDataProvider value={createSampleConsole().data}><ConsoleShell width={width} initialPage={initialPage} /></ConsoleDataProvider>).replaceAll("<!-- -->", "");
+  const phone = draw("agents", 390);
+  assert.ok(phone.includes('data-testid="tab-more"') && phone.includes(">More<"), "Agents has five tabs: More on a phone");
+  assert.equal((phone.match(/data-testid="tab-(agents|actors|skills|activity|template)"/g) ?? []).length, 3);
+  const later = draw("template", 390);
+  assert.ok(later.includes('data-testid="tab-template"') && later.includes('data-testid="tab-more"'), "the open tab shows even when it is the fifth");
+  const wide = draw("agents", 1280);
+  assert.ok(!wide.includes('data-testid="tab-more"') && wide.includes('data-testid="tab-template"'), "no More on a wide screen");
+});
+
+test("phone: a long row title wraps to two lines instead of one clipped line; wide keeps one line", () => {
+  const row = <Row id="r" title="A very long title that would be clipped on a phone" />;
+  const on = renderToStaticMarkup(<RowWrapContext.Provider value={true}>{row}</RowWrapContext.Provider>);
+  const off = renderToStaticMarkup(row);
+  assert.ok(on.includes("-webkit-line-clamp:2") && !off.includes("-webkit-line-clamp:2"));
+  assert.ok(off.includes("white-space:nowrap"));
 });
