@@ -123,6 +123,8 @@ export function statusView(b: MessageBlock): StatusView {
   if (state === "device_wait") return { kind: "wait", id: b.id, text: str(d.text) || DEVICE_WAIT_TEXT, action: { ...RUN_ON_SERVER } };
   // files a terminal agent deleted in goal/ went to Vyre's Trash (modules/engine/goal-folder.ts): the line carries Undo, which brings them back
   if (state === "trashed" && str(d.text) !== "" && Array.isArray(d.fileIds)) return { kind: "wait", id: b.id, text: str(d.text), action: { key: `undo_trash:${(d.fileIds as unknown[]).filter((x): x is string => typeof x === "string").join(",")}`, label: "Undo" } };
+  // the chat was answered by another account because the person's own sign-in is locked on this server: the one line carries Unlock, which opens the same small sheet as the banner
+  if (state === "key_locked" && str(d.text) !== "") return { kind: "wait", id: b.id, text: str(d.text), action: { key: "unlock_vault", label: "Unlock" } };
   if (state === "cancelled") return { kind: "note", id: b.id, text: "Stopped." };
   if (state === "waiting" && str(d.taskId) !== "") return { kind: "approval", id: b.id, taskId: str(d.taskId) };
   if (state === "waiting") return { kind: "note", id: b.id, text: "Waiting for your approval." };

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { KeyGate, LockScreen, MID_SESSION_LINE, NoPasswordKey } from "./KeyGate.tsx";
+import { BANNER_LINE, KeyGate, LockScreen, LockedBanner, NoPasswordKey, SHEET_LINE } from "./KeyGate.tsx";
 import { lockName } from "./stored.ts";
 import { forgetKey, keepKey, keyIsKept, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
 
@@ -115,9 +115,22 @@ test("mid-session after a server restart the lock shows once; Not now is remembe
   assert.deepEqual(afterBeat("locked", { dismissed: false }), { show: true, dismissed: false }, "a later loss asks once more");
 });
 
-test("the lock that comes back while Vyre is open says why in one quiet line, and keeps Not now", () => {
-  const t = text(renderToStaticMarkup(<LockScreen name="Irfad" sub={MID_SESSION_LINE} onUnlock={async () => undefined} onSkip={() => undefined} onSignOut={() => undefined} />));
-  assert.match(t, /The server restarted, so your sign-ins are locked on it\. Your password unlocks them\./);
-  assert.match(t, /Not now/);
-  assert.doesNotMatch(t, /error|failed|unauthenticated/i);
+test("mid-session the app stays on screen: a slim banner says the sign-ins are locked after a restart, with Unlock and a dismiss; the full-screen lock is for launch only", () => {
+  const banner = renderToStaticMarkup(<LockedBanner onUnlock={() => undefined} onDismiss={() => undefined} />);
+  assert.match(text(banner), new RegExp(BANNER_LINE.replace(".", "\\.")));
+  assert.match(banner, /data-testid="key-banner-unlock"/);
+  assert.match(banner, /data-testid="key-banner-dismiss"/);
+  assert.equal(BANNER_LINE, "Your sign-ins are locked on this server after a restart.");
+  assert.doesNotMatch(text(banner), /error|failed|unauthenticated/i);
+  assert.match(SHEET_LINE, /unlocks your sign-ins on this server/);
+});
+
+test("an Unlock sheet asked for on a Space server carries its own words and the way out for a forgotten password", async () => {
+  const gate = await import("./vault-gate.ts");
+  let seen: unknown;
+  gate.registerVaultPrompt(async (_u, words) => { seen = words; return true; });
+  const forgot = (): void => undefined;
+  assert.equal(await gate.askVaultUnlock(async () => undefined, { title: "Unlock your sign-ins", sub: SHEET_LINE, forgot }), true);
+  assert.deepEqual(seen, { title: "Unlock your sign-ins", sub: SHEET_LINE, forgot });
+  gate.registerVaultPrompt(null);
 });

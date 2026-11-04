@@ -5,16 +5,15 @@
 // retried, a forgotten password goes straight to recovery, and Sign out always leaves.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { isLoopbackUrl, keyDoor, keyStatusOnOwnNode, serverKeyState } from "../../../../../client/src/gateway/local-key.ts";
 import { keyIsKept, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
+import { askVaultUnlock } from "./vault-gate.ts";
 import { OFFLINE_OWN, SESSION_OVER, WRONG_PASSWORD, afterBeat, passwordKeyState, remoteGateState, unlockWithPassword } from "./key-unlock.ts";
 export { hasPasswordKey, passwordKeyState, unlockWithPassword } from "./key-unlock.ts";
 import { Bar, Button, ErrorLine, Field, Group, JoinFrame, Links, Opening, Panel, Step, TextButton, Title, useHoldFirstFrame } from "../../join/kit.tsx";
 import { whenUsable } from "../../startup/marks.ts";
 import { MANY_TRIES, TOO_MANY } from "../../join/failure.ts";
-
-/** The quiet line when the lock comes back while Vyre is open: the server restarted and lost the key. */
-export const MID_SESSION_LINE = "The server restarted, so your sign-ins are locked on it. Your password unlocks them.";
 
 /** How long the lock screen holds Unlock after too many wrong passwords. */
 export const LOCK_WAIT_MS = 30_000;
@@ -123,7 +122,7 @@ export function KeyGate({ baseUrl, token, name, onSignOut, onForgot, children }:
   }, [remote, baseUrl, token]);
   // while the app is open on a Space server: a server that restarted and holds no key, with no key in this app either, shows the lock once (never again for the same loss after Not now)
   const dismissed = useRef(false);
-  const [midSession, setMidSession] = useState(false);
+  const [banner, setBanner] = useState(false);
   useEffect(() => {
     if (!remote || state !== "open") return undefined;
     let live = true;
@@ -146,7 +145,40 @@ export function KeyGate({ baseUrl, token, name, onSignOut, onForgot, children }:
   if (state === "nopassword") return <NoPasswordKey onContinue={() => setState("open")} {...(onSignOut ? { onSignOut } : {})} />;
   if (state === "locked" || state === "offline") {
     const forgot = onForgot ?? onSignOut;
-    return <LockScreen name={name} {...(forgot ? { onForgot: forgot } : {})} {...(onSignOut ? { onSignOut } : {})} {...(remote ? { onSkip: () => { dismissed.current = true; setMidSession(false); setState("open"); } } : {})} {...(remote && midSession ? { sub: MID_SESSION_LINE } : {})} {...(state === "offline" ? { notice: OFFLINE_OWN } : {})} onUnlock={async (password) => { await unlockWithPassword(baseUrl, token, password); if (alive.current) { setMidSession(false); setState("open"); } }} />;
+    return <LockScreen name={name} {...(forgot ? { onForgot: forgot } : {})} {...(onSignOut ? { onSignOut } : {})} {...(remote ? { onSkip: () => { dismissed.current = true; setState("open"); } } : {})} {...(state === "offline" ? { notice: OFFLINE_OWN } : {})} onUnlock={async (password) => { await unlockWithPassword(baseUrl, token, password); if (alive.current) setState("open"); }} />;
   }
-  return <><HoldUntilUsable />{children}</>;
+  // the app stays on screen while it works: a slim banner says the sign-ins are locked after a restart, Unlock opens the small sheet over whatever is open, the x is Not now
+  const unlockHere = (): void => {
+    const forgot = onForgot ?? onSignOut;
+    void askVaultUnlock((password) => unlockWithPassword(baseUrl, token, password), { title: "Unlock your sign-ins", sub: SHEET_LINE, ...(forgot ? { forgot } : {}) }).then((ok) => { if (ok) setBanner(false); });
+  };
+  const dismiss = (): void => { dismissed.current = true; setBanner(false); };
+  return (
+    <View style={{ flex: 1 }}>
+      <HoldUntilUsable />
+      {remote && banner ? <LockedBanner onUnlock={unlockHere} onDismiss={dismiss} /> : null}
+      <View style={{ flex: 1 }}>{children}</View>
+    </View>
+  );
 }
+
+/** The slim line over the app while the server holds no key (owner, 4 Nov): says what is locked and why, with Unlock and a dismiss that does what Not now does. */
+export const BANNER_LINE = "Your sign-ins are locked on this server after a restart.";
+export const SHEET_LINE = "Your password unlocks your sign-ins on this server.";
+export function LockedBanner({ onUnlock, onDismiss }: { onUnlock: () => void; onDismiss: () => void }): ReactElement {
+  return (
+    <View style={b.bar} accessibilityRole="alert" testID="key-banner">
+      <Text style={b.text} numberOfLines={2}>{BANNER_LINE}</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Unlock" onPress={onUnlock} testID="key-banner-unlock" style={b.go}><Text style={b.goText}>Unlock</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Dismiss" onPress={onDismiss} testID="key-banner-dismiss" style={b.x}><Text style={b.xText}>{"\u00d7"}</Text></Pressable>
+    </View>
+  );
+}
+const b = StyleSheet.create({
+  bar: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: "var(--accent-wash)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
+  text: { flex: 1, fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },
+  go: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  goText: { fontSize: 13, fontWeight: "600", color: "var(--accent)" as string },
+  x: { width: 24, height: 24, alignItems: "center", justifyContent: "center", borderRadius: 12 },
+  xText: { fontSize: 18, lineHeight: 20, color: "var(--ink-3)" as string },
+});
