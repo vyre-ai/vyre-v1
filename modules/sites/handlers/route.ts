@@ -31,7 +31,6 @@ const RESERVED_SLUGS = new Set(["forms", "u", "share", "a", "p", "api", "admin",
 export const EXCHANGE_MS = 60 * 1000;
 /** The cookie session a code starts on the artifact host: access is asked again on every request, so a person removed from the share is out at once. */
 export const ARTIFACT_SESSION_MS = 12 * 60 * 60 * 1000;
-const TICKET_MS = 8 * 60 * 60 * 1000;
 const PAGE_DEFAULT = 100;
 const PAGE_MAX = 500;
 const FILES_MAX = 200;
@@ -504,14 +503,12 @@ async function artifactOpen(ctx: Ctx, input: unknown): Promise<{ path: string; u
   const now = ctx.now();
   ctx.db.run("DELETE FROM sites_ticket WHERE expires_at < ?", now);
   const token = Array.from(globalThis.crypto.getRandomValues(new Uint8Array(24)), (b) => b.toString(16).padStart(2, "0")).join("");
+  // the address is a one-time code for the artifact host (a minute, one use, traded for a cookie there); there is no address with a token in it
   const ah = host?.artifactHost?.() ?? null;
-  // with an artifact host the address is a one-time code for it (a minute, one use, traded for a cookie there); without one the keyed address on the app's origin stands, as before
-  const expiresAt = now + (ah ? EXCHANGE_MS : TICKET_MS);
-  ctx.db.run("INSERT INTO sites_ticket (token_hash, site_id, principal, expires_at) VALUES (?, ?, ?, ?)", await hashHex(ah ? `x:${token}` : token), id, ctx.principal.id, expiresAt);
-  if (ah) return { path: `/x/${token}`, url: `https://${ah}/x/${token}`, expiresAt };
-  const path = `/a/${id}/k/${token}/`;
-  const o = host?.origin();
-  return { path, ...(o ? { url: `${o.origin}${path}` } : {}), expiresAt };
+  if (!ah) fail(ctx, "validation.precondition_failed", "This server has no address for artifacts yet.");
+  const expiresAt = now + EXCHANGE_MS;
+  ctx.db.run("INSERT INTO sites_ticket (token_hash, site_id, principal, expires_at) VALUES (?, ?, ?, ?)", await hashHex(`x:${token}`), id, ctx.principal.id, expiresAt);
+  return { path: `/x/${token}`, url: `${/^a\.localhost(:\d+)?$/.test(ah as string) ? "http" : "https"}://${ah}/x/${token}`, expiresAt };
 }
 
 // ---- what the gateway asks

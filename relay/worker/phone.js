@@ -8,7 +8,7 @@
 //   hostControl   what a box's control socket may say about its name: host.claim, host.release, host.status. Called from RouteRelay.onTicket.
 //   onHost        the gateway: the shell for a claimed name, "is asleep" when its box is offline, the old redirect for a name nobody claimed here.
 //   onDoor        `/mcp` and the OAuth addresses of a claimed name: the door for outside agents, the one path that carries a credential.
-//   onPublic      `/p/*` and an artifact's `/a/<id>/k/<token>/` of a claimed name, the one thing that is not the shell: visitors with no session reach the Space's forms and sites through the box's control socket, in an opaque origin.
+//   onPublic      `/p/*` of a claimed name, the one thing that is not the shell: visitors with no session reach the Space's forms and sites through the box's control socket, in an opaque origin.
 // No dependencies; WebCrypto and the runtime only.
 
 export const PHONE = Object.freeze({
@@ -56,8 +56,6 @@ export const DOOR = /^\/(?:mcp|oauth\/(?:authorize|register|token|wait)|\.well-k
 const DOOR_KEEP = new Set([...REQUEST_KEEP, "mcp-session-id", "mcp-protocol-version", "origin", "last-event-id"]);
 const DOOR_BACK = new Set([...RESPONSE_KEEP, "www-authenticate", "mcp-session-id", "location", "allow", "x-frame-options", "x-content-type-options", "x-robots-tag", "referrer-policy", "cross-origin-opener-policy", "access-control-allow-origin", "access-control-allow-methods", "access-control-allow-headers", "access-control-max-age"]);
 
-/** An artifact's address for one person: `/a/<id>/k/<token>/...`. The box checks the token and their access on every request. `/a/<id>` alone is the app, which opens it for whoever is signed in. */
-export const ARTIFACT = /^\/a\/[a-z0-9_]{1,80}\/k\/[0-9a-f]{48}(\/|$)/;
 
 /**
  * The artifact host, `<name>-a.vyre.run`: its own origin, apart from the app's. It serves two kinds of path and nothing else: the one-time code `/x/<code>` (which sets the artifact session) and an artifact's own address `/sit_.../`.
@@ -327,7 +325,7 @@ export function publicHeaders(from, url, artifact = false) {
   if (location) {
     let to = null;
     try { to = new URL(location, url); } catch { /* not an address */ }
-    if (to && (to.origin !== url.origin || to.pathname.startsWith("/p/") || ARTIFACT.test(to.pathname) || (artifact && ARTIFACT_HOST.test(to.pathname)))) h.set("location", to.href);
+    if (to && (to.origin !== url.origin || to.pathname.startsWith("/p/") || (artifact && ARTIFACT_HOST.test(to.pathname)))) h.set("location", to.href);
   }
   // a second policy only narrows: whatever the page sent, this one still applies
   h.append("content-security-policy", PUBLIC.sandbox);
@@ -486,7 +484,7 @@ export async function onHost(request, env, name, artifact = false) {
   const online = async () => (await all()).some(x => x.online);
   // the artifact host answers its own two kinds of path and nothing else: never the app, the door or /p/
   if (artifact) return ARTIFACT_HOST.test(url.pathname) ? onPublic(request, env, name, info, online, true) : new Response(null, { status: 404, headers: { "cache-control": "no-store", "x-robots-tag": "noindex" } });
-  if (url.pathname === "/p" || url.pathname.startsWith("/p/") || ARTIFACT.test(url.pathname)) return onPublic(request, env, name, info, online);
+  if (url.pathname === "/p" || url.pathname.startsWith("/p/")) return onPublic(request, env, name, info, online);
   if (DOOR.test(url.pathname)) return onDoor(request, env, name, info, online);
   // an artifact's plain address: the app opens it for whoever is signed in
   const plain = /^\/a\/([a-z0-9_]{1,80})\/?$/.exec(url.pathname);

@@ -15,7 +15,9 @@ test("the artifact host: <name>-a.vyre.run for a relay name, a.<domain> for an o
   assert.equal(artifactHostOf("harbor.vyre.run", null), "harbor-a.vyre.run");
   assert.equal(artifactHostOf("team.example.com", "harbor"), "a.team.example.com", "an address the Space was given wins over a phone name");
   assert.equal(artifactHostOf("https://team.example.com/", null), "a.team.example.com");
-  for (const none of ["http://127.0.0.1:4100", "192.168.1.5", "https://team.example.com:8443", "localhost", "http://team.example.com", "a.team.example.com"]) assert.equal(artifactHostOf(none, null), null, none);
+  assert.equal(artifactHostOf("http://127.0.0.1:4100", null), "a.localhost:4100", "a Space on this computer: *.localhost is loopback in every browser");
+  assert.equal(artifactHostOf("http://localhost:8420", null), "a.localhost:8420");
+  for (const none of ["192.168.1.5", "https://team.example.com:8443", "http://team.example.com", "a.team.example.com"]) assert.equal(artifactHostOf(none, null), null, none);
   assert.equal(artifactHostOf(null, null), null);
   assert.equal(artifactHostOf(null, "team-a"), null, "no one holds a name that ends in -a");
 });

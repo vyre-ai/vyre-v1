@@ -264,7 +264,7 @@ function fakeApp(o: { signedIn?: boolean } = {}) {
       if (cap === "goals.list") return { goals: [{ id: "gol_1", title: "300 registrations", progress: { value: 212, target: 300 } }, { id: "gol_2", title: "Be nice", progress: { tasksDone: 1, tasks: 2 } }] };
       if (cap === "sites.artifact_open") {
         if (input.artifactId === "sit_private") throw Object.assign(new Error("That is not shared with you."), { code: "permission.no_grant" });
-        return input.artifactId === "sit_local" ? { path: "/a/sit_local/k/tok/", expiresAt: 5 } : { path: "/x/code1", url: "https://mla-a.vyre.run/x/code1", expiresAt: 60_000 };
+        return input.artifactId === "sit_local" ? { path: "/x/aaaa", url: "http://a.localhost:4100/x/aaaa", expiresAt: 5 } : { path: "/x/code1", url: "https://mla-a.vyre.run/x/code1", expiresAt: 60_000 };
       }
       if (cap === "identity.whoami") return { principal: { kind: "person", id: sess.token === "vst_me" ? "usr_me" : "usr_noah" }, name: "Noah", spaceId: sess.id };
       return {};
@@ -376,7 +376,7 @@ test("artifact.open mints the single-use address as the person who is signed in 
   assert.deepEqual([call.input, call.as], [{ artifactId: "sit_abc123" }, "vst_mine"], "the person's own session, for the Space the link points at");
   assert.equal(((await f.app.op("artifact.open", { artifactId: "sit_x1" })) as any).url, "https://mla-a.vyre.run/x/code1", "or by id, in the active Space");
   const local = await f.app.op("artifact.open", { artifactId: "sit_local" }) as any;
-  assert.match(local.url, /^http:\/\/127\.0\.0\.1:4100\/a\/sit_local\/k\/tok\/$/, "a Space with no artifact host: its own keyed address");
+  assert.equal(local.url, "http://a.localhost:4100/x/aaaa", "a Space on this computer: the code on a.localhost");
 });
 
 test("artifact.open is refused when signed out, for a Space this person is not signed in to, for a link that is not an artifact, and for one that is not shared with them", async () => {
