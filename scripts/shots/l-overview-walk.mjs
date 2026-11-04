@@ -65,6 +65,7 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   await page.waitForTimeout(300);
   check(`${tag}: the slash menu lists the kinds of live block`, (await page.locator("[data-testid=md-suggest-milestones]").count()) === 1);
   check(`${tag}: the slash menu has two groups, Basic blocks then Live blocks`, (await page.locator("[data-testid='md-suggest-head-Basic blocks']").count()) === 1 && (await page.locator("[data-testid='md-suggest-head-Live blocks']").count()) === 1 && (await page.locator("[data-testid=md-suggest-basic-check]").count()) === 1);
+  if (size === "phone") check(`${tag}: the toolbar and the Styled/Markdown switch step aside while the slash menu is open`, (await page.locator("[data-testid=md-bar]").count()) === 0 && (await page.locator("[data-testid=md-view]").count()) === 0);
   await page.screenshot({ path: path.join(out, `overview-slash-${tag}.png`) });
   await page.keyboard.type("miles");
   await page.waitForTimeout(200);
