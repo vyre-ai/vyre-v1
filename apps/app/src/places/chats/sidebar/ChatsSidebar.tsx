@@ -15,6 +15,8 @@ import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { FACES_SHOWN } from "./model.ts";
 import { createSidebarApi } from "./actions.ts";
+import { createMenuApi, muteKey } from "../menus/actions.ts";
+import { agentMenu, channelMenu, chatMenu as chatMenuOf, personMenu as personMenuOf, shortcutFor } from "../menus/kinds.ts";
 import type { SidebarApi } from "./actions.ts";
 import { ChatsSidebarDataProvider, useOnline, useOptionalSidebarData, useScreenQuery, useSidebarData } from "./data.tsx";
 import type { ChatsSidebarData } from "./data.tsx";
@@ -294,6 +296,36 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     menu.show(items, x, y, "other");
   };
   const nextUnread = (): void => { if (recent.nextUnread) { setCursor(`c:${recent.nextUnread}`); data.nav.openChat(recent.nextUnread); leave(); } };
+  // What the toggles in a row menu say comes from what the server says now: who is muted and starred, and each agent's computer. Read when a menu opens (and kept for a few seconds), so a menu
+  // shows at once from what was read last and the words are right the moment after.
+  const menuApi = useMemo(() => createMenuApi(data), [data]);
+  const facts = useRef<{ at: number; mutes: Set<string>; stars: Set<string>; computers: Map<string, { computerId: string; asleep: boolean }> }>({ at: 0, mutes: new Set(), stars: new Set(), computers: new Map() });
+  const [factsAt, setFactsAt] = useState(0);
+  const readFacts = (force = false): void => {
+    if (!force && data.clock().now - facts.current.at < 5_000 && facts.current.at !== 0) return;
+    facts.current.at = data.clock().now;
+    void Promise.allSettled([menuApi.mutes(), menuApi.stars(), menuApi.computers()]).then(([m, st2, c]) => {
+      if (m.status === "fulfilled") facts.current.mutes = m.value;
+      if (st2.status === "fulfilled") facts.current.stars = st2.value;
+      if (c.status === "fulfilled") facts.current.computers = c.value;
+      setFactsAt(facts.current.at);
+    });
+  };
+  const muted = (kind: "person" | "agent" | "channel" | "thread", id: string): boolean => facts.current.mutes.has(muteKey(kind, id));
+  const starred = (type: string, id: string): boolean => facts.current.stars.has(`${type}:${id}`);
+  const setMute = (kind: "person" | "agent" | "channel" | "thread", id: string, on: boolean): void => {
+    const next = new Set(facts.current.mutes); if (on) next.add(muteKey(kind, id)); else next.delete(muteKey(kind, id));
+    facts.current.mutes = next;
+    guard(menuApi.setMute(kind, id, on));
+  };
+  const manageAgents = allows(rtPerms, "agents.manage"), provisionPc = allows(rtPerms, GATE.provisionComputer);
+  const [renamingChat, setRenamingChat] = useState<string | null>(null);
+  const renameChat = (r: ChatRow, title: string | null): void => {
+    setRenamingChat(null);
+    if (title === null || title.trim() === "" || title === r.title) return;
+    again(menuApi.renameThread(r.threadId, title.trim()));
+  };
+  const copy = (text: string): void => { void (globalThis as { navigator?: { clipboard?: { writeText(t: string): unknown } } }).navigator?.clipboard?.writeText(text); };
   const chatMenu = (r: ChatRow): MenuEntry[] => chatMenuEntries(r, {
     open: () => { data.nav.openChat(r.threadId); leave(); },
     star: () => guard(api.star("thread", r.threadId, !r.starred)),
@@ -303,20 +335,37 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     unarchive: () => again(api.unarchive(r.threadId)),
     leaveChat: () => again(api.leaveChat(r.threadId)),
     deleteChat: () => deleteWithUndo(r),
+    rename: () => setRenamingChat(r.threadId),
+    muted: muted("thread", r.threadId),
+    mute: (on) => setMute("thread", r.threadId, on),
+    ...(data.nav.openChatTab ? { openTab: () => data.nav.openChatTab?.(r.threadId) } : {}),
   });
-  const faceMenu = (a: Agent): MenuEntry[] => [
-    { label: `Chat with ${a.name}`, onSelect: () => { data.nav.openAgentChat(a.agentId); leave(); } },
-    { label: "New Chat", onSelect: () => { void api.newChat({ agentId: a.agentId, name: a.name }); leave(); } },
-    { separator: true },
-    { label: "Remove from Starred", onSelect: () => guard(api.star("agent", a.agentId, false)) },
-    { label: "All Agents", onSelect: () => { data.nav.openAllAgents(); leave(); } },
-  ];
-  const channelMenu = (c: Channel): MenuEntry[] => [
-    { label: "Open", onSelect: () => { data.nav.openChannel(c.channelId); leave(); } },
-    { separator: true },
-    c.unread > 0 ? { label: "Mark as Read", onSelect: () => guard(api.markRead(c.mainThreadId)) } : { label: "Mark as Unread", onSelect: () => guard(api.markUnread(c.mainThreadId)) },
-    { label: "Star", onSelect: () => guard(api.star("channel", c.channelId, true)) },
-  ];
+  const faceMenu = (e: Extract<Entry, { type: "face" }>, x: number, y: number): MenuEntry[] => {
+    const a = e.agent, pc = facts.current.computers.get(a.agentId);
+    return agentMenu({ name: e.assistant ? data.space.assistant.name : a.name, assistant: e.assistant === true, starred: starred("agent", a.agentId) || true, status: a.status, hasComputer: a.hasComputer, computer: pc, muted: muted("agent", a.agentId), manage: manageAgents, provision: provisionPc }, {
+      message: () => { data.nav.openAgentChat(a.agentId); leave(); },
+      openProfile: data.nav.openAgent ? () => { data.nav.openAgent?.(a.agentId); leave(); } : undefined,
+      openComputer: pc && data.nav.openSubject ? () => { data.nav.openSubject?.({ type: "computer", id: pc.computerId }); leave(); } : undefined,
+      wake: () => { if (pc) again(menuApi.wake(pc.computerId)); readFacts(true); },
+      sleep: () => { if (pc) again(menuApi.sleep(pc.computerId)); readFacts(true); },
+      giveComputer: () => { again(menuApi.provision(a.agentId)); readFacts(true); },
+      pause: () => again(menuApi.pause(a.agentId)),
+      resume: () => again(menuApi.resume(a.agentId)),
+      star: (on) => guard(api.star("agent", a.agentId, on)),
+      mute: (on) => setMute("agent", a.agentId, on),
+      remove: () => menu.show([{ head: `Delete ${a.name}? Its chats stay; its work and memory go.` }, { label: "Delete agent", danger: true, onSelect: () => again(menuApi.deleteAgent(a.agentId)) }, { label: "Cancel" }], x, y, "other"),
+    });
+  };
+  const channelMenuFor = (c: Channel): MenuEntry[] => channelMenu({ name: c.name, unread: c.unread > 0, starred: starred("channel", c.channelId), muted: muted("channel", c.mainThreadId) || muted("channel", c.channelId), member: data.me ? c.members.some((m) => m.id === data.me?.id) : false, admin: allows(rtPerms, "access.manage") }, {
+    open: () => { data.nav.openChannel(c.channelId); leave(); },
+    markRead: () => guard(api.markRead(c.mainThreadId)),
+    markUnread: () => guard(api.markUnread(c.mainThreadId)),
+    star: (on) => guard(api.star("channel", c.channelId, on)),
+    mute: (on) => setMute("channel", c.channelId, on),
+    copyLink: () => copy(`vyre://channel/${c.channelId}`),
+    leave: () => again(menuApi.leaveChannel(c.channelId)),
+    archive: () => again(menuApi.archiveChannel(c.channelId)),
+  });
 
   /** Behind the failed row: the cause as a header line, then Copy trace id and Report a problem. */
   const errorMenu = (e: Extract<Entry, { type: "error" }>): MenuEntry[] => {
@@ -380,8 +429,12 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   // a person: Message, and Mark as Read or Unread once you have a direct message with them
   const personMenu = (e: Extract<Entry, { type: "person" }>): MenuEntry[] => {
     const dm = dms.get(e.id);
-    const mark: MenuEntry[] = !dm ? [] : [{ separator: true }, e.unread > 0 ? { label: "Mark as Read", onSelect: () => guard(api.markRead(dm)) } : { label: "Mark as Unread", onSelect: () => guard(api.markUnread(dm)) }];
-    return [{ label: "Message", onSelect: () => open(e) }, ...mark];
+    return personMenuOf({ name: e.name, dm: dm !== undefined, unread: e.unread > 0, muted: muted("person", e.id) }, {
+      message: () => open(e),
+      markRead: () => { if (dm) guard(api.markRead(dm)); },
+      markUnread: () => { if (dm) guard(api.markUnread(dm)); },
+      mute: (on) => setMute("person", e.id, on),
+    });
   };
   // Notes: Open, Open in a new tab, Take a note
   const notesMenu = (e: Entry): MenuEntry[] => [
@@ -390,16 +443,23 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     ...(data.nav.takeNote ? [{ label: "Take a note", onSelect: () => { setCursor(e.key); data.nav.takeNote?.(); leave(); } }] : []),
   ];
   const menuFor = (e: Entry, x: number, y: number): MenuEntry[] | null =>
-    e.type === "nav" && e.to === "notes" ? notesMenu(e) : e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e.agent) : e.type === "channel" ? channelMenu(e.channel) : e.type === "imported" ? importedMenu(e, x, y) : e.type === "person" ? personMenu(e) : null;
+    e.type === "nav" && e.to === "notes" ? notesMenu(e) : e.type === "chat" ? chatMenu(e.row) : e.type === "face" ? faceMenu(e, x, y) : e.type === "channel" ? channelMenuFor(e.channel) : e.type === "imported" ? importedMenu(e, x, y) : e.type === "person" ? personMenu(e) : null;
   /** A row's "...", drawn while the pointer is on it: the same menu as a right-click. */
   const moreTool = (e: Entry, label: string): ReactElement => (
-    <Tool icon="more" label={`More for ${label}`} onPress={(x, y) => { const m = menuFor(e, x, y); if (m) menu.show(m, x, y, "context", { label: e.key }); }} testID={`more-${e.key}`} />
+    <Tool icon="more" label={`More for ${label}`} onPress={(x, y) => { readFacts(); const m = menuFor(e, x, y); if (m) menu.show(m, x, y, "context", { label: e.key }); }} testID={`more-${e.key}`} />
   );
 
   // ----- keyboard: arrows move, Enter opens, Cmd-1..9 jump to a starred face
-  const onKeyDown = (ev: { key?: string; preventDefault?: () => void }): void => {
+  const onKeyDown = (ev: { key?: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean; preventDefault?: () => void }): void => {
     if (ev.key === "ArrowDown" || ev.key === "ArrowUp") { ev.preventDefault?.(); setCursor(stepKey(order, cursor, ev.key === "ArrowDown" ? 1 : -1)); return; }
-    if (ev.key === "Enter" && cursor) { const e = byKey.get(cursor); if (e) { ev.preventDefault?.(); open(e); } }
+    if (ev.key === "Enter" && cursor && ev.metaKey !== true && ev.ctrlKey !== true) { const e = byKey.get(cursor); if (e) { ev.preventDefault?.(); open(e); } return; }
+    // a key a menu item shows in its hint column does that item on the row with the keyboard's place: S star, U read, E archive, F2 rename, Cmd Enter a new tab, Cmd Backspace delete
+    if (cursor) {
+      const e = byKey.get(cursor);
+      const entries = e ? menuFor(e, 0, 0) : null;
+      const hit = entries ? shortcutFor(entries, ev) : null;
+      if (hit) { ev.preventDefault?.(); hit.onSelect?.(); }
+    }
   };
   const facesRef = useRef(faces);
   facesRef.current = faces;
@@ -425,7 +485,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
     const lit = follows && cursor === e.key && !sel;
     const wrap = (child: ReactElement): ReactElement => {
       const m = menuFor(e, 0, 0);
-      return m ? <View style={{ height: ROW_H }} {...menuTrigger((x, y) => { const at = menuFor(e, x, y); if (at) menu.show(at, x, y, "context", { label: e.key }); })}>{child}</View> : child;
+      return m ? <View style={{ height: ROW_H }} {...menuTrigger((x, y) => { readFacts(); const at = menuFor(e, x, y); if (at) menu.show(at, x, y, "context", { label: e.key }); })}>{child}</View> : child;
     };
     switch (e.type) {
       case "head": {
@@ -485,21 +545,33 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
         </View>
       );
       case "person": return wrap(
-        <Row id={e.key} title={e.name} selected={sel} hovered={lit} emphasis={e.unread > 0 && !sel} onPress={() => open(e)}
-          leading={<View style={{ marginRight: 9 }}><Face name={e.name} seedId={e.id} kind="person" size={18} presence={e.presence} /></View>}
-          trailing={e.unread > 0 && !sel ? <UnreadDot /> : null} />,
+        <Hot>{(over) => (
+          <Row id={e.key} title={e.name} selected={sel} hovered={lit} emphasis={e.unread > 0 && !sel} onPress={() => open(e)}
+            leading={<View style={{ marginRight: 9 }}><Face name={e.name} seedId={e.id} kind="person" size={18} presence={e.presence} /></View>}
+            trailing={over ? moreTool(e, e.name) : e.unread > 0 && !sel ? <UnreadDot /> : null} />
+        )}</Hot>,
       );
       case "face": return wrap(
+        <Hot>{(over) => (
         <Row
           id={e.key} title={e.assistant ? data.space.assistant.name : e.agent.name} selected={sel} hovered={lit} emphasis={(e.unread ?? 0) > 0 && !sel} onPress={() => open(e)}
-          trailing={(e.unread ?? 0) > 0 && !sel ? <UnreadDot /> : null}
+          trailing={over ? moreTool(e, e.assistant ? data.space.assistant.name : e.agent.name) : (e.unread ?? 0) > 0 && !sel ? <UnreadDot /> : null}
           leading={<View testID={e.agent.runtime === "outside" && e.agent.status === "asleep" ? "outside-offline-row" : undefined} accessibilityLabel={e.agent.runtime === "outside" && e.agent.status === "asleep" ? `${e.agent.name} is offline` : undefined} style={{ marginRight: 9, opacity: e.agent.runtime === "outside" && e.agent.status === "asleep" ? 0.5 : 1 }}><Face name={e.assistant ? data.space.assistant.name : e.agent.name} seedId={e.agent.agentId} kind="agent" size={18} pulse={e.working} waiting={e.waiting} /></View>}
-        />,
+        />
+        )}</Hot>,
       );
       case "more": return <Pressable accessibilityRole="button" accessibilityLabel={e.label} testID={`row-${e.key}`} onPress={() => open(e)} style={st.more}><Text style={st.moreText}>{e.label}</Text></Pressable>;
       case "chat": {
         const r = e.row;
         const title = displayTitle(r, data.clock().offsetMin);
+        if (renamingChat === r.threadId) {
+          return (
+            <View style={st.renameRow} testID={`chat-row-${r.threadId}`}>
+              <View style={{ marginRight: 9 }}>{r.members ? <FaceStack members={r.members} size={16} /> : <Face name={r.who} seedId={r.whoId} kind={r.kind} size={18} />}</View>
+              <RenameField value={r.title} label={`Rename ${r.title}`} testID={`chat-rename-${r.threadId}`} style={st.renameInput} onDone={(v) => renameChat(r, v)} />
+            </View>
+          );
+        }
         return wrap(
           <Hot>{(over) => (
             <Row
@@ -540,11 +612,13 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
         // A channel with nothing new sits dim; one with unread stands out at full strength with its count (prototype .unread / .dim).
         return wrap(
           <View style={{ height: ROW_H, opacity: c.unread > 0 ? 1 : 0.72 }} testID={c.unread > 0 ? `channel-unread-${c.channelId}` : `channel-read-${c.channelId}`}>
-            <Row
-              id={e.key} title={c.name} selected={sel} hovered={lit} emphasis={c.unread > 0} onPress={() => open(e)}
-              leading={<LeadGlyph name={e.project ? "project" : c.visibility === "invite" ? "lock" : "hash"} />}
-              trailing={c.unread > 0 ? <Badge n={c.unread} testID={`unread-${c.channelId}`} /> : null}
-            />
+            <Hot>{(over) => (
+              <Row
+                id={e.key} title={c.name} selected={sel} hovered={lit} emphasis={c.unread > 0} onPress={() => open(e)}
+                leading={<LeadGlyph name={e.project ? "project" : c.visibility === "invite" ? "lock" : "hash"} />}
+                trailing={over ? moreTool(e, c.name) : c.unread > 0 ? <Badge n={c.unread} testID={`unread-${c.channelId}`} /> : null}
+              />
+            )}</Hot>
           </View>,
         );
       }

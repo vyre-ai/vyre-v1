@@ -30,11 +30,11 @@ export const chainTo = (n: Node, id: string, up: Node[] = []): Node[] | null => 
 
 /** The sidebar drawn with what the middle shows; `show` changes that the way a tab, a link or Cmd-K does (the place re-renders it with the new open key). */
 /** `make` is test-renderer's createRoot, handed in by the test file (only test files may import that dev dependency). */
-export async function drawn(make: () => { render(el: ReactElement): void; container: unknown }, o: { imported?: SampleImported[]; open?: string | null; artifacts?: boolean } = {}) {
+export async function drawn(make: () => { render(el: ReactElement): void; container: unknown }, o: { imported?: SampleImported[]; open?: string | null; artifacts?: boolean; people?: { id: string; name: string }[] } = {}) {
   installDom();
   const s = createSampleSidebar(northwind, o.imported ? { imported: o.imported } : {});
   const news: string[] = [];
-  const data = { ...s.data, nav: { ...s.data.nav, openImported: (id: string) => void s.opened.push(`imported:${id}`), openNew: () => void news.push("new"), ...(o.artifacts ? { openArtifacts: () => void s.opened.push("artifacts") } : {}) } };
+  const data = { ...s.data, ...(o.people ? { people: o.people } : {}), nav: { ...s.data.nav, openImported: (id: string) => void s.opened.push(`imported:${id}`), openNew: () => void news.push("new"), ...(o.artifacts ? { openArtifacts: () => void s.opened.push("artifacts") } : {}) } };
   const r = make();
   const el = (open: string | null): ReactElement => <ChatsSidebar data={data} window={{ start: 0, end: 500 }} open={open} />;
   await act(async () => { r.render(el(o.open ?? null)); });

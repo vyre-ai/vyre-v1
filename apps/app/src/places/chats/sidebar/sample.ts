@@ -133,6 +133,8 @@ export interface SampleSidebar {
   replica: FakeReplica;
   /** inputs a read was sent that the generated validators refuse, as "cap: reason" (the sample answers such a read with nothing, as the real handler answers 422) */
   rejected: string[];
+  /** What the row menus read (who is muted, each agent's computer), the sample's own copy: a test sets it, the writes change it. */
+  menus: { mutes: Set<string>; computers: Map<string, { computerId: string; state: string }> };
   /** every capability the sidebar called, in order */
   calls: { cap: string; input: unknown }[];
   /** what the nav handlers were asked to open */
@@ -159,6 +161,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     return errs.length === 0;
   };
   const refuse = (cap: string, input: unknown): void => { if (!accepts(cap, input)) throw new Error(`${cap}: bad_input`); };
+  const menus: SampleSidebar["menus"] = { mutes: new Set(), computers: new Map() };
   const failing = new Set<string>();
   const listeners = new Set<() => void>();
   let online = o.online ?? true;
@@ -256,6 +259,20 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     "threads.delete": (i: { threadId: string }) => { patch(i.threadId, { deleted: true }); return { deleted: true }; },
     "threads.restore": (i: { threadId: string }) => { patch(i.threadId, { deleted: false }); return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
     "threads.leave": (i: { threadId: string }) => { patch(i.threadId, { left: true }); return { ok: true }; },
+    "notifications.mute.list": () => ({ mutes: [...menus.mutes].map((k) => { const [kind, ...id] = k.split(":"); return { target: { kind, id: id.join(":") }, until: 0 }; }) }),
+    "notifications.mute.set": (i: { target: { kind: string; id: string } }) => { refuse("notifications.mute.set", i); menus.mutes.add(`${i.target.kind}:${i.target.id}`); return { until: 0 }; },
+    "notifications.mute.clear": (i: { target: { kind: string; id: string } }) => { refuse("notifications.mute.clear", i); menus.mutes.delete(`${i.target.kind}:${i.target.id}`); return { cleared: true }; },
+    "stars.list": () => ({ stars: [] }),
+    "computers.list": () => ({ computers: [...menus.computers].map(([agentId, c]) => ({ computerId: c.computerId, agentId, state: c.state, tabs: 0, tabLimit: 5, host: "server", recording: false })) }),
+    "computers.wake": (i: { computerId: string }) => { for (const c of menus.computers.values()) if (c.computerId === i.computerId) c.state = "working"; return { computer: {} }; },
+    "computers.sleep": (i: { computerId: string }) => { for (const c of menus.computers.values()) if (c.computerId === i.computerId) c.state = "asleep"; return { computer: {} }; },
+    "computers.provision": (i: { agentId: string }) => { menus.computers.set(i.agentId, { computerId: `cmp_${i.agentId}`, state: "asleep" }); return { computer: {} }; },
+    "agents.pause": (i: { agentId: string }) => { refuse("agents.pause", i); return { agent: { agentId: i.agentId, status: "paused" } }; },
+    "agents.resume": (i: { agentId: string }) => { refuse("agents.resume", i); return { agent: { agentId: i.agentId, status: "awake" } }; },
+    "agents.delete": (i: { agentId: string }) => { refuse("agents.delete", i); replica.remove("agents", [i.agentId]); return { deleted: true }; },
+    "threads.update": (i: { threadId: string; title: string }) => { patch(i.threadId, { title: i.title }); return { thread: { threadId: i.threadId, title: i.title, kind: "chat", listed: true, planMode: false } }; },
+    "channels.leave": (i: { channelId: string }) => { const c = (replica.rows("channels") as unknown as SampleSpace["channels"]).find((x) => x.channelId === i.channelId); if (c) replica.put("channels", [{ id: c.channelId, ...c, joined: false }]); return { left: true }; },
+    "channels.archive": (i: { channelId: string }) => { replica.remove("channels", [i.channelId]); return { channel: {} }; },
     "tasks.act": (i: { taskId: string }) => { replica.remove("needs", [i.taskId]); return { task: {} }; },
     "sessions.list": (i: unknown) => { refuse("sessions.list", i); return { sessions: imported.map(archiveRow) }; },
     "sessions.rename": (i: { conversationId: string; title: string }) => { refuse("sessions.rename", i); const x = session(i.conversationId); x.title = i.title; return { session: archiveRow(x) }; },
@@ -283,6 +300,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     openChat: (id) => void opened.push(`chat:${id}`), openAgentChat: (id) => void opened.push(`agent:${id}`), openChannel: (id) => void opened.push(`channel:${id}`),
     openNeedsYou: (id) => void opened.push(id ? `needs:${id}` : "needs"), openAllAgents: () => void opened.push("all-agents"), openSearch: () => void opened.push("search"),
     openSpaceSwitcher: () => void opened.push("spaces"), openNewChannel: () => void opened.push("new-channel"),
+    openAgent: (id) => void opened.push(`profile:${id}`), openChatTab: (id) => void opened.push(`tab:${id}`),
   };
   const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };
 
@@ -301,7 +319,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
   };
   return {
-    data, replica, calls, opened, rejected,
+    data, replica, calls, opened, rejected, menus,
     setOnline(v) { online = v; for (const l of [...listeners]) l(); },
     failNext(cap) { failing.add(cap); },
     get startDelayMs() { return startDelayMs; },

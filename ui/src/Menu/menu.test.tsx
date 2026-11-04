@@ -10,6 +10,7 @@ import {
   iconsAllOrNone,
   kitMenuEntries,
   menuEntries,
+  LONG_PRESS_MS,
   menuTrigger,
   moveActive,
   reportProblem,
@@ -188,6 +189,28 @@ test("a right-click opens the menu at the pointer and stops the browser's own me
   onKey({ key: "F10", preventDefault: () => undefined, currentTarget: target });
   onKey({ key: "a", preventDefault: () => undefined, currentTarget: target });
   assert.deepEqual(opened, ["120,80", "10,50", "10,50"]);
+});
+
+test("a finger held on a surface opens its menu on a phone's browser; moving, lifting early or a mouse does not; the click the lift makes is swallowed", async () => {
+  const opened: string[] = [];
+  const t = menuTrigger((x, y) => opened.push(`${x},${y}`));
+  const down = t["onPointerDown"] as (e: { pointerType: string; clientX: number; clientY: number }) => void;
+  const move = t["onPointerMove"] as (e: { clientX: number; clientY: number }) => void;
+  const up = t["onPointerUp"] as () => void;
+  const click = t["onClickCapture"] as (e: { stopPropagation: () => void; preventDefault: () => void }) => void;
+  const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+  down({ pointerType: "touch", clientX: 30, clientY: 40 }); await wait(LONG_PRESS_MS + 60);
+  assert.deepEqual(opened, ["30,40"], "held still: it opens at the finger");
+  let swallowed = 0;
+  click({ stopPropagation: () => { swallowed += 1; }, preventDefault: () => { swallowed += 1; } });
+  assert.equal(swallowed, 2, "the click after the lift does not press the row");
+  let late = 0;
+  click({ stopPropagation: () => { late += 1; }, preventDefault: () => undefined });
+  assert.equal(late, 0, "only that one click");
+  down({ pointerType: "touch", clientX: 5, clientY: 5 }); move({ clientX: 40, clientY: 5 }); await wait(LONG_PRESS_MS + 60);
+  down({ pointerType: "touch", clientX: 5, clientY: 5 }); await wait(100); up(); await wait(LONG_PRESS_MS);
+  down({ pointerType: "mouse", clientX: 5, clientY: 5 }); await wait(LONG_PRESS_MS + 60);
+  assert.deepEqual(opened, ["30,40"], "a moved finger, an early lift and a mouse open nothing");
 });
 
 test("a count sits in its own quiet right-aligned column, never in the label", () => {
