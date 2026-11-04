@@ -33,7 +33,9 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
   const lines = useMemo(() => {
     const s = createSample("idle");
     const rows = (s.replica.rows("messages") as unknown as (Message & { id: string })[]).filter((m) => m.threadId === s.data.threadId).sort((a, b) => a.threadSeq - b.threadSeq);
-    let seq = rows[rows.length - 1]!.threadSeq, at = rows[rows.length - 1]!.createdAt;
+    // a short chat, so the hook lines and the reply fit above the composer
+    s.replica.remove("messages", rows.slice(2).map((r) => r.id));
+    let seq = rows[1]!.threadSeq, at = rows[1]!.createdAt;
     const quiet = (id: string, line: string, kind: string, extra: Record<string, unknown> = {}): Message => {
       seq += 1; at += 60_000;
       return { messageId: id, threadId: s.data.threadId, threadSeq: seq, author: { kind: "agent", id: "agt_intake" }, kind: "quiet", body: line, depth: 0, attachments: [], reactions: [], createdAt: at,
