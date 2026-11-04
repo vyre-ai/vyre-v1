@@ -42568,7 +42568,8 @@ export type UpdatesRollbackOut = {
 };
 export type UpdatesStatusIn = Record<string, unknown>;
 export type UpdatesStatusOut = {
-  current: string;
+  current?: string;
+  managedElsewhere?: boolean;
   channel: "stable" | "beta" | "nightly";
   available?: string;
   lastResult?: "ok" | "failed" | "rolled_back";

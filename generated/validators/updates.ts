@@ -251,9 +251,9 @@ const g6421 = typeOf(x6421);
 const b6421: string[] = []; lf(x6421, p, b6421, L0); if (b6421.length) e.push(...b6421);
 if (g6421 === "object") {
 if (g6421 === 'object') { const o6421 = x6421 as Record<string, unknown>;
-if (!("current" in o6421)) e.push(p + "/current" + ': required');
 if (!("channel" in o6421)) e.push(p + "/channel" + ': required');
 if ("current" in o6421) lf(o6421["current"], p + "/current", e, L387);
+if ("managedElsewhere" in o6421) lf(o6421["managedElsewhere"], p + "/managedElsewhere", e, L3);
 if ("channel" in o6421) lf(o6421["channel"], p + "/channel", e, L968);
 if ("available" in o6421) lf(o6421["available"], p + "/available", e, L387);
 if ("lastResult" in o6421) lf(o6421["lastResult"], p + "/lastResult", e, L969);
