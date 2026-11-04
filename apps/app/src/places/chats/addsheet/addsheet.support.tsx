@@ -1,22 +1,11 @@
 // Helpers the Add people and agents tests share: the DOM, the sheet, picking rows, and a right-click on a row.
-import test from "node:test";
 import assert from "node:assert/strict";
-import { createRoot } from "test-renderer";
 import { act } from "react";
 import { Dimensions } from "react-native";
-import { installDom, mount, press, find, flush, typeInto, textOf } from "../../../onboarding/test-dom.ts";
+import { installDom, press, find, flush } from "../../../onboarding/test-dom.ts";
 import type { Node } from "../../../onboarding/test-dom.ts";
 import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
 import { installComposerForTests } from "../../../../../../ui/src/Composer/Deferred.tsx";
-import { Conversation } from "../conversation/Conversation.tsx";
-import { createSample } from "../conversation/sample.ts";
-import { ChatRightPane } from "../rightpane/ChatRightPane.tsx";
-import { createSample as createPane } from "../rightpane/sample.ts";
-import { ProjectPage, ProjectPageDataProvider } from "../../records/projectpage/index.ts";
-import { createSampleProject } from "../../records/projectpage/sample.ts";
-import { useAddSheet } from "./index.ts";
-import type { AddSheetApi } from "./index.ts";
-import { addedLine, directoryOf, failedLine, hereSub, maxLevelOf, projectExtras, settingsOf } from "./model.ts";
 
 installComposerForTests(Composer);
 export const widen = (width: number): void => Dimensions.set({ window: { width, height: 844, scale: 1, fontScale: 1 } });
