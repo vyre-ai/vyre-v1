@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "EDITOR_06-words",
+      "route": "/m/EDITOR_06?part=words",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='words']",
+      "note": "Acts before and after: code names against plain words."
+    },
+    {
+      "id": "EDITOR_06-audit",
+      "route": "/m/EDITOR_06?part=audit",
+      "proto": "files,{skin}",
+      "waitFor": "body",
+      "note": "The Console audit log in plain words."
+    }
+  ]
+}
