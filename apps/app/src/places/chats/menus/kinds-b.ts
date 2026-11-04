@@ -114,7 +114,8 @@ export interface GoalFacts {
   manage: boolean;
 }
 export interface GoalDo {
-  open(): void;
+  /** Absent on the goal's own page: it is open. */
+  open?: (() => void) | undefined;
   pause(): void;
   resume(): void;
   markStuck(): void;
@@ -126,7 +127,7 @@ export function goalMenu(f: GoalFacts, d: GoalDo): MenuEntry[] {
   const live = f.status === "running" || f.status === "stuck";
   const over = f.status === "done" || f.status === "stopped";
   return tidy([
-    item("Open", d.open, { hint: KEY.enter }),
+    d.open ? item("Open", d.open, { hint: KEY.enter }) : null,
     f.manage && !over ? sep : null,
     f.manage && live ? item("Pause", d.pause) : null,
     f.manage && f.status === "paused" ? item("Resume", d.resume) : null,
@@ -150,7 +151,8 @@ export interface ProjectFacts {
   edit: boolean;
 }
 export interface ProjectDo {
-  open(): void;
+  /** Absent on the project's own page: it is open. */
+  open?: (() => void) | undefined;
   star(on: boolean): void;
   share(): void;
   addPeople(): void;
@@ -160,7 +162,7 @@ export interface ProjectDo {
 /** A project has no Archive: nothing behind it yet (projects.update does not exist), so it is not offered. */
 export function projectMenu(f: ProjectFacts, d: ProjectDo): MenuEntry[] {
   return tidy([
-    item("Open", d.open, { hint: KEY.enter }),
+    d.open ? item("Open", d.open, { hint: KEY.enter }) : null,
     f.starred ? item("Remove Star", () => d.star(false), { hint: KEY.star }) : item("Star", () => d.star(true), { hint: KEY.star }),
     f.manage ? sep : null,
     f.manage ? item(ellipsis("Share"), d.share) : null,

@@ -28,7 +28,7 @@ export function goalMenuEntries(goal: { id: string; title: string; status: Statu
   return goalMenu(
     { title: goal.title, status: menuStatus(goal.status), manage: me !== undefined && goal.owner === me },
     {
-      open: () => d.open?.(),
+      ...(d.open ? { open: d.open } : {}),
       pause: () => void d.run("goals.pause", {}, "Paused. Nothing wakes until you resume."),
       resume: () => void d.run("goals.resume", {}, "Resumed"),
       markStuck: () => d.ask("stuck"),
@@ -36,7 +36,7 @@ export function goalMenuEntries(goal: { id: string; title: string; status: Statu
       stop: () => void d.run("goals.stop", {}, "Stopped. Its open tasks were withdrawn."),
       copyLink: () => copyToClipboard(vyreLink("goal", goal.id)),
     },
-  ).filter((e) => d.open !== undefined || !("label" in e) || e.label !== "Open");
+  );
 }
 
 /** What a typed answer calls: stuck with its reason and the two ways on, or a report. */

@@ -93,7 +93,7 @@ export function RecordDetail({ rt, recordId, type: hint, fields = false, tab = "
       openSource: (link) => rt.openUrl(link),
     },
   }), [rt]);
-  const projectData = useMemo<ProjectPageData>(() => ({ call: rt.call, nameOf: nameLookup(rt), now: () => rt.clock().now, ...(rt.space.kind === "personal" ? { imports: {
+  const projectData = useMemo<ProjectPageData>(() => ({ call: rt.call, me: rt.me.id, nameOf: nameLookup(rt), now: () => rt.clock().now, ...(rt.space.kind === "personal" ? { imports: {
     list: (projectId: string) => listProjectImports(rt.call, projectId),
     read: async (conversationId: string) => await rt.call("sessions.get", { conversationId }) as ImportedSessionTranscript,
     continue: async (conversationId: string) => {

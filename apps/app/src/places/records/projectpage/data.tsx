@@ -47,6 +47,8 @@ export interface ProjectNav {
 
 export interface ProjectPageData {
   call(cap: string, input: unknown): Promise<unknown>;
+  /** Who is asking: what the right-click menu offers follows their role on the project. */
+  me?: string;
   nameOf(id: string): string;
   now(): number;
   nav: ProjectNav;
