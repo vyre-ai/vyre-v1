@@ -219,7 +219,7 @@ const POLICIES = [
   { key: "gate.wait", scope: "space", kind: "gate", value: { hours: 4 }, updatedAt: ago(30 * DAY) },
 ];
 const DEVICES = [["dev_1", "usr_irfad", "Irfad's MacBook Pro", "desktop", "San Francisco", 0], ["dev_2", "usr_irfad", "Irfad's iPhone", "phone", "San Francisco", 40 * MIN], ["dev_3", "usr_maya", "Maya's MacBook Air", "desktop", "Austin", 12 * MIN], ["dev_4", "usr_omar", "Omar's iMac", "desktop", "Dallas", 2 * HOUR], ["dev_5", "usr_lena", "Chrome on Windows", "web", "Denver", 3 * HOUR]].map(([id, person, name, cls, location, seen], i) => ({ id, person, name, class: cls, epoch: 1, lastSeenAt: ago(seen as number), location, ...(i === 0 ? { current: true } : {}) }));
-const ISO_SPACE = { id: "northwind", name: "Northwind", legalName: "Northwind Advisory LLC", kind: "team", owner: "usr_irfad", fingerprint: "7F:3A:91:0C", address: { mode: "relay", host: "northwind.vyre.run" }, hostedOn: "Northwind server", defaults: {}, createdAt: ago(210 * DAY) };
+const ISO_SPACE = { id: "northwind", name: "Northwind", legalName: "Northwind Advisory LLC", kind: "team", owner: "usr_irfad", fingerprint: "7F:3A:91:0C", address: { mode: "relay", host: "northwind.vyre.run" }, hostedOn: "Northwind server", defaults: { timezone: "America/Los_Angeles" }, createdAt: ago(210 * DAY) };
 const SETTINGS: Record<string, unknown> = {
   "engine.review_sampling": { percent: 5, labels: ["confidential", "restricted"] }, "engine.egress": { mode: "providers", hosts: [] }, "backup.encrypt": true,
   "send.cap": 2000, "send.window": "8-20", "send.throttle": 20,

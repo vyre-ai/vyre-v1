@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { SpaceProfile, memberDefaults, dollars, spendLine, storageLine } from "../pages/InfrastructureSettings.tsx";
 import { SpaceDeletePage, deleteDate, deleteName } from "../pages/SpaceDelete.tsx";
+import { act } from "react";
 import { createRoot } from "test-renderer";
 import { mountPage } from "./page-kit.tsx";
 
@@ -19,16 +20,66 @@ test("money and storage read as the prototype does", () => {
   assert.equal(deleteName({ name: "Northwind", legalName: " " }), "Northwind");
 });
 
-test("General saves the name and legal name, and Defaults for new members saves the skin and time zone into the Space defaults", async () => {
+const blur = async (p: { find(id: string): { props: Record<string, unknown> } | null }, id: string): Promise<void> => { await act(async () => { (p.find(id)!.props["onBlur"] as (e: unknown) => void)({ target: { value: "" }, nativeEvent: {} }); }); };
+const gone = (p: { has(id: string): boolean }, ids: string[]): void => { for (const id of ids) assert.equal(p.has(id), false, `${id} is gone`); };
+
+test("General has no Save buttons: Identity rows, Defaults rows and a Details group", async () => {
+  const p = await mountPage(createRoot, <SpaceProfile />, { "spaces.get": SPACE("usr_sample", { hostedOn: "Northwind server" }) });
+  try {
+    const t = p.text();
+    for (const w of ["Identity", "Logo", "Name", "Legal name", "Shown on public pages and emails", "Address", "northwind.vyre.run", "Defaults for new members", "Skin", "Time zone", "Details", "Space ID", "Key fingerprint", "ab12 cd34", "Hosted on", "Northwind server", "Created"]) assert.ok(t.includes(w), w);
+    gone(p, ["infra-space-save", "infra-space-defaults-save", "space-image-from-files"]);
+    assert.doesNotMatch(t, /Save defaults|Choose image|Choose from Files|Space image/);
+    assert.ok(t.includes("Upload") && p.has("space-image-choose"), "Upload is the logo control");
+    assert.ok(t.includes("UTC"), "time zone falls back to the id when nothing is set");
+    assert.doesNotMatch(t, /\bSave\b/);
+  } finally { p.restore(); }
+});
+
+test("Name and Legal name save on blur with the right input, and not when unchanged or the name is empty", async () => {
   const p = await mountPage(createRoot, <SpaceProfile />, { "spaces.get": SPACE("usr_sample", { defaults: { other: 1 } }) });
   try {
-    assert.ok(p.text().includes("Defaults for new members") && p.text().includes("northwind.vyre.run"));
-    assert.doesNotMatch(p.text(), /Delete this Space|Transfer ownership/, "those moved to Transfer or delete");
+    await blur(p, "infra-space-name");
+    await blur(p, "infra-space-legal");
+    assert.equal(p.called("spaces.update").length, 0, "nothing changed, nothing saved");
     await p.type("infra-space-name", "Northwind Group");
+    assert.equal(p.called("spaces.update").length, 0, "typing alone does not save");
+    await blur(p, "infra-space-name");
+    assert.deepEqual(p.called("spaces.update").at(-1)!.input, { name: "Northwind Group" });
+    assert.ok(p.text().includes("Name saved."), "a quiet confirmation");
     await p.type("infra-space-legal", "Northwind Group LLP");
-    await p.press("infra-space-save");
-    assert.deepEqual(p.called("spaces.update").at(-1)!.input, { name: "Northwind Group", legalName: "Northwind Group LLP" });
-    assert.equal(p.find("infra-space-defaults-save")?.props["disabled"] === true || p.find("infra-space-defaults-save")?.props["aria-disabled"] === true, true, "nothing to save until a default changes");
+    await blur(p, "infra-space-legal");
+    assert.deepEqual(p.called("spaces.update").at(-1)!.input, { legalName: "Northwind Group LLP" });
+    const n = p.called("spaces.update").length;
+    await p.type("infra-space-name", "   ");
+    await blur(p, "infra-space-name");
+    assert.equal(p.called("spaces.update").length, n, "an empty name is never saved");
+  } finally { p.restore(); }
+});
+
+test("Skin and Time zone save on change into the Space defaults, and not when the same one is chosen", async () => {
+  const p = await mountPage(createRoot, <SpaceProfile />, { "spaces.get": SPACE("usr_sample", { defaults: { other: 1, timezone: "America/Los_Angeles" } }) });
+  try {
+    assert.ok(p.text().includes("Pacific Time, Los Angeles"), "the zone reads as a city");
+    await p.press("infra-space-zone");
+    await p.press("menu-item-Pacific Time, Los Angeles");
+    assert.equal(p.called("spaces.update").length, 0, "the same zone is no change");
+    await p.press("infra-space-zone");
+    await p.press("menu-item-Eastern Time, New York");
+    assert.deepEqual(p.called("spaces.update").at(-1)!.input, { defaults: { other: 1, skin: "system", timezone: "America/New_York" } });
+    await p.press("infra-space-skin");
+    await p.press("menu-item-Graphite");
+    assert.equal((p.called("spaces.update").at(-1)!.input["defaults"] as Record<string, unknown>)["skin"], "graphite");
+  } finally { p.restore(); }
+});
+
+test("a save that fails shows an error line", async () => {
+  const p = await mountPage(createRoot, <SpaceProfile />, { "spaces.get": SPACE("usr_sample") }, (cap) => { if (cap === "spaces.update") throw Object.assign(new Error("The name is taken"), { code: "conflict" }); return {}; });
+  try {
+    await p.type("infra-space-name", "Taken");
+    await blur(p, "infra-space-name");
+    assert.ok(p.text().includes("The name is taken"), p.text());
+    assert.doesNotMatch(p.text(), /Name saved/);
   } finally { p.restore(); }
 });
 

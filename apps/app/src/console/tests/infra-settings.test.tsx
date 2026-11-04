@@ -9,7 +9,7 @@ test('Updates shows observed version and failure, review action and history with
  const html=draw(<Updates/>,{'updates.status':{current:'1.0.0',channel:'stable',available:'1.1.0',lastResult:'failed'},'updates.history':{updates:[{from:'0.9.0',to:'1.0.0',at:1,result:'failed',seconds:12}]}});
  assert.match(html,/1.0.0/);assert.match(html,/failed/);assert.match(html,/Review update/);assert.match(html,/Check for updates/);assert.doesNotMatch(html,/Update completed/);
 });
-test('Space profile displays actual fingerprint and profile actions',()=>{
+test('Space profile displays actual fingerprint and has no Save buttons',()=>{
  const html=draw(<SpaceProfile/>,{'spaces.get':{space:{id:'spc_fixture',name:'Fixture Team',legalName:'Fixture Legal',owner:'usr_other',kind:'team',fingerprint:'ab12 cd34',address:{mode:'relay',host:'fixture.vyre.test'},defaults:{},createdAt:1}}});
- assert.match(html,/ab12 cd34/);assert.match(html,/fixture.vyre.test/);assert.match(html,/infra-space-save/);assert.match(html,/Defaults for new members/);assert.doesNotMatch(html,/Delete this Space/);
+ assert.match(html,/ab12 cd34/);assert.match(html,/fixture.vyre.test/);assert.doesNotMatch(html,/infra-space-save|Save defaults/);assert.match(html,/Defaults for new members/);assert.doesNotMatch(html,/Delete this Space/);
 });
