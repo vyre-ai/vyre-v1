@@ -74,6 +74,7 @@ import type { ReplySummary } from "./replies.ts";
 import { ThreadFooter } from "../thread-replies/ThreadFooter.tsx";
 import { AlsoSentMark } from "../thread-replies/AlsoSentMark.tsx";
 import type { Clock } from "../rightpane/model.ts";
+import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
 
 /** A principal id left in someone's words (an agent printed `usr_...`) shows as the name it stands for, when the Space knows it. */
 export function namedIds(body: string, nameOf?: (id: string) => string): string {
@@ -196,7 +197,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
         <View testID={`event-${item.key}`} style={[st.event, (link.style === "noted" || link.style === "question") && st.eventCentre]}>
           {link.style === "noted" ? <LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} time={item.time} /> : <>
             <View style={st.eventCard}><LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} /></View>
-            {link.style === "question" ? null : <Text style={st.eventTime}>{item.time}</Text>}
+            {link.style === "question" ? null : <Tooltip text={item.timeTitle ?? ""}><Text style={st.eventTime}>{item.time}</Text></Tooltip>}
           </>}
         </View>
       );
@@ -212,7 +213,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
             {"Forked from "}
             <Text testID={`fork-origin-${item.key}`} accessibilityRole="link" onPress={() => go(origin.threadId, origin.messageId)} style={st.eventLink}>{origin.title}</Text>
           </Text>
-          <Text style={st.eventTime}>{item.time}</Text>
+          <Tooltip text={item.timeTitle ?? ""}><Text style={st.eventTime}>{item.time}</Text></Tooltip>
         </View>
       );
     }
@@ -224,7 +225,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
       <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
         <View style={st.eventDot} />
         <Text style={st.eventText}>{pokeLine(item.message, props.actions.nameOf ?? unnamed) ?? item.text}</Text>
-        <Text style={st.eventTime}>{item.time}</Text>
+        <Tooltip text={item.timeTitle ?? ""}><Text style={st.eventTime}>{item.time}</Text></Tooltip>
       </View>
     );
   }
@@ -355,7 +356,7 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
   return (
     <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message"))} style={[st.me, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
       {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, true, actions, startEdit)} onClose={() => setSheet(false)} /> : <HoverBar m={m} mine a={actions} onEdit={startEdit} visible={h.over || h.focus} />}
-      <Text style={st.when}>{item.time}</Text>
+      <Tooltip text={item.timeTitle ?? ""}><Text style={st.when}>{item.time}</Text></Tooltip>
       {editing ? (
         <View testID={`edit-${m.messageId}`} style={st.editBox}>
           <TextInput
@@ -465,7 +466,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
               </Pressable>
             </>,
           )}
-          <Text style={st.time}>{item.time}</Text>
+          <Tooltip text={item.timeTitle ?? ""}><Text style={st.time}>{item.time}</Text></Tooltip>
           {work?.short ? <Pressable accessibilityRole="button" accessibilityLabel={work.summary} testID={`work-short-${m.messageId}`} onPress={() => setWorkOpen((o) => !o)} style={{ opacity: h.over || workOpen ? 1 : 0 }}><Text style={st.time}>{work.summary}</Text></Pressable> : null}
         </View>
       ) : <Text style={st.whenLeft}>{item.time}</Text>}
