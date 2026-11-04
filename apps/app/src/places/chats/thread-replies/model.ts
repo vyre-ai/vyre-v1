@@ -81,11 +81,11 @@ export const showsFooter = (f: Footer | null, s: ReplySummary | undefined): bool
 
 /**
  * Whether agents reply in threads in a chat, from the chat's row. The server says it outright (`agentRepliesInThreads`); a copy of the row kept on the device holds the person's own choice (`repliesIn`, empty when
- * they never chose) and the kind, from which the default follows: on for a channel and a project's main chat (a chat about a record), off for a chat.
+ * they never chose) and the kind, from which the default follows: on for a channel (a project's main chat is its channel), off for every other chat.
  */
 export function repliesOf(t: { kind: string; recordId?: string | undefined; scopeType?: string | undefined; agentRepliesInThreads?: boolean | undefined; repliesIn?: number | boolean | null | undefined }): boolean | undefined {
   if (t.agentRepliesInThreads !== undefined) return t.agentRepliesInThreads;
   if (!hasSwitch(t)) return undefined;
   if (t.repliesIn !== undefined && t.repliesIn !== null) return t.repliesIn === true || t.repliesIn === 1;
-  return t.kind === "channel" || (t.recordId !== undefined && t.scopeType === undefined);
+  return t.kind === "channel";
 }

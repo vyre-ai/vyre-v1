@@ -17,11 +17,21 @@ test("agents reply in threads by default in a channel and not in a direct chat",
   assert.equal((await h["threads.get"]!(hn.ctx, { threadId: await chatOf(hn) })).thread.agentRepliesInThreads, false);
 });
 
-test("a project's main chat (a chat about a record) defaults on as well, and a plain chat stays off", async () => {
+test("agents reply in threads only in a channel (a project's main chat is its channel): a group chat, a chat about a record, a task chat and a direct chat stay inline", async () => {
   const hn = harness();
-  const project = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], recordId: "rec_project1", idempotencyKey: `pj${++n}` })).thread.threadId as string;
-  assert.equal((await h["threads.get"]!(hn.ctx, { threadId: project })).thread.agentRepliesInThreads, true);
-  assert.equal((await h["threads.get"]!(hn.ctx, { threadId: await chatOf(hn) })).thread.agentRepliesInThreads, false);
+  const on = async (id: string) => (await h["threads.get"]!(hn.ctx, { threadId: id })).thread.agentRepliesInThreads;
+  const project = (await h["channels.create"]!(hn.ctx, { name: "Rivera project", visibility: "public", agentIds: [INTAKE], recordId: "rec_project1", idempotencyKey: `pj${++n}` })).channel.mainThreadId as string;
+  assert.equal(await on(project), true, "a project's channel");
+  assert.equal(await on(await channelOf(hn)), true, "a channel");
+  assert.equal(await on(await chatOf(hn)), false, "a direct chat");
+  const group = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], personId: MAYA, idempotencyKey: `g${++n}` })).thread.threadId as string;
+  assert.equal(await on(group), false, "a group chat");
+  const aboutRecord = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], recordId: "rec_project1", idempotencyKey: `r${++n}` })).thread.threadId as string;
+  assert.equal(await on(aboutRecord), false, "a chat about a record");
+  const task = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], scopeType: "task", scopeId: "tsk_abc", idempotencyKey: `t${++n}` })).thread;
+  assert.equal(task.agentRepliesInThreads, undefined, "a task's thread has no such choice at all");
+  const ask = (await h["chat.start"]!(hn.ctx, { kind: "ask", agentIds: [INTAKE], scopeType: "record", scopeId: "rec_1", idempotencyKey: `a${++n}` })).thread;
+  assert.equal(ask.agentRepliesInThreads, undefined, "an Ask pane has none either");
 });
 
 test("threads.set_agent_replies stores the choice, answers with the thread and says what changed", async () => {

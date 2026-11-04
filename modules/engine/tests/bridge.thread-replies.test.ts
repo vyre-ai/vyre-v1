@@ -147,8 +147,9 @@ test("an approval asked in the thread rises to the chat as one quiet line that o
   assert.equal(quiet[0]!.body, "", "no words of the work come to the chat");
 });
 
-test("a project's main chat (kind chat, switch on by default) answers in the thread too", async () => {
-  const s = setup({ kind: "chat", on: true });
-  const { id } = await s.say("Compare the two quotes.");
-  assert.equal(agentPosts(s)[0]!.threadId, `thr_under_${id}`);
+test("a group chat or a chat about a record (kind chat, switch off by default) answers inline", async () => {
+  const s = setup({ kind: "chat", on: false });
+  await s.say("Compare the two quotes.");
+  assert.equal(s.made.length, 0);
+  assert.equal(agentPosts(s)[0]!.threadId, MAIN);
 });
