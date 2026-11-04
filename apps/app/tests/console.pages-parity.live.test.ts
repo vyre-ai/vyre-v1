@@ -66,7 +66,7 @@ test("production Console: every page draws at desktop and phone, light and graph
     const PLACES: [string, string[]][] = [["Home", ["Home"]], ["People", ["Members", "Teams", "Roles", "Requests"]], ["Agents", ["Space agents", "Outside agents", "Skills and plugins", "Activity", "Defaults for new agents"]],
       ["AI", ["AI accounts", "What each provider may see", "Spend and limits", "Approvals", "Review", "Voice", "AI use policy"]], ["Data", ["Record types", "Labels", "Keep and delete", "Backups", "Export"]],
       ["Messaging", ["Email", "Phone and texting", "Rules"]], ["Apps", ["Connected apps", "GitHub", "Developers"]], ["Computers", ["Overview", "Servers", "Agent computers", "CI runners", "Diagnostics"]],
-      ["Security", ["Sign-in", "Access reviews", "Audit log"]], ["Space", ["General", "Billing", "Transfer or delete"]]];
+      ["Security", ["Sign-in", "Access reviews", "Audit log"]], ["Space", ["General", "Transfer or delete"]]];
     assert.deepEqual(SECTIONS.map((x) => [x.title, x.tabs.map((tab) => tab.label)]), PLACES, "the ten places and their tabs");
     // every page of every tab, reached through the real navigation (the side list, tab and view), at two renderings: it must draw (no crash card, no loading forever),
     // stay inside the screen (no sideways overflow of the page itself) and leave no page error. Old page ids still land on their place, so the old names are checked once on desktop below.

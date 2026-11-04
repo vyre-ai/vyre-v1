@@ -1562,7 +1562,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           return outside.origin;
         }, owner: () => access.owner() ?? cfg.owner ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
         // the updates module: the compiled-in release key, the GitHub Releases feed and the vyre-server installer (P-L7b_17)
-        configureUpdates: () => createUpdatesHost(),
+        configureUpdates: () => createUpdatesHost({ version: cfg.version }),
         // A Kit is a resource in the access projection (type "kit") so that the capabilities on it can be authorized. The module cannot create resources, so the host does: one
         // resource.created per Kit, with an id made from the Kit's own, so the same Kit is the same event after a reboot (the log refuses a duplicate id) and the fold is the same.
         setKitsHost: () => createKitsHost({

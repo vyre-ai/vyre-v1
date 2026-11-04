@@ -192,3 +192,11 @@ test("a server with no vyre-server answers updates.status in words, not as an un
     return true;
   });
 });
+
+test("a server run from source answers updates.status with its own version, nothing waiting and no last result", async () => {
+  const w = await ready();
+  w.installer.current = async () => { throw Object.assign(new Error("vyre-server is not installed on this server"), { code: "ENOENT" }); };
+  (w.installer as { running?: () => string | undefined }).running = () => "0.0.0-dev";
+  const r = await call("updates.status", w.ctx, {}) as Record<string, unknown>;
+  assert.deepEqual(r, { current: "0.0.0-dev", channel: "stable" });
+});
