@@ -9,10 +9,10 @@
     },
     {
       "id": "CALWEEK_01-day",
-      "route": "/m/CALWEEK_01?view=day&day=-2",
+      "route": "/m/CALWEEK_01?view=day&day=0",
       "proto": "inbox,{skin}",
       "waitFor": "[data-testid='cal-scroll']",
-      "note": "The day view of the crowded Wednesday to the same standard: the 10:00 group in three equal columns, the Block band behind, the all-day lane."
+      "note": "The day view of today, the crowded Wednesday to the same standard: the 10:00 group in three equal columns, the Block band behind, the all-day lane."
     },
     {
       "id": "CALWEEK_01-month",
