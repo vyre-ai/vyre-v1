@@ -12,7 +12,7 @@ const place = t.enm('home', 'chats', 'inbox', 'records', 'files', 'apps', 'autom
 const kindKey = t.enm(
   'approval.requested', 'answer.requested', 'unblock.requested', 'approval.backstop', 'dm', 'mention', 'call.incoming', 'agent.blocked', 'incident.owned', 'task.assigned', 'reply.followed',
   'agent.task_finished', 'digest.away', 'mention.thread', 'run.failed', 'conflict.needs_you', 'access.requested', 'access.decided',
-  'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'limit.hit', 'vault.rotation_due', 'reply.thread',
+  'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'member.join_requested', 'limit.hit', 'vault.rotation_due', 'reply.thread',
   'task.turn', 'task.returned', 'task.finished', 'task.due', 'machine.alert', 'space.deletion_scheduled', 'space.deletion_cancelled',
 );
 const notificationRow = t.obj({
@@ -75,6 +75,8 @@ export default defineManifest({
     notif('space.deletion_cancelled', 'badge', 'inbox', '{{title}}'),
     notif('problem.report', 'badge', 'console', 'Problem report from {{from}}', { actions: [{ label: 'Review', cap: 'tasks.act' }] }),
     notif('member.joined', 'digest', 'home', '{{name}} joined {{space}}'),
+    // someone asked to join through the Request to join link: one line for each admin, opening Console > People > Requests
+    notif('member.join_requested', 'badge', 'console', '{{name}} asked to join {{space}}', { actions: [{ label: 'Review', cap: 'members.join_requests.list' }] }),
     notif('limit.hit', 'badge', 'chats', '{{title}} hit its limit', { actions: [{ label: 'Raise once', cap: 'tasks.act' }, { label: 'Stop', cap: 'tasks.act' }] }),
     notif('vault.rotation_due', 'badge', 'vault', 'Time to rotate {{title}}', { actions: [{ label: 'Mark rotated', cap: 'vault.item.mark_rotated' }] }),
     // a reply in a chat thread you follow (you wrote the message it hangs off, replied in it, were mentioned in it or followed it). A burst collapses into one row per thread: "3 new replies in #intake"

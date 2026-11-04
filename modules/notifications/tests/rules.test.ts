@@ -46,7 +46,7 @@ const SAMPLE: Record<string, Record<string, unknown>> = {
   "reply.followed": { where: "Intake" }, "agent.task_finished": { agent: "Scout", title: "Research" }, "digest.away": {},
   "mention.thread": { where: "Intake" }, "run.failed": { name: "Weekly", message: "no mailbox" }, "conflict.needs_you": { title: "Lee" },
   "access.requested": { from: "Bob", level: "edit", title: "Clients" }, "access.decided": { title: "Clients", decision: "approved" }, "sync.attention": { device: "Laptop" },
-  "health.degraded": { service: "Mail", state: "slow" }, "problem.report": { from: "Bob" }, "member.joined": { name: "Cara", space: "Northwind" }, "limit.hit": { title: "Scout" }, "machine.alert": { title: "Berlin box has 8% disk left" },
+  "health.degraded": { service: "Mail", state: "slow" }, "problem.report": { from: "Bob" }, "member.joined": { name: "Cara", space: "Northwind" }, "member.join_requested": { name: "Dana", space: "Northwind" }, "limit.hit": { title: "Scout" }, "machine.alert": { title: "Berlin box has 8% disk left" },
   "space.deletion_scheduled": { title: "The Space is scheduled for deletion on 18 November 2026. Everything is removed then." }, "space.deletion_cancelled": { title: "The scheduled deletion of the Space was cancelled." },
 };
 for (const def of KINDS.filter((k) => k.key !== "vault.rotation_due")) {
@@ -297,7 +297,7 @@ test("the fanout consumer files a row for the events that name a kind and ignore
   const h = harness();
   const ctx = h.ctxFor(null, sender);
   const fan = consumers["notifications.fanout"];
-  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "machine.alert", "space.deletion_scheduled", "space.deletion_cancelled"]);
+  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "space.deletion_scheduled", "space.deletion_cancelled"]);
   const a = await fan.run(ctx, { name: "task.requested", payload: { taskId: "tsk_1", kind: "approve", title: "Retainer", assigned: { kind: "person", id: alice.id } } });
   assert.equal(a.length, 1);
   assert.equal(row(h, a[0]!).kind, "approval.requested");
@@ -311,6 +311,17 @@ test("the fanout consumer files a row for the events that name a kind and ignore
   const d = await fan.run(ctx, { name: "member.joined", payload: { personId: "usr_new", inviteId: "inv_1", role: "member", invitedBy: alice.id } });
   assert.equal(row(h, d[0]!).level, "digest");
   assert.deepEqual(await fan.run(ctx, { name: "something.else", payload: {} }), []);
+});
+
+test("a request to join files one line for each admin, naming the person who asked and the Space", async () => {
+  const h = harness();
+  h.callee("access.roles.list", () => ({ roles: [{ id: "rol_admin", name: "Admin", permissions: [] }, { id: "rol_member", name: "Member", permissions: [] }] }));
+  h.callee("access.roles.get", () => ({ holders: [{ kind: "person", id: alice.id }, { kind: "person", id: bob.id }] }));
+  h.callee("spaces.get", () => ({ space: { name: "Northwind" } }));
+  const fan = consumers["notifications.fanout"];
+  const out = await fan.run(h.ctxFor(null, sender), { name: "member.join_requested", payload: { requestId: "jrq_1", name: "Dana", role: "rol_guest" } });
+  assert.equal(out.length, 2);
+  assert.deepEqual(out.map((id) => [row(h, id).person, row(h, id).kind, row(h, id).title]).sort(), [[alice.id, "member.join_requested", "Dana asked to join Northwind"], [bob.id, "member.join_requested", "Dana asked to join Northwind"]].sort());
 });
 
 // ---- the baton reaches people, by name (l-tasks) ----
