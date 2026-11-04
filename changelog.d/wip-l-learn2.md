@@ -78,3 +78,4 @@
 - Needs you groups approvals that have waited days under Older, after what just arrived, in place of mixing them.
 - Agents are told never to say "Gate", "hold" or other internal words to people, and what a model reads from a failed tool says approval in their place.
 - An approval nobody answered for 7 days now reads "Not sent, it waited 7 days" in Needs you, under Withdrawn, with only Dismiss left.
+- The Personal claim live test now expects the route it opened on (/chat), not /home.
