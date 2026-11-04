@@ -78,5 +78,18 @@ test("a hold for a bare verb names what it acts on from the capability's scope",
   const rec = await parkAs({ capName: "records.update", input: { type: "contact", recordId: "rec_1", patch: { name: "Renamed" } }, act: "approve" }, "s_rec");
   assert.equal(rec.title, "Intake wants to change a record");
   const file = await parkAs({ capName: "files.write", input: { fileId: "fil_1" }, act: "approve" }, "s_file");
-  assert.equal(file.title, "Intake wants to edit a file");
+  assert.equal(file.title, "Intake wants to edit Q4 pricing.docx", "with the file's name when it is known");
+});
+
+test("no held capability's sentence ends in a bare verb: every one of the held-act words names what it acts on", async () => {
+  const { WANTS, holdSentence } = await import("../../../lib/hold-words.ts");
+  const bare: string[] = [];
+  for (const cap of Object.keys(WANTS)) {
+    const sentence = holdSentence("Intake", cap, {});
+    if (/^Intake wants to \S+$/.test(sentence)) bare.push(`${cap}: ${sentence}`);
+  }
+  assert.deepEqual(bare, [], "a word with no subject reads as nothing");
+  assert.equal(holdSentence("Intake", "files.delete", { fileId: "fil_1" }, { file: "Q4 pricing.docx" }), "Intake wants to delete Q4 pricing.docx");
+  assert.equal(holdSentence("Intake", "files.write", {}), "Intake wants to edit a file");
+  assert.equal(holdSentence("Intake", "records.delete", {}), "Intake wants to delete a record");
 });

@@ -3,7 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CORE_SPACE } from "../fixtures/seed/core/index.ts";
-import { KEY, boot, connect, hostLog, scriptedModel, seededDir, stop, waitFor } from "./support/eco-live.ts";
+import { KEY, boot, connect, hostLog, scriptedModel, seededDir, stop, waitFor, listAll } from "./support/eco-live.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 
 const WHO = ["usr_olivia", "usr_mia"];
@@ -42,21 +42,23 @@ test("Team: in a public channel, Mia cannot read what Olivia's agent turn got ba
     assert.equal((await api("usr_olivia", "chat.post", { threadId, body: "Ops, which skills do you have?", mentions: [{ kind: "agent", id: agentId }], idempotencyKey: "tr-post" })).status, 200);
     await waitFor(async () => {
       await d.hooks?.pump?.();
-      const ms = (await api("usr_olivia", "chat.messages.list", { threadId })).data.messages as Array<{ author?: { id?: string }; body?: string }>;
+      const ms = await listAll<{ author?: { id?: string }; body?: string }>(api, "usr_olivia", threadId);
       (d as unknown as { _ms?: unknown })._ms = ms?.map((m) => [m.author?.id, String(m.body).slice(0, 200), JSON.stringify((m as { blocks?: unknown }).blocks ?? []).slice(0, 300)]);
       return ms?.find((m) => m.author?.id === agentId && /looked at the skills/.test(m.body ?? "")) ?? null;
     }, 20_000, () => hostLog(d) + JSON.stringify((d as unknown as { _ms?: unknown })._ms ?? ""));
+    // the answer is in the thread under the ask (agents reply in threads in a channel), and the turn's transcript is that thread's
+    const replyThread = ((await api("usr_olivia", "threads.list", { parentThreadId: threadId })).data.threads as Array<{ threadId: string }>)[0]!.threadId;
     // the turn's rows are written after the reply: wait for Olivia's own view to hold the result
     const olivia = await waitFor(async () => {
-      const md = (await api("usr_olivia", "chat.transcript.read", { threadId })).data.markdown as string;
+      const md = (await api("usr_olivia", "chat.transcript.read", { threadId: replyThread })).data.markdown as string;
       return /tool_result/.test(md) ? md : null;
     }, 10_000, () => hostLog(d));
     assert.match(olivia, /tool_search/);
-    const mia = (await api("usr_mia", "chat.transcript.read", { threadId })).data.markdown as string;
+    const mia = (await api("usr_mia", "chat.transcript.read", { threadId: replyThread })).data.markdown as string;
     assert.match(mia, /looked at the skills/, "Mia reads the words of the turn");
     assert.match(mia, /tool_call, tool_search/, "and the one-line call");
     assert.doesNotMatch(mia, /tool_result/, "but not what the tool returned");
-    const found = (await api("usr_mia", "chat.transcript.search", { q: "skill", threadId })).data.hits as Array<{ role: string }>;
+    const found = (await api("usr_mia", "chat.transcript.search", { q: "skill", threadId: replyThread })).data.hits as Array<{ role: string }>;
     assert.ok(!found.some((h) => h.role === "tool"), JSON.stringify(found));
   } catch (e) { console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e); throw e; } finally { await stop(d); }
 });

@@ -60,7 +60,7 @@ export async function holdNamesOf(ctx: GateCtx, cap: string, input: unknown): Pr
     } catch { /* the plain word stands */ }
   }
   const fileId = typeof (input as { fileId?: unknown } | null)?.fileId === "string" ? (input as { fileId: string }).fileId : "";
-  if (cap === "files.share_external" && fileId) {
+  if (cap.startsWith("files.") && fileId) {
     try { const f = (await ctx.call?.("files.get", { fileId })) as { file?: { name?: string } } | null; if (f?.file?.name) out.file = cut(f.file.name, 60); } catch { /* the plain word stands */ }
   }
   return out;
