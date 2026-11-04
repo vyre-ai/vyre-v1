@@ -66,7 +66,7 @@ import { TaskDetail } from "../tasks/TaskDetail.tsx";
 import { GoalPage } from "../goals/GoalPage.tsx";
 import { ProjectScreen } from "../projects/ProjectScreen.tsx";
 import { openSkills } from "../install/open.ts";
-import type { Act, Shown } from "./route.ts";
+import type { Act, Route, Shown } from "./route.ts";
 import { nameOr } from "../names.ts";
 import { LoadFailed } from "../../../../../../ui/src/States/Loads.tsx";
 import type { LoadFailure } from "../../../../../../ui/src/States/Loads.tsx";
@@ -217,7 +217,18 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     setRightOn((on) => { if (on !== key) return on; return afterClose(rightTabs, key); });
     setRightTabs((t) => t.filter((x) => x.key !== key));
   }, [rightTabs]);
-  const route = shown.route;
+  // a project on its Chat tab runs the project's channel through the same conversation machinery as any chat (composer, crew strip, side pane, thread replies): the route is the channel's chat
+  // while the project page frames it
+  const projectView = shown.route.view === "project" ? shown.route : null;
+  const projectChat = projectView !== null && (projectView.tab === null || projectView.tab === "chat");
+  const [pjChannel, setPjChannel] = useState<{ projectId: string; channelId: string } | null>(null);
+  useEffect(() => {
+    if (!projectView) return undefined;
+    let live = true;
+    void Promise.resolve(rt.call("projects.get", { projectId: projectView.projectId })).then((o) => { if (live) setPjChannel({ projectId: projectView.projectId, channelId: (o as { project: { channelId: string } }).project.channelId }); }, () => undefined);
+    return () => { live = false; };
+  }, [rt, projectView?.projectId]);   // eslint-disable-line react-hooks/exhaustive-deps -- one read per project
+  const route: Route = projectChat && projectView && pjChannel?.projectId === projectView.projectId ? { view: "chat", threadId: pjChannel.channelId } : shown.route;
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < WIDE;
   // the sidebar draws the row of what the middle shows, however it was opened (a row, a tab, a link, Cmd-K)
@@ -422,6 +433,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     );
   }
 
+  // the project's page frames its channel's chat
+  if (projectChat && projectView && route.view === "chat") main = <ProjectScreen key={projectView.projectId} rt={rt} projectId={projectView.projectId} tab={projectView.tab} onTab={(tab) => act({ t: "project", projectId: projectView.projectId, tab })} chatSlot={main} />;
   const showMain = !(narrow && right !== null);
   return (
     <View testID="chats-place" style={st.row}>

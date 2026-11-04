@@ -34,13 +34,15 @@ export interface ProjectPageProps {
   tab?: ProjectTabKey;
   /** The Space it is in. */
   space?: ProjectSpace;
+  /** The project's main chat, drawn by the host that owns the conversation (Chats: the real conversation with its composer, crew strip and side pane). Absent: the list of its chats. */
+  chatSlot?: ReactElement | null;
   /** The Plan's view when it opens on the Plan tab. */
   planView?: "timeline" | "board" | "list" | "calendar";
 }
 
 type Load = { status: "loading" } | { status: "gone" } | { status: "ready"; overview: Overview; plan: PlanOut };
 
-export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planView = "timeline", onTabChange, space = { id: "", kind: "team", name: "" } }: ProjectPageProps): ReactElement {
+export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planView = "timeline", onTabChange, chatSlot, space = { id: "", kind: "team", name: "" } }: ProjectPageProps): ReactElement {
   const d = useProjectPageData();
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [tab, setTab] = useState<ProjectTabKey>(first);
@@ -140,7 +142,8 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
         <Pressable accessibilityRole="button" accessibilityLabel="More" testID="project-more" onPress={(e: unknown) => { const q = at(e); menu.show(projectEntries(), q.x, q.y, "other", { label: p.title }); }} style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, hovered === true && s.hover]}><Text style={s.iconText}>{"\u2026"}</Text></Pressable>
       </View>
       <TabStrip underline tabs={tabs} active={tab} onSelect={(k) => pick(k as ProjectTabKey)} />
-      {tab === "chat" ? <ChatTab o={o} projectId={projectId} channelName={`#${p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`} now={now} /> : null}
+      {tab === "chat" && chatSlot ? <View style={s.chatSlot} testID="project-chat-main">{chatSlot}</View> : null}
+      {tab === "chat" && !chatSlot ? <ChatTab o={o} projectId={projectId} channelName={`#${p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`} now={now} /> : null}
       {tab === "plan" ? (
         <View style={s.planBody} testID="project-plan">
           {d.nav.openGoal ? <GoalsOf scope="project" id={projectId} call={d.call} changes={d.changes} now={d.now()} offsetMin={0} nameOf={d.nameOf} openGoal={d.nav.openGoal} testID="project-goals" /> : null}
@@ -279,6 +282,7 @@ const s = StyleSheet.create({
   face: { marginRight: 10 },
   open: { alignSelf: "flex-start", height: 28, justifyContent: "center", paddingHorizontal: 10, borderRadius: 7, backgroundColor: "var(--accent-wash)" as string },
   openText: { fontSize: 12.5, fontWeight: "500", color: "var(--accent)" as string },
+  chatSlot: { flex: 1, minHeight: 0 },
   planBody: { flex: 1, minHeight: 0, paddingHorizontal: 12, paddingTop: 8 },
   note: { position: "absolute", left: 16, bottom: 14, fontSize: 12.5, color: "var(--ink-2)" as string, backgroundColor: "var(--raised)" as string, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   skHead: { height: 60, margin: 18, borderRadius: 9, backgroundColor: "var(--sunk)" as string },

@@ -72,7 +72,7 @@ test("each tab is one press and tells the shell; its body is the one the contrac
     await press(find(root, "tab-plan")); await flush();
     assert.ok(find(root, "project-plan"));
     await press(find(root, "tab-overview")); await flush();
-    assert.ok(find(root, "project-overview-stub"), "the Overview body is l-editor's component");
+    assert.ok(find(root, "tab-overview-selected") && !find(root, "project-overview-stub"), "the Overview body is l-editor's component, not the stub");
     await press(find(root, "tab-linked")); await flush();
     assert.ok(find(root, "linked") || find(root, "linked-empty") || find(root, "project-linked") || textOf(root).includes("Linked"), "the Linked body is l-artifacts' component");
     await press(find(root, "tab-knows")); await flush();

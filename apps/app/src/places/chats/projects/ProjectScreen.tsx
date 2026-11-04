@@ -8,11 +8,11 @@ import type { ProjectTabKey } from "../../records/projectpage/tabs.ts";
 import { projectPageData } from "../../../shell/providers/project-data.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 
-export function ProjectScreen({ rt, projectId, tab, onTab }: { rt: ShellRuntime; projectId: string; tab: string | null; onTab(tab: ProjectTabKey): void }): ReactElement {
+export function ProjectScreen({ rt, projectId, tab, onTab, chatSlot }: { rt: ShellRuntime; projectId: string; tab: string | null; onTab(tab: ProjectTabKey): void; chatSlot?: ReactElement | null }): ReactElement {
   const data = useMemo(() => projectPageData(rt), [rt]);
   return (
     <ProjectPageDataProvider value={data}>
-      <ProjectPage projectId={projectId} {...(isProjectTab(tab) ? { tab } : {})} onTabChange={onTab} space={{ id: rt.space.id, kind: rt.space.kind, name: rt.space.name }} />
+      <ProjectPage projectId={projectId} {...(isProjectTab(tab) ? { tab } : {})} onTabChange={onTab} {...(chatSlot ? { chatSlot } : {})} space={{ id: rt.space.id, kind: rt.space.kind, name: rt.space.name }} />
     </ProjectPageDataProvider>
   );
 }
