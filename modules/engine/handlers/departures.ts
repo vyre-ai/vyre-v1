@@ -11,7 +11,7 @@ const isOpen = (engine: TurnEngine, threadId: string): boolean => { try { engine
 /** Stop one agent in one thread: through the engine when the thread is open here (a turn may be running), straight on the rows otherwise (nothing is running, the rows are what is left). */
 async function stopAgentIn(ctx: EngineCtx, engine: TurnEngine | null, threadId: string, agentId: string): Promise<void> {
   if (engine && isOpen(engine, threadId)) {
-    const r = await engine.stop(threadId, { agentId });
+    const r = await engine.stop(threadId, { agentId, reason: "left" });
     for (const c of [...r.stopped, ...r.released]) ctx.emit("turn.cancelled", threadId, { turnId: c.turnId, threadId, agentId: c.agentId, by: ctx.principal.id });
     return;
   }

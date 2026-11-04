@@ -133,7 +133,7 @@ test("the skill teaches each thing the spec lists", () => {
 
 test("every tool the skill names exists, and every tool the scenarios use is named in the skill", () => {
   const words = new Set([...SKILL.matchAll(/`([a-z][a-z0-9_]*)`/g)].map((m) => m[1]!));
-  const notTools = new Set(["held", "single", "multi", "free"]);
+  const notTools = new Set(["held", "single", "multi", "free", "mermaid", "chart"]);
   for (const w of words) if (!notTools.has(w)) assert.ok(gen.catalog.byName(w), `${w} is in the skill but is not a tool`);
   const used = new Set(evalSet.scenarios.flatMap((s) => calls(s).map((c) => c.call)));
   const background = new Set(["mail_send", "records_update", "records_query"]);

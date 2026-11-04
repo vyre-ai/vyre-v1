@@ -65,6 +65,8 @@ export function createProviderProbe(o: { fetch?: typeof globalThis.fetch; own?: 
   const LISTS: Record<string, (key: string) => { url: string; headers: Record<string, string>; pick: (j: unknown) => string[] }> = {
     anthropic: (k) => ({ url: "https://api.anthropic.com/v1/models", headers: { "x-api-key": k, "anthropic-version": "2023-06-01" }, pick: ids("data", "id") }),
     openai: (k) => ({ url: "https://api.openai.com/v1/models", headers: { authorization: `Bearer ${k}` }, pick: ids("data", "id") }),
+    // Codex on an OpenAI API key: the same key, checked with the same one cheap call; the Codex engine then runs on it
+    codex: (k) => ({ url: "https://api.openai.com/v1/models", headers: { authorization: `Bearer ${k}` }, pick: ids("data", "id") }),
     openrouter: (k) => ({ url: "https://openrouter.ai/api/v1/auth/key", headers: { authorization: `Bearer ${k}` }, pick: () => [] }),
     xai: (k) => ({ url: "https://api.x.ai/v1/models", headers: { authorization: `Bearer ${k}` }, pick: ids("data", "id") }),
     "opencode-go": (k) => ({ url: "https://opencode.ai/inference/go/v1/models", headers: { authorization: `Bearer ${k}`, "user-agent": vyreUserAgent() }, pick: ids("data", "id") }),

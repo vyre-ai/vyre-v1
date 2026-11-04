@@ -6,6 +6,8 @@ import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { automationMenu } from "../../chats/menus/kinds-b.ts";
+import { copyToClipboard, createMenuApiB, vyreLink } from "../../chats/menus/actions-b.ts";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { SIDEBAR, useAutomationsData, useScreenQuery } from "../canvas/data.tsx";
@@ -66,6 +68,7 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
   useEffect(() => { if (!note) return undefined; const t = setTimeout(() => setNote(null), 4000); return () => clearTimeout(t); }, [note]);
 
   const fail = (e: unknown): void => setNote(e instanceof Error ? e.message : "That did not work.");
+  const api = useMemo(() => createMenuApiB(data), [data]);
   const create = async (groupId?: string, space = false): Promise<void> => {
     try {
       const out = (await data.call("automations.create", { name: "New automation", ...(groupId ? { groupId } : {}) })) as { automation?: { id: string } };
@@ -81,19 +84,26 @@ export function AutomationsSidebar({ selectedId = null, selectedJourneyId = null
   const toggleSection = (key: SectionKey): void => setCollapsed((cur) => { const n = new Set(cur); if (n.has(key)) n.delete(key); else n.add(key); return n; });
 
   const rowMenu = (a: AutoRow, x: number, y: number): void => {
-    const move: MenuEntry[] = [{ head: "Move to a group" }];
-    for (const g of groups) move.push({ label: g.name, checked: a.groupId === g.id, onSelect: () => void data.call("automations.move", { automationId: a.id, groupId: g.id }).catch(fail) });
-    move.push({ label: "No group", checked: !a.groupId, onSelect: () => void data.call("automations.move", { automationId: a.id }).catch(fail) });
-    // a Space automation is changed only by owners, admins and people given Edit on it: a member's menu offers Open and the failed runs
-    const readOnly = a.kind === "space" && data.canSpace === false;
-    if (readOnly) { show([{ label: "Open", onSelect: () => { data.nav.openAutomation(a.id); onChoose?.(); } }, ...(a.failedRuns > 0 ? [{ label: "Open failed runs", onSelect: () => data.nav.openFailedRuns() }] : [])], x, y, "context", { label: a.name }); return; }
-    show([
-      { label: "Open", onSelect: () => { data.nav.openAutomation(a.id); onChoose?.(); } },
-      { label: "Move to a group", onSelect: () => show(move, x, y, "other") },
-      ...(a.failedRuns > 0 ? [{ label: "Open failed runs", onSelect: () => data.nav.openFailedRuns() }] : []),
-      { separator: true },
-      { label: "Move to Trash", danger: true, onSelect: () => show([{ head: "Move this Automation to Trash?" }, { label: "Move to Trash", danger: true, onSelect: () => void data.call("automations.delete", { automationId: a.id }).catch(fail) }, { label: "Cancel" }], x, y, "other") },
-    ], x, y, "context", { label: a.name });
+    // the row's own menu (chats/menus/kinds-b.ts): a Space automation is changed only by owners, admins and people given Edit on it; a member's menu offers Open, the runs and a Personal copy
+    const canEdit = !(a.kind === "space" && data.canSpace === false);
+    const group = groups.find((g) => g.id === a.groupId);
+    const others = groups.filter((g) => g.id !== a.groupId).map((g) => ({ id: g.id, name: g.name }));
+    const once = (run: () => Promise<void>): void => void run().catch(fail);
+    const confirmTrash = (): void => show([{ head: "Move this Automation to Trash?" }, { label: "Move to Trash", danger: true, onSelect: () => once(() => api.automationTrash(a.id)) }, { label: "Cancel" }], x, y, "other");
+    show(automationMenu(
+      { name: a.name, enabled: a.status === "on", space: a.kind === "space", canEdit, canRun: canEdit && a.status !== "draft", canDelete: canEdit, failedRuns: a.failedRuns, group: group?.name ?? null, groups: others },
+      {
+        open: () => { data.nav.openAutomation(a.id); onChoose?.(); },
+        run: () => once(() => api.automationRun(a.id)),
+        setEnabled: (on) => once(() => api.automationSetEnabled(a.id, on)),
+        test: () => once(() => api.automationTest(a.id)),
+        makePersonalCopy: () => once(() => api.automationPersonalCopy(a.id)),
+        move: (groupId) => once(() => api.automationMove(a.id, groupId)),
+        runs: () => (a.failedRuns > 0 ? data.nav.openFailedRuns() : (data.nav.openAutomation(a.id), onChoose?.())),
+        copyLink: () => copyToClipboard(vyreLink("automation", a.id)),
+        remove: confirmTrash,
+      },
+    ), x, y, "context", { label: a.name });
   };
   const groupMenu = (g: GroupBlock, x: number, y: number): void => {
     show([

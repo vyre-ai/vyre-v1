@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, telephony.
 
-## Capabilities (66)
+## Capabilities (67)
 
 - [automations.account_picks](../capabilities/automations.account_picks.md): The last account this person picked for each app
 - [automations.alerts.get](../capabilities/automations.alerts.get.md): Read error alerts: who, when and where, and the escalation chain
@@ -53,6 +53,7 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automations.schedule_choose](../capabilities/automations.schedule_choose.md): Apply one recovery choice to a schedule whose backlog is over its cap
 - [automations.senders](../capabilities/automations.senders.md): What this Automation sends from: the mailboxes and numbers its steps name, and whether each can send now
 - [automations.set_enabled](../capabilities/automations.set_enabled.md): Turn an Automation on or off
+- [automations.set_owner](../capabilities/automations.set_owner.md): Hand a Space Automation to another person as its accountable owner; the previous owner keeps Manage
 - [automations.steps.list](../capabilities/automations.steps.list.md): The step palette: every step kind with category, input and output schema, effects and Gate act
 - [automations.stop](../capabilities/automations.stop.md): Stop one run of an Automation, or all its running runs and pause it
 - [automations.templates.list](../capabilities/automations.templates.list.md): The starter templates: what each one does, what starts it and what to set up
@@ -94,5 +95,5 @@ Requires: chat, files, forms, github, journeys, mail, meetings, records, runs, t
 - [automation.trigger_dropped](../events/automation.trigger_dropped.md): A trigger event was ignored: self-trigger, chain depth 8 or paused
 - [automation.updated](../events/automation.updated.md): An Automation definition or settings changed; a definition change saves a version
 - [automation.version_restored](../events/automation.version_restored.md): An earlier version was restored as the newest version
-- [automation.watch_changed](../events/automation.watch_changed.md): A watched page changed since its last reading
-- [automation.watch_saved](../events/automation.watch_saved.md): A watch was made, changed, paused, resumed or removed
+- [automations.watch_changed](../events/automations.watch_changed.md): A watched page changed since its last reading
+- [automations.watch_saved](../events/automations.watch_saved.md): A watch was made, changed, paused, resumed or removed

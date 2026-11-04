@@ -25,6 +25,7 @@ export function outOfUsage(resetsAt: number | undefined, now = Date.now()): stri
 export function modelReason(m: { reason?: string; resetsAt?: number }, now = Date.now()): string | undefined {
   if (!m.reason) return undefined;
   if (m.reason === "not_connected") return "Not connected";
+  if (m.reason === "checking") return "Checking...";
   if (m.reason === "usage_limit") return outOfUsage(m.resetsAt, now);
   return "Not allowed here";
 }

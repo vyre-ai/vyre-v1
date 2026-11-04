@@ -14,7 +14,6 @@ import {
   addCalls,
   addLines,
   agentCreateInput,
-  agentLevelsLine,
   agentSettingsInput,
   canGiveLevel,
   channelMembersInput,
@@ -84,9 +83,9 @@ test("each item type offers its own levels with its own words", () => {
   assert.deepEqual(names("artifact"), ["Can view", "Can edit", "Can manage"]);
   assert.deepEqual(names("project"), ["Can view", "Can edit", "Can manage"]);
   assert.deepEqual(names("rtype"), ["Can view records", "Can edit records", "Can manage the type"]);
-  assert.deepEqual(names("vault"), ["Can use without seeing", "Can view", "Can edit"]);
-  assert.deepEqual(names("agent"), ["Can chat with", "Can use in their work", "Can edit", "Can manage"]);
-  assert.equal(levelName("agent", "view"), "Can chat with", "chat with is the view level");
+  assert.deepEqual(levelDefs("vault", ["use", "view", "manage"]).map((l) => l.label), ["Can use without seeing", "Can see", "Can manage"]);
+  assert.deepEqual(names("agent"), ["Can use", "Can edit", "Can manage"], "Can chat with is merged into Can use");
+  assert.equal(levelName("vault", "edit"), "Can edit", "an old Edit grant still reads");
   assert.equal(levelName("vault", "use"), "Can use without seeing");
   assert.equal(levelName("note", "owner"), "Owner");
 });
@@ -107,10 +106,10 @@ test("what they get, for every item type and level", () => {
   assert.equal(shareVerb("vault", "use", "GHL key"), "use “GHL key” in actions without seeing its value");
   assert.equal(shareVerb("vault", "view", n), "view “Q4”");
   assert.equal(shareVerb("vault", "edit", n), "view and edit “Q4”");
-  assert.equal(shareVerb("agent", "view", "Ember"), "chat with Ember and add it to their chats");
-  assert.equal(shareVerb("agent", "use", "Ember"), "use Ember in their automations, tasks and crews, on their own account");
-  assert.equal(shareVerb("agent", "edit", "Ember"), "edit Ember's instructions (AGENT.md), skills and memory settings");
-  assert.equal(shareVerb("agent", "manage", "Ember"), "share, rename and delete Ember");
+  assert.equal(shareVerb("agent", "use", "Ember"), "use Ember in their chats, tasks and automations");
+  assert.equal(shareVerb("agent", "view", "Ember"), shareVerb("agent", "use", "Ember"), "an old chat grant reads as use");
+  assert.equal(shareVerb("agent", "edit", "Ember"), "change Ember's instructions, context and tools");
+  assert.equal(shareVerb("agent", "manage", "Ember"), "share, move and delete Ember");
 });
 
 test("the tail of each item type", () => {
@@ -145,14 +144,15 @@ test("a Vault pick that can only use it says so, and the value stays out of chat
   assert.match(lines[lines.length - 1] ?? "", /The value is never shown or sent in chat/);
 });
 
-test("sharing an agent: the pays-with-their-own-account note, and the four levels with nobody picked", () => {
+test("sharing an agent: the pays-with-their-own-account note, named and never guessed, and no legend with nobody picked", () => {
   const picked = shareLines({ type: "agent", name: "Ember", ownerName: "Irfad", picks: [sara("use", "person", "Omar Reyes")] }).map((l) => l.text);
-  assert.equal(picked[0], "Omar Reyes can use Ember in their automations, tasks and crews, on their own account.");
-  assert.ok(picked.includes("Whoever uses Ember pays with their own AI account. Ember reaches for them only what they can reach themselves."));
+  assert.equal(picked[0], "Omar Reyes can use Ember in Omar Reyes's chats, tasks and automations.");
+  assert.ok(picked.includes("Omar Reyes pays with Omar Reyes's own AI account, and Ember only sees what Omar Reyes can see."));
+  const two = shareLines({ type: "agent", name: "Ember", ownerName: "Irfad", picks: [sara("use", "person", "Omar"), sara("use", "person", "Sara")] }).map((l) => l.text);
+  assert.equal(two[0], "Omar and Sara can use Ember in their chats, tasks and automations.");
+  assert.ok(!two.join(" ").match(/\b(he|she|him|her|his)\b/i), "pronouns are never guessed");
   const idle = shareLines({ type: "agent", name: "Ember", ownerName: "Irfad", picks: [] });
-  assert.equal(idle.length, 1);
-  assert.equal(idle[0]?.text, agentLevelsLine("Ember"));
-  for (const part of ["Can chat with", "Can use in their work", "Can edit", "Can manage"]) assert.match(idle[0]?.text ?? "", new RegExp(part));
+  assert.equal(idle.length, 0, "no legend: each level describes itself in its picker menu");
   assert.equal(shareLines({ type: "note", name: "x", ownerName: "I", picks: [] }).length, 0);
 });
 
@@ -163,13 +163,12 @@ test("a limited giver is told they can give only what they have", () => {
 
 /* ---------- a person can only give what they have ---------- */
 
-test("levels above the giver's are locked, with the words the sheet shows", () => {
+test("levels above the giver's are not offered at all", () => {
   const giving = { maxLevel: "edit" as ShareLevel };
   assert.equal(canGiveLevel("note", "edit", giving), true);
   assert.equal(canGiveLevel("note", "manage", giving), false);
   const opts = roleOptions("person", { mode: "share", itemType: "note", giving });
-  assert.deepEqual(opts.map((o) => [o.id, o.locked]), [["view", false], ["edit", false], ["manage", true]]);
-  assert.equal(roleLabel(opts[2]!), "Can manage (you do not have this)");
+  assert.deepEqual(opts.map((o) => [o.id, o.locked]), [["view", false], ["edit", false]], "Can manage is hidden, not greyed");
   assert.equal(roleLabel(opts[0]!), "Can view");
 });
 
@@ -186,7 +185,7 @@ test("add mode: a viewer adds viewers only; a member can add members", () => {
   assert.equal(isViewOnly({}), false);
   assert.equal(isViewOnly({ canGive: (l) => l === "view" }), true);
   const limited = roleOptions("person", { ...addCtx, giving: { maxLevel: "view" } });
-  assert.deepEqual(limited.map((o) => [o.label, o.locked]), [["Member", true], ["Can view", false]]);
+  assert.deepEqual(limited.map((o) => [o.label, o.locked]), [["Can view", false]], "Member is not offered to a viewer");
   assert.equal(defaultRole("person", { ...addCtx, giving: { maxLevel: "view" } }), "view");
   assert.equal(defaultRole("person", addCtx), "member");
   assert.match(VIEW_ONLY_NOTE, /^You can view here, so you can add people as viewers only\. A person can give only what they have\.$/);
@@ -197,10 +196,13 @@ test("role lists: people Member or Can view, guests Can view or Can reply, agent
   assert.deepEqual(roleOptions("guest", addCtx).map((o) => o.label), ["Can view", "Can reply"]);
   assert.deepEqual(roleOptions("agent", addCtx), []);
   assert.deepEqual(roleOptions("outside", addCtx), []);
-  assert.deepEqual(roleOptions("guest", { mode: "share", itemType: "agent" }).map((o) => o.label), ["Can chat with"], "a guest gets the first level only");
+  assert.deepEqual(roleOptions("guest", { mode: "share", itemType: "agent" }).map((o) => o.label), ["Can use"], "a guest gets the first level only");
   assert.equal(defaultRole("guest", addCtx), "gview");
   assert.equal(defaultRole("person", { mode: "share", itemType: "vault" }), "use");
-  assert.equal(defaultRole("person", { mode: "share", itemType: "agent" }), "view");
+  assert.equal(defaultRole("person", { mode: "share", itemType: "agent" }), "use");
+  assert.equal(defaultRole("person", { mode: "share", itemType: "agent", general: "use" }), "edit", "a new person starts one level above the general one");
+  assert.equal(defaultRole("person", { mode: "share", itemType: "agent", general: null }), "use", "with Only people added, Can use");
+  assert.equal(defaultRole("person", { mode: "share", itemType: "agent", general: "use", giving: { maxLevel: "use" } }), "use", "nothing above is on offer: the default stays");
 });
 
 /* ---------- buttons ---------- */
@@ -253,8 +255,8 @@ test("the earlier switch shows when a person, not only a guest or an agent, is p
   assert.equal(showsEarlier([sara("gview", "guest")]), false);
   assert.equal(showsEarlier([sara("", "agent", "Docs")]), false);
   assert.equal(idleLine("add"), "Pick who to add. You will see what they get before you confirm.");
-  assert.equal(idleLine("share", "note"), "Pick who to share with. You will see what they get before you confirm.");
-  assert.equal(idleLine("share", "agent", "Ember"), agentLevelsLine("Ember"));
+  assert.equal(idleLine("share", "note"), "", "the explainer covers it");
+  assert.equal(idleLine("share", "agent", "Ember"), "");
 });
 
 /* ---------- the lists ---------- */
@@ -297,15 +299,20 @@ test("Enter takes the top match: the first suggestion, else the first person, gr
   assert.equal(topMatch(sections({ directory: dir, query: "zzz", mode: "add", taken: none })), null);
 });
 
-test("share mode adds the Space and groups; sharing an agent offers people and groups only", () => {
+test("share mode: one short Suggested list of five at most; typing finds the Space, groups and agents; an agent is shared with people and groups only", () => {
   const s = sections({ directory: dir, query: "", mode: "share", itemType: "note", taken: none });
-  assert.equal(s.space?.name, "Anyone in the Space");
-  assert.deepEqual(s.groups.map((e) => e.name), ["Finance"]);
-  assert.equal(s.agents.length, 2);
+  assert.equal(s.space, null, "General access at the top is the Space; it is not offered twice");
+  assert.ok(s.suggested.length > 0 && s.suggested.length <= 5);
+  assert.deepEqual([s.people, s.groups, s.agents], [[], [], []], "one list, not four");
+  const many = { ...dir, people: Array.from({ length: 9 }, (_, n) => ({ id: `usr_${n}`, name: `Person ${n}`, kind: "person" as const })) };
+  assert.equal(sections({ directory: many, query: "", mode: "share", itemType: "note", taken: none }).suggested.length, 5, "capped at five");
+  assert.equal(sections({ directory: dir, query: "space", mode: "share", itemType: "note", taken: none }).space?.name, "Anyone in the Space");
+  assert.deepEqual(sections({ directory: dir, query: "fin", mode: "share", itemType: "note", taken: none }).groups.map((e) => e.name), ["Finance"]);
+  assert.ok(sections({ directory: dir, query: "mi", mode: "share", itemType: "note", taken: none }).agents.length > 0);
   const a = sections({ directory: dir, query: "", mode: "share", itemType: "agent", taken: none });
   assert.deepEqual(a.agents, []);
   assert.deepEqual(a.outside, []);
-  assert.deepEqual(a.suggested.map((e) => e.name), ["Sara Malik"], "the Assistant is not offered as a recipient");
+  assert.ok(!a.suggested.some((e) => e.kind === "agent"), "the Assistant is not offered as a recipient of an agent");
 });
 
 test("rows that already hold access are taken, including the Space row", () => {
@@ -447,11 +454,11 @@ test("rows ported from the old sheet: raise never lower, link is view only, only
   const row = (over: Partial<ShareRow> & Pick<ShareRow, "name">): ShareRow => ({ subjectKind: "person", subjectId: `prs_${over.name.toLowerCase()}`, level: "view", via: "grant", fromFolderId: null, ...over });
   assert.deepEqual(levelsFor(row({ name: "Maya", via: "folder", level: "edit" }), "note"), ["edit", "manage"]);
   assert.deepEqual(levelsFor(row({ name: "Maya" }), "note"), ["view", "edit", "manage"]);
-  assert.deepEqual(levelsFor(row({ name: "Maya" }), "agent"), ["view", "use", "edit", "manage"]);
+  assert.deepEqual(levelsFor(row({ name: "Maya" }), "agent"), ["use", "edit", "manage"]);
   assert.deepEqual(levelsFor(row({ name: "Maya" }), "note", ["view", "edit"]), ["view", "edit"]);
   assert.deepEqual(levelsFor(row({ name: "Public", subjectKind: "link" }), "note"), ["view"]);
-  assert.deepEqual(levelsFor(row({ name: "Maya", via: "grant", level: "view" }), "vault"), ["use", "view", "edit"]);
-  assert.deepEqual(levelsFor(row({ name: "Maya", via: "folder", level: "view" }), "vault"), ["view", "edit"], "a Vault row from a folder cannot drop to use");
+  assert.deepEqual(levelsFor(row({ name: "Maya", via: "grant", level: "view" }), "vault"), ["use", "view", "edit", "manage"]);
+  assert.deepEqual(levelsFor(row({ name: "Maya", via: "folder", level: "view" }), "vault"), ["view", "edit", "manage"], "a Vault row from a folder cannot drop to use");
   assert.equal(removable({ via: "grant" }), true);
   assert.equal(removable({ via: "folder" }), false);
   assert.equal(removable({ via: "owner" }), false);
@@ -473,6 +480,98 @@ test("no string shown to people holds an em dash or a section sign", async () =>
     assert.ok(!src.includes("—"), `${f} has an em dash`);
     assert.ok(!src.includes("§"), `${f} has a section sign`);
   }
+});
+
+/* ---------- accessView: the rules behind the Dex sheet ---------- */
+
+import { accessCount, accessSubtitle, accessView, generalSub, levelHint, redundantVia, rowSub } from "./model.ts";
+import type { ShareRow as Row } from "./props.ts";
+
+const r = (o: Partial<Row> & Pick<Row, "subjectKind" | "subjectId">): Row => ({ name: o.subjectId, level: "view", via: "grant", fromFolderId: null, ...o });
+const base = { itemType: "agent" as const, resourceId: "agt_dex", ownerId: "usr_me", ownerName: "Irfad" };
+
+test("accessView: an item never lists itself", () => {
+  const v = accessView({ ...base, shares: [r({ subjectKind: "agent", subjectId: "agt_dex", level: "edit", via: "space" })] });
+  assert.deepEqual(v.agents.specific, []);
+  assert.equal(v.agents.on, false);
+  assert.equal(v.count, 1);
+});
+
+test("accessView: a person is one row at their highest level; the owner is only the Owner row", () => {
+  const v = accessView({ ...base, shares: [
+    r({ subjectKind: "person", subjectId: "usr_me", level: "manage", via: "folder" }),
+    r({ subjectKind: "person", subjectId: "usr_omar", level: "view", via: "grant" }),
+    r({ subjectKind: "person", subjectId: "usr_omar", level: "edit", via: "folder" }),
+    r({ subjectKind: "person", subjectId: "usr_kai", level: "edit", via: "grant" }),
+    r({ subjectKind: "person", subjectId: "usr_kai", level: "edit", via: "folder" }),
+  ] });
+  assert.deepEqual(v.people.map((p) => [p.subjectId, p.level, p.via]), [["usr_kai", "edit", "grant"], ["usr_omar", "edit", "folder"]]);
+  assert.equal(v.people.some((p) => p.subjectId === "usr_me"), false);
+});
+
+test("accessView: a private agent is never listed by name, a Space agent folds into one line, one added on purpose shows", () => {
+  const v = accessView({ ...base, shares: [
+    r({ subjectKind: "agent", subjectId: "agt_aliza", name: "Aliza Rizvi (Agent)", level: "edit", via: "space", privateAgent: true }),
+    r({ subjectKind: "agent", subjectId: "agt_docs", name: "Docs", level: "edit", via: "space" }),
+    r({ subjectKind: "agent", subjectId: "agt_scout", name: "Scout", level: "use", via: "grant" }),
+  ] });
+  assert.deepEqual(v.agents.specific.map((a) => a.name), ["Scout"]);
+  assert.equal(v.agents.on, true);
+  assert.equal(JSON.stringify(v).includes("Aliza"), false);
+});
+
+test("accessView: Everyone is general access, not a person row, and its level is read from the grant", () => {
+  const v = accessView({ ...base, shares: [r({ subjectKind: "group", subjectId: "grp_everyone", level: "use", via: "space" })] });
+  assert.equal(v.general.level, "use");
+  assert.deepEqual(v.people, []);
+  assert.equal(accessView({ ...base, shares: [] }).general.level, null);
+});
+
+test("accessView: the folder words stay true, and Nobody else yet is only for a truly empty list", () => {
+  const inherited = [r({ subjectKind: "person", subjectId: "usr_omar", level: "edit", via: "folder" })];
+  assert.equal(accessView({ ...base, shares: inherited }).inheritedFrom, "From the Space");
+  assert.equal(accessView({ ...base, folderName: "Clients", shares: inherited }).inheritedFrom, "From the folder Clients");
+  assert.equal(rowSub({ subjectKind: "person", via: "folder" }), "From the Space");
+  assert.equal(accessView({ ...base, shares: inherited }).empty, false);
+  assert.equal(accessView({ ...base, shares: [] }).empty, true);
+  assert.equal(accessView({ ...base, shares: [r({ subjectKind: "group", subjectId: "grp_everyone", via: "space" })] }).empty, false);
+});
+
+test("accessView: the count behind the sheet is the same deduped list", () => {
+  const shares = [
+    r({ subjectKind: "person", subjectId: "usr_me", level: "manage", via: "folder" }),
+    r({ subjectKind: "person", subjectId: "usr_omar", level: "view" }),
+    r({ subjectKind: "person", subjectId: "usr_omar", level: "edit", via: "folder" }),
+    r({ subjectKind: "agent", subjectId: "agt_dex", via: "space" }),
+    r({ subjectKind: "agent", subjectId: "agt_x", via: "space", privateAgent: true }),
+    r({ subjectKind: "group", subjectId: "grp_everyone", level: "use", via: "space" }),
+  ];
+  assert.equal(accessCount({ ...base, shares }), 3);
+  assert.equal(accessView({ ...base, shares }).count, 3);
+});
+
+test("levelHint: every level each item type offers has a one line description", () => {
+  for (const type of ["note", "file", "record", "rtype", "artifact", "project", "vault", "agent", "automation"] as const) {
+    for (const l of levelDefs(type)) assert.ok(levelHint(type, l.id).length > 0 && !/\n/.test(levelHint(type, l.id)), `${type} ${l.id}`);
+  }
+  assert.equal(levelHint("agent", "use"), "Chat with it and put it to work in their own chats, tasks, automations and crews, on their own AI account.");
+  assert.equal(levelHint("agent", "edit"), "Change its instructions, context and tools.");
+  assert.equal(levelHint("agent", "manage"), "Share it, move it and delete it.");
+});
+
+test("general access and redundancy words", () => {
+  assert.equal(generalSub("agent", "use", "Northwind", "Dex"), "Anyone in Northwind can use Dex");
+  assert.equal(generalSub("note", "edit", "Northwind", "Plan"), "Anyone in Northwind can edit Plan");
+  assert.equal(generalSub("agent", null, "Northwind", "Dex"), "Only people added can open it");
+  assert.equal(redundantVia("agent", "edit", "use", "Northwind"), "Already has access through Everyone in Northwind");
+  assert.equal(redundantVia("agent", "edit", "edit", "Northwind"), "Already has access through Everyone in Northwind");
+  assert.equal(redundantVia("agent", "use", "manage", "Northwind"), null, "a higher level adds something");
+  assert.equal(redundantVia("agent", null, "use", "Northwind"), null);
+});
+
+test("an automation offers View, Edit and Manage", () => {
+  assert.deepEqual(levelDefs("automation").map((l) => l.label), ["Can view", "Can edit", "Can manage"]);
+  assert.equal(accessSubtitle("automation", 3), "Automation · 3 with access");
 });
 
 test("addCalls sends fromStart only when Include earlier messages is on", () => {

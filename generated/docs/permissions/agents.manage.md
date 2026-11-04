@@ -14,6 +14,8 @@ Area: agents. Risk: medium. Applies to: agent.
 
 ## Capabilities that need it
 
+- agents.pause_person
+- agents.people_summary
 - agents.template.apply
 - plugins.agent_template.use
 - plugins.config.set

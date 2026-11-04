@@ -181,7 +181,7 @@ export function createChromeApp(deps: ChromeAppDeps) {
       walk(out);
     }
     const agents = await agentsById();
-    return { threads: [...rows.values()].slice(0, limit).map((r) => ({ ...r, agentName: r["agentId"] ? agents.get(String(r["agentId"]))?.name ?? "" : "" })) };
+    return { threads: [...rows.values()].slice(0, limit).map((r) => ({ ...r, agentName: r["agentId"] ? agents.get(String(r["agentId"]))?.name ?? "" : "", face: r["agentId"] ? agents.get(String(r["agentId"]))?.face ?? "" : "" })) };
   }
 
   async function agentsById(section?: string) {
@@ -191,10 +191,10 @@ export function createChromeApp(deps: ChromeAppDeps) {
     const computers = new Set<string>();
     const cl = await call("computers.list", {}).catch(() => null);
     for (const c of Array.isArray(cl?.computers) ? cl.computers : []) if (c?.agentId) computers.add(String(c.agentId));
-    const map = new Map<string, { id: string; name: string; role: string; assistant: boolean; computer: boolean }>();
+    const map = new Map<string, { id: string; name: string; role: string; assistant: boolean; computer: boolean; face: string }>();
     for (const a of Array.isArray(out?.agents) ? out.agents : []) {
       const assistant = a.role === "assistant" || a.kind === "assistant";
-      map.set(String(a.agentId), { id: String(a.agentId), name: String(a.name ?? "Agent"), role: str(a.roleLine ?? a.description ?? "", 60), assistant, computer: computers.has(String(a.agentId)) });
+      map.set(String(a.agentId), { id: String(a.agentId), name: String(a.name ?? "Agent"), role: str(a.roleLine ?? a.description ?? "", 60), assistant, computer: computers.has(String(a.agentId)), face: typeof a.face === "string" ? a.face : "" });
     }
     return map;
   }
@@ -206,7 +206,7 @@ export function createChromeApp(deps: ChromeAppDeps) {
     const messages = (Array.isArray(list?.messages) ? list.messages : []).filter((m: any) => m.kind !== "quiet" && m.kind !== "system").map((m: any) => ({
       id: String(m.messageId), text: String(m.body ?? ""), at: m.createdAt ?? m.at ?? null,
       artifacts: (Array.isArray(m.blocks) ? m.blocks : []).filter((b: any) => b?.type === "artifact" && /^sit_[a-z0-9]+$/.test(String(b?.data?.artifactId ?? ""))).slice(0, 4).map((b: any) => ({ id: String(b.data.artifactId), title: str(b.data.title ?? "Artifact", 120) })),
-      author: { kind: m.author?.kind ?? "agent", id: m.author?.id ?? "", me: m.author?.kind === "person" && m.author?.id === mine, name: m.author?.kind === "agent" ? agents.get(m.author.id)?.name ?? "Agent" : m.author?.id === mine ? "You" : "Someone", assistant: m.author?.kind === "agent" ? Boolean(agents.get(m.author.id)?.assistant) : false },
+      author: { kind: m.author?.kind ?? "agent", id: m.author?.id ?? "", me: m.author?.kind === "person" && m.author?.id === mine, name: m.author?.kind === "agent" ? agents.get(m.author.id)?.name ?? "Agent" : m.author?.id === mine ? "You" : "Someone", assistant: m.author?.kind === "agent" ? Boolean(agents.get(m.author.id)?.assistant) : false, face: m.author?.kind === "agent" ? agents.get(m.author.id)?.face ?? "" : "" },
     }));
     return { threadId, title: t?.thread?.title ?? "", agentId: t?.thread?.agents?.[0]?.agentId ?? null, messages };
   }
@@ -269,9 +269,19 @@ export function createChromeApp(deps: ChromeAppDeps) {
           } else s = session();
           if (!/^sit_[a-z0-9]+$/.test(id)) throw new AppError("validation.bad_input", "Say which artifact.");
           const out = await deps.call(s, "sites.artifact_open", { artifactId: id });
-          const url = typeof out?.url === "string" ? out.url : typeof out?.path === "string" ? `${s.address.replace(/\/+$/, "")}${out.path}` : "";
-          if (!/^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(url)) throw new AppError("provider.unavailable", "The Space did not give an address to open.");
+          const url = typeof out?.url === "string" ? out.url : "";
+          // the artifact host's one-time code, never an address with a token in it; a Space on this computer uses http://a.localhost:<port>
+          if (!/^https:\/\/[^/]+\/x\/[A-Za-z0-9]+$|^http:\/\/a\.localhost(:\d+)?\/x\/[A-Za-z0-9]+$/.test(url)) throw new AppError("provider.unavailable", "The Space did not give an address to open.");
           return { url, expiresAt: out?.expiresAt ?? null };
+        }
+        case "artifact.thumb": {
+          // A picture the extension took of an artifact the person has open. The Space keeps it only when there is none yet or the artifact changed (sites.artifact_thumb_set, View level).
+          const id = str(input["artifactId"], 80);
+          const thumb = str(input["thumb"], 60_000);
+          if (!/^sit_[a-z0-9]+$/.test(id)) throw new AppError("validation.bad_input", "Say which artifact.");
+          if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(thumb)) throw new AppError("validation.bad_input", "That is not a small picture.");
+          const out = await deps.call(session(), "sites.artifact_thumb_set", { artifactId: id, thumb });
+          return { set: out?.set === true };
         }
         case "whoami": {
           const w = await call("identity.whoami", {});

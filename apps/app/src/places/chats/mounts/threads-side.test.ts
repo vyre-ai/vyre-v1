@@ -48,7 +48,7 @@ test("a Replies row: where it hangs, who wrote the newest line, when, and how ma
   const c = { now: Date.UTC(2026, 10, 3, 15, 0), offsetMin: 0 };
   const names: Record<string, string> = { usr_leo: "Leo" };
   const v = threadView({ threadId: "thr_1", parentTitle: "#intake", preview: "Rivera is with me", repliers: [{ kind: "person", id: "usr_leo" }], lastMessageAt: Date.UTC(2026, 10, 3, 14, 5), createdAt: 0, unread: 2 }, (id) => names[id] ?? id, c);
-  assert.deepEqual([v.title, v.note, v.when, v.unread, v.bold], ["#intake", "Leo: Rivera is with me", "14:05", 2, true]);
+  assert.deepEqual([v.title, v.who, v.note, v.when, v.unread, v.bold], ["#intake", "Leo", "Rivera is with me", "14:05", 2, true]);
   const quiet = threadView({ threadId: "thr_2", createdAt: Date.UTC(2026, 10, 2, 9, 0), unread: 3, muted: true, replyCount: 1 }, (id) => id, c);
   assert.deepEqual([quiet.title, quiet.note, quiet.when, quiet.unread, quiet.bold, quiet.muted], ["A chat", "1 reply", "Yesterday", 0, false, true]);
   assert.equal(threadsNote(0), "Nothing new");

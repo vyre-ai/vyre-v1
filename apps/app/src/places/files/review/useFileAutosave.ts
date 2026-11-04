@@ -93,13 +93,14 @@ export function useFileAutosave(o: FileAutosaveOptions): FileAutosave {
         if (!v) { setLine({ kind: "error", text: "That version is not there to go back to." }); return; }
         const r = await restoreVersion(cur.call, cur.fileId, v.versionId);
         if (!r.ok) { setLine({ kind: "error", text: r.error }); return; }
+        const restored = r.value.file.version;
         const read = (await cur.call("files.read", { fileId: cur.fileId, versionId: v.versionId, as: "text" })) as { text?: string };
         const text = read.text ?? "";
         setDraft(text);
-        setBase({ text, version: r.value.n });
-        saver.undone(text, r.value.n);
-        setLine({ kind: "ok", text: `Went back to version ${to}, saved as version ${r.value.n}.` });
-        cur.onSaved?.(r.value.versionId, r.value.n);
+        setBase({ text, version: restored });
+        saver.undone(text, restored);
+        setLine({ kind: "ok", text: `Went back to version ${to}, saved as version ${restored}.` });
+        cur.onSaved?.(r.value.versionId, restored);
       } catch { setLine({ kind: "error", text: "Could not go back. Try again." }); }
     })();
   }, [saver]);

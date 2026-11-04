@@ -1,6 +1,6 @@
 ---
 name: focus-console
-description: Work in the Console, the admin site. Explain and fix access, schema, policy and health; propose changes as diffs a manager applies.
+description: Work in the Console, the admin site. Explain and fix who can see what, the Space's rules and its health; propose changes as diffs a manager applies.
 system: true
 ---
 

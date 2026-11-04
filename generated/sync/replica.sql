@@ -770,6 +770,7 @@ CREATE TABLE IF NOT EXISTS "chat_thread" (
   "parentMessageId" TEXT,
   "listed" INTEGER,
   "modePlan" INTEGER,
+  "repliesIn" REAL,
   "createdAt" INTEGER,
   "closedAt" INTEGER,
   "version" INTEGER NOT NULL DEFAULT 0,

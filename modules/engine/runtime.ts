@@ -2,6 +2,8 @@
 // to recover the threads a dead host left mid-turn. Everything it needs from outside arrives through `EngineHostSeam` (host/src/seams/engine.ts): a way to call capabilities as a
 // person, and the opener of real sessions. The turn engine itself stays in agent/src/turn-engine and knows nothing about modules.
 import path from "node:path";
+import { wireHooks } from "./hooks-wire.ts";
+import { callHooksOf } from "./hooks-port.ts";
 import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { SessionSpec, AccountQuery, EngineEvent, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
@@ -14,6 +16,7 @@ import { createCrewWatcher } from "./crew-watch.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { createEngineApiTools } from "./api-tools.ts";
+import { recordToolUse, topTools } from "./tool-use.ts";
 import { buildNodeOpener, buildOpener, roleBlocks } from "./session.ts";
 import { remoteLauncher, routed, waitsForComputer } from "./node-turns.ts";
 import { bindRelay } from "./relay.ts";
@@ -26,6 +29,8 @@ import { withAudienceReset } from "./audience-reset.ts";
 import { withChatSettings } from "./chat-settings.ts";
 import { withSpaceKeyTurns } from "./space-key-turns.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
+import { createModelSwitch } from "./model-switch.ts";
+import { markConfirmed } from "./model-health.ts";
 import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
 import { skipLocked } from "./locked-account.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
@@ -33,6 +38,7 @@ import { configureEngines, engines, enginesRoot } from "./engine-install.ts";
 import { capabilitySkills, createContextBuilder, runningLine, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
 import { withNativeSkills } from "./skills-native.ts";
+import { getDigest, maybeRefreshDigest } from "./room-digest.ts";
 import { withGoalFolder } from "./goal-folder.ts";
 import { createRoller } from "./rollover.ts";
 import { forgetPlacement, placementOf } from "./placement-cache.ts";
@@ -44,7 +50,7 @@ import { createCompactor, withCompaction } from "./compact.ts";
 import type { Compactor } from "./compact.ts";
 import { keepEvery, keepsSession, resumeId, saveResumeId } from "./cli-sessions.ts";
 import { recordAccountLimits } from "./handlers/usage.ts";
-import { learnAfterTurn } from "./learn.ts";
+import { learnAfterTurn, titleAfterTurn } from "./learn.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
 import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
 import { ensureExtra } from "./handlers/extra/schema.ts";
@@ -72,6 +78,8 @@ export interface EngineHostSeam {
   call(cap: string, input: unknown, as?: string): Promise<unknown>;
   /** The real session opener. A daemon passes the host's `session` ports instead and the module builds it; a test passes a scripted one here. */
   openSession?: OpenSession;
+  /** Told the API tool set when it is built (a measurement hands a real driver the engine's own tool context). */
+  onApiTools?: (t: ReturnType<typeof createEngineApiTools>) => void;
   /** The host's ports for the real opener (Vault lookup, loopback MCP, scrub-miss report). With these and no `openSession`, the module builds the opener itself. */
   session?: EngineSessionPorts;
   /** Where CLI engines run sandboxed (work folders, the wall). Absent: CLI turns fail closed. */
@@ -81,6 +89,8 @@ export interface EngineHostSeam {
   space?: string;
   /** The computers that joined the Space, for a turn pinned to one of them (node-turns.ts). Absent: no turn runs on a server. */
   nodes?: NodeRelay;
+  /** The token behind a filler handle, once: GitHub for a CLI engine's process (github-session.ts). */
+  githubFill?: (handle: string) => string | null;
   /** True when the person is on their own computer (a local model on this machine is then reachable). */
   own?: (person: string) => boolean;
   /** A Space server only: does it hold this person's key now (locked-account.ts). Absent on a person's own computer. */
@@ -114,6 +124,8 @@ export interface EngineHostSeam {
   extend?: (engine: TurnEngine) => void;
   /** Told at shutdown with the promise of the engine's close (CLI sessions ended, the sign-ins they refreshed saved), so the daemon waits for it before its databases close. */
   closing?: (done: Promise<void>) => void;
+  /** Set by the module when a later host half has replaced this one while its opener was still open: closes that opener. The seam wiring calls it when this daemon stops. */
+  retire?: () => Promise<void>;
   /** Told how many turns run here now, each time it changes (the desktop shell waits for 0 before it updates the app). */
   turns?: (running: number) => void;
 }
@@ -138,11 +150,11 @@ export function setEngineHost(h: EngineHostSeam | null): void {
     const done = (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve()).then(() => closeDefaultSandbox()).catch(() => undefined);
     host?.closing?.(done);
   }
-  // Two daemons in one process (tests): the next host half replaces the first before the first has been unwired. The first one's opener (its CLI sessions, MCP socket and egress proxy) is closed
-  // now and handed to its host half to wait for; before, it was dropped here and never closed.
-  else if (closeOpener && host) {
-    const old = closeOpener;
-    host.closing?.(old().catch(() => undefined));
+  // Two daemons in one process: the next host half replaces the first while the first daemon may still be running (its turns go on through the opener it built), so its opener is NOT closed here.
+  // It is handed to the first host half as `retire`, which the seam wiring calls when that daemon stops without holding the seam any more; before, the opener was dropped here and never closed.
+  else if (closeOpener && host && h !== host) {
+    const old = host, close = closeOpener;
+    old.retire = () => { const done = close().catch(() => undefined); old.closing?.(done); return done; };
   }
   closeOpener = null;
   host = h;
@@ -280,7 +292,7 @@ async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: Resolv
   await h.call("engine.turn.record_usage", { turnId: turn.id, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut, costMicros: costMicrosOf(turn, account), model: turn.model ?? defaultModelLabel(account), ...(account?.itemId ? { itemId: account.itemId } : {}) }, turn.asker);
 }
 
-export interface CompleteIn { account: ResolvedAccount; system?: string; prompt: string; model?: string }
+export interface CompleteIn { account: ResolvedAccount; system?: string; prompt: string; model?: string; /** Work as this agent (a hook's check runs as the agent whose event it reads); absent: the memory upkeep pseudo-agent. */ agentId?: string }
 export interface CompleteOut { text: string; tokensIn: number; tokensOut: number }
 let completer: ((i: CompleteIn) => Promise<CompleteOut>) | null = null;
 let compactor: Compactor | null = null;
@@ -288,12 +300,14 @@ let compactor: Compactor | null = null;
 export const compactorOf = (): Compactor | null => compactor;
 /** One request and one answer on an account, through the same opener the turn engine uses: for jobs that need a model but are not a chat (memory upkeep). Null before the runtime exists. */
 export const completerOf = (): typeof completer => completer;
+/** Tests: stand in for the runtime's one-request completer. */
+export const bindCompleter = (c: typeof completer): void => { completer = c; };
 
 /** Run one turn of a pseudo-agent on the account and collect its text and token counts. */
 async function oneShot(openSession: OpenSession, i: CompleteIn, now: () => number): Promise<CompleteOut> {
   const n = now();
   const threadId = `oneshot_${n.toString(36)}`;
-  const agent = { id: "memory-upkeep", name: "Memory upkeep", mode: "lead" as const, ...(i.system ? { role: i.system } : {}), ...(i.model ? { model: i.model } : {}), accountRef: i.account.ref };
+  const agent = { id: i.agentId ?? "memory-upkeep", name: i.agentId ? "Hook check" : "Memory upkeep", mode: "lead" as const, ...(i.system ? { role: i.system } : {}), ...(i.model ? { model: i.model } : {}), accountRef: i.account.ref };
   // lean: the system prompt is the job's own, with no tools, MCP, settings, memory files or skills, so a learning pass on a CLI costs a few hundred tokens more than its prompt, not thousands
   const session = await openSession({ threadId, agent, asker: i.account.payer, turnId: `trn_${n.toString(36)}`, traceId: "0".repeat(32), account: i.account, tools: "none", lean: true });
   let text = "";
@@ -376,7 +390,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   // for closeOpener, so Quit closed an empty pool and the engine process, its MCP socket and its egress proxy outlived the daemon.
   if (building) return building;
   const h = host;
-  const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call), call: h.call, plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;
+  const hooksPort = wireHooks(h);
+  const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, usage: { record: (agentId, tool) => recordToolUse(ctx.db, agentId, tool, (h.now ?? Date.now)()), top: (agentId) => topTools(ctx.db, agentId) }, system: roleBlocks(h.call), call: h.call, hooks: callHooksOf(hooksPort, "api"), plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;
+  if (apiTools) host.onApiTools?.(apiTools);
   const now0 = h.now ?? Date.now;
   // a CLI engine's own session id, kept per chat, agent and person so a restart or an eviction resumes it; and the chat's "Keep this every time" for the CLI's own compaction
   const sessions = {
@@ -387,7 +403,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   // the Space's internet setting, read as each engine process starts, and where the process went (the turn's details, and the audit log for a refusal)
   const egress = { rule: () => spaceRule(h.call), record: (where: { person: string; threadId: string }, e: Parameters<typeof recordEgress>[3]) => recordEgress(ctx.db, h.call, where, e, now0, h.log) };
   const access = (asker: string) => engineAccessFor(h.call, asker);
-  const opener = host.openSession ? null : buildOpener({ sessions, egress, access, ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(cliProbeOf(host) ? { cliProbe: cliProbeOf(host) as NodeCliProbe } : {}), ...(host.cli?.apiFetch ? { apiFetch: host.cli.apiFetch } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
+  const opener = host.openSession ? null : buildOpener({ sessions, egress, access, ...(h.githubFill ? { githubFill: h.githubFill } : {}), ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(cliProbeOf(host) ? { cliProbe: cliProbeOf(host) as NodeCliProbe } : {}), ...(host.cli?.apiFetch ? { apiFetch: host.cli.apiFetch } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
   // the composer's model menu asks each subscription engine for its own list, through this opener: the person's sandbox and sign-in, as a turn would run (live-models.ts)
   bindModelLister(opener ? (account, asker, o) => opener.models(account, asker, o) : null);
   // a turn whose engine Vyre is installing says so on its live line ("Setting up Codex"); the line is the bridge's, which exists once the runtime is built below
@@ -481,6 +497,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     const roller = createRoller({ db: ctx.db, engine: () => running, compactor: () => compactor, ...(h.log ? { log: h.log } : {}) });
     const turnContext = createContextBuilder({
       call: h.call, skills: h.skills ?? capabilitySkills(h.call), now, handoff: takeHandoff,
+      digests: { get: (t, a) => getDigest(ctx.db, t, a), refresh: (o) => { maybeRefreshDigest({ db: ctx.db, call: h.call, now, ...(h.log ? { log: h.log } : {}) }, o); } },
       waiting: (threadId, agentId) => (running?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
     });
     const limitSwitch = createLimitSwitch({
@@ -494,19 +511,23 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         return row ? providerOfDriver(row.driver) : undefined;
       },
     });
+    const modelSwitch = createModelSwitch({ call: h.call, db: ctx.db, accountFor: runnableAccount(h), now, ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) });
     const engine = createTurnEngine({
+      hooks: hooksPort,
       holder: h.holder, openSession: withHeldNotes(withChatSettings(withSpaceKeyTurns(withTurnContext(goalFolder(nativeSkills(withCompaction(withTranscript(withRecall(withAudienceReset(bridge ? bridge.tap(openSession) : openSession, { db: ctx.db, call: h.call, now, ...(opener ? { drop: (threadId: string) => opener.pool.drop(threadId) } : {}), ...(h.log ? { log: h.log } : {}) }), h.call), h.call, now), ctx.db))), turnContext, async (spec) => runningLine(spec, await placeWords(spec))), { call: h.call, db: ctx.db, now, ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) }), h.call)), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
       resolveAccount: (q) => limitSwitch.resolve(q),
       nextAccount: (q) => limitSwitch.next(q),
+      nextModel: async (q) => { try { return await modelSwitch(q); } catch (e) { if (typeof (e as { code?: unknown } | null)?.code !== "string") h.log?.("the model swap failed", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); throw e; } },
       onNoAccount: async (info) => {
         try { await unblock(h, ctx.db, info); }
         catch (e) { h.log?.("could not open the Unblock task for a turn with no account", { threadId: info.threadId, asker: info.asker, error: e instanceof Error ? e.message : String(e) }); throw e; }
       },
       // memory learns from the turn in the background (learn.ts): scheduled here, never awaited, so the reply is not held for it
-      onTurnEnd: (turn, account) => { roller.ranOn(turn.id, account); learnAfterTurn(h, turn, account); return meter(h, turn, account); },
+      onQuestionsLeft: async (turn, blocks) => { for (const blockId of blocks) { try { await h.call("chat.question.withdraw", { threadId: turn.threadId, blockId }, turn.agentId); } catch { /* it stays in its chat */ } } },
+      onTurnEnd: (turn, account) => { if (turn.state === "completed" && account && turn.model) { try { markConfirmed(ctx.db, account.ref, turn.model, now()); } catch { /* a mark that stays only hides a model a little longer */ } } roller.ranOn(turn.id, account); learnAfterTurn(h, turn, account); titleAfterTurn(h, turn, account); return meter(h, turn, account); },
       onLimits: (account, reading) => recordAccountLimits(ctx.db, account.ref, reading, now()),
       // the answer check (gap 6): an answer built on something not everyone in the chat may open goes to the asker privately
       ...(h.mayAll ? {
@@ -518,7 +539,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           return s;
         },
       } : {}),
-      ...(apiTools ? { callTool: apiTools.runner } : {}),
+      ...(apiTools ? { callTool: apiTools.runner, ...(apiTools.toolClass ? { toolClass: apiTools.toolClass } : {}) } : {}),
       // a chat pinned to a computer that is not linked waits in the queue for it: the turn does not start (nothing reads "Working"), the chat says so once, and it starts when the computer links
       ...(h.nodes?.devices ? { place: (thread: { id: string }) => (waitsForComputer(ctx.db, h.nodes, thread.id) ? "device" as const : "host" as const) } : {}),
     });
@@ -526,10 +547,10 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     // The reviewer seat: after a lead turn completes, the chat's reviewer is asked to check it.
     // Every turn this engine runs is reported to engine.turn.record under the engine's own id, in order per turn, so the turn list, review sampling and the agent's Working status see it.
     const recording = new Map<string, Promise<void>>();
-    const report = (turnId: string, ev: Extract<EngineEvent, { type: "turn.started" | "turn.completed" | "turn.failed" | "turn.cancelled" }>): void => {
+    const report = (turnId: string, ev: Extract<EngineEvent, { type: "turn.started" | "turn.completed" | "turn.failed" | "turn.cancelled" | "turn.waiting" | "turn.resumed" }>): void => {
       const turn = engine.turns().find((t) => t.id === turnId);
       if (!turn) return;
-      const phase = ev.type === "turn.started" ? "started" : ev.type === "turn.completed" ? "completed" : ev.type === "turn.failed" ? "failed" : "cancelled";
+      const phase = ev.type === "turn.started" ? "started" : ev.type === "turn.waiting" ? "waiting" : ev.type === "turn.completed" || ev.type === "turn.resumed" ? "completed" : ev.type === "turn.failed" ? "failed" : "cancelled";
       const input = {
         threadId: turn.threadId, turnId, agentId: turn.agentId, phase, qseq: turn.qseq, asker: turn.asker, ...(turn.model ? { model: turn.model } : {}),
         ...(phase === "started" ? {} : { tokensIn: turn.tokensIn, tokensOut: turn.tokensOut }),
@@ -575,7 +596,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         void h.call("engine.turn.record", { threadId: ev.threadId, turnId: ev.turnId, agentId: ev.agentId, phase: "failed", qseq: ev.qseq ?? 0, ...(ev.asker ? { asker: ev.asker } : {}), code: ev.code }, ev.asker)
           .catch((err: unknown) => h.log?.("a lost turn could not be recorded", { turnId: ev.turnId, error: err instanceof Error ? err.message : String(err) }));
       }
-      else if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") report(ev.turnId, ev);
+      else if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled" || ev.type === "turn.resumed" || (ev.type === "turn.waiting" && ev.reason === "approval")) report(ev.turnId, ev);
       if (ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") {
         // a routine's run ends with the turn it woke (handlers/routine-run.ts)
         void finishRoutineRun(ctx, { call: h.call, ...(h.log ? { log: h.log } : {}) }, ev as Parameters<typeof finishRoutineRun>[2], (id) => engine.turns().find((t) => t.id === id)?.qseq)

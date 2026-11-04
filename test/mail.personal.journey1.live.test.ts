@@ -44,7 +44,7 @@ test("journey 1, Personal first hour: guided setup, connect, mail appears, reply
     await shoot(me.page, dir, "opened");
     await me.page.getByTestId("contact-composer-field").waitFor({ timeout: 20_000 });
     await shoot(me.page, dir, "conversation");
-    await me.page.getByPlaceholder(/^Write a reply/).fill("Yes, noon works.");
+    await me.page.getByTestId("composer-field").fill("Yes, noon works.");
     await shoot(me.page, dir, "reply-written");
     await me.page.getByTestId("composer-send").click();
     await until(async () => (w.fake.sent.length > 0 ? true : null), "the reply reaching Gmail");

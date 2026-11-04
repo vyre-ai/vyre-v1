@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CORE_SPACE } from "../fixtures/seed/core/index.ts";
-import { KEY, boot, connect, hostLog, scriptedModel, seededDir, stop, waitFor } from "./support/eco-live.ts";
+import { KEY, boot, connect, hostLog, scriptedModel, seededDir, stop, waitFor, listAll } from "./support/eco-live.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 
 const WHO = ["usr_olivia", "usr_mia"];
@@ -62,7 +62,7 @@ test("Team: an answer built on a deal Mia may not open goes to Olivia privately;
     assert.equal((await api("usr_olivia", "chat.post", { threadId, body: "Deals, where is Cedar at?", mentions: [{ kind: "agent", id: agentId }], idempotencyKey: "aa-post" })).status, 200);
     const line = await waitFor(async () => {
       await d.hooks?.pump?.();
-      const ms = (await api("usr_mia", "chat.messages.list", { threadId })).data.messages as Msg[];
+      const ms = (await listAll<Msg>(api, "usr_mia", threadId));
       return ms?.find((m) => m.author?.id === agentId && (m.body ?? "") !== "") ?? null;
     }, 20_000, () => hostLog(d));
     assert.doesNotMatch(line.body ?? "", /negotiation|310k|FAILED/, `the channel line: ${line.body}`);

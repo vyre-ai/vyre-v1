@@ -30,6 +30,7 @@ type In = {
   topic?: string;
   memberIds?: Array<string>;
   agentIds?: Array<string>;
+  leadAgentId?: string;
   folderId?: string;
   recordId?: string;
   idempotencyKey: string;
@@ -95,6 +96,7 @@ type Out = {
     ],
     "folderId": "fld_a1b2c3",
     "idempotencyKey": "idem_1",
+    "leadAgentId": "agt_a1b2c3",
     "memberIds": [
       "usr_a1b2c3"
     ],

@@ -25,6 +25,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "agents.outside.seen": Handler<"agents.outside.seen", X>;
   "agents.outside.usable": Handler<"agents.outside.usable", X>;
   "agents.pause": Handler<"agents.pause", X>;
+  "agents.pause_person": Handler<"agents.pause_person", X>;
+  "agents.people_summary": Handler<"agents.people_summary", X>;
   "agents.restore": Handler<"agents.restore", X>;
   "agents.restore_version": Handler<"agents.restore_version", X>;
   "agents.resume": Handler<"agents.resume", X>;
@@ -48,6 +50,12 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "agents.update": Handler<"agents.update", X>;
   "agents.versions": Handler<"agents.versions", X>;
   "agents.visibility.set": Handler<"agents.visibility.set", X>;
+  "install.apply": Handler<"install.apply", X>;
+  "install.check_update": Handler<"install.check_update", X>;
+  "install.from_link": Handler<"install.from_link", X>;
+  "install.get": Handler<"install.get", X>;
+  "install.list": Handler<"install.list", X>;
+  "install.remove": Handler<"install.remove", X>;
   "plugins.agent_template.use": Handler<"plugins.agent_template.use", X>;
   "plugins.agent_templates.list": Handler<"plugins.agent_templates.list", X>;
   "plugins.allow.list": Handler<"plugins.allow.list", X>;
@@ -80,6 +88,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "plugins.set_enabled": Handler<"plugins.set_enabled", X>;
   "plugins.uninstall": Handler<"plugins.uninstall", X>;
   "skills.add": Handler<"skills.add", X>;
+  "skills.grant": Handler<"skills.grant", X>;
+  "skills.grants": Handler<"skills.grants", X>;
+  "skills.history": Handler<"skills.history", X>;
   "skills.list": Handler<"skills.list", X>;
   "skills.load": Handler<"skills.load", X>;
   "skills.members": Handler<"skills.members", X>;
@@ -87,10 +98,12 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "skills.mine.remove": Handler<"skills.mine.remove", X>;
   "skills.mine.set": Handler<"skills.mine.set", X>;
   "skills.mine.update": Handler<"skills.mine.update", X>;
+  "skills.of_agents": Handler<"skills.of_agents", X>;
   "skills.page": Handler<"skills.page", X>;
   "skills.policy.set": Handler<"skills.policy.set", X>;
   "skills.preview": Handler<"skills.preview", X>;
   "skills.remove": Handler<"skills.remove", X>;
+  "skills.save": Handler<"skills.save", X>;
   "skills.set_enabled": Handler<"skills.set_enabled", X>;
   "skills.share": Handler<"skills.share", X>;
   "skills.shared.decide": Handler<"skills.shared.decide", X>;
@@ -98,5 +111,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "skills.space.install": Handler<"skills.space.install", X>;
   "skills.space.setup": Handler<"skills.space.setup", X>;
   "skills.space.update": Handler<"skills.space.update", X>;
+  "skills.undo": Handler<"skills.undo", X>;
   "skills.view": Handler<"skills.view", X>;
 }

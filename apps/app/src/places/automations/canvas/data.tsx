@@ -36,6 +36,8 @@ export interface AutomationsData {
   /** One capability call as the signed-in person; rejects with the capability's error. */
   call(cap: string, input: unknown): Promise<unknown>;
   me: { id: string; name: string };
+  /** The Space's name, for "Everyone in Northwind" in the Share sheet. */
+  spaceName?: string;
   /** A person, agent, group, role or key by id, as a name. */
   name(id: string): string;
   /** The sign-ins and API keys shared with this person, for an AI step's key and backup. */

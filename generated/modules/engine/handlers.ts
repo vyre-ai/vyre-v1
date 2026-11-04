@@ -9,6 +9,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.accounts.list": Handler<"engine.accounts.list", X>;
   "engine.compact": Handler<"engine.compact", X>;
   "engine.complete": Handler<"engine.complete", X>;
+  "engine.crew.chat_repo": Handler<"engine.crew.chat_repo", X>;
   "engine.crew.list": Handler<"engine.crew.list", X>;
   "engine.crew.merge": Handler<"engine.crew.merge", X>;
   "engine.crew.message": Handler<"engine.crew.message", X>;
@@ -16,6 +17,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.crew.repo.get": Handler<"engine.crew.repo.get", X>;
   "engine.crew.repo.set": Handler<"engine.crew.repo.set", X>;
   "engine.crew.start": Handler<"engine.crew.start", X>;
+  "engine.crew.status": Handler<"engine.crew.status", X>;
   "engine.crew.stop": Handler<"engine.crew.stop", X>;
   "engine.crew.wait": Handler<"engine.crew.wait", X>;
   "engine.crew.workspace": Handler<"engine.crew.workspace", X>;
@@ -23,6 +25,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.defaults.set": Handler<"engine.defaults.set", X>;
   "engine.drop_queued": Handler<"engine.drop_queued", X>;
   "engine.health": Handler<"engine.health", X>;
+  "engine.helper_models": Handler<"engine.helper_models", X>;
+  "engine.helpers.change_model": Handler<"engine.helpers.change_model", X>;
+  "engine.helpers.status": Handler<"engine.helpers.status", X>;
+  "engine.helpers.stop_all": Handler<"engine.helpers.stop_all", X>;
   "engine.incident.assign": Handler<"engine.incident.assign", X>;
   "engine.incident.get": Handler<"engine.incident.get", X>;
   "engine.incident.note": Handler<"engine.incident.note", X>;
@@ -30,6 +36,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.incident.resolve": Handler<"engine.incident.resolve", X>;
   "engine.incidents.list": Handler<"engine.incidents.list", X>;
   "engine.interrupt": Handler<"engine.interrupt", X>;
+  "engine.last_pick.get": Handler<"engine.last_pick.get", X>;
   "engine.lease.acquire": Handler<"engine.lease.acquire", X>;
   "engine.lease.heartbeat": Handler<"engine.lease.heartbeat", X>;
   "engine.lease.release": Handler<"engine.lease.release", X>;
@@ -41,6 +48,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.mcp.read": Handler<"engine.mcp.read", X>;
   "engine.mcp.tools": Handler<"engine.mcp.tools", X>;
   "engine.models.list": Handler<"engine.models.list", X>;
+  "engine.models_catalog": Handler<"engine.models_catalog", X>;
   "engine.my_ai": Handler<"engine.my_ai", X>;
   "engine.now": Handler<"engine.now", X>;
   "engine.placement.decide": Handler<"engine.placement.decide", X>;
@@ -71,6 +79,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.stop_all": Handler<"engine.stop_all", X>;
   "engine.subscription_share.set": Handler<"engine.subscription_share.set", X>;
   "engine.switch": Handler<"engine.switch", X>;
+  "engine.time_convert": Handler<"engine.time_convert", X>;
   "engine.turn.append": Handler<"engine.turn.append", X>;
   "engine.turn.enqueue": Handler<"engine.turn.enqueue", X>;
   "engine.turn.fallback": Handler<"engine.turn.fallback", X>;
@@ -83,6 +92,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.turn.start": Handler<"engine.turn.start", X>;
   "engine.turn.wait": Handler<"engine.turn.wait", X>;
   "engine.turns.list": Handler<"engine.turns.list", X>;
+  "engine.turns.running": Handler<"engine.turns.running", X>;
   "engine.usage.get": Handler<"engine.usage.get", X>;
   "engine.usage.query": Handler<"engine.usage.query", X>;
   "engine.use_policy.export": Handler<"engine.use_policy.export", X>;

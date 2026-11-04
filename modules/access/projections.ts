@@ -531,7 +531,7 @@ export class AccessStore {
         id: String(g.id),
         subject: { kind: g.subjectKind as SubjectKind, id: String(g.subjectId) },
         resource: { type: String(g.resourceType), id: String(g.resourceId) },
-        level: g.level as Level,
+        level: agentLevel(String(g.resourceType), g.level as Level),
         conditions,
         by: String(g.by),
         createdAt: Number(g.version) || 1,
@@ -651,6 +651,14 @@ export function roleView(store: AccessStore, r: RoleRec): { id: string; name: st
 
 export function groupView(g: GroupRec): GroupRec {
   return { id: g.id, name: g.name, builtIn: g.builtIn, members: g.members.map((m) => ({ kind: m.kind, id: m.id })), managers: g.managers.map((m) => ({ kind: m.kind, id: m.id })) };
+}
+
+/**
+ * An agent has three levels (owner, 4 Nov): Can use, Can edit, Can manage. "Can chat with" was merged into Can use, so an old View grant on an agent is Use, wherever it is read from.
+ * Migration 0005 rewrites the stored rows; this covers a row that arrives from the log or a peer after it.
+ */
+export function agentLevel(resourceType: string, level: Level): Level {
+  return resourceType === "agent" && level === "view" ? "use" : level;
 }
 
 export function grantView(g: GrantRec): GrantRec {

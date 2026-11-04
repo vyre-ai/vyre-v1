@@ -31,7 +31,8 @@ type In = Record<string, unknown>;
 
 ```ts
 type Out = {
-  current: string;
+  current?: string;
+  managedElsewhere?: boolean;
   channel: "stable" | "beta" | "nightly";
   available?: string;
   lastResult?: "ok" | "failed" | "rolled_back";
@@ -56,7 +57,8 @@ type Out = {
     "available": "1.0.0",
     "channel": "stable",
     "current": "1.0.0",
-    "lastResult": "ok"
+    "lastResult": "ok",
+    "managedElsewhere": true
   }
 }
 ```

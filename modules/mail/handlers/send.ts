@@ -2,7 +2,7 @@
 //
 // One door for every outgoing email. Automations, agents and people all arrive here, and every send is checked the same way:
 //   suppression list, consent flags, then the provider. Regular email (a welcome, a nurture step, an appointment confirmation, a newsletter) is an Automation, so it must leave when
-//   the flow says: this door holds no send windows, no per-mailbox caps and no throttling. A provider that pushes back answers provider.rate_limited, and the step retries.
+//   the flow says, inside the Space's own sending limits (Console > Messaging > Rules: send.cap, send.window, send.throttle; lib/send-limits.ts). There are no per-mailbox caps. A provider that pushes back answers provider.rate_limited, and the step retries.
 // Space sending goes out through the Space's Resend or Mailgun domain; a member's reply goes out through the member's own Gmail or
 // Graph mailbox. The "Drafted by an agent" line is added to every message an agent sent or drafted. Every send carries the trace id
 // in an X-Vyre-Trace header and on the message row.
@@ -18,10 +18,13 @@
 // 'denied', Do-not-contact or an email opt-out refuses.
 import { HostError, fail } from "../../../host/src/routes/errors.ts";
 import { isTenantService } from "../../../lib/trust.ts";
+import { DAY, DEFAULT_LIMITS, capMessage, capOk, heldText, planSend, throttleOk, windowOk } from "../../../lib/send-limits.ts";
+import type { SendLimits } from "../../../lib/send-limits.ts";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   allow, bad, EMAIL, ensure, first, isId, missing, newId, normalizeEmail, num, partyJson, readStrings, rowsOf, snippetOf, statements, str, strOrNull,
+  readParties,
 } from "../projections.ts";
 import type { MailCtx, Party, Row } from "../projections.ts";
 import { footerHtml, footerText, hasPublicAddress, unsubscribeLink } from "./unsubscribe.ts";
@@ -63,6 +66,8 @@ export interface SendOut {
   status: "queued" | "sent" | "held" | "suppressed";
   taskId?: string;
   suppressed: string[];
+  /** Why a message is queued when the Space's sending window or speed limit held it, and when it leaves. */
+  note?: string;
 }
 
 export interface SendAsIn {
@@ -121,13 +126,14 @@ export function sendGateApplies(call: { principalKind: MailCtx["principal"]["kin
 // ---- schema
 
 const ready = new WeakSet<object>();
-const migrationSql = readFileSync(fileURLToPath(new URL("../migrations/0003_unsubscribe.sql", import.meta.url)), "utf8");
+const migrationSql = ["0003_unsubscribe.sql", "0006_send_ticks.sql"].map((f) => readFileSync(fileURLToPath(new URL(`../migrations/${f}`, import.meta.url)), "utf8")).join("\n");
 
 function ensureSend(ctx: SendCtx): void {
   ensure(ctx);
   if (ready.has(ctx.db)) return;
   try {
     ctx.db.all(`SELECT token_hash FROM mail_unsub WHERE token_hash = ?`, "probe");
+    ctx.db.all(`SELECT id FROM mail_send_tick WHERE id = ?`, "probe");
   } catch {
     for (const statement of statements(migrationSql)) ctx.db.run(statement);
   }
@@ -151,6 +157,37 @@ async function setting<T>(ctx: SendCtx, key: string, fallback: T, ok: (v: unknow
   } catch {
     return fallback;   // the manifest default stands when the settings service gives nothing
   }
+}
+
+const zoneOk = (v: unknown): v is string => typeof v === "string" && v !== "" && (() => { try { new Intl.DateTimeFormat("en-US", { timeZone: v }); return true; } catch { return false; } })();
+
+/** The Space sending limits; a setting the settings service does not give stands at its manifest default. */
+async function limitsOf(ctx: SendCtx): Promise<SendLimits> {
+  return {
+    cap: await setting(ctx, "send.cap", DEFAULT_LIMITS.cap, capOk),
+    window: await setting(ctx, "send.window", DEFAULT_LIMITS.window, windowOk),
+    perMinute: await setting(ctx, "send.throttle", DEFAULT_LIMITS.perMinute, throttleOk),
+  };
+}
+
+/**
+ * Checks one message against the Space's daily limit, sending window and speed limit (CONSOLE-WIRING.md gap 7). Over the daily limit it refuses with reason send_cap_reached and the time sending opens again.
+ * Otherwise it returns the time the message may leave and takes that slot; a time later than the one asked for means the message is held (queued), not dropped. A person is not made to wait.
+ * A queued message coming back at its time already holds its slot, so it is not checked again.
+ */
+async function reserveSlot(ctx: SendCtx, p: Plan, wanted: number, id: string, mayHold = true): Promise<{ at: number; note: string | null }> {
+  const zone = await setting<string>(ctx, "profile.timezone", "UTC", zoneOk);
+  const ticks: number[] = [];
+  for (const r of rowsOf(ctx.db.all(`SELECT * FROM mail_send_tick`))) {
+    if (num(r, "at") < p.now - 2 * DAY) ctx.db.run(`DELETE FROM mail_send_tick WHERE id = ?`, str(r, "id"));
+    else ticks.push(num(r, "at"));
+  }
+  const plan = planSend({ now: p.now, wanted, zone, limits: await limitsOf(ctx), ticks, bulk: mayHold && p.actor !== "person" });
+  if (!plan.ok) {
+    throw fail("validation.precondition_failed", ctx.trace.traceId, { message: capMessage(plan.limit, plan.resetAt, zone), details: { reason: plan.reason, limit: plan.limit, resetAt: plan.resetAt } });
+  }
+  ctx.db.run(`INSERT INTO mail_send_tick (id, at) VALUES (?, ?)`, id, plan.at);
+  return { at: plan.at, note: plan.held ? heldText(plan.held, plan.at, zone) : null };
 }
 
 const providerOk = (v: unknown): v is "resend" | "mailgun" => v === "resend" || v === "mailgun";
@@ -218,6 +255,27 @@ function compose(ctx: SendCtx, input: SendAsIn | SendIn, draft: Row | null): Com
   if (input.contactId && firstTo && !firstTo.contactId) firstTo.contactId = input.contactId;
   return {
     ...lists, subject: input.subject, text: textBody, html: htmlBody, files, contactId: input.contactId ?? strOrNull(draft, "contactId") ?? undefined,
+  };
+}
+
+/** A body that ends in a cut-off marker: a preview or a draft cut short, never a finished email. */
+const CUT_OFF = /(?:\.\.\.|\u2026)\s*$/;
+
+/**
+ * The send input of an agent's draft, from the draft itself: its recipients, Cc, Bcc, subject and body. A draft an agent wrote and no person has edited (version 1) whose body ends in a cut-off marker is
+ * refused: that is a preview or a truncation, not words anyone chose. After a person has saved it (mail.draft), what they kept is theirs.
+ */
+function asStored(ctx: SendCtx, input: SendIn, draft: Row): SendIn {
+  const body = bodyOf(ctx, str(draft, "id"));
+  const text = strOrNull(body, "text") ?? strOrNull(body, "html") ?? "";
+  if (CUT_OFF.test(text) && num(draft, "version") <= 1) refuse(ctx, "This draft ends in a cut-off marker, so it looks like a preview, not a finished email. Open it, finish it and send again. Nothing was sent.");
+  const { text: _t, html: _h, ...rest } = input;
+  return {
+    ...rest,
+    to: readParties(str(draft, "toAddresses")), cc: readParties(str(draft, "ccAddresses")), bcc: readParties(strOrNull(body, "bcc") ?? "[]"),
+    subject: str(draft, "subject"),
+    ...(strOrNull(body, "text") ? { text: str(body, "text") } : {}), ...(strOrNull(body, "html") ? { html: str(body, "html") } : {}),
+    ...(strOrNull(draft, "contactId") ? { contactId: str(draft, "contactId") } : {}),
   };
 }
 
@@ -364,6 +422,8 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
   if (prior) return JSON.parse(prior) as SendOut;
 
   const pending = input.draftId === undefined ? null : loadPending(ctx, input.draftId, input.mailboxId);
+  // An agent's draft goes out as it is stored: its own words, recipients, Cc and subject, whatever a composer or a card holds at the moment of Send (the person edits it with mail.draft first). Never a preview.
+  if (pending && strOrNull(pending, "draftedByAgent") && str(pending, "status") === "draft") input = asStored(ctx, input, pending);
   const parent = input.replyToMessageId === undefined ? null : loadParent(ctx, input.replyToMessageId, input.mailboxId);
   const composed = compose(ctx, input, pending);
   const p = await makePlan(ctx, input, composed, input.route, true);
@@ -393,8 +453,15 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
     return remember(ctx, input.idempotencyKey, { ...(lead ? { messageId: lead } : {}), status: each.some((e) => e.status === "sent") ? "sent" : "queued", suppressed: refused });
   }
 
-  const when = Math.max(now, input.sendAt ?? now);
+  let when = Math.max(now, input.sendAt ?? now);
   const row = pending ? str(pending, "id") : newId("eml", now);
+  // the Space's sending limits; a queued message coming back at its time already holds its slot
+  let note: string | null = null;
+  if (!(pending && str(pending, "status") === "queued")) {
+    const slot = await reserveSlot(ctx, p, when, row);
+    when = slot.at;
+    note = slot.note;
+  }
 
   if (when > now) {
     // scheduled: the message waits as a queued row and a scheduled call delivers it
@@ -403,7 +470,7 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
     const again: Record<string, unknown> = { ...stripUndefined(input), to: sendable.to, cc: sendable.cc, bcc: sendable.bcc, draftId: row, idempotencyKey: `${input.idempotencyKey}:due` };
     delete again.sendAt;
     await ctx.schedule(when, "mail.send", again);
-    return remember(ctx, input.idempotencyKey, { messageId: row, status: "queued", suppressed: refused });
+    return remember(ctx, input.idempotencyKey, { messageId: row, status: "queued", suppressed: refused, ...(note ? { note } : {}) });
   }
 
   const sent = await deliver(ctx, p, sendable, parent, pending, row, input.unsubscribe === true);
@@ -670,6 +737,8 @@ export async function sendAs(ctx: SendCtx, input: SendAsIn): Promise<{ messageId
       refuse(ctx, `Not sent. ${p.suppressed.map((s) => `${s.address} (${s.reason})`).join(", ")} cannot be emailed.`);
     }
     const id = pending ? str(pending, "id") : newId("eml", p.now);
+    // a reply from a member's own mailbox is never held (it has nowhere to wait), but it counts toward the Space's daily limit and is refused over it
+    if (!(pending && str(pending, "status") === "queued")) await reserveSlot(ctx, p, p.now, id, false);
     const sent = await deliver(ctx, p, composed, parent, pending, id);
     const out = sent.providerId ? { messageId: sent.messageId, providerId: sent.providerId } : { messageId: sent.messageId };
     ctx.db.run(`INSERT OR IGNORE INTO mail_idem ("idemKey", kind, "refId") VALUES (?, ?, ?)`, input.idempotencyKey, "send_as", JSON.stringify(out));

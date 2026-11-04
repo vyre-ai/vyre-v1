@@ -16,6 +16,7 @@ import { loadConfig } from "../../host/src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../../host/src/daemon/daemon.ts";
 import type { Daemon } from "../../host/src/daemon/daemon.ts";
 import type { NodeLauncher, NodeProc } from "../../host/src/compute/node.ts";
+import type { Report } from "../../host/src/machines/report.ts";
 import { KEY, connect, hostLog, makeAgent, seededDir, waitFor } from "./live.ts";
 
 export { KEY, hostLog, makeAgent, waitFor };
@@ -40,6 +41,14 @@ function rmStrict(dir: string): void {
   }
 }
 
+/**
+ * The machines these daemons run on are busy with the test itself (and on a shared CI runner, with other jobs): every rig reports the same fixed load unless a test passes its own `machineReport`, so
+ * the room each computer has never depends on the host and Automatic never skips a test's linked computer as busy. The product rule is untouched; a test of the rule passes a loaded report (`loaded`).
+ */
+export const calm = (r: Report): Report => ({ ...r, load: { ...r.load, cpuPct: 20, memUsedBytes: Math.round(r.specs.memBytes * 0.4), diskFreeBytes: Math.round(r.specs.diskBytes * 0.6) } });
+/** A machine reported with its CPU and memory nearly all in use. */
+export const loaded = (r: Report): Report => ({ ...r, load: { ...r.load, cpuPct: 98, memUsedBytes: Math.round(r.specs.memBytes * 0.98), diskFreeBytes: Math.round(r.specs.diskBytes * 0.6) } });
+
 export interface SpaceRig { d: Daemon; dir: string; /** the address a computer links to: loopback, or this machine's private address for a LAN Space */ address: string; as(token: string | null, cap: string, input: unknown): Promise<{ status: number; data: any } >; stop(): Promise<void> }   // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** An address of this machine on its private network (not loopback): a Space there is reached by an engine only through its wall, the way a LAN Space is. */
@@ -49,7 +58,7 @@ export function lanAddress(): string {
 }
 
 /** The Team Space server, with Olivia's Claude account connected. `lan`: it listens on this machine's private address instead of loopback, so a sandboxed engine reaches it only through its wall. */
-export async function bootSpace(o: { lan?: boolean } = {}): Promise<SpaceRig> {
+export async function bootSpace(o: { lan?: boolean; machineReport?: NonNullable<Parameters<typeof startDaemon>[0]["machineReport"]>; commandsMs?: number } = {}): Promise<SpaceRig> {
   const dir = seededDir();
   let admin = "";
   const d = await startDaemon({
@@ -57,10 +66,10 @@ export async function bootSpace(o: { lan?: boolean } = {}): Promise<SpaceRig> {
     codeRoot: CODE_ROOT,
     platform: fakePlatform({ os: "linux", hostname: "mla-server", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" }, "docker info --format {{.ServerVersion}}": { stdout: "27.1.1\n" } } }),
     fetch: caddyFetch,
-    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
+    intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: o.commandsMs ?? 3_600_000, hooks: 3_600_000 },
     vault: { secret: async () => KEY, signRs256: async () => "" },
     engineCli: { command: { claude: [process.execPath, FAKE_CLI, "claude"] }, programRead: [path.dirname(FAKE_CLI)] } as never,
-    computeStreamSecure: () => true, computeStreamRecheckMs: 200,
+    computeStreamSecure: () => true, computeStreamRecheckMs: 200, machineReport: o.machineReport ?? calm,
     session: (h) => {
       const t = /^Bearer (.+)$/.exec(String(h["authorization"] ?? ""))?.[1] ?? "";
       if (t !== "" && t === admin) return { space: "spc_core", principal: { kind: "person", id: "usr_olivia" }, device: "local-admin" };
@@ -82,10 +91,10 @@ export async function bootSpace(o: { lan?: boolean } = {}): Promise<SpaceRig> {
   return { d, dir, address, as, stop: async () => { await d.stop(); rmStrict(dir); } };
 }
 
-export interface DeviceRig { d: Daemon; dir: string; home: string; spawns: Array<{ argv: readonly string[]; env: Record<string, string>; proc: NodeProc }>; link(space: SpaceRig, token?: string): Promise<void>; unlink(): Promise<void>; stop(): Promise<void> }
+export interface DeviceRig { d: Daemon; dir: string; home: string; spawns: Array<{ argv: readonly string[]; env: Record<string, string>; proc: NodeProc }>; link(space: SpaceRig, token?: string, who?: { person: string; device: string }): Promise<void>; unlink(): Promise<void>; stop(): Promise<void> }
 
 /** Olivia's computer: the Vyre app's device daemon. Its engines are the fake claude, told it runs on the device, started in this computer's own sandbox. */
-export async function bootDevice(o: { slowMs?: number; signedIn?: "claude" } = {}): Promise<DeviceRig> {
+export async function bootDevice(o: { slowMs?: number; signedIn?: "claude"; name?: string; reportMs?: number; machineReport?: NonNullable<Parameters<typeof startDaemon>[0]["machineReport"]> } = {}): Promise<DeviceRig> {
   const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-runson-mac-")));
   // her own home on this computer: signed in to Claude Code here when the test says so (a sign-in file in ~/.claude, as on Linux)
   const home = path.join(dir, "home-olivia");
@@ -108,17 +117,18 @@ export async function bootDevice(o: { slowMs?: number; signedIn?: "claude" } = {
     platform: fakePlatform({ os: "linux", hostname: "olivia-mac", free: 80e9, commands: { [`findmnt -n -o SOURCE --target ${dir}`]: { stdout: "/dev/mapper/vyre\n" }, "lsblk -s -n -o TYPE /dev/mapper/vyre": { stdout: "crypt\ndisk\n" } } }),
     fetch: caddyFetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
-    deviceLink: { launcher, engines: ["claude_code"], name: "Olivia's Mac", retryMs: 100, homes: { home, env: {}, platform: "linux", exists: (p) => fs.existsSync(p) } },
+    machineReport: o.machineReport ?? calm,
+    deviceLink: { launcher, engines: ["claude_code"], name: o.name ?? "Olivia's Mac", retryMs: 100, ...(o.reportMs !== undefined ? { reportMs: o.reportMs } : {}), homes: { home, env: {}, platform: "linux", exists: (p) => fs.existsSync(p) } },
   });
   let linked: { space: SpaceRig } | null = null;
   const local2 = (method: string, p: string, body?: unknown) => fetch(`${d.url}${p}`, { method, headers: { authorization: `Bearer ${d.token}`, "content-type": "application/json" }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
   return {
     d, dir, home, spawns,
-    async link(space, token = MAC) {
+    async link(space, token = MAC, who = { person: "usr_olivia", device: "dev_olivia_mac" }) {
       const r = await local2("POST", "/local/chrome/spaces", { id: "spc_core", name: "Core", address: space.address, token });
       assert.equal(r.status, 204, `link: ${r.status}`);
       linked = { space };
-      await waitFor(async () => (space.d.nodeRelay.devices("usr_olivia").some((l) => l.deviceId === "dev_olivia_mac" && l.engines.length > 0) ? true : null), 10_000);
+      await waitFor(async () => (space.d.nodeRelay.devices(who.person).some((l) => l.deviceId === who.device && l.engines.length > 0) ? true : null), 10_000);
     },
     async unlink() {
       const r = await local2("DELETE", "/local/chrome/spaces?id=spc_core");

@@ -2,10 +2,15 @@
 // agent's mode menu), Helpers while any run, Stop and Stop all while any work, the pane toggle and a menu. Under it the last 50 messages (older ones stream in on request), the agent's
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
+import { useFrameStore } from "./frame.ts";
+import { foldHelperRows, groupHelperStrips } from "./helper-rows.ts";
+import { useCrew } from "../crew/context.tsx";
+import { crewChipOf } from "../crew/model.ts";
+import { CrewIsland } from "../crew/island.tsx";
+import { AlsoToChat } from "../crew/also.tsx";
 import { readReplyDetails } from "../details/read.ts";
 import type { Call } from "../details/read.ts";
 import { DECIDED_LINE, isDecided } from "../../../shell/decided.ts";
-import { rememberFirstLine } from "../sidebar/titles.ts";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
@@ -46,6 +51,7 @@ import { replySummaries } from "./replies.ts";
 import type { ReplySummary } from "./replies.ts";
 import type { LiveQuery } from "../../../../../../client/src/index.ts";
 import { useAddSheet } from "../addsheet/index.ts";
+import { useChatViewing, useOpenPublished } from "./artifact-open.ts";
 import { ChatBrain, compactChat, entryOf, modeOf, prettyModel, setChatMode, stripAgents, useAccounts, usePickUnavailable, useUsage } from "./brain.tsx";
 import type { ChatMode } from "../../../../../../ui/src/Composer/index.tsx";
 import { useConnectVersion } from "../../../shell/connect/context.ts";
@@ -55,6 +61,8 @@ import { FaceButton, Glyph, IconButton, RenameField, TextButton } from "./parts.
 import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine } from "./hops.ts";
 import { addedAgentMentions, askPost, pickerAgents, unansweredOwn } from "./askagent.ts";
 import { MemorySwitch } from "./memory-switch.tsx";
+import { SWITCH_NOTE, SWITCH_TITLE, hasSwitch, repliesOf } from "../thread-replies/model.ts";
+import { useReplySwitch } from "../thread-replies/ThreadSwitch.tsx";
 import type { AgentMeta } from "./askagent.ts";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
 import { offlineLine } from "../agentpage/model.ts";
@@ -62,10 +70,11 @@ import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts
 import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
-  WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel, swapNeeded,
-  directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeline, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
+  WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
+  directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeLabel, timeline, otherPeople, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
+import { messageLink } from "../../../share/rows.ts";
 
 type ThreadOut = CapMap["threads.get"]["out"];
 type MessagesOut = CapMap["chat.messages.list"]["out"];
@@ -83,7 +92,7 @@ function useReplies(threadId: string): Map<string, ReplySummary> {
   const { screens } = useConversationData();
   const q = useMemo(() => { try { return screens.query(REPLIES_SCREEN, "threads", { threadId }) as LiveQuery<ThreadsOut>; } catch { return NOT_READ; } }, [screens, threadId]);
   const snap = useSyncExternalStore(q.subscribe, q.getSnapshot, q.getSnapshot);
-  return useMemo(() => (snap.status === "ready" ? replySummaries(snap.data.threads) : NO_REPLIES), [snap]);
+  return useMemo(() => (snap.status === "ready" ? replySummaries(snap.data.threads, { empty: true }) : NO_REPLIES), [snap]);
 }
 
 /** `compact` is for a conversation inside another screen (the onboarding Assistant): just the messages and the composer, no title bar with members, search and side-panel buttons. */
@@ -105,7 +114,7 @@ export function Conversation({ data, compact = false }: { data?: ConversationDat
   const ctx = useOptionalConversationData();
   const value = data ?? ctx;
   if (!value) return <ConversationLoading />;
-  return <ConversationDataProvider value={value}><CompactContext.Provider value={compact}><ChatMemoryProvider memory={value.memory} threadId={value.threadId}><ConversationView /></ChatMemoryProvider></CompactContext.Provider></ConversationDataProvider>;
+  return <ConversationDataProvider value={value}><CompactContext.Provider value={compact}><ChatMemoryProvider memory={value.memory ? { ...value.memory, time: (at: number) => timeLabel(at, value.clock()) } : value.memory} threadId={value.threadId}><ConversationView /></ChatMemoryProvider></CompactContext.Provider></ConversationDataProvider>;
 }
 
 /** The frame before data: a header bar, messages the size of real ones and a composer box, so nothing moves when the thread arrives. */
@@ -174,6 +183,8 @@ function NoAiLine({ data, threadId, agentId }: { data: Pick<ConversationData, "c
 }
 
 function ConversationView(): ReactElement {
+  const frame = useFrameStore();
+  const inFrame = frame !== null;
   const data = useConversationData();
   const compact = useContext(CompactContext);
   const liveTurns = useLiveTurns(data);
@@ -193,6 +204,7 @@ function ConversationView(): ReactElement {
   const memoryEntries = useMemoryEntries();
   const threadQ = useScreenQuery<ThreadOut>(CONVERSATION_SCREEN, "thread", { threadId: data.threadId });
   const messagesQ = useScreenQuery<MessagesOut>(CONVERSATION_SCREEN, "messages", { threadId: data.threadId });
+  const repliesSwitch = useReplySwitch(data, data.threadId, threadQ.status === "ready" ? repliesOf(threadQ.data.thread) : undefined);
   const helpersQ = useScreenQuery<HelpersOut>(CONVERSATION_SCREEN, "helpers", { threadId: data.threadId });
   const [shown, setShown] = useState(WINDOW);
   const [older, setOlder] = useState<Message[]>([]);
@@ -228,7 +240,7 @@ function ConversationView(): ReactElement {
     return () => clearTimeout(t);
   }, [data.focusN, data.focus]);
   const replies = useReplies(data.threadId);
-  const accounts = useAccounts(data, useConnectVersion());
+    const accounts = useAccounts(data, useConnectVersion());
   const [modeOver, setModeOver] = useState<ChatMode | null>(null);
   const [picker, setPicker] = useState<{ id: string; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
@@ -263,13 +275,13 @@ function ConversationView(): ReactElement {
   /* ---------- sending: the message is on the page before chat.post answers ---------- */
   const run = useCallback((p: Pending) => {
     // the first message sent from this device names the chat on this device (the server never puts message text in a title)
-    if (emptyRef.current) { emptyRef.current = false; rememberFirstLine(data.threadId, p.body); }
+    emptyRef.current = false;
     void (async () => {
       // files first: each is stored in Files under a key derived from this send, so a retry finds the same files and attaches them again
       const kept = (p.files ?? []).flatMap((f) => (f.fileId !== undefined ? [f.fileId] : []));
       const fresh = (p.files ?? []).filter((f) => f.fileId === undefined);
       const attachments = [...(fresh.length > 0 ? await act.uploadAttachments(data, fresh, `chat-attach:${p.key}`) : []), ...kept];
-      return act.sendMessage(data, { text: p.body, mentions: p.mentions, key: p.key, kind: p.kind, working: p.working, ...(p.refs && p.refs.length > 0 ? { refs: p.refs } : {}), attachments });
+      return act.sendMessage(data, { text: p.body, mentions: p.mentions, key: p.key, kind: p.kind, working: p.working, ...(p.refs && p.refs.length > 0 ? { refs: p.refs } : {}), attachments, ...(p.alsoToChat === true ? { alsoToChat: true } : {}) });
     })().then(
       (r) => setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, messageId: r.messageId, state: "sending" as const } : x))),
       (e) => { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "failed" as const } : x))); say(`Not sent.${p.files && p.files.length > 0 && e instanceof Error && e.message.length < 120 ? ` ${e.message}.` : ""} Retry or discard it.`); },
@@ -289,6 +301,9 @@ function ConversationView(): ReactElement {
   const muteSeen = useRef<ReadonlySet<string>>(readMuteSeen());
   const [mutedHere, setMutedHere] = useState<ReadonlySet<string>>(new Set());
   const failed = failureOf(threadQ, messagesQ);
+  // an artifact an agent publishes in a turn this person asked opens in a tab while this chat is open: say it is open, and open the cards marked for this person (lane l-engine21)
+  useChatViewing(data.call, data.threadId);
+  useOpenPublished(messagesQ.status === "loading" ? undefined : messagesQ.data.messages, data.me.id, (artifactId) => data.nav.openBeside("artifact", artifactId));
   // the chat's budget of agent turns: the Space's Policies setting, else 8 (owner ruling, 3 Nov)
   const [hopLimit, setHopLimit] = useState(DEFAULT_AGENT_HOPS);
   useEffect(() => {
@@ -296,6 +311,14 @@ function ConversationView(): ReactElement {
     data.call("settings.get", { key: "engine.agent_hops" }).then((out) => { if (live) setHopLimit(limitOf((out as { row?: { value?: unknown } } | null)?.row?.value)); }, () => undefined);
     return () => { live = false; };
   }, [data.threadId]);  // eslint-disable-line react-hooks/exhaustive-deps
+  // "Also post to the chat", for a thread: on for the next message only
+  const [alsoOn, setAlso] = useState(false);
+  const also = useRef(false);
+  also.current = alsoOn;
+  // the crew of this chat: read again when the chat gets a new message (a helper started or reported)
+  const crew = useCrew();
+  const messageCount = messagesQ.status === "loading" ? 0 : messagesQ.data.messages.length;
+  useEffect(() => { crew?.refresh(); }, [messageCount]);  // eslint-disable-line react-hooks/exhaustive-deps
   // the agents.list rows the Ask-an-agent picker labels its agents from, read when it first opens
   const agentMeta = useRef<readonly AgentMeta[] | null>(null);
   if (failed) return <LoadFailed what="this chat" failure={failed} testID="conversation-failed" />;
@@ -351,7 +374,8 @@ function ConversationView(): ReactElement {
     const mentions = mentionsIn(payload.text, data.directory);
     const refs = act.sendRefs(payload);
     const files = payload.files.map((f) => ({ name: f.name, ...(f.file !== undefined ? { file: f.file } : {}), ...(f.size !== undefined ? { size: f.size } : {}), ...(f.mime ? { mime: f.mime } : {}), ...(f.fileId !== undefined ? { fileId: f.fileId } : {}) }));
-    const p: Pending = { key, body: payload.text, at: data.clock().now, state: "sending", kind: sendKind(kind, isWorking), mentions, working: isWorking, ...(files.length > 0 ? { files } : {}), ...(refs.length > 0 ? { refs } : {}) };
+    const p: Pending = { key, body: payload.text, at: data.clock().now, state: "sending", kind: sendKind(kind, isWorking), mentions, working: isWorking, ...(files.length > 0 ? { files } : {}), ...(refs.length > 0 ? { refs } : {}), ...(also.current ? { alsoToChat: true } : {}) };
+    if (also.current) { also.current = false; setAlso(false); }
     setPending((cur) => [...cur, p]);
     setLine("");
     setTyped("");
@@ -368,8 +392,9 @@ function ConversationView(): ReactElement {
   const timelineMessages = byOrder([...win.rows, ...collect(liveView ? stillPending(pending, win.rows) : [], (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i)), ...ghosts]);
   const pendingState = new Map<string, "sending" | "failed">();
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
-  const woven = data.activity ? weave(timelineMessages, data.activity.events).filter((m) => keepItem(m, data.activity!.show)) : timelineMessages;
-  const items = timeline(woven, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock(), shared: thread.members.filter((p) => p.kind === "person").length >= 2 });
+  const folded = groupHelperStrips(foldHelperRows(timelineMessages));
+  const woven = data.activity ? weave(folded, data.activity.events).filter((m) => keepItem(m, data.activity!.show)) : folded;
+  const items = timeline(woven, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock(), shared: thread.members.filter((p) => p.kind === "person").length >= 2 }).filter((it) => !(thread.kind === "thread" && it.kind === "day"));   // a thread has no day dividers: its root row and "N replies" lead
   const lastLive = [...timelineMessages].reverse().find((m) => data.streamOf(m.messageId) !== undefined);
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
@@ -377,9 +402,13 @@ function ConversationView(): ReactElement {
   const leadDriver = entryOf(accounts, leadNow?.accountRef)?.provider;
   // only the person whose turn it is steers it; anyone else's message goes in after it (the engine holds to this; a turn picked up mid-way names nobody until its next start)
   const runningFor = liveTurns.find((t) => t.state === "writing" && t.agentId === leadNow?.agentId)?.asker;
+  const writingTurn = liveTurns.find((t) => t.state === "writing");
+  const writingName = writingTurn ? nameOf(writingTurn.agentId) : undefined;
   const ownTurn = runningFor === undefined || runningFor === data.me.id;
   const canSteer = ownTurn && !(leadDriver !== undefined && act.CANNOT_STEER.has(leadDriver));   // a chat on Codex or Grok keeps its message queued: they read nothing mid-turn
   const helpers = (helpersQ.status === "loading" ? [] : helpersQ.data.helpers).filter((h) => h.status === "running");
+  // the header chip counts from the crew read (the strip's own): how many are on it and how many wait for you; the pane opens on the overview
+  const crewChip = crew?.status && crew.status.members.length > 0 ? crewChipOf(crew.status.totals) : null;
 
   /* ---------- menus: all open under the button that asked ---------- */
   const faceList = faces(thread, nameOf, working);
@@ -424,9 +453,10 @@ function ConversationView(): ReactElement {
       fail("Could not list the models."),
     );
   };
-  const moreMenu = (x: number, y: number): void => {
+  const moreEntries = (): MenuEntry[] => {
     const items: MenuEntry[] = [
       { label: "Plan Mode", checked: mode === "plan", onSelect: () => chooseChatMode(mode === "plan" ? "ask" : "plan") },
+      ...(hasSwitch(thread) && repliesSwitch.on !== null ? [{ label: SWITCH_TITLE, checked: repliesSwitch.on, ...(repliesSwitch.on ? { hint: SWITCH_NOTE } : {}), onSelect: () => repliesSwitch.set(!repliesSwitch.on) } as MenuEntry] : []),
       ...(lead ? [{ label: `Open ${nameOf(lead.agentId)}'s Page`, onSelect: () => data.nav.openAgent(lead.agentId) } as MenuEntry] : []),
       ...connectEntries(thread, data.nav),
       { separator: true } as MenuEntry,
@@ -437,14 +467,31 @@ function ConversationView(): ReactElement {
       { label: "Export as JSON", onSelect: () => void runSlash("/export json", commandEnv()) } as MenuEntry,
       ...(isWorking ? [{ separator: true } as MenuEntry, { label: "Stop All", danger: true, onSelect: () => void act.stopAll(data).then(() => say("Everything stopped. The steps so far are kept."), fail("Could not stop.")) } as MenuEntry] : []),
     ];
-    menu.show(items, x, y, "other", { label: "Chat" });
+    return items;
   };
+  const moreMenu = (x: number, y: number): void => { menu.show(moreEntries(), x, y, "other", { label: "Chat" }); };
+  // in a project's frame the page draws these in its own header (conversation/frame.ts)
+  useEffect(() => {
+    if (!frame) return;
+    frame.set({
+      find: { active: finding, toggle: () => setFinding((f) => !f) },
+      pane: { toggle: () => data.nav.togglePane() },
+      helpers: crewChip ? { label: crewChip.label, badge: crewChip.active > 0 ? crewChip.active : crewChip.total, onPress: () => crew!.show(null) }
+        : helpers.length > 0 ? { label: `${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`, badge: helpers.length, onPress: helpersMenu } : null,
+      stop: isWorking ? { label: stopLabel(working, nameOf), onPress: stopMenu } : null,
+      chatEntries: moreEntries,
+    });
+  });
+  useEffect(() => () => frame?.set(null), [frame]);
 
   /* ---------- the message actions, one object for every row ---------- */
   const muteOffer = muteOfferFor(all, data.me.id, (id, person) => muteSeen.current.has(id) || mutedHere.has(person));
   if (muteOffer) rememberMuteSeen(muteOffer);
   const host: BlockHost = {
     invoke: (cap, input) => data.call(cap, input),
+    meId: data.me.id,
+    nameOf,
+    ...(data.nav.openUrl ? { openUrl: data.nav.openUrl } : {}),
     open: (tab, input) => { const id = Object.values(input).find((v): v is string => typeof v === "string"); data.nav.openBeside(tab, id ?? ""); },
   };
   const openDetails = data.nav.openDetails;
@@ -455,6 +502,8 @@ function ConversationView(): ReactElement {
   const actions: MessageActions = {
     host,
     copy: (t) => { data.copy(t); say("Copied"); },
+    // one message's own link, /open/message/<threadId>/<messageId>: it opens the chat on that message, through reach
+    copyLink: (id) => { data.copy(messageLink(data.threadId, id)); say("Link copied"); },
     edit: (id, body) => {
       // an edit that adds an @mention asks that agent once, as if it had been named when sent (owner ruling, 3 Nov); the fixed ask id keeps a second edit from asking again
       const before = all.find((x) => x.messageId === id)?.body ?? "";
@@ -465,12 +514,16 @@ function ConversationView(): ReactElement {
     react: (id, emoji, remove) => void act.react(data, id, emoji, remove).catch(fail("Could not react.")),
     openThread: (id) => void act.openMessageThread(data, id).then((tid) => data.nav.openThread(tid), fail("Could not open the replies.")),
     remove: (id) => void act.deleteMessage(data, id).catch(fail("Could not delete it.")),
+    ...(data.alsoSent ? { alsoSent: data.alsoSent } : {}),
+    ...(thread.kind === "thread" ? { faceInThread: true } : {}),
     openAgent: data.nav.openAgent,
     openBeside: data.nav.openBeside,
     ...(data.nav.openGoal ? { openGoal: data.nav.openGoal } : {}),
     answer: (blockId, answer) => void act.answerBlock(data, blockId, answer).catch(fail("Could not send the answer.")),
     approvePlan: (planId) => void act.approvePlan(data, planId).then(() => say("Plan approved. The steps run and tick off in the card."), fail("Could not approve the plan.")),
     retryTurn: (turnId) => void act.retryTurn(data, turnId).catch(fail("Could not retry.")),
+    regenerate: (messageId) => void act.regenerate(data, messageId).catch(fail("Could not ask again.")),
+    markUnreadFrom: (seq) => void act.markUnreadFrom(data, seq).then(() => say("Marked unread from that message."), fail("Could not mark it unread.")),
     turnDetail: (turnId) => act.turnDetail(data, turnId),
     accountReady: () => act.hasWorkingAccount(data),
     errorNext: (key, turnId) => void act.errorAction(data, key, turnId, say).catch(fail("Could not do that.")),
@@ -497,7 +550,7 @@ function ConversationView(): ReactElement {
     // the buttons on an agent's cards from the person's own Chrome (browser.chrome.act): they act only for the person whose Chrome it is, and say why when it is not open here
     chrome: {
       send: async (h, edits) => { const r = (await data.call("browser.chrome.act", { action: "send", agentId: h.agentId, heldId: h.heldId, ...(edits ? { edits } : {}), threadId: thread.threadId, idempotencyKey: `chrsend:${h.heldId}` })) as { done: boolean }; return { sent: r.done }; },
-      drop: async (h) => { await data.call("browser.chrome.act", { action: "drop", agentId: h.agentId, heldId: h.heldId, threadId: thread.threadId, summary: h.summary, idempotencyKey: `chrdrop:${h.heldId}` }); },
+      drop: async (h, reason) => { await data.call("browser.chrome.act", { action: "drop", agentId: h.agentId, heldId: h.heldId, threadId: thread.threadId, summary: h.summary, ...(reason ? { reason } : {}), idempotencyKey: `chrdrop:${h.heldId}` }); },
       watch: async (agentId) => { await data.call("browser.chrome.act", { action: "watch", agentId, idempotencyKey: data.newKey() }); },
       takeOver: async (agentId) => { await data.call("browser.chrome.act", { action: "takeover", agentId, idempotencyKey: data.newKey() }); },
     },
@@ -512,7 +565,13 @@ function ConversationView(): ReactElement {
     },
     ...(data.activityOf ? { activityOf: (id: string) => data.activityOf!(id) } : {}),
     nameOf,
+    ...(data.nav.openHooks ? { openHooks: (hookId: string | undefined) => data.nav.openHooks?.(thread.threadId, hookId) } : {}),
     openMessage: (threadId, messageId) => (messageId === "" ? data.nav.openThread(threadId) : data.nav.openThread(threadId, messageId)),
+    ...(crew ? { crew: {
+      status: crew.status, selected: crew.selected, peek: (id: string) => crew.show(id), openPane: () => crew.show(null),
+      stopAll: () => void act.stopHelpers(data).then(() => crew.refresh(), fail("Could not stop the helpers.")),
+      retry: (id: string) => void act.retryHelper(data, id, data.newKey()).then(() => crew.refresh(), fail("Could not start it again.")),
+    } } : {}),
     share: (id, x, y) => void act.shareTargets(data, thread.threadId).then((targets) => {
       const entries: MenuEntry[] = [];
       for (const to of targets) entries.push({ label: to.label, onSelect: () => void act.shareTo(data, thread.threadId, id, to, data.newKey()).catch(fail("Could not share it.")) });
@@ -553,12 +612,13 @@ function ConversationView(): ReactElement {
     : undefined;
   const closed = isClosed(thread);
   const parked = !closed && parkedAtLimit(win.rows[win.rows.length - 1], hopLimit, isWorking);
-  const unanswered = closed || isWorking ? null : unansweredOwn(thread, win.rows, data.me.id, data.directory);
+  const unanswered = closed || isWorking ? null : unansweredOwn(thread, win.rows, data.me.id, data.directory, (id) => replies.has(id));
   // an Ask drawn in its own pane is already titled Ask Vyre: the quiet "Ask pane" line is for an Ask opened in Chats
   const note = data.head || (compact && thread.kind === "ask") ? "" : threadKindNote(thread, nameOf);
   const title = titleOf(thread, nameOf, data.me.id);
   // a direct chat is named for the other person and wears their face
-  const dmWith = thread.title ? null : directWith(thread, data.me.id);
+  const dmWith = directWith(thread, data.me.id);
+  const others = otherPeople(thread, data.me.id);
   const q = queueNote(queued, lead ? nameOf(lead.agentId) : "", canSteer, ownTurn);
 
   // A mounted folder or file dragged from Files is shared with this chat's agents (desktop); the line says so and can take it back
@@ -579,7 +639,7 @@ function ConversationView(): ReactElement {
   return (
     <DropRoute testID="conversation-drop" style={ROUTE_STYLE} onOther={takeShare}>
     <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root}>
-      {compact ? null : (
+      {compact || inFrame ? null : (
       <View testID="conversation-head" accessibilityRole="header" style={st.head}>
         {mobileBack ? <IconButton icon="back" label="Back" size={32} testID="conversation-back" onPress={() => mobileBack()} /> : null}
         {renaming ? (
@@ -593,6 +653,13 @@ function ConversationView(): ReactElement {
             <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
           </Pressable>
         )}
+        {!dmWith && others.length > 0 ? (
+          <View testID="conversation-people" accessibilityLabel={`With ${others.map((p) => nameOf(p)).join(", ")}`} style={st.faces}>
+            {/* ui-rows-lint: not a list (the faces of the people in the chat) */}
+            {others.slice(0, narrow ? 3 : 4).map((p) => <Face key={p} name={nameOf(p)} seedId={p} kind="person" size={20} />)}
+            {others.length > (narrow ? 3 : 4) ? <Text style={st.meta}>{`+${others.length - (narrow ? 3 : 4)}`}</Text> : null}
+          </View>
+        ) : null}
         {leadFace && !narrow ? <FaceButton key={leadFace.agentId} name={leadFace.name} seedId={leadFace.agentId} mode={leadFace.mode} working={leadFace.working} title={modeTitle(leadFace)} testID={`face-${leadFace.agentId}`} {...(title !== leadFace.name ? { label: leadFace.name } : {})} size={20} onPress={(x, y) => modeMenu(leadFace, x, y)} /> : null}
         <View testID="conversation-faces" accessibilityRole="toolbar" accessibilityLabel="Agents in this chat" style={st.faces}>
           {collect(narrow ? [] : otherFaces, (f) => <FaceButton key={f.agentId} name={f.name} seedId={f.agentId} mode={f.mode} working={f.working} title={modeTitle(f)} testID={`face-${f.agentId}`} onPress={(x, y) => modeMenu(f, x, y)} />)}
@@ -601,7 +668,8 @@ function ConversationView(): ReactElement {
         {isWorking ? <View testID="conversation-live" accessibilityLabel="Working" style={st.live}><View style={st.liveDot} /></View> : null}
         <View style={{ flex: 1 }} />
         {online ? null : <Text testID="conversation-offline" style={st.meta}>Offline</Text>}
-        {helpers.length > 0 ? <IconButton icon="helper" label={`${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`} badge={helpers.length} testID="helpers-button" onPress={helpersMenu} /> : null}
+        {crewChip ? <IconButton icon="helper" label={crewChip.label} badge={crewChip.active > 0 ? crewChip.active : crewChip.total} testID="helpers-button" onPress={() => crew!.show(null)} />
+          : helpers.length > 0 ? <IconButton icon="helper" label={`${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`} badge={helpers.length} testID="helpers-button" onPress={helpersMenu} /> : null}
         {isWorking ? <IconButton icon="stop" label={stopLabel(working, nameOf)} danger testID="stop-button" onPress={stopMenu} /> : null}
         <IconButton icon="people" label={`${thread.members.length} in this chat`} badge={thread.members.length} testID="participants-button" onPress={peopleMenu} />
         <IconButton icon="search" label="Find in chat" active={finding} testID="find-button" onPress={() => setFinding((f) => !f)} />
@@ -630,7 +698,7 @@ function ConversationView(): ReactElement {
       ) : null}
       <CatchUpLine onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} credit={(id) => { const m = all.find((x) => x.author.id === id && onBehalfOf(x)); const ob = m ? onBehalfOf(m) : null; return ob ? `${nameOf(ob.person)} (Agent)` : undefined; }} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
-      {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} onOpen={thread.parentThreadId && thread.parentMessageId ? () => data.nav.openThread(thread.parentThreadId!, thread.parentMessageId!) : undefined} /> : null}
+      {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} kindOf={data.kindOf} clock={data.clock()} count={thread.replyCount ?? all.length} writing={writingName} onOpen={thread.parentThreadId && thread.parentMessageId ? () => data.nav.openThread(thread.parentThreadId!, thread.parentMessageId!) : undefined} /> : null}
 
       {liveView ? null : (
         <View testID="viewing-earlier" accessibilityRole="alert" style={st.earlierBar}>
@@ -647,13 +715,13 @@ function ConversationView(): ReactElement {
                 <TextButton label="Show earlier messages" testID="earlier-button" onPress={() => { if (win.hiddenLocal > 0) setShown((n) => n + WINDOW); else { const c = beforeCursor(all); if (c !== null) setCursor(c); } }} />
               </View>
             ) : null}
-            {items.length === 0 && !data.head ? <States kind="empty" icon="chat" title="Say something to start" /> : null}
+            {items.length === 0 && !data.head && thread.kind !== "thread" ? <States kind="empty" icon="chat" title="Say something to start" /> : null}
             {collect(items, (it) => {
               const key = it.key;
               const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
               const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
               const under = it.kind === "me" || it.kind === "other" ? replies.get(it.message.messageId) : undefined;
-              return <MessageView key={key} item={it} actions={actions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
+              return <MessageView key={key} item={it} actions={actions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId, finding)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
             })}
             {data.tail ?? null}
           </View>
@@ -678,7 +746,7 @@ function ConversationView(): ReactElement {
             accessibilityRole="button" accessibilityLabel="No agent will reply. Ask an agent about your message" accessibilityHint="Opens the list of this channel's agents" testID="no-agent-ask"
             onPress={(e) => { const box = (e as unknown as { currentTarget?: { getBoundingClientRect?: () => { left: number; top: number } } }).currentTarget?.getBoundingClientRect?.(); openAskPicker(unanswered.messageId, box?.left ?? 16, box?.top ?? 0); }}
           >
-            <Text style={[st.lineText, { textDecorationLine: "underline" }]}>No agent will reply. @mention one</Text>
+            <Text style={[st.lineText, st.quietLine]}>No agent will reply. @mention one</Text>
           </Pressable>
         </View>
       ) : null}
@@ -690,6 +758,7 @@ function ConversationView(): ReactElement {
         <View testID="conversation-closed" style={st.closed}><Text style={st.lineText}>This thread is closed.</Text><TextButton label="Reopen" onPress={() => void data.call("threads.reopen", { threadId: thread.threadId }).catch(fail("Could not reopen."))} testID="reopen" /></View>
       ) : (
         <View style={st.composerBox}>
+          {crew?.status && crew.status.members.length > 0 ? <CrewIsland status={crew.status} onPress={() => crew.show(null)} /> : null}
           {personMention ? (() => {
             // one strip on top of the composer: who is not here, Add (they read from now on), and a caret for the other ways
             const first = nameOf(personMention.id).split(" ")[0] ?? "";
@@ -709,6 +778,7 @@ function ConversationView(): ReactElement {
               </View>
             );
           })() : null}
+          {thread.kind === "thread" && thread.parentThreadId ? <View testID="also-to-chat-row" style={st.alsoRow}><AlsoToChat on={alsoOn} onChange={setAlso} /></View> : null}
           <Composer
             key={`composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
             testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={data.placeholder ?? placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}
@@ -778,9 +848,11 @@ function ScrollToMessage({ id }: { id: string }): null {
   return null;
 }
 
-const markOf = (it: { kind: string; message?: { messageId: string } }, matches: readonly string[], active: string | undefined): "match" | "active" | undefined => {
+const markOf = (it: { kind: string; message?: { messageId: string } }, matches: readonly string[], active: string | undefined, finding = true): "match" | "active" | "selected" | undefined => {
   const id = it.message?.messageId;
   if (id === undefined || !matches.includes(id)) return undefined;
+  // not a find: the message a thread, a link or a result went back to, in the app's subtle selected tint
+  if (!finding) return "selected";
   return id === active ? "active" : "match";
 };
 
@@ -796,6 +868,8 @@ function OlderPage({ before, onPage }: { before: number; onPage: (page: Messages
 }
 
 const st = StyleSheet.create({
+  /** "Also post to the chat" sits above a thread's composer, as the prototype draws it, so the composer's own bar keeps its room in a narrow pane. */
+  alsoRow: { marginLeft: -4, marginBottom: 8 },
   outsideOffline: { paddingHorizontal: 16, paddingBottom: 6, fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string, textAlign: "center" },
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   head: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 20, paddingRight: 10 },
@@ -823,6 +897,8 @@ const st = StyleSheet.create({
   queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
   lineBox: { paddingHorizontal: 24, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   lineText: { fontSize: 12.5, color: "var(--ink-2)" as string },
+  /** A quiet line: muted ink, no underline. */
+  quietLine: { color: "var(--ink-3)" as string },
   offerStrip: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, minHeight: 38, paddingLeft: 14, paddingRight: 6, marginHorizontal: 10, marginBottom: -1, borderTopLeftRadius: 14, borderTopRightRadius: 14, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
   offerStripText: { flex: 1, minWidth: 0, fontSize: 12.5, color: "var(--ink-2)" as string },
   offerBtns: { flexDirection: "row", alignItems: "center", gap: 2, flexShrink: 0 },

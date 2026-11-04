@@ -14,6 +14,46 @@ export const SHIM_SOURCE = `import net from "node:net";
 import path from "node:path";
 const sock = process.argv[2];
 const token = process.env.VYRE_MCP_TOKEN ?? "";
+// vyre-hook mode: "<shim> <socket> hook <Event>" is what a CLI engine's generated hooks config runs. It sends the event the CLI wrote on stdin to Vyre and answers the way the CLI reads a hook: exit 2 with
+// the reason on stderr stops the call, a note goes out as additional context. Any trouble reaching Vyre lets the call go on: a hook never stops work by failing.
+if (process.argv[3] === "hook") {
+  const event = process.argv[4] ?? "";
+  let raw = "";
+  process.stdin.setEncoding("utf8");
+  process.stdin.on("data", (d) => { raw += d; });
+  process.stdin.on("end", () => {
+    let payload = {};
+    try { payload = JSON.parse(raw); } catch {}
+    const done = (r) => {
+      if (r && r.block) { process.stderr.write(String(r.block).slice(0, 400) + "\\n"); process.exit(2); }
+      if (r && Array.isArray(r.notes) && r.notes.length > 0) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: r.notes.join("\\n") } }) + "\\n");
+      process.exit(0);
+    };
+    if (!sock || !token) done(null);
+    const timer = setTimeout(() => done(null), 50000);
+    timer.unref();
+    let c;
+    try {
+      if (sock.startsWith("\\\\") || Buffer.byteLength(sock) <= 100) c = net.connect(sock);
+      else { process.chdir(path.dirname(sock)); c = net.connect(path.basename(sock)); }
+    } catch { done(null); }
+    let buf = "";
+    c.on("error", () => done(null));
+    c.on("connect", () => {
+      c.write(JSON.stringify({ auth: token }) + "\\n");
+      c.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "vyre/hook", params: { event, payload } }) + "\\n");
+    });
+    c.on("data", (d) => {
+      buf += d;
+      const i = buf.indexOf("\\n");
+      if (i < 0) return;
+      let r = null;
+      try { r = JSON.parse(buf.slice(0, i)).result; } catch {}
+      done(r);
+    });
+    c.on("close", () => done(null));
+  });
+} else {
 if (!sock || !token) { process.stderr.write("vyre mcp shim: no socket or token\\n"); process.exit(2); }
 // a pipe (Windows) or a short path is connected as it is; a path too long for a unix socket is reached from its own folder
 let c;
@@ -23,6 +63,7 @@ c.on("error", (e) => { process.stderr.write("vyre mcp shim: " + e.message + "\\n
 c.on("connect", () => { c.write(JSON.stringify({ auth: token }) + "\\n"); process.stdin.pipe(c); });
 c.pipe(process.stdout);
 c.on("close", () => process.exit(0));
+}
 `;
 
 export interface McpBridgeOptions {

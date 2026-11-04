@@ -9,6 +9,7 @@ import { Conversation, ConversationLoading } from "./Conversation.tsx";
 import { createComposerFill } from "./data.tsx";
 import { HoverBar, MessageView } from "./MessageView.tsx";
 import * as act from "./actions.ts";
+import { otherPeople } from "./model.ts";
 import {
   WINDOW, beforeCursor, byOrder, dayLabel, faces, lastMessages, leadOf, mentionsIn, mergePages, pendingMessage, queueNote, queuedCount, respondersFor, sendKind, stillPending, stopLabel,
   swapNeeded, timeline, whoLine, workOf, workingAgents, bodyBlocks, findMatches, reportLabel, matchLine, modelLabel, placeholderFor, summarizeOpen, openVerdict, CHAT_OPEN_BUDGET_MS,
@@ -429,4 +430,10 @@ test("in a chat with more than one person each reply says whose account it ran o
   assert.equal(line(true), "On Sara’s account");
   assert.equal(line(true, "usr_irfad"), "On your account");
   assert.equal(line(false), undefined);
+});
+
+test("the header's faces: the other people of a chat, never the viewer, listed once", () => {
+  const members = [{ kind: "person", id: "usr_me" }, { kind: "person", id: "usr_maya" }, { kind: "person", id: "usr_maya" }, { kind: "agent", id: "agt_a" }, { kind: "person", id: "usr_omar" }] as never;
+  assert.deepEqual(otherPeople({ members }, "usr_me"), ["usr_maya", "usr_omar"]);
+  assert.deepEqual(otherPeople({ members: [{ kind: "person", id: "usr_me" }] as never }, "usr_me"), []);
 });

@@ -107,7 +107,7 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
     const entries: MenuEntry[] = [];
     if (only === undefined || only === "templates") entries.push({ label: "Save as template", onSelect: () => d.nav.create("templates") });
     if ((only === undefined || only === "sites") && groups.some((g) => g.key === "sites")) entries.push({ label: "New site", onSelect: () => setSheet(true) });
-    for (const g of groups) if ((only === undefined || only === g.key) && (g.key === "forms" || g.key === "domains")) entries.push({ label: g.key === "domains" ? "Add sending domain" : `New ${g.one}`, onSelect: () => d.nav.create(g.key) });
+    for (const g of groups) if ((only === undefined || only === g.key) && (g.key === "forms" || (g.key === "domains" && d.nav.addDomain))) entries.push({ label: g.key === "domains" ? "Add sending domain" : `New ${g.one}`, onSelect: () => (g.key === "domains" ? d.nav.addDomain?.() : d.nav.create(g.key)) });
     if ((only === undefined || only === "templates") && d.nav.openEmailDesign) entries.push({ label: "New email design", onSelect: () => d.nav.openEmailDesign?.() });
     if (only === undefined || only === "templates") entries.push({ separator: true }, { label: "Build a Kit with an agent", onSelect: () => void openKitBuilder(d).catch((e: unknown) => setNote({ text: e instanceof Error ? e.message : "That did not work." })) });
     show(entries, x, y, "other");
@@ -173,8 +173,9 @@ function Page({ initial, route = { kind: "list" } }: { initial?: AppsStart | und
         <View style={s.grow} />
         {group === "templates" ? <Pressable accessibilityRole="button" testID="apps-kit" onPress={() => void openKitBuilder(d).catch((e: unknown) => setNote({ text: e instanceof Error ? e.message : "That did not work." }))} style={(state) => [s.btn, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={s.btnText}>Build a Kit</Text></Pressable> : null}
         {group === "sites" ? <Pressable accessibilityRole="button" accessibilityLabel="New site" testID="apps-new-site" onPress={() => setSheet(true)} style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={[s.btnText, s.btnPrimaryText]}>New site</Text></Pressable> : null}
-        {group === "forms" || group === "domains" ? <Pressable accessibilityRole="button" accessibilityLabel={group === "domains" ? "Add sending domain" : `New ${g.one}`} testID="apps-new-group" onPress={(e) => { const p = pointOf(e); newMenu(p.x, p.y, group); }} style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={[s.btnText, s.btnPrimaryText]}>{group === "domains" ? "Add domain" : `New ${g.one}`}</Text></Pressable> : null}
+        {group === "forms" || (group === "domains" && d.nav.addDomain) ? <Pressable accessibilityRole="button" accessibilityLabel={group === "domains" ? "Add sending domain" : `New ${g.one}`} testID="apps-new-group" onPress={(e) => { const p = pointOf(e); newMenu(p.x, p.y, group); }} style={(state) => [s.btn, s.btnPrimary, (state as { hovered?: boolean }).hovered === true && s.over]}><Text style={[s.btnText, s.btnPrimaryText]}>{group === "domains" ? "Add domain" : `New ${g.one}`}</Text></Pressable> : null}
       </View>
+      {group === "domains" && !d.nav.addDomain ? <Text style={s.mc} testID="apps-domains-admin">An owner or admin adds sending domains.</Text> : null}
       {cur.error ? <States kind="error" message={cur.error} /> : !cur.ready ? <View testID="apps-loading" style={s.skeleton}>{skeleton()}</View> : rows.length === 0 ? (
         <View style={s.empty} testID="apps-empty"><States kind="empty" title={q ? `Nothing matches ${q}` : g.empty} icon={q ? "search" : EMPTY_ICON[g.key]} /></View>
       ) : (
@@ -242,12 +243,17 @@ export function AppsLoading(): ReactElement {
   return <View style={s.page} testID="apps-loading-frame"><View style={[s.side, s.sideWide]}><View style={s.sh}><Text accessibilityRole="header" style={s.title}>Apps</Text></View></View><View style={s.main}><View style={s.skeleton}>{skeleton()}</View></View></View>;
 }
 
+function ArtifactsMoved({ data, id }: { data: AppsData; id?: string }): ReactElement {
+  useEffect(() => { data.nav.openArtifact?.(id); }, [data, id]);
+  return <View style={s.page} testID="apps-artifacts-moved" />;
+}
+
 export default function AppsLayout({ data, start, route }: { data?: AppsData | undefined; start?: AppsStart | undefined; route?: AppsRoute | undefined }): ReactElement {
   const provided = useOptionalAppsData();
   const v = data ?? provided;
   if (!v) return <AppsLoading />;
-  // artifacts need no team and no server: they are a person's own
-  if (route?.kind === "artifacts") return <AppsDataProvider value={v}><View style={s.page}><AppsSurface route={route} /></View></AppsDataProvider>;
+  // an old link to an artifact lands in Chats, under the Artifacts row (no Apps page for it)
+  if (route?.kind === "artifacts") return <ArtifactsMoved data={v} {...(route.id ? { id: route.id } : {})} />;
   if (!v.team) return <View style={s.page} testID="apps-needs-team"><View style={s.center}><NeedsTeamSpace density="regular" what="Forms" onAction={v.nav.joinTeam} /></View></View>;
   return <AppsDataProvider value={v}><Page initial={start} route={route} /></AppsDataProvider>;
 }

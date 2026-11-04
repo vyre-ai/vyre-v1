@@ -5,6 +5,8 @@
 //   chat.recent / chat.composer.suggest                      the sidebar and the @ # / tables, built from chat rows only
 //   chat.open_tab                                            an agent opens a side tab for the person it acts for and leaves a line
 // Private chats and Ask panes (enc=2) hold what the device gave the server: edit stores the new text as given, reads return it as stored, and Recent shows no preview of it.
+import { forgetMentions } from "./pace.ts";
+import { attachReach } from "./reach-attach.ts";
 import { readFloor } from "./floor.ts";
 import {
   agentsOf, askerOf, channelBy, encOf, ensure, insertMessage, lastMessage, membersOf, messageBy, messageOf, messageOut, mintId, raise, threadBy,
@@ -54,14 +56,14 @@ export async function messagesList(ctx: ChatCtx, input: { threadId: string; befo
   const page = rows.slice(0, limit).map(messageOf);
   if (!forward) page.reverse();
   const enc = encOf(ctx.db, t);
-  return { messages: page.map((m) => messageOut(m, enc)), hasMore };
+  return { messages: await attachReach(ctx, page.map((m) => messageOut(m, enc))), hasMore };
 }
 
 export async function messageGet(ctx: ChatCtx, input: { threadId: string; messageId: string }) {
   const t = openThread(ctx, input.threadId);
   const m = messageIn(ctx, t, input.messageId);
   if (m.createdAt < readFloor(ctx, t)) raise(ctx, "validation.not_found", "That message is not in this chat.");
-  return { message: messageOut(m, encOf(ctx.db, t)) };
+  return { message: (await attachReach(ctx, [messageOut(m, encOf(ctx.db, t))]))[0]! };
 }
 
 export async function pinsList(ctx: ChatCtx, input: { threadId: string }) {
@@ -69,7 +71,7 @@ export async function pinsList(ctx: ChatCtx, input: { threadId: string }) {
   const floor = readFloor(ctx, t);
   const rows = ctx.db.all("SELECT * FROM chat_message WHERE thread = ? AND pinned = 1 AND createdAt >= ? AND deleted_at IS NULL ORDER BY threadSeq", t.id, floor) as Row[];
   const enc = encOf(ctx.db, t);
-  return { messages: rows.map((r) => messageOut(messageOf(r), enc)) };
+  return { messages: await attachReach(ctx, rows.map((r) => messageOut(messageOf(r), enc))) };
 }
 
 // ---- edit and delete --------------------------------------------------------------------------------------------------------------------------------
@@ -102,7 +104,10 @@ export async function deleteMessage(ctx: ChatCtx, input: { threadId: string; mes
   if (row["deleted_at"] !== null && row["deleted_at"] !== undefined) return { deleted: true };
   const now = ctx.now();
   ctx.db.run("UPDATE chat_message SET deleted_at = ?, pinned = 0, version = version + 1, updated_at = ? WHERE id = ?", now, now, input.messageId);
+  forgetMentions(ctx, { message: input.messageId });
   ctx.emit("message.deleted", t.id, { messageId: input.messageId, threadId: t.id });
+  // memory (rule 9): what it derived from this message goes with it. A memory that cannot be reached now is not a reason to keep the message from being deleted; the failure is logged.
+  if (ctx.call) { try { await ctx.call("memory.source_removed", { threadId: t.id, messageId: input.messageId }); } catch (e) { ctx.log.warn("memory was not told a message was deleted", { threadId: t.id, messageId: input.messageId, error: String((e as { message?: unknown })?.message ?? e) }); } }
   return { deleted: true };
 }
 

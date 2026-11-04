@@ -105,3 +105,74 @@ test("paste: markdown text becomes its structure, a plain phrase stays text", ()
   assert.deepEqual((d.content ?? []).map((n) => n.type), ["heading", "bulletList", "taskList"]);
   schema.nodeFromJSON(d).check();
 });
+
+// ---- block ids and live blocks (the project Overview page): <!--b:id--> before a block, :::live {json} for a live block
+import { liveBlockNode } from "../ui/src/RichEditor/mdtree.ts";
+
+const OVERVIEW = [
+  "<!--b:blk_a1-->",
+  "# Q4 launch",
+  "",
+  "<!--b:blk_b2-->",
+  "Some **text** with a [link](https://e.com).",
+  "",
+  "<!--b:blk_c3-->",
+  ':::live {"type":"records","spec":{"type":"invoice","title":"Invoices"},"view":"table"}',
+  "",
+  "<!--b:blk_d4-->",
+  "- one",
+  "- two",
+  "",
+].join("\n");
+
+test("a page with block-id comments and live blocks comes back unchanged, and each id sits on its block", () => {
+  assert.equal(docToMarkdown(markdownToDoc(OVERVIEW)), OVERVIEW);
+  const d = markdownToDoc(OVERVIEW);
+  assert.deepEqual(d.content!.map((n) => [n.type, n.attrs?.["blockId"]]), [["heading", "blk_a1"], ["paragraph", "blk_b2"], ["liveBlock", "blk_c3"], ["bulletList", "blk_d4"]]);
+  const live = d.content![2]!;
+  assert.deepEqual([live.attrs?.["type"], live.attrs?.["view"], live.attrs?.["spec"]], ["records", "table", { type: "invoice", title: "Invoices" }]);
+});
+
+test("a block with no id gets none, a tight comment keeps how it sat, and a comment with no block after it is kept", () => {
+  const md = "Plain paragraph.\n\n<!--b:blk_z9-->\nSecond.\n<!--b:blk_y8-->\nThird, tight to the one above.\n\n<!--b:blk_end-->\n";
+  assert.equal(docToMarkdown(markdownToDoc(md)), md);
+  assert.equal(markdownToDoc(md).content![0]!.attrs?.["blockId"], undefined);
+});
+
+test("an unknown live block keeps its JSON, key order and extra keys included; a changed spec is written with the extras kept", () => {
+  const line = ':::live {"view":"cards","type":"hologram","spec":{"n":3},"note":"kept","extra":[1,2]}';
+  const d = markdownToDoc(`<!--b:blk_u1-->\n${line}\n`);
+  assert.equal(docToMarkdown(d), `<!--b:blk_u1-->\n${line}\n`);
+  const live = d.content![0]!;
+  assert.equal(live.attrs?.["type"], "hologram");
+  live.attrs = { ...live.attrs, view: "list" };
+  const out = docToMarkdown(d);
+  assert.match(out, /"type":"hologram"/);
+  assert.match(out, /"view":"list"/);
+  assert.match(out, /"note":"kept"/);
+  assert.match(out, /"extra":\[1,2\]/);
+});
+
+test("a live line whose JSON cannot be read is kept as written, and a node inserted from the slash menu is one live line", () => {
+  const bad = ":::live {not json}";
+  assert.equal(docToMarkdown(markdownToDoc(bad)), `${bad}\n`);
+  const d = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hi" }] }, liveBlockNode("tasks", { status: "open" }, "list")] };
+  assert.equal(docToMarkdown(d), 'Hi\n\n:::live {"type":"tasks","spec":{"status":"open"},"view":"list"}\n');
+});
+
+test("markdown inside a quote or list that looks like a marker is not an id", () => {
+  const md = "> <!--b:blk_q-->\n> quoted\n";
+  assert.equal(markdownToDoc(md).content![0]!.attrs?.["blockId"], undefined);
+  assert.equal(docToMarkdown(markdownToDoc(md)), md);
+});
+
+test("the Overview page is valid in the editor's schema, and a live block survives the editor's own node (toJSON) with its ids", () => {
+  const d = markdownToDoc(OVERVIEW);
+  const node = schema.nodeFromJSON(d);
+  node.check();
+  assert.equal(docToMarkdown(node.toJSON()), OVERVIEW, "markdown, then the editor's document, then markdown: unchanged");
+  const types: string[] = [];
+  node.forEach((n) => types.push(n.type.name));
+  assert.deepEqual(types, ["heading", "paragraph", "liveBlock", "bulletList"]);
+  assert.equal(node.child(2).isAtom, true);
+});

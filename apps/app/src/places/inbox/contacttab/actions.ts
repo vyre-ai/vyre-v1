@@ -18,17 +18,57 @@ export async function sendText(data: InboxData, d: ComposerDraft, inbox: InboxCh
   return sentNote(out.status, inbox.label);
 }
 
-/** Send on an agent's draft is the person's approval: the draft goes out as written (or as edited) from the inbox the agent chose, and the draft is cleared. */
-export async function sendAgentDraft(data: InboxData, card: DraftCard, conv: Conversation, text: string, subject: string, key: string = newKey()): Promise<string> {
+/** A draft as it is stored: every character of its body and its own thread, recipients, Cc and subject. The card shows only a preview, so Edit and Send read this and never the preview. */
+export interface FullDraft { text: string; subject: string; to: ReadonlyArray<{ address: string; name?: string | undefined; contactId?: string | undefined }>; cc: ReadonlyArray<{ address: string; name?: string | undefined; contactId?: string | undefined }>; contactId?: string | undefined; threadId: string; mailboxId: string }
+
+export async function loadDraft(data: InboxData, draftId: string): Promise<FullDraft> {
+  const out = (await data.call("mail.message.get", { messageId: draftId })) as CapMap["mail.message.get"]["out"];
+  const m = out.message;
+  return { text: out.text ?? "", subject: m.subject, to: m.to, cc: m.cc, ...(m.contactId ? { contactId: m.contactId } : {}), threadId: m.threadId, mailboxId: m.mailboxId };
+}
+
+/** A body that ends in a cut-off marker the person did not type: the card's preview ("...") or a draft that was cut. */
+export const CUT_OFF = /(?:\.\.\.|\u2026)\s*$/;
+export function cutOff(text: string, typed?: string): boolean {
+  return CUT_OFF.test(text) && !(typed !== undefined && typed.trim() === text.trim());
+}
+export const CUT_OFF_NOTE = "That is only a preview of the draft, cut short. Open the draft to see all of it; nothing was sent.";
+
+/** Save an edit of an agent's draft in place: its words and subject change, its recipients and its thread stay. */
+export async function saveDraft(data: InboxData, card: DraftCard, edit: { text: string; subject: string }, key: string = newKey()): Promise<void> {
+  if (cutOff(edit.text, "")) throw new Error(CUT_OFF_NOTE);
+  await data.call("mail.draft", { mailboxId: card.mailboxId, draftId: card.id, text: edit.text, ...(card.channel === "sms" ? {} : { subject: edit.subject }), idempotencyKey: key });
+}
+
+/**
+ * Send on an agent's draft is the person's approval: the draft goes out as stored (or as edited in its card), to its own recipients and Cc, in its own thread, from the inbox the agent chose, and the
+ * draft is cleared. It never sends the card's preview, and never takes recipients or contact from the thread that happens to be open.
+ */
+export async function sendAgentDraft(data: InboxData, card: DraftCard, _conv: Conversation, edited: string, subject: string, key: string = newKey()): Promise<string> {
+  const full = await loadDraft(data, card.id);
+  const text = edited !== "" ? edited : full.text;
+  // the person's edit is saved to the draft first: the server sends the draft as stored
+  if (edited !== "" && edited !== full.text && !cutOff(edited, edited)) await saveDraft(data, card, { text: edited, subject: subject !== "" ? subject : full.subject });
+  if (text.trim() === "") throw new Error("There is nothing in this draft to send.");
+  // only what the person typed may end that way: the stored text and the card's preview never go out cut
+  if (cutOff(text) && !(edited !== "" && edited !== card.body)) throw new Error(CUT_OFF_NOTE);
   if (card.channel === "sms") {
     const to = card.to[0] ?? "";
-    const sms = (await data.call("telephony.send_sms", { numberId: card.mailboxId, to, body: text, ...(conv.contactId ? { contactId: conv.contactId } : {}), idempotencyKey: key })) as CapMap["telephony.send_sms"]["out"];
+    const sms = (await data.call("telephony.send_sms", { numberId: card.mailboxId, to, body: text, ...(full.contactId ? { contactId: full.contactId } : {}), idempotencyKey: key })) as CapMap["telephony.send_sms"]["out"];
     await discardDraft(data, card.id);
     return sentNote(sms.status, card.via);
   }
-  const inbox: InboxChoice = { id: card.mailboxId, kind: "mailbox", address: card.via, label: card.via, isDefault: false };
-  const d: ComposerDraft = { chan: "email", from: { email: inbox.id, sms: null }, to: card.to, cc: [], bcc: [], subject, text, draftId: card.id };
-  const out = (await data.call("mail.send", mailInput(d, inbox, conv, key))) as CapMap["mail.send"]["out"];
+  const input: CapMap["mail.send"]["in"] = {
+    mailboxId: card.mailboxId,
+    to: full.to.map((p) => ({ address: p.address, ...(p.name ? { name: p.name } : {}), ...(p.contactId ? { contactId: p.contactId } : {}) })),
+    ...(full.cc.length ? { cc: full.cc.map((p) => ({ address: p.address, ...(p.name ? { name: p.name } : {}), ...(p.contactId ? { contactId: p.contactId } : {}) })) } : {}),
+    subject: (subject !== "" ? subject : full.subject).trim(),
+    text,
+    ...(full.contactId ? { contactId: full.contactId } : {}),
+    draftId: card.id,
+    idempotencyKey: key,
+  };
+  const out = (await data.call("mail.send", input)) as CapMap["mail.send"]["out"];
   return sentNote(out.status, card.via);
 }
 

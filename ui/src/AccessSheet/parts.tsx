@@ -13,6 +13,10 @@ import { TextField } from "../TextField/index.tsx";
 import { Tooltip } from "../Tooltip/index.tsx";
 import {
   ASSISTANT_NOTICE,
+  accessView,
+  generalSub,
+  levelHint,
+  redundantVia,
   HOW_OPTIONS,
   ITEM_DEFS,
   LINK_SUBJECT_ID,
@@ -22,16 +26,16 @@ import {
   canCreateAgent,
   howOptions,
   levelName,
+  canGiveLevel,
   levelsFor,
   pokeNote,
   removable,
   rowSub,
-  sheetRows,
   shareInput,
   unshareInput,
 } from "./model.ts";
 import type { NewAgentDraft } from "./model.ts";
-import type { AccessPick, AgentSettings, Audience, Exporters, LinkInfo, PickKind, RowFlag, ShareLevel, ShareRow, ShareSheetProps, ShareSubjectKind } from "./props.ts";
+import type { AccessPick, AgentSettings, Audience, Exporters, LinkInfo, PickKind, RowFlag, ShareItemType, ShareLevel, ShareRow, ShareSheetProps, ShareSubjectKind } from "./props.ts";
 
 const web = Platform.OS === "web";
 export const webProps = (props: Record<string, unknown>): Record<string, unknown> => (web ? props : {});
@@ -48,6 +52,8 @@ export function each<T>(list: readonly T[], make: (item: T, index: number) => Re
 /* ---------- icons ---------- */
 
 const PATHS: Readonly<Record<string, string>> = {
+  link: '<path d="M7 9a2.5 2.5 0 003.5 0l2-2a2.5 2.5 0 00-3.5-3.5l-.7.7M9 7a2.5 2.5 0 00-3.5 0l-2 2A2.5 2.5 0 007 12.5l.7-.7"/>',
+  bot: '<rect x="3" y="5.5" width="10" height="7.5" rx="2"/><path d="M8 2.2v3.3M6 9v.6M10 9v.6"/><circle cx="8" cy="2" r=".7"/>',
   gear: '<circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.7M8 12.5v1.7M1.8 8h1.7M12.5 8h1.7M3.6 3.6l1.2 1.2M11.2 11.2l1.2 1.2M3.6 12.4l1.2-1.2M11.2 4.8l1.2-1.2"/>',
   mail: '<rect x="2" y="3.5" width="12" height="9" rx="2"/><path d="M2.8 5l5.2 4 5.2-4"/>',
   back: '<path d="M10 3.5L5.5 8l4.5 4.5"/>',
@@ -61,7 +67,7 @@ const PATHS: Readonly<Record<string, string>> = {
   search: '<circle cx="7" cy="7" r="4"/><path d="M10 10l3.5 3.5"/>',
   chev: '<path d="M4 6l4 4 4-4"/>',
 };
-const GLYPH: Readonly<Record<string, string>> = { gear: "⚙", mail: "@", back: "‹", point: "⚡", people: "☖", lock: "•", term: ">_", plus: "+", x: "×", check: "✓", search: "⌕", chev: "▾" };
+const GLYPH: Readonly<Record<string, string>> = { bot: "◍", gear: "⚙", mail: "@", back: "‹", point: "⚡", people: "☖", lock: "•", term: ">_", plus: "+", x: "×", check: "✓", search: "⌕", chev: "▾" };
 
 export function Icon({ name, size = 14, color = t("ink-3") }: { name: string; size?: number; color?: string }): ReactElement {
   if (!web) return <Text style={{ color, fontSize: size, lineHeight: size + 2 }}>{GLYPH[name] ?? ""}</Text>;
@@ -83,6 +89,21 @@ export function Face({ kind, id, name, assistant, size = 28 }: { kind: PickKind;
   if (kind === "guest") return <Tile size={size}><Icon name="mail" size={Math.round(size * 0.55)} color={t("ink-2")} /></Tile>;
   if (kind === "new") return <Tile size={size}><Text style={{ color: t("ink-2"), fontSize: Math.round(size * 0.46), fontWeight: "600" }}>{(name.trim()[0] ?? "?").toUpperCase()}</Text></Tile>;
   return <Avatar name={name} seedId={id} kind="group" size={size} />;
+}
+
+/** The generic agents mark: for a line about agents as a whole, never one agent's own face. */
+export function AgentsMark({ size = 28 }: { size?: number }): ReactElement {
+  return <Tile size={size}><Icon name="bot" size={Math.round(size * 0.55)} color={t("ink-2")} /></Tile>;
+}
+
+/** A switch with no words beside it: the row says what it does. */
+export function Toggle({ on, label, onChange, disabled, testID }: { on: boolean; label: string; onChange?(next: boolean): void; disabled?: boolean; testID?: string }): ReactElement {
+  const off = disabled === true || onChange === undefined;
+  return (
+    <Pressable accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: on, disabled: off }} aria-checked={on} disabled={off} testID={testID} onPress={() => onChange?.(!on)} style={[st.track, on && st.trackOn, off && st.off, { marginRight: 8 }]}>
+      <View style={[st.knob, on && st.knobOn]} />
+    </Pressable>
+  );
 }
 
 /* ---------- controls ---------- */
@@ -112,13 +133,14 @@ export function PokeButton({ name, onPress, testID }: { name: string; onPress():
   );
 }
 
-export function IconButton({ icon, label, onPress, testID, size = 14 }: { icon: string; label: string; onPress(x: number, y: number): void; testID?: string; size?: number }): ReactElement {
+export function IconButton({ icon, label, onPress, testID, size = 14, quiet = false, onFocus, onBlur }: { icon: string; label: string; onPress(x: number, y: number): void; testID?: string; size?: number; /** Drawn faint and out of the way until the row is hovered or the button has focus. */ quiet?: boolean; onFocus?(): void; onBlur?(): void }): ReactElement {
   return (
     <Tooltip text={label}>
       <Pressable
         accessibilityRole="button" accessibilityLabel={label} testID={testID}
         onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number } }) => onPress(e.nativeEvent?.pageX ?? 0, e.nativeEvent?.pageY ?? 0)}
-        style={({ hovered }: { hovered?: boolean }) => [st.iconBtn, hovered === true && st.hover]}
+        {...(onFocus ? { onFocus } : {})} {...(onBlur ? { onBlur } : {})}
+        style={({ hovered }: { hovered?: boolean }) => [st.iconBtn, hovered === true && st.hover, quiet && st.hidden]}
       >
         <Icon name={icon} size={size} />
       </Pressable>
@@ -305,6 +327,20 @@ export function LinkView({ link, copied, onCopy, onBack, onClose, ownerName }: {
 
 /* ---------- head and foot ---------- */
 
+/** The sheet's shell: the scrim and the card, a bottom sheet on a phone. The Add and Share sheet and the people list on a phone both sit in it. */
+export function SheetShell({ phone, label, testID, onClose, children }: { phone: boolean; label: string; testID: string; onClose(): void; children: ReactNode }): ReactElement {
+  return (
+    <Overlay>
+      <View style={[st.veil, phone && st.veilPhone]}>
+        <Pressable accessibilityLabel="Close" accessible={false} onPress={onClose} testID="as-veil" style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 } as ViewStyle} />
+        <View role="dialog" aria-modal accessibilityLabel={label} testID={testID} style={[st.card, phone && st.cardPhone, { boxShadow: "var(--sh-pop)" } as unknown as ViewStyle]} {...(web ? ({ dataSet: { sheet: phone ? "phone" : "card" } } as object) : {})}>
+          {children}
+        </View>
+      </View>
+    </Overlay>
+  );
+}
+
 export function ViewHead({ title, sub, onBack, onClose }: { title: string; sub?: string; onBack?: () => void; onClose(): void }): ReactElement {
   return (
     <View style={st.head}>
@@ -375,49 +411,77 @@ function FlagPill({ label, hint, on, locked, disabled, onChange, testID }: { lab
   );
 }
 
-export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetProps; offered: readonly ShareLevel[] | undefined; cleared: readonly string[]; onCleared(key: string): void }): ReactElement {
+/** A row that knows whether the pointer is on it or something in it has focus: the remove x shows only then (and always on a phone, which has no hover). */
+function HoverRow({ always, children }: { always: boolean; children: (show: boolean, focus: { onFocus(): void; onBlur(): void }) => ReactElement }): ReactElement {
+  const [over, setOver] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const web = Platform.OS === "web";
+  return (
+    <View {...(web ? ({ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) } as object) : {})}>
+      {children(always || over || focused, { onFocus: () => setFocused(true), onBlur: () => setFocused(false) })}
+    </View>
+  );
+}
+
+export const ONLY_ADDED = "Only people added";
+
+export function AccessList({ p, offered, cleared, onCleared, compact = false }: { p: ShareSheetProps; compact?: boolean; offered: readonly ShareLevel[] | undefined; cleared: readonly string[]; onCleared(key: string): void }): ReactElement {
   const menu = useMenu();
   const rec = p.records;
+  // a person gives no more than they have: a level above their own is not in the menu (the row keeps the one it has)
+  const levelsOf = (row: Pick<ShareRow, "subjectKind" | "level" | "via">, t: ShareItemType, offered: readonly ShareLevel[] | undefined): ShareLevel[] => levelsFor(row, t, offered).filter((l) => l === row.level || canGiveLevel(t, l, { maxLevel: p.maxLevel, canGive: p.canGive }));
   const type = p.itemType;
   const [apart, setApart] = useState(false);
+  const [ask, setAsk] = useState<{ kind: "self" | "owner"; row: ShareRow } | null>(null);
   const shares = p.shares.filter((r) => !cleared.includes(`${r.subjectKind}:${r.subjectId}`));
-  const { direct, inherited, link } = sheetRows(shares, type);
-  const lname = (l: ShareLevel): string => (rec ? RECORD_LEVEL_NAMES[l] : undefined) ?? levelName(type, l);
+  const v = accessView({ shares, itemType: type, resourceId: p.resourceId, ownerId: p.ownerId, ownerName: p.ownerName, folderName: p.folderName, agentsOn: p.agentsOn });
+  const { link } = v;
+  const lname = (l: ShareLevel): string => levelName(type, l);
   const say = (kind: ShareSubjectKind, id: string, level: ShareLevel): void => p.onShare?.(shareInput(p, { kind, id }, level, p.newKey?.()));
   const remove = (row: ShareRow): void => {
     onCleared(`${row.subjectKind}:${row.subjectId}`);
     p.onUnshare?.(unshareInput(p, { kind: row.subjectKind, id: row.subjectId }));
   };
+  // removing yourself says what you lose and asks first
+  const askRemove = (row: ShareRow): void => { if (row.subjectKind === "person" && p.meId !== undefined && row.subjectId === p.meId) setAsk({ kind: "self", row }); else remove(row); };
+  const mayMakeOwner = (row: ShareRow): boolean => p.onMakeOwner !== undefined && p.meId !== undefined && p.meId === p.ownerId && row.subjectKind === "person" && row.subjectId !== p.ownerId && row.via === "grant";
+  const tailItems = (row: ShareRow): MenuEntry[] => {
+    const out: MenuEntry[] = [];
+    if (mayMakeOwner(row)) out.push({ separator: true }, { label: "Make owner", hint: "They become the owner. You become a manager.", onSelect: () => setAsk({ kind: "owner", row }) });
+    if (removable(row)) out.push({ separator: true }, { label: "Remove access", danger: true, onSelect: () => askRemove(row) });
+    return out;
+  };
   const pickLevel = (row: ShareRow, x: number, y: number): void => {
-    const items: MenuEntry[] = levelsFor(row, type, offered).map((l) => ({ label: lname(l), checked: l === row.level, onSelect: () => say(row.subjectKind, row.subjectId, l) }));
+    const items: MenuEntry[] = levelsOf(row, type, offered).map((l) => ({ label: lname(l), hint: levelHint(type, l), checked: l === row.level, onSelect: () => say(row.subjectKind, row.subjectId, l) }));
+    items.push(...tailItems(row));
     menu.show(items, x, y, "context", { label: `Access for ${row.name}` });
   };
   const rowMenu = (row: ShareRow, x: number, y: number): void => {
     const items: MenuEntry[] = [];
-    if (levelsFor(row, type, offered).length > 1) for (const l of levelsFor(row, type, offered)) items.push({ label: lname(l), checked: l === row.level, onSelect: () => say(row.subjectKind, row.subjectId, l) });
-    if (removable(row)) {
-      if (items.length > 0) items.push({ separator: true });
-      items.push({ label: "Remove", danger: true, onSelect: () => remove(row) });
-    }
+    if (levelsOf(row, type, offered).length > 1) for (const l of levelsOf(row, type, offered)) items.push({ label: lname(l), hint: levelHint(type, l), checked: l === row.level, onSelect: () => say(row.subjectKind, row.subjectId, l) });
+    items.push(...tailItems(row));
     if (items.length === 0) items.push({ label: "Copy Name", onSelect: () => void (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator?.clipboard?.writeText(row.name) });
     menu.show(items, x, y, "context", { label: `Access for ${row.name}` });
   };
-  const rowNode = (row: ShareRow, inheritedRow: boolean): ReactElement => {
-    const can = levelsFor(row, type, offered).length > 1;
-    const trail = (
+  const rowNode = (row: ShareRow): ReactElement => {
+    const inheritedRow = row.via !== "grant";
+    const can = levelsOf(row, type, offered).length > 1;
+    const trailOf = (show: boolean, focus: { onFocus(): void; onBlur(): void }): ReactElement => (
       <View style={st.trail}>
         <Picker label={`Level for ${row.name}`} value={lname(row.level)} disabled={!can || (rec !== undefined && !rec.canChange)} testID={`as-acc-level-${row.subjectId}`} onPress={(x, y) => pickLevel(row, x, y)} />
         {removable(row)
-          ? <IconButton icon="x" label={`Remove ${row.name}`} testID={`as-acc-remove-${row.subjectId}`} size={12} onPress={() => remove(row)} />
+          ? <IconButton icon="x" label={`Remove ${row.name}`} testID={`as-acc-remove-${row.subjectId}`} size={12} quiet={!show} onFocus={focus.onFocus} onBlur={focus.onBlur} onPress={() => askRemove(row)} />
           : <View style={st.iconBtn} />}
       </View>
     );
     const slot = (
+      <View key={`${row.subjectKind}:${row.subjectId}:${inheritedRow ? "i" : "d"}`} style={st.plain}>
+      <HoverRow always={compact || p.density === "compact"}>{(show, focus) => (
       <SlotRow
-        key={`${row.subjectKind}:${row.subjectId}:${inheritedRow ? "i" : "d"}`}
-        id={`as-acc-${row.subjectId}`} title={row.name} note={rec ? rowSub({ ...row, via: "grant" }) : rowSub(row, p.folderName)}
-        leadWidth={36} lead={<SubjectFace row={row} />} trail={trail} onMenu={(x, y) => rowMenu(row, x, y)}
-      />
+        id={`as-acc-${row.subjectId}`} title={row.name} note={rec ? (inheritedRow ? `From ${p.folderName ?? "its type"}` : rowSub({ ...row, via: "grant" })) : row.subjectKind === "person" && row.via === "grant" && redundantVia(type, v.general.level, row.level, p.spaceName ?? "the Space") !== null ? (redundantVia(type, v.general.level, row.level, p.spaceName ?? "the Space") as string) : rowSub(row, p.folderName)}
+        leadWidth={36} lead={<SubjectFace row={row} />} trail={trailOf(show, focus)} onMenu={(x, y) => rowMenu(row, x, y)}
+      />)}</HoverRow>
+      </View>
     );
     if (!rec || inheritedRow || row.subjectKind === "link") return slot;
     const everyone = rec.exporters === "viewers";
@@ -431,7 +495,18 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
       </View>
     );
   };
-  const count = direct.length + inherited.length + 1;
+  const levels = levelsOf({ subjectKind: "group", level: "view", via: "grant" }, type, offered);
+  const generalRow = v.general.row;
+  const generalSubject = { kind: "group" as const, id: generalRow?.subjectId ?? p.directory.space?.subject?.id ?? "grp_everyone" };
+  const generalLevels = generalRow ? levelsOf(generalRow, type, offered) : levels;
+  const pickGeneral = (x: number, y: number): void => {
+    const items: MenuEntry[] = [];
+    if (generalRow === null || removable(generalRow)) items.push({ label: ONLY_ADDED, hint: "Only the people added below can open it.", checked: v.general.level === null, onSelect: () => { if (generalRow) remove(generalRow); } });
+    for (const l of generalLevels) items.push({ label: lname(l), hint: levelHint(type, l), checked: l === v.general.level, onSelect: () => say(generalSubject.kind, generalSubject.id, l) });
+    menu.show(items, x, y, "context", { label: "General access" });
+  };
+  const spaceName = p.spaceName ?? "the Space";
+  const generalLocked = (generalRow !== null && generalRow.via !== "grant" && generalLevels.length <= 1) || (rec !== undefined && !rec.canChange);
   return (
     <View testID="as-access">
       {rec ? (
@@ -450,15 +525,40 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
             />
           )}
         </View>
+      ) : (
+        <View testID="as-general">
+          <Text style={st.sect}>General access</Text>
+          <SlotRow
+            id="as-acc-space" title={`Everyone in ${spaceName}`} note={generalRow && generalRow.via !== "grant" ? v.inheritedFrom : generalSub(type, v.general.level, spaceName, p.itemName)} leadWidth={36} lead={<Face kind="group" id="space" name="Everyone" size={28} />}
+            trail={<View style={st.trail}><Picker label="General access" value={v.general.level ? lname(v.general.level) : ONLY_ADDED} disabled={generalLocked} testID="as-acc-level-space" onPress={pickGeneral} /></View>}
+          />
+        </View>
+      )}
+      {ask ? (
+        <View style={st.confirmBar} testID="as-confirm">
+          <Text style={st.line}>{ask.kind === "self" ? `Remove yourself from “${p.itemName}”? You will lose access to it.` : `Make ${ask.row.name} the owner of “${p.itemName}”? You'll become a manager.`}</Text>
+          <View style={{ flexDirection: "row", gap: 8, justifyContent: "flex-end" }}>
+            <Pill label="Cancel" testID="as-confirm-no" onPress={() => setAsk(null)} />
+            <Pill label={ask.kind === "self" ? "Remove me" : "Make owner"} primary testID="as-confirm-yes" onPress={() => { const a = ask; setAsk(null); if (a.kind === "self") remove(a.row); else p.onMakeOwner?.({ kind: a.row.subjectKind, id: a.row.subjectId }); }} />
+          </View>
+        </View>
       ) : null}
-      <View style={st.listHead}><Text style={st.listHeadText}>Who has access</Text><Text style={st.listHeadText}>{count}</Text></View>
-      <SlotRow id="as-acc-owner" title={p.ownerName} note="Person" leadWidth={36} lead={<Face kind="person" id={p.ownerId ?? p.ownerName} name={p.ownerName} size={28} />} trail={<Text style={st.ownerText}>Owner</Text>} />
-      {rec && rec.audience === "space" && rec.follows === undefined ? <SlotRow id="as-acc-space" title="Everyone in the Space" note="As their role allows" leadWidth={36} lead={<Face kind="group" id="space" name="Everyone" size={28} />} trail={<Text style={st.ownerText}>Their role</Text>} /> : null}
+      <View style={st.listHead}><Text style={st.listHeadText}>People</Text><Text style={st.listHeadText} testID="as-count">{1 + v.people.length}</Text></View>
+      <View style={st.plain}><SlotRow id="as-acc-owner" title={p.ownerName} leadWidth={36} lead={<Face kind="person" id={p.ownerId ?? p.ownerName} name={p.ownerName} size={28} />} trail={<Text style={st.ownerText}>Owner</Text>} /></View>
+      {rec && rec.audience === "space" && rec.follows === undefined ? <SlotRow id="as-acc-space-rec" title="Everyone in the Space" note="As their role allows" leadWidth={36} lead={<Face kind="group" id="space" name="Everyone" size={28} />} trail={<Text style={st.ownerText}>Their role</Text>} /> : null}
       {rec && rec.audience === "added" ? <SlotRow id="as-acc-admins" title="Admins" note="Always" leadWidth={36} lead={<Face kind="group" id="admins" name="Admins" size={28} />} trail={<Text style={st.ownerText}>{lname("manage")}</Text>} /> : null}
-      {direct.map((r) => rowNode(r, false))}
-      {direct.length === 0 && !rec ? <Text style={st.empty}>Nobody else yet.</Text> : null}
-      {inherited.length > 0 ? <Text style={[st.sect, { marginTop: 12 }]}>{rec ? `From ${p.folderName ?? "its type"}` : p.folderName ? `From the folder ${p.folderName}` : "Inherited"}</Text> : null}
-      {inherited.map((r) => rowNode(r, true))}
+      {v.people.map((r) => rowNode(r))}
+      {v.empty && !rec ? <Text style={st.empty} testID="as-nobody">Nobody else yet.</Text> : null}
+      {rec || type !== "agent" ? null : (
+        <View testID="as-agents">
+          <Text style={st.sect}>Agents</Text>
+          <SlotRow
+            id="as-acc-agents" title={`Let other agents ask ${p.itemName} for help`} note={`They can hand work to ${p.itemName} in their own chats`} leadWidth={36} lead={<AgentsMark />}
+            trail={<Toggle on={v.agents.on} label={`Let other agents ask ${p.itemName} for help`} testID="as-agents-toggle" {...(p.onAgents ? { onChange: p.onAgents } : {})} />}
+          />
+          {v.agents.specific.map((r) => rowNode(r))}
+        </View>
+      )}
       {p.allowExternal === true && !rec ? (
         <View>
           <Text style={[st.sect, { marginTop: 12 }]}>Link</Text>
@@ -482,7 +582,6 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
           </View>
         </View>
       ) : null}
-      {p.target === "item" && !rec ? <Text style={[st.sub, { marginTop: 10, paddingHorizontal: 6 }]}>Access from a folder can be raised on one item, never lowered.</Text> : null}
       {menu.element}
     </View>
   );
@@ -522,6 +621,11 @@ export const pickHowLabel = (p: AccessPick): string => HOW_OPTIONS.find((h) => h
 /* ---------- styles ---------- */
 
 export const st = StyleSheet.create({
+  hidden: { opacity: 0 },
+  refusal: { color: t("danger"), fontSize: 12.5, lineHeight: 18 },
+  message: { height: 34, borderRadius: 9, paddingHorizontal: 10, backgroundColor: t("sunk"), color: t("ink"), fontSize: 13, ...(web ? ({ outlineStyle: "none" } as object) : null) },
+  confirmBar: { gap: 8, padding: 10, marginHorizontal: 6, marginVertical: 4, borderRadius: 10, backgroundColor: t("sunk") },
+  plain: { paddingVertical: 4 },
   hover: { backgroundColor: t("hover") },
   radioRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 5, paddingHorizontal: 6, borderRadius: 8 },
   radio: { width: 16, height: 16, marginTop: 2, borderRadius: 8, borderWidth: 1.5, borderColor: t("line-2"), alignItems: "center", justifyContent: "center" },
@@ -531,7 +635,7 @@ export const st = StyleSheet.create({
   veil: { position: (web ? "fixed" : "absolute") as unknown as "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99998, backgroundColor: "rgba(8,8,10,0.5)", alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
   veilPhone: { paddingHorizontal: 0, alignItems: "stretch", justifyContent: "flex-end" },
   card: { width: "100%", maxWidth: 560, maxHeight: "90%", backgroundColor: t("raised"), borderRadius: 18, overflow: "hidden", color: t("ink") } as never,
-  cardPhone: { maxWidth: "100%", maxHeight: "92%", borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
+  cardPhone: { maxWidth: "100%", maxHeight: "92%", paddingBottom: "env(safe-area-inset-bottom, 0px)" as unknown as number, borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderTopLeftRadius: 18, borderTopRightRadius: 18 },
   head: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingTop: 16, paddingLeft: 18, paddingRight: 14, paddingBottom: 6 },
   title: { color: t("ink"), fontSize: 17, lineHeight: 23, fontWeight: "600" },
   sub: { color: t("ink-3"), fontSize: 12.5, lineHeight: 17 },

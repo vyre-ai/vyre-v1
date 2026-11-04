@@ -27,8 +27,15 @@ export function wake(d: PaneDeps, computerId: string, name: string): Promise<boo
   return attempt(d, "wake it", async () => { await d.call("computers.wake", { computerId }); d.note(`${name} is awake`); });
 }
 
-export function provision(d: PaneDeps, agentId: string, name: string): Promise<boolean> {
-  return attempt(d, "set up its computer", async () => { await d.call("computers.provision", { agentId, idempotencyKey: key("computer", agentId) }); d.note(`Setting up ${name}'s computer`); });
+/** Make the computer and wake it: "Set up its computer" is one press. `nodeId` is a server of the person's, left out for the Space server. */
+export function provision(d: PaneDeps, agentId: string, name: string, nodeId?: string): Promise<boolean> {
+  return attempt(d, "set up its computer", async () => {
+    const out = (await d.call("computers.provision", { agentId, ...(nodeId ? { nodeId } : {}), idempotencyKey: key("computer", agentId) })) as { computer?: { computerId?: string } } | null;
+    d.note(`Setting up ${name}'s computer`);
+    const id = out?.computer?.computerId;
+    // waking can take a minute: the pane follows its state, so this does not wait here; a failure shows on the computer itself, with its reason
+    if (id) void d.call("computers.wake", { computerId: id }).catch(() => undefined);
+  });
 }
 
 export function signOut(d: PaneDeps, computerId: string, site: string): Promise<boolean> {
@@ -198,4 +205,22 @@ export function crewRunAgain(d: PaneDeps, jobId: string, name: string): Promise<
 
 export function crewStop(d: PaneDeps, jobId: string, name: string): Promise<boolean> {
   return attempt(d, `stop ${name}`, async () => { await d.call("engine.crew.stop", { jobId, idempotencyKey: key("stop", jobId) }); d.note(`Stopped ${name}`); });
+}
+
+/* ---------- hooks ---------- */
+
+/** Pause a hook or turn it back on. */
+export function hookPause(d: PaneDeps, id: string, threadId: string, paused: boolean): Promise<boolean> {
+  return attempt(d, paused ? "pause that hook" : "turn that hook back on", async () => { await d.call("hooks.pause", { id, paused, threadId }); d.note(paused ? "Hook paused" : "Hook running again"); });
+}
+/** Remove a hook. Undo makes the same hook again. */
+export function hookRemove(d: PaneDeps, id: string, threadId: string, again: Record<string, unknown>, title = "hook"): Promise<boolean> {
+  return attempt(d, "remove that hook", async () => {
+    await d.call("hooks.remove", { id, threadId });
+    d.note(`Removed: ${title}`, () => attempt(d, "bring it back", async () => { await d.call("hooks.set", again); }).then(() => undefined));
+  });
+}
+/** Save the words of a hook. */
+export function hookSave(d: PaneDeps, input: Record<string, unknown>): Promise<boolean> {
+  return attempt(d, "save that hook", async () => { await d.call("hooks.set", input); d.note("Hook saved"); });
 }

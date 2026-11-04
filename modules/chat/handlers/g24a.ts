@@ -8,6 +8,7 @@ import type { ChatCtx, Mode, ThreadKind, ThreadRec } from "../projections.ts";
 import { canSpeak, mayGovernChannel, rootOf } from "./post.ts";
 import { applyMode } from "./modes.ts";
 import { followMode, placeOf } from "./follow.ts";
+import { markRenamed } from "./title-state.ts";
 import { grantsOf, revokeGrants, shareOwnedWith, unshareOwnedFrom, trashOwned } from "./owned.ts";
 
 type Row = Record<string, unknown>;
@@ -167,6 +168,7 @@ export async function update(ctx: ChatCtx, input: { threadId: string; title: str
   if (t.kind === "channel") raise(ctx, "validation.bad_input", "A channel keeps its own name.");
   if (title === t.title) return out(ctx, t.id);
   touch(ctx, t.id, "title = ?", title);
+  markRenamed(ctx, t.id);
   ctx.emit("thread.updated", t.id, { threadId: t.id, fields: ["title"] });
   return out(ctx, t.id);
 }
@@ -305,6 +307,41 @@ export async function markRead(ctx: ChatCtx, input: { threadId: string; upto?: n
   return { unread: unreadOf(ctx, t.id, person) };
 }
 
+/** Mark unread from one message on: the person's read point goes to just before it. The point only moves back (a point already before it stays), never past the newest message. */
+export async function markUnreadFrom(ctx: ChatCtx, input: { threadId: string; seq: number }) {
+  const t = load(ctx, input.threadId);
+  if (!Number.isInteger(input.seq) || input.seq < 1) raise(ctx, "validation.bad_input", "A sequence number is a whole number from 1.");
+  ensureReadTable(ctx);
+  const person = askerOf(ctx);
+  const was = cursorOf(ctx, t.id, person);
+  const seq = Math.min(was, input.seq - 1);
+  if (ctx.db.run("UPDATE chat_thread_read SET seq = ? WHERE thread = ? AND principal = ?", seq, t.id, person).changes === 0) {
+    ctx.db.run("INSERT INTO chat_thread_read (thread, principal, seq) VALUES (?, ?, ?)", t.id, person, seq);
+  }
+  return { unread: unreadOf(ctx, t.id, person) };
+}
+
+/** Move a chat into a project. A plain chat only (a channel, a thread under a chat and the like keep the place they have); the person needs Manage on the chat (the pipeline checked it) and edit on the project. */
+export async function move(ctx: ChatCtx, input: { threadId: string; projectId: string }) {
+  const t = load(ctx, input.threadId);
+  if (t.kind !== "chat" && t.kind !== "ask") raise(ctx, "validation.precondition_failed", "Only a chat moves into a project.");
+  if (!ctx.call) raise(ctx, "internal.unavailable", "Projects are not available just now.");
+  let project: { project?: { recordId?: string } } | null | undefined;
+  try { project = (await ctx.call("projects.get", { projectId: input.projectId })) as { project?: { recordId?: string } }; } catch { project = null; }
+  const recordId = project?.project?.recordId;
+  if (!recordId) raise(ctx, "validation.not_found", "That project does not exist or you cannot see it.");
+  const host = ctx as ChatCtx & { authorize?: (action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => { effect?: string } };
+  const resource = { type: "project", id: input.projectId };
+  const effect = typeof host.authorize === "function"
+    ? host.authorize({ perm: null, level: "edit" }, resource).effect
+    : ((await ctx.call("access.check", { principal: { kind: "person", id: askerOf(ctx) }, action: { level: "edit" }, resource })) as { decision?: { effect?: string } } | null | undefined)?.decision?.effect;
+  if (effect !== "allow") raise(ctx, "permission.role_lacks_permission", "You cannot add things to that project.");
+  if (t.recordId === recordId) return out(ctx, t.id);
+  touch(ctx, t.id, "recordId = ?", recordId);
+  ctx.emit("thread.updated", t.id, { threadId: t.id, fields: ["recordId"] });
+  return out(ctx, t.id);
+}
+
 export const g24aHandlers = {
   "threads.get": get,
   "threads.list": list,
@@ -318,4 +355,6 @@ export const g24aHandlers = {
   "threads.set_folder": setFolder,
   "threads.set_plan_mode": setPlanMode,
   "threads.mark_read": markRead,
+  "threads.mark_unread_from": markUnreadFrom,
+  "threads.move": move,
 };

@@ -1,6 +1,9 @@
 // The Vault place in the shell (spec 3.8): the whole Apple-Passwords layout over the Space's data. The runtime's people list, calls and door become the place's VaultData; where a click
 // leaves the Vault (share, export, Advanced, requests, an agent) it goes out through the shell. Before the runtime exists the place draws its own loading frame.
 import { adminTarget } from "./settings-admin.ts";
+import { reach } from "../reach/reach.ts";
+import type { Viewer } from "../reach/reach.ts";
+import { useViewer } from "../reach/viewer.ts";
 import { useMemo } from "react";
 import type { ReactElement } from "react";
 import VaultLayout, { VaultLoading } from "../../places/vault/layout/index.tsx";
@@ -58,16 +61,23 @@ export function withKeys(call: ShellRuntime["call"]): ShellRuntime["call"] {
   }) as ShellRuntime["call"];
 }
 
-export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined = desktopBrowsers()): VaultData {
+export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined = desktopBrowsers(), viewer: Viewer | null = null): VaultData {
+  // a door to a Console page exists only for a person who can open that page (reach): a Member sees no Backups or Outside actors link
+  const door = (page: string, screen: string): { open(): void } | null => {
+    const r = viewer === null ? null : reach({ kind: "console", page }, viewer);
+    return r !== null && r.to === "open" ? { open: () => rt.open(adminTarget(screen)) } : null;
+  };
+  const backups = door("backups", "console.backups");
+  const actors = door("actors", "console.outside-actors");
   return {
     screens: rt.screens, assistantId: rt.assistant.id, call: withKeys(rt.call), connection: rt.connection, principals: rt.principals, me: rt.me, spaceName: rt.space.name, ...(rt.space.kind === "personal" ? { personal: true } : {}),
     nav: {
       openShare: (itemId) => rt.open({ screen: "vault.layout", args: { share: itemId } }),
       openExport: (folderId) => rt.open({ screen: "vault.export", args: { folderId } }),
       openAdvanced: () => rt.open({ screen: "vault.layout", args: { advanced: true } }),
-      ...(rt.space.kind !== "personal" ? { openBackups: () => rt.open(adminTarget("console.backups")) } : {}),
+      ...(backups ? { openBackups: backups.open } : {}),
       openDevices: () => rt.open({ screen: "devices.mine" }),
-      ...(rt.space.kind !== "personal" ? { openOutsideActors: () => rt.open(adminTarget("console.outside-actors")) } : {}),
+      ...(actors ? { openOutsideActors: actors.open } : {}),
       openPolicy: () => rt.open({ screen: "vault.layout", args: { policy: true } }),
       openRequests: () => rt.open({ screen: "vault_requests.list" }),
       openAgent: (agentId) => rt.open({ screen: "chats.agent-page", args: { agentId } }),
@@ -90,7 +100,8 @@ export function vaultData(rt: ShellRuntime, browsers: VaultBrowsers | undefined 
 export default function VaultPlace(_props: { place: string }): ReactElement {
   const rt = useOptionalShellRuntime();
   const { target, opened } = usePlaceHash();
-  const data = useMemo(() => (rt ? vaultData(rt) : null), [rt]);
+  const viewer = useViewer(rt);
+  const data = useMemo(() => (rt ? vaultData(rt, desktopBrowsers(), viewer) : null), [rt, viewer]);
   const route = useMemo(() => vaultRoute(target), [target]);
   return data ? <VaultLayout data={data} route={route} {...(route.surface === "layout" && route.addProvider ? { sheet: { addProvider: true as const } } : route.surface === "layout" && route.addApp ? { sheet: { add: { app: route.addApp } } } : {})} onRouteClose={() => opened({ screen: "vault.layout" })} /> : <VaultLoading />;
 }

@@ -70,7 +70,7 @@ export function boundEngine(ctx: Pick<EngineCtx, "trace">): TurnEngine {
   return bound;
 }
 
-const SCHEMA = ["0001_init.sql", "0002_usage_item.sql", "0003_unblock.sql", "0004_capture_state.sql", "0005_step_turns.sql", "0006_task_baton.sql", "0007_mcp_oauth.sql", "0008_crew.sql", "0009_crew_wait.sql", "0010_queue_touched.sql", "0011_paid_fallback.sql", "0012_model_cache.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_init.sql", "0002_usage_item.sql", "0003_unblock.sql", "0004_capture_state.sql", "0005_step_turns.sql", "0006_task_baton.sql", "0007_mcp_oauth.sql", "0008_crew.sql", "0009_crew_wait.sql", "0010_queue_touched.sql", "0011_paid_fallback.sql", "0012_model_cache.sql", "0013_tool_use.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 
@@ -91,6 +91,7 @@ export function ensure(db: Db): void {
     db.all("SELECT touched FROM engine_thread_queue WHERE thread_id = ?", "probe");
     db.all("SELECT ref FROM engine_paid_ok WHERE thread_id = ?", "probe");
     db.all("SELECT account_ref FROM engine_model_cache WHERE account_ref = ?", "probe");
+    db.all("SELECT agent_id FROM engine_tool_use WHERE agent_id = ?", "probe");
   } catch {
     for (const stmt of SCHEMA) db.run(stmt);
   }

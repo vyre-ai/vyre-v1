@@ -12,6 +12,19 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 export const ALLOWED_LICENSES = ['MIT', 'MIT-0', 'Apache-2.0', 'BSD-2-Clause', 'BSD-3-Clause', 'BSD', 'ISC', 'MPL-2.0', 'BlueOak-1.0.0', 'Unlicense', 'Zlib', '0BSD', 'Python-2.0'] as const;
 /** CC-BY-4.0 is a data licence: allowed only for these packages, which ship data and no code (ruling 84). Attribution stays in the third-party notices. */
 export const DATA_PACKAGES = ['caniuse-lite'] as const;
+/**
+ * Packages whose package.json has no license field, with the licence read from their repository, for one version each. Only a missing field is filled in, only for that exact version:
+ * a new version is checked again by hand, and a package that states a licence is judged on what it states.
+ */
+export const RECORDED_LICENSES: Readonly<Record<string, { version: string; license: string; source: string; reason: string }>> = {
+  khroma: { version: '2.1.0', license: 'MIT', source: 'https://github.com/fabiospampinato/khroma/blob/4968165afb0d3d09be66497e7985a34f7bfe6d42/license', reason: 'package.json lacks a license field; the repo LICENSE is MIT (needed by mermaid 11.17.2)' },
+};
+
+/** The licence to judge: the package's own, or the recorded one when its package.json states none and the version matches. */
+export function recordedLicense(name: string, version: unknown, license: string): string {
+  const r = RECORDED_LICENSES[name];
+  return license === '' && r !== undefined && version === r.version ? r.license : license;
+}
 
 export interface LicenseHit {
   name: string;
@@ -158,9 +171,9 @@ export function evaluateLicense(expr: string, pkg?: string): { ok: boolean; file
   return { ok: false, fileLevel: false, reason: `blocked: ${failures.join(', ') || cleaned}` };
 }
 
-export function checkNpmLicenses(deps: Array<{ name: string; license: unknown }>): LicenseHit[] {
+export function checkNpmLicenses(deps: Array<{ name: string; license: unknown; version?: unknown }>): LicenseHit[] {
   return deps.map((dep) => {
-    const license = licenseText(dep.license);
+    const license = recordedLicense(dep.name, dep.version, licenseText(dep.license));
     const ev = evaluateLicense(license, dep.name);
     return { name: dep.name, license, ok: ev.ok, fileLevel: ev.fileLevel, reason: ev.reason };
   });
@@ -279,21 +292,21 @@ function repoRoot(): string {
   return resolve(dirname(fileURLToPath(import.meta.url)), '..');
 }
 
-function readInstalled(root: string): Array<{ name: string; license: unknown }> {
+function readInstalled(root: string): Array<{ name: string; license: unknown; version?: unknown }> {
   const nm = join(root, 'node_modules');
   if (!existsSync(nm)) return [];
-  const out: Array<{ name: string; license: unknown }> = [];
+  const out: Array<{ name: string; license: unknown; version?: unknown }> = [];
   const take = (pkgPath: string) => {
     if (!existsSync(pkgPath)) return;
-    let parsed: { name?: unknown; license?: unknown; private?: unknown };
+    let parsed: { name?: unknown; license?: unknown; private?: unknown; version?: unknown };
     try {
-      parsed = JSON.parse(readFileSync(pkgPath, 'utf8')) as { name?: unknown; license?: unknown; private?: unknown };
+      parsed = JSON.parse(readFileSync(pkgPath, 'utf8')) as { name?: unknown; license?: unknown; private?: unknown; version?: unknown };
     } catch {
       return;
     }
     if (parsed.private === true) return;
     if (typeof parsed.name !== 'string') return;
-    out.push({ name: parsed.name, license: parsed.license });
+    out.push({ name: parsed.name, license: parsed.license, version: parsed.version });
   };
   for (const name of readdirSync(nm)) {
     if (name === '.bin' || name.startsWith('.')) continue;
@@ -305,7 +318,7 @@ function readInstalled(root: string): Array<{ name: string; license: unknown }> 
   return out;
 }
 
-function reportNpm(deps: Array<{ name: string; license: unknown }>): number {
+function reportNpm(deps: Array<{ name: string; license: unknown; version?: unknown }>): number {
   const hits = checkNpmLicenses(deps);
   let failed = 0;
   for (const hit of hits) {
@@ -338,7 +351,7 @@ function main(): number {
       console.error('--npm needs a JSON file of {name, license}');
       return 1;
     }
-    const parsed = JSON.parse(readFileSync(file, 'utf8')) as Array<{ name: string; license: unknown }>;
+    const parsed = JSON.parse(readFileSync(file, 'utf8')) as Array<{ name: string; license: unknown; version?: unknown }>;
     failed += reportNpm(parsed);
   }
   if (cargoIdx >= 0) {

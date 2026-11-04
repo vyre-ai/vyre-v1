@@ -65,9 +65,13 @@ function checked(ctx: ImportCtx, input: In): { provider: Provider; sourceKey: st
   return { provider: input.provider, sourceKey: input.sourceKey, sessions, scope };
 }
 
-async function personal(ctx: ImportCtx): Promise<void> {
+async function isPersonal(ctx: ImportCtx): Promise<boolean> {
   const matrix = await ctx.call?.("spaces.matrix", {}) as { kind?: string } | undefined;
-  if (matrix?.kind !== "personal") raise(ctx, "validation.precondition_failed", "Open your Personal Space to import or read local history.");
+  return matrix?.kind === "personal";
+}
+
+async function personal(ctx: ImportCtx): Promise<void> {
+  if (!(await isPersonal(ctx))) raise(ctx, "validation.precondition_failed", "Open your Personal Space to import or read local history.");
 }
 
 async function destination(ctx: ImportCtx, owner: string, targetSpaceId: string, scope: Scope, session: SourceSession): Promise<{ destination: Destination; identityKey?: string }> {
@@ -185,7 +189,8 @@ function archiveRow(row: Record<string, unknown>): Record<string, unknown> {
 
 export async function sessionsList(ctx: ImportCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
-  await personal(ctx);
+  // local history lives in the Personal Space; anywhere else the archive is simply empty, said as such, so a screen that asks on open gets an answer and not a refusal
+  if (!(await isPersonal(ctx))) return { sessions: [], personalOnly: true };
   const limit = Math.min(100, Math.max(1, Number(input.limit) || 50));
   const offset = Number(input.cursor ?? 0);
   if (!Number.isSafeInteger(offset) || offset < 0) raise(ctx, "validation.bad_input", "That page cursor is not valid.");

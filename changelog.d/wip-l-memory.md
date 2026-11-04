@@ -1,0 +1,8 @@
+- Memory in shared places: every memory learned in a channel, group chat, project chat, thread, task or goal keeps its place, the message it came from, who said it and the words as written. A thread's memory belongs to its parent place.
+- Who reads a shared-place memory is whoever may open its place now, not who could when it was written: a late joiner reads it, a removed member does not, and a place that goes invite-only narrows its memory. A place that cannot be opened answers nobody. Memory from a one-person invite-only channel no longer reaches the agent's other readers.
+- A newer statement by the same person on the same subject replaces the older one (history kept, marked replaced). Two people who disagree become one open question that names both, and the agent is told not to state either as settled.
+- When memory remembers something in a place other people share, the room gets one quiet "Noted: decision, ..." line with Undo (chat.noted). Those lines are never learned back as something a person said.
+- Deleting a message drops what memory derived from it, and a statement it replaced holds again (memory.source_removed). Archiving or deleting a place archives or deletes its memory (memory.place.archive). The Knows tab reads memory.place.list.
+- What was said in a private chat before it gained people stays private: memory does not learn it into the room, and recall does not quote it into a shared chat.
+- Recall puts the place first, then places linked to it, then the rest the asker may open; each recalled line names who said it and the message.
+- Memory eval: scripts/memory-eval seeds a Space of about 600 messages and asks 60 questions through the real engine on a small model.
