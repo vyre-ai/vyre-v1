@@ -60,7 +60,7 @@ export function CrewOverview({ status, call, threadId, onPeek, onRefresh, initia
       <View testID="crew-timeline" style={{ gap: 3 }}>
         {all.map((m, i) => (
           <Row
-            key={m.id} id={`crew-tl-${m.id}`} title={nameOf(m)} onPress={() => onPeek(m.id)} leading={<Avatar name={nameOf(m)} seedId={m.agentId} kind="agent" size={18} />}
+            key={m.id} id={`crew-tl-${m.id}`} title={nameOf(m)} onPress={() => onPeek(m.id)} leading={<View style={{ marginRight: 8 }}><Avatar name={nameOf(m)} seedId={m.agentId} kind="agent" size={18} /></View>}
             trailing={<View style={st.tlt}><View testID={`crew-tl-${m.id}-bar`} style={{ position: "absolute", top: 0, bottom: 0, left: `${(tl[i]?.left ?? 0) * 100}%`, width: `${(tl[i]?.width ?? 1) * 100}%`, borderRadius: 5, backgroundColor: BAR[m.state] as string, opacity: m.state === "failed" || m.state === "stopped" ? 0.5 : 1 } as object} /></View>}
           />
         ))}
@@ -81,7 +81,7 @@ export function CrewOverview({ status, call, threadId, onPeek, onRefresh, initia
       {rows.length === 0 ? <Text testID="crew-empty-show" style={st.hint}>{NONE[show]}</Text> : null}
       {rows.map((m) => (
         <Row
-          key={m.id} id={`crew-row-${m.id}`} title={roleOf(m) !== "" ? `${nameOf(m)} · ${roleOf(m)}` : nameOf(m)} note={lineOf(m)} tall onPress={() => onPeek(m.id)} leading={<Face m={m} />}
+          key={m.id} id={`crew-row-${m.id}`} title={roleOf(m) !== "" ? `${nameOf(m)} · ${roleOf(m)}` : nameOf(m)} note={lineOf(m)} tall onPress={() => onPeek(m.id)} leading={<View style={{ marginRight: 10 }}><Face m={m} /></View>}
           trailing={<Text testID={`crew-row-${m.id}-state`} style={[st.rowState, m.state === "working" && { color: "var(--accent)" as string }, m.state === "needs_you" && { color: "var(--warn)" as string }, m.state === "done" && { color: "var(--ok)" as string }]}>{stateWord(m.state)}</Text>}
         />
       ))}
@@ -165,7 +165,7 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
       </View>
       {member.state === "needs_you" ? <View testID="crew-peek-needs" style={st.needs}><Text style={st.needsT}>Needs your OK</Text><Text style={st.rowLine}>{lineOf(member)}</Text></View> : null}
       {member.state === "failed" || member.state === "stopped" ? <Text testID="crew-peek-line" style={st.rowLine}>{lineOf(member)}</Text> : null}
-      <Text style={st.section}>Brief from {nameOfId?.(member.parentThreadId) ?? "the agent"}</Text>
+      <Text style={st.section}>Brief from {brief ? (nameOfId?.(brief.authorId) ?? "the agent") : "the agent"}</Text>
       <View style={st.brief}><Text testID="crew-peek-brief" style={st.briefText}>{brief?.body ?? member.title}</Text></View>
       {member.state === "working" && member.step ? <><Text style={st.section}>Now</Text><Text testID="crew-peek-step" style={st.rowLine}>{member.step}</Text></> : null}
       {member.found ? <><Text style={st.section}>Answer</Text><Text testID="crew-peek-answer" style={st.rowLine}>{member.found}</Text></> : null}
@@ -205,7 +205,7 @@ const st = StyleSheet.create({
   section: { fontSize: 12, color: "var(--ink-3)" as string, marginTop: 14, marginBottom: 2 },
   tlr: { flexDirection: "row", alignItems: "center", gap: 8, height: 28 },
   tln: { width: 52, fontSize: 13, color: "var(--ink-2)" as string },
-  tlt: { flex: 1, height: 9, borderRadius: 5, backgroundColor: "var(--hover)" as string, overflow: "hidden" },
+  tlt: { width: 150, height: 9, borderRadius: 5, backgroundColor: "var(--hover)" as string, overflow: "hidden" },
   together: { marginTop: 8, padding: 10, borderRadius: 12, backgroundColor: "var(--accent-wash)" as string, fontSize: 13.5, color: "var(--ink)" as string },
   kv: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   k: { fontSize: 13.5, color: "var(--ink-2)" as string },

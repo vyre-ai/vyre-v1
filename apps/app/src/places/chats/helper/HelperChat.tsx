@@ -130,7 +130,7 @@ function HelperView(): ReactElement {
         {messages.length === 0 ? <States kind="empty" icon="chat" title="Nothing yet. The helper has not started." /> : feed}
       </ScrollView>
       {line ? <View testID="helper-line" style={st.note}><Text style={st.noteText}>{line}</Text></View> : null}
-      {status === "running" && data.me?.id !== undefined && thread.starter === data.me.id ? <AskBox threadId={data.threadId} call={data.call} say={setLine} /> : null}
+      {status === "running" && data.me?.id !== undefined ? <AskBox threadId={data.threadId} call={data.call} say={setLine} /> : null}
       <View testID="helper-readonly" style={st.readonly}>
         <Icon name="lock" size={14} />
         <Text style={st.readonlyText}>{READ_ONLY_NOTE}</Text>

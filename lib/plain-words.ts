@@ -33,3 +33,16 @@ export function oneLine(text: string, max = 140): string {
   const first = t.split(/(?<=[.!?])\s/)[0] ?? t;
   return first.length > max ? `${first.slice(0, max - 1)}…` : first;
 }
+
+/** Names of the machinery under a step (the browser, the shell, the driver) that a person never reads as a step's second part. */
+const ENGINE = /\b(?:headless\s+)?(?:chrome|chromium|webkit|firefox|playwright|puppeteer|selenium|cdp|devtools|bash|zsh|powershell|stdout|stderr|subprocess|mcp(?:__\w*)?)\b/i;
+
+/**
+ * A step line in words a person reads (owner, 4 Nov 2026): "Opened the vendor page", never "headless Chrome" or a tool id. The second part is dropped when it names the machinery or a tool; a title that names a
+ * tool is said as what that tool does (stepWords).
+ */
+export function plainStep(line: { title: string; sub: string }): { title: string; sub: string } {
+  const title = internalNames(line.title).length > 0 || ENGINE.test(line.title) ? stepWords(line.title.split(/\s+/)[0] ?? line.title) : line.title;
+  const sub = line.sub !== "" && !ENGINE.test(line.sub) && internalNames(line.sub).length === 0 ? line.sub : "";
+  return { title, sub };
+}
