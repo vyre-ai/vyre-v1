@@ -10,6 +10,7 @@ test("settings: an admin reads and changes them, the defaults are the owner's, a
   const first = await w.call("ci.settings.get");
   assert.deepEqual(first.settings, { enabled: false, provider: "digitalocean", vaultKeyRef: null, region: "fra1", size: "s-2vcpu-4gb", image: "ubuntu-24-04-x64", maxConcurrent: 3, monthlyCapUsd: 0, maxJobMinutes: 60, labels: ["vyre"] });
   assert.equal(first.keyReady, false);
+  assert.deepEqual(first.githubApp, { ready: true, installed: true, missing: [], acceptUrl: null, orgAcceptUrl: null });
   const set = await w.turnOn({ maxConcurrent: 2 });
   assert.equal(set.settings.enabled, true);
   assert.equal(set.settings.maxConcurrent, 2);
@@ -326,4 +327,24 @@ test("linked tab: a run shows on its project as Running, then Passed or Failed, 
   w.state.noLinkCap = true;
   await w.job("queued", { jobId: 102 });
   assert.equal(w.state.droplets.length, 1, "the job still runs when the project cannot be linked");
+});
+
+test("github app: an App made before runners says what it still needs and where to accept it", async () => {
+  const w = world();
+  w.state.appPerms = { actions: "read", administration: "read" };
+  w.state.appEvents = ["push"];
+  const g = (await w.call("ci.settings.get")).githubApp;
+  assert.equal(g.ready, false);
+  assert.deepEqual(g.missing, ["administration: write", "secrets: read", "event: workflow_job"]);
+  assert.equal(g.acceptUrl, "https://github.com/settings/installations/555");
+  assert.equal(g.orgAcceptUrl, "https://github.com/organizations/northwind/settings/installations/555");
+});
+
+test("repo to project: the host finds the project of a repository even when only a member's private project holds it", async () => {
+  const w = world({ links: { "northwind/secret": "prj_private" }, members: { prj_private: ["usr_maya"] } });
+  await w.turnOn();
+  await w.job("queued", { jobId: 110, repo: "northwind/secret" });
+  assert.equal(w.state.droplets.length, 1);
+  assert.equal((await w.call("ci.runs.list", { projectId: "prj_private" }, maya)).runs[0].jobId, 110);
+  await assert.rejects(w.call("ci.runs.list", { projectId: "prj_private" }, { id: "usr_other", kind: "person" }), (e: any) => e.error.code === "permission.no_grant");   // eslint-disable-line @typescript-eslint/no-explicit-any
 });

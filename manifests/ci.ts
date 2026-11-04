@@ -36,7 +36,10 @@ export default defineManifest({
   ],
   capabilities: [
     read('ci.settings.get', 'The CI settings: whether runners are on, the cloud provider, the Vault item that holds its key (never the key), region, machine size, image, how many at once, the monthly cap, the time limit and the labels. Admin only', {
-      ...V, perm: 'connectors.manage', in: {}, out: { settings, keyReady: t.bool({ description: 'A key is named in the settings' }) },
+      ...V, perm: 'connectors.manage', in: {}, out: {
+        settings, keyReady: t.bool({ description: 'A key is named in the settings' }),
+        githubApp: t.obj({ ready: t.bool(), installed: t.bool(), missing: t.arr(t.str(), { description: 'What the GitHub App still needs, such as "actions: read"' }), acceptUrl: t.nullable(t.str()), orgAcceptUrl: t.nullable(t.str()) }, { description: 'Whether the Space\'s GitHub App has the new permissions; when not, show "<Space>\'s GitHub app needs new permissions. Accept on GitHub" with acceptUrl (a personal account) or orgAcceptUrl (an organization)' }),
+      },
     }),
     write('ci.settings.set', 'Turn runners on or off and change their settings. Admin only, audited. Turning them on needs a key (a Vault item) and a monthly cap', {
       ...V, perm: 'connectors.manage', level: 'manage', in: { enabled: t.opt(t.bool()), vaultKeyRef: t.opt(t.nullable(id.handle)), region: t.opt(t.str({ pattern: '^[a-z0-9]{2,10}$' })), size: t.opt(t.str({ pattern: '^[a-z0-9-]{3,40}$' })),

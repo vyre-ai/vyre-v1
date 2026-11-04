@@ -35,3 +35,6 @@ States: `queued` (waiting for a free machine, `note` says "Waiting for a free ma
 
 ## The project's Linked tab
 Each run of a linked repository is linked to its project with `projects.links.link` (best effort, repeated on every change): `kind: "ci.run"`, `ref` the run id, `state` one of `Running`, `Passed`, `Failed`, `label` like `build · northwind/site · 4 min`, `url` the job's page on GitHub. Refused and waiting runs are not linked. The state is also in `ci.runs.list` for a live read.
+
+## GitHub App permissions
+`ci.settings.get` also returns `githubApp: { ready, installed, missing[], acceptUrl, orgAcceptUrl }`. When `ready` is false and the App is installed, the Console card says "<Space>'s GitHub app needs new permissions. Accept on GitHub" and links to `acceptUrl` (a personal account) or `orgAcceptUrl` (an organization) until it is accepted. `missing` lists what is still needed, for example "administration: write" or "event: workflow_job".

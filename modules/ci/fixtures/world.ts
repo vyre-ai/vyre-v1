@@ -33,7 +33,7 @@ export function world(f: Fakes = {}) {
     now: T0, events: [] as Array<{ name: string; subject: string; payload: Record<string, any> }>,   // eslint-disable-line @typescript-eslint/no-explicit-any
     droplets: [] as FakeDroplet[], nextId: 1000, cloudCalls: [] as Array<{ method: string; path: string }>, keysUsed: [] as string[], jit: [] as Array<Record<string, unknown>>, removed: [] as number[],
     secrets: f.secrets === undefined ? 0 : f.secrets, links: f.links ?? { "northwind/site": "prj_site" }, members: f.members ?? {},
-    links_: [] as Array<Record<string, unknown>>, noLinkCap: false, failCreate: 0, failList: false, failDelete: false, jitFails: false, runnerSeq: 1,
+    links_: [] as Array<Record<string, unknown>>, noLinkCap: false, appPerms: { actions: "read", administration: "write", secrets: "read" } as Record<string, string>, appEvents: ["push", "workflow_job"], failCreate: 0, failList: false, failDelete: false, jitFails: false, runnerSeq: 1,
   };
   const cloud: CiHost = {
     async cloud(_ctx, handle, req) {
@@ -75,6 +75,8 @@ export function world(f: Fakes = {}) {
         st.jit.push(i);
         return { runnerId: 7000 + st.runnerSeq++, jitConfig: "eyJhbGciOiJIUzI1NiJ9abc123==" };
       }
+      if (cap === "github.app.get") return { permissions: st.appPerms, events: st.appEvents };
+      if (cap === "github.installations.list") return { installations: [{ id: 555, account: "northwind", repositorySelection: "all" }] };
       if (cap === "github.runners.remove") { st.removed.push(i["runnerId"]); return { removed: true }; }
       if (cap === "projects.links.link") { if (st.noLinkCap) throw new Error("no cap"); st.links_.push(i); return { link: {} }; }
       if (cap === "github.actions.secrets") return { count: st.secrets };

@@ -44,6 +44,13 @@ type Out = {
     labels: Array<string>;
   };
   keyReady: boolean;
+  githubApp: {
+    ready: boolean;
+    installed: boolean;
+    missing: Array<string>;
+    acceptUrl: string | null;
+    orgAcceptUrl: string | null;
+  };
 };
 ```
 
@@ -62,6 +69,15 @@ type Out = {
   "name": "example",
   "input": {},
   "output": {
+    "githubApp": {
+      "acceptUrl": "example",
+      "installed": true,
+      "missing": [
+        "example"
+      ],
+      "orgAcceptUrl": "example",
+      "ready": true
+    },
     "keyReady": true,
     "settings": {
       "enabled": true,

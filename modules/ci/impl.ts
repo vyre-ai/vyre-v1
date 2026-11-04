@@ -9,7 +9,7 @@ import { setCiHost } from "./projections.ts";
 import type { CiCtx } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = {
-  "ci.settings.get": (ctx) => settingsGet(ctx as unknown as CiCtx),
+  "ci.settings.get": async (ctx) => settingsGet(ctx as unknown as CiCtx),
   "ci.settings.set": (ctx, i) => settingsSet(ctx as unknown as CiCtx, i as never),
   "ci.runs.list": (ctx, i) => runsList(ctx as unknown as CiCtx, i as never),
   "ci.runs.get": (ctx, i) => runsGet(ctx as unknown as CiCtx, i as never),

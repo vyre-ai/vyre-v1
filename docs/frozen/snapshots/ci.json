@@ -6,7 +6,7 @@
     "ci.project.get@1": "9cf745e26139123cc6c2aed713dced9b3f2510df20044fea9a25364f0b949377",
     "ci.runs.get@1": "9cc58019ed39737a296a8cb176c25bae0a502e6fd130a1c91ab38d25ad67bb32",
     "ci.runs.list@1": "a5c21b167dc8986f9d7601edaf930116ac59b3004c566cabb1d4c60777a3f41f",
-    "ci.settings.get@1": "b1fd2ce9d77a4baa858fee0b9920e6dfb2c3c6bc29077be5b28359f5c6d5df0f",
+    "ci.settings.get@1": "b8b50df254b93266d6ba1a7df80f944f2b77691e416e388c8bbbaab43e4617df",
     "ci.settings.set@1": "cdca98907bb3ca6f92155c3ff4b42dffd76ef2338364fb82b7d089c25a1110d3",
     "ci.sweep@1": "fd1ffbe140ddbb1a4273b048f08d5ba0ea19f58acef11a62cdac9293c1eb2b0d"
   },

@@ -5,10 +5,30 @@ import type { CiCtx, Settings } from "../projections.ts";
 
 const need = (ctx: CiCtx): void => { if (!isAdmin(ctx)) raise(ctx, "permission.no_grant", "Only an admin can see or change the CI settings."); };
 
-export function settingsGet(ctx: CiCtx): { settings: Settings; keyReady: boolean } {
+/** What the GitHub App must be allowed to do for runners. */
+export const APP_NEEDS: Readonly<Record<string, string>> = { actions: "read", administration: "write", secrets: "read" };
+export interface AppState { ready: boolean; installed: boolean; missing: string[]; acceptUrl: string | null; orgAcceptUrl: string | null }
+
+const RANK: Record<string, number> = { read: 1, write: 2, admin: 3 };
+/** Does the Space's GitHub App hold the permissions and the event runners need? When not, the Console says "needs new permissions. Accept on GitHub" and links to the installation's page. */
+export async function appState(ctx: CiCtx): Promise<AppState> {
+  const out: AppState = { ready: false, installed: false, missing: [], acceptUrl: null, orgAcceptUrl: null };
+  try {
+    const app = (await ctx.call("github.app.get", {})) as { permissions?: Record<string, string>; events?: string[] };
+    out.installed = true;
+    for (const [perm, level] of Object.entries(APP_NEEDS)) if ((RANK[app.permissions?.[perm] ?? ""] ?? 0) < (RANK[level] ?? 0)) out.missing.push(`${perm}: ${level}`);
+    if (!(app.events ?? []).includes("workflow_job")) out.missing.push("event: workflow_job");
+    const inst = ((await ctx.call("github.installations.list", {})) as { installations?: Array<{ id: number; account: string }> }).installations?.[0];
+    if (inst && out.missing.length) { out.acceptUrl = `https://github.com/settings/installations/${inst.id}`; out.orgAcceptUrl = `https://github.com/organizations/${encodeURIComponent(inst.account)}/settings/installations/${inst.id}`; }
+  } catch { /* no GitHub App yet: runners cannot start, and the Console says so */ }
+  out.ready = out.installed && out.missing.length === 0;
+  return out;
+}
+
+export async function settingsGet(ctx: CiCtx): Promise<{ settings: Settings; keyReady: boolean; githubApp: AppState }> {
   need(ctx);
   const settings = readSettings(ctx);
-  return { settings, keyReady: settings.vaultKeyRef !== null };
+  return { settings, keyReady: settings.vaultKeyRef !== null, githubApp: await appState(ctx) };
 }
 
 type In = Partial<Omit<Settings, "provider">>;

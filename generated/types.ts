@@ -7952,6 +7952,13 @@ export type CiSettingsGetOut = {
     labels: Array<string>;
   };
   keyReady: boolean;
+  githubApp: {
+    ready: boolean;
+    installed: boolean;
+    missing: Array<string>;
+    acceptUrl: string | null;
+    orgAcceptUrl: string | null;
+  };
 };
 export type CiSettingsSetIn = {
   enabled?: boolean;
