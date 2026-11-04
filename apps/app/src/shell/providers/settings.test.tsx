@@ -15,7 +15,7 @@ test("the Settings place draws its pages through the shell runtime", () => {
   const s = createSampleSettings();
   const rt = sampleRuntime({ screens: s.data.screens, call: s.data.call });
   const out = renderToStaticMarkup(<ShellRuntimeProvider value={rt}><SettingsShellPlace place="settings" /></ShellRuntimeProvider>);
-  assert.ok(out.includes(">You<"));
+  assert.ok(out.includes("Profile"));   // Settings keeps the unfolded pages until the owner approves the Settings prototype (lead ruling for rc.22); l-consolidate's fold is not in
   assert.ok(!out.includes("settings-loading"));
 });
 
