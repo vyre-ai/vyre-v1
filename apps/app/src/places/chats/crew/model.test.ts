@@ -1,7 +1,7 @@
 // The crew model: every sentence a person reads about the crew, from the numbers engine.crew.status returns.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeStateOf, totalsParts, sortedBy, withTeammates, middle, faceSeed, holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
+import { mergedLine, mergeStateOf, totalsParts, sortedBy, withTeammates, middle, faceSeed, holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
 import type { CrewMember, CrewTotals } from "./model.ts";
 
 const T = (o: Partial<CrewTotals> = {}): CrewTotals => ({ members: 3, working: 0, done: 3, needsYou: 0, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: 41_000, ...o });
@@ -121,4 +121,10 @@ test("Review all and Merge are not offered while any helper of the strip still w
   assert.equal(mergeStateOf([coder("done"), M({ state: "failed" })]), "working", "a failed helper is not done: look at it first");
   assert.equal(mergeStateOf([coder("done"), M({ state: "done" })]), "ready");
   assert.equal(mergeStateOf([coder("done", true), M({ state: "done" })]), "merged");
+});
+
+test("the line after Merge names the branch, the base and what changed", () => {
+  assert.equal(mergedLine([{ m: { branch: "crew/ember-1", added: 2, deleted: 0 } }]), "Merged crew/ember-1 into main · +2 -0");
+  assert.equal(mergedLine([{ ref: "crew/x" }]), "Merged crew/x into main · +0 -0");
+  assert.equal(mergedLine([{}]), "Merged.");
 });

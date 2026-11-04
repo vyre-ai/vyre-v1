@@ -23,6 +23,7 @@ export function stepWords(tool: string, detail?: string): string {
   if (/^(WebSearch|web_search)/i.test(tool)) return "Searching the web";
   if (/^(WebFetch|read_link)/i.test(tool)) return `Reading${d || " a page"}`;
   if (/^(Agent|Task)$/.test(tool) || /^sub_task/.test(tool)) return "Working with a helper";
+  if (/^tool_search/i.test(tool)) return d !== "" ? `Looking for${d}` : "Looking for the right tool";
   return "Working";
 }
 

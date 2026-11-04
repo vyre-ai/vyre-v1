@@ -245,3 +245,12 @@ export function mergeStateOf(members: ReadonlyArray<Pick<CrewMember, "state" | "
   if (coders.every((m) => m.merged === true)) return "merged";
   return members.every((m) => m.state === "done") ? "ready" : "working";
 }
+
+/** The quiet line after Merge: which branch went into which base, and how much changed. "Merged crew/ember-1 into main · +2 -0". */
+export function mergedLine(items: ReadonlyArray<{ m?: Pick<CrewMember, "branch" | "added" | "deleted"> | undefined; ref?: string | undefined }>): string {
+  const names = items.map((i) => i.m?.branch ?? i.ref ?? "").filter((b) => b !== "");
+  const add = items.reduce((n, i) => n + (i.m?.added ?? 0), 0);
+  const del = items.reduce((n, i) => n + (i.m?.deleted ?? 0), 0);
+  if (names.length === 0) return "Merged.";
+  return `Merged ${names.join(", ")} into main · +${add} -${del}`;
+}

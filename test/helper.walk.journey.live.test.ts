@@ -39,15 +39,17 @@ test("running helpers: a held request, Change model, a person messaging a helper
     const body = input.trigger?.body ?? "";
     if (input.agent.id === lead && input.threadId === chat) {
       if (/start the crew/.test(body)) {
+        yield { type: "text", text: "Three helpers and a coder are on it. I will bring it together when they are back." };
         yield* run("tool_search", { query: "sub task helper" });
         yield* run("sub_task_model", { threadId: input.threadId, title: "Check the calendar", instruction: "Calendar job: find a free slot next week.", idempotencyKey: "w-1" });
         yield* run("sub_task_model", { threadId: input.threadId, title: "Compare the quotes", instruction: "Quotes job: compare the two vendor quotes.", idempotencyKey: "w-2" });
         yield* run("sub_task_model", { threadId: input.threadId, title: "Read the Pine quote", instruction: "Writer job: read the Pine Works quote page.", idempotencyKey: "w-3" });
         yield* run("tool_search", { query: "crew teammate" });
         yield* run("crew_start", { threadId: input.threadId, idempotencyKey: "w-code", title: "Fix the invoice date bug", brief: "Fix the invoice date bug and add a test." });
-        yield { type: "text", text: "Three helpers and a coder are on it. I will bring it together when they are back." };
-      } else if (/Compare the quotes/.test(body) && input.trigger?.author.kind === "agent") {
-        yield { type: "text", text: "Harbor costs more up front but is ready in two weeks [2]. Pine Works is cheaper but takes four [3]. The calendar check is still running [1]." };
+      } else if (input.trigger?.author.kind === "agent") {
+        // one answer, after the last helper is done: a helper that finishes while others still work gets no answer yet
+        const c = (await api("engine.crew.status", { threadId: chat })) as { totals: { working: number; needsYou: number } };
+        if (c.totals.working + c.totals.needsYou === 0) yield { type: "text", text: "Harbor costs more up front but is ready in two weeks [2]. Pine Works is cheaper but takes four [3]. Thursday at 14:00 is free on the calendar [1]." };
       }
       return;
     }
@@ -103,6 +105,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
 
     lead = await waitFor(async () => { await d.hooks?.pump?.(); const r = await api("agents.assistant_of", { personId: (await api("identity.whoami", {})).principal.id }); return typeof r.agentId === "string" ? (r.agentId as string) : null; }, 40_000);
     chat = (await api("chat.start", { kind: "chat", agentIds: [lead], title: "Vendor call and quotes", idempotencyKey: "j-chat" })).thread.threadId as string;
+    await api("hooks.set", { scope: "chat", threadId: chat, event: "tool.before", matcher: "read_link", kind: "command", command: "exit 0", summary: "before a link is opened, note where it goes" });
     for (const flow of ["team", "personal", "member"]) await api("spaces.onboarding.seen", { flow }).catch(() => undefined);
     const me = (await api("identity.whoami", {})).principal.id as string;
     owner = me;
@@ -148,15 +151,6 @@ test("running helpers: a held request, Change model, a person messaging a helper
       await page.locator('[data-testid^="approval-"]').first().waitFor({ timeout: 40_000 }).catch(() => undefined);
       console.log("HELD_CARD", mode, await page.locator('[data-testid^="approval-"]').count());
       await shot(`crew-t27-held-${mode}-${size}`);
-      // the quotes helper reports: the answer marks what came from which helper with chips
-      await page.getByText(/Pine Works is cheaper/).first().waitFor({ timeout: 90_000 }).catch(async (e) => { await guard.check("FAILED-answer"); await shoot(page, `FAILED-answer-${mode}`); throw e; });
-      await page.locator('[data-testid^="cite-"]').first().waitFor({ timeout: 20_000 }).catch(() => undefined);
-      console.log("CITE_CHIPS", mode, await page.locator('[data-testid^="cite-"]').count());
-      await page.locator('[data-testid="cite-2"]').first().hover().catch(() => undefined);
-      await page.waitForTimeout(400);
-      await shot(`crew-t45-citations-${mode}-${size}`);
-      console.log("CODE_ROW", mode, await page.locator('[data-testid$="-branch"]').count());
-      await shot(`crewcode-${mode}-${size}`);
       // the header chip and the Crew pane
       await page.getByTestId("helpers-button").first().click({ timeout: 15_000 });
       await page.getByTestId("crew-overview").first().waitFor({ timeout: 20_000 });
@@ -190,6 +184,25 @@ test("running helpers: a held request, Change model, a person messaging a helper
         await page.getByText(/^To ".*": Keep it short\.$/).first().waitFor({ timeout: 30_000 }).catch(async (e) => { await guard.check("FAILED-to-line"); await shoot(page, `FAILED-to-line-${mode}`); throw e; });
         await shot(`crew-t27-toline-${mode}-${size}`);
       }
+      // everyone is done: the person allows the held link, the helpers finish, and the chat gets one answer
+      await page.goto(`${web.origin}/chats?skin=${skin}`, { waitUntil: "load" });
+      await page.getByText("Vendor call and quotes", { exact: false }).first().click({ timeout: 30_000 });
+      await page.getByRole("button", { name: "Allow", exact: true }).first().click({ timeout: 30_000 }).catch(async (e) => { await guard.check("FAILED-allow"); await shoot(page, `FAILED-allow-${mode}`); throw e; });
+      await page.getByText(/Pine Works is cheaper/).first().waitFor({ timeout: 150_000 }).catch(async (e) => { await guard.check("FAILED-answer"); await shoot(page, `FAILED-answer-${mode}`); throw e; });
+      await page.locator('[data-testid^="cite-"]').first().waitFor({ timeout: 20_000 }).catch(() => undefined);
+      console.log("CITE_CHIPS", mode, await page.locator('[data-testid^="cite-"]').count());
+      await page.locator('[data-testid="cite-2"]').first().hover().catch(() => undefined);
+      await page.waitForTimeout(400);
+      await shot(`crew-t45-citations-${mode}-${size}`);
+      console.log("CODE_ROW", mode, await page.locator('[data-testid$="-branch"]').count());
+      await shot(`crewcode-${mode}-${size}`);
+      // the finished crew in the pane: Ran together, and a done helper's peek
+      await page.getByTestId("helpers-button").first().click({ timeout: 15_000 });
+      await page.getByTestId("crew-overview").first().waitFor({ timeout: 20_000 });
+      await shot(`crew-over-done-${mode}-${size}`);
+      await page.getByTestId("crew-overview").locator('[data-testid^="crew-chip-"][role="button"]').filter({ hasText: "Check the calendar" }).first().click({ timeout: 15_000 });
+      await page.getByTestId("crew-peek").first().waitFor({ timeout: 20_000 });
+      await shot(`crew-peek-done-${mode}-${size}`);
       await ctx.close();
     }
   } finally { await browser.close(); web.close(); await stop(d); }

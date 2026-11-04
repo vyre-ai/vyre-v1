@@ -3,7 +3,8 @@
 import { useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import { lineOf, nameOf, roleOf } from "./model.ts";
+import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
+import { faceSeed, lineOf, nameOf, roleOf, stateWord } from "./model.ts";
 import type { CrewMember } from "./model.ts";
 
 export const CITE_HOST = "https://cite.vyre.invalid/";
@@ -28,8 +29,13 @@ function Chip({ n, member, onOpen }: { n: number; member: CrewMember; onOpen: (m
       </Pressable>
       {over ? (
         <View testID={`cite-${n}-pop`} style={st.pop}>
-          <Text numberOfLines={1} style={st.who}>{nameOf(member)} <Text style={st.role}>{roleOf(member)}</Text></Text>
+          <View style={st.top}>
+            <Avatar name={nameOf(member)} seedId={faceSeed(member)} kind="agent" size={22} />
+            <Text numberOfLines={1} style={[st.who, { flexShrink: 1 }]}>{nameOf(member)} <Text style={st.role}>{roleOf(member)}</Text></Text>
+            <Text testID={`cite-${n}-state`} style={st.role}>{stateWord(member.state)}</Text>
+          </View>
           <Text numberOfLines={3} style={st.line}>{lineOf(member)}</Text>
+          <Text style={st.role}>Opens in Crew</Text>
         </View>
       ) : null}
     </View>
@@ -51,7 +57,8 @@ export function citeRender(members: readonly CrewMember[], onOpen: (m: CrewMembe
 const st = StyleSheet.create({
   chip: { minWidth: 19, height: 19, paddingHorizontal: 5, marginHorizontal: 1, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
   n: { fontSize: 11.5, fontWeight: "600", color: "var(--accent)" as string },
-  pop: { position: "absolute", top: 24, left: -8, width: 262, padding: 10, borderRadius: 14, gap: 4, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)", zIndex: 70 } as object,
+  pop: { position: "absolute", bottom: 26, left: -8, width: 262, padding: 10, borderRadius: 14, gap: 4, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)", zIndex: 90 } as object,
+  top: { flexDirection: "row", alignItems: "center", gap: 8 },
   who: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   role: { fontSize: 12.5, fontWeight: "400", color: "var(--ink-3)" as string },
   line: { fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },
