@@ -125,6 +125,14 @@
       "proto": "chat,{skin}",
       "waitFor": "[data-avatar='agent']",
       "note": "The phone shell: Chats list with agent faces."
+    },
+    {
+      "id": "AVATARS_01-addsheet",
+      "route": "/m/ADDSHEET_01?faces=1",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-avatar='agent']",
+      "steps": [],
+      "note": "The Add people and agents sheet with agent faces."
     }
   ]
 }
