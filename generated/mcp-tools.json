@@ -18111,6 +18111,21 @@
     },
     {
       "blocks": [],
+      "cap": "engine.last_pick.get",
+      "deferred": false,
+      "description": "The model the caller last picked in a chat (any agent): a new chat starts on it. Empty when they have not picked one yet",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "engine_last_pick_get",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "engine.live_turns",
       "deferred": false,
       "description": "The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream",

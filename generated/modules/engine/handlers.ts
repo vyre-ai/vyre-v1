@@ -31,6 +31,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.incident.resolve": Handler<"engine.incident.resolve", X>;
   "engine.incidents.list": Handler<"engine.incidents.list", X>;
   "engine.interrupt": Handler<"engine.interrupt", X>;
+  "engine.last_pick.get": Handler<"engine.last_pick.get", X>;
   "engine.lease.acquire": Handler<"engine.lease.acquire", X>;
   "engine.lease.heartbeat": Handler<"engine.lease.heartbeat", X>;
   "engine.lease.release": Handler<"engine.lease.release", X>;

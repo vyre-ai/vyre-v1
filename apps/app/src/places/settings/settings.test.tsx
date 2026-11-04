@@ -382,13 +382,6 @@ test("AI usage asks for this person's own turns since the first of the month, ne
   assert.equal(monthStart(Date.UTC(2026, 0, 1, 1, 0), 120), Date.UTC(2026, 0, 1) - 120 * 60_000, "a local clock ahead of UTC has the new month");
 });
 
-test("Settings has a Notes page with the one switch: offers to save useful things from chats as notes, on by default", () => {
-  const out = html(createSampleSettings(northwind), { initialPage: "notes" });
-  assert.ok(has(out, 'data-testid="page-notes"'), "the page");
-  assert.ok(has(out, "Offer to save things from chats as notes"), "the switch");
-  assert.ok(PAGES.some((p) => p.key === "notes" && p.title === "Notes" && p.group === "you"));
-});
-
 test("the Default model row shows the model the person last picked, and says so; with no pick it shows the Space default", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "ai" });
   assert.ok(has(out, "Your last pick. A new chat starts on it"), "the row says where its value comes from");
