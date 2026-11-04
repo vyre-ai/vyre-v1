@@ -547,7 +547,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   };
   const publicPath = createPublicPathRoute({
     forms: () => formsPageRoute, unsubscribe: () => unsubscribeRoute, share: () => shareRoute, origin: () => publicOrigin()?.origin ?? null,
-    site: (slug) => sitesServing.site?.(slug) ?? null, artifact: (id, token) => sitesServing.artifact?.(id, token) ?? Promise.resolve(null),
+    site: (slug) => sitesServing.site?.(slug) ?? null, // the keyed /a/<id>/k/<token>/ address (a token in the URL) is served only where no artifact host exists, which is a Space reached on a local address; with a host it is refused
+    artifact: (id, token) => artifactHostOf() ? Promise.resolve(null) : (sitesServing.artifact?.(id, token) ?? Promise.resolve(null)),
     fetch: (t, r, sink) => sitesServing.fetch ? sitesServing.fetch(t, r, sink) : Promise.resolve(sink.fail("Not available.")), file: (f, rel) => sitesServing.file?.(f, rel) ?? Promise.resolve(null),
   });
   // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
