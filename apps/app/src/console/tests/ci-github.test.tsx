@@ -1,5 +1,6 @@
 // Console > Computers > CI runners and Console > Apps > GitHub, mounted for real. The server is a scripted call that records every capability and its input,
 // so each control is proved by the capability it calls. Reads come from dataWith (the sheet-helper), the way ai-accounts.test.tsx does it.
+import { mock } from "node:test";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../ui/src/testing/dom.ts";
@@ -226,7 +227,7 @@ test("the GitHub app line: new permissions to accept, or an app that is not inst
 
 const SIGN = (over: Record<string, unknown> = {}) => ({ github: { secretSet: false, source: "none", callbackUrl: "https://northwind.vyre.run/auth/github/callback", createUrl: "https://github.com/settings/applications/new", ...over } });
 const APP = { id: 123456, slug: "northwind-vyre", name: "Northwind Vyre", permissions: { contents: "write" }, events: ["push"] };
-async function gh(rows: Record<string, unknown>, scripted: Record<string, unknown> = {}) {
+async function gh(rows: Record<string, unknown>, scripted: Record<string, unknown> = {}, wrap: (d: ReturnType<typeof dataWith>) => ReturnType<typeof dataWith> = (d) => d) {
   const restore = installDom();
   const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
   const opened: string[] = [];
@@ -238,7 +239,7 @@ async function gh(rows: Record<string, unknown>, scripted: Record<string, unknow
   };
   (globalThis as { open?: unknown }).open = (url: string) => { opened.push(`url:${url}`); };
   const { createRoot } = await import("test-renderer");
-  const root = await mount(createRoot, <ConsoleDataProvider value={dataWith(rows, { call: call as never })}><GithubAppPage /></ConsoleDataProvider>);
+  const root = await mount(createRoot, <ConsoleDataProvider value={wrap(dataWith(rows, { call: call as never }))}><GithubAppPage /></ConsoleDataProvider>);
   await flush();
   return { root, calls, opened, restore };
 }
@@ -383,6 +384,34 @@ test("after Accept the page asks again on a timer so the row clears once the per
   assert.ok(ACCEPT_POLL_MS >= 2000 && ACCEPT_POLL_MS <= 10000 && ACCEPT_POLL_MAX_MS >= 120_000, "a few seconds apart, for minutes");
   const { root, restore } = await gh({ "members.sign_in_github.get": SIGN({ clientId: "Iv1.abc", secretSet: true, source: "space" }), "ci.settings.get": settingsOut() }, MADE);
   try { assert.equal(find(root, "row-gh-need-perms"), null, "ready on the next ci.settings.get: no row"); } finally { restore(); }
+});
+
+test("the accept row shows while not ready, and clears by itself once a poll after Accept hears ready", async () => {
+  const { ACCEPT_POLL_MS } = await import("../pages/GithubApp.tsx");
+  const notReady = settingsOut({}, { ready: false, installed: true, missing: ["actions: read"], acceptUrl: "https://github.com/settings/installations/7/permissions/update", orgAcceptUrl: null });
+  let answer: unknown = notReady;
+  let snap: { status: "ready"; data: unknown } = { status: "ready", data: answer };
+  const listeners = new Set<() => void>();
+  let reads = 0;
+  // ci.settings.get becomes a live store: every refresh (the page's invalidate) re-answers with the current `answer`
+  const wrap = (d: ReturnType<typeof dataWith>): ReturnType<typeof dataWith> => {
+    const screens = d.screens as unknown as { capQuery: (cap: string) => unknown; invalidate?: () => void };
+    const base = screens.capQuery;
+    return { ...d, screens: { ...screens, invalidate: () => { reads += 1; snap = { status: "ready", data: answer }; listeners.forEach((l) => l()); },
+      capQuery: (cap: string) => cap === "ci.settings.get" ? { subscribe: (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; }, getSnapshot: () => snap } : base(cap) } as never };
+  };
+  const { root, restore } = await gh({ "members.sign_in_github.get": SIGN({ clientId: "Iv1.abc", secretSet: true, source: "space" }) }, MADE, wrap);
+  try {
+    mock.timers.enable({ apis: ["setInterval"] });
+    assert.ok(find(root, "row-gh-need-perms") !== null, "not ready: the accept row shows");
+    await tap(root, "gh-need-accept");
+    const before = reads;
+    answer = settingsOut();
+    mock.timers.tick(ACCEPT_POLL_MS);
+    await flush();
+    assert.ok(reads > before, "the poll asked again");
+    assert.equal(find(root, "row-gh-need-perms"), null, "ready now: the row cleared");
+  } finally { mock.timers.reset(); restore(); }
 });
 
 test("the GitHub tab shows no Needs you row when the app is ready", async () => {

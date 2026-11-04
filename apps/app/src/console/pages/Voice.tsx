@@ -100,16 +100,16 @@ export function VoiceSettings(): ReactElement {
           {s.set ? <View style={{ borderTopWidth: 1, borderTopColor: "var(--line)" as string }}><Row id="voice-own" title="People with their own key" note={owned === 0 ? "Nobody. The Space key covers everyone" : `${owned} ${owned === 1 ? "person" : "people"} · their own key wins for them`} /></View> : null}
         </Group>
         {form ? (
-          <View style={{ marginTop: 10 }}><Group>
-            {!s.set && adding === null ? <Select label="Provider" testID="voice-provider-pick" value={provider?.key ?? pick} options={[...me.data.providers].sort((x, y) => Number(y.key === "deepgram") - Number(x.key === "deepgram")).map((p) => ({ key: p.key, title: p.key === "deepgram" ? `${p.name} (listening)` : p.key === "elevenlabs" ? `${p.name} (speaking)` : p.name }))} onChange={(v) => { setPick(v); setKey(""); }} /> : null}
+          <View style={{ marginTop: 10 }}><Group><View testID="voice-form" style={{ paddingHorizontal: 8, paddingVertical: 4 }}>
+            {!s.set && adding === null ? <View style={{ marginBottom: 10 }}><Select label="Provider" testID="voice-provider-pick" value={provider?.key ?? pick} hint="Turns what people say into text in the message." options={[...me.data.providers].sort((x, y) => Number(y.key === "deepgram") - Number(x.key === "deepgram")).map((p) => ({ key: p.key, title: p.name }))} onChange={(v) => { setPick(v); setKey(""); }} /></View> : null}
             <Field label={`${name} key`} value={key} onChange={setKey} secure testID="voice-key" />
-            <Text accessibilityRole="status" style={{ fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string, marginVertical: 6, marginHorizontal: 2 }}>{`Goes straight to this Space's Vault and is checked at once. ${provider?.key === "elevenlabs" ? "Make the key in ElevenLabs with access to single-use tokens." : "Make the key in Deepgram with the Member role or higher."}`}</Text>
+            <Text accessibilityRole="status" style={{ fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string, marginVertical: 6 }}>{`Goes straight to this Space's Vault and is checked at once. ${provider?.key === "elevenlabs" ? "Make the key in ElevenLabs with Speech to Text access." : "Make the key in Deepgram with the Member role or higher."}`}</Text>
             <Actions>
               <Button label={action.busy ? "Checking" : s.set ? "Replace key" : "Turn on for everyone"} disabled={key.trim() === "" || action.busy} why="Paste the key first" onPress={() => void save()} testID="voice-save" />
               {replacing || adding !== null ? <Button label="Cancel" onPress={() => { setReplacing(false); setAdding(null); setKey(""); }} testID="voice-cancel" /> : null}
               {provider ? <Button label={`Get a key from ${name}`} onPress={() => { (globalThis as { open?: (url: string, target: string) => void }).open?.(provider.keyUrl, "_blank"); }} testID="voice-get-key" /> : null}
             </Actions>
-          </Group></View>
+          </View></Group></View>
         ) : (
           <Actions>
             <QuietButton label="Replace key" onPress={() => setReplacing(true)} testID="voice-replace" />

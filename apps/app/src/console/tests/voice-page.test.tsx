@@ -110,13 +110,13 @@ test("not set up with two providers: the picker starts on Deepgram, choosing Ele
   const p = await mountPage(createRoot, <VoiceSettings />, { "talk.status": { ...ME, providers: both }, "talk.space.status": { set: false, on: false } });
   try {
     assert.ok(p.has("voice-provider-pick"), "the picker shows");
-    assert.ok(p.text().includes("Deepgram (listening)") && p.text().includes("Deepgram key") && p.text().includes("Get a key from Deepgram"));
+    assert.ok(p.text().includes("Deepgram") && p.text().includes("Turns what people say into text in the message.") && p.text().includes("Deepgram key") && p.text().includes("Get a key from Deepgram"));
     await p.press("voice-provider-pick");
-    assert.ok(p.has("menu-item-ElevenLabs (speaking)"), "both providers are offered");
-    await p.press("menu-item-ElevenLabs (speaking)");
+    assert.ok(p.has("menu-item-ElevenLabs"), "both providers are offered");
+    await p.press("menu-item-ElevenLabs");
     const t = p.text();
     assert.ok(t.includes("ElevenLabs key") && t.includes("Get a key from ElevenLabs") && !t.includes("Deepgram key"), t);
-    assert.ok(t.includes("Make the key in ElevenLabs with access to single-use tokens."));
+    assert.ok(t.includes("Make the key in ElevenLabs with Speech to Text access."));
     await p.type("voice-key", "xi-secret");
     await p.press("voice-save");
     const c = p.called("talk.space.connect")[0];
