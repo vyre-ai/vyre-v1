@@ -1,0 +1,18 @@
+{
+  "targets": [
+    {
+      "id": "EDITOR_03-plain",
+      "route": "/m/EDITOR_03?field=plain",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='composer-field']",
+      "note": "The composer with the plain field."
+    },
+    {
+      "id": "EDITOR_03-chat",
+      "route": "/m/EDITOR_03?field=chat",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='composer-field']",
+      "note": "The composer with the shared-editor field and mention chips."
+    }
+  ]
+}

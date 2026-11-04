@@ -151,17 +151,28 @@ export function createChromeBridge(deps: ChromeBridgeDeps) {
       push({ type: "agent.optin", spaces, mode });
     },
 
+    /** Take over from the chat's card: the extension gives the agent's tab back to the person, as the bar's button does. */
+    takeOver(agentId: string): number { return push({ type: "agent.takeover", agent: agentId }); },
+    /** Watch from the chat's card: the extension brings the agent's tab to the front. */
+    watch(agentId: string): number { return push({ type: "agent.watch", agent: agentId }); },
+
+    /** The Spaces whose agents the person opened this Chrome to, and in what mode; null until the app says. */
+    get opened(): { spaces: string[]; mode: "personal" | "computer" } | null { return lastOptIn ? { spaces: [...lastOptIn.spaces], mode: lastOptIn.mode } : null; },
+
     /** Run one chrome_* tool for an agent in a Space, in the extension that owns the tab. Rejects with ChromeToolError (code from the extension, or "offline" / "timeout"). */
-    callTool(call: { tool: string; input?: Record<string, unknown>; agent: AgentRef; space: string; timeoutMs?: number }): Promise<unknown> {
+    callTool(call: { tool: string; input?: Record<string, unknown>; agent: AgentRef; space: string; thread?: string; timeoutMs?: number }): Promise<unknown> {
       if (!TOOL.test(call.tool)) return Promise.reject(new ChromeToolError("unknown_tool", `${call.tool} is not a Chrome tool.`));
       const id = `ac_${++seq}`;
       return new Promise((resolve, reject) => {
         const timer = setTimer(() => { pending.delete(id); reject(new ChromeToolError("timeout", "The page did not answer in time.")); }, call.timeoutMs ?? timeoutMs);
         pending.set(id, { resolve, reject, timer });
-        const sent = push({ type: "agent.call", id, tool: call.tool, input: call.input ?? {}, agent: { id: call.agent.id, name: call.agent.name }, space: call.space });
+        const sent = push({ type: "agent.call", id, tool: call.tool, input: call.input ?? {}, agent: { id: call.agent.id, name: call.agent.name }, space: call.space, ...(call.thread ? { thread: call.thread } : {}) });
         if (sent === 0) { pending.delete(id); clearTimer(timer); reject(new ChromeToolError("offline", "The Vyre app is not reachable from this Chrome.")); }
       });
     },
+
+    /** The person chose Don't send on a held item's card in Vyre: the extension forgets it, so nothing can press it later. */
+    dropHeld(heldId: string): number { return push({ type: "agent.held.drop", id: heldId }); },
 
     /** End every events stream (the daemon is stopping); the native host sees the end and exits. */
     closeStreams(): void {

@@ -2,7 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  LOCAL_PREFIX, MAX_DIGITS, buildEntries, faceDigits, faceForDigit, filterCounts, groupRecent, matchesFilter, needsKind, newLocalRow, rowOf, selectable, splitChannels, startKey, stepKey, whenLabel,
+  FILTERS, LOCAL_PREFIX, MAX_DIGITS, buildEntries, faceDigits, faceForDigit, filterCounts, groupRecent, matchesFilter, needsKind, newLocalRow, rowOf, selectable, splitChannels, startKey, stepKey, whenLabel,
 } from "./model.ts";
 import type { Agent, Channel, ChatRow, NeedsItem, RecentOut } from "./model.ts";
 
@@ -33,7 +33,7 @@ test("a row knows who it is with: an agent or a person", () => {
 
 test("filters All, Unread, Needs you and Running with their counts", () => {
   const rows = [{ ...newLocalRow("A", "agent", 1), unread: 2 }, { ...newLocalRow("B", "agent", 1), working: true }, { ...newLocalRow("C", "agent", 1), waiting: true }];
-  assert.deepEqual(filterCounts(rows), { all: 3, unread: 1, needs: 1, running: 1 });
+  assert.deepEqual(filterCounts(rows), { all: 3, unread: 1, needs: 1, running: 1, asks: 0 });
   assert.ok(matchesFilter(rows[0]!, "unread") && matchesFilter(rows[1]!, "running") && matchesFilter(rows[2]!, "needs") && matchesFilter(rows[2]!, "all"));
   assert.ok(!matchesFilter(rows[0]!, "needs"));
 });
@@ -64,12 +64,12 @@ const channel = (id: string, o: Partial<Channel> = {}): Channel => ({ channelId:
 const need = (id: string, kind: string, blocked = false): NeedsItem => ({ reason: "ready", task: { id, kind, title: id, blocked, actions: [] } } as unknown as NeedsItem);
 const base = { needs: [] as NeedsItem[], needsTotal: 0, faces: [agent("a1"), agent("a2")], workingAgents: new Set<string>(), groups: groupRecent(recent, [], name), channels: [] as Channel[], filter: "all" as const, closed: new Set<never>() };
 
-test("the list runs Tasks, Threads, Now, Recent, Channels with Projects, People, Agents; running and waiting rise to Now", () => {
+test("the list runs Tasks, Now, Recent, Channels with Projects, People, Agents; running and waiting rise to Now", () => {
   const row = (threadId: string, o = {}) => ({ ...newLocalRow("Mira", "agent", 1), threadId, title: threadId, ...o });
   const e = buildEntries({ ...base, tasksCount: 9, assistant: { agentId: "me", name: "Assistant" }, groups: [{ key: "today", label: "Today", rows: [row("w", { working: true }), row("n"), row("q"), row("a"), row("b"), row("c")] }], waitingThreads: new Set(["n"]), people: [{ id: "p1", name: "Sara" }], channels: [channel("intake"), channel("pruitt", { recordId: "r1" })] });
   const heads = e.filter((x) => x.type === "head").map((x) => (x as { label: string }).label);
   assert.deepEqual(heads, ["Now", "Recent", "Channels", "People", "Agents"]);
-  assert.deepEqual(e.slice(0, 2).map((x) => x.key), ["nav:tasks", "nav:threads"]);
+  assert.deepEqual(e.slice(0, 1).map((x) => x.key), ["nav:tasks"], "no Threads row: replies are in the Inbox and on their chats' rows");
   const now = e.slice(e.findIndex((x) => x.key === "h:now") + 1, e.findIndex((x) => x.key === "h:recent")).map((x) => x.key);
   assert.deepEqual(now, ["c:w", "c:n"]);
   const more = e.find((x) => x.key === "m:recent") as { label: string };
@@ -128,3 +128,13 @@ test("a local row is first in Today, marked local, with its own idempotency key"
   assert.equal(splitChannels([channel("p", { recordId: "r" })]).projects.length, 1);
 });
 
+
+test("new replies to messages you follow ride on the chat's own row: its count, and the Unread filter keeps it; the Asks filter holds only Ask history", () => {
+  const item = { threadId: "thr_c", kind: "chat", title: "Client portal launch", agents: ["agt_mira"], unread: 0, repliesUnread: 3, working: false, starred: false, lastAt: 1 } as never;
+  const row = rowOf(item, () => "Mira");
+  assert.equal(row.repliesUnread, 3);
+  assert.ok(matchesFilter(row, "unread"), "a chat that is read but has new replies is Unread");
+  assert.ok(!matchesFilter(row, "asks"), "an ordinary chat is not Ask history");
+  assert.equal(rowOf({ ...(item as object), repliesUnread: undefined } as never, () => "Mira").repliesUnread, undefined);
+  assert.deepEqual(FILTERS.map((f) => f.label), ["All", "Unread", "Needs you", "Running", "Asks"]);
+});

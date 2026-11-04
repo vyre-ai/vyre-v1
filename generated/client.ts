@@ -268,6 +268,13 @@ export function createClient(transport: Transport) {
       validate: call("automations.validate", 1),
       vault_usage: call("automations.vault_usage", 1),
       versions: call("automations.versions", 1),
+      watches: {
+        check: call("automations.watches.check", 1),
+        list: call("automations.watches.list", 1),
+        remove: call("automations.watches.remove", 1),
+        report: call("automations.watches.report", 1),
+        save: call("automations.watches.save", 1),
+      },
       webhook_url: {
         get: call("automations.webhook_url.get", 1),
         rotate: call("automations.webhook_url.rotate", 1),
@@ -292,6 +299,19 @@ export function createClient(transport: Transport) {
       cancel: call("bookings.cancel", 1),
       list: call("bookings.list", 1),
       page_create: call("bookings.page_create", 1),
+    },
+    browser: {
+      cards: {
+        post: call("browser.cards.post", 1),
+      },
+      chrome: {
+        act: call("browser.chrome.act", 1),
+      },
+      sites: {
+        list: call("browser.sites.list", 1),
+        remove: call("browser.sites.remove", 1),
+        set: call("browser.sites.set", 1),
+      },
     },
     calendar: {
       availability: call("calendar.availability", 1),
@@ -396,6 +416,10 @@ export function createClient(transport: Transport) {
       message_person: call("chat.message_person", 1),
       messages: {
         list: call("chat.messages.list", 1),
+      },
+      note_offer: {
+        answer: call("chat.note_offer.answer", 1),
+        make: call("chat.note_offer.make", 1),
       },
       open_as_chat: call("chat.open_as_chat", 1),
       open_tab: call("chat.open_tab", 1),
@@ -782,6 +806,7 @@ export function createClient(transport: Transport) {
       models: {
         list: call("engine.models.list", 1),
       },
+      my_ai: call("engine.my_ai", 1),
       now: call("engine.now", 1),
       placement: {
         decide: call("engine.placement.decide", 1),

@@ -133,3 +133,40 @@ export function codeRootWithKit(kit: { key: string }): string {
   fs.writeFileSync(path.join(root, "kits", kit.key, "kit.json"), JSON.stringify(kit));
   return root;
 }
+
+export type Api = (cap: string, input: unknown) => Promise<any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/**
+ * A Space the way a person starts one: the owner claims it (so their Assistant exists, as for every real person), signs in, and connects their own Claude account. `api` calls as that person.
+ * The model vendor is the scripted one. Nothing else is faked.
+ */
+export async function claimedSpace(standIn: OpenSession, name = "Crew Co"): Promise<{ d: Daemon; api: Api; owner: string; assistant: string }> {
+  const { makeBundle } = await import("../../client/src/crypto/keys.ts");
+  const { holdKeyOnOwnNode } = await import("../../client/src/gateway/local-key.ts");
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-claimed-")));
+  const PASSWORD = "claimed space password 7731";
+  const d = await boot(dir, standIn, { config: loadConfig(["--data-dir", dir, "--port", "0", "--space", "spc_claimed", "--space-name", name], {}, "1.2.3") });
+  assert.ok(d.claim, "a fresh Space offers a claim link");
+  const code = /claim\/([^#]+)/.exec(d.claim!.url)![1]!;
+  const spaceId = /s=([^&]+)/.exec(d.claim!.url)![1]!;
+  const made = await makeBundle(PASSWORD, "claimed-space-recovery-code-1", { spaceId });
+  const claimed = await fetch(`${d.url}/v1/identity/claim_owner`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ code, spaceId, displayName: "Maya Chen", username: "maya", password: PASSWORD, deviceName: "test", deviceClass: "desktop", keys: { personKeyByPassword: made.personKeyByPassword, personKeyByRecovery: made.personKeyByRecovery, publicKey: made.publicKey, privateKeyWrapped: made.privateKeyWrapped, spaceKeys: made.spaceKeys ?? [] } }) });
+  assert.equal(claimed.status, 200, await claimed.clone().text());
+  const token = ((await claimed.json()) as { data: { session: { token: string } } }).data.session.token;
+  assert.equal(await holdKeyOnOwnNode(d.url, token, made.personKey), true);
+  const api: Api = async (cap, input) => {
+    const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(input) });
+    const body = (await r.json()) as { data?: unknown };
+    assert.equal(r.status, 200, `${cap}: ${r.status} ${JSON.stringify(body)}`);
+    return body.data;
+  };
+  const folder = (await api("vault.folders.create", { idempotencyKey: "c-folder", name: "Accounts", scope: "mine" })).folder.id as string;
+  const flow = await api("providers.subscription_start", { idempotencyKey: "c-flow", providerKey: "claude-code" });
+  await api("vault.item.put", { idempotencyKey: "c-item", folderId: folder, name: "Maya_Claude", kind: "ai_subscription", fields: [{ key: "setup_token", value: KEY, secret: true }] });
+  const provider = (await api("providers.subscription_complete", { flowId: flow.flowId })).provider.id as string;
+  await api("providers.set_space_use", { idempotencyKey: "c-spaceuse", providerId: provider, allow: true });
+  await api("engine.pool.status", {});
+  const owner = (await api("identity.whoami", {})).principal.id as string;
+  const assistant = await waitFor(async () => { await d.hooks?.pump?.(); const r = await api("agents.assistant_of", { personId: owner }); return typeof r.agentId === "string" ? (r.agentId as string) : null; }, 40_000);
+  return { d, api, owner, assistant };
+}

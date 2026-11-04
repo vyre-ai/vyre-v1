@@ -39,7 +39,7 @@ test("the join AI screen says whether the Space AI key covers the person, and st
   const stored = { baseUrl: "https://mla.vyre.run", token: "fixture-token", def: { name: "My Legal Academy" } } as StoredSession;
   const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'");
   const covered = clean(renderToStaticMarkup(<JoinProviderSetup stored={stored} ai={{ choice: "sub" }} home="none" spaceAi={{ key: { set: true, name: "OpenCode Go", state: "ok", models: ["glm-5.3"] }, admin: null }} onOpen={() => undefined} onClearSecret={() => undefined} />));
-  assert.ok(covered.includes("You're covered") && covered.includes("This Space's AI key (OpenCode Go) works for you."), covered);
+  assert.ok(covered.includes("You're covered") && covered.includes("This Space's AI key (OpenCode Go) works for you for the models below. It has no Claude, GPT, Gemini models: connect your own sign-in to use those."), covered);
   assert.ok(covered.includes("Claude") && covered.includes("ChatGPT") && covered.includes("Grok") && covered.includes("Continue with the Space key"), "the sign-ins stay, and the way past says the Space key covers them");
   assert.ok(!/install Vyre|locked/i.test(covered));
   const none = clean(renderToStaticMarkup(<JoinProviderSetup stored={stored} ai={{ choice: "sub" }} home="none" invitedBy="Irfad Imtiaz" spaceAi={{ key: { set: false }, admin: "Irfad Imtiaz (owner)" }} onOpen={() => undefined} onClearSecret={() => undefined} />));

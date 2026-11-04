@@ -152,12 +152,27 @@ test("a path that loops back is an error unless it goes through a Loop step", as
 type Prov = { id: string; handle?: string; itemId: string; name: string; connection: string; scope: string; spaceMayUse: boolean; state: string; uses?: Record<string, unknown>; capped?: boolean };
 const prov = (over: Partial<Prov> = {}): Prov => ({ id: "prv_1", handle: "#Mine_Anthropic", itemId: "vit_1", name: "Mine Anthropic", connection: "api_key", scope: "mine", spaceMayUse: false, state: "ok", ...over });
 const shared = (over: Partial<Prov> = {}): Prov => prov({ id: "prv_s", handle: "#Team_Key", itemId: "vit_s", name: "Team key", scope: "shared", ...over });
+/** The engine's answer to engine.accounts.list { place }, as the engine gives it for these rows: its judgment (agent/src/accounts/usable.ts) restated here for the automation place, since a module's test cannot import the agent layer. */
+function accountsFrom(providers: Prov[], place: "chat" | "automation" | "agent" | "space", explicit = false, runsAs?: "person" | "space") {
+  return providers.map((p) => {
+    const mine = p.scope === "mine";
+    const status = p.state === "ok" ? "ok" : p.state === "needs_sign_in" ? "expired" : "failed";
+    let why: string | undefined;
+    if (status === "expired") why = "Sign in to this account again.";
+    else if (status === "failed") why = "This account is not working. Open it in the Vault to test it.";
+    else if (p.connection === "subscription" && !p.spaceMayUse) why = "Turn on \"Let the Space run work on my subscription\" for this account to use it here.";
+    else if (!mine && place !== "space" && !explicit && !(place === "automation" && runsAs === "person") && p.uses?.automations !== true) why = "An admin has not kept this account for this kind of work.";
+    else if (!mine && p.capped === true) why = "This account reached its monthly cap.";
+    return { ref: p.handle, providerId: p.id, title: p.name, mine, status, ...(why === undefined ? { usable: true } : { usable: false, why }) };
+  });
+}
 function liveHarness(opts: { code?: boolean | string; providers?: Prov[] } = {}) {
   const h = harness({ authorize: () => false });
   const code = opts.code ?? true;
+  let providers = opts.providers ?? [];
   h.callee("steps.support", () => ({ code: code === true ? { available: true } : { available: false, reason: code === false ? "No sandbox." : code }, ai: { available: true } }));
-  h.callee("providers.list", () => ({ providers: opts.providers ?? [] }));
-  return h;
+  h.callee("engine.accounts.list", (i) => ({ accounts: accountsFrom(providers, ((i as { place?: "chat" | "automation" | "agent" | "space" } | undefined)?.place) ?? "automation", (i as { explicit?: boolean } | undefined)?.explicit === true, (i as { runsAs?: "person" | "space" } | undefined)?.runsAs) }));
+  return Object.assign(h, { setProviders(p: Prov[]) { providers = p; } });
 }
 const aiNode = (over: Record<string, unknown> = {}, ai?: Record<string, unknown>) => node("a", "ai", { prompt: "Summarise", ...over }, ai ? { ai } : {});
 const draftWith = async (h: Harness, n: ReturnType<typeof node>): Promise<string> => (await h.call("automations.create", create({ definition: { triggers: trig, nodes: [n] } }), alice)).automation.id as string;
@@ -198,6 +213,13 @@ test("a Personal AI step with no working account is refused, and the message say
   assert.equal((await turnOn(subOk, await draftWith(subOk, aiNode()))).automation.status, "on");
   const broken = liveHarness({ providers: [prov({ state: "needs_sign_in" })] });
   await assert.rejects(turnOn(broken, await draftWith(broken, aiNode())), (e) => { assert.match(messageOf(e), /your own AI account/); return true; });
+});
+
+test("a Personal AI step runs as its owner: a shared account not kept for automations still counts, as before", async () => {
+  const h = liveHarness({ providers: [shared({ uses: { teamChats: { who: "everyone" } } })] });
+  assert.equal((await turnOn(h, await draftWith(h, aiNode()))).automation.status, "on", "Automatic: any account the person may use");
+  const named = liveHarness({ providers: [shared({ uses: { teamChats: { who: "everyone" } } })] });
+  assert.equal((await turnOn(named, await draftWith(named, aiNode({}, { keyId: "#Team_Key" })))).automation.status, "on");
 });
 
 test("a Personal AI step may name one of its owner's accounts, and an unknown one is refused", async () => {
@@ -241,7 +263,7 @@ test("a Space AI step with no key is refused and the message names what to add",
   const id = await draftWith(h, aiNode());
   await h.call("automations.promote", { automationId: id, confirm: true, replaceKeys: [{ stepId: "a", keyId: "#Team_Key" }] }, alice);
   // the key is later removed from the Vault
-  h.callee("providers.list", () => ({ providers: [] }));
+  h.setProviders([]);
   await assert.rejects(turnOn(h, id), (e) => { assert.match(messageOf(e), /#Team_Key is not in the Vault/); assert.match(messageOf(e), /Space-shared AI key/); return true; });
 });
 
@@ -425,7 +447,7 @@ test("a Space automation's AI account: Automatic needs a Space account kept for 
   assert.equal((await turnOn(pick, pickId)).automation.status, "on");
   // a chosen account that is not kept for automations is refused by name
   const wrong = liveHarness({ providers: [shared({ uses: { teamChats: { who: "everyone" } } })] });
-  await assert.rejects(turnOn(wrong, await spaceDraft(wrong, { ai: { keyId: "#Team_Key" } })), (e) => { assert.match(messageOf(e), /Team key, the AI account chosen for this automation, is not set to pay for automations/); return true; });
+  await assert.rejects(turnOn(wrong, await spaceDraft(wrong, { ai: { keyId: "#Team_Key" } })), (e) => { assert.match(messageOf(e), /Team key, the AI account chosen for this automation, cannot run it\. An admin has not kept this account for this kind of work/); return true; });
   // so is a backup that is gone
   const gone = liveHarness({ providers: [kept] });
   await assert.rejects(turnOn(gone, await spaceDraft(gone, { ai: { keyId: "#Team_Key", backupKeyId: "#Missing" } })), (e) => { assert.match(messageOf(e), /#Missing is not in the Vault/); return true; });

@@ -354,6 +354,9 @@ export function harness(now = NOW) {
     failing: new Set<string>(),
     factors: new Map<string, "totp"[]>(),
     http: new Map<string, { status: number; body: unknown }>(),
+    /** Vault items by handle: ones the caller may not use, and ones that are not in the Vault */
+    vaultDenied: new Set<string>(),
+    vaultMissing: new Set<string>(),
   };
   const person = (id: string, name: string, roles: string[] = ["rol_member"]): FakePrincipal => {
     const p: FakePrincipal = { id, kind: "person", name, status: "active", roles: [...roles], groups: ["grp_everyone"] };
@@ -378,6 +381,12 @@ export function harness(now = NOW) {
       case "access.roles.unassign": { const p = world.principals.get(i.subject.id) ?? gone(TRACE, "validation.not_found"); p.roles = p.roles.filter((r) => r !== i.roleId); return { roles: p.roles }; }
       case "access.groups.add_member": { const p = world.principals.get(i.member.id) ?? gone(TRACE, "validation.not_found"); if (!p.groups.includes(i.groupId)) p.groups.push(i.groupId); return { group: {} }; }
       case "access.groups.remove_member": { const p = world.principals.get(i.member.id) ?? gone(TRACE, "validation.not_found"); p.groups = p.groups.filter((g) => g !== i.groupId); return { group: {} }; }
+      case "vault.use": {
+        const item = String(i.item).toLowerCase();
+        if (world.vaultMissing.has(item)) throw fail("validation.not_found", TRACE, {});
+        if (world.vaultDenied.has(item)) throw fail("permission.no_grant", TRACE, {});
+        return { handle: i.item, itemId: "vit_members1", fields: ["value"] };
+      }
       case "access.share": case "projects.members.set": case "channels.members.add": return { ok: true };
       case "channels.home_join": return { channelId: "chn_vyre", added: true };
       case "access.join_share": return { grant: { id: "gnt_join" } };

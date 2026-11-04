@@ -194,7 +194,7 @@ export function buildLines(run: Pick<Run, "id" | "status" | "startedAt">, messag
     if (!line) continue;
     if (m.depth > 0) {
       const label = str(rec(m.blocks.find((x) => x.type === "run.branch")?.data)["label"]);
-      if (!branch || (label && label !== branch.label)) { branch = { kind: "branch", id: `branch-${m.messageId}`, label: label ?? "Side thread", lines: [] }; out.push(branch); }
+      if (!branch || (label && label !== branch.label)) { branch = { kind: "branch", id: `branch-${m.messageId}`, label: label ?? "Side chat", lines: [] }; out.push(branch); }
       branch.lines.push(line);
     } else {
       branch = null;

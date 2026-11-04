@@ -55,6 +55,17 @@ async function readAutomation(ctx: GoalsCtx, s: Source): Promise<Reading> {
   return v === undefined ? { ok: false, error: `no number at "${s.path ?? ""}" in the automation's output` } : { ok: true, value: v };
 }
 
+async function readWatch(ctx: GoalsCtx, g: Goal, s: Source): Promise<Reading> {
+  if (!s.watchId) return { ok: false, error: "the source names no watch" };
+  const out = (await ctx.call!("automations.watches.list", { watchId: s.watchId, person: g.owner })) as { watches?: Array<{ state?: string; value?: string; changes?: number; error?: string }> };
+  const w = out?.watches?.[0];
+  if (!w) return { ok: false, error: "the watch is gone or is not the owner's" };
+  if (s.path === "changes") return { ok: true, value: Number(w.changes ?? 0) };
+  if (w.value === undefined) return { ok: false, error: w.error ? `the watch could not read the page: ${w.error}` : "the watch has not read the page yet" };
+  const v = numberAt(w.value, undefined);
+  return v === undefined ? { ok: false, error: "no number in what the watch read" } : { ok: true, value: v };
+}
+
 /** Read the number of a goal now. Checklist and owner goals have no number to read: their progress is the goal's own items and tasks. */
 export async function readSource(ctx: GoalsCtx, g: Goal): Promise<Reading> {
   const f = g.finish;
@@ -68,6 +79,7 @@ export async function readSource(ctx: GoalsCtx, g: Goal): Promise<Reading> {
     if (s.kind === "connection") return await readConnection(ctx, s);
     if (s.kind === "mcp") return await readMcp(ctx, g, s);
     if (s.kind === "automation") return await readAutomation(ctx, s);
+    if (s.kind === "watch") return await readWatch(ctx, g, s);
     return { ok: false, error: `unknown source ${String((s as { kind: unknown }).kind)}` };
   } catch (e) { return { ok: false, error: why(e) }; }
 }
@@ -80,5 +92,6 @@ export function sourceWords(s: Source | undefined): string {
   if (s.kind === "connection") return `${s.connector ?? "a connection"} (${s.action ?? "read"})`;
   if (s.kind === "mcp") return `${s.server ?? "an MCP server"} ${s.tool ?? ""}`.trim();
   if (s.kind === "automation") return "an automation's output";
+  if (s.kind === "watch") return s.path === "changes" ? "how often a watched page changes" : "a number on a watched page";
   return "a number the owner sets";
 }

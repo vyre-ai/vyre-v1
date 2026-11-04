@@ -2,7 +2,8 @@
 // and the server (engine enqueue), so the label can never disagree with what happens.
 //
 //   1. m @mentions agents A: responders = A (minus the author).
-//   2. else m is addressed to a person (@person, or a reply to someone else's message, no agent mention): nobody.
+//   2. else m is addressed to a person who is in the chat (@person, or a reply to someone else's message, no agent mention): nobody, unless it also names the lead ("Dex, ask Aliza..."). A person who is not
+//      in the chat is a reference, not an address: the message goes on to rules 3 and 4 as if they were not named.
 //   3. else a person speaks to every agent in the chat ("both of you", "each of you", "everyone"): every agent answers, each on its own (a discussion).
 //   4. else: the one lead agent of the thread, if any.
 // Listeners never run inference per message: no rule above ever returns one unless it was @mentioned. A message from an agent counts one hop (message.depth);
@@ -10,13 +11,13 @@
 // it brings back (a Job's line) each carry the next hop, so an agent that starts a helper after every result stops at the same budget.
 
 export interface RouteAgent {
-  id: string; mode: "lead" | "listen"; /** a watcher acts unasked as a routine and is never the one agent that answers */ watching?: boolean;
+  id: string; /** the name people say it by, for a message that names the agent in words */ name?: string; mode: "lead" | "listen"; /** a watcher acts unasked as a routine and is never the one agent that answers */ watching?: boolean;
   /** Listening: reads the chat and never answers, not even when tagged. Only a poke makes it speak. */
   quiet?: boolean;
   /** When it answers a message nobody tagged: always (absent), only when the message is about its topics, or only inside its hours. A tag always reaches it, quiet agents aside. */
   when?: "always" | "topics" | "hours"; topics?: string; hoursFrom?: string; hoursTo?: string;
 }
-export interface RouteThread { agents: readonly RouteAgent[]; /** the thread kind when known: only a person's chat has a lone agent that answers whatever its mode says */ kind?: string }
+export interface RouteThread { agents: readonly RouteAgent[]; /** the people in the chat, when known: a mention of anyone else is a reference. Left out: every mentioned person is taken to be in it. */ people?: readonly string[]; /** the thread kind when known: only a person's chat has a lone agent that answers whatever its mode says */ kind?: string }
 export interface RouteMention { kind: "agent" | "person"; id: string }
 export interface RouteMessage {
   author: { kind: "person" | "agent"; id: string };
@@ -68,6 +69,11 @@ export function mayAnswerUntagged(a: RouteAgent, text: string | undefined, minut
 }
 /** Words that speak to every agent in the chat. */
 export const ALL_AGENTS = /\b(both of you|each of you|all of you|you two|you both|you all|everyone|everybody|all agents)\b/i;
+/** Does the text name this agent in words (\"Dex, can you...\")? Whole words, any case. */
+export function namedIn(text: string, name: string): boolean {
+  const n = name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return n !== "" && new RegExp(`(^|[^\\p{L}\\p{N}_])${n}(?![\\p{L}\\p{N}_])`, "iu").test(text);
+}
 const PERSON_CHATS: ReadonlySet<string> = new Set(["chat", "ask"]);
 
 export function route(thread: RouteThread, m: RouteMessage, policy: RoutePolicy = {}): RouteResult {
@@ -88,9 +94,15 @@ export function route(thread: RouteThread, m: RouteMessage, policy: RoutePolicy 
   if (mentionedAgents.length) return done(mentionedAgents, "mention");
   if (m.mentions.some((x) => x.kind === "agent")) return done([], "mention");   // only self-mentions: an agent never answers itself
 
-  if (m.mentions.some((x) => x.kind === "person")) return done([], "person_addressed");
-  // two people talking: a reply to the other person is for them, and the lead stays out of it
-  if (m.replyToPerson !== undefined && m.replyToPerson !== m.author.id) return done([], "person_addressed");
+  // a person in the chat who is named is spoken to; a person who is not in the chat is only talked about
+  const inChat = (id: string): boolean => id !== m.author.id && (thread.people === undefined || thread.people.includes(id));
+  const addressed = m.mentions.some((x) => x.kind === "person" && inChat(x.id)) || (m.replyToPerson !== undefined && m.replyToPerson !== m.author.id && inChat(m.replyToPerson));
+  if (addressed) {
+    // the message also asks the lead something: it names the lead in words
+    const named = typeof m.text === "string" ? thread.agents.find((a) => a.mode === "lead" && a.watching !== true && a.name !== undefined && namedIn(m.text!, a.name)) : undefined;
+    if (!named || fromAgent) return done([], "person_addressed");
+    return done([named.id], "lead");
+  }
 
   // a person speaks to all the agents: each answers alone, on its own, never one relaying the others
   const answering = thread.agents.filter((a) => a.watching !== true && a.quiet !== true).map((a) => a.id);

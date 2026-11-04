@@ -11,6 +11,8 @@ import type http from "node:http";
 import type { PortRequest, PortSink } from "../seams/port-fetch.ts";
 
 export const PUBLIC_SANDBOX = "sandbox allow-scripts allow-forms allow-popups allow-downloads";
+/** Who may frame an artifact: this origin (the web app, which is served from the Space) and the desktop app's own origins (tauri://localhost on a Mac, http(s)://tauri.localhost on Windows). Nothing wider. */
+export const APP_FRAME_ANCESTORS = "frame-ancestors 'self' tauri://localhost http://tauri.localhost https://tauri.localhost";
 const FORM = /^\/p\/forms\/(book\/)?([a-z0-9][a-z0-9-]{0,63})\/?$/;
 const UNSUBSCRIBE = /^\/p(\/u\/[A-Za-z0-9_-]+\/?)$/;
 const SHARE = /^\/p(\/share\/project\/[a-z0-9]+)$/;
@@ -66,7 +68,7 @@ function refuse(res: http.ServerResponse, status: number, text: string): void {
 }
 
 /** Every answer on the path leaves through here, whichever handler wrote it. */
-function guard(res: http.ServerResponse): void {
+export function guard(res: http.ServerResponse, ancestors?: string): void {
   const write = res.writeHead.bind(res) as (...a: unknown[]) => http.ServerResponse;
   res.writeHead = ((status: number, ...rest: unknown[]) => {
     const last = rest[rest.length - 1];
@@ -76,7 +78,8 @@ function guard(res: http.ServerResponse): void {
     res.removeHeader("set-cookie");
     const own = headers["content-security-policy"] ?? res.getHeader("content-security-policy");
     res.removeHeader("content-security-policy");
-    headers["content-security-policy"] = own ? `${String(own)}, ${PUBLIC_SANDBOX}` : PUBLIC_SANDBOX;
+    const sandbox = ancestors ? `${PUBLIC_SANDBOX}, ${ancestors}` : PUBLIC_SANDBOX;
+    headers["content-security-policy"] = own ? `${String(own)}, ${sandbox}` : sandbox;
     headers["x-robots-tag"] = "noindex";
     headers["x-content-type-options"] = "nosniff";
     return write(status, headers);
@@ -101,7 +104,7 @@ async function bodyOf(req: http.IncomingMessage): Promise<Uint8Array | null> {
 }
 
 /** A visitor's request to a site: the whole path as asked, so a site serves under its base path, and only the plain headers. */
-async function serve(deps: PublicPathDeps, site: ServedSite, path: string, rest: string, prefix: string, req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+export async function serve(deps: PublicPathDeps, site: ServedSite, path: string, rest: string, prefix: string, req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
   const method = (req.method ?? "GET").toUpperCase();
   if (method !== "GET" && method !== "HEAD" && method !== "POST") { res.writeHead(405, { allow: "GET, HEAD, POST", "content-length": "0" }); res.end(); return; }
   res.setHeader("access-control-allow-origin", "*");
@@ -147,7 +150,7 @@ export function createPublicPathRoute(deps: PublicPathDeps): Inner {
       const visitor = req.headers["x-vyre-visitor"];
       delete req.headers["x-vyre-visitor"];
       if (typeof visitor === "string" && visitor !== "") req.headers["x-forwarded-for"] = visitor;
-      guard(res);
+      guard(res, artifact ? APP_FRAME_ANCESTORS : undefined);   // an artifact is framed by the app's artifact viewer and by nothing else
       const method = (req.method ?? "GET").toUpperCase();
       const form = FORM.exec(url.pathname);
       if (form) {

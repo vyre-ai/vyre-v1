@@ -12,7 +12,7 @@ import { PAGES, pageByKey, searchRows, spacePagesFor } from "./model.ts";
 import type { Hit, PageKey, SettingRow, SpacePage } from "./model.ts";
 import { AppearancePage, ComputerPage, SignInPage } from "./pages-b.tsx";
 import { AboutVyre } from "./DesktopUpdate.tsx";
-import { AiPage, ConnectedPage, NotificationsPage, ProfilePage } from "./pages-a.tsx";
+import { AiPage, ConnectedPage, NotesSettingsPage, NotificationsPage, ProfilePage } from "./pages-a.tsx";
 import { MailPage } from "./MailPage.tsx";
 import { MemoryPage } from "./AboutYou.tsx";
 import { SkillsPage } from "../../skills/SkillsView.tsx";
@@ -147,6 +147,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
       case "appearance": return <AppearancePage rows={rows} found={found} />;
       case "ai": return <AiPage rows={rows} found={found} />;
       case "memory": return <MemoryPage found={found} />;
+      case "notes": return <NotesSettingsPage rows={rows} found={found} />;
       case "connected": return <ConnectedPage rows={rows} found={found} />;
       case "mail": return <MailPage />;
       // Skills is the same page in every Space; Ask the Assistant opens the Ask pane beside Settings with the install already asked

@@ -280,7 +280,7 @@ test("the header has the agent chip with a face and mode mark, the participants 
   const s = createSample("idle");
   const out = html(s);
   inOrder(out, ['data-testid="conversation-title"', 'data-testid="face-agt_intake"', ">Intake<", 'data-testid="participants-button"', 'data-testid="find-button"', 'data-testid="pane-button"', 'data-testid="more-button"']);
-  assert.ok(has(out, "3 in this thread"));
+  assert.ok(has(out, "3 in this chat"));
   assert.ok(has(out, 'data-testid="add-agent"') && has(out, 'aria-label="Add people and agents"'), "the header + is the one Add people and agents sheet");
 });
 

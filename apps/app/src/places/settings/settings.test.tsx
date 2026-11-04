@@ -63,7 +63,7 @@ test("search finds rows by words in any order, ranks a title that starts with th
 
 test("the page list in a Team Space is You, then one way to the Console, and no Space pages", () => {
   const out = html(createSampleSettings(northwind));
-  assert.deepEqual(PAGES.filter((p) => p.group === "you").map((p) => p.title), ["Profile", "Notifications", "Appearance", "AI", "Memory and privacy", "Skills", "Connected", "Email and calendar", "Sign-in and devices", "This computer", "About Vyre"]);
+  assert.deepEqual(PAGES.filter((p) => p.group === "you").map((p) => p.title), ["Profile", "Notifications", "Appearance", "AI", "Memory and privacy", "Notes", "Skills", "Connected", "Email and calendar", "Sign-in and devices", "This computer", "About Vyre"]);
   assert.deepEqual(PAGES.filter((p) => p.group === "space").map((p) => p.title), ["Space", "People and access", "Agents and rules", "Data", "Connected apps", "Advanced"]);
   for (const p of PAGES) assert.equal(has(out, `data-testid="row-page-${p.key}"`), p.group === "you", p.key);
   const at = (t: string): number => { const i = out.indexOf(`>${t}<`); assert.ok(i >= 0, t); return i; };
@@ -373,4 +373,11 @@ test("a notification kind's level is a choice that saves, says why when refused,
   assert.equal(await s.data.call("notifications.kind.set_level", { kind: "mention", level: "digest" }).then(() => "ok"), "ok");
   await assert.rejects(s.data.call("notifications.kind.set_level", { kind: "approval.requested", level: "badge" }), /never go below Interrupt/);
   assert.ok(s.calls.some((c) => c.cap === "notifications.kind.set_level"));
+});
+
+test("Settings has a Notes page with the one switch: offers to save useful things from chats as notes, on by default", () => {
+  const out = html(createSampleSettings(northwind), { initialPage: "notes" });
+  assert.ok(has(out, 'data-testid="page-notes"'), "the page");
+  assert.ok(has(out, "Offer to save things from chats as notes"), "the switch");
+  assert.ok(PAGES.some((p) => p.key === "notes" && p.title === "Notes" && p.group === "you"));
 });

@@ -3,7 +3,8 @@
 // Requests on a container are checked against the container's own labels, read from Docker at the time, so a name or id of a container that is not a site's is refused whatever it says.
 import fs from "node:fs";
 import http from "node:http";
-import { bare, buildQuery, containerBody, execBody, judge, networkBody, networkOf, SITE_ID } from "./policy.ts";
+import { bare, buildQuery, containerBody, execBody, judge, networkBody, networkOf, SITE_ID, siteAllows, computerAllows } from "./policy.ts";
+import { COMPUTER_ID, HELPER_NAME_RE, computerBody, computerNet, computerNetworkBody, computerOf, helperBody } from "./computers-policy.ts";
 
 export interface RunnerOptions { dockerSocket: string; listen: string; token: string; log?: (line: string) => void }
 
@@ -83,7 +84,8 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
       const raw = await readBody(req, 1024 * 1024);
       let parsed: unknown;
       try { parsed = JSON.parse((raw ?? Buffer.alloc(0)).toString("utf8")); } catch { refuse(res, 400, "the container config is not JSON"); return; }
-      const c = containerBody(v.path as string, parsed);
+      const nm = v.path as string;
+      const c = HELPER_NAME_RE.test(nm) ? helperBody(nm, parsed) : nm.startsWith("vyre-comp-") ? computerBody(nm, parsed) : containerBody(nm, parsed);
       if ("why" in c) { say(`refused create ${v.path}: ${c.why}`); refuse(res, 403, `Refused by the sites runner: ${c.why}.`); return; }
       const body = Buffer.from(JSON.stringify(c.body));
       await docker("POST", `${url.pathname}${url.search}`, body, { "content-type": "application/json", "content-length": body.length }, res);
@@ -92,7 +94,11 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
     if (v.kind === "container") {
       const labels = await labelsOf(v.id);
       if (labels === null) { refuse(res, 404, "No such container"); return; }
-      if (!SITE_ID.test(labels["vyre.site"] ?? "")) { say(`refused ${label}: not a site container`); refuse(res, 403, "Refused by the sites runner: that container is not a site's."); return; }
+      const isSite = SITE_ID.test(labels["vyre.site"] ?? "");
+      const comp = computerOf(labels);
+      if (!isSite && !comp) { say(`refused ${label}: not a site or computer container`); refuse(res, 403, "Refused by the sites runner: that container is not a site's or an agent computer's."); return; }
+      const allowed = isSite ? siteAllows(v.action, method, url.searchParams) : computerAllows(v.action, method, url.searchParams, labels["vyre.helper"] === "home-rm");
+      if (!allowed) { say(`refused ${label}: ${v.action} not allowed here`); refuse(res, 403, `Refused by the sites runner: that is not something ${isSite ? "a site" : "an agent computer"} container may be asked.`); return; }
       if (v.action === "exec") {
         const raw = await readBody(req, 64 * 1024);
         let parsed: unknown;
@@ -116,15 +122,17 @@ export function createSitesRunner(o: RunnerOptions): { server: http.Server; clos
       try { parsed = JSON.parse((raw ?? Buffer.alloc(0)).toString("utf8")); } catch { refuse(res, 400, "the network config is not JSON"); return; }
       let body: Record<string, unknown>;
       if (v.kind === "network-create") {
-        const n = networkBody(parsed);
+        const wantsComputer = typeof parsed === "object" && parsed !== null && COMPUTER_ID.test(String(((parsed as { Labels?: Record<string, unknown> }).Labels ?? {})["vyre.computer"] ?? ""));
+        const n = wantsComputer ? computerNetworkBody(parsed) : networkBody(parsed);
         if ("why" in n) { say(`refused network: ${n.why}`); refuse(res, 403, `Refused by the sites runner: ${n.why}.`); return; }
         body = n.body;
       } else {
         // only the site's own containers and the ingress (vyred and Caddy, labelled vyre.ingress) join a site's network
         const who = (parsed as { Container?: unknown })?.Container;
         const labels = typeof who === "string" ? await labelsOf(who) : null;
-        const own = labels !== null && SITE_ID.test(labels["vyre.site"] ?? "") && networkOf(labels["vyre.site"] as string) === v.network;
-        if (!labels || !(own || labels["vyre.ingress"] === "1")) { say(`refused joining ${v.network}`); refuse(res, 403, "Refused by the sites runner: only that site's containers and the ingress join a site's network."); return; }
+        const comp = labels === null ? null : computerOf(labels);
+        const own = labels !== null && ((SITE_ID.test(labels["vyre.site"] ?? "") && networkOf(labels["vyre.site"] as string) === v.network) || (comp !== null && labels["vyre.helper"] === undefined && computerNet(comp) === v.network));
+        if (!labels || !(own || labels["vyre.ingress"] === "1")) { say(`refused joining ${v.network}`); refuse(res, 403, "Refused by the sites runner: only a network's own containers and the ingress join it."); return; }
         const aliases = (parsed as { EndpointConfig?: { Aliases?: unknown } })?.EndpointConfig?.Aliases;
         body = { Container: who, ...(Array.isArray(aliases) && aliases.every((a) => typeof a === "string") ? { EndpointConfig: { Aliases: aliases } } : {}) };
       }

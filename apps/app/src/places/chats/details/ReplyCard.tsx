@@ -93,7 +93,7 @@ export function ReplyCard({ messageId, details, at, onEnter, onLeave, onClose }:
               // ui-rows-lint: not a list (label and value pairs of one card, no hover or selection)
               <View key={l.key} testID={`reply-card-${l.key}`} style={st.kv}>
                 <Text style={st.k}>{l.label}</Text>
-                <Text numberOfLines={2} style={st.v}>{l.value}</Text>
+                <Text numberOfLines={2} style={st.v}>{l.value}{l.note ? <Text style={st.note}>{` \u00b7 ${l.note}`}</Text> : null}</Text>
               </View>
             ) : l.kind === "note" ? <Text key={l.key} style={st.note}>{l.text}</Text> : null))}
           </>
@@ -114,7 +114,7 @@ const st = StyleSheet.create({
   name: { fontSize: 14.5, fontWeight: "600", color: "var(--ink)" as string },
   sub: { fontSize: 12.5, color: "var(--ink-3)" as string },
   kv: { flexDirection: "row", justifyContent: "space-between", gap: 14, paddingVertical: 6, borderTopWidth: 1, borderTopColor: "var(--line)" as string },
-  k: { fontSize: 13, color: "var(--ink-3)" as string },
+  k: { fontSize: 13, color: "var(--ink-3)" as string, flexShrink: 0 },
   v: { fontSize: 13, color: "var(--ink)" as string, textAlign: "right", flexShrink: 1 },
   note: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, paddingVertical: 4 },
   more: { marginTop: 6, marginHorizontal: -8, paddingHorizontal: 8, height: 32, borderRadius: 9, justifyContent: "center" },

@@ -273,25 +273,47 @@ test("Include earlier messages shows for a chat and is off by default; on, the p
   });
 });
 
-test("@mentioning someone who is not in the chat offers Add first and Start a channel instead second, and says what they will see", async () => {
+test("@mentioning someone who is not in the chat shows one strip on the composer: the line, a primary Add, and a caret menu with the other ways", async () => {
   await withDom(async () => {
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
     await typeInto(find(root, "composer-field"), "@Maya Chen can you look at this");
     await flush();
-    const offer = find(root, "channel-offer");
-    assert.ok(offer, "the offer shows");
-    const text = textOf(offer);
-    assert.match(text, /Maya isn't in this chat\./);
-    assert.ok(text.indexOf("Add Maya") >= 0 && text.indexOf("Start a channel instead") > text.indexOf("Add Maya"), "Add first, the channel second");
-    assert.match(text, /They will read from now on\. Earlier messages stay hidden\./);
-    assert.ok(!/never gains people/i.test(text));
-    await press(find(root, "channel-earlier"));
-    assert.match(textOf(find(root, "channel-offer")), /They will read the whole chat\./);
-    await press(find(root, "channel-add"));
+    const strip = find(root, "channel-offer");
+    assert.ok(strip, "the strip shows");
+    assert.match(textOf(find(root, "channel-offer-text")), /^Maya isn't in this chat$/);
+    assert.equal(textOf(find(root, "channel-add")).trim(), "Add Maya");
+    // the loose lines and the switch are gone
+    const text = textOf(strip);
+    assert.ok(!/They will read|Earlier messages stay hidden|Include earlier messages|never gains people/i.test(text), text);
+    assert.equal(find(root, "channel-earlier"), null);
+    assert.equal(find(root, "channel-start"), null, "the channel is in the caret menu now");
+    // the caret holds the three ways, the default first
+    await press(find(root, "channel-add-menu"));
+    for (const label of ["Add, from now on", "Add, with earlier messages", "Start a channel instead"]) assert.ok(find(root, `menu-item-${label}`), label);
+    await press(find(root, "menu-item-Add, with earlier messages"));
     await flush();
     assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").map((c) => c.input), [{ threadId: "c1", personId: "usr_maya", fromStart: true }]);
-    assert.ok(s.data.toast !== undefined);
+  });
+});
+
+test("the strip's Add is from now on (no flag); Start a channel instead makes a channel", async () => {
+  await withDom(async () => {
+    const s = createSample("idle");
+    const root = await mount(createRoot, <Conversation data={s.data} />);
+    await typeInto(find(root, "composer-field"), "@Maya Chen can you look at this");
+    await flush();
+    await press(find(root, "channel-add"));
+    await flush();
+    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").map((c) => c.input), [{ threadId: "c1", personId: "usr_maya" }]);
+    const again = createSample("idle");
+    const root2 = await mount(createRoot, <Conversation data={again.data} />);
+    await typeInto(find(root2, "composer-field"), "@Maya Chen can you look at this");
+    await flush();
+    await press(find(root2, "channel-add-menu"));
+    await press(find(root2, "menu-item-Start a channel instead"));
+    await flush();
+    assert.ok(again.calls.some((c) => c.cap === "threads.make_channel"));
   });
 });
 

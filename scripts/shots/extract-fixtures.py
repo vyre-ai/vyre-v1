@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Reads the seed data straight out of the prototype copy (scripts/shots/prototype/vyre-v1.html) and writes
 apps/app/src/fixtures/prototype-data.ts. The fixtures test re-reads the same source and compares, so a prototype change that
-the fixtures do not follow fails CI. Run: python3 scripts/shots/extract-fixtures.py"""
-import html, json, re, sys, pathlib
+the fixtures do not follow fails CI. Run: python3 scripts/shots/extract-fixtures.py (never on the Mac).
+The tables that are plain literals are read here; the inbox and the Journeys are code (variables, helper calls, slice()), so scripts/shots/extract-vm.mjs runs them in a node vm and this script takes what it prints."""
+import html, json, re, subprocess, sys, pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SRC = ROOT / "scripts/shots/prototype/vyre-v1.html"
@@ -153,15 +154,10 @@ types = {}
 for m in re.finditer(r"^  TY\.(\w+) = ", TEXT[ty_a:ty_b], re.M):
     types[m.group(1)] = js_to_json(balanced(TEXT, ty_a + m.end()))
 data["TYPES"] = types
-inbox_a = TEXT.index("const INBOXES = [")
 _mid[0] = 0
-data["INBOXES"] = js_to_json(balanced(TEXT, TEXT.index("[", inbox_a)))
-data["CONTACTS"] = js_to_json(balanced(TEXT, TEXT.index("[", TEXT.index("const CONTACTS = [", inbox_a))))
-t_a = TEXT.index("const TEMPLATES = [", inbox_a)
-data["TEMPLATES"] = js_to_json(balanced(TEXT, TEXT.index("[", t_a)))
-data["SNIPPETS"] = js_to_json(balanced(TEXT, TEXT.index("[", TEXT.index("const SNIPPETS = [", t_a))))
-_uidn[0] = 100
-data["JOURNEYS"] = js_to_json(balanced(TEXT, TEXT.index("[", TEXT.index("const JOURNEYS = ["))))
+vm_out = json.loads(subprocess.run(["node", str(ROOT / "scripts/shots/extract-vm.mjs")], check=True, capture_output=True, text=True).stdout)
+for k in ["INBOXES", "CONTACTS", "TEMPLATES", "SNIPPETS", "JOURNEYS"]:
+    data[k] = vm_out[k]
 data["CHN"], _ = const("CHN", seed_at)
 data["CHW"], _ = const("CHW", seed_at)
 
@@ -202,70 +198,3 @@ for k in ["FIRST", "LAST", "STREETS", "CITIES", "NEXTS", "KINDS", "TASKT", "AGS"
 body += "export const PROTO_SPACE_TYPES: Readonly<Record<string, { meta: { title: string; one: string; primary: string }; fields: readonly { id: string; name: string; type: string; width: number; options?: readonly (readonly [string, number | null])[]; kind?: string; to?: string }[]; rows: readonly Record<string, unknown>[] }>> = %s;\n" % json.dumps(data["SPACES"], ensure_ascii=False, indent=1)
 OUT.write_text(body, encoding="utf8")
 print("wrote", OUT, len(body))
-
-# ---- the chat module's seed (Northwind, Harbor Studio, Personal): spaces, agents, people, channels with their followed and starred flags, Needs you, chats, messages, files ...
-def chat_seed():
-    i = TEXT.index('  const seed = () => ({\n    space: "nw"')
-    j = TEXT.index("({", i)
-    lit = balanced(TEXT, j)
-    base = js_to_json(lit[1:-1]) if lit.startswith("(") else js_to_json(lit)
-    f = TEXT.index("  function seedFor(sp) {", i)
-    end = TEXT.index("\n  }\n", f)
-    body = TEXT[f:end]
-    import copy
-
-    def branch(name):
-        a = body.index('if (sp === "%s") {' % name)
-        # the branch ends where the next top-level `if (sp ===` starts or at the return
-        nxt = [body.find('\n    if (sp === "', a + 10), body.find("\n    return b;", a)]
-        b2 = min(x for x in nxt if x > 0)
-        return body[a:b2]
-
-    def assigns(block):
-        out = {}
-        for m in re.finditer(r"\bb\.(\w+) = ", block):
-            k = m.group(1)
-            start = m.end()
-            if block[start] not in "[{":
-                continue
-            out[k] = js_to_json(balanced(block, start))
-        return out
-
-    spaces = {"nw": copy.deepcopy(base)}
-    for key, name in (("hb", "harbor"), ("me", "personal")):
-        b = copy.deepcopy(base)
-        blk = branch(name)
-        a = assigns(blk)
-        # blank(): nothing from the team Space carries over except what the branch sets
-        b.update({"sessions": [], "outside": [], "helpers": {}, "files": {}, "proposed": {}, "merged": {}, "agentEdits": {}})
-        for k, v in a.items():
-            if k in ("facts", "routines"):
-                continue
-            b[k] = v
-        b["facts"] = {x["n"]: [] for x in b["agents"]}
-        b["routines"] = {x["n"]: [] for x in b["agents"]}
-        if name == "personal":
-            r1 = copy.deepcopy(base["routines"]["Assistant"][0])
-            r1["instr"] = re.search(r'r1\.instr = "([^"]*)"', blk).group(1)
-            r1["made"] = ["you", "Oct 12", "m1"]
-            r1["runs"] = [dict(x, res="5 lines · 2 due today") for x in r1["runs"]]
-            b["routines"]["Assistant"] = [r1]
-            m = re.search(r"b\.facts\.Assistant = (\[)", blk)
-            b["facts"]["Assistant"] = js_to_json(balanced(blk, m.start(1)))
-        for sp in b["spaces"]:
-            sp["unread"] = 0
-        b["space"] = key
-        spaces[key] = b
-    spaces["nw"]["space"] = "nw"
-    return spaces
-
-
-chat = chat_seed()
-CHAT_OUT = ROOT / "apps/app/src/fixtures/prototype-chat.ts"
-CHAT_OUT.write_text(
-    "// Generated by scripts/shots/extract-fixtures.py from scripts/shots/prototype/vyre-v1.html. Do not edit by hand.\n"
-    "// The chat module's seed for the three Spaces (nw, hb, me): agents, people, channels with followed and starred, Needs you, chats, messages. prototype-source.test.ts runs the prototype's own seed and compares.\n\n"
-    "export const PROTO_CHAT: Readonly<Record<string, Readonly<Record<string, unknown>>>> = %s;\n" % json.dumps(chat, ensure_ascii=False, indent=1),
-    encoding="utf8",
-)
-print("wrote", CHAT_OUT, CHAT_OUT.stat().st_size)

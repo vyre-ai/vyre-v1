@@ -6,7 +6,7 @@
 
 /**
  * Show or update the frame and bar. Returns true when drawn.
- * @param {{ name: string, goal?: string, paused?: boolean, port: string }} o
+ * @param {{ name: string, goal?: string, paused?: boolean, waiting?: boolean, state?: "takeover" | "stopped", color?: string, port: string }} o
  */
 export function overlayShow(o) {
   const g = /** @type {any} */ (globalThis);
@@ -20,21 +20,23 @@ export function overlayShow(o) {
     host.style.cssText = "all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;";
     const root = host.attachShadow({ mode: "closed" });
     const style = doc.createElement("style");
+    // Matches the approved prototype's in-Chrome bar (prototype/vyre-chrome.html .vov, .abar): a 2px inset frame in the agent's group colour, a bar 18px from the bottom with a dark 92% panel, 12px
+    // corners, the agent's initial, bold name, 26px translucent buttons and an Esc key cap.
     style.textContent = [
-      ".frame{position:fixed;inset:0;box-sizing:border-box;border:3px solid #4f46e5;box-shadow:inset 0 0 0 1px rgba(255,255,255,.4);pointer-events:none}",
-      ".frame.paused{border:3px dashed #6b7280}",
-      ".bar{position:fixed;top:10px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;max-width:calc(100vw - 32px);padding:6px 6px 6px 12px;background:#1e1b4b;color:#fff;border-radius:999px;font:13px/1.2 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 4px 18px rgba(30,27,75,.35);pointer-events:auto;white-space:nowrap}",
-      ".dot{flex:none;width:8px;height:8px;border-radius:50%;background:#818cf8}",
+      ".frame{position:fixed;inset:0;box-sizing:border-box;box-shadow:inset 0 0 0 2px var(--grp,#4f46e5);pointer-events:none}",
+      ".frame.paused{box-shadow:none;border:2px dashed #6b7280}",
+      ".bar{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:10px;max-width:calc(100vw - 32px);padding:6px 6px 6px 8px;background:rgba(23,20,31,.92);backdrop-filter:blur(8px);color:#F2F0F7;border-radius:12px;font:12.5px/1.2 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.28);pointer-events:auto;white-space:nowrap}",
+      ".dot{flex:none;width:20px;height:20px;border-radius:50%;background:var(--grp,#4f46e5);color:#fff;font:600 11px/20px system-ui,-apple-system,Segoe UI,sans-serif;text-align:center}",
       ".paused .dot{background:#9ca3af}",
-      "@media (prefers-reduced-motion:no-preference){.dot{animation:pulse 1.6s ease-in-out infinite}.paused .dot{animation:none}}",
-      "@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}",
       ".t{overflow:hidden;text-overflow:ellipsis}",
-      ".goal{color:#c7d2fe;overflow:hidden;text-overflow:ellipsis;max-width:36ch}",
-      ".stop{flex:none;border:0;border-radius:999px;padding:5px 13px;background:#fff;color:#1e1b4b;font:600 12px/1 system-ui,-apple-system,Segoe UI,sans-serif;cursor:pointer}",
-      ".stop:hover{background:#e0e7ff}.stop:focus-visible{outline:2px solid #a5b4fc;outline-offset:2px}",
+      ".goal{color:#c9c5d6;overflow:hidden;text-overflow:ellipsis;max-width:36ch}",
+      ".stop,.take,.open{flex:none;display:inline-flex;align-items:center;gap:6px;border:0;border-radius:8px;height:26px;padding:0 10px;background:rgba(255,255,255,.1);color:#fff;font:500 12.5px/1 system-ui,-apple-system,Segoe UI,sans-serif;cursor:pointer}",
+      ".stop:hover,.take:hover,.open:hover{background:rgba(255,255,255,.18)}.stop:focus-visible,.take:focus-visible,.open:focus-visible{outline:2px solid #a5b4fc;outline-offset:2px}",
+      ".hint{background:rgba(255,255,255,.12);color:#ddd;border-radius:4px;padding:1px 5px;font-size:11px}",
+      "@media (max-width:560px){.goal{display:none}.bar{gap:8px}}",
       ".cursor{position:fixed;left:0;top:0;display:none;pointer-events:none;will-change:transform}",
       "@media (prefers-reduced-motion:no-preference){.cursor.go{transition:transform .14s ease-out}}",
-      ".chip{position:absolute;left:14px;top:16px;padding:2px 7px;border-radius:6px;background:#4f46e5;color:#fff;font:600 11px/1.3 system-ui,-apple-system,Segoe UI,sans-serif;white-space:nowrap}",
+      ".chip{position:absolute;left:14px;top:16px;padding:2px 7px;border-radius:6px;background:var(--grp,#4f46e5);color:#fff;font:600 11px/1.3 system-ui,-apple-system,Segoe UI,sans-serif;white-space:nowrap}",
     ].join("");
     const frame = doc.createElement("div");
     frame.className = "frame";
@@ -43,15 +45,46 @@ export function overlayShow(o) {
     bar.setAttribute("role", "status");
     const dot = doc.createElement("span");
     dot.className = "dot";
+    dot.textContent = String(o.name || "?").trim().charAt(0).toUpperCase();
     const text = doc.createElement("span");
     text.className = "t";
     const goal = doc.createElement("span");
     goal.className = "goal";
+    const take = doc.createElement("button");
+    take.className = "take";
+    take.type = "button";
+    const handNs = "http://www.w3.org/2000/svg";
+    const hand = doc.createElementNS(handNs, "svg");
+    for (const [k, v] of [["width", "13"], ["height", "13"], ["viewBox", "0 0 16 16"], ["fill", "none"], ["stroke", "currentColor"], ["stroke-width", "1.4"], ["stroke-linecap", "round"], ["stroke-linejoin", "round"]]) hand.setAttribute(/** @type {string} */ (k), /** @type {string} */ (v));
+    const hp = doc.createElementNS(handNs, "path");
+    hp.setAttribute("d", "M5.5 8.5V3.8a1 1 0 012 0V7m0-3.4a1 1 0 012 0V7m0-2.4a1 1 0 012 0V9m0-3.2a1 1 0 012 0v3.4c0 2.6-1.700 4.300-4 4.300-1.800 0-2.800-.8-3.800-2.300L3 9.800a1 1 0 011.500-1.200z");
+    hand.append(hp);
+    take.append(hand, " Take over");
     const stop = doc.createElement("button");
     stop.className = "stop";
     stop.type = "button";
-    stop.textContent = "Stop";
-    bar.append(dot, text, goal, stop);
+    stop.append("Stop ");
+    const hint = doc.createElement("kbd");
+    hint.className = "hint";
+    hint.textContent = "Esc";
+    stop.append(hint);
+    const open = doc.createElement("button");
+    open.className = "open";
+    open.type = "button";
+    open.textContent = "Open in Vyre";
+    const give = doc.createElement("button");
+    give.className = "open";
+    give.type = "button";
+    give.textContent = "Give back";
+    const resume = doc.createElement("button");
+    resume.className = "open";
+    resume.type = "button";
+    resume.textContent = "Resume";
+    const end = doc.createElement("button");
+    end.className = "open";
+    end.type = "button";
+    end.textContent = "End task";
+    bar.append(dot, text, goal, take, stop, open, give, resume, end);
     const cursor = doc.createElement("div");
     cursor.className = "cursor";
     const svgNs = "http://www.w3.org/2000/svg";
@@ -74,18 +107,33 @@ export function overlayShow(o) {
 
     const port = g.chrome && g.chrome.runtime && g.chrome.runtime.connect ? g.chrome.runtime.connect({ name: o.port }) : null;
     stop.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "stop" }); });
+    open.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "openvyre" }); });
+    give.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "giveback" }); });
+    resume.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "giveback" }); });
+    end.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "endtask" }); });
+    take.addEventListener("click", (/** @type {any} */ e) => { e.preventDefault(); e.stopPropagation(); if (port) port.postMessage({ type: "takeover" }); });
     const onKey = (/** @type {any} */ e) => { if (e.key === "Escape" && !s.paused && port) port.postMessage({ type: "esc" }); };
     g.addEventListener("keydown", onKey, true);
-    s = { host, frame, bar, text, goal, stop, cursor, chip, port, onKey, paused: false, moved: false };
+    s = { host, frame, bar, text, goal, stop, take, hint, open, give, resume, end, cursor, chip, port, onKey, paused: false, moved: false };
     g[KEY] = s;
   }
   s.paused = Boolean(o.paused);
+  const state = o.state === "takeover" || o.state === "stopped" ? o.state : "";
+  const waiting = !s.paused && !state && Boolean(o.waiting);
   s.frame.className = s.paused ? "frame paused" : "frame";
-  s.bar.className = s.paused ? "bar paused" : "bar";
-  s.text.textContent = s.paused ? `${o.name} is paused` : `${o.name} is using this tab`;
+  if (o.color) s.host.style.setProperty("--grp", String(o.color));
+  s.bar.className = s.paused ? "bar paused" : waiting ? "bar waiting" : "bar";
+  s.text.textContent = state === "takeover" ? `You're in control. ${o.name} waits.` : state === "stopped" ? `Stopped. ${o.name} does nothing until you choose.` : s.paused ? `${o.name} is paused` : waiting ? "Waiting for you in Vyre" : `${o.name} is using this tab`;
+  s.frame.style.display = state ? "none" : "";
+  const live = !s.paused && !state;
+  s.take.style.display = live && !waiting ? "" : "none";
+  s.stop.style.display = live ? "" : "none";
+  s.open.style.display = waiting ? "" : "none";
+  s.give.style.display = state === "takeover" ? "" : "none";
+  s.resume.style.display = state === "stopped" ? "" : "none";
+  s.end.style.display = state === "stopped" ? "" : "none";
   s.goal.textContent = o.goal ? String(o.goal).slice(0, 80) : "";
   s.goal.style.display = o.goal ? "" : "none";
-  s.stop.style.display = s.paused ? "none" : "";
   s.chip.textContent = o.name;
   return true;
 }

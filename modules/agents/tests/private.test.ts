@@ -72,7 +72,7 @@ test("access learns which agents are private: agent.created says so and agent.pr
   const created = new Map(hn.named("agent.created").map((e) => [e.subject, e.payload["private"]] as const));
   assert.deepEqual([created.get(simba), created.get(assistant!), created.get(plain)], [true, true, undefined]);
   assert.deepEqual(hn.named("agent.privacy_set").map((e) => e.payload).sort((a, b) => String(a["agentId"]).localeCompare(String(b["agentId"]))),
-    [{ agentId: simba, ownerId: DANA, private: true }, { agentId: assistant!, ownerId: DANA, private: true }].sort((a, b) => a.agentId.localeCompare(b.agentId)));
+    [{ agentId: simba, ownerId: DANA, private: true }, { agentId: assistant!, ownerId: DANA, private: true, assistant: true }].sort((a, b) => a.agentId.localeCompare(b.agentId)));
   assert.deepEqual(assertEventsConform(hn), []);
 });
 

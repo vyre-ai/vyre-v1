@@ -11,12 +11,17 @@ import { withAgentStaging } from "./agent-stage.ts";
 import { purgeHandlers } from "./purge.ts";
 import { withRoots } from "./roots.ts";
 import { redactHandlers } from "./redact.ts";
+import { withReversals } from "../../../lib/reversal.ts";
+import { REVERSALS } from "./reversals.ts";
 
 // listHandlers add files.shared_with_me and files.knowledge;
 // versionHandlers replace files.write (binary collision rule) and add files.diff; lintHandlers add files.lint, files.save, files.share; sheetsHandlers add the sheets.* table capabilities;
 // changesetHandlers wrap files.write and files.create (agent writes in a Review changes folder are staged) and add the changesets.* capabilities; withAgentStaging puts the same staging
 // in front of files.delete, files.rename, files.move and files.save.
-export const handlers = withRoots(withAgentStaging({ ...treeHandlers, ...versionHandlers, ...lintHandlers, ...sheetsHandlers, ...listHandlers, ...changesetHandlers, ...viewerHandlers, ...purgeHandlers, ...redactHandlers }));
+const base = withRoots(withAgentStaging({ ...treeHandlers, ...versionHandlers, ...lintHandlers, ...sheetsHandlers, ...listHandlers, ...changesetHandlers, ...viewerHandlers, ...purgeHandlers, ...redactHandlers }));
+
+export const handlers = withReversals(base, REVERSALS);
+
 
 export { putUploadedBytes, MAX_INLINE, MAX_UPLOAD, TRASH_MS, TREE_ROOTS, KNOWLEDGE_CHILDREN } from "./tree.ts";
 export { configureSheets, sheetsHooks } from "./sheets.ts";

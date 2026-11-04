@@ -39,11 +39,13 @@ export interface Share { role: Role; removed_at: number | null; space_only?: boo
 /** A read link. `preview` says the card has a picture, kept as a notes blob (link_blob) and served by notes.image; the page's own image address is never kept or handed out. */
 export interface Link { url: string; title?: string; siteName?: string; description?: string; preview?: "image" | "icon" }
 export interface Clip { url: string; title?: string; selection?: string; at: number }
+/** Where a note was saved from: a chat message. `title` is the chat's title when it was saved. */
+export interface From { threadId: string; messageId: string; title: string; at: number }
 export interface Linked { kind: "task" | "record"; id: string; title: string; at: number }
 
 export interface NoteRow {
   id: string; owner: string; title: string; body: string; color: string; pinned: number; labels_json: string;
-  image_blob: string | null; image_type: string | null; link_json: string | null; clip_json: string | null; shot_blob: string | null; link_blob: string | null; link_blob_type: string | null;
+  image_blob: string | null; image_type: string | null; link_json: string | null; clip_json: string | null; shot_blob: string | null; link_blob: string | null; link_blob_type: string | null; from_json: string | null;
   linked_json: string; share_people_json: string; share_space: SpaceShare; search_text: string; idem_key: string | null;
   created_at: number; updated_at: number; deleted_at: number | null; archived_at: number | null;
 }
@@ -70,6 +72,7 @@ const parse = <T>(json: string | null, fallback: T): T => {
 export const labelsOf = (r: NoteRow): string[] => parse<string[]>(r.labels_json, []);
 export const peopleOf = (r: NoteRow): Record<string, Share> => parse<Record<string, Share>>(r.share_people_json, {});
 export const linkOf = (r: NoteRow): Link | null => parse<Link | null>(r.link_json, null);
+export const fromOf = (r: NoteRow): From | null => parse<From | null>(r.from_json, null);
 export const clipOf = (r: NoteRow): Clip | null => parse<Clip | null>(r.clip_json, null);
 export const linkedOf = (r: NoteRow): Linked[] => parse<Linked[]>(r.linked_json, []);
 
@@ -150,11 +153,14 @@ export async function editable(ctx: NotesCtx, id: string): Promise<NoteRow> {
 export function noteOut(r: NoteRow, viewer: string | null) {
   const link = linkOf(r);
   const clip = clipOf(r);
+  const from = fromOf(r);
   return {
     noteId: r.id, owner: r.owner, title: r.title, body: r.body, color: r.color as "", pinned: r.pinned === 1, labels: labelsOf(r),
     hasImage: !!(r.image_blob || r.shot_blob),
     ...(link ? { link } : {}),
     ...(clip ? { clip: { url: clip.url, ...(clip.title ? { title: clip.title } : {}), ...(clip.selection ? { selection: clip.selection } : {}), hasShot: !!r.shot_blob, at: clip.at } } : {}),
+    // the chat it came from is its owner's own: nobody a note is shared with is handed the chat or the message
+    ...(from && viewer === r.owner ? { from: { threadId: from.threadId, messageId: from.messageId, title: from.title, at: from.at, readable: true } } : {}),
     linked: linkedOf(r),
     share: { people: sharedWith(r).map(([personId, role]) => ({ personId, role })), space: r.share_space },
     mine: viewer === r.owner, canEdit: viewer !== null && personEdits(r, viewer),
@@ -193,6 +199,14 @@ export function checkUrl(ctx: NotesCtx, url: string): string {
   try { parsed = new URL(u); } catch { parsed = null; }
   if (!parsed || (parsed.protocol !== "https:" && parsed.protocol !== "http:")) raise(ctx.trace.traceId, "validation.bad_input", "A link starts with https://.");
   return parsed.toString();
+}
+
+/** The first web address in some text (trailing punctuation off), or null. A note whose words hold an address, with no link of its own, gets the link card for it (the opened note and the bar take typed and pasted text alike). */
+export function urlIn(text: string): string | null {
+  const m = /\bhttps?:\/\/[^\s<>"']+/i.exec(text);
+  if (!m) return null;
+  const url = m[0].replace(/[.,;:!?)\]}]+$/, "");
+  try { return new URL(url).toString(); } catch { return null; }
 }
 
 /** A link read into a card, with its picture when the server could fetch one. */
@@ -262,5 +276,25 @@ export function page<T>(all: readonly T[], cursor?: string, limit?: number): { r
   const rows = all.slice(start, start + lim);
   const out: { rows: T[]; next?: string; total: number } = { rows, total: all.length };
   if (start + rows.length < all.length) out.next = String(start + rows.length);
+  return out;
+}
+
+/**
+ * The link back to a chat, checked for this reader right now: the chat is read as the caller (threads.get answers a chat the reader may not read as not found), once per chat. A note whose chat its owner
+ * can no longer read keeps the time it was saved and nothing else: no chat, no message, no title, and the page draws no link.
+ */
+export async function checkFrom<T extends { from?: { threadId?: string; messageId?: string; title?: string; at: number; readable: boolean } }>(ctx: NotesCtx, notes: readonly T[]): Promise<T[]> {
+  const seen = new Map<string, { ok: boolean; title?: string }>();
+  const out: T[] = [];
+  for (const n of notes) {
+    const f = n.from;
+    if (!f || !f.threadId) { out.push(n); continue; }
+    let r = seen.get(f.threadId);
+    if (!r) {
+      try { const t = ((await ctx.call("threads.get", { threadId: f.threadId })) as { thread?: { title?: string } } | null)?.thread; r = t ? { ok: true, ...(t.title ? { title: t.title } : {}) } : { ok: false }; } catch { r = { ok: false }; }
+      seen.set(f.threadId, r);
+    }
+    out.push(r.ok ? { ...n, from: { ...f, readable: true } } : { ...n, from: { at: f.at, readable: false } });
+  }
   return out;
 }
