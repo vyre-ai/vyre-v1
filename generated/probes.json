@@ -381,6 +381,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.console.machines",
+      "place": "console",
+      "screen": "console.machines"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.console.mcp-sessions",
       "place": "console",
       "screen": "console.mcp-sessions"

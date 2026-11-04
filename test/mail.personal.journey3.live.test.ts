@@ -30,17 +30,19 @@ test("journey 3, a revoked sign-in: Home shows one Fix item, Fix opens Connect a
     await w.owner.ok("mail.sync_now", { mailboxId: box!.id });
     await until(async () => (((await w.owner.ok("tasks.needs_you", {})).items as unknown[]).length > 0 ? true : null), "the Needs you item");
 
-    await open(me, s, "/home");
+    await open(me, s, "/chat");   // Home is gone: what needs you is on the Chats landing
     await me.page.getByText(/Sign in to olivia@gmail.test again/).first().waitFor({ timeout: 30_000 });
     assert.equal(await me.page.getByText(/Sign in to olivia@gmail.test again/).count(), 1, "one item");
     await shoot(me.page, dir, "home-fix-item");
     // the item's button repairs it where it is: Connect a mailbox opens on Gmail
     w.fake.restore("olivia@gmail.test");
-    await me.page.getByRole("button", { name: "Sign in again" }).first().click();
+    // the landing row's button opens the item (its page has the sign-in); the page's button opens Connect a mailbox on Gmail
+    await me.page.locator("[data-testid^=\"landing-act-\"]").first().click();
+    await me.page.getByTestId("task-mailfix").click();
     await signInThroughSheet(me, "olivia@gmail.test", dir, "fix");
 
     await until(async () => (((await w.owner.ok("tasks.needs_you", {})).items as unknown[]).length === 0 ? true : null), "the item is cleared");
-    await open(me, s, "/home");
+    await open(me, s, "/chat");
     await me.page.waitForTimeout(1500);
     assert.equal(await me.page.getByText(/Sign in to olivia@gmail.test again/).count(), 0, "Home is clear");
     await shoot(me.page, dir, "home-clear");

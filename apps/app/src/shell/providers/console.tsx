@@ -20,7 +20,8 @@ import { Permissions } from "../../console/pages/Permissions.tsx";
 import { Grants, People } from "../../console/pages/Access.tsx";
 import { Groups } from "../../console/pages/Groups.tsx";
 import { Checker } from "../../console/pages/Checker.tsx";
-import { AgentComputers, AgentsRegister, AgentTemplate, OutsideActors } from "../../console/pages/Agents.tsx";
+import { AgentsRegister, AgentTemplate, OutsideActors } from "../../console/pages/Agents.tsx";
+import { MachinesPage } from "../../console/pages/Machines.tsx";
 import { DomainsPage, InboxesPage, NumbersPage, TextingPage } from "../../console/pages/Comms.tsx";
 import { LabelsPage, SchemaPage } from "../../console/pages/Data.tsx";
 import { ApiKeysPage, ConnectorsPage, ConnectionsPage, WebhooksPage } from "../../console/pages/Integrations.tsx";
@@ -78,7 +79,7 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "checker") return <Checker />;
   if (id === "agents") return <AgentsRegister key={args.agentId??"agents-list"} {...(args.agentId?{initialAgentId:args.agentId}:{})} />;
   if (id === "actors") return <OutsideActors key={args.actorId??"actors-list"} {...(args.actorId?{initialActorId:args.actorId}:{})} />;
-  if (id === "computers") return <AgentComputers />;
+  if (id === "machines") return <MachinesPage {...(args["machineId"] ? { initialId: args["machineId"] } : {})} />;
   if (id === "template") return <AgentTemplate />;
   if (id === "skills") return <SkillsPage />;
   if (id === "plugins") return <PluginsPage />;
