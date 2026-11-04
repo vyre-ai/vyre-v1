@@ -11,6 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "./lib.mjs";
+import { vendor } from "../../fixtures/model-vendor.ts";
 import { bootFreshSpace, claimOnEdge, dismissOnboarding, edge, ownerSession } from "../../apps/app/tests/real-app-harness.test.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
@@ -19,7 +20,14 @@ const dist = path.resolve(REPO, args.dist || "apps/app/dist");
 const out = path.resolve(REPO, args.out || "shots-out/zones-real");
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
-const space = await bootFreshSpace();
+// a local stand-in for the model vendor, so an agent can answer in the channel with a scripted line (fixtures/model-vendor.ts); the daemon is started with its preload
+const stand = await vendor();
+const PRELOAD = fileURLToPath(new URL("../../fixtures/model-vendor-preload.mjs", import.meta.url));
+const priorOptions = process.env["NODE_OPTIONS"];
+process.env["NODE_OPTIONS"] = `${priorOptions ?? ""} --import ${PRELOAD}`.trim();
+process.env["VYRE_TEST_VENDOR"] = stand.base;
+const space = await bootFreshSpace(undefined, true);
+if (priorOptions === undefined) delete process.env["NODE_OPTIONS"]; else process.env["NODE_OPTIONS"] = priorOptions;
 const web = await edge(dist, space.url);
 const { chromium } = await import("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
@@ -47,7 +55,7 @@ if (space.claim) {
   await ctx.close();
 }
 const sess = session ?? JSON.stringify(ownerSession(space, web.origin));
-const token = space.token;   // the admin token of the booted daemon: the same owner, for the API calls the page does not make
+const token = (() => { try { return JSON.parse(sess).sessions[web.origin].token; } catch { return space.token; } })();   // the claimed owner's own session token
 
 let _ctx0 = null;
 const ctx0 = () => _ctx0;
@@ -189,6 +197,14 @@ try {
   say(Boolean(chanThread), `channel thread ${chanThread}`);
   await api(ctx0(), "chat.post", { threadId: chanThread, body: "Kickoff is Thursday at 9:00 AM Pacific. Mira, can you send the agenda?", idempotencyKey: `zones-m1-${Date.now()}` });
   await asMira("chat.post", { threadId: chanThread, body: "On it. I will send it tonight.", idempotencyKey: `zones-m2-${Date.now()}` });
+  // an agent answers in the channel with a scripted line that carries a date, written in the Space zone the way the context asks (the stand-in scripts the words; the shot proves how they read)
+  const provider = await api(ctx0(), "providers.add", { idempotencyKey: "zones-provider", providerKey: "openai", connection: "api_key", apiKey: "sk-test-fixture-0123456789abcdef", scope: "mine" });
+  await api(ctx0(), "providers.set_space_use", { idempotencyKey: "zones-spaceuse", providerId: provider.body?.provider?.id, allow: true });
+  await api(ctx0(), "agents.update", { agentId: lead, patch: { model: "gpt-4o-mini" }, idempotencyKey: "zones-model" });
+  await api(ctx0(), "threads.add_agent", { threadId: chanThread, agentId: lead });
+  stand.script.push({ text: "Thursday works: 9:00 AM Pacific. I will put the agenda on the Redwood project page before then." });
+  await api(ctx0(), "chat.post", { threadId: chanThread, body: "When should we hold the kickoff?", mentions: [{ kind: "agent", id: lead }], idempotencyKey: `zones-ask-${Date.now()}` });
+  await new Promise((r) => setTimeout(r, 9000));
   const priv = await api(ctx0(), "chat.start", { kind: "chat", agentIds: [lead], idempotencyKey: `zones-priv-${Date.now()}` });
   const privThread = priv.body?.thread?.threadId;
   if (privThread) await api(ctx0(), "chat.post", { threadId: privThread, body: "Remind me to call Rivera at 9 tomorrow.", idempotencyKey: `zones-p1-${Date.now()}` });
@@ -272,7 +288,7 @@ try {
     await mp.close();
     await mc.close();
   }
-} finally { await browser.close(); web.close(); await space.stop(); }
+} finally { await browser.close(); web.close(); await space.stop(); stand.close(); }
 say(errors.length === 0, `no page errors${errors.length ? `: ${errors.join(" | ").slice(0, 400)}` : ""}`);
 say(refused.length === 0, `no refused calls${refused.length ? `: ${[...new Set(refused)].join(", ")}` : ""}`);
 console.log(failed === 0 ? "all good" : `${failed} failed`);
