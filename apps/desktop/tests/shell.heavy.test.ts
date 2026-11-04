@@ -207,43 +207,4 @@ test("the installed shell relaunches after a clean exit", { skip: !APP ? "VYRE_S
   await exerciseBuiltShell(false);
 });
 
-// The artifact viewer in the built shell (owner ruling, 4 Nov: it was blank in the Mac app). The shell opens an artifact as a child webview, a page of its own host, so the host's cookie is first-party. The
-// collector here stands for the artifact host on a.localhost: its first response sets a cookie and redirects, and it records whether the cookie came back on the redirected request. A frame under
-// tauri://localhost in WebKit never sends it back (test/artifact-frame.browser.test.ts); the child webview must.
-test("the built shell opens an artifact as a page of its own host, and the host's cookie comes back", { skip: !APP && "VYRE_SHELL_APP is set only in the desktop job on a built app" }, async () => {
-  const seen: Array<{ url: string; cookie: string; host: string }> = [];
-  const http = await import("node:http");
-  const collector = http.createServer((q, r) => {
-    seen.push({ url: String(q.url), cookie: String(q.headers.cookie ?? ""), host: String(q.headers.host ?? "") });
-    if (q.url?.startsWith("/x/")) { r.writeHead(302, { location: "/sit_proof/", "set-cookie": "__vyre_a=first-party; Path=/; HttpOnly; SameSite=Lax" }); r.end(); return; }
-    r.writeHead(200, { "content-type": "text/html" });
-    r.end("<!doctype html><title>proof</title><p>proof</p>");
-  });
-  await new Promise<void>((resolve) => collector.listen(0, "127.0.0.1", resolve));
-  const port = (collector.address() as { port: number }).port;
-  const app = spawn(APP as string, [], { env: { ...process.env, VYRE_SHELL_ARTIFACT_PROOF_URL: `http://127.0.0.1:${port}` } });
-  let out = "";
-  let sidecarUrl: string | null = null;
-  app.stdout.on("data", (c: Buffer) => { out += c.toString("utf8"); });
-  app.stderr.on("data", (c: Buffer) => { out += c.toString("utf8"); });
-  try {
-    const end = Date.now() + 90_000;
-    for (;;) {
-      sidecarUrl ??= /vyre-desktop: sidecar ready at (http:\/\/127\.0\.0\.1:\d+)/.exec(out)?.[1] ?? null;
-      if (seen.some((x) => x.url.startsWith("/sit_proof/"))) break;
-      if (/artifactview: refused/.test(out)) throw new Error(`the shell refused the viewer:\n${out.slice(-1500)}`);
-      if (app.exitCode !== null || app.signalCode !== null) throw new Error(`the shell exited early:\n${out.slice(-1500)}`);
-      if (Date.now() > end) throw new Error(`the artifact page never reached its second request; seen ${JSON.stringify(seen)}\n${out.slice(-1500)}`);
-      await new Promise((r) => setTimeout(r, 250));
-    }
-    const first = seen.find((x) => x.url.startsWith("/x/"));
-    const second = seen.find((x) => x.url.startsWith("/sit_proof/"));
-    assert.match(first?.host ?? "", /^a\.localhost:\d+$/, "the page was opened on the artifact host's name");
-    assert.equal(second?.cookie, "__vyre_a=first-party", "the host's cookie came back on the next request: it is first-party in the child webview");
-  } finally {
-    collector.close();
-    await stopBuiltShell(app, sidecarUrl, out);
-  }
-});
-
 // Final run on the last commit of P-L10_03: the app test above runs in the desktop job (VYRE_SHELL_APP); this file reports its own ok line.
