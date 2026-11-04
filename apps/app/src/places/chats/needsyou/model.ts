@@ -341,7 +341,7 @@ export function footerHint(t: Task | undefined): string {
   const keys = ["\u2191 \u2193 to move"];
   if (!t) return keys.join(" \u00b7 ");
   const a = fixOf(t) === null && keyRequestOf(t) === null && accessRequestOf(t) === null && connectionFixOf(t) === null ? splitActions(t) : { primary: null, sendBack: null, more: [] };
-  if (a.primary) keys.push("A approve");
+  if (a.primary) keys.push(t.state === "canceled" ? `A ${a.primary.label.toLowerCase()}` : "A approve");
   if (a.sendBack) keys.push("B send back");
   if (!a.primary && !a.sendBack) keys.push("Enter to open");
   return keys.join(" \u00b7 ");
