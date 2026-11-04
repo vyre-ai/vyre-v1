@@ -92,8 +92,6 @@ export default defineManifest({
     setting('appearance.density', 'person', 'appearance', 'Density', t.enm('compact', 'comfortable'), 'comfortable'),
     setting('appearance.language', 'person', 'appearance', 'Language', t.str({ examples: ['auto', 'en', 'de'], description: 'auto follows this device' }), 'auto'),
     setting('appearance.reduce_motion', 'person', 'appearance', 'Reduce motion', t.bool(), false),
-    setting('ai.default_model', 'person', 'ai', 'Default model', t.str({ description: 'The model a new chat starts on; it follows the last model you picked' }), ''),
-    setting('ai.backup_model', 'person', 'ai', 'Backup model', t.str({ description: 'Used when the default is busy' }), ''),
     setting('talk.on', 'person', 'ai', 'Talk', t.bool(), true),
     setting('talk.language', 'person', 'ai', 'Talk language', t.str({ description: 'auto follows what you say' }), 'auto'),
     setting('talk.model', 'person', 'ai', 'Talk model', t.str(), 'nova-3'),
