@@ -861,3 +861,51 @@ export async function announcePrivacy(ctx: AgentsCtx): Promise<string[]> {
   }
   return told;
 }
+
+
+// ---------------------------------------------------------------- people's own agents: governance without access
+
+export interface PersonSummary { personId: string; assistant: boolean; privateAgents: number; spendMonthMicros: number; capMicros?: number; paused: boolean }
+
+/**
+ * One row per person whose agents the asker cannot see: their Assistant and the agents they keep private (or shared with others but not with the asker). Names, instructions and chats never leave:
+ * only a count, what they spent this month against their cap, and whether they are paused. The people whose agents the asker can see are not here; their agents are in agents.list.
+ */
+export async function peopleSummary(ctx: AgentsCtx, _input: Record<string, never>) {
+  ensure(ctx.db);
+  const groups = new Map<string, AgentRec[]>();
+  for (const a of allAgents(ctx.db)) {
+    if (!a.ownerId.startsWith("usr_") || teammateOf(a) !== undefined || canSee(ctx, a)) continue;
+    groups.set(a.ownerId, [...(groups.get(a.ownerId) ?? []), a]);
+  }
+  const people: PersonSummary[] = [];
+  for (const [personId, rows] of groups) {
+    const sp = await tolerant<{ monthMicros?: number; caps?: { monthMicros?: number } }>(ctx, "engine.spend.get", { scope: "person", scopeId: personId }, {});
+    people.push({ personId, assistant: rows.some((a) => isAssistant(a)), privateAgents: rows.filter((a) => !isAssistant(a)).length, spendMonthMicros: sp.monthMicros ?? 0, ...(sp.caps?.monthMicros !== undefined ? { capMicros: sp.caps.monthMicros } : {}), paused: rows.every((a) => a.paused) });
+  }
+  return { people: people.sort((a, b) => (a.personId < b.personId ? -1 : 1)) };
+}
+
+/**
+ * Pause every agent of one person, or let them run again: the governance an admin has over agents they cannot open. Audited, and the person is told. An outside agent runs on their own computer and
+ * cannot be paused from here (the cap is the lever). Answers how many were paused, never which.
+ */
+export async function pausePerson(ctx: AgentsCtx, input: { personId: string; paused: boolean }) {
+  ensure(ctx.db);
+  const now = ctx.now();
+  let changed = 0;
+  for (const a of allAgents(ctx.db)) {
+    if (a.ownerId !== input.personId || isOutside(a) || teammateOf(a) !== undefined) continue;
+    if (input.paused && !a.paused) {
+      ctx.db.run("UPDATE agents_agent SET paused = 1, pausedReason = ?, pausedBy = ?, pausedAt = ?, updatedAt = ? WHERE id = ?", "Paused by an admin", by(ctx), now, now, a.id);
+      ctx.emit("agent.paused", a.id, { agentId: a.id, reason: "Paused by an admin", by: by(ctx) });
+      changed++;
+    } else if (!input.paused && a.paused) {
+      ctx.db.run("UPDATE agents_agent SET paused = 0, pausedReason = NULL, pausedBy = NULL, pausedAt = NULL, lastActiveAt = ?, updatedAt = ? WHERE id = ?", now, now, a.id);
+      ctx.emit("agent.resumed", a.id, { agentId: a.id, by: by(ctx) });
+      changed++;
+    }
+  }
+  if (changed > 0) await tolerant(ctx, "notifications.send", { to: input.personId, kind: "agent.blocked", title: input.paused ? "An admin paused your agents" : "An admin let your agents run again", data: { agent: "Your agents", reason: input.paused ? "an admin paused them" : "an admin resumed them" } }, {});
+  return { changed };
+}

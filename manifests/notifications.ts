@@ -13,7 +13,7 @@ const kindKey = t.enm(
   'approval.requested', 'answer.requested', 'unblock.requested', 'approval.backstop', 'dm', 'mention', 'call.incoming', 'agent.blocked', 'incident.owned', 'task.assigned', 'reply.followed',
   'agent.task_finished', 'digest.away', 'mention.thread', 'run.failed', 'conflict.needs_you', 'access.requested', 'access.decided',
   'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'limit.hit', 'vault.rotation_due', 'reply.thread',
-  'task.turn', 'task.returned', 'task.finished', 'task.due',
+  'task.turn', 'task.returned', 'task.finished', 'task.due', 'machine.alert',
 );
 const notificationRow = t.obj({
   id: id.notification, kind: kindKey, level, place, title: t.str(), body: t.opt(t.str()), subject: t.opt(resourceRef), count: t.int({ minimum: 1 }),
@@ -68,6 +68,8 @@ export default defineManifest({
     notif('access.decided', 'badge', 'home', 'Your access request for {{title}} was {{decision}}'),
     notif('sync.attention', 'badge', 'settings', 'Sync needs attention on {{device}}'),
     notif('health.degraded', 'badge', 'console', '{{service}} is {{state}}'),
+    // a machine needs a look (disk nearly full, memory pressure, offline with pinned work, a failed backup): one Inbox line for each admin, and the Console's dot on Machines
+    notif('machine.alert', 'badge', 'inbox', '{{title}}', { actions: [{ label: 'Open', cap: 'network.machines' }] }),
     notif('problem.report', 'badge', 'console', 'Problem report from {{from}}', { actions: [{ label: 'Review', cap: 'tasks.act' }] }),
     notif('member.joined', 'digest', 'home', '{{name}} joined {{space}}'),
     notif('limit.hit', 'badge', 'chats', '{{title}} hit its limit', { actions: [{ label: 'Raise once', cap: 'tasks.act' }, { label: 'Stop', cap: 'tasks.act' }] }),

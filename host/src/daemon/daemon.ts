@@ -124,6 +124,9 @@ import { createVaultExportRoute } from "../routes/vault-export.ts";
 import { createWebhookRoute } from "../routes/webhooks.ts";
 import { createComputeRoute } from "../routes/compute.ts";
 import { createComputeStream } from "../routes/compute-stream.ts";
+import { createReporter, recordLinkedReport, recordSpaceReport } from "./machines.ts";
+import { isFix, runFix } from "./machine-fix.ts";
+import type { Report } from "../../../lib/machines.ts";
 import { createLocalWork, createLocalWorkRoute } from "../routes/local-work.ts";
 import { createChromeAgentsRoute } from "../routes/chrome-agents.ts";
 import { bindPersonalChrome } from "../../../lib/personal-chrome.ts";
@@ -177,7 +180,7 @@ import { coreOf, createSyncEngine } from "./syncengine.ts";
 import { collectProjections, createProjectionRunner } from "./projections.ts";
 import type { ProjectionRunner } from "./projections.ts";
 import { managedNetworkPort } from "./network-driver.ts";
-import { publicOriginOf } from "./public-origin.ts";
+import { artifactHostOf as deriveArtifactHost, publicOriginOf } from "./public-origin.ts";
 import { pollCommands } from "./commands.ts";
 import { createPhonePort } from "./phone.ts";
 import type { NetworkPort, PhonePort } from "./commands.ts";
@@ -317,7 +320,9 @@ export interface DaemonOptions {
    * A device-role daemon's links to the Team Spaces its person is signed in to (routes/team-links.ts, compute/device-link.ts): the launcher their engines start with, the engines it says it runs,
    * the name it shows and the socket it dials with. Default: the engine module's own launcher in this computer's sandbox, the CLI engines the sandbox can run, the host name, the platform WebSocket.
    */
-  deviceLink?: { launcher?: import("../compute/node.ts").NodeLauncher; engines?: readonly string[]; name?: string; socket?: (url: string, headers: Record<string, string>) => import("../compute/node.ts").NodeSocket; retryMs?: number; homes?: import("../compute/device-link.ts").OwnHomes };
+  /** Shapes the machine report this daemon records or sends (tests pin the load of the machine they run on) */
+  machineReport?: (r: Report) => Report;
+  deviceLink?: { launcher?: import("../compute/node.ts").NodeLauncher; engines?: readonly string[]; name?: string; socket?: (url: string, headers: Record<string, string>) => import("../compute/node.ts").NodeSocket; retryMs?: number; homes?: import("../compute/device-link.ts").OwnHomes; /** how often the computer reports its load (tests); default 30 s */ reportMs?: number };
   /** Where CLI engines run sandboxed (modules/engine/sandbox.ts SandboxPlan). Omitted: a CLI engine refuses to start. */
   engineSandbox?: unknown;
   /** Tests: swap a CLI engine's program for a command, and expose extra read-only folders in its sandbox (modules/engine runtime `cli`). */
@@ -339,7 +344,7 @@ export interface DaemonOptions {
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   /** intervals in ms; tests shorten them */
-  intervals?: { tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number; sitesPush?: number };
+  intervals?: { machines?: number; tick?: number; commands?: number; fast?: number; slow?: number; encryption?: number; hooks?: number; sweep?: number; sitesPush?: number };
 }
 
 export interface Daemon {
@@ -505,7 +510,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // sites: what the module answers and where the bytes go; set once the modules are loaded and the stream exists
   let sitesServing: Partial<PublicPathDeps> & { artifactSession?: PublicPathDeps["artifact"]; artifactExchange?: (code: string) => Promise<{ siteId: string; token: string; maxAgeSeconds: number } | null> } = {};
   // the host artifacts are served from, apart from the app's origin (artifact-host.ts); none until one is set up (VYRE_ARTIFACT_HOST), and artifacts then open at their keyed address as before
-  const artifactHostOf = (): string | null => o.artifactHost ?? (process.env["VYRE_ARTIFACT_HOST"] || null);
+  // explicit setting first (the option or VYRE_ARTIFACT_HOST; "off" turns it off), else derived from the Space's address: <name>-a.vyre.run for a relay name, a.<domain> for an own domain
+  const artifactHostOf = (): string | null => {
+    const set = o.artifactHost ?? (process.env["VYRE_ARTIFACT_HOST"] || null);
+    if (set !== null) return set === "off" ? null : set;
+    let claimed: { name?: string; state?: string } | undefined;
+    try { claimed = db?.all("SELECT name, state FROM network_phone WHERE id = 1")[0] as typeof claimed; } catch { /* the table comes with the network module */ }
+    return deriveArtifactHost(cfg.address, claimed?.state === "claimed" ? claimed.name : null);
+  };
   let refreshDomains: () => Promise<void> = () => Promise.resolve();
   // sites Vyre deploys, at addresses of their own: set once the sites module is loaded (configureRoutes); until then no host is a site
   let siteHosts: SiteHostDeps | null = null;
@@ -540,7 +552,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   };
   const publicPath = createPublicPathRoute({
     forms: () => formsPageRoute, unsubscribe: () => unsubscribeRoute, share: () => shareRoute, origin: () => publicOrigin()?.origin ?? null,
-    site: (slug) => sitesServing.site?.(slug) ?? null, artifact: (id, token) => sitesServing.artifact?.(id, token) ?? Promise.resolve(null),
+    site: (slug) => sitesServing.site?.(slug) ?? null, // the keyed /a/<id>/k/<token>/ address (a token in the URL) is served only where no artifact host exists, which is a Space reached on a local address; with a host it is refused
+    artifact: (id, token) => artifactHostOf() ? Promise.resolve(null) : (sitesServing.artifact?.(id, token) ?? Promise.resolve(null)),
     fetch: (t, r, sink) => sitesServing.fetch ? sitesServing.fetch(t, r, sink) : Promise.resolve(sink.fail("Not available.")), file: (f, rel) => sitesServing.file?.(f, rel) ?? Promise.resolve(null),
   });
   // GET /exports/<id>?token= (P-L7_16): the vault module checks the token; until it is configured every pull is refused
@@ -556,10 +569,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let computeStreamOpen: (ticket: string, computerId: string) => Promise<{ nodeId: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
   let computeStreamInput: (computerId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
   // a person's own computer links with their signed-in session (lane l-runson); who it is comes from the same resolver as the gateway, once the Space is open
+  let closeIdleSessions: () => Promise<number> = () => Promise.resolve(0);
   let deviceOfToken: (token: string) => Promise<{ person: string; device: string; name?: string } | null> = () => Promise.resolve(null);
   let streamRef: { devices(p?: string): { nodeId: string; person: string }[]; ask(n: string, k: string, i: unknown, t?: number): Promise<unknown> } | null = null;
   let remoteChrome: ReturnType<typeof createRemotePort>;
-  const computeStream = createComputeStream({ chromeEvent: (link, e) => remoteChrome.onEvent({ nodeId: link.nodeId, person: link.person }, e), poll: (c) => computePoll(c, {}), device: (t) => deviceOfToken(t), open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
+  const computeStream = createComputeStream({ chromeEvent: (link, e) => remoteChrome.onEvent({ nodeId: link.nodeId, person: link.person }, e), poll: (c) => computePoll(c, {}), device: (t) => deviceOfToken(t), report: (from, r) => {
+    if (!db) return;
+    // the Space started the engine processes on this machine, so the Space knows how many turns run there; what the machine says of itself is up to 30 s old and counts none that the Space placed
+    const sure = computeStream.running(from.nodeId), body = r && typeof r === "object" ? (r as { runs?: Record<string, unknown> }) : null;
+    recordLinkedReport(db, { ...(from.serverId ? { serverId: from.serverId } : {}), ...(from.device ? { device: from.device } : {}) }, body ? { ...body, runs: { ...(body.runs ?? {}), turns: sure } } : r, now());
+  }, open: (t, c) => computeStreamOpen(t, c), mayInput: (c, p) => computeStreamInput(c, p), ...(o.computeStreamRecheckMs !== undefined ? { recheckMs: o.computeStreamRecheckMs } : {}), ...(o.computeStreamSecure ? { secure: o.computeStreamSecure } : {}) });
   streamRef = computeStream;
   closers.push(() => computeStream.close());
   // A device-role daemon (the Vyre app's, on the person's own computer) links to each Team Space its person is signed in to here, so their chats there can run on this computer (lane l-runson).
@@ -601,6 +620,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         onEvent: (f) => { chromeEventListeners.add(f as never); return () => { chromeEventListeners.delete(f as never); }; },
       },
+      fix: (fix, service) => (isFix(fix) ? runFix(fix, service, { dataDir: paths.root, now }) : Promise.reject(new Error("unknown fix"))), ...(o.deviceLink?.reportMs !== undefined ? { reportMs: o.deviceLink.reportMs } : {}), report: () => (o.machineReport ?? ((r: Report) => r))({ ...machineReporter.report(), can: [...engines, ...(fs.existsSync("/var/run/docker.sock") ? ["docker"] : [])] }) as unknown as Record<string, unknown>,
       socket: o.deviceLink?.socket ?? platformSocket, signal, ...(o.deviceLink?.retryMs !== undefined ? { retryMs: o.deviceLink.retryMs } : {}), ...(o.deviceLink?.homes ? { homes: o.deviceLink.homes } : {}),
       sleep: (ms, sig) => new Promise<void>((resolve, reject) => { const t = setTimeout(resolve, ms); t.unref?.(); sig.addEventListener("abort", () => { clearTimeout(t); reject(new Error("stopped")); }, { once: true }); }),
       log: (line) => sink.log({ space: l.id, level: 20, msg: "team.link", place: "device-link", attrs: { line } }),
@@ -907,6 +927,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         return true;
       };
       computeStreamOpen = async (ticket, computerId) => (await hookRunner.call("computers.stream_open", { ticket, computerId })) as { nodeId: string; personId: string; input: boolean } | null;
+      closeIdleSessions = async () => (await (loaded.moduleExports.get("engine") as { openerOf?: () => { pool: { closeIdle?: () => Promise<number> } } | null } | undefined)?.openerOf?.()?.pool.closeIdle?.()) ?? 0;
       computeStreamInput = async (computerId, personId) => (await hookRunner.call("computers.stream_input", { computerId, personId })) === true;
       computeHome = async (nodeId, a) => {
         const check = (await hookRunner.call("computers.node_home_check", { nodeId, token: a.token, computerId: a.computerId, cap: a.cap })) as { agentId: string } | null;
@@ -2116,6 +2137,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     return out;
   };
 
+  // Machines: what this computer says about itself every 30 s. The Space server stores its own report; a device-role daemon sends it over the link (linkDevice below).
+  const appVersion = ((): string => { try { return String((JSON.parse(fs.readFileSync(path.join(codeRoot, "package.json"), "utf8")) as { version?: unknown }).version ?? "unknown"); } catch { return "unknown"; } })();
+  const machineReporter = createReporter({ dir: paths.root, version: appVersion, runs: () => ({ turns: engineTurns }), can: () => [...(cfg.roles.includes("device") ? [] : ["claude_code", "codex"]), ...(fs.existsSync("/var/run/docker.sock") || fs.existsSync("/.dockerenv") ? ["docker"] : [])] });
+  const reportMachine = (): void => { if (db) recordSpaceReport(db, (o.machineReport ?? ((r: Report) => r))(machineReporter.report()), now()); };
+
   // What the host knows about itself goes into the network module's tables so Console, Infrastructure, Network has something true to show: the address, this server, the direct endpoint.
   const reportNetwork = (): void => {
     if (!db) return;
@@ -2173,9 +2199,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   if (peerService) closers.push(() => peerService.stop());
   if (peerService) scheduledHere = () => peerService.sync.isRunner();
   const phone: PhonePort = createPhonePort({ current: () => relayBox, start: () => startPhoneRelay?.() ?? null, dropped: () => { relayBox = null; }, configured: Boolean(cfg.relayUrl) });
+  // A machine's Doctor Fix (lane l-machines): the Space server runs it here; any other machine is asked over its link
+  const machineFix = async (serverId: string, fix: string, service: string | undefined): Promise<string> => {
+    if (!isFix(fix)) throw new Error(`unknown fix ${fix}`);
+    if (serverId === "srv_local") {
+      return runFix(fix, service, { dataDir: paths.root, now, closeIdle: () => closeIdleSessions(), restart: async (svc) => { if (!supervisor.has(svc)) return false; await supervisor.restart(svc); return true; } });
+    }
+    const link = computeStream.devices().find((l) => `srv_dev_${l.deviceId.replace(/^dev_/, "").replace(/[^a-z0-9]/gi, "").slice(0, 24)}` === serverId);
+    return String(await computeStream.ask(link ? link.nodeId : serverId, "fix", { fix, ...(service ? { service } : {}) }));
+  };
   const runCommands = (): Promise<number> => {
     if (!db) return Promise.resolve(0);
-    const run = () => pollCommands({ db: db!, supervisor, network, phone, now, log: sink.logger({ space: space ?? "-", place: "commands" }), observed: async (event) => {
+    const run = () => pollCommands({ db: db!, supervisor, network, phone, now, machineFix, log: sink.logger({ space: space ?? "-", place: "commands" }), observed: async (event) => {
     if (!log) throw new Error('The event log is unavailable.');
     const stored = await log.append({ id: event.id, type: event.type, sv: 1, trace_id: ZERO_TRACE, actor: event.actor, entity: 'entity', entity_id: event.target, vis: 'space', payload: event.payload });
     headSeq = Math.max(headSeq, stored.seq);
@@ -2206,6 +2241,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         host = row?.mode === "own_domain" ? ingressHostOf(row.address) : null;
         if (!host) return;
         const wrote = await network.ensureIngress(host, { replace });
+        // artifacts are served from a.<domain>, its own origin: the same upstream, its own certificate
+        const art = artifactHostOf();
+        if (art && art !== host && art.endsWith(`.${host}`)) await network.ensureIngress(art, { replace });
         if (wrote) sink.log({ space: space ?? "-", level: 30, msg: "network.ingress_written", place: "network", attrs: { host, at: replace ? "boot" : "missing" } });
         ingressFailing = null;
       } catch (e) {
@@ -2230,6 +2268,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   } });
   scheduler.add({ name: "probes.fast", schedule: { everyMs: fast }, run: async () => { await runProbes(group(["events_db", "index_db", "scheduler", "disk_space"]), false); } });
   scheduler.add({ name: "probes.slow", schedule: { everyMs: slow }, run: async () => { await runProbes(group(["docker", "caddy", "time_skew"]), false); reportNetwork(); await ensureIngress(false); await refreshNetworkCertificate(); } });
+  scheduler.add({ name: "machines.report", schedule: { everyMs: o.intervals?.machines ?? 30_000, immediate: true }, run: () => { if (hasSpace) reportMachine(); } });
   scheduler.add({ name: "probes.encryption", schedule: { everyMs: o.intervals?.encryption ?? 300_000 }, run: async () => { await runProbes(group(["disk_encrypted"]), false); } });
   if (hasSpace) {
     scheduler.add({ name: "commands.poll", schedule: { everyMs: o.intervals?.commands ?? 1000 }, run: async () => { await runCommands(); } });

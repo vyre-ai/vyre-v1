@@ -274,8 +274,8 @@ export const NAV: readonly NavGroup[] = [
     { key: "console.integrations", title: "Connectors and connections", perm: "connectors.manage" }, { key: "events.webhooks", title: "Webhooks", perm: "connectors.manage" },
     { key: "console.mcp-sessions", title: "API keys", perm: "access.manage" },
   ] },
-  { key: "infrastructure", title: "Infrastructure", pages: [
-    { key: "console.network", title: "Network", perm: "server.network" }, { key: "console.server-updates", title: "Updates", perm: "server.update" },
+  { key: "infrastructure", title: "Machines", pages: [
+    { key: "console.machines", title: "Machines", perm: C }, { key: "console.network", title: "Network", perm: "server.network" }, { key: "console.server-updates", title: "Updates", perm: "server.update" },
     { key: "console.server-logs", title: "Logs", perm: "server.logs" }, { key: "console.diagnostics", title: "Diagnostics", perm: C },
     { key: "console.support-bundle", title: "Support bundle", perm: "server.logs" }, { key: "console.speed", title: "Speed", perm: C },
   ] },

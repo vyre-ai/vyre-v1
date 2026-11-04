@@ -105,6 +105,13 @@ export default defineManifest({
     read('agents.list', 'List agents you are in or that are shared with you (admins may toggle All in the Space)', { level: 'member',
       in: listIn, out: { agents: t.arr(agentRow), ...pageOut }, tool: 'agents', label: 'filter', cli: 'vyre agents list',
     }),
+    // People's own agents (owner ruling 4 Nov): an admin governs them without opening them. No name, instruction or chat is in either answer.
+    read('agents.people_summary', 'For each person whose agents you cannot see (their Assistant, the agents they keep private): how many, what they spent this month against their cap, and whether they are paused. Never names or content', {
+      in: {}, out: { people: t.arr(t.obj({ personId: id.user, assistant: t.bool(), privateAgents: t.int({ minimum: 0 }), spendMonthMicros: t.int({ minimum: 0 }), capMicros: t.opt(t.int({ minimum: 0 })), paused: t.bool() })) }, perm: 'agents.manage', level: 'manage', tool: 'agents',
+    }),
+    write('agents.pause_person', 'Pause every agent of one person, or let them run again. Audited, and the person is told. Answers how many changed, never which', {
+      in: { personId: id.user, paused: t.bool() }, out: { changed: t.int({ minimum: 0 }) }, perm: 'agents.manage', level: 'manage', emits: ['agent.paused', 'agent.resumed'], audit: 'always', tool: 'agents', idem: 'natural',
+    }),
     read('agents.get', 'Read one agent: record, status, limits and the effective configuration', {
       in: target, out: { agent: agentRow }, on: ['agent', '/agentId'], tool: 'agents', label: 'check', errors: ['validation.not_found'],
     }),
