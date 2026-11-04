@@ -2,8 +2,9 @@
 // agent or the Space say "Inherited". A row opens the lead's Hooks tab at that hook where the shell can; the helper cannot change them itself.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { Icon } from "../needsyou/parts.tsx";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { kindWord, titleOf, whatOf } from "../rightpane/hooks-model.ts";
 import type { Hook } from "../rightpane/hooks-model.ts";
@@ -19,18 +20,12 @@ export function splitHooks(hooks: readonly Hook[], helperThreadId: string): { ow
 }
 
 function HookRow({ h, tag, open }: { h: Hook; tag: string; open?: (hookId: string) => void }): ReactElement {
-  const [over, setOver] = useState(false);
-  // the pointer is read from the row's own mouse events, as the pane's rows do (a hover prop on a Pressable waits for a touch-free device)
+  // one ui/Row: the rule, what it does under it, where it comes from and the chevron on the right; the Row paints hover and selection across its whole width
   return (
-    <View {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }} style={[st.row, over && open ? st.over : null]}>
-      <Pressable key={h.id} accessibilityRole="button" accessibilityLabel={`${tag}: ${h.line}`} testID={`helper-hook-${h.id}`} disabled={!open} onPress={() => open?.(h.id)} style={st.rowIn}>
-        <View style={st.text}>
-          <Text style={st.when}>{titleOf(h)}</Text>
-          <Text style={st.what}>{kindWord(h)}: {whatOf(h)}</Text>
-        </View>
-        <Text style={st.tag}>{tag}</Text>
-        {open ? <Icon name="chev" size={11} color="var(--ink-4)" /> : null}
-      </Pressable>
+    <View testID={`helper-hook-${h.id}`} accessibilityLabel={`${tag}: ${h.line}`}>
+      <Row id={`helper-hook-${h.id}`} tall title={titleOf(h)} note={`${kindWord(h)}: ${whatOf(h)}`}
+        trailing={<View style={st.trail}><Text style={st.tag}>{tag}</Text>{open ? <Icon name="chev" size={11} color="var(--ink-4)" /> : null}</View>}
+        {...(open ? { onPress: () => open(h.id) } : {})} />
     </View>
   );
 }
@@ -41,14 +36,18 @@ export function HelperHooks({ hooks, helperThreadId, lead, name, open }: { hooks
   return (
     <View testID="helper-hooks" style={st.root}>
       <View style={st.head}><Text accessibilityRole="header" style={st.label}>{`Hooks for ${name}`}</Text><Text style={st.label}>{own.length + chat.length + inherited.length}</Text></View>
+      {/* ui-rows-lint: not a list (each line is a HookRow, which draws a ui/Row itself) */}
       {own.map((h) => <HookRow key={h.id} h={h} tag={`From ${lead}`} {...(open ? { open } : {})} />)}
+      {/* ui-rows-lint: not a list (each line is a HookRow, which draws a ui/Row itself) */}
       {chat.map((h) => <HookRow key={h.id} h={h} tag="From this chat" {...(open ? { open } : {})} />)}
+      {/* ui-rows-lint: not a list (each line is a HookRow, which draws a ui/Row itself) */}
       {inherited.map((h) => <HookRow key={h.id} h={h} tag="Inherited" {...(open ? { open } : {})} />)}
     </View>
   );
 }
 
 const st = StyleSheet.create({
+  trail: { flexDirection: "row", alignItems: "center", gap: 8 },
   root: { marginTop: 14 },
   head: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
   label: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },

@@ -38,6 +38,7 @@ export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietS
     <View style={{ gap: 6, alignSelf: "flex-start" }}>
       {acts.length > 0 ? (
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+          {/* ui-rows-lint: not a list (the few quiet verbs of one hook line) */}
           {acts.map((a) => (
             <Text key={a} testID={`hook-act-${a}-${id}`} accessibilityRole="link" accessibilityState={{ disabled: busy }} onPress={() => { if (!busy) press(a); }} style={linkStyle}>{LABEL[a]}</Text>
           ))}
@@ -46,6 +47,7 @@ export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietS
       {steps.length > 0 ? (
         // the way forward the check wrote: small buttons, apart from the quiet verbs above
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+          {/* ui-rows-lint: not a list (the one or two step buttons a check wrote for this stop) */}
           {steps.map((st, i) => (
             <Pressable key={`n${i}`} testID={`hook-next-${i}-${id}`} accessibilityRole="button" accessibilityLabel={st.label} accessibilityState={{ disabled: busy }} onPress={() => { if (!busy) say(i); }} style={{ height: 28, paddingHorizontal: 11, justifyContent: "center", borderRadius: 9, backgroundColor: "var(--sunk)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object}>
               <Text style={{ fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string }}>{st.label}</Text>
@@ -97,6 +99,7 @@ export function HookSteps({ id, steps, agentId, threadId, call }: { id: string; 
   };
   return (
     <View testID={`hook-steps-${id}`} style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+      {/* ui-rows-lint: not a list (the one or two step buttons a check wrote, inside the reply) */}
       {steps.map((st, i) => (
         <Pressable key={i} testID={`hook-step-${i}-${id}`} accessibilityRole="button" accessibilityLabel={st.label} accessibilityState={{ disabled: busy }} onPress={() => { if (!busy) send(i); }} style={{ height: 28, paddingHorizontal: 11, justifyContent: "center", borderRadius: 9, backgroundColor: "var(--sunk)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object}>
           <Text style={{ fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string }}>{st.label}</Text>
