@@ -40,6 +40,11 @@ let catalog: ReturnType<typeof buildCatalog> | null = null;
 let defaults: Set<string> | null = null;
 /** Listed for every turn: an agent sees who is in and can message a teammate for its person (lane l-agentdm). */
 export const TEAMMATE_TOOLS: readonly string[] = ["people_status", "message_person"];
+/**
+ * Listed for every turn too: the reads a question about the Inbox or a mail thread starts with. Found only through tool_search, a model asked "what came in about X" searched nineteen times and never
+ * had them (a 7 minute, 1.5 million token turn). Every read an asked domain starts with belongs here.
+ */
+export const CORE_READ_TOOLS: readonly string[] = ["inbox_counts", "inbox_list_by_thread", "inbox_thread", "mail_thread_get", "mail_message_get"];
 
 export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
   if (!catalog || !defaults) {
@@ -82,6 +87,7 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     const scope = th?.scopeType && th.scopeId ? { type: th.scopeType, id: th.scopeId } : undefined;
     // who is in and a message to a teammate are listed in every chat, without a tool_search (owner ruling 3 Nov, lane l-agentdm)
     session.preload(t.threadId, TEAMMATE_TOOLS);
+    session.preload(t.threadId, CORE_READ_TOOLS);
     facts.set(t.threadId, { kind: th?.kind ?? "chat", planMode: th?.planMode === true, ...(th?.mode === "ask" || th?.mode === "auto" || th?.mode === "plan" ? { mode: th.mode } : {}), ...(scope ? { scope } : {}) });
     if (th?.kind === "ask" && scope) {
       const lvl = await d.call("chat.ask_level", { threadId: t.threadId }, t.asker).catch(() => undefined) as { level?: Level | null } | undefined;

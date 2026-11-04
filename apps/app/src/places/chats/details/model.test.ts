@@ -60,6 +60,15 @@ test("an API turn shows dollars from the record, its team key, and 'Not reported
   assert.ok(!lines.some((l) => l.kind === "kv" && /^\$?0(\.0+)?$/.test(l.value)), "nothing unknown is shown as 0");
 });
 
+test("a flat-plan account (OpenCode Go reports 0) says Flat plan, never $0.00", () => {
+  const ctx = me("usr_irfad");
+  const flat = { ...api, cost: { source: "flat" as const } };
+  assert.equal(costLine(flat, ctx), "Flat plan");
+  const lines = detailLines(details(flat), ctx);
+  assert.equal(kv(lines, "cost-total"), "Flat plan");
+  assert.ok(!lines.some((l) => l.kind === "kv" && /\$/.test(l.value)), "no dollar figure on a flat plan");
+});
+
 test("the Details tab lists the ids, timing, tools with their durations and holds, what the agent knew, skills, files and retries", () => {
   const lines = detailLines(details(signin), me("usr_irfad"));
   const labels = lines.filter((l) => l.kind === "label").map((l) => (l.kind === "label" ? l.text : ""));
