@@ -345,3 +345,25 @@ test("on a phone, Open chat from the Crew screen closes the screen so the helper
   assert.deepEqual(opened, ["thr_p"]);
   assert.equal(ctx!.open, false, "the Crew screen is closed, so the helper chat shows");
 });
+
+test("no raw model, engine or account id is written anywhere in the crew UI: not in its strings, not on screen", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const dirs = [new URL("./", import.meta.url).pathname, new URL("../helper/", import.meta.url).pathname];
+  const files = dirs.flatMap((d) => fs.readdirSync(d).filter((f) => /\.tsx?$/.test(f) && !/\.test\./.test(f) && f !== "sample.ts").map((f) => path.join(d, f)));
+  const RAW = /claude-code|claude-(?:opus|sonnet|haiku|fable)|gpt-\d|glm-\d|deepseek-v|opencode-go|\bMaya_Claude\b|\b[A-Z][a-z]+_[A-Z][a-z]+\b/;
+  for (const f of files) {
+    const src = fs.readFileSync(f, "utf8").replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
+    const strings = [...src.matchAll(/(["'`])((?:\\.|(?!\1).)*)\1/g)].map((m) => m[2]!);
+    for (const s of strings) assert.doesNotMatch(s, RAW, `${path.basename(f)}: a raw id in the string "${s.slice(0, 60)}"`);
+  }
+  // and what a person reads for a helper that runs on a model and an account
+  const call = async (cap: string): Promise<unknown> => (cap === "chat.helper.notes" ? { notes: [{ messageId: "m1", who: "brief", authorId: "agt_1", body: "Read it." }, { messageId: "m2", who: "parent", authorId: "agt_1", body: "Starting again on Opus 5.5.", kind: "followup", restart: true }] } : cap === "engine.helper_models" ? { accounts: [{ ref: "#A", provider: "anthropic", label: "claude-code · Maya_Claude", models: [{ model: "claude-fable-5-1", available: true, tier: "strong" }] }] } : {});
+  const root = await mount(createRoot, <CrewPeek member={{ ...three()[1]!, model: "claude-opus-5-5", accountLabel: "claude-code · Maya_Claude", startedAt: Date.now() - 4000 }} call={call} onBack={() => undefined} onOpenChat={() => undefined} onRefresh={() => undefined} />);
+  await flush();
+  await press(find(root, "crew-peek-change-model")); await flush();
+  const text = textOf(find(root, "crew-peek")).replace(/\s+/g, " ");
+  assert.match(text, /Opus 5\.5 · Maya Claude/); assert.match(text, /Fable 5\.1/);
+  assert.doesNotMatch(text, /claude-|Maya_Claude|claude-code/);
+  assert.equal(find(root, "crew-note-m2"), null, "a restart is not a note");
+});
