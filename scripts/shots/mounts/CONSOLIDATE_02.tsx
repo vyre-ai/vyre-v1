@@ -463,8 +463,14 @@ const DEFAULTS: Record<string, string> = { memlearn: "memlearn", "def-access": "
 export default function Mount(): ReactNode {
   const [id, setId] = useState<string | null>(null);
   useEffect(() => { const raw = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "overview"; const [p, v] = raw.split("_"); part.current = p!; part.variant = v ?? ""; setId(p!); }, []);
-  // hooks_add: the Add a hook sheet open over the page
-  useEffect(() => { if (id !== "hooks" || part.variant !== "add") return undefined; const t = setTimeout(() => (globalThis as { document?: { querySelector(s: string): { click(): void } | null } }).document?.querySelector("[data-testid='hooks-add']")?.click(), 900); return () => clearTimeout(t); }, [id]);
+  // hooks_add: the Add a hook sheet open over the page. hooks_only: the same sheet, then the Only for picker pressed so its menu is open.
+  useEffect(() => {
+    if (id !== "hooks" || (part.variant !== "add" && part.variant !== "only")) return undefined;
+    const doc = (globalThis as { document?: { querySelector(s: string): { click(): void } | null } }).document;
+    const t = setTimeout(() => doc?.querySelector("[data-testid='hooks-add']")?.click(), 900);
+    const t2 = part.variant === "only" ? setTimeout(() => doc?.querySelector("[aria-label='Only for']")?.click(), 1800) : undefined;
+    return () => { clearTimeout(t); if (t2) clearTimeout(t2); };
+  }, [id]);
   const data = useMemo(() => consoleData(), []);
   const settings = useMemo(() => createSampleSettings().data, []);
   if (id === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
