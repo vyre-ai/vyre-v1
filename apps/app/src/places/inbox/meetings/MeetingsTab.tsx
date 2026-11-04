@@ -276,7 +276,7 @@ function ItemCard({ item, api }: { item: Item; api: ItemApi }): ReactElement {
               ) : null}
               <Btn label="Skip" onPress={() => api.skip(item)} disabled={api.busy} testID={`skip-${item.itemId}`} />
               <Btn label="Edit" onPress={startEdit} disabled={api.busy} testID={`edit-${item.itemId}`} />
-              <Btn label="Approve" primary onPress={() => api.approve(item)} disabled={api.busy} testID={`approve-${item.itemId}`} />
+              <Btn label="Allow" primary onPress={() => api.approve(item)} disabled={api.busy} testID={`approve-${item.itemId}`} />
             </>
           )}
         </View>
@@ -357,7 +357,7 @@ function PackageView({ meetingId, onBack, nav, nameOf, team }: { meetingId: stri
         {slim ? null : <StateMark state={p.state} />}
         <View style={st.grow} />
         <IconButton icon="more" label="More" testID="meeting-more" onPress={more} />
-        {left > 0 ? <Btn label={left === 1 ? "Approve" : `Approve all ${left}`} primary disabled={busy} onPress={() => { void run("meetings.closeout.approve", { meetingId }); }} testID="approve-all" /> : null}
+        {left > 0 ? <Btn label={left === 1 ? "Allow" : `Allow all ${left}`} primary disabled={busy} onPress={() => { void run("meetings.closeout.approve", { meetingId }); }} testID="approve-all" /> : null}
       </View>
       <ScrollView style={st.scroll} contentContainerStyle={st.scrollIn}>
         <Text style={st.when} testID="meeting-when">{`${slim ? `${STATE_LABEL[p.state]} · ` : ""}${meetingTime(p.startsAt, c.now, c.offsetMin)}${who ? ` · ${who}` : ""}`}</Text>

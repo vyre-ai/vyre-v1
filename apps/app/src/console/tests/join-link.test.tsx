@@ -134,7 +134,7 @@ test("Decline calls members.join_requests.decline with the request", async () =>
   try {
     await press(find(root, "join-decline-jrq_a"));
     assert.deepEqual(calls.map((c) => [c.cap, c.input]), [["members.join_requests.decline", { requestId: "jrq_a" }]]);
-    assert.match(textOf(root), /Declined Dana Lee\./);
+    assert.match(textOf(root), /Denied Dana Lee\./);
   } finally { restore(); }
 });
 

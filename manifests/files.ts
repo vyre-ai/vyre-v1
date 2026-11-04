@@ -108,7 +108,7 @@ export default defineManifest({
   blocks: [
     block('changeset', { changesetId: id.changeset, folderId: id.folder, folderName: t.str(), fileCount: t.int(), added: t.int(), removed: t.int(), state: t.str() }, 'Changed {{fileCount}} files in {{folderName}}. Review in Files.', {
       actions: [
-        { key: 'approve', label: 'Approve and commit', cap: 'changesets.approve', input: { changesetId: '/changesetId' } },
+        { key: 'approve', label: 'Allow and commit', cap: 'changesets.approve', input: { changesetId: '/changesetId' } },
         { key: 'request_changes', label: 'Request changes', cap: 'changesets.request_changes', input: { changesetId: '/changesetId' } },
         { key: 'discard', label: 'Discard', cap: 'changesets.discard', input: { changesetId: '/changesetId' } },
       ],

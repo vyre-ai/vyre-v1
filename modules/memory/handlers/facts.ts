@@ -924,7 +924,7 @@ export async function promote(ctx: MemCtx, input: { factId: string; toLayer: ToL
     const text = f.text.length > 200 ? `${f.text.slice(0, 197)}...` : f.text;
     const res = (await ctx.call("tasks.create", {
       title: `Add to ${input.toLayer} memory`, kind: "approve", assigned: approver, summary: `${me} proposes adding this to the ${input.toLayer} memory: ${text}`,
-      actions: [{ key: "approve", label: "Approve" }, { key: "reject", label: "Reject", note: "optional" }], source: { kind: "manual", id }, idempotencyKey: `memprom:${id}`,
+      actions: [{ key: "approve", label: "Allow" }, { key: "reject", label: "Deny", note: "optional" }], source: { kind: "manual", id }, idempotencyKey: `memprom:${id}`,
     })) as { task?: { id?: string } };
     taskId = res.task?.id ?? null;
   } catch {

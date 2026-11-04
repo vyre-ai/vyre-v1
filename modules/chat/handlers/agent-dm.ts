@@ -336,7 +336,7 @@ async function makeCard(ctx: ChatCtx, card: NonNullable<MessageIn["card"]>, o: {
   })) as { task?: { id?: string } } | null;
   const taskId = String(r?.task?.id ?? "");
   if (!taskId) raise(ctx, "internal.unexpected", "The card was not made.");
-  return { task: taskId, block: { type: "link_card", v: 1, id, state: "done", data: { icon: approval ? "approval" : "task", lead: approval ? "Approve" : "Review", title: clip(card.title.trim(), 80), target: { type: "task", id: taskId } } } };
+  return { task: taskId, block: { type: "link_card", v: 1, id, state: "done", data: { icon: approval ? "approval" : "task", lead: approval ? "Allow" : "Review", title: clip(card.title.trim(), 80), target: { type: "task", id: taskId } } } };
 }
 
 export async function messagePerson(ctx: ChatCtx, rawInput: MessageIn) {

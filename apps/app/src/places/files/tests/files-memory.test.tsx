@@ -232,7 +232,7 @@ test("proposed facts are grouped by the layer they would join, newest first, and
   assert.deepEqual(proposedGroups([{ ...facts[0]!, status: "current" }]), [], "only facts that wait");
 });
 
-test("screen: proposed facts are shared Rows with the source under them and quiet Accept and Reject text actions at the right", () => {
+test("screen: proposed facts are shared Rows with the source under them and quiet Allow and Deny text actions at the right", () => {
   const out = proposed();
   assert.ok(has(out, 'data-testid="memory-proposed"') && has(out, ">Proposed<") && has(out, ">5 waiting<"));
   for (const id of ["f1", "f2", "f3", "f4", "f5"]) {
@@ -240,10 +240,10 @@ test("screen: proposed facts are shared Rows with the source under them and quie
   }
   assert.ok(has(out, "Elena Rivera prefers email over phone calls") && has(out, "From a channel of Maya Chen · 3 h ago") && has(out, "From an automation run of Maya Chen"));
   assert.ok(has(out, "Joins the project&#x27;s memory") || has(out, "Joins the project's memory"));
-  assert.ok(has(out, 'data-testid="accept-all-project"') && !has(out, 'data-testid="accept-all-space"'), "Accept all only where there is more than one");
+  assert.ok(has(out, 'data-testid="accept-all-project"') && !has(out, 'data-testid="accept-all-space"'), "Allow all only where there is more than one");
   assert.ok(has(out, ">low risk<") || has(out, "low risk"));
   assert.ok(has(out, 'data-testid="proposed-notes"') && has(out, "Rivera contact preferences") && has(out, "memory/proposed/rivera-contact.md"));
-  assert.ok(has(out, 'aria-label="Accept: Elena Rivera prefers email over phone calls"'));
+  assert.ok(has(out, 'aria-label="Allow: Elena Rivera prefers email over phone calls"'));
   assert.ok(has(out, "opacity:0"), "on a desktop the actions wait for hover, focus or selection");
   assert.ok(at(out, 'data-testid="layer-project"') < at(out, 'data-testid="layer-space"') && at(out, 'data-testid="layer-space"') < at(out, 'data-testid="layer-agent"'));
 });
