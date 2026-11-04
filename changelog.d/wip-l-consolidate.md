@@ -15,7 +15,7 @@
 - Usage by agent folds agents you may not see into one People's own agents line.
 - An admin who manages runs no longer sees a person's own agent runs (routines and agent runs) in the run lists or by id. They see a count per person instead (`runs.people_counts`), never the work. Shared on purpose, it still shows.
 - The Console is ten places from the approved prototype: Home, People, Agents, AI, Data, Messaging, Apps, Computers, Security and Space. Each has a subtitle, a quiet tab strip and a "Needs you" strip first. Old page addresses still work and Cmd-K finds the old names.
-- New Console pages: AI accounts (one switch, with a confirm that names who moves), What each provider may see, Voice (UI only for now), Requests, Activity, Connected apps, Servers, Agent computers, Billing, Transfer or delete, Export, Sending rules and Do-not-contact list.
+- New Console pages: AI accounts (one switch, with a confirm that names who moves), What each provider may see, Voice (UI only for now), Requests, Activity, Connected apps, Servers, Agent computers, Transfer or delete, Export, Sending rules and Do-not-contact list.
 - Home gains a Relay tile (version, and amber "Update available" when older than the Space server), This month and Quick actions.
 - New read `providers.own_people`: who runs on their own AI sign-ins and how many each, without an account name or a value.
 - Plain words in three permission labels and across the Console (Teams, Extra access, Approvals, Keep and delete, Labels). A copy test and a redirect test hold them.
@@ -29,3 +29,4 @@
 - feat(console): Computers has a CI runners tab (off state and Turn on sheet, month cost against the cap, runs, run sheet, cleanup log, paused at the cap, every setting calling ci.settings.set) and Apps has a GitHub tab (own GitHub app, values in Vault, Create one for us, the Space installation, new permissions line); wip/l-ci-runners and wip/l-install merged in, the ten-place Console kept.
 - merge: right pane keeps About and gains the Skills tab; notification kinds item.shared and ci.paused join the Space deletion kinds; module count 78; audit wording (lib/words/audit.ts) in the Console.
 - Console > Agents > Skills and plugins opens with "Installed for the Space": each install with its kind, who installed it, source and commit, who it is for, Update (preview first) and Remove (names who loses it), and Install from a link (read, then install).
+- Space > General now carries Plan and usage: the design-beta sentence, AI spend this month against the Space limit (with Spend and limits) and storage. An old Billing address lands on General.

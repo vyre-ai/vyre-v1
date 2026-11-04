@@ -1,6 +1,6 @@
 // Lane screenshots without ensureDeps (the shared node_modules is never reinstalled): export the shots app once, serve it, shoot each target of one mount prefix in paper and graphite, at the
 // wide size and the phone size (a phone-only part is shot at the phone size only). Run on the build box from the worktree:
-//   node scripts/shots/l-consolidate-shoot.mjs [out-dir] [--prefix=CONSOLIDATE_02] [--skip-export] [--only=people,groups] [--size=wide|phone] [--skin=paper|graphite]
+//   node scripts/shots/l-consolidate-shoot.mjs [out-dir] [--prefix=CONSOLIDATE_02] [--skip-export] [--only=people,groups] [--size=wide|phone] [--height=N] [--skin=paper|graphite]
 // CONSOLIDATE_02 is the whole Console (one part per page id). Its files are <page>-<skin>-<wide|phone>.png at 1440x1000 and 390x1300 (the prototype shots' sizes). The runner also prints, per part, every
 // capability the page asked for that the mount does not script ("UNSCRIPTED") and any "Couldn't load" text on the page.
 import fs from "node:fs";
@@ -23,7 +23,8 @@ if (!args.includes("--skip-export")) {
   execSync("npx expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
 }
 fs.mkdirSync(out, { recursive: true });
-const SIZES = prefix === "CONSOLIDATE_02" ? { wide: { width: 1440, height: 1000 }, phone: { width: 390, height: 1300 } } : { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
+const tall = Number(flag("height")) || 0; // --height=N: a taller viewport for a long page
+const SIZES = prefix === "CONSOLIDATE_02" ? { wide: { width: 1440, height: tall || 1000 }, phone: { width: 390, height: tall || 1300 } } : { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
 const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
