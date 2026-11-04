@@ -172,7 +172,7 @@ export function LiveBlockView({ projectId, attrs, readOnly, api, fresh = false, 
       <View style={s.head}>
         <Text style={s.title}>{title}</Text>
         <View style={{ flex: 1 }} />
-        <View style={[s.strip, phone && s.stripOn]} {...(Platform.OS === "web" ? ({ dataSet: { lbTools: "1" } } as object) : {})}>
+        <View style={[s.strip, phone && s.stripOn]} {...(Platform.OS === "web" && !phone ? ({ dataSet: { lbTools: "1" } } as object) : {})}>
           {!phone ? <Text testID="live-tag" numberOfLines={1} style={s.tag}>{`Live · ${liveDescription(attrs.type, attrs.spec, types)}`}</Text> : null}
           {tools ? <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${title}`} testID="live-edit" onPress={() => onSettings(attrs)} style={s.btn}><Text style={s.btnText}>Edit</Text></Pressable> : null}
           {!readOnly ? (
