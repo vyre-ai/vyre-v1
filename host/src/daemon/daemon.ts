@@ -1,4 +1,5 @@
 import { ownsSubject } from "./own-subject.ts";
+import { waitForQuiet } from "./export-quiet.ts";
 import { createChoiceSource } from "./forms-choices.ts";
 import {syncEndpointOrigin} from "./sync-endpoint.ts";
 import {collectSpaceExport,SpaceExportError} from '../seams/space-export.ts';
@@ -1110,7 +1111,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       const ownerArchives=createOwnerArchives({db:db!,blobs,space:spaceId,now,owner:()=>access.owner()??null,register:(id,ctx)=>registerExport({id,ownerId:ctx.principal.id},ctx),assertSnapshot:ctx=>{if(exportMutationsInFlight!==0||exportSnapshots.get(ctx)!==exportMutationRevision)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'Shared Space data changed during export persistence. Retry the snapshot.'});},collect:async(ctx,assertOwner)=>{
         if(!ctx.call)throw new Error('Canonical Space export reads are unavailable.');
-        if(exportMutationsInFlight!==0)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'A shared Space write is still in progress. Retry after it finishes.'});
+        // a save in progress is waited for (up to twenty seconds) and the export then starts by itself; only a Space that never goes quiet answers "retry"
+        if(!(await waitForQuiet(()=>exportMutationsInFlight)))throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'A shared Space write is still in progress. Retry after it finishes.'});
         const mutationBefore=exportMutationRevision;try {const result=await collectSpaceExport({revision:()=>exportMutationRevision,space:spaceId,requester:ctx.principal.id,now,secrets:[token],head:async()=>(await spaceLog.currentHead()).seq,assertOwner:async()=>{assertOwner();if(exportMutationsInFlight!==0)throw new SpaceExportError('A shared Space write is still in progress. Retry after it finishes.');},read:(cap,input)=>ctx.call!(cap as never,input),recordScope:async(_type,row)=>{
           const scope=row.scope??row.visibility;
           if(['private','personal','invite'].includes(scope)||row.private===true)return 'private';
