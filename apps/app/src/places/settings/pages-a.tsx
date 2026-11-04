@@ -122,9 +122,11 @@ export const KIND_LABELS: Readonly<Record<string, string>> = {
   "approval.requested": "Needs you", "unblock.requested": "Someone is blocked on you", "answer.requested": "Needs your answer", "approval.backstop": "Still waiting on you", dm: "Direct messages", mention: "Mentions", "mention.thread": "Mentions in a reply",
   "call.incoming": "Incoming calls", "agent.blocked": "An agent is blocked", "agent.task_finished": "Agent finished a task", "incident.owned": "Incidents you own", "task.assigned": "Tasks given to you", "task.turn": "Your turn on a task", "task.returned": "A task sent back to you",
   "task.finished": "Tasks finished", "task.due": "Tasks due", "reply.followed": "Replies to you", "reply.thread": "Replies in a chat", "digest.away": "While you were away", "run.failed": "Routines that failed", "conflict.needs_you": "Edits that conflict",
-  "access.requested": "Requests for access", "access.decided": "Answers to your access requests", "item.shared": "Things shared with you", "sync.attention": "A device needs attention", "health.degraded": "Something is down", "problem.report": "Problem reports",
+  "access.requested": "Requests for access", "access.decided": "Answers to your access requests", "item.shared": "Things shared with you", "sync.attention": "A device needs attention", "health.degraded": "Something is down", "problem.report": "Problem reports", "hook.asked": "A rule stopped something",
   "member.joined": "People who joined", "member.join_requested": "People asking to join", "limit.hit": "A limit was reached", "vault.rotation_due": "Keys to rotate", "machine.alert": "Machine alerts", "ci.paused": "Builds paused", "space.deletion_scheduled": "Space deletion scheduled", "space.deletion_cancelled": "Space deletion cancelled",
 };
+/** Kinds only a Space's owner or admins are sent: a member does not see them in the list. */
+export const ADMIN_KINDS: ReadonlySet<string> = new Set(["space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "member.joined", "member.join_requested", "limit.hit", "machine.alert", "vault.rotation_due", "hook.asked"]);
 export const kindLabel = (title: string): string => title.replace(/^Replies in your threads$/, "Replies to you").replace(/:\s*\{\{\w+\}\}$/, "").replace(/\{\{(\w+)\}\}/g, (_, w: string) => WORD[w] ?? "something");
 type MutesOut = CapMap["notifications.mute.list"]["out"];
 
@@ -165,7 +167,9 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
     );
   };
   const list: ReactElement[] = [];
-  (kinds?.kinds ?? []).forEach((k, i) => {
+  const role = (data.spaces.find((x) => x.current)?.role ?? "").toLowerCase();
+  const isAdmin = role === "owner" || role === "admin";
+  (kinds?.kinds ?? []).filter((k) => isAdmin || !ADMIN_KINDS.has(k.key)).forEach((k, i) => {
     const now = chans[k.key] ?? (k.mine?.channels as Channel[] | undefined) ?? levelChannels(k.level);
     list.push(
       <SettingsRow key={k.key} id={`kind.${k.key}`} label={KIND_LABELS[k.key] ?? kindLabel(k.title)} first={i === 0} sub={channelWords(now)} help="Pick where it reaches you. With none picked it adds a dot only."

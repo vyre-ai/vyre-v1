@@ -169,7 +169,7 @@ function YourSpaces(): ReactElement {
           ) : (
             <>
               {sp.current ? <Value text="Open now" /> : <SmallButton label="Open" testID={`open-${sp.id}`} onPress={() => data.nav.openSpace(sp.id)} />}
-              {sp.kind === "team" && sp.current ? <SmallButton label="Leave" testID={`leave-${sp.id}`} onPress={() => setSure(sp.id)} /> : null}
+              {sp.kind === "team" && sp.current ? (sp.role.toLowerCase() === "owner" ? <Text testID={`leave-blocked-${sp.id}`} style={{ fontSize: 12, color: "var(--ink-3)" as string }}>Transfer ownership first</Text> : <SmallButton label="Leave" testID={`leave-${sp.id}`} onPress={() => setSure(sp.id)} />) : null}
             </>
           )
         }

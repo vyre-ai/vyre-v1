@@ -34,7 +34,7 @@ export const PATHS: Readonly<Record<string, readonly string[]>> = {
   doc: ["M4 2.5h6l2.5 2.5v8.500h-8.500z", "M10 2.500v2.500h2.500M6 8h4M6 10.500h4"],
   lock: ["M4.5 7.5h7v6h-7z", "M6 7.5V5.5a2 2 0 014 0v2"],
   shield: ["M8 2l5 1.8v4c0 3-2.2 5-5 6.2C5.2 12.8 3 10.8 3 7.8v-4z"],
-  key: ["M6 9.5a3 3 0 110-6 3 3 0 010 6z", "M8.2 7.8L13 12.5M11 10.5l1.5 1.5"],
+  key: ["M4.500 5.500a2.500 2.500 0 100 5 2.500 2.500 0 000-5z", "M7 8h7.500M11.500 8v2.500M14 8v1.800"],
   palette: ["M8 2.5a5.5 5.5 0 100 11c1 0 1.5-.7 1.2-1.5-.3-.8.2-1.500 1-1.500H11.500a2 2 0 002-2A5.500 5.500 0 008 2.500z", "M5.500 7.500h.01M8 5.500h.01M10.500 7h.01"],
   keyboard: ["M2.5 4.5h11v7h-11z", "M5 7h.01M8 7h.01M11 7h.01M5.500 9.500h5"],
   laptop: ["M3.500 4.500h9v6h-9z", "M2 12.500h12"],
@@ -115,7 +115,7 @@ export function SettingsRow({ id, label, sub, subAlert = false, lead, control, f
     <>
       <View style={wrap} {...webOnly({ dataSet: { sid: id } })}>
         <Row
-          id={id} title={label} {...(sub ? { note: sub, tall: sub.length > 56 } : {})} {...(subAlert ? { noteLead: "Failed", noteLeadTone: "warning" as const } : {})}
+          id={id} title={label} {...(sub ? { note: sub, tall: sub.length > (narrow ? 30 : 56) } : {})} {...(subAlert ? { noteLead: "Failed", noteLeadTone: "warning" as const } : {})}
           {...(lead ? { leading: <View style={s.lead}>{lead}</View> } : {})} {...(control && !stack ? { trailing: <View style={small ? s.controlFixed : s.control}>{control}</View> } : {})}
           {...(danger ? { titleMarks: <View style={s.dangerDot} /> } : help ? { titleMarks: <Info help={help} testID={`help-${id}`} /> } : {})}
           {...(onPress ? { onPress } : { domProps: { role: undefined, tabIndex: undefined, style: { cursor: "default", backgroundColor: "transparent" } } })}
