@@ -104,3 +104,22 @@ test("Appearance: Make a skin saves one skin into the look; Paste a link finds a
     assert.equal(v.mine.length, 1); assert.equal(v.mine[0]!.accent, "#E4572E");
   } finally { restore(); }
 });
+
+test("Profile: Your time zone is a city picker; choosing a city saves profile.timezone, and Use this computer's time zone saves this computer's", async () => {
+  const { root, calls, restore } = await open("profile");
+  try {
+    const picker = find(root, "ctl-profile.timezone");
+    assert.ok(picker, "the row has the zone picker");
+    assert.match(textOf(root), /Your time zone/);
+    await press(picker);
+    const at = new Date();
+    const hm = (zone: string): string => new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: zone }).format(at);
+    await press(find(root, `menu-item-Pakistan Standard Time, Karachi, ${hm("Asia/Karachi")}`) ?? find(root, `menu-item-Pakistan Time, Karachi, ${hm("Asia/Karachi")}`));
+    const sets = calls("settings.set").filter((c) => (c.input as { key: string }).key === "profile.timezone");
+    assert.deepEqual(sets.at(-1)!.input, { key: "profile.timezone", value: "Asia/Karachi" });
+    await press(find(root, "ctl-profile.timezone"));
+    await press(find(root, "menu-item-Use this computer's time zone"));
+    const device = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+    assert.deepEqual(calls("settings.set").filter((c) => (c.input as { key: string }).key === "profile.timezone").at(-1)!.input, { key: "profile.timezone", value: device });
+  } finally { restore(); }
+});
