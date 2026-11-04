@@ -12,6 +12,7 @@ import { consolePageFor } from "../../../apps/app/src/shell/providers/console.ts
 import { SettingsDataProvider } from "../../../apps/app/src/places/settings/data.tsx";
 import { SpaceDefaults } from "../../../apps/app/src/places/settings/SpacePages.tsx";
 import { createSampleSettings } from "../../../apps/app/src/places/settings/sample.ts";
+import { permissions as REGISTRY } from "../../../generated/permissions.ts";
 import type { MachineOut, MachineRow, MachinesOut, Point } from "../../../apps/app/src/machines/model.ts";
 
 export const title = "Console, every page";
@@ -99,7 +100,8 @@ const AGENTS = [
 ];
 const NAME: Record<string, string> = { ...Object.fromEntries(PEOPLE.map((p) => [p.id, p.name])), ...Object.fromEntries(AGENTS.map((a) => [a.id, a.name])), svc_gate: "Approvals", svc_vyre: "Vyre", usr_jordan: "Jordan Ellis", fld_rivera_docs: "Rivera documents", rec_rivera: "Rivera engagement", rec_inv_2041: "Invoice 2041", rec_guide_7: "Onboarding guide", con_slack: "Slack, Maya", svc_backup: "Backups", northwind: "Northwind", prj_rivera: "Rivera engagement", mbx_billing: "billing@northwind.example", vlt_dev: "Developer keys" };
 const micros = (usd: number): number => Math.round(usd * 1_000_000);
-const ALL_PERMS = ["console.access", "audit.read", "access.manage", "policy.manage", "members.invite", "members.remove", "agents.manage", "computers.use", "schema.manage", "records.hold", "records.export", "server.backups", "server.update", "server.logs", "server.network", "ai.models", "ai.spend", "ai.incidents", "comms.domains", "comms.numbers", "comms.shared_send", "connectors.manage", "engineer.mcp"];
+const ALL_PERMS = REGISTRY.map((p) => p.key as string);
+const defaultsFor = (role: string): string[] => REGISTRY.filter((p) => (p.defaults as Record<string, boolean>)[role]).map((p) => p.key as string);
 
 const principals = [
   ...PEOPLE.map((p) => ({ id: p.id, kind: "person", name: p.name, status: "active", roles: [p.role], groups: p.groups, title: p.title, createdAt: ago(60 * DAY) })),
@@ -108,10 +110,10 @@ const principals = [
 ];
 const ROLES = [
   { id: "rol_owner", name: "Owner", builtIn: true, clearance: "restricted", assignableToAgents: false, permissions: ALL_PERMS, holders: 1 },
-  { id: "rol_admin", name: "Admin", builtIn: true, clearance: "confidential", assignableToAgents: false, permissions: ALL_PERMS.filter((p) => !["server.update", "engineer.mcp"].includes(p)), holders: 1 },
-  { id: "rol_developer", name: "Developer", builtIn: true, clearance: "internal", assignableToAgents: true, permissions: ["console.access", "schema.manage", "server.logs", "engineer.mcp", "audit.read"], holders: 1 },
-  { id: "rol_member", name: "Member", builtIn: true, clearance: "internal", assignableToAgents: true, permissions: [], holders: 3 },
-  { id: "rol_guest", name: "Guest", builtIn: true, clearance: "public", assignableToAgents: false, permissions: [], holders: 1 },
+  { id: "rol_admin", name: "Admin", builtIn: true, clearance: "confidential", assignableToAgents: false, permissions: defaultsFor("admin"), holders: 1 },
+  { id: "rol_developer", name: "Developer", builtIn: true, clearance: "internal", assignableToAgents: true, permissions: defaultsFor("developer"), holders: 1 },
+  { id: "rol_member", name: "Member", builtIn: true, clearance: "internal", assignableToAgents: true, permissions: defaultsFor("member"), holders: 3 },
+  { id: "rol_guest", name: "Guest", builtIn: true, clearance: "public", assignableToAgents: false, permissions: defaultsFor("guest"), holders: 1 },
   { id: "rol_finance", name: "Finance reviewer", builtIn: false, clearance: "confidential", assignableToAgents: false, permissions: ["console.access", "ai.spend", "audit.read"], holders: 1 },
 ];
 const GROUPS = [
