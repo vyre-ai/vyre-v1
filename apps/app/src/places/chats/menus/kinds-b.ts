@@ -185,17 +185,17 @@ export interface TabFacts {
   item: boolean;
   /** A closed tab can come back. */
   canReopen: boolean;
-  /** Only the desktop app can move a tab into its own window. */
-  desktop: boolean;
 }
 export interface TabDo {
   close(): void;
   closeOthers(): void;
   closeRight(): void;
-  duplicate(): void;
+  /** Offered only when the host can make a second tab on the same thing. */
+  duplicate?: (() => void) | undefined;
   copyLink(): void;
   pin(on: boolean): void;
-  toWindow(): void;
+  /** Offered only by the desktop app, which can give a tab its own window. */
+  toWindow?: (() => void) | undefined;
   reopen(): void;
 }
 export function tabMenu(f: TabFacts, d: TabDo): MenuEntry[] {
@@ -204,10 +204,10 @@ export function tabMenu(f: TabFacts, d: TabDo): MenuEntry[] {
     f.count > 1 ? item("Close Other Tabs", d.closeOthers) : null,
     f.toTheRight > 0 ? item("Close Tabs to the Right", d.closeRight) : null,
     sep,
-    f.item ? item("Duplicate", d.duplicate) : null,
+    f.item && d.duplicate ? item("Duplicate", d.duplicate) : null,
     f.item ? item("Copy Link", d.copyLink) : null,
     f.pinned ? item("Unpin Tab", () => d.pin(false)) : item("Pin Tab", () => d.pin(true)),
-    f.desktop && f.item ? item("Move to New Window", d.toWindow) : null,
+    d.toWindow && f.item ? item("Move to New Window", d.toWindow) : null,
     f.canReopen ? sep : null,
     f.canReopen ? item("Reopen Closed Tab", d.reopen, { hint: KEY_B.reopenTab }) : null,
   ]);

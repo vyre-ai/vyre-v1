@@ -88,7 +88,8 @@ test("project: star by state, Share and Add People for a manager, Pin File for a
 
 // ---- tab
 const tabDo = recorder<Parameters<typeof tabMenu>[1]>(["close", "closeOthers", "closeRight", "duplicate", "copyLink", "toWindow", "reopen"]);
-const tabFacts = (o: Partial<Parameters<typeof tabMenu>[0]> = {}): Parameters<typeof tabMenu>[0] => ({ title: "Rivera", pinned: false, count: 4, toTheRight: 2, item: true, canReopen: true, desktop: true, ...o });
+const tabLess = recorder<Parameters<typeof tabMenu>[1]>(["close", "closeOthers", "closeRight", "copyLink", "reopen"]);
+const tabFacts = (o: Partial<Parameters<typeof tabMenu>[0]> = {}): Parameters<typeof tabMenu>[0] => ({ title: "Rivera", pinned: false, count: 4, toTheRight: 2, item: true, canReopen: true, ...o });
 test("tab: the words follow pinned; Close Others and Right only when there are others; Reopen only when one was closed; the window only on desktop", () => {
   const d = { ...tabDo, pin: rec("pin") };
   const e = tabMenu(tabFacts(), d);
@@ -96,8 +97,9 @@ test("tab: the words follow pinned; Close Others and Right only when there are o
   assert.equal(rows(e)[0]!.hint, "⌘W");
   assert.equal(rows(e).at(-1)!.hint, "⇧⌘T");
   assert.ok(labels(tabMenu(tabFacts({ pinned: true }), d)).includes("Unpin Tab"));
-  assert.deepEqual(labels(tabMenu(tabFacts({ count: 1, toTheRight: 0, item: false, canReopen: false, desktop: false }), d)), ["Close", "-", "Pin Tab"]);
-  assert.ok(!labels(tabMenu(tabFacts({ desktop: false }), d)).includes("Move to New Window"));
+  assert.deepEqual(labels(tabMenu(tabFacts({ count: 1, toTheRight: 0, item: false, canReopen: false }), d)), ["Close", "-", "Pin Tab"]);
+  const plain = labels(tabMenu(tabFacts(), { ...tabLess, pin: rec("pin") }));
+  assert.ok(!plain.includes("Move to New Window") && !plain.includes("Duplicate"), "the window is the desktop app's and a second tab needs the host to make one");
   calls.length = 0;
   for (const x of rows(e)) x.onSelect?.();
   assert.deepEqual(calls, ["close", "closeOthers", "closeRight", "duplicate", "copyLink", "pin:true", "toWindow", "reopen"]);

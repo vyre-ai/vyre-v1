@@ -166,10 +166,12 @@ export interface TabStripViewProps extends TabStripProps {
   hideLoneClose?: boolean;
   /** No options button at the end: the strip's menu is the right-click on a tab. */
   noOptions?: boolean;
+  /** The whole menu of a tab, built by the host from its own state (Close, Pin, Reopen). It replaces the standard Close entries and `menu`'s extras. */
+  entries?: (key: string) => readonly MenuEntry[];
 }
 
 export function TabStrip(props: TabStripViewProps): ReactElement {
-  const { tabs, active, onSelect, onClose, onReorder, menu, onPlus, plusTitle } = props;
+  const { tabs, active, onSelect, onClose, onReorder, menu, onPlus, plusTitle, entries } = props;
   const { element, show } = useMenu();
   const nodes = useRef<Record<string, unknown>>({});
   const moreNode = useRef<unknown>(null);
@@ -193,8 +195,8 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   }, [tabs, onClose]);
 
   const openFor = useCallback((key: string | undefined, x: number, y: number) => {
-    show(tabMenuEntries(tabs, key, extrasFor(key), run), x, y, "context", { label: key === undefined ? "Tabs" : (tabs.find((t) => t.key === key)?.title ?? key) });
-  }, [tabs, extrasFor, run, show]);
+    show(entries !== undefined && key !== undefined ? entries(key) : tabMenuEntries(tabs, key, extrasFor(key), run), x, y, "context", { label: key === undefined ? "Tabs" : (tabs.find((t) => t.key === key)?.title ?? key) });
+  }, [tabs, extrasFor, run, show, entries]);
 
   const select = useCallback((key: string) => {
     if (onSelect) onSelect(key);
