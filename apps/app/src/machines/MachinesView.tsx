@@ -139,7 +139,7 @@ export function MachineList({ data, who, narrow, now, onOpen, onAdd, onApprove, 
       {data.waiting.length > 0 ? (
         <Block title="Waiting for approval" count={data.waiting.length} testID="machines-waiting">
           {data.waiting.map((w) => <Row key={w.serverId} id={`waiting-${w.serverId}`} title={w.name} note={[w.facts ? `${w.facts.os} ${w.facts.arch}${w.facts.docker ? ", Docker" : ""}` : null, w.fingerprint ? `Fingerprint ${w.fingerprint}` : null].filter(Boolean).join(" \u00b7 ")} tall
-            trailing={<View style={s.inline}><Pressable accessibilityRole="button" accessibilityLabel={`Decline ${w.name}`} testID={`waiting-decline-${w.serverId}`} onPress={() => onDecline?.(w.serverId)} style={[s.small, pointer]}><Text style={s.smallText}>Decline</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Approve ${w.name}`} testID={`waiting-approve-${w.serverId}`} onPress={() => onApprove?.(w.serverId)} style={[s.primary, pointer]}><Text style={s.primaryText}>Approve</Text></Pressable></View>} />)}
+            trailing={<View style={s.inline}><Pressable accessibilityRole="button" accessibilityLabel={`Deny ${w.name}`} testID={`waiting-decline-${w.serverId}`} onPress={() => onDecline?.(w.serverId)} style={[s.small, pointer]}><Text style={s.smallText}>Deny</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Allow ${w.name}`} testID={`waiting-approve-${w.serverId}`} onPress={() => onApprove?.(w.serverId)} style={[s.primary, pointer]}><Text style={s.primaryText}>Allow</Text></Pressable></View>} />)}
         </Block>
       ) : null}
       {data.alerts.length > 0 ? (

@@ -485,7 +485,7 @@ export function draftCards(drafts: readonly DraftRow[], titles: ReadonlyMap<stri
 
 /** The plain line under an agent's draft: where it sends from and that nothing goes until the person presses Send. No system words and no ids. */
 export function sendsLine(from: string): string {
-  return from ? `Sends from ${from} when you press Send` : "Sends when you press Send";
+  return from ? `Sends from ${from} when you press Allow` : "Sends when you press Allow";
 }
 
 /** After Send on a draft the capability may answer `held`: the send waits for approval in Needs you. */

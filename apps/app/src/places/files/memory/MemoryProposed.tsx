@@ -24,7 +24,7 @@ function FactRow({ fact, busy, selected, onSelect, onAccept, onReject, onOpen, n
   const [focused, setFocused] = useState(false);
   const width = useWindowDimensions().width;
   const shown = (width > 0 && width < 720) || over || focused || selected;
-  const trig = menuTrigger((x, y) => menu.show([{ label: "Accept", onSelect: onAccept }, { label: "Reject", onSelect: onReject }, { separator: true }, { label: "Open Source", onSelect: onOpen }], x, y));
+  const trig = menuTrigger((x, y) => menu.show([{ label: "Allow", onSelect: onAccept }, { label: "Deny", onSelect: onReject }, { separator: true }, { label: "Open Source", onSelect: onOpen }], x, y));
   const from = `From ${SOURCE_LABEL[fact.sourceKind]}${fact.layer === "person" ? "" : ` of ${who(fact.ownerRef)}`} · ${ago(fact.learnedAt, now)}${fact.lowRisk === true ? " · low risk" : ""}`;
   return (
     <View testID={`fact-${fact.factId}`} onPointerEnter={() => setOver(true)} onPointerLeave={() => setOver(false)} {...(trig as object)}>
@@ -33,11 +33,11 @@ function FactRow({ fact, busy, selected, onSelect, onAccept, onReject, onOpen, n
         leading={<Icon name="note" size={16} color="var(--ink-3)" />}
         trailing={(
           <View style={[p.acts, !shown && HIDDEN]}>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Accept: ${fact.text}`} accessibilityState={{ disabled: busy }} disabled={busy} testID={`accept-${fact.factId}`} onPress={onAccept} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={({ hovered }: { hovered?: boolean }) => [p.accept, hovered === true && p.acceptOver]}>
-              <Text style={p.acceptText}>Accept</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Allow: ${fact.text}`} accessibilityState={{ disabled: busy }} disabled={busy} testID={`accept-${fact.factId}`} onPress={onAccept} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={({ hovered }: { hovered?: boolean }) => [p.accept, hovered === true && p.acceptOver]}>
+              <Text style={p.acceptText}>Allow</Text>
             </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel={`Reject: ${fact.text}`} accessibilityState={{ disabled: busy }} disabled={busy} testID={`reject-${fact.factId}`} onPress={onReject} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={({ hovered }: { hovered?: boolean }) => [p.reject, hovered === true && p.rejectOver]}>
-              <Text style={p.rejectText}>Reject</Text>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Deny: ${fact.text}`} accessibilityState={{ disabled: busy }} disabled={busy} testID={`reject-${fact.factId}`} onPress={onReject} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} style={({ hovered }: { hovered?: boolean }) => [p.reject, hovered === true && p.rejectOver]}>
+              <Text style={p.rejectText}>Deny</Text>
             </Pressable>
           </View>
         )}
@@ -79,7 +79,7 @@ export function MemoryProposedBody({ agentId }: MemoryProposedProps): ReactEleme
           <Text style={p.gt}>{`Joins ${lands(g.facts[0]!)}`}</Text>
           <Text style={p.gn} testID={`layer-count-${g.layer}`}>{g.facts.length}</Text>
           <View style={p.grow} />
-          {g.facts.length > 1 ? <Pressable accessibilityRole="button" testID={`accept-all-${g.layer}`} onPress={() => acceptAll(g.facts)} style={({ hovered }: { hovered?: boolean }) => [p.all, hovered === true && p.allOver]}><Text style={p.allText}>Accept all</Text></Pressable> : null}
+          {g.facts.length > 1 ? <Pressable accessibilityRole="button" testID={`accept-all-${g.layer}`} onPress={() => acceptAll(g.facts)} style={({ hovered }: { hovered?: boolean }) => [p.all, hovered === true && p.allOver]}><Text style={p.allText}>Allow all</Text></Pressable> : null}
         </View>
         {rows}
       </View>,

@@ -42,11 +42,11 @@ export function movesFor(t: MoveTask, me: string): Move[] {
   if (t.state === "todo" && doer) out.push({ key: "start", label: "Start", to: "doing", cap: "tasks.transition", input: { to: "doing", expectedFrom: "todo" } });
   if ((t.state === "todo" || t.state === "doing") && doer) out.push({ key: "submit", label: handInLabel(t), to: handInTo(t), cap: "tasks.submit", input: {}, ask: "summary" });
   if (t.state === "in_review" && reviewer) {
-    out.push({ key: "approve", label: t.approver ? "Looks good, on to approval" : "Approve", to: t.approver ? "awaiting_approval" : "done", cap: "tasks.review", input: { verdict: "approve" } });
+    out.push({ key: "approve", label: t.approver ? "Looks good, on to approval" : "Allow", to: t.approver ? "awaiting_approval" : "done", cap: "tasks.review", input: { verdict: "approve" } });
     out.push({ key: "send_back", label: "Send back", to: "doing", cap: "tasks.review", input: { verdict: "send_back" }, ask: "fixes" });
   }
   if (t.state === "awaiting_approval" && approver) {
-    out.push({ key: "approve", label: "Approve", to: "done", cap: "tasks.decide", input: { verdict: "approve" } });
+    out.push({ key: "approve", label: "Allow", to: "done", cap: "tasks.decide", input: { verdict: "approve" } });
     out.push({ key: "reject", label: "Send back", to: "doing", cap: "tasks.decide", input: { verdict: "reject" }, ask: "reason" });
   }
   if (open && (doer || reviewer || approver || creator)) out.push({ key: "cancel", label: "Cancel the task", to: "canceled", cap: "tasks.transition", input: { to: "canceled", expectedFrom: t.state }, danger: true });

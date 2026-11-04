@@ -239,14 +239,14 @@ const noActions = {
 
 /* ---------- the lead's review (changes requested): the proposal inline, the plan card, the header, the composer ---------- */
 
-test("the AGENT.md proposal is inline: the diff with Accept, Edit and Reject, not a collapsed card", () => {
+test("the AGENT.md proposal is inline: the diff with Allow, Edit and Deny, not a collapsed card", () => {
   const s = createSample("idle");
   const out = html(s);
   const block = msgs(s).find((m) => m.messageId === "m5")!.blocks[0]!;
   assert.ok(isProposal(block));
   assert.ok(has(out, " · proposed by Intake"));
   inOrder(out, ['data-testid="proposal-b2"', "2 changes", 'data-testid="proposal-b2-why"', "## How you work", "4. Offer three consult times using the booking tool.", "Skip Thursday mornings.", "## You do not", "Offer Thursday morning times", 'data-testid="proposal-b2-accept"', 'data-testid="proposal-b2-edit-open"', 'data-testid="proposal-b2-reject"']);
-  assert.ok(has(out, "Accept") && has(out, "Edit") && has(out, "Reject"));
+  assert.ok(has(out, "Allow") && has(out, "Edit") && has(out, "Deny"));
   assert.ok(!has(out, "Intake wants to change its instructions"), "no collapsed card");
   assert.equal(changeCount(1), "1 change");
 });
