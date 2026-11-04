@@ -571,6 +571,7 @@ export function createClient(transport: Transport) {
       delete: call("connections.delete", 1),
       get: call("connections.get", 1),
       list: call("connections.list", 1),
+      mark_working: call("connections.mark_working", 1),
       pause: call("connections.pause", 1),
       reconnect: call("connections.reconnect", 1),
       resume: call("connections.resume", 1),

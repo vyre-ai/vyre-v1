@@ -1,0 +1,1 @@
+- The Space's Google Workspace connection no longer reads "Needs sign-in, never used" while it works: delegation setup marks it active after its check passes, and every good answer from Google (mail or calendar poll) stamps its last use at most once a minute. A connection stuck pending is repaired by the next poll. New system capability connections.mark_working.
