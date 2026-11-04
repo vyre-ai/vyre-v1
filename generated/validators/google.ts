@@ -308,13 +308,13 @@ if (g623 === 'object') { const o623 = x623 as Record<string, unknown>;
 
 function d_s_920a271d7a(v: unknown, p: string, e: string[]): void {
 {
-const x724 = v;
-const g724 = typeOf(x724);
-const b724: string[] = []; lf(x724, p, b724, L0); if (b724.length) e.push(...b724);
-if (g724 === "object") {
-if (g724 === 'object') { const o724 = x724 as Record<string, unknown>;
-if (!("file" in o724)) e.push(p + "/file" + ': required');
-if ("file" in o724) d_s_6c8b57052a(o724["file"], p + "/file", e);
+const x742 = v;
+const g742 = typeOf(x742);
+const b742: string[] = []; lf(x742, p, b742, L0); if (b742.length) e.push(...b742);
+if (g742 === "object") {
+if (g742 === 'object') { const o742 = x742 as Record<string, unknown>;
+if (!("file" in o742)) e.push(p + "/file" + ': required');
+if ("file" in o742) d_s_6c8b57052a(o742["file"], p + "/file", e);
 }
 }
 }
@@ -322,16 +322,16 @@ if ("file" in o724) d_s_6c8b57052a(o724["file"], p + "/file", e);
 
 function d_s_9492b61590(v: unknown, p: string, e: string[]): void {
 {
-const x730 = v;
-const g730 = typeOf(x730);
-const b730: string[] = []; lf(x730, p, b730, L0); if (b730.length) e.push(...b730);
-if (g730 === "object") {
-if (g730 === 'object') { const o730 = x730 as Record<string, unknown>;
-if (!("connectionId" in o730)) e.push(p + "/connectionId" + ': required');
-if (!("fileId" in o730)) e.push(p + "/fileId" + ': required');
-if ("connectionId" in o730) lf(o730["connectionId"], p + "/connectionId", e, L35);
-if ("as" in o730) lf(o730["as"], p + "/as", e, L6);
-if ("fileId" in o730) lf(o730["fileId"], p + "/fileId", e, L1);
+const x748 = v;
+const g748 = typeOf(x748);
+const b748: string[] = []; lf(x748, p, b748, L0); if (b748.length) e.push(...b748);
+if (g748 === "object") {
+if (g748 === 'object') { const o748 = x748 as Record<string, unknown>;
+if (!("connectionId" in o748)) e.push(p + "/connectionId" + ': required');
+if (!("fileId" in o748)) e.push(p + "/fileId" + ': required');
+if ("connectionId" in o748) lf(o748["connectionId"], p + "/connectionId", e, L35);
+if ("as" in o748) lf(o748["as"], p + "/as", e, L6);
+if ("fileId" in o748) lf(o748["fileId"], p + "/fileId", e, L1);
 }
 }
 }

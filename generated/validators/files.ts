@@ -488,15 +488,15 @@ if ("provider" in o597) lf(o597["provider"], p + "/provider", e, L1);
 
 function d_s_8fb9a31e60(v: unknown, p: string, e: string[]): void {
 {
-const x709 = v;
-const g709 = typeOf(x709);
-const b709: string[] = []; lf(x709, p, b709, L0); if (b709.length) e.push(...b709);
-if (g709 === "object") {
-if (g709 === 'object') { const o709 = x709 as Record<string, unknown>;
-if (!("type" in o709)) e.push(p + "/type" + ': required');
-if (!("id" in o709)) e.push(p + "/id" + ': required');
-if ("type" in o709) lf(o709["type"], p + "/type", e, L139);
-if ("id" in o709) lf(o709["id"], p + "/id", e, L1);
+const x727 = v;
+const g727 = typeOf(x727);
+const b727: string[] = []; lf(x727, p, b727, L0); if (b727.length) e.push(...b727);
+if (g727 === "object") {
+if (g727 === 'object') { const o727 = x727 as Record<string, unknown>;
+if (!("type" in o727)) e.push(p + "/type" + ': required');
+if (!("id" in o727)) e.push(p + "/id" + ': required');
+if ("type" in o727) lf(o727["type"], p + "/type", e, L139);
+if ("id" in o727) lf(o727["id"], p + "/id", e, L1);
 }
 }
 }
@@ -504,13 +504,13 @@ if ("id" in o709) lf(o709["id"], p + "/id", e, L1);
 
 function d_s_9e52d455a4(v: unknown, p: string, e: string[]): void {
 {
-const x788 = v;
-const g788 = typeOf(x788);
-const b788: string[] = []; lf(x788, p, b788, L4); if (b788.length) e.push(...b788);
-if (g788 === "array") {
-if (g788 === 'array') { const a788 = x788 as unknown[];
-for (let i788 = 0; i788 < a788.length; i788++) {
-d_s_d502d45e70(a788[i788], p + '/' + i788, e);
+const x806 = v;
+const g806 = typeOf(x806);
+const b806: string[] = []; lf(x806, p, b806, L4); if (b806.length) e.push(...b806);
+if (g806 === "array") {
+if (g806 === 'array') { const a806 = x806 as unknown[];
+for (let i806 = 0; i806 < a806.length; i806++) {
+d_s_d502d45e70(a806[i806], p + '/' + i806, e);
 }
 }
 }

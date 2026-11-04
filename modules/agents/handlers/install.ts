@@ -198,7 +198,7 @@ interface Plan {
   kind: Kind; name: string; summary: string; repo: string; commit: string; url: string; path: string; flavor?: "claude" | "codex"; version?: string;
   needs: Needs; runs?: { command: string; args: string[] }; skills: string[]; problems: string[]; diff?: Diff;
 }
-interface Diff { from: string; to: string; fromVersion?: string; toVersion?: string; newAccess?: string[]; added: string[]; removed: string[]; changed: Array<{ path: string; plus: string[]; minus: string[] }> }
+interface Diff { from: string; to: string; fromVersion?: string; toVersion?: string; older?: boolean; newAccess?: string[]; added: string[]; removed: string[]; changed: Array<{ path: string; plus: string[]; minus: string[] }> }
 
 const jsonAt = (files: Files, path: string): Record<string, any> | null => { try { const j = JSON.parse(files[path] ?? ""); return j && typeof j === "object" ? j : null; } catch { return null; } };   // eslint-disable-line @typescript-eslint/no-explicit-any
 const MCP_HINT = /modelcontextprotocol|\bmcp[-_ ]?server\b|\bFastMCP\b|\bmcp\b.{0,40}\b(stdio|server)\b/i;
@@ -387,6 +387,15 @@ function diffOf(from: string, to: string, before: Files, after: Files): Diff {
   return { from, to, added: Object.keys(after).filter((p) => before[p] === undefined).sort(), removed: Object.keys(before).filter((p) => after[p] === undefined).sort(), changed: changed.slice(0, 30) };
 }
 
+/** Is version `a` lower than `b`? Numeric parts compared in order ("1.10.0" is above "1.9.0"); null when either has no number to compare. */
+export function versionBelow(a: string | undefined, b: string | undefined): boolean | null {
+  const parts = (v: string | undefined): number[] | null => { const m = /^v?(\d+(?:\.\d+)*)/.exec((v ?? "").trim()); return m ? m[1]!.split(".").map(Number) : null; };
+  const x = parts(a), y = parts(b);
+  if (!x || !y) return null;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] ?? 0) - (y[i] ?? 0); if (d !== 0) return d < 0; }
+  return false;
+}
+
 export async function checkUpdate(ctx: AgentsCtx, input: In) {
   ensure(ctx.db);
   const r = load(ctx, input.installId);
@@ -401,7 +410,7 @@ export async function checkUpdate(ctx: AgentsCtx, input: In) {
   found.diff = diffOf(str(r["commit_sha"]), revision, parse<Files>(r["files_json"], {}), files);
   // what the new version reaches that the one installed did not: the card says it in a line of its own
   const fresh = [...found.needs.domains, ...found.needs.vaultKeys].filter((x) => ![...(was.needs?.domains ?? []), ...(was.needs?.vaultKeys ?? [])].includes(x));
-  found.diff = { ...found.diff, ...(was.version ? { fromVersion: was.version } : {}), ...(found.version ? { toVersion: found.version } : {}), newAccess: fresh };
+  found.diff = { ...found.diff, ...(was.version ? { fromVersion: was.version } : {}), ...(found.version ? { toVersion: found.version } : {}), ...(versionBelow(found.version, was.version) === true ? { older: true } : {}), newAccess: fresh };
   const id = save(ctx, { asker: me(ctx), agentId: str(r["agent_id"]), url: str(r["url"]), p: found, files, updateOf: str(r["id"]) });
   await card(ctx, id, found, true, str(r["id"]));
   return { changed: true, plan: planOut(ctx, id, found, "planned") };
