@@ -71,3 +71,9 @@
 - Edit and Send on an agent draft in Inbox use the stored draft, not the card preview: Edit opens the draft in its own card with every character of its body and Save keeps its recipients and thread; Send goes to the draft's own recipients and Cc from its own mailbox, filed under its own contact, never to or under the thread that happens to be open. A body that ends in a cut-off marker the person did not type is never sent.
 - A draft is filed under a contact only when one of the people it is addressed to is that contact. Someone on Cc, copied on two contacts' threads, files it under no one.
 - mail.send sends an agent's draft as it is stored: its own recipients, Cc, Bcc, subject and every character of its body, whatever the caller holds. An agent draft that ends in a cut-off marker and has not been saved by a person is refused with a plain message, and nothing is sent.
+
+## What's new (Approvals)
+
+- An approval nobody answered does not wait for ever. After 7 days, or once the chat it was asked in or its task closed, it expires as "Not sent, it waited 7 days": the call is never sent, its task closes and the agent is told the plain reason. At start the same check clears what earlier releases left behind.
+- Needs you groups approvals that have waited days under Older, after what just arrived, in place of mixing them.
+- Agents are told never to say "Gate", "hold" or other internal words to people, and what a model reads from a failed tool says approval in their place.

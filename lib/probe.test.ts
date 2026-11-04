@@ -16,3 +16,12 @@ test("real calls pass: ordinary words, ids, a search for the word test, an empty
     assert.equal(probeIn(v), null, JSON.stringify(v));
   }
 });
+
+import { peopleWords } from "./probe.ts";
+
+test("internal words become people's words in what a model reads", () => {
+  assert.equal(peopleWords("This call was held at the Gate and waits for a person."), "This call was waiting for approval and waits for a person.");
+  assert.equal(peopleWords("The Gate needs a yes. Gate hold released."), "The approval needs a yes. approval released.");
+  assert.equal(peopleWords("Two holds are open and this hold expired."), "Two approvals are open and this approval expired.");
+  assert.equal(peopleWords("Hold the line while it runs"), "Hold the line while it runs", "ordinary words are left alone");
+});

@@ -210,3 +210,17 @@ test("a value the person typed themselves passes the probe guard; the same value
   assert.equal(half.kind, "error");
   assert.deepEqual(invoked, []);
 });
+
+test("what a model reads from a failed tool says approval, never Gate or hold", async () => {
+  const loaded = loadGenerated();
+  const session = createToolSession({
+    catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => "trace_fixed",
+    invoke: async () => { throw new HostError(makeError("permission.needs_approval", "tr_x", { message: "This send is held at the Gate. The hold waits for a person." })); },
+  });
+  const out = await session.call(ctx(), "mail_send", { to: ["maya@northwind.com"], subject: "Retainer", body: "Dear Maya, the retainer is attached." });
+  assert.equal(out.kind, "error");
+  if (out.kind !== "error") return;
+  const seen = JSON.stringify(out.result.content);
+  assert.ok(!/\bGate\b|\bholds?\b/i.test(seen), seen);
+  assert.match(seen, /approval/);
+});
