@@ -37,10 +37,25 @@ if (typeof document !== "undefined" && Platform.OS === "web") {
   void loadLibrary().then((m) => { libraryMod = m; }, () => undefined);
 }
 const drawnMarkup = new Map<string, string>();
+/** Faces written synchronously in one frame: a popover or a header has a handful and gets them all at once; a long list (60 agents in the Add sheet) draws the first few now and the rest as it did before, so one render never holds the main thread. */
+const SYNC_PER_FRAME = 6;
+let syncThisFrame = 0;
+let frameReset = false;
+function spendSync(): boolean {
+  if (syncThisFrame >= SYNC_PER_FRAME) return false;
+  syncThisFrame++;
+  if (!frameReset) {
+    frameReset = true;
+    const reset = (): void => { syncThisFrame = 0; frameReset = false; };
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(reset); else setTimeout(reset, 16);
+  }
+  return true;
+}
 /** The face svg for a key, written now when its module is loaded, else undefined (the effect below fetches it and the row draws again). */
 function drawnNow(key: string, spec: FaceSpec | null, seed: string, expression: Expression, size: number): string | undefined {
   const hit = drawnMarkup.get(key);
   if (hit !== undefined) return hit;
+  if (!spendSync()) return undefined;
   let markup: string | undefined;
   try {
     if (spec !== null && spec.fam === "emoji") markup = emojiSvg(spec.e, spec.tint, size);

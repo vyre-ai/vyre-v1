@@ -1,5 +1,6 @@
 // ui/Avatar: people get a marble, agents a Notionists face, the assistant the Vyre mark, automations and groups a glyph; one face per name, everywhere.
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Avatar, FACE_STATE_CSS, faceKey, faceTint, hash, hueOf, kindOf, marbleInner, marbleSpec, initialsOf } from "./index.tsx";
@@ -230,4 +231,10 @@ test("an agent's face is written in the first frame once its drawing modules are
   const { notionistsSvg } = await import("./notionists.ts");
   assert.equal(notionistsSvg("Ember"), notionistsSvg("Ember"));
   assert.match(notionistsSvg("Ember"), /^<svg/);
+});
+
+test("the synchronous draw is limited per frame so a long list never holds the main thread", () => {
+  const src = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
+  assert.match(src, /SYNC_PER_FRAME = 6/);
+  assert.match(src, /if \(!spendSync\(\)\) return undefined;/);
 });
