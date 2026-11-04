@@ -441,7 +441,7 @@ export async function request(ctx: TermCtx, input: { threadId: string; command: 
   if (!ctx.call) raise(ctx, "internal.unavailable", "The chat is not reachable from here.");
   const asked = (await ctx.call("chat.question.ask", {
     threadId: input.threadId, prompt: why.slice(0, 500), mode: "single", allowOther: true,
-    options: [{ key: "run", label: "Run in my terminal" }, { key: "copy", label: "Copy" }, { key: "decline", label: "Decline" }],
+    options: [{ key: "run", label: "Run in my terminal" }, { key: "copy", label: "Copy" }, { key: "decline", label: "Deny" }],
     card: { kind: "terminal", command, ...(input.host === undefined ? {} : { host: input.host }), risk: j.risk },
     ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: `${input.idempotencyKey}:q` }),
   })) as { blockId: string; messageId: string };

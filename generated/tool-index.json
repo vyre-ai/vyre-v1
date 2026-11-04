@@ -7082,6 +7082,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_overview_doc_restore",
+      "summary": "Bring an older version of the Overview back: its blocks become the page again, as a new revision (so the restore can be undone)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_overview_doc_save",
       "summary": "Save the whole Overview page from the editor, as Markdown (or blocks); baseRev is the revision it was opened at, and a page changed since says so instead of overwriting",
       "toolset": "records"

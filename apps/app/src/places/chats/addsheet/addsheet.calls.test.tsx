@@ -131,3 +131,31 @@ test("Include earlier messages shows for a chat and is off by default; on, the p
 });
 
 
+
+/** The line under the sheet when Maya is picked, for a chat with the given real scope. */
+async function footerFor(scope: "both" | "folder" | "none"): Promise<string> {
+  let line = "";
+  await withDom(async () => {
+    const s = createSample("idle", { scope });
+    const root = await mount(createRoot, <Conversation data={s.data} />);
+    await press(find(root, "add-agent"));
+    await flush();
+    await press(find(root, "as-row-person:usr_maya"));
+    line = textOf(find(root, "as-line-std")).replace(/\s+/g, " ").trim();
+  });
+  return line;
+}
+
+test("the footer names the chat's real files folder and records, never the chat's own name: a chat with its own folder and records", async () => {
+  const line = await footerFor("both");
+  assert.equal(line, "They'll see this chat's messages from now on, its files folder Client intake uploads, and records in Elena Rivera.");
+  assert.ok(!/files folder Rivera intake|records in Rivera intake/.test(line), "the chat's name is not the folder's");
+});
+
+test("the footer for a plain group chat with no folder and no records says nothing about either", async () => {
+  assert.equal(await footerFor("none"), "They'll see this chat's messages from now on.");
+});
+
+test("the footer for a chat with a folder but no records names the folder and leaves records out", async () => {
+  assert.equal(await footerFor("folder"), "They'll see this chat's messages from now on, and its files folder Client intake uploads.");
+});

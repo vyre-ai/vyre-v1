@@ -4,12 +4,11 @@ import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useProjectPageData } from "../data.tsx";
-import { propertyText } from "./model.ts";
+import { propertyText, stageWord } from "./model.ts";
 import type { Property } from "./model.ts";
 
 export interface Facts { status: string; lead?: string | undefined; start?: number | undefined; due?: number | undefined; health?: string | undefined }
 const HEALTH: Readonly<Record<string, string>> = { on: "On track", risk: "At risk", off: "Off track", hold: "On hold", done: "Done" };
-const STATUS: Readonly<Record<string, string>> = { active: "Active", hold: "On hold", done: "Done" };
 const day = (ms: number | undefined): string => (ms === undefined ? "" : new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" }));
 
 function Field({ p, canEdit, onSet }: { p: Property; canEdit: boolean; onSet(key: string, text: string): void }): ReactElement {
@@ -28,12 +27,13 @@ export function PropertiesRow({ facts, props, canEdit, onSet, onAdd }: { facts: 
   const d = useProjectPageData();
   const rows: { k: string; node: ReactElement }[] = [];
   if (facts) {
-    rows.push({ k: "Status", node: <Text style={s.val} testID="prop-status">{STATUS[facts.status] ?? facts.status}</Text> });
+    rows.push({ k: "Status", node: <Text style={s.val} testID="prop-status">{stageWord(facts.status)}</Text> });
     if (facts.lead) rows.push({ k: "Lead", node: <Text style={s.val} testID="prop-lead">{d.nameOf(facts.lead)}</Text> });
     if (facts.start !== undefined || facts.due !== undefined) rows.push({ k: "Dates", node: <Text style={s.val} testID="prop-dates">{[day(facts.start), day(facts.due)].filter(Boolean).join(" to ")}</Text> });
     if (facts.health) rows.push({ k: "Health", node: <Text style={s.val} testID="prop-health">{HEALTH[facts.health] ?? facts.health}</Text> });
   }
-  for (const p of props) rows.push({ k: p.title, node: <Field p={p} canEdit={canEdit} onSet={onSet} /> });
+  // a page being read shows only the properties that have a value
+  for (const p of props.filter((x) => canEdit || propertyText(x) !== "")) rows.push({ k: p.title, node: <Field p={p} canEdit={canEdit} onSet={onSet} /> });
   return (
     <View testID="overview-props" accessibilityLabel="Properties">
       <View style={s.grid}>

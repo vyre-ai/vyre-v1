@@ -26,14 +26,90 @@ export const LIVE_KINDS: readonly LiveKind[] = [
   { type: "people", label: "People and agents", note: "Who is on the project", views: ["list", "cards"], defaultView: "list", spec: () => ({ title: "People and agents" }) },
   { type: "status", label: "Status update", note: "Health, open and late work", views: ["list"], defaultView: "list", spec: () => ({ title: "Status" }) },
 ];
+/** The plain blocks of the "/" menu, each the editor node it inserts (ProseMirror JSON). */
+export const BASIC_BLOCKS: readonly { id: string; label: string; note: string; node(): unknown }[] = [
+  { id: "text", label: "Text", note: "A paragraph", node: () => ({ type: "paragraph" }) },
+  { id: "heading", label: "Heading", note: "A section title", node: () => ({ type: "heading", attrs: { level: 2 } }) },
+  { id: "check", label: "Checklist", note: "Things to tick off", node: () => ({ type: "taskList", attrs: { marker: "-" }, content: [{ type: "taskItem", attrs: { checked: false }, content: [{ type: "paragraph" }] }] }) },
+  { id: "table", label: "Table", note: "Rows and columns", node: () => ({ type: "rawBlock", attrs: { kind: "table" }, content: [{ type: "text", text: "| Name | Detail |\n| --- | --- |\n|  |  |" }] }) },
+  { id: "callout", label: "Callout", note: "A note that stands out", node: () => ({ type: "blockquote", content: [{ type: "paragraph", content: [{ type: "text", text: "[!NOTE] Write a callout" }] }] }) },
+  { id: "diagram", label: "Diagram", note: "Steps and arrows", node: () => ({ type: "codeBlock", attrs: { language: "mermaid" }, content: [{ type: "text", text: "flowchart LR\n  A[Start] --> B[Next]" }] }) },
+  { id: "chart", label: "Chart", note: "Bars from numbers", node: () => ({ type: "codeBlock", attrs: { language: "chart" }, content: [{ type: "text", text: '{"type":"bar","labels":["A","B"],"series":[{"name":"Count","data":[3,5]}]}' }] }) },
+];
 export const kindOf = (type: string): LiveKind | undefined => LIVE_KINDS.find((k) => k.type === type);
+
+/** The kinds of record a live block can show are named by the Space; `plural` and `title` come from the record types. */
+export interface TypeName { key: string; title: string; plural: string }
+
+/** What a live block shows, in one line: "Tasks where status is open". Shown on hover and in the block's Edit sheet. */
+export function liveDescription(type: string, spec: unknown, types: readonly TypeName[] = []): string {
+  const s = (spec ?? {}) as Record<string, unknown>;
+  const named = (k: unknown): string => types.find((x) => x.key === k)?.plural ?? (typeof k === "string" && k !== "" ? k : "Records");
+  switch (type) {
+    case "tasks": {
+      const st = String(s["status"] ?? "open");
+      const where = st === "all" ? "" : ` where status is ${st === "wait" || st === "waiting" ? "waiting or blocked" : st}`;
+      return `Tasks${where}${typeof s["assigned"] === "string" && s["assigned"] !== "" ? ", assigned to me" : ""}`;
+    }
+    case "milestones": return "Milestones that are not done";
+    case "links": return s["kind"] ? `Linked items of kind ${String(s["kind"]).replace(/_/g, " ")}` : "Linked items";
+    case "records": return `${named(s["type"])}${s["filter"] ? " that match a filter" : ""}`;
+    case "metric": return s["op"] === "sum" ? `Sum of ${String(s["field"] ?? "")} of ${named(s["type"]).toLowerCase()}` : `Count of ${named(s["type"]).toLowerCase()}`;
+    case "ci": return "Recent CI runs";
+    case "goal": return "Goals of this project";
+    case "people": return "People and agents on the project";
+    case "status": return "Health, open and late work";
+    default: return "Live block";
+  }
+}
+
+/** The tone a row's state reads in: warning for late or failed, quiet green for done or paid, muted for anything else. */
+export function stateTone(state: string | undefined): "bad" | "good" | "plain" {
+  const s = (state ?? "").toLowerCase();
+  if (/^(late|overdue|failed|failure|error|blocked|rejected|past_due|unpaid)$/.test(s)) return "bad";
+  if (/^(done|paid|succeeded|success|passed|complete|completed|merged|signed)$/.test(s)) return "good";
+  return "plain";
+}
+
+/** A task's server state as the Plan's status mark names it. */
+export function planStatus(state: string | undefined): "todo" | "doing" | "blocked" | "review" | "approval" | "done" {
+  switch (state) {
+    case "doing": return "doing";
+    case "in_review": case "review": return "review";
+    case "awaiting_approval": case "approval": return "approval";
+    case "blocked": case "waiting": return "blocked";
+    case "done": case "canceled": return "done";
+    default: return "todo";
+  }
+}
+
+const DAY = 86_400_000;
+const shortDay = (ms: number): string => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+/** The due date of a task row: "Due Oct 25", or "2 days late" when it is open and past. */
+export function dueWords(due: number | undefined, state: string | undefined, now: number): { text: string; late: boolean } | null {
+  if (due === undefined) return null;
+  const open = state !== "done" && state !== "canceled";
+  if (open && due < now) { const n = Math.max(1, Math.floor((now - due) / DAY)); return { text: `${n} ${n === 1 ? "day" : "days"} late`, late: true }; }
+  return { text: `Due ${shortDay(due)}`, late: false };
+}
+
+/** A sum or count as the page reads it: "$6,250 unpaid across 3 invoices". `unit` is the currency code of a money field. Amounts in more than one currency come as `parts` (one total each) and read
+ *  "$4,550 and €900 unpaid across 4 invoices": they are never added into one number. */
+export function metricLine(o: { value?: number | undefined; parts?: readonly { unit?: string | undefined; value: number }[] | undefined; title: string; total: number; noun: string; unit?: string | undefined; sum: boolean }): { big: string; rest: string } {
+  const money = (v: number, unit?: string): string => (unit ? new Intl.NumberFormat("en-US", { style: "currency", currency: unit, maximumFractionDigits: 0 }).format(v) : new Intl.NumberFormat("en-US").format(v));
+  const shown = o.parts && o.parts.length > 1 ? o.parts.map((p) => money(p.value, p.unit)) : [money(o.value ?? 0, o.sum ? o.unit : undefined)];
+  const big = shown.length === 1 ? shown[0]! : `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]!}`;
+  const label = o.title.trim().toLowerCase();
+  const across = o.sum ? ` across ${o.total} ${o.total === 1 ? o.noun.replace(/s$/, "") : o.noun.toLowerCase()}` : "";
+  return { big, rest: `${label}${across}` };
+}
 
 export interface Choice { id: string; label: string }
 /** The settings a kind of live block has, besides its title and view: each is one field of its spec and a list of choices. */
 export const SPEC_CHOICES: Readonly<Partial<Record<LiveType, readonly { key: string; label: string; choices: readonly Choice[] }[]>>> = {
-  tasks: [{ key: "status", label: "Show tasks that are", choices: [{ id: "open", label: "open" }, { id: "late", label: "late" }, { id: "done", label: "done" }, { id: "all", label: "any" }] }],
-  links: [{ key: "kind", label: "Kind of link", choices: [{ id: "", label: "any" }, { id: "mail_thread", label: "mail" }, { id: "github.pr", label: "pull requests" }, { id: "calendar_event", label: "events" }, { id: "file", label: "files" }, { id: "record", label: "records" }] }],
-  metric: [{ key: "op", label: "Measure", choices: [{ id: "count", label: "Count" }, { id: "sum", label: "Sum" }] }],
+  tasks: [{ key: "status", label: "Show", choices: [{ id: "open", label: "Status is open" }, { id: "waiting", label: "Status is waiting or blocked" }, { id: "late", label: "Status is late" }, { id: "done", label: "Status is done" }, { id: "all", label: "All tasks" }] }, { key: "assigned", label: "Assigned to", choices: [{ id: "", label: "Anyone" }, { id: "me", label: "Me" }] }],
+  links: [{ key: "kind", label: "Kind of link", choices: [{ id: "", label: "Any kind" }, { id: "mail_thread", label: "Mail" }, { id: "github.pr", label: "Pull requests" }, { id: "calendar_event", label: "Events" }, { id: "file", label: "Files" }, { id: "record", label: "Records" }] }],
+  metric: [{ key: "op", label: "Measure", choices: [{ id: "count", label: "Count of rows" }, { id: "sum", label: "Sum of a field" }] }],
 };
 
 /** What a live block is called on the page: its own title, else its kind. */
@@ -124,3 +200,7 @@ export function saveFailure(e: unknown): { stale: boolean; text: string } {
   const stale = err?.code === "validation.precondition_failed" && (err.details?.reason === "stale_revision" || /changed the page/i.test(err.message ?? ""));
   return { stale, text: stale ? "Someone changed this page. Reload it to see their change; your edit here is not saved." : (err?.message || "The page could not be saved.") };
 }
+
+/** A project's stage as a person reads it ("planning" is "Planning"): the one function the header, the Status property and the Status block all use. */
+export const STAGE_WORD: Readonly<Record<string, string>> = { planning: "Planning", active: "Active", hold: "On hold", done: "Done" };
+export const stageWord = (x: string): string => STAGE_WORD[x] ?? (x === "" ? x : x.charAt(0).toUpperCase() + x.slice(1));

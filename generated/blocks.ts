@@ -158,6 +158,9 @@ export type HookBlockData = {
   reason?: string;
   tool?: string;
   subject?: string;
+  resolved?: "allowed" | "always" | "denied";
+  resolvedBy?: string;
+  resolvedWhat?: string;
   agentId?: string;
   next?: Array<{
       label: string;
@@ -376,7 +379,7 @@ export const blockRegistry = [
     "actions": [
       {
         "key": "approve",
-        "label": "Approve",
+        "label": "Allow",
         "cap": "access.requests.approve",
         "input": {
           "requestId": "/requestId",
@@ -385,7 +388,7 @@ export const blockRegistry = [
       },
       {
         "key": "decline",
-        "label": "Decline",
+        "label": "Deny",
         "cap": "access.requests.decline",
         "input": {
           "requestId": "/requestId"
@@ -419,7 +422,7 @@ export const blockRegistry = [
     "actions": [
       {
         "key": "approve",
-        "label": "Approve and commit",
+        "label": "Allow and commit",
         "cap": "changesets.approve",
         "input": {
           "changesetId": "/changesetId"
@@ -551,7 +554,7 @@ export const blockRegistry = [
       },
       {
         "key": "reject",
-        "label": "Reject",
+        "label": "Deny",
         "cap": "console.diff_reject",
         "input": {
           "diffId": "/diffId"
@@ -778,7 +781,7 @@ export const blockRegistry = [
     "actions": [
       {
         "key": "approve",
-        "label": "Approve",
+        "label": "Allow",
         "cap": "chat.approve_plan",
         "input": {
           "threadId": "/threadId",
@@ -787,7 +790,7 @@ export const blockRegistry = [
       },
       {
         "key": "reject",
-        "label": "Reject",
+        "label": "Deny",
         "cap": "chat.plan.reject",
         "input": {
           "threadId": "/threadId",

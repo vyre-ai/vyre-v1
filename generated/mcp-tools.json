@@ -48185,6 +48185,41 @@
     },
     {
       "blocks": [],
+      "cap": "projects.overview_doc.restore",
+      "deferred": false,
+      "description": "Bring an older version of the Overview back: its blocks become the page again, as a new revision (so the restore can be undone)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "baseRev": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "rev": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "projectId",
+          "rev"
+        ],
+        "type": "object"
+      },
+      "name": "projects_overview_doc_restore",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "projects.overview_doc.save",
       "deferred": false,
       "description": "Save the whole Overview page from the editor, as Markdown (or blocks); baseRev is the revision it was opened at, and a page changed since says so instead of overwriting",
@@ -63176,7 +63211,7 @@
                 },
                 "label": {
                   "examples": [
-                    "Approve"
+                    "Allow"
                   ],
                   "type": "string"
                 },

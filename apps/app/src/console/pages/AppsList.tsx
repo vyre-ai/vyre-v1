@@ -1,7 +1,7 @@
 // Console > Apps > Connected apps: one list. Each app is a row with its name, what it does, and either Connect or Connected with Manage. The rows come from what the Connectors and Connections pages
 // read (connectors.list, connections.list) and from the two company sign-in setups (Google Workspace, Microsoft 365), whose Manage opens their own setup page. Connect starts the sign-in for an app;
 // Manage lists the people who signed in to it and Disconnect stops it for the Space. A sign-in that matches no app sits under Other sign-ins.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
@@ -23,6 +23,9 @@ export function whatItDoes(c: Pick<Connector, "mode" | "syncedTypes">): string {
   if (c.syncedTypes.length) return `Syncs ${c.syncedTypes.slice(0, 3).join(", ")}${c.syncedTypes.length > 3 ? " and more" : ""}`;
   return HOW[c.mode] ? `Connects with ${HOW[c.mode]}` : "Connects to your Space";
 }
+
+/** Goes back to the list once: the page an app stood on is gone (a custom app was removed). */
+function GoBack({ to }: { to: () => void }): null { useEffect(() => { to(); }, []); return null; } // eslint-disable-line react-hooks/exhaustive-deps
 
 /** The connections that belong to no app on the list. */
 export function otherSignIns<C extends { connector: string }>(connections: readonly C[], apps: readonly { key: string }[]): C[] {
@@ -53,19 +56,20 @@ export function AppsPage(): ReactElement {
   const home = (): void => { setView({ kind: "list" }); setConfirm(""); refresh(); };
 
   if (view.kind === "newapp") return <NewConnector onBack={home} onCreated={(key) => setView({ kind: "settings", key })} />;
-  if (view.kind === "settings") return <ConnectorObject key={view.key} id={view.key} onBack={() => setView({ kind: "app", key: view.key })} />;
+  if (view.kind === "settings") return <ConnectorObject key={view.key} id={view.key} onBack={() => { refresh(); setView({ kind: "app", key: view.key }); }} />;
   if (view.kind === "connect") return <NewConnection initialKey={view.key} onBack={() => { setView({ kind: "app", key: view.key }); refresh(); }} onCreated={(id) => setView({ kind: "connection", id, from: view.key })} />;
   if (view.kind === "connection") return <ConnectionObject key={view.id} id={view.id} onBack={() => { refresh(); setView(view.from ? { kind: "app", key: view.from } : { kind: "list" }); }} />;
 
   if (!connectors.ready || !connections.ready) return <ReadState error={connectors.error ?? connections.error} retry={refresh} />;
 
-  const apps = connectors.rows.filter((c) => c.state === "live" || c.connections > 0);
+  // a custom app stays on the list while it is a draft, so a person can come back to finish and publish it
+  const apps = connectors.rows.filter((c) => c.state === "live" || c.connections > 0 || !c.builtin);
   const signIns = (key: string): Connection[] => connections.rows.filter((c) => c.connector === key);
 
   if (view.kind === "app") {
     const app = connectors.rows.find((c) => c.key === view.key);
     const people = signIns(view.key);
-    if (!app) return <ReadState retry={home} />;
+    if (!app) return <GoBack to={home} />;
     const disconnect = async (): Promise<void> => {
       for (const c of people) { const out = await action.run("connections.delete", { connectionId: c.connectionId }, "Disconnected"); if (out === undefined) return; }
       home();
@@ -113,8 +117,8 @@ export function AppsPage(): ReactElement {
           {apps.map((c) => (
             <Row key={c.key} id={`app-${c.key}`} title={c.title} note={whatItDoes(c)} leading={<Logo name={c.title} />}
               trailing={c.connections > 0
-                ? <Actions><StatusLabel status="active" /><Button label="Manage" testID={`app-manage-${c.key}`} onPress={() => setView({ kind: "app", key: c.key })} /></Actions>
-                : <Button label="Connect" testID={`app-connect-${c.key}`} onPress={() => setView({ kind: "connect", key: c.key })} />} />
+                ? <Actions><StatusLabel status="active" /><Button label="Manage" testID={`app-manage-${c.key}`} onPress={() => setView({ kind: "app", key: c.key })} />{!c.builtin ? <Button label="Settings" testID={`app-settings-${c.key}`} onPress={() => setView({ kind: "settings", key: c.key })} /> : null}</Actions>
+                : <Actions>{c.state === "live" ? <Button label="Connect" testID={`app-connect-${c.key}`} onPress={() => setView({ kind: "connect", key: c.key })} /> : null}{!c.builtin ? <Button label="Settings" testID={`app-settings-${c.key}`} onPress={() => setView({ kind: "settings", key: c.key })} /> : null}</Actions>} />
           ))}
           <Row id="app-google" title="Google Workspace" note={googleOn ? `Connected${google.data?.domain ? ` for ${google.data.domain}` : ""}` : "Sign-in, mail, calendar and files for the whole company"} leading={<Logo name="Google Workspace" />}
             trailing={googleOn

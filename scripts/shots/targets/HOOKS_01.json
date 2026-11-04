@@ -79,6 +79,13 @@
       ],
       "note": "A helper's hook row under the pointer: a hairline tint and a chevron, since the row opens the Hooks tab.",
       "proto": "chat,at:crew;t=55;hooks=hchat,{skin}"
+    },
+    {
+      "id": "HOOKS_01-answered",
+      "route": "/m/HOOKS_01?view=answered",
+      "waitFor": "[data-testid^='hook-said-']",
+      "note": "A stop that was answered: it reads Denied. The stop stands. with Details, for everyone, and no verbs left.",
+      "proto": "chat,at:crew;t=55;hooks=hchat,{skin}"
     }
   ]
 }

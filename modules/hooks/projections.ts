@@ -30,7 +30,7 @@ const SCHEMA = readFileSync(new URL("./migrations/0001_hooks.sql", import.meta.u
 const ready = new WeakSet<object>();
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { for (const q of ["SELECT id FROM hooks_hook WHERE id = ?", "SELECT helper_thread FROM hooks_link WHERE helper_thread = ?", "SELECT key FROM hooks_policy WHERE key = ?", "SELECT id FROM hooks_run WHERE id = ?", "SELECT id FROM hooks_pass WHERE id = ?"]) db.all(q, "probe"); }
+  try { for (const q of ["SELECT id FROM hooks_hook WHERE id = ?", "SELECT helper_thread FROM hooks_link WHERE helper_thread = ?", "SELECT key FROM hooks_policy WHERE key = ?", "SELECT id FROM hooks_run WHERE id = ?", "SELECT id FROM hooks_pass WHERE id = ?", "SELECT id FROM hooks_allow WHERE id = ?", "SELECT id FROM hooks_note WHERE id = ?"]) db.all(q, "probe"); }
   catch { for (const s of SCHEMA) db.run(s); }
   ready.add(db);
 }
@@ -115,9 +115,9 @@ export function applicable(ctx: HooksCtx, q: { event: string; agentId: string; a
 }
 
 // ---- runs ----
-export function logRun(ctx: HooksCtx, r: { hookId: string; event: string; threadId: string; agentId: string; tool?: string; outcome: string; detail?: string; ms: number }): void {
+export function logRun(ctx: HooksCtx, r: { hookId: string; event: string; threadId: string; agentId: string; tool?: string; targets?: string[]; outcome: string; detail?: string; ms: number }): void {
   ensure(ctx.db);
-  ctx.db.run("INSERT INTO hooks_run (hook_id, event, thread_id, agent_id, tool, outcome, detail, ms, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", r.hookId, r.event, r.threadId, r.agentId, r.tool ?? null, r.outcome, r.detail ?? null, r.ms, ctx.now());
+  ctx.db.run("INSERT INTO hooks_run (hook_id, event, thread_id, agent_id, tool, targets, outcome, detail, ms, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", r.hookId, r.event, r.threadId, r.agentId, r.tool ?? null, r.targets && r.targets.length > 0 ? JSON.stringify(r.targets) : null, r.outcome, r.detail ?? null, r.ms, ctx.now());
   // a short log: the newest 500
   ctx.db.run("DELETE FROM hooks_run WHERE id <= (SELECT MAX(id) FROM hooks_run) - 500");
 }
@@ -135,4 +135,59 @@ export function takePass(ctx: HooksCtx, hookId: string, threadId: string): boole
   if (!r) return false;
   ctx.db.run("UPDATE hooks_pass SET used_at = ? WHERE id = ? AND used_at IS NULL", ctx.now(), r["id"]);
   return true;
+}
+
+// ---- "Always allow" ----
+export interface AllowRec { id: string; hookId: string; tool: string; target: string; by: string; createdAt: number }
+const allowOf = (r: Row): AllowRec => ({ id: r["id"] as string, hookId: r["hook_id"] as string, tool: r["tool"] as string, target: (r["target"] as string) ?? "", by: r["by"] as string, createdAt: r["created_at"] as number });
+/** Rules for an act and its targets: one per target, or one for the whole tool when the act has none. */
+export function addAllows(ctx: HooksCtx, hookId: string, tool: string, targets: string[], by: string): AllowRec[] {
+  ensure(ctx.db);
+  const out: AllowRec[] = [];
+  for (const target of targets.length > 0 ? targets : [""]) {
+    const have = ctx.db.all("SELECT * FROM hooks_allow WHERE hook_id = ? AND tool = ? AND target = ? AND removed_at IS NULL", hookId, tool, target)[0] as Row | undefined;
+    if (have) { out.push(allowOf(have)); continue; }
+    const id = `alw_${ctx.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+    ctx.db.run("INSERT INTO hooks_allow (id, hook_id, tool, target, by, created_at) VALUES (?, ?, ?, ?, ?, ?)", id, hookId, tool, target, by, ctx.now());
+    out.push({ id, hookId, tool, target, by, createdAt: ctx.now() });
+  }
+  return out;
+}
+export function allowsOf(ctx: HooksCtx, hookId: string): AllowRec[] {
+  ensure(ctx.db);
+  return (ctx.db.all("SELECT * FROM hooks_allow WHERE hook_id = ? AND removed_at IS NULL ORDER BY created_at, id", hookId) as Row[]).map(allowOf);
+}
+export function allowById(ctx: HooksCtx, id: string): AllowRec | null {
+  ensure(ctx.db);
+  const r = ctx.db.all("SELECT * FROM hooks_allow WHERE id = ? AND removed_at IS NULL", id)[0] as Row | undefined;
+  return r ? allowOf(r) : null;
+}
+export function removeAllow(ctx: HooksCtx, id: string): void { ensure(ctx.db); ctx.db.run("UPDATE hooks_allow SET removed_at = ? WHERE id = ?", ctx.now(), id); }
+/**
+ * Is this act let go by this hook for good? An act with targets passes only when every target has a rule for this tool (the same act to the same target); one with no target passes on a rule for the whole tool.
+ * A rule for the whole tool never covers an act that has a target, and a rule for one target never covers another.
+ */
+export function isAllowed(ctx: HooksCtx, hookId: string, tool: string | undefined, targets: string[]): boolean {
+  if (!tool) return false;
+  const rules = allowsOf(ctx, hookId).filter((r) => r.tool === tool);
+  if (rules.length === 0) return false;
+  if (targets.length === 0) return rules.some((r) => r.target === "");
+  return targets.every((t) => rules.some((r) => r.target === t));
+}
+/** The act the newest stop of this hook in this chat was about: its tool and what it was aimed at. */
+export function lastStopped(ctx: HooksCtx, hookId: string, threadId: string): { tool: string; targets: string[] } | null {
+  ensure(ctx.db);
+  const r = ctx.db.all("SELECT tool, targets FROM hooks_run WHERE hook_id = ? AND thread_id = ? AND outcome = 'blocked' AND tool IS NOT NULL ORDER BY id DESC LIMIT 1", hookId, threadId)[0] as Row | undefined;
+  if (!r) return null;
+  let targets: string[] = [];
+  try { const v = JSON.parse(String(r["targets"] ?? "[]")) as unknown; if (Array.isArray(v)) targets = v.filter((x): x is string => typeof x === "string"); } catch { /* none */ }
+  return { tool: r["tool"] as string, targets };
+}
+// ---- a note for the agent ----
+export function addNote(ctx: HooksCtx, threadId: string, text: string): void { ensure(ctx.db); ctx.db.run("INSERT INTO hooks_note (thread_id, text, at) VALUES (?, ?, ?)", threadId, text, ctx.now()); }
+export function takeNotes(ctx: HooksCtx, threadId: string): string[] {
+  ensure(ctx.db);
+  const rows = ctx.db.all("SELECT id, text FROM hooks_note WHERE thread_id = ? AND used_at IS NULL ORDER BY id", threadId) as Row[];
+  for (const r of rows) ctx.db.run("UPDATE hooks_note SET used_at = ? WHERE id = ?", ctx.now(), r["id"]);
+  return rows.map((r) => r["text"] as string);
 }

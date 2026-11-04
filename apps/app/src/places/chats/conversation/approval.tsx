@@ -112,7 +112,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { t
           invitees: ow.to.map((r) => ({ name: r.name ?? r.address ?? "A guest", seed: r.address ?? r.id ?? agentId })),
           inviteNote: ow.to.length === 0 ? "No guests" : ev.notify ? "They get an email invite" : "They are not emailed",
         } : {})}
-        {...(always ? { alwaysLabel: `Always let ${agent} ${verbOfChannel(ow, nameOf)}`, onAlways: always } : {})}
+        {...(always ? { alwaysLabel: `Always allow ${agent} to ${verbOfChannel(ow, nameOf)}`, onAlways: always } : {})}
         edited={Boolean(ow.edited)} state={ended === "allowed" ? "sent" : ended === "denied" ? "dropped" : "waiting"}
         doneLine={ended === "allowed" ? (ev ? `${ev.notify ? "Invites sent" : "Added to the calendar"} · ${hhmm}` : `Sent${first ? ` to ${first}` : ""} · ${hhmm}`) : "Not sent"} editable={Boolean(held.holdId) && !ended} editSubject={Boolean(ev)}
         {...(editor ? { editor } : {})} onSend={() => answer("approve")} onDrop={(reason) => answer("reject", denyNote(reason))}
@@ -187,12 +187,12 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { t
           <TextInput accessibilityLabel="Why not (optional)" testID={`approval-reason-${taskId}`} value={reason} onChangeText={setReason} placeholder="Reason (optional)" placeholderTextColor="var(--ink-4)" multiline style={st.input} />
           <View style={st.acts}>
             <TextButton label="Back" onPress={() => setDenying(false)} testID={`approval-back-${taskId}`} />
-            <TextButton label={held.plain ? "Send back" : "Deny"} danger disabled={busy} onPress={() => act("reject", denyNote(reason))} testID={`approval-deny-go-${taskId}`} />
+            <TextButton label="Deny" danger disabled={busy} onPress={() => act("reject", denyNote(reason))} testID={`approval-deny-go-${taskId}`} />
           </View>
         </View>
       ) : (
         <View style={st.acts}>
-          <TextButton label={held.plain ? "Send back" : "Deny"} onPress={() => setDenying(true)} disabled={busy} testID={`approval-deny-${taskId}`} />
+          <TextButton label="Deny" onPress={() => setDenying(true)} disabled={busy} testID={`approval-deny-${taskId}`} />
           {allowable ? <TextButton label="Always allow" disabled={busy} onPress={always} testID={`approval-always-${taskId}`} /> : null}
           <TextButton label="Allow" primary disabled={busy} onPress={() => act("approve")} testID={`approval-allow-${taskId}`} />
         </View>

@@ -7155,6 +7155,16 @@ export type ChatHookLineIn = {
 export type ChatHookLineOut = {
   messageId: string;
 };
+export type ChatHookResolveIn = {
+  threadId: string;
+  messageId: string;
+  resolution: "allowed" | "always" | "denied";
+  by: string;
+  what?: string;
+};
+export type ChatHookResolveOut = {
+  ok: boolean;
+};
 export type ChatMakeTaskIn = {
   threadId: string;
   messageId: string;
@@ -19218,13 +19228,31 @@ export type HomeWriteDigestIn = {
 export type HomeWriteDigestOut = {
   digestId: string;
 };
+export type HooksAllowAlwaysIn = {
+  id: string;
+  threadId: string;
+  messageId?: string;
+};
+export type HooksAllowAlwaysOut = {
+  allowed: {
+    id: string;
+    what: string;
+  };
+};
 export type HooksAllowOnceIn = {
   id: string;
   threadId: string;
+  messageId?: string;
 };
 export type HooksAllowOnceOut = {
   allowed: boolean;
   expiresAt: number;
+};
+export type HooksAllowRemoveIn = {
+  id: string;
+};
+export type HooksAllowRemoveOut = {
+  removed: boolean;
 };
 export type HooksAskAdminIn = {
   id: string;
@@ -19233,6 +19261,14 @@ export type HooksAskAdminIn = {
 };
 export type HooksAskAdminOut = {
   asked: boolean;
+};
+export type HooksDenyIn = {
+  id: string;
+  threadId: string;
+  messageId?: string;
+};
+export type HooksDenyOut = {
+  denied: boolean;
 };
 export type HooksFireIn = {
   event: "session.start" | "prompt.submit" | "tool.before" | "tool.after" | "outward.before" | "turn.end" | "helper.start" | "helper.end";
@@ -19289,6 +19325,12 @@ export type HooksListOut = {
       updatedAt: number;
       spec: unknown;
       mine: boolean;
+      allowed: Array<{
+          id: string;
+          what: string;
+          by: string;
+          createdAt: number;
+        }>;
       canChange: boolean;
       endedAt?: number;
     }>;
@@ -19318,6 +19360,12 @@ export type HooksPauseOut = {
     updatedAt: number;
     spec: unknown;
     mine: boolean;
+    allowed: Array<{
+        id: string;
+        what: string;
+        by: string;
+        createdAt: number;
+      }>;
     canChange: boolean;
     endedAt?: number;
   };
@@ -19350,7 +19398,7 @@ export type HooksRunsLatestOut = {
       threadId?: string;
       agentId?: string;
       tool?: string;
-      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once";
+      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once" | "allowed_always";
       detail?: string;
       ms: number;
       at: number;
@@ -19372,7 +19420,7 @@ export type HooksRunsListOut = {
       threadId?: string;
       agentId?: string;
       tool?: string;
-      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once";
+      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once" | "allowed_always";
       detail?: string;
       ms: number;
       at: number;
@@ -19415,6 +19463,12 @@ export type HooksSetOut = {
     updatedAt: number;
     spec: unknown;
     mine: boolean;
+    allowed: Array<{
+        id: string;
+        what: string;
+        by: string;
+        createdAt: number;
+      }>;
     canChange: boolean;
     endedAt?: number;
   };
@@ -30178,11 +30232,18 @@ export type ProjectsLiveBlockQueryOut = {
       state?: string;
       detail?: string;
       url?: string;
+      who?: string;
+      due?: number;
     }>;
   hidden: number;
   total: number;
   value?: number;
   label?: string;
+  unit?: string;
+  parts?: Array<{
+      unit?: string;
+      value: number;
+    }>;
 };
 export type ProjectsMembersListIn = {
   projectId: string;
@@ -30396,6 +30457,28 @@ export type ProjectsOverviewDocHistoryOut = {
       summary: string;
       undoOf?: number;
       at: number;
+    }>;
+};
+export type ProjectsOverviewDocRestoreIn = {
+  projectId: string;
+  rev: number;
+  baseRev?: number;
+};
+export type ProjectsOverviewDocRestoreOut = {
+  rev: number;
+  restored: number;
+  blocks: Array<{
+      id: string;
+      kind: "text" | "heading" | "live";
+      text?: string;
+      level?: number;
+      live?: {
+        type: "tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status";
+        spec: Record<string, unknown>;
+        view?: "list" | "table" | "count" | "cards";
+      };
+      by?: string;
+      at?: number;
     }>;
 };
 export type ProjectsOverviewDocSaveIn = {
@@ -44643,6 +44726,7 @@ export interface CapMap {
   "chat.history.page": { in: ChatHistoryPageIn; out: ChatHistoryPageOut };
   "chat.history.search": { in: ChatHistorySearchIn; out: ChatHistorySearchOut };
   "chat.hook_line": { in: ChatHookLineIn; out: ChatHookLineOut };
+  "chat.hook_resolve": { in: ChatHookResolveIn; out: ChatHookResolveOut };
   "chat.make_task": { in: ChatMakeTaskIn; out: ChatMakeTaskOut };
   "chat.message.get": { in: ChatMessageGetIn; out: ChatMessageGetOut };
   "chat.message_person": { in: ChatMessagePersonIn; out: ChatMessagePersonOut };
@@ -45331,8 +45415,11 @@ export interface CapMap {
   "home.mark_digest_seen": { in: HomeMarkDigestSeenIn; out: HomeMarkDigestSeenOut };
   "home.routines_today": { in: HomeRoutinesTodayIn; out: HomeRoutinesTodayOut };
   "home.write_digest": { in: HomeWriteDigestIn; out: HomeWriteDigestOut };
+  "hooks.allow_always": { in: HooksAllowAlwaysIn; out: HooksAllowAlwaysOut };
   "hooks.allow_once": { in: HooksAllowOnceIn; out: HooksAllowOnceOut };
+  "hooks.allow_remove": { in: HooksAllowRemoveIn; out: HooksAllowRemoveOut };
   "hooks.ask_admin": { in: HooksAskAdminIn; out: HooksAskAdminOut };
+  "hooks.deny": { in: HooksDenyIn; out: HooksDenyOut };
   "hooks.fire": { in: HooksFireIn; out: HooksFireOut };
   "hooks.list": { in: HooksListIn; out: HooksListOut };
   "hooks.pause": { in: HooksPauseIn; out: HooksPauseOut };
@@ -45899,6 +45986,7 @@ export interface CapMap {
   "projects.overview_doc.apply_template": { in: ProjectsOverviewDocApplyTemplateIn; out: ProjectsOverviewDocApplyTemplateOut };
   "projects.overview_doc.get": { in: ProjectsOverviewDocGetIn; out: ProjectsOverviewDocGetOut };
   "projects.overview_doc.history": { in: ProjectsOverviewDocHistoryIn; out: ProjectsOverviewDocHistoryOut };
+  "projects.overview_doc.restore": { in: ProjectsOverviewDocRestoreIn; out: ProjectsOverviewDocRestoreOut };
   "projects.overview_doc.save": { in: ProjectsOverviewDocSaveIn; out: ProjectsOverviewDocSaveOut };
   "projects.overview_doc.templates.list": { in: ProjectsOverviewDocTemplatesListIn; out: ProjectsOverviewDocTemplatesListOut };
   "projects.overview_doc.templates.save": { in: ProjectsOverviewDocTemplatesSaveIn; out: ProjectsOverviewDocTemplatesSaveOut };
@@ -48153,7 +48241,7 @@ export type HookBlockedPayload = {
 export type HookChangedPayload = {
   hookId: string;
   scope: string;
-  change: "added" | "changed" | "removed" | "paused" | "resumed" | "allowed_once" | "agents_on" | "agents_off";
+  change: "added" | "changed" | "removed" | "paused" | "resumed" | "allowed_once" | "allowed_always" | "allow_removed" | "denied" | "agents_on" | "agents_off";
   by: string;
   line: string;
   threadId?: string;
