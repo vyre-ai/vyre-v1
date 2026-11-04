@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { SpaceProfile, memberDefaults, dollars, spendLine, storageLine } from "../pages/InfrastructureSettings.tsx";
+import { createdLine } from "../pages/space-created.ts";
 import { SpaceDeletePage, deleteDate, deleteName } from "../pages/SpaceDelete.tsx";
 import { act } from "react";
 import { createRoot } from "test-renderer";
@@ -209,5 +210,24 @@ test("a person who is not the Owner can only leave the Space", async () => {
     await p.press("leave-open");
     await p.press("leave-confirm");
     assert.deepEqual(p.called("spaces.leave").at(-1)!.input, { confirm: true });
+  } finally { p.restore(); }
+});
+
+test("Created reads as a date and time without seconds, in the person's zone: 8 Apr 2026, 11:16", () => {
+  const at = Date.UTC(2026, 3, 8, 11, 16, 42);
+  assert.equal(createdLine(at, "UTC"), "8 Apr 2026, 11:16");
+  assert.equal(createdLine(at, "Asia/Karachi"), "8 Apr 2026, 16:16");
+  assert.equal(createdLine(Date.UTC(2026, 0, 3, 0, 5), "UTC"), "3 Jan 2026, 00:05");
+  assert.equal(createdLine(new Date(at).toISOString(), "America/Los_Angeles"), "8 Apr 2026, 04:16");
+  assert.equal(createdLine("nope"), "Unknown");
+});
+
+test("Details: only the Space ID and the key fingerprint are mono; Hosted on and Created are plain text", async () => {
+  const p = await mountPage(createRoot, <SpaceProfile />, { "spaces.get": SPACE("usr_sample", { hostedOn: "Northwind server", createdAt: Date.UTC(2026, 3, 8, 11, 16, 42) }) });
+  try {
+    assert.match(p.text(), /Northwind server/);
+    assert.match(p.text(), /\d{1,2} \w{3} 20\d\d, \d\d:\d\d(?!:)/);
+    const mono = (n: { props: Record<string, unknown>; children?: unknown[] }): boolean => JSON.stringify(n.props["style"] ?? "").includes("monospace");
+    assert.equal(mono(p.find("space-created-value") as never), false);
   } finally { p.restore(); }
 });

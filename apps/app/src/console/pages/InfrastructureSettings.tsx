@@ -1,4 +1,5 @@
 import { SpaceLogoRow } from './SpaceImage.tsx';
+import { createdLine } from './space-created.ts';
 import { TIME_ZONES, zoneLabel } from './space-zones.ts';
 import { useEffect, useState } from 'react';
 import type { ReactElement } from 'react';
@@ -99,8 +100,8 @@ export function SpaceProfile(): ReactElement {
     <Section title="Details"><Group>
         <Line index={0}><Row id="space-id" title="Space ID" trailing={mono(space.id)}/></Line>
         <Line index={1}><Row id="space-fingerprint" title="Key fingerprint" trailing={mono(space.fingerprint)}/></Line>
-        <Line index={2}><Row id="space-host" title="Hosted on" trailing={mono(space.hostedOn ?? 'This server')}/></Line>
-        <Line index={3}><Row id="space-created" title="Created" trailing={mono(new Date(space.createdAt).toLocaleString())}/></Line>
+        <Line index={2}><Row id="space-host" title="Hosted on" trailing={<Text style={st.plain} numberOfLines={1}>{space.hostedOn ?? 'This server'}</Text>}/></Line>
+        <Line index={3}><Row id="space-created" title="Created" trailing={<Text style={st.plain} testID="space-created-value" numberOfLines={1}>{createdLine(space.createdAt)}</Text>}/></Line>
     </Group></Section></View>;
 }
 const st = StyleSheet.create({
@@ -108,6 +109,7 @@ const st = StyleSheet.create({
     pickText: { fontSize: 13, color: 'var(--ink)' as string, flexShrink: 1 },
     field: { height: 30, borderWidth: 1, borderColor: 'var(--line)' as string, borderRadius: 7, paddingHorizontal: 10, fontSize: 13, color: 'var(--ink)' as string, backgroundColor: 'var(--win)' as string, maxWidth: '100%' },
     inline: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    plain: { fontSize: 13, color: 'var(--ink-3)' as string },
     mono: { fontSize: 12, color: 'var(--ink-3)' as string, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
     swatch: { width: 18, height: 18, borderRadius: 5, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
     dot: { width: 6, height: 6, borderRadius: 3 },

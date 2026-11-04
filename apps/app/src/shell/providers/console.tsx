@@ -152,9 +152,9 @@ function consoleData(rt: ShellRuntime, allowed: ReadonlySet<string>, openPage: C
 const DEFAULTS: Readonly<Record<string, SpacePage | "memory" | "memlearn">> = { memlearn: "memlearn", "def-access": "people", "def-agents": "agents", "def-memory": "memory", "def-data": "data", "def-apps": "apps", "def-advanced": "advanced" };
 
 /** Space defaults are drawn by the rows Settings shows in a Personal Space, so one row has one home in each kind of Space. */
-function spaceDefaults(rt: ShellRuntime, id: string): ReactElement | null {
+function spaceDefaults(rt: ShellRuntime, id: string, flush = false): ReactElement | null {
   const page = DEFAULTS[id];
-  return page ? <SettingsDataProvider value={settingsData(rt)}><SpaceDefaults page={page} /></SettingsDataProvider> : null;
+  return page ? <SettingsDataProvider value={settingsData(rt)}><SpaceDefaults page={page} flush={flush} /></SettingsDataProvider> : null;
 }
 
 export default function ConsolePlace(): ReactElement {
@@ -191,7 +191,7 @@ export default function ConsolePlace(): ReactElement {
   const requestedPage = routed ? (pageById(routed.page) ? routed.page : null) : target.args.page && pageById(target.args.page)?.screen === target.screen ? target.args.page : null;
   const page = requestedPage ?? PAGES.find((entry) => entry.screen === target.screen)?.id ?? "overview";
   const pageArgs = { ...target.args, ...(routed?.args ?? {}) };
-  return <ConsoleDataProvider value={data}><ConsoleShell initialPage={page} embedded={!alone} {...(onConsoleHost() ? { noApp: true } : {})} skin={skin} onSkin={(id) => { theme?.setSkin(id); setSkin(id); }} assistant={<Assistant rt={rt} page={target.screen ?? "console.overview"} />} renderPage={(id) => spaceDefaults(rt, id) ?? consolePageFor(id, pageArgs)} /></ConsoleDataProvider>;
+  return <ConsoleDataProvider value={data}><ConsoleShell initialPage={page} embedded={!alone} {...(onConsoleHost() ? { noApp: true } : {})} skin={skin} onSkin={(id) => { theme?.setSkin(id); setSkin(id); }} assistant={<Assistant rt={rt} page={target.screen ?? "console.overview"} />} renderPage={(id, state) => spaceDefaults(rt, id, state['extra'] === true) ?? consolePageFor(id, pageArgs)} /></ConsoleDataProvider>;
 }
 
 /** The states of the Console that are not the Console itself keep the theme and a way back to the app. */

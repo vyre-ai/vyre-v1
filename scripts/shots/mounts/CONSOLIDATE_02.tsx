@@ -448,5 +448,5 @@ export default function Mount(): ReactNode {
   const data = useMemo(() => consoleData(), []);
   const settings = useMemo(() => createSampleSettings().data, []);
   if (id === null) return <View style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
-  return <ConsoleDataProvider value={data}><View style={{ flex: 1, minHeight: 1000 }}><ConsoleShell key={id} embedded initialPage={id} renderPage={(pid, state) => DEFAULTS[pid] ? <SettingsDataProvider value={settings}><SpaceDefaults page={DEFAULTS[pid] as never} /></SettingsDataProvider> : consolePageFor(pid, state as Record<string, string | undefined>)} /></View></ConsoleDataProvider>;
+  return <ConsoleDataProvider value={data}><View style={{ flex: 1, minHeight: 1000 }}><ConsoleShell key={id} embedded initialPage={id} renderPage={(pid, state) => DEFAULTS[pid] ? <SettingsDataProvider value={settings}><SpaceDefaults page={DEFAULTS[pid] as never} flush={state['extra'] === true} /></SettingsDataProvider> : consolePageFor(pid, state as Record<string, string | undefined>)} /></View></ConsoleDataProvider>;
 }
