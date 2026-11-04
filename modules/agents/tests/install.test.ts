@@ -346,3 +346,28 @@ test("a plan is read again by its id, an install is taken back, the Space's inst
   assert.ok(!(await listed(hn, hn.as({ kind: "agent", id: agent }, DANA), agent)).includes("pdf-forms"));
   assert.deepEqual(await call(hn, "install.remove", { installId: mine.installId }).catch((e) => codeOf(e)), "validation.not_found");
 });
+
+test("asked in a chat, the plan puts one card in it with the plan's id; an update puts an update card; no chat, no card", async () => {
+  const { hn } = world();
+  const posts: any[] = [];
+  hn.world.answer("chat.post", (i: any) => { posts.push(i); return { message: { messageId: "msg_1" } }; });
+  const inChat = { ...hn.ctx, thread: "thr_1" };
+  const p = (await call(hn, "install.from_link", { url: "https://github.com/acme/pdf-skill" }, inChat)).plan;
+  assert.equal(posts.length, 1);
+  assert.deepEqual([posts[0].threadId, posts[0].blocks[0].type, posts[0].blocks[0].data], ["thr_1", "install_plan", { planId: p.planId, name: "pdf-forms", kind: "skill" }]);
+  assert.equal(JSON.stringify(posts[0]).includes("README"), false, "the card carries an id, not the plan");
+  await plan(hn, "acme/pdf-skill");
+  assert.equal(posts.length, 1, "asked outside a chat there is no card");
+  await call(hn, "install.apply", { planId: p.planId, for: "me" });
+  const installId = (await call(hn, "install.list", {})).installs[0].installId;
+  const r = repos.get("acme/pdf-skill")!;
+  const before = { ...r, files: { ...r.files } };
+  r.revision = "7777777qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq77";
+  r.files = { ...r.files, "SKILL.md": SKILL("pdf-forms", "Fill PDF forms from a record.", "changed") };
+  try {
+    await call(hn, "install.check_update", { installId }, inChat);
+    assert.deepEqual([posts[1].blocks[0].data.update, posts[1].blocks[0].data.installId], [true, installId]);
+  } finally { repos.set("acme/pdf-skill", before); }
+  hn.world.answer("chat.post", () => { throw new Error("down"); });
+  assert.equal((await call(hn, "install.from_link", { url: "https://github.com/acme/pdf-skill" }, inChat)).plan.kind, "skill", "a chat that cannot be posted to does not stop the plan");
+});

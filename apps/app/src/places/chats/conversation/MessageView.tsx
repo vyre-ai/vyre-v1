@@ -40,6 +40,7 @@ import { AccessRequestCard, isAccessRequest } from "./accessrequest.tsx";
 import { RedactRequestCard, isRedactRequest } from "./redactrequest.tsx";
 import { ChecklistCard, isChecklist } from "./checklist.tsx";
 import { NoteOfferCard, isNoteOffer } from "./noteoffer.tsx";
+import { InstallCard, isInstallPlan } from "../install/InstallCard.tsx";
 import { QuoteCard, WebPageCard, isQuote, isWebPage } from "./webpage.tsx";
 import { ChromeStepCard, HeldSendCard, isChromeHeld, isChromeStep } from "./chrome-cards.tsx";
 import type { ChromeCardActions } from "./chrome-cards.tsx";
@@ -421,6 +422,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
       {collect(cards, (b) => {
         const goal = goalBlockOf(b);
         if (goal && actions.files) return <GoalCard key={b.id} block={goal} call={actions.files.call} changes={actions.files.changes} {...(actions.openGoal ? { openGoal: actions.openGoal } : {})} me={meId} />;
+        if (isInstallPlan(b.type) && actions.files) return <InstallCard key={b.id} id={b.id} data={b.data} chat={actions.files} />;
         if (isCrewResult(b) && actions.files) return <CrewResultCard key={b.id} block={b} leadThreadId={m.threadId} data={actions.files} />;
         if (isProposal(b)) return <AgentFileProposal key={b.id} block={b} host={actions.host} changes={actions.files?.changes} />;
         if (isPlanFile(b)) return <PlanFileCard key={b.id} block={b} onOpen={(id) => actions.openBeside("file", id)} />;

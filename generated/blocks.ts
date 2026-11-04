@@ -147,6 +147,13 @@ export type HelperBlockData = {
       threadId: string;
     }>;
 };
+export type InstallPlanBlockData = {
+  planId: string;
+  name: string;
+  kind: "skill" | "plugin" | "mcp_local" | "mcp_remote" | "site";
+  update?: boolean;
+  installId?: string;
+};
 export type MemorySavedBlockData = {
   factId: string;
   layer: "person" | "agent" | "project" | "space";
@@ -313,6 +320,7 @@ export interface BlockDataMap {
   "form_fields": FormFieldsBlockData;
   "goal": GoalBlockData;
   "helper": HelperBlockData;
+  "install_plan": InstallPlanBlockData;
   "memory_saved": MemorySavedBlockData;
   "model_switch": ModelSwitchBlockData;
   "mount": MountBlockData;
@@ -631,6 +639,16 @@ export const blockRegistry = [
         "threadId": "/threadId"
       }
     }
+  },
+  {
+    "type": "install_plan",
+    "v": 1,
+    "module": "chat",
+    "component": "ui:BlockInstallPlan",
+    "fallback": "Install {{name}}?",
+    "waitsForAnswer": false,
+    "actions": [],
+    "opens": null
   },
   {
     "type": "memory_saved",

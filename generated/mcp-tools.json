@@ -31128,7 +31128,9 @@
       "v": 1
     },
     {
-      "blocks": [],
+      "blocks": [
+        "install_plan"
+      ],
       "cap": "install.check_update",
       "deferred": false,
       "description": "Read an install's repository again. A newer commit gives an update plan with the diff; nothing changes until the plan is applied",
@@ -31154,7 +31156,9 @@
       "v": 1
     },
     {
-      "blocks": [],
+      "blocks": [
+        "install_plan"
+      ],
       "cap": "install.from_link",
       "deferred": false,
       "description": "Read a GitHub link (pinned to a commit) or an MCP server address and say what it is: a skill, a plugin, a local MCP server, a remote MCP server or a site, what it does, what it needs (network, Vault keys, files) and who can get it. Nothing is installed",

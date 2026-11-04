@@ -28,7 +28,7 @@ const skillRef = t.obj({ skillId: skoId, name: t.str(), description: t.str(), ow
 export const installCapabilities: CapabilityDef[] = [
   write('install.from_link', 'Read a GitHub link (pinned to a commit) or an MCP server address and say what it is: a skill, a plugin, a local MCP server, a remote MCP server or a site, what it does, what it needs (network, Vault keys, files) and who can get it. Nothing is installed', {
     in: { url: t.str({ examples: ['https://github.com/anthropics/skills/tree/main/pdf'] }) }, out: { plan },
-    perm: null, level: 'use', risk: 'low', idem: 'none', audit: 'always', tool: 'agents', mcpName: 'install_from_link',
+    perm: null, level: 'use', risk: 'low', idem: 'none', audit: 'always', tool: 'agents', mcpName: 'install_from_link', agent: { planMode: 'blocked', blocks: ['install_plan'] },
     errors: ['validation.bad_input', 'validation.not_found', 'provider.unavailable'],
   }),
   write('install.apply', 'Install what a plan says, for the person, for one agent, or for everyone in the Space (admin only). An agent asking is held at the Gate as a card with the plan; the person presses Install', {
@@ -39,7 +39,7 @@ export const installCapabilities: CapabilityDef[] = [
   }),
   write('install.check_update', 'Read an install\'s repository again. A newer commit gives an update plan with the diff; nothing changes until the plan is applied', {
     in: { installId: insId }, out: { changed: t.bool(), plan: t.opt(plan) },
-    perm: null, level: 'use', risk: 'low', idem: 'none', audit: 'always', tool: 'agents', mcpName: 'install_check_update',
+    perm: null, level: 'use', risk: 'low', idem: 'none', audit: 'always', tool: 'agents', mcpName: 'install_check_update', agent: { planMode: 'blocked', blocks: ['install_plan'] },
     errors: ['validation.bad_input', 'validation.not_found', 'validation.precondition_failed', 'provider.unavailable'],
   }),
   read('install.list', 'What was installed from links, by the person asking (an admin may ask for the whole Space)', {

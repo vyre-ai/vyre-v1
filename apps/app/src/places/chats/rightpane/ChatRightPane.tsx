@@ -23,6 +23,7 @@ import { RoutinesTab } from "./RoutinesTab.tsx";
 import { TerminalPaneTab } from "./TerminalPaneTab.tsx";
 import { ThreadsTab, AGENT_PAGE_SCREEN, PANE_SCREEN } from "./ThreadsTab.tsx";
 import { CrewTab } from "./CrewTab.tsx";
+import { SkillsTab } from "../install/SkillsTab.tsx";
 import { DEFAULT_TAB, PANE_KEY, PANE_WIDTH_GUESS, TABS, tabsOf } from "./model.ts";
 import { TabMeasure, useFittedTabs, useTitleWidths } from "./fit.tsx";
 import type { TabKey } from "./model.ts";
@@ -114,7 +115,14 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
   // the Crew tab appears once teammates work for this chat
   const crewQ = useScreenQuery<CapMap["engine.crew.list"]["out"]>(PANE_SCREEN, "crew", { threadId: data.threadId });
   const hasCrew = crewQ.status === "ready" && crewQ.data.jobs.length > 0;
-  const tabs = useMemo(() => tabsOf(data.terminal !== undefined, hasCrew).filter((t) => !(noComputers && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, noComputers, data.terminal, hasCrew]);
+  // the Skills tab appears once the person has skills (their own, an agent's they own, or shared with them)
+  const [hasSkills, setHasSkills] = useState(false);
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve(data.call("skills.page", {})).then((p) => { const pg = p as { mine?: unknown[]; shared?: unknown[] } | undefined; if (live) setHasSkills(((pg?.mine?.length ?? 0) + (pg?.shared?.length ?? 0)) > 0); }, () => undefined);
+    return () => { live = false; };
+  }, [data]);
+  const tabs = useMemo(() => tabsOf(data.terminal !== undefined, hasCrew, hasSkills).filter((t) => !(noComputers && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, noComputers, data.terminal, hasCrew, hasSkills]);
   const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);
   const { strip, select } = useFittedTabs(tabs, tab, paneNow, {
@@ -151,6 +159,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, onTab, window, 
         <View testID={`pane-body-${tab}`} style={st.body}>
           {tab === "computer" ? <ComputerTab deps={deps} {...(window ? { window } : {})} /> : null}
           {tab === "threads" ? <ThreadsTab deps={deps} {...(window ? { window } : {})} /> : null}
+          {tab === "skills" ? <SkillsTab deps={deps} {...(data.nameOf ? { nameOf: data.nameOf } : {})} /> : null}
           {tab === "crew" ? <CrewTab deps={deps} {...(window ? { window } : {})} /> : null}
           {tab === "files" ? <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} /> : null}
           {tab === "terminal" && data.terminal ? <TerminalPaneTab data={data.terminal} /> : null}

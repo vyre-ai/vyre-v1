@@ -2,7 +2,7 @@
 // agent's folder is walked. The pane follows the agent of the open chat (spec 3.2); nothing here reads the replica, so the tests drive every rule directly.
 import type { CapMap } from "../../../../../../generated/types.ts";
 
-export type TabKey = "computer" | "threads" | "files" | "terminal" | "memory" | "routines" | "crew";
+export type TabKey = "computer" | "threads" | "files" | "terminal" | "memory" | "routines" | "crew" | "skills";
 export const TABS: readonly { key: TabKey; title: string }[] = [
   { key: "computer", title: "Computer" },
   { key: "threads", title: "Threads" },
@@ -13,12 +13,15 @@ export const TABS: readonly { key: TabKey; title: string }[] = [
 /** The sixth tab, shown only where the shell has a terminal; it sits after Files. */
 export const TERMINAL_TAB: { key: TabKey; title: string } = { key: "terminal", title: "Terminal" };
 /** The tabs of a pane: the five, with Terminal after Files when the shell has one. */
-export const tabsOf = (terminal: boolean, crew = false): readonly { key: TabKey; title: string }[] => {
+export const tabsOf = (terminal: boolean, crew = false, skills = false): readonly { key: TabKey; title: string }[] => {
   const base = terminal ? [...TABS.slice(0, 3), TERMINAL_TAB, ...TABS.slice(3)] : TABS;
-  return crew ? [...base.slice(0, 2), CREW_TAB, ...base.slice(2)] : base;
+  const withCrew = crew ? [...base.slice(0, 2), CREW_TAB, ...base.slice(2)] : base;
+  return skills ? [...withCrew, SKILLS_TAB] : withCrew;
 };
 /** The Crew tab: shown only in a chat that has teammates working for it, right after Threads. */
 export const CREW_TAB: { key: TabKey; title: string } = { key: "crew", title: "Crew" };
+/** The Skills tab: shown once the person has skills, after Routines. */
+export const SKILLS_TAB: { key: TabKey; title: string } = { key: "skills", title: "Skills" };
 export const DEFAULT_TAB: TabKey = "computer";
 
 /* ---------- the tab strip at a narrow width ---------- */

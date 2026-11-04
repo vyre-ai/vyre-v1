@@ -265,6 +265,14 @@ const load = (ctx: AgentsCtx, id: string): Row => {
   return r!;
 };
 
+/** The card in the chat that asked: one block with the plan's id; the card reads the plan itself, so it is right after a reload. A chat that cannot be posted to just has no card. */
+async function card(ctx: AgentsCtx, planId: string, p: Plan, update = false, installId?: string): Promise<void> {
+  if (!ctx.thread || !ctx.call) return;
+  try {
+    await ctx.call("chat.post", { threadId: ctx.thread, body: "", blocks: [{ type: "install_plan", v: 1, data: { planId, name: p.name, kind: p.kind, ...(update ? { update: true } : {}), ...(installId ? { installId } : {}) } }], idempotencyKey: `ins-card:${planId}` }, { idempotencyKey: `ins-card:${planId}` });
+  } catch (e) { ctx.log.warn("agents: the install card could not be posted", { error: e instanceof Error ? e.message : String(e) }); }
+}
+
 export async function fromLink(ctx: AgentsCtx, input: In) {
   ensure(ctx.db);
   const url = str(input.url).trim();
@@ -276,7 +284,9 @@ export async function fromLink(ctx: AgentsCtx, input: In) {
     if (!/\/(mcp|sse)(\/|\?|$)/i.test(asLink!.url)) raise(ctx, "validation.bad_input", "That link is not a GitHub repository or an MCP server address (one ending in /mcp or /sse).");
     const host = new URL(asLink!.url).hostname;
     const p: Plan = { kind: "mcp_remote", name: host.split(".")[0] ?? "mcp", summary: `A remote MCP server at ${host}. Vyre connects to it; nothing is installed here.`, repo: host, commit: "", url: asLink!.url, path: "", needs: { domains: [host], vaultKeys: [], files: [] }, skills: [], problems: [] };
-    return { plan: planOut(ctx, save(ctx, { asker: me(ctx), agentId, url, p, files: {} }), p, "planned") };
+    const rid = save(ctx, { asker: me(ctx), agentId, url, p, files: {} });
+    await card(ctx, rid, p);
+    return { plan: planOut(ctx, rid, p, "planned") };
   }
   const l = asLink as { kind: "github"; owner: string; repo: string; ref?: string; path?: string };
   const tree = await treeOf(ctx, { kind: "git", url: `https://github.com/${l.owner}/${l.repo}`, ...(l.ref ? { ref: l.ref } : {}) });
@@ -285,7 +295,9 @@ export async function fromLink(ctx: AgentsCtx, input: In) {
   if (Object.keys(files).length === 0) raise(ctx, "validation.not_found", `There is nothing at ${l.path ?? "that link"} in ${l.owner}/${l.repo}.`);
   const found = detect(files, `${l.owner}/${l.repo}`, l.path ?? "", tree.revision, url);
   if ("problem" in found) raise(ctx, "validation.bad_input", found.problem);
-  return { plan: planOut(ctx, save(ctx, { asker: me(ctx), agentId, url, p: found, files }), found, "planned") };
+  const pid = save(ctx, { asker: me(ctx), agentId, url, p: found, files });
+  await card(ctx, pid, found);
+  return { plan: planOut(ctx, pid, found, "planned") };
 }
 
 // ---- diff ---------------------------------------------------------------------------------------------------------------------------------------------------
@@ -320,6 +332,7 @@ export async function checkUpdate(ctx: AgentsCtx, input: In) {
   if ("problem" in found) raise(ctx, "validation.bad_input", found.problem);
   found.diff = diffOf(str(r["commit_sha"]), tree.revision, parse<Files>(r["files_json"], {}), files);
   const id = save(ctx, { asker: me(ctx), agentId: str(r["agent_id"]), url: str(r["url"]), p: found, files, updateOf: str(r["id"]) });
+  await card(ctx, id, found, true, str(r["id"]));
   return { changed: true, plan: planOut(ctx, id, found, "planned") };
 }
 
