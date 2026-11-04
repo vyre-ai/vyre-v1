@@ -11,6 +11,7 @@ import { decideLocal, dialFor, modePair } from "../../agent/src/tools/local.ts";
 import { localFacts } from "../../agent/src/tools/local-facts.ts";
 import type { ModePair } from "../../agent/src/tools/local.ts";
 import { buildCatalog, offerable, parseDefaultTools } from "../../agent/src/tools/catalog.ts";
+import { placeTools } from "./place-tools.ts";
 import { DEFERRED_CAPS } from "../../host/src/routes/deferred.ts";
 import type { AgentToolRow, McpToolRow, RegistryCapRow } from "../../agent/src/tools/types.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
@@ -88,6 +89,8 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     // who is in and a message to a teammate are listed in every chat, without a tool_search (owner ruling 3 Nov, lane l-agentdm)
     session.preload(t.threadId, TEAMMATE_TOOLS);
     session.preload(t.threadId, CORE_READ_TOOLS);
+    // where the chat is decides which area's core tools are listed too (a goal chat the goal tools, an Ask about a file the file reads)
+    session.preload(t.threadId, placeTools({ kind: th?.kind ?? "chat", scope }));
     facts.set(t.threadId, { kind: th?.kind ?? "chat", planMode: th?.planMode === true, ...(th?.mode === "ask" || th?.mode === "auto" || th?.mode === "plan" ? { mode: th.mode } : {}), ...(scope ? { scope } : {}) });
     if (th?.kind === "ask" && scope) {
       const lvl = await d.call("chat.ask_level", { threadId: t.threadId }, t.asker).catch(() => undefined) as { level?: Level | null } | undefined;
