@@ -3,10 +3,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { MarkdownBlocks, MarkdownText, createIncrementalMarkdown } from "../src/stream/index.ts";
-import { MarkdownEditor } from "../src/RichEditor/index.tsx";
-import { Viewer } from "../src/Viewer/index.tsx";
-import { Prose } from "../../apps/app/src/places/files/runbook/Prose.tsx";
+import { MarkdownBlocks, MarkdownText, createIncrementalMarkdown } from "../ui/src/stream/index.ts";
+import { MarkdownEditor } from "../ui/src/RichEditor/index.tsx";
+import { Viewer } from "../ui/src/Viewer/index.tsx";
+import { Prose } from "../apps/app/src/places/files/runbook/Prose.tsx";
 
 const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 const MD = "# Plan\n\n| Step | Owner |\n|---|---|\n| Draft | Dex |\n\n- [x] Pick the host\n- [ ] Move the data\n\n> [!WARNING]\n> Careful.\n\n```ts\nconst a = 1;\n```\n\n```chart\n{\"type\":\"bar\",\"labels\":[\"a\",\"b\"],\"series\":[{\"data\":[1,2]}]}\n```\n";
