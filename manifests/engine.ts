@@ -206,6 +206,9 @@ export default defineManifest({
       out: { responders: t.arr(id.agent), line: t.str({ examples: ['Intake will reply'] }) }, on: ['thread', '/threadId'], tool: 'chats',
     }),
     // ---- turns
+    read('engine.turns.running', 'Engine only: the turns running now with the machine each runs on (agent, asker, start, place; no message or title), for the Machines page', {
+      in: {}, out: { turns: t.arr(t.obj({ turnId: id.turn, agentId: id.agent, asker: t.str(), startedAt: t.ts(), where: t.obj({ kind: t.enm('computer', 'server', 'space'), name: t.str(), nodeId: t.opt(t.str()) }) })) }, perm: null, tool: 'chats',
+    }),
     read('engine.turn.get', 'What happened: steps, durations, machine, model, key used and denials of one turn', {
       in: { turnId: id.turn }, out: { what: whatHappened }, label: 'check', tool: 'chats', errors: ['validation.not_found'],
     }),

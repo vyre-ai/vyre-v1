@@ -1,10 +1,10 @@
-# network.machine_move_record
+# machines.move_record
 
-Engine only: keep the line of a turn that Automatic moved off a busy machine
+Engine only: keep the line of a turn that Automatic moved off a machine with no room
 
 | | |
 |---|---|
-| Module | network |
+| Module | machines |
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
@@ -16,8 +16,8 @@ Engine only: keep the line of a turn that Automatic moved off a busy machine
 | Offline | online |
 | Audit | none |
 | Team Space only | no |
-| HTTP | POST /v1/network/machine_move_record |
-| MCP tool | none |
+| HTTP | POST /v1/machines/move_record |
+| MCP tool | machines_move_record (engineer) |
 | CLI | none |
 | Emits | none |
 

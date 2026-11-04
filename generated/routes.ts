@@ -11351,6 +11351,24 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/engine/turns/running",
+    "cap": "engine.turns.running",
+    "v": 1,
+    "module": "engine",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/engine/usage/get",
     "cap": "engine.usage.get",
     "v": 1,
@@ -16618,7 +16636,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/governance/jobs_health",
@@ -16636,10 +16657,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/governance/retention/get",
@@ -19162,6 +19180,168 @@ const routes3: Route[] = [
     },
     "idempotency": "natural",
     "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/machines/alerts",
+    "cap": "machines.alerts",
+    "v": 1,
+    "module": "machines",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/machines/alerts_notify",
+    "cap": "machines.alerts_notify",
+    "v": 1,
+    "module": "machines",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/machines/fix",
+    "cap": "machines.fix",
+    "v": 1,
+    "module": "machines",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/machines/get",
+    "cap": "machines.get",
+    "v": 1,
+    "module": "machines",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/machines/list",
+    "cap": "machines.list",
+    "v": 1,
+    "module": "machines",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/machines/move_record",
+    "cap": "machines.move_record",
+    "v": 1,
+    "module": "machines",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/machines/moves",
+    "cap": "machines.moves",
+    "v": 1,
+    "module": "machines",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/machines/rooms",
+    "cap": "machines.rooms",
+    "v": 1,
+    "module": "machines",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/machines/set",
+    "cap": "machines.set",
+    "v": 1,
+    "module": "machines",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -21925,7 +22105,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/memory/page/delete",
@@ -22105,10 +22288,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/memory/profile/get",
@@ -24444,186 +24624,6 @@ const routes4: Route[] = [
     "effects": "read",
     "permission": "server.network",
     "level": "view",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/network/machine",
-    "cap": "network.machine",
-    "v": 1,
-    "module": "network",
-    "effects": "read",
-    "permission": null,
-    "level": "use",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/network/machine_alerts",
-    "cap": "network.machine_alerts",
-    "v": 1,
-    "module": "network",
-    "effects": "read",
-    "permission": null,
-    "level": "use",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/network/machine_alerts_notify",
-    "cap": "network.machine_alerts_notify",
-    "v": 1,
-    "module": "network",
-    "effects": "write",
-    "permission": null,
-    "level": "view",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/network/machine_fix",
-    "cap": "network.machine_fix",
-    "v": 1,
-    "module": "network",
-    "effects": "write",
-    "permission": null,
-    "level": "use",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/network/machine_move_record",
-    "cap": "network.machine_move_record",
-    "v": 1,
-    "module": "network",
-    "effects": "write",
-    "permission": null,
-    "level": "view",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": "online",
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/network/machine_moves",
-    "cap": "network.machine_moves",
-    "v": 1,
-    "module": "network",
-    "effects": "read",
-    "permission": null,
-    "level": "use",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/network/machine_pin",
-    "cap": "network.machine_pin",
-    "v": 1,
-    "module": "network",
-    "effects": "write",
-    "permission": null,
-    "level": "use",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/network/machine_place",
-    "cap": "network.machine_place",
-    "v": 1,
-    "module": "network",
-    "effects": "read",
-    "permission": null,
-    "level": "use",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/network/machine_set",
-    "cap": "network.machine_set",
-    "v": 1,
-    "module": "network",
-    "effects": "write",
-    "permission": null,
-    "level": "use",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
-    "path": "/v1/network/machines",
-    "cap": "network.machines",
-    "v": 1,
-    "module": "network",
-    "effects": "read",
-    "permission": null,
-    "level": "use",
     "resource": {
       "type": "space"
     },

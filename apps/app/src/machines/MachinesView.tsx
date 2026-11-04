@@ -15,6 +15,7 @@ import { AddServerSheet, copyText, useAddServer } from "./AddServer.tsx";
 import type { AddScope } from "./AddServer.tsx";
 import { ENGINE_NAMES, PRIVATE_NOTE, RANGES, RANGE_NOTE, canNames, chartsFor, displayName, fmtBytes, kindLine, loadCells, orderLines, ordered, plural, runsLines, statusOf, strip } from "./model.ts";
 import type { MachineOut, MachineRow, MachinesOut, Range } from "./model.ts";
+import { fixMachine, loadMachine, loadMachines, pinMachine, setMachine } from "./api.ts";
 
 export type Call = (cap: string, input: Record<string, unknown>) => Promise<unknown>;
 export interface MachinesViewProps {
@@ -47,7 +48,7 @@ export function useMachines(call: Call, refreshMs: number): { data: MachinesOut 
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
   const reload = useCallback(async (): Promise<void> => {
-    try { const out = await call("network.machines", {}) as MachinesOut; if (alive.current) { setData(out); setError(false); } } catch { if (alive.current) setError(true); }
+    try { const out = await loadMachines(call); if (alive.current) { setData(out); setError(false); } } catch { if (alive.current) setError(true); }
   }, [call]);
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => { if (refreshMs <= 0) return undefined; const t = setInterval(() => { void reload(); }, refreshMs); return () => clearInterval(t); }, [reload, refreshMs]);
@@ -197,28 +198,34 @@ function MachinePage(props: MachinesViewProps & { row: MachineRow; width: number
   const [tab, setTab] = useState<Tab>("overview");
   const [hover, setHover] = useState<number | null>(null);
   const [detail, setDetail] = useState<MachineOut | null>(null);
+  const [again, setAgain] = useState(0);
+  const [fixed, setFixed] = useState<string>("");
   const alive = useRef(true);
   useEffect(() => () => { alive.current = false; }, []);
   useEffect(() => {
     let live = true;
-    void (call("network.machine", { serverId: row.serverId, range }) as Promise<MachineOut>).then((out) => { if (live && alive.current) setDetail(out); }, () => undefined);
+    void loadMachine(call, row, range).then((out) => { if (live && alive.current) setDetail(out); }, () => undefined);
     return () => { live = false; };
-  }, [call, row.serverId, range, row.room.n, row.pins.length, row.drain]);
+  }, [call, row.serverId, range, row.room.n, row.pins.length, row.drain, again]);
+  const onFix = (fix: "clear_caches" | "stop_idle"): void => {
+    setFixed("Working on it");
+    void fixMachine(call, row.serverId, fix).then((out) => { if (alive.current) { setFixed(out.detail); setAgain((n) => n + 1); } }, () => { if (alive.current) setFixed("Couldn't do that. Try again."); });
+  };
 
   const m = detail?.machine ?? row;
   const own = detail ? detail.privacy === "full" : !row.private;
   const colWidth = Math.max(280, Math.min(props.width, 1200) - (narrow ? 32 : 56));
   const chartW = narrow ? colWidth - 28 : Math.floor((colWidth - 14) / 2) - 28;
-  return <MachineDetail m={m} detail={detail} own={own} range={range} tab={tab} hover={hover} chartW={chartW} narrow={narrow} who={who} now={(props.clock ?? Date.now)()} goto={props.goto} onRange={setRange} onTab={setTab} onHover={setHover} onBack={props.onBack} placement={<Placement {...props} m={m} />} />;
+  return <MachineDetail m={m} detail={detail} own={own} range={range} tab={tab} hover={hover} chartW={chartW} narrow={narrow} who={who} now={(props.clock ?? Date.now)()} goto={props.goto} onFix={onFix} fixed={fixed} onRange={setRange} onTab={setTab} onHover={setHover} onBack={props.onBack} placement={<Placement {...props} m={m} />} />;
 }
 
 export interface MachineDetailProps {
-  m: MachineRow; detail: MachineOut | null; own: boolean; range: Range; tab: Tab; hover: number | null; chartW: number; narrow: boolean; who(id: string): string; now: number; goto: ((page: string) => void) | undefined;
+  m: MachineRow; detail: MachineOut | null; own: boolean; range: Range; tab: Tab; hover: number | null; chartW: number; narrow: boolean; who(id: string): string; now: number; goto: ((page: string) => void) | undefined; onFix?(fix: "clear_caches" | "stop_idle"): void; fixed?: string;
   onRange(r: Range): void; onTab(t: Tab): void; onHover(f: number | null): void; onBack(): void; placement: ReactNode;
 }
 
-/** One machine's page, drawn from what network.machine answered: nothing here fetches, so the same page serves the Console, Settings and the tests. */
-export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narrow, who, now, goto, onRange, onTab, onHover, onBack, placement }: MachineDetailProps): ReactElement {
+/** One machine's page, drawn from what machines.get answered: nothing here fetches, so the same page serves the Console, Settings and the tests. */
+export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narrow, who, now, goto, onFix, fixed, onRange, onTab, onHover, onBack, placement }: MachineDetailProps): ReactElement {
   const st = statusOf(m, now);
   const bad = detail ? detail.findings.filter((f) => f.state !== "healthy").length : 0;
   return (
@@ -269,20 +276,21 @@ export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narro
           {placement}
         </View>
       ) : null}
-      {tab === "health" ? <HealthTab detail={detail} m={m} goto={goto} /> : null}
+      {tab === "health" ? <HealthTab detail={detail} m={m} goto={goto} onFix={onFix} fixed={fixed} /> : null}
       {tab === "updates" ? <UpdatesTab m={m} goto={goto} /> : null}
     </View>
   );
 }
 
-function HealthTab({ detail, m, goto }: { detail: MachineOut | null; m: MachineRow; goto: ((page: string) => void) | undefined }): ReactElement {
+function HealthTab({ detail, m, goto, onFix, fixed }: { detail: MachineOut | null; m: MachineRow; goto: ((page: string) => void) | undefined; onFix?: ((fix: "clear_caches" | "stop_idle") => void) | undefined; fixed?: string | undefined }): ReactElement {
   if (!detail) return <Text style={s.note}>Loading</Text>;
   if (detail.privacy === "vyre_only") return <Text style={s.empty} testID="machine-health-private">Health checks of a member's own computer stay on that computer.</Text>;
   return (
     <View testID="machine-health">
       <Block title="Doctor" count={detail.findings.filter((f) => f.state !== "healthy").length} testID="machine-doctor">
-        {detail.findings.map((f) => <Row key={f.key} id={`finding-${f.key}`} title={f.detail} note={f.next} tall leading={<View style={s.lead36}><Glyph name={f.state === "healthy" ? "ok" : f.state === "down" ? "x" : "warn"} size={15} color={f.state === "healthy" ? "var(--ok)" : f.state === "down" ? "var(--danger)" : "var(--warn)"} /></View>} trailing={f.fix === "update" && goto ? <Pressable accessibilityRole="button" accessibilityLabel="Update" testID="finding-fix-update" onPress={() => goto("updates")} style={[s.small, pointer]}><Text style={s.smallText}>Update</Text></Pressable> : undefined} />)}
+        {detail.findings.map((f) => <Row key={f.key} id={`finding-${f.key}`} title={f.detail} note={f.next} tall leading={<View style={s.lead36}><Glyph name={f.state === "healthy" ? "ok" : f.state === "down" ? "x" : "warn"} size={15} color={f.state === "healthy" ? "var(--ok)" : f.state === "down" ? "var(--danger)" : "var(--warn)"} /></View>} trailing={(f.fix === "clear_caches" || f.fix === "stop_idle") && onFix ? <Pressable accessibilityRole="button" accessibilityLabel="Fix" testID={`finding-fix-${f.fix}`} onPress={() => onFix(f.fix as "clear_caches" | "stop_idle")} style={[s.small, pointer]}><Text style={s.smallText}>Fix</Text></Pressable> : f.fix === "update" && goto ? <Pressable accessibilityRole="button" accessibilityLabel="Update" testID="finding-fix-update" onPress={() => goto("updates")} style={[s.small, pointer]}><Text style={s.smallText}>Update</Text></Pressable> : undefined} />)}
       </Block>
+      {fixed || detail.lastFix ? <Text style={s.foot} testID="machine-last-fix">{fixed || detail.lastFix?.detail}</Text> : null}
       <Text style={s.foot}>The same check runs as vyre-server doctor in a terminal on this machine, so it works even when the Space server is down.</Text>
       {m.kind === "space" && goto ? (
         <Block title="More checks" testID="machine-more">
@@ -333,11 +341,11 @@ function Placement({ call, m, who, onChanged }: MachinesViewProps & { m: Machine
   useEffect(() => { setNick(m.nickname ?? ""); }, [m.serverId, m.nickname]);
   const set = async (patch: Record<string, unknown>): Promise<void> => {
     setError("");
-    try { await call("network.machine_set", { serverId: m.serverId, ...patch }); onChanged(); } catch { setError("Couldn't save that. Try again."); }
+    try { await setMachine(call, m.serverId, patch); onChanged(); } catch { setError("Couldn't save that. Try again."); }
   };
   const pin = async (agentId: string, pinned: boolean): Promise<void> => {
     setError("");
-    try { await call("network.machine_pin", { serverId: m.serverId, agentId, pinned }); onChanged(); } catch { setError("Couldn't pin that. Try again."); }
+    try { await pinMachine(call, m.serverId, agentId, pinned); onChanged(); } catch { setError("Couldn't pin that. Try again."); }
   };
   const mayChange = m.kind === "space" || m.mine || (m.kind === "server" && !m.owner);
   const choose = (): void => {
