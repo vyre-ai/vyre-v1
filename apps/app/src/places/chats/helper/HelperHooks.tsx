@@ -1,6 +1,6 @@
 // The hooks section of a helper (lane l-hooks, the approved prototype): the rules this helper runs under. Ones its lead gave it for this helper say "From <lead>", the ones it picked up from the run, the
 // agent or the Space say "Inherited". A row opens the lead's Hooks tab at that hook where the shell can; the helper cannot change them itself.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "../rightpane/parts.tsx";
@@ -56,3 +56,17 @@ const st = StyleSheet.create({
   what: { marginTop: 1, fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string },
   tag: { fontSize: 12, color: "var(--ink-3)" as string },
 });
+
+/**
+ * The same section for a place that has only a thread id and the capability door (the crew peek): it reads `hooks.list` for the helper's thread, as the person, and draws the rows above. The list for a helper
+ * holds the hooks its lead gave it (run scope, on its own thread), the run hooks of the chat above, the Space's and the person's, so "From <lead>" and "Inherited" come out as on the helper's own page.
+ */
+export function HelperHooksSection({ threadId, call, lead, name, open }: { threadId: string; call(cap: string, input: unknown): Promise<unknown>; lead: string; name: string; open?: (hookId: string) => void }): ReactElement | null {
+  const [hooks, setHooks] = useState<readonly Hook[]>([]);
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve(call("hooks.list", { threadId })).then((r) => { if (live) setHooks(((r ?? {}) as { hooks?: Hook[] }).hooks ?? []); }, () => { if (live) setHooks([]); });
+    return () => { live = false; };
+  }, [call, threadId]);
+  return <HelperHooks hooks={hooks} helperThreadId={threadId} lead={lead} name={name} {...(open ? { open } : {})} />;
+}
