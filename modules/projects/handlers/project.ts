@@ -6,7 +6,7 @@
 import {
   LEVEL_OF, addFiled, addLink, addPin, allProjects, allows, buildStages, call, clean, codeOf, dropMember, dropPin, emitP, ensure, isMember, keyed, kindOfPrincipal, linksOf, loadTasks,
   me, membersOf, memberOf, newId, page, pinsOf, planTask, plansOf, projectBy, projectByChannel, projectRow, raise, readRecord, remember, replaceStages, saveMember, savePlan, saveProject, saveUpdate,
-  stagesOf, tolerant, updateOf, visible, writeRecord,
+  stagesOf, tolerant, updateOf, visible, writeRecord, draftOf, saveDraft, attachesOf,
 } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
 import type { In, Member, Project, ProjectsCtx, Role, Source, TaskView } from "../projections.ts";
@@ -369,9 +369,23 @@ export async function overview(ctx: ProjectsCtx, input: In): Promise<unknown> {
   return clean({
     project: projectRow(ctx, p, fields, tasks), goal: typeof fields["goal"] === "string" && fields["goal"] ? fields["goal"] : undefined,
     statusUpdate: u ? { text: u.text, at: u.at, by: u.by, drafted: u.drafted } : undefined,
-    milestones, late, waiting, decisions: [], people: membersOf(ctx.db, p.projectId), linked: [], pinnedFiles: pinsOf(ctx.db, p.projectId),
+    milestones, late, waiting, decisions: [], people: membersOf(ctx.db, p.projectId), linked: await linkedRecords(ctx, p.projectId), pinnedFiles: pinsOf(ctx.db, p.projectId),
+    updateDraft: ((d) => (d ? { text: d.text, at: d.at, by: d.by } : undefined))(draftOf(ctx.db, p.projectId)),
     recentThreads: (threads.threads ?? []).map((t) => ({ threadId: t.threadId, title: t.title ?? "", at: t.createdAt ?? 0 })),
   });
+}
+
+/** The records linked to the project, as the Overview lists them: the type, the id and a title read from the record. */
+async function linkedRecords(ctx: ProjectsCtx, projectId: string): Promise<Array<{ type: string; recordId: string; title: string }>> {
+  const out: Array<{ type: string; recordId: string; title: string }> = [];
+  for (const a of attachesOf(ctx.db, projectId, "record").slice(0, 20)) {
+    const [type, recordId] = a.ref.includes("/") ? [a.ref.slice(0, a.ref.indexOf("/")), a.ref.slice(a.ref.indexOf("/") + 1)] : ["", a.ref];
+    const got = await tolerant<{ record?: { id: string; type: string; fields: Record<string, unknown> } }>(ctx, "records.get", { ...(type ? { type } : {}), recordId }, {});
+    if (!got.record) continue;
+    const f = got.record.fields;
+    out.push({ type: got.record.type, recordId: got.record.id, title: String(f["title"] ?? f["name"] ?? got.record.id) });
+  }
+  return out;
 }
 
 export async function templatesList(ctx: ProjectsCtx, _input: In): Promise<unknown> {
@@ -390,13 +404,17 @@ export async function templatesList(ctx: ProjectsCtx, _input: In): Promise<unkno
 export async function postUpdate(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const p = visible(ctx, input.projectId, "edit");
-  const text = typeof input.text === "string" ? input.text.trim() : "";
+  // Post with no text sends the draft the person has been editing; text sends that
+  const given = typeof input.text === "string" ? input.text.trim() : "";
+  const text = given || (draftOf(ctx.db, p.projectId)?.text ?? "").trim();
   if (!text) raise(ctx, "validation.bad_input", "Write the update first.");
   const at = ctx.now();
   const drafted = ctx.principal.kind === "agent";
   saveUpdate(ctx.db, p.projectId, { text, at, by: me(ctx), drafted });
+  saveDraft(ctx.db, p.projectId, null);
   await writeRecord(ctx, p, clean({ status_update: text, status_update_at: at, status: input.status }));
   if (p.threadId) {
+    // the update goes into the channel as the person who posted it, never as an agent speaking for them
     try { await call(ctx, "chat.post", { threadId: p.threadId, body: text }, { idempotencyKey: `prj-update:${p.projectId}:${at}:${text.length}` }); } catch (e) {
       ctx.log.warn("projects: the update was kept but not posted to the channel", { project: p.projectId, error: codeOf(e) });
     }

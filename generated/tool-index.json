@@ -6554,6 +6554,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_crew",
+      "summary": "The helpers working for a project with a live state (Working, Done or Needs you) and what each is on, from the crews of the project's chats, and the project's teammates",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_file_chat",
       "summary": "File a private chat under the project; it stays private and the agent gets the project memory and folder",
       "toolset": "records"
@@ -6562,6 +6568,12 @@
       "deferred": false,
       "name": "projects_files_folder",
       "summary": "The folder that holds a record's files: a project's own, else Files > Projects > Record files > the record (made on first use unless create is false, with the record's access mirrored onto it)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_for_channel",
+      "summary": "The project a channel belongs to, if there is one the caller may see",
       "toolset": "records"
     },
     {
@@ -6581,6 +6593,30 @@
       "name": "projects_link_tasks",
       "summary": "Add a dependency arrow between two tasks",
       "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "projects_links_link",
+      "summary": "Link something to a project; an agent that may edit the project can too. A web address or CI run may bring its own state, label and address",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_links_list",
+      "summary": "What is linked to a project (records, files, chats, tasks, artifacts, mail threads, calendar events, pull requests, commits, CI runs, web addresses), each with its state read live from the source, and the rules that link by themselves",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_links_rules_set",
+      "summary": "Set the rules that link matching new items to the project: a repository, a record filter or an email domain",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_links_unlink",
+      "summary": "Take a link off a project; an item a rule linked is remembered as an exception and never comes back by rule",
+      "toolset": "records"
     },
     {
       "deferred": false,
@@ -6644,6 +6680,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_set",
+      "summary": "Set how the project stands (On track, At risk, Off track, On hold or Done) by hand, or null to go back to the reading from the late tasks; audited, and the Overview says who set it",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_share_out",
       "summary": "Make a read-only link to the project Overview for a client; it expires in 30 days unless expiresAt or expiresInDays says otherwise",
       "toolset": "records"
@@ -6694,6 +6736,18 @@
       "deferred": false,
       "name": "projects_unshare_out",
       "summary": "Revoke a read-only link to the project Overview; the link answers not found at once",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_update_draft",
+      "summary": "Draft the status update again from the project facts, on the asker's own AI account; it is kept as the draft and posted only by Post",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_update_edit",
+      "summary": "Edit the status update's draft in place",
       "toolset": "records"
     },
     {

@@ -2015,11 +2015,21 @@ export function stubs(ctx: CallCtx) {
       apply_cascade: call("projects.apply_cascade"),
       cascade: call("projects.cascade"),
       create: call("projects.create"),
+      crew: call("projects.crew"),
       file_chat: call("projects.file_chat"),
       files_folder: call("projects.files_folder"),
+      for_channel: call("projects.for_channel"),
       from_channel: call("projects.from_channel"),
       get: call("projects.get"),
       link_tasks: call("projects.link_tasks"),
+      links: {
+        link: call("projects.links.link"),
+        list: call("projects.links.list"),
+        rules: {
+          set: call("projects.links.rules.set"),
+        },
+        unlink: call("projects.links.unlink"),
+      },
       list: call("projects.list"),
       members: {
         list: call("projects.members.list"),
@@ -2032,6 +2042,7 @@ export function stubs(ctx: CallCtx) {
       plan: call("projects.plan"),
       post_update: call("projects.post_update"),
       reschedule: call("projects.reschedule"),
+      set: call("projects.set"),
       share_out: call("projects.share_out"),
       shared_view: call("projects.shared_view"),
       stages: {
@@ -2048,6 +2059,10 @@ export function stubs(ctx: CallCtx) {
       unlink_tasks: call("projects.unlink_tasks"),
       unpin_file: call("projects.unpin_file"),
       unshare_out: call("projects.unshare_out"),
+      update: {
+        draft: call("projects.update.draft"),
+        edit: call("projects.update.edit"),
+      },
     },
     providers: {
       add: call("providers.add"),

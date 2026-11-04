@@ -1,4 +1,5 @@
 // @reads /modules/projects/migrations/0001_projects.sql
+// @reads /modules/projects/migrations/0002_links.sql
 // Projects: rows, ports to the modules a project works through, and the plan arithmetic (spec 3.4, 2.12; ARCH 7.4).
 // A project is a record of the `project` type (or a type cloned from it): its fields live in records. This module keeps what only the project knows (channel, folder, roles, stages, the start of a
 // task, dependency arrows, cascade proposals, the status update, pins). Tasks are owned by module tasks and are read through tasks.list; the due date is the task's own.
@@ -58,15 +59,15 @@ export const isPerson = (ctx: Pick<ProjectsCtx, "principal" | "actingFor">): boo
 
 // ---- schema ----
 
-const SCHEMA = readFileSync(new URL("./migrations/0001_projects.sql", import.meta.url), "utf8")
+const SCHEMA = ["0001_projects.sql", "0002_links.sql"].flatMap((file) => readFileSync(new URL(`./migrations/${file}`, import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+  .split(";").map((s) => s.trim()).filter((s) => s.length > 0));
 const ready = new WeakSet<object>();
 
 /** Make sure the projects tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key FROM projects_key WHERE key = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT key FROM projects_key WHERE key = ?", "probe"); db.all("SELECT ruleId FROM projects_rule WHERE ruleId = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 
@@ -376,6 +377,7 @@ export async function writeRecord(ctx: ProjectsCtx, p: Project, patch: Record<st
 export interface ProjectRowOut {
   projectId: string; recordId: string; type: string; title: string; summary?: string; status: string; lead?: string; start?: number; due?: number;
   channelId: string; folderId: string; memberCount: number; openTasks: number; lateTasks: number;
+  health?: "on" | "risk" | "off" | "hold" | "done"; healthSetBy?: string; healthSetAt?: number;
 }
 const fstr = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
 const fnum = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
@@ -388,6 +390,7 @@ export function projectRow(ctx: ProjectsCtx, p: Project, fields: Record<string, 
     status: fstr(fields["status"]) ?? "planning", lead: fstr(fields["lead"]), start: fnum(fields["start"]), due: fnum(fields["due"]),
     channelId: p.channelId ?? "", folderId: p.folderId ?? "", memberCount: countMembers(ctx.db, p.projectId), openTasks: open.length,
     lateTasks: open.filter((t) => t.due !== undefined && t.due < now).length,
+    ...healthFields(ctx.db, p.projectId),
   }) as ProjectRowOut;
 }
 
@@ -401,4 +404,94 @@ export function page<T>(all: readonly T[], cursor?: string, limit?: number): { r
   const res: { rows: T[]; next?: string; total: number } = { rows, total: all.length };
   if (start + rows.length < all.length) res.next = String(start + rows.length);
   return res;
+}
+
+
+// ---- health set by hand ----
+
+export type Health = "on" | "risk" | "off" | "hold" | "done";
+export const HEALTHS: readonly Health[] = ["on", "risk", "off", "hold", "done"];
+export interface HealthRow { health: Health; by: string; at: number }
+export function healthOf(db: Db, projectId: string): HealthRow | undefined {
+  const r = (db.all("SELECT * FROM projects_health WHERE projectId = ?", projectId) as Row[])[0];
+  return r ? { health: str(r["health"]) as Health, by: str(r["byWho"]), at: num(r["at"]) } : undefined;
+}
+export function saveHealth(db: Db, projectId: string, h: HealthRow | null): void {
+  if (h === null) { db.run("DELETE FROM projects_health WHERE projectId = ?", projectId); return; }
+  db.run("INSERT INTO projects_health (projectId, health, byWho, at) VALUES (?, ?, ?, ?) ON CONFLICT(projectId) DO UPDATE SET health = excluded.health, byWho = excluded.byWho, at = excluded.at", projectId, h.health, h.by, h.at);
+}
+/** The row's health fields: present only while a manager's override is set ("Set by <name>"). */
+function healthFields(db: Db, projectId: string): { health?: Health; healthSetBy?: string; healthSetAt?: number } {
+  const h = healthOf(db, projectId);
+  return h ? { health: h.health, healthSetBy: h.by, healthSetAt: h.at } : {};
+}
+
+// ---- the status update's draft ----
+
+export interface DraftRow { text: string; by: string; at: number }
+export function draftOf(db: Db, projectId: string): DraftRow | undefined {
+  const r = (db.all("SELECT * FROM projects_draft WHERE projectId = ?", projectId) as Row[])[0];
+  return r ? { text: str(r["text"]), by: str(r["byWho"]), at: num(r["at"]) } : undefined;
+}
+export function saveDraft(db: Db, projectId: string, d: DraftRow | null): void {
+  if (d === null) { db.run("DELETE FROM projects_draft WHERE projectId = ?", projectId); return; }
+  db.run("INSERT INTO projects_draft (projectId, text, byWho, at) VALUES (?, ?, ?, ?) ON CONFLICT(projectId) DO UPDATE SET text = excluded.text, byWho = excluded.byWho, at = excluded.at", projectId, d.text, d.by, d.at);
+}
+
+// ---- things linked to a project ----
+
+export const LINK_KINDS = ["record", "file", "chat", "task", "artifact", "mail_thread", "calendar_event", "github.pr", "github.commit", "ci.run", "url"] as const;
+export type LinkKind = (typeof LINK_KINDS)[number];
+export type LinkSource = "manual" | "agent" | "rule";
+export interface Attach { linkId: string; projectId: string; kind: LinkKind; ref: string; source: LinkSource; addedBy: string; ruleId?: string | undefined; addedAt: number; snapshot?: { state?: string | undefined; label?: string | undefined; url?: string | undefined } | undefined }
+const toAttach = (r: Row): Attach => ({
+  linkId: str(r["linkId"]), projectId: str(r["projectId"]), kind: str(r["kind"]) as LinkKind, ref: str(r["ref"]), source: str(r["source"]) as LinkSource, addedBy: str(r["addedBy"]),
+  ruleId: optStr(r["ruleId"]), addedAt: num(r["addedAt"]), snapshot: parseJson<Attach["snapshot"]>(r["snapshot"], undefined),
+});
+export function attachesOf(db: Db, projectId: string, kind?: string): Attach[] {
+  const rows = (kind === undefined
+    ? db.all("SELECT * FROM projects_attach WHERE projectId = ? ORDER BY addedAt DESC, linkId DESC", projectId)
+    : db.all("SELECT * FROM projects_attach WHERE projectId = ? AND kind = ? ORDER BY addedAt DESC, linkId DESC", projectId, kind)) as Row[];
+  return rows.map(toAttach);
+}
+export function attachBy(db: Db, projectId: string, kind: string, ref: string): Attach | undefined {
+  const r = (db.all("SELECT * FROM projects_attach WHERE projectId = ? AND kind = ? AND ref = ?", projectId, kind, ref) as Row[])[0];
+  return r ? toAttach(r) : undefined;
+}
+export function saveAttach(db: Db, a: Attach): boolean {
+  return db.run(
+    "INSERT OR IGNORE INTO projects_attach (linkId, projectId, kind, ref, source, addedBy, ruleId, addedAt, snapshot) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    a.linkId, a.projectId, a.kind, a.ref, a.source, a.addedBy, a.ruleId ?? null, a.addedAt, a.snapshot ? JSON.stringify(a.snapshot) : null,
+  ).changes > 0;
+}
+/** A link brought a newer state, label or address (a CI run changes every few minutes): the link keeps the latest. */
+export function updateSnapshot(db: Db, projectId: string, kind: string, ref: string, snapshot: NonNullable<Attach["snapshot"]>): void {
+  db.run("UPDATE projects_attach SET snapshot = ? WHERE projectId = ? AND kind = ? AND ref = ?", JSON.stringify(snapshot), projectId, kind, ref);
+}
+export function dropAttach(db: Db, projectId: string, kind: string, ref: string): boolean {
+  return db.run("DELETE FROM projects_attach WHERE projectId = ? AND kind = ? AND ref = ?", projectId, kind, ref).changes > 0;
+}
+export function isException(db: Db, projectId: string, kind: string, ref: string): boolean {
+  return (db.all("SELECT 1 AS x FROM projects_exception WHERE projectId = ? AND kind = ? AND ref = ?", projectId, kind, ref) as Row[]).length > 0;
+}
+export function saveException(db: Db, projectId: string, kind: string, ref: string, by: string, at: number): void {
+  db.run("INSERT OR IGNORE INTO projects_exception (projectId, kind, ref, byWho, at) VALUES (?, ?, ?, ?, ?)", projectId, kind, ref, by, at);
+}
+export function dropException(db: Db, projectId: string, kind: string, ref: string): void {
+  db.run("DELETE FROM projects_exception WHERE projectId = ? AND kind = ? AND ref = ?", projectId, kind, ref);
+}
+
+export type RuleKind = "repo" | "record_filter" | "email_domain";
+export interface RuleSpec { repo?: string | undefined; recordType?: string | undefined; field?: string | undefined; equals?: string | undefined; domain?: string | undefined }
+export interface Rule { ruleId: string; projectId: string; kind: RuleKind; spec: RuleSpec; by: string; at: number }
+const toRule = (r: Row): Rule => ({ ruleId: str(r["ruleId"]), projectId: str(r["projectId"]), kind: str(r["kind"]) as RuleKind, spec: parseJson<RuleSpec>(r["spec"], {}), by: str(r["byWho"]), at: num(r["at"]) });
+export function rulesOf(db: Db, projectId: string): Rule[] {
+  return (db.all("SELECT * FROM projects_rule WHERE projectId = ? ORDER BY at ASC, ruleId ASC", projectId) as Row[]).map(toRule);
+}
+export function allRules(db: Db): Rule[] {
+  return (db.all("SELECT * FROM projects_rule ORDER BY at ASC, ruleId ASC") as Row[]).map(toRule);
+}
+export function replaceRules(db: Db, projectId: string, rules: readonly Rule[]): void {
+  db.run("DELETE FROM projects_rule WHERE projectId = ?", projectId);
+  for (const r of rules) db.run("INSERT INTO projects_rule (ruleId, projectId, kind, spec, byWho, at) VALUES (?, ?, ?, ?, ?, ?)", r.ruleId, projectId, r.kind, JSON.stringify(r.spec), r.by, r.at);
 }

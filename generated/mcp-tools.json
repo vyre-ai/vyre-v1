@@ -44697,6 +44697,32 @@
     },
     {
       "blocks": [],
+      "cap": "projects.crew",
+      "deferred": false,
+      "description": "The helpers working for a project with a live state (Working, Done or Needs you) and what each is on, from the crews of the project's chats, and the project's teammates",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_crew",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "projects.file_chat",
       "deferred": false,
       "description": "File a private chat under the project; it stays private and the agent gets the project memory and folder",
@@ -44762,6 +44788,32 @@
       },
       "name": "projects_files_folder",
       "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.for_channel",
+      "deferred": false,
+      "description": "The project a channel belongs to, if there is one the caller may see",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "channelId": {
+            "examples": [
+              "chn_a1b2c3"
+            ],
+            "pattern": "^chn_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_for_channel",
+      "planMode": "allowed",
       "toolset": "records",
       "v": 1
     },
@@ -44875,6 +44927,228 @@
       "name": "projects_link_tasks",
       "planMode": "blocked",
       "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.links.link",
+      "deferred": false,
+      "description": "Link something to a project; an agent that may edit the project can too. A web address or CI run may bring its own state, label and address",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "record",
+              "file",
+              "chat",
+              "task",
+              "artifact",
+              "mail_thread",
+              "calendar_event",
+              "github.pr",
+              "github.commit",
+              "ci.run",
+              "url"
+            ],
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ref": {
+            "examples": [
+              "vyre-ai/website#12"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "kind",
+          "ref"
+        ],
+        "type": "object"
+      },
+      "name": "projects_links_link",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.links.list",
+      "deferred": false,
+      "description": "What is linked to a project (records, files, chats, tasks, artifacts, mail threads, calendar events, pull requests, commits, CI runs, web addresses), each with its state read live from the source, and the rules that link by themselves",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "record",
+              "file",
+              "chat",
+              "task",
+              "artifact",
+              "mail_thread",
+              "calendar_event",
+              "github.pr",
+              "github.commit",
+              "ci.run",
+              "url"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_links_list",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.links.rules.set",
+      "deferred": false,
+      "description": "Set the rules that link matching new items to the project: a repository, a record filter or an email domain",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "rules": {
+            "items": {
+              "properties": {
+                "domain": {
+                  "examples": [
+                    "client.com"
+                  ],
+                  "type": "string"
+                },
+                "equals": {
+                  "type": "string"
+                },
+                "field": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "repo",
+                    "record_filter",
+                    "email_domain"
+                  ],
+                  "type": "string"
+                },
+                "recordType": {
+                  "examples": [
+                    "contact"
+                  ],
+                  "pattern": "^[a-z][a-z0-9_]*$",
+                  "type": "string"
+                },
+                "repo": {
+                  "examples": [
+                    "vyre-ai/website"
+                  ],
+                  "type": "string"
+                },
+                "ruleId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "projectId",
+          "rules"
+        ],
+        "type": "object"
+      },
+      "name": "projects_links_rules_set",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.links.unlink",
+      "deferred": false,
+      "description": "Take a link off a project; an item a rule linked is remembered as an exception and never comes back by rule",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "record",
+              "file",
+              "chat",
+              "task",
+              "artifact",
+              "mail_thread",
+              "calendar_event",
+              "github.pr",
+              "github.commit",
+              "ci.run",
+              "url"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ref": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "kind",
+          "ref"
+        ],
+        "type": "object"
+      },
+      "name": "projects_links_unlink",
+      "planMode": "blocked",
+      "toolset": "records",
       "v": 1
     },
     {
@@ -45179,12 +45453,12 @@
             "type": "string"
           },
           "text": {
+            "description": "The update; left out, the draft is posted",
             "type": "string"
           }
         },
         "required": [
-          "projectId",
-          "text"
+          "projectId"
         ],
         "type": "object"
       },
@@ -45248,6 +45522,50 @@
       "name": "projects_reschedule",
       "planMode": "blocked",
       "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.set",
+      "deferred": false,
+      "description": "Set how the project stands (On track, At risk, Off track, On hold or Done) by hand, or null to go back to the reading from the late tasks; audited, and the Overview says who set it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "health": {
+            "anyOf": [
+              {
+                "enum": [
+                  "on",
+                  "risk",
+                  "off",
+                  "hold",
+                  "done"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "health"
+        ],
+        "type": "object"
+      },
+      "name": "projects_set",
+      "planMode": "blocked",
+      "toolset": "records",
       "v": 1
     },
     {
@@ -45587,6 +45905,62 @@
         "type": "object"
       },
       "name": "projects_unshare_out",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.update.draft",
+      "deferred": false,
+      "description": "Draft the status update again from the project facts, on the asker's own AI account; it is kept as the draft and posted only by Post",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_update_draft",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.update.edit",
+      "deferred": false,
+      "description": "Edit the status update's draft in place",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "projects_update_edit",
       "planMode": "blocked",
       "toolset": "records",
       "v": 1

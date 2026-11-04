@@ -1,4 +1,4 @@
-// Handler table of the projects module: all 24 capabilities of manifests/projects.ts. Making, reading, people and the Overview are in project.ts; the plan (stages, bars, arrows, task threads)
+// Handler table of the projects module: all capabilities of manifests/projects.ts. Making, reading, people and the Overview are in project.ts; the plan (stages, bars, arrows, task threads)
 // is in plan.ts; the cascade proposed when something slips, and its Apply or Keep, is in cascade.ts.
 import { applyCascade, cascade } from "./cascade.ts";
 import { linkTasks, openTaskThread, plan, reschedule, stagesSet, unlinkTasks } from "./plan.ts";
@@ -6,6 +6,8 @@ import {
   create, fileChat, fromChannel, get, list, membersList, membersRemove, membersSet, overview, pinFile, postUpdate, shareOut, sharedView, unshareOut, templatesList, unpinFile,
 } from "./project.ts";
 import { recordFilesFolder } from "./folders.ts";
+import { link, linksList, rulesSet, unlink } from "./attach.ts";
+import { crew, forChannel, set, updateDraft, updateEdit } from "./upkeep.ts";
 import { teammatesCreate, teammatesList, teammatesRemove } from "./teammates.ts";
 
 export const handlers = {
@@ -13,6 +15,15 @@ export const handlers = {
   "projects.teammates.create": teammatesCreate,
   "projects.teammates.list": teammatesList,
   "projects.teammates.remove": teammatesRemove,
+  "projects.crew": crew,
+  "projects.for_channel": forChannel,
+  "projects.links.link": link,
+  "projects.links.list": linksList,
+  "projects.links.rules.set": rulesSet,
+  "projects.links.unlink": unlink,
+  "projects.set": set,
+  "projects.update.draft": updateDraft,
+  "projects.update.edit": updateEdit,
   "projects.apply_cascade": applyCascade,
   "projects.cascade": cascade,
   "projects.create": create,

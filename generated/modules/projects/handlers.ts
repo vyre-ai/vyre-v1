@@ -8,11 +8,17 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "projects.apply_cascade": Handler<"projects.apply_cascade", X>;
   "projects.cascade": Handler<"projects.cascade", X>;
   "projects.create": Handler<"projects.create", X>;
+  "projects.crew": Handler<"projects.crew", X>;
   "projects.file_chat": Handler<"projects.file_chat", X>;
   "projects.files_folder": Handler<"projects.files_folder", X>;
+  "projects.for_channel": Handler<"projects.for_channel", X>;
   "projects.from_channel": Handler<"projects.from_channel", X>;
   "projects.get": Handler<"projects.get", X>;
   "projects.link_tasks": Handler<"projects.link_tasks", X>;
+  "projects.links.link": Handler<"projects.links.link", X>;
+  "projects.links.list": Handler<"projects.links.list", X>;
+  "projects.links.rules.set": Handler<"projects.links.rules.set", X>;
+  "projects.links.unlink": Handler<"projects.links.unlink", X>;
   "projects.list": Handler<"projects.list", X>;
   "projects.members.list": Handler<"projects.members.list", X>;
   "projects.members.remove": Handler<"projects.members.remove", X>;
@@ -23,6 +29,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "projects.plan": Handler<"projects.plan", X>;
   "projects.post_update": Handler<"projects.post_update", X>;
   "projects.reschedule": Handler<"projects.reschedule", X>;
+  "projects.set": Handler<"projects.set", X>;
   "projects.share_out": Handler<"projects.share_out", X>;
   "projects.shared_view": Handler<"projects.shared_view", X>;
   "projects.stages.set": Handler<"projects.stages.set", X>;
@@ -33,4 +40,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "projects.unlink_tasks": Handler<"projects.unlink_tasks", X>;
   "projects.unpin_file": Handler<"projects.unpin_file", X>;
   "projects.unshare_out": Handler<"projects.unshare_out", X>;
+  "projects.update.draft": Handler<"projects.update.draft", X>;
+  "projects.update.edit": Handler<"projects.update.edit", X>;
 }

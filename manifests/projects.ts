@@ -11,10 +11,25 @@ const principal = t.str({ description: 'Principal id: person, agent, group, role
 const stageKey = t.str({ pattern: '^[a-z][a-z0-9_]*$', examples: ['draft'] });
 const proposalId = t.id('csc');
 
+const health = t.enm('on', 'risk', 'off', 'hold', 'done');
+const linkKind = t.enm('record', 'file', 'chat', 'task', 'artifact', 'mail_thread', 'calendar_event', 'github.pr', 'github.commit', 'ci.run', 'url');
+const linkRow = t.obj({
+  linkId: t.str({ examples: ['lnk_a1b2c3'] }), projectId: id.project, kind: linkKind, ref: t.str({ examples: ['vyre-ai/website#12'] }), source: t.enm('manual', 'agent', 'rule'), addedBy: t.str(), ruleId: t.opt(t.str()), addedAt: t.ts(),
+  state: t.opt(t.str({ description: 'Read live from the source: a pull request Open, Merged or Closed; an invoice Paid or Overdue; a file when it was last edited' })), label: t.opt(t.str()), url: t.opt(t.str()),
+});
+const ruleBody = {
+  kind: t.enm('repo', 'record_filter', 'email_domain'), repo: t.opt(t.str({ examples: ['vyre-ai/website'] })), recordType: t.opt(id.recordType), field: t.opt(t.str()), equals: t.opt(t.str()), domain: t.opt(t.str({ examples: ['client.com'] })),
+};
+const ruleRow = t.obj({ ruleId: t.str({ examples: ['rul_a1b2c3'] }), ...ruleBody, by: t.str(), at: t.ts() });
+const helperRow = t.obj({
+  jobId: t.str(), threadId: id.thread, agentId: id.agent, name: t.opt(t.str()), title: t.str(), state: t.enm('working', 'done', 'needs_you', 'stopped'), startedAt: t.ts(), endedAt: t.opt(t.ts()),
+});
 const projectRow = t.obj({
   projectId: id.project, recordId: id.record, type: id.recordType, title: t.str(), summary: t.opt(t.str()),
   status: t.str({ examples: ['active'] }), lead: t.opt(principal), start: t.opt(t.ts()), due: t.opt(t.ts()),
   channelId: id.channel, folderId: id.folder, memberCount: t.int({ minimum: 0 }), openTasks: t.int({ minimum: 0 }), lateTasks: t.int({ minimum: 0 }),
+  // set only while a manager's override holds: the value, who set it and when ("Set by <name>"); absent means the health is read from the late tasks
+  health: t.opt(health), healthSetBy: t.opt(principal), healthSetAt: t.opt(t.ts()),
 });
 
 const member = t.obj({ principal, role, kind: t.enm('person', 'agent', 'group'), since: t.ts() });
@@ -102,6 +117,11 @@ export default defineManifest({
     ev('project.cascade_applied', 'A cascade proposal was applied', { p: { projectId: id.project, proposalId, moved: t.int() }, subject: ['project', '/projectId'] }),
     ev('project.dates_kept', 'A cascade proposal was declined and dates were kept', { p: { projectId: id.project, proposalId }, subject: ['project', '/projectId'] }),
     ev('project.update_posted', 'A status update was posted to the project channel', { p: { projectId: id.project, by: t.str(), drafted: t.bool() }, subject: ['project', '/projectId'] }),
+    ev('project.health_set', 'A manager set how the project stands, or went back to the automatic reading', { p: { projectId: id.project, health: t.opt(health), previous: t.opt(health), by: t.str() }, subject: ['project', '/projectId'] }),
+    ev('project.update_drafted', 'The status update has a new draft (written from the project facts, or edited in place)', { p: { projectId: id.project, by: t.str() }, subject: ['project', '/projectId'] }),
+    ev('project.item_linked', 'Something was linked to a project, by a person, an agent or a rule', { p: { projectId: id.project, linkId: t.str(), kind: linkKind, ref: t.str(), source: t.enm('manual', 'agent', 'rule'), ruleId: t.opt(t.str()), by: t.str() }, subject: ['project', '/projectId'] }),
+    ev('project.item_unlinked', 'A link was taken off a project', { p: { projectId: id.project, linkId: t.str(), kind: linkKind, ref: t.str(), by: t.str() }, subject: ['project', '/projectId'] }),
+    ev('project.link_rules_set', 'The rules that link matching new items to a project changed', { p: { projectId: id.project, rules: t.int({ minimum: 0 }), by: t.str() }, subject: ['project', '/projectId'] }),
     ev('project.file_pinned', 'A file was pinned to the Overview', { p: { projectId: id.project, fileId: id.file }, subject: ['project', '/projectId'] }),
     ev('project.file_unpinned', 'A pinned file was removed from the Overview', { p: { projectId: id.project, fileId: id.file }, subject: ['project', '/projectId'] }),
     ev('project.chat_filed', 'A private chat was filed under a project (it stays private)', { p: { projectId: id.project, threadId: id.thread }, subject: ['project', '/projectId'] }),
@@ -132,6 +152,7 @@ export default defineManifest({
       in: { projectId: id.project },
       out: {
         project: projectRow, goal: t.opt(t.str()), statusUpdate: t.opt(t.obj({ text: t.str(), at: t.ts(), by: t.str(), drafted: t.bool() })),
+        updateDraft: t.opt(t.obj({ text: t.str(), at: t.ts(), by: t.str() })),
         milestones: t.arr(planTask), late: t.arr(planTask), waiting: t.arr(planTask),
         decisions: t.arr(t.obj({ decisionId: id.decision, summary: t.str(), at: t.ts() })),
         people: t.arr(member), linked: t.arr(t.obj({ type: id.recordType, recordId: id.record, title: t.str() })),
@@ -193,9 +214,46 @@ export default defineManifest({
     write('projects.open_task_thread', 'Open the thread of a task in the project channel (made when someone first speaks about the task)', {
       in: { projectId: id.project, taskId: id.task }, out: { threadId: id.thread }, on: ['project', '/projectId'], emits: ['project.task_thread_opened'], tool: 'tasks',
     }),
+    // ---- how it stands, the update's draft, the crew
+    write('projects.set', 'Set how the project stands (On track, At risk, Off track, On hold or Done) by hand, or null to go back to the reading from the late tasks; audited, and the Overview says who set it', {
+      in: { projectId: id.project, health: t.nullable(health) }, out: { health: t.opt(health), setBy: t.opt(principal), at: t.opt(t.ts()) },
+      on: ['project', '/projectId'], level: 'manage', audit: 'always', emits: ['project.health_set'], tool: 'records', errors: ['validation.bad_input'],
+    }),
+    write('projects.update.draft', 'Draft the status update again from the project facts, on the asker\'s own AI account; it is kept as the draft and posted only by Post', {
+      in: { projectId: id.project }, out: { text: t.str(), at: t.ts(), by: t.str() },
+      on: ['project', '/projectId'], emits: ['project.update_drafted'], tool: 'records', errors: ['validation.precondition_failed', 'provider.unavailable'],
+    }),
+    write('projects.update.edit', 'Edit the status update\'s draft in place', {
+      in: { projectId: id.project, text: t.str() }, out: { text: t.str(), at: t.ts(), by: t.str() },
+      on: ['project', '/projectId'], emits: ['project.update_drafted'], tool: 'records', errors: ['validation.bad_input'],
+    }),
+    read('projects.crew', 'The helpers working for a project with a live state (Working, Done or Needs you) and what each is on, from the crews of the project\'s chats, and the project\'s teammates', {
+      in: { projectId: id.project },
+      out: { helpers: t.arr(helperRow), working: t.int({ minimum: 0 }), needsYou: t.int({ minimum: 0 }), teammates: t.arr(teammate) },
+      on: ['project', '/projectId'], tool: 'records', label: 'check',
+    }),
+    read('projects.for_channel', 'The project a channel belongs to, if there is one the caller may see', {
+      in: { channelId: id.channel }, out: { projectId: t.opt(id.project), recordId: t.opt(id.record) }, on: ['channel', '/channelId'], tool: 'records', label: 'check',
+    }),
+    // ---- links
+    read('projects.links.list', 'What is linked to a project (records, files, chats, tasks, artifacts, mail threads, calendar events, pull requests, commits, CI runs, web addresses), each with its state read live from the source, and the rules that link by themselves', {
+      in: { projectId: id.project, kind: t.opt(linkKind) }, out: { links: t.arr(linkRow), rules: t.arr(ruleRow) }, on: ['project', '/projectId'], tool: 'records', label: 'filter',
+    }),
+    write('projects.links.link', 'Link something to a project; an agent that may edit the project can too. A web address or CI run may bring its own state, label and address', {
+      in: { projectId: id.project, kind: linkKind, ref: t.str({ examples: ['vyre-ai/website#12'] }), state: t.opt(t.str()), label: t.opt(t.str()), url: t.opt(t.str()) }, out: { link: linkRow },
+      on: ['project', '/projectId'], idem: 'natural', audit: 'always', emits: ['project.item_linked'], tool: 'records', errors: ['validation.bad_input'],
+    }),
+    write('projects.links.unlink', 'Take a link off a project; an item a rule linked is remembered as an exception and never comes back by rule', {
+      in: { projectId: id.project, kind: linkKind, ref: t.str() }, out: { removed: t.bool() },
+      on: ['project', '/projectId'], audit: 'always', emits: ['project.item_unlinked'], tool: 'records',
+    }),
+    write('projects.links.rules.set', 'Set the rules that link matching new items to the project: a repository, a record filter or an email domain', {
+      in: { projectId: id.project, rules: t.arr(t.obj({ ruleId: t.opt(t.str()), ...ruleBody })) }, out: { rules: t.arr(ruleRow) },
+      on: ['project', '/projectId'], audit: 'always', emits: ['project.link_rules_set'], tool: 'records', errors: ['validation.bad_input'],
+    }),
     // ---- overview upkeep
     write('projects.post_update', 'Post the status update (by the lead, or drafted weekly by an agent) to the project channel and keep it on the Overview', {
-      in: { projectId: id.project, text: t.str(), status: t.opt(t.str()) }, out: { postedAt: t.ts() },
+      in: { projectId: id.project, text: t.opt(t.str({ description: 'The update; left out, the draft is posted' })), status: t.opt(t.str()) }, out: { postedAt: t.ts() },
       on: ['project', '/projectId'], emits: ['project.update_posted', 'record.updated'], tool: 'records',
     }),
     write('projects.pin_file', 'Pin a file to the Overview', { in: { projectId: id.project, fileId: id.file }, out: { ok: t.bool() }, on: ['project', '/projectId'], emits: ['project.file_pinned', 'record.updated'], tool: 'records' }),

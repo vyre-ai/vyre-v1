@@ -26304,6 +26304,25 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/projects/crew",
+    "cap": "projects.crew",
+    "v": 1,
+    "module": "projects",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "project",
+      "id": "/projectId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/projects/file_chat",
     "cap": "projects.file_chat",
     "v": 1,
@@ -26336,6 +26355,25 @@ const routes4: Route[] = [
     },
     "idempotency": "natural",
     "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/projects/for_channel",
+    "cap": "projects.for_channel",
+    "v": 1,
+    "module": "projects",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "channel",
+      "id": "/channelId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -26382,6 +26420,82 @@ const routes4: Route[] = [
     "method": "POST",
     "path": "/v1/projects/link_tasks",
     "cap": "projects.link_tasks",
+    "v": 1,
+    "module": "projects",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "project",
+      "id": "/projectId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/projects/links/link",
+    "cap": "projects.links.link",
+    "v": 1,
+    "module": "projects",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "project",
+      "id": "/projectId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/projects/links/list",
+    "cap": "projects.links.list",
+    "v": 1,
+    "module": "projects",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "project",
+      "id": "/projectId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/projects/links/rules/set",
+    "cap": "projects.links.rules.set",
+    "v": 1,
+    "module": "projects",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "project",
+      "id": "/projectId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/projects/links/unlink",
+    "cap": "projects.links.unlink",
     "v": 1,
     "module": "projects",
     "effects": "write",
@@ -26588,6 +26702,25 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/projects/set",
+    "cap": "projects.set",
+    "v": 1,
+    "module": "projects",
+    "effects": "write",
+    "permission": null,
+    "level": "manage",
+    "resource": {
+      "type": "project",
+      "id": "/projectId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/projects/share_out",
     "cap": "projects.share_out",
     "v": 1,
@@ -26764,6 +26897,44 @@ const routes4: Route[] = [
     "effects": "write",
     "permission": "records.share_external",
     "level": "manage",
+    "resource": {
+      "type": "project",
+      "id": "/projectId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/projects/update/draft",
+    "cap": "projects.update.draft",
+    "v": 1,
+    "module": "projects",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
+    "resource": {
+      "type": "project",
+      "id": "/projectId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/projects/update/edit",
+    "cap": "projects.update.edit",
+    "v": 1,
+    "module": "projects",
+    "effects": "write",
+    "permission": null,
+    "level": "edit",
     "resource": {
       "type": "project",
       "id": "/projectId"
@@ -27459,7 +27630,10 @@ const routes4: Route[] = [
     "offline": "patch",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/records/purge",
@@ -27628,10 +27802,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/records/search",
@@ -32969,7 +33140,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/tasks/clock",
@@ -33138,10 +33312,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/tasks/escalate",

@@ -27729,6 +27729,31 @@ export type ProjectsCreateOut = {
   channelId: string;
   folderId: string;
 };
+export type ProjectsCrewIn = {
+  projectId: string;
+};
+export type ProjectsCrewOut = {
+  helpers: Array<{
+      jobId: string;
+      threadId: string;
+      agentId: string;
+      name?: string;
+      title: string;
+      state: "working" | "done" | "needs_you" | "stopped";
+      startedAt: number;
+      endedAt?: number;
+    }>;
+  working: number;
+  needsYou: number;
+  teammates: Array<{
+      agentId: string;
+      name: string;
+      role: "lead" | "member" | "reviewer" | "guest";
+      roleLine?: string;
+      status: "awake" | "working" | "asleep" | "paused";
+      madeForProject: boolean;
+    }>;
+};
 export type ProjectsFileChatIn = {
   projectId: string;
   threadId: string;
@@ -27743,6 +27768,13 @@ export type ProjectsFilesFolderIn = {
 };
 export type ProjectsFilesFolderOut = {
   folderId: string | null;
+};
+export type ProjectsForChannelIn = {
+  channelId: string;
+};
+export type ProjectsForChannelOut = {
+  projectId?: string;
+  recordId?: string;
 };
 export type ProjectsFromChannelIn = {
   channelId: string;
@@ -27775,6 +27807,9 @@ export type ProjectsGetOut = {
     memberCount: number;
     openTasks: number;
     lateTasks: number;
+    health?: "on" | "risk" | "off" | "hold" | "done";
+    healthSetBy?: string;
+    healthSetAt?: number;
   };
 };
 export type ProjectsLinkTasksIn = {
@@ -27784,6 +27819,92 @@ export type ProjectsLinkTasksIn = {
 };
 export type ProjectsLinkTasksOut = {
   ok: boolean;
+};
+export type ProjectsLinksLinkIn = {
+  projectId: string;
+  kind: "record" | "file" | "chat" | "task" | "artifact" | "mail_thread" | "calendar_event" | "github.pr" | "github.commit" | "ci.run" | "url";
+  ref: string;
+  state?: string;
+  label?: string;
+  url?: string;
+};
+export type ProjectsLinksLinkOut = {
+  link: {
+    linkId: string;
+    projectId: string;
+    kind: "record" | "file" | "chat" | "task" | "artifact" | "mail_thread" | "calendar_event" | "github.pr" | "github.commit" | "ci.run" | "url";
+    ref: string;
+    source: "manual" | "agent" | "rule";
+    addedBy: string;
+    ruleId?: string;
+    addedAt: number;
+    state?: string;
+    label?: string;
+    url?: string;
+  };
+};
+export type ProjectsLinksListIn = {
+  projectId: string;
+  kind?: "record" | "file" | "chat" | "task" | "artifact" | "mail_thread" | "calendar_event" | "github.pr" | "github.commit" | "ci.run" | "url";
+};
+export type ProjectsLinksListOut = {
+  links: Array<{
+      linkId: string;
+      projectId: string;
+      kind: "record" | "file" | "chat" | "task" | "artifact" | "mail_thread" | "calendar_event" | "github.pr" | "github.commit" | "ci.run" | "url";
+      ref: string;
+      source: "manual" | "agent" | "rule";
+      addedBy: string;
+      ruleId?: string;
+      addedAt: number;
+      state?: string;
+      label?: string;
+      url?: string;
+    }>;
+  rules: Array<{
+      ruleId: string;
+      kind: "repo" | "record_filter" | "email_domain";
+      repo?: string;
+      recordType?: string;
+      field?: string;
+      equals?: string;
+      domain?: string;
+      by: string;
+      at: number;
+    }>;
+};
+export type ProjectsLinksRulesSetIn = {
+  projectId: string;
+  rules: Array<{
+      ruleId?: string;
+      kind: "repo" | "record_filter" | "email_domain";
+      repo?: string;
+      recordType?: string;
+      field?: string;
+      equals?: string;
+      domain?: string;
+    }>;
+};
+export type ProjectsLinksRulesSetOut = {
+  rules: Array<{
+      ruleId: string;
+      kind: "repo" | "record_filter" | "email_domain";
+      repo?: string;
+      recordType?: string;
+      field?: string;
+      equals?: string;
+      domain?: string;
+      by: string;
+      at: number;
+    }>;
+};
+export type ProjectsLinksUnlinkIn = {
+  projectId: string;
+  kind: "record" | "file" | "chat" | "task" | "artifact" | "mail_thread" | "calendar_event" | "github.pr" | "github.commit" | "ci.run" | "url";
+  ref: string;
+};
+export type ProjectsLinksUnlinkOut = {
+  removed: boolean;
 };
 export type ProjectsListIn = {
   type?: string;
@@ -27808,6 +27929,9 @@ export type ProjectsListOut = {
       memberCount: number;
       openTasks: number;
       lateTasks: number;
+      health?: "on" | "risk" | "off" | "hold" | "done";
+      healthSetBy?: string;
+      healthSetAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -27870,6 +27994,9 @@ export type ProjectsOverviewOut = {
     memberCount: number;
     openTasks: number;
     lateTasks: number;
+    health?: "on" | "risk" | "off" | "hold" | "done";
+    healthSetBy?: string;
+    healthSetAt?: number;
   };
   goal?: string;
   statusUpdate?: {
@@ -27877,6 +28004,11 @@ export type ProjectsOverviewOut = {
     at: number;
     by: string;
     drafted: boolean;
+  };
+  updateDraft?: {
+    text: string;
+    at: number;
+    by: string;
   };
   milestones: Array<{
       taskId: string;
@@ -27987,7 +28119,7 @@ export type ProjectsPlanOut = {
 };
 export type ProjectsPostUpdateIn = {
   projectId: string;
-  text: string;
+  text?: string;
   status?: string;
 };
 export type ProjectsPostUpdateOut = {
@@ -28005,6 +28137,15 @@ export type ProjectsRescheduleOut = {
   start?: number;
   due?: number;
   proposalId?: string;
+};
+export type ProjectsSetIn = {
+  projectId: string;
+  health: ("on" | "risk" | "off" | "hold" | "done") | null;
+};
+export type ProjectsSetOut = {
+  health?: "on" | "risk" | "off" | "hold" | "done";
+  setBy?: string;
+  at?: number;
 };
 export type ProjectsShareOutIn = {
   projectId: string;
@@ -28118,6 +28259,23 @@ export type ProjectsUnshareOutIn = {
 };
 export type ProjectsUnshareOutOut = {
   revoked: boolean;
+};
+export type ProjectsUpdateDraftIn = {
+  projectId: string;
+};
+export type ProjectsUpdateDraftOut = {
+  text: string;
+  at: number;
+  by: string;
+};
+export type ProjectsUpdateEditIn = {
+  projectId: string;
+  text: string;
+};
+export type ProjectsUpdateEditOut = {
+  text: string;
+  at: number;
+  by: string;
 };
 export type ProvidersAddIn = {
   providerKey: string;
@@ -42038,11 +42196,17 @@ export interface CapMap {
   "projects.apply_cascade": { in: ProjectsApplyCascadeIn; out: ProjectsApplyCascadeOut };
   "projects.cascade": { in: ProjectsCascadeIn; out: ProjectsCascadeOut };
   "projects.create": { in: ProjectsCreateIn; out: ProjectsCreateOut };
+  "projects.crew": { in: ProjectsCrewIn; out: ProjectsCrewOut };
   "projects.file_chat": { in: ProjectsFileChatIn; out: ProjectsFileChatOut };
   "projects.files_folder": { in: ProjectsFilesFolderIn; out: ProjectsFilesFolderOut };
+  "projects.for_channel": { in: ProjectsForChannelIn; out: ProjectsForChannelOut };
   "projects.from_channel": { in: ProjectsFromChannelIn; out: ProjectsFromChannelOut };
   "projects.get": { in: ProjectsGetIn; out: ProjectsGetOut };
   "projects.link_tasks": { in: ProjectsLinkTasksIn; out: ProjectsLinkTasksOut };
+  "projects.links.link": { in: ProjectsLinksLinkIn; out: ProjectsLinksLinkOut };
+  "projects.links.list": { in: ProjectsLinksListIn; out: ProjectsLinksListOut };
+  "projects.links.rules.set": { in: ProjectsLinksRulesSetIn; out: ProjectsLinksRulesSetOut };
+  "projects.links.unlink": { in: ProjectsLinksUnlinkIn; out: ProjectsLinksUnlinkOut };
   "projects.list": { in: ProjectsListIn; out: ProjectsListOut };
   "projects.members.list": { in: ProjectsMembersListIn; out: ProjectsMembersListOut };
   "projects.members.remove": { in: ProjectsMembersRemoveIn; out: ProjectsMembersRemoveOut };
@@ -42053,6 +42217,7 @@ export interface CapMap {
   "projects.plan": { in: ProjectsPlanIn; out: ProjectsPlanOut };
   "projects.post_update": { in: ProjectsPostUpdateIn; out: ProjectsPostUpdateOut };
   "projects.reschedule": { in: ProjectsRescheduleIn; out: ProjectsRescheduleOut };
+  "projects.set": { in: ProjectsSetIn; out: ProjectsSetOut };
   "projects.share_out": { in: ProjectsShareOutIn; out: ProjectsShareOutOut };
   "projects.shared_view": { in: ProjectsSharedViewIn; out: ProjectsSharedViewOut };
   "projects.stages.set": { in: ProjectsStagesSetIn; out: ProjectsStagesSetOut };
@@ -42063,6 +42228,8 @@ export interface CapMap {
   "projects.unlink_tasks": { in: ProjectsUnlinkTasksIn; out: ProjectsUnlinkTasksOut };
   "projects.unpin_file": { in: ProjectsUnpinFileIn; out: ProjectsUnpinFileOut };
   "projects.unshare_out": { in: ProjectsUnshareOutIn; out: ProjectsUnshareOutOut };
+  "projects.update.draft": { in: ProjectsUpdateDraftIn; out: ProjectsUpdateDraftOut };
+  "projects.update.edit": { in: ProjectsUpdateEditIn; out: ProjectsUpdateEditOut };
   "providers.add": { in: ProvidersAddIn; out: ProvidersAddOut };
   "providers.catalog": { in: ProvidersCatalogIn; out: ProvidersCatalogOut };
   "providers.custom_add": { in: ProvidersCustomAddIn; out: ProvidersCustomAddOut };
@@ -45136,6 +45303,33 @@ export type ProjectFileUnpinnedPayload = {
   projectId: string;
   fileId: string;
 };
+export type ProjectHealthSetPayload = {
+  projectId: string;
+  health?: "on" | "risk" | "off" | "hold" | "done";
+  previous?: "on" | "risk" | "off" | "hold" | "done";
+  by: string;
+};
+export type ProjectItemLinkedPayload = {
+  projectId: string;
+  linkId: string;
+  kind: "record" | "file" | "chat" | "task" | "artifact" | "mail_thread" | "calendar_event" | "github.pr" | "github.commit" | "ci.run" | "url";
+  ref: string;
+  source: "manual" | "agent" | "rule";
+  ruleId?: string;
+  by: string;
+};
+export type ProjectItemUnlinkedPayload = {
+  projectId: string;
+  linkId: string;
+  kind: "record" | "file" | "chat" | "task" | "artifact" | "mail_thread" | "calendar_event" | "github.pr" | "github.commit" | "ci.run" | "url";
+  ref: string;
+  by: string;
+};
+export type ProjectLinkRulesSetPayload = {
+  projectId: string;
+  rules: number;
+  by: string;
+};
 export type ProjectMemberRemovedPayload = {
   projectId: string;
   principal: string;
@@ -45178,6 +45372,10 @@ export type ProjectTasksUnlinkedPayload = {
 };
 export type ProjectUnsharedOutPayload = {
   projectId: string;
+};
+export type ProjectUpdateDraftedPayload = {
+  projectId: string;
+  by: string;
 };
 export type ProjectUpdatePostedPayload = {
   projectId: string;
@@ -47049,6 +47247,10 @@ export interface EventMap {
   "project.dates_kept": ProjectDatesKeptPayload;
   "project.file_pinned": ProjectFilePinnedPayload;
   "project.file_unpinned": ProjectFileUnpinnedPayload;
+  "project.health_set": ProjectHealthSetPayload;
+  "project.item_linked": ProjectItemLinkedPayload;
+  "project.item_unlinked": ProjectItemUnlinkedPayload;
+  "project.link_rules_set": ProjectLinkRulesSetPayload;
   "project.member_removed": ProjectMemberRemovedPayload;
   "project.member_set": ProjectMemberSetPayload;
   "project.shared_out": ProjectSharedOutPayload;
@@ -47058,6 +47260,7 @@ export interface EventMap {
   "project.tasks_linked": ProjectTasksLinkedPayload;
   "project.tasks_unlinked": ProjectTasksUnlinkedPayload;
   "project.unshared_out": ProjectUnsharedOutPayload;
+  "project.update_drafted": ProjectUpdateDraftedPayload;
   "project.update_posted": ProjectUpdatePostedPayload;
   "provider.added": ProviderAddedPayload;
   "provider.removed": ProviderRemovedPayload;

@@ -2015,11 +2015,21 @@ export function createClient(transport: Transport) {
       apply_cascade: call("projects.apply_cascade", 1),
       cascade: call("projects.cascade", 1),
       create: call("projects.create", 1),
+      crew: call("projects.crew", 1),
       file_chat: call("projects.file_chat", 1),
       files_folder: call("projects.files_folder", 1),
+      for_channel: call("projects.for_channel", 1),
       from_channel: call("projects.from_channel", 1),
       get: call("projects.get", 1),
       link_tasks: call("projects.link_tasks", 1),
+      links: {
+        link: call("projects.links.link", 1),
+        list: call("projects.links.list", 1),
+        rules: {
+          set: call("projects.links.rules.set", 1),
+        },
+        unlink: call("projects.links.unlink", 1),
+      },
       list: call("projects.list", 1),
       members: {
         list: call("projects.members.list", 1),
@@ -2032,6 +2042,7 @@ export function createClient(transport: Transport) {
       plan: call("projects.plan", 1),
       post_update: call("projects.post_update", 1),
       reschedule: call("projects.reschedule", 1),
+      set: call("projects.set", 1),
       share_out: call("projects.share_out", 1),
       shared_view: call("projects.shared_view", 1),
       stages: {
@@ -2048,6 +2059,10 @@ export function createClient(transport: Transport) {
       unlink_tasks: call("projects.unlink_tasks", 1),
       unpin_file: call("projects.unpin_file", 1),
       unshare_out: call("projects.unshare_out", 1),
+      update: {
+        draft: call("projects.update.draft", 1),
+        edit: call("projects.update.edit", 1),
+      },
     },
     providers: {
       add: call("providers.add", 1),
