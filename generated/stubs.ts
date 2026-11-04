@@ -768,6 +768,7 @@ export function stubs(ctx: CallCtx) {
           set: call("engine.crew.repo.set"),
         },
         start: call("engine.crew.start"),
+        status: call("engine.crew.status"),
         stop: call("engine.crew.stop"),
         wait: call("engine.crew.wait"),
         workspace: call("engine.crew.workspace"),

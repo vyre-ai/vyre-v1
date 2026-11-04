@@ -17,6 +17,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.crew.repo.get": async (ctx) => { throw new VyreErr(notImplemented("engine.crew.repo.get", ctx.trace)); },
   "engine.crew.repo.set": async (ctx) => { throw new VyreErr(notImplemented("engine.crew.repo.set", ctx.trace)); },
   "engine.crew.start": async (ctx) => { throw new VyreErr(notImplemented("engine.crew.start", ctx.trace)); },
+  "engine.crew.status": async (ctx) => { throw new VyreErr(notImplemented("engine.crew.status", ctx.trace)); },
   "engine.crew.stop": async (ctx) => { throw new VyreErr(notImplemented("engine.crew.stop", ctx.trace)); },
   "engine.crew.wait": async (ctx) => { throw new VyreErr(notImplemented("engine.crew.wait", ctx.trace)); },
   "engine.crew.workspace": async (ctx) => { throw new VyreErr(notImplemented("engine.crew.workspace", ctx.trace)); },

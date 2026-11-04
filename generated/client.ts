@@ -768,6 +768,7 @@ export function createClient(transport: Transport) {
           set: call("engine.crew.repo.set", 1),
         },
         start: call("engine.crew.start", 1),
+        status: call("engine.crew.status", 1),
         stop: call("engine.crew.stop", 1),
         wait: call("engine.crew.wait", 1),
         workspace: call("engine.crew.workspace", 1),

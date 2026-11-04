@@ -17,6 +17,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.crew.repo.get": Handler<"engine.crew.repo.get", X>;
   "engine.crew.repo.set": Handler<"engine.crew.repo.set", X>;
   "engine.crew.start": Handler<"engine.crew.start", X>;
+  "engine.crew.status": Handler<"engine.crew.status", X>;
   "engine.crew.stop": Handler<"engine.crew.stop", X>;
   "engine.crew.wait": Handler<"engine.crew.wait", X>;
   "engine.crew.workspace": Handler<"engine.crew.workspace", X>;

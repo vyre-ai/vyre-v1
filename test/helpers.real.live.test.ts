@@ -33,7 +33,7 @@ test("REAL MODEL: helpers are one row each, the lead answers once, a helper chat
 
   let lead = ""; let chat = "";
   const fresh = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-helper-rows-")));
-  const d = await boot(fresh, null as never, { config: loadConfig(["--data-dir", fresh, "--port", "0", "--space", "spc_fresh", "--space-name", "Crew Co"], {}, "1.2.3") });
+  const d = await boot(fresh, null as never, { vault: undefined, config: loadConfig(["--data-dir", fresh, "--port", "0", "--space", "spc_fresh", "--space-name", "Crew Co"], {}, "1.2.3") });
   const web = await edge(dist, d.url);
   const browser = await engine.launch(exe ? { executablePath: exe, args: ["--no-sandbox"] } : {});
   try {
