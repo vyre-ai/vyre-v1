@@ -3,6 +3,8 @@
 // interrupt), and the optimistic message that shows in the same frame as the send.
 import { stepLabel } from "./activity.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { dayIn, partsIn, titleOf as zoneTitle } from "../../../../../../lib/zones.ts";
+import type { Zones } from "../../../../../../lib/zones.ts";
 import { BLOCK_FALLBACKS, isNativeBlockType } from "../../../../../../ui/src/blocks/registry.ts";
 import { applyFallback } from "../../../../../../ui/src/blocks/GenericBlock.tsx";
 import { createIncrementalMarkdown } from "../../../../../../ui/src/stream/markdown.ts";
@@ -18,7 +20,7 @@ export type ThreadAgent = Thread["agents"][number];
 export type Helper = CapMap["chat.helpers.list"]["out"]["helpers"][number];
 export type AgentMode = ThreadAgent["mode"];
 
-export interface Clock { now: number; offsetMin: number }
+export interface Clock { now: number; offsetMin: number; /** the Space's zone and the viewer's, for a shared place; left out for a private one (the device's offset is the clock) */ zones?: Zones }
 
 /** Resume any chat: the last 50 messages paint first, older ones stream in as the person scrolls up (V1-SPEC speed budgets). */
 export const WINDOW = 50;
@@ -63,9 +65,15 @@ const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
 const local = (ts: number, c: Clock): number => ts + c.offsetMin * 60_000;
-const dayNumber = (ts: number, c: Clock): number => Math.floor(local(ts, c) / DAY);
+const dayNumber = (ts: number, c: Clock): number => (c.zones ? dayIn(ts, c.zones.space) : Math.floor(local(ts, c) / DAY));
+
+/** What hover says about a message's time: both zones and the full date. Only where there are zones (a shared place). */
+export function timeTitle(ts: number, c: Clock): string | undefined {
+  return c.zones ? zoneTitle(ts, c.zones) : undefined;
+}
 
 export function timeLabel(ts: number, c: Clock): string {
+  if (c.zones) { const p = partsIn(ts, c.zones.space); return `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`; }
   const d = new Date(local(ts, c));
   const two = (n: number): string => String(n).padStart(2, "0");
   return `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`;
@@ -75,6 +83,10 @@ export function dayLabel(ts: number, c: Clock): string {
   const diff = dayNumber(c.now, c) - dayNumber(ts, c);
   if (diff <= 0) return "Today";
   if (diff === 1) return "Yesterday";
+  if (c.zones) {
+    const p = partsIn(ts, c.zones.space);
+    return diff < 7 ? WEEKDAYS[p.dow] ?? "" : `${p.day} ${MONTHS[p.month - 1] ?? ""}`;
+  }
   const d = new Date(local(ts, c));
   if (diff < 7) return WEEKDAYS[d.getUTCDay()] ?? "";
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()] ?? ""}`;
@@ -305,9 +317,9 @@ export interface TimelineCtx {
 
 export type Item =
   | { kind: "day"; key: string; label: string }
-  | { kind: "event"; key: string; message: Message; text: string; time: string; /** The check's steps ride on the agent's reply below, not on this line */ stepsBelow?: boolean }
-  | { kind: "me"; key: string; message: Message; time: string; newgroup: boolean }
-  | { kind: "other"; key: string; message: Message; who: Who; time: string; newgroup: boolean; /** "On Sara's account": set only where more than one person shares the chat. */ paidLine?: string; /** The steps a hook check wrote for the stop just above this reply: small buttons inside it */ hookSteps?: { key: string; agentId: string; next: Array<{ label: string; ask: string }> } };
+  | { kind: "event"; key: string; message: Message; text: string; time: string; timeTitle?: string; /** The check's steps ride on the agent's reply below, not on this line */ stepsBelow?: boolean }
+  | { kind: "me"; key: string; message: Message; time: string; timeTitle?: string; newgroup: boolean }
+  | { kind: "other"; key: string; message: Message; who: Who; time: string; timeTitle?: string; newgroup: boolean; /** "On Sara's account": set only where more than one person shares the chat. */ paidLine?: string; /** The steps a hook check wrote for the stop just above this reply: small buttons inside it */ hookSteps?: { key: string; agentId: string; next: Array<{ label: string; ask: string }> } };
 
 /** System and quiet messages are one-line events ("Switched to Codex, picked up from the summary and the last 20 turns"). */
 export const isEvent = (m: Message): boolean => m.kind === "system" || m.kind === "quiet";
@@ -340,14 +352,16 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
       prev = null;
     }
     const time = timeLabel(m.createdAt, ctx.clock);
+    const tt = timeTitle(m.createdAt, ctx.clock);
+    const titled = tt ? { timeTitle: tt } : {};
     if (isEvent(m)) {
-      out.push({ kind: "event", key: m.messageId, message: m, text: m.body, time, ...(carried.has(m.messageId) ? { stepsBelow: true } : {}) });
+      out.push({ kind: "event", key: m.messageId, message: m, text: m.body, time, ...titled, ...(carried.has(m.messageId) ? { stepsBelow: true } : {}) });
       prev = null;
       continue;
     }
     const newgroup = prev === null || prev.author.id !== m.author.id || prev.author.kind !== m.author.kind;
-    if (m.author.id === ctx.meId && m.author.kind === "person") out.push({ kind: "me", key: m.messageId, message: m, time, newgroup });
-    else out.push({ kind: "other", key: m.messageId, message: m, who: whoOf(m, ctx), time, newgroup, ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}), ...(stepsFor.has(m.messageId) ? { hookSteps: { key: stepsFor.get(m.messageId)!.key, agentId: stepsFor.get(m.messageId)!.agentId, next: stepsFor.get(m.messageId)!.next } } : {}) });
+    if (m.author.id === ctx.meId && m.author.kind === "person") out.push({ kind: "me", key: m.messageId, message: m, time, ...titled, newgroup });
+    else out.push({ kind: "other", key: m.messageId, message: m, who: whoOf(m, ctx), time, ...titled, newgroup, ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}), ...(stepsFor.has(m.messageId) ? { hookSteps: { key: stepsFor.get(m.messageId)!.key, agentId: stepsFor.get(m.messageId)!.agentId, next: stepsFor.get(m.messageId)!.next } } : {}) });
     prev = m;
   }
   return out;

@@ -1,6 +1,7 @@
 // The project Overview page: the pure parts. What a live block is called and what it can be set to, how a page's properties, history and an agent's edit read in words, and the ops that change them.
 // The page itself is the shared Markdown editor with live blocks (ui/src/RichEditor); the server keeps it as blocks and revisions (projects.overview_doc.*).
 import type { CapMap } from "../../../../../../../generated/types.ts";
+import { partsIn } from "../../../../../../../lib/zones.ts";
 
 export type OverviewDoc = CapMap["projects.overview_doc.get"]["out"];
 export type LiveOut = CapMap["projects.live_block.query"]["out"];
@@ -84,7 +85,9 @@ export function planStatus(state: string | undefined): "todo" | "doing" | "block
 }
 
 const DAY = 86_400_000;
-const shortDay = (ms: number): string => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "Oct 25": a due date is a calendar day (kept at UTC midnight), so it is read in UTC through lib/zones, never by a hand-rolled formatter (shared-time ratchet). */
+const shortDay = (ms: number): string => { const p = partsIn(ms, "UTC"); return `${MON[p.month - 1]} ${p.day}`; };
 /** The due date of a task row: "Due Oct 25", or "2 days late" when it is open and past. */
 export function dueWords(due: number | undefined, state: string | undefined, now: number): { text: string; late: boolean } | null {
   if (due === undefined) return null;

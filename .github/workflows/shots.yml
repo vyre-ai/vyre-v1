@@ -83,6 +83,8 @@ jobs:
       - name: Bubblewrap for the CLI engine's sandbox, and what this runner allows (the chat walks run a CLI under bwrap; without it a turn ends at once with no words)
         run: |
           command -v bwrap >/dev/null || { sudo -n apt-get update -q && sudo -n apt-get install -y -q bubblewrap; }
+          # Ubuntu 24.04 runners restrict unprivileged user namespaces through AppArmor (kernel.apparmor_restrict_unprivileged_userns = 1), so bwrap cannot start the CLI: lift it on this throwaway VM
+          sudo -n sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           bwrap --version
           sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
           if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
@@ -143,6 +145,8 @@ jobs:
       - name: Bubblewrap for the CLI engine's sandbox, and what this runner allows (the chat walks run a CLI under bwrap; without it a turn ends at once with no words)
         run: |
           command -v bwrap >/dev/null || { sudo -n apt-get update -q && sudo -n apt-get install -y -q bubblewrap; }
+          # Ubuntu 24.04 runners restrict unprivileged user namespaces through AppArmor (kernel.apparmor_restrict_unprivileged_userns = 1), so bwrap cannot start the CLI: lift it on this throwaway VM
+          sudo -n sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
           bwrap --version
           sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
           if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi

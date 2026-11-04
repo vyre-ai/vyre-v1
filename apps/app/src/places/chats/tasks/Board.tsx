@@ -13,6 +13,8 @@ import { CARD_ATTR, useRoving } from "./roving.ts";
 import type { TaskRow } from "./model.ts";
 import { BatonMarks, FaceButton, LiveWords, useLiveTurn } from "./parts.tsx";
 import type { RowEnv } from "./parts.tsx";
+import { useZones } from "../../../../../../ui/src/Time/index.tsx";
+import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
 
 type Drag = { current: TaskRow | null };
 type DragStart = { dataTransfer?: { setData(t: string, v: string): void; effectAllowed: string } };
@@ -20,7 +22,8 @@ type DragStart = { dataTransfer?: { setData(t: string, v: string): void; effectA
 const Card = memo(function Card({ row, env, drag, tab, onActive }: { row: TaskRow; env: RowEnv; drag: Drag; tab: boolean; onActive(id: string): void }): ReactElement {
   const turn = useLiveTurn(env.turns, row.workerThread ?? row.threadId);
   const h = holderOf(row) ?? row.assigned;
-  const due = dueLabel(row.due, env.now, env.offsetMin);
+  const zones = useZones();
+  const due = dueLabel(row.due, env.now, zones);
   const context = row.recordId ? env.project(row.recordId) : undefined;
   const card = <Pressable accessibilityRole="button" accessibilityLabel={row.title} testID={`task-card-${row.id}`} onPress={() => env.open(row.id)} onFocus={() => onActive(row.id)} {...(Platform.OS === "web" ? { focusable: true, dataSet: { [CARD_ATTR.slice(5)]: row.id }, tabIndex: tab ? 0 : -1 } : {})} {...menuTrigger((x, y) => env.menu(row, { x, y }))} style={({ hovered }: { hovered?: boolean }) => [st.card, hovered === true && st.cardOver]}>
     <Text numberOfLines={2} style={st.title}>{row.title}</Text>
@@ -30,7 +33,7 @@ const Card = memo(function Card({ row, env, drag, tab, onActive }: { row: TaskRo
       <BatonMarks row={row} />
       {row.key && !row.reviewer && !row.approver ? <Text numberOfLines={1} style={st.key}>{row.key}</Text> : null}
       <View style={{ flex: 1 }} />
-      {due.text ? <Text numberOfLines={1} style={[st.due, due.late && st.late]}>{due.text}</Text> : null}
+      {due.text ? <Tooltip text={due.title ?? ""}><Text numberOfLines={1} style={[st.due, due.late && st.late]}>{due.text}</Text></Tooltip> : null}
       <FaceButton who={h} name={env.nameOf(h.id)} size={20} onPress={() => env.openProfile(h)} />
     </View>
   </Pressable>;

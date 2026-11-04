@@ -12,6 +12,7 @@
 import type { Ctx } from "../../../../packages/contracts/src/ctx.ts";
 import { ERROR_CODES, VyreErr } from "../../../../packages/contracts/src/errors.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../../packages/contracts/src/types.ts";
+import { validZone } from "../../../../lib/zones.ts";
 
 /** The part of the host Ctx these handlers use. The full Ctx satisfies it. */
 export type ExtraCtx = Pick<Ctx, "space" | "principal" | "actingFor" | "trace" | "now" | "db" | "emit" | "call">;
@@ -33,7 +34,8 @@ export const SCHEMA: readonly string[] = [
   address_mode TEXT NOT NULL,
   address_host TEXT,
   created_at INTEGER NOT NULL,
-  deleted_at INTEGER
+  deleted_at INTEGER,
+  timezone TEXT
 )`,
   // the scheduled deletion: when it was asked for, by whom, and when the data goes. One row while it is scheduled; cancelling removes it
   `CREATE TABLE IF NOT EXISTS spaces_deletion (
@@ -87,6 +89,8 @@ export interface SpaceAdminDrivers {
   hostedOn?(): Promise<string | undefined>;
   /** When the Space was made, when the host knows (otherwise the first time this profile was read). */
   createdAt?(): Promise<number | undefined>;
+  /** The owner's own time zone (their profile), the Space's first one when no one has set it. */
+  ownerTimezone?(): Promise<string | undefined>;
 }
 
 let drivers: SpaceAdminDrivers | null = null;
@@ -126,6 +130,8 @@ function need(ctx: ExtraCtx): SpaceAdminDrivers {
 
 function ensureSchema(ctx: ExtraCtx): void {
   for (const sql of SCHEMA) ctx.db.run(sql);
+  // a table made before the Space had a time zone: add the column once
+  try { ctx.db.all("SELECT timezone FROM spaces_profile_extra LIMIT 1"); } catch { ctx.db.run("ALTER TABLE spaces_profile_extra ADD COLUMN timezone TEXT"); }
 }
 
 // ---- the profile
@@ -141,6 +147,8 @@ export interface Profile {
   kind: Kind;
   address: { mode: AddressMode; host?: string };
   defaults: Record<string, unknown>;
+  /** The Space's IANA time zone, once one has been set or settled. */
+  timezone?: string;
   createdAt: number;
   deletedAt?: number;
   /** When the data goes, while the Space is scheduled for deletion. */
@@ -177,16 +185,27 @@ function readProfile(ctx: ExtraCtx): Profile {
   return {
     id: ctx.space, name, ...(legalName ? { legalName } : {}), ...(logoFileId ? { logoFileId } : {}), kind,
     address: { mode: mode === "relay" || mode === "own_domain" || mode === "device" ? mode : kind === "personal" ? "device" : "relay", ...(host ? { host } : {}) },
-    defaults, createdAt: typeof extra?.["created_at"] === "number" ? extra["created_at"] : ctx.now(), ...(deletedAt !== undefined ? { deletedAt } : {}), ...(deletionAt !== undefined ? { deletionAt } : {}),
+    defaults, ...(str(extra?.["timezone"]) ? { timezone: str(extra?.["timezone"])! } : {}), createdAt: typeof extra?.["created_at"] === "number" ? extra["created_at"] : ctx.now(), ...(deletedAt !== undefined ? { deletedAt } : {}), ...(deletionAt !== undefined ? { deletionAt } : {}),
   };
+}
+
+/** The Space's time zone. A Space made before it had one, or just made, takes its owner's own zone the first time it is read, and keeps it: it does not follow the owner's zone afterwards. */
+async function settleZone(ctx: ExtraCtx, p: Profile): Promise<string> {
+  if (p.timezone) return p.timezone;
+  let zone: string | undefined;
+  try { zone = await need(ctx).ownerTimezone?.(); } catch { zone = undefined; }
+  const chosen = validZone(zone) ? zone : "UTC";
+  ctx.db.run("UPDATE spaces_profile_extra SET timezone = ? WHERE id = ? AND timezone IS NULL", chosen, ctx.space);
+  return chosen;
 }
 
 async function spaceRow(ctx: ExtraCtx, p: Profile) {
   const d = need(ctx);
+  const timezone = await settleZone(ctx, p);
   const [owner, fingerprint, hostedOn, madeAt, observedAddress] = await Promise.all([d.owner(), d.fingerprint(), d.hostedOn?.(), d.createdAt?.(), p.kind === 'personal' ? undefined : d.address?.()]);
   return {
     id: p.id, name: p.name, ...(p.legalName ? { legalName: p.legalName } : {}), ...(p.logoFileId ? { logoFileId: p.logoFileId } : {}), kind: p.kind, owner, fingerprint,
-    address: observedAddress ?? p.address, ...(hostedOn ? { hostedOn } : {}), defaults: p.defaults, createdAt: madeAt ?? p.createdAt, ...(p.deletionAt !== undefined ? { deletionAt: p.deletionAt } : {}),
+    address: observedAddress ?? p.address, ...(hostedOn ? { hostedOn } : {}), defaults: p.defaults, timezone, createdAt: madeAt ?? p.createdAt, ...(p.deletionAt !== undefined ? { deletionAt: p.deletionAt } : {}),
   };
 }
 
@@ -262,6 +281,19 @@ export async function update(ctx: ExtraCtx, input: { name?: string; legalName?: 
     if (json !== JSON.stringify(p.defaults)) { ctx.db.run("UPDATE spaces_profile_extra SET defaults_json = ? WHERE id = ?", json, ctx.space); fields.push("defaults"); }
   }
   if (fields.length > 0) ctx.emit("space.updated" as never, `entity/${ctx.principal.id}`, { fields, by: ctx.principal.id });
+  return { space: await spaceRow(ctx, readProfile(ctx)) };
+}
+
+/** Set the Space's time zone. An admin does it (the pipeline checked policy.manage); the server checks the name itself, so a zone no runtime knows never gets in. Deadlines already set keep their moment: only how they read changes. */
+export async function setTimezone(ctx: ExtraCtx, input: { timezone: string }) {
+  const p = live(ctx);
+  const zone = typeof input.timezone === "string" ? input.timezone.trim() : "";
+  if (!validZone(zone)) return failWith(ctx.trace.traceId, "validation.bad_input", "That is not a time zone. Pick one from the list, like America/Los_Angeles.", { errors: ["timezone: unknown"] });
+  const was = await settleZone(ctx, p);
+  if (zone !== was) {
+    ctx.db.run("UPDATE spaces_profile_extra SET timezone = ? WHERE id = ?", zone, ctx.space);
+    ctx.emit("space.updated" as never, `entity/${ctx.principal.id}`, { fields: ["timezone"], by: ctx.principal.id });
+  }
   return { space: await spaceRow(ctx, readProfile(ctx)) };
 }
 

@@ -2602,6 +2602,9 @@ export function createClient(transport: Transport) {
       },
       switch_address: call("spaces.switch_address", 1),
       switcher: call("spaces.switcher", 1),
+      timezone: {
+        set: call("spaces.timezone.set", 1),
+      },
       transfer_ownership: call("spaces.transfer_ownership", 1),
       update: call("spaces.update", 1),
     },

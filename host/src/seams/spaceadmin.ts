@@ -38,6 +38,10 @@ export function createSpaceAdmin(d: SpaceAdminDeps) {
       return { epoch: d.headSeq() };
     },
     address: async () => d.address?.(),
+    /** The owner's own zone (their profile), the Space's first time zone until an admin sets one. */
+    async ownerTimezone(): Promise<string | undefined> {
+      try { return ((await d.system("settings.public_of", { personId: d.owner() })) as { timezone?: string } | null)?.timezone; } catch { return undefined; }
+    },
     async applyAddress(mode: "relay" | "own_domain", host: string | null) {
       if (!d.changeAddress) throw fail("internal.unavailable", none, { message: "The server has no network driver configured. No address changed." });
       await d.changeAddress(mode, host);

@@ -84,7 +84,7 @@ test("the Activity pane names who did it as the reader sees it: a Space agent by
   installDom();
   const call = goalsCall(async (cap) => { throw new Error(`no write for ${cap}`); }, NOW, "active");
   const data = (await call("goals.get", { goalId: "gol_lab8" })) as unknown as import("./model.ts").GoalPageData;
-  const root = await mount(createRoot as never, <Activity data={data} me="usr_irfad" nameOf={(id) => NAMES[id] ?? id} now={NOW} offsetMin={300} openTask={() => undefined} />);
+  const root = await mount(createRoot as never, <Activity data={data} me="usr_irfad" nameOf={(id) => NAMES[id] ?? id} now={NOW} zones={{ space: "Asia/Karachi", viewer: "Asia/Karachi" }} openTask={() => undefined} />);
   await flush();
   const text = textOf(find(root!, "goal-activity"));
   assert.match(text, /Lab Desk drafted this goal for you\./);
@@ -151,7 +151,7 @@ test("the Details pane: every setting edits in place and saves through goals.upd
   const { GoalSettings } = await import("./GoalSettings.tsx");
   const g = sampleGoals(NOW, "active").page.goal;
   const saved: Array<Record<string, unknown>> = [];
-  const root = await mount(createRoot as never, <GoalSettings g={g} nameOf={(id) => NAMES[id] ?? id} offsetMin={300} canEdit patch={(i) => saved.push(i)} pick={() => undefined} removeHelper={() => undefined} />);
+  const root = await mount(createRoot as never, <GoalSettings g={g} nameOf={(id) => NAMES[id] ?? id} zones={{ space: "Asia/Karachi", viewer: "Asia/Karachi" }} canEdit patch={(i) => saved.push(i)} pick={() => undefined} removeHelper={() => undefined} />);
   await flush();
   const d = find(root!, "goal-details")!;
   assert.doesNotMatch(textOf(d), /Finish line/);

@@ -28,9 +28,9 @@ function ready(o: Parameters<typeof world>[0] = {}): World {
 
 afterEach(() => configureSpaceAdmin(null));
 
-test("exactly the twelve capabilities that had no packet are handled", () => {
+test("exactly the thirteen capabilities that had no packet are handled", () => {
   assert.deepEqual(Object.keys(extraHandlers).sort(), [
-    "spaces.delete", "spaces.delete_cancel", "spaces.delete_due", "spaces.export", "spaces.export_latest", "spaces.get", "spaces.image", "spaces.leave", "spaces.matrix", "spaces.switch_address", "spaces.transfer_ownership", "spaces.update",
+    "spaces.delete", "spaces.delete_cancel", "spaces.delete_due", "spaces.export", "spaces.export_latest", "spaces.get", "spaces.image", "spaces.leave", "spaces.matrix", "spaces.switch_address", "spaces.timezone.set", "spaces.transfer_ownership", "spaces.update",
   ]);
 });
 
@@ -39,7 +39,7 @@ test("get returns the profile with the owner, the pinned key fingerprint, the ad
   const out = await call("spaces.get", w.ctx, {}) as { space: Record<string, unknown> };
   assert.deepEqual(out.space, {
     id: "spc_test", name: "Northwind", kind: "team", owner: "usr_owner", fingerprint: "ab12 cd34 ef56 7890", address: { mode: "relay" },
-    hostedOn: "Vyre Server on a Mac mini", defaults: {}, createdAt: NOW,
+    hostedOn: "Vyre Server on a Mac mini", defaults: {}, timezone: "Asia/Karachi", createdAt: NOW,
   });
   // a Personal Space lives on the device
   const p = ready({ kind: "personal" });
@@ -307,4 +307,44 @@ test("the host drivers must be wired", async () => {
   const w = ready();
   configureSpaceAdmin(null);
   assert.equal((await failed(call("spaces.get", w.ctx, {}))).error.code, "internal.unavailable");
+});
+
+test("a Space settles on its owner's own time zone the first time it is read, and keeps it when the owner moves", async () => {
+  const w = ready();
+  const first = (await call("spaces.get", w.ctx, {}) as { space: { timezone?: string } }).space;
+  assert.equal(first.timezone, "Asia/Karachi");
+  w.zones.owner = "America/New_York";
+  assert.equal(((await call("spaces.get", w.ctx, {})) as { space: { timezone?: string } }).space.timezone, "Asia/Karachi", "it does not follow the owner afterwards");
+  const bare = ready();
+  bare.zones.owner = undefined;
+  assert.equal(((await call("spaces.get", bare.ctx, {})) as { space: { timezone?: string } }).space.timezone, "UTC", "no owner zone: UTC");
+  const bad = ready();
+  bad.zones.owner = "Mars/Olympus";
+  assert.equal(((await call("spaces.get", bad.ctx, {})) as { space: { timezone?: string } }).space.timezone, "UTC", "a zone no runtime knows is not taken");
+});
+
+test("setting the time zone checks the name on the server, announces the change once, and the Space read carries it", async () => {
+  const w = ready();
+  const out = await call("spaces.timezone.set", w.ctx, { timezone: "America/Los_Angeles" }) as { space: { timezone?: string } };
+  assert.equal(out.space.timezone, "America/Los_Angeles");
+  assert.deepEqual(w.events.map((e) => [e.name, e.payload]), [["space.updated", { fields: ["timezone"], by: "usr_owner" }]]);
+  w.events.length = 0;
+  await call("spaces.timezone.set", w.ctx, { timezone: " America/Los_Angeles " });
+  assert.deepEqual(w.events, [], "the same zone changes nothing and says nothing");
+  assert.equal(((await call("spaces.get", w.ctx, {})) as { space: { timezone?: string } }).space.timezone, "America/Los_Angeles");
+  for (const bad of ["", "Pacific", "Mars/Olympus", "../etc/passwd", "x".repeat(80)]) {
+    assert.equal((await failed(call("spaces.timezone.set", w.ctx, { timezone: bad }))).error.code, "validation.bad_input", bad);
+  }
+  assert.equal(((await call("spaces.get", w.ctx, {})) as { space: { timezone?: string } }).space.timezone, "America/Los_Angeles", "a refused name changes nothing");
+  assert.deepEqual(w.events, []);
+});
+
+test("setting the Space time zone is an admin's, and an agent's change goes to the Gate: the contract says so", async () => {
+  const registry = JSON.parse((await import("node:fs")).readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as { capabilities: { name: string; permission?: string | null; gate?: { act: string; when?: string } | null; audit?: string }[] };
+  const cap = registry.capabilities.find((c) => c.name === "spaces.timezone.set")!;
+  assert.ok(cap, "in the contract");
+  assert.equal(cap.permission, "policy.manage", "the permission a Member does not have");
+  assert.equal(cap.gate?.act, "approve");
+  assert.match(cap.gate?.when ?? "", /actor\.kind != 'person'/);
+  assert.equal(cap.audit, "always");
 });

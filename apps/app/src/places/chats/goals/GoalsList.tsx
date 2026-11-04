@@ -17,7 +17,7 @@ function List({ goals, now, offsetMin, me, nameOf, openGoal, title, testID }: Om
     <View testID={testID} style={st.box}>
       <Text style={st.head}>{title}</Text>
       {/* ui-rows-lint: not a list (each GoalRow draws a ui/Row) */}
-      {goals.map((g) => <GoalRow key={g.id} goal={g} selected={false} hovered={false} now={now} offsetMin={offsetMin} me={me} leadName={nameOf(g.leadAgentId)} onPress={() => openGoal(g.id)} />)}
+      {goals.map((g) => <GoalRow key={g.id} goal={g} selected={false} hovered={false} now={now} me={me} leadName={nameOf(g.leadAgentId)} onPress={() => openGoal(g.id)} />)}
     </View>
   );
 }
