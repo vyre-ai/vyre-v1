@@ -113,8 +113,8 @@ test("screen: an agent's draft shows who drafted it, the inbox it sends from, th
   assert.ok(has(out, 'data-testid="draft:dr_elena"'));
   assert.ok(has(out, "Intake") && has(out, "drafted a reply"));
   assert.ok(has(out, "Sends from") && has(out, "when you press Send") && !has(out, "Gate") && !has(out, "agt_"), "a plain line: no system words, no ids");
-  assert.ok(has(out, 'data-testid="gate:dr_elena"'));
-  for (const b of ["draft-send:dr_elena", "draft-edit:dr_elena", "draft-discard:dr_elena"]) assert.ok(has(out, `data-testid="${b}"`), b);
+  assert.ok(has(out, 'data-testid="draft:dr_elena-stopped"'));
+  for (const b of ["draft:dr_elena-send", "draft:dr_elena-edit", "draft:dr_elena-drop"]) assert.ok(has(out, `data-testid="${b}"`), b);
   assert.ok(has(out, "Thanks for draft 3. I will read it tonight"));
   assert.ok(!has(tab("priya").out, 'data-testid="draft:'), "no draft, no card");
   assert.equal(sendsLine("techmanager@mylegalacademy.com"), "Sends from techmanager@mylegalacademy.com when you press Send");
@@ -123,8 +123,8 @@ test("screen: an agent's draft shows who drafted it, the inbox it sends from, th
 test("screen: an agent's text draft says it drafted a text, shows the number and its Gate line, and has no subject", () => {
   const { out } = tab("marcus");
   assert.ok(has(out, 'data-testid="draft:dr_marcus"') && has(out, "drafted a text") && !has(out, "drafted a reply"));
-  assert.ok(has(out, "Sends from") && has(out, "when you press Send") && !has(out, "Gate:") && has(out, 'data-testid="gate:dr_marcus"'));
-  for (const b of ["draft-send:dr_marcus", "draft-edit:dr_marcus", "draft-discard:dr_marcus"]) assert.ok(has(out, `data-testid="${b}"`), b);
+  assert.ok(has(out, "Sends from") && has(out, "when you press Send") && !has(out, "Gate:") && has(out, 'data-testid="draft:dr_marcus-stopped"'));
+  for (const b of ["draft:dr_marcus-send", "draft:dr_marcus-edit", "draft:dr_marcus-drop"]) assert.ok(has(out, `data-testid="${b}"`), b);
   assert.ok(has(out, "resending invoice 1041 now"));
 });
 
@@ -151,12 +151,12 @@ test("screen: the composer opens on the channel of the last message and the inbo
   const smsTab = e.slice(e.lastIndexOf("<", e.indexOf('data-testid="chan-text"')), e.indexOf(">", e.indexOf('data-testid="chan-text"')));
   assert.ok(has(smsTab, 'aria-selected="false"'), "the other tab says it is not selected");
   assert.ok(e.indexOf("Lease documents for Thursday", at(e, "Replying in")) > 0, "Replying in names the thread");
-  assert.equal(e.split("Sends from").length, e.split('data-testid="gate:').length, "the only Sends from line is an agent draft's own: none under the composer");
+  assert.equal(e.split("Sends from").length, e.split('-stopped"').length, "the only Sends from line is an agent draft's own: none under the composer");
   assert.ok(has(e, "Elena Rivera"), "To shows the contact name");
   const fromE = at(e, 'data-testid="from-name"');
   assert.ok(e.slice(fromE, fromE + 80).includes("Work Gmail"), "From names the inbox it came in on");
   const m = tab("marcus").out;
-  assert.ok(m.split("Sends from").length === m.split('data-testid="gate:').length && !has(m, 'data-testid="contact-recipients"') && !has(m, 'data-testid="contact-subject"'), "a text has no Cc and Bcc recipients, no Subject and no explaining line");
+  assert.ok(m.split("Sends from").length === m.split('-stopped"').length && !has(m, 'data-testid="contact-recipients"') && !has(m, 'data-testid="contact-subject"'), "a text has no Cc and Bcc recipients, no Subject and no explaining line");
   assert.ok(has(m, 'aria-label="Text from"'));
 });
 
@@ -406,9 +406,40 @@ test("an updated agent draft says Updated with the time, and the earlier draft i
   assert.equal(plain[0]!.earlier, undefined);
   const updated = draftCards(rows.map((r) => ({ ...r, earlier: { at: SAMPLE_NOW - 3_600_000, subject: "Re: Call", text: "Thursday 3:00 am Pakistan time works." } })), titles(northwind), new Map([["agt_intake", "Intake"]]));
   assert.equal(updated[0]!.earlier?.text, "Thursday 3:00 am Pakistan time works.");
-  const out = renderToStaticMarkup(<DraftBlock d={updated[0]!} busy={false} offsetMin={0} onSend={() => undefined} onEdit={() => undefined} onDiscard={() => undefined} />).replaceAll("<!-- -->", "");
-  assert.ok(has(out, "Updated") && has(out, `data-testid="draft-updated:${updated[0]!.id}"`) && has(out, "Show the earlier draft"));
+  const out = renderToStaticMarkup(<DraftBlock d={updated[0]!} busy={false} offsetMin={0} onSend={async () => ""} onDrop={async () => undefined} loadText={async () => ""} />).replaceAll("<!-- -->", "");
+  assert.ok(has(out, "Updated") && has(out, `data-testid="draft:${updated[0]!.id}-schedule"`) && has(out, "Show the earlier draft"));
   assert.ok(!has(out, "Thursday 3:00 am"), "the earlier text is folded");
-  const first = renderToStaticMarkup(<DraftBlock d={plain[0]!} busy={false} onSend={() => undefined} onEdit={() => undefined} onDiscard={() => undefined} />).replaceAll("<!-- -->", "");
+  const first = renderToStaticMarkup(<DraftBlock d={plain[0]!} busy={false} onSend={async () => ""} onDrop={async () => undefined} loadText={async () => ""} />).replaceAll("<!-- -->", "");
   assert.ok(!has(first, "Updated") && !has(first, "earlier draft"));
+});
+
+test("Inbox draft card: Edit is in the card on the draft's full text, Send goes with the edited words, Don't send takes a reason, and the composer is untouched", async () => {
+  const { createRoot } = await import("test-renderer");
+  const { TextInput } = await import("react-native");
+  const { find, flush, installDom, mount, press, textOf, typeInto } = await import("../../../../../../ui/src/testing/dom.ts");
+  installDom();
+  const s = createContactTabSample();
+  const [card] = draftCards((s.replica.run("mail.drafts.list", { contactId: "ct_elena" })!.data).drafts, titles(northwind), new Map([["agt_intake", "Intake"]]));
+  const sent: { text: string; subject: string }[] = [];
+  const dropped: string[] = [];
+  const full = "Thanks for draft 3. I will read it tonight, and here is the whole second paragraph that a snippet would have cut off.";
+  const root = await mount(createRoot, <DraftBlock d={card!} busy={false} offsetMin={0} loadText={async () => full} onSend={async (text, subject) => { sent.push({ text, subject }); return "Sent from Work Gmail"; }} onDrop={async (reason) => { dropped.push(reason); }}
+    editor={({ value, onChange, label }) => <TextInput testID="stub-editor" accessibilityLabel={label} value={value} onChangeText={onChange} multiline />} />);
+  await flush();
+  assert.match(textOf(root), /whole second paragraph/, "the card shows the full text, not the snippet");
+  await press(find(root, `draft:${card!.id}-edit`));
+  assert.equal(String(find(root, "stub-editor")!.props.value), full, "Edit opens on the full text");
+  await typeInto(find(root, "stub-editor")!, "Short and sweet.");
+  await press(find(root, `draft:${card!.id}-save`)); await flush();
+  assert.match(textOf(root), /Edited by you/);
+  await press(find(root, `draft:${card!.id}-send`)); await flush();
+  assert.deepEqual(sent.map((x) => x.text), ["Short and sweet."]);
+  assert.match(textOf(root), /Sent from Work Gmail/);
+  const again = await mount(createRoot, <DraftBlock d={card!} busy={false} offsetMin={0} loadText={async () => full} onSend={async () => ""} onDrop={async (r) => { dropped.push(r); }} />);
+  await flush();
+  await press(find(again, `draft:${card!.id}-drop`));
+  await typeInto(find(again, `draft:${card!.id}-reason`)!, "Wrong tone");
+  await press(find(again, `draft:${card!.id}-drop-go`)); await flush();
+  assert.deepEqual(dropped, ["Wrong tone"]);
+  assert.match(textOf(again), /Not sent/);
 });

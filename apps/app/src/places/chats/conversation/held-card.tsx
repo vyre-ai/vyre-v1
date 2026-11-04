@@ -27,6 +27,10 @@ export interface HeldCardProps {
   subject?: string | undefined;
   /** Extra labelled lines (From, Where). */
   fields?: ReadonlyArray<readonly [string, string]>;
+  /** The header words when "<agent> wants to <verb>" is not what the surface says ("Intake drafted a reply"). */
+  title?: string;
+  /** The text this replaced, one click away: "Show the earlier draft". */
+  earlier?: { text: string };
   /** Labels of `fields` whose text is Markdown (a link). */
   fieldMd?: readonly string[];
   /** A calendar entry's guests, as faces and names, shown after its When line; and whether they are emailed. */
@@ -86,6 +90,7 @@ export function HeldCard(p: HeldCardProps): ReactElement {
   const [error, setError] = useState("");
   const [all, setAll] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [earlierOpen, setEarlierOpen] = useState(false);
   const [agenda, setAgenda] = useState(false);
   const [done, setDone] = useState<"sent" | "dropped" | null>(null);
   const state = done ?? p.state;
@@ -95,7 +100,7 @@ export function HeldCard(p: HeldCardProps): ReactElement {
     f().then(() => { setBusy(false); after?.(); }, (e: unknown) => { setBusy(false); setError(e instanceof Error && e.message ? e.message : "That did not work. Try again."); });
   };
   const faces = p.to.slice(0, 2);
-  const title = `${p.agent} wants to ${p.verb}`;
+  const title = p.title ?? `${p.agent} wants to ${p.verb}`;
 
   if (state !== "waiting") {
     return (
@@ -148,6 +153,12 @@ export function HeldCard(p: HeldCardProps): ReactElement {
           {long ? <Pressable accessibilityRole="button" onPress={() => setAll((x) => !x)} testID={`${p.testID}-all`}><Text style={st.link}>{all ? "Show less" : "Show all"}</Text></Pressable> : null}
         </View>
       )}
+      {p.earlier && !editing ? (
+        <View>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: earlierOpen }} onPress={() => setEarlierOpen((v) => !v)} testID={`${p.testID}-earlier`}><Text style={st.link}>{earlierOpen ? "Hide the earlier draft" : "Show the earlier draft"}</Text></Pressable>
+          {earlierOpen ? <View testID={`${p.testID}-earlier-text`} style={st.body}><MarkdownText text={p.earlier.text} /></View> : null}
+        </View>
+      ) : null}
       {denying ? (
         <View style={st.deny}>
           <TextInput accessibilityLabel="Why not (optional)" testID={`${p.testID}-reason`} value={reason} onChangeText={setReason} placeholder="Reason (optional)" placeholderTextColor="var(--ink-4)" multiline style={st.reasonInput} />
@@ -163,7 +174,7 @@ export function HeldCard(p: HeldCardProps): ReactElement {
             {p.editable ? <TextButton label="Edit" ring icon="edit" disabled={busy} onPress={() => { setDraft({ body: p.body, subject: p.subject ?? "", to: p.to.map((r) => r.name).join(", ") }); setEditing(true); }} testID={`${p.testID}-edit`} /> : null}
             <TextButton label={p.dropLabel ?? "Don't send"} disabled={busy} onPress={() => setDenying(true)} testID={`${p.testID}-drop`} />
           </View>
-          {p.stoppedNote ? <Text style={st.sub}>{p.stoppedNote}</Text> : null}
+          {p.stoppedNote ? <Text style={st.sub} testID={`${p.testID}-stopped`}>{p.stoppedNote}</Text> : null}
         </View>
       ) : null}
       {error ? <Text accessibilityRole="alert" style={st.error} testID={`${p.testID}-error`}>{error}</Text> : null}

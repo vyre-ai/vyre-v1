@@ -134,7 +134,6 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const [quotes, setQuotes] = useState<readonly string[]>([]);
   const [transcripts, setTranscripts] = useState<readonly string[]>([]);
   const [note, setNote] = useState("");
-  const [draftNotes, setDraftNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<readonly string[]>([]);
   // threads and messages opened or closed by hand, signatures shown; what was new when the tab opened stays marked new for this visit, though opening reads it
   const [thOpen, setThOpen] = useState<Record<string, boolean>>({});
@@ -254,19 +253,24 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
     }
   };
 
-  const draftSend = (card: DraftCard): Promise<void> => withBusy(card.id, async () => {
-    try {
-      const text = over.draftId === card.id && over.text ? over.text : card.body;
-      const subject = over.draftId === card.id && over.subject ? over.subject : card.subject;
-      const done = await sendAgentDraft(data, card, conv, text, subject);
-      setDraftNotes((n) => ({ ...n, [card.id]: done }));
-      if (over.draftId === card.id) setOver((o) => ({ ...o, text: "", draftId: null }));
-    } catch (e) { setDraftNotes((n) => ({ ...n, [card.id]: fail(e) })); }
-  });
-  const draftEdit = (card: DraftCard): void => { patch({ chan: card.channel, draftId: card.id, text: card.body, subject: card.subject, to: card.channel === "sms" ? [] : card.to, from: card.channel === "sms" ? { email: null, sms: card.mailboxId } : { email: card.mailboxId, sms: null } }); };
-  const draftDiscard = (card: DraftCard): Promise<void> => withBusy(card.id, async () => {
-    try { await discardDraft(data, card.id); if (over.draftId === card.id) setOver((o) => ({ ...o, text: "", draftId: null })); } catch (e) { setDraftNotes((n) => ({ ...n, [card.id]: fail(e) })); }
-  });
+  /** Send the draft as the card holds it (its own edited words, never the composer's). The line the card ends on, or the refusal as the card's own error. */
+  const draftSend = async (card: DraftCard, text: string, subject: string): Promise<string> => {
+    let done = "";
+    await withBusy(card.id, async () => { done = await sendAgentDraft(data, card, conv, text, subject); });
+    return done;
+  };
+  /** Don't send: the draft is discarded, and the reason (when there is one) goes to the agent as a refusal in its memory. */
+  const draftDrop = async (card: DraftCard, reason: string): Promise<void> => {
+    await withBusy(card.id, async () => {
+      await discardDraft(data, card.id);
+      if (card.agentId && reason.trim()) { try { await data.call("memory.corrections.record", { agentId: card.agentId, how: "refuse", was: card.body, now: "", note: reason.trim() }); } catch { /* where memory does not have it, nothing is lost */ } }
+    });
+  };
+  const draftText = async (card: DraftCard): Promise<string> => ((await data.call("mail.message.get", { messageId: card.id })) as { text?: string }).text ?? "";
+  const draftSaved = async (card: DraftCard, text: string, subject: string): Promise<void> => {
+    if (card.channel === "sms") return;
+    try { await data.call("mail.draft", { mailboxId: card.mailboxId, draftId: card.id, text, subject, idempotencyKey: `inbox-draft:${card.id}:${Date.now()}` }); } catch { /* the card holds the words; the draft is saved when it can be */ }
+  };
 
   const showFollow = (x: number, y: number): void => {
     if (!conv.contactId) return;
@@ -380,7 +384,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             case "note": return <QuietLine key={f.key} text={f.item.title ?? f.item.preview ?? ""} testID={`note:${f.item.id}`} />;
           }
         })}
-        {each(cards, (d) => <DraftBlock key={d.id} d={d} offsetMin={clock.offsetMin} note={draftNotes[d.id]} busy={busy.includes(d.id) || !online} onSend={() => void draftSend(d)} onEdit={() => draftEdit(d)} onDiscard={() => void draftDiscard(d)} />)}
+        {each(cards, (d) => <DraftBlock key={d.id} d={d} offsetMin={clock.offsetMin} busy={busy.includes(d.id) || !online} onSend={(text, subject) => draftSend(d, text, subject)} onDrop={(reason) => draftDrop(d, reason)} loadText={() => draftText(d)} onSaved={(text, subject) => draftSaved(d, text, subject)} />)}
       </ScrollView>
 
       <View style={s.cmpWrap} testID="contact-composer">
