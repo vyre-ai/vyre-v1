@@ -194,10 +194,21 @@ export function routed(inner: OpenSession, o: RouteDeps): OpenSession {
     }
     return onSpace(spec);
   };
+  // One turn at a time is placed and started on a machine: the next decides after the first engine process is on its machine, so a limit of 1 holds for two turns started back to back (the Space
+  // counts the processes it started, at decide time). A turn that runs on the Space's own engine lets the next go at once.
+  let gate: Promise<void> = Promise.resolve();
   return async (spec) => {
-    if (takeOnce(o.db, spec.threadId)) return (await onSpace(spec)).session;   // "Run it on the server instead"
+    const before = gate;
+    let release: () => void = () => undefined;
+    gate = new Promise<void>((r) => { release = r; });
+    await before;
+    try { return await placeAndOpen(spec, release); } finally { release(); }
+  };
+  async function placeAndOpen(spec: SessionSpec, release: () => void): Promise<EngineSession> {
+    if (takeOnce(o.db, spec.threadId)) { release(); return (await onSpace(spec)).session; }   // "Run it on the server instead"
     const decided = await decide(o.call, spec);
-    if (!decided) return inner(spec);
+    if (!decided) { release(); return inner(spec); }
+    if (!((decided.placement === "device" && decided.deviceId) || (decided.placement === "host" && decided.nodeId))) release();
     // Automatic passed over a busy machine: the Space-wide Recent moves list (Console, Machines) keeps the line
     if (decided.moved && spec.turnId) void (async () => {
       const to = decided.placement === "device" ? relay.devices?.(spec.asker).find((l) => l.deviceId === decided.deviceId)?.name ?? "your computer" : decided.nodeId ? (await o.serverName?.(decided.nodeId, spec.asker).catch(() => undefined)) ?? "your server" : await spaceName();
@@ -250,5 +261,5 @@ export function routed(inner: OpenSession, o: RouteDeps): OpenSession {
       recordWhere(o.db, spec.turnId, { kind: "server", name: (await o.serverName?.(place.nodeId, spec.asker).catch(() => undefined)) ?? "your server", nodeId: place.nodeId, ...(movedNote(decided) ? { note: movedNote(decided)! } : {}) }, now());
     }
     return o.nodeOpener(place.nodeId)(spec);
-  };
+  }
 }

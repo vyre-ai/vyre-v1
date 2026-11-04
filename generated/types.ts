@@ -20478,6 +20478,7 @@ export type MachinesGetOut = {
       next: string;
       fix: ("clear_caches" | "stop_idle" | "update") | null;
     }>;
+  idleSessions: number;
   privacy: "full" | "vyre_only";
   lastFix?: {
     fix: string;
