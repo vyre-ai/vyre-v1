@@ -86,6 +86,22 @@ export async function spaceOf(ctx: CallCtx): Promise<{ team: boolean; shared: bo
   return { team, shared: allowed };
 }
 
+/**
+ * Whether this person's turns run on the machine that is asking, so that a one-shot request made for them (memory upkeep, the room digest) may run here too (owner rules: a person's work runs on their own
+ * compute; every request runs on their own account). A Personal Space runs on the person's own computer, so it does. In a Team Space it does not when they have a computer linked and online that
+ * runs their chats (the Space menu's "Chats run on This computer"): their turns run there, and a request made here would start an engine process on the server and spend a key it has no part in.
+ */
+export async function turnsRunHere(call: (cap: string, input: unknown) => Promise<unknown>, asker: string, now: number): Promise<boolean> {
+  const space = await spaceOf({ call } as unknown as CallCtx);
+  if (!space.team) return true;
+  let localRuns = true;
+  try { localRuns = ((await call("settings.get", { key: "engine.local_runs" })) as { row?: { value?: unknown } }).row?.value !== false; } catch { /* the default stands */ }
+  if (!localRuns) return true;
+  let devices: DevicesOut = { devices: [] };
+  try { devices = (await call("devices.mine", {})) as DevicesOut; } catch { /* none known */ }
+  return !devicesFrom(devices, now, asker).some((x) => x.role === "daemon" && x.online);
+}
+
 /** The engine driver this agent runs in this thread: the one saved for it, else Claude Code. */
 function engineOf(ctx: EngineCtx, threadId: string, agentId: string): string {
   ensure(ctx.db);
