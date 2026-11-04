@@ -23,13 +23,13 @@ const model = eco.scriptedModel(async function* (input: any, run: any) {
     yield { type: "text", text: "Two helpers. Tess checks the vendor calendar and Orin compares the quotes. " };
     await new Promise((r) => setTimeout(r, 30000));
     yield { type: "text", text: "Harbor costs $260 more up front, but its setup is two weeks sooner. Thursday 14:00 is free. Want me to book it?" };
-  } else if (/loop in Noah/.test(said)) {
-    // an outward act nobody asked for in words: the Gate holds it and the turn parks on an approval
-    yield { type: "text", text: "I will tell Noah. " };
+  } else if (/loop in Bartholomew/.test(said)) {
+    // an outward act nobody asked for in words: the Gate holds it and the turn parks on an approval. A teammate with a long hyphenated first name makes the footer's line need a second line on a phone.
+    yield { type: "text", text: "I will tell Bartholomew. " };
     yield* run("tool_search", { query: "people status message person" });
-    const w = yield* run("people_status", { q: "Noah" });
-    const handle = (((w.content as any).data?.people ?? [])[0] ?? {}).handle ?? "noah";
-    yield* run("message_person", { to: handle, body: "The vendor call is Thursday at 14:00.", idempotencyKey: "walk-noah-1" });
+    const w = yield* run("people_status", { q: "Bartholomew" });
+    const handle = (((w.content as any).data?.people ?? [])[0] ?? {}).handle ?? "bartholomew";
+    yield* run("message_person", { to: handle, body: "The vendor call is Thursday at 14:00.", idempotencyKey: "walk-bart-1" });
     yield { type: "text", text: "Sent." };
   } else yield { type: "text", text: "Got it. Noted for the summary." };
 });
@@ -53,6 +53,8 @@ const list = async (who: string, threadId: string): Promise<any[]> => { await d.
 const until = async (f: () => Promise<boolean>, what: string, ms = 60000) => { const end = Date.now() + ms; while (Date.now() < end) { if (await f()) return true; await new Promise((r) => setTimeout(r, 250)); } console.log("NEVER", what); return false; };
 
 await eco.connect(d);
+const people = await import(R + "/test/support/people.ts");
+await people.join(d, people.as(d, d.token), "Member", "bartholomew", "Bartholomew-Featherstonehaugh Smythe");
 agentId = (await api("usr_olivia", "agents.create", { name: "Intake", role: "You help the team.", idempotencyKey: "w-agent" })).agent.agentId;
 const keys = await api("usr_olivia", "vault.folders.create", { idempotencyKey: "w-ai", name: "AI accounts", scope: "shared" });
 const acct = await api("usr_olivia", "providers.add", { idempotencyKey: "w-acct", providerKey: "anthropic", connection: "api_key", apiKey: `${eco.KEY}A`, name: "Team AI", scope: "shared", folderId: keys.folder.id });
@@ -164,7 +166,7 @@ try {
   { const { page, ctx } = await open("usr_mia", { mode: "light" }); await shot(page, "main-switch-off-light"); await ctx.close(); }
   // an approval asked in a thread: one quiet line in the chat that opens the thread, the card in the thread
   await api("usr_mia", "threads.set_agent_replies", { threadId: main, inThreads: true });
-  const ask3 = (await api("usr_mia", "chat.post", { threadId: main, body: "Please loop in Noah about the Thursday call.", mentions: [{ kind: "agent", id: agentId }], idempotencyKey: "w-ask3" })).message;
+  const ask3 = (await api("usr_mia", "chat.post", { threadId: main, body: "Please loop in Bartholomew about the Thursday call.", mentions: [{ kind: "agent", id: agentId }], idempotencyKey: "w-ask3" })).message;
   const held = await until(async () => ((await api("usr_mia", "gate.holds.list", { states: ["held"] })).holds ?? []).length > 0, "a held approval", 90000);
   const quiet = await until(async () => (await list("usr_mia", main)).some((m: any) => (m.blocks ?? []).some((b: any) => b.type === "turn_status" && /needs your OK/.test(JSON.stringify(b.data)))), "the quiet line in the chat", 60000);
   { const made = ((await api("usr_mia", "threads.list", { parentThreadId: main })).threads ?? []).some((t: any) => t.parentMessageId === ask3.messageId); check(`approval: held = ${held}, quiet line in the chat = ${quiet}, thread made under the ask = ${made}`, held === true && quiet === true && made); }
