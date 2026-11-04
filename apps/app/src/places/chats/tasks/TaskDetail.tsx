@@ -1,6 +1,7 @@
 // One task page, in a tab. The head says what it is, where it came from and whose turn it is, with the one action that is yours. The blocks are filled by its kind and source (Work: brief, done means, outputs and
 // subtasks; Answer: the question; Approve: what is held; Review: what to check; Unblock: what it needs). Activity is the chat feed and composer of the task's own thread, with the status changes and hand-offs woven in.
 // The rail holds every field. Every change is one capability call; the page reads the task again from the live query.
+import { mailFixOf, useOpenConnect } from "../../../shell/connect/index.ts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -363,13 +364,16 @@ function TaskBody({ task, rt, nameOf, run, kids, people, openTask, openAgent, on
   const brief = task.workingNotes["brief"] ?? task.why ?? task.summary;
   const body = task.kind === "work" ? <Brief text={brief} base={task.workingNotes["brief"] ?? ""} run={run} rt={rt} taskId={task.id} /> : brief ? <Block><Text style={st.body}>{tidyBrief(brief)}</Text></Block> : null;
   const blocks: ReactElement[] = [];
+  // a lost mailbox sign-in: the button signs in again where the person is (the Connect a mailbox sheet), it does not just mark the task done
+  const openConnect = useOpenConnect();
+  const mailSignIn = mailFixOf(task as never);
   const held = heldMail(task as never);
   if (held) blocks.push(<HeldMailCard key="mail" mail={held} call={rt.call} onOpenRecord={(id) => rt.open({ subject: { type: "record", id } })} />);
-  else for (const [i, b] of task.blocks.entries()) if (b.type !== "question" && b.type !== "access_request") blocks.push(<TaskBlock key={`${b.type}-${i}`} view={blockView(b)} />);
+  else for (const [i, b] of task.blocks.entries()) if (b.type !== "question" && b.type !== "access_request" && b.type !== "mail_signin") blocks.push(<TaskBlock key={`${b.type}-${i}`} view={blockView(b)} />);
   if (task.kind === "answer") return <><AnswerBlock task={task} run={run} nameOf={nameOf} />{blocks.length ? <Block>{blocks}</Block> : null}</>;
   if (task.kind === "approve") return <>{body}<Block title="Held until you approve">{blocks}<ActionButtons task={task} run={run} /></Block></>;
   const access = accessRequestOf(task);
-  if (task.kind === "unblock") return <>{body}{blocks.length ? <Block>{blocks}</Block> : null}<Block>{access && isOpenState(task.state as TaskState) ? <Btn label="Approve" primary testID="task-access-approve" onPress={() => void run("access.requests.approve", { requestId: access.requestId, ...(access.level ? { level: access.level } : {}) })} /> : null}<ActionButtons task={task} run={run} /></Block></>;
+  if (task.kind === "unblock") return <>{body}{blocks.length ? <Block>{blocks}</Block> : null}<Block>{access && isOpenState(task.state as TaskState) ? <Btn label="Approve" primary testID="task-access-approve" onPress={() => void run("access.requests.approve", { requestId: access.requestId, ...(access.level ? { level: access.level } : {}) })} /> : null}{mailSignIn && openConnect && isOpenState(task.state as TaskState) ? <Btn label="Sign in again" primary testID="task-mailfix" onPress={() => void openConnect({ kind: "mailbox", provider: mailSignIn })} /> : <ActionButtons task={task} run={run} />}</Block></>;
   if (task.kind === "review") return <>{body}<DoneMeans task={task} run={run} />{blocks.length ? <Block title="Outputs">{blocks}</Block> : null}<Outputs task={task} rt={rt} /><Block><ActionButtons task={task} run={run} /></Block></>;
   return <>{body}<Fixes task={task} /><Tree task={task} rt={rt} nameOf={nameOf} kids={kids} people={people} openTask={openTask} openAgent={openAgent} onKids={onKids} /><DoneMeans task={task} run={run} /><Outputs task={task} rt={rt} />{blocks.length ? <Block>{blocks}</Block> : null}</>;
 }
