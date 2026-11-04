@@ -138,3 +138,20 @@ test("replay of the Inbox question: model calls before the fix, after it, and wi
   assert.equal(after, 3, "search, call, answer");
   assert.equal(listed, 2, "call, answer");
 });
+
+test("a room's reads are listed from the first request, so a tagged agent never searches before it speaks", async () => {
+  const { session } = makeSession();
+  const c = toolCtx();
+  session.preload(c.thread.threadId, ["chat_messages_list", "chat_message_get", "chat_catch_up", "chat_search", "tasks_get"]);
+  const api = createApiTools({ session, space: "spc_1", system: () => [{ text: "You are Intake.", stable: true }] });
+  const first = await api.context({ ...spec(MODELS.anthropic) }, turnInput(MODELS.anthropic));
+  const names = first.tools.map((t) => t.name);
+  for (const n of ["chat_messages_list", "chat_catch_up", "tasks_get", "chat_post", "chat_thread", "tasks_create", "read_link"]) assert.ok(names.includes(n), `${n} is listed`);
+  const f = fakeFetch(() => ({ chunks: chunked(fixture("anthropic-tool-answer"), 23) }));
+  const driver = createApiDriver(ADAPTERS.anthropic, { authorize, context: () => first, fetch: f.fetch, clock: fakeClock() });
+  const opened = await driver.open(spec(MODELS.anthropic));
+  const kinds: string[] = [];
+  for await (const e of opened.send(turnInput(MODELS.anthropic))) kinds.push(e.type);
+  assert.notEqual(kinds.indexOf("text"), -1);
+  assert.ok(!kinds.slice(0, kinds.indexOf("text")).includes("tool_call"), "no tool call before the first text");
+});

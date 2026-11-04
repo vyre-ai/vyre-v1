@@ -5,40 +5,40 @@ import type { Check } from './core.ts';
 
 function d_s_0a656f2423(v: unknown, p: string, e: string[]): void {
 {
-const x30 = v;
-const g30 = typeOf(x30);
-const b30: string[] = []; lf(x30, p, b30, L0); if (b30.length) e.push(...b30);
-if (g30 === "object") {
-if (g30 === 'object') { const o30 = x30 as Record<string, unknown>;
-if (!("id" in o30)) e.push(p + "/id" + ': required');
-if (!("topic" in o30)) e.push(p + "/topic" + ': required');
-if (!("joinUrl" in o30)) e.push(p + "/joinUrl" + ': required');
-if ("id" in o30) lf(o30["id"], p + "/id", e, L1);
-if ("uuid" in o30) lf(o30["uuid"], p + "/uuid", e, L1);
-if ("topic" in o30) lf(o30["topic"], p + "/topic", e, L1);
-if ("startTime" in o30) lf(o30["startTime"], p + "/startTime", e, L15);
-if ("durationMinutes" in o30) lf(o30["durationMinutes"], p + "/durationMinutes", e, L2);
-if ("joinUrl" in o30) lf(o30["joinUrl"], p + "/joinUrl", e, L1);
-if ("password" in o30) lf(o30["password"], p + "/password", e, L1);
-if ("hostEmail" in o30) lf(o30["hostEmail"], p + "/hostEmail", e, L6);
-if ("timezone" in o30) lf(o30["timezone"], p + "/timezone", e, L1);
-if ("dialIns" in o30) {
-{
-const x31 = o30["dialIns"];
-const g31 = typeOf(x31);
-const b31: string[] = []; lf(x31, p + "/dialIns", b31, L4); if (b31.length) e.push(...b31);
-if (g31 === "array") {
-if (g31 === 'array') { const a31 = x31 as unknown[];
-for (let i31 = 0; i31 < a31.length; i31++) {
-{
-const x32 = a31[i31];
+const x32 = v;
 const g32 = typeOf(x32);
-const b32: string[] = []; lf(x32, p + "/dialIns" + '/' + i31, b32, L0); if (b32.length) e.push(...b32);
+const b32: string[] = []; lf(x32, p, b32, L0); if (b32.length) e.push(...b32);
 if (g32 === "object") {
 if (g32 === 'object') { const o32 = x32 as Record<string, unknown>;
-if (!("number" in o32)) e.push(p + "/dialIns" + '/' + i31 + "/number" + ': required');
-if ("number" in o32) lf(o32["number"], p + "/dialIns" + '/' + i31 + "/number", e, L1);
-if ("country" in o32) lf(o32["country"], p + "/dialIns" + '/' + i31 + "/country", e, L1);
+if (!("id" in o32)) e.push(p + "/id" + ': required');
+if (!("topic" in o32)) e.push(p + "/topic" + ': required');
+if (!("joinUrl" in o32)) e.push(p + "/joinUrl" + ': required');
+if ("id" in o32) lf(o32["id"], p + "/id", e, L1);
+if ("uuid" in o32) lf(o32["uuid"], p + "/uuid", e, L1);
+if ("topic" in o32) lf(o32["topic"], p + "/topic", e, L1);
+if ("startTime" in o32) lf(o32["startTime"], p + "/startTime", e, L15);
+if ("durationMinutes" in o32) lf(o32["durationMinutes"], p + "/durationMinutes", e, L2);
+if ("joinUrl" in o32) lf(o32["joinUrl"], p + "/joinUrl", e, L1);
+if ("password" in o32) lf(o32["password"], p + "/password", e, L1);
+if ("hostEmail" in o32) lf(o32["hostEmail"], p + "/hostEmail", e, L6);
+if ("timezone" in o32) lf(o32["timezone"], p + "/timezone", e, L1);
+if ("dialIns" in o32) {
+{
+const x33 = o32["dialIns"];
+const g33 = typeOf(x33);
+const b33: string[] = []; lf(x33, p + "/dialIns", b33, L4); if (b33.length) e.push(...b33);
+if (g33 === "array") {
+if (g33 === 'array') { const a33 = x33 as unknown[];
+for (let i33 = 0; i33 < a33.length; i33++) {
+{
+const x34 = a33[i33];
+const g34 = typeOf(x34);
+const b34: string[] = []; lf(x34, p + "/dialIns" + '/' + i33, b34, L0); if (b34.length) e.push(...b34);
+if (g34 === "object") {
+if (g34 === 'object') { const o34 = x34 as Record<string, unknown>;
+if (!("number" in o34)) e.push(p + "/dialIns" + '/' + i33 + "/number" + ': required');
+if ("number" in o34) lf(o34["number"], p + "/dialIns" + '/' + i33 + "/number", e, L1);
+if ("country" in o34) lf(o34["country"], p + "/dialIns" + '/' + i33 + "/country", e, L1);
 }
 }
 }
@@ -54,26 +54,26 @@ if ("country" in o32) lf(o32["country"], p + "/dialIns" + '/' + i31 + "/country"
 
 function d_s_10de03fcd5(v: unknown, p: string, e: string[]): void {
 {
-const x53 = v;
-const g53 = typeOf(x53);
-const b53: string[] = []; lf(x53, p, b53, L4); if (b53.length) e.push(...b53);
-if (g53 === "array") {
-if (g53 === 'array') { const a53 = x53 as unknown[];
-for (let i53 = 0; i53 < a53.length; i53++) {
+const x55 = v;
+const g55 = typeOf(x55);
+const b55: string[] = []; lf(x55, p, b55, L4); if (b55.length) e.push(...b55);
+if (g55 === "array") {
+if (g55 === 'array') { const a55 = x55 as unknown[];
+for (let i55 = 0; i55 < a55.length; i55++) {
 {
-const x54 = a53[i53];
-const g54 = typeOf(x54);
-const b54: string[] = []; lf(x54, p + '/' + i53, b54, L0); if (b54.length) e.push(...b54);
-if (g54 === "object") {
-if (g54 === 'object') { const o54 = x54 as Record<string, unknown>;
-if (!("id" in o54)) e.push(p + '/' + i53 + "/id" + ': required');
-if (!("fileType" in o54)) e.push(p + '/' + i53 + "/fileType" + ': required');
-if ("id" in o54) lf(o54["id"], p + '/' + i53 + "/id", e, L1);
-if ("fileType" in o54) lf(o54["fileType"], p + '/' + i53 + "/fileType", e, L1);
-if ("recordingType" in o54) lf(o54["recordingType"], p + '/' + i53 + "/recordingType", e, L1);
-if ("fileSize" in o54) lf(o54["fileSize"], p + '/' + i53 + "/fileSize", e, L2);
-if ("downloadUrl" in o54) lf(o54["downloadUrl"], p + '/' + i53 + "/downloadUrl", e, L1);
-if ("status" in o54) lf(o54["status"], p + '/' + i53 + "/status", e, L1);
+const x56 = a55[i55];
+const g56 = typeOf(x56);
+const b56: string[] = []; lf(x56, p + '/' + i55, b56, L0); if (b56.length) e.push(...b56);
+if (g56 === "object") {
+if (g56 === 'object') { const o56 = x56 as Record<string, unknown>;
+if (!("id" in o56)) e.push(p + '/' + i55 + "/id" + ': required');
+if (!("fileType" in o56)) e.push(p + '/' + i55 + "/fileType" + ': required');
+if ("id" in o56) lf(o56["id"], p + '/' + i55 + "/id", e, L1);
+if ("fileType" in o56) lf(o56["fileType"], p + '/' + i55 + "/fileType", e, L1);
+if ("recordingType" in o56) lf(o56["recordingType"], p + '/' + i55 + "/recordingType", e, L1);
+if ("fileSize" in o56) lf(o56["fileSize"], p + '/' + i55 + "/fileSize", e, L2);
+if ("downloadUrl" in o56) lf(o56["downloadUrl"], p + '/' + i55 + "/downloadUrl", e, L1);
+if ("status" in o56) lf(o56["status"], p + '/' + i55 + "/status", e, L1);
 }
 }
 }
@@ -85,13 +85,13 @@ if ("status" in o54) lf(o54["status"], p + '/' + i53 + "/status", e, L1);
 
 function d_s_3bf726dac3(v: unknown, p: string, e: string[]): void {
 {
-const x251 = v;
-const g251 = typeOf(x251);
-const b251: string[] = []; lf(x251, p, b251, L0); if (b251.length) e.push(...b251);
-if (g251 === "object") {
-if (g251 === 'object') { const o251 = x251 as Record<string, unknown>;
-if (!("meeting" in o251)) e.push(p + "/meeting" + ': required');
-if ("meeting" in o251) d_s_0a656f2423(o251["meeting"], p + "/meeting", e);
+const x253 = v;
+const g253 = typeOf(x253);
+const b253: string[] = []; lf(x253, p, b253, L0); if (b253.length) e.push(...b253);
+if (g253 === "object") {
+if (g253 === 'object') { const o253 = x253 as Record<string, unknown>;
+if (!("meeting" in o253)) e.push(p + "/meeting" + ': required');
+if ("meeting" in o253) d_s_0a656f2423(o253["meeting"], p + "/meeting", e);
 }
 }
 }

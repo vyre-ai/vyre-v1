@@ -5,20 +5,20 @@ import type { Check } from './core.ts';
 
 function d_s_635108e53b(v: unknown, p: string, e: string[]): void {
 {
-const x471 = v;
-const g471 = typeOf(x471);
-const b471: string[] = []; lf(x471, p, b471, L0); if (b471.length) e.push(...b471);
-if (g471 === "object") {
-if (g471 === 'object') { const o471 = x471 as Record<string, unknown>;
-if (!("accountId" in o471)) e.push(p + "/accountId" + ': required');
-if (!("siteId" in o471)) e.push(p + "/siteId" + ': required');
-if (!("email" in o471)) e.push(p + "/email" + ': required');
-if (!("state" in o471)) e.push(p + "/state" + ': required');
-if ("accountId" in o471) lf(o471["accountId"], p + "/accountId", e, L258);
-if ("siteId" in o471) lf(o471["siteId"], p + "/siteId", e, L21);
-if ("email" in o471) lf(o471["email"], p + "/email", e, L1);
-if ("state" in o471) lf(o471["state"], p + "/state", e, L259);
-if ("recordId" in o471) lf(o471["recordId"], p + "/recordId", e, L40);
+const x473 = v;
+const g473 = typeOf(x473);
+const b473: string[] = []; lf(x473, p, b473, L0); if (b473.length) e.push(...b473);
+if (g473 === "object") {
+if (g473 === 'object') { const o473 = x473 as Record<string, unknown>;
+if (!("accountId" in o473)) e.push(p + "/accountId" + ': required');
+if (!("siteId" in o473)) e.push(p + "/siteId" + ': required');
+if (!("email" in o473)) e.push(p + "/email" + ': required');
+if (!("state" in o473)) e.push(p + "/state" + ': required');
+if ("accountId" in o473) lf(o473["accountId"], p + "/accountId", e, L258);
+if ("siteId" in o473) lf(o473["siteId"], p + "/siteId", e, L21);
+if ("email" in o473) lf(o473["email"], p + "/email", e, L1);
+if ("state" in o473) lf(o473["state"], p + "/state", e, L259);
+if ("recordId" in o473) lf(o473["recordId"], p + "/recordId", e, L40);
 }
 }
 }

@@ -5,14 +5,14 @@ import type { Check } from './core.ts';
 
 function d_s_3ebea8c124(v: unknown, p: string, e: string[]): void {
 {
-const x265 = v;
-const g265 = typeOf(x265);
-const b265: string[] = []; lf(x265, p, b265, L4); if (b265.length) e.push(...b265);
-if (g265 === "array") {
-if (g265 === 'array') { const a265 = x265 as unknown[];
-if (a265.length > 7) e.push(p + ': too many items');
-for (let i265 = 0; i265 < a265.length; i265++) {
-d_s_dc4be12a25(a265[i265], p + '/' + i265, e);
+const x267 = v;
+const g267 = typeOf(x267);
+const b267: string[] = []; lf(x267, p, b267, L4); if (b267.length) e.push(...b267);
+if (g267 === "array") {
+if (g267 === 'array') { const a267 = x267 as unknown[];
+if (a267.length > 7) e.push(p + ': too many items');
+for (let i267 = 0; i267 < a267.length; i267++) {
+d_s_dc4be12a25(a267[i267], p + '/' + i267, e);
 }
 }
 }
@@ -21,29 +21,29 @@ d_s_dc4be12a25(a265[i265], p + '/' + i265, e);
 
 function d_s_dc4be12a25(v: unknown, p: string, e: string[]): void {
 {
-const x991 = v;
-const g991 = typeOf(x991);
-const b991: string[] = []; lf(x991, p, b991, L0); if (b991.length) e.push(...b991);
-if (g991 === "object") {
-if (g991 === 'object') { const o991 = x991 as Record<string, unknown>;
-if (!("kind" in o991)) e.push(p + "/kind" + ': required');
-if (!("title" in o991)) e.push(p + "/title" + ': required');
-if (!("line" in o991)) e.push(p + "/line" + ': required');
-if ("kind" in o991) lf(o991["kind"], p + "/kind", e, L411);
-if ("title" in o991) lf(o991["title"], p + "/title", e, L1);
-if ("line" in o991) lf(o991["line"], p + "/line", e, L1);
-if ("subject" in o991) d_s_de65acc1c6(o991["subject"], p + "/subject", e);
-if ("at" in o991) lf(o991["at"], p + "/at", e, L15);
-if ("undo" in o991) {
-{
-const x992 = o991["undo"];
+const x992 = v;
 const g992 = typeOf(x992);
-const b992: string[] = []; lf(x992, p + "/undo", b992, L0); if (b992.length) e.push(...b992);
+const b992: string[] = []; lf(x992, p, b992, L0); if (b992.length) e.push(...b992);
 if (g992 === "object") {
 if (g992 === 'object') { const o992 = x992 as Record<string, unknown>;
-if (!("cap" in o992)) e.push(p + "/undo" + "/cap" + ': required');
-if (!("input" in o992)) e.push(p + "/undo" + "/input" + ': required');
-if ("cap" in o992) lf(o992["cap"], p + "/undo" + "/cap", e, L1);
+if (!("kind" in o992)) e.push(p + "/kind" + ': required');
+if (!("title" in o992)) e.push(p + "/title" + ': required');
+if (!("line" in o992)) e.push(p + "/line" + ': required');
+if ("kind" in o992) lf(o992["kind"], p + "/kind", e, L411);
+if ("title" in o992) lf(o992["title"], p + "/title", e, L1);
+if ("line" in o992) lf(o992["line"], p + "/line", e, L1);
+if ("subject" in o992) d_s_de65acc1c6(o992["subject"], p + "/subject", e);
+if ("at" in o992) lf(o992["at"], p + "/at", e, L15);
+if ("undo" in o992) {
+{
+const x993 = o992["undo"];
+const g993 = typeOf(x993);
+const b993: string[] = []; lf(x993, p + "/undo", b993, L0); if (b993.length) e.push(...b993);
+if (g993 === "object") {
+if (g993 === 'object') { const o993 = x993 as Record<string, unknown>;
+if (!("cap" in o993)) e.push(p + "/undo" + "/cap" + ': required');
+if (!("input" in o993)) e.push(p + "/undo" + "/input" + ': required');
+if ("cap" in o993) lf(o993["cap"], p + "/undo" + "/cap", e, L1);
 }
 }
 }

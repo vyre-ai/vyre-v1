@@ -5,34 +5,34 @@ import type { Check } from './core.ts';
 
 function d_s_5430c2af6e(v: unknown, p: string, e: string[]): void {
 {
-const x390 = v;
-const g390 = typeOf(x390);
-const b390: string[] = []; lf(x390, p, b390, L0); if (b390.length) e.push(...b390);
-if (g390 === "object") {
-if (g390 === 'object') { const o390 = x390 as Record<string, unknown>;
-if (!("sid" in o390)) e.push(p + "/sid" + ': required');
-if (!("e164" in o390)) e.push(p + "/e164" + ': required');
-if (!("capabilities" in o390)) e.push(p + "/capabilities" + ': required');
-if ("sid" in o390) lf(o390["sid"], p + "/sid", e, L1);
-if ("e164" in o390) lf(o390["e164"], p + "/e164", e, L223);
-if ("friendlyName" in o390) lf(o390["friendlyName"], p + "/friendlyName", e, L1);
-if ("capabilities" in o390) {
+const x392 = v;
+const g392 = typeOf(x392);
+const b392: string[] = []; lf(x392, p, b392, L0); if (b392.length) e.push(...b392);
+if (g392 === "object") {
+if (g392 === 'object') { const o392 = x392 as Record<string, unknown>;
+if (!("sid" in o392)) e.push(p + "/sid" + ': required');
+if (!("e164" in o392)) e.push(p + "/e164" + ': required');
+if (!("capabilities" in o392)) e.push(p + "/capabilities" + ': required');
+if ("sid" in o392) lf(o392["sid"], p + "/sid", e, L1);
+if ("e164" in o392) lf(o392["e164"], p + "/e164", e, L223);
+if ("friendlyName" in o392) lf(o392["friendlyName"], p + "/friendlyName", e, L1);
+if ("capabilities" in o392) {
 {
-const x391 = o390["capabilities"];
-const g391 = typeOf(x391);
-const b391: string[] = []; lf(x391, p + "/capabilities", b391, L4); if (b391.length) e.push(...b391);
-if (g391 === "array") {
-if (g391 === 'array') { const a391 = x391 as unknown[];
-for (let i391 = 0; i391 < a391.length; i391++) {
-lf(a391[i391], p + "/capabilities" + '/' + i391, e, L1);
+const x393 = o392["capabilities"];
+const g393 = typeOf(x393);
+const b393: string[] = []; lf(x393, p + "/capabilities", b393, L4); if (b393.length) e.push(...b393);
+if (g393 === "array") {
+if (g393 === 'array') { const a393 = x393 as unknown[];
+for (let i393 = 0; i393 < a393.length; i393++) {
+lf(a393[i393], p + "/capabilities" + '/' + i393, e, L1);
 }
 }
 }
 }
 }
-if ("voiceUrl" in o390) lf(o390["voiceUrl"], p + "/voiceUrl", e, L1);
-if ("smsUrl" in o390) lf(o390["smsUrl"], p + "/smsUrl", e, L1);
-if ("statusUrl" in o390) lf(o390["statusUrl"], p + "/statusUrl", e, L1);
+if ("voiceUrl" in o392) lf(o392["voiceUrl"], p + "/voiceUrl", e, L1);
+if ("smsUrl" in o392) lf(o392["smsUrl"], p + "/smsUrl", e, L1);
+if ("statusUrl" in o392) lf(o392["statusUrl"], p + "/statusUrl", e, L1);
 }
 }
 }

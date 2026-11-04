@@ -5,15 +5,15 @@ import type { Check } from './core.ts';
 
 function d_s_204145a796(v: unknown, p: string, e: string[]): void {
 {
-const x139 = v;
-const g139 = typeOf(x139);
-const b139: string[] = []; lf(x139, p, b139, L0); if (b139.length) e.push(...b139);
-if (g139 === "object") {
-if (g139 === 'object') { const o139 = x139 as Record<string, unknown>;
-if (!("mountId" in o139)) e.push(p + "/mountId" + ': required');
-if (!("folderId" in o139)) e.push(p + "/folderId" + ': required');
-if ("mountId" in o139) lf(o139["mountId"], p + "/mountId", e, L93);
-if ("folderId" in o139) lf(o139["folderId"], p + "/folderId", e, L23);
+const x141 = v;
+const g141 = typeOf(x141);
+const b141: string[] = []; lf(x141, p, b141, L0); if (b141.length) e.push(...b141);
+if (g141 === "object") {
+if (g141 === 'object') { const o141 = x141 as Record<string, unknown>;
+if (!("mountId" in o141)) e.push(p + "/mountId" + ': required');
+if (!("folderId" in o141)) e.push(p + "/folderId" + ': required');
+if ("mountId" in o141) lf(o141["mountId"], p + "/mountId", e, L93);
+if ("folderId" in o141) lf(o141["folderId"], p + "/folderId", e, L23);
 }
 }
 }
@@ -21,13 +21,13 @@ if ("folderId" in o139) lf(o139["folderId"], p + "/folderId", e, L23);
 
 function d_s_2e977f2711(v: unknown, p: string, e: string[]): void {
 {
-const x195 = v;
-const g195 = typeOf(x195);
-const b195: string[] = []; lf(x195, p, b195, L0); if (b195.length) e.push(...b195);
-if (g195 === "object") {
-if (g195 === 'object') { const o195 = x195 as Record<string, unknown>;
-if (!("mount" in o195)) e.push(p + "/mount" + ': required');
-if ("mount" in o195) d_s_a6bb4b0645(o195["mount"], p + "/mount", e);
+const x197 = v;
+const g197 = typeOf(x197);
+const b197: string[] = []; lf(x197, p, b197, L0); if (b197.length) e.push(...b197);
+if (g197 === "object") {
+if (g197 === 'object') { const o197 = x197 as Record<string, unknown>;
+if (!("mount" in o197)) e.push(p + "/mount" + ': required');
+if ("mount" in o197) d_s_a6bb4b0645(o197["mount"], p + "/mount", e);
 }
 }
 }
@@ -35,38 +35,38 @@ if ("mount" in o195) d_s_a6bb4b0645(o195["mount"], p + "/mount", e);
 
 function d_s_a6bb4b0645(v: unknown, p: string, e: string[]): void {
 {
-const x800 = v;
-const g800 = typeOf(x800);
-const b800: string[] = []; lf(x800, p, b800, L0); if (b800.length) e.push(...b800);
-if (g800 === "object") {
-if (g800 === 'object') { const o800 = x800 as Record<string, unknown>;
-if (!("mountId" in o800)) e.push(p + "/mountId" + ': required');
-if (!("folderId" in o800)) e.push(p + "/folderId" + ': required');
-if (!("kind" in o800)) e.push(p + "/kind" + ': required');
-if (!("provider" in o800)) e.push(p + "/provider" + ': required');
-if (!("name" in o800)) e.push(p + "/name" + ': required');
-if (!("state" in o800)) e.push(p + "/state" + ': required');
-if (!("mode" in o800)) e.push(p + "/mode" + ': required');
-if (!("reviewChanges" in o800)) e.push(p + "/reviewChanges" + ': required');
-if (!("pendingChanges" in o800)) e.push(p + "/pendingChanges" + ': required');
-if (!("conflicts" in o800)) e.push(p + "/conflicts" + ': required');
-if ("mountId" in o800) lf(o800["mountId"], p + "/mountId", e, L93);
-if ("folderId" in o800) lf(o800["folderId"], p + "/folderId", e, L23);
-if ("kind" in o800) lf(o800["kind"], p + "/kind", e, L347);
-if ("provider" in o800) lf(o800["provider"], p + "/provider", e, L1);
-if ("ref" in o800) lf(o800["ref"], p + "/ref", e, L1);
-if ("name" in o800) lf(o800["name"], p + "/name", e, L1);
-if ("state" in o800) lf(o800["state"], p + "/state", e, L348);
-if ("mode" in o800) lf(o800["mode"], p + "/mode", e, L349);
-if ("reviewChanges" in o800) lf(o800["reviewChanges"], p + "/reviewChanges", e, L3);
-if ("lagSeconds" in o800) lf(o800["lagSeconds"], p + "/lagSeconds", e, L15);
-if ("lastSyncAt" in o800) lf(o800["lastSyncAt"], p + "/lastSyncAt", e, L15);
-if ("pendingChanges" in o800) lf(o800["pendingChanges"], p + "/pendingChanges", e, L15);
-if ("conflicts" in o800) lf(o800["conflicts"], p + "/conflicts", e, L15);
-if ("fromDevice" in o800) lf(o800["fromDevice"], p + "/fromDevice", e, L1);
-if ("error" in o800) lf(o800["error"], p + "/error", e, L1);
-if ("live" in o800) lf(o800["live"], p + "/live", e, L3);
-if ("liveVia" in o800) lf(o800["liveVia"], p + "/liveVia", e, L350);
+const x801 = v;
+const g801 = typeOf(x801);
+const b801: string[] = []; lf(x801, p, b801, L0); if (b801.length) e.push(...b801);
+if (g801 === "object") {
+if (g801 === 'object') { const o801 = x801 as Record<string, unknown>;
+if (!("mountId" in o801)) e.push(p + "/mountId" + ': required');
+if (!("folderId" in o801)) e.push(p + "/folderId" + ': required');
+if (!("kind" in o801)) e.push(p + "/kind" + ': required');
+if (!("provider" in o801)) e.push(p + "/provider" + ': required');
+if (!("name" in o801)) e.push(p + "/name" + ': required');
+if (!("state" in o801)) e.push(p + "/state" + ': required');
+if (!("mode" in o801)) e.push(p + "/mode" + ': required');
+if (!("reviewChanges" in o801)) e.push(p + "/reviewChanges" + ': required');
+if (!("pendingChanges" in o801)) e.push(p + "/pendingChanges" + ': required');
+if (!("conflicts" in o801)) e.push(p + "/conflicts" + ': required');
+if ("mountId" in o801) lf(o801["mountId"], p + "/mountId", e, L93);
+if ("folderId" in o801) lf(o801["folderId"], p + "/folderId", e, L23);
+if ("kind" in o801) lf(o801["kind"], p + "/kind", e, L347);
+if ("provider" in o801) lf(o801["provider"], p + "/provider", e, L1);
+if ("ref" in o801) lf(o801["ref"], p + "/ref", e, L1);
+if ("name" in o801) lf(o801["name"], p + "/name", e, L1);
+if ("state" in o801) lf(o801["state"], p + "/state", e, L348);
+if ("mode" in o801) lf(o801["mode"], p + "/mode", e, L349);
+if ("reviewChanges" in o801) lf(o801["reviewChanges"], p + "/reviewChanges", e, L3);
+if ("lagSeconds" in o801) lf(o801["lagSeconds"], p + "/lagSeconds", e, L15);
+if ("lastSyncAt" in o801) lf(o801["lastSyncAt"], p + "/lastSyncAt", e, L15);
+if ("pendingChanges" in o801) lf(o801["pendingChanges"], p + "/pendingChanges", e, L15);
+if ("conflicts" in o801) lf(o801["conflicts"], p + "/conflicts", e, L15);
+if ("fromDevice" in o801) lf(o801["fromDevice"], p + "/fromDevice", e, L1);
+if ("error" in o801) lf(o801["error"], p + "/error", e, L1);
+if ("live" in o801) lf(o801["live"], p + "/live", e, L3);
+if ("liveVia" in o801) lf(o801["liveVia"], p + "/liveVia", e, L350);
 }
 }
 }

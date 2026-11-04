@@ -14,6 +14,8 @@ type Obj = Record<string, unknown>;
 import { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL } from "../../lib/connector-chat.ts";
 import { COMPANY_INTENT } from "../../lib/company-flow.ts";
 import { ABOUT_VYRE_INTENT, ABOUT_VYRE_SKILL } from "../../lib/about-vyre.ts";
+import { READ_LIMIT, isRoom, packText, recentWindow } from "./room-pack.ts";
+import type { RoomMessage } from "./room-pack.ts";
 import { offsetMinutes } from "../../lib/time-convert.ts";
 
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
@@ -34,6 +36,11 @@ export interface ContextDeps {
   skills?: SkillsPort;
   /** What the agent is waiting on in this thread: one plain line each (a held call, a wait_for, an unanswered question). */
   waiting?: (threadId: string, agentId: string) => string[] | Promise<string[]>;
+  /** The room digest store (room-digest.ts): the stored digest to read, and the call that starts a batch when one is due (never awaited). Without it a room has no digest. */
+  digests?: {
+    get(threadId: string, agentId: string): { text: string; upToSeq: number } | undefined;
+    refresh(o: { threadId: string; agentId: string; asker: string; messages: ReadonlyArray<RoomMessage>; nameOf(id: string): string }): void;
+  };
   now?: () => number;
   /** How long a read that rarely changes is kept (names, AGENT.md, the Space). Default 30 s. */
   cacheMs?: number;
@@ -530,6 +537,27 @@ export function createContextBuilder(d: ContextDeps) {
 
     add("parent", false, await parentOf(th, asker));
 
+    // a room (a group chat, a project chat, a channel): the roster, a digest of what came before, and the recent messages with names and times, from the database and with no tool call
+    let roomKeep = false;
+    if (isRoom(th) && process.env["VYRE_ROOM_PACK"] !== "off") {   // the switch is for measuring the pack against none
+      const zoneName = str((zone?.["row"] as Obj | undefined)?.["value"]) ?? "UTC";
+      const isThread = kind === "thread" || str(th?.["parentThreadId"]) !== undefined;
+      const listed = await read<Obj>("chat.messages.list", { threadId: input.threadId, limit: READ_LIMIT }, asker);
+      const all = arr<Obj>(listed?.["messages"]).map((m): RoomMessage => ({ messageId: str(m["messageId"]) ?? "", threadSeq: Number(m["threadSeq"] ?? 0), author: { kind: String((m["author"] as Obj | undefined)?.["kind"] ?? ""), id: str((m["author"] as Obj | undefined)?.["id"]) ?? "" }, kind: str(m["kind"]) ?? "text", body: str(m["body"]) ?? "", createdAt: Number(m["createdAt"] ?? 0) }));
+      const sharedAt = typeof th?.["sharedAt"] === "number" ? (th["sharedAt"] as number) : undefined;
+      const visible = sharedAt === undefined ? all : all.filter((m) => m.createdAt >= sharedAt);
+      const agentIds = new Set(agents.map((a) => a.id));
+      const win = recentWindow({ messages: all, agentId, ...(input.trigger?.id ? { triggerId: input.trigger.id } : {}), ...(sharedAt !== undefined ? { sharedAt } : {}), isThread, zone: zoneName, nameOf: who, isAgent: (id) => id.startsWith("agt_") || agentIds.has(id) });
+      const stored = d.digests?.get(input.threadId, agentId);
+      const digestText = stored && stored.upToSeq > 0 ? stored : undefined;
+      const roster = `The room (${title ? `"${one(title, 80)}", ` : ""}${kind === "channel" ? "a channel" : "a group chat"}). People: ${people.slice(0, 20).map((p) => `${who(p)}${p === asker ? " (asked you)" : ""}`).join(", ") || "none"}. Agents: ${[{ id: agentId, mode: "" }, ...agents.filter((a) => a.id !== agentId)].slice(0, 12).map((a) => `${a.id === agentId ? "you" : who(a.id)} (${a.id === agentId ? "this is you" : a.mode === "lead" ? "lead" : "answers when tagged"})`).join(", ")}.`;
+      const pack = packText({ roster, ...(digestText ? { digest: digestText } : {}), window: win, zone: zoneName, hasMessage: input.trigger !== null });
+      add("room", true, pack.stable);
+      add("recent", false, pack.recent);
+      d.digests?.refresh({ threadId: input.threadId, agentId, asker, messages: visible, nameOf: who });
+      roomKeep = win.lines.length > 0;
+    }
+
     const older = str(summary?.["summary"]);
     if (older) add("earlier", false, `${cutTo(older, 8_000)}\nThe full transcript is chats/${input.threadId}/transcript.md; transcript_search finds an exact line.`);
     const taken = d.handoff?.(input.threadId);
@@ -540,7 +568,7 @@ export function createContextBuilder(d: ContextDeps) {
     if (w.length > 0) add("waiting", false, w.map((x) => `- ${x}`).join("\n"));
 
     const ordered = SECTION_ORDER.flatMap((id) => sections.filter((s) => s.id === id));
-    return { sections: ordered, names: nameMap, ...(screen ? { screen } : {}), ...(older ? { keepHistory: KEEP_TURNS } : {}) };
+    return { sections: ordered, names: nameMap, ...(screen ? { screen } : {}), ...(roomKeep ? { keepHistory: 1 } : older ? { keepHistory: KEEP_TURNS } : {}) };
   }
 
   return { build };

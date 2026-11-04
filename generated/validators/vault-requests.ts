@@ -5,45 +5,45 @@ import type { Check } from './core.ts';
 
 function d_s_36a61f4770(v: unknown, p: string, e: string[]): void {
 {
-const x226 = v;
-const g226 = typeOf(x226);
-const b226: string[] = []; lf(x226, p, b226, L0); if (b226.length) e.push(...b226);
-if (g226 === "object") {
-if (g226 === 'object') { const o226 = x226 as Record<string, unknown>;
-if (!("id" in o226)) e.push(p + "/id" + ': required');
-if (!("name" in o226)) e.push(p + "/name" + ': required');
-if (!("fields" in o226)) e.push(p + "/fields" + ': required');
-if (!("reason" in o226)) e.push(p + "/reason" + ': required');
-if (!("requester" in o226)) e.push(p + "/requester" + ': required');
-if (!("state" in o226)) e.push(p + "/state" + ': required');
-if (!("taskId" in o226)) e.push(p + "/taskId" + ': required');
-if (!("at" in o226)) e.push(p + "/at" + ': required');
-if ("id" in o226) lf(o226["id"], p + "/id", e, L134);
-if ("name" in o226) lf(o226["name"], p + "/name", e, L1);
-if ("fields" in o226) {
+const x228 = v;
+const g228 = typeOf(x228);
+const b228: string[] = []; lf(x228, p, b228, L0); if (b228.length) e.push(...b228);
+if (g228 === "object") {
+if (g228 === 'object') { const o228 = x228 as Record<string, unknown>;
+if (!("id" in o228)) e.push(p + "/id" + ': required');
+if (!("name" in o228)) e.push(p + "/name" + ': required');
+if (!("fields" in o228)) e.push(p + "/fields" + ': required');
+if (!("reason" in o228)) e.push(p + "/reason" + ': required');
+if (!("requester" in o228)) e.push(p + "/requester" + ': required');
+if (!("state" in o228)) e.push(p + "/state" + ': required');
+if (!("taskId" in o228)) e.push(p + "/taskId" + ': required');
+if (!("at" in o228)) e.push(p + "/at" + ': required');
+if ("id" in o228) lf(o228["id"], p + "/id", e, L134);
+if ("name" in o228) lf(o228["name"], p + "/name", e, L1);
+if ("fields" in o228) {
 {
-const x227 = o226["fields"];
-const g227 = typeOf(x227);
-const b227: string[] = []; lf(x227, p + "/fields", b227, L4); if (b227.length) e.push(...b227);
-if (g227 === "array") {
-if (g227 === 'array') { const a227 = x227 as unknown[];
-for (let i227 = 0; i227 < a227.length; i227++) {
-lf(a227[i227], p + "/fields" + '/' + i227, e, L20);
+const x229 = o228["fields"];
+const g229 = typeOf(x229);
+const b229: string[] = []; lf(x229, p + "/fields", b229, L4); if (b229.length) e.push(...b229);
+if (g229 === "array") {
+if (g229 === 'array') { const a229 = x229 as unknown[];
+for (let i229 = 0; i229 < a229.length; i229++) {
+lf(a229[i229], p + "/fields" + '/' + i229, e, L20);
 }
 }
 }
 }
 }
-if ("reason" in o226) lf(o226["reason"], p + "/reason", e, L1);
-if ("requester" in o226) d_s_6c1eb10d98(o226["requester"], p + "/requester", e);
-if ("forRun" in o226) lf(o226["forRun"], p + "/forRun", e, L18);
-if ("folderId" in o226) lf(o226["folderId"], p + "/folderId", e, L135);
-if ("state" in o226) lf(o226["state"], p + "/state", e, L136);
-if ("itemId" in o226) lf(o226["itemId"], p + "/itemId", e, L82);
-if ("note" in o226) lf(o226["note"], p + "/note", e, L1);
-if ("taskId" in o226) lf(o226["taskId"], p + "/taskId", e, L17);
-if ("at" in o226) lf(o226["at"], p + "/at", e, L15);
-if ("decidedAt" in o226) lf(o226["decidedAt"], p + "/decidedAt", e, L15);
+if ("reason" in o228) lf(o228["reason"], p + "/reason", e, L1);
+if ("requester" in o228) d_s_6c1eb10d98(o228["requester"], p + "/requester", e);
+if ("forRun" in o228) lf(o228["forRun"], p + "/forRun", e, L18);
+if ("folderId" in o228) lf(o228["folderId"], p + "/folderId", e, L135);
+if ("state" in o228) lf(o228["state"], p + "/state", e, L136);
+if ("itemId" in o228) lf(o228["itemId"], p + "/itemId", e, L82);
+if ("note" in o228) lf(o228["note"], p + "/note", e, L1);
+if ("taskId" in o228) lf(o228["taskId"], p + "/taskId", e, L17);
+if ("at" in o228) lf(o228["at"], p + "/at", e, L15);
+if ("decidedAt" in o228) lf(o228["decidedAt"], p + "/decidedAt", e, L15);
 }
 }
 }
@@ -51,13 +51,13 @@ if ("decidedAt" in o226) lf(o226["decidedAt"], p + "/decidedAt", e, L15);
 
 function d_s_753c0a822e(v: unknown, p: string, e: string[]): void {
 {
-const x572 = v;
-const g572 = typeOf(x572);
-const b572: string[] = []; lf(x572, p, b572, L0); if (b572.length) e.push(...b572);
-if (g572 === "object") {
-if (g572 === 'object') { const o572 = x572 as Record<string, unknown>;
-if (!("request" in o572)) e.push(p + "/request" + ': required');
-if ("request" in o572) d_s_36a61f4770(o572["request"], p + "/request", e);
+const x574 = v;
+const g574 = typeOf(x574);
+const b574: string[] = []; lf(x574, p, b574, L0); if (b574.length) e.push(...b574);
+if (g574 === "object") {
+if (g574 === 'object') { const o574 = x574 as Record<string, unknown>;
+if (!("request" in o574)) e.push(p + "/request" + ': required');
+if ("request" in o574) d_s_36a61f4770(o574["request"], p + "/request", e);
 }
 }
 }

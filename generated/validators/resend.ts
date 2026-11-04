@@ -5,15 +5,15 @@ import type { Check } from './core.ts';
 
 function d_s_0e3895f1cc(v: unknown, p: string, e: string[]): void {
 {
-const x46 = v;
-const g46 = typeOf(x46);
-const b46: string[] = []; lf(x46, p, b46, L0); if (b46.length) e.push(...b46);
-if (g46 === "object") {
-if (g46 === 'object') { const o46 = x46 as Record<string, unknown>;
-if (!("providerDomainId" in o46)) e.push(p + "/providerDomainId" + ': required');
-if (!("idempotencyKey" in o46)) e.push(p + "/idempotencyKey" + ': required');
-if ("providerDomainId" in o46) lf(o46["providerDomainId"], p + "/providerDomainId", e, L1);
-if ("idempotencyKey" in o46) lf(o46["idempotencyKey"], p + "/idempotencyKey", e, L44);
+const x48 = v;
+const g48 = typeOf(x48);
+const b48: string[] = []; lf(x48, p, b48, L0); if (b48.length) e.push(...b48);
+if (g48 === "object") {
+if (g48 === 'object') { const o48 = x48 as Record<string, unknown>;
+if (!("providerDomainId" in o48)) e.push(p + "/providerDomainId" + ': required');
+if (!("idempotencyKey" in o48)) e.push(p + "/idempotencyKey" + ': required');
+if ("providerDomainId" in o48) lf(o48["providerDomainId"], p + "/providerDomainId", e, L1);
+if ("idempotencyKey" in o48) lf(o48["idempotencyKey"], p + "/idempotencyKey", e, L44);
 }
 }
 }
@@ -21,24 +21,24 @@ if ("idempotencyKey" in o46) lf(o46["idempotencyKey"], p + "/idempotencyKey", e,
 
 function d_s_35e1355f03(v: unknown, p: string, e: string[]): void {
 {
-const x221 = v;
-const g221 = typeOf(x221);
-const b221: string[] = []; lf(x221, p, b221, L0); if (b221.length) e.push(...b221);
-if (g221 === "object") {
-if (g221 === 'object') { const o221 = x221 as Record<string, unknown>;
-if (!("providerDomainId" in o221)) e.push(p + "/providerDomainId" + ': required');
-if (!("name" in o221)) e.push(p + "/name" + ': required');
-if (!("status" in o221)) e.push(p + "/status" + ': required');
-if (!("spf" in o221)) e.push(p + "/spf" + ': required');
-if (!("dkim" in o221)) e.push(p + "/dkim" + ': required');
-if (!("dmarc" in o221)) e.push(p + "/dmarc" + ': required');
-if ("providerDomainId" in o221) lf(o221["providerDomainId"], p + "/providerDomainId", e, L1);
-if ("name" in o221) lf(o221["name"], p + "/name", e, L1);
-if ("status" in o221) lf(o221["status"], p + "/status", e, L130);
-if ("spf" in o221) lf(o221["spf"], p + "/spf", e, L28);
-if ("dkim" in o221) lf(o221["dkim"], p + "/dkim", e, L28);
-if ("dmarc" in o221) lf(o221["dmarc"], p + "/dmarc", e, L28);
-if ("region" in o221) lf(o221["region"], p + "/region", e, L1);
+const x223 = v;
+const g223 = typeOf(x223);
+const b223: string[] = []; lf(x223, p, b223, L0); if (b223.length) e.push(...b223);
+if (g223 === "object") {
+if (g223 === 'object') { const o223 = x223 as Record<string, unknown>;
+if (!("providerDomainId" in o223)) e.push(p + "/providerDomainId" + ': required');
+if (!("name" in o223)) e.push(p + "/name" + ': required');
+if (!("status" in o223)) e.push(p + "/status" + ': required');
+if (!("spf" in o223)) e.push(p + "/spf" + ': required');
+if (!("dkim" in o223)) e.push(p + "/dkim" + ': required');
+if (!("dmarc" in o223)) e.push(p + "/dmarc" + ': required');
+if ("providerDomainId" in o223) lf(o223["providerDomainId"], p + "/providerDomainId", e, L1);
+if ("name" in o223) lf(o223["name"], p + "/name", e, L1);
+if ("status" in o223) lf(o223["status"], p + "/status", e, L130);
+if ("spf" in o223) lf(o223["spf"], p + "/spf", e, L28);
+if ("dkim" in o223) lf(o223["dkim"], p + "/dkim", e, L28);
+if ("dmarc" in o223) lf(o223["dmarc"], p + "/dmarc", e, L28);
+if ("region" in o223) lf(o223["region"], p + "/region", e, L1);
 }
 }
 }

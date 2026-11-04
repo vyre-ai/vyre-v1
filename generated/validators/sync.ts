@@ -5,71 +5,71 @@ import type { Check } from './core.ts';
 
 function d_s_1a9882542d(v: unknown, p: string, e: string[]): void {
 {
-const x95 = v;
-const g95 = typeOf(x95);
-const b95: string[] = []; lf(x95, p, b95, L4); if (b95.length) e.push(...b95);
-if (g95 === "array") {
-if (g95 === 'array') { const a95 = x95 as unknown[];
-for (let i95 = 0; i95 < a95.length; i95++) {
-{
-const x96 = a95[i95];
-const g96 = typeOf(x96);
-const b96: string[] = []; lf(x96, p + '/' + i95, b96, L0); if (b96.length) e.push(...b96);
-if (g96 === "object") {
-if (g96 === 'object') { const o96 = x96 as Record<string, unknown>;
-if (!("opId" in o96)) e.push(p + '/' + i95 + "/opId" + ': required');
-if (!("error" in o96)) e.push(p + '/' + i95 + "/error" + ': required');
-if (!("copyOut" in o96)) e.push(p + '/' + i95 + "/copyOut" + ': required');
-if ("opId" in o96) lf(o96["opId"], p + '/' + i95 + "/opId", e, L1);
-if ("error" in o96) {
-{
-const x97 = o96["error"];
+const x97 = v;
 const g97 = typeOf(x97);
-const b97: string[] = []; lf(x97, p + '/' + i95 + "/error", b97, L0); if (b97.length) e.push(...b97);
-if (g97 === "object") {
-if (g97 === 'object') { const o97 = x97 as Record<string, unknown>;
-if (!("code" in o97)) e.push(p + '/' + i95 + "/error" + "/code" + ': required');
-if (!("message" in o97)) e.push(p + '/' + i95 + "/error" + "/message" + ': required');
-if (!("next" in o97)) e.push(p + '/' + i95 + "/error" + "/next" + ': required');
-if (!("retryable" in o97)) e.push(p + '/' + i95 + "/error" + "/retryable" + ': required');
-if (!("traceId" in o97)) e.push(p + '/' + i95 + "/error" + "/traceId" + ': required');
-if ("code" in o97) lf(o97["code"], p + '/' + i95 + "/error" + "/code", e, L1);
-if ("message" in o97) lf(o97["message"], p + '/' + i95 + "/error" + "/message", e, L1);
-if ("next" in o97) {
+const b97: string[] = []; lf(x97, p, b97, L4); if (b97.length) e.push(...b97);
+if (g97 === "array") {
+if (g97 === 'array') { const a97 = x97 as unknown[];
+for (let i97 = 0; i97 < a97.length; i97++) {
 {
-const x98 = o97["next"];
+const x98 = a97[i97];
 const g98 = typeOf(x98);
-const b98: string[] = []; lf(x98, p + '/' + i95 + "/error" + "/next", b98, L4); if (b98.length) e.push(...b98);
-if (g98 === "array") {
-if (g98 === 'array') { const a98 = x98 as unknown[];
-for (let i98 = 0; i98 < a98.length; i98++) {
+const b98: string[] = []; lf(x98, p + '/' + i97, b98, L0); if (b98.length) e.push(...b98);
+if (g98 === "object") {
+if (g98 === 'object') { const o98 = x98 as Record<string, unknown>;
+if (!("opId" in o98)) e.push(p + '/' + i97 + "/opId" + ': required');
+if (!("error" in o98)) e.push(p + '/' + i97 + "/error" + ': required');
+if (!("copyOut" in o98)) e.push(p + '/' + i97 + "/copyOut" + ': required');
+if ("opId" in o98) lf(o98["opId"], p + '/' + i97 + "/opId", e, L1);
+if ("error" in o98) {
 {
-const x99 = a98[i98];
+const x99 = o98["error"];
 const g99 = typeOf(x99);
-const b99: string[] = []; lf(x99, p + '/' + i95 + "/error" + "/next" + '/' + i98, b99, L0); if (b99.length) e.push(...b99);
+const b99: string[] = []; lf(x99, p + '/' + i97 + "/error", b99, L0); if (b99.length) e.push(...b99);
 if (g99 === "object") {
 if (g99 === 'object') { const o99 = x99 as Record<string, unknown>;
-if (!("kind" in o99)) e.push(p + '/' + i95 + "/error" + "/next" + '/' + i98 + "/kind" + ': required');
-if (!("label" in o99)) e.push(p + '/' + i95 + "/error" + "/next" + '/' + i98 + "/label" + ': required');
-if ("kind" in o99) lf(o99["kind"], p + '/' + i95 + "/error" + "/next" + '/' + i98 + "/kind", e, L1);
-if ("label" in o99) lf(o99["label"], p + '/' + i95 + "/error" + "/next" + '/' + i98 + "/label", e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
-if ("retryable" in o97) lf(o97["retryable"], p + '/' + i95 + "/error" + "/retryable", e, L3);
-if ("traceId" in o97) lf(o97["traceId"], p + '/' + i95 + "/error" + "/traceId", e, L70);
-if ("details" in o97) {
+if (!("code" in o99)) e.push(p + '/' + i97 + "/error" + "/code" + ': required');
+if (!("message" in o99)) e.push(p + '/' + i97 + "/error" + "/message" + ': required');
+if (!("next" in o99)) e.push(p + '/' + i97 + "/error" + "/next" + ': required');
+if (!("retryable" in o99)) e.push(p + '/' + i97 + "/error" + "/retryable" + ': required');
+if (!("traceId" in o99)) e.push(p + '/' + i97 + "/error" + "/traceId" + ': required');
+if ("code" in o99) lf(o99["code"], p + '/' + i97 + "/error" + "/code", e, L1);
+if ("message" in o99) lf(o99["message"], p + '/' + i97 + "/error" + "/message", e, L1);
+if ("next" in o99) {
 {
-const x100 = o97["details"];
+const x100 = o99["next"];
 const g100 = typeOf(x100);
-const b100: string[] = []; lf(x100, p + '/' + i95 + "/error" + "/details", b100, L0); if (b100.length) e.push(...b100);
-if (g100 === "object") {
-if (g100 === 'object') { const o100 = x100 as Record<string, unknown>;
+const b100: string[] = []; lf(x100, p + '/' + i97 + "/error" + "/next", b100, L4); if (b100.length) e.push(...b100);
+if (g100 === "array") {
+if (g100 === 'array') { const a100 = x100 as unknown[];
+for (let i100 = 0; i100 < a100.length; i100++) {
+{
+const x101 = a100[i100];
+const g101 = typeOf(x101);
+const b101: string[] = []; lf(x101, p + '/' + i97 + "/error" + "/next" + '/' + i100, b101, L0); if (b101.length) e.push(...b101);
+if (g101 === "object") {
+if (g101 === 'object') { const o101 = x101 as Record<string, unknown>;
+if (!("kind" in o101)) e.push(p + '/' + i97 + "/error" + "/next" + '/' + i100 + "/kind" + ': required');
+if (!("label" in o101)) e.push(p + '/' + i97 + "/error" + "/next" + '/' + i100 + "/label" + ': required');
+if ("kind" in o101) lf(o101["kind"], p + '/' + i97 + "/error" + "/next" + '/' + i100 + "/kind", e, L1);
+if ("label" in o101) lf(o101["label"], p + '/' + i97 + "/error" + "/next" + '/' + i100 + "/label", e, L1);
+}
+}
+}
+}
+}
+}
+}
+}
+if ("retryable" in o99) lf(o99["retryable"], p + '/' + i97 + "/error" + "/retryable", e, L3);
+if ("traceId" in o99) lf(o99["traceId"], p + '/' + i97 + "/error" + "/traceId", e, L70);
+if ("details" in o99) {
+{
+const x102 = o99["details"];
+const g102 = typeOf(x102);
+const b102: string[] = []; lf(x102, p + '/' + i97 + "/error" + "/details", b102, L0); if (b102.length) e.push(...b102);
+if (g102 === "object") {
+if (g102 === 'object') { const o102 = x102 as Record<string, unknown>;
 }
 }
 }
@@ -93,28 +93,28 @@ lf(v, p, e, L159);
 
 function d_s_8d21c45f6e(v: unknown, p: string, e: string[]): void {
 {
-const x687 = v;
-const g687 = typeOf(x687);
-const b687: string[] = []; lf(x687, p, b687, L4); if (b687.length) e.push(...b687);
-if (g687 === "array") {
-if (g687 === 'array') { const a687 = x687 as unknown[];
-for (let i687 = 0; i687 < a687.length; i687++) {
+const x689 = v;
+const g689 = typeOf(x689);
+const b689: string[] = []; lf(x689, p, b689, L4); if (b689.length) e.push(...b689);
+if (g689 === "array") {
+if (g689 === 'array') { const a689 = x689 as unknown[];
+for (let i689 = 0; i689 < a689.length; i689++) {
 {
-const x688 = a687[i687];
-const g688 = typeOf(x688);
-const b688: string[] = []; lf(x688, p + '/' + i687, b688, L0); if (b688.length) e.push(...b688);
-if (g688 === "object") {
-if (g688 === 'object') { const o688 = x688 as Record<string, unknown>;
-if (!("conflictId" in o688)) e.push(p + '/' + i687 + "/conflictId" + ': required');
-if (!("entity" in o688)) e.push(p + '/' + i687 + "/entity" + ': required');
-if (!("id" in o688)) e.push(p + '/' + i687 + "/id" + ': required');
-if (!("field" in o688)) e.push(p + '/' + i687 + "/field" + ': required');
-if (!("state" in o688)) e.push(p + '/' + i687 + "/state" + ': required');
-if ("conflictId" in o688) lf(o688["conflictId"], p + '/' + i687 + "/conflictId", e, L321);
-if ("entity" in o688) lf(o688["entity"], p + '/' + i687 + "/entity", e, L1);
-if ("id" in o688) lf(o688["id"], p + '/' + i687 + "/id", e, L1);
-if ("field" in o688) lf(o688["field"], p + '/' + i687 + "/field", e, L1);
-if ("state" in o688) lf(o688["state"], p + '/' + i687 + "/state", e, L322);
+const x690 = a689[i689];
+const g690 = typeOf(x690);
+const b690: string[] = []; lf(x690, p + '/' + i689, b690, L0); if (b690.length) e.push(...b690);
+if (g690 === "object") {
+if (g690 === 'object') { const o690 = x690 as Record<string, unknown>;
+if (!("conflictId" in o690)) e.push(p + '/' + i689 + "/conflictId" + ': required');
+if (!("entity" in o690)) e.push(p + '/' + i689 + "/entity" + ': required');
+if (!("id" in o690)) e.push(p + '/' + i689 + "/id" + ': required');
+if (!("field" in o690)) e.push(p + '/' + i689 + "/field" + ': required');
+if (!("state" in o690)) e.push(p + '/' + i689 + "/state" + ': required');
+if ("conflictId" in o690) lf(o690["conflictId"], p + '/' + i689 + "/conflictId", e, L321);
+if ("entity" in o690) lf(o690["entity"], p + '/' + i689 + "/entity", e, L1);
+if ("id" in o690) lf(o690["id"], p + '/' + i689 + "/id", e, L1);
+if ("field" in o690) lf(o690["field"], p + '/' + i689 + "/field", e, L1);
+if ("state" in o690) lf(o690["state"], p + '/' + i689 + "/state", e, L322);
 }
 }
 }
