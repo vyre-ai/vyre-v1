@@ -19,6 +19,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "gate.grants.take": async (ctx) => { throw new VyreErr(notImplemented("gate.grants.take", ctx.trace)); },
   "gate.holds.get": async (ctx) => { throw new VyreErr(notImplemented("gate.holds.get", ctx.trace)); },
   "gate.holds.list": async (ctx) => { throw new VyreErr(notImplemented("gate.holds.list", ctx.trace)); },
+  "gate.holds.revise": async (ctx) => { throw new VyreErr(notImplemented("gate.holds.revise", ctx.trace)); },
   "gate.links.known": async (ctx) => { throw new VyreErr(notImplemented("gate.links.known", ctx.trace)); },
   "gate.park": async (ctx) => { throw new VyreErr(notImplemented("gate.park", ctx.trace)); },
   "gate.release": async (ctx) => { throw new VyreErr(notImplemented("gate.release", ctx.trace)); },

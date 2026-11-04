@@ -2,7 +2,7 @@
   "module": "browser",
   "capabilities": {
     "browser.cards.post@1": "255192a95d143cc9a9f863b59a77999d6b29ec560edd184fa43c8431ff7f52f3",
-    "browser.chrome.act@1": "3a4377b55b6f31770e3cdeb1ab3f2f688b14e781973e87f88dea1237ddc0d014",
+    "browser.chrome.act@1": "e72a61f35fa96b10280a5b139afff1b1fb0bc9fa00dbadcad94f845fefab286f",
     "browser.sites.list@1": "e31fe61d4aaa49f4525b78992fe7555efdc23b1de19fec63c8cdbbf50e36103f",
     "browser.sites.remove@1": "66fca67e37aa4954f27b87d96ef14449346ed2b997bfce9e5c32f89322a5f859",
     "browser.sites.set@1": "a9f98d226af14f357339b4624e45b6ab5c07672424cad115b6c2193180a2bb13"
