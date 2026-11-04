@@ -240,7 +240,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     // the Add people and agents sheet (lane l-addsheet): the directory it reads and the calls it makes
     "threads.get": () => { const { id: _id, ...rest } = threadRow(); return { thread: rest as Thread }; },
     "access.principals.list": () => ({ principals: [
-      { id: "usr_irfad", kind: "person", name: "You", status: "active", roles: [], groups: [], createdAt: SAMPLE_NOW },
+      { id: "usr_irfad", kind: "person", name: "You", status: "active", roles: ["rol_owner"], groups: [], createdAt: SAMPLE_NOW },
       { id: "usr_maya", kind: "person", name: "Maya Chen", status: "active", roles: [], groups: [], title: "Partner", createdAt: SAMPLE_NOW },
       { id: "usr_omar", kind: "person", name: "Omar Haddad", status: "active", roles: [], groups: [], title: "Operations", createdAt: SAMPLE_NOW },
     ] }),
@@ -347,7 +347,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     },
     connection,
     threadId: thread.threadId,
-    me: { id: "usr_irfad", name: "You" },
+    me: { id: "usr_irfad", name: "Irfad Imtiaz" },
     nameOf: (id) => NAMES[id] ?? id,
     kindOf: (id) => KINDS[id] ?? "person",
     nav,

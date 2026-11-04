@@ -73,7 +73,7 @@ test("the people menu lists who is here and starts with Add people and agents, w
     assert.ok(pop);
     assert.match(textOf(pop), /^\s*Add people and agents/);
     // your own row reads "You" with your role under it, not "You / You"
-    assert.match(textOf(find(root, "people-row-usr_irfad")), /^\s*You\s+Member\s*$/);
+    assert.match(textOf(find(root, "people-row-usr_irfad")), /^\s*You\s+Owner\s*$/);
     // a person row has nothing new; an agent row has Poke and a gear
     assert.equal(find(root, "people-poke-usr_irfad"), null);
     assert.equal(find(root, "people-gear-usr_irfad"), null);
@@ -473,5 +473,17 @@ test("an outside agent in the chat never offers Answers everything in its settin
     await flush();
     await press(find(root, "people-gear-agt_docs"));
     assert.ok(find(root, "as-how-lead"));
+  });
+});
+
+test("the outside-agents note names the signed-in person in full, from data.me: Others see these as Irfad Imtiaz (Agent)", async () => {
+  await withDom(async () => {
+    const s = createSample("idle");
+    assert.equal(s.data.me.name, "Irfad Imtiaz");
+    const root = await mount(createRoot, <Conversation data={s.data} />);
+    await press(find(root, "add-agent"));
+    await flush();
+    assert.match(textOf(find(root, SHEET)), /Others see these as Irfad Imtiaz \(Agent\)/);
+    assert.ok(!/these as You \(Agent\)/.test(textOf(find(root, SHEET))));
   });
 });

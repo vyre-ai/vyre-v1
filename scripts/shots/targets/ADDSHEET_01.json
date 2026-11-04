@@ -188,6 +188,23 @@
         ]
       ],
       "after": "[data-testid='as-earlier']"
+    },
+    {
+      "id": "ADDSHEET_01-pokenote",
+      "route": "/m/ADDSHEET_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "The settings popover of an agent already in the chat: the one-line Poke explainer and the Poke button.",
+      "steps": [
+        [
+          "open"
+        ],
+        [
+          "click",
+          "[data-testid='as-gear-agt_docs']"
+        ]
+      ],
+      "after": "[data-testid='as-pop-poke-note']"
     }
   ]
 }
