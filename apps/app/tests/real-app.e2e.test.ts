@@ -103,6 +103,8 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       await desk.goto(`${web.origin}/chat?space=tauri%3A%2F%2Flocalhost`, { waitUntil: "load" });
       for (const door of ["door-me", "door-invited", "door-team"]) await desk.getByTestId(door).waitFor({ timeout: 15_000 });
       await desk.getByTestId("door-existing").click();
+      // the existing-account door asks for the Personal account first; the address is its way for a team Space
+      await desk.getByTestId("peer-address").click();
       await desk.getByTestId("space-address").waitFor({ timeout: 15_000 });
       assert.equal(await desk.getByTestId("si-user").count(), 0, "no credentials before choosing a Space");
       fs.mkdirSync("shots-evidence/connect-space", { recursive: true });
@@ -159,7 +161,6 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       await page.getByTestId("si-user").waitFor({ timeout: 15_000 });
       assert.equal(await page.getByTestId("shell").count(), 0, "no shell before sign-in");
       await page.getByRole("heading", { name: "Sign in to Fresh Co", exact: true }).waitFor({ timeout: 15_000 });
-      assert.ok((await page.getByTestId("si-user").boundingBox())!.width > 500, "the username field uses the full reading column");
       const header = await page.getByTestId("auth-form-header").boundingBox();
       const column = await page.getByTestId("step-sign-in").boundingBox();
       const primary = await page.getByTestId("next").boundingBox();
@@ -167,6 +168,8 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       assert.ok(header && column && primary && surface);
       assert.ok(header.y < column.y && primary.y > column.y, "reference header and primary surround the reading column");
       assert.ok(Math.abs(primary.width - column.width) < 2, "the primary fills the reading column");
+      // the sheet is 420 wide with a 356 column: the field spans that column bar its own padding
+      assert.ok((await page.getByTestId("si-user").boundingBox())!.width > column.width - 24, "the username field uses the full reading column");
       assert.ok(surface.height < 624, "the sign-in form sizes to its content");
       fs.mkdirSync("shots-evidence/auth-forms", { recursive: true });
       await page.screenshot({ path: "shots-evidence/auth-forms/signin-light.png" });
@@ -220,7 +223,9 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         const text = `real app check ${Date.now()}`;
         await composer.fill(text);
         await composer.press("Enter");
-        await page.getByText(text).first().waitFor({ timeout: 15_000 });
+        // the sent message is on the page (the Recent row, then the conversation it opens); innerText counts only what is drawn
+        await page.waitForFunction((t) => document.body.innerText.includes(t), text, { timeout: 15_000 });
+        await page.getByTestId("composer-field").first().waitFor({ timeout: 15_000 });
       });
     });
 
