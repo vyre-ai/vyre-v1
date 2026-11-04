@@ -194,6 +194,12 @@ export async function applyRememberedPick(ctx: EngineCtx, threadId: string, agen
   } catch { return undefined; }
 }
 
+/** What this person last picked in a chat, for Settings > Your AI: the same store a new chat starts from (any agent). Nothing when they have not picked yet. */
+export async function lastPickGet(ctx: EngineCtx): Promise<{ provider?: string; model?: string; effort?: string }> {
+  const pick = recallPick(ctx.db, actorOf(ctx), "*");
+  return pick ? { model: pick.model, ...(pick.provider ? { provider: pick.provider } : {}), ...(pick.effort ? { effort: pick.effort } : {}) } : {};
+}
+
 /** Rolling handoff: the new engine starts from the summary and the last turns (spec 4.14). The summary itself is the transcript module's. */
 const HANDOFF_TURNS = 20;
 

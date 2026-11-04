@@ -244,6 +244,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   replica.resolve("telephony.number.list", () => ({ numbers: replica.rows("numbers") as unknown as CapMap["telephony.number.list"]["out"]["numbers"] }) as CapMap["telephony.number.list"]["out"]);
   replica.resolve("engine.accounts.list", () => ({ accounts: replica.rows("accounts") as unknown as CapMap["engine.accounts.list"]["out"]["accounts"] }) as CapMap["engine.accounts.list"]["out"]);
   replica.resolve("engine.models.list", () => ({ models: replica.rows("models") as unknown as CapMap["engine.models.list"]["out"]["models"] }) as CapMap["engine.models.list"]["out"]);
+  replica.resolve("engine.last_pick.get", () => ({ provider: "openai", model: "gpt-5" }) as CapMap["engine.last_pick.get"]["out"]);
   replica.resolve("engine.defaults.get", () => { const x = replica.rows("defaults")[0] as unknown as { provider: string; model: string; fallback: { provider: string; model: string }[] }; return { provider: x.provider, model: x.model, fallback: x.fallback }; });
   replica.resolve("engine.usage.query", (_t, i) => { usageAsked.push(i as Record<string, unknown>); return { rows: replica.rows("usage") as unknown as CapMap["engine.usage.query"]["out"]["rows"], totals: { turns: 620, tokensIn: 4_600_000, tokensOut: 940_000, costMicros: 51_800_000 } } as CapMap["engine.usage.query"]["out"]; });
   replica.resolve("kits.list", () => ({ kits: replica.rows("kits") as unknown as CapMap["kits.list"]["out"]["kits"] }) as CapMap["kits.list"]["out"]);
