@@ -138,7 +138,7 @@ export interface MessageActions {
   /** The crew strip: the live read, the open peek, and what its buttons do. Without it the strip draws from the helpers' own blocks and its rows do nothing. */
   crew?: { status: CrewStatusOut | null; selected: string | null; peek(helperThreadId: string): void; stopAll(): void; openPane(): void; retry(helperThreadId: string): void };
   /** What files and links in a message need: lookups, opening beside the chat, copying. Left out in a place that cannot open them. */
-  files?: Pick<ConversationData, "call" | "nav" | "copy" | "threadId" | "changes">;
+  files?: Pick<ConversationData, "call" | "nav" | "copy" | "threadId" | "changes" | "nameOf">;
   /** The agents of this chat (for a Mount card, which shares the new folder with them) and the sheet that connects a folder. Left out where the shell has no Files. */
   mountCard?: { agents: readonly { id: string; name: string }[]; data: Pick<ConversationData, "call" | "mountSheet"> };
   /** What a Run this card needs: the capability door, a key for a new session, who asked, and how to show a session. Left out where the shell has no terminal. */
