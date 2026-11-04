@@ -19205,6 +19205,7 @@ export type HooksFireIn = {
   event: "session.start" | "prompt.submit" | "tool.before" | "tool.after" | "outward.before" | "turn.end" | "helper.start" | "helper.end";
   agentId: string;
   threadId: string;
+  asker?: string;
   turnId?: string;
   threadKind?: string;
   engine?: string;

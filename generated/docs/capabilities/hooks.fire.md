@@ -28,6 +28,7 @@ type In = {
   event: "session.start" | "prompt.submit" | "tool.before" | "tool.after" | "outward.before" | "turn.end" | "helper.start" | "helper.end";
   agentId: string;
   threadId: string;
+  asker?: string;
   turnId?: string;
   threadKind?: string;
   engine?: string;
@@ -71,6 +72,7 @@ type Out = {
   "name": "example",
   "input": {
     "agentId": "agt_a1b2c3",
+    "asker": "usr_a1b2c3",
     "cap": "example",
     "engine": "example",
     "event": "session.start",

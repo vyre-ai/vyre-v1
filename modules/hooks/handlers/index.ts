@@ -3,7 +3,7 @@
 //   actions: nothing an agent makes can loosen a Space or person hook, skip the Gate, approve a held act or reach past the agent's own reach, because a hook can only stop work, add a note or run an
 //   action through the normal pipeline as the agent. An admin can turn agent-made hooks off for the whole Space.
 import { HOOK_EVENTS, HOOK_KINDS, HOOK_SCOPES, plainLine, redact } from "../../../lib/hooks.ts";
-import { isHostService } from "../../../lib/trust.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 import type { HookFire } from "../../../lib/hooks.ts";
 import { ACTION_DENIED, fire as fireHooks } from "../eval.ts";
 import { addPass, PASS_MS, agentHooksOn, allHooks, ensure, helpersActive, hookById, link, nextSeq, parentOf, raise, setAgentHooks } from "../projections.ts";
@@ -12,13 +12,26 @@ import type { HooksCtx, Rec, Spec } from "../projections.ts";
 type Row = Record<string, unknown>;
 export const MAX_AGENT_HOOKS = 30;
 
-// The host service (lib/trust.ts isHostService) is the only caller that reads as "host" here: a tenant service is a person-level caller, never an admin.
-interface Actor { id: string; kind: "person" | "agent" | "host"; asker: string; admin: boolean }
-function actorOf(ctx: HooksCtx): Actor {
-  const kind = ctx.principal.kind === "agent" ? "agent" : isHostService(ctx.principal as never) ? "host" : "person";
-  const asker = kind === "agent" ? (ctx.actingFor ?? "") : ctx.principal.id;
-  const admin = kind === "host" || (kind === "person" && ctx.authorize?.({ perm: "policy.manage", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow");
-  return { id: ctx.principal.id, kind, asker, admin };
+interface Actor { id: string; kind: "person" | "agent" | "service"; asker: string; admin: boolean }
+/**
+ * Who is calling, and whether they may use hooks at all. Every trust decision is lib/trust.ts: a service the host runs (svc_host, svc_engine ...) is trusted, a service a tenant can make (an Automation's
+ * svc_<hex>, a form, a site) never is, and any other principal kind is refused. What a trusted service may do:
+ *   "fire"  the engine and the MCP session ask hooks.fire for the person whose turn it is (they name the asker);
+ *   "read"  it lists hooks, runs and the Space switch (the Console and the engine read what applies);
+ *   "none"  it may not set, change, remove, pause, let go by or ask about a hook: those are a person's (and, for its own, an agent's).
+ */
+function actorOf(ctx: HooksCtx, svc: "none" | "read" | "fire" = "none"): Actor {
+  const p = ctx.principal;
+  if (p.kind === "service") {
+    if (!isTrustedService(p as never)) raise(ctx, "permission.no_grant", "That service may not use hooks.");
+    if (svc === "none") raise(ctx, "permission.no_grant", "Hooks are set by people and their agents, not by a service.");
+    return { id: p.id, kind: "service", asker: "", admin: false };
+  }
+  if (p.kind !== "person" && p.kind !== "agent") raise(ctx, "permission.no_grant", "Hooks are for people and their agents.");
+  const kind = p.kind === "agent" ? "agent" : "person";
+  const asker = kind === "agent" ? (ctx.actingFor ?? "") : p.id;
+  const admin = kind === "person" && ctx.authorize?.({ perm: "policy.manage", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow";
+  return { id: p.id, kind, asker, admin };
 }
 /** The same rule mayTouch enforces, as a yes or no the screen can show (Remove, or "Only an admin can remove this"). */
 function mayChange(h: Rec, a: Actor): boolean {
@@ -132,9 +145,9 @@ function mayTouch(ctx: HooksCtx, a: Actor, h: Rec): void {
 }
 export async function remove(ctx: HooksCtx, i: { id: string; threadId?: string }): Promise<{ removed: boolean }> {
   ensure(ctx.db);
+  const a = actorOf(ctx);
   const h = hookById(ctx, i.id);
   if (!h) return { removed: false };
-  const a = actorOf(ctx);
   mayTouch(ctx, a, h);
   ctx.db.run("UPDATE hooks_hook SET removed_at = ?, updated_at = ? WHERE id = ?", ctx.now(), ctx.now(), h.id);
   await tell(ctx, a, h, "removed", i.threadId);
@@ -142,9 +155,9 @@ export async function remove(ctx: HooksCtx, i: { id: string; threadId?: string }
 }
 export async function pause(ctx: HooksCtx, i: { id: string; paused: boolean; threadId?: string }): Promise<{ hook: Row }> {
   ensure(ctx.db);
+  const a = actorOf(ctx);
   const h = hookById(ctx, i.id);
   if (!h) raise(ctx, "validation.not_found", "That hook does not exist.");
-  const a = actorOf(ctx);
   mayTouch(ctx, a, h);
   ctx.db.run("UPDATE hooks_hook SET paused = ?, updated_at = ? WHERE id = ?", i.paused ? 1 : 0, ctx.now(), h.id);
   const now = hookById(ctx, h.id)!;
@@ -154,12 +167,12 @@ export async function pause(ctx: HooksCtx, i: { id: string; paused: boolean; thr
 
 export async function list(ctx: HooksCtx, i: { scope?: string; threadId?: string; agentId?: string }): Promise<{ hooks: Row[]; agentHooks: boolean }> {
   ensure(ctx.db);
-  const a = actorOf(ctx);
+  const a = actorOf(ctx, "read");
   if (i.threadId && !(await mayUseThread(ctx, i.threadId))) raise(ctx, "permission.no_grant", "That chat is not one you can use.");
   const rows = allHooks(ctx).filter((h) => {
     if (i.scope && h.scope !== i.scope) return false;
     if (h.scope === "space") return true;
-    if (h.scope === "person") return h.personId === a.asker || a.kind === "host";
+    if (h.scope === "person") return h.personId === a.asker || a.kind === "service";
     if (h.scope === "agent") return i.agentId !== undefined ? h.agentId === i.agentId : h.agentId === a.id || h.forPerson === a.asker || h.madeBy === a.id;
     if (!i.threadId) return h.madeBy === a.id || h.forPerson === a.asker;
     return h.threadId === i.threadId || (h.scope === "run" && h.threadId !== null && parentOf(ctx, i.threadId) === h.threadId);
@@ -203,7 +216,9 @@ const RUN_OUTCOMES = ["ok", "blocked", "note", "error", "timeout", "skipped", "a
  */
 export async function runsList(ctx: HooksCtx, i: { hookId?: string; threadId?: string; limit?: number; since?: number; outcomes?: string[]; scope?: string }): Promise<{ runs: Row[] }> {
   ensure(ctx.db);
-  const a = actorOf(ctx);
+  const a = actorOf(ctx, "read");
+  // a chat named must be one the caller can use (l-hooks); with none named, each run is filtered below
+  if (a.kind !== "service" && i.threadId && !(await mayUseThread(ctx, i.threadId))) raise(ctx, "permission.no_grant", "That chat is not one you can use.");
   const outcomes = (i.outcomes ?? []).filter((o) => RUN_OUTCOMES.includes(o));
   const where = [i.hookId ? "hook_id = ?" : "", i.threadId ? "thread_id = ?" : "", i.since !== undefined ? "at >= ?" : "", i.outcomes ? `outcome IN (${outcomes.length ? outcomes.map(() => "?").join(", ") : "NULL"})` : ""].filter(Boolean);
   const args = [i.hookId, i.threadId, i.since].filter((x): x is string | number => x !== undefined);
@@ -214,10 +229,11 @@ export async function runsList(ctx: HooksCtx, i: { hookId?: string; threadId?: s
   const seen = async (r: Row): Promise<boolean> => {
     const h = hooks.get(String(r["hook_id"]));
     if (!h) return false;
+    if (a.kind === "service") return i.scope !== "space" || h.scope === "space";   // a trusted service reads any (lib/trust.ts)
     if (i.scope === "space" && h.scope !== "space") return false;
     if (h.scope === "space") return a.admin || !r["thread_id"] || (await mayUse(String(r["thread_id"])));
-    if (h.scope === "person") return h.personId === a.asker || a.kind === "host";
-    return h.madeBy === a.id || h.forPerson === a.asker || (h.madeBy === a.asker && a.kind !== "agent");
+    if (h.scope === "person") return h.personId === a.asker;
+    return mayChange(h, a) || h.madeBy === a.id || h.forPerson === a.asker || (h.madeBy === a.asker && a.kind !== "agent");
   };
   const out: Row[] = [];
   let before = Number.MAX_SAFE_INTEGER;
@@ -231,7 +247,7 @@ export async function runsList(ctx: HooksCtx, i: { hookId?: string; threadId?: s
   return { runs: out.map((r) => ({ id: r["id"], hookId: r["hook_id"], event: r["event"], threadId: r["thread_id"] ?? undefined, agentId: r["agent_id"] ?? undefined, tool: r["tool"] ?? undefined, outcome: r["outcome"], detail: r["detail"] ?? undefined, ms: r["ms"], at: r["at"] })) };
 }
 
-export function policyGet(ctx: HooksCtx): { agentHooks: boolean } { ensure(ctx.db); return { agentHooks: agentHooksOn(ctx) }; }
+export function policyGet(ctx: HooksCtx): { agentHooks: boolean } { actorOf(ctx, "read"); ensure(ctx.db); return { agentHooks: agentHooksOn(ctx) }; }
 export function policySet(ctx: HooksCtx, i: { agentHooks: boolean }): { agentHooks: boolean } {
   ensure(ctx.db);
   const a = actorOf(ctx);
@@ -244,8 +260,14 @@ export function policySet(ctx: HooksCtx, i: { agentHooks: boolean }): { agentHoo
 /** What the engine, the tool session and the CLI shim ask for. The asker is the caller; the agent and thread are the event's. */
 export async function fire(ctx: HooksCtx, i: Omit<HookFire, "asker"> & { asker?: string }): Promise<{ block: { reason: string; hookId: string; by: string; scope: string } | null; notes: string[]; ran: number }> {
   ensure(ctx.db);
-  const a = actorOf(ctx);
-  const asker = a.kind === "agent" ? a.asker : a.id;
+  const a = actorOf(ctx, "fire");
+  // a trusted service (the engine) names the person whose turn it is; a person or an agent can only ask for themselves, and only about an agent they can see
+  if (a.kind === "service") { if (!i.asker || !/^usr_/.test(i.asker)) raise(ctx, "validation.bad_input", "Name the person whose turn it is."); }
+  else {
+    if (i.asker !== undefined && i.asker !== a.asker) raise(ctx, "permission.no_grant", "You can only ask about your own turns.");
+    if (ctx.call && a.kind === "person") { try { await ctx.call("agents.get", { agentId: i.agentId }); } catch { raise(ctx, "permission.no_grant", "That agent is not one you can use."); } }
+  }
+  const asker = a.kind === "service" ? i.asker! : a.asker;
   return fireHooks(ctx, { ...i, asker });
 }
 export { link, helpersActive };
