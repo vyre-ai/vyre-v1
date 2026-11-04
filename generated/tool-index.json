@@ -573,7 +573,7 @@
     {
       "deferred": false,
       "name": "ask_question",
-      "summary": "Ask the person a structured question (single, multi or free text); the turn parks until it is answered",
+      "summary": "Ask the person a structured question (single, multi or free text); the turn parks until it is answered and makes no further model call; a question of fewer than three words, or only a test, is refused",
       "toolset": "chats"
     },
     {
@@ -862,6 +862,12 @@
       "deferred": false,
       "name": "automations_set_enabled",
       "summary": "Turn an Automation on or off",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_set_owner",
+      "summary": "Hand a Space Automation to another person as its accountable owner; the previous owner keeps Manage",
       "toolset": "automations"
     },
     {
@@ -1649,6 +1655,54 @@
       "name": "chrome_wait",
       "summary": "Wait for a load, text, selector, network idle or a time",
       "toolset": "computer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_cost_month",
+      "summary": "What CI cost this month so far (or the month given, written 2026-11), the cap, what is left, how many runs, and the cost by repository. Admin only",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_job_intake",
+      "summary": "Host only: a job is waiting (or ended) on GitHub; start or stop its machine. Called for the workflow_job events, never by a person",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_project_get",
+      "summary": "Whether a project shows the CI tab: its repository is linked and runners are on. Anyone who can see the project",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_runs_get",
+      "summary": "One run",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_runs_list",
+      "summary": "Runs, newest first, for one project or one repository (give one); each has its state, machine, times and cost. Anyone who can see the project",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_settings_get",
+      "summary": "The CI settings: whether runners are on, the cloud provider, the Vault item that holds its key (never the key), region, machine size, image, how many at once, the monthly cap, the time limit and the labels. Admin only",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_settings_set",
+      "summary": "Turn runners on or off and change their settings. Admin only, audited. Turning them on needs a key (a Vault item) and a monthly cap",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "ci_sweep",
+      "summary": "Host only: every 2 minutes, delete any machine tagged vyre-ci that is too old or has no live run, and start queued jobs that now fit",
+      "toolset": "engineer"
     },
     {
       "deferred": false,
@@ -2642,6 +2696,12 @@
     },
     {
       "deferred": false,
+      "name": "engine_last_pick_get",
+      "summary": "The model the caller last picked in a chat (any agent): a new chat starts on it. Empty when they have not picked one yet",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "engine_live_turns",
       "summary": "The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream",
       "toolset": "chats"
@@ -3597,7 +3657,7 @@
     {
       "deferred": true,
       "name": "github_pull_request_get",
-      "summary": "Read a pull request live from GitHub",
+      "summary": "Read a pull request live from GitHub. A person with a connected GitHub is read as them: their policy for reading and the repositories they reach apply, and consumer (such as linked.prs) shows in Used by",
       "toolset": "records"
     },
     {
@@ -4018,6 +4078,12 @@
       "deferred": true,
       "name": "google_gmail_create_draft",
       "summary": "Create a draft in the member mailbox",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": true,
+      "name": "google_gmail_delete_draft",
+      "summary": "Delete a draft from the member mailbox (the draft an agent made and its person decided not to send)",
       "toolset": "inbox"
     },
     {
@@ -4532,6 +4598,12 @@
     },
     {
       "deferred": false,
+      "name": "inbox_thread_conversation",
+      "summary": "The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "inbox_threads",
       "summary": "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role",
       "toolset": "inbox"
@@ -4547,6 +4619,42 @@
       "name": "inbox_unmatched",
       "summary": "The Unmatched list: senders with no record that did not raise Needs a match",
       "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "install_apply",
+      "summary": "Install what a plan says, for the person, for one agent, or for everyone in the Space (admin only). An agent asking is held at the Gate as a card with the plan; the person presses Install",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_check_update",
+      "summary": "Read an install's repository again. A newer commit gives an update plan with the diff; nothing changes until the plan is applied",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_from_link",
+      "summary": "Read a GitHub link (pinned to a commit) or an MCP server address and say what it is: a skill, a plugin, a local MCP server, a remote MCP server or a site, what it does, what it needs (network, Vault keys, files) and who can get it. Nothing is installed",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_get",
+      "summary": "One plan, as its card draws it: what it is, what it needs, the commit, who can get it, and for an update the diff",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_list",
+      "summary": "What was installed from links, by the person asking (an admin may ask for the whole Space)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_remove",
+      "summary": "Take back an install: its skill, plugin or connection is removed",
+      "toolset": "agents"
     },
     {
       "deferred": false,
@@ -6782,6 +6890,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_roles_of",
+      "summary": "The projects where one person holds a role, and which role, limited to the projects the asker can see",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_share_out",
       "summary": "Make a read-only link to the project Overview for a client; it expires in 30 days unless expiresAt or expiresInDays says otherwise",
       "toolset": "records"
@@ -7575,7 +7689,7 @@
     {
       "deferred": false,
       "name": "sessions_list",
-      "summary": "List the current owner private imported session archive in this Personal Space",
+      "summary": "List the current owner private imported session archive in this Personal Space; in any other Space the list is empty and personalOnly is true",
       "toolset": "chats"
     },
     {
@@ -7583,6 +7697,24 @@
       "name": "sessions_rename",
       "summary": "Give an imported session a new title in Vyre. Only the title shown changes: the copied transcript and its source provenance stay as they were",
       "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "settings_contact_status",
+      "summary": "Whether my email and phone are verified, whether a code is waiting, and whether this Space can send one (no phone line: no Verify)",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "settings_contact_verify_confirm",
+      "summary": "Confirm the code that was sent; the tick shows only after this",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "settings_contact_verify_start",
+      "summary": "Send a 6-digit code to my email or phone through the Space mail sender or its phone line; it lasts 10 minutes, 3 an hour",
+      "toolset": "meta"
     },
     {
       "deferred": false,
@@ -7934,6 +8066,36 @@
     },
     {
       "deferred": false,
+      "name": "skill_grant",
+      "summary": "Give an agent use, edit or manage of a skill, or take it back (level null). Use puts it in the agent's list; edit lets it save versions; manage lets it share the skill on",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_grants",
+      "summary": "Who owns a skill and which agents hold it, at what level",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_history",
+      "summary": "The versions of a skill, newest first, each with who saved it and what changed",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_save",
+      "summary": "Write a skill as its owner (the person, or an agent they own; an agent writes its own) or as an agent given edit: a new skill, or a new version of one. Every save is a version",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skill_undo",
+      "summary": "Undo the latest version of a skill; the version before it comes back as a new version, and undoing again brings the undone one back",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "skills_add",
       "summary": "Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)",
       "toolset": "agents"
@@ -7972,6 +8134,12 @@
       "deferred": false,
       "name": "skills_mine_update",
       "summary": "Fetch one of your skills again from its link or repo; whoever it is shared with approves again if it can now touch more",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_of_agents",
+      "summary": "The skills the agents a person owns keep for themselves, one row each",
       "toolset": "agents"
     },
     {
@@ -8630,6 +8798,12 @@
     },
     {
       "deferred": false,
+      "name": "tasks_agent_on_it",
+      "summary": "Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads \"<Agent> is on it for you\". Only that person, or the host, may say so",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_assign",
       "summary": "Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)",
       "toolset": "tasks"
@@ -9233,6 +9407,12 @@
       "name": "threads_update",
       "summary": "Rename a thread",
       "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "time_convert",
+      "summary": "Convert a time between time zones, or turn \"tomorrow 2pm\" into a time. Use it for any time not already in the person's zone; never work out zones, dates or epoch numbers yourself",
+      "toolset": "meta"
     },
     {
       "deferred": false,

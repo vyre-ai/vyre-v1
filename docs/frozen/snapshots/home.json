@@ -1,15 +1,15 @@
 {
   "module": "home",
   "capabilities": {
-    "home.activity@1": "982827260723f0710e28c81b8c2283708d8eeef914b45ce72f679fa89055c474",
+    "home.activity@1": "530a9d8161ecbac2035c3a509ea46c1ab076befb46134ddeadc1e20380c8cd70",
     "home.at_risk@1": "bb7b22d587f3d9416834dd74bb55338890929dee0da14db01f967f58d79f2184",
     "home.away_digest@1": "24b333a40b173d9466fe6c00bcd46f198f89ec4ed36883ba8e9bf6e79423bb84",
     "home.checklist@1": "401f110aee6bc486c17c2a57396bc629db834848de2ec5bfe55aa8d9c39b5e18",
-    "home.digest@1": "80fe9fc4a7f1804254a76a88793cfbe362440d4c9632e2c87883f49b24d0f0c8",
+    "home.digest@1": "9b389e3f67cebc9a0404da9d14bf7291d0546ce01ac9704110e839d27930132a",
     "home.dismiss_checklist@1": "3c78fc6bc2df9838199c5e73b51de192cc3965c438fbea9e7893f4ae66a7d87f",
     "home.mark_digest_seen@1": "ca86c86836967f9f364b3baccd0bc83cc28aabfc9c675043ee8fcb20d8abec72",
     "home.routines_today@1": "c3ba8d916092accd70410fdc58414994143b14c900b390af09c54eb404f04508",
-    "home.write_digest@1": "57619bce0a110bcee0af56d0c6b0795fc4aa3282e00637d35351ef5cf5c696b0"
+    "home.write_digest@1": "415a76b3c126364e13372b9efccc433df5a95ee9a57002d25e0a42e8f80daf27"
   },
   "events": {
     "checklist.dismissed": "d8758e32f620692cd36ca70bd8fce9c851135e81060b212eb1d392aa46621064",

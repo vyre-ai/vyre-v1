@@ -107,6 +107,16 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, setup: setupFir
   const [own, setOwn] = useState<TabKey>(initialTab ?? DEFAULT_TAB);
   const wanted = controlled ?? own;
   const tab: TabKey = wanted === "computer" && !showComputer ? "about" : wanted === "terminal" && !hasComputer ? "about" : wanted;
+  // Open on an install card: the Skills tab, with that skill lit
+  const [lit, setLit] = useState<string | undefined>(undefined);
+  // the Skills tab appears once the person has skills (their own, an agent's they own, or shared with them)
+  const [hasSkills, setHasSkills] = useState(false);
+  useEffect(() => onOpenSkills((name) => { setHasSkills(true); setLit(name); setOwn("skills"); onTab?.("skills"); }), [onTab]);
+  useEffect(() => {
+    let live = true;
+    void Promise.resolve(data.call("skills.page", {})).then((p) => { const pg = p as { mine?: unknown[]; shared?: unknown[] } | undefined; if (live) setHasSkills(((pg?.mine?.length ?? 0) + (pg?.shared?.length ?? 0)) > 0); }, () => undefined);
+    return () => { live = false; };
+  }, [data]);
   useKnowsRequest(data.memory?.store, (): void => { setOwn("memory"); onTab?.("memory"); });
   const [paneW, setPaneW] = useState(PANE_WIDTH_GUESS);
   const [notice, setNotice] = useState<{ text: string; undo?: () => Promise<void> | void } | null>(null);
@@ -127,7 +137,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, setup: setupFir
   // the Crew tab appears once teammates work for this chat
   const crewQ = useScreenQuery<CapMap["engine.crew.list"]["out"]>(PANE_SCREEN, "crew", { threadId: data.threadId });
   const hasCrew = crewQ.status === "ready" && crewQ.data.jobs.length > 0;
-  const tabs = useMemo(() => tabsOf(data.terminal !== undefined, hasCrew, hasComputer).filter((t) => !(noComputers && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, data.terminal, hasCrew, showComputer]);
+  const tabs = useMemo(() => tabsOf(data.terminal !== undefined, hasCrew, hasComputer, hasSkills).filter((t) => !(noComputers && t.key === "computer")).map((t) => ({ ...t, pinned: true, ...(t.key === "memory" && facts > 0 ? { title: `Knows ${facts}` } : {}) })), [facts, data.terminal, hasCrew, showComputer, hasSkills]);
   const titles = useTitleWidths();
   const paneNow = paneWidth ?? (narrow ? win.width : paneW);
   const { strip, select } = useFittedTabs(tabs, tab, paneNow, {
@@ -150,6 +160,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, setup: setupFir
       {tab === "files" ? <FilesTab deps={deps} folderId={agent?.folderId ?? ""} {...(window ? { window } : {})} /> : null}
       {tab === "terminal" && data.terminal ? <TerminalPaneTab data={data.terminal} /> : null}
       {tab === "memory" ? (data.memory ? <KnowsTab deps={deps} memory={data.memory} spaceName={data.space.name} {...(window ? { window } : {})} /> : <MemoryTab deps={deps} spaceName={data.space.name} {...(window ? { window } : {})} />) : null}
+      {tab === "skills" ? <SkillsTab deps={deps} {...(data.nameOf ? { nameOf: data.nameOf } : {})} {...(lit ? { highlight: lit } : {})} {...(data.renderShare ? { renderShare: data.renderShare } : {})} /> : null}
       {tab === "routines" ? <RoutinesTab deps={deps} {...(window ? { window } : {})} {...(openRoutine ? { initial: { routineId: openRoutine } } : {})} /> : null}
     </View>
     {notice ? <Notice text={notice.text} onClose={() => setNotice(null)} {...(notice.undo ? { onUndo: () => { const u = notice.undo; setNotice(null); void u?.(); } } : {})} /> : null}

@@ -60,6 +60,7 @@ export function stubs(ctx: CallCtx) {
         set: call("access.labels.set"),
       },
       lists: call("access.lists"),
+      make_owner: call("access.make_owner"),
       policies: {
         list: call("access.policies.list"),
         reset: call("access.policies.reset"),
@@ -256,6 +257,7 @@ export function stubs(ctx: CallCtx) {
       schedule_choose: call("automations.schedule_choose"),
       senders: call("automations.senders"),
       set_enabled: call("automations.set_enabled"),
+      set_owner: call("automations.set_owner"),
       steps: {
         list: call("automations.steps.list"),
       },
@@ -442,6 +444,7 @@ export function stubs(ctx: CallCtx) {
       post: call("chat.post"),
       question: {
         ask: call("chat.question.ask"),
+        withdraw: call("chat.question.withdraw"),
       },
       react: call("chat.react"),
       read_floor: call("chat.read_floor"),
@@ -466,6 +469,26 @@ export function stubs(ctx: CallCtx) {
         summary: call("chat.transcript.summary"),
       },
       unpin: call("chat.unpin"),
+    },
+    ci: {
+      cost: {
+        month: call("ci.cost.month"),
+      },
+      job: {
+        intake: call("ci.job.intake"),
+      },
+      project: {
+        get: call("ci.project.get"),
+      },
+      runs: {
+        get: call("ci.runs.get"),
+        list: call("ci.runs.list"),
+      },
+      settings: {
+        get: call("ci.settings.get"),
+        set: call("ci.settings.set"),
+      },
+      sweep: call("ci.sweep"),
     },
     comms: {
       senders: {
@@ -580,6 +603,7 @@ export function stubs(ctx: CallCtx) {
       delete: call("connections.delete"),
       get: call("connections.get"),
       list: call("connections.list"),
+      mark_working: call("connections.mark_working"),
       pause: call("connections.pause"),
       reconnect: call("connections.reconnect"),
       resume: call("connections.resume"),
@@ -797,6 +821,9 @@ export function stubs(ctx: CallCtx) {
         list: call("engine.incidents.list"),
       },
       interrupt: call("engine.interrupt"),
+      last_pick: {
+        get: call("engine.last_pick.get"),
+      },
       lease: {
         acquire: call("engine.lease.acquire"),
         heartbeat: call("engine.lease.heartbeat"),
@@ -868,6 +895,7 @@ export function stubs(ctx: CallCtx) {
         set: call("engine.subscription_share.set"),
       },
       switch: call("engine.switch"),
+      time_convert: call("engine.time_convert"),
       turn: {
         append: call("engine.turn.append"),
         enqueue: call("engine.turn.enqueue"),
@@ -1080,6 +1108,9 @@ export function stubs(ctx: CallCtx) {
       sync: call("git.sync"),
     },
     github: {
+      actions: {
+        secrets: call("github.actions.secrets"),
+      },
       app: {
         complete: call("github.app.complete"),
         create_manifest: call("github.app.create_manifest"),
@@ -1100,6 +1131,19 @@ export function stubs(ctx: CallCtx) {
         create: call("github.issue.create"),
         get: call("github.issue.get"),
         update: call("github.issue.update"),
+      },
+      me: {
+        approve: call("github.me.approve"),
+        complete: call("github.me.complete"),
+        connect: call("github.me.connect"),
+        disconnect: call("github.me.disconnect"),
+        policy: {
+          get: call("github.me.policy.get"),
+          set: call("github.me.policy.set"),
+        },
+        reach: call("github.me.reach"),
+        status: call("github.me.status"),
+        usage: call("github.me.usage"),
       },
       pull_request: {
         ask_author_fix: call("github.pull_request.ask_author_fix"),
@@ -1122,6 +1166,12 @@ export function stubs(ctx: CallCtx) {
       repos: {
         list: call("github.repos.list"),
       },
+      runners: {
+        jit_config: call("github.runners.jit_config"),
+        remove: call("github.runners.remove"),
+      },
+      session_env: call("github.session_env"),
+      token: call("github.token"),
     },
     goals: {
       activity: call("goals.activity"),
@@ -1216,6 +1266,7 @@ export function stubs(ctx: CallCtx) {
       },
       gmail: {
         create_draft: call("google.gmail.create_draft"),
+        delete_draft: call("google.gmail.delete_draft"),
         get_attachment: call("google.gmail.get_attachment"),
         get_message: call("google.gmail.get_message"),
         get_profile: call("google.gmail.get_profile"),
@@ -1386,9 +1437,18 @@ export function stubs(ctx: CallCtx) {
       recipients_search: call("inbox.recipients_search"),
       send_options: call("inbox.send_options"),
       thread: call("inbox.thread"),
+      thread_conversation: call("inbox.thread_conversation"),
       threads: call("inbox.threads"),
       unmatch: call("inbox.unmatch"),
       unmatched: call("inbox.unmatched"),
+    },
+    install: {
+      apply: call("install.apply"),
+      check_update: call("install.check_update"),
+      from_link: call("install.from_link"),
+      get: call("install.get"),
+      list: call("install.list"),
+      remove: call("install.remove"),
     },
     invites: {
       accept_create_account: call("invites.accept_create_account"),
@@ -1927,6 +1987,7 @@ export function stubs(ctx: CallCtx) {
       pin: call("notes.pin"),
       restore: call("notes.restore"),
       search: call("notes.search"),
+      set_owner: call("notes.set_owner"),
       share: call("notes.share"),
       to_record: call("notes.to_record"),
       to_task: call("notes.to_task"),
@@ -2069,6 +2130,7 @@ export function stubs(ctx: CallCtx) {
       plan: call("projects.plan"),
       post_update: call("projects.post_update"),
       reschedule: call("projects.reschedule"),
+      roles_of: call("projects.roles_of"),
       share_out: call("projects.share_out"),
       shared_view: call("projects.shared_view"),
       stages: {
@@ -2304,6 +2366,11 @@ export function stubs(ctx: CallCtx) {
       rename: call("sessions.rename"),
     },
     settings: {
+      contact: {
+        status: call("settings.contact.status"),
+        verify_confirm: call("settings.contact.verify_confirm"),
+        verify_start: call("settings.contact.verify_start"),
+      },
       copy_profile: call("settings.copy_profile"),
       copy_source: call("settings.copy_source"),
       floor_set: call("settings.floor_set"),
@@ -2375,6 +2442,9 @@ export function stubs(ctx: CallCtx) {
     },
     skills: {
       add: call("skills.add"),
+      grant: call("skills.grant"),
+      grants: call("skills.grants"),
+      history: call("skills.history"),
       list: call("skills.list"),
       load: call("skills.load"),
       members: call("skills.members"),
@@ -2384,12 +2454,14 @@ export function stubs(ctx: CallCtx) {
         set: call("skills.mine.set"),
         update: call("skills.mine.update"),
       },
+      of_agents: call("skills.of_agents"),
       page: call("skills.page"),
       policy: {
         set: call("skills.policy.set"),
       },
       preview: call("skills.preview"),
       remove: call("skills.remove"),
+      save: call("skills.save"),
       set_enabled: call("skills.set_enabled"),
       share: call("skills.share"),
       shared: {
@@ -2401,6 +2473,7 @@ export function stubs(ctx: CallCtx) {
         setup: call("skills.space.setup"),
         update: call("skills.space.update"),
       },
+      undo: call("skills.undo"),
       view: call("skills.view"),
     },
     source_rules: {
@@ -2579,6 +2652,7 @@ export function stubs(ctx: CallCtx) {
     },
     tasks: {
       act: call("tasks.act"),
+      agent_on_it: call("tasks.agent_on_it"),
       ask: call("tasks.ask"),
       assign: call("tasks.assign"),
       block: call("tasks.block"),

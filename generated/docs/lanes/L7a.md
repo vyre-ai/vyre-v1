@@ -6,7 +6,7 @@ Generated from the manifests. The lead completes it by hand (spec sections, reus
 
 ### access
 
-Capabilities to implement: 73. Events to emit: 20. Contract tests that must go green: `generated/tests/access/`.
+Capabilities to implement: 74. Events to emit: 21. Contract tests that must go green: `generated/tests/access/`.
 
 Capabilities:
 - access.actors.create (write, access.manage, level view)
@@ -43,6 +43,7 @@ Capabilities:
 - access.labels.list (read, grant only, level view)
 - access.labels.set (write, policy.manage, level view)
 - access.lists (read, grant only, level view)
+- access.make_owner (write, grant only, level view, gate transfer)
 - access.policies.list (read, policy.manage, level view)
 - access.policies.reset (write, policy.manage, level view)
 - access.policies.set (write, policy.manage, level view)
@@ -91,6 +92,7 @@ Events:
 - access.exception_set
 - access.granted
 - access.requested
+- access.shared_with
 - access_review.closed
 - access_review.opened
 - folder.shared
@@ -298,9 +300,12 @@ Events:
 
 ### settings
 
-Capabilities to implement: 15. Events to emit: 2. Contract tests that must go green: `generated/tests/settings/`.
+Capabilities to implement: 18. Events to emit: 6. Contract tests that must go green: `generated/tests/settings/`.
 
 Capabilities:
+- settings.contact.status (read, grant only, level view)
+- settings.contact.verify_confirm (write, grant only, level view)
+- settings.contact.verify_start (write, grant only, level view)
 - settings.copy_profile (write, grant only, level view)
 - settings.copy_source (read, grant only, level view)
 - settings.floor_set (write, policy.manage, level view)
@@ -319,6 +324,10 @@ Capabilities:
 
 Events:
 - settings.changed
+- settings.contact_code_failed
+- settings.contact_code_sent
+- settings.contact_unverified
+- settings.contact_verified
 - settings.floor_changed
 
 ### spaces

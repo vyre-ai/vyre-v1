@@ -158,6 +158,7 @@ import type { GithubOAuth } from "../seams/people.ts";
 import { createSpaceAdmin } from "../seams/spaceadmin.ts";
 import { preAuthSession } from "./preauth.ts";
 import { createFiller } from "../seams/filler.ts";
+import { cloneTokens } from "../seams/plugins.ts";
 import { createProviderProbe, createVaultService, refuseModelAddress, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, defaultFetch, wireSeams } from "../seams/index.ts";
@@ -416,7 +417,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const gitCredentials = new Map<string, string>();
   // a GitHub token for a CLI engine's process is delivered once into this slot and read back at once by the engine (modules/engine/github-session.ts); it is never kept
   const processEnv = new Map<string, string>();
-  const filler = o.seams?.filler ?? createFiller({ git_credential: (ref, value) => { gitCredentials.set(ref, value); }, process_env: (ref, value) => { processEnv.set(ref, value); } }, now);
+  const filler = o.seams?.filler ?? createFiller({ git_credential: (ref, value) => { gitCredentials.set(ref, value); }, process_env: (ref, value) => { processEnv.set(ref, value); }, git_clone: (ref, value) => { cloneTokens.set(ref, value); } }, now);
   const githubFill = (handle: string): string | null => {
     const ref = `pe_${Math.random().toString(36).slice(2)}${now()}`;
     if (!filler.fill(handle, { kind: "process_env", ref }, now())) return null;

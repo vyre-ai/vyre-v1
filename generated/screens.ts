@@ -7649,7 +7649,8 @@ export const screens: ScreenIndexEntry[] = [
         "input": {
           "by": "/state/by",
           "from": "/state/from",
-          "to": "/state/to"
+          "to": "/state/to",
+          "personId": "/state/personId"
         },
         "live": true
       }

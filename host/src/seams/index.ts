@@ -140,7 +140,7 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.free
   setZoomHost: (d: SeamDriverDeps) => createZoomHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs }),
   setDropboxHost: (d: SeamDriverDeps) => createDropboxHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
   setTalkHost: (d: SeamDriverDeps) => createTalkHost({ vault: d.vault, fetch: d.fetch }),
-  setPluginsHost: (d: SeamDriverDeps) => createPluginsHost({ fetch: d.fetch }),
+  setPluginsHost: (d: SeamDriverDeps) => createPluginsHost({ fetch: d.fetch, ...(d.filler ? { fillToken: (h: string) => d.filler!.fill(h, { kind: "git_clone", ref: h }, Date.now()) } : {}) }),
   setGithubHost: (d: SeamDriverDeps) => createGithubHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, filler: d.filler, publicUrl: d.publicUrl, hostCall: d.hostCall, defaultApp: d.defaultGithubApp, tickets: d.githubTickets }),
 });
 

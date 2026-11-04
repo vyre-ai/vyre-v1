@@ -49,7 +49,7 @@
     "vault.policy.set@1": "45d8dd08805be280607e3858ef00f3fe60e374948a2921ec605f376ac45aed01",
     "vault.report_scrub_miss@1": "bdfac814cb23ef7c3bcd05bc5731d42e8f8affdb6f4a9f2dfa15eb18eb202cff",
     "vault.service_health@1": "e4138c8967d5adcbb1447450297544761bad1461baf1867a90f3f02731290f07",
-    "vault.share@1": "fb79b2724c24134484e26f068087b8eb9242eef044eec490f35be5ee4e597b19",
+    "vault.share@1": "5a67dc38d4f7b86d92a27f087d9ba51eede8afc87ba8bc989852e440682bceea",
     "vault.site_rules.list@1": "f277e775c5ec401b50797aed11872b0b68d39a98af20fe109bcc450b2af71ab7",
     "vault.site_rules.set@1": "4ac67994838ecc540521d39000feb0c8c6d5925770f3991632ee5eafef40323a",
     "vault.text_check@1": "6addf0404e6bfcc56297520b0f195639716f5acce35b5be905da7bfa73c82685",
