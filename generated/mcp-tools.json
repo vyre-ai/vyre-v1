@@ -168,6 +168,32 @@
     },
     {
       "blocks": [],
+      "cap": "access.agents_can_call.get",
+      "deferred": false,
+      "description": "Whether other agents may hand work to this agent (On unless a person turned it Off); engine and chat check it before one agent calls another",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "access_agents_can_call_get",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "access.audience_set",
       "deferred": false,
       "description": "Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record's Files folder can follow its record",
@@ -3293,6 +3319,51 @@
       },
       "name": "agents_pause",
       "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.pause_person",
+      "deferred": false,
+      "description": "Pause every agent of one person, or let them run again. Audited, and the person is told. Answers how many changed, never which",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "paused": {
+            "type": "boolean"
+          },
+          "personId": {
+            "examples": [
+              "usr_a1b2c3"
+            ],
+            "pattern": "^usr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "personId",
+          "paused"
+        ],
+        "type": "object"
+      },
+      "name": "agents_pause_person",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "agents.people_summary",
+      "deferred": false,
+      "description": "For each person whose agents you cannot see (their Assistant, the agents they keep private): how many, what they spent this month against their cap, and whether they are paused. Never names or content",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "agents_people_summary",
+      "planMode": "allowed",
       "toolset": "agents",
       "v": 1
     },
@@ -18717,6 +18788,21 @@
     },
     {
       "blocks": [],
+      "cap": "engine.turns.running",
+      "deferred": false,
+      "description": "Engine only: the turns running now with the machine each runs on (agent, asker, start, place; no message or title), for the Machines page",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "engine_turns_running",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "engine.usage.get",
       "deferred": false,
       "description": "For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated",
@@ -32721,6 +32807,269 @@
     },
     {
       "blocks": [],
+      "cap": "machines.alerts",
+      "deferred": false,
+      "description": "What needs a look: disk under 10% free, memory pressure, a machine offline with pinned work, an update waiting, a failed backup. Each says what to do",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "machines_alerts",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.alerts_notify",
+      "deferred": false,
+      "description": "Host only: send each new machine alert to the Inbox once while it lasts, and tell the placement caches when a machine ran out of room or has room again",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "machines_alerts_notify",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.fix",
+      "deferred": false,
+      "description": "Press a Doctor Fix on a machine: clear old caches, stop idle engine sessions, or restart a service. The host runs it; an admin for the Space server and servers, the owner for their own computer. Audited",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fix": {
+            "enum": [
+              "clear_caches",
+              "stop_idle",
+              "restart_service"
+            ],
+            "type": "string"
+          },
+          "machineId": {
+            "type": "string"
+          },
+          "service": {
+            "pattern": "^[a-z][a-z0-9_.-]{0,40}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "machineId",
+          "fix"
+        ],
+        "type": "object"
+      },
+      "name": "machines_fix",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.get",
+      "deferred": false,
+      "description": "One machine with its series for 1 hour (60 one-minute points), 24 hours (144 ten-minute), 7 days (168 hourly) and 30 days (180 four-hourly), its alerts and, for the Space server, the doctor's findings. A gap is a bucket with only its time",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "machineId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "machineId"
+        ],
+        "type": "object"
+      },
+      "name": "machines_get",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.list",
+      "deferred": false,
+      "description": "Every machine you may see with its load, what Vyre runs on it, what it can run and its room left; agent computers nested under their host. An admin sees all, a member their own; on a member's computer an admin sees only name, online, capacity and Vyre's own work",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "machines_list",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.move_record",
+      "deferred": false,
+      "description": "Engine only: keep the line of a turn that Automatic moved off a machine with no room",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "type": "string"
+          },
+          "asker": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "threadId": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "turnId": {
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "why"
+        ],
+        "type": "object"
+      },
+      "name": "machines_move_record",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.moves",
+      "deferred": false,
+      "description": "Recent moves, Space-wide: each turn Automatic sent to another machine because the first in the order had no room, newest first. A member sees their own",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "name": "machines_moves",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.rooms",
+      "deferred": false,
+      "description": "Room left on the machines you name (ids as machines.list gives them): the number placement skips a busy machine by, and the plain words for why (\"4 of 4 turns\"). Only machines you may see; used by engine.placement.decide",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 64,
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "type": "object"
+      },
+      "name": "machines_rooms",
+      "planMode": "allowed",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "machines.set",
+      "deferred": false,
+      "description": "Name a machine, set the most turns or agent computers it takes at once, drain it (no new work, what runs finishes) or pin an agent to it. A server is an admin's (and its owner's); a person's own computer is theirs, and an admin may only drain it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "drain": {
+            "type": "boolean"
+          },
+          "machineId": {
+            "type": "string"
+          },
+          "maxAgentComputers": {
+            "maximum": 32,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxTurns": {
+            "maximum": 64,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "nickname": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pinAgent": {
+            "properties": {
+              "agentId": {
+                "examples": [
+                  "agt_a1b2c3"
+                ],
+                "pattern": "^agt_[a-z0-9]+$",
+                "type": "string"
+              },
+              "pinned": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "agentId",
+              "pinned"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "machineId"
+        ],
+        "type": "object"
+      },
+      "name": "machines_set",
+      "planMode": "blocked",
+      "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.attachment.save",
       "deferred": false,
       "description": "Save an attachment into Files",
@@ -42386,7 +42735,8 @@
               "task.turn",
               "task.returned",
               "task.finished",
-              "task.due"
+              "task.due",
+              "machine.alert"
             ],
             "type": "string"
           },
@@ -42850,7 +43200,8 @@
               "task.turn",
               "task.returned",
               "task.finished",
-              "task.due"
+              "task.due",
+              "machine.alert"
             ],
             "type": "string"
           },
@@ -44604,6 +44955,32 @@
     },
     {
       "blocks": [],
+      "cap": "projects.archive",
+      "deferred": false,
+      "description": "Archive a project: it leaves the lists and stays readable, with its record, channel, folder and plan. A manager of the project",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_archive",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "projects.cascade",
       "deferred": false,
       "description": "Propose the cascade after something slips: which later tasks move and which dates still hold (an agent may call this too)",
@@ -44962,6 +45339,10 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "archived": {
+            "description": "true lists the archived projects instead of the others",
+            "type": "boolean"
+          },
           "cursor": {
             "type": "string"
           },
@@ -45556,6 +45937,32 @@
       },
       "name": "projects_templates_list",
       "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.unarchive",
+      "deferred": false,
+      "description": "Bring an archived project back to the lists",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_unarchive",
+      "planMode": "blocked",
       "toolset": "records",
       "v": 1
     },
@@ -48356,6 +48763,36 @@
         "type": "object"
       },
       "name": "runs_list",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "runs.people_counts",
+      "deferred": false,
+      "description": "How many Runs each person's own agents have, counted and never listed: an admin sees the number, not the work",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "statuses": {
+            "items": {
+              "enum": [
+                "queued",
+                "running",
+                "waiting",
+                "succeeded",
+                "failed",
+                "stopped"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "name": "runs_people_counts",
       "planMode": "allowed",
       "toolset": "automations",
       "v": 1
@@ -51489,6 +51926,32 @@
         "type": "object"
       },
       "name": "sites_build",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.chat_viewing",
+      "deferred": false,
+      "description": "The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_chat_viewing",
       "planMode": "blocked",
       "toolset": "sites",
       "v": 1

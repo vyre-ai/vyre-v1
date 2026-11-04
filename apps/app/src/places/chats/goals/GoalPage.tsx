@@ -8,7 +8,9 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimen
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { States } from "../../../../../../ui/src/States/index.tsx";
-import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { askedCall, goalMenuEntries } from "./goal-menu.ts";
+import { TextAsk } from "../menus/TextAsk.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Conversation } from "../conversation/Conversation.tsx";
@@ -50,6 +52,7 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
   const [paneOpen, setPaneOpen] = useState(pane && !phone && width >= 980);
   const [line, setLine] = useState("");
   const menu = useMenu();
+  const [asking, setAsking] = useState<"stuck" | "report" | null>(null);
   const data = state.status === "ready" ? state.data : null;
   const g = data?.goal;
   const run = useCallback(async (cap: string, input: Record<string, unknown>, done?: string): Promise<boolean> => {
@@ -66,7 +69,7 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
   const now = clock().now, offsetMin = clock().offsetMin;
   const showPane = (t: PaneTab): void => { setTab(t); setPaneOpen(true); };
   const head = (
-    <View testID="goal-page-head" style={[st.col, phone && st.colPhone]}>
+    <View testID="goal-page-head" style={[st.col, phone && st.colPhone]} {...menuTrigger((x, y) => menu.show(goalMenuEntries(g, me, { run, ask: setAsking }), x, y, "context", { label: g.title }))}>
       <Head g={g} me={me} nameOf={nameOf} now={now} offsetMin={offsetMin} run={run} menu={menu} showPane={showPane} openAgent={openAgent} fill={fill} phone={phone} />
       {line ? <Text testID="goal-line" accessibilityLiveRegion="polite" style={st.line}>{line}</Text> : null}
       <Notice data={data} now={now} offsetMin={offsetMin} run={run} fill={fill} menu={menu} />
@@ -87,6 +90,7 @@ export function GoalPage({ goalId, call, changes, me, nameOf, clock, conversatio
         </SidePane>
       ) : null}
       {menu.element}
+      {asking ? <TextAsk title={asking === "stuck" ? "Why is this goal stuck?" : "Report progress"} label={asking === "stuck" ? "What is in the way" : "What changed and what is next"} action={asking === "stuck" ? "Mark stuck" : "Report"} multiline onClose={() => setAsking(null)} onDone={(text) => { const c = askedCall(asking, text); setAsking(null); void run(c.cap, c.input, c.done); }} /> : null}
     </View>
   );
 }

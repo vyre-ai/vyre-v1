@@ -4,6 +4,7 @@
 //   engine.warm              agent/src/pool warmHint through the opener: start the engine ahead of the first message; answers at once.
 import { placeTurn } from "../../../agent/src/placement/index.ts";
 import type { PlaceDevice, PlaceInput, PlaceServer } from "../../../agent/src/placement/index.ts";
+import { BUSY_BELOW } from "../../../lib/room-left.ts";
 import { relayOf } from "../relay.ts";
 import { usingIn } from "../node-turns.ts";
 import type { ResolvedAccount, SessionSpec, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
@@ -58,6 +59,21 @@ export async function serversOf(ctx: CallCtx): Promise<Array<PlaceServer & { sta
   try { list = ((await ctx.call("network.my_computers", {})) as { computers?: MyServer[] }).computers ?? []; } catch { return []; }
   const relay = relayOf();
   return list.filter((x) => x.enrollment === "approved").map((x) => ({ serverId: x.serverId, name: x.name, state: x.state, online: x.state !== "down" && (relay ? relay.connected(x.serverId) : true), engines: CLI_ENGINES }));
+}
+
+/** The words under "Ran on" for a machine with no room: "it was busy, 4 of 4 turns running", "it is draining", "it is offline". */
+export const busyText = (why: string): string => (why === "offline" ? "it is offline" : why === "draining" ? "it is draining" : /turns$/.test(why) ? `it was busy, ${why} running` : `it was busy, ${why}`);
+
+/**
+ * Which of the asker's machines have no room now (the Machines module's room left, under the busy line), by machine id (a computer is device:<id>, a server its id, the Space server "space"), and the machine
+ * the agent is pinned to, if it is one of these. Best effort: no Machines module or no answer, and every machine has room.
+ */
+export async function busyOf(ctx: CallCtx, ids: readonly string[], agentId?: string): Promise<{ byId: Map<string, string>; pinnedTo?: string }> {
+  const byId = new Map<string, string>();
+  let out: { pinnedTo?: string; rooms?: Array<{ machineId: string; score: number; why: string }> } = {};
+  try { out = (await ctx.call("machines.rooms", { ids: [...ids], ...(agentId ? { agentId } : {}) })) as typeof out; } catch { return { byId }; }
+  for (const m of out.rooms ?? []) if (m.score < BUSY_BELOW) byId.set(m.machineId, busyText(m.why));
+  return { byId, ...(out.pinnedTo ? { pinnedTo: out.pinnedTo } : {}) };
 }
 
 /** Whether this is a Team Space (default) and whether its own server may run members' turns (engine.space_runs, default on). */
@@ -117,16 +133,25 @@ export async function placementDecide(ctx: CallCtx, input: { threadId: string; a
   // the Space menu's "Chats run on": off means new chats run on the Space instead of this computer (engine.local_runs)
   let localRuns = true;
   try { localRuns = ((await ctx.call("settings.get", { key: "engine.local_runs" })) as { row?: { value?: unknown } }).row?.value !== false; } catch { /* the default stands */ }
+  const myDevices = personalDevices(space.team, devicesFrom(d, ctx.now(), asker));
+  const busy = await busyOf(ctx, [...myDevices.map((x) => `device:${x.id}`), ...servers.map((x) => x.serverId), "space"], input.agentId);
+  const withBusy = <T extends { busy?: boolean; busyWhy?: string }>(x: T, why: string | undefined): T => (why === undefined ? x : { ...x, busy: true, busyWhy: why });
+  // the machine this agent is pinned to, if it is one of this person's own or the Space's server
+  const pinId = busy.pinnedTo;
+  const agentPin: PlaceInput["asker"]["agentPin"] | undefined = pinId === undefined ? undefined
+    : pinId === "space" ? (space.team && space.shared ? { kind: "space", id: "space", name: "the Space server" } : undefined)
+    : pinId.startsWith("device:") ? ((x) => (x ? { kind: "device" as const, id: x.id, name: x.name ?? "your computer" } : undefined))(myDevices.find((y) => `device:${y.id}` === pinId))
+    : ((x) => (x ? { kind: "server" as const, id: x.serverId, name: x.name } : undefined))(servers.find((y) => y.serverId === pinId));
   const place: PlaceInput = {
     thread: { kind, persons, onSharedRecord: kind === "ask" && t.thread.scopeType === "record" && persons > 1, ...(isCrewJob(ctx, input.threadId) ? { crew: true } : {}) },
     item: { kind: input.kind === "message" ? "message" : input.kind },
     agent: { hasComputer: a.agent.hasComputer === true },
     engine: engineOf(ctx, input.threadId, input.agentId),
-    asker: { devices: personalDevices(space.team, devicesFrom(d, ctx.now(), asker)), ...(current ? { current } : {}), servers, localRuns, runtimeOptIn: flagOn(ctx, asker, "runtime_opt_in"), ...(chosen ? { chosen } : {}) },
-    space: space.team ? { shared: space.shared } : { shared: false, hostIsAsker: true },
+    asker: { devices: myDevices.map((x) => withBusy(x, busy.byId.get(`device:${x.id}`))), ...(current ? { current } : {}), servers: servers.map((x) => withBusy(x, busy.byId.get(x.serverId))), localRuns, runtimeOptIn: flagOn(ctx, asker, "runtime_opt_in"), ...(agentPin ? { agentPin } : {}), ...(chosen ? { chosen } : {}) },
+    space: space.team ? { shared: space.shared, ...(busy.byId.has("space") ? { busy: true, busyWhy: busy.byId.get("space")! } : {}) } : { shared: false, hostIsAsker: true },
   };
   const p = placeTurn(place);
-  return { placement: p.placement, reason: p.reason, ...(p.wakeLine ? { wakeLine: p.wakeLine } : {}), ...(p.nodeId ? { nodeId: p.nodeId } : {}), ...(p.deviceId ? { deviceId: p.deviceId } : {}) };
+  return { placement: p.placement, reason: p.reason, ...(p.wakeLine ? { wakeLine: p.wakeLine } : {}), ...(p.nodeId ? { nodeId: p.nodeId } : {}), ...(p.deviceId ? { deviceId: p.deviceId } : {}), ...(p.moved ? { moved: p.moved } : {}) };
 }
 
 export function poolStatus(ctx: EngineCtx, _input: Record<string, never>) {

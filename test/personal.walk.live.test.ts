@@ -97,8 +97,7 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       const done = await api("providers.subscription_complete", { flowId: flow.data.flowId });
       assert.equal(done.status, 200, `subscription_complete ${JSON.stringify(done.data).slice(0, 200)}`);
       await go("chat", "chats-place");
-      const newChat = page.getByText("New chat", { exact: true }).first();
-      await newChat.click({ timeout: 15_000 });
+      // a Space with no chats lands on "What are we working on?" with the composer open: the new chat starts with the first message
       const composer = page.getByTestId("composer-field").or(page.locator('[data-testid="composer"] textarea')).or(page.locator('[data-testid="composer"] [contenteditable="true"]')).first();
       await composer.waitFor({ timeout: 15_000 });
       const text = `hello from the walk ${Date.now()}`;
@@ -126,6 +125,8 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await step(`Vault: add ${kind} to Mine`, async () => {
         await go("vault", "vault-place");
         await page.getByTestId("add-item").click({ timeout: 20_000 });
+        // the + asks first what is being added; a key, login or card is the last of the four
+        await page.getByTestId("row-add-choose-other").click({ timeout: 10_000 });
         await page.getByTestId("add-sheet").waitFor({ timeout: 15_000 });
         await fill(page);
         const nameField = page.getByTestId("add-name");

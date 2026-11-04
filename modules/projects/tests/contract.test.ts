@@ -11,8 +11,8 @@ import { mkChain, mkProject, run } from "../fixtures/seed.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "projects");
 
-test("the handler table covers exactly the 28 capabilities of the projects manifest", () => {
-  assert.equal(mine.length, 28);
+test("the handler table covers exactly the 30 capabilities of the projects manifest", () => {
+  assert.equal(mine.length, 30);
   assert.deepEqual(Object.keys(handlers).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof handlers[c.name], "function", c.name);
 });
@@ -52,6 +52,9 @@ const scenarios: Scenario[] = [
   { cap: "projects.members.set", run: (hn) => run(hn, "projects.members.set", { projectId: NONE, principal: MAYA, role: "member" }), expect: "validation.not_found" },
   { cap: "projects.members.remove", setup: async (hn) => { const p = await mkProject(hn); await run(hn, "projects.members.set", { projectId: p.projectId, principal: BOT, role: "member" }); hn.clear(); return p; }, run: (hn, p) => run(hn, "projects.members.remove", { projectId: p.projectId, principal: BOT }) },
   { cap: "projects.members.remove", run: (hn) => run(hn, "projects.members.remove", { projectId: NONE, principal: MAYA }), expect: "validation.not_found" },
+  { cap: "projects.archive", setup: async (hn) => mkProject(hn), run: (hn, p) => run(hn, "projects.archive", { projectId: (p as { projectId: string }).projectId }) },
+  { cap: "projects.archive", run: (hn) => run(hn, "projects.archive", { projectId: NONE }), expect: "validation.not_found" },
+  { cap: "projects.unarchive", setup: async (hn) => { const p = await mkProject(hn); await run(hn, "projects.archive", { projectId: p.projectId }); hn.clear(); return p; }, run: (hn, p) => run(hn, "projects.unarchive", { projectId: (p as { projectId: string }).projectId }) },
   { cap: "projects.teammates.list", setup: withProject, run: (hn, p) => run(hn, "projects.teammates.list", { projectId: p.projectId }) },
   { cap: "projects.teammates.list", run: (hn) => run(hn, "projects.teammates.list", { projectId: NONE }), expect: "validation.not_found" },
   { cap: "projects.teammates.create", setup: withProject, run: (hn, p) => run(hn, "projects.teammates.create", { projectId: p.projectId, name: "Security reviewer", role: "reviewer", brief: "Reviews drafts for safety." }) },

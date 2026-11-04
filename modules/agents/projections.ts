@@ -1107,7 +1107,9 @@ export function canSee(ctx: AgentsCtx, a: AgentRec): boolean {
   // an outside agent runs on its owner's machine on its owner's access: it is theirs alone, like the assistant. A share does not change who may use it, and an admin's All in the Space does not list it:
   // owners and admins answer for it in Console (mcp.connected.list with all), where they can take its setup grant back or remove it, never chat as it
   if (isPrivateAgent(a)) return a.ownerId === askerOf(ctx) || (a.runtime === "outside" && isHostService(ctx.principal));
-  return a.ownerId === askerOf(ctx) || allows(ctx, null, "view", "agent", a.id) || seesAll(ctx);
+  // a person's own agents that nobody shared with the asker are theirs: an admin's All in the Space does not reach them (owner ruling 4 Nov). What an admin sees of them is the summary per person
+  // (agents.people_summary): how many, what they spent against the cap, and Pause all. Space agents are the ones shared with the asker, and the admin's own.
+  return a.ownerId === askerOf(ctx) || allows(ctx, null, "view", "agent", a.id);
 }
 /** An agent only its person sees, uses and opens: their private assistant, and an outside agent they connected through /mcp. What it did in a shared place stays visible, attributed to it and its person. */
 export const isPrivateAgent = (a: Pick<AgentRec, "kind" | "runtime">): boolean => isAssistant(a) || a.runtime === "outside";

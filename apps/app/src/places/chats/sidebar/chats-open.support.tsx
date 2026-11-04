@@ -34,7 +34,8 @@ export async function drawn(make: () => { render(el: ReactElement): void; contai
   installDom();
   const s = createSampleSidebar(northwind, o.imported ? { imported: o.imported } : {});
   const news: string[] = [];
-  const data = { ...s.data, ...(o.people ? { people: o.people } : {}), nav: { ...s.data.nav, openImported: (id: string) => void s.opened.push(`imported:${id}`), openNew: () => void news.push("new"), ...(o.artifacts ? { openArtifacts: () => void s.opened.push("artifacts") } : {}) } };
+  // imported coding sessions exist only in a Personal Space (a Team Space refuses the read), so a draw with them is one, on the same clock and rows
+  const data = { ...s.data, ...(o.imported ? { space: { ...s.data.space, personal: true } } : {}), ...(o.people ? { people: o.people } : {}), nav: { ...s.data.nav, openImported: (id: string) => void s.opened.push(`imported:${id}`), openNew: () => void news.push("new"), ...(o.artifacts ? { openArtifacts: () => void s.opened.push("artifacts") } : {}) } };
   const r = make();
   const el = (open: string | null): ReactElement => <ChatsSidebar data={data} window={{ start: 0, end: 500 }} open={open} />;
   await act(async () => { r.render(el(o.open ?? null)); });

@@ -9,6 +9,7 @@
 // @reads ../migrations/0001_sites_core.sql
 // @reads ../migrations/0003_routes.sql
 
+import { isViewing, noteViewing } from "./viewing.ts";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { touchActivity } from "../projections.ts";
@@ -459,20 +460,37 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: 
   const fresh = mustSite(ctx, id);
   const url = urlOf(fresh);
   ctx.emit("site.published", `site/${id}`, { siteId: id, ...(url ? { url } : {}), access: "private" });
-  await announce(ctx, id, title);
-  // nothing opens a tab for the person yet: the card in the chat has Open. The result says so, and an agent says only what a result confirms
-  return { artifactId: id, ...(url ? { url } : {}), updated, opened: false };
+  // The asker's app opens it in a tab only when it said this chat is open for them (sites.chat_viewing); the card in the chat is posted either way. `opened` is true only when the card went out
+  // marked for them, so the app that has the chat open opens the tab. Anything less and the agent says it is published and the card has Open.
+  const asker = askerOf(ctx);
+  const openFor = asker !== null && ctx.thread && isViewing(asker, ctx.thread, ctx.now()) ? asker : undefined;
+  const posted = await announce(ctx, id, title, openFor);
+  return { artifactId: id, ...(url ? { url } : {}), updated, opened: openFor !== undefined && posted };
 }
 
 /** A card in the chat the work was asked in. Nothing to say it in is not a failure of the publish. */
-async function announce(ctx: Ctx, id: string, title: string): Promise<void> {
-  if (!ctx.thread) return;
+async function announce(ctx: Ctx, id: string, title: string, openFor?: string): Promise<boolean> {
+  if (!ctx.thread) return false;
   try {
-    await ctx.call("chat.post", { threadId: ctx.thread, body: "", mentions: [], blocks: [{ type: "artifact", v: 1, data: { artifactId: id, title } }], idempotencyKey: `artifact:${id}:${ctx.now()}` });
+    await ctx.call("chat.post", { threadId: ctx.thread, body: "", mentions: [], blocks: [{ type: "artifact", v: 1, data: { artifactId: id, title, ...(openFor ? { openFor } : {}) } }], idempotencyKey: `artifact:${id}:${ctx.now()}` });
+    return true;
   } catch (e) {
     if (!(e instanceof VyreErr)) throw e;
     ctx.log.warn("sites: the artifact card was not posted", { code: e.error.code });
+    return false;
   }
+}
+
+/** The person whose turn this publish is in, when an agent is publishing for them in a chat. Nobody asked when a person publishes it themselves. */
+function askerOf(ctx: Ctx): string | null {
+  return ctx.principal.kind === "agent" && ctx.actingFor && ctx.thread ? ctx.actingFor : null;
+}
+
+/** The app says this chat is open for the caller. Presence only, kept in memory a minute and a quarter. */
+function chatViewing(ctx: Ctx, input: unknown): { ok: boolean } {
+  const threadId = reqStr(ctx, rec(ctx, input), "threadId");
+  if (ctx.principal.kind === "person") noteViewing(ctx.principal.id, threadId, ctx.now());
+  return { ok: true };
 }
 
 const hashHex = async (text: string): Promise<string> => Array.from(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))), (b) => b.toString(16).padStart(2, "0")).join("");
@@ -585,4 +603,5 @@ export const routeHandlers = {
   "sites.logs": (ctx: Ctx, input: unknown) => sitesLogs(ctx, input),
   "sites.artifact_publish": (ctx: Ctx, input: unknown) => artifactPublish(ctx, input),
   "sites.artifact_open": (ctx: Ctx, input: unknown) => artifactOpen(ctx, input),
+  "sites.chat_viewing": (ctx: Ctx, input: unknown) => chatViewing(ctx, input),
 };

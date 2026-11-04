@@ -15,6 +15,7 @@ const projectRow = t.obj({
   projectId: id.project, recordId: id.record, type: id.recordType, title: t.str(), summary: t.opt(t.str()),
   status: t.str({ examples: ['active'] }), lead: t.opt(principal), start: t.opt(t.ts()), due: t.opt(t.ts()),
   channelId: id.channel, folderId: id.folder, memberCount: t.int({ minimum: 0 }), openTasks: t.int({ minimum: 0 }), lateTasks: t.int({ minimum: 0 }),
+  archivedAt: t.opt(t.ts({ description: 'Set when the project is archived: it is left out of the lists and still opens' })),
 });
 
 const member = t.obj({ principal, role, kind: t.enm('person', 'agent', 'group'), since: t.ts() });
@@ -102,6 +103,8 @@ export default defineManifest({
     ev('project.cascade_applied', 'A cascade proposal was applied', { p: { projectId: id.project, proposalId, moved: t.int() }, subject: ['project', '/projectId'] }),
     ev('project.dates_kept', 'A cascade proposal was declined and dates were kept', { p: { projectId: id.project, proposalId }, subject: ['project', '/projectId'] }),
     ev('project.update_posted', 'A status update was posted to the project channel', { p: { projectId: id.project, by: t.str(), drafted: t.bool() }, subject: ['project', '/projectId'] }),
+    ev('project.archived', 'A project was archived: it left the lists and stays readable', { p: { projectId: id.project, by: t.str() }, subject: ['project', '/projectId'], retention: 'audit' }),
+    ev('project.unarchived', 'An archived project was brought back to the lists', { p: { projectId: id.project, by: t.str() }, subject: ['project', '/projectId'], retention: 'audit' }),
     ev('project.file_pinned', 'A file was pinned to the Overview', { p: { projectId: id.project, fileId: id.file }, subject: ['project', '/projectId'] }),
     ev('project.file_unpinned', 'A pinned file was removed from the Overview', { p: { projectId: id.project, fileId: id.file }, subject: ['project', '/projectId'] }),
     ev('project.chat_filed', 'A private chat was filed under a project (it stays private)', { p: { projectId: id.project, threadId: id.thread }, subject: ['project', '/projectId'] }),
@@ -126,7 +129,7 @@ export default defineManifest({
     }),
     read('projects.get', 'Read one project: record fields, channel, folder and counts', { in: { projectId: id.project }, out: { project: projectRow }, on: ['project', '/projectId'], tool: 'records', label: 'check' }),
     read('projects.list', 'List the projects the caller is in (Agents, Projects and Journeys show only those you are in)', {
-      in: { type: t.opt(id.recordType), mine: t.opt(t.bool()), status: t.opt(t.str()), ...pageIn }, out: { projects: t.arr(projectRow), ...pageOut }, tool: 'records', label: 'filter',
+      in: { type: t.opt(id.recordType), mine: t.opt(t.bool()), status: t.opt(t.str()), archived: t.opt(t.bool({ description: 'true lists the archived projects instead of the others' })), ...pageIn }, out: { projects: t.arr(projectRow), ...pageOut }, tool: 'records', label: 'filter',
     }),
     read('projects.overview', 'The Overview: brief and goal, status with its update, next three milestones, what is late or waiting, recent decisions, people, linked records, pinned files, recent threads', {
       in: { projectId: id.project },
@@ -197,6 +200,12 @@ export default defineManifest({
     write('projects.post_update', 'Post the status update (by the lead, or drafted weekly by an agent) to the project channel and keep it on the Overview', {
       in: { projectId: id.project, text: t.str(), status: t.opt(t.str()) }, out: { postedAt: t.ts() },
       on: ['project', '/projectId'], emits: ['project.update_posted', 'record.updated'], tool: 'records',
+    }),
+    write('projects.archive', 'Archive a project: it leaves the lists and stays readable, with its record, channel, folder and plan. A manager of the project', {
+      in: { projectId: id.project }, out: { archived: t.bool(), changed: t.bool() }, on: ['project', '/projectId'], level: 'manage', audit: 'always', emits: ['project.archived'], tool: 'records', errors: ['validation.not_found', 'permission.no_grant'],
+    }),
+    write('projects.unarchive', 'Bring an archived project back to the lists', {
+      in: { projectId: id.project }, out: { archived: t.bool(), changed: t.bool() }, on: ['project', '/projectId'], level: 'manage', audit: 'always', emits: ['project.unarchived'], tool: 'records', errors: ['validation.not_found', 'permission.no_grant'],
     }),
     write('projects.pin_file', 'Pin a file to the Overview', { in: { projectId: id.project, fileId: id.file }, out: { ok: t.bool() }, on: ['project', '/projectId'], emits: ['project.file_pinned', 'record.updated'], tool: 'records' }),
     write('projects.unpin_file', 'Unpin a file from the Overview', { in: { projectId: id.project, fileId: id.file }, out: { ok: t.bool() }, on: ['project', '/projectId'], emits: ['project.file_unpinned', 'record.updated'], tool: 'records' }),

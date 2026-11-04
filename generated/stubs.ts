@@ -20,6 +20,10 @@ export function stubs(ctx: CallCtx) {
         set_engineer_mcp: call("access.actors.set_engineer_mcp"),
         update: call("access.actors.update"),
       },
+      agents_can_call: {
+        get: call("access.agents_can_call.get"),
+        set: call("access.agents_can_call.set"),
+      },
       audience_set: call("access.audience_set"),
       automation_senders: call("access.automation_senders"),
       check: call("access.check"),
@@ -136,6 +140,8 @@ export function stubs(ctx: CallCtx) {
         usable: call("agents.outside.usable"),
       },
       pause: call("agents.pause"),
+      pause_person: call("agents.pause_person"),
+      people_summary: call("agents.people_summary"),
       restore: call("agents.restore"),
       restore_version: call("agents.restore_version"),
       resume: call("agents.resume"),
@@ -875,6 +881,7 @@ export function stubs(ctx: CallCtx) {
       },
       turns: {
         list: call("engine.turns.list"),
+        running: call("engine.turns.running"),
       },
       usage: {
         get: call("engine.usage.get"),
@@ -1432,6 +1439,17 @@ export function stubs(ctx: CallCtx) {
       spans: call("logs.spans"),
       tail: call("logs.tail"),
       trace: call("logs.trace"),
+    },
+    machines: {
+      alerts: call("machines.alerts"),
+      alerts_notify: call("machines.alerts_notify"),
+      fix: call("machines.fix"),
+      get: call("machines.get"),
+      list: call("machines.list"),
+      move_record: call("machines.move_record"),
+      moves: call("machines.moves"),
+      rooms: call("machines.rooms"),
+      set: call("machines.set"),
     },
     mail: {
       attachment: {
@@ -2016,6 +2034,7 @@ export function stubs(ctx: CallCtx) {
     },
     projects: {
       apply_cascade: call("projects.apply_cascade"),
+      archive: call("projects.archive"),
       cascade: call("projects.cascade"),
       create: call("projects.create"),
       file_chat: call("projects.file_chat"),
@@ -2048,6 +2067,7 @@ export function stubs(ctx: CallCtx) {
       templates: {
         list: call("projects.templates.list"),
       },
+      unarchive: call("projects.unarchive"),
       unlink_tasks: call("projects.unlink_tasks"),
       unpin_file: call("projects.unpin_file"),
       unshare_out: call("projects.unshare_out"),
@@ -2165,6 +2185,7 @@ export function stubs(ctx: CallCtx) {
       get: call("runs.get"),
       list: call("runs.list"),
       mark_waiting: call("runs.mark_waiting"),
+      people_counts: call("runs.people_counts"),
       pin_version: call("runs.pin_version"),
       preview_undo: call("runs.preview_undo"),
       purge: call("runs.purge"),
@@ -2301,6 +2322,7 @@ export function stubs(ctx: CallCtx) {
       artifact_open: call("sites.artifact_open"),
       artifact_publish: call("sites.artifact_publish"),
       build: call("sites.build"),
+      chat_viewing: call("sites.chat_viewing"),
       create: call("sites.create"),
       db_import: call("sites.db_import"),
       delete: call("sites.delete"),

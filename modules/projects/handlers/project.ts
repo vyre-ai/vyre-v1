@@ -5,7 +5,7 @@
 // DECISION: a read-only link is a token the host serves at /share/project/<token>; it lives in projects_share until it expires or is revoked.
 import {
   LEVEL_OF, addFiled, addLink, addPin, allProjects, allows, buildStages, call, clean, codeOf, dropMember, dropPin, emitP, ensure, isMember, keyed, kindOfPrincipal, linksOf, loadTasks,
-  me, membersOf, memberOf, newId, page, pinsOf, planTask, plansOf, projectBy, projectByChannel, projectRow, raise, readRecord, remember, replaceStages, saveMember, savePlan, saveProject, saveUpdate,
+  archivedIds, clearArchived, setArchived, me, membersOf, memberOf, newId, page, pinsOf, planTask, plansOf, projectBy, projectByChannel, projectRow, raise, readRecord, remember, replaceStages, saveMember, savePlan, saveProject, saveUpdate,
   stagesOf, tolerant, updateOf, visible, writeRecord,
 } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
@@ -334,10 +334,13 @@ export async function list(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const who = me(ctx);
   const mine = input.mine === true;
+  // an archived project leaves the lists (it stays readable by its id); `archived: true` lists those instead
+  const gone = archivedIds(ctx.db);
   // a project is listed only when projects.get would open it: the same test, so an id that list gives always resolves (a member row without the grant behind it is not a project the caller can see)
   const rows = allProjects(ctx.db).filter((p) =>
     (input.type === undefined || p.type === input.type)
     && allows(ctx, "view", p.projectId)
+    && (input.archived === true ? gone.has(p.projectId) : !gone.has(p.projectId))
     && (mine ? isMember(ctx.db, p.projectId, who) || p.createdBy === who : true));
   // a status lives on the record, so a status filter reads the records first; without one only the page is read
   const out = async (ps: Project[]) => Promise.all(ps.map(async (p) => projectRow(ctx, p, await readRecord(ctx, p), await tasksOrNone(ctx, p))));
@@ -403,6 +406,22 @@ export async function postUpdate(ctx: ProjectsCtx, input: In): Promise<unknown> 
   }
   emitP(ctx, "project.update_posted", p.projectId, { by: me(ctx), drafted });
   return { postedAt: at };
+}
+
+/** Archive or unarchive: a manager's call, audited. The project, its record, channel, folder and plan stay where they are and stay readable; it only leaves the lists. */
+export async function archive(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const p = visible(ctx, input.projectId, "manage");
+  const changed = setArchived(ctx.db, p.projectId, ctx.now(), ctx.principal.id);
+  if (changed) emitP(ctx, "project.archived", p.projectId, { by: ctx.principal.id });
+  return { archived: true, changed };
+}
+export async function unarchive(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const p = visible(ctx, input.projectId, "manage");
+  const changed = clearArchived(ctx.db, p.projectId);
+  if (changed) emitP(ctx, "project.unarchived", p.projectId, { by: ctx.principal.id });
+  return { archived: false, changed };
 }
 
 export async function pinFile(ctx: ProjectsCtx, input: In): Promise<unknown> {

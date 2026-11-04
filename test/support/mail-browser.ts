@@ -6,7 +6,7 @@ import path from "node:path";
 import { createCapCaller } from "../../client/src/gateway/index.ts";
 import { edge } from "../../apps/app/tests/real-app-harness.test.ts";
 import type { Edge } from "../../apps/app/tests/real-app-harness.test.ts";
-import { bootMailWorld } from "./mail-world.ts";
+import { PASSWORD, bootMailWorld } from "./mail-world.ts";
 import type { MailWorld, Person, WorldOptions } from "./mail-world.ts";
 
 export const SIZES = { desktop: { width: 1280, height: 800 }, phone: { width: 390, height: 844 } } as const;
@@ -92,7 +92,15 @@ export async function seat(s: Screens, who: Person, role: string): Promise<Seat>
 
 export async function open(seatOf: Seat, s: Screens, route: string): Promise<void> {
   await seatOf.page.goto(`${s.web.origin}${route}`, { waitUntil: "load" });
-  await seatOf.page.getByTestId("shell").or(seatOf.page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30_000 });
+  // The app asks for the password at launch while nobody holds the person's key (owner, 4 Nov): the person types it, as they would
+  const lock = seatOf.page.getByTestId("lock-password");
+  if (await lock.waitFor({ timeout: 6_000 }).then(() => true, () => false)) { await lock.fill(PASSWORD); await lock.press("Enter"); }
+  try { await seatOf.page.getByTestId("shell").or(seatOf.page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30_000 }); }
+  catch (e) {
+    // say what is on the screen instead: the picture and the refused calls are the evidence
+    await seatOf.page.screenshot({ path: "shots-evidence/open-failed.png" }).catch(() => undefined);
+    throw new Error(`${route}: the shell did not appear. Page says: ${(await seatOf.page.locator("body").innerText().catch(() => "")).slice(0, 300).replace(/\s+/g, " ")} | refused: ${seatOf.logs.slice(-6).join("; ")} | ${(e as Error).message.split("\n")[0]}`);
+  }
   const onboarding = seatOf.page.getByTestId("onboarding");
   if (await onboarding.waitFor({ timeout: 4_000 }).then(() => true, () => false)) {
     // a person leaves onboarding with Finish later; when this Space's screen has no such button the picture says what is there instead

@@ -1,4 +1,5 @@
 // @reads /modules/projects/migrations/0001_projects.sql
+// @reads /modules/projects/migrations/0002_archive.sql
 // Projects: rows, ports to the modules a project works through, and the plan arithmetic (spec 3.4, 2.12; ARCH 7.4).
 // A project is a record of the `project` type (or a type cloned from it): its fields live in records. This module keeps what only the project knows (channel, folder, roles, stages, the start of a
 // task, dependency arrows, cascade proposals, the status update, pins). Tasks are owned by module tasks and are read through tasks.list; the due date is the task's own.
@@ -58,15 +59,15 @@ export const isPerson = (ctx: Pick<ProjectsCtx, "principal" | "actingFor">): boo
 
 // ---- schema ----
 
-const SCHEMA = readFileSync(new URL("./migrations/0001_projects.sql", import.meta.url), "utf8")
+const SCHEMA = ["0001_projects.sql", "0002_archive.sql"].flatMap((file) => readFileSync(new URL(`./migrations/${file}`, import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
-  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+  .split(";").map((s) => s.trim()).filter((s) => s.length > 0));
 const ready = new WeakSet<object>();
 
 /** Make sure the projects tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key FROM projects_key WHERE key = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT key FROM projects_key WHERE key = ?", "probe"); db.all("SELECT projectId FROM projects_archived WHERE projectId = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 
@@ -301,6 +302,17 @@ export function pinsOf(db: Db, projectId: string): string[] {
   return (db.all("SELECT fileId FROM projects_pin WHERE projectId = ? ORDER BY at ASC, fileId ASC", projectId) as Row[]).map((r) => str(r["fileId"]));
 }
 export function addPin(db: Db, projectId: string, fileId: string, at: number): boolean { return db.run("INSERT OR IGNORE INTO projects_pin (projectId, fileId, at) VALUES (?, ?, ?)", projectId, fileId, at).changes > 0; }
+/** When a project was archived, or undefined when it is not. */
+export function archivedAt(db: Db, projectId: string): number | undefined {
+  const r = (db.all("SELECT archivedAt FROM projects_archived WHERE projectId = ?", projectId) as Row[])[0];
+  return r === undefined ? undefined : num(r["archivedAt"]);
+}
+export function setArchived(db: Db, projectId: string, at: number, by: string): boolean {
+  return db.run("INSERT OR IGNORE INTO projects_archived (projectId, archivedAt, archivedBy) VALUES (?, ?, ?)", projectId, at, by).changes > 0;
+}
+export function clearArchived(db: Db, projectId: string): boolean { return db.run("DELETE FROM projects_archived WHERE projectId = ?", projectId).changes > 0; }
+export function archivedIds(db: Db): Set<string> { return new Set((db.all("SELECT projectId FROM projects_archived") as Row[]).map((r) => str(r["projectId"]))); }
+
 export function dropPin(db: Db, projectId: string, fileId: string): boolean { return db.run("DELETE FROM projects_pin WHERE projectId = ? AND fileId = ?", projectId, fileId).changes > 0; }
 export function addFiled(db: Db, projectId: string, threadId: string, at: number): boolean { return db.run("INSERT OR IGNORE INTO projects_filed (projectId, threadId, at) VALUES (?, ?, ?)", projectId, threadId, at).changes > 0; }
 
@@ -374,6 +386,8 @@ export async function writeRecord(ctx: ProjectsCtx, p: Project, patch: Record<st
 }
 
 export interface ProjectRowOut {
+  /** Set when the project is archived. */
+  archivedAt?: number;
   projectId: string; recordId: string; type: string; title: string; summary?: string; status: string; lead?: string; start?: number; due?: number;
   channelId: string; folderId: string; memberCount: number; openTasks: number; lateTasks: number;
 }
@@ -388,6 +402,7 @@ export function projectRow(ctx: ProjectsCtx, p: Project, fields: Record<string, 
     status: fstr(fields["status"]) ?? "planning", lead: fstr(fields["lead"]), start: fnum(fields["start"]), due: fnum(fields["due"]),
     channelId: p.channelId ?? "", folderId: p.folderId ?? "", memberCount: countMembers(ctx.db, p.projectId), openTasks: open.length,
     lateTasks: open.filter((t) => t.due !== undefined && t.due < now).length,
+    ...(archivedAt(ctx.db, p.projectId) !== undefined ? { archivedAt: archivedAt(ctx.db, p.projectId) } : {}),
   }) as ProjectRowOut;
 }
 
