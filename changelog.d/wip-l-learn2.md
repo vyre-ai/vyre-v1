@@ -80,3 +80,4 @@
 - An approval nobody answered for 7 days now reads "Not sent, it waited 7 days" in Needs you, under Withdrawn, with only Dismiss left.
 - The Personal claim live test now expects the route it opened on (/chat), not /home.
 - Live browser tests follow today's product: the invite error sits behind "Use another account" for a device already in the Space, Back on the join sheet is "back", Apps forms are opened from the Forms group first, the record Ask pane is the record chat, a short piece of work opens from the summary beside the name, the onboarding screen closes from its x on a phone, and sign-out waits for the server to revoke the key.
+- A direct message always carries the person's name in the sidebar, as it does on its tab.
