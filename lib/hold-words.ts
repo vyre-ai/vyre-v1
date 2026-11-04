@@ -72,3 +72,28 @@ export function holdTitle(cap: string, input: unknown, actTitle?: string): strin
   const w = known ?? (cap === "" ? "do a step" : capPhrase(cap));
   return w.charAt(0).toUpperCase() + w.slice(1);
 }
+
+/** The names a held act can say instead of ids: a person by the id or handle the call carries, and the file by its id. Filled by whoever builds the hold; anything missing reads in a plain word. */
+export interface HoldNames { people?: Record<string, string>; file?: string }
+
+const listNames = (xs: string[]): string => (xs.length <= 2 ? xs.join(" and ") : `${xs.slice(0, 2).join(", ")} and ${xs.length - 2} more`);
+
+/** What a held act is after "<agent> wants to": from the real input, who and what. "message Noah Berg", "email aliza@example.com", "text +14155550123", "share Q4 pricing.docx with a link for someone outside the Space". */
+export function holdShort(cap: string, input: unknown, n: HoldNames = {}): string {
+  const o = outwardOf(cap, input);
+  if (o) {
+    const people = n.people ?? {};
+    const who = o.to.map((r) => (r.kind === "person" ? people[r.id ?? ""] ?? r.name ?? "a teammate" : r.kind === "thread" ? "this chat" : r.kind === "phone" ? r.address ?? "" : r.name ?? r.address ?? "")).filter((x) => x !== "");
+    if (o.channel === "message") return `message ${who[0] ?? "a teammate"}`;
+    if (o.channel === "email") return who.length > 0 ? `email ${listNames(who)}` : "send an email";
+    if (o.channel === "text") return who.length > 0 ? `text ${listNames(who)}` : "send a text";
+    if (o.channel === "post") return who[0] === "this chat" || who.length === 0 ? "post in this chat" : `post in ${who[0]}`;
+    return "add a calendar event";
+  }
+  if (cap === "files.share_external") return `share ${n.file ?? "a file"} with a link for someone outside the Space`;
+  const w = wantsFromInput(cap, obj(input)) ?? HOLD_PHRASES[cap] ?? WANTS[cap] ?? (cap === "" ? "do a step" : capPhrase(cap));
+  return w;
+}
+
+/** The one sentence every surface says for a held act an agent asked for: the card, the footer under the ask, the top bar and the task. No "Approve:" in front. */
+export const holdSentence = (agent: string, cap: string, input: unknown, n: HoldNames = {}): string => `${agent} wants to ${holdShort(cap, input, n)}`;

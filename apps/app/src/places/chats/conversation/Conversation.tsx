@@ -60,7 +60,7 @@ import { FaceButton, Glyph, IconButton, RenameField, TextButton } from "./parts.
 import { CONTINUE_TEXT, DEFAULT_AGENT_HOPS, limitOf, parkedAtLimit, parkedLine } from "./hops.ts";
 import { addedAgentMentions, askPost, pickerAgents, unansweredOwn } from "./askagent.ts";
 import { MemorySwitch } from "./memory-switch.tsx";
-import { SWITCH_TITLE, hasSwitch, repliesOf } from "../thread-replies/model.ts";
+import { SWITCH_NOTE, SWITCH_TITLE, hasSwitch, repliesOf } from "../thread-replies/model.ts";
 import { useReplySwitch } from "../thread-replies/ThreadSwitch.tsx";
 import type { AgentMeta } from "./askagent.ts";
 import { useMobileBack } from "../../../mobile/shell/back.ts";
@@ -391,7 +391,7 @@ function ConversationView(): ReactElement {
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
   const folded = groupHelperStrips(foldHelperRows(timelineMessages));
   const woven = data.activity ? weave(folded, data.activity.events).filter((m) => keepItem(m, data.activity!.show)) : folded;
-  const items = timeline(woven, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock(), shared: thread.members.filter((p) => p.kind === "person").length >= 2 });
+  const items = timeline(woven, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock(), shared: thread.members.filter((p) => p.kind === "person").length >= 2 }).filter((it) => !(thread.kind === "thread" && it.kind === "day"));   // a thread has no day dividers: its root row and "N replies" lead
   const lastLive = [...timelineMessages].reverse().find((m) => data.streamOf(m.messageId) !== undefined);
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
@@ -451,7 +451,7 @@ function ConversationView(): ReactElement {
   const moreMenu = (x: number, y: number): void => {
     const items: MenuEntry[] = [
       { label: "Plan Mode", checked: mode === "plan", onSelect: () => chooseChatMode(mode === "plan" ? "ask" : "plan") },
-      ...(hasSwitch(thread) && repliesSwitch.on !== null ? [{ label: SWITCH_TITLE, checked: repliesSwitch.on, onSelect: () => repliesSwitch.set(!repliesSwitch.on) } as MenuEntry] : []),
+      ...(hasSwitch(thread) && repliesSwitch.on !== null ? [{ label: SWITCH_TITLE, checked: repliesSwitch.on, ...(repliesSwitch.on ? { hint: SWITCH_NOTE } : {}), onSelect: () => repliesSwitch.set(!repliesSwitch.on) } as MenuEntry] : []),
       ...(lead ? [{ label: `Open ${nameOf(lead.agentId)}'s Page`, onSelect: () => data.nav.openAgent(lead.agentId) } as MenuEntry] : []),
       ...connectEntries(thread, data.nav),
       { separator: true } as MenuEntry,
@@ -678,7 +678,7 @@ function ConversationView(): ReactElement {
       ) : null}
       <CatchUpLine onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} credit={(id) => { const m = all.find((x) => x.author.id === id && onBehalfOf(x)); const ob = m ? onBehalfOf(m) : null; return ob ? `${nameOf(ob.person)} (Agent)` : undefined; }} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
-      {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} onOpen={thread.parentThreadId && thread.parentMessageId ? () => data.nav.openThread(thread.parentThreadId!, thread.parentMessageId!) : undefined} /> : null}
+      {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} kindOf={data.kindOf} clock={data.clock()} count={thread.replyCount ?? all.length} onOpen={thread.parentThreadId && thread.parentMessageId ? () => data.nav.openThread(thread.parentThreadId!, thread.parentMessageId!) : undefined} /> : null}
 
       {liveView ? null : (
         <View testID="viewing-earlier" accessibilityRole="alert" style={st.earlierBar}>
@@ -701,7 +701,7 @@ function ConversationView(): ReactElement {
               const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;
               const sending = it.kind === "me" ? pendingState.get(it.message.messageId) : undefined;
               const under = it.kind === "me" || it.kind === "other" ? replies.get(it.message.messageId) : undefined;
-              return <MessageView key={key} item={it} actions={actions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
+              return <MessageView key={key} item={it} actions={actions} meId={data.me.id} stream={stream} sending={sending} mark={markOf(it, matches, activeId, finding)} replies={under ? { s: under, clock: data.clock() } : undefined} />;
             })}
             {data.tail ?? null}
           </View>
@@ -828,9 +828,11 @@ function ScrollToMessage({ id }: { id: string }): null {
   return null;
 }
 
-const markOf = (it: { kind: string; message?: { messageId: string } }, matches: readonly string[], active: string | undefined): "match" | "active" | undefined => {
+const markOf = (it: { kind: string; message?: { messageId: string } }, matches: readonly string[], active: string | undefined, finding = true): "match" | "active" | "selected" | undefined => {
   const id = it.message?.messageId;
   if (id === undefined || !matches.includes(id)) return undefined;
+  // not a find: the message a thread, a link or a result went back to, in the app's subtle selected tint
+  if (!finding) return "selected";
   return id === active ? "active" : "match";
 };
 
@@ -847,7 +849,7 @@ function OlderPage({ before, onPage }: { before: number; onPage: (page: Messages
 
 const st = StyleSheet.create({
   /** "Also post to the chat" sits above a thread's composer, as the prototype draws it, so the composer's own bar keeps its room in a narrow pane. */
-  alsoRow: { paddingLeft: 28, paddingRight: 20, marginBottom: -6 },
+  alsoRow: { marginLeft: -4, marginBottom: 8 },
   outsideOffline: { paddingHorizontal: 16, paddingBottom: 6, fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string, textAlign: "center" },
   root: { flex: 1, minHeight: 0, backgroundColor: "var(--win)" as string },
   head: { minHeight: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 20, paddingRight: 10 },

@@ -171,7 +171,7 @@ export interface MessageViewProps {
   /** Opens the work fold of this message from the start (a live one always shows its steps). */
   openWork?: boolean;
   /** Find in chat: this message matches, or is the match the person is on. */
-  mark?: "match" | "active" | undefined;
+  mark?: "match" | "active" | "selected" | undefined;
   /** The thread under this message, when anyone has replied in it: the line that opens it. */
   replies?: { s: ReplySummary; clock: Clock } | undefined;
 }
@@ -360,7 +360,7 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
     if (body !== "" && body !== m.body) actions.edit(m.messageId, body);
   };
   return (
-    <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message"))} style={[st.me, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
+    <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message"))} style={[st.me, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
       {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, true, actions, startEdit)} onClose={() => setSheet(false)} /> : <HoverBar m={m} mine a={actions} onEdit={startEdit} visible={h.over || h.focus} />}
       <Text style={st.when}>{item.time}</Text>
       {editing ? (
@@ -452,7 +452,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   // an agent's reply: hovering its face or name shows how it was made (model, account, asker, where, cost, tokens, time)
   const withCard = (kids: ReactElement): ReactElement => (!person && actions.details && !stream && !h.phone && !isSystemLine(m) ? <ReplyHover messageId={m.messageId} details={actions.details}>{kids}</ReplyHover> : kids);
   return (
-    <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive]}>
+    <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
       {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : <HoverBar byAgent={!person} m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />}
       {item.newgroup ? (
         <View style={st.by}>
@@ -740,6 +740,7 @@ export const st = StyleSheet.create({
   // the mark sits outside the message (marks.ts), so nothing touches its edge
   found: MARK.found as object,
   foundActive: MARK.foundActive as object,
+  selected: MARK.selected as object,
   me: { alignItems: "flex-end", paddingVertical: 2, marginTop: 4, position: "relative" },
   when: { position: "absolute", left: 0, top: 10, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },
   whenLeft: { position: "absolute", left: -44, top: 4, fontSize: 11, color: "var(--ink-4)" as string, opacity: 0 },

@@ -156,7 +156,7 @@ try {
   // an approval asked in a thread: one quiet line in the chat that opens the thread, the card in the thread
   await api("usr_mia", "threads.set_agent_replies", { threadId: main, inThreads: true });
   const ask3 = (await api("usr_mia", "chat.post", { threadId: main, body: "Please loop in Noah about the Thursday call.", mentions: [{ kind: "agent", id: agentId }], idempotencyKey: "w-ask3" })).message;
-  const held = await until(async () => ((await api("usr_olivia", "gate.holds.list", { states: ["held"] })).holds ?? []).length > 0, "a held approval", 90000);
+  const held = await until(async () => ((await api("usr_mia", "gate.holds.list", { states: ["held"] })).holds ?? []).length > 0, "a held approval", 90000);
   const quiet = await until(async () => (await list("usr_mia", main)).some((m: any) => (m.blocks ?? []).some((b: any) => b.type === "turn_status" && /needs your OK/.test(JSON.stringify(b.data)))), "the quiet line in the chat", 60000);
   checks.push(`approval: held = ${held}, quiet line in the chat = ${quiet}, thread made under the ask = ${((await api("usr_mia", "threads.list", { parentThreadId: main })).threads ?? []).some((t: any) => t.parentMessageId === ask3.messageId)}`);
   for (const mode of ["light", "dark"] as const) {

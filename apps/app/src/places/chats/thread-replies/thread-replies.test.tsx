@@ -8,6 +8,10 @@ import { createRoot } from "test-renderer";
 import { installDom, mount, press, find, flush, textOf } from "../../../onboarding/test-dom.ts";
 import type { Node } from "../../../onboarding/test-dom.ts";
 import { ThreadSide } from "../mounts/ThreadSide.tsx";
+import { Pressable, Text } from "react-native";
+import { CONVERSATION_SCREEN } from "../conversation/Conversation.tsx";
+import { ConversationDataProvider, useScreenQuery } from "../conversation/data.tsx";
+import { useReplySwitch } from "./ThreadSwitch.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { Conversation } from "../conversation/Conversation.tsx";
 import { SAMPLE_NOW, createSample } from "../conversation/sample.ts";
@@ -281,14 +285,20 @@ test("the thread's composer carries Also post to the chat, and a send from the t
   assert.deepEqual(post.map((p) => [p.threadId, p.alsoToChat]), [["t_c2", true]]);
 });
 
-test("the chat's switch: on shows on, a press calls threads.set_agent_replies and the row follows; a direct chat starts off", async () => {
+/** The switch as the chat's More menu uses it: the hook over the chat's own row. */
+function SwitchProbe({ s }: { s: Sample }): ReturnType<typeof Conversation> {
+  const row = useScreenQuery<{ thread: Parameters<typeof repliesOf>[0] }>(CONVERSATION_SCREEN, "thread", { threadId: "c1" });
+  const sw = useReplySwitch(s.data, "c1", row.status === "ready" ? repliesOf(row.data.thread) : undefined);
+  return <Pressable testID="probe-switch" aria-checked={sw.on ?? undefined} onPress={() => sw.set(!sw.on)}><Text>{String(sw.on)}</Text></Pressable>;
+}
+const probe = (s: Sample): ReturnType<typeof Conversation> => <ConversationDataProvider value={s.data}><SwitchProbe s={s} /></ConversationDataProvider>;
+
+test("the chat's switch (in its More menu): on shows on, a press calls threads.set_agent_replies and the row follows; a direct chat starts off", async () => {
   installDom(); widen(1280);
   const s = withThread();
-  const root = await mount(createRoot, side(s, false));
+  const root = await mount(createRoot, probe(s));
   await flush();
-  const sw = (): Node => find(root, "thread-switch")!;
-  assert.ok(sw(), "the switch is at the foot of the thread");
-  assert.equal(textOf(find(root, "thread-switch-row")).includes(SWITCH_TITLE), true);
+  const sw = (): Node => find(root, "probe-switch")!;
   assert.equal(sw().props["aria-checked"], true, "on by default in a channel");
   await press(sw());
   await flush();
@@ -299,25 +309,51 @@ test("the chat's switch: on shows on, a press calls threads.set_agent_replies an
   await flush();
   assert.equal(sw().props["aria-checked"], true);
   assert.ok(s.toasts.includes("Agents reply in threads"));
-
-  // a direct chat (the sample's idle chat) has the switch off until someone turns it on
   const dm = createSample("idle");
-  dm.replica.put("threads", [{ id: "c1", ...(dm.replica.rows("threads")[0] as object) }, threadRow()]);
-  const r2 = await mount(createRoot, side(dm, false));
+  const r2 = await mount(createRoot, probe(dm));
   await flush();
-  assert.equal(find(r2, "thread-switch")!.props["aria-checked"], false);
+  assert.equal(find(r2, "probe-switch")!.props["aria-checked"], false, "a direct chat starts off");
 });
 
 test("a write that fails puts the switch back and says so", async () => {
   installDom(); widen(1280);
   const s = withThread();
-  const root = await mount(createRoot, side(s, false));
+  const root = await mount(createRoot, probe(s));
   await flush();
   s.failNext("threads.set_agent_replies");
-  await press(find(root, "thread-switch"));
+  await press(find(root, "probe-switch"));
   await flush();
-  assert.equal(find(root, "thread-switch")!.props["aria-checked"], true, "back to on");
+  assert.equal(find(root, "probe-switch")!.props["aria-checked"], true, "back to on");
   assert.ok(s.toasts.includes("Could not change that."));
+});
+
+test("the thread beside the chat has no permanent switch bar, on a wide screen or a phone", async () => {
+  installDom();
+  for (const [w, narrow] of [[1280, false], [390, true]] as const) {
+    widen(w);
+    const root = await mount(createRoot, side(withThread(), narrow));
+    await flush();
+    assert.equal(find(root, "thread-switch-row"), null, `${w}: no bar at the foot`);
+    assert.equal(find(root, "thread-switch"), null);
+  }
+  widen(1280);
+});
+
+test("the thread's root is a plain message row with its face, name and time, then an N replies divider, and no boxed card, started-by line or Today divider", async () => {
+  installDom(); widen(1280);
+  const s = withThread();
+  s.replica.put("messages", [msg("c2", "c1", 2, me, "Find a time for the vendor call next week, and compare the two quotes.")]);
+  s.data.call = ((call) => async (cap: string, input: unknown) => (cap === "chat.message.get" ? { message: { author: { id: "usr_irfad" }, body: "Find a time for the vendor call next week, and compare the two quotes.", createdAt: at(9, 21) } } : call(cap, input)))(s.data.call);
+  const root = await mount(createRoot, side(s, false));
+  await flush(); await flush();
+  const parent = textOf(find(root, "thread-parent"));
+  assert.match(parent, /You\s+9:21/, "name and time");
+  assert.match(parent, /Find a time for the vendor call/);
+  assert.match(textOf(find(root, "thread-replies-divider")), /2 replies/);
+  const all = textOf(root);
+  assert.doesNotMatch(all, /Thread started by/);
+  assert.equal(find(root, "day-" + "x"), null);
+  assert.doesNotMatch(all, /\bToday\b/, "no day divider in a thread");
 });
 
 test("pure: the footer words, the timer and the also-sent lookup", () => {

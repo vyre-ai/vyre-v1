@@ -326,9 +326,11 @@ export function summaryLine(a: ActDef, capName: string, input: unknown): string 
 }
 
 /** The exact preview (spec 2.14): the whole input, as the act kind's block, so the approver sees what will go out. */
-export function previewBlocks(a: ActDef, capName: string, input: unknown, edited?: { by: string; at: number }, holdId?: string): { type: string; v: number; data: unknown }[] {
+export function previewBlocks(a: ActDef, capName: string, input: unknown, edited?: { by: string; at: number }, holdId?: string, names?: { people?: Record<string, string> }): { type: string; v: number; data: unknown }[] {
   // a held message in a person's words: who, by which channel, when, and what it says as Markdown (lib/outward.ts). The raw input stays beside it, because it is the exact act that was held.
   const outward = outwardOf(capName, input);
+  // the person it goes to, by name, so the card says who and not "a teammate" (the call carries an id or a handle)
+  if (outward && names?.people) outward.to = outward.to.map((r) => (r.kind === "person" && r.id && names.people![r.id] ? { ...r, name: names.people![r.id]! } : r));
   return [{ type: a.block, v: 1, data: { act: a.key, cap: capName, input, ...(holdId ? { holdId } : {}), ...(outward ? { outward: { ...outward, ...(edited ? { edited } : {}) } } : {}) } }];
 }
 
