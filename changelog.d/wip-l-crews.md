@@ -7,3 +7,9 @@
 - Usage can be grouped by the account that paid, and the usage for a chat names the model and account of its latest turn and who paid, so it agrees with the turn's own details.
 - The line "Ran on a team model; Claude isn't on the team key" is now said when the turn really opens on that model, never for an account that was only considered. The turn's record names the model that ran.
 - An assistant can read its chat's usage and limits. It was refused with "no valid session" because it asked where the person's computers are as itself instead of as the person it acts for.
+- Crews work in any chat. "Start a crew of two" in a plain chat makes the chat's own work folder and a local git repository on this computer, starts two teammates that belong to the chat (not the Agents page) on their own branches, and Merge lands them. In a project chat they use the project's repository. Nothing has to be set up first.
+- A new project's chat starts with its lead (the project's lead teammate, or else its maker's Assistant), so a plain message in it is answered.
+- Only a person's own Assistant acts as the owner on a project it made and on the Space. Another Space agent asked by the same person does not, and handing out access, moving the Space's ownership, ending the Space and removing people stay with a person.
+- Someone who can see a project but lacks Manage is told "You need Manage on this project" instead of "that project does not exist".
+- Agents can hand work to each other with an @mention: at most three hand-offs follow one person's message, the same two agents pass it back and forth at most twice, the chat shows "Intake asked Docs", and each agent's context lists who is in the chat and what to use them for.
+- A person named in a message who is not in the chat is a reference, not an address: the lead answers. The composer says "Goes to Aliza; no agent will reply. Ask Dex too" when the person named is in the chat.

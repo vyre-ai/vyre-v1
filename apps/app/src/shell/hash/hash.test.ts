@@ -32,3 +32,8 @@ test("hash: every subject type that a place shows maps to its place, an unknown 
   assert.equal(placeForSubject("task"), "chats");
   assert.equal(placeForSubject("spaceship"), null);
 });
+
+test("the old Threads page address opens Replies in the Inbox", () => {
+  assert.deepEqual(parseHash("screen=chats.threads"), { args: {}, screen: "inbox.replies" });
+  assert.equal(formatHash({ screen: "chats.threads" }), "screen=inbox.replies");
+});

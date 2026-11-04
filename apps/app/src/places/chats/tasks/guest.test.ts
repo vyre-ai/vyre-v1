@@ -27,7 +27,7 @@ test("a guest is asked about first and named what they will see; anyone else is 
   giveWithCare(show, { name: "Gus", guest: true }, { x: 1, y: 2 }, () => { given += 1; });
   assert.equal(given, 1, "nothing is saved until they agree");
   const items = shown[0] as Array<{ head?: string; label?: string; onSelect?(): void }>;
-  assert.match(items[0]!.head!, /the task, its thread and its files/);
+  assert.match(items[0]!.head!, /the task, its chat and its files/);
   assert.equal(items[0]!.head, guestNote("Gus"));
   items.find((i) => i.label === "Give it to Gus")!.onSelect!();
   assert.equal(given, 2);

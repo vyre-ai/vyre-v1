@@ -9,7 +9,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { nameLookup } from "../../../shell/providers/records-live.ts";
-import { LIST_PAGE } from "./ThreadsPage.tsx";
+import { LIST_PAGE } from "./RepliesPage.tsx";
 
 type Row = CapMap["sites.list"]["out"]["sites"][number];
 let seq = 0;

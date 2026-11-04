@@ -10,7 +10,7 @@
 //   hello          the Spaces the person is signed in to here, and the one picked, as the extension's Space switcher shows them
 //   space.select   pick one of them
 //   whoami         identity.whoami in the picked Space: who the extension acts as
-//   agents.list    agents.list, with the Assistant marked and suggested
+//   agents.list    agents.list, with the Assistant marked and suggested, and each agent that has a computer marked (a watch or a recorded skill runs there when it can)
 //   chat.ask       chat.start (first message) or chat.post (later ones), the page as a web_page block and the selection as a quote; the reply streams back as chat.delta pushes
 //   chat.search    chat.search (words) or chat.recent (empty search), one row per chat
 //   chat.thread    threads.get and chat.messages.list
@@ -19,12 +19,12 @@
 
 export const CHROME_CAPABILITIES = Object.freeze([
   "vault.items.match", "vault.items.list", "vault.use", "vault.fill", "vault.item.put", "vault.item.update", "vault.folders.list", "vault.site_rules.list", "vault.site_rules.set", "vault.share",
-  "notes.clip", "skills.mine.add", "skills.share", "engine.models.list",
-  "browser.sites.list", "browser.watches.list", "browser.watches.save", "browser.watches.remove", "browser.watches.report",
+  "notes.clip", "skills.mine.add", "skills.mine.set", "skills.share", "engine.models.list",
+  "browser.sites.list", "automations.watches.list", "automations.watches.save", "automations.watches.remove", "automations.watches.check", "automations.watches.report",
 ]);
 
 /** Capabilities whose gateway route takes an idempotency key (generated/routes.ts "key"); a test holds this list to the route table. */
-export const KEYED = Object.freeze(["vault.item.put", "vault.share", "chat.start", "chat.post", "notes.clip", "skills.mine.add", "skills.share", "browser.watches.save", "browser.watches.remove"]);
+export const KEYED = Object.freeze(["vault.item.put", "vault.share", "chat.start", "chat.post", "notes.clip", "skills.mine.add", "skills.mine.set", "skills.share", "automations.watches.save", "automations.watches.remove"]);
 
 /** A capability's gateway path: /v1/ and the name with its dots as slashes (the route table's rule). */
 export const routeOf = (cap: string): string => `/v1/${cap.split(".").join("/")}`;
@@ -187,10 +187,14 @@ export function createChromeApp(deps: ChromeAppDeps) {
   async function agentsById(section?: string) {
     session(); // signed out is an answer, not an empty list
     const out = await call("agents.list", { limit: 100, ...(section === "personal" ? { section } : {}) }).catch(() => ({ agents: [] }));
-    const map = new Map<string, { id: string; name: string; role: string; assistant: boolean }>();
+    // which agents have a computer: a watch or a recorded skill runs there when it can (computers.list needs the person to see computers; without it nobody is marked)
+    const computers = new Set<string>();
+    const cl = await call("computers.list", {}).catch(() => null);
+    for (const c of Array.isArray(cl?.computers) ? cl.computers : []) if (c?.agentId) computers.add(String(c.agentId));
+    const map = new Map<string, { id: string; name: string; role: string; assistant: boolean; computer: boolean }>();
     for (const a of Array.isArray(out?.agents) ? out.agents : []) {
       const assistant = a.role === "assistant" || a.kind === "assistant";
-      map.set(String(a.agentId), { id: String(a.agentId), name: String(a.name ?? "Agent"), role: str(a.roleLine ?? a.description ?? "", 60), assistant });
+      map.set(String(a.agentId), { id: String(a.agentId), name: String(a.name ?? "Agent"), role: str(a.roleLine ?? a.description ?? "", 60), assistant, computer: computers.has(String(a.agentId)) });
     }
     return map;
   }
@@ -201,6 +205,7 @@ export function createChromeApp(deps: ChromeAppDeps) {
     const mine = await me();
     const messages = (Array.isArray(list?.messages) ? list.messages : []).filter((m: any) => m.kind !== "quiet" && m.kind !== "system").map((m: any) => ({
       id: String(m.messageId), text: String(m.body ?? ""), at: m.createdAt ?? m.at ?? null,
+      artifacts: (Array.isArray(m.blocks) ? m.blocks : []).filter((b: any) => b?.type === "artifact" && /^sit_[a-z0-9]+$/.test(String(b?.data?.artifactId ?? ""))).slice(0, 4).map((b: any) => ({ id: String(b.data.artifactId), title: str(b.data.title ?? "Artifact", 120) })),
       author: { kind: m.author?.kind ?? "agent", id: m.author?.id ?? "", me: m.author?.kind === "person" && m.author?.id === mine, name: m.author?.kind === "agent" ? agents.get(m.author.id)?.name ?? "Agent" : m.author?.id === mine ? "You" : "Someone", assistant: m.author?.kind === "agent" ? Boolean(agents.get(m.author.id)?.assistant) : false },
     }));
     return { threadId, title: t?.thread?.title ?? "", agentId: t?.thread?.agents?.[0]?.agentId ?? null, messages };
@@ -247,6 +252,27 @@ export function createChromeApp(deps: ChromeAppDeps) {
           picked = id;
           return { active: id };
         }
+        case "artifact.open": {
+          // The person's own session mints the single-use code (sites.artifact_open, View level: a non-shared artifact is refused by the Space). The extension then opens the address in a tab; it never touches page cookies.
+          const raw = str(input["url"], 2000);
+          let id = str(input["artifactId"], 80);
+          let s: ChromeSession | undefined;
+          if (raw) {
+            let u: URL;
+            try { u = new URL(raw); } catch { throw new AppError("validation.bad_input", "That is not an address."); }
+            const m = /^\/a\/(sit_[a-z0-9]+)\/?$/.exec(u.pathname);
+            if (!m) throw new AppError("validation.bad_input", "That is not an artifact link.");
+            id = m[1]!;
+            // the link is for the Space it points at: a link to a Space this person is not signed in to here is not ours to open
+            s = deps.sessions().find((x) => { try { return new URL(x.address).host === u.host; } catch { return false; } });
+            if (!s) { if (deps.sessions().length === 0) throw new AppError("signed_out", SIGNED_OUT); throw new AppError("not_this_space", "You are not signed in to that Space on this computer."); }
+          } else s = session();
+          if (!/^sit_[a-z0-9]+$/.test(id)) throw new AppError("validation.bad_input", "Say which artifact.");
+          const out = await deps.call(s, "sites.artifact_open", { artifactId: id });
+          const url = typeof out?.url === "string" ? out.url : typeof out?.path === "string" ? `${s.address.replace(/\/+$/, "")}${out.path}` : "";
+          if (!/^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(url)) throw new AppError("provider.unavailable", "The Space did not give an address to open.");
+          return { url, expiresAt: out?.expiresAt ?? null };
+        }
         case "whoami": {
           const w = await call("identity.whoami", {});
           return { person: w?.principal?.id ?? null, name: w?.name ?? "", spaceId: w?.spaceId ?? session().id };
@@ -255,6 +281,21 @@ export function createChromeApp(deps: ChromeAppDeps) {
           const list = [...(await agentsById(typeof input["section"] === "string" ? input["section"] : undefined)).values()];
           const suggested = list.find((a) => a.assistant) ?? list[0] ?? null;
           return { agents: list, suggested: suggested ? { id: suggested.id, name: suggested.name } : null };
+        }
+        case "people.list": {
+          // who the person may pick to tell or to share with: the people of the Space they can see, and the channels they can see (with the chat each one is). Nothing beyond what their own session may read.
+          session();
+          const q = str(input["q"], 80).trim().toLowerCase();
+          const [ps, cs] = await Promise.all([call("access.principals.list", { kind: "person", status: "active", limit: 200 }).catch(() => null), call("channels.list", {}).catch(() => null)]);
+          const people = (Array.isArray(ps?.principals) ? ps.principals : []).map((p: any) => ({ id: String(p.id), name: String(p.name ?? "") })).filter((p: any) => p.name && (!q || p.name.toLowerCase().includes(q)));
+          const channels = (Array.isArray(cs?.channels) ? cs.channels : []).filter((c: any) => !c.archived).map((c: any) => ({ id: String(c.channelId), threadId: String(c.mainThreadId ?? ""), name: String(c.name ?? "") })).filter((c: any) => c.threadId && (!q || c.name.toLowerCase().includes(q)));
+          return { people, channels, me: await me() };
+        }
+        case "goals.pick": {
+          // the goals the person owns that have a number to reach: a watch can count toward one
+          session();
+          const out = await call("goals.list", { scope: "mine", open: true }).catch(() => null);
+          return { goals: (Array.isArray(out?.goals) ? out.goals : []).filter((g: any) => typeof g?.progress?.target === "number").map((g: any) => ({ id: String(g.id), title: String(g.title ?? ""), value: g.progress.value ?? null, target: g.progress.target })) };
         }
         case "ask.page": {
           const r = await chatAsk({ agentId: input["agentId"], text: input["question"], page: isObject(input["page"]) ? { url: input["page"]["url"], title: input["page"]["title"] } : null });

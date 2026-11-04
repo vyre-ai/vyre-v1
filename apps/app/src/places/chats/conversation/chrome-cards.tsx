@@ -92,6 +92,7 @@ export function HeldSendCard({ id, data, agentId, agentName, actions }: { id: st
       <Text style={s.who}>{`${h.agent} wants to ${v.what}`}</Text>
       {rows.length > 0 ? (
         <View style={s.rows}>
+          {/* ui-rows-lint: not a list (the labelled fields of one message) */}
           {rows.map(([label, text]) => (editing && (label === "To" || label === "Subject" || label === "Message") ? (
             <View key={label} style={s.row}>
               <Text style={s.label}>{label}</Text>
@@ -132,6 +133,7 @@ export function ChromeStepCard({ id, data, agentId, agentName, actions }: { id: 
         <Text style={s.site} numberOfLines={1}>{c.agent}</Text>
         {c.steps.length > 0 ? (
           <View style={s.checks} testID={`chrome-step-checks-${id}`}>
+            {/* ui-rows-lint: not a list (the lines of one checklist inside a card) */}
             {c.steps.map((st, i) => (
               <View key={i} style={s.check}><Glyph name={st.state === "waiting" ? "lock" : "check"} size={13} color={st.state === "done" ? "var(--ok)" : "var(--ink-3)"} /><Text style={[s.checkText, st.state === "waiting" && s.checkWait]}>{st.text}</Text></View>
             ))}
@@ -147,6 +149,7 @@ export function ChromeStepCard({ id, data, agentId, agentName, actions }: { id: 
         {c.saw.length > 0 ? (
           <View style={{ gap: 3, alignSelf: "flex-start" }}>
             <TextButton link label={showSaw ? `Hide what ${c.agent} saw` : `Show what ${c.agent} saw`} onPress={() => setShowSaw((x) => !x)} testID={`chrome-step-saw-${id}`} />
+            {/* ui-rows-lint: not a list (handle names in one disclosure) */}
             {showSaw ? <View testID={`chrome-step-handles-${id}`}>{c.saw.map((h) => <Text key={h} style={s.handle}>{h}</Text>)}<Text style={s.site}>Names only. What they hold never reached {c.agent}.</Text></View> : null}
           </View>
         ) : null}

@@ -38,7 +38,7 @@
     "tasks.update@1": "c2f93aea6005fe16f7f0baa5a6f2bdf2fd6b6c210a4af50058b7d84fe2e0a325",
     "tasks.withdraw@1": "3cfedbb0f8615cddf441690e8303561987653ace4cb537f45871ed9035b1cbc6",
     "tasks.working_notes.delete@1": "1a4783b1a0bccc3f8c3a18c7ea8458d11af5127b8a67fa3ccdadf729da9b2676",
-    "tasks.working_notes.set@1": "9e5446c1fa39ad45e210ba26bf794054ebe20ef247806fd3022427b432db13c9"
+    "tasks.working_notes.set@1": "a26eb7131bef210ebeb220c6b6a876fdd028da6a570eaf082f72719d66908934"
   },
   "events": {
     "task.approved": "205fc44ee5032cd1ac9782ab02ae4386085c8b32ba59f9a91da8fd379ad62f74",

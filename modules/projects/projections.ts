@@ -133,7 +133,12 @@ export function allows(ctx: ProjectsCtx, level: Level, projectId: string): boole
 export function visible(ctx: ProjectsCtx, projectId: string, level: Level = "view"): Project {
   ensure(ctx.db);
   const p = projectBy(ctx.db, projectId);
-  if (!p || !allows(ctx, level, projectId)) raise(ctx, "validation.not_found", "That project does not exist.");
+  if (!p) raise(ctx, "validation.not_found", "That project does not exist.");
+  if (!allows(ctx, level, projectId)) {
+    // someone who can see the project is told what they lack; someone who cannot is told what they are told for a project that is not there (what exists is not leaked)
+    if (level !== "view" && allows(ctx, "view", projectId)) raise(ctx, "permission.no_grant", `You need ${level === "manage" ? "Manage" : level === "edit" ? "Edit" : "more access"} on this project to do that.`, { reason: "needs_level", level });
+    raise(ctx, "validation.not_found", "That project does not exist.");
+  }
   return p;
 }
 

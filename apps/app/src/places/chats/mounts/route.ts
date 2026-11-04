@@ -20,8 +20,6 @@ export type Route =
   | { view: "task"; taskId: string }
   /** One goal's page, with its chat under it. */
   | { view: "goal"; goalId: string }
-  /** The threads you are in. */
-  | { view: "threads" }
   /** What models made to show you. */
   | { view: "artifacts" }
   /** One artifact, in its own tab, under the Artifacts row. `share` opens the Share sheet on it. */
@@ -72,7 +70,6 @@ export type Act =
   | { t: "tasks" }
   | { t: "task"; taskId: string }
   | { t: "goal"; goalId: string }
-  | { t: "threads" }
   | { t: "artifacts" }
   | { t: "artifact"; artifactId: string; share?: boolean }
   | { t: "notes"; noteId?: string; take?: boolean }
@@ -112,7 +109,6 @@ export function step(s: Shown, a: Act): Shown {
     case "side-close": return { ...s, side: null };
     case "new": return { ...s, route: { view: "new" }, layer: null };
     case "goal": return { ...s, route: { view: "goal", goalId: a.goalId }, pane: false, terminalId: null, layer: null };
-    case "threads": return { ...s, route: { view: "threads" }, layer: null };
     case "artifacts": return { ...s, route: { view: "artifacts" }, layer: null };
     case "artifact": return { ...s, route: { view: "artifact", artifactId: a.artifactId, ...(a.share ? { share: true } : {}) }, pane: false, terminalId: null, layer: null };
     case "notes": return { ...s, route: { view: "notes", ...(a.noteId ? { noteId: a.noteId } : {}), ...(a.take ? { take: (s.route.view === "notes" ? s.route.take ?? 0 : 0) + 1 } : {}) }, layer: null };
@@ -139,13 +135,13 @@ export function step(s: Shown, a: Act): Shown {
 
 /**
  * What the middle shows, as the key the Chats sidebar selects its row by: `t:<thread>` a chat or a channel, `i:<conversation>` an imported transcript, `a:<agent>` an agent's page or its
- * form, and `tasks`, `threads`, `artifacts`, `notes`. Null for a page that has no row (a new chat, one task, search, Needs you, a helper). A tab switch, a link and Cmd-K all arrive as a route, so
+ * form, and `tasks`, `artifacts`, `notes`. Null for a page that has no row (a new chat, one task, search, Needs you, a helper). A tab switch, a link and Cmd-K all arrive as a route, so
  * the selection follows each of them.
  */
 export function openKeyOf(r: Route): string | null {
   switch (r.view) {
     case "chat": return r.threadId ? `t:${r.threadId}` : null;
-    case "tasks": case "threads": case "artifacts": case "notes": return r.view;
+    case "tasks": case "artifacts": case "notes": return r.view;
     case "artifact": return "artifacts";
     case "goal": return `g:${r.goalId}`;
     case "imported": return `i:${r.conversationId}`;
@@ -173,7 +169,6 @@ export const SCREEN = {
   tasks: "tasks.my-work",
   task: "tasks.page",
   goal: "goals.page",
-  threads: "chats.threads",
   artifacts: "chats.artifacts",
   notes: "chats.notes",
   agentForm: "chats.agent-form",
@@ -222,7 +217,6 @@ export function fromHash(hash: string): Shown {
     case SCREEN.tasks: return step(START, { t: "tasks" });
     case SCREEN.task: return arg("taskId") === "" ? step(START, { t: "tasks" }) : step(START, { t: "task", taskId: arg("taskId") });
     case SCREEN.goal: return arg("goalId") === "" ? START : step(START, { t: "goal", goalId: arg("goalId") });
-    case SCREEN.threads: return step(START, { t: "threads" });
     case SCREEN.artifacts: return step(START, { t: "artifacts" });
     case SCREEN.notes: return step(START, { t: "notes", ...(arg("noteId") === "" ? {} : { noteId: arg("noteId") }) });
     case SCREEN.agentForm: return step(START, { t: "agent-form", ...(arg("agentId") === "" ? {} : { agentId: arg("agentId") }) });

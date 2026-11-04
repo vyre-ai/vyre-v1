@@ -6,11 +6,13 @@ import type { CapCall } from "../shell/session/caps.ts";
 
 export interface CopyableAccount { providerId: string; providerKey: string; name: string; itemId: string }
 
-type ProviderRow = { id: string; providerKey: string; name: string; connection: string; scope: string; itemId: string; state: string };
+type AccountRow = { providerId?: string; provider?: string; name?: string; title: string; kind: string; mine: boolean; status: string; itemId?: string; base?: string; keyless?: boolean };
 
 export async function copyableAccounts(personal: CapCall): Promise<CopyableAccount[]> {
-  const out = await personal("providers.list", {}) as { providers: ProviderRow[] };
-  return out.providers.filter((p) => p.connection === "api_key" && p.scope === "mine" && p.state === "ok").map((p) => ({ providerId: p.id, providerKey: p.providerKey, name: p.name, itemId: p.itemId }));
+  const out = await personal("engine.accounts.list", {}) as { accounts: AccountRow[] };
+  return out.accounts
+    .filter((a) => a.kind === "api_key" && a.mine && a.status === "ok" && a.base === undefined && a.keyless !== true && a.providerId !== undefined && a.provider !== undefined && a.itemId !== undefined)
+    .map((a) => ({ providerId: a.providerId!, providerKey: a.provider!, name: a.name ?? a.title, itemId: a.itemId! }));
 }
 
 /** Copies one account into the team Space's Mine folder. Resolves with the new provider id. The reveal and the add are the only two calls; nothing else sees the value. */

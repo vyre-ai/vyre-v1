@@ -18,7 +18,8 @@ test("with alone is a chat with that agent, a thread id wins, and neither is the
   assert.deepEqual(fromHash("#screen=tasks.page&taskId=tsk_1").route, { view: "task", taskId: "tsk_1" });
   assert.deepEqual(fromHash("#subject=task:tsk_1").route, { view: "task", taskId: "tsk_1" });
   assert.deepEqual(fromHash("#subject=thread:thr_1").route, { view: "chat", threadId: "thr_1" });
-  assert.deepEqual(fromHash("#screen=chats.threads").route, { view: "threads" });
+  // the old Threads page has no page of its own: the shell turns its address into Replies in the Inbox before Chats sees it (shell/hash)
+  assert.deepEqual(fromHash("#screen=chats.threads").route, { view: "new" });
 });
 
 test("an object is type:id, and anything else is not an object", () => {

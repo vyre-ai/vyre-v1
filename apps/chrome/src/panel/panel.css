@@ -69,3 +69,13 @@ html,body{overflow:hidden}
 .qline.pad{padding:30px 0}
 .lbl.first{margin-top:4px}
 .empty .after{margin-top:16px}
+/* recording line and the Watch / Watching sheets */
+.recline{display:flex;align-items:center;gap:8px;min-height:44px;padding:6px 10px 6px 14px;flex:none;background:var(--accent-wash);border-bottom:1px solid var(--line);font-size:12.5px}
+.recline .btn{height:28px}
+.rdot{width:9px;height:9px;border-radius:50%;background:var(--beacon);flex:none;animation:blink 1.4s ease-in-out infinite}
+.rdot.p{animation:none;background:var(--ink-4)}
+.rowh{border-radius:8px}
+.rowh:hover{background:var(--hover)}
+.rowh .hov{opacity:0;transition:opacity .12s}
+.rowh:hover .hov,.rowh:focus-within .hov{opacity:1}
+.sheet .opt.on .od{color:var(--ink-2)}

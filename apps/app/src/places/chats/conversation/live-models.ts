@@ -58,6 +58,17 @@ export function listedLine(l: Listed | undefined): string | undefined {
 type Call = (cap: string, input: unknown) => unknown;
 
 /**
+ * Whether the pick a chat starts with cannot run here: the list marks it not allowed (no sign-in reaches it, the policy forbids it, the usage is out), or a live list leaves it out.
+ * A saved or shipped list that lacks the model says nothing, because those lists are not complete. No pick, or a pick of "auto", is never unavailable.
+ */
+export function pickUnavailable(out: ModelsOut | undefined, pick: string | null | undefined): boolean {
+  if (!pick || pick === "auto" || !out?.models) return false;
+  const row = out.models.find((m) => m.model === pick || m.alias === pick);
+  if (row) return row.allowed === false;
+  return out.listed?.source === "live" && out.models.length > 0;
+}
+
+/**
  * Read the menu's list: `show` gets the saved list at once, then the fresh one when a refresh was running. `alive` false (the menu closed, the account changed) drops what comes after.
  * A failed first call shows an empty list; a failed second call keeps the first.
  */

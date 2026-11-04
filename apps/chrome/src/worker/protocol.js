@@ -33,13 +33,15 @@ export const CAPABILITIES = Object.freeze({
   "vault.share": "share a saved login with the person's agent at Use level",
   "notes.clip": "Save to Notes from a page: the address, title, the selection and a masked screenshot (lane l-notes)",
   "skills.mine.add": "save a recording the person reviewed as one of their skills: SKILL.md and its replay script (lane l-skills2)",
+  "skills.mine.set": "put a saved skill on the person's agents (the share card's Add to my agents) (lane l-skills2)",
   "skills.share": "share that skill with people in the Space, who each get a card (lane l-skills2)",
   "engine.models.list": "the live models the person's AI account can reach, for the side panel's model picker (lane l-livemodels; never a list kept here)",
   "browser.sites.list": "the Space's Browser connections: sites agents may use, where they run, each agent's rights",
-  "browser.watches.list": "the person's watches that run in this Chrome",
-  "browser.watches.save": "create or change a watch from the Watch sheet",
-  "browser.watches.remove": "remove or pause a watch",
-  "browser.watches.report": "a My Chrome watch checked a page: what it read, and the before and after when it changed",
+  "automations.watches.list": "the person's watches that run in this Chrome",
+  "automations.watches.save": "create or change a watch from the Watch sheet",
+  "automations.watches.remove": "remove or pause a watch",
+  "automations.watches.check": "Check now for a watch that runs on an agent's computer (wakes the agent) or in this Chrome",
+  "automations.watches.report": "a My Chrome watch checked a page: what it read, and the before and after when it changed",
 });
 
 /** Bridge-level operations that are not capabilities: they are about this computer and this browser, not a Space's data. */
@@ -49,10 +51,13 @@ export const BRIDGE_OPS = Object.freeze({
   "agents.list": "the active Space's agents with faces, and the suggested one for a page",
   "login.check": "the filler compares a submitted login with the vault and says known, changed or new, without revealing anything",
   "ask.page": "start an Ask about this page with an agent; the page title and address go, the question is the person's",
+  "artifact.open": "open an artifact link as the signed-in person: the Space mints a single-use address and the extension opens it in a tab (never page cookies)",
   "app.open": "open the Vyre app at a place (the Vault, an item, a chat, a note, a skill, Automations > Watching)",
   "chat.ask": "send a side panel message to an agent in the active Space: the same thread as Vyre Chats; the reply streams back as chat.delta pushes",
   "chat.search": "find the person's chats in the active Space by words, for the side panel's chat search",
   "chat.thread": "one chat's messages, to show it in the side panel",
+  "people.list": "the people and channels the signed-in person may pick to tell or to share with (their own view of the Space, nothing more)",
+  "goals.pick": "the signed-in person's own open goals that have a number, for Counts toward a goal",
   "records.match": "records that match a page: from its address and the email addresses and phone numbers written on it, with their recent chats and goals",
 });
 

@@ -3,8 +3,9 @@ import { count, finish, get, list, markWaitingCap, pinVersion, recordKey, record
 import { stepIo } from "./step-io.ts";
 import { previewUndo, undo } from "./undo.ts";
 import { erase, purge } from "./purge.ts";
+import { agentsOfRun, withReversals } from "../../../lib/reversal.ts";
 
-export const handlers = {
+const base = {
   "runs.erase": erase,
   "runs.purge": purge,
   "runs.count": count,
@@ -27,3 +28,14 @@ export const handlers = {
   "runs.undo": undo,
   "runs.wait_for": waitFor,
 };
+
+/** A person undoing what an agent's Run changed teaches that agent (lib/reversal.ts, memory.corrections.record): the agents that made the Run's writes, and the chat the Run came from. */
+export const handlers = withReversals(base, {
+  "runs.undo": {
+    actOf: async (ctx: { call?(cap: string, input: unknown): Promise<unknown> }, i: { runId: string }) => agentsOfRun(ctx, i.runId),
+    was: (_i: unknown, o: { undone?: { summary: string }[] }) => {
+      const said = (o?.undone ?? []).map((u) => u.summary).filter((x) => x !== "").slice(0, 2).join("; ");
+      return said === "" ? null : said.slice(0, 110);
+    },
+  },
+});

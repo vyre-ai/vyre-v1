@@ -138,6 +138,12 @@ export function setEngineHost(h: EngineHostSeam | null): void {
     const done = (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve()).then(() => closeDefaultSandbox()).catch(() => undefined);
     host?.closing?.(done);
   }
+  // Two daemons in one process (tests): the next host half replaces the first before the first has been unwired. The first one's opener (its CLI sessions, MCP socket and egress proxy) is closed
+  // now and handed to its host half to wait for; before, it was dropped here and never closed.
+  else if (closeOpener && host) {
+    const old = closeOpener;
+    host.closing?.(old().catch(() => undefined));
+  }
   closeOpener = null;
   host = h;
   building = null;
