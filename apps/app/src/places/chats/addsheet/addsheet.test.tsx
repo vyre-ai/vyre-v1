@@ -391,3 +391,23 @@ test("a teammate's role is chosen on its row (Lead answers first); adding is onl
     assert.deepEqual([call.projectId, call.principal, call.role], ["pj_0", "agt_docs", "lead"]);
   });
 });
+
+test("an outside agent in the chat never offers Answers everything in its settings popover", async () => {
+  await withDom(async () => {
+    const s = createSample("idle");
+    await s.data.call("threads.outside_agent.add", { threadId: "c1", agentId: "out_cc" });
+    const root = await mount(createRoot, <Conversation data={s.data} />);
+    await press(find(root, "participants-button"));
+    await flush();
+    await press(find(root, "people-gear-out_cc"));
+    assert.ok(find(root, "as-pop"));
+    assert.equal(find(root, "as-how-lead"), null);
+    assert.ok(find(root, "as-how-tag") && find(root, "as-how-listen"));
+    // a Space agent still offers it
+    await press(find(root, "as-pop-x"));
+    await press(find(root, "participants-button"));
+    await flush();
+    await press(find(root, "people-gear-agt_docs"));
+    assert.ok(find(root, "as-how-lead"));
+  });
+});

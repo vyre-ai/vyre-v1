@@ -176,8 +176,8 @@ export async function runAdd(deps: AddSheetDeps, r: Loaded, picks: readonly Acce
 type Surface =
   | { k: "sheet"; open: AddOpen; r: Loaded }
   | { k: "pick"; r: Loaded; onPicks(picks: readonly AccessPick[]): void }
-  | { k: "people"; thread: ThreadRow; x: number; y: number; onOpenAgent(id: string): void }
-  | { k: "settings"; thread: ThreadRow; agentId: string; x: number; y: number };
+  | { k: "people"; thread: ThreadRow; x: number; y: number; onOpenAgent(id: string): void; outside: ReadonlySet<string> }
+  | { k: "settings"; thread: ThreadRow; agentId: string; x: number; y: number; outside: ReadonlySet<string> };
 
 export interface AddSheetApi {
   /** Opens the sheet on a chat, channel or thread (by its thread id) or on a project. */
@@ -234,8 +234,13 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
     pending.current = setTimeout(run, 400);
   }, []);
 
-  const showPeople = useCallback((p: { thread: ThreadRow; x: number; y: number; onOpenAgent(agentId: string): void }): void => setSurface({ k: "people", ...p }), []);
-  const showSettings = useCallback((p: { thread: ThreadRow; agentId: string; x: number; y: number }): void => setSurface({ k: "settings", ...p }), []);
+  /** The agents here that run outside Vyre (agents.list says so): they cannot answer everything, so their settings never offer it. */
+  const outsideOf = useCallback(async (): Promise<ReadonlySet<string>> => {
+    const got = await tryCall<Out<"agents.list">>(d.current, "agents.list", {});
+    return new Set((got?.agents ?? []).filter((a) => a.runtime === "outside").map((a) => a.agentId));
+  }, []);
+  const showPeople = useCallback((p: { thread: ThreadRow; x: number; y: number; onOpenAgent(agentId: string): void }): void => { void outsideOf().then((outside) => setSurface({ k: "people", ...p, outside })); }, [outsideOf]);
+  const showSettings = useCallback((p: { thread: ThreadRow; agentId: string; x: number; y: number }): void => { void outsideOf().then((outside) => setSurface({ k: "settings", ...p, outside })); }, [outsideOf]);
 
   let element: ReactElement | null = null;
   if (surface?.k === "sheet") {
@@ -276,17 +281,17 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
     const only = t.agents.length === 1;
     const rows: PeopleRow[] = [
       ...t.members.filter((m) => m.kind === "person").map((m): PeopleRow => ({ id: m.id, name: deps.nameOf(m.id), kind: "person", sub: m.id === deps.me.id ? "You" : "Person" })),
-      ...t.agents.map((a): PeopleRow => ({ id: a.agentId, name: deps.nameOf(a.agentId), kind: "agent", sub: hereSub(a, only) })),
+      ...t.agents.map((a): PeopleRow => ({ id: a.agentId, name: deps.nameOf(a.agentId), kind: surface.outside.has(a.agentId) ? "outside" : "agent", sub: hereSub(a, only) })),
     ];
     element = (
       <PeoplePop
         title={`${t.members.length} in this ${t.kind === "channel" ? "channel" : t.kind === "thread" ? "thread" : "chat"}`} rows={rows} anchor={{ x: surface.x, y: surface.y }}
         onAdd={() => { const id = t.threadId; setSurface(null); open({ threadId: id }); }} onPoke={(id) => poke(t.threadId, id, t.agents.map((a) => ({ id: a.agentId })))}
-        onGear={(id, x, y) => setSurface({ k: "settings", thread: t, agentId: id, x, y })} onOpenAgent={(id) => { const go = surface.onOpenAgent; setSurface(null); go(id); }} onClose={close}
+        onGear={(id, x, y) => setSurface({ k: "settings", thread: t, agentId: id, x, y, outside: surface.outside })} onOpenAgent={(id) => { const go = surface.onOpenAgent; setSurface(null); go(id); }} onClose={close}
       />
     );
   } else if (surface?.k === "settings") {
-    element = <ChatAgentSettings deps={deps} thread={surface.thread} agentId={surface.agentId} x={surface.x} y={surface.y} save={save} poke={poke} confirm={(entries, x, y, label) => menu.show(entries, x, y, "other", { label })} onClose={close} />;
+    element = <ChatAgentSettings deps={deps} thread={surface.thread} agentId={surface.agentId} outside={surface.outside.has(surface.agentId)} x={surface.x} y={surface.y} save={save} poke={poke} confirm={(entries, x, y, label) => menu.show(entries, x, y, "other", { label })} onClose={close} />;
   }
   return {
     open, pick, showPeople, showSettings, isOpen: surface !== null,
@@ -295,8 +300,8 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
 }
 
 /** The settings popover of an agent already in a chat. Making another agent the lead asks first: one lead per chat, and the old lead keeps listening. */
-function ChatAgentSettings({ deps, thread, agentId, x, y, save, poke, confirm, onClose }: {
-  deps: AddSheetDeps; thread: ThreadRow; agentId: string; x: number; y: number;
+function ChatAgentSettings({ deps, thread, agentId, outside, x, y, save, poke, confirm, onClose }: {
+  deps: AddSheetDeps; thread: ThreadRow; agentId: string; outside: boolean; x: number; y: number;
   save(threadId: string, agentId: string, next: AgentSettings, wait: boolean): void;
   poke(threadId: string | null, agentId: string, here: readonly { id: string }[]): void;
   confirm(entries: import("../../../../../../ui/src/Menu/index.tsx").MenuEntry[], x: number, y: number, label: string): void;
@@ -322,7 +327,7 @@ function ChatAgentSettings({ deps, thread, agentId, x, y, save, poke, confirm, o
   };
   return (
     <AgentSettingsPopover
-      name={name} face={<AccessFace kind="agent" id={agentId} name={name} size={26} />} value={value} outside={false} anchor={{ x, y }}
+      name={name} face={<AccessFace kind="agent" id={agentId} name={name} size={26} />} value={value} outside={outside} anchor={{ x, y }}
       onChange={change} onPoke={() => poke(thread.threadId, agentId, thread.agents.map((a) => ({ id: a.agentId })))} onClose={onClose}
     />
   );
