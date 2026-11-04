@@ -347,6 +347,19 @@ export default defineManifest({
       },
       tool: 'meta', mcpName: 'my_ai',
     }),
+    read('engine.models_catalog', 'Every AI account the asker can use with its models, what each can do (tools, images, context), a cost tier (cheap, standard or strong) and whether the probe found it available; for helpers that pick a model across accounts. Reads saved lists and the probe\'s marks only', {
+      in: { accountRef: t.opt(accountRef) },
+      out: {
+        accounts: t.arr(t.obj({
+          ref: accountRef, label: t.str(), provider: t.str(), kind: t.enm('api_key', 'subscription', 'local'), usable: t.bool(), why: t.opt(t.str()),
+          models: t.arr(t.obj({
+            id: t.str(), title: t.str(), tools: t.bool(), vision: t.bool(), context: t.int({ minimum: 1 }), tier: t.enm('cheap', 'standard', 'strong'),
+            allowed: t.bool({ description: 'The Space policy lets this model run' }), available: t.enm('ok', 'checking', 'unavailable', 'unverified'),
+          })),
+        })),
+      },
+      tool: 'meta', mcpName: 'models_catalog',
+    }),
     read('engine.probe_account', 'Test an account: reachable, signed in, models it can use', {
       in: { accountRef }, out: { ok: t.bool(), models: t.opt(t.int()), error: t.opt(errShape) }, tool: 'meta', errors: ['provider.auth_failed', 'provider.unavailable', 'provider.network'],
     }),
