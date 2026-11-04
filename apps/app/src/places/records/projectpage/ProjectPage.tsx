@@ -147,9 +147,9 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
           <Plan today={isoDay(plan.today)} view={planView} viewKey={`project-${projectId}`} stages={planStages(plan)} tasks={tasks} onChange={save} onOpenTask={(t) => { void d.call("projects.open_task_thread", { projectId, taskId: t.id }).then((out) => { const id = (out as { threadId?: string }).threadId; if (id) d.nav.openThread(id); }, say); }} />
         </View>
       ) : null}
-      {tab === "overview" ? <ProjectOverview projectId={projectId} space={space} canEdit={canEdit} /> : null}
-      {tab === "linked" ? <ProjectLinked projectId={projectId} space={space} canEdit={canEdit} /> : null}
-      {tab === "knows" ? <KnowsTab projectId={projectId} space={space} canEdit={canEdit} /> : null}
+      {tab === "overview" ? <ProjectOverview projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
+      {tab === "linked" ? <ProjectLinked projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
+      {tab === "knows" ? <KnowsTab projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
       {note ? <Text style={s.note} accessibilityLiveRegion="polite" testID="project-note">{note}</Text> : null}
       {add.element}
     </View>

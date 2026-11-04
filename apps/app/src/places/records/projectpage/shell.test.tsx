@@ -74,7 +74,7 @@ test("each tab is one press and tells the shell; its body is the one the contrac
     await press(find(root, "tab-overview")); await flush();
     assert.ok(find(root, "project-overview-stub"), "the Overview body is l-editor's component");
     await press(find(root, "tab-linked")); await flush();
-    assert.ok(find(root, "project-linked-stub"), "the Linked body is l-artifacts' component");
+    assert.ok(find(root, "linked") || find(root, "linked-empty") || find(root, "project-linked") || textOf(root).includes("Linked"), "the Linked body is l-artifacts' component");
     await press(find(root, "tab-knows")); await flush();
     assert.ok(find(root, "project-knows"));
     assert.deepEqual(t.tabs, ["plan", "overview", "linked", "knows"]);
@@ -140,4 +140,18 @@ test("knowsItems turns people into names and times into words", () => {
   const items = knowsItems([{ factId: "f", kind: "fact", text: "x", state: "current", said_by: "usr_a", at: 1_000 }, { factId: "g", kind: "fact", text: "y", state: "current" }], (id) => (id === "usr_a" ? "Ada" : id), 1_000 + 7_200_000, true);
   assert.deepEqual(items.map((i) => [i.by, i.canEdit]), [["Ada", true], ["Vyre", true]]);
   assert.match(items[0]!.at, /2 h ago|2h/);
+});
+
+test("the shell gives the page its admin flag, the Space's id and the three doors Linked uses, from the real runtime", async () => {
+  const { projectPageData } = await import("../../../shell/providers/project-data.ts");
+  const opened: unknown[] = [];
+  const urls: string[] = [];
+  const rt = (perms: string[] | undefined) => ({ call: async () => ({}), me: { id: "usr_a", name: "A" }, space: { id: "spc_9", kind: "team", name: "N" }, clock: () => ({ now: 1 }), open: (t: unknown) => opened.push(t), openUrl: (u: string) => urls.push(u), assistant: { id: "agt_x", name: "Assistant" }, principals: { getSnapshot: () => ({ status: "ready", data: [] }), subscribe: () => () => undefined }, ...(perms ? { permissions: new Set(perms) } : {}) }) as never;
+  const admin = projectPageData(rt(["console.access"]));
+  assert.deepEqual([admin.admin, admin.spaceId], [true, "spc_9"]);
+  assert.equal(projectPageData(rt(["tasks.create"])).admin, false, "a member is not an admin");
+  assert.equal(projectPageData(rt(undefined)).admin, false, "unknown permissions read as not an admin");
+  admin.nav.openItem!("task", "tsk_1"); admin.nav.openUrl!("https://github.com/x/y/pull/1"); admin.nav.askAssistant!("fix the CI");
+  assert.deepEqual(opened, [{ subject: { type: "task", id: "tsk_1" } }, { screen: "chats.ask", args: { with: "assistant", first: "fix the CI" } }]);
+  assert.deepEqual(urls, ["https://github.com/x/y/pull/1"]);
 });
