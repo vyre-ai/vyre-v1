@@ -22,7 +22,7 @@ test("Overview, real data: an Unpaid block sums real invoices, and the number fo
   try {
     const owner = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const page = await owner.newPage();
-    page.on("pageerror", (e) => errs.push(e.message));
+    page.on("pageerror", (e) => errs.push(e.message)); page.on("console", (m) => { if (m.type() === "error") errs.push(m.text().slice(0, 2500)); });
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
     await page.getByTestId("claim-name").fill("Olivia Owner"); await page.getByTestId("claim-username").fill("olivia");
     await page.getByTestId("claim-password").fill(PASSWORD); await page.getByTestId("claim-confirm").fill(PASSWORD);
@@ -62,12 +62,17 @@ test("Overview, real data: an Unpaid block sums real invoices, and the number fo
       await page.goto(`${web.origin}/chat?skin=${skin}`, { waitUntil: "load" });
       if (size === "phone") { await page.getByTestId("mobile-shell").waitFor({ timeout: 30_000 }); await page.goto(`${web.origin}/chat?skin=${skin}#subject=project:${pid}`, { waitUntil: "load" }); }
       else { await page.getByTestId("shell").waitFor({ timeout: 30_000 }); await page.getByTestId("head-projects").waitFor({ timeout: 20_000 }); await page.getByTestId(`row-pj:${pid}`).click(); }
-      await page.getByTestId("project-page").waitFor({ timeout: 40_000 });
+      await page.getByTestId("project-page").waitFor({ timeout: 25_000 }).catch(async (e: Error) => {
+        const ids = await page.evaluate(() => [...document.querySelectorAll("[data-testid]")].map((x) => x.getAttribute("data-testid")).slice(0, 60));
+        fs.writeFileSync(path.join(shots, `debug-${tag}-${size}.txt`), `${page.url()}\n${JSON.stringify(ids)}\n${errs.join("\n---\n")}\n${(await page.locator("body").innerText()).slice(0, 2000)}`);
+        await page.screenshot({ path: path.join(shots, `debug-${tag}-${size}.png`) });
+        throw new Error(`no project page: ${e.message.slice(0, 60)}`);
+      });
       await page.waitForTimeout(1200); await page.getByTestId("tab-overview").click({ force: true, timeout: 10_000 }).catch(async (e: Error) => {
         const ids = await page.evaluate(() => [...document.querySelectorAll("[data-testid]")].map((x) => x.getAttribute("data-testid")).slice(0, 60));
         await page.getByTestId("state-details").click({ timeout: 2000 }).catch(() => undefined);
         const cause = await page.getByTestId("state-cause").innerText({ timeout: 2000 }).catch(() => "");
-        fs.writeFileSync(path.join(shots, `debug-${tag}-${size}.txt`), cause + "\n" + (await page.locator("body").innerText()).slice(0, 3000));
+        fs.writeFileSync(path.join(shots, `debug-${tag}-${size}.txt`), cause + "\n" + errs.join("\n---\n") + "\n" + (await page.locator("body").innerText()).slice(0, 3000));
         await page.screenshot({ path: path.join(shots, `debug-${tag}-${size}.png`) });
         throw new Error(`no overview tab at ${page.url()}: ${JSON.stringify(ids)} errors=${JSON.stringify(errs.slice(0, 3))} / ${e.message.slice(0, 60)}`);
       });
