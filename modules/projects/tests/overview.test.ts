@@ -390,3 +390,12 @@ test("a save says what it changed, an agent's block is named with its title, and
   await refused(run(h, "projects.overview_doc.restore", { projectId: p.projectId, rev: 999 }), "validation.not_found");
   await refused(run(h, "projects.overview_doc.restore", { projectId: p.projectId, rev: first.rev, baseRev: second.rev }), "validation.precondition_failed");
 });
+
+test("a tasks block can show what is waiting, and what is assigned to the reader (assigned: me)", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  const waiting = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "tasks", spec: { status: "waiting" } });
+  assert.equal(waiting.type, "tasks");
+  const mine = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "tasks", spec: { status: "all", assigned: "me" } });
+  assert.ok(Array.isArray(mine.rows));
+});

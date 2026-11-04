@@ -12,8 +12,8 @@ import type { LiveApi, LiveAttrs } from "./LiveBlockView.tsx";
 import { PropertiesRow } from "./Properties.tsx";
 import type { Facts } from "./Properties.tsx";
 import { AddPropertySheet, HistorySheet, LiveSettings, TemplateSheet } from "./Sheets.tsx";
-import { LIVE_KINDS, agentNotice, freshIds, kindOf, pageLine, propertyOp, propertyValue, saveFailure } from "./model.ts";
-import type { OverviewDoc, PageTemplate } from "./model.ts";
+import { BASIC_BLOCKS, LIVE_KINDS, agentNotice, freshIds, kindOf, pageLine, propertyOp, propertyValue, saveFailure } from "./model.ts";
+import type { OverviewDoc, PageTemplate, TypeName } from "./model.ts";
 
 export interface OverviewPageProps { projectId: string; /** The Space's id; the page does not need it, the tab body props carry it. */ space?: string; canEdit: boolean }
 type Load = { status: "loading" } | { status: "gone" } | { status: "ready"; doc: OverviewDoc };
@@ -24,7 +24,7 @@ export function OverviewPage(props: OverviewPageProps): ReactElement {
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [facts, setFacts] = useState<Facts | null>(null);
   const [versions, setVersions] = useState(0);
-  const [types, setTypes] = useState<readonly string[]>(EMPTY);
+  const [types, setTypes] = useState<readonly TypeName[]>(EMPTY);
   const read = useCallback(async (): Promise<OverviewDoc | null> => {
     try {
       const doc = (await d.call("projects.overview_doc.get", { projectId: props.projectId })) as OverviewDoc;
@@ -36,14 +36,14 @@ export function OverviewPage(props: OverviewPageProps): ReactElement {
   useEffect(() => {
     void Promise.resolve(d.call("projects.overview", { projectId: props.projectId })).then((o) => { const p = (o as { project: Facts }).project; setFacts({ status: p.status, lead: p.lead, start: p.start, due: p.due, health: p.health }); }, () => undefined);
     void Promise.resolve(d.call("projects.overview_doc.history", { projectId: props.projectId, limit: 100 })).then((o) => setVersions((o as { revisions: unknown[] }).revisions.length), () => undefined);
-    void Promise.resolve(d.call("schema.types.list", {})).then((o) => setTypes(((o as { types?: { key: string }[] }).types ?? []).map((t) => t.key)), () => undefined);
+    void Promise.resolve(d.call("schema.types.list", {})).then((o) => setTypes(((o as { types?: { key: string; title?: string; plural?: string }[] }).types ?? []).map((t) => ({ key: t.key, title: t.title ?? t.key, plural: t.plural ?? t.title ?? t.key }))), () => undefined);
   }, [d, props.projectId]);
   if (load.status === "loading") return <View testID="overview-loading" style={s.fill}><View style={s.skel} /><View style={[s.skel, { width: "60%" }]} /></View>;
   if (load.status === "gone") return <View testID="overview-gone" style={s.fill}><Text style={s.dim}>The Overview could not be opened. You may not have access to this project.</Text></View>;
   return <Page key={props.projectId} {...props} doc={load.doc} facts={facts} versions={versions} types={types} reload={read} bump={() => setVersions((v) => v + 1)} />;
 }
 
-function Page({ projectId, canEdit, doc, facts, versions, types, reload, bump }: OverviewPageProps & { doc: OverviewDoc; facts: Facts | null; versions: number; types: readonly string[]; reload(): Promise<OverviewDoc | null>; bump(): void }): ReactElement {
+function Page({ projectId, canEdit, doc, facts, versions, types, reload, bump }: OverviewPageProps & { doc: OverviewDoc; facts: Facts | null; versions: number; types: readonly TypeName[]; reload(): Promise<OverviewDoc | null>; bump(): void }): ReactElement {
   const d = useProjectPageData();
   // the revision this page is on: the one it was read at, then each save's own (a re-render must not put it back)
   const rev = useRef(doc.rev);
@@ -93,15 +93,26 @@ function Page({ projectId, canEdit, doc, facts, versions, types, reload, bump }:
 
   const liveView = useCallback((attrs: LiveAttrs, ro: boolean, api: LiveApi): ReactElement => (
     <ProjectPageDataProvider value={d}>
-      <LiveBlockView projectId={projectId} attrs={attrs} readOnly={ro || !canEdit} api={api} fresh={attrs.blockId !== null && fresh.has(attrs.blockId)} reload={reloadN} onSettings={(a) => setSheet({ k: "settings", attrs: a, api })} />
+      <LiveBlockView projectId={projectId} attrs={attrs} readOnly={ro || !canEdit} api={api} fresh={attrs.blockId !== null && fresh.has(attrs.blockId)} reload={reloadN} types={types} onSettings={(a) => setSheet({ k: "settings", attrs: a, api })} />
     </ProjectPageDataProvider>
-  ), [d, projectId, canEdit, fresh, reloadN]);
+  ), [d, projectId, canEdit, fresh, reloadN, types]);
 
+  // the "/" menu: the basic blocks, then the live ones; typing after the slash narrows both
   const slash = canEdit ? {
     trigger: "/" as const, label: "Insert",
-    items: LIVE_KINDS.filter((k) => sg === null || sg === "" || k.label.toLowerCase().includes(sg.toLowerCase()) || "live block".includes(sg.toLowerCase())).map((k) => ({ id: k.type, label: k.label, detail: k.note })),
+    items: [
+      ...BASIC_BLOCKS.map((b) => ({ id: `basic-${b.id}`, label: b.label, detail: b.note, group: "Basic blocks" })),
+      ...LIVE_KINDS.map((k) => ({ id: k.type, label: k.label, detail: k.note, group: "Live blocks" })),
+    ].filter((x) => sg === null || sg === "" || x.label.toLowerCase().includes(sg.toLowerCase()) || (x.group === "Live blocks" && "live block".includes(sg.toLowerCase()))),
     onQuery: (q: string | null) => setSg(q),
-    insertNode: (it: { id: string }) => { const k = kindOf(it.id); if (!k) return null; const spec = k.spec(); if ((it.id === "records" || it.id === "metric") && types[0]) spec["type"] = types[0]; return liveBlockNode(k.type, spec, k.defaultView); },
+    insertNode: (it: { id: string }) => {
+      if (it.id.startsWith("basic-")) return BASIC_BLOCKS.find((b) => `basic-${b.id}` === it.id)?.node() ?? null;
+      const k = kindOf(it.id);
+      if (!k) return null;
+      const spec = k.spec();
+      if ((it.id === "records" || it.id === "metric") && types[0]) spec["type"] = types[0].key;
+      return liveBlockNode(k.type, spec, k.defaultView);
+    },
   } : undefined;
 
   return (

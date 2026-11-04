@@ -30,7 +30,11 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   await go();
   check(`${tag}: the page shows properties, two live blocks and the editor`, (await page.locator(T("prop-contract")).count()) === 1 && (await page.locator(T("live-tasks")).count()) === 1 && (await page.locator(T("live-records")).count()) === 1 && (await page.locator(".ProseMirror").count()) === 1);
   check(`${tag}: a live block counts what the reader cannot open`, /2 more you can't open/.test((await page.textContent(T("live-hidden"))) ?? ""));
+  const op = await page.evaluate(() => getComputedStyle(document.querySelector("[data-lb-tools]")).opacity);
+  check(`${tag}: a live block's strip is hidden at rest on a wide page and always on at phone width`, size === "wide" ? op === "0" : op === "1", `opacity ${op}`);
+  check(`${tag}: a live block has no card border`, (await page.evaluate(() => { const b = document.querySelector("[data-lb]"); const c = getComputedStyle(b); return c.borderTopWidth === "0px" && (c.backgroundColor === "rgba(0, 0, 0, 0)" || c.backgroundColor === "transparent"); })));
   await page.screenshot({ path: path.join(out, `overview-page-${tag}.png`) });
+  if (size === "wide") { await page.locator(`${T("live-tasks")}`).hover(); await page.waitForTimeout(300); await page.screenshot({ path: path.join(out, `overview-hover-${tag}.png`) }); }
   // a property edit saves as a version
   await page.fill(`${T("prop-contract")}`, "$52,000");
   await page.locator(T("prop-contract")).blur();
@@ -49,6 +53,7 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   await page.keyboard.type("/");
   await page.waitForTimeout(300);
   check(`${tag}: the slash menu lists the kinds of live block`, (await page.locator("[data-testid=md-suggest-milestones]").count()) === 1);
+  check(`${tag}: the slash menu has two groups, Basic blocks then Live blocks`, (await page.locator("[data-testid='md-suggest-head-Basic blocks']").count()) === 1 && (await page.locator("[data-testid='md-suggest-head-Live blocks']").count()) === 1 && (await page.locator("[data-testid=md-suggest-basic-check]").count()) === 1);
   await page.screenshot({ path: path.join(out, `overview-slash-${tag}.png`) });
   await page.keyboard.type("miles");
   await page.waitForTimeout(200);
@@ -60,8 +65,9 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   await page.waitForSelector(T("live-settings"), { timeout: 5000 });
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(out, `overview-settings-${tag}.png`) });
-  await page.click(T("live-spec-status-late"));
-  await page.click(T("live-view-table"));
+  check(`${tag}: the settings use selects, not pills`, (await page.locator(`${T("live-settings")} select`).count()) >= 2 && (await page.locator(`${T("live-settings")} ${T("live-spec-status")} option`).count()) === 5);
+  await page.selectOption(T("live-spec-status"), "late");
+  await page.selectOption(T("live-view"), "table");
   await page.click(T("live-settings-save"));
   await page.waitForTimeout(600);
   check(`${tag}: settings change the block (a table of late tasks)`, (await page.locator(T("live-table")).count()) >= 1);
@@ -70,7 +76,7 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   await page.waitForSelector(T("overview-history"), { timeout: 5000 });
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(out, `overview-history-${tag}.png`) });
-  check(`${tag}: history lists versions with Undo on the latest`, (await page.locator("[data-testid^=rev-undo-]").count()) === 1);
+  check(`${tag}: history lists versions with Undo on the latest and Restore on the older ones`, (await page.locator("[data-testid^=rev-undo-]").count()) === 1 && (await page.locator("[data-testid^=rev-restore-]").count()) >= 2);
   await page.click(T("overview-history-done"));
   // templates
   await page.click(T("overview-template-open"));
@@ -82,11 +88,21 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   await go("?agent=1");
   check(`${tag}: an agent's edit leaves a bar with Undo`, (await page.locator(T("overview-notice-undo")).count()) === 1);
   await page.screenshot({ path: path.join(out, `overview-agent-${tag}.png`) });
+  const line = (await page.textContent(T("live-metric-line"))) ?? "";
+  const big = (await page.textContent(T("live-number"))) ?? "";
+  check(`${tag}: the agent's metric reads as a sentence with its currency`, /\$6,250/.test(big) && /unpaid across 3 invoices/.test(line) && /Unpaid/.test((await page.textContent(T("overview-notice"))) ?? ""), `${big} | ${line}`);
+  await page.click(T("overview-history-open"));
+  await page.waitForSelector(T("row-rev-2"), { timeout: 5000 });
+  check(`${tag}: history says an agent made the edit`, /Edited by Docs \(Agent\)/.test((await page.textContent(T("row-rev-2"))) ?? ""));
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: path.join(out, `overview-agenthist-${tag}.png`) });
+  await page.click(T("overview-history-done"));
   await page.click(T("overview-notice-undo"));
   await page.waitForTimeout(800);
   check(`${tag}: Undo removes the agent's block and the bar`, (await page.locator(T("overview-notice")).count()) === 0 && (await page.locator(T("live-metric")).count()) === 0);
   // read mode
   await go("?read=1");
+  check(`${tag}: read mode hides a property with no value`, (await page.locator(T("prop-repo")).count()) === 0);
   check(`${tag}: read mode has no controls and keeps the live blocks`, (await page.locator(T("prop-add")).count()) === 0 && (await page.locator(T("live-edit")).count()) === 0 && (await page.locator(T("live-tasks")).count()) === 1 && (await page.locator(".ProseMirror[contenteditable=true]").count()) === 0);
   await page.screenshot({ path: path.join(out, `overview-read-${tag}.png`) });
   await ctx.close();

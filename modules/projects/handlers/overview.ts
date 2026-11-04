@@ -442,7 +442,7 @@ export async function evaluate(ctx: ProjectsCtx, p: Project, type: LiveType, spe
         else if (st === "done") all = all.filter((t) => t.status === "done");
         else if (st === "waiting") all = all.filter((t) => t.status === "in_review" || t.status === "awaiting_approval");
       }
-      if (typeof spec["assigned"] === "string") all = all.filter((t) => t.assigned === spec["assigned"]);
+      if (typeof spec["assigned"] === "string" && spec["assigned"] !== "") { const want = spec["assigned"] === "me" ? me(ctx) : spec["assigned"]; all = all.filter((t) => t.assigned === want); }
       all.sort((a, b) => (a.due ?? Infinity) - (b.due ?? Infinity));
       // Tasks can be private or restricted. `tasks.list` answers the ones the reader may open; the task records of this project counted without regard to access say how many exist, and the difference
       // is what is hidden from them. (A count that cannot be read leaves hidden at 0 rather than guessing.)

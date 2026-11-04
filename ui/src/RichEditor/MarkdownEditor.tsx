@@ -18,7 +18,7 @@ import type { PMNode } from "./mdtree.ts";
 export type MarkdownView = "styled" | "raw";
 
 /** One row of a suggestion menu. */
-export interface SuggestItem { id: string; label: string; detail?: string }
+export interface SuggestItem { id: string; label: string; detail?: string; /** In a "/" menu: the group it is listed under ("Basic blocks", "Live blocks"); a heading is drawn where the group changes. */ group?: string }
 
 /**
  * A menu that opens at the caret when the text before it ends in a trigger: `[[` for a page link, `@` for a person. The editor reports what was typed after the trigger (onQuery, null when the menu closes), the host
@@ -594,8 +594,11 @@ function MarkdownEditorEdit(props: MarkdownEditorProps): ReactElement {
   const suggestNode = sg !== null && props.suggest && sgItems.length > 0 ? (
     <View style={[st.suggest, { left: sg.left, top: sg.top }]} accessibilityRole="menu" accessibilityLabel={props.suggest.label} testID={props.suggest.menuTestID ?? "md-suggest"} {...webProps({ onMouseDown: (e: { preventDefault(): void }) => e.preventDefault() })}>
       {sgItems.map((it, i) => (
+        <View key={it.id}>
+        {it.group !== undefined && it.group !== sgItems[i - 1]?.group ? <Text style={st.sgHead} testID={`md-suggest-head-${it.group}`}>{it.group}</Text> : null}
         <Row key={it.id} id={it.id} title={it.label} selected={i === sgHi} {...(it.detail ? { trailing: <Text style={st.sgDetail}>{it.detail}</Text> } : {})} onPress={() => pickSuggest(it)}
           domProps={{ "data-testid": props.suggest?.itemTestID ? props.suggest.itemTestID(it) : `md-suggest-${it.id}`, role: "menuitem", "aria-selected": i === sgHi }} />
+        </View>
       ))}
     </View>
   ) : null;
@@ -670,6 +673,7 @@ const st = StyleSheet.create({
   pageCompact: { paddingVertical: 12, paddingHorizontal: 16 },
   pageBare: { paddingVertical: 0, paddingHorizontal: 0, maxWidth: "100%" as unknown as number, alignSelf: "stretch" },
   bubble: { position: "absolute", zIndex: 20, flexDirection: "row", alignItems: "center", gap: 1, padding: 3, borderRadius: 9, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
+  sgHead: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string, paddingHorizontal: 8, paddingTop: 8, paddingBottom: 2 },
   suggest: { position: "absolute", zIndex: 30, minWidth: 220, maxWidth: 320, padding: 4, borderRadius: 10, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line-2)" as string },
   sgItem: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, height: 30, borderRadius: 6 },
   sgOn: { backgroundColor: "var(--hover)" as string },

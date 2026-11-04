@@ -33,7 +33,8 @@ export function PropertiesRow({ facts, props, canEdit, onSet, onAdd }: { facts: 
     if (facts.start !== undefined || facts.due !== undefined) rows.push({ k: "Dates", node: <Text style={s.val} testID="prop-dates">{[day(facts.start), day(facts.due)].filter(Boolean).join(" to ")}</Text> });
     if (facts.health) rows.push({ k: "Health", node: <Text style={s.val} testID="prop-health">{HEALTH[facts.health] ?? facts.health}</Text> });
   }
-  for (const p of props) rows.push({ k: p.title, node: <Field p={p} canEdit={canEdit} onSet={onSet} /> });
+  // a page being read shows only the properties that have a value
+  for (const p of props.filter((x) => canEdit || propertyText(x) !== "")) rows.push({ k: p.title, node: <Field p={p} canEdit={canEdit} onSet={onSet} /> });
   return (
     <View testID="overview-props" accessibilityLabel="Properties">
       <View style={s.grid}>
