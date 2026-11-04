@@ -90,7 +90,8 @@ test("the Activity pane names who did it as the reader sees it: a Space agent by
   assert.match(text, /Lab Desk drafted this goal for you\./);
   assert.match(text, /Lab Desk/);
   assert.doesNotMatch(text, /Irfad Imtiaz \(Agent\)|Made by|an agent|the owner|usr_|agt_|\{at:|\{who:/);
-  assert.match(text, /Started\. Due \w{3} \d{1,2} \w{3}, \d{1,2}:\d{2}\./);
+  assert.doesNotMatch(text, /your time/, "a list of times shows only the Space zone; yours is on hover");
+  assert.match(text, /Started\. Due \w{3} \d{1,2} \w{3}, \d{1,2}:\d{2} [AP]M\./);
 });
 
 test("a draft card says what to do in plain words", async () => {

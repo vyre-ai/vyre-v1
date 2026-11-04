@@ -211,3 +211,14 @@ export function zoneExample(at: number, from: string, to: string): string {
   const line = (zone: string): string => `${dateIn(at, zone)}, ${clockIn(at, zone)} ${zoneName(zone, at)}`;
   return `${line(from)} now reads ${line(to)}.`;
 }
+
+/** The hover card's three lines: the full date, the time in the Space zone, and yours when it reads differently. Names, not abbreviations. */
+export function titleParts(at: number, z: Zones): { date: string; space: string; mine?: string } {
+  const p = partsIn(at, z.space);
+  const out: { date: string; space: string; mine?: string } = { date: `${DAYS[p.dow]} ${p.day} ${MONTHS[p.month - 1]} ${p.year}`, space: `${clockIn(at, z.space)} ${zoneName(z.space, at)}` };
+  if (offsetMinAt(at, z.space) !== offsetMinAt(at, z.viewer)) {
+    const q = partsIn(at, z.viewer);
+    out.mine = `${DAYS[q.dow]} ${q.day} ${MONTHS[q.month - 1]}, ${clockIn(at, z.viewer)} ${zoneName(z.viewer, at)}`;
+  }
+  return out;
+}

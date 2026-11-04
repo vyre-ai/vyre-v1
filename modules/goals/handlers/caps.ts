@@ -25,7 +25,7 @@ async function worded(ctx: GoalsCtx, g: Goal, rows: ReturnType<typeof activity>)
     names.set(id, typeof n === "string" && n !== "" && n !== id ? n : kind === "agent" ? "An agent" : "Someone");
   }
   return rows.map((r) => {
-    const text = expandWords(r.text, { me: me(ctx), nameOf: (id) => names.get(id) ?? "Someone", offsetMin: offsetAt(r.at, g.zone) / 60_000 });
+    const text = expandWords(r.text, { me: me(ctx), nameOf: (id) => names.get(id) ?? "Someone", offsetMin: offsetAt(r.at, g.zone) / 60_000, zone: g.zone });
     return text === r.text ? r : { ...r, text, tpl: r.text };
   });
 }
