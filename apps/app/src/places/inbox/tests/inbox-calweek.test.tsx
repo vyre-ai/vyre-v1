@@ -151,3 +151,20 @@ test("sample: shifted by days, today is the real today and the crowd falls Monda
   assert.equal(new Date(e.startsAt).getUTCDay(), 3, "the 10:00 pile-up is on Wednesday of that week");
   createCalendarSample();
 });
+
+test("stacking: a later start sits above every earlier card in the group, side by side or not", () => {
+  const l = lanesOf([row("n", "NDA", 10, 10.5), row("m", "Meeting with Priya", 10, 10.5), row("h", "Hartwell intake", 10.25, 11)]);
+  const z = (id: string): number => blockOf(l.find((x) => x.e.id === id)!, D0).z;
+  assert.ok(z("h") > z("m") && z("h") > z("n"), "Hartwell's title is never drawn over by the Meeting card's colour bar");
+  assert.ok(z("m") > z("n"), "and the second lane sits above the first");
+  const d = lanesOf([row("a", "A", 9, 10), row("b", "B", 9.5, 10.5), row("c", "C", 9.75, 11)]);
+  const zs = d.map((x) => blockOf(x, D0).z);
+  assert.deepEqual(zs, [...zs].sort((p, q) => p - q), "z follows the start time");
+});
+
+test("a band's label is left out when a card covers its top, and the band stays", () => {
+  const sm = createCalendarSample(), sd = renderToStaticMarkup(<InboxDataProvider value={sm.data}><InboxStateProvider initial={{}}><Calendar me={ME} team={TEAM} /></InboxStateProvider></InboxDataProvider>).replaceAll("<!-- -->", "");
+  assert.ok(sd.includes('data-testid="band:e_x_prep"'), "the 10:00 prep band is drawn");
+  assert.ok(!sd.includes('data-testid="band-label:e_x_prep"'), "its label would sit under three cards, so it is left out");
+  assert.ok(sd.includes('data-testid="band-label:e_x_focus"'), "Focus has a free top and keeps its label");
+});

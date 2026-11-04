@@ -369,12 +369,13 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
     }
     if (laid.band) {
       // a long Block or Focus: a quiet tinted band behind the others; only its small label takes a press (the rest lets a drag create through)
+      // the label sits only at the band's own top and is left out when a card covers that spot
       const crowded = all.some((o) => !o.band && o.e.startsAt < e.startsAt + 16 * 36e5 / HH && o.e.endsAt > e.startsAt);
       return (
         <View key={e.id} pointerEvents="box-none" testID={`band:${e.id}`} style={[s.band, { top: b.top, height: b.height, backgroundImage: tint(col, cal.selected === e.id ? 11 : 6), boxShadow: `inset 2px 0 0 color-mix(in srgb, ${col} 38%, transparent)` as unknown as undefined }]}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`${e.title}, ${eventLine(e, off)}`} testID={`band-label:${e.id}`} onPress={(ev) => pressEvent(e.id, ev)} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.bandLabel, crowded ? s.bandLabelBot : s.bandLabelTop]}>
+          {crowded ? null : <Pressable accessibilityRole="button" accessibilityLabel={`${e.title}, ${eventLine(e, off)}`} testID={`band-label:${e.id}`} onPress={(ev) => pressEvent(e.id, ev)} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.bandLabel, s.bandLabelTop]}>
             <Text numberOfLines={1} style={[s.bandText, { color: col }]}>{e.title}</Text>
-          </Pressable>
+          </Pressable>}
         </View>
       );
     }

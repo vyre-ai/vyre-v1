@@ -186,6 +186,8 @@ export interface Laid {
   level: number;
   /** A long background block (Block, Focus): drawn as a tinted band behind the day, taking no column. */
   band: boolean;
+  /** Stacking order within the overlap group by start time (0 first): a later start sits above every earlier card, side by side or not. */
+  rank?: number;
   /** Pixels of this card left above the next card drawn over it (unset when nothing covers it): a title or time line that would sit under that card is not drawn. */
   room?: number;
   /** Past three events in a group the first two show and this tile lists the rest. */
@@ -224,6 +226,7 @@ export function lanesOf(list: readonly EventRow[]): Laid[] {
       g.es.forEach((e, k) => out.push({ e, lane: k, lanes: g.es.length, level, band: false }));
     });
     const mine = out.slice(from);
+    [...mine].sort((a, b) => a.e.startsAt - b.e.startsAt || a.lane - b.lane).forEach((a, i) => { a.rank = i; });
     for (const a of mine) {
       const over = mine.filter((b) => b !== a && b.e.startsAt > a.e.startsAt && b.e.startsAt < a.e.endsAt).map((b) => offsetToY(b.e.startsAt - a.e.startsAt));
       if (over.length > 0) a.room = Math.min(...over);
@@ -269,7 +272,7 @@ export function blockOf(l: Laid, day: number): Block {
   const time = narrow ? "none" : seen >= 44 ? "range" : height < 30 && l.room === undefined ? "start" : "none";
   const off = l.level * CASCADE;
   const clip = l.room === undefined ? undefined : Math.max(TEXT_TOP + LINE, l.room);
-  return { top, height, clip, left: `calc(${off}px + ${l.lane} * (100% - ${off}px) / ${l.lanes} + 2px)`, width: `calc((100% - ${off}px) / ${l.lanes} - 4px)`, z: 2 + l.level, one: height < 40, lines, time };
+  return { top, height, clip, left: `calc(${off}px + ${l.lane} * (100% - ${off}px) / ${l.lanes} + 2px)`, width: `calc((100% - ${off}px) / ${l.lanes} - 4px)`, z: 2 + (l.rank ?? l.level), one: height < 40, lines, time };
 }
 
 /** The events of one day: timed ones in order, all-day ones apart. */
