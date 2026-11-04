@@ -87,7 +87,7 @@ export function LinkSheet({ projectId, have, onClose, onLinked }: LinkSheetProps
       </View>
       <Text style={st.label}>Paste a link</Text>
       <View style={st.pasteRow}>
-        <TextField testID="link-url" accessibilityLabel="Paste a link" value={url} onChangeText={setUrl} onSubmitEditing={() => void paste()} placeholder="A GitHub pull request or commit, or any web link" placeholderTextColor="var(--ink-4)" style={[st.input, { flex: 1 }]} />
+        <TextField testID="link-url" accessibilityLabel="Paste a link" value={url} onChangeText={setUrl} onSubmitEditing={() => void paste()} placeholder="A GitHub or web link" placeholderTextColor="var(--ink-4)" style={[st.input, { flex: 1 }]} />
         <Pressable accessibilityRole="button" testID="link-url-go" disabled={busy} onPress={() => void paste()} style={st.go}><Text style={st.goText}>Link</Text></Pressable>
       </View>
       <Text testID="link-line" accessibilityLiveRegion="polite" style={st.dim}>{line}</Text>

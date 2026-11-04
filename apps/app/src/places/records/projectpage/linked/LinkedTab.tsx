@@ -4,6 +4,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Glyph } from "../../../chats/sidebar/parts.tsx";
+import type { IconName } from "../../../chats/sidebar/parts.tsx";
 import { Row } from "../../../../../../../ui/src/Row/index.tsx";
 import { ReachRow } from "../../../../../../../ui/src/Row/ReachRow.tsx";
 import { menuTrigger, useMenu } from "../../../../../../../ui/src/Menu/index.tsx";
@@ -139,7 +141,7 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
     if (levelOf(l) !== "none") items.push({ label: "Open", onSelect: () => openLink(l) });
     if (levelOf(l) !== "none") items.push({ label: "Copy link", onSelect: () => { void (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard?.writeText?.(l.url ?? `vyre://${itemTypeOf(l)}/${l.ref}`); say("Link copied"); } });
     if (canEdit) { if (items.length > 0) items.push({ separator: true }); items.push({ label: "Unlink", danger: true, onSelect: () => void unlink(l) }); }
-    if (items.length > 0) menu.show(items, x, y, "other", { label: "Linked item" });
+    if (items.length > 0) menu.show(items, x, y, "context", { label: "Linked item" });
   };
 
   const showMenu = (): void => {
@@ -180,10 +182,10 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
     const id = l.linkId;
     const subject = isOutside(l) ? undefined : { type: itemTypeOf(l), id: l.kind === "record" && l.ref.includes("/") ? l.ref.slice(l.ref.indexOf("/") + 1) : l.ref };
     const rowProps = {
-      id: `lk-${id}`, title: titleOf(l), tall: true,
+      id: `lk-${id}`, title: titleOf(l),
       note: locked ? `You can't open this \u00B7 ${by.by}` : by.by,
       ...(hint(r) ? { hint: hint(r)! } : {}),
-      leading: <View style={st.kind}><Text style={[st.kindText, tone === "ok" && st.ok, tone === "bad" && st.bad, tone === "warn" && st.warn]}>{locked ? "\u{1F512}\uFE0E" : KIND_MARK[l.kind]}</Text></View>,
+      leading: <View style={st.kind}><Glyph name={locked ? "lock" : KIND_ICON[l.kind]} size={15} color={locked ? "var(--ink-3)" : TONE_COLOR[tone]} /></View>,
       ...(by.auto ? { titleMarks: <Text testID={`link-auto-${id}`} accessibilityLabel="Linked by a rule" style={st.auto}>AUTO</Text> } : {}),
       trailing: (
         <View style={st.trail}>
@@ -262,8 +264,9 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
   );
 }
 
-/** A mark for each kind, plain text so a list costs nothing. */
-const KIND_MARK: Readonly<Record<Link["kind"], string>> = { task: "✓", record: "▤", calendar_event: "◴", file: "▫", chat: "◯", mail_thread: "✉︎", "github.pr": "⑂", "github.commit": "●", "ci.run": "▶", artifact: "◇", url: "↗" };
+/** An icon for each kind, drawn at 15 px (the tile is 28). */
+const KIND_ICON: Readonly<Record<Link["kind"], IconName>> = { task: "task", record: "project", calendar_event: "clock", file: "note", chat: "hash", mail_thread: "inbox", "github.pr": "arrow", "github.commit": "check", "ci.run": "retry", artifact: "panel", url: "arrow" };
+const TONE_COLOR = { ok: "var(--ok)", bad: "var(--danger)", warn: "var(--warn)", "": "var(--ink-2)" } as const;
 
 const st = StyleSheet.create({
   scroll: { flex: 1, minHeight: 0 },
@@ -277,11 +280,12 @@ const st = StyleSheet.create({
   hover: { backgroundColor: "var(--hover)" },
   primary: { height: 30, paddingHorizontal: 13, borderRadius: 9, justifyContent: "center", backgroundColor: "var(--accent)" as string },
   primaryText: { fontSize: 13, fontWeight: "500", color: "var(--accent-ink)" as string },
-  group: { marginBottom: 18 },
+  group: { marginBottom: 6 },
   gh: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 30, marginBottom: 2 },
   gt: { fontSize: 13, fontWeight: "600", color: "var(--ink-2)" as string },
   row: { flexDirection: "row", alignItems: "center" },
-  trail: { flexDirection: "row", alignItems: "center", gap: 6 },
+  // the "..." column is fixed: a locked row's lock sits at the right edge, so every row leaves its room
+  trail: { flexDirection: "row", alignItems: "center", gap: 6, marginRight: 17 },
   main: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10, minHeight: 50, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8 },
   kind: { width: 28, height: 28, marginRight: 10, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   kindText: { fontSize: 13, color: "var(--ink-2)" as string },

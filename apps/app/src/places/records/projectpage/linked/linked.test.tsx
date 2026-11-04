@@ -192,7 +192,9 @@ test("Unlink removes the link, says so, and Undo puts it back; an auto link says
 test("a link's menu opens it, copies its link and unlinks it; a failed unlink says why", async () => {
   const { root, s, said, restore } = await tab();
   try {
-    await tap(root, "link-more-lnk_6"); await tap(root, "menu-item-Open");
+    await tap(root, "link-more-lnk_6");
+    assert.ok(find(root, "menu-item-report"), "Report a problem is the last item of a link's menu");
+    await tap(root, "menu-item-Open");
     assert.deepEqual(s.opened, ["thread:thr_intake"]);
     await tap(root, "link-more-lnk_6"); await tap(root, "menu-item-Copy link");
     assert.ok(said.includes("Link copied"));

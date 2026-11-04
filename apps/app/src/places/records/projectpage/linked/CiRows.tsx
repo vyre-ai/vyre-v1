@@ -2,11 +2,14 @@
 // to ask the Assistant to fix the newest failure. Runs come from ci.runs.list (anyone who can see the project may read them).
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Glyph } from "../../../chats/sidebar/parts.tsx";
+import type { IconName } from "../../../chats/sidebar/parts.tsx";
 import { Row } from "../../../../../../../ui/src/Row/index.tsx";
 import { RUN_WORD, failedRun, fixAsk, runLine, runLook } from "./model.ts";
 import type { Run } from "./model.ts";
 
-const MARK = { failed: "✕", passed: "✓", running: "◔", waiting: "◷", stopped: "○" } as const;
+const ICON_OF: Readonly<Record<"failed" | "passed" | "running" | "waiting" | "stopped", IconName>> = { failed: "alert", passed: "check", running: "retry", waiting: "clock", stopped: "more" };
+const COLOR_OF = { failed: "var(--danger)", passed: "var(--ok)", running: "var(--accent)", waiting: "var(--ink-3)", stopped: "var(--ink-3)" } as const;
 
 export function CiGroup({ repo, runs, now, projectTitle, askAssistant }: { repo: string; runs: readonly Run[]; now: number; projectTitle: string; askAssistant?: (text: string) => void }): ReactElement {
   const bad = failedRun(runs);
@@ -19,8 +22,8 @@ export function CiGroup({ repo, runs, now, projectTitle, askAssistant }: { repo:
         const look = runLook(r);
         return (
           <View key={r.runId} testID={`ci-run-${r.runId}`} accessibilityLabel={`${r.jobName}, ${RUN_WORD[look]}`}>
-            <Row id={`ci-run-${r.runId}`} inert tall title={r.jobName} note={runLine(r, now)}
-              leading={<View style={st.mark}><Text style={[st.markText, look === "failed" && st.bad, look === "passed" && st.ok, look === "running" && st.accent]}>{MARK[look]}</Text></View>}
+            <Row id={`ci-run-${r.runId}`} inert title={r.jobName} note={runLine(r, now)}
+              leading={<View style={st.mark}><Glyph name={ICON_OF[look]} size={15} color={COLOR_OF[look]} /></View>}
               trailing={<Text style={st.state}>{RUN_WORD[look]}</Text>} />   {/* the status word in muted ink; the colour sits on the tile */}
             {look === "failed" && r.note ? <Text numberOfLines={2} testID={`ci-why-${r.runId}`} style={st.why}>{r.note}</Text> : null}
           </View>
@@ -49,7 +52,7 @@ const st = StyleSheet.create({
   title: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
   sub: { fontSize: 12, color: "var(--ink-3)" as string },
   // the failure line sits under its run's own text: the row's 8 px inset, the 28 px tile and its 10 px gap
-  why: { fontSize: 12, lineHeight: 16, color: "var(--danger)" as string, marginLeft: 46, marginRight: 8, marginTop: -10, marginBottom: 8 },
+  why: { fontSize: 12, lineHeight: 16, color: "var(--danger)" as string, marginLeft: 46, marginRight: 8, marginTop: -4, marginBottom: 6 },
   state: { fontSize: 12.5, color: "var(--ink-3)" as string },
   bad: { color: "var(--danger)" as string }, ok: { color: "var(--ok)" as string }, accent: { color: "var(--accent)" as string },
   card: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 6, marginBottom: 8, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: "var(--line-2)" as string, backgroundColor: "var(--raised)" as string },
