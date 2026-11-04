@@ -1,6 +1,4 @@
-// Helpers the Add people and agents tests share: the DOM, the sheet, picking rows, and a right-click on a row.
-import assert from "node:assert/strict";
-import { act } from "react";
+// Helpers the Add people and agents tests share: the DOM, the sheet and picking rows.
 import { Dimensions } from "react-native";
 import { installDom, press, find, flush } from "../../../onboarding/test-dom.ts";
 import type { Node } from "../../../onboarding/test-dom.ts";
@@ -23,15 +21,5 @@ export const testIds = (n: Node | string, out: string[] = []): string[] => { if 
 export async function pickAndAdd(root: Node, ids: string[]): Promise<void> {
   for (const id of ids) await press(find(root, `as-row-${id}`));
   await press(find(root, "as-add"));
-  await flush();
-}
-
-/* ---------- one sheet, every entry point ---------- */
-
-
-export async function rightClick(root: Node, id: string): Promise<void> {
-  const open = find(root, id)?.props["onContextMenu"] as ((e: unknown) => void) | undefined;
-  assert.equal(typeof open, "function", id);
-  await act(async () => { open?.({ preventDefault() {}, nativeEvent: { pageX: 20, pageY: 20 }, pageX: 20, pageY: 20, clientX: 20, clientY: 20 }); });
   await flush();
 }

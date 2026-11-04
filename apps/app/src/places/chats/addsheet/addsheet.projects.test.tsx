@@ -2,13 +2,23 @@
 // @reads /apps/app/src/places/chats/addsheet/addsheet.support.tsx
 import test from "node:test";
 import assert from "node:assert/strict";
+import { act } from "react";
+import type { Node } from "../../../onboarding/test-dom.ts";
 import { createRoot } from "test-renderer";
 import { mount, press, find, flush, typeInto, textOf } from "../../../onboarding/test-dom.ts";
 import { Conversation } from "../conversation/Conversation.tsx";
 import { createSample } from "../conversation/sample.ts";
 import { ProjectPage, ProjectPageDataProvider } from "../../records/projectpage/index.ts";
 import { createSampleProject } from "../../records/projectpage/sample.ts";
-import { withDom, rightClick } from "./addsheet.support.tsx";
+import { withDom } from "./addsheet.support.tsx";
+
+// a right-click on a row, the way the app gets one (kept in the test file: only tests fire a native context menu)
+async function rightClick(root: Node, id: string): Promise<void> {
+  const open = find(root, id)?.props["onContextMenu"] as ((e: unknown) => void) | undefined;
+  assert.equal(typeof open, "function", id);
+  await act(async () => { open?.({ preventDefault() {}, nativeEvent: { pageX: 20, pageY: 20 }, pageX: 20, pageY: 20, clientX: 20, clientY: 20 }); });
+  await flush();
+}
 
 test("a project: people and agents become members, a new agent is agents.create with the project id", async () => {
   await withDom(async () => {
