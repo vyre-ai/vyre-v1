@@ -158,6 +158,7 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
     } catch (e) { say(msg(e)); }
   };
 
+  // ui-rows-lint: not a list (the Linked groups, each a heading over its own rows)
   const groups = GROUPS.filter((g) => show === "All" || show === g).map((g) => {
     const rows = filterLinks(links, show).filter((l) => groupOf(l) === g);
     const ci = g === "Code" && repo !== null && runs.length > 0;
