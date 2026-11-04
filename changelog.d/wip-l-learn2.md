@@ -87,3 +87,4 @@
 - The activity-line live test waits for the line to read Thinking instead of reading a node that may be redrawn.
 - A tab strip that cannot close its tabs draws no close button over their labels, and a hidden close button takes no clicks.
 - Live tests: the Apps drawing gate opens the rail isle first, automations.home dismisses the first-run guide, and the activity journey thinks 4 s so its excerpt stays up.
+- The activity line shows the first of the agent's thinking at once instead of after a 1.5 s wait, and the live tests keep one stand-in vault key so a world's vault stays readable when a browser seat opens the app.
