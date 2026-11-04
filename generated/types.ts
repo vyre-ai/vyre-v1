@@ -8140,6 +8140,9 @@ export type CiProjectGetOut = {
   labels: Array<string>;
   live: number;
   queued: number;
+  appNeedsAccept: boolean;
+  acceptUrl: string | null;
+  orgAcceptUrl: string | null;
 };
 export type CiRunsGetIn = {
   runId: string;
@@ -15812,6 +15815,15 @@ export type GithubReposListOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type GithubRunnerReleaseIn = {
+  version: string;
+};
+export type GithubRunnerReleaseOut = {
+  assets: Array<{
+      name: string;
+      digest: string | null;
+    }>;
 };
 export type GithubRunnersJitConfigIn = {
   repo: string;
@@ -45006,6 +45018,7 @@ export interface CapMap {
   "github.receive_webhook": { in: GithubReceiveWebhookIn; out: GithubReceiveWebhookOut };
   "github.repo.get": { in: GithubRepoGetIn; out: GithubRepoGetOut };
   "github.repos.list": { in: GithubReposListIn; out: GithubReposListOut };
+  "github.runner_release": { in: GithubRunnerReleaseIn; out: GithubRunnerReleaseOut };
   "github.runners.jit_config": { in: GithubRunnersJitConfigIn; out: GithubRunnersJitConfigOut };
   "github.runners.remove": { in: GithubRunnersRemoveIn; out: GithubRunnersRemoveOut };
   "github.session_env": { in: GithubSessionEnvIn; out: GithubSessionEnvOut };
@@ -46957,11 +46970,16 @@ export type CheckoutCompletedPayload = {
   amount: number;
   currency: string;
 };
+export type CiBlockedPayload = {
+  title: string;
+  why: "runner_unverified";
+  day: string;
+};
 export type CiJobRefusedPayload = {
   repo: string;
   jobId: number;
   reason: string;
-  code: "fork_with_secrets" | "cap_reached" | "not_enabled" | "no_key";
+  code: "fork_with_secrets" | "cap_reached" | "not_enabled" | "no_key" | "runner_unverified";
 };
 export type CiPausedPayload = {
   title: string;
@@ -50682,6 +50700,7 @@ export interface EventMap {
   "channel.updated": ChannelUpdatedPayload;
   "checklist.dismissed": ChecklistDismissedPayload;
   "checkout.completed": CheckoutCompletedPayload;
+  "ci.blocked": CiBlockedPayload;
   "ci.job_refused": CiJobRefusedPayload;
   "ci.paused": CiPausedPayload;
   "ci.run_failed": CiRunFailedPayload;

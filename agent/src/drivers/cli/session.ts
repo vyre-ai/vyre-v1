@@ -14,6 +14,7 @@
 //   cancel     the process is stopped (TERM, then KILL after the grace time). A cancelled session is dirty: the pool closes it instead of reusing it, and the next one resumes by id.
 import type { ChatMode, DriverEvent, Effort, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
 import { scrub } from "../api/errors.ts";
+import { redact } from "./redact.ts";
 import { classifyCli, missingProgram, modelGone, plainCli, sessionGone } from "./errors.ts";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
@@ -117,11 +118,11 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     saved = id;
     try { void Promise.resolve(deps.checkpoint?.(id)).catch(() => undefined); } catch { /* as above */ }
   }
-  const clean = (text: string): string => scrub(text, secrets());
+  const clean = (text: string): string => redact(scrub(text, secrets()));
 
   async function pump(r: Run): Promise<void> {
     try {
-      for await (const line of lines(r.proc.stdout)) for (const ev of r.decoder.push(line)) r.chan.push(ev);
+      for await (const line of lines(r.proc.stdout)) for (const ev of r.decoder.push(redact(line))) r.chan.push(ev);   // a held secret never reaches a decoded text, tool detail or error
     } catch { /* a broken pipe or an over-long line ends the run like an exit */ }
     for (const ev of r.decoder.finish()) r.chan.push(ev);
     r.alive = false;
@@ -250,7 +251,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
             // stderr may still be arriving when stdout closes: the process is gone once both are.
             const t = pause(graceMs);
             try { await Promise.race([r.proc.exited, t.done]); } finally { t.stop(); }
-            const tail = clean(r.proc.stderrTail()).trim();
+            const tail = clean(r.proc.stderrTail()).trim();   // stderr is cleaned here, so a secret in it is gone before it is classified or shown
             if (gone(tail)) return "gone";
             const absent = missingProgram(tail);
             if (absent !== null) { yield { type: "error", code: "engine.cli_missing", message: `${absent} is not installed here.` }; return "stop"; }

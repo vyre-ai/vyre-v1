@@ -9,6 +9,7 @@ import http from "node:http";
 import { fail } from "../host/src/routes/errors.ts";
 import { createGithubConnectRoute } from "../host/src/routes/github-connect.ts";
 import { createGithubHost } from "../host/src/seams/comms.ts";
+import { createGithub } from "../host/src/seams/people.ts";
 import { createFiller } from "../host/src/seams/filler.ts";
 import { createGithubTickets } from "../host/src/seams/github-tickets.ts";
 import { harness as githubWorld, INSTALL } from "../modules/github/fixtures/harness.ts";
@@ -130,5 +131,45 @@ test("walk: connect, reach, a refused repository, Ask me first, the policy and a
     assert.equal(v.rows(`SELECT * FROM vault_meta WHERE "owner" = ? AND "deleted_at" IS NULL`, PERSON).length, 0);
     assert.equal(me.meStatus(g.ctx).connected, false);
     assert.ok(sent.some((s) => s.startsWith("DELETE https://api.github.com/applications/Iv1.vyre/grant")), "the grant was revoked at GitHub");
+  } finally { v.cleanup(); }
+});
+
+test("walk: signing in with GitHub through the default Vyre app connects it too, and connecting it links the sign-in", async () => {
+  const g = githubWorld(), v = vaultWorld();
+  try {
+    ensure(g.ctx);
+    setKeyPort({ async personKey(id) { return keyOfPerson(id); } });
+    v.actAs("service", "svc_host");
+    const tickets = createGithubTickets(), filler = createFiller({}, () => g.ctx.now());
+    const fetched: string[] = [];
+    const f = (async (url: string) => {
+      fetched.push(String(url));
+      const body = String(url).includes("access_token") ? { access_token: "ghu_signin_1", refresh_token: "ghr_signin_1", expires_in: 28800 } : { id: 4242, login: "maya-codes" };
+      return { json: async () => body, text: async () => JSON.stringify(body), status: 200, arrayBuffer: async () => new ArrayBuffer(0) };
+    }) as never;
+    const seam = createGithubHost({
+      vault: u.secretPort(v.ctx.db) as never, fetch: f, blobs: {} as never, filler, tickets, publicUrl: async () => "https://space.vyre.test",
+      hostCall: async (name, input) => (name === "vault.mine_set" ? mineSet(v.ctx, input as never) : {}),
+      defaultApp: () => ({ clientId: "Iv1.vyre", clientSecret: "vyre_secret" }),
+    });
+    g.host.user = seam.user as never;
+    g.host.fillerHandle = async (_c, a) => filler.hold(a.token, a.expiresAt);
+    // Settings, GitHub, "Sign in with GitHub": the identity module calls resolve(code) and then signedIn(id, person) once the session exists
+    const sign = createGithub({ clientId: "Iv1.vyre", clientSecret: "vyre_secret", fetch: f }, tickets, (githubId, person) => me.adoptSignIn(g.ctx, { githubId, person }));
+    assert.deepEqual(await sign.resolve("sign-in-code"), { id: "4242", login: "maya-codes" });
+    assert.equal(me.meStatus(g.ctx).connected, false, "not connected until the sign-in finishes");
+    await sign.signedIn!("4242", PERSON);
+    const st = me.meStatus(g.ctx);
+    assert.equal(st.connected, true);
+    assert.equal(st.login, "maya-codes");
+    assert.equal(st.source, "vyre", "the default Vyre app");
+    const item = v.rows(`SELECT * FROM vault_meta WHERE "owner" = ?`, PERSON)[0]!;
+    assert.equal(await u.secretPort(v.ctx.db).secret(`${item.handle}.refresh_token`, "", PERSON), "ghr_signin_1");
+    assert.equal(JSON.stringify([v.everything(), g.emitted]).includes("ghr_signin_1"), false);
+    assert.deepEqual(me.policyGet(g.ctx).policy, { read: "always", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "never" });
+    // a second sign-in does not disturb the connection, and a server with no app says so
+    assert.deepEqual(await me.adoptSignIn(g.ctx, { githubId: "4242", person: PERSON }), { adopted: false });
+    const none = createGithubHost({ vault: u.secretPort(v.ctx.db) as never, fetch: f, blobs: {} as never, tickets });
+    await assert.rejects(none.user!.app({ space: "spc", trace: { traceId: TRACE }, now: () => 0, db: { all: () => [] } } as never), (e: any) => e.error.code === "internal.unavailable" && /VYRE_GH_OAUTH_CLIENT_ID/.test(e.error.message));   // eslint-disable-line @typescript-eslint/no-explicit-any
   } finally { v.cleanup(); }
 });

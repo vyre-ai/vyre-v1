@@ -39,6 +39,9 @@ type Out = {
   labels: Array<string>;
   live: number;
   queued: number;
+  appNeedsAccept: boolean;
+  acceptUrl: string | null;
+  orgAcceptUrl: string | null;
 };
 ```
 
@@ -58,12 +61,15 @@ type Out = {
     "projectId": "prj_a1b2c3"
   },
   "output": {
+    "acceptUrl": "example",
+    "appNeedsAccept": true,
     "enabled": true,
     "labels": [
       "example"
     ],
     "linked": true,
     "live": 1,
+    "orgAcceptUrl": "example",
     "queued": 1,
     "repo": "vyre-ai/website"
   }
