@@ -182,3 +182,47 @@ test("the ... menu offers Always let Dex message Aliza Rizvi: one rule for that 
   assert.ok(w.calls.findIndex((c) => c.cap === "gate.allow.set") < w.calls.findIndex((c) => c.cap === "tasks.act"), "the rule first, then the send");
   assert.equal(w.calls.find((c) => c.cap === "tasks.act")?.input.action, "approve");
 });
+
+const EVENT = { summary: "Rivera closing prep", description: "Agenda\n- the deed\n- the fee", location: "https://us02web.zoom.us/j/123456", sendUpdates: "all", conference: false,
+  start: { dateTime: "2026-11-04T14:00:00-08:00", timeZone: "America/Los_Angeles" }, end: { dateTime: "2026-11-04T15:00:00-08:00", timeZone: "America/Los_Angeles" }, attendees: [{ email: "dana@client.test" }, { email: "sam@firm.test" }] };
+const eventBlock = (input: Record<string, unknown> = EVENT) => ({ type: "approval_preview", v: 1, data: { act: "send", cap: "google.calendar.create_event", input, holdId: "hld_1" } });
+
+test("a calendar event holds as an event card: the title, when in both zones, the guests and whether they are emailed, where with its link, the agenda folded, never raw fields", async () => {
+  const w = world([eventBlock()]);
+  const root = await mount(createRoot, card(w.d));
+  const t = textOf(root);
+  assert.match(t, /Dex wants to add a calendar event/);
+  assert.match(t, /Rivera closing prep/);
+  assert.match(t, /When/);
+  assert.match(t, /Wed 4 Nov, 2:00 to 3:00 pm PST/);
+  assert.match(t, /dana@client\.test/);
+  assert.match(t, /sam@firm\.test/);
+  assert.match(t, /They get an email invite/);
+  assert.match(t, /zoom\.us\/j\/123456/);
+  assert.ok(find(root, "approval-tsk_1-invitees"), "guests as faces and names");
+  assert.ok(find(root, "approval-tsk_1-fold"), "the agenda is folded");
+  assert.ok(!t.includes("the deed"), "and closed until opened");
+  for (const raw of ["Summary", "Description", "Location", "Send updates", "sendUpdates", "google", "Google", "conference"]) assert.ok(!t.includes(raw), `${raw} is not on the card`);
+  assert.equal(textOf(find(root, "approval-tsk_1-send")).trim(), "Send invites");
+  await press(find(root, "approval-tsk_1-fold"));
+  assert.match(textOf(root), /the deed/);
+});
+
+test("an event with nobody to email says so and adds to the calendar; guests who are not emailed are said too", async () => {
+  const none = await mount(createRoot, card(world([eventBlock({ summary: "Block", start: EVENT.start, end: EVENT.end })]).d));
+  assert.match(textOf(none), /No guests/);
+  assert.equal(textOf(find(none, "approval-tsk_1-send")).trim(), "Add to calendar");
+  const quiet = await mount(createRoot, card(world([eventBlock({ ...EVENT, sendUpdates: "none" })]).d));
+  assert.match(textOf(quiet), /They are not emailed/);
+});
+
+test("Edit on an event changes its title and agenda in place: Save goes to the Gate with the title", async () => {
+  const w = world([eventBlock()]);
+  const root = await mount(createRoot, typed(w.d));
+  await press(find(root, "approval-tsk_1-edit"));
+  await typeInto(find(root, "approval-tsk_1-subject")!, "Closing prep, moved");
+  await typeInto(find(root, "stub-editor")!, "New agenda");
+  await press(find(root, "approval-tsk_1-save"));
+  await flush();
+  assert.deepEqual(w.calls.find((c) => c.cap === "gate.holds.revise")?.input, { holdId: "hld_1", taskId: "tsk_1", body: "New agenda", title: "Closing prep, moved" });
+});

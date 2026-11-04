@@ -318,7 +318,7 @@ export function summaryLine(a: ActDef, capName: string, input: unknown): string 
     if (Array.isArray(v)) recipients += v.length;
     else if (typeof v === "string" && v.length > 0) recipients += 1;
   }
-  const parts = [a.key === "send" && !outwardOf(capName, input) ? holdTitle(capName, input, a.title) : `${a.title} via ${capName}`];
+  const parts = [a.key === "send" && (outwardOf(capName, input) === null || outwardOf(capName, input)?.channel === "event") ? holdTitle(capName, input, a.title) : `${a.title} via ${capName}`];
   if (recipients > 0) parts.push(`to ${recipients} ${recipients === 1 ? "recipient" : "recipients"}`);
   const amount = o.amount;
   if (typeof amount === "number" && Number.isFinite(amount)) parts.push(`for ${amount}${typeof o.currency === "string" ? ` ${o.currency.slice(0, 3).toUpperCase()}` : ""}`);

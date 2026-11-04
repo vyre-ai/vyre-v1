@@ -15,7 +15,7 @@ import { Face } from "../needsyou/parts.tsx";
 import { MarkdownText } from "../../../../../../ui/src/stream/MarkdownText.tsx";
 import { HeldCard } from "./held-card.tsx";
 import type { HeldEditor } from "./held-card.tsx";
-import { outwardOf, scheduleLine, verbOfChannel } from "../../../../../../lib/outward.ts";
+import { outwardOf, scheduleLine, verbOfChannel, whenWords } from "../../../../../../lib/outward.ts";
 import type { Outward, Recipient } from "../../../../../../lib/outward.ts";
 import { useFollow } from "./use-follow.ts";
 import { DECIDED_LINE, isDecided } from "../../../shell/decided.ts";
@@ -86,10 +86,13 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { t
   const ow: Outward | null = held.what || held.plain ? null : held.outward ?? outwardOf(held.cap, held.input);
   if (ow) {
     const ended = outcome ?? outcomeOf(task.state);
+    const ev = ow.event;
+    const viewerTz = ((): string | undefined => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { return undefined; } })();
+    const host = (u: string): string => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
     const nameOf = (r: Recipient): string => (r.kind === "person" ? subject ?? "a teammate" : r.kind === "thread" ? "this chat" : r.address ?? "");
     const first = ow.to[0] ? nameOf(ow.to[0]) : "";
     const hhmm = new Date((task as { updatedAt?: number }).updatedAt ?? Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-    const only = ow.to.length === 1 && ow.to[0]!.kind !== "thread" ? (ow.to[0]!.id ?? ow.to[0]!.address ?? "").toLowerCase() : "";
+    const only = !ev && ow.to.length === 1 && ow.to[0]!.kind !== "thread" ? (ow.to[0]!.id ?? ow.to[0]!.address ?? "").toLowerCase() : "";
     /** The rule is for this agent, this one recipient and this channel's act: nothing wider. Settings lists it and takes it back. */
     const always = only && held.act !== "pay" ? async (): Promise<void> => {
       await data.call("gate.allow.set", { act: held.act, target: only, agentId, recipient: true });
@@ -101,15 +104,21 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { t
     );
     return (
       <HeldCard
-        testID={ended ? `approval-done-${taskId}` : `approval-${taskId}`} agent={agent} to={ow.to.map((r) => ({ name: nameOf(r), seed: r.id ?? r.address ?? agentId, kind: "person" as const }))} verb={verbOfChannel(ow, nameOf)}
+        testID={ended ? `approval-done-${taskId}` : `approval-${taskId}`} agent={agent} to={ev ? [] : ow.to.map((r) => ({ name: nameOf(r), seed: r.id ?? r.address ?? agentId, kind: "person" as const }))} verb={verbOfChannel(ow, nameOf)}
         schedule={scheduleLine(ow.schedule, { yours: (at) => clock(at), theirs: theirTz ? (at) => clock(at, theirTz) : null })} subject={ow.subject} body={ow.body}
+        {...(ev ? {
+          subjectLabel: "Title", editSubject: true, fold: "Agenda", fieldMd: ["Where"], sendLabel: ev.notify ? "Send invites" : "Add to calendar",
+          fields: [["When", whenWords(ev, viewerTz) ?? "Not given"], ...(ev.where || ev.link ? [["Where", [ev.where ?? "", ev.link ? `[${host(ev.link)}](${ev.link})` : ""].filter(Boolean).join(" · ")] as const] : [])],
+          invitees: ow.to.map((r) => ({ name: r.name ?? r.address ?? "A guest", seed: r.address ?? r.id ?? agentId })),
+          inviteNote: ow.to.length === 0 ? "No guests" : ev.notify ? "They get an email invite" : "They are not emailed",
+        } : {})}
         {...(always ? { alwaysLabel: `Always let ${agent} ${verbOfChannel(ow, nameOf)}`, onAlways: always } : {})}
         edited={Boolean(ow.edited)} state={ended === "allowed" ? "sent" : ended === "denied" ? "dropped" : "waiting"}
-        doneLine={ended === "allowed" ? `Sent${first ? ` to ${first}` : ""} · ${hhmm}` : "Not sent"} editable={Boolean(held.holdId) && !ended} editSubject={false}
+        doneLine={ended === "allowed" ? (ev ? `${ev.notify ? "Invites sent" : "Added to the calendar"} · ${hhmm}` : `Sent${first ? ` to ${first}` : ""} · ${hhmm}`) : "Not sent"} editable={Boolean(held.holdId) && !ended} editSubject={Boolean(ev)}
         {...(editor ? { editor } : {})} onSend={() => answer("approve")} onDrop={(reason) => answer("reject", denyNote(reason))}
-        onSave={async ({ body }) => {
+        onSave={async ({ body, subject }) => {
           if (!held.holdId) throw new Error("This cannot be edited.");
-          await data.call("gate.holds.revise", { holdId: held.holdId, taskId, body });
+          await data.call("gate.holds.revise", { holdId: held.holdId, taskId, body, ...(ev && subject !== undefined ? { title: subject } : {}) });
           // the edit is a lesson for the agent: the way the person changed what it wrote (memory's own path for corrections; where memory does not have it yet, nothing is lost)
           void Promise.resolve(data.call("memory.corrections.record", { agentId, how: "edit", was: ow.body, now: body })).catch(() => undefined);
           described.current = true;

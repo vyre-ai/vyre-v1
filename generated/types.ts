@@ -14117,6 +14117,7 @@ export type GateHoldsReviseIn = {
   holdId: string;
   taskId: string;
   body: string;
+  title?: string;
 };
 export type GateHoldsReviseOut = {
   ok: boolean;

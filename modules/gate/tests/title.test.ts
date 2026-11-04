@@ -32,3 +32,9 @@ test("a message, an email and a text keep the message words", async () => {
   assert.equal((await park({ capName: "chat.message_person", input: { to: "usr_bob", body: "hi" }, act: "send" }, "d_dm")).title, "Approve: Send a message");
   assert.equal((await park({ capName: "mail.send", act: "send" }, "d_mail")).title, "Approve: Send an email");
 });
+
+test("a calendar event is an event, not a message", async () => {
+  const g = await park({ capName: "google.calendar.create_event", input: { summary: "Prep", attendees: [{ email: "a@b.c" }], start: { dateTime: "2026-11-04T14:00:00Z" } }, act: "send" }, "d_ev");
+  assert.equal(g.title, "Approve: Add a calendar event");
+  assert.ok(!/message|google/i.test(`${g.title} ${g.summary}`), `${g.title} / ${g.summary}`);
+});

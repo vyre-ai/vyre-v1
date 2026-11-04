@@ -34,7 +34,7 @@ const OLD_WANTS: Record<string, string> = {
   "files.write": "edit", "files.create": "create", "files.delete": "delete", "files.move": "move", "files.rename": "rename", "files.folder.create": "create the folder",
   "records.update": "change", "records.create": "add a record", "records.delete": "delete",
   "mail.send": "send an email", "inbox.reply": "send a reply", "twilio.send": "send a text", "telephony.sms.send": "send a text",
-  "stripe.refund.create": "refund a payment", "calendar.create_event": "put an event on the calendar", "calendar.update_event": "change an event", "calendar.delete_event": "delete an event",
+  "stripe.refund.create": "refund a payment", "calendar.create_event": "add a calendar event", "calendar.update_event": "change a calendar event", "calendar.delete_event": "delete a calendar event",
   "git.push": "push your changes", "git.commit": "save your changes to the repository", "sites.promote": "put the site live", "engine.crew.merge": "merge a teammate's branch", "engine.crew.push": "push a teammate's branch",
 };
 /** What a card says after "wants to": the older short words where a subject follows ("delete Q4 pricing.docx"), else the table of every held capability. */
@@ -66,7 +66,7 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
 /** The task's title for a held act: "Send a message" only for a message; a read of a link is "Open example.com". */
 export function holdTitle(cap: string, input: unknown, actTitle?: string): string {
   const o = outwardOf(cap, input);
-  if (o) return { message: "Send a message", email: "Send an email", text: "Send a text", post: "Post to a chat" }[o.channel];
+  if (o) return { message: "Send a message", email: "Send an email", text: "Send a text", post: "Post to a chat", event: "Add a calendar event" }[o.channel];
   const known = wantsFromInput(cap, obj(input)) ?? HOLD_PHRASES[cap] ?? WANTS[cap];
   if (!known && actTitle && actTitle !== "Send a message") return actTitle;   // the Gate's own name for the kind of act, unless that is the message one, which this is not
   const w = known ?? (cap === "" ? "do a step" : capPhrase(cap));

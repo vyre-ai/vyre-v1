@@ -117,6 +117,13 @@
       "proto": "chat,{skin}",
       "waitFor": "[data-testid^='approval-']",
       "note": "After a Save the card stays held and says Edited by you."
+    },
+    {
+      "id": "CHROME2A_01-gate-event",
+      "route": "/m/CHROME2A_01?part=gate-event",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='approval-']",
+      "note": "A held calendar event: title, when in both zones, guests and whether they are emailed, where with its link, the agenda folded, Send invites."
     }
   ]
 }

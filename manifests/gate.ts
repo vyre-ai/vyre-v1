@@ -108,7 +108,7 @@ export default defineManifest({
     // The edit of a held message: the stored call is rewritten (its words only), the hash the approval is bound to is made again, and the task's card shows it was edited by the person. The person who may approve it
     // may revise it; the agent cannot, and a held act that is not a message cannot be edited. Approving after the edit sends the edited words.
     write('gate.holds.revise', 'Change what a held message says before it is sent. The approval is bound to the new words and the card says it was edited', {
-      in: { holdId, taskId: id.task, body: t.str({ maxLength: 20000 }) }, out: { ok: t.bool(), edited: t.int() }, on: ['task', '/taskId'], level: 'use', emits: ['gate.revised'], audit: 'always',
+      in: { holdId, taskId: id.task, body: t.str({ maxLength: 20000 }), title: t.opt(t.str({ maxLength: 300 })) }, out: { ok: t.bool(), edited: t.int() }, on: ['task', '/taskId'], level: 'use', emits: ['gate.revised'], audit: 'always',
       errors: ['validation.precondition_failed', 'permission.no_grant'],
     }),
     write('gate.deny', 'Deny a hold: send back with a note for the asker thread, or drop the call', {

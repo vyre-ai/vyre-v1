@@ -27,6 +27,15 @@ export interface HeldCardProps {
   subject?: string | undefined;
   /** Extra labelled lines (From, Where). */
   fields?: ReadonlyArray<readonly [string, string]>;
+  /** Labels of `fields` whose text is Markdown (a link). */
+  fieldMd?: readonly string[];
+  /** A calendar entry's guests, as faces and names, shown after its When line; and whether they are emailed. */
+  invitees?: ReadonlyArray<{ name: string; seed: string }>;
+  inviteNote?: string;
+  /** The body sits folded under this label until opened ("Agenda"). */
+  fold?: string;
+  /** What the Subject line is called ("Title" for an event). */
+  subjectLabel?: string;
   /** What it says, as Markdown. */
   body: string;
   /** The act has been edited by the person: the card says so. */
@@ -77,6 +86,7 @@ export function HeldCard(p: HeldCardProps): ReactElement {
   const [error, setError] = useState("");
   const [all, setAll] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [agenda, setAgenda] = useState(false);
   const [done, setDone] = useState<"sent" | "dropped" | null>(null);
   const state = done ?? p.state;
   const long = linesOf(p.body) > BODY_LINES;
@@ -114,20 +124,26 @@ export function HeldCard(p: HeldCardProps): ReactElement {
           <View style={st.row}><Text style={st.label}>To</Text><TextInput accessibilityLabel="To" testID={`${p.testID}-to`} value={draft.to} onChangeText={(v) => setDraft((d) => ({ ...d, to: v }))} style={st.input} /></View>
         ) : null}
         {editing && p.editSubject ? (
-          <View style={st.row}><Text style={st.label}>Subject</Text><TextInput accessibilityLabel="Subject" testID={`${p.testID}-subject`} value={draft.subject} onChangeText={(v) => setDraft((d) => ({ ...d, subject: v }))} style={st.input} /></View>
-        ) : p.subject ? <View style={st.row}><Text style={st.label}>Subject</Text><Text style={st.value}>{p.subject}</Text></View> : null}
-        {!editing ? (p.fields ?? []).map(([label, text]) => <View key={label} style={st.row}><Text style={st.label}>{label}</Text><Text style={st.value}>{text}</Text></View>) : null}
+          <View style={st.row}><Text style={st.label}>{p.subjectLabel ?? "Subject"}</Text><TextInput accessibilityLabel={p.subjectLabel ?? "Subject"} testID={`${p.testID}-subject`} value={draft.subject} onChangeText={(v) => setDraft((d) => ({ ...d, subject: v }))} style={st.input} /></View>
+        ) : p.subject ? <View style={st.row}><Text style={st.label}>{p.subjectLabel ?? "Subject"}</Text><Text style={[st.value, p.subjectLabel ? st.strong : undefined]} testID={`${p.testID}-subject-text`}>{p.subject}</Text></View> : null}
+        {!editing ? (p.fields ?? []).flatMap(([label, text]) => [
+          <View key={label} style={st.row}><Text style={st.label}>{label}</Text>{(p.fieldMd ?? []).includes(label) ? <View style={{ flex: 1 }}><MarkdownText text={text} /></View> : <Text style={st.value} testID={`${p.testID}-field-${label.toLowerCase()}`}>{text}</Text>}</View>,
+          ...(label === "When" && p.invitees && (p.invitees.length > 0 || p.inviteNote) ? [<View key="who" style={st.row} testID={`${p.testID}-invitees`}><Text style={st.label}>Who</Text><View style={st.guests}>{p.invitees.slice(0, 8).map((g, i) => <View key={`${g.seed}${i}`} style={st.guest}><Face name={g.name} seedId={g.seed} kind="person" size={18} /><Text style={st.value}>{g.name}</Text></View>)}{p.invitees.length > 8 ? <Text style={st.sub}>{`and ${p.invitees.length - 8} more`}</Text> : null}{p.inviteNote ? <Text style={st.sub} testID={`${p.testID}-invite-note`}>{p.inviteNote}</Text> : null}</View></View>] : []),
+        ]) : null}
       </View>
       {editing ? (
         <View style={st.editor} testID={`${p.testID}-editor`}>
-          {(p.editor ?? SharedEditor)({ value: draft.body, onChange: (md) => setDraft((d) => ({ ...d, body: md })), label: "Edit the message" })}
+          {(p.editor ?? SharedEditor)({ value: draft.body, onChange: (md) => setDraft((d) => ({ ...d, body: md })), label: p.fold ? "Edit the agenda" : "Edit the message" })}
           <View style={st.acts}>
             <TextButton label="Cancel" onPress={() => { setEditing(false); setError(""); setDraft({ body: p.body, subject: p.subject ?? "", to: p.to.map((r) => r.name).join(", ") }); }} disabled={busy} testID={`${p.testID}-cancel`} />
             <TextButton label="Save" primary disabled={busy || draft.body.trim() === ""} onPress={() => run(() => (p.onSave ? p.onSave({ body: draft.body, ...(p.editSubject ? { subject: draft.subject } : {}), ...(p.editTo ? { to: draft.to } : {}) }) : Promise.resolve()), () => setEditing(false))} testID={`${p.testID}-save`} />
           </View>
         </View>
       ) : (
-        <View>
+        p.fold && p.body.trim() === "" ? null : p.fold && !agenda ? (
+          <Pressable accessibilityRole="button" onPress={() => setAgenda(true)} testID={`${p.testID}-fold`}><Text style={st.link}>{`${p.fold}  ›`}</Text></Pressable>
+        ) : <View>
+          {p.fold ? <Pressable accessibilityRole="button" onPress={() => setAgenda(false)}><Text style={st.link}>{`${p.fold}  ⌄`}</Text></Pressable> : null}
           <View testID={`${p.testID}-body`} style={[st.body, long && !all && { maxHeight: BODY_LINES * LINE_PX, overflow: "hidden" }]}><MarkdownText text={p.body} /></View>
           {long ? <Pressable accessibilityRole="button" onPress={() => setAll((x) => !x)} testID={`${p.testID}-all`}><Text style={st.link}>{all ? "Show less" : "Show all"}</Text></Pressable> : null}
         </View>
@@ -163,6 +179,9 @@ const st = StyleSheet.create({
   titles: { flex: 1, minWidth: 0, gap: 1 },
   title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
   sub: { fontSize: 12, color: "var(--ink-3)" as string },
+  strong: { fontWeight: "600" },
+  guests: { flex: 1, gap: 4 },
+  guest: { flexDirection: "row", alignItems: "center", gap: 6 },
   edited: { fontSize: 12, color: "var(--ink-3)" as string },
   more: { fontSize: 16, color: "var(--ink-3)" as string, paddingHorizontal: 6, letterSpacing: 1 },
   menu: { alignSelf: "flex-end", paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
