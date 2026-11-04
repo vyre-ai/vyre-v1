@@ -136,10 +136,12 @@ export function hookLead(text: string): [string, string] {
   return m ? [m[1]!, text.slice(m[1]!.length)] : ["", text];
 }
 /** What a line offers beyond its words. A block shows Details (the hook, in the Hooks tab), Allow this once and Ask an admin; a hook that is still there shows Edit. */
-export type HookLineAct = "details" | "edit" | "once" | "ask";
-export function hookLineActs(h: HookLine): HookLineAct[] {
+/** The one approval vocabulary: Allow (this time only), Always allow (saves the rule through the hooks layer, for that hook's scope) and Deny (closes the line, the stop stands). A person who cannot decide is offered Ask an admin instead. */
+export type HookLineAct = "details" | "edit" | "allow" | "always" | "deny" | "ask";
+export function hookLineActs(h: HookLine, canDecide?: boolean): HookLineAct[] {
   if (h.hookId === undefined) return [];
-  if (h.kind === "blocked") return ["details", "once", "ask"];
+  // until it is known whether this person may decide, only Details is shown, so the line never changes under the pointer
+  if (h.kind === "blocked") return canDecide === undefined ? ["details"] : canDecide ? ["details", "allow", "always", "deny"] : ["details", "ask"];
   if (h.kind === "failed") return ["details"];
   return h.kind === "added" || h.kind === "changed" ? ["edit"] : [];
 }

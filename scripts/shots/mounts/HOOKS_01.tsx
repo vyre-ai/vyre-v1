@@ -48,7 +48,9 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
       { messageId: "msg_hook4", threadId: s.data.threadId, threadSeq: seq + 1, author: { kind: "agent", id: "agt_intake" }, kind: "agent", body: "I did not send it. Harbor Supply's address is not in Contacts yet.", depth: 0, attachments: [], reactions: [], pinned: false, createdAt: at + 5_000, blocks: [] } as unknown as Message,
     ];
     s.replica.put("messages", made.map((m) => ({ id: m.messageId, ...m })));
-    return { ...s.data, nav: { ...s.data.nav, openHooks: () => undefined } };
+    // the stop line asks which hooks the person may change (hooks.list): here they may change them all, so it offers Allow, Always allow and Deny
+    const call = async (cap: string, input: unknown): Promise<unknown> => (cap === "hooks.list" ? { hooks: [{ id: "hok_chat", canChange: true }], agentHooks: true } : s.data.call(cap, input));
+    return { ...s.data, call, nav: { ...s.data.nav, openHooks: () => undefined } };
   }, []);
   const pane = useMemo(() => createPaneSample("northwind", { hooks: true, admin: false }), []);
   const helper = useMemo(() => createHelperSample("done", { hooks: true }), []);

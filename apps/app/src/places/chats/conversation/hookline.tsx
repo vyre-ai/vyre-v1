@@ -1,6 +1,6 @@
 // What a hook line in the chat offers (lane l-hooks, the approved prototype): "Edit" on an added hook; on "A hook stopped this" Details, Allow this once and Ask an admin. Each is one capability, and the server
 // applies the access rule: a Space hook is let go by an admin only, and anyone may ask. A refusal is said in its own words, never a bare error.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Glyph } from "./parts.tsx";
@@ -8,14 +8,22 @@ import { hookLead } from "./model.ts";
 import type { HookLine, HookLineAct } from "./model.ts";
 import { hookLineActs } from "./model.ts";
 
-const LABEL: Readonly<Record<HookLineAct, string>> = { details: "Details", edit: "Edit", once: "Allow this once", ask: "Ask an admin" };
+const LABEL: Readonly<Record<HookLineAct, string>> = { details: "Details", edit: "Edit", allow: "Allow", always: "Always allow", deny: "Deny", ask: "Ask an admin" };
 
 export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietStyle, stepsBelow = false }: {
   id: string; line: HookLine; /** The steps are drawn inside the agent's reply below this line */ stepsBelow?: boolean; threadId: string; call(cap: string, input: unknown): Promise<unknown>; open?: (hookId: string) => void; linkStyle: object; quietStyle: object; 
 }): ReactElement | null {
   const [said, setSaid] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const acts = hookLineActs(line).filter((a) => (a === "details" || a === "edit" ? open !== undefined : true));
+  // whether this person may change the hook: it decides between Allow, Always allow and Deny, and Ask an admin
+  const [canDecide, setCanDecide] = useState<boolean | undefined>(undefined);
+  useEffect(() => {
+    if (line.kind !== "blocked" || line.hookId === undefined) return;
+    let live = true;
+    void Promise.resolve(call("hooks.list", { threadId })).then((r) => { if (live) setCanDecide(((r as { hooks?: Array<{ id: string; canChange?: boolean }> } | null)?.hooks ?? []).find((h) => h.id === line.hookId)?.canChange === true); }, () => { if (live) setCanDecide(false); });
+    return () => { live = false; };
+  }, [call, threadId, line.kind, line.hookId]);
+  const acts = hookLineActs(line, canDecide).filter((a) => (a === "details" || a === "edit" ? open !== undefined : true));
   const steps = line.kind === "blocked" && line.agentId !== undefined && !stepsBelow ? line.next ?? [] : [];
   if ((acts.length === 0 && steps.length === 0) || line.hookId === undefined) return null;
   const hookId = line.hookId;
@@ -28,9 +36,13 @@ export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietS
   const press = (a: HookLineAct): void => {
     if (a === "details" || a === "edit") { open?.(hookId); return; }
     setBusy(true);
-    const run = a === "once"
-      ? call("hooks.allow_once", { id: hookId, threadId }).then(() => "Let through once. Ask again and it will go ahead.")
-      : call("hooks.ask_admin", { id: hookId, threadId }).then(() => "Asked an admin.");
+    if (a === "deny") { setSaid("Denied. The stop stands."); setBusy(false); return; }
+    const run = a === "allow"
+      ? call("hooks.allow_once", { id: hookId, threadId }).then(() => "Allowed this time. Ask again and it will go ahead.")
+      : a === "always"
+        // saved through the hooks layer, for the hook's own scope: it stops stopping until it is turned back on (the server allows it only where the person may change the hook)
+        ? call("hooks.pause", { id: hookId, paused: true, threadId }).then(() => (line.scope === "space" ? "Always allowed for the Space. Turn the hook back on in Hooks to stop it again." : "Always allowed. Turn the hook back on in Hooks to stop it again."))
+        : call("hooks.ask_admin", { id: hookId, threadId }).then(() => "Asked an admin.");
     void run.then((t) => { setSaid(t); setBusy(false); }, (e) => { setSaid(e instanceof Error && e.message.trim() !== "" ? e.message.replace(/\.+$/, "") + "." : "That did not work. Try again."); setBusy(false); });
   };
   if (said !== null) return <Text testID={`hook-said-${id}`} accessibilityRole="alert" style={quietStyle}>{said}</Text>;
@@ -66,7 +78,7 @@ export function HookLineRow({ id, line, words, threadId, call, open, st, stepsBe
 }): ReactElement {
   const [lead, rest] = hookLead(words);
   // one quiet word (Edit) sits at the right of the text when it fits; a stop with several verbs and steps puts them under it
-  const inline = hookLineActs(line).length <= 1 && (line.next ?? []).length === 0;
+  const inline = (line.kind === "added" || line.kind === "changed") && (line.next ?? []).length === 0;
   if (inline) {
     return (
       <View testID={`event-${id}`} accessibilityRole="text" style={[st.event, { alignItems: "flex-start" }]}>
