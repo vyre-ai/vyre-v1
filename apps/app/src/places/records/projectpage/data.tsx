@@ -43,6 +43,9 @@ export interface ProjectNav {
   openRecordPage(type: string, recordId: string): void;
   /** One of the project's goals, on its own page in Chats. */
   openGoal?(goalId: string): void;
+  /** A person's profile and an agent's page, through the reach rule. Absent: the row does nothing. */
+  openPerson?(personId: string): void;
+  openAgent?(agentId: string): void;
 }
 
 export interface ProjectPageData {
