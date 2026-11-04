@@ -4,6 +4,9 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "settings.contact.status": async () => ({"email":{"canVerify":true,"pending":true,"verified":true},"phone":{"canVerify":true,"pending":true,"verified":true}} as unknown) as never,
+  "settings.contact.verify_confirm": async () => ({"verified":true} as unknown) as never,
+  "settings.contact.verify_start": async () => ({"expiresAt":1,"sent":true,"verified":true} as unknown) as never,
   "settings.copy_profile": async () => ({"applied":["photo"]} as unknown) as never,
   "settings.copy_source": async () => ({"contact":{"email":"example","phone":"example"},"handle":"example","hours":{},"name":"example","photoFileId":"fil_a1b2c3","timezone":"example"} as unknown) as never,
   "settings.floor_set": async () => ({"row":{"default":{},"floor":{},"floorable":true,"key":"profile.timezone","page":"profile","scope":"space","source":"default","title":"example","value":{}}} as unknown) as never,

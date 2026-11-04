@@ -179,3 +179,20 @@ test("an outside agent asking its person (docs/ask-the-person.md): who asks, wha
   await flush();
   assert.deepEqual(calls.find((c) => c.cap === "tasks.act")?.input, { taskId: "tsk_ask", action: "approve" });
 });
+
+test("a held link read says what it opens, shows the link as a link, and names no module or raw field", async () => {
+  const d = { call: async (cap: string) => (cap === "tasks.get" ? { task: { id: "tsk_1", kind: "approve", title: "Approve: Open example.com", state: "awaiting_approval", blocks: [{ type: "approval_preview", v: 1, data: { act: "send", cap: "automations.read_link", input: { url: "https://www.example.com/pricing" } } }] } } : {}), nav: { openBeside: () => undefined } } as never;
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Assistant" agentId="agt_a" data={d} />);
+  const t = textOf(root);
+  assert.match(t, /Assistant wants to open example\.com/);
+  assert.match(t, /Link/);
+  assert.ok(t.includes("example.com/pricing"), "the link is shown");
+  for (const bad of ["automations", "Url", "read link", "Send a message"]) assert.ok(!t.includes(bad), `${bad} is not on the card`);
+});
+
+test("two other held acts that are not messages read in plain words", async () => {
+  assert.equal(wantsPhrase("automations.read_docs", undefined, {}), "read the documentation");
+  assert.equal(wantsPhrase("stripe.refund.create"), "refund a payment");
+  assert.doesNotMatch(wantsPhrase("engine.mcp.read"), /engine/);
+  assert.doesNotMatch(wantsLine("Ops", "computers.screen.screenshot"), /computers|screen\./);
+});

@@ -53,6 +53,7 @@ Key google, module google. Mode dwd, owned by a space. Auth service_account_dwd.
 - google.gmail.get_attachment
 - google.gmail.modify_labels
 - google.gmail.create_draft
+- google.gmail.delete_draft
 - google.gmail.send_message
 - google.gmail.trash_message
 - google.gmail.watch

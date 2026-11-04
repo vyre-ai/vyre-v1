@@ -1218,6 +1218,7 @@ export function createClient(transport: Transport) {
       },
       gmail: {
         create_draft: call("google.gmail.create_draft", 1),
+        delete_draft: call("google.gmail.delete_draft", 1),
         get_attachment: call("google.gmail.get_attachment", 1),
         get_message: call("google.gmail.get_message", 1),
         get_profile: call("google.gmail.get_profile", 1),
@@ -2291,6 +2292,11 @@ export function createClient(transport: Transport) {
       rename: call("sessions.rename", 1),
     },
     settings: {
+      contact: {
+        status: call("settings.contact.status", 1),
+        verify_confirm: call("settings.contact.verify_confirm", 1),
+        verify_start: call("settings.contact.verify_start", 1),
+      },
       copy_profile: call("settings.copy_profile", 1),
       copy_source: call("settings.copy_source", 1),
       floor_set: call("settings.floor_set", 1),
@@ -2548,6 +2554,7 @@ export function createClient(transport: Transport) {
     },
     tasks: {
       act: call("tasks.act", 1),
+      agent_on_it: call("tasks.agent_on_it", 1),
       ask: call("tasks.ask", 1),
       assign: call("tasks.assign", 1),
       block: call("tasks.block", 1),

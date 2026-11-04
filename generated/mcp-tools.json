@@ -28116,6 +28116,51 @@
     },
     {
       "blocks": [],
+      "cap": "google.gmail.delete_draft",
+      "deferred": true,
+      "description": "Delete a draft from the member mailbox (the draft an agent made and its person decided not to send)",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "as": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "connectionId": {
+            "examples": [
+              "con_a1b2c3"
+            ],
+            "pattern": "^con_[a-z0-9]+$",
+            "type": "string"
+          },
+          "draftId": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionId",
+          "draftId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "google_gmail_delete_draft",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "google.gmail.get_message",
       "deferred": true,
       "description": "Read one Gmail message",
@@ -51233,6 +51278,79 @@
     },
     {
       "blocks": [],
+      "cap": "settings.contact.status",
+      "deferred": false,
+      "description": "Whether my email and phone are verified, whether a code is waiting, and whether this Space can send one (no phone line: no Verify)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "settings_contact_status",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "settings.contact.verify_confirm",
+      "deferred": false,
+      "description": "Confirm the code that was sent; the tick shows only after this",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "email",
+              "phone"
+            ],
+            "type": "string"
+          },
+          "code": {
+            "maxLength": 12,
+            "minLength": 4,
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "code"
+        ],
+        "type": "object"
+      },
+      "name": "settings_contact_verify_confirm",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "settings.contact.verify_start",
+      "deferred": false,
+      "description": "Send a 6-digit code to my email or phone through the Space mail sender or its phone line; it lasts 10 minutes, 3 an hour",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "email",
+              "phone"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel"
+        ],
+        "type": "object"
+      },
+      "name": "settings_contact_verify_start",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "settings.copy_profile",
       "deferred": false,
       "description": "Apply values read from another Space to my profile here; the title is never copied",
@@ -59631,6 +59749,40 @@
         "type": "object"
       },
       "name": "tasks_act",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.agent_on_it",
+      "deferred": false,
+      "description": "Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads \"<Agent> is on it for you\". Only that person, or the host, may say so",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_agent_on_it",
       "planMode": "blocked",
       "toolset": "tasks",
       "v": 1

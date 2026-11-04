@@ -7,7 +7,7 @@
 // One source of truth: chat_message holds the conversation. engine_messages is a mirror keyed by the SAME id (a person's message is stored under the id chat gave it, an agent reply is posted
 // to chat with the id the engine gave it as clientId), written only by the engine's own store, so the two cannot drift (a later edit is copied by the same consumer).
 // No echo: a message.received for a message the engine already holds, or one the bridge posted itself (id prefix BRIDGE_PREFIX), is never fed back to engine.receive.
-import { askedIn } from "../../../lib/asked.ts";
+import { askedIn, isGoAhead, proposedIn } from "../../../lib/asked.ts";
 import { handleOf } from "../../../lib/person-handle.ts";
 import { linksIn } from "../../../lib/grants.ts";
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
@@ -450,7 +450,16 @@ export function createBridge(o: BridgeOptions): Bridge {
     if (a.kind === "person" && p["typed"] === true) {
       try {
         const ask = reader(ctx, authorId, threadId);
-        await ask("gate.grants.ask", { threadId, messageId, asked: await withTeammates(ask, askedIn(str(got.message.body))), links: linksIn(str(got.message.body)) });
+        // what the agent last said, when this is a plain yes to it: the yes opens that one kind of act, once. Every message since the agent's last reply counts as asked, so a second one with no words does not undo the first.
+        let lastAgent: { body: string; at: number } | undefined;
+        try {
+          const recent = ((await ask("chat.messages.list", { threadId, limit: 30 })) as { messages: Array<Row & { createdAt?: number }> }).messages;
+          const before = [...recent].filter((r) => (r.threadSeq ?? 0) < (got.message.threadSeq ?? Number.MAX_SAFE_INTEGER) && r.author.kind === "agent").sort((x, y) => (y.threadSeq ?? 0) - (x.threadSeq ?? 0))[0];
+          if (before) lastAgent = { body: before.body, at: before.createdAt ?? 0 };
+        } catch { /* the proposal could not be read: the person's own words still count */ }
+        const own = askedIn(str(got.message.body));
+        const yes = lastAgent && isGoAhead(str(got.message.body)) ? proposedIn(lastAgent.body).filter((p) => !own.some((o) => o.act === p.act)) : [];
+        await ask("gate.grants.ask", { threadId, messageId, asked: await withTeammates(ask, [...own, ...yes]), links: linksIn(str(got.message.body)), ...(lastAgent && lastAgent.at > 0 ? { since: lastAgent.at } : {}) });
       }
       catch (e) { warn("the request in a message was not read, so outward acts will ask", { threadId, messageId, error: e instanceof Error ? e.message : String(e) }); }
     }
@@ -503,6 +512,16 @@ export function createBridge(o: BridgeOptions): Bridge {
       threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note + (poke ? POKE_NOTE : ""), replyToPerson, ...(people ? { people } : {}), ...(job ? { job } : {}), ...(speaksFor ? { asker: speaksFor } : {}),
       ...(poke ? { poke: { agentId: poke.agentId, by: poke.by ?? authorId } } : {}), ...(minutes === undefined ? {} : { minutes }),
     }));
+    // the person said go in the thread of a task assigned to them, and an agent answers: the task is theirs to do through it, so it moves to Doing and says who is on it for them
+    if (a.kind === "person" && res.responders.length > 0) {
+      try {
+        const g = (await reader(ctx, authorId, threadId)("threads.get", { threadId })) as { thread: { scopeType?: string; scopeId?: string } };
+        if (g.thread.scopeType === "task" && typeof g.thread.scopeId === "string") {
+          const taskId = g.thread.scopeId;
+          for (const agent of res.responders.filter((r) => r.startsWith("agt_")).slice(0, 1)) await reader(ctx, authorId, threadId)("tasks.agent_on_it", { taskId, agentId: agent });
+        }
+      } catch { /* not a task of theirs, or already moving: the agent's own work goes on */ }
+    }
     // an agent handed the chat to another: one quiet line shows the chain ("Intake asked Docs")
     if (res.chain) {
       const nameOfAgent = (id: string): string => eng.agents(threadId).find((x) => x.id === id)?.name ?? "an agent";

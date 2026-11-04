@@ -105,3 +105,17 @@ test("a chat that is not about a task has no task section and keeps its own focu
   const ctx = await createContextBuilder({ call: fake(chat), skills, now: () => 1 }).build(input());
   assert.ok(!ctx.sections.some((s) => s.id === "task"));
 });
+
+test("the person asking is the Assigned: their Assistant is told the task is theirs to do for them, a stranger's agent is not", () => {
+  const t = task({ assigned: { kind: "person", id: "usr_olivia" }, reviewer: undefined, approver: undefined });
+  const mine = taskSection(t, "agt_doer", names, [], "usr_olivia");
+  assert.match(mine, /who is the person asking you, so doing it is yours to do for them/);
+  assert.match(mine, /task_submit \{taskId, outputs, summary\}/);
+  assert.match(mine, /Drafter did this for Olivia/);
+  assert.match(mine, /held for their approval/);
+  assert.doesNotMatch(mine, /not a seat/);
+  const stranger = taskSection(t, "agt_doer", names, [], "usr_boss");
+  assert.match(stranger, /You are not a seat on this task/);
+  assert.doesNotMatch(stranger, /do for them|for them/);
+  assert.match(taskSection(t, "agt_doer", names), /You are not a seat on this task/, "no asker, no seat");
+});

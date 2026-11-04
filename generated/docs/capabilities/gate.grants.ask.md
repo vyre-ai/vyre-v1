@@ -32,6 +32,7 @@ type In = {
       target: string;
     }>;
   links?: Array<string>;
+  since?: number;
 };
 ```
 
@@ -66,6 +67,7 @@ type Out = {
       "example"
     ],
     "messageId": "msg_a1b2c3",
+    "since": 1760000000000,
     "threadId": "thr_a1b2c3"
   },
   "output": {

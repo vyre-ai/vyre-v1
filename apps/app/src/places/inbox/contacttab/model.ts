@@ -443,6 +443,11 @@ export function lastInboundEmail(items: readonly ThreadItem[]): ThreadItem | und
 export interface DraftCard {
   id: string;
   agent: string;
+  /** The agent that wrote it, for a lesson from Don't send. */
+  agentId?: string;
+  /** Who it goes to and who is copied, with the names the directory has: the card shows them before Send. */
+  toParties: Party[];
+  ccParties: Party[];
   channel: Chan;
   subject: string;
   body: string;
@@ -465,7 +470,7 @@ export function draftCards(drafts: readonly DraftRow[], titles: ReadonlyMap<stri
     // a draft addressed to a phone number (no @) is a text: it has no subject and sends from a number
     const text = d.to.length > 0 && d.to.every((t) => !t.address.includes("@"));
     out.push({
-      id: d.id, agent: agentNames.get(d.draftedByAgent) ?? "An agent", channel: text ? "sms" : "email", subject: text ? "" : d.subject, body: d.snippet, via: titles.get(d.mailboxId) ?? d.mailboxId, mailboxId: d.mailboxId, from: addresses.get(d.mailboxId) ?? titles.get(d.mailboxId) ?? (/^\+?[\d\s()-]{7,}$/.test(d.mailboxId) ? d.mailboxId : ""), updatedAt: d.sentAt, ...(d.earlier ? { earlier: d.earlier } : {}), ...(d.contactId ? { contactId: d.contactId } : {}), to: d.to.map((t) => t.address),
+      id: d.id, agent: agentNames.get(d.draftedByAgent) ?? "An agent", agentId: d.draftedByAgent, toParties: d.to.map((p) => ({ address: p.address, ...(p.name ? { name: p.name } : {}) })), ccParties: (d.cc ?? []).map((p) => ({ address: p.address, ...(p.name ? { name: p.name } : {}) })), channel: text ? "sms" : "email", subject: text ? "" : d.subject, body: d.snippet, via: titles.get(d.mailboxId) ?? d.mailboxId, mailboxId: d.mailboxId, from: addresses.get(d.mailboxId) ?? titles.get(d.mailboxId) ?? (/^\+?[\d\s()-]{7,}$/.test(d.mailboxId) ? d.mailboxId : ""), updatedAt: d.sentAt, ...(d.earlier ? { earlier: d.earlier } : {}), ...(d.contactId ? { contactId: d.contactId } : {}), to: d.to.map((t) => t.address),
     });
   }
   return out;

@@ -141,7 +141,7 @@ const whoLabel = (w: Who | undefined, names: Readonly<Record<string, string>>): 
 const parseList = (v: unknown): string[] => { try { const p = JSON.parse(String(v)) as unknown; return Array.isArray(p) ? p.map((x) => String(x)) : []; } catch { return []; } };
 
 /** What a task says about the one reading it. Pure: the caller reads the task and the answers. Nothing here is a secret; ids, names, words the task already holds. */
-export function taskSection(t: Obj, agentId: string, names: Readonly<Record<string, string>>, answers: ReadonlyArray<{ question: string; answer: string }> = []): string {
+export function taskSection(t: Obj, agentId: string, names: Readonly<Record<string, string>>, answers: ReadonlyArray<{ question: string; answer: string }> = [], asker?: string): string {
   const notes = (t["workingNotes"] ?? {}) as Record<string, string>;
   const state = String(t["state"] ?? "");
   const slots: Array<[string, Who | undefined]> = [["assigned", t["assigned"] as Who], ["reviewer", t["reviewer"] as Who | undefined], ["approver", t["approver"] as Who | undefined]];
@@ -150,6 +150,8 @@ export function taskSection(t: Obj, agentId: string, names: Readonly<Record<stri
   const offered = turn === "assigned" && mine.length === 0 && (((t["assigned"] as Who | undefined)?.kind === "group") || ((t["assigned"] as Who | undefined)?.kind === "role"));
   const out: string[] = [`${one(t["title"], 120)} (taskId ${String(t["id"])}, ${state.replace("_", " ")}).`];
   const seat = mine.includes(turn) ? turn : undefined;
+  // the person who is asking is the Assigned: their own Assistant, or any agent acting for them, does the work as them (the Gate still holds what leaves Vyre)
+  const forAsker = !seat && turn === "assigned" && asker !== undefined && (t["assigned"] as Who | undefined)?.kind === "person" && (t["assigned"] as Who).id === asker && String(t["kind"] ?? "work") === "work";
   const kind = String(t["kind"] ?? "work");
   if (seat && kind !== "work") {
     // a request given to an agent: it is answered at its source, with the actions it offers
@@ -157,6 +159,7 @@ export function taskSection(t: Obj, agentId: string, names: Readonly<Record<stri
     const list = acts.map((a) => `${a.key} ("${a.label ?? a.key}"${a.note === "required" ? ", note required" : ""})`).join(", ");
     out.push(`This is a request of kind ${kind} for you, and it is your turn. Decide it and finish this turn with exactly one call:\ntasks_act {taskId, action, note} with action one of: ${list || "the action the request offers"}.${kind === "answer" ? " Put your answer in note." : ""}\nIf that tool is not in your list, find it with tool_search first.`);
   } else if (seat) out.push(`You are ${SEAT[seat]}, and it is your turn. Finish this turn with exactly one baton call:\n${BATON_TOOLS[seat]}.\nIf that tool is not in your list, find it with tool_search first.`);
+  else if (forAsker) out.push(`This task is assigned to ${whoLabel(t["assigned"] as Who, names)}, who is the person asking you, so doing it is yours to do for them: you act as them, with what they could do themselves. Finish this turn with exactly one baton call:\n${BATON_TOOLS["assigned"]}.\nThe thread will read "${names[agentId] ?? "Your assistant"} did this for ${whoLabel(t["assigned"] as Who, names)}". Anything that leaves Vyre is still held for their approval on a card, and their "Always let" rules apply. If that tool is not in your list, find it with tool_search first.`);
   else if (offered) out.push(`This task is offered to a group you belong to. Take it first with tasks_take {taskId}. If someone else already took it, say so in one line and end your turn. Once it is yours: ${BATON_TOOLS["assigned"]}.`);
   else if (mine.length > 0) out.push(`You are ${mine.map((m) => SEAT[m]).join(" and ")}, but the task is ${state.replace("_", " ")} and it is with ${whoLabel(slots.find(([s]) => s === turn)?.[1], names)} now. It is not your move: say so in one line and end your turn.`);
   else out.push("You are not a seat on this task. Say what you can add in one line and end your turn.");
@@ -531,7 +534,7 @@ export function createContextBuilder(d: ContextDeps) {
     let goalTask: Obj | undefined;
     if (taskId) {
       const t = await taskOf(taskId, asker);
-      if (t) add("task", false, taskSection(t, agentId, nameMap, await answersOf(t, asker)));
+      if (t) add("task", false, taskSection(t, agentId, nameMap, await answersOf(t, asker), asker));
       goalTask = t;
     }
     const goalOfTask = str(((goalTask?.["workingNotes"] ?? {}) as Obj)["goal.id"]);

@@ -134,7 +134,6 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const [quotes, setQuotes] = useState<readonly string[]>([]);
   const [transcripts, setTranscripts] = useState<readonly string[]>([]);
   const [note, setNote] = useState("");
-  const [draftNotes, setDraftNotes] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<readonly string[]>([]);
   // threads and messages opened or closed by hand, signatures shown; what was new when the tab opened stays marked new for this visit, though opening reads it
   const [thOpen, setThOpen] = useState<Record<string, boolean>>({});
@@ -254,31 +253,22 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
     }
   };
 
-  // Edit opens the draft's own card for editing, in place: the full stored body, never the preview, and never the thread that happens to be open
-  const [editing, setEditing] = useState<Record<string, { text: string; subject: string; loading?: boolean }>>({});
-  const draftSend = (card: DraftCard): Promise<void> => withBusy(card.id, async () => {
-    try {
-      const edit = editing[card.id];
-      const done = await sendAgentDraft(data, card, conv, edit && !edit.loading ? edit.text : "", edit && !edit.loading ? edit.subject : "");
-      setDraftNotes((n) => ({ ...n, [card.id]: done }));
-      setEditing((e) => { const { [card.id]: _gone, ...rest } = e; return rest; });
-    } catch (e) { setDraftNotes((n) => ({ ...n, [card.id]: fail(e) })); }
-  });
-  const draftEdit = (card: DraftCard): void => {
-    setEditing((e) => ({ ...e, [card.id]: { text: "", subject: card.subject, loading: true } }));
-    void loadDraft(data, card.id).then(
-      (full) => setEditing((e) => (e[card.id] ? { ...e, [card.id]: { text: full.text, subject: full.subject } } : e)),
-      (err) => { setEditing((e) => { const { [card.id]: _gone, ...rest } = e; return rest; }); setDraftNotes((n) => ({ ...n, [card.id]: fail(err) })); },
-    );
+  // The card edits in place: on the draft's full stored text, for this draft only, never the thread's composer. Send goes with what the card holds (sendAgentDraft saves the edit first, since the server
+  // sends the draft as stored); a refusal comes back as the card's own error.
+  const draftSend = async (card: DraftCard, text: string, subject: string): Promise<string> => {
+    let done = "";
+    await withBusy(card.id, async () => { done = await sendAgentDraft(data, card, conv, text, subject); });
+    return done;
   };
-  const draftSave = (card: DraftCard): Promise<void> => withBusy(card.id, async () => {
-    const edit = editing[card.id];
-    if (!edit) return;
-    try { await saveDraft(data, card, edit); setEditing((e) => { const { [card.id]: _gone, ...rest } = e; return rest; }); setDraftNotes((n) => ({ ...n, [card.id]: "Saved" })); } catch (err) { setDraftNotes((n) => ({ ...n, [card.id]: fail(err) })); }
-  });
-  const draftDiscard = (card: DraftCard): Promise<void> => withBusy(card.id, async () => {
-    try { await discardDraft(data, card.id); if (over.draftId === card.id) setOver((o) => ({ ...o, text: "", draftId: null })); } catch (e) { setDraftNotes((n) => ({ ...n, [card.id]: fail(e) })); }
-  });
+  /** Don't send: the draft is discarded, and the reason (when there is one) goes to the agent as a refusal in its memory. */
+  const draftDrop = async (card: DraftCard, reason: string): Promise<void> => {
+    await withBusy(card.id, async () => {
+      await discardDraft(data, card.id);
+      if (card.agentId && reason.trim()) { try { await data.call("memory.corrections.record", { agentId: card.agentId, how: "refuse", was: card.body, now: "", note: reason.trim() }); } catch { /* where memory does not have it, nothing is lost */ } }
+    });
+  };
+  const draftText = async (card: DraftCard): Promise<string> => (await loadDraft(data, card.id)).text;
+  const draftSave = (card: DraftCard, text: string, subject: string): Promise<void> => saveDraft(data, card, { text, subject });
 
   const showFollow = (x: number, y: number): void => {
     if (!conv.contactId) return;
@@ -392,7 +382,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             case "note": return <QuietLine key={f.key} text={f.item.title ?? f.item.preview ?? ""} testID={`note:${f.item.id}`} />;
           }
         })}
-        {each(cards, (d) => <DraftBlock key={d.id} d={d} offsetMin={clock.offsetMin} editing={editing[d.id] ?? null} onChange={(next) => setEditing((e) => ({ ...e, [d.id]: next }))} onSave={() => void draftSave(d)} onCancel={() => setEditing((e) => { const { [d.id]: _gone, ...rest } = e; return rest; })} note={draftNotes[d.id]} busy={busy.includes(d.id) || !online} onSend={() => void draftSend(d)} onEdit={() => draftEdit(d)} onDiscard={() => void draftDiscard(d)} />)}
+        {each(cards, (d) => <DraftBlock key={d.id} d={d} offsetMin={clock.offsetMin} nameOf={(a) => (a.includes("@") ? names.get(a.toLowerCase()) : conv.contactId ? conv.displayName : undefined)} onSend={(text, subject) => draftSend(d, text, subject)} onDrop={(reason) => draftDrop(d, reason)} loadText={() => draftText(d)} onSave={(text, subject) => draftSave(d, text, subject)} />)}
       </ScrollView>
 
       <View style={s.cmpWrap} testID="contact-composer">
