@@ -85,6 +85,7 @@ try {
     const errs = [];
     page.on("pageerror", (e) => errs.push(String(e)));
     page.on("console", (m) => { if (m.type() === "error") errs.push(`console: ${m.text()}`); });
+    page.on("response", async (r) => { if (r.status() >= 400 && new URL(r.url()).pathname.startsWith("/v1/")) console.log(`HTTP ${r.status()} ${new URL(r.url()).pathname} body=${(await r.text().catch(() => "")).slice(0, 220)} req=${(r.request().postData() ?? "").slice(0, 120)}`); });
     await page.goto(`${web.origin}/chat?skin=${skin}`, { waitUntil: "load", timeout: 60000 });
     await dismissOnboarding(page).catch(async (e) => { await page.screenshot({ path: path.join(out, `failed-${skin}-${size}.png`) }); await page.getByText("Details").click().catch(() => {}); console.log("PAGE ERRORS", errs.join(" || ").slice(0, 1500), "BODY", (await page.locator("body").innerText()).slice(0, 1200)); throw e; });
     const slot = await page.getByTestId(size === "phone" ? "notice-bell" : "notice-slot").first().waitFor({ timeout: 20000 }).then(() => true, () => false);
