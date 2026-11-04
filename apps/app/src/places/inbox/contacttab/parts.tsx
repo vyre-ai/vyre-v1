@@ -197,18 +197,18 @@ export function QuietLine({ text, testID }: { text: string; testID: string }): R
 
 /**
  * An agent's draft: the one held card (chats/conversation/held-card.tsx), with the words it had: who drafted it, "Updated 5:45 AM" and the earlier draft one click away, the Gate line, and Send, Edit and
- * Don't send. Edit is in the card, on the draft's own full text and for this draft only, never in the thread's composer, so what is sent is what the card shows. Send goes with the edited words.
+ * Don't send. Edit is in the card, on the draft's own full stored text and for this draft only, never in the thread's composer, so what is sent is what the card shows. Send goes with the edited words.
  */
-export function DraftBlock({ d, note, busy, offsetMin = 0, onSend, onDrop, loadText, onSaved, editor }: {
-  d: DraftCard; note?: string | undefined; busy: boolean; offsetMin?: number;
-  /** Send, with the words the card holds: answers the line the card ends on ("Sent from ...", "Waits for approval"). */
+export function DraftBlock({ d, offsetMin = 0, onSend, onDrop, loadText, onSave, editor }: {
+  d: DraftCard; offsetMin?: number;
+  /** Send, with the words the card holds: answers the line the card ends on ("Sent from ...", "Waits for approval"); a refusal is the card's own error. */
   onSend(text: string, subject: string): Promise<string>;
   /** Don't send, with the person's reason (empty when none). */
   onDrop(reason: string): Promise<void>;
-  /** The draft's full text: the list holds only a snippet. */
+  /** The draft's full stored text: the list holds only a preview. */
   loadText(): Promise<string>;
-  /** The edited words, kept on the draft itself (best effort). */
-  onSaved?(text: string, subject: string): Promise<void>;
+  /** Keep an edit on the draft itself. A refusal (a cut-off body, a draft that is gone) is the card's own error, and the edit stays open. */
+  onSave(text: string, subject: string): Promise<void>;
   editor?: HeldEditor;
 }): ReactElement {
   const [text, setText] = useState(d.body);
@@ -221,13 +221,12 @@ export function DraftBlock({ d, note, busy, offsetMin = 0, onSend, onDrop, loadT
       <HeldCard
         testID={`draft:${d.id}`} agent={d.agent} title={`${d.agent} drafted a ${d.channel === "sms" ? "text" : "reply"}`} to={d.to.slice(0, 1).map((t) => ({ name: t, seed: t, kind: "person" as const }))} verb=""
         schedule={d.earlier ? `Updated ${clockTime(d.updatedAt, offsetMin)}` : null} subject={d.channel === "sms" ? undefined : subject} body={text} edited={edited}
-        fields={d.via ? [["From", d.via]] : []} state="waiting" doneLine={done ?? "Sent"} editable={!busy} editSubject={d.channel !== "sms"}
+        fields={d.via ? [["From", d.via]] : []} state="waiting" doneLine={done ?? "Sent"} editable editSubject={d.channel !== "sms"}
         {...(d.earlier ? { earlier: { text: d.earlier.text } } : {})} {...(editor ? { editor } : {})} sendLabel="Send" stoppedNote={sendsLine(d.from)}
-        onSave={async ({ body, subject: sj }) => { setText(body); if (sj !== undefined) setSubject(sj); setEdited(true); await onSaved?.(body, sj ?? subject); }}
+        onSave={async ({ body, subject: sj }) => { const nextSubject = sj ?? subject; await onSave(body, nextSubject); setText(body); setSubject(nextSubject); setEdited(true); }}
         onSend={async () => { setDone(await onSend(text, subject)); }}
         onDrop={onDrop}
       />
-      {note ? <Text style={s.note} accessibilityRole="alert" testID={`draft-note:${d.id}`}>{note}</Text> : null}
     </View>
   );
 }
@@ -296,7 +295,6 @@ const s = StyleSheet.create({
   ev: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginVertical: 10 },
   evdot: { width: 5, height: 5, borderRadius: 5, backgroundColor: ink("--accent"), opacity: 0.7 },
   evText: { fontSize: 12.5, color: ink("--ink-3") },
-  note: { marginTop: 8, fontSize: 12.5, fontWeight: "500", color: ink("--ink-2") },
   btn: { height: 30, paddingHorizontal: 12, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: ink("--hover") },
   btnOver: { backgroundColor: ink("--press") },
   btnText: { fontSize: 12.5, fontWeight: "600", color: ink("--ink") },

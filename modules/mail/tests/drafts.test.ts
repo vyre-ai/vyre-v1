@@ -278,3 +278,16 @@ test("By contact shows only drafts to or from that contact: a draft to someone e
   h.ctx.db.run(`UPDATE mail_message SET "contactId" = ? WHERE id = ?`, "rec_josh1", wrong.draftId);
   assert.deepEqual((await draftsList(h.ctx, { contactId: "rec_josh1" })).drafts.map((d) => d.id), [right.draftId]);
 });
+
+test("two contacts who share a Cc: each contact's view shows only the drafts addressed to them, and the shared Cc files nothing under the other", async () => {
+  const h = setup({ principal: AGENT, contacts: { "josh@jcs.test": [{ recordId: "rec_josh1", score: 0.9 }], "osama@mail.test": [{ recordId: "rec_osama", score: 0.9 }], "aliza@mla.test": [{ recordId: "rec_aliza", score: 0.9 }] } });
+  const josh = await ingest(h.ctx, letter("josh@jcs.test", "<j@jcs.test>", "g-j", { mailboxId: MBX, subject: "Call", threadKey: "thread-j" }));
+  const osama = await ingest(h.ctx, letter("osama@mail.test", "<o@mail.test>", "g-o", { mailboxId: MBX, subject: "Cold email setup", threadKey: "thread-o" }));
+  const forJosh = await draft(h.ctx, { mailboxId: MBX, replyToMessageId: josh.messageId, cc: [{ address: "aliza@mla.test", contactId: "rec_aliza" } as never], text: "Josh, the call is set.", idempotencyKey: key() });
+  const forOsama = await draft(h.ctx, { mailboxId: MBX, replyToMessageId: osama.messageId, cc: [{ address: "aliza@mla.test", contactId: "rec_aliza" } as never], text: "Osama, the setup is ready.", contactId: "rec_josh1", idempotencyKey: key() });
+  assert.equal(row(h, forJosh.draftId).contactId, "rec_josh1");
+  assert.equal(row(h, forOsama.draftId).contactId, "rec_osama", "the agent named Josh, the draft is to Osama: it is filed under Osama");
+  assert.deepEqual((await draftsList(h.ctx, { contactId: "rec_josh1" })).drafts.map((d) => d.id), [forJosh.draftId]);
+  assert.deepEqual((await draftsList(h.ctx, { contactId: "rec_osama" })).drafts.map((d) => d.id), [forOsama.draftId]);
+  assert.deepEqual((await draftsList(h.ctx, { contactId: "rec_aliza" })).drafts.map((d) => d.id), [], "Cc is not an address the draft is for");
+});

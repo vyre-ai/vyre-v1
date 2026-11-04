@@ -19,7 +19,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { useInboxData, useOnline, useOptionalInboxData, useScreenQuery } from "../sidebar/data.tsx";
 import { Face, Ghost, pointOf } from "../sidebar/parts.tsx";
 import type { Mailbox } from "../sidebar/model.ts";
-import { discardDraft, listSnippets, listTemplates, markRead, sendAgentDraft, sendEmail, sendText, setFollow, templateContent } from "./actions.ts";
+import { discardDraft, loadDraft, saveDraft, listSnippets, listTemplates, markRead, sendAgentDraft, sendEmail, sendText, setFollow, templateContent } from "./actions.ts";
 import { QUICK_FORM_NOTE, askStart, conversationOf, makeQuickForm, startChannel as askChannel, switchText, withLink, withoutLink } from "./ask.ts";
 import type { AskRequest } from "./ask.ts";
 import { each } from "./each.ts";
@@ -253,7 +253,8 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
     }
   };
 
-  /** Send the draft as the card holds it (its own edited words, never the composer's). The line the card ends on, or the refusal as the card's own error. */
+  // The card edits in place: on the draft's full stored text, for this draft only, never the thread's composer. Send goes with what the card holds (sendAgentDraft saves the edit first, since the server
+  // sends the draft as stored); a refusal comes back as the card's own error.
   const draftSend = async (card: DraftCard, text: string, subject: string): Promise<string> => {
     let done = "";
     await withBusy(card.id, async () => { done = await sendAgentDraft(data, card, conv, text, subject); });
@@ -266,11 +267,8 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
       if (card.agentId && reason.trim()) { try { await data.call("memory.corrections.record", { agentId: card.agentId, how: "refuse", was: card.body, now: "", note: reason.trim() }); } catch { /* where memory does not have it, nothing is lost */ } }
     });
   };
-  const draftText = async (card: DraftCard): Promise<string> => ((await data.call("mail.message.get", { messageId: card.id })) as { text?: string }).text ?? "";
-  const draftSaved = async (card: DraftCard, text: string, subject: string): Promise<void> => {
-    if (card.channel === "sms") return;
-    try { await data.call("mail.draft", { mailboxId: card.mailboxId, draftId: card.id, text, subject, idempotencyKey: `inbox-draft:${card.id}:${Date.now()}` }); } catch { /* the card holds the words; the draft is saved when it can be */ }
-  };
+  const draftText = async (card: DraftCard): Promise<string> => (await loadDraft(data, card.id)).text;
+  const draftSave = (card: DraftCard, text: string, subject: string): Promise<void> => saveDraft(data, card, { text, subject });
 
   const showFollow = (x: number, y: number): void => {
     if (!conv.contactId) return;
@@ -384,7 +382,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             case "note": return <QuietLine key={f.key} text={f.item.title ?? f.item.preview ?? ""} testID={`note:${f.item.id}`} />;
           }
         })}
-        {each(cards, (d) => <DraftBlock key={d.id} d={d} offsetMin={clock.offsetMin} busy={busy.includes(d.id) || !online} onSend={(text, subject) => draftSend(d, text, subject)} onDrop={(reason) => draftDrop(d, reason)} loadText={() => draftText(d)} onSaved={(text, subject) => draftSaved(d, text, subject)} />)}
+        {each(cards, (d) => <DraftBlock key={d.id} d={d} offsetMin={clock.offsetMin} onSend={(text, subject) => draftSend(d, text, subject)} onDrop={(reason) => draftDrop(d, reason)} loadText={() => draftText(d)} onSave={(text, subject) => draftSave(d, text, subject)} />)}
       </ScrollView>
 
       <View style={s.cmpWrap} testID="contact-composer">

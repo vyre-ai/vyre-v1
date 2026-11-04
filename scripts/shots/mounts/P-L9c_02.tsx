@@ -18,6 +18,11 @@ export default function Mount(): ReactNode {
   const contactId = (sample.replica.rows("contacts") as unknown as { id: string; contactId?: string }[]).find((c) => c.id === id)?.contactId;
   useEffect(() => {
     if (q.get("mail") === "held") sample.mailStatus.next = "held";
+    // ?updated=1: the agent drafted again on this thread, so its card says Updated and keeps the earlier text one click away
+    if (q.get("updated") === "1") {
+      const rows = sample.replica.rows("drafts") as unknown as { id: string; contactId?: string; snippet: string }[];
+      sample.replica.put("drafts", rows.map((r) => (r.id === "dr_elena" ? { ...r, snippet: "Hi Elena, the lease documents are ready. Thursday at 2:00 PM Pacific works for the call.", earlier: { at: Date.now() - 3_600_000, subject: "Re: Lease documents for Thursday", text: "Hi Elena, Thursday at 3:00 am Pakistan time works for the call." } } : r)) as never);
+    }
     // ?open=eml_<id> opens that message of a thread (a closed one-line message opens on a press)
     const msg = q.get("open");
     if (msg && msg.startsWith("eml_")) {

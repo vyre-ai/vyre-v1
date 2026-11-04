@@ -20,6 +20,7 @@ import { Bubbles, CallLine, EmailItem } from "../contacttab/parts.tsx";
 import { createContactTabSample, threads } from "../contacttab/sample.ts";
 import type { ContactTabSample } from "../contacttab/sample.ts";
 import { DraftBlock } from "../contacttab/parts.tsx";
+import { cutOff, loadDraft } from "../contacttab/actions.ts";
 import { harbor, northwind, SAMPLE_NOW } from "../contactlist/sample.ts";
 import type { SampleSpace } from "../contactlist/sample.ts";
 import { InboxDataProvider } from "../sidebar/index.ts";
@@ -406,14 +407,57 @@ test("an updated agent draft says Updated with the time, and the earlier draft i
   assert.equal(plain[0]!.earlier, undefined);
   const updated = draftCards(rows.map((r) => ({ ...r, earlier: { at: SAMPLE_NOW - 3_600_000, subject: "Re: Call", text: "Thursday 3:00 am Pakistan time works." } })), titles(northwind), new Map([["agt_intake", "Intake"]]));
   assert.equal(updated[0]!.earlier?.text, "Thursday 3:00 am Pakistan time works.");
-  const out = renderToStaticMarkup(<DraftBlock d={updated[0]!} busy={false} offsetMin={0} onSend={async () => ""} onDrop={async () => undefined} loadText={async () => ""} />).replaceAll("<!-- -->", "");
+  const out = renderToStaticMarkup(<DraftBlock d={updated[0]!} offsetMin={0} onSend={async () => ""} onDrop={async () => undefined} loadText={async () => ""} onSave={async () => undefined} />).replaceAll("<!-- -->", "");
   assert.ok(has(out, "Updated") && has(out, `data-testid="draft:${updated[0]!.id}-schedule"`) && has(out, "Show the earlier draft"));
   assert.ok(!has(out, "Thursday 3:00 am"), "the earlier text is folded");
-  const first = renderToStaticMarkup(<DraftBlock d={plain[0]!} busy={false} onSend={async () => ""} onDrop={async () => undefined} loadText={async () => ""} />).replaceAll("<!-- -->", "");
+  const first = renderToStaticMarkup(<DraftBlock d={plain[0]!} onSend={async () => ""} onDrop={async () => undefined} loadText={async () => ""} onSave={async () => undefined} />).replaceAll("<!-- -->", "");
   assert.ok(!has(first, "Updated") && !has(first, "earlier draft"));
 });
 
-test("Inbox draft card: Edit is in the card on the draft's full text, Send goes with the edited words, Don't send takes a reason, and the composer is untouched", async () => {
+test("Edit and Send of an agent draft use the stored draft: every character of a body longer than its preview, its own recipients and Cc, never the thread that is open", async () => {
+  const s = createContactTabSample();
+  const FULL = `Hi Osama,\n\nAgenda for the call:\n${"1. Instantly warm-up and sending limits for the new domains.\\n".repeat(12)}Thanks, Irfad`;
+  const PREVIEW = `${FULL.slice(0, 40)}...`;
+  const rows = s.replica.rows("drafts") as unknown as Record<string, unknown>[];
+  s.replica.put("drafts", [...rows, {
+    id: "dr_osama", mailboxId: "mbx_work", inboxIds: ["mbx_work"], threadId: "thr_cold", direction: "out", status: "draft", from: { address: "irfad@northwind.example" },
+    to: [{ address: "osama@mail.example", name: "Osama" }], cc: [{ address: "aliza@northwind.example", name: "Aliza" }], subject: "Re: Cold email setup", snippet: PREVIEW, full: FULL, sentAt: SAMPLE_NOW, contactId: "ct_osama", isPrivate: false, draftedByAgent: "agt_intake",
+  }] as never);
+  const full = await loadDraft(s.data, "dr_osama");
+  assert.equal(full.text, FULL, "every character, not the preview");
+  assert.equal(full.threadId, "thr_cold");
+  assert.deepEqual(full.to.map((p) => p.address), ["osama@mail.example"]);
+  assert.deepEqual(full.cc.map((p) => p.address), ["aliza@northwind.example"]);
+  // sent while Josh's thread is the open one: it goes to Osama and Aliza, from the draft's own mailbox, filed under Osama, with the whole body
+  const [card] = draftCards((s.replica.run("mail.drafts.list", {})!.data).drafts.filter((d: { id: string }) => d.id === "dr_osama"), titles(northwind), new Map([["agt_intake", "Intake"]]));
+  assert.equal(card!.body, PREVIEW);
+  const josh = thread(s, "elena").conversation;
+  await sendAgentDraft(s.data, card!, josh, "", "", "key-osama");
+  const sent = s.sent.at(-1)!.input as { to: { address: string }[]; cc?: { address: string }[]; text: string; subject: string; contactId?: string; draftId: string };
+  assert.deepEqual([sent.to.map((p) => p.address), sent.cc?.map((p) => p.address), sent.text, sent.subject, sent.contactId, sent.draftId], [["osama@mail.example"], ["aliza@northwind.example"], FULL, "Re: Cold email setup", "ct_osama", "dr_osama"]);
+});
+
+test("a body that ends in a cut-off marker the person did not type is never sent", async () => {
+  const s = createContactTabSample();
+  const rows = s.replica.rows("drafts") as unknown as Record<string, unknown>[];
+  s.replica.put("drafts", [...rows, {
+    id: "dr_cut", mailboxId: "mbx_work", inboxIds: ["mbx_work"], threadId: "thr_cut", direction: "out", status: "draft", from: { address: "irfad@northwind.example" },
+    to: [{ address: "osama@mail.example" }], cc: [], subject: "Cold", snippet: "Agenda for the call: 1. Instantly...", sentAt: SAMPLE_NOW, contactId: "ct_osama", isPrivate: false, draftedByAgent: "agt_intake",
+  }] as never);
+  const [card] = draftCards((s.replica.run("mail.drafts.list", {})!.data).drafts.filter((d: { id: string }) => d.id === "dr_cut"), titles(northwind), new Map([["agt_intake", "Intake"]]));
+  const conv = thread(s, "elena").conversation;
+  const before = s.sent.length;
+  await assert.rejects(() => sendAgentDraft(s.data, card!, conv, "", "", "k1"), /only a preview/, "the stored text ends in a cut-off marker");
+  await assert.rejects(() => sendAgentDraft(s.data, card!, conv, card!.body, "", "k2"), /only a preview/, "the card's own preview is never sent");
+  assert.equal(s.sent.length, before, "nothing was sent");
+  assert.equal(cutOff("Agenda...", "Agenda..."), false, "a person who typed it may send it");
+  assert.equal(cutOff("Agenda for the call...", ""), true);
+  assert.equal(cutOff("Thanks, Irfad", ""), false);
+  await sendAgentDraft(s.data, card!, conv, "Agenda for the call: the three points we agreed.", "", "k3");
+  assert.equal(s.sent.length, before + 1, "words the person typed go out");
+});
+
+test("Inbox draft card: Edit is in the card on the draft's full text, Send goes with the edited words, a refused save keeps the edit open, Don't send takes a reason", async () => {
   const { createRoot } = await import("test-renderer");
   const { TextInput } = await import("react-native");
   const { find, flush, installDom, mount, press, textOf, typeInto } = await import("../../../../../../ui/src/testing/dom.ts");
@@ -421,21 +465,28 @@ test("Inbox draft card: Edit is in the card on the draft's full text, Send goes 
   const s = createContactTabSample();
   const [card] = draftCards((s.replica.run("mail.drafts.list", { contactId: "ct_elena" })!.data).drafts, titles(northwind), new Map([["agt_intake", "Intake"]]));
   const sent: { text: string; subject: string }[] = [];
+  const saved: string[] = [];
   const dropped: string[] = [];
-  const full = "Thanks for draft 3. I will read it tonight, and here is the whole second paragraph that a snippet would have cut off.";
-  const root = await mount(createRoot, <DraftBlock d={card!} busy={false} offsetMin={0} loadText={async () => full} onSend={async (text, subject) => { sent.push({ text, subject }); return "Sent from Work Gmail"; }} onDrop={async (reason) => { dropped.push(reason); }}
+  let refuse = true;
+  const full = "Thanks for draft 3. I will read it tonight, and here is the whole second paragraph that a preview would have cut off.";
+  const root = await mount(createRoot, <DraftBlock d={card!} offsetMin={0} loadText={async () => full} onSend={async (text, subject) => { sent.push({ text, subject }); return "Sent from Work Gmail"; }} onDrop={async (r) => { dropped.push(r); }}
+    onSave={async (text) => { if (refuse) { refuse = false; throw new Error("That is only a preview of the draft, cut short."); } saved.push(text); }}
     editor={({ value, onChange, label }) => <TextInput testID="stub-editor" accessibilityLabel={label} value={value} onChangeText={onChange} multiline />} />);
   await flush();
-  assert.match(textOf(root), /whole second paragraph/, "the card shows the full text, not the snippet");
+  assert.match(textOf(root), /whole second paragraph/, "the card shows the full text, not the preview");
   await press(find(root, `draft:${card!.id}-edit`));
   assert.equal(String(find(root, "stub-editor")!.props.value), full, "Edit opens on the full text");
   await typeInto(find(root, "stub-editor")!, "Short and sweet.");
   await press(find(root, `draft:${card!.id}-save`)); await flush();
+  assert.match(textOf(root), /only a preview of the draft/, "a refused save says so");
+  assert.ok(find(root, "stub-editor"), "and the edit stays open");
+  await press(find(root, `draft:${card!.id}-save`)); await flush();
+  assert.deepEqual(saved, ["Short and sweet."]);
   assert.match(textOf(root), /Edited by you/);
   await press(find(root, `draft:${card!.id}-send`)); await flush();
   assert.deepEqual(sent.map((x) => x.text), ["Short and sweet."]);
   assert.match(textOf(root), /Sent from Work Gmail/);
-  const again = await mount(createRoot, <DraftBlock d={card!} busy={false} offsetMin={0} loadText={async () => full} onSend={async () => ""} onDrop={async (r) => { dropped.push(r); }} />);
+  const again = await mount(createRoot, <DraftBlock d={card!} offsetMin={0} loadText={async () => full} onSend={async () => ""} onSave={async () => undefined} onDrop={async (r) => { dropped.push(r); }} />);
   await flush();
   await press(find(again, `draft:${card!.id}-drop`));
   await typeInto(find(again, `draft:${card!.id}-reason`)!, "Wrong tone");
