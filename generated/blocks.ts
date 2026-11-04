@@ -158,6 +158,11 @@ export type HookBlockData = {
   reason?: string;
   tool?: string;
   subject?: string;
+  agentId?: string;
+  next?: Array<{
+      label: string;
+      ask: string;
+    }>;
 };
 export type InstallPlanBlockData = {
   planId: string;

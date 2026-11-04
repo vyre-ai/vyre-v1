@@ -1,10 +1,10 @@
-// The way forward on a hook line (lane l-hooks): "A hook stopped this" offers Details, Run once anyway and Ask an admin. Each is pressed and calls one capability; the server's refusal (a Space hook is an admin's
+// The way forward on a hook line (lane l-hooks): "A hook stopped this" offers Details, Allow this once and Ask an admin. Each is pressed and calls one capability; the server's refusal (a Space hook is an admin's
 // to let go by) is said in its own words; an added hook offers Edit.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
-import { HookLineActs } from "./hookline.tsx";
+import { HookLineActs, HookSteps } from "./hookline.tsx";
 
 const blocked = { line: "A hook stopped this: the address isn't in Contacts", kind: "blocked", hookId: "hok_1", scope: "chat" };
 function setup(fail?: string) {
@@ -14,7 +14,7 @@ function setup(fail?: string) {
   return { calls, opened, el: (line = blocked) => <HookLineActs id="m1" line={line} threadId="thr_1" call={call} open={(h) => opened.push(h)} linkStyle={{}} quietStyle={{}} /> };
 }
 
-test("a block offers Details, Run once anyway and Ask an admin; Details opens the hook", async () => {
+test("a block offers Details, Allow this once and Ask an admin; Details opens the hook", async () => {
   const off = installDom();
   try {
     const s = setup();
@@ -25,7 +25,7 @@ test("a block offers Details, Run once anyway and Ask an admin; Details opens th
   } finally { off(); }
 });
 
-test("Run once anyway calls hooks.allow_once and says what happens next; Ask an admin calls hooks.ask_admin", async () => {
+test("Allow this once calls hooks.allow_once and says what happens next; Ask an admin calls hooks.ask_admin", async () => {
   const off = installDom();
   try {
     const a = setup();
@@ -63,5 +63,42 @@ test("an added hook offers Edit, which opens it; a line with nothing to offer dr
     assert.deepEqual(s.opened, ["hok_2"]);
     const none = await mount(createRoot, s.el({ line: "x", kind: "removed", hookId: "hok_2" }));
     assert.equal(find(none, "hook-act-edit-m1"), null);
+  } finally { off(); }
+});
+
+test("the steps a check wrote are buttons: each sends its sentence to the assistant as the person's own message; the generic ones stay", async () => {
+  const off = installDom();
+  try {
+    const s = setup();
+    const line = { ...blocked, agentId: "agt_intake", next: [{ label: "Add them to Contacts", ask: "Please add Harbor Supply to Contacts" }, { label: "Send without adding", ask: "Send it once without adding them" }] };
+    const root = await mount(createRoot, s.el(line));
+    for (const a of ["details", "once", "ask"]) assert.ok(find(root, `hook-act-${a}-m1`), a);
+    assert.match(textOf(find(root, "hook-next-0-m1")), /Add them to Contacts/);
+    assert.match(textOf(find(root, "hook-next-1-m1")), /Send without adding/);
+    await press(find(root, "hook-next-0-m1"));
+    await flush();
+    assert.equal(s.calls.length, 1);
+    assert.deepEqual([s.calls[0]!.cap, (s.calls[0]!.input as Record<string, unknown>)["body"], (s.calls[0]!.input as Record<string, unknown>)["threadId"], (s.calls[0]!.input as { mentions: unknown[] }).mentions], ["chat.post", "Please add Harbor Supply to Contacts", "thr_1", [{ kind: "agent", id: "agt_intake" }]]);
+    assert.match(textOf(find(root, "hook-said-m1")), /Sent\./);
+    const none = await mount(createRoot, s.el({ ...blocked, next: line.next }));
+    assert.equal(find(none, "hook-next-0-m1"), null, "no agent to send to, no step buttons");
+  } finally { off(); }
+});
+
+test("with the steps below, the line keeps only the quiet verbs and the reply carries the step buttons; pressing one says it to the assistant", async () => {
+  const off = installDom();
+  try {
+    const calls: Array<{ cap: string; input: unknown }> = [];
+    const call = async (cap: string, input: unknown) => { calls.push({ cap, input }); return {}; };
+    const line = { ...blocked, agentId: "agt_intake", next: [{ label: "Add them to Contacts", ask: "Please add them" }] };
+    const root = await mount(createRoot, <HookLineActs id="m1" line={line} threadId="thr_1" call={call} open={() => undefined} linkStyle={{}} quietStyle={{}} stepsBelow />);
+    assert.equal(find(root, "hook-next-0-m1"), null, "the line does not carry the steps");
+    assert.ok(find(root, "hook-act-once-m1") && find(root, "hook-act-ask-m1") && find(root, "hook-act-details-m1"));
+    const reply = await mount(createRoot, <HookSteps id="m_reply" steps={line.next} agentId="agt_intake" threadId="thr_1" call={call} />);
+    assert.match(textOf(find(reply, "hook-step-0-m_reply")), /Add them to Contacts/);
+    await press(find(reply, "hook-step-0-m_reply"));
+    await flush();
+    assert.deepEqual([calls[0]!.cap, (calls[0]!.input as { body: string }).body], ["chat.post", "Please add them"]);
+    assert.match(textOf(find(reply, "hook-steps-said-m_reply")), /Sent\./);
   } finally { off(); }
 });

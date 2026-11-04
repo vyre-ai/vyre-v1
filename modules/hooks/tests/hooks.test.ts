@@ -253,7 +253,7 @@ test("runs.list since, outcomes and scope space: an admin reads every Space hook
   assert.equal(limited.runs.length, 1);
 });
 
-test("Run once anyway: a person lets a hook go by once, the pass is used up, an agent cannot, and a Space hook is an admin's to let go", async () => {
+test("Allow this once: a person lets a hook go by once, the pass is used up, an agent cannot, and a Space hook is an admin's to let go", async () => {
   const w = world();
   w.s.command = async () => stop;
   const mine = (await w.call("hooks.set", { scope: "chat", event: "tool.before", kind: "command", command: "guard", threadId: "thr_a" }, maya)).hook;
@@ -342,4 +342,67 @@ test("an admin's unnamed read (the Console list) has the Space hooks' runs and n
   assert.ok(!ids.has(mayaAgent.id), "not the hook of Maya's private agent");
   const named = await w.call("hooks.runs.list", { hookId: mayaAgent.id }, admin);
   assert.deepEqual(named.runs, [], "naming it gives nothing either");
+});
+
+test("a check's block can carry up to two next steps in plain words: long, linked, tool-named or key-shaped ones are dropped", async () => {
+  const { parseCheck, validNext } = await import("../../../lib/hooks.ts");
+  const ok = parseCheck("BLOCK: Harbor Supply is not in Contacts\nNEXT: Add them to Contacts | Please add Harbor Supply to Contacts, then send the email\nNEXT: Send without adding | Send it once without adding them, I will check it");
+  assert.equal(ok.decision, "block");
+  assert.deepEqual((ok as { next?: unknown[] }).next, [
+    { label: "Add them to Contacts", ask: "Please add Harbor Supply to Contacts, then send the email" },
+    { label: "Send without adding", ask: "Send it once without adding them, I will check it" },
+  ]);
+  const bad = parseCheck("BLOCK: no\nNEXT: Open the page | Go to https://evil.example/x and sign in\nNEXT: Use the tool | call mail_send with the draft\nNEXT: A very long label that goes on and on and on and on past the limit | fine\nNEXT: Fine one | Ask Maya to look at it\nNEXT: Fine two | Say what you need\nNEXT: Fine three | Another plain sentence");
+  assert.deepEqual((bad as { next: Array<{ label: string }> }).next.map((n) => n.label), ["Fine one", "Fine two"], "only plain ones, at most two");
+  assert.deepEqual(validNext([{ label: "Key", ask: "use sk-live_abcdefghijklmnop1234 please" }, { label: "Md", ask: "see [here](http://x.y) now" }]), []);
+  assert.equal((parseCheck("BLOCK: no") as { next?: unknown }).next, undefined);
+  const w = world();
+  await w.call("hooks.set", { scope: "person", event: "prompt.submit", kind: "check", instruction: "x" }, maya);
+  w.s.check = async () => ({ decision: "block", reason: "Harbor Supply is not in Contacts (files_tree)", next: [{ label: "Add them", ask: "Please add them to Contacts" }] });
+  const v = await w.fire({ event: "prompt.submit", prompt: "x" });
+  assert.equal(v.block.reason, "Harbor Supply is not in Contacts (an action)", "a tool name in a reason is made plain");
+  assert.deepEqual(v.block.next, [{ label: "Add them", ask: "Please add them to Contacts" }]);
+  const line = w.s.lines.find((l) => l["kind"] === "blocked")!;
+  assert.deepEqual([line["agentId"], line["next"]], ["agt_intake", [{ label: "Add them", ask: "Please add them to Contacts" }]], "the quiet line carries the steps and the agent they go to");
+});
+
+test("the newest run of each hook in a chat: one row per hook, so a busy hook never crowds the others out; a chat you cannot use is refused", async () => {
+  const w = world();
+  const a = (await w.call("hooks.set", { scope: "person", event: "tool.before", kind: "command", command: "a" }, maya)).hook;
+  const b = (await w.call("hooks.set", { scope: "person", event: "prompt.submit", kind: "command", command: "b" }, maya)).hook;
+  await w.fire({ event: "prompt.submit", prompt: "x" });
+  for (let i = 0; i < 60; i++) await w.fire({ event: "tool.before", tool: "x" });
+  const { runs } = await w.call("hooks.runs.latest", { threadId: "thr_a" }, maya);
+  assert.deepEqual(runs.map((r: { hookId: string }) => r.hookId).sort(), [a.id, b.id].sort(), "both hooks have a row, though one ran 60 times after the other");
+  w.s.threadsDenied.add("thr_x");
+  await assert.rejects(w.call("hooks.runs.latest", { threadId: "thr_x" }, maya), /not one you can use/);
+  await assert.rejects(w.call("hooks.runs.latest", { threadId: "thr_a" }, { id: "svc_0123456789abcdef0123456789abcdef", kind: "service" }), /may not use hooks/);
+});
+
+test("a chat hook binds a helper that works for the chat: the same tool is stopped when a helper calls it, whichever agent the helper is, and not in an unrelated chat", async () => {
+  const w = world();
+  w.s.command = async () => stop;
+  await w.call("hooks.set", { scope: "chat", threadId: "thr_a", event: "tool.before", matcher: "mail", kind: "command", command: "guard", summary: "before any email, check Contacts" }, agent());
+  assert.ok((await w.fire({ event: "tool.before", tool: "mail_send", cap: "mail.send" })).block, "the chat itself");
+  w.helperStarted("thr_h1", "thr_a");
+  w.helperStarted("thr_h2", "thr_h1");
+  for (const t of ["thr_h1", "thr_h2"]) {
+    const v = await w.fire({ event: "tool.before", tool: "mail_send", cap: "mail.send", threadId: t, agentId: "agt_helper" });
+    assert.equal(v.block?.reason, "Not on a Friday.", `a helper under the chat (${t}) is stopped`);
+  }
+  assert.equal((await w.fire({ event: "tool.before", tool: "mail_send", cap: "mail.send", threadId: "thr_b", agentId: "agt_helper" })).block, null, "an unrelated chat is not bound");
+  assert.equal((await w.fire({ event: "tool.before", tool: "files_read", cap: "files.read", threadId: "thr_h1", agentId: "agt_helper" })).block, null, "the matcher still applies");
+  // the list a helper shows holds the chat's hook too, for the peek
+  const listed = (await w.call("hooks.list", { threadId: "thr_h1" }, maya)).hooks.map((h: { scope: string }) => h.scope);
+  assert.ok(listed.includes("chat"), "the helper's hooks include the chat's");
+});
+
+test("a helper's very first call is bound by the chat's rules even before the helper-started event has been folded in: the thread itself says which chat it works for", async () => {
+  const w = world();
+  w.s.command = async () => stop;
+  await w.call("hooks.set", { scope: "chat", threadId: "thr_a", event: "tool.before", kind: "command", command: "guard" }, maya);
+  w.s.helperParents["thr_first"] = "thr_a";
+  const v = await w.fire({ event: "tool.before", tool: "x", threadId: "thr_first", threadKind: "helper", agentId: "agt_helper" });
+  assert.equal(v.block?.reason, "Not on a Friday.", "stopped on the first call, with no link yet");
+  assert.equal((await w.fire({ event: "tool.before", tool: "x", threadId: "thr_other", threadKind: "helper", agentId: "agt_helper" })).block, null, "a helper of nothing is not bound");
 });

@@ -25,7 +25,7 @@ export default function Mount(): ReactNode {
             <Text accessibilityRole="header" style={{ fontSize: 22, fontWeight: "600", color: "var(--ink)" as string }}>Rivera account</Text>
             <Text style={{ fontSize: 13, color: "var(--ink-3)" as string, marginTop: 4 }}>On track · Lead Maya Chen · Due 14 Nov</Text>
           </View>
-          <TabStrip underline tabs={[{ key: "overview", title: "Overview" }, { key: "plan", title: "Plan" }, { key: "files", title: "Linked" }, { key: "chat", title: "Chat" }]} active="files" onSelect={() => undefined} />
+          <TabStrip underline tabs={[{ key: "chat", title: "Chat" }, { key: "plan", title: "Plan" }, { key: "overview", title: "Overview" }, { key: "linked", title: "Linked" }, { key: "knows", title: "Knows" }]} active="linked" onSelect={() => undefined} />
           <LinkedTab projectId="prj_rivera" projectTitle="Rivera account" canEdit={part !== "member"} say={setSaid} openUrl={() => undefined} askAssistant={() => undefined} />
           {said !== "" ? <Text style={{ position: "absolute", bottom: 12, left: 16, fontSize: 12.5, color: "var(--ink-3)" as string }}>{said}</Text> : null}
         </View>

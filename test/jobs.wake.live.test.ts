@@ -20,7 +20,7 @@ test("a helper the lead starts on itself runs, and its answer is its own line an
     const body = String(input.trigger?.body ?? "");
     seen.push({ threadId: input.threadId, agent: input.agent.id, body, author: String(input.trigger?.author?.kind ?? ""), asker: String(input.asker ?? "") });
     if (/^look into the lease/.test(body)) {
-      yield* use("sub_task_model", { threadId: input.threadId, title: "Read the lease", instruction: "Find the rent date.", model: "scripted", provider: "anthropic" });
+      yield* use("sub_task_model", { threadId: input.threadId, title: "Read the lease", instruction: "Find the rent date." });
       yield { type: "text", text: "Waiting on the helper." };
       return;
     }

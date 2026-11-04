@@ -14,7 +14,7 @@ import { useProjectPageData } from "../data.tsx";
 import { LinkSheet } from "./LinkSheet.tsx";
 import { RuleSheet } from "./RuleSheet.tsx";
 import { CiGroup } from "./CiRows.tsx";
-import { GROUPS, SHOWS, askResource, byLine, countFor, filterLinks, groupOf, isOutside, itemTypeOf, levelOf, reachOf, ruleInput, ruleText, titleOf, toneOf } from "./model.ts";
+import { GROUPS, SHOWS, askResource, byLine, countFor, filterLinks, groupOf, isOutside, itemTypeOf, levelOf, reachOf, ruleInput, ruleText, stateWords, titleOf, toneOf } from "./model.ts";
 import type { Link, Out, Run, Show } from "./model.ts";
 
 export interface LinkedTabProps {
@@ -158,6 +158,7 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
     } catch (e) { say(msg(e)); }
   };
 
+  // ui-rows-lint: not a list (the Linked groups, each a heading over its own rows)
   const groups = GROUPS.filter((g) => show === "All" || show === g).map((g) => {
     const rows = filterLinks(links, show).filter((l) => groupOf(l) === g);
     const ci = g === "Code" && repo !== null && runs.length > 0;
@@ -182,11 +183,11 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
       id: `lk-${id}`, title: titleOf(l), tall: true,
       note: locked ? `You can't open this \u00B7 ${by.by}` : by.by,
       ...(hint(r) ? { hint: hint(r)! } : {}),
-      leading: <View style={st.kind}><Text style={st.kindText}>{locked ? "\u{1F512}\uFE0E" : KIND_MARK[l.kind]}</Text></View>,
+      leading: <View style={st.kind}><Text style={[st.kindText, tone === "ok" && st.ok, tone === "bad" && st.bad, tone === "warn" && st.warn]}>{locked ? "\u{1F512}\uFE0E" : KIND_MARK[l.kind]}</Text></View>,
       ...(by.auto ? { titleMarks: <Text testID={`link-auto-${id}`} accessibilityLabel="Linked by a rule" style={st.auto}>AUTO</Text> } : {}),
       trailing: (
         <View style={st.trail}>
-          {!locked && l.state ? <Text style={[st.state, tone === "ok" && st.ok, tone === "bad" && st.bad, tone === "warn" && st.warn]} testID={`link-state-${id}`}>{l.state}</Text> : null}
+          {!locked && l.state ? <Text style={st.state} testID={`link-state-${id}`}>{stateWords(l.state, d.now())}</Text> : null}
           {(!locked || canEdit) ? <Pressable accessibilityRole="button" accessibilityLabel={`More for ${titleOf(l)}`} testID={`link-more-${id}`} onPress={() => { const a = anchor(); rowMenu(l, a.x, a.y); }} style={({ hovered }: { hovered?: boolean }) => [st.more, hovered === true && st.hover]}><Text style={st.moreText}>{"\u2026"}</Text></Pressable> : null}
         </View>
       ),
@@ -245,14 +246,12 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
           {canEdit ? <Pressable accessibilityRole="button" testID="rule-new" onPress={() => setSheet("rule")} style={({ hovered }: { hovered?: boolean }) => [st.quiet, hovered === true && st.hover]}><Text style={st.askText}>Add a rule</Text></Pressable> : null}
         </View>
         {rules.length === 0 ? <Text testID="rules-empty" style={st.empty}>No rules. A rule links matching things from now on, for example everything from a repository or every invoice for a client.</Text> : null}
+        {/* ui-rows-lint: not a list (each rule is a ui/Row inside its test-id wrapper) */}
         {rules.map((r) => {
           const n = links.filter((l) => l.ruleId === r.ruleId).length;
           return (
-            <View key={r.ruleId} style={st.rule} testID={`rule-${r.ruleId}`}>
-              <Text numberOfLines={1} style={st.ruleText}>{ruleText(r)}</Text>
-              <Text style={st.sub}>{`${n} ${n === 1 ? "item" : "items"} linked`}</Text>
-              <View style={{ flex: 1 }} />
-              {canEdit ? <Pressable accessibilityRole="button" accessibilityLabel={`Remove the rule: ${ruleText(r)}`} testID={`rule-remove-${r.ruleId}`} onPress={() => void removeRule(r.ruleId)} style={({ hovered }: { hovered?: boolean }) => [st.quiet, hovered === true && st.hover]}><Text style={st.sub}>Remove</Text></Pressable> : null}
+            <View key={r.ruleId} testID={`rule-${r.ruleId}`}>
+              <Row id={`rule-${r.ruleId}`} inert title={ruleText(r)} note={`${n} ${n === 1 ? "item" : "items"} linked`} trailing={canEdit ? (<Pressable accessibilityRole="button" accessibilityLabel={`Remove the rule: ${ruleText(r)}`} testID={`rule-remove-${r.ruleId}`} onPress={() => void removeRule(r.ruleId)} style={({ hovered }: { hovered?: boolean }) => [st.quiet, hovered === true && st.hover]}><Text style={st.sub}>Remove</Text></Pressable>) : null} />
             </View>
           );
         })}
@@ -284,7 +283,7 @@ const st = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center" },
   trail: { flexDirection: "row", alignItems: "center", gap: 6 },
   main: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10, minHeight: 50, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8 },
-  kind: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
+  kind: { width: 28, height: 28, marginRight: 10, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   kindText: { fontSize: 13, color: "var(--ink-2)" as string },
   names: { flex: 1, minWidth: 0 },
   title: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },

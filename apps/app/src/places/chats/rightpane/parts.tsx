@@ -214,6 +214,6 @@ export const s = StyleSheet.create({
   rowGutter: { paddingHorizontal: 16, paddingVertical: 2 },
   empty: { minHeight: 36, justifyContent: "center", paddingHorizontal: 24, paddingVertical: 6 },
   emptyText: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  notice: { flexDirection: "row", alignItems: "center", gap: 6, minHeight: 36, paddingLeft: 12, paddingRight: 6, borderTopWidth: 1, borderTopColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string },
+  notice: { position: "absolute", left: 12, right: 12, bottom: 12, flexDirection: "row", alignItems: "center", gap: 6, minHeight: 40, paddingLeft: 14, paddingRight: 6, borderRadius: 12, boxShadow: "0 6px 20px rgba(0,0,0,0.14), inset 0 0 0 1px var(--line)", backgroundColor: "var(--raised)" as string } as object,
   noticeText: { flex: 1, fontSize: 12.5, color: "var(--ink-2)" as string },
 });

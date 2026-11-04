@@ -734,6 +734,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     else if (turn.state === "cancelled") emit({ type: "turn.cancelled", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, ...(run.why ? { reason: run.why } : {}) });
     else emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}) });
     // The agent's answer is a message like any other: it can @mention the next agent, which counts a hop.
+    // a turn that was stopped by a hook and then said nothing says what happened itself, so the stop is never the last thing in the chat
+    if (turn.state === "completed" && reply === "" && mentions.length === 0 && opts.hooks?.stoppedSince) {
+      const why = opts.hooks.stoppedSince(st.thread.id, turn.startedAt);
+      if (why) reply = `I did not do that. A hook stopped it: ${why}`;
+    }
     if (turn.state === "completed" && (reply !== "" || mentions.length > 0)) {
       // the answer is checked against everyone who reads the chat before it is stored and posted: the stored copy is what other agents read next, so it never holds what was withheld
       let body = reply;

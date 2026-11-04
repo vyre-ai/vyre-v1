@@ -184,7 +184,7 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     hk("hok_agent", "agent", "tool.after", "command", { command: "format-changed.sh" }, "after a helper edits a file, format the changed files", "agt_intake", "agent", true),
     hk("hok_space", "space", "prompt.submit", "check", { instruction: "No client names in prompts" }, "before each message is read, no client names", "usr_irfad", "admin", o.admin === true),
   ]);
-  replica.resolve("hooks.runs.list", () => ({ runs: o.hooks ? [
+  replica.resolve("hooks.runs.latest", () => ({ runs: o.hooks ? [
     { id: 3, hookId: "hok_chat", event: "outward.before", threadId: "thr_open", tool: "mail_send", outcome: "blocked", ms: 410, at: SAMPLE_NOW - 2 * MIN },
     { id: 2, hookId: "hok_space", event: "prompt.submit", threadId: "thr_open", outcome: "ok", ms: 380, at: SAMPLE_NOW - 14 * MIN },
     { id: 1, hookId: "hok_agent", event: "tool.after", threadId: "thr_open", tool: "files_write", outcome: "ok", ms: 90, at: SAMPLE_NOW - 3 * 60 * MIN },

@@ -60,6 +60,17 @@ export function reachOf(l: Link, viewer: Viewer): Reach {
   return reach({ kind: "item", type: ITEM_TYPE[l.kind], id, title: titleOf(l), level: levelOf(l), summary: `${hiddenTitle(ITEM_TYPE[l.kind])}.` }, viewer);
 }
 
+/** A state as the person reads it: a day the Space wrote as 2025-10-24 is "24 Oct" in their own format (the year only when it is not this one). */
+export function stateWords(state: string | undefined, now: number, locale?: string): string | undefined {
+  if (state === undefined) return undefined;
+  const m = /^(Edited|On) (\d{4})-(\d{2})-(\d{2})$/.exec(state);
+  if (!m) return state;
+  const at = Date.UTC(Number(m[2]), Number(m[3]) - 1, Number(m[4]));
+  const year = new Date(at).getUTCFullYear() === new Date(now).getUTCFullYear();
+  const day = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", ...(year ? {} : { year: "numeric" }), timeZone: "UTC" }).format(at);
+  return `${m[1]} ${day}`;
+}
+
 export type Tone = "ok" | "bad" | "warn" | "";
 /** How a state word is coloured: finished, paid and merged are good; overdue, failed and closed are not. */
 export function toneOf(state: string | undefined): Tone {
@@ -124,7 +135,8 @@ export const EMPTY_RULE: RuleForm = { kind: "repo", repo: "", recordType: "", fi
 export function ruleText(r: Pick<Rule, "kind" | "repo" | "recordType" | "field" | "equals" | "domain">): string {
   if (r.kind === "repo") return `Everything from ${r.repo ?? "a repository"}`;
   if (r.kind === "email_domain") return `Email from @${(r.domain ?? "").replace(/^@/, "")}`;
-  return `${r.recordType ?? "Records"} where ${r.field ?? "a field"} is ${r.equals ?? "a value"}`;
+  const t = r.recordType ?? "Records";
+  return `${t.charAt(0).toUpperCase()}${t.slice(1)} where ${r.field ?? "a field"} is ${r.equals ?? "a value"}`;
 }
 
 /** Why a rule form cannot be added yet, or "" when it can. */

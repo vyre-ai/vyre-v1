@@ -30,6 +30,7 @@ export function RuleSheet({ projectId, rules, onClose, onAdded }: { projectId: s
     <Dialog title="Link automatically" onClose={onClose} width={480} testID="rule-sheet" actions={[{ label: "Cancel", onPress: onClose, testID: "rule-cancel" }, { label: "Add rule", primary: true, disabled: busy, onPress: () => void add(), testID: "rule-add" }]}>
       <Text style={st.lead}>A rule links matching things from now on. They show an auto mark and can be unlinked one by one.</Text>
       <View accessibilityRole="radiogroup" style={st.kinds}>
+        {/* ui-rows-lint: not a list (a radio choice of what the rule matches) */}
         {RULE_KINDS.map((k) => (
           <Pressable key={k.key} accessibilityRole="radio" accessibilityState={{ checked: f.kind === k.key }} testID={`rule-kind-${k.key}`} onPress={() => set({ kind: k.key })} style={({ hovered }: { hovered?: boolean }) => [st.kind, f.kind === k.key && st.kindOn, hovered === true && st.hover]}>
             <View style={[st.dot, f.kind === k.key && st.dotOn]} /><View style={{ flex: 1 }}><Text style={st.kindTitle}>{k.label}</Text><Text style={st.lead}>{k.hint}</Text></View>

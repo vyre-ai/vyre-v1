@@ -9,7 +9,7 @@ import { LinkedTab } from "./LinkedTab.tsx";
 import { ProjectLinked } from "./index.tsx";
 import type { LinkedTabProps } from "./LinkedTab.tsx";
 import { createSampleLinked, NOW } from "./sample.ts";
-import { EMPTY_RULE, GROUPS, askResource, countFor, failedRun, filterLinks, fixAsk, groupOf, levelOf, linkOfHit, parseAddress, reachOf, ruleBody, ruleProblem, ruleText, runLine, runLook, titleOf, toneOf } from "./model.ts";
+import { EMPTY_RULE, GROUPS, askResource, countFor, failedRun, filterLinks, fixAsk, groupOf, levelOf, linkOfHit, parseAddress, reachOf, ruleBody, ruleProblem, ruleText, runLine, stateWords, runLook, titleOf, toneOf } from "./model.ts";
 import type { Link } from "./model.ts";
 import { LINKS, RUNS } from "./sample.ts";
 
@@ -76,12 +76,21 @@ test("a pasted address becomes a pull request, a commit or a web link; text that
 test("rules read as words and become the input the Space takes", () => {
   assert.equal(ruleText({ kind: "repo", repo: "northwind/website" }), "Everything from northwind/website");
   assert.equal(ruleText({ kind: "email_domain", domain: "client.com" }), "Email from @client.com");
-  assert.equal(ruleText({ kind: "record_filter", recordType: "invoice", field: "client", equals: "Rivera" }), "invoice where client is Rivera");
+  assert.equal(ruleText({ kind: "record_filter", recordType: "invoice", field: "client", equals: "Rivera" }), "Invoice where client is Rivera");
   assert.notEqual(ruleProblem(EMPTY_RULE), "");
   assert.equal(ruleProblem({ ...EMPTY_RULE, repo: "northwind/website" }), "");
   assert.notEqual(ruleProblem({ ...EMPTY_RULE, kind: "email_domain", domain: "nope" }), "");
   assert.deepEqual(ruleBody({ ...EMPTY_RULE, kind: "email_domain", domain: "@client.com" }), { kind: "email_domain", domain: "client.com" });
   assert.equal(ruleProblem({ ...EMPTY_RULE, kind: "record_filter", recordType: "invoice", field: "client", equals: "" }) !== "", true);
+});
+
+test("a day the Space wrote as 2025-10-24 reads in the person's own format; any other state is left as it is", () => {
+  const now = Date.UTC(2025, 9, 24, 10);
+  assert.equal(stateWords("Edited 2025-10-24", now, "en-GB"), "Edited 24 Oct");
+  assert.equal(stateWords("Edited 2025-10-24", now, "en-US"), "Edited Oct 24");
+  assert.equal(stateWords("On 2024-03-02", now, "en-GB"), "On 2 Mar 2024", "another year says its year");
+  assert.equal(stateWords("Overdue", now), "Overdue");
+  assert.equal(stateWords(undefined, now), undefined);
 });
 
 test("CI runs: how each reads, the line under it, and the failure the fix card talks about", () => {
@@ -105,7 +114,7 @@ test("the tab: groups, the total, the auto mark on what a rule linked, the rules
     assert.equal(find(root, "link-auto-lnk_1"), null, "a hand link is not");
     assert.ok(text.includes("Linked by you") && text.includes("Linked by Maya Chen") && text.includes("Linked by Assistant"));
     assert.ok(textOf(find(root, "link-state-lnk_2")).includes("Overdue") && textOf(find(root, "link-state-lnk_8")).includes("Merged"));
-    assert.ok(text.includes("invoice where client is Rivera") && text.includes("Everything from northwind/website"));
+    assert.ok(text.includes("Invoice where client is Rivera") && text.includes("Everything from northwind/website"));
     assert.ok(text.includes("2 items linked"));
     assert.ok(find(root, "ci-rows") && find(root, "ci-run-cir_1") && find(root, "ci-why-cir_1"));
     assert.ok(textOf(find(root, "ci-why-cir_1")).includes("3 tests failed"), "the failure line");
@@ -205,7 +214,7 @@ test("Link something: search shows what is not linked yet, a pick links it, a pa
     await typeInto(find(root, "link-search"), "terms"); await flush();
     assert.ok(writes(s.calls, "search.query").some((c) => c.input["q"] === "terms"));
     assert.ok(find(root, "link-pick-file:fil_terms") && !find(root, "link-pick-chat:thr_billing"));
-    await tap(root, "link-pick-file:fil_terms");
+    await tap(root, "row-link-pick-file:fil_terms");   // the pick is the ui/Row
     assert.deepEqual(writes(s.calls, "projects.links.link").map((c) => [c.input["kind"], c.input["ref"], c.input["label"]]), [["file", "fil_terms", "Service terms.pdf"]]);
     assert.equal(find(root, "link-pick-file:fil_terms"), null, "it leaves the offers once linked");
     assert.ok(textOf(find(root, "linked-notice")).includes("Linked Service terms.pdf"));
@@ -229,7 +238,7 @@ test("Link something: a refused link says why and a search with no answer offers
   try {
     await tap(root, "linked-add");
     s.fail("projects.links.link", "You can only link things you can open.");
-    await tap(root, "link-pick-file:fil_terms");
+    await tap(root, "row-link-pick-file:fil_terms");   // the pick is the ui/Row
     assert.ok(textOf(find(root, "link-line")).includes("You can only link things you can open."));
     await typeInto(find(root, "link-search"), "zzzz"); await flush();
     assert.ok(find(root, "link-nothing"));

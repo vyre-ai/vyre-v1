@@ -152,3 +152,18 @@ test("Grok reads the file from its project and home hook folders", () => {
   assert.ok(grok.command(opts).length > 0);
   assert.deepEqual(hookFiles("claude_code", { workFolder: "/work", stdio }), {});
 });
+
+test("a turn stopped by a hook that then says nothing still ends with an agent message saying what happened; one that spoke is left alone", async () => {
+  const silent = [{ type: "done" as const }];
+  for (const [said, expectReply] of [[silent, true], [[{ type: "text" as const, text: "I was stopped." }, { type: "done" as const }], false]] as const) {
+    const p = scriptedProvider({ script: () => said as never });
+    const port: HooksPort = { fire: async () => NO_VERDICT, stoppedSince: (t) => (t === "T" ? "the address is not in Contacts" : undefined) };
+    const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, hooks: port });
+    engine.openThread({ id: "T", kind: "chat", starter: "dana", agents: agents() });
+    engine.receive({ threadId: "T", author: person, body: "send it" });
+    await engine.idle("T");
+    const replies = engine.messages("T").filter((m) => m.author.kind === "agent").map((m) => m.body);
+    if (expectReply) assert.deepEqual(replies, ["I did not do that. A hook stopped it: the address is not in Contacts"]);
+    else assert.deepEqual(replies, ["I was stopped."]);
+  }
+});
