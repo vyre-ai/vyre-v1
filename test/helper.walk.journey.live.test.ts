@@ -10,6 +10,7 @@ import { workFolder } from "../modules/engine/sandbox.ts";
 import { makeBundle } from "../client/src/crypto/keys.ts";
 import { holdKeyOnOwnNode } from "../client/src/gateway/local-key.ts";
 import { edge } from "../apps/app/tests/real-app-harness.test.ts";
+import { guardCrashes } from "../apps/app/tests/crash-guard.ts";
 import { loadConfig } from "../host/src/daemon/config.ts";
 import { boot, hostLog, scriptedModel, stop, waitFor, KEY } from "./support/eco-live.ts";
 
@@ -128,41 +129,44 @@ test("running helpers: a held request, Change model, a person messaging a helper
       const ctx = await browser.newContext({ viewport: phone ? { width: 390, height: 844 } : { width: 1440, height: 900 } });
       await ctx.addInitScript((s: unknown) => { try { localStorage.setItem("vyre.session.v1", JSON.stringify({ sessions: { [(s as { baseUrl: string }).baseUrl]: s } })); } catch { /* blocked */ } }, session);
       const page = await ctx.newPage();
+      const guard = guardCrashes(page);
+      const shot = async (name: string): Promise<void> => { await guard.check(name); await shoot(page, name); };
       page.on("console", (c) => { if (c.type() === "error") console.error("CONSOLE", c.text().slice(0, 300)); });
       await page.goto(`${web.origin}/chats?skin=${skin}`, { waitUntil: "load" });
+      await guard.check("after the chats page loaded");
       await page.getByText("Vendor call and quotes", { exact: false }).first().waitFor({ timeout: 40_000 });
       const later = page.getByText("Finish later", { exact: true });
       if (await later.count()) await later.first().click().catch(() => undefined);
       await page.getByText("Vendor call and quotes", { exact: false }).first().click({ timeout: 30_000 });
-      await page.getByTestId("crew-strip").first().waitFor({ timeout: 40_000 }).catch(async (e) => { await shoot(page, `FAILED-strip-${mode}`); throw e; });
+      await page.getByTestId("crew-strip").first().waitFor({ timeout: 40_000 }).catch(async (e) => { await guard.check("FAILED-strip"); await shoot(page, `FAILED-strip-${mode}`); throw e; });
       await page.waitForTimeout(4000);
-      await shoot(page, `crew-t14-running-${mode}-${size}`);
+      await shot(`crew-t14-running-${mode}-${size}`);
       await page.locator('[data-testid^="approval-"]').first().waitFor({ timeout: 40_000 }).catch(() => undefined);
       console.log("HELD_CARD", mode, await page.locator('[data-testid^="approval-"]').count());
-      await shoot(page, `crew-t27-held-${mode}-${size}`);
+      await shot(`crew-t27-held-${mode}-${size}`);
       // the quotes helper reports: the answer marks what came from which helper with chips
-      await page.getByText(/Pine Works is cheaper/).first().waitFor({ timeout: 90_000 }).catch(async (e) => { await shoot(page, `FAILED-answer-${mode}`); throw e; });
+      await page.getByText(/Pine Works is cheaper/).first().waitFor({ timeout: 90_000 }).catch(async (e) => { await guard.check("FAILED-answer"); await shoot(page, `FAILED-answer-${mode}`); throw e; });
       console.log("CITE_CHIPS", mode, await page.locator('[data-testid^="cite-"]').count());
       await page.locator('[data-testid="cite-2"]').first().hover().catch(() => undefined);
       await page.waitForTimeout(400);
-      await shoot(page, `crew-t45-citations-${mode}-${size}`);
+      await shot(`crew-t45-citations-${mode}-${size}`);
       console.log("CODE_ROW", mode, await page.locator('[data-testid$="-branch"]').count());
-      await shoot(page, `crewcode-${mode}-${size}`);
+      await shot(`crewcode-${mode}-${size}`);
       // the header chip and the Crew pane
       await page.getByTestId("helpers-button").first().click({ timeout: 15_000 });
       await page.getByTestId("crew-overview").first().waitFor({ timeout: 20_000 });
-      await shoot(page, `crew-over-${mode}-${size}`);
+      await shot(`crew-over-${mode}-${size}`);
       await page.getByTestId("crew-overview").locator('[data-testid^="crew-chip-"][role="button"]').filter({ hasText: "Check the calendar" }).first().click({ timeout: 15_000 });
       await page.getByTestId("crew-peek").first().waitFor({ timeout: 20_000 });
-      await shoot(page, `crew-peek1-${mode}-${size}`);
+      await shot(`crew-peek1-${mode}-${size}`);
       if (mode === "light") {
         // Change model on the running helper
         await page.getByTestId("crew-peek-change-model").click({ timeout: 10_000 });
         await page.locator('[data-testid^="row-crew-change-"]').first().waitFor({ timeout: 20_000 });
-        await shoot(page, `crewmodels-choices-${mode}-${size}`);
+        await shot(`crewmodels-choices-${mode}-${size}`);
         await page.locator('[data-testid^="row-crew-change-"]').first().click();
         await page.getByTestId("crew-change-confirm").waitFor({ timeout: 10_000 });
-        await shoot(page, `crewmodels-confirm-${mode}-${size}`);
+        await shot(`crewmodels-confirm-${mode}-${size}`);
         await page.getByTestId("crew-change-go").click();
         await page.waitForTimeout(3000);
         // the helper chat: ask it something, it answers the person
@@ -170,15 +174,15 @@ test("running helpers: a held request, Change model, a person messaging a helper
         await page.getByText(/Brief from/).first().waitFor({ timeout: 20_000 });
         await page.getByLabel(/^Ask .* something$/).first().fill("Keep it short.", { timeout: 15_000 }).catch(async (e) => { await shoot(page, `FAILED-ask-box-${mode}`); console.log("MEMBER", JSON.stringify(await api("engine.crew.status", { threadId: chat }).then((r: any) => r.members.map((m: any) => [m.title, m.state, m.step])))); throw e; });
         await page.getByTestId("helper-ask-send").click();
-        await page.getByText("Noted. I will keep it short.").first().waitFor({ timeout: 100_000 }).catch(async (e) => { await shoot(page, `FAILED-reply-${mode}`); throw e; });
+        await page.getByText("Noted. I will keep it short.").first().waitFor({ timeout: 100_000 }).catch(async (e) => { await guard.check("FAILED-reply"); await shoot(page, `FAILED-reply-${mode}`); throw e; });
         assert.ok(await page.getByText(/replying to you/).count() > 0, "the helper says whom it answers");
-        await shoot(page, `crew-chat1-ask-${mode}-${size}`);
+        await shot(`crew-chat1-ask-${mode}-${size}`);
       }
       if (mode === "light") {
         // the chat above sees what the person told the helper
         await page.getByText("Vendor call and quotes", { exact: false }).first().click({ timeout: 10_000 }).catch(() => undefined);
-        await page.getByText(/^To ".*": Keep it short\.$/).first().waitFor({ timeout: 30_000 }).catch(async (e) => { await shoot(page, `FAILED-to-line-${mode}`); throw e; });
-        await shoot(page, `crew-t27-toline-${mode}-${size}`);
+        await page.getByText(/^To ".*": Keep it short\.$/).first().waitFor({ timeout: 30_000 }).catch(async (e) => { await guard.check("FAILED-to-line"); await shoot(page, `FAILED-to-line-${mode}`); throw e; });
+        await shot(`crew-t27-toline-${mode}-${size}`);
       }
       await ctx.close();
     }
