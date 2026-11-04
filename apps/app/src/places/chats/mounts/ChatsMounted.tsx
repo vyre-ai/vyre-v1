@@ -145,7 +145,8 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     if (hash === linked.current) return;
     linked.current = hash;
     // a tab switch or a link: the same thing already on screen keeps its pane and its place
-    setShown((s) => { const next = hash === "" ? START : fromHash(hash); return JSON.stringify(next.route) === JSON.stringify(s.route) ? s : { ...next, pane: s.pane, terminalId: s.terminalId }; });
+    // a link that shows only a layer (the terminals list from the Space menu) leaves the page as it is and puts the layer up, even when the page it names is the one already open
+    setShown((s) => { const next = hash === "" ? START : fromHash(hash); return JSON.stringify(next.route) === JSON.stringify(s.route) ? (next.layer ? { ...s, layer: next.layer } : s) : { ...next, pane: s.pane, terminalId: s.terminalId }; });
   }, [hash]);
   // what is open follows into the tab and the address (the Chats tab moves with it; tabs/store.ts moveTab), so coming back lands on it
   const openedRef = useRef(opened);
