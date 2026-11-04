@@ -140,7 +140,8 @@ test("the Island says Working with the faces of the helpers on it, Needs you in 
   const none = await mount(createRoot, <CrewIsland status={status([M({ state: "done" })], T({ members: 1, working: 0, needsYou: 0, done: 1 }))} onPress={() => undefined} />);
   assert.equal(find(none, "crew-island"), null);
   // the header chip counts from the same read
-  assert.deepEqual(crewChipOf(T()), { active: 2, total: 3, label: "3 helpers, 1 needs you" });
+  assert.deepEqual(crewChipOf(T()), { active: 2, total: 3, label: "3 helpers, 1 needs you", text: "1 working · 1 needs you" });
+  assert.equal(crewChipOf(T({ working: 3, needsYou: 0, done: 0 })).text, "3 working"); assert.equal(crewChipOf(T({ working: 0, needsYou: 0, done: 3 })).text, "", "nothing running, no words");
   assert.equal(crewChipOf(T({ working: 2, needsYou: 0, done: 1 })).label, "2 helpers working");
   assert.equal(crewChipOf(T({ working: 0, needsYou: 0, done: 3 })).label, "3 helpers, all done");
 });

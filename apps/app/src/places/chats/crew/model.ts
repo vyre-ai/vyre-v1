@@ -160,12 +160,13 @@ export function keyAction(e: { key: string; code?: string; metaKey?: boolean; ct
   return null;
 }
 
-/** The header chip: its badge counts the helpers on it (else all of them) and its label says who needs you. */
-export function crewChipOf(t: CrewTotals): { active: number; total: number; label: string } {
+/** The header chip: its badge counts the helpers on it (else all of them); while any is running it says "3 working" and who needs you. */
+export function crewChipOf(t: CrewTotals): { active: number; total: number; label: string; text: string } {
   const c = counts(t);
   const noun = t.members === 1 ? "helper" : "helpers";
   const label = c.needsYou > 0 ? `${t.members} ${noun}, ${c.needsYou} ${c.needsYou === 1 ? "needs" : "need"} you` : c.active > 0 ? `${c.active} ${c.active === 1 ? "helper" : "helpers"} working` : `${t.members} ${noun}, all done`;
-  return { active: c.active, total: t.members, label };
+  const text = c.active === 0 ? "" : [t.working > 0 ? `${t.working} working` : "", c.needsYou > 0 ? `${c.needsYou} needs you` : ""].filter((x) => x !== "").join(" · ");
+  return { active: c.active, total: t.members, label, text };
 }
 
 /** What the last test run said: "Tests running", "Tests passing" (with the count when known), "3 failing". */

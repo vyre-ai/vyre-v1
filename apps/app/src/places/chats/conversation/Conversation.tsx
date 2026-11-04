@@ -637,7 +637,7 @@ function ConversationView(): ReactElement {
         {isWorking ? <View testID="conversation-live" accessibilityLabel="Working" style={st.live}><View style={st.liveDot} /></View> : null}
         <View style={{ flex: 1 }} />
         {online ? null : <Text testID="conversation-offline" style={st.meta}>Offline</Text>}
-        {crewChip ? <IconButton icon="helper" label={crewChip.label} badge={crewChip.active > 0 ? crewChip.active : crewChip.total} testID="helpers-button" onPress={() => crew!.show(null)} />
+        {crewChip ? (crewChip.text !== "" && !narrow ? <Pressable accessibilityRole="button" accessibilityLabel={crewChip.label} testID="helpers-button" onPress={() => crew!.show(null)} style={st.crewChip}><Text testID="helpers-chip-text" style={st.crewChipText}>{crewChip.text}</Text></Pressable> : <IconButton icon="helper" label={crewChip.label} badge={crewChip.active > 0 ? crewChip.active : crewChip.total} testID="helpers-button" onPress={() => crew!.show(null)} />)
           : helpers.length > 0 ? <IconButton icon="helper" label={`${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`} badge={helpers.length} testID="helpers-button" onPress={helpersMenu} /> : null}
         {isWorking ? <IconButton icon="stop" label={stopLabel(working, nameOf)} danger testID="stop-button" onPress={stopMenu} /> : null}
         <IconButton icon="people" label={`${thread.members.length} in this chat`} badge={thread.members.length} testID="participants-button" onPress={peopleMenu} />
@@ -848,6 +848,8 @@ const st = StyleSheet.create({
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string },
   liveText: { fontSize: 12, color: "var(--ink-2)" as string },
   meta: { fontSize: 12, color: "var(--ink-3)" as string },
+  crewChip: { height: 26, paddingHorizontal: 10, borderRadius: 13, justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
+  crewChipText: { fontSize: 12.5, color: "var(--accent)" as string, fontWeight: "500" },
   earlierBar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, minHeight: 34, backgroundColor: "var(--side)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   earlierText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   noteLine: { paddingHorizontal: 16, paddingTop: 6, fontSize: 12, color: "var(--ink-3)" as string },
