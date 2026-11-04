@@ -95,3 +95,11 @@ export function createMenuApiB(data: Call): MenuApiB {
     domainRemove: (domainId) => c("mail.domain.remove", { domainId }),
   };
 }
+
+/** The address of a thing, in the one spelling every Copy Link uses. */
+export const vyreLink = (kind: string, id: string): string => `vyre://${kind}/${id}`;
+/** Put text on the clipboard; a device with none does nothing. */
+export function copyToClipboard(text: string): void {
+  const clip = (globalThis as { navigator?: { clipboard?: { writeText(s: string): Promise<void> } } }).navigator?.clipboard;
+  void clip?.writeText(text);
+}
