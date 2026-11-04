@@ -299,6 +299,10 @@ const manifest = defineManifest({
   ],
   settings: [
     setting('mail.provider', 'space', 'comms', 'Space sending provider', t.enm('resend', 'mailgun'), 'resend'),
+    // Console > Messaging > Rules, sending limits. Kept as Space settings; the send path does not read them yet (CONSOLE-WIRING.md gap 7)
+    setting('send.cap', 'space', 'comms', 'Most messages the Space sends in a day', t.int({ minimum: 1, maximum: 100000 }), 2000),
+    setting('send.window', 'space', 'comms', 'When messages may leave, in the recipient\'s time zone', t.enm('8-20', '9-17', 'any'), '8-20'),
+    setting('send.throttle', 'space', 'comms', 'How many messages leave in a minute', t.int({ minimum: 1, maximum: 600 }), 20),
     setting('comms.agents_may_send', 'space', 'comms', 'Agents can send email, texts and calls for the person who asked', t.bool(), true),
   ],
 });
