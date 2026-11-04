@@ -1400,6 +1400,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_helper_restart",
+      "summary": "Start a helper again on another model: the person it works for picks an account and a model, and it does its brief again from the start",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_helper_steer",
       "summary": "Ask a helper that is working something, in its own chat: the person it works for only, while it runs",
       "toolset": "chats"
@@ -2620,6 +2626,12 @@
       "deferred": false,
       "name": "engine_drop_queued",
       "summary": "Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_helpers_change_model",
+      "summary": "Change the model of one helper of a chat: it stops, then starts again on the account and model the person picked, doing its brief from the start",
       "toolset": "chats"
     },
     {

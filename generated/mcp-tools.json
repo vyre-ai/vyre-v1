@@ -10403,6 +10403,42 @@
     },
     {
       "blocks": [],
+      "cap": "chat.helper.restart",
+      "deferred": false,
+      "description": "Start a helper again on another model: the person it works for picks an account and a model, and it does its brief again from the start",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "account": {
+            "description": "An account from models_for_helpers: its ref, or its label",
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_helper_restart",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.helper.steer",
       "deferred": false,
       "description": "Ask a helper that is working something, in its own chat: the person it works for only, while it runs",
@@ -17688,6 +17724,47 @@
         "type": "object"
       },
       "name": "engine_drop_queued",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "engine.helpers.change_model",
+      "deferred": false,
+      "description": "Change the model of one helper of a chat: it stops, then starts again on the account and model the person picked, doing its brief from the start",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "account": {
+            "description": "An account from models_for_helpers: its ref, or its label",
+            "type": "string"
+          },
+          "helperId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "helperId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_helpers_change_model",
       "planMode": "blocked",
       "toolset": "chats",
       "v": 1

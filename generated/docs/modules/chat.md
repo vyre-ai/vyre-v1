@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, mcp, members.
 
-## Capabilities (105)
+## Capabilities (106)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -43,6 +43,7 @@ Requires: engine, mcp, members.
 - [chat.helper.note](../capabilities/chat.helper.note.md): Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer
 - [chat.helper.note_seen](../capabilities/chat.helper.note_seen.md): Mark the notes waiting for a helper as read
 - [chat.helper.notes](../capabilities/chat.helper.notes.md): The notes in a helper chat with who sent each: the person, the agent that started it, or the helper
+- [chat.helper.restart](../capabilities/chat.helper.restart.md): Start a helper again on another model: the person it works for picks an account and a model, and it does its brief again from the start
 - [chat.helper.start](../capabilities/chat.helper.start.md): Start a helper sub-task thread with its own model, provider and effort; helper chats are read-only
 - [chat.helper.steer](../capabilities/chat.helper.steer.md): Ask a helper that is working something, in its own chat: the person it works for only, while it runs
 - [chat.helpers.list](../capabilities/chat.helpers.list.md): Helpers running under a chat, with status

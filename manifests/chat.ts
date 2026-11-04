@@ -453,6 +453,11 @@ export default defineManifest({
       out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.note', 'message.received', 'block.waiting'], tool: 'chats', mcpName: 'helper_note', deferred: true, agent: { planMode: 'blocked' },
       errors: ['validation.not_found', 'validation.precondition_failed', 'validation.bad_input'],
     }),
+    write('chat.helper.restart', 'Start a helper again on another model: the person it works for picks an account and a model, and it does its brief again from the start', {
+      in: { ...threadT, model: t.opt(t.str()), account: t.opt(t.str({ description: 'An account from models_for_helpers: its ref, or its label' })), provider: t.opt(t.str()) },
+      out: { messageId: id.message, model: t.str(), account: t.str(), fellBackFrom: t.opt(t.str()) }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.note', 'message.received'], tool: 'chats',
+      errors: ['validation.not_found', 'validation.precondition_failed', 'validation.bad_input', 'permission.no_grant', 'provider.unavailable'],
+    }),
     write('chat.helper.note_seen', 'Mark the notes waiting for a helper as read', {
       in: threadT, out: { marked: t.int() }, on: ['thread', '/threadId'], level: 'use', tool: 'chats', errors: ['validation.not_found'],
     }),

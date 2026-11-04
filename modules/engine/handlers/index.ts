@@ -1,5 +1,5 @@
 import { liveTurns } from "./bridge.ts";
-import { helpersStatus, helpersStopAll } from "./helpers.ts";
+import { helpersChangeModel, helpersStatus, helpersStopAll } from "./helpers.ts";
 import { helperModels } from "./helper-models.ts";
 import { crewStatus } from "./crew-status.ts";
 import { now as engineNow } from "./now.ts";
@@ -32,6 +32,7 @@ export const handlers = {
   "engine.crew.status": crewStatus,
   "engine.helper_models": helperModels,
   "engine.helpers.stop_all": helpersStopAll,
+  "engine.helpers.change_model": helpersChangeModel,
   "engine.now": engineNow,
   "engine.set_mode": setMode,
   "engine.set_model": setModel,

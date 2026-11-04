@@ -30,8 +30,8 @@ async function refuses(hn: Harness, name: string, code: string, run: () => Promi
   assert.ok((cap(name).errors as readonly string[]).includes(code), `${name} does not declare ${code}`);
 }
 
-test("the table holds the seventeen capabilities of this group, all frozen chat capabilities, each example input valid", () => {
-  assert.equal(NAMES.length, 17);   // the 13, plus chat.helper.steer (l-crews: ask a running helper) and the three helper notes (chat.helper.note, chat.helper.note_seen, chat.helper.notes)
+test("the table holds the eighteen capabilities of this group, all frozen chat capabilities, each example input valid", () => {
+  assert.equal(NAMES.length, 18);   // the 13, plus chat.helper.steer (l-crews: ask a running helper) and the three helper notes (chat.helper.note, chat.helper.note_seen, chat.helper.notes), plus chat.helper.restart (Change model)
   for (const name of NAMES) {
     const c = cap(name);
     assert.equal(c.module, "chat", name);

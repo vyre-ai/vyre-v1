@@ -14,6 +14,7 @@ import {
 import type { ChatCtx, Db, PlanStep, ThreadRec } from "../projections.ts";
 import { mayRecall } from "./history.ts";
 import { canSpeak, deliver } from "./post.ts";
+import { touch } from "./g24a.ts";
 import { ALREADY_DECIDED, openAsk, tellAgent } from "./waiting.ts";
 
 type Row = Record<string, unknown>;
@@ -670,6 +671,38 @@ export async function helperNotes(ctx: ChatCtx, input: { threadId: string }) {
   return { notes };
 }
 
+/**
+ * Start a helper again on another model (owner, 4 Nov 2026, "Change model" in the peek): the person it works for picks an account and a model; the choice goes through the same check as a new helper (an
+ * account they may use, a model that is available, or the nearest one that is), the helper's agent takes it, and the brief is given again as a fresh job, so the helper starts over on the new model. What it
+ * had used so far stays on its row; the new work is billed to the person as any other.
+ */
+export async function helperRestart(ctx: ChatCtx, input: { threadId: string; model?: string; account?: string; provider?: string }) {
+  ensure(ctx.db);
+  const t = threadBy(ctx.db, input.threadId);
+  if (!t || t.kind !== "helper" || t.parentThreadId === undefined) raise(ctx, "validation.not_found", "That is not a helper chat.");
+  const asker = askerOf(ctx);
+  if (!asker.startsWith("usr_") || t.starter !== asker) raise(ctx, "validation.precondition_failed", "Only the person the helper works for can change its model.");
+  if (input.model === undefined && input.account === undefined) raise(ctx, "validation.bad_input", "Say which model to use.");
+  const lead = agentsOf(ctx.db, t.id)[0];
+  if (!lead) raise(ctx, "validation.precondition_failed", "This helper has no agent to restart.");
+  const chosen = await chooseHelperModel(ctx, t.parentThreadId, lead.agentId, { ...input, why: "you asked" });
+  if (!chosen) raise(ctx, "validation.precondition_failed", "That model could not be checked. Try again.");
+  const brief = lastMessages(ctx.db, t.id, 200)[0];
+  if (!brief) raise(ctx, "validation.precondition_failed", "This helper has no brief to start again from.");
+  ctx.db.run("UPDATE chat_thread_agent SET model = ?, provider = ?, accountRef = ?, version = version + 1, updated_at = ? WHERE thread = ? AND agentId = ? AND deleted_at IS NULL", chosen.model, chosen.provider, chosen.account, ctx.now(), t.id, lead.agentId);
+  if (t.closedAt !== undefined) touch(ctx, t.id, "closedAt = NULL");
+  const blockId = mintId("blk", ctx.now());
+  const word = chosen.pick["fellBackFrom"] ? `Starting again on ${chosen.model} (${String(chosen.pick["fellBackFrom"])} is not available). ` : `Starting again on ${chosen.model}. `;
+  const m = insertMessage(ctx, t.id, { author: asker, kind: "text", body: `${word}Do the brief again from the start.`, blocks: [{ type: "helper_note", v: 1, id: blockId, data: { direction: "down", kind: "followup", from: { kind: "person", id: asker }, state: "sent", restart: true }, state: "sent", traceId: ctx.trace.traceId }] });
+  ctx.emit("helper.note", t.id, { helperThreadId: t.id, direction: "down", kind: "followup", messageId: m.id });
+  deliver(ctx, t, m, [{ kind: "agent", id: lead.agentId }], { kind: "person", id: asker }, { notify: false, job: true });
+  // the row in the chat above wears the new pick
+  const line = t.parentMessageId !== undefined ? messageBy(ctx.db, t.parentMessageId) : null;
+  const hb = line?.blocks.find((b) => b["type"] === "helper" && (b["data"] as Row | undefined)?.["helperThreadId"] === t.id);
+  if (line && hb) patchBlockInMessage(ctx.db, line.id, String(hb["id"]), (b) => ({ ...b, state: "live", data: { ...(b["data"] as Row), model: chosen.model, pick: chosen.pick, status: "running" } }));
+  return { messageId: m.id, model: chosen.model, account: chosen.account, ...(chosen.pick["fellBackFrom"] ? { fellBackFrom: String(chosen.pick["fellBackFrom"]) } : {}) };
+}
+
 export async function helpersList(ctx: ChatCtx, input: { threadId: string }) {
   ensure(ctx.db);
   const parent = visible(ctx, input.threadId);
@@ -740,6 +773,7 @@ export const g24dHandlers = {
   "chat.helpers.list": helpersList,
   "chat.helper.steer": helperSteer,
   "chat.helper.note": helperNote,
+  "chat.helper.restart": helperRestart,
   "chat.helper.note_seen": helperNotesSeen,
   "chat.helper.notes": helperNotes,
   "chat.handoff": handoff,

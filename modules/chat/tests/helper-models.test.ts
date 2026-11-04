@@ -2,7 +2,7 @@
 // refused; a model that is not available falls back inside its account and the pick says which was asked for; an agent set to ask first must ask.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DRAFTER, INTAKE, harness } from "../fixtures/harness.ts";
+import { DANA, DRAFTER, INTAKE, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { g24dHandlers as g } from "../handlers/g24d.ts";
 import { start } from "../handlers/thread.ts";
@@ -71,4 +71,29 @@ test("an agent set to ask first must be given a model: without one it is told to
   const threadId = await chatOf(hn);
   assert.deepEqual(await failure(() => startHelper(hn, threadId, {})), { code: "validation.precondition_failed", reason: "ask_first" });
   assert.ok(await startHelper(hn, threadId, { account: "#Mine_Claude", model: "claude-opus-5-5" }));
+});
+
+test("Change model restarts a helper on the account and model the person picks: its agent takes them, the brief is given again, the row wears the new pick", async () => {
+  const hn = world("same_provider");
+  const threadId = await chatOf(hn);
+  const h = (await startHelper(hn, threadId, { account: "#Mine_Claude", model: "claude-haiku-5-5", why: "cheap reader" })).helper["threadId"] as string;
+  const out = await g["chat.helper.restart"](hn.person(DANA), { threadId: h, account: "#Space_OCG", model: "glm-5.3" });
+  assert.deepEqual([out.model, out.account], ["glm-5.3", "#Space_OCG"]);
+  assert.deepEqual(hn.rows("SELECT model, provider, accountRef FROM chat_thread_agent WHERE thread = ?", h).map((r) => [r["model"], r["provider"], r["accountRef"]]), [["glm-5.3", "opencode-go", "#Space_OCG"]]);
+  const again = hn.rows("SELECT body, author FROM chat_message WHERE thread = ? ORDER BY threadSeq", h).map((r) => String(r["body"]));
+  assert.equal(again.length, 2, "the brief, then the restart line");
+  assert.match(again[1]!, /Starting again on glm-5\.3\. Do the brief again from the start\./);
+  const pk = pickOf(hn, h)!;
+  assert.deepEqual([pk["model"], pk["accountRef"], pk["why"]], ["glm-5.3", "#Space_OCG", "you asked"]);
+});
+
+test("Change model: only the person it works for, an unavailable model falls back and says so, an account they may not use is refused", async () => {
+  const hn = world("same_provider");
+  const threadId = await chatOf(hn);
+  const h = (await startHelper(hn, threadId, { account: "#Mine_Claude", model: "claude-haiku-5-5" })).helper["threadId"] as string;
+  assert.equal((await failure(() => g["chat.helper.restart"](hn.person("usr_other"), { threadId: h, model: "claude-opus-5-5", account: "#Mine_Claude" }))).code, "validation.precondition_failed");
+  assert.deepEqual(await failure(() => g["chat.helper.restart"](hn.person(DANA), { threadId: h, account: "#Someone_Elses_Key", model: "gpt-6" })), { code: "permission.no_grant", reason: "account_not_theirs" });
+  const fell = await g["chat.helper.restart"](hn.person(DANA), { threadId: h, account: "#Mine_Claude", model: "claude-sonnet-5-5" });
+  assert.deepEqual([fell.model, fell.fellBackFrom], ["claude-haiku-5-5", "claude-sonnet-5-5"]);
+  assert.equal((await failure(() => g["chat.helper.restart"](hn.person(DANA), { threadId, model: "claude-opus-5-5", account: "#Mine_Claude" }))).code, "validation.not_found", "a chat is not a helper");
 });

@@ -42,6 +42,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "chat.helper.note": Handler<"chat.helper.note", X>;
   "chat.helper.note_seen": Handler<"chat.helper.note_seen", X>;
   "chat.helper.notes": Handler<"chat.helper.notes", X>;
+  "chat.helper.restart": Handler<"chat.helper.restart", X>;
   "chat.helper.start": Handler<"chat.helper.start", X>;
   "chat.helper.steer": Handler<"chat.helper.steer", X>;
   "chat.helpers.list": Handler<"chat.helpers.list", X>;

@@ -491,6 +491,11 @@ export default defineManifest({
         totals: t.obj({ members: t.int(), working: t.int(), done: t.int(), needsYou: t.int(), failed: t.int(), stopped: t.int(), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), filesChanged: t.int(), added: t.int(), deleted: t.int(), elapsedMs: t.int() }),
       }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
     }),
+    write('engine.helpers.change_model', 'Change the model of one helper of a chat: it stops, then starts again on the account and model the person picked, doing its brief from the start', {
+      in: { ...threadT, helperId: id.thread, account: t.opt(t.str({ description: 'An account from models_for_helpers: its ref, or its label' })), model: t.opt(t.str()) },
+      out: { restarted: t.bool(), model: t.str(), account: t.str(), fellBackFrom: t.opt(t.str()), spentMicros: t.int({ minimum: 0 }) }, on: ['thread', '/threadId'], level: 'use', tool: 'chats',
+      errors: ['validation.not_found', 'validation.precondition_failed', 'validation.bad_input', 'permission.no_grant', 'provider.unavailable'],
+    }),
     read('engine.helpers.status', 'The helpers of a chat, live: each one working, done, needing a person or failed, the step it is on, one line of what it found, how long it took and what it cost', {
       in: { ...threadT }, out: { helpers: t.arr(t.obj({
         threadId: id.thread, title: t.str(), agentId: id.agent, provider: t.opt(t.str()), accountLabel: t.opt(t.str()), model: t.opt(t.str()), why: t.opt(t.str()), fellBackFrom: t.opt(t.str()), state: t.enm('working', 'done', 'needs_you', 'failed', 'stopped'), step: t.opt(t.str()), found: t.opt(t.str()), startedAt: t.ts(), endedAt: t.opt(t.ts()),

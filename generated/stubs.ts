@@ -409,6 +409,7 @@ export function stubs(ctx: CallCtx) {
         note: call("chat.helper.note"),
         note_seen: call("chat.helper.note_seen"),
         notes: call("chat.helper.notes"),
+        restart: call("chat.helper.restart"),
         start: call("chat.helper.start"),
         steer: call("chat.helper.steer"),
       },
@@ -793,6 +794,7 @@ export function stubs(ctx: CallCtx) {
       health: call("engine.health"),
       helper_models: call("engine.helper_models"),
       helpers: {
+        change_model: call("engine.helpers.change_model"),
         status: call("engine.helpers.status"),
         stop_all: call("engine.helpers.stop_all"),
       },

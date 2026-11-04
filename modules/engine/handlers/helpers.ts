@@ -58,3 +58,17 @@ export async function helpersStopAll(ctx: EngineCtx, input: { threadId: string }
   for (const h of helpers) if (h.state === "working") stopped += (await stop(ctx, { threadId: h.threadId })).stopped;
   return { stopped };
 }
+
+/**
+ * Change the model of one helper (owner, 4 Nov 2026): stop what it is doing, then start it again on the account and model the person picked. The restart is chat.helper.restart, which checks the account and the
+ * model like a new helper's and gives the brief again; what it spent so far stays on its row, and the new turn is billed to the person as any other.
+ */
+export async function helpersChangeModel(ctx: EngineCtx, input: { threadId: string; helperId: string; account?: string; model?: string }): Promise<{ restarted: boolean; model: string; account: string; fellBackFrom?: string; spentMicros: number }> {
+  ensure(ctx.db);
+  const before = (await helpersStatus(ctx, { threadId: input.threadId })).helpers.find((h) => h.threadId === input.helperId);
+  if (!before) throw new Error("That helper does not belong to this chat.");
+  // the old turn ends first, so the new one is the only one running; a stopped turn reports nothing to the chat above
+  await stop(ctx, { threadId: input.helperId }).catch(() => ({ stopped: 0 }));
+  const out = (await ctx.call("chat.helper.restart", { threadId: input.helperId, ...(input.account !== undefined ? { account: input.account } : {}), ...(input.model !== undefined ? { model: input.model } : {}) })) as { model: string; account: string; fellBackFrom?: string };
+  return { restarted: true, model: out.model, account: out.account, ...(out.fellBackFrom ? { fellBackFrom: out.fellBackFrom } : {}), spentMicros: before?.costMicros ?? 0 };
+}

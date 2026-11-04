@@ -95,6 +95,48 @@ export function CrewOverview({ status, call, threadId, onPeek, onRefresh, initia
   );
 }
 
+type Cat = { accounts: Array<{ ref: string; provider: string; label: string; models: Array<{ model: string; title?: string; tier?: string; available: boolean }> }> };
+
+/** The choices for Change model: each account the person may use with the models it can run now, the one on the helper left out. */
+export function modelChoices(cat: Cat, current?: string): Array<{ account: string; accountLabel: string; model: string; tier?: string }> {
+  return cat.accounts.flatMap((a) => a.models.filter((m) => m.available && m.model !== current).map((m) => ({ account: a.ref, accountLabel: a.label, model: m.model, ...(m.tier ? { tier: m.tier } : {}) })));
+}
+
+/** The confirm line: what restarting costs, in what the helper has really used so far. */
+export const restartWords = (name: string, model: string, spentMicros: number): string => `Restart ${name} on ${model}? It has used ${money(spentMicros)} so far and starts over.`;
+
+function ChangeModel({ member, call, onDone }: { member: CrewMember; call: Call; onDone: () => void }): ReactElement {
+  const [open, setOpen] = useState(false);
+  const [cat, setCat] = useState<Cat | null>(null);
+  const [pick, setPick] = useState<{ account: string; accountLabel: string; model: string } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const show = (): void => { setOpen(true); void Promise.resolve(call("engine.helper_models", { threadId: member.parentThreadId, agentId: member.agentId })).then((r) => setCat(r as Cat), () => setErr("The models could not be read. Try again.")); };
+  const go = (): void => {
+    if (!pick) return;
+    void Promise.resolve(call("engine.helpers.change_model", { threadId: member.parentThreadId, helperId: member.id, account: pick.account, model: pick.model })).then(() => { setOpen(false); setPick(null); onDone(); }, () => setErr("It could not restart on that model."));
+  };
+  if (!open) return <Pressable accessibilityRole="button" testID="crew-peek-change-model" onPress={show} style={st.pill}><Text style={st.pillText}>Change model</Text></Pressable>;
+  const choices = cat ? modelChoices(cat, member.model) : [];
+  return (
+    <View testID="crew-change-model" style={{ gap: 6, marginTop: 8 }}>
+      {pick ? (
+        <>
+          <Text testID="crew-change-confirm" style={st.rowLine}>{restartWords(nameOf(member), pick.model, member.costMicros)}</Text>
+          <View style={st.actions}>
+            <Pressable accessibilityRole="button" testID="crew-change-go" onPress={go} style={[st.pill, { backgroundColor: "var(--accent)" as string }]}><Text style={[st.pillText, { color: "var(--accent-ink)" as string }]}>Restart</Text></Pressable>
+            <Pressable accessibilityRole="button" testID="crew-change-cancel" onPress={() => setPick(null)} style={st.pill}><Text style={st.pillText}>Cancel</Text></Pressable>
+          </View>
+        </>
+      ) : cat === null ? <Text style={st.hint}>Reading the models…</Text> : choices.length === 0 ? <Text testID="crew-change-none" style={st.hint}>No other model is available right now.</Text> : choices.map((c) => (
+        <Pressable key={`${c.account}:${c.model}`} accessibilityRole="button" testID={`crew-change-${c.model}`} onPress={() => setPick(c)} style={st.row}>
+          <Text style={st.rowTitle}>{c.model}</Text><Text style={st.hint}>{c.accountLabel}{c.tier ? ` · ${c.tier}` : ""}</Text>
+        </Pressable>
+      ))}
+      {err ? <Text testID="crew-change-error" style={st.hint}>{err}</Text> : null}
+    </View>
+  );
+}
+
 type Note = { messageId: string; who: "brief" | "person" | "parent" | "helper"; authorId: string; body: string; kind?: string; state?: string; seenAt?: number };
 const WHO = { brief: "Brief", person: "You", parent: "Agent", helper: "Helper" } as const;
 
@@ -147,6 +189,7 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
         <Pressable accessibilityRole="button" testID="crew-peek-open" onPress={() => onOpenChat(member.id)} style={st.pill}><Text style={st.pillText}>Open chat</Text></Pressable>
         {live ? <Pressable accessibilityRole="button" testID="crew-peek-stop" onPress={() => { void Promise.resolve(call("engine.stop", { threadId: member.id })).then(onRefresh, () => undefined); }} style={st.pill}><Text style={st.pillText}>Stop</Text></Pressable> : null}
       </View>
+      {live || member.state === "failed" || member.state === "stopped" ? <ChangeModel member={member} call={call} onDone={onRefresh} /> : null}
       {live ? (
         <View style={st.ask}>
           <TextInput testID="crew-peek-ask" value={text} onChangeText={setText} onSubmitEditing={send} placeholder="Ask it something" placeholderTextColor="var(--ink-4)" style={st.input} />

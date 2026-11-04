@@ -181,3 +181,25 @@ test("Show keeps one kind of helper and checks the one showing; the token bar sp
   const code = await mount(createRoot, <CrewStrip members={[M({ id: "k1", branch: "helper/a", added: 1, deleted: 0, tests: { state: "failing", failed: 3 } }), M({ id: "k2", branch: "helper/b", tests: { state: "passing" } })]} totals={T({ members: 2, working: 2, done: 0, needsYou: 0 })} onPeek={() => undefined} />);
   assert.equal(textOf(find(code, "crew-chip-k1-tests")), "3 failing"); assert.equal(textOf(find(code, "crew-chip-k2-tests")), "Tests passing");
 });
+
+test("Change model lists the other models the person may use, confirms with what the helper has used so far, then restarts it on the pick", async () => {
+  const { modelChoices, restartWords } = await import("./pane.tsx");
+  const cat = { accounts: [{ ref: "#A", provider: "anthropic", label: "Claude · Maya", models: [{ model: "claude-haiku-5-5", tier: "cheap", available: true }, { model: "claude-opus-5-5", tier: "strong", available: true }, { model: "claude-sonnet-5-5", available: false }] }, { ref: "#B", provider: "openai", label: "OpenAI · Maya", models: [{ model: "gpt-6", tier: "strong", available: true }] }] };
+  assert.deepEqual(modelChoices(cat, "claude-haiku-5-5").map((c) => c.model), ["claude-opus-5-5", "gpt-6"], "not the one it runs on, not an unavailable one");
+  assert.equal(restartWords("Orin", "gpt-6", 20_000), "Restart Orin on gpt-6? It has used $0.02 so far and starts over.");
+  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const call = async (cap: string, input: unknown): Promise<unknown> => { calls.push({ cap, input: input as Record<string, unknown> }); return cap === "engine.helper_models" ? cat : cap === "chat.helper.notes" ? { notes: [] } : {}; };
+  let refreshed = 0;
+  const root = await mount(createRoot, <CrewPeek member={{ ...three()[1]!, model: "claude-haiku-5-5", startedAt: Date.now() - 5000 }} call={call} onBack={() => undefined} onOpenChat={() => undefined} onRefresh={() => { refreshed += 1; }} />);
+  await flush();
+  await press(find(root, "crew-peek-change-model")); await flush();
+  assert.ok(find(root, "crew-change-claude-opus-5-5") && find(root, "crew-change-gpt-6")); assert.equal(find(root, "crew-change-claude-haiku-5-5"), null);
+  await press(find(root, "crew-change-gpt-6"));
+  assert.match(textOf(find(root, "crew-change-confirm")), /Restart Orin on gpt-6\? It has used \$0\.02 so far and starts over\./);
+  await press(find(root, "crew-change-cancel")); assert.equal(find(root, "crew-change-confirm"), null);
+  await press(find(root, "crew-change-gpt-6")); await press(find(root, "crew-change-go")); await flush();
+  const call2 = calls.find((c) => c.cap === "engine.helpers.change_model")!;
+  assert.deepEqual([call2.input["threadId"], call2.input["helperId"], call2.input["account"], call2.input["model"]], ["thr_0", "thr_b", "#B", "gpt-6"]);
+  assert.equal(refreshed, 1);
+  assert.equal(calls.find((c) => c.cap === "engine.helper_models")!.input["threadId"], "thr_0", "the catalogue is read for the chat the helper belongs to");
+});

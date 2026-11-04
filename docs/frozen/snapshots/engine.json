@@ -22,6 +22,7 @@
     "engine.drop_queued@1": "bfbb3f99dc46a356be0cff489883a1fe026e71e68e8b9e2f0eab54c9e3affe2e",
     "engine.health@1": "41c5c92cbee4e877b87dbc9abd411cd409888018e34eecc4e7356897cdc415a7",
     "engine.helper_models@1": "b1eb39a9532a4bc7ce779cbc6cb1cea0d3213aa6433bd758de4e8c5eef45d916",
+    "engine.helpers.change_model@1": "8c74db90690ef2237879d61abead96593cfafa61ee14b3a0dbda7c0640a4ae06",
     "engine.helpers.status@1": "47b69dd099c4dddc07d04cf20dfd3414a1c49706537eafcc040dda0bc27911fe",
     "engine.helpers.stop_all@1": "b453d7519efe41194308eba277194501d9050b14d43cd5a158b7cbb72a67f608",
     "engine.incident.assign@1": "8f261811b06856369988f1a72bb634c2f1ce988554deb0c3b0bec2eb32d61bc1",

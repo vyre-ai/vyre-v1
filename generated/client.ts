@@ -409,6 +409,7 @@ export function createClient(transport: Transport) {
         note: call("chat.helper.note", 1),
         note_seen: call("chat.helper.note_seen", 1),
         notes: call("chat.helper.notes", 1),
+        restart: call("chat.helper.restart", 1),
         start: call("chat.helper.start", 1),
         steer: call("chat.helper.steer", 1),
       },
@@ -793,6 +794,7 @@ export function createClient(transport: Transport) {
       health: call("engine.health", 1),
       helper_models: call("engine.helper_models", 1),
       helpers: {
+        change_model: call("engine.helpers.change_model", 1),
         status: call("engine.helpers.status", 1),
         stop_all: call("engine.helpers.stop_all", 1),
       },

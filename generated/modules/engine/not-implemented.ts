@@ -26,6 +26,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.drop_queued": async (ctx) => { throw new VyreErr(notImplemented("engine.drop_queued", ctx.trace)); },
   "engine.health": async (ctx) => { throw new VyreErr(notImplemented("engine.health", ctx.trace)); },
   "engine.helper_models": async (ctx) => { throw new VyreErr(notImplemented("engine.helper_models", ctx.trace)); },
+  "engine.helpers.change_model": async (ctx) => { throw new VyreErr(notImplemented("engine.helpers.change_model", ctx.trace)); },
   "engine.helpers.status": async (ctx) => { throw new VyreErr(notImplemented("engine.helpers.status", ctx.trace)); },
   "engine.helpers.stop_all": async (ctx) => { throw new VyreErr(notImplemented("engine.helpers.stop_all", ctx.trace)); },
   "engine.incident.assign": async (ctx) => { throw new VyreErr(notImplemented("engine.incident.assign", ctx.trace)); },
