@@ -21,6 +21,7 @@ Counts are not written down: they change with every contract change. Run `node t
 - [browser](modules/browser.md) (L10, module)
 - [calendar](modules/calendar.md) (L5, module)
 - [chat](modules/chat.md) (L2, module)
+- [ci](modules/ci.md) (L5, module)
 - [computers](modules/computers.md) (L2, module)
 - [conflicts](modules/conflicts.md) (L1, module)
 - [connectors](modules/connectors.md) (L3, module)

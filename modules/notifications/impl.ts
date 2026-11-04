@@ -121,6 +121,10 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
     // one line for each admin; it collapses while the same alert lasts, and the machine page is where it opens
     return adminsOf(ctx).then((to) => to.map((id) => ({ to: id, kind: "machine.alert", subject: { type: "space", id: String(p.machineId ?? "") }, title: String(p.title ?? "A machine needs a look"), collapseKey: `machine.alert:${String(p.alertId ?? "")}` })));
   }
+  if (e.name === "ci.paused") {
+    // the monthly cap is reached: one line for each admin, once for the month
+    return adminsOf(ctx).then((to) => to.map((id) => ({ to: id, kind: "ci.paused", subject: { type: "space", id: "ci" }, title: String(p.title ?? "CI paused"), collapseKey: `ci.paused:${String(p.month ?? "")}` })));
+  }
   if (e.name === "run.succeeded" && p.kind === "routine" && ctx.call) {
     // Alerts: a routine that succeeded is told only to people who asked for successes too (failures always come through run.failed)
     return ctx.call("runs.get", { runId: p.runId }).then((r) => {
@@ -149,7 +153,7 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
   "notifications.fanout": {
-    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "machine.alert"],
+    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "machine.alert", "ci.paused"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
       const planned = await plan(ctx, event);
       const out: string[] = [];

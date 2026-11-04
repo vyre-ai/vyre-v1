@@ -7847,6 +7847,149 @@ export type ChatUnpinIn = {
 export type ChatUnpinOut = {
   pinned: boolean;
 };
+export type CiCostMonthIn = {
+  month?: string;
+};
+export type CiCostMonthOut = {
+  month: string;
+  spentUsd: number;
+  capUsd: number;
+  leftUsd: number;
+  runs: number;
+  paused: boolean;
+  byRepo: Array<{
+      repo: string;
+      runs: number;
+      costUsd: number;
+    }>;
+};
+export type CiJobIntakeIn = {
+  action: "queued" | "completed";
+  repo: string;
+  jobId: number;
+  runId: number;
+  name?: string;
+  labels: Array<string>;
+  fork?: "no" | "yes" | "unknown";
+  conclusion?: string;
+};
+export type CiJobIntakeOut = {
+  handled: "started" | "queued" | "refused" | "ignored" | "finished" | "failed";
+};
+export type CiProjectGetIn = {
+  projectId: string;
+};
+export type CiProjectGetOut = {
+  linked: boolean;
+  repo: string | null;
+  enabled: boolean;
+  labels: Array<string>;
+  live: number;
+  queued: number;
+};
+export type CiRunsGetIn = {
+  runId: string;
+};
+export type CiRunsGetOut = {
+  run: {
+    runId: string;
+    jobId: number;
+    workflowRunId: number;
+    repo: string;
+    jobName: string;
+    projectId: string | null;
+    state: "queued" | "starting" | "running" | "finished" | "failed" | "swept" | "refused";
+    dropletId: string | null;
+    size: string | null;
+    queuedAt: number;
+    startedAt: number | null;
+    endedAt: number | null;
+    conclusion: string | null;
+    costUsd: number;
+    note: string | null;
+  };
+};
+export type CiRunsListIn = {
+  projectId?: string;
+  repo?: string;
+  state?: "queued" | "starting" | "running" | "finished" | "failed" | "swept" | "refused";
+  cursor?: string;
+  limit?: number;
+};
+export type CiRunsListOut = {
+  runs: Array<{
+      runId: string;
+      jobId: number;
+      workflowRunId: number;
+      repo: string;
+      jobName: string;
+      projectId: string | null;
+      state: "queued" | "starting" | "running" | "finished" | "failed" | "swept" | "refused";
+      dropletId: string | null;
+      size: string | null;
+      queuedAt: number;
+      startedAt: number | null;
+      endedAt: number | null;
+      conclusion: string | null;
+      costUsd: number;
+      note: string | null;
+    }>;
+  next?: string;
+  total?: number;
+};
+export type CiSettingsGetIn = Record<string, unknown>;
+export type CiSettingsGetOut = {
+  settings: {
+    enabled: boolean;
+    provider: "digitalocean";
+    vaultKeyRef: string | null;
+    region: string;
+    size: string;
+    image: string;
+    maxConcurrent: number;
+    monthlyCapUsd: number;
+    maxJobMinutes: number;
+    labels: Array<string>;
+  };
+  keyReady: boolean;
+  githubApp: {
+    ready: boolean;
+    installed: boolean;
+    missing: Array<string>;
+    acceptUrl: string | null;
+    orgAcceptUrl: string | null;
+  };
+};
+export type CiSettingsSetIn = {
+  enabled?: boolean;
+  vaultKeyRef?: string | null;
+  region?: string;
+  size?: string;
+  image?: string;
+  maxConcurrent?: number;
+  monthlyCapUsd?: number;
+  maxJobMinutes?: number;
+  labels?: Array<string>;
+};
+export type CiSettingsSetOut = {
+  settings: {
+    enabled: boolean;
+    provider: "digitalocean";
+    vaultKeyRef: string | null;
+    region: string;
+    size: string;
+    image: string;
+    maxConcurrent: number;
+    monthlyCapUsd: number;
+    maxJobMinutes: number;
+    labels: Array<string>;
+  };
+};
+export type CiSweepIn = Record<string, unknown>;
+export type CiSweepOut = {
+  deleted: number;
+  started: number;
+};
 export type CommsSendersListIn = {
   channel?: "email" | "text";
 };
@@ -14732,6 +14875,12 @@ export type GitSyncOut = {
   conflicts: Array<string>;
   sha?: string;
 };
+export type GithubActionsSecretsIn = {
+  repo: string;
+};
+export type GithubActionsSecretsOut = {
+  count: number | null;
+};
 export type GithubAppCompleteIn = {
   code: string;
   state: string;
@@ -14880,6 +15029,94 @@ export type GithubIssueUpdateOut = {
     body?: string;
   };
 };
+export type GithubMeApproveIn = {
+  repo: string;
+  action: "read" | "push_branch" | "open_pr" | "comment" | "merge" | "push_default";
+  consumer: string;
+  idempotencyKey: string;
+};
+export type GithubMeApproveOut = {
+  approved: boolean;
+};
+export type GithubMeCompleteIn = {
+  code: string;
+  state: string;
+};
+export type GithubMeCompleteOut = {
+  login: string;
+  source: "space" | "vyre";
+};
+export type GithubMeConnectIn = Record<string, unknown>;
+export type GithubMeConnectOut = {
+  authUrl: string;
+  state: string;
+  source: "space" | "vyre";
+};
+export type GithubMeDisconnectIn = Record<string, unknown>;
+export type GithubMeDisconnectOut = {
+  disconnected: boolean;
+};
+export type GithubMePolicyGetIn = Record<string, unknown>;
+export type GithubMePolicyGetOut = {
+  policy: {
+    read: "always" | "ask" | "never";
+    push_branch: "always" | "ask" | "never";
+    open_pr: "always" | "ask" | "never";
+    comment: "always" | "ask" | "never";
+    merge: "always" | "ask" | "never";
+    push_default: "always" | "ask" | "never";
+  };
+};
+export type GithubMePolicySetIn = {
+  policy: {
+    read?: "always" | "ask" | "never";
+    push_branch?: "always" | "ask" | "never";
+    open_pr?: "always" | "ask" | "never";
+    comment?: "always" | "ask" | "never";
+    merge?: "always" | "ask" | "never";
+    push_default?: "always" | "ask" | "never";
+  };
+};
+export type GithubMePolicySetOut = {
+  policy: {
+    read: "always" | "ask" | "never";
+    push_branch: "always" | "ask" | "never";
+    open_pr: "always" | "ask" | "never";
+    comment: "always" | "ask" | "never";
+    merge: "always" | "ask" | "never";
+    push_default: "always" | "ask" | "never";
+  };
+};
+export type GithubMeReachIn = Record<string, unknown>;
+export type GithubMeReachOut = {
+  login: string;
+  orgs: Array<{
+      login: string;
+      install: "all" | "selected" | "none";
+      url: string | null;
+    }>;
+  repos: Array<{
+      repo: string;
+      installationId: number;
+    }>;
+};
+export type GithubMeStatusIn = Record<string, unknown>;
+export type GithubMeStatusOut = {
+  connected: boolean;
+  login?: string;
+  source?: "space" | "vyre";
+  connectedAt?: number;
+  needsReconnect: boolean;
+};
+export type GithubMeUsageIn = Record<string, unknown>;
+export type GithubMeUsageOut = {
+  uses: Array<{
+      consumer: string;
+      repo: string;
+      action: string;
+      at: number;
+    }>;
+};
 export type GithubPullRequestAskAuthorFixIn = {
   recordId: string;
   checkName?: string;
@@ -14959,6 +15196,7 @@ export type GithubPullRequestDiffOut = {
 export type GithubPullRequestGetIn = {
   repo: string;
   number: number;
+  consumer?: string;
 };
 export type GithubPullRequestGetOut = {
   pullRequest: {
@@ -15058,7 +15296,7 @@ export type GithubPullRequestUpdateOut = {
 };
 export type GithubReceiveWebhookIn = {
   deliveryId: string;
-  event: "ping" | "installation" | "push" | "pull_request" | "issues" | "check_run" | "workflow_run";
+  event: "ping" | "installation" | "push" | "pull_request" | "issues" | "check_run" | "workflow_run" | "workflow_job";
   action?: string;
   repo?: string;
   installationId?: number;
@@ -15067,6 +15305,10 @@ export type GithubReceiveWebhookIn = {
   branch?: string;
   conclusion?: string;
   name?: string;
+  jobId?: number;
+  runId?: number;
+  labels?: Array<string>;
+  runnerName?: string;
 };
 export type GithubReceiveWebhookOut = {
   accepted: boolean;
@@ -15096,6 +15338,47 @@ export type GithubReposListOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type GithubRunnersJitConfigIn = {
+  repo: string;
+  name: string;
+  labels: Array<string>;
+  installationId?: number;
+  idempotencyKey: string;
+};
+export type GithubRunnersJitConfigOut = {
+  runnerId: number;
+  jitConfig: string;
+};
+export type GithubRunnersRemoveIn = {
+  repo: string;
+  runnerId: number;
+};
+export type GithubRunnersRemoveOut = {
+  removed: boolean;
+};
+export type GithubSessionEnvIn = {
+  repos: Array<string>;
+  consumer: string;
+};
+export type GithubSessionEnvOut = {
+  env: Record<string, string>;
+  gitConfig: Array<string>;
+  repos: Array<string>;
+  skipped: Array<string>;
+  expiresAt: number;
+};
+export type GithubTokenIn = {
+  person?: string;
+  repo: string;
+  action: "read" | "push_branch" | "open_pr" | "comment" | "merge" | "push_default";
+  consumer: string;
+};
+export type GithubTokenOut = {
+  handle: string;
+  expiresAt: number;
+  repo: string;
+  permissions: Record<string, string>;
 };
 export type GoalsActivityIn = {
   goalId: string;
@@ -27582,7 +27865,7 @@ export type NotificationsDigestCollectIn = {
 };
 export type NotificationsDigestCollectOut = {
   items: Array<{
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "ci.paused";
       title: string;
       at: number;
       subject?: {
@@ -27593,19 +27876,19 @@ export type NotificationsDigestCollectOut = {
     }>;
 };
 export type NotificationsKindSetLevelIn = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "ci.paused";
   level?: "interrupt" | "badge" | "digest";
   channels?: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindSetLevelOut = {
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "ci.paused";
   level: "interrupt" | "badge" | "digest";
   channels: Array<"desktop" | "phone" | "email">;
 };
 export type NotificationsKindsListIn = Record<string, unknown>;
 export type NotificationsKindsListOut = {
   kinds: Array<{
-      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+      key: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "ci.paused";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -27626,7 +27909,7 @@ export type NotificationsListIn = {
 export type NotificationsListOut = {
   notifications: Array<{
       id: string;
-      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+      kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "ci.paused";
       level: "interrupt" | "badge" | "digest";
       place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
       title: string;
@@ -27740,7 +28023,7 @@ export type NotificationsRulesSetOut = {
 };
 export type NotificationsSendIn = {
   to: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "ci.paused";
   subject?: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar";
     id: string;
@@ -42384,6 +42667,14 @@ export interface CapMap {
   "chat.transcript.summarize": { in: ChatTranscriptSummarizeIn; out: ChatTranscriptSummarizeOut };
   "chat.transcript.summary": { in: ChatTranscriptSummaryIn; out: ChatTranscriptSummaryOut };
   "chat.unpin": { in: ChatUnpinIn; out: ChatUnpinOut };
+  "ci.cost.month": { in: CiCostMonthIn; out: CiCostMonthOut };
+  "ci.job.intake": { in: CiJobIntakeIn; out: CiJobIntakeOut };
+  "ci.project.get": { in: CiProjectGetIn; out: CiProjectGetOut };
+  "ci.runs.get": { in: CiRunsGetIn; out: CiRunsGetOut };
+  "ci.runs.list": { in: CiRunsListIn; out: CiRunsListOut };
+  "ci.settings.get": { in: CiSettingsGetIn; out: CiSettingsGetOut };
+  "ci.settings.set": { in: CiSettingsSetIn; out: CiSettingsSetOut };
+  "ci.sweep": { in: CiSweepIn; out: CiSweepOut };
   "comms.senders.list": { in: CommsSendersListIn; out: CommsSendersListOut };
   "comms.senders.set_default": { in: CommsSendersSetDefaultIn; out: CommsSendersSetDefaultOut };
   "company.access_log": { in: CompanyAccessLogIn; out: CompanyAccessLogOut };
@@ -42824,6 +43115,7 @@ export interface CapMap {
   "git.show": { in: GitShowIn; out: GitShowOut };
   "git.status": { in: GitStatusIn; out: GitStatusOut };
   "git.sync": { in: GitSyncIn; out: GitSyncOut };
+  "github.actions.secrets": { in: GithubActionsSecretsIn; out: GithubActionsSecretsOut };
   "github.app.complete": { in: GithubAppCompleteIn; out: GithubAppCompleteOut };
   "github.app.create_manifest": { in: GithubAppCreateManifestIn; out: GithubAppCreateManifestOut };
   "github.app.get": { in: GithubAppGetIn; out: GithubAppGetOut };
@@ -42837,6 +43129,15 @@ export interface CapMap {
   "github.issue.create": { in: GithubIssueCreateIn; out: GithubIssueCreateOut };
   "github.issue.get": { in: GithubIssueGetIn; out: GithubIssueGetOut };
   "github.issue.update": { in: GithubIssueUpdateIn; out: GithubIssueUpdateOut };
+  "github.me.approve": { in: GithubMeApproveIn; out: GithubMeApproveOut };
+  "github.me.complete": { in: GithubMeCompleteIn; out: GithubMeCompleteOut };
+  "github.me.connect": { in: GithubMeConnectIn; out: GithubMeConnectOut };
+  "github.me.disconnect": { in: GithubMeDisconnectIn; out: GithubMeDisconnectOut };
+  "github.me.policy.get": { in: GithubMePolicyGetIn; out: GithubMePolicyGetOut };
+  "github.me.policy.set": { in: GithubMePolicySetIn; out: GithubMePolicySetOut };
+  "github.me.reach": { in: GithubMeReachIn; out: GithubMeReachOut };
+  "github.me.status": { in: GithubMeStatusIn; out: GithubMeStatusOut };
+  "github.me.usage": { in: GithubMeUsageIn; out: GithubMeUsageOut };
   "github.pull_request.ask_author_fix": { in: GithubPullRequestAskAuthorFixIn; out: GithubPullRequestAskAuthorFixOut };
   "github.pull_request.checks": { in: GithubPullRequestChecksIn; out: GithubPullRequestChecksOut };
   "github.pull_request.close": { in: GithubPullRequestCloseIn; out: GithubPullRequestCloseOut };
@@ -42852,6 +43153,10 @@ export interface CapMap {
   "github.receive_webhook": { in: GithubReceiveWebhookIn; out: GithubReceiveWebhookOut };
   "github.repo.get": { in: GithubRepoGetIn; out: GithubRepoGetOut };
   "github.repos.list": { in: GithubReposListIn; out: GithubReposListOut };
+  "github.runners.jit_config": { in: GithubRunnersJitConfigIn; out: GithubRunnersJitConfigOut };
+  "github.runners.remove": { in: GithubRunnersRemoveIn; out: GithubRunnersRemoveOut };
+  "github.session_env": { in: GithubSessionEnvIn; out: GithubSessionEnvOut };
+  "github.token": { in: GithubTokenIn; out: GithubTokenOut };
   "goals.activity": { in: GoalsActivityIn; out: GoalsActivityOut };
   "goals.ask": { in: GoalsAskIn; out: GoalsAskOut };
   "goals.brief": { in: GoalsBriefIn; out: GoalsBriefOut };
@@ -44716,6 +45021,48 @@ export type CheckoutCompletedPayload = {
   amount: number;
   currency: string;
 };
+export type CiJobRefusedPayload = {
+  repo: string;
+  jobId: number;
+  reason: string;
+  code: "fork_with_secrets" | "cap_reached" | "not_enabled" | "no_key";
+};
+export type CiPausedPayload = {
+  title: string;
+  capUsd: number;
+  month: string;
+};
+export type CiRunFailedPayload = {
+  runId: string;
+  repo: string;
+  jobId: number;
+  reason: string;
+};
+export type CiRunFinishedPayload = {
+  runId: string;
+  repo: string;
+  jobId: number;
+  conclusion: string;
+  costUsd: number;
+  minutes: number;
+};
+export type CiRunStartedPayload = {
+  runId: string;
+  repo: string;
+  jobId: number;
+  dropletId: string;
+  size: string;
+};
+export type CiRunSweptPayload = {
+  runId: string | null;
+  dropletId: string;
+  reason: "too_long" | "no_run";
+  costUsd: number;
+};
+export type CiSettingsChangedPayload = {
+  fields: Array<string>;
+  enabled: boolean;
+};
 export type ClientLogUploadedPayload = {
   device: string;
   sizeBytes: number;
@@ -45455,7 +45802,7 @@ export type GithubCheckCompletedPayload = {
 };
 export type GithubEventReceivedPayload = {
   deliveryId: string;
-  event: "ping" | "installation" | "push" | "pull_request" | "issues" | "check_run" | "workflow_run";
+  event: "ping" | "installation" | "push" | "pull_request" | "issues" | "check_run" | "workflow_run" | "workflow_job";
   action?: string;
   repo?: string;
 };
@@ -45471,6 +45818,15 @@ export type GithubIssueAssignedPayload = {
 };
 export type GithubLinkedPayload = {
   personId: string;
+  login: string;
+};
+export type GithubMeConnectedPayload = {
+  person: string;
+  login: string;
+  source: "space" | "vyre";
+};
+export type GithubMeDisconnectedPayload = {
+  person: string;
   login: string;
 };
 export type GithubUnlinkedPayload = {
@@ -46384,7 +46740,7 @@ export type NotesUpdatedPayload = {
 export type NotificationCappedPayload = {
   person: string;
   agentId: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "ci.paused";
   perHour: number;
 };
 export type NotificationDelegateChangedPayload = {
@@ -46397,7 +46753,7 @@ export type NotificationDelegateChangedPayload = {
 export type NotificationDeliveredPayload = {
   notificationId: string;
   person: string;
-  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+  kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "ci.paused";
   level: "interrupt" | "badge" | "digest";
   place: "home" | "chats" | "inbox" | "records" | "files" | "apps" | "automations" | "vault" | "settings" | "console";
   subject?: {
@@ -48110,6 +48466,23 @@ export type WorkflowCompletedPayload = {
   conclusion: string;
   sha: string;
 };
+export type WorkflowJobCompletedPayload = {
+  repo: string;
+  jobId: number;
+  runId: number;
+  name: string;
+  labels: Array<string>;
+  conclusion: string;
+  runnerName?: string;
+};
+export type WorkflowJobQueuedPayload = {
+  repo: string;
+  jobId: number;
+  runId: number;
+  name: string;
+  labels: Array<string>;
+  fork: "no" | "yes" | "unknown";
+};
 export type ZoomEventReceivedPayload = {
   eventId: string;
   type: "meeting.started" | "meeting.ended" | "recording.completed" | "recording.transcript_completed" | "endpoint.url_validation";
@@ -48226,6 +48599,13 @@ export interface EventMap {
   "channel.updated": ChannelUpdatedPayload;
   "checklist.dismissed": ChecklistDismissedPayload;
   "checkout.completed": CheckoutCompletedPayload;
+  "ci.job.refused": CiJobRefusedPayload;
+  "ci.paused": CiPausedPayload;
+  "ci.run.failed": CiRunFailedPayload;
+  "ci.run.finished": CiRunFinishedPayload;
+  "ci.run.started": CiRunStartedPayload;
+  "ci.run.swept": CiRunSweptPayload;
+  "ci.settings_changed": CiSettingsChangedPayload;
   "client_log.uploaded": ClientLogUploadedPayload;
   "computer.configured": ComputerConfiguredPayload;
   "computer.given_back": ComputerGivenBackPayload;
@@ -48364,6 +48744,8 @@ export interface EventMap {
   "github.fix_requested": GithubFixRequestedPayload;
   "github.issue_assigned": GithubIssueAssignedPayload;
   "github.linked": GithubLinkedPayload;
+  "github.me_connected": GithubMeConnectedPayload;
+  "github.me_disconnected": GithubMeDisconnectedPayload;
   "github.unlinked": GithubUnlinkedPayload;
   "goal.budget_warned": GoalBudgetWarnedPayload;
   "goal.created": GoalCreatedPayload;
@@ -48837,6 +49219,8 @@ export interface EventMap {
   "webhook.secret_rotated": WebhookSecretRotatedPayload;
   "webhook.updated": WebhookUpdatedPayload;
   "workflow.completed": WorkflowCompletedPayload;
+  "workflow_job.completed": WorkflowJobCompletedPayload;
+  "workflow_job.queued": WorkflowJobQueuedPayload;
   "zoom.event_received": ZoomEventReceivedPayload;
 }
 

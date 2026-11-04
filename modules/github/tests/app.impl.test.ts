@@ -7,7 +7,7 @@ import { contractErrors, harness, RECORDED, WEBHOOK_SECRET } from "../fixtures/h
 
 test("impl serves exactly the capabilities the manifest declares for github", () => {
   const declared = [...new Set(registry.capabilities.filter((c) => c.module === "github").map((c) => c.name))].sort();
-  assert.equal(declared.length, 28);
+  assert.equal(declared.length, 42);
   assert.deepEqual(Object.keys(handlers).sort(), declared);
 });
 

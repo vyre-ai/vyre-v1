@@ -25,6 +25,7 @@ import m_files from './files.ts';
 import m_forms from './forms.ts';
 import m_gate from './gate.ts';
 import m_git from './git.ts';
+import m_ci from './ci.ts';
 import m_github from './github.ts';
 import m_google from './google.ts';
 import m_governance from './governance.ts';
@@ -111,6 +112,7 @@ export const all: Manifest[] = [
   m_forms,
   m_gate,
   m_git,
+  m_ci,
   m_github,
   m_google,
   m_governance,
