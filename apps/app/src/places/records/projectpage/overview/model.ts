@@ -1,6 +1,7 @@
 // The project Overview page: the pure parts. What a live block is called and what it can be set to, how a page's properties, history and an agent's edit read in words, and the ops that change them.
 // The page itself is the shared Markdown editor with live blocks (ui/src/RichEditor); the server keeps it as blocks and revisions (projects.overview_doc.*).
 import type { CapMap } from "../../../../../../../generated/types.ts";
+import { partsIn } from "../../../../../../../lib/zones.ts";
 
 export type OverviewDoc = CapMap["projects.overview_doc.get"]["out"];
 export type LiveOut = CapMap["projects.live_block.query"]["out"];
@@ -84,13 +85,15 @@ export function planStatus(state: string | undefined): "todo" | "doing" | "block
 }
 
 const DAY = 86_400_000;
-const shortDay = (ms: number): string => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "Oct 25", the day in the Space's zone (UTC where there is none). */
+const shortDay = (ms: number, zone = "UTC"): string => { const p = partsIn(ms, zone); return `${MONTHS[p.month - 1]} ${p.day}`; };
 /** The due date of a task row: "Due Oct 25", or "2 days late" when it is open and past. */
-export function dueWords(due: number | undefined, state: string | undefined, now: number): { text: string; late: boolean } | null {
+export function dueWords(due: number | undefined, state: string | undefined, now: number, zone?: string): { text: string; late: boolean } | null {
   if (due === undefined) return null;
   const open = state !== "done" && state !== "canceled";
   if (open && due < now) { const n = Math.max(1, Math.floor((now - due) / DAY)); return { text: `${n} ${n === 1 ? "day" : "days"} late`, late: true }; }
-  return { text: `Due ${shortDay(due)}`, late: false };
+  return { text: `Due ${shortDay(due, zone)}`, late: false };
 }
 
 /** A sum or count as the page reads it: "$6,250 unpaid across 3 invoices". `unit` is the currency code of a money field. Amounts in more than one currency come as `parts` (one total each) and read

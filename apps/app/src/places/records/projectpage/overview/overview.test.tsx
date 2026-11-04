@@ -514,3 +514,11 @@ test("one function names a project's stage for the header, the Status property a
   const { stageWord } = await import("./model.ts");
   assert.deepEqual(["planning", "active", "hold", "done", "on_track", ""].map(stageWord), ["Planning", "Active", "On hold", "Done", "On_track", ""]);
 });
+
+test("an overview task's due day is the Space's day: 10 PM Pacific on the 5th reads Nov 5, not the UTC 6th", async () => {
+  const { dueWords } = await import("./model.ts");
+  const due = Date.parse("2026-11-06T06:00:00Z");
+  const now = Date.parse("2026-11-04T15:00:00Z");
+  assert.deepEqual(dueWords(due, "todo", now, "America/Los_Angeles"), { text: "Due Nov 5", late: false });
+  assert.deepEqual(dueWords(due, "todo", now), { text: "Due Nov 6", late: false }, "no zone: the UTC day, as before");
+});
