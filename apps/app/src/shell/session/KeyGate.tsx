@@ -13,13 +13,16 @@ import { Bar, Button, ErrorLine, Field, Group, JoinFrame, Links, Opening, Panel,
 import { whenUsable } from "../../startup/marks.ts";
 import { MANY_TRIES, TOO_MANY } from "../../join/failure.ts";
 
+/** The quiet line when the lock comes back while Vyre is open: the server restarted and lost the key. */
+export const MID_SESSION_LINE = "The server restarted, so your sign-ins are locked on it. Your password unlocks them.";
+
 /** How long the lock screen holds Unlock after too many wrong passwords. */
 export const LOCK_WAIT_MS = 30_000;
 
 /** The app is mounted but not drawn yet: the first frame stays until the first place is usable. */
 function HoldUntilUsable(): null { useHoldFirstFrame(whenUsable); return null; }
 
-export function LockScreen({ name, onUnlock, onForgot, onSignOut, onSkip, notice }: { name: string; onUnlock: (password: string) => Promise<void>; onForgot?: () => void; onSignOut?: () => void; /** a Space server: go on without unlocking; the Mine items stay closed */ onSkip?: () => void; /** a line to start with: the Space on this computer did not answer */ notice?: string }): ReactElement {
+export function LockScreen({ name, onUnlock, onForgot, onSignOut, onSkip, notice, sub }: { name: string; onUnlock: (password: string) => Promise<void>; onForgot?: () => void; onSignOut?: () => void; /** a Space server: go on without unlocking; the Mine items stay closed */ onSkip?: () => void; /** one quiet line under the greeting: why the lock is back while Vyre was open */ sub?: string; /** a line to start with: the Space on this computer did not answer */ notice?: string }): ReactElement {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(notice ?? "");
@@ -46,7 +49,7 @@ export function LockScreen({ name, onUnlock, onForgot, onSignOut, onSkip, notice
     <JoinFrame>
       <Panel hug below={<LockLinks {...(onForgot ? { onForgot } : {})} {...(onSignOut && !gone ? { onSignOut } : {})} {...(onSkip && !gone ? { onSkip } : {})} />} bar={<Bar cont={gone && onSignOut ? <Button label="Sign in" onPress={onSignOut} testID="lock-signout" /> : <Button label={busy ? "Unlocking" : "Unlock"} onPress={submit} busy={busy} disabled={password === "" || held} testID="lock-unlock" />} />}>
         <Step id="lock">
-          <Title title={name ? `Welcome back, ${name}` : "Welcome back"} />
+          <Title title={name ? `Welcome back, ${name}` : "Welcome back"} {...(sub ? { sub } : {})} />
           <Group>
             <Field label="Password" value={password} onChange={(v) => { setPassword(v); if (!held) setError(""); }} secure autoFocus onSubmit={submit} disabled={busy} testID="lock-password" autoComplete="current-password" error={!!error && !held} visibilityTestID="lock-password-visibility" />
           </Group>
@@ -120,6 +123,7 @@ export function KeyGate({ baseUrl, token, name, onSignOut, onForgot, children }:
   }, [remote, baseUrl, token]);
   // while the app is open on a Space server: a server that restarted and holds no key, with no key in this app either, shows the lock once (never again for the same loss after Not now)
   const dismissed = useRef(false);
+  const [midSession, setMidSession] = useState(false);
   useEffect(() => {
     if (!remote || state !== "open") return undefined;
     let live = true;
@@ -142,7 +146,7 @@ export function KeyGate({ baseUrl, token, name, onSignOut, onForgot, children }:
   if (state === "nopassword") return <NoPasswordKey onContinue={() => setState("open")} {...(onSignOut ? { onSignOut } : {})} />;
   if (state === "locked" || state === "offline") {
     const forgot = onForgot ?? onSignOut;
-    return <LockScreen name={name} {...(forgot ? { onForgot: forgot } : {})} {...(onSignOut ? { onSignOut } : {})} {...(remote ? { onSkip: () => { dismissed.current = true; setState("open"); } } : {})} {...(state === "offline" ? { notice: OFFLINE_OWN } : {})} onUnlock={async (password) => { await unlockWithPassword(baseUrl, token, password); if (alive.current) setState("open"); }} />;
+    return <LockScreen name={name} {...(forgot ? { onForgot: forgot } : {})} {...(onSignOut ? { onSignOut } : {})} {...(remote ? { onSkip: () => { dismissed.current = true; setMidSession(false); setState("open"); } } : {})} {...(remote && midSession ? { sub: MID_SESSION_LINE } : {})} {...(state === "offline" ? { notice: OFFLINE_OWN } : {})} onUnlock={async (password) => { await unlockWithPassword(baseUrl, token, password); if (alive.current) { setMidSession(false); setState("open"); } }} />;
   }
   return <><HoldUntilUsable />{children}</>;
 }

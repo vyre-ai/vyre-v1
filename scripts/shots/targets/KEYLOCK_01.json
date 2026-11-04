@@ -1,0 +1,5 @@
+{
+  "targets": [
+    { "id": "KEYLOCK_01-mid", "route": "/m/KEYLOCK_01", "proto": "login,{skin}", "waitFor": "[data-testid='lock-password']", "note": "The lock that comes back while Vyre is open after the Space server restarted: one quiet line says why, the password unlocks the sign-ins, Not now leaves them closed." }
+  ]
+}

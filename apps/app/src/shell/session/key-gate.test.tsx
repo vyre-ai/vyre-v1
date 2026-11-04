@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { KeyGate, LockScreen, NoPasswordKey } from "./KeyGate.tsx";
+import { KeyGate, LockScreen, MID_SESSION_LINE, NoPasswordKey } from "./KeyGate.tsx";
 import { lockName } from "./stored.ts";
 import { forgetKey, keepKey, keyIsKept, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
 
@@ -113,4 +113,11 @@ test("mid-session after a server restart the lock shows once; Not now is remembe
   assert.deepEqual(afterBeat("locked", { dismissed: true }), { show: false, dismissed: true }, "Not now: not asked again for the same loss");
   assert.deepEqual(afterBeat("open", { dismissed: true }), { show: false, dismissed: false }, "the server holds it again: forgotten");
   assert.deepEqual(afterBeat("locked", { dismissed: false }), { show: true, dismissed: false }, "a later loss asks once more");
+});
+
+test("the lock that comes back while Vyre is open says why in one quiet line, and keeps Not now", () => {
+  const t = text(renderToStaticMarkup(<LockScreen name="Irfad" sub={MID_SESSION_LINE} onUnlock={async () => undefined} onSkip={() => undefined} onSignOut={() => undefined} />));
+  assert.match(t, /The server restarted, so your sign-ins are locked on it\. Your password unlocks them\./);
+  assert.match(t, /Not now/);
+  assert.doesNotMatch(t, /error|failed|unauthenticated/i);
 });
