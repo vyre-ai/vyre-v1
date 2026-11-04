@@ -157,7 +157,8 @@ export function resolveAccount(req: ResolveRequest): Resolution {
   }
   if (swap) {
     tried.push({ ref: swap.ref, used: true });
-    const res: Resolution = { accountRef: swap.ref, payer, reason: swap.reason, allowed: true, tried, modelFallback: true, ...(pin ? { pin } : {}) };
+    // via "space": a Space account runs it, so Details never says "your own key" for it
+    const res: Resolution = { accountRef: swap.ref, payer, reason: swap.reason, allowed: true, tried, modelFallback: true, via: "space", ...(pin ? { pin } : {}) };
     if (broken) res.unblock = needs(payer, broken.ref, broken.why, true);
     return res;
   }

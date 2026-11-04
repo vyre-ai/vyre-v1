@@ -11,6 +11,10 @@ import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesS
 import type { AccessDeps } from "./access.ts";
 import type { LocalDecision } from "./local.ts";
 import type { Refusal, ToolCtx, ToolDef, ToolResult, ToolSet } from "./types.ts";
+import { withLocalTimes } from "../../../lib/time-convert.ts";
+
+/** The capabilities whose results are times a person schedules by. */
+const TIMED = /^(?:calendar|mail|inbox|tasks|meetings|events)\./;
 
 export type ToolOutcome =
   /** `parkOn`: a question asked of the person (ask_question): the turn waits on its block and makes no further model call until it is answered. */
@@ -39,6 +43,8 @@ export interface CallDeps extends AccessDeps {
   dynamic?: DynamicTools;
   hooks?: CallHooks;
   invoke: Invoke;
+  /** The asker's time zone, when known: a calendar, mail, inbox or task result then carries each time in it as well (lib/time-convert.ts withLocalTimes). */
+  zoneOf?(ctx: ToolCtx): string | undefined;
   traceId?(): string;
   /** Local tools only: what Ask, Allow and Auto say. Fails closed: a missing policy refuses a local tool. */
   localPolicy?(t: ToolDef, ctx: ToolCtx, input: unknown): LocalDecision;
@@ -62,6 +68,8 @@ const hex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(
 
 export function createToolSession(deps: CallDeps): ToolSession {
   const loadedBy = new Map<string, Set<string>>();
+  /** The searches each turn has made, so the same one is not run twice. */
+  const searchedIn = new Map<string, Set<string>>();
   const newTrace = deps.traceId ?? ((): string => hex(16));
   const loadedSet = (threadId: string): Set<string> => {
     let s = loadedBy.get(threadId);
@@ -119,6 +127,16 @@ export function createToolSession(deps: CallDeps): ToolSession {
     if (t.name === "tool_search") {
       const query = (input as { query?: unknown } | null)?.query;
       if (typeof query !== "string" || query.trim() === "") return fail("validation.bad_input", traceId, { details: { errors: ["/query: required"], tool: t.name } });
+      // The same search twice in one turn finds the same tools: the second time says so instead of searching again (a model went round this loop nineteen times).
+      if (ctx.turnId) {
+        const key = query.trim().toLowerCase().replace(/\s+/g, " ");
+        let asked = searchedIn.get(ctx.turnId);
+        if (!asked) { asked = new Set(); searchedIn.set(ctx.turnId, asked); if (searchedIn.size > 200) searchedIn.delete(searchedIn.keys().next().value as string); }
+        if (asked.has(key)) {
+          return { kind: "result", traceId, result: { ok: true, content: { data: { tools: [], hint: "You already searched for that in this turn. What it found can be called now; call one of those tools, or change the words. If nothing fits, answer with what you have and say what is missing." } } } };
+        }
+        asked.add(key);
+      }
       const found = api.search(ctx, query);
       return {
         kind: "result", traceId,
@@ -178,7 +196,10 @@ export function createToolSession(deps: CallDeps): ToolSession {
       recordWork(ctx.turnId, workCardOf(t.cap, input, res.output));
       // the calendar and mail reads come back to a model as compact rows with a count and a size (compact.ts); the full answer is what the hooks and the work card see
       const shaped = isDynamic ? null : shapeOutput(t.cap, res.output);
-      const content: { data: unknown; meta?: unknown; blocks?: string[] } = shaped ? { data: shaped.data, meta: shaped.meta } : { data: res.output };
+      // times in the person's zone beside the ISO and epoch ones, for the tools that return times people schedule by
+      const zone = TIMED.test(t.cap) ? deps.zoneOf?.(ctx) : undefined;
+      const data = shaped ? shaped.data : res.output;
+      const content: { data: unknown; meta?: unknown; blocks?: string[] } = { data: zone ? withLocalTimes(data, zone) : data, ...(shaped ? { meta: shaped.meta } : {}) };
       if (t.blocks.length > 0) content.blocks = t.blocks;
       if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
       const asked = t.cap === "chat.question.ask" ? (res.output as { blockId?: unknown } | null)?.blockId : undefined;

@@ -64248,6 +64248,49 @@
     },
     {
       "blocks": [],
+      "cap": "engine.time_convert",
+      "deferred": false,
+      "description": "Convert a time between time zones, or turn \"tomorrow 2pm\" into a time. Use it for any time not already in the person's zone; never work out zones, dates or epoch numbers yourself",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "from": {
+            "description": "The zone it was said in: PT, ET, PKT, UTC or America/Los_Angeles. Default: the person's",
+            "maxLength": 60,
+            "type": "string"
+          },
+          "to": {
+            "description": "The zones to show it in",
+            "items": {
+              "maxLength": 60,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "when": {
+            "description": "The time as said: \"Thursday 5 Nov 2pm\", \"tomorrow 14:00\", \"2026-11-05 14:00\", \"in 3 hours\"",
+            "maxLength": 120,
+            "minLength": 1,
+            "type": "string"
+          },
+          "zone": {
+            "description": "The person's zone, when it is known; the profile's is used otherwise",
+            "maxLength": 60,
+            "type": "string"
+          }
+        },
+        "required": [
+          "when"
+        ],
+        "type": "object"
+      },
+      "name": "time_convert",
+      "planMode": "allowed",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mcp.tool.search",
       "deferred": false,
       "description": "Find tools by what you want to do; returns names, summaries and schemas, then the tools are callable",

@@ -9158,6 +9158,12 @@
     },
     {
       "deferred": false,
+      "name": "time_convert",
+      "summary": "Convert a time between time zones, or turn \"tomorrow 2pm\" into a time. Use it for any time not already in the person's zone; never work out zones, dates or epoch numbers yourself",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "tool_search",
       "summary": "Find tools by what you want to do; returns names, summaries and schemas, then the tools are callable",
       "toolset": "meta"
