@@ -417,7 +417,8 @@ function TabItem({ tab, on, tight, underline, widest, dropTarget, canClose, only
           focusable={false}
           testID={`tab-close-${tab.key}`}
           onPress={onClose}
-          style={[styles.close, on ? null : styles.closeOver, showClose ? null : HIDDEN]}
+          // hidden, it takes no clicks: a press on the right edge of a short tab (Plan) selects the tab, it does not land on an invisible close
+          style={[styles.close, on ? null : styles.closeOver, showClose ? null : HIDDEN, showClose ? null : { pointerEvents: "none" } as object]}
           {...webProps({ title: "Close" })}
         >
           <MenuIcon icon="x" color={ink} size={12} />
