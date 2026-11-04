@@ -23,6 +23,7 @@ async function run(): Promise<{ on: { ms: number; prompt: string; bytes: number 
     },
     sendToolResult() {}, inject() {}, async cancel() {}, async close() {},
   } as EngineSession);
+  process.env["VYRE_ROOM_DIGEST"] = "off";   // this test measures the roster and the recent window; the digest has its own tests (room-digest.vault.live, the real-model walk)
   const d = await boot(seededDir(), model);
   try {
     await connect(d);
@@ -69,7 +70,7 @@ async function run(): Promise<{ on: { ms: number; prompt: string; bytes: number 
     const mid = <T extends { ms: number }>(xs: T[]): T => [...xs].sort((a, b) => a.ms - b.ms)[Math.floor(xs.length / 2)]!;
     console.log(`room pack runs (ms): off ${offs.map((x) => x.ms).join(",")}; on ${ons.map((x) => x.ms).join(",")}`);
     return { on: mid(ons), off: mid(offs) };
-  } finally { delete process.env["VYRE_ROOM_PACK"]; await d.stop(); }
+  } finally { delete process.env["VYRE_ROOM_PACK"]; delete process.env["VYRE_ROOM_DIGEST"]; await d.stop(); }
 }
 
 test("a tagged agent in a 300-message room gets the roster, the recent messages with names and times, and a request in well under a second", { timeout: 560_000 }, async () => {
