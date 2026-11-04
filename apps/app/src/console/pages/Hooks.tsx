@@ -16,7 +16,7 @@ import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { WarnTile } from "./overview/Overview.tsx";
 import { IconTile } from "./CiRunners.tsx";
-import { Actions, Button, Field, FormSheet, Note, ReadState, Select, Stepper, useAction } from "./shared.tsx";
+import { Actions, Button, QuietButton, Field, FormSheet, Note, ReadState, Select, Stepper, useAction } from "./shared.tsx";
 
 type Run = CapMap["hooks.runs.list"]["out"]["runs"][number];
 
@@ -100,11 +100,6 @@ function useHooks(): { data: Loaded | undefined; error: string | undefined; refr
 const dim = (extra: object = {}): object => ({ fontSize: 11.5, lineHeight: "16px", color: "var(--ink-3)", ...extra });
 
 /** A text-only button: no frame until the pointer is over it. Red is for the confirm step only. */
-function Ghost({ label, onPress, testID, disabled = false, why }: { label: string; onPress: () => void; testID: string; disabled?: boolean; why?: string }): ReactElement {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} {...(disabled && why ? { accessibilityHint: why } : {})} testID={testID} disabled={disabled} onPress={onPress}
-    style={({ hovered }: { hovered?: boolean }) => ({ height: 28, paddingHorizontal: 10, borderRadius: 7, justifyContent: "center", backgroundColor: hovered ? "var(--hover)" : "transparent", opacity: disabled ? 0.45 : 1 }) as never}>
-    <Text style={{ fontSize: 12.5, color: "var(--ink-2)" as string }}>{label}</Text></Pressable>;
-}
 
 /**
  * One hook: the icon, the plain line, then two muted lines that wrap in full, and Pause and Remove. Wide, the buttons sit to the right; at a phone's width they go on their own line under the
@@ -198,9 +193,9 @@ export function HooksPage(): ReactElement {
               const how = h.paused ? "Paused" : last ? `Last ran ${ago(now, last.at)}, ${lastRunWords(last, h.kind)}` : "Not run lately";
               const actions = (
                 <>
-                  <Ghost label={h.paused ? "Resume" : "Pause"} testID={`hook-pause-${h.id}`} disabled={action.busy || !h.canChange} {...(!h.canChange ? { why } : {})}
+                  <QuietButton label={h.paused ? "Resume" : "Pause"} testID={`hook-pause-${h.id}`} disabled={action.busy || !h.canChange} {...(!h.canChange ? { why } : {})}
                     onPress={() => void action.run("hooks.pause", { id: h.id, paused: !h.paused }, h.paused ? "Hook running again" : "Hook paused")} />
-                  <Ghost label="Remove" testID={`hook-remove-${h.id}`} disabled={action.busy || !h.canChange} {...(!h.canChange ? { why } : {})} onPress={() => { setRemoved(null); setConfirm(h.id); }} />
+                  <QuietButton label="Remove" testID={`hook-remove-${h.id}`} disabled={action.busy || !h.canChange} {...(!h.canChange ? { why } : {})} onPress={() => { setRemoved(null); setConfirm(h.id); }} />
                 </>
               );
               return <HookRow key={h.id} id={`hook-${h.id}`} index={n} narrow={narrow} icon={<IconTile icon="bolt" />} title={h.line} lines={[`${kindWord(h)}: ${whatOf(h)}`, `${whereWords(h, nameOf)} · ${madeByWords(h, nameOf)} · ${how}`]} actions={actions} />;
@@ -219,7 +214,7 @@ export function HooksPage(): ReactElement {
         {removed ? (
           <View testID="hook-removed" style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8, paddingTop: 8 }}>
             <Text accessibilityRole="status" style={dim({ fontSize: 12.5 }) as never}>Removed. {removed.line}</Text>
-            <Ghost label="Undo" testID="hook-undo" disabled={action.busy} onPress={() => void undo(removed)} />
+            <QuietButton label="Undo" testID="hook-undo" disabled={action.busy} onPress={() => void undo(removed)} />
           </View>
         ) : null}
       </Section>

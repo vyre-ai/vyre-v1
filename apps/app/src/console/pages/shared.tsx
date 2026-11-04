@@ -64,6 +64,12 @@ export function Button({ label, onPress, disabled = false, testID, danger = fals
   const button = <Pressable accessibilityRole="button" accessibilityState={{ disabled }} {...(disabled && why ? { accessibilityHint: why } : {})} onPress={onPress} disabled={disabled} testID={testID} style={[s.button, { alignSelf: "flex-start" }, small && { height: 28 }, disabled && { opacity: 0.5 }]}><Text style={[s.buttonText, danger && { color: "var(--danger)" as string }]}>{label}</Text></Pressable>;
   return disabled && why ? <Tip help={why}>{button}</Tip> : button;
 }
+/** A quiet text action: no border, a hover wash, small. Danger is red text. Used where the prototype shows plain actions (Hooks rows, Voice). */
+export function QuietButton({ label, onPress, testID, disabled = false, why, danger = false }: { label: string; onPress: () => void; testID: string; disabled?: boolean; why?: string; danger?: boolean }): ReactElement {
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} {...(disabled && why ? { accessibilityHint: why } : {})} testID={testID} disabled={disabled} onPress={onPress}
+    style={({ hovered }: { hovered?: boolean }) => ({ height: 28, paddingHorizontal: 10, borderRadius: 7, justifyContent: "center", backgroundColor: hovered ? "var(--hover)" : "transparent", opacity: disabled ? 0.45 : 1 }) as never}>
+    <Text style={{ fontSize: 12.5, color: (danger ? "var(--danger)" : "var(--ink-2)") as string }}>{label}</Text></Pressable>;
+}
 /** A help sentence as a quiet info mark with the sentence in its tooltip. */
 export function Help({ children }: { children: string }): ReactElement | null {
   const inGroup = useInGroup();

@@ -8,7 +8,7 @@ import { useConsoleData } from "../shell/data.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
 import { Group, Section } from "../shell/ui.tsx";
 import { IconTile } from "./CiRunners.tsx";
-import { Actions, Button, Field, ReadState, useAction, useRead } from "./shared.tsx";
+import { Actions, Button, Field, ReadState, useAction, useRead, QuietButton } from "./shared.tsx";
 
 type SpaceOut = CapMap["talk.space.status"]["out"];
 type VoiceOut = CapMap["talk.status"]["out"];
@@ -95,7 +95,7 @@ export function VoiceSettings(): ReactElement {
               </View>
             );
           })() : null}
-          {s.set ? <View style={{ borderTopWidth: 1, borderTopColor: "var(--line)" as string }}><Row id="voice-own" title="People with their own key" note={owned === 0 ? "Nobody. The Space key covers everyone" : `${owned}. Their own key wins for them`} /></View> : null}
+          {s.set ? <View style={{ borderTopWidth: 1, borderTopColor: "var(--line)" as string }}><Row id="voice-own" title="People with their own key" note={owned === 0 ? "Nobody. The Space key covers everyone" : `${owned} ${owned === 1 ? "person" : "people"} · their own key wins for them`} /></View> : null}
         </Group>
         {form ? (
           <View style={{ marginTop: 10 }}><Group>
@@ -109,12 +109,12 @@ export function VoiceSettings(): ReactElement {
           </Group></View>
         ) : (
           <Actions>
-            <Button label="Replace key" onPress={() => setReplacing(true)} testID="voice-replace" />
-            <Button label={s.on ? "Turn off" : "Turn on"} onPress={() => void action.run("talk.space.configure", { on: !s.on }, s.on ? "Talk is off for everyone without their own key" : "Talk is on for everyone")} disabled={action.busy} testID="voice-toggle" />
-            <Button label="Check now" onPress={() => void action.run("talk.space.check", {}, "Checked")} disabled={action.busy} testID="voice-check" />
+            <QuietButton label="Replace key" onPress={() => setReplacing(true)} testID="voice-replace" />
+            <QuietButton label={s.on ? "Turn off" : "Turn on"} onPress={() => void action.run("talk.space.configure", { on: !s.on }, s.on ? "Talk is off for everyone without their own key" : "Talk is on for everyone")} disabled={action.busy} testID="voice-toggle" />
+            <QuietButton label="Check now" onPress={() => void action.run("talk.space.check", {}, "Checked")} disabled={action.busy} testID="voice-check" />
             {gone
               ? <Button danger label="Remove from the Vault" onPress={() => void action.run("talk.space.disconnect", {}, "Key removed").then(() => setGone(false))} testID="voice-remove-yes" />
-              : <Button danger label="Remove key" onPress={() => setGone(true)} testID="voice-remove" />}
+              : <QuietButton danger label="Remove key" onPress={() => setGone(true)} testID="voice-remove" />}
           </Actions>
         )}
         {action.note !== "" ? <Text accessibilityRole="status" testID="voice-note" style={{ marginTop: 8, fontSize: 12.5, color: "var(--ink-3)" }}>{action.note}</Text> : null}
