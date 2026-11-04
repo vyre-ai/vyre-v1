@@ -27100,6 +27100,24 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/providers/own_people",
+    "cap": "providers.own_people",
+    "v": 1,
+    "module": "vault",
+    "effects": "read",
+    "permission": "ai.models",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/providers/remove",
     "cap": "providers.remove",
     "v": 1,
@@ -27599,7 +27617,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/records/hold",
@@ -27618,10 +27639,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/records/merge",
@@ -33109,7 +33127,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "send"
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sync_types/update",
@@ -33128,10 +33149,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/tasks/act",

@@ -2070,6 +2070,7 @@ export function stubs(ctx: CallCtx) {
       custom_list: call("providers.custom_list"),
       custom_remove: call("providers.custom_remove"),
       list: call("providers.list"),
+      own_people: call("providers.own_people"),
       remove: call("providers.remove"),
       set_space_use: call("providers.set_space_use"),
       space_key: {

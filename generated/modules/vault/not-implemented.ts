@@ -11,6 +11,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "providers.custom_list": async (ctx) => { throw new VyreErr(notImplemented("providers.custom_list", ctx.trace)); },
   "providers.custom_remove": async (ctx) => { throw new VyreErr(notImplemented("providers.custom_remove", ctx.trace)); },
   "providers.list": async (ctx) => { throw new VyreErr(notImplemented("providers.list", ctx.trace)); },
+  "providers.own_people": async (ctx) => { throw new VyreErr(notImplemented("providers.own_people", ctx.trace)); },
   "providers.remove": async (ctx) => { throw new VyreErr(notImplemented("providers.remove", ctx.trace)); },
   "providers.set_space_use": async (ctx) => { throw new VyreErr(notImplemented("providers.set_space_use", ctx.trace)); },
   "providers.space_key.get": async (ctx) => { throw new VyreErr(notImplemented("providers.space_key.get", ctx.trace)); },

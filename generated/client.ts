@@ -2070,6 +2070,7 @@ export function createClient(transport: Transport) {
       custom_list: call("providers.custom_list", 1),
       custom_remove: call("providers.custom_remove", 1),
       list: call("providers.list", 1),
+      own_people: call("providers.own_people", 1),
       remove: call("providers.remove", 1),
       set_space_use: call("providers.set_space_use", 1),
       space_key: {

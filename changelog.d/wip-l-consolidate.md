@@ -14,3 +14,8 @@
 - An admin's agent list no longer includes another person's own agents, even with All in the Space on. A person's Assistant and the agents they keep private are never named to an admin: the Console shows one summary row per person with a count, the spend against their cap, a Spend cap and Pause all (which is audited and tells the person).
 - Usage by agent folds agents you may not see into one People's own agents line.
 - An admin who manages runs no longer sees a person's own agent runs (routines and agent runs) in the run lists or by id. They see a count per person instead (`runs.people_counts`), never the work. Shared on purpose, it still shows.
+- The Console is ten places from the approved prototype: Home, People, Agents, AI, Data, Messaging, Apps, Computers, Security and Space. Each has a subtitle, a quiet tab strip and a "Needs you" strip first. Old page addresses still work and Cmd-K finds the old names.
+- New Console pages: AI accounts (one switch, with a confirm that names who moves), What each provider may see, Voice (UI only for now), Requests, Activity, Connected apps, Servers, Agent computers, Billing, Transfer or delete, Export, Sending rules and Do-not-contact list.
+- Home gains a Relay tile (version, and amber "Update available" when older than the Space server), This month and Quick actions.
+- New read `providers.own_people`: who runs on their own AI sign-ins and how many each, without an account name or a value.
+- Plain words in three permission labels and across the Console (Teams, Extra access, Approvals, Keep and delete, Labels). A copy test and a redirect test hold them.

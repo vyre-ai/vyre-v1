@@ -16,7 +16,7 @@ const ACCOUNTS = [
   { ref: "own_2", driver: "anthropic", kind: "subscription", title: "Claude", mine: false, ownerId: "usr_lena", status: "ok" },
 ];
 
-async function page(accounts: unknown[], allowedAccounts: "any" | "company") {
+async function page(accounts: unknown[], allowedAccounts: "any" | "company", extra: Record<string, unknown> = {}) {
   const restore = installDom();
   const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
   const opened: string[] = [];
@@ -31,7 +31,7 @@ async function page(accounts: unknown[], allowedAccounts: "any" | "company") {
   const base = createSampleConsole().data;
   const nav = { ...base.nav, openApp: (t?: { screen: string }) => { opened.push(`app:${t?.screen}`); }, openPage: (id: string) => { opened.push(`page:${id}`); } };
   const { createRoot } = await import("test-renderer");
-  const root = await mount(createRoot, <ConsoleDataProvider value={dataWith({ "engine.accounts.list": { accounts }, "engine.policy.get": policy }, { call: call as never, nav: nav as never, name: (id: string) => NAMES[id] ?? id })}><AiAccountsPage /></ConsoleDataProvider>);
+  const root = await mount(createRoot, <ConsoleDataProvider value={dataWith({ "engine.accounts.list": { accounts }, "engine.policy.get": policy, ...extra }, { call: call as never, nav: nav as never, name: (id: string) => NAMES[id] ?? id })}><AiAccountsPage /></ConsoleDataProvider>);
   return { root, calls, opened, restore };
 }
 const writes = (calls: Array<{ cap: string }>, cap: string) => calls.filter((c) => c.cap === cap);
@@ -114,4 +114,13 @@ test("Check now probes that account", async () => {
 test("the foot row Spend and limits opens the spend page", async () => {
   const { root, opened, restore } = await page(ACCOUNTS, "any");
   try { await press(find(root, "row-ai-spend")); assert.deepEqual(opened, ["page:spend"]); } finally { restore(); }
+});
+
+test("N people do today comes from providers.own_people, so an admin sees people whose sign-ins the account list does not carry", async () => {
+  const t = await page([ACCOUNTS[0]], "any", { "providers.own_people": { people: [{ personId: "usr_maya", accounts: 2 }, { personId: "usr_lena", accounts: 1 }, { personId: "usr_irfad", accounts: 1 }] } });
+  try {
+    assert.ok(textOf(t.root).includes("3 people do today"));
+    await press(find(t.root, "ai-own-switch"));
+    assert.ok(textOf(t.root).includes("3 people will switch to the Space's AI accounts: Maya, Lena, Irfad"));
+  } finally { t.restore(); }
 });

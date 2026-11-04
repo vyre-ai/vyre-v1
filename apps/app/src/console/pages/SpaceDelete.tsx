@@ -22,7 +22,7 @@ function Transfer({ onDone }: { onDone: () => void }): ReactElement {
   return (
     <Section title="Transfer ownership">
       <Group>
-        <Row id="transfer-row" title="Make someone the Owner" note="You become an Admin" leading={<Lead><Glyph name="people" size={16} color="var(--ink-3)" /></Lead>}
+        <Row id="transfer-row" title="Hand over ownership" note="You become an Admin" leading={<Lead><Glyph name="people" size={16} color="var(--ink-3)" /></Lead>}
           trailing={<Button label="Choose a person" testID="transfer-choose" onPress={() => { setOpen(!open); setTo(""); }} />} />
         {open ? (people.data ? candidates.map((p) => (
           <Row key={p.id} id={`transfer-person-${p.id}`} title={p.name} {...(p.title ? { note: p.title } : {})} selected={to === p.id} onPress={() => setTo(p.id)} trailing={<Button label="Choose" testID={`transfer-pick-${p.id}`} onPress={() => setTo(p.id)} />} />

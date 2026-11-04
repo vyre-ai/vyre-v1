@@ -6806,6 +6806,12 @@
     },
     {
       "deferred": false,
+      "name": "providers_own_people",
+      "summary": "Who runs on their own AI sign-ins: the people with a Mine provider and how many each, for the AI accounts switch (never an account name or a value)",
+      "toolset": "vault"
+    },
+    {
+      "deferred": false,
       "name": "providers_remove",
       "summary": "Remove a provider and its key or sign-in",
       "toolset": "vault"

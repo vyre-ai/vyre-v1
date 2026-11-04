@@ -28701,6 +28701,13 @@ export type ProvidersListOut = {
       models?: Array<string>;
     }>;
 };
+export type ProvidersOwnPeopleIn = Record<string, unknown>;
+export type ProvidersOwnPeopleOut = {
+  people: Array<{
+      personId: string;
+      accounts: number;
+    }>;
+};
 export type ProvidersRemoveIn = {
   providerId: string;
 };
@@ -42485,6 +42492,7 @@ export interface CapMap {
   "providers.custom_list": { in: ProvidersCustomListIn; out: ProvidersCustomListOut };
   "providers.custom_remove": { in: ProvidersCustomRemoveIn; out: ProvidersCustomRemoveOut };
   "providers.list": { in: ProvidersListIn; out: ProvidersListOut };
+  "providers.own_people": { in: ProvidersOwnPeopleIn; out: ProvidersOwnPeopleOut };
   "providers.remove": { in: ProvidersRemoveIn; out: ProvidersRemoveOut };
   "providers.set_space_use": { in: ProvidersSetSpaceUseIn; out: ProvidersSetSpaceUseOut };
   "providers.space_key.get": { in: ProvidersSpaceKeyGetIn; out: ProvidersSpaceKeyGetOut };

@@ -50,6 +50,7 @@ export const handlers: Record<string, Handler> = {
   "vault.text_check": (ctx, i) => textCheck(ctx, i),
   "providers.catalog": (ctx, i) => pr.catalog(ctx, i),
   "providers.list": (ctx, i) => pr.list(ctx, i),
+  "providers.own_people": (ctx, i) => pr.ownPeople(ctx, i),
   "providers.add": (ctx, i) => pr.add(ctx, i),
   "providers.remove": (ctx, i) => pr.remove(ctx, i),
   "providers.set_space_use": (ctx, i) => pr.setSpaceUse(ctx, i),

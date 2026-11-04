@@ -40,17 +40,19 @@ function Tile({ title }: { title: string }): ReactElement {
 export function AiAccountsPage(): ReactElement {
   const accounts = useRead<CapMap["engine.accounts.list"]["out"]>("engine.accounts.list");
   const policy = useRead<Policy>("engine.policy.get");
-  const refresh = (): void => { accounts.refresh(); policy.refresh(); };
+  // who runs on their own sign-ins: a count per person from the Vault (providers.own_people), since engine.accounts.list only lists what the caller may run on
+  const people = useRead<CapMap["providers.own_people"]["out"]>("providers.own_people");
+  const refresh = (): void => { accounts.refresh(); policy.refresh(); people.refresh(); };
   if (!accounts.data || !policy.data) return <ReadState error={accounts.error ?? policy.error} retry={refresh} />;
-  return <AiAccounts accounts={accounts.data.accounts} policy={policy.data} refresh={refresh} />;
+  return <AiAccounts accounts={accounts.data.accounts} policy={policy.data} refresh={refresh} {...(people.data ? { ownPeople: people.data.people.map((x) => x.personId) } : {})} />;
 }
 
-function AiAccounts({ accounts, policy, refresh }: { accounts: readonly Account[]; policy: Policy; refresh(): void }): ReactElement {
+function AiAccounts({ accounts, policy, refresh, ownPeople }: { accounts: readonly Account[]; policy: Policy; refresh(): void; ownPeople?: readonly string[] }): ReactElement {
   const data = useConsoleData();
   const action = useAction(refresh);
   const [confirm, setConfirm] = useState(false);
   const on = policy.allowedAccounts === "any";
-  const own = ownSignIns(accounts);
+  const own = ownPeople ?? ownSignIns(accounts);
   const names = own.map((id) => firstName(id === "me" ? "You" : data.name(id)));
   const space = accounts.filter(isSpaceAccount);
   const save = async (allowedAccounts: Policy["allowedAccounts"]): Promise<void> => {

@@ -46118,6 +46118,21 @@
     },
     {
       "blocks": [],
+      "cap": "providers.own_people",
+      "deferred": false,
+      "description": "Who runs on their own AI sign-ins: the people with a Mine provider and how many each, for the AI accounts switch (never an account name or a value)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "providers_own_people",
+      "planMode": "allowed",
+      "toolset": "vault",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "providers.remove",
       "deferred": false,
       "description": "Remove a provider and its key or sign-in",
