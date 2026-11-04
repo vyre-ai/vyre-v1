@@ -8,7 +8,11 @@ export const muteKey = (kind: MuteKind, id: string): string => `${kind}:${id}`;
 export interface MenuApi {
   /** Who and what is muted now, as `kind:id`. */
   mutes(): Promise<Set<string>>;
-  setMute(kind: MuteKind, id: string, on: boolean): Promise<void>;
+  /** Mute for `minutes`, or until turned back on when none is given; `on` false clears it. */
+  setMute(kind: MuteKind, id: string, on: boolean, minutes?: number): Promise<void>;
+  addAgentToChat(threadId: string, agentId: string): Promise<void>;
+  addPersonToChat(threadId: string, personId: string): Promise<void>;
+  poke(threadId: string, agentId: string): Promise<void>;
   /** What is starred now, as `type:id`. */
   stars(): Promise<Set<string>>;
   /** Every agent's computer by agent id, and whether it sleeps. */
@@ -30,7 +34,10 @@ export function createMenuApi(data: Pick<ChatsSidebarData, "call">): MenuApi {
       const out = (await data.call("notifications.mute.list", {})) as { mutes?: { target: { kind: string; id: string }; until: number }[] } | null;
       return new Set((out?.mutes ?? []).map((m) => `${m.target.kind}:${m.target.id}`));
     },
-    async setMute(kind, id, on) { await data.call(on ? "notifications.mute.set" : "notifications.mute.clear", { target: { kind, id } }); },
+    async setMute(kind, id, on, minutes) { await data.call(on ? "notifications.mute.set" : "notifications.mute.clear", { target: { kind, id }, ...(on && minutes !== undefined ? { minutes } : {}) }); },
+    async addAgentToChat(threadId, agentId) { await data.call("threads.add_agent", { threadId, agentId }); },
+    async addPersonToChat(threadId, personId) { await data.call("threads.members.add", { threadId, personId }); },
+    async poke(threadId, agentId) { await data.call("threads.poke", { threadId, agentId }); },
     async stars() {
       const out = (await data.call("stars.list", {})) as { stars?: { resource: { type: string; id: string } }[] } | null;
       return new Set((out?.stars ?? []).map((s) => `${s.resource.type}:${s.resource.id}`));

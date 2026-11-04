@@ -36,5 +36,10 @@ type Payload = {
   actingFor?: string;
   job?: boolean;
   typed?: boolean;
+  poke?: {
+    agentId: string;
+    by: string;
+    outside?: boolean;
+  };
 };
 ```

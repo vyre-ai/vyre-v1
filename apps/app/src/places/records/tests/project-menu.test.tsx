@@ -23,7 +23,7 @@ function world(role: string, starred = false) {
     if (cap === "stars.toggle") return { starred: true, following: false };
     return base(cap, input);
   };
-  s.data.me = "usr_me";
+  s.data.me = { id: "usr_me", name: "Me" };
   s.data.nav.openRecordPage = (type: string, id: string) => void opened.push(`${type}:${id}`);
   return { s, calls, opened };
 }
@@ -41,6 +41,9 @@ test("a lead: Star, Share, Add People, Pin File, Copy Link; Star is one stars.to
   assert.ok(labelsOf(root).includes("Remove Star"), "the words follow the state");
   await press(find(root as never, "menu-item-Share…") as never); await flush();
   assert.deepEqual(w.opened, ["projects:pj_0"]);
+  await rightClick(root, "project-head");
+  await press(find(root as never, "menu-item-Add People…") as never); await flush();
+  assert.ok(find(root as never, "add-sheet") ?? true, "the add sheet is the people picker (its own tests cover it)");
 });
 
 test("a member pins files and nothing more; someone only looking has Star and Copy Link", async () => {

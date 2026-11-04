@@ -47,7 +47,7 @@ export default function Mount(): ReactNode {
     const s = createSampleProject();
     const base = s.data.call.bind(s.data);
     s.data.call = async (cap: string, input: unknown) => (cap === "projects.members.list" ? { members: [{ principal: { kind: "person", id: "usr_me" }, role: "lead", kind: "person", since: 0 }] } : cap === "stars.list" ? { stars: [] } : base(cap, input));
-    s.data.me = "usr_me";
+    s.data.me = { id: "usr_me", name: "Me" };
     return s;
   }, []);
   const tabs = useMemo(() => { const c = createTabsController({ deviceId: "d", personId: "p", spaceId: "s", storage: null, start: "home" }); c.openPlace("chats"); c.openPlace("files"); c.openPlace("records", "rivera", "Rivera engagement"); c.close("files"); c.select("chats"); return c; }, []);

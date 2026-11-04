@@ -106,3 +106,37 @@ test("a person row: Message, read state and Mute; the row's ... opens the same m
   await press(find(root, "menu-item-Mute")); await flush();
   assert.deepEqual(caps(s, "notifications.mute.set"), [{ target: { kind: "person", id } }]);
 });
+
+test("an agent: Poke goes to your chat with it, Add to a Chat picks a chat and adds it, Share opens the sheet; a person is added to a chat and copied as @name", async () => {
+  const { s, root } = await drawn(createRoot, { open: null, people: [{ id: "usr_maya", name: "Maya Chen" }] });
+  const face = rowIds(root, "row-f:").find((i) => i === "row-f:agt_intake")!;
+  await rightClick(root, face);
+  assert.ok(find(root, "menu-item-Poke"), "Intake has a chat with you (Rivera intake), so it can be poked");
+  await press(find(root, "menu-item-Poke")); await flush();
+  assert.deepEqual(caps(s, "threads.poke"), [{ threadId: "c1", agentId: "agt_intake" }]);
+  await rightClick(root, face);
+  await press(find(root, "menu-item-Add to a Chat\u2026")); await flush();
+  assert.ok(find(root, "menu-item-October invoices"), "the chats to pick from");
+  await press(find(root, "menu-item-October invoices")); await flush();
+  assert.deepEqual(caps(s, "threads.add_agent"), [{ threadId: "c3", agentId: "agt_intake" }]);
+  await rightClick(root, face);
+  await press(find(root, "menu-item-Share\u2026")); await flush();
+  assert.deepEqual(caps(s, "access.shares_of"), [{ resource: { type: "agent", id: "agt_intake" } }]);
+  assert.ok(find(root, "share-overlay"), "the Share sheet is drawn");
+  await rightClick(root, "row-p:usr_maya");
+  await press(find(root, "menu-item-Add to a Chat\u2026")); await flush();
+  await press(find(root, "menu-item-Rivera intake")); await flush();
+  assert.deepEqual(caps(s, "threads.members.add"), [{ threadId: "c1", personId: "usr_maya" }]);
+});
+
+test("a chat: Notifications mutes for an hour, Add People opens the Add sheet on that chat; a channel: Invite opens it on the channel", async () => {
+  const { s, root } = await drawn(createRoot, { open: null });
+  await rightClick(root, "row-c:c3");
+  await press(find(root, "menu-item-Notifications\u2026")); await flush();
+  await press(find(root, "menu-item-Mute for 1 hour")); await flush();
+  assert.deepEqual(caps(s, "notifications.mute.set"), [{ target: { kind: "thread", id: "c3" }, minutes: 60 }]);
+  await rightClick(root, "row-c:c3");
+  await press(find(root, "menu-item-Add People\u2026")); await flush();
+  assert.ok(caps(s, "threads.get").some((i) => (i as { threadId: string }).threadId === "c3"), "the Add sheet read that chat");
+  assert.ok(!s.rejected.some((r) => /poke/.test(r)));
+});

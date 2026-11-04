@@ -13,13 +13,16 @@ export interface ChatMenuDo {
   openTab?: (() => void) | undefined;
   muted?: boolean | undefined;
   mute?: ((on: boolean) => void) | undefined;
+  addPeople?: (() => void) | undefined;
+  copyLink?: (() => void) | undefined;
+  notifications?: (() => void) | undefined;
 }
 
 /** The chat row's menu is the Chats menu of kinds.ts (open, change, archive, then leave or delete); the sidebar gives it what each item does. A part the sidebar does not give (Rename, Mute, a new tab) is left out. */
 export function chatMenuEntries(r: ChatRow, d: ChatMenuDo): MenuEntry[] {
   return chatMenu({ starred: r.starred, unread: r.unread > 0, local: r.local, archived: r.archived === true, withPeople: r.withPeople === true, muted: d.muted === true }, {
     open: d.open, openTab: d.openTab, rename: d.rename ?? (() => undefined), star: () => d.star(), markRead: d.markRead, markUnread: d.markUnread, mute: d.mute ?? (() => undefined),
-    archive: d.archive, unarchive: d.unarchive, leave: d.leaveChat, remove: d.deleteChat,
+    archive: d.archive, unarchive: d.unarchive, leave: d.leaveChat, remove: d.deleteChat, addPeople: d.addPeople, copyLink: d.copyLink, notifications: d.notifications,
   }, { rename: d.rename !== undefined, mute: d.mute !== undefined });
 }
 

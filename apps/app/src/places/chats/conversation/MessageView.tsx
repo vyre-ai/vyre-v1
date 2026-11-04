@@ -56,7 +56,7 @@ import { AttachmentChips, LinkedText, MountRefs, refsOf } from "./attachments.ts
 import { unnamed } from "../names.ts";
 import type { ConversationData } from "./data.tsx";
 import type { GlyphName } from "./parts.tsx";
-import { reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isSystemLine, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
+import { pokeLine, pokedBy, reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isSystemLine, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
 import { ReplyLine } from "./ReplyLine.tsx";
 import { MARK } from "./marks.ts";
@@ -81,6 +81,10 @@ export interface MessageActions {
   answer(blockId: string, answer: unknown): void;
   approvePlan(planId: string): void;
   retryTurn(turnId: string): void;
+  /** Run the turn that made this reply once more: "Regenerate" in an agent reply's menu. Left out where the chat cannot. */
+  regenerate?(messageId: string): void;
+  /** Copies the plain link to this message (/c/<thread>#<message>). Left out where the chat has no address. */
+  copyLink?(messageId: string): void;
   /** The rows of Details on a failed turn, read from the turn when it opens. */
   turnDetail?(turnId: string): Promise<[string, string][]>;
   errorNext(key: string, turnId?: string): void;
@@ -184,7 +188,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
     return (
       <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
         <View style={st.eventDot} />
-        <Text style={st.eventText}>{item.text}</Text>
+        <Text style={st.eventText}>{pokeLine(item.message, props.actions.nameOf ?? unnamed) ?? item.text}</Text>
         <Text style={st.eventTime}>{item.time}</Text>
       </View>
     );
@@ -200,8 +204,11 @@ export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: ()
   // groups, split by a separator: read and write it, then turn it into something, then keep it, then how it was made, then remove it last
   const talk = m.kind !== "system" && m.kind !== "quiet";
   const write: MenuEntry[] = [{ label: "Copy", onSelect: () => a.copy(m.body) }];
+  if (a.copyLink) write.push({ label: "Copy Link", onSelect: () => a.copyLink!(m.messageId) });
   if (mine && m.kind === "text") write.push({ label: "Edit", onSelect: onEdit });
   const turn: MenuEntry[] = [{ label: "Reply in Thread", onSelect: () => a.openThread(m.messageId) }];
+  // an agent's reply cannot be edited by you; it can be asked again
+  if (!mine && m.author.kind === "agent" && m.kind !== "system" && m.kind !== "quiet" && a.regenerate) turn.push({ label: "Regenerate", onSelect: () => a.regenerate!(m.messageId) });
   if (a.askAgent && talk) turn.push({ label: "Ask an Agent…", onSelect: () => a.askAgent!(m.messageId, at.x, at.y) });
   if (a.makeTask && talk) turn.push({ label: "Make a Task", onSelect: () => a.makeTask!(m.messageId) });
   if (a.share && talk) turn.push({ label: "Share to...", onSelect: () => a.share!(m.messageId, at.x, at.y) });
@@ -392,6 +399,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
           {work?.short ? <Pressable accessibilityRole="button" accessibilityLabel={work.summary} testID={`work-short-${m.messageId}`} onPress={() => setWorkOpen((o) => !o)} style={{ opacity: h.over || workOpen ? 1 : 0 }}><Text style={st.time}>{work.summary}</Text></Pressable> : null}
         </View>
       ) : <Text style={st.whenLeft}>{item.time}</Text>}
+      {pokedBy(m, actions.nameOf ?? unnamed) ? <Text testID={`poked-${m.messageId}`} style={st.via}>{pokedBy(m, actions.nameOf ?? unnamed)}</Text> : null}
       {item.paidLine ? <Text testID={`paid-${m.messageId}`} style={st.via}>{item.paidLine}</Text> : null}
       {m.via ? <Text testID={`via-${m.messageId}`} style={st.via}>{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text> : null}
       {work && (!work.short || !item.newgroup || workOpen) ? (

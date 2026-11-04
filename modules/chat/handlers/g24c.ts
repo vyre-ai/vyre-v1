@@ -5,6 +5,7 @@
 //   chat.recent / chat.composer.suggest                      the sidebar and the @ # / tables, built from chat rows only
 //   chat.open_tab                                            an agent opens a side tab for the person it acts for and leaves a line
 // Private chats and Ask panes (enc=2) hold what the device gave the server: edit stores the new text as given, reads return it as stored, and Recent shows no preview of it.
+import { readFloor } from "./floor.ts";
 import {
   agentsOf, askerOf, channelBy, encOf, ensure, insertMessage, lastMessage, membersOf, messageBy, messageOf, messageOut, mintId, raise, threadBy,
 } from "../projections.ts";
@@ -43,6 +44,9 @@ export async function messagesList(ctx: ChatCtx, input: { threadId: string; befo
   const forward = after !== undefined && before === undefined;
   const where = ["thread = ?", "deleted_at IS NULL"];
   const args: unknown[] = [t.id];
+  // a person added without earlier messages (or an agent reading for them) reads from their start
+  const floor = readFloor(ctx, t);
+  if (floor > 0) { where.push("createdAt >= ?"); args.push(floor); }
   if (after !== undefined) { where.push("threadSeq > ?"); args.push(after); }
   if (before !== undefined) { where.push("threadSeq < ?"); args.push(before); }
   const rows = ctx.db.all(`SELECT * FROM chat_message WHERE ${where.join(" AND ")} ORDER BY threadSeq ${forward ? "ASC" : "DESC"} LIMIT ?`, ...args, limit + 1) as Row[];
@@ -55,12 +59,15 @@ export async function messagesList(ctx: ChatCtx, input: { threadId: string; befo
 
 export async function messageGet(ctx: ChatCtx, input: { threadId: string; messageId: string }) {
   const t = openThread(ctx, input.threadId);
-  return { message: messageOut(messageIn(ctx, t, input.messageId), encOf(ctx.db, t)) };
+  const m = messageIn(ctx, t, input.messageId);
+  if (m.createdAt < readFloor(ctx, t)) raise(ctx, "validation.not_found", "That message is not in this chat.");
+  return { message: messageOut(m, encOf(ctx.db, t)) };
 }
 
 export async function pinsList(ctx: ChatCtx, input: { threadId: string }) {
   const t = openThread(ctx, input.threadId);
-  const rows = ctx.db.all("SELECT * FROM chat_message WHERE thread = ? AND pinned = 1 AND deleted_at IS NULL ORDER BY threadSeq", t.id) as Row[];
+  const floor = readFloor(ctx, t);
+  const rows = ctx.db.all("SELECT * FROM chat_message WHERE thread = ? AND pinned = 1 AND createdAt >= ? AND deleted_at IS NULL ORDER BY threadSeq", t.id, floor) as Row[];
   const enc = encOf(ctx.db, t);
   return { messages: rows.map((r) => messageOut(messageOf(r), enc)) };
 }

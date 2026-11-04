@@ -126,3 +126,37 @@ test("the writes: each item is one capability with its own input", async () => {
     { cap: "channels.archive", input: { channelId: "chn_1" } },
   ]);
 });
+
+test("the extra items come with what the sidebar can do: Poke, Add to a Chat, Share, Edit Instructions for an agent; Call, Add to a Chat, Copy @name for a person; Add People, Copy Link, Notifications for a chat and a channel", () => {
+  calls.length = 0;
+  const more = { poke: rec("poke"), addToChat: rec("addchat"), share: rec("share"), editInstructions: rec("instr") };
+  const a = agentMenu(agent(), { ...agentDo, ...more });
+  assert.deepEqual(labels(a), ["Message Mira", "Open Profile", "Poke", "-", "Add to a Chat\u2026", "Share\u2026", "-", "Open Its Computer", "Sleep Its Computer", "-", "Edit Instructions", "Pause", "-", "Star", "Mute", "-", "Delete Agent\u2026"]);
+  for (const x of rows(a)) x.onSelect?.();
+  assert.deepEqual(calls.filter((c) => ["poke", "addchat", "share", "instr"].includes(c)), ["poke", "addchat", "share", "instr"]);
+  const member = labels(agentMenu(agent({ manage: false }), { ...agentDo, ...more }));
+  assert.ok(member.includes("Poke") && member.includes("Add to a Chat\u2026") && !member.includes("Share\u2026") && !member.includes("Edit Instructions"), "sharing and editing an agent need Manage");
+  const p = personMenu({ name: "Sara", dm: true, unread: false, muted: false }, { ...personDo, call: rec("call"), addToChat: rec("addchat"), copyHandle: rec("copy") });
+  assert.deepEqual(labels(p), ["Message Sara", "Call", "-", "Add to a Chat\u2026", "Copy @name", "-", "Mark as Unread", "Mute"]);
+  const c = chatMenu(chat(), { ...chatDo, addPeople: rec("addpeople"), copyLink: rec("link"), notifications: rec("notif") });
+  assert.deepEqual(labels(c), ["Open", "Open in New Tab", "-", "Rename", "Star", "Mark as Unread", "Mute", "Notifications\u2026", "-", "Add People\u2026", "Copy Link", "-", "Archive", "-", "Delete chat"]);
+  assert.ok(!labels(chatMenu(chat({ local: true }), { ...chatDo, addPeople: rec("x"), copyLink: rec("x"), notifications: rec("x") })).some((x) => /Add People|Copy Link|Notifications/.test(x)), "a chat the server does not know has none of these");
+  const ch = channelMenu({ name: "launch", unread: false, starred: false, muted: false, member: true, admin: false }, { ...channelDo, invite: rec("invite"), notifications: rec("notif") });
+  assert.deepEqual(labels(ch), ["Open", "-", "Mark as Unread", "Star", "Mute", "Notifications\u2026", "-", "Invite\u2026", "Copy Link", "-", "Leave Channel"]);
+  assert.ok(!labels(channelMenu({ name: "x", unread: false, starred: false, muted: false, member: false, admin: false }, { ...channelDo, invite: rec("invite") })).includes("Invite\u2026"), "only a member invites");
+});
+
+test("the writes of the extra items: poke, add an agent or a person to a chat, mute for a while", async () => {
+  const sent: { cap: string; input: unknown }[] = [];
+  const api = createMenuApi({ call: async (cap, input) => { sent.push({ cap, input }); return {}; } });
+  await api.poke("thr_1", "agt_1"); await api.addAgentToChat("thr_1", "agt_1"); await api.addPersonToChat("thr_1", "usr_1");
+  await api.setMute("thread", "thr_1", true, 60); await api.setMute("thread", "thr_1", true); await api.setMute("thread", "thr_1", false, 60);
+  assert.deepEqual(sent, [
+    { cap: "threads.poke", input: { threadId: "thr_1", agentId: "agt_1" } },
+    { cap: "threads.add_agent", input: { threadId: "thr_1", agentId: "agt_1" } },
+    { cap: "threads.members.add", input: { threadId: "thr_1", personId: "usr_1" } },
+    { cap: "notifications.mute.set", input: { target: { kind: "thread", id: "thr_1" }, minutes: 60 } },
+    { cap: "notifications.mute.set", input: { target: { kind: "thread", id: "thr_1" } } },
+    { cap: "notifications.mute.clear", input: { target: { kind: "thread", id: "thr_1" } } },
+  ]);
+});

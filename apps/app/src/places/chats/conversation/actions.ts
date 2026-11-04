@@ -74,15 +74,6 @@ export async function stopAll(data: ConversationData): Promise<void> {
   await data.call("engine.stop_all", { threadId: data.threadId } satisfies CapMap["engine.stop_all"]["in"]);
 }
 
-/** Leads or Listening for one agent. The engine keeps one lead per thread: making another agent lead turns the old lead into a listener and says which. */
-export async function setMode(data: ConversationData, agentId: string, mode: AgentMode): Promise<CapMap["engine.set_mode"]["out"]> {
-  return (await data.call("engine.set_mode", { threadId: data.threadId, agentId, mode } satisfies CapMap["engine.set_mode"]["in"])) as CapMap["engine.set_mode"]["out"];
-}
-
-export async function addAgent(data: ConversationData, agentId: string): Promise<void> {
-  await data.call("threads.add_agent", { threadId: data.threadId, agentId, mode: "listen" } satisfies CapMap["threads.add_agent"]["in"]);
-}
-
 export async function removeAgent(data: ConversationData, agentId: string): Promise<void> {
   await data.call("threads.remove_agent", { threadId: data.threadId, agentId } satisfies CapMap["threads.remove_agent"]["in"]);
 }
@@ -149,6 +140,14 @@ export async function turnDetail(data: ConversationData, turnId: string): Promis
   return rows;
 }
 
+/** Ask again: the turn that made this reply runs once more (engine.turn.of_message finds it, engine.turn.retry runs it). Rejects when the message was not made by a turn. */
+export async function regenerate(data: ConversationData, messageId: string): Promise<void> {
+  const out = (await data.call("engine.turn.of_message", { threadId: data.threadId, messageId } satisfies CapMap["engine.turn.of_message"]["in"])) as CapMap["engine.turn.of_message"]["out"] | null;
+  const turnId = out?.turn?.turnId;
+  if (!turnId) throw new Error("no turn made this reply");
+  await retryTurn(data, turnId);
+}
+
 export async function retryTurn(data: ConversationData, turnId: string): Promise<void> {
   await data.call("engine.turn.retry", { turnId } satisfies CapMap["engine.turn.retry"]["in"]);
 }
@@ -200,7 +199,12 @@ export async function hasWorkingAccount(data: ConversationData): Promise<boolean
   return out.accounts.some((a) => a.status === "ok");
 }
 
-/** A private chat never gains people: @mentioning a person offers "Start a channel with them", a new channel linked back. */
+/** @mentioning a person who is not in a private chat offers "Add <name>" first (this chat becomes a group chat; they read from now on), and "Start a channel instead" second, a new channel linked back. */
+export async function addPerson(data: ConversationData, personId: string, fromStart = false): Promise<void> {
+  await data.call("threads.members.add", { threadId: data.threadId, personId, ...(fromStart ? { fromStart: true } : {}) } satisfies CapMap["threads.members.add"]["in"]);
+}
+
+/** Starts a channel with the person: a new channel linked back to the chat. */
 export async function startChannel(data: ConversationData, personId: string, key: string): Promise<void> {
   await data.call("threads.make_channel", { threadId: data.threadId, personId, idempotencyKey: key } satisfies CapMap["threads.make_channel"]["in"]);
 }

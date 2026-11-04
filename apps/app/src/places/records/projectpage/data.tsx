@@ -47,9 +47,9 @@ export interface ProjectNav {
 
 export interface ProjectPageData {
   call(cap: string, input: unknown): Promise<unknown>;
-  /** Who is asking: what the right-click menu offers follows their role on the project. */
-  me?: string;
   nameOf(id: string): string;
+  /** The signed-in person: the Add people and agents sheet shows an outside agent of theirs as "<name> (Agent)". Absent: "You". */
+  me?: { id: string; name: string };
   now(): number;
   nav: ProjectNav;
   /** Names of files by id, for the pinned files. */
