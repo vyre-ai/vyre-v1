@@ -2,6 +2,8 @@
 // people menu, a channel, a reply thread (the right pane), a project's members and teammates, and the new-chat landing. The picks become capability calls through the sheet's own addCalls.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { act } from "react";
+import type { Node } from "../../../onboarding/test-dom.ts";
 import { createRoot } from "test-renderer";
 import { mount, press, find, flush, typeInto, textOf } from "../../../onboarding/test-dom.ts";
 import { Conversation } from "../conversation/Conversation.tsx";
@@ -12,7 +14,16 @@ import { ProjectPage, ProjectPageDataProvider } from "../../records/projectpage/
 import { createSampleProject } from "../../records/projectpage/sample.ts";
 import { useAddSheet } from "./index.ts";
 import type { AddSheetApi } from "./index.ts";
-import { SHEET, withDom, testIds, pickAndAdd, rightClick } from "./addsheet.support.tsx";
+import { SHEET, withDom, testIds, pickAndAdd } from "./addsheet.support.tsx";
+
+// a right-click on a row, the way the app gets one (kept in the test file: only tests fire a native context menu)
+async function rightClick(root: Node, id: string): Promise<void> {
+  const open = find(root, id)?.props["onContextMenu"] as ((e: unknown) => void) | undefined;
+  assert.equal(typeof open, "function", id);
+  await act(async () => { open?.({ preventDefault() {}, nativeEvent: { pageX: 20, pageY: 20 }, pageX: 20, pageY: 20, clientX: 20, clientY: 20 }); });
+  await flush();
+}
+
 
 test("the composer's + has Add people and agents under This chat, and it opens the sheet", async () => {
   await withDom(async () => {

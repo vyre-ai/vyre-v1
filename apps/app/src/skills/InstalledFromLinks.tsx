@@ -68,13 +68,15 @@ export function InstalledFromLinks({ call, nameOf = (id) => id }: { call: Call; 
     catch (e) { setNote(e instanceof Error && e.message ? e.message : "Could not remove it."); } finally { setBusy(false); }
   };
 
+  // the square behind a row's kind glyph (a quiet tile, not the row's hover)
+  const tileOf = (i: (typeof rows)[number]): ReactElement => <View style={{ width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--hover)" }}><Glyph name={i.kind === "skill" ? "spark" : "plug"} size={15} color="var(--ink-2)" /></View>;
   return <View testID="skills-installed">
     <Section title="Installed from links" testID="skills-installed-section" note="Each is pinned to the commit it was read at. Nothing updates by itself: See changes shows what a newer commit does first.">
       {rows.map((i) => (
         <Row key={i.installId} id={`install-row-${i.installId}`} tall title={i.name} titleSuffix={KIND_SHORT[i.kind]}
           {...(ready[i.installId] ? { titleMarks: <Text testID={`install-ready-${i.installId}`} style={{ fontSize: 12, color: "var(--accent)" }}>{`v${ready[i.installId]!.version.replace(/^v/, "")} is ready`}</Text> } : {})}
           note={`${nameOf(i.by)} installed it ${dayOf(i.at)} · for ${FOR_WORDS[String(i.installed["for"] ?? "me")] ?? "you"} · ${i.commit ? `Commit ${shortOf(i.commit)}` : i.repo || i.url}${i.version ? ` · v${i.version.replace(/^v/, "")}` : ""}`}
-          leading={<View style={{ width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--hover)" }}><Glyph name={i.kind === "skill" ? "spark" : "plug"} size={15} color="var(--ink-2)" /></View>}
+          leading={tileOf(i)}
           trailing={<View style={{ flexDirection: "row", gap: 6 }}>
             {ready[i.installId] ? <SmallButton label="See changes" testID={`install-see-${i.installId}`} disabled={busy} onPress={() => void see(i)} /> : null}
             <GhostButton label="Remove" testID={`install-remove-${i.installId}`} disabled={busy} onPress={() => void remove(i)} />
