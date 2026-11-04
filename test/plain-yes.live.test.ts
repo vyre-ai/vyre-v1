@@ -46,6 +46,13 @@ test("Team: 'yes' to the proposal lets that act through with no card, even after
     assert.equal((await api("usr_olivia", "agents.update", { agentId, patch: { accountPolicy: "key", accountKey: acct.data.provider.handle }, idempotencyKey: "py-upd" })).status, 200);
     const chat = (await api("usr_mia", "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: "py-chat" })).data.thread.threadId as string;
     const dm = (await api("usr_mia", "chat.start", { kind: "chat", agentIds: [], personId: "usr_noah", idempotencyKey: "py-dm" })).data.thread.threadId as string;
+    // since the owner ruling of 4 Nov (597f5142e, agent-dm.ts writesForPerson) a Space agent writes as itself in its own chat with the teammate, not in the person's DM: read all of Noah's chats
+    const noahSees = async (): Promise<Msg[]> => {
+      await d.hooks?.pump?.();
+      const threads = ((await api("usr_noah", "threads.list", { kind: ["chat"], limit: 50 })).data.threads ?? []) as Array<{ threadId: string }>;
+      return (await Promise.all(threads.map((t) => list("usr_noah", t.threadId)))).flat();
+    };
+    void dm;
     let k = 0;
     const say = (body: string) => api("usr_mia", "chat.post", { threadId: chat, body, mentions: [{ kind: "agent", id: agentId }], idempotencyKey: `py-${++k}` });
     const agentSaid = (re: RegExp) => waitFor(async () => (await list("usr_mia", chat)).find((m) => m.author?.kind === "agent" && re.test(m.body ?? "")) ?? null, 30_000, () => hostLog(d));
@@ -57,13 +64,13 @@ test("Team: 'yes' to the proposal lets that act through with no card, even after
     await say("yes");
     await say("^");
     await agentSaid(/^Sent 1\./);
-    assert.ok((await list("usr_noah", dm)).some((m) => /Figures note 1/.test(m.body ?? "")), "Noah has it");
+    assert.ok((await noahSees()).some((m) => /Figures note 1/.test(m.body ?? "")), "Noah has it");
     assert.equal(await cards(), 0, "no card was shown");
 
     // 2. it was one yes for one act: the next message to Noah waits
     await say("^");
     await waitFor(async () => ((await cards()) === 1 ? true : null), 30_000, () => hostLog(d));
-    assert.ok(!(await list("usr_noah", dm)).some((m) => /Figures note 2/.test(m.body ?? "")), "the second one needs its own yes");
+    assert.ok(!(await noahSees()).some((m) => /Figures note 2/.test(m.body ?? "")), "the second one needs its own yes");
 
     // 3. a yes to a proposal of something else (a push) opens nothing for a message to Noah
     await say("status?");
@@ -71,6 +78,6 @@ test("Team: 'yes' to the proposal lets that act through with no card, even after
     await say("yes");
     await say("^");
     await waitFor(async () => ((await cards()) === 2 ? true : null), 30_000, () => hostLog(d));
-    assert.ok(!(await list("usr_noah", dm)).some((m) => /Figures note 3/.test(m.body ?? "")), "held: a yes to a push is not a yes to a message");
+    assert.ok(!(await noahSees()).some((m) => /Figures note 3/.test(m.body ?? "")), "held: a yes to a push is not a yes to a message");
   } catch (e) { console.error("FAILED:", e instanceof Error ? e.message.slice(0, 1500) : e); throw e; } finally { await stop(d); }
 });
