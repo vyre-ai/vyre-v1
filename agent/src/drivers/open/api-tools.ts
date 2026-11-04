@@ -56,8 +56,14 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
       const loaded = d.session.loaded(input.threadId);
       const extra = d.extra ? await d.extra(c).catch(() => []) : [];
       const tools = [...set.listed, ...set.searchable.filter((t) => loaded.has(t.name)), ...extra].map(view);
-      return { system, tools };
+      // the same set read again: after tool_search the loaded set has grown, and the driver adds what is new to the next step of the turn
+      const reload = async (): Promise<ApiTool[]> => {
+        const now = d.session.toolsFor(c);
+        const have = d.session.loaded(input.threadId);
+        return [...now.listed, ...now.searchable.filter((t) => have.has(t.name)), ...extra].map(view);
+      };
+      return { system, tools, reload };
     },
-    runner: toolRunnerFrom(async (call, ctx) => { await d.prepare?.(ctx); return d.session.call(ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId), call.name, call.input); }),
+    runner: toolRunnerFrom(async (call, ctx) => { await d.prepare?.(ctx); return d.session.call({ ...ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId), ...(ctx.said !== undefined ? { said: ctx.said } : {}) }, call.name, call.input); }),
   };
 }

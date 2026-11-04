@@ -33,7 +33,7 @@ const accountRef = t.str({ description: 'Vault handle or subscription account re
 const errShape = t.obj({ code: t.str(), message: t.str(), next: t.arr(t.obj({ kind: t.str(), label: t.str() })), traceId: id.trace });
 const modelInfo = t.obj({
   provider: t.str({ examples: ['anthropic'] }), model: t.str({ examples: ['claude-sonnet-5-5'] }), title: t.str(), driver: driverId, contextTokens: t.opt(t.int()),
-  allowed: t.bool(), reason: t.opt(t.enm('label_provider', 'policy_model', 'not_connected', 'usage_limit')),
+  allowed: t.bool(), reason: t.opt(t.enm('label_provider', 'policy_model', 'not_connected', 'usage_limit', 'checking')),
   resetsAt: t.opt(t.ts()),
   alias: t.opt(t.str({ description: "The engine's own name that resolves to this model today (Claude Code's opus); a pick saved as the alias is this model", examples: ['opus'] })),
   isDefault: t.opt(t.bool()),
@@ -245,7 +245,7 @@ export default defineManifest({
     }),
     write('engine.turn.record', 'Record a turn the in-process engine ran for a chat (started, then completed, failed or cancelled) under the engine\'s own turn id, so the turn list, review sampling and the agent\'s Working status see it; a repeat answers with what is already recorded', {
       in: {
-        ...threadT, turnId: id.turn, agentId: id.agent, phase: t.enm('started', 'completed', 'failed', 'cancelled'), qseq: t.int(), asker: t.opt(t.str()), engine: t.opt(t.str()), model: t.opt(t.str()), accountRef: t.opt(accountRef),
+        ...threadT, turnId: id.turn, agentId: id.agent, phase: t.enm('started', 'waiting', 'completed', 'failed', 'cancelled'), qseq: t.int(), asker: t.opt(t.str()), engine: t.opt(t.str()), model: t.opt(t.str()), accountRef: t.opt(accountRef),
         tokensIn: t.opt(t.int()), tokensOut: t.opt(t.int()), costMicros: t.opt(t.int()), code: t.opt(t.str()), message: t.opt(t.str()),
         info: t.opt(turnInfoIn),
       },
@@ -339,6 +339,11 @@ export default defineManifest({
       },
       on: ['thread', '/threadId'], tool: 'meta', errors: ['validation.not_found'],
     }),
+    read('engine.time_convert', 'Convert a time between time zones, or turn "tomorrow 2pm" into a time. Use it for any time not already in the person\'s zone; never work out zones, dates or epoch numbers yourself', {
+      in: { when: t.str({ minLength: 1, maxLength: 120, description: 'The time as said: "Thursday 5 Nov 2pm", "tomorrow 14:00", "2026-11-05 14:00", "in 3 hours"' }), from: t.opt(t.str({ maxLength: 60, description: 'The zone it was said in: PT, ET, PKT, UTC or America/Los_Angeles. Default: the person\'s' })), to: t.opt(t.arr(t.str({ maxLength: 60 }), { description: 'The zones to show it in' })), zone: t.opt(t.str({ maxLength: 60, description: 'The person\'s zone, when it is known; the profile\'s is used otherwise' })) },
+      out: { instant: t.str(), given: t.str(), zones: t.opt(t.arr(t.obj({ zone: t.str(), text: t.str() }))), inYourZone: t.str(), personZone: t.str(), note: t.opt(t.str()) },
+      tool: 'meta', mcpName: 'time_convert', errors: ['validation.bad_input'],
+    }),
     read('engine.my_ai', 'What AI this chat runs on and what else the person may use now: model, account and who paid, each usable account with models and limits (or not readable), and use today and this month. Ask it for what model, what else, what is left, /usage', {
       in: { threadId: t.opt(id.thread), agentId: t.opt(id.agent) },
       out: {
@@ -377,6 +382,9 @@ export default defineManifest({
     }),
     read('engine.defaults.get', 'The caller default model, provider, effort and fallback order in this Space', {
       out: { provider: t.opt(t.str()), model: t.opt(t.str()), effort: t.opt(effort), fallback: t.arr(t.obj({ provider: t.str(), model: t.str(), accountRef: t.opt(accountRef) })) }, tool: 'meta',
+    }),
+    read('engine.last_pick.get', 'The model the caller last picked in a chat (any agent): a new chat starts on it. Empty when they have not picked one yet', {
+      out: { provider: t.opt(t.str()), model: t.opt(t.str()), effort: t.opt(effort) }, tool: 'meta',
     }),
     write('engine.defaults.set', 'Set the caller default model, provider, effort and fallback order (the chat default)', {
       in: { provider: t.opt(t.str()), model: t.opt(t.str()), effort: t.opt(effort), fallback: t.opt(t.arr(t.obj({ provider: t.str(), model: t.str(), accountRef: t.opt(accountRef) }))) },
@@ -603,7 +611,7 @@ export default defineManifest({
     screen('settings.models-usage', 'settings', 'ui:ModelsUsage', {
       q: {
         accounts: ['engine.accounts.list', {}, true], models: ['engine.models.list', { accountRef: '/state/accountRef' }, true], defaults: ['engine.defaults.get', {}, true],
-        usage: ['engine.usage.query', { by: '/state/by', from: '/state/from', to: '/state/to' }, true],
+        usage: ['engine.usage.query', { by: '/state/by', from: '/state/from', to: '/state/to', personId: '/state/personId' }, true],
       },
       // No "Let the Space continue my chats when my computer is off" toggle here (owner ruling, 3 Nov 2026): it is on by default and its screen comes back with sealed chats.
       // engine.runtime.opt_in stays a capability; only the Settings action is gone.

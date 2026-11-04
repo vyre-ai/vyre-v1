@@ -18,14 +18,18 @@ import { preview, withMode } from "./lead.ts";
 import type {
   AgentMode, DriverEvent, EngineAgent, EngineEvent, EngineSession, IncomingMessage, OpenSession, OpenThread, Placement, PreviewResult,
   QueueItem, ReceiveResult, SpendRow, StoredMessage, ToolResult, ToolTrace, TurnInfo, TurnRow,
-  AccountQuery, ResolvedAccount,
+  AccountQuery, ModelQuery, ResolvedAccount,
 } from "./types.ts";
 import type { RoutePolicy, RouteMention } from "../../../lib/route.ts";
 
-export interface ToolContext { threadId: string; turnId: string; agentId: string; asker: string }
+export interface ToolContext {
+  threadId: string; turnId: string; agentId: string; asker: string;
+  /** What the people in the chat said since this agent last spoke: a value a person typed themselves is theirs to ask for, however much it looks like a placeholder (lib/probe.ts). */
+  said?: string;
+}
 /** A tool call parked at the Gate: the task that decides it, and the Run when the call belongs to one. */
 export interface HeldCall { taskId: string; runId?: string }
-export type ToolRunResult = ToolResult & { held?: HeldCall };
+export type ToolRunResult = ToolResult & { held?: HeldCall; /** a question asked of the person: park on its block, no further model call until it is answered */ parkOn?: { blockId: string } };
 export type ToolRunner = (call: { id: string; name: string; input: unknown }, ctx: ToolContext) => Promise<ToolRunResult>;
 
 export interface StopResult {
@@ -53,6 +57,11 @@ export interface EngineOptions {
    * this turn; null means nothing is left and the turn fails as it did. Only before the turn produced anything: a half-written answer is never repeated on another account.
    */
   nextAccount?: (q: AccountQuery) => Promise<ResolvedAccount | null>;
+  /**
+   * The model the turn asked for is not available on the account (the engine said so, engine.model_unavailable) and nothing was said yet: the host picks the next best model, makes it the chat's pick,
+   * says so in one quiet line and answers the account that serves it; the turn runs again at once. Null: nothing else to try, the turn fails as it did. A throw with a `code` ends the turn with that code.
+   */
+  nextModel?: (q: ModelQuery) => Promise<ResolvedAccount | null>;
   /** No account could be found for a turn: raise the Unblock task for the starter; when it is answered the host calls wake() to run the turn again. */
   onNoAccount?: (info: { threadId: string; turnId: string; agentId: string; asker: string; routine: boolean }) => Promise<void> | void;
   /**
@@ -64,6 +73,8 @@ export interface EngineOptions {
   lostTurn?: (row: QueueItem) => string;
   /** A turn ended (completed, failed or cancelled): meter its usage. Not called for a turn parked on a held call until it ends. */
   onTurnEnd?: (turn: Readonly<TurnRow>, account: ResolvedAccount | null) => Promise<void> | void;
+  /** A turn ended without waiting while a question it asked is still open: withdraw it, so no card or task is left behind for nobody. */
+  onQuestionsLeft?: (turn: Readonly<TurnRow>, blockIds: readonly string[]) => Promise<void> | void;
   /** The engine of a turn reported a limit window of the paying account (percent used and reset time). Keep the latest per account; it must never fail the turn. */
   onLimits?: (account: ResolvedAccount, limits: { window: "session" | "week"; pct: number; resetsAt?: number }) => Promise<void> | void;
   queue?: QueueStore;
@@ -116,6 +127,9 @@ const KEEP_TURNS = 5_000;
 const ACCOUNT_FAILURE: ReadonlySet<string> = new Set(["provider.auth_failed", "auth.expired", "provider.rate_limited", "provider.overloaded"]);
 /** The vendor is busy (owner ruling, 3 Nov 2026): one more try on the same account before the backup takes the turn. Not a limit. */
 const OVERLOADED = "provider.overloaded";
+const MODEL_GONE = "engine.model_unavailable";
+/** How many models a turn moves through before it gives up. */
+const MAX_MODEL_SWITCHES = 4;
 const MAX_FALLBACKS = 8;
 
 interface Running { turnId: string; agentId: string; asker: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean; /** why it was cancelled, said in the chat */ why?: string }
@@ -148,6 +162,8 @@ export interface TurnEngine {
   interrupt(threadId: string, messageId?: string): Promise<InterruptResult>;
   /** A held tool call was answered (approved or denied): queue the wake that continues the parked turn. Null when the task is unknown or already answered. */
   resume(taskId: string, outcome: ResumeOutcome): number | null;
+  /** A question the turn parked on was answered or withdrawn: the wait is over. The answer itself wakes the agent as a message (chat tellAgent), so nothing is queued here. False when no turn waits on it. */
+  release(blockId: string): boolean;
   /** Turns parked on a held tool call in this thread. */
   waiting(threadId: string): Array<{ turnId: string; agentId: string; taskId: string }>;
   setMode(threadId: string, agentId: string, mode: AgentMode): void;
@@ -363,6 +379,17 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     if (spendRows.length > KEEP_TURNS) spendRows.splice(0, spendRows.length - KEEP_TURNS);
   }
 
+  /** The words people wrote in this chat since the agent last spoke (newest first back to its last message). */
+  function saidSince(st: ThreadState, agentId: string): string {
+    const out: string[] = [];
+    for (let i = st.messages.length - 1; i >= 0; i--) {
+      const m = st.messages[i]!;
+      if (m.author.kind === "agent" && m.author.id === agentId) break;
+      if (m.author.kind === "person") out.push(m.body);
+    }
+    return out.join("\n");
+  }
+
   async function runTurn(st: ThreadState, item: QueueItem): Promise<void> {
     const agent = st.thread.agents.find((a) => a.id === item.agentId);
     // A wake that continues a parked turn runs on the account that was paying, and answers the held call.
@@ -381,6 +408,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // a refused personless turn is recorded for nobody: not the starter, whose access it never had
     const asker = orphan ? "" : wait?.asker ?? (account ? account.payer : payer.asker);
     const reason = wait ? ("starter" as const) : payer.reason;
+    // the wake continues a parked turn: that turn is over now, with the usage it had at the hold (the wake is its own row with its own)
+    if (wait) {
+      const was = turnRows.find((t) => t.id === wait.turnId);
+      if (was && was.state === "waiting") { was.state = "completed"; was.endedAt = now(); emit({ type: "turn.resumed", threadId: st.thread.id, turnId: was.id, agentId: was.agentId }); }
+    }
     const turn: TurnRow = {
       id: nextId("t"), threadId: st.thread.id, agentId: item.agentId, asker, payerReason: reason, model: agent?.model ?? null, state: "running",
       traceId: nextId("tr"), qseq: item.qseq, kind: item.kind, routine: item.routine, startedAt: now(), endedAt: null,
@@ -414,6 +446,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     const trigger = findMessage(st, item.messageId);
     let paying: ResolvedAccount | null | undefined = account;
     let parked: { callId: string; name: string; held: HeldCall } | null = null;
+    const asked: string[] = [];
+    let afterTool = false;
     let reply = "";
     let mentions: readonly RouteMention[] = [];
     let blockIdx = 0;
@@ -436,6 +470,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       }
       const failedRefs: string[] = [];
       const busyTried = new Set<string>();
+      let modelSwitches = 0;
       for (;;) {
       const session = await opts.openSession({ threadId: st.thread.id, agent, asker, turnId: turn.id, traceId: turn.traceId, ...(paying ? { account: paying } : {}) });
       run.session = session;
@@ -460,17 +495,30 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           case "thinking":
             if (turn.firstTokenOverheadMs === null) turn.firstTokenOverheadMs = Math.max(0, hr() - t0 - (session.providerLatencyMs ?? 0));
             info.firstTokenAt ??= now();
-            if (ev.type === "text") { reply += ev.text; pending += ev.text; if (hr() - lastFlush >= blockMs) flush("text"); }
+            if (ev.type === "text") {
+              // text that comes after a tool step is a new paragraph, not a continuation: "A." then a tool then "B." reads "A.\n\nB.", never "A.B."
+              const text = afterTool && reply !== "" && !/\s$/.test(reply) && !/^\s/.test(ev.text) ? `\n\n${ev.text}` : ev.text;
+              afterTool = false;
+              reply += text; pending += text; if (hr() - lastFlush >= blockMs) flush("text");
+            }
             break;
           case "tool_call": {
             flush("text");
             flush("tool_call");
             inTool = true;
+            afterTool = true;
             queue.touch(st.thread.id, item.qseq);
             const trace = traceTool(info, { id: ev.id, name: ev.name, startedAt: now(), ...detailOf(ev.input) });
-            const result = await runTool(opts.callTool, { id: ev.id, name: ev.name, input: ev.input }, { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker }).finally(() => { inTool = false; lastSeen = hr(); });
+            const result = await runTool(opts.callTool, { id: ev.id, name: ev.name, input: ev.input }, { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker, said: saidSince(st, item.agentId) }).finally(() => { inTool = false; lastSeen = hr(); });
             if (trace) { trace.endedAt = now(); trace.ok = result.ok; if (result.held) trace.held = result.held.taskId; }
+            if (result.parkOn) asked.push(result.parkOn.blockId);
             if (run.cancelled || run.lostLease) break;
+            if (result.parkOn && !result.held) {
+              // ask_question: the card is in the chat and a task is in Needs you; the turn stops here and the answer wakes the agent, so nothing more is said or asked meanwhile
+              parked = { callId: ev.id, name: ev.name, held: { taskId: result.parkOn.blockId } };
+              ended = true;
+              break;
+            }
             if (result.held) {
               // Held at the Gate: no mode, Ask, Allow or Auto, turns this into a result. The turn parks on the task.
               parked = { callId: ev.id, name: ev.name, held: result.held };
@@ -520,6 +568,17 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
               ended = true;
               break;
             }
+            // The model is not there on this account, before the turn said anything: the next best model answers, and the person never retries by hand.
+            if (ev.code === MODEL_GONE && opts.nextModel && paying && reply === "" && blockIdx === 0 && modelSwitches < MAX_MODEL_SWITCHES) {
+              modelSwitches += 1;
+              try { switchTo = await opts.nextModel({ threadId: st.thread.id, agentId: item.agentId, askerId: asker, account: paying, message: ev.message }); }
+              catch (e) {
+                const code = (e as { code?: unknown } | null)?.code;
+                if (typeof code === "string") { flush("text"); turn.error = { code, message: e instanceof Error ? e.message : code }; ended = true; break; }
+                switchTo = null;
+              }
+              if (switchTo) { ended = true; break; }
+            }
             // A key that is refused or out of quota, before the turn said anything: the next account in the agent's order takes it, and the failed one is skipped.
             if (opts.nextAccount && paying && ACCOUNT_FAILURE.has(ev.code) && reply === "" && blockIdx === 0 && failedRefs.length < MAX_FALLBACKS) {
               try { switchTo = await opts.nextAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: asker, unavailable: [...failedRefs, paying.ref], ...(ev.code === OVERLOADED ? { why: "overloaded" as const } : {}) }); }
@@ -541,7 +600,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       }
       if (switchTo) {
         try { await session.close(); } catch { /* dropped */ }
-        info.switches.push({ at: now(), from: paying?.ref ?? "", to: switchTo.ref, why: lastCode });
+        if (lastCode !== MODEL_GONE) info.switches.push({ at: now(), from: paying?.ref ?? "", to: switchTo.ref, why: lastCode });
         paying = switchTo;
         continue;
       }
@@ -571,9 +630,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       });
       queue.setState(st.thread.id, item.qseq, "done");
       recordSpend(turn);
+      // what the turn cost up to the hold is metered now: the wake is a new turn row with its own usage, and this one would otherwise stay at nothing
+      try { await opts.onTurnEnd?.(turn, paying ?? null); } catch { /* metering must never fail the turn */ }
       emit({ type: "turn.waiting", threadId: st.thread.id, reason: "approval", turnId: turn.id, agentId: turn.agentId, taskId: parked.held.taskId, ...(parked.held.runId === undefined ? {} : { runId: parked.held.runId }) });
       return;
     }
+    if (asked.length > 0) { try { await opts.onQuestionsLeft?.(turn, asked); } catch { /* a question that cannot be withdrawn stays in its chat */ } }
     turn.endedAt = now();
     settleInfo(info, paying ?? null, usages, priced);
     if (run.cancelled) turn.state = "cancelled";
@@ -667,6 +729,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       if (!waits.resolve(taskId, { approved: outcome.approved, result }, item.qseq)) { queue.setState(w.threadId, item.qseq, "cancelled"); return null; }
       kick(st);
       return item.qseq;
+    },
+    release(blockId) {
+      const w = waits.get(blockId);
+      if (!w || w.resolution) return false;
+      return waits.resolve(blockId, { approved: true, result: { ok: true, content: { answered: true } } }, -1);
     },
     waiting: (threadId) => waits.open(threadId).filter((w) => w.resolution === null).map((w) => ({ turnId: w.turnId, agentId: w.agentId, taskId: w.taskId })),
     setStarter(threadId, starter) {

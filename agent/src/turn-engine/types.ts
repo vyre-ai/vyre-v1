@@ -165,6 +165,8 @@ export type EngineEvent =
   | { type: "turn.waiting"; threadId: string; reason: "hop_limit"; messageId: string }
   /** A tool call was held at the Gate (ARCH 6.7): the turn parks on the approval task and a wake continues it once the task is answered. */
   | { type: "turn.waiting"; threadId: string; reason: "approval"; turnId: string; agentId: string; taskId: string; runId?: string }
+  /** A parked turn is over: its wake started as a turn of its own. */
+  | { type: "turn.resumed"; threadId: string; turnId: string; agentId: string }
   | { type: "turn.completed"; threadId: string; turnId: string; agentId: string }
   | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** a turn a dead host left (code host_lost): its queue row and whom it ran for */ qseq?: number; asker?: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string }
   | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string; /** why it was stopped: interrupt, stop, limit, left, moved, lease */ reason?: string }
@@ -280,6 +282,8 @@ export interface AccountQuery {
   /** Why the last account was left: "overloaded" is the vendor being busy, not a limit, so it is not set aside to rest and the chat says it was busy. */
   why?: "overloaded";
 }
+/** A turn whose model the engine said is not available: who asked, on which account, and the engine's own words (Details only). */
+export interface ModelQuery { threadId: string; agentId: string; askerId: string; account: ResolvedAccount; message: string }
 export interface SessionSpec {
   threadId: string; agent: EngineAgent; asker: string; turnId: string; traceId: string; account?: ResolvedAccount;
   /** The chat's mode for this turn. Absent: the driver's older behaviour (a session of a step or a one-shot job has no chat mode). */

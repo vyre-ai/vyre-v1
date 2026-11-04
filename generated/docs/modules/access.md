@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (73)
+## Capabilities (74)
 
 - [access.actors.create](../capabilities/access.actors.create.md): Register an outside actor and issue a one-time token (works once, within 10 minutes)
 - [access.actors.list](../capabilities/access.actors.list.md): List outside actors (registered external tools such as Claude Code or Codex)
@@ -40,6 +40,7 @@ Requires: files.
 - [access.labels.list](../capabilities/access.labels.list.md): The four sensitivity labels with rank, provider rule and laptop-sync rule
 - [access.labels.set](../capabilities/access.labels.set.md): Set the sensitivity label of a folder, channel, inbox or other container (items inherit unless set)
 - [access.lists](../capabilities/access.lists.md): Items of one type in a section (Personal, Shared with me, Space, Starred, Following) with folder counts
+- [access.make_owner](../capabilities/access.make_owner.md): The owner hands an item to someone else: they become the owner and the previous owner keeps Manage
 - [access.policies.list](../capabilities/access.policies.list.md): List Space policies (Gate rules, spend, label rules, sign-in, sharing, retention, vault)
 - [access.policies.reset](../capabilities/access.policies.reset.md): Reset a policy to its default
 - [access.policies.set](../capabilities/access.policies.set.md): Set a policy value; applies last in the decision
@@ -80,7 +81,7 @@ Requires: files.
 - [folders.rename](../capabilities/folders.rename.md): Rename a folder
 - [folders.unplace](../capabilities/folders.unplace.md): Take an item out of its folder back to the top of its section
 
-## Events (20)
+## Events (21)
 
 - [access.changed](../events/access.changed.md): Roles, groups, labels or membership changed; bumps the authorize cache epoch
 - [access.declined](../events/access.declined.md): An access request was declined; the note goes back to the requester
@@ -89,6 +90,7 @@ Requires: files.
 - [access.exception_set](../events/access.exception_set.md): A person or group was given a permission exception: Allowed or Not allowed on permissions, against their role
 - [access.granted](../events/access.granted.md): An access request was approved
 - [access.requested](../events/access.requested.md): Someone asked for access to a resource
+- [access.shared_with](../events/access.shared_with.md): A person was told an item was shared with them (when the sharer asked for that)
 - [access_review.closed](../events/access_review.closed.md): An access review closed
 - [access_review.opened](../events/access_review.opened.md): A quarterly access review opened and made its tasks
 - [folder.shared](../events/folder.shared.md): A folder was shared or unshared; everything in it follows

@@ -8,6 +8,8 @@ import { defineManifest, ev, read, screen, setting, t, write } from '../packages
 import { id } from './_common.ts';
 
 const V = { level: 'view' } as const;
+const contactChannel = t.enm('email', 'phone');
+const contactState = t.obj({ verified: t.bool(), canVerify: t.bool(), pending: t.bool() });
 const scope = t.enm('space', 'person');
 const settingRow = t.obj({
   key: t.str({ examples: ['profile.timezone'] }), scope, page: t.str({ examples: ['profile'] }), title: t.str(), value: t.json(), default: t.json(),
@@ -25,10 +27,23 @@ export default defineManifest({
 
   events: [
     ev('settings.changed', 'A setting changed (settings hold no secrets)', { p: { key: t.str(), scope, person: t.opt(id.user), before: t.json(), after: t.json(), by: t.str() }, subject: ['entity', '/key'] }),
+    ev('settings.contact_code_sent', 'A verification code was sent to my email or phone (the code is never in the log)', { p: { person: id.user, channel: t.enm('email', 'phone') }, subject: ['entity', '/person'], retention: 'audit' }),
+    ev('settings.contact_verified', 'My email or phone was confirmed with its code', { p: { person: id.user, channel: t.enm('email', 'phone') }, subject: ['entity', '/person'], retention: 'audit' }),
+    ev('settings.contact_unverified', 'My email or phone changed, so its tick went', { p: { person: id.user, channel: t.enm('email', 'phone'), why: t.str() }, subject: ['entity', '/person'], retention: 'audit' }),
+    ev('settings.contact_code_failed', 'A verification code was refused: wrong, expired, too many tries or not asked for', { p: { person: id.user, channel: t.enm('email', 'phone'), reason: t.str() }, subject: ['entity', '/person'], retention: 'audit' }),
     ev('settings.floor_changed', 'The owner floor on a setting changed; nobody may go below it', { p: { key: t.str(), by: t.str() }, subject: ['entity', '/key'], retention: 'audit' }),
   ],
 
   capabilities: [
+    read('settings.contact.status', 'Whether my email and phone are verified, whether a code is waiting, and whether this Space can send one (no phone line: no Verify)', {
+      ...V, in: {}, out: { email: contactState, phone: contactState }, tool: 'meta',
+    }),
+    write('settings.contact.verify_start', 'Send a 6-digit code to my email or phone through the Space mail sender or its phone line; it lasts 10 minutes, 3 an hour', {
+      ...V, in: { channel: contactChannel }, out: { sent: t.bool(), verified: t.bool(), expiresAt: t.int() }, emits: ['settings.contact_code_sent'], audit: 'always', tool: 'meta', errors: ['validation.precondition_failed', 'rate_limit.exceeded'],
+    }),
+    write('settings.contact.verify_confirm', 'Confirm the code that was sent; the tick shows only after this', {
+      ...V, in: { channel: contactChannel, code: t.str({ minLength: 4, maxLength: 12 }) }, out: { verified: t.bool() }, emits: ['settings.contact_verified', 'settings.contact_code_failed'], audit: 'always', tool: 'meta', errors: ['auth.invalid_code', 'auth.expired', 'validation.precondition_failed', 'rate_limit.exceeded'],
+    }),
     read('settings.pages', 'The settings pages a person has, with row counts', {
       level: 'member', in: {}, out: { pages: t.arr(t.obj({ key: t.str(), title: t.str(), group: t.enm('you', 'space'), rows: t.int({ minimum: 0 }) })) }, tool: 'meta',
     }),
@@ -48,8 +63,8 @@ export default defineManifest({
     }),
 
     // A teammate's time zone and working hours, as they set them (lane l-agentdm): public by nature, so an agent can tell when a message reaches them during their day. Nothing else of theirs.
-    read('settings.public_of', 'A teammate\'s time zone and working hours, only when they set them themselves', {
-      ...V, in: { personId: id.user }, out: { timezone: t.opt(t.str()), hours: t.opt(t.obj({ days: t.arr(t.int({ minimum: 0, maximum: 6 })), from: t.str(), to: t.str() })) },
+    read('settings.public_of', 'A teammate\'s time zone, working hours, pronouns, title and a public phone, only when they set them themselves', {
+      ...V, in: { personId: id.user }, out: { timezone: t.opt(t.str()), hours: t.opt(t.obj({ days: t.arr(t.int({ minimum: 0, maximum: 6 })), from: t.str(), to: t.str() })), pronouns: t.opt(t.str()), title: t.opt(t.str()), phone: t.opt(t.str()) },
     }),
 
     // ---- Copy from another Space
@@ -82,10 +97,17 @@ export default defineManifest({
     setting('profile.handle', 'person', 'profile', 'Handle', t.str({ pattern: '^([a-z0-9_.-]{2,32})?$' }), ''),
     setting('profile.title', 'person', 'profile', 'Title', t.str(), ''),
     setting('profile.photo', 'person', 'profile', 'Photo', t.nullable(id.file), null),
+    setting('profile.pronouns', 'person', 'profile', 'Pronouns', t.str({ maxLength: 40, description: 'Optional, in the person\'s own words; Vyre never guesses them' }), ''),
     setting('profile.timezone', 'person', 'profile', 'Time zone', t.str({ examples: ['Asia/Karachi'] }), 'UTC'),
     setting('profile.working_hours', 'person', 'profile', 'Working hours', t.obj({ days: t.arr(t.int({ minimum: 0, maximum: 6 })), from: t.str({ pattern: '^[0-2][0-9]:[0-5][0-9]$' }), to: t.str({ pattern: '^[0-2][0-9]:[0-5][0-9]$' }) }), { days: [1, 2, 3, 4, 5], from: '09:00', to: '17:00' }),
+    setting('profile.public_phone', 'person', 'profile', 'Phone teammates can call', t.str({ maxLength: 32, description: 'Optional: shown to teammates, and Call appears on the profile only when it is set and the Space has telephony' }), ''),
     setting('profile.contact', 'person', 'profile', 'Contact', t.obj({ email: t.opt(t.str()), phone: t.opt(t.str()) }), {}),
     setting('appearance.skin', 'person', 'appearance', 'Skin', t.str(), 'classic'),
+    setting('appearance.text_size', 'person', 'appearance', 'Text size', t.enm('small', 'default', 'large'), 'default'),
+    setting('appearance.density', 'person', 'appearance', 'Density', t.enm('compact', 'comfortable'), 'comfortable'),
+    setting('appearance.language', 'person', 'appearance', 'Language', t.str({ examples: ['auto', 'en', 'de'], description: 'auto follows this device' }), 'auto'),
+    setting('appearance.reduce_motion', 'person', 'appearance', 'Reduce motion', t.bool(), false),
+    setting('reports.send', 'person', 'privacy', 'Send problem reports to Vyre', t.bool(), true),
     setting('kit.person_choice', 'person', 'appearance', 'My Kit', t.nullable(id.kit), null),
     setting('kit.space_choice', 'space', 'spaces', 'Space Kit', t.nullable(id.kit), null),
   ],

@@ -73,6 +73,7 @@ export function PeoplesAgents(): ReactElement | null {
   return (
     <Section title="People's own agents" count={read.data.people.length} testID="people-agents">
       <Group>
+        {/* ui-rows-lint: not a list (each person is a ui/Row, wrapped with the pause confirmation that can open under it) */}
         {read.data.people.map((p) => {
           const name = consoleData.name(p.personId);
           return (

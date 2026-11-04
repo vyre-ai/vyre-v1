@@ -31,7 +31,7 @@ export function filler(ctx: VaultCtx) {
 }
 
 /** The words of a Mine item that cannot open because its owner's key is not on this node: they open when the owner is signed in, and nothing else needs doing. */
-export const MINE_CLOSED = "Your Mine items open while you are signed in to Vyre. Sign in on this Space, in the app or the browser, and this goes on by itself.";
+export const MINE_CLOSED = "Your sign-ins are locked on this server. Unlock Vyre to use them.";
 
 /** The wrap key of the signed-in owner, or a refusal. */
 async function ownerWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {
@@ -470,7 +470,7 @@ function shareTarget(ctx: VaultCtx, resource: ResourceIn, need: "view" | "manage
   return bad(ctx, "Share an item or a folder.");
 }
 
-export async function share(ctx: VaultCtx, input: { resource: ResourceIn; subject: Json; level: string; idempotencyKey: string }) {
+export async function share(ctx: VaultCtx, input: { resource: ResourceIn; subject: Json; level: string; idempotencyKey: string; notify?: { message?: string } }) {
   ensure(ctx);
   const key = keyOf(ctx, input);
   const t = shareTarget(ctx, input.resource, "manage");
@@ -482,7 +482,7 @@ export async function share(ctx: VaultCtx, input: { resource: ResourceIn; subjec
     if (str(t.row, "scope") === "mine") refuse(ctx, "A Mine folder is private. Make a Shared folder to share items.");
     if (!atLeast(levelOn(ctx, "vault_folder", str(t.row, "id")), "manage") && str(t.row, "owner") !== ctx.principal.id) return denied(ctx, "Sharing a folder needs manage access.");
   }
-  await ctx.call("access.share", { resource: { type: t.kind, id: str(t.row, "id") }, subject: input.subject, level: input.level, idempotencyKey: key });
+  await ctx.call("access.share", { resource: { type: t.kind, id: str(t.row, "id") }, subject: input.subject, level: input.level, idempotencyKey: key, ...(input.notify ? { notify: input.notify } : {}) });
   if (t.kind === "vault_item") record(ctx, str(t.row, "id"), "shared", { detail: `${String(obj(input.subject)["kind"])} ${String(obj(input.subject)["id"])} at ${input.level}` });
   return { granted: true };
 }

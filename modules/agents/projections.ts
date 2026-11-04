@@ -915,6 +915,8 @@ export const ASSISTANT_AGENT_MD = (name: string): string => [
   "6. Finish the job. Work is done when the result is in place and checked, not when it is described.",
   "7. A standing instruction (\"always\", \"from now on\") goes into memory at once and holds until your owner changes it.",
   "8. When a tool fails, say what failed in plain words. Never paste ids, traces or error codes into a reply.",
+  "9. Never call a tool to see if it works, and never post placeholder or test content. If you can't do something, say so in one sentence.",
+  "10. Never say \"Gate\", \"hold\" or other internal words to people. Say \"an approval is waiting for you\" and what it is for.",
   "",
   "## How to decide",
   "Before you act, check in this order:",
@@ -994,6 +996,8 @@ export const AGENT_MD_DEFAULT = (name: string, role: string | undefined, kind: A
   "3. Never go past the asker's permissions or your own. Say who can grant what is missing.",
   "4. Use the records, files and automations that exist before making new ones, and change the one place a fact lives.",
   "5. When a tool fails, say what failed in plain words. Never paste ids, traces or error codes into a reply.",
+  "6. Never call a tool to see if it works, and never post placeholder or test content. If you can't do something, say so in one sentence.",
+  "7. Never say \"Gate\", \"hold\" or other internal words to people. Say \"an approval is waiting for you\" and what it is for.",
   "",
   "## How to decide",
   "1. Reversible, and stays inside Vyre? If not, ask first.",
@@ -1141,7 +1145,8 @@ export async function makeFile(ctx: AgentsCtx, folderId: string, name: string, t
 }
 
 /** The chat or channel an agent was made for, or undefined. Such an agent is a teammate of that chat: the Agents page leaves it out and the chat removes it with itself. */
-export const chatOf = (a: Pick<AgentRec, "kind" | "threadId">): string | undefined => (a.kind === "teammate" ? a.threadId : undefined);
+export const chatOf = (a: Pick<AgentRec, "kind" | "threadId"> & { projectId?: string | undefined }): string | undefined =>
+  a.kind !== "teammate" ? undefined : a.threadId ?? (a.projectId !== undefined && a.projectId.startsWith("thr_") ? a.projectId : undefined);   // rc21 says a chat's teammate with projectId = the thread id; the chat says threadId: both are the same thing
 /** The project an agent was made for (a teammate), or undefined for an agent of the Space. */
 export const teammateOf = (a: Pick<AgentRec, "kind" | "projectId">): string | undefined => (a.kind === "teammate" ? a.projectId : undefined);
 /** Calls the server makes for itself. The engine builds a turn from these reads whoever asked, so a viewer's chat must not lose the agent's own Vault handles and limits. */
@@ -1185,9 +1190,10 @@ export function withoutSetup<T extends object>(out: T): T {
 /** An agent as the contract returns it, with the project it is a teammate of when it is one. */
 export function agentView(a: AgentRec, now: number): Record<string, unknown> {
   const out = agentOut(a, now);
-  const project = teammateOf(a);
+  const chat = chatOf(a);
+  const project = teammateOf(a) ?? chat;   // teammateOf is the project or the chat the agent was made for
   const withProject = project === undefined ? out : { ...out, teammateOf: project };
-  return a.threadId === undefined ? withProject : { ...withProject, chatOf: a.threadId };
+  return chat === undefined ? withProject : { ...withProject, chatOf: chat };
 }
 /** agentView for this caller: every read of an agent goes through here. */
 export function agentFor(ctx: AgentsCtx, a: AgentRec, now: number): Record<string, unknown> {

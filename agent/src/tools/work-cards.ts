@@ -3,7 +3,11 @@
 // under the words, not a pile. The card carries only a name and where it lives; its state (running, done, waiting on you) and whether the reader may see it are read by the app when it draws the card.
 
 /** The link_card block fields a work card fills (the agent layer cannot import ui; the shape is the link_card block's). */
-export interface WorkCard { icon: string; lead: string; title: string; target: { type: string; id: string }; via?: string; /** one card per thing: a record changed twice is one card */ key: string }
+export interface WorkCard {
+  icon: string; lead: string; title: string; target: { type: string; id: string }; via?: string; /** one card per thing: a record changed twice is one card */ key: string;
+  /** A card that carries what it shows and the calls its buttons make (an email draft kept at Gmail or Outlook). */
+  to?: string; body?: string; actions?: { key: string; label: string; cap: string; input: Record<string, unknown> }[];
+}
 
 const rec = (v: unknown): Record<string, unknown> => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const s = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -54,6 +58,26 @@ export function workCardOf(cap: string, input: unknown, output: unknown): WorkCa
       if (o["as"] === "self") return null;
       const later = o["state"] === "scheduled";
       return { key: `dm:${s(o["messageId"]) || id}:${clip(s(i["body"]), 40)}`, icon: "thread", lead: later ? "Scheduled" : "Sent", title: clip(first(i["body"], rec(i["card"])["title"], "A message")), target: { type: "thread", id } };
+    }
+    case "mail.draft": {
+      // an email an agent drafted waits for its person's Send, Edit or Discard: the card in the chat where it was asked is the held email card
+      const id = s(o["draftId"]);
+      return id ? { key: `draft:${id}`, icon: "draft", lead: "Draft", title: clip(first(i["subject"], "An email draft")), target: { type: "draft", id } } : null;
+    }
+    case "google.gmail.create_draft": case "ms.mail.create_draft": {
+      // a draft kept at Gmail or Outlook: the card carries its words and the two calls its buttons make (send it, or delete it there). Nothing is sent from here.
+      const id = s(o["draftId"]);
+      if (!id) return null;
+      const gmail = cap.startsWith("google.");
+      const to = (Array.isArray(i["to"]) ? i["to"] : []).map(s).filter(Boolean);
+      const base = { ...(s(i["connectionId"]) ? { connectionId: s(i["connectionId"]) } : {}), ...(s(i["as"]) ? { as: s(i["as"]) } : {}) };
+      return {
+        key: `draft:${id}`, icon: "draft", lead: "Draft", title: clip(first(i["subject"], "An email draft")), to: to.join(", "), via: gmail ? "Gmail" : "Outlook", body: s(i["text"]), target: { type: "provider_draft", id },
+        actions: [
+          { key: "send", label: "Send", cap: gmail ? "google.gmail.send_message" : "ms.mail.send_message", input: { ...base, to, subject: s(i["subject"]), text: s(i["text"]), ...(gmail && s(i["threadId"]) ? { threadId: s(i["threadId"]) } : {}) } },
+          { key: "discard", label: "Don't send", cap: gmail ? "google.gmail.delete_draft" : "ms.mail.delete_message", input: gmail ? { ...base, draftId: id } : { ...base, messageId: id } },
+        ],
+      };
     }
     case "computers.provision": {
       const c = rec(o["computer"]);

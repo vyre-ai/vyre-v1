@@ -121,6 +121,18 @@ test("a message from someone else injected into a turn names its author", async 
   await session.close();
 });
 
+test("a model the engine will not run is engine.model_unavailable, its own line is not shown as an answer, and its command-line advice never reaches the chat", async () => {
+  const spy = newSpy();
+  const session = await claude(spy).open(specOf());
+  const bad = await collect(session.send(turnOf("nomodel")));
+  assert.deepEqual(bad.map((e) => e.type), ["error"], "no text event: the line is an error, not an answer");
+  const e = bad[0] as { code: string; message: string };
+  assert.equal(e.code, "engine.model_unavailable");
+  assert.doesNotMatch(e.message, /--model|Run /);
+  assert.match(e.message, /selected model \(beam-free\)/);
+  await session.close();
+});
+
 test("a sign-in that is gone is provider.auth_failed (the backup key's cue) and the session stays usable", async () => {
   const spy = newSpy();
   const session = await claude(spy).open(specOf());

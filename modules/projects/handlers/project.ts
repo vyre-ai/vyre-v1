@@ -349,6 +349,20 @@ export async function list(ctx: ProjectsCtx, input: In): Promise<unknown> {
   return clean({ projects: await out(pg.rows), next: pg.next, total: pg.total });
 }
 
+/** The projects where one person holds a role, and which role, limited to the projects the asker can see: a profile says "Lead on Client portal launch" and never names a project the viewer has no way into. */
+export async function rolesOf(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const who = me(ctx);
+  const person = input.personId;
+  if (typeof person !== "string" || !person.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.");
+  const shown = allProjects(ctx.db).filter((p) => memberOf(ctx.db, p.projectId, person) !== undefined && (isMember(ctx.db, p.projectId, who) || p.createdBy === who || allows(ctx, "view", p.projectId)));
+  const roles = await Promise.all(shown.map(async (p) => {
+    const row = projectRow(ctx, p, await readRecord(ctx, p), []);
+    return { projectId: p.projectId, title: row.title, role: memberOf(ctx.db, p.projectId, person)!.role };
+  }));
+  return { roles };
+}
+
 export async function overview(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const p = visible(ctx, input.projectId, "view");

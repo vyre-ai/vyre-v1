@@ -276,7 +276,7 @@ test("an API-key turn is offered the agent's tools, runs a call as the agent for
   const { g, f, name, invokes } = toolRig();
   const { turn, reply } = await ask(g, "who are my newest leads?", agent("#Team_Anthropic_Key", { model: "claude-sonnet-5-5" }));
   assert.equal(turn.state, "completed");
-  assert.equal(reply, "Let me look.Found 3 leads.");
+  assert.equal(reply, "Let me look.\n\nFound 3 leads.", "text after a tool step is a new paragraph");
   assert.ok(((f.requests[0]?.body as { tools?: Array<{ name: string }> }).tools ?? []).some((x) => x.name === name), "the tool was advertised");
   assert.equal(invokes.length, 1);
   assert.deepEqual({ principal: invokes[0]?.principal, actingFor: invokes[0]?.actingFor }, { principal: "intake", actingFor: "dana" });

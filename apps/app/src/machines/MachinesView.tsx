@@ -125,6 +125,7 @@ export function MachineList({ data, who, narrow, now, onOpen, onAdd, onApprove, 
         </Block>
       ) : null}
       <Block title={scope === "space" ? "All machines" : "My computers and servers"} count={ms.length} testID="machines-table">
+        {/* ui-rows-lint: not a list (the table's column headings) */}
         {narrow ? null : <View style={[s.mrow, s.mheadRow]} testID="machines-head"><View style={s.mname}><Text style={s.mheadText}>Machine</Text></View><View style={s.cells}>{["Status", "CPU", "Memory", "Disk", "Running", "Can run", "Room left"].map((h) => <View key={h} style={s.cell}><Text style={s.mheadText}>{h}</Text></View>)}</View></View>}
         {ms.map((m) => <MachineRowView key={m.serverId} m={m} who={who} narrow={narrow} now={now} onOpen={() => onOpen(m.serverId)} />)}
       </Block>
@@ -167,7 +168,9 @@ function MachineRowView({ m, who, narrow, now, onOpen }: { m: MachineRow; who(id
         <Cell label="CPU" narrow={narrow}><Text style={[s.cellMain, cells.private && s.private]}>{cells.cpu}</Text><Text style={s.cellSub}>{m.cores ? `${m.cores} cores` : ""}</Text></Cell>
         <Cell label="Memory" narrow={narrow}><Text style={[s.cellMain, cells.private && s.private]}>{cells.mem}</Text><Text style={s.cellSub}>{m.memBytes ? fmtBytes(m.memBytes) : ""}</Text></Cell>
         <Cell label="Disk" narrow={narrow}><Text style={[s.cellMain, cells.private && s.private]}>{cells.disk}</Text><Text style={s.cellSub}>{m.diskBytes ? `of ${fmtBytes(m.diskBytes)}` : ""}</Text></Cell>
+        {/* ui-rows-lint: not a list (the extra lines under Running in one cell) */}
         <Cell label="Running" narrow={narrow}><Text style={s.cellMain}>{runs[0]}</Text>{runs.slice(1).map((r) => <Text key={r} style={s.cellSub}>{r}</Text>)}</Cell>
+        {/* ui-rows-lint: not a list (the engines a machine can run, as chips) */}
         <Cell label="Can run" narrow={narrow}><View style={s.chips}>{can.map((c) => <Text key={c} style={s.chip}>{c}</Text>)}</View></Cell>
         <Cell label="Room left" narrow={narrow}><Text style={s.cellMain} testID={`room-${m.serverId}`}>{m.online ? String(m.room.n) : "0"}</Text></Cell>
       </View>
@@ -240,6 +243,7 @@ export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narro
         <View style={{ alignItems: "flex-end" }}><View style={s.inline}><Dot tone={st.tone} size={6} /><Text style={s.cellMain}>{st.word}</Text></View><Text style={s.cellSub}>{st.sub}</Text></View>
       </View>
       <View style={s.tabs} accessibilityRole="tablist">
+        {/* ui-rows-lint: not a list (the machine's tabs) */}
         {(["overview", "health", "updates"] as const).map((k) => (
           <Pressable key={k} accessibilityRole="tab" accessibilityState={{ selected: tab === k }} aria-selected={tab === k} testID={`machine-tab-${k}`} onPress={() => onTab(k)} style={[s.tab, tab === k && s.tabOn, pointer]}>
             <Text style={[s.tabText, tab === k && s.tabTextOn]}>{k === "overview" ? "Overview" : k === "health" ? `Health${bad ? ` ${bad}` : ""}` : "Updates and backups"}</Text>
@@ -250,6 +254,7 @@ export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narro
         <View testID="machine-overview">
           {!own && m.owner ? <View style={s.mnote} testID="machine-private"><Glyph name="lock" size={14} color="var(--ink-2)" /><Text style={s.mnoteText}>{PRIVATE_NOTE(who(m.owner))}</Text></View> : null}
           <View style={s.spec}>
+            {/* ui-rows-lint: not a list (a spec grid of name and value) */}
             {[["Version", m.version ?? "unknown"], ["CPU", m.cores ? `${m.cores} cores` : "unknown"], ["Memory", m.memBytes ? fmtBytes(m.memBytes) : "unknown"], ["Disk", m.diskBytes ? fmtBytes(m.diskBytes) : "unknown"], ["Latency", m.online ? (m.latencyMs !== undefined ? `${m.latencyMs} ms` : m.kind === "space" ? "Local" : "unknown") : "No link"], ["Room left", m.online ? (m.drain ? "0, draining" : String(m.room.n)) : "0"]].map(([k, v]) => (
               <View key={k} style={s.specCell}><Text style={s.cellSub}>{k}</Text><Text style={s.specVal}>{v}</Text></View>
             ))}
@@ -261,6 +266,7 @@ export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narro
             <Segmented label="Range" testID="machine-range" value={range} onChange={onRange} options={RANGES.map((r) => ({ id: r.key, label: r.label }))} />
           </View>
           <View style={[s.charts, narrow && { flexDirection: "column" }]} testID="machine-charts">
+            {/* ui-rows-lint: not a list (a grid of charts) */}
             {detail ? chartsFor(detail.privacy).map((def) => <View key={def.key} style={narrow ? undefined : { width: chartW + 28 }}><Chart def={def} points={detail.series.points} range={range} width={chartW} hover={hover} onHover={onHover} /></View>) : <Text style={s.note}>Loading history</Text>}
           </View>
           <Block title="Running now" count={detail ? detail.work.length : 0} note={own ? "By agent and chat" : "Vyre's work only"} testID="machine-work">
@@ -268,7 +274,9 @@ export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narro
           </Block>
           <Block title="Can run" note="Installed here" testID="machine-can">
             <View style={s.chipsBig}>
+              {/* ui-rows-lint: not a list (the engines it can run, as chips) */}
               {canNames(m.can).map((c) => <Text key={c} style={s.chipBig}>{`✓ ${c}`}</Text>)}
+              {/* ui-rows-lint: not a list (the engines it cannot run, as chips) */}
               {ENGINE_NAMES.filter((c) => !canNames(m.can).includes(c)).map((c) => <Text key={c} style={[s.chipBig, s.chipNo]}>{c}</Text>)}
             </View>
             <Text style={s.empty}>{m.kind === "linked" ? "Names only. Vyre never lists what else is installed on a personal computer." : "Names only."}</Text>
@@ -282,14 +290,19 @@ export function MachineDetail({ m, detail, own, range, tab, hover, chartW, narro
   );
 }
 
+/** What the confirm of Stop idle sessions says: how many will stop, and whose. */
+export const stopLine = (n: number, space: boolean): string => (n === 0 ? "No idle engine sessions are open." : `This stops ${n} idle engine session${n === 1 ? "" : "s"}${space ? " on the Space server, whoever they belong to" : " of yours on this computer"}. A turn that is running is not touched.`);
+
 function HealthTab({ detail, m, goto, onFix, fixed }: { detail: MachineOut | null; m: MachineRow; goto: ((page: string) => void) | undefined; onFix?: ((fix: "clear_caches" | "stop_idle") => void) | undefined; fixed?: string | undefined }): ReactElement {
+  const [sure, setSure] = useState(false);
   if (!detail) return <Text style={s.note}>Loading</Text>;
   if (detail.privacy === "vyre_only") return <Text style={s.empty} testID="machine-health-private">Health checks of a member's own computer stay on that computer.</Text>;
   return (
     <View testID="machine-health">
       <Block title="Doctor" count={detail.findings.filter((f) => f.state !== "healthy").length} testID="machine-doctor">
-        {detail.findings.map((f) => <Row key={f.key} id={`finding-${f.key}`} title={f.detail} note={f.next} tall leading={<View style={s.lead36}><Glyph name={f.state === "healthy" ? "ok" : f.state === "down" ? "x" : "warn"} size={15} color={f.state === "healthy" ? "var(--ok)" : f.state === "down" ? "var(--danger)" : "var(--warn)"} /></View>} trailing={(f.fix === "clear_caches" || f.fix === "stop_idle") && onFix ? <Pressable accessibilityRole="button" accessibilityLabel="Fix" testID={`finding-fix-${f.fix}`} onPress={() => onFix(f.fix as "clear_caches" | "stop_idle")} style={[s.small, pointer]}><Text style={s.smallText}>Fix</Text></Pressable> : f.fix === "update" && goto ? <Pressable accessibilityRole="button" accessibilityLabel="Update" testID="finding-fix-update" onPress={() => goto("updates")} style={[s.small, pointer]}><Text style={s.smallText}>Update</Text></Pressable> : undefined} />)}
+        {detail.findings.map((f) => <Row key={f.key} id={`finding-${f.key}`} title={f.detail} note={f.next} tall leading={<View style={s.lead36}><Glyph name={f.state === "healthy" ? "ok" : f.state === "down" ? "x" : "warn"} size={15} color={f.state === "healthy" ? "var(--ok)" : f.state === "down" ? "var(--danger)" : "var(--warn)"} /></View>} trailing={(f.fix === "clear_caches" || f.fix === "stop_idle") && onFix ? <Pressable accessibilityRole="button" accessibilityLabel="Fix" testID={`finding-fix-${f.fix}`} onPress={() => { if (f.fix === "stop_idle" && !sure) { setSure(true); return; } setSure(false); onFix(f.fix as "clear_caches" | "stop_idle"); }} style={[s.small, pointer]}><Text style={s.smallText}>{f.fix === "stop_idle" && sure ? "Stop them" : "Fix"}</Text></Pressable> : f.fix === "update" && goto ? <Pressable accessibilityRole="button" accessibilityLabel="Update" testID="finding-fix-update" onPress={() => goto("updates")} style={[s.small, pointer]}><Text style={s.smallText}>Update</Text></Pressable> : undefined} />)}
       </Block>
+      {sure ? <Text style={s.foot} testID="machine-fix-confirm">{stopLine(detail.idleSessions ?? 0, m.kind === "space")}</Text> : null}
       {fixed || detail.lastFix ? <Text style={s.foot} testID="machine-last-fix">{fixed || detail.lastFix?.detail}</Text> : null}
       <Text style={s.foot}>The same check runs as vyre-server doctor in a terminal on this machine, so it works even when the Space server is down.</Text>
       {m.kind === "space" && goto ? (

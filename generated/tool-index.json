@@ -573,7 +573,7 @@
     {
       "deferred": false,
       "name": "ask_question",
-      "summary": "Ask the person a structured question (single, multi or free text); the turn parks until it is answered",
+      "summary": "Ask the person a structured question (single, multi or free text); the turn parks until it is answered and makes no further model call; a question of fewer than three words, or only a test, is refused",
       "toolset": "chats"
     },
     {
@@ -862,6 +862,12 @@
       "deferred": false,
       "name": "automations_set_enabled",
       "summary": "Turn an Automation on or off",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_set_owner",
+      "summary": "Hand a Space Automation to another person as its accountable owner; the previous owner keeps Manage",
       "toolset": "automations"
     },
     {
@@ -2690,6 +2696,12 @@
     },
     {
       "deferred": false,
+      "name": "engine_last_pick_get",
+      "summary": "The model the caller last picked in a chat (any agent): a new chat starts on it. Empty when they have not picked one yet",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "engine_live_turns",
       "summary": "The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream",
       "toolset": "chats"
@@ -4070,6 +4082,12 @@
     },
     {
       "deferred": true,
+      "name": "google_gmail_delete_draft",
+      "summary": "Delete a draft from the member mailbox (the draft an agent made and its person decided not to send)",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": true,
       "name": "google_gmail_get_message",
       "summary": "Read one Gmail message",
       "toolset": "inbox"
@@ -4582,6 +4600,12 @@
       "deferred": false,
       "name": "inbox_thread",
       "summary": "The whole history of one contact: emails, texts, calls, meetings and record chips",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "inbox_thread_conversation",
+      "summary": "The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)",
       "toolset": "inbox"
     },
     {
@@ -6800,6 +6824,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_roles_of",
+      "summary": "The projects where one person holds a role, and which role, limited to the projects the asker can see",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_share_out",
       "summary": "Make a read-only link to the project Overview for a client; it expires in 30 days unless expiresAt or expiresInDays says otherwise",
       "toolset": "records"
@@ -7581,7 +7611,7 @@
     {
       "deferred": false,
       "name": "sessions_list",
-      "summary": "List the current owner private imported session archive in this Personal Space",
+      "summary": "List the current owner private imported session archive in this Personal Space; in any other Space the list is empty and personalOnly is true",
       "toolset": "chats"
     },
     {
@@ -7589,6 +7619,24 @@
       "name": "sessions_rename",
       "summary": "Give an imported session a new title in Vyre. Only the title shown changes: the copied transcript and its source provenance stay as they were",
       "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "settings_contact_status",
+      "summary": "Whether my email and phone are verified, whether a code is waiting, and whether this Space can send one (no phone line: no Verify)",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "settings_contact_verify_confirm",
+      "summary": "Confirm the code that was sent; the tick shows only after this",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "settings_contact_verify_start",
+      "summary": "Send a 6-digit code to my email or phone through the Space mail sender or its phone line; it lasts 10 minutes, 3 an hour",
+      "toolset": "meta"
     },
     {
       "deferred": false,
@@ -8533,6 +8581,42 @@
       "toolset": "records"
     },
     {
+      "deferred": true,
+      "name": "talk_ask_key",
+      "summary": "Post the secret card that asks for a Talk key in this chat: their own, or the Space's. The value goes straight to the Vault and never into the chat",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_configure",
+      "summary": "Change a person's Talk: on or off, provider, language, model. An agent may do this for the person it acts for. Keys go through talk_ask_key",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_space_check",
+      "summary": "Check the Space key with the provider now",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_space_configure",
+      "summary": "Turn Talk for everyone on or off, and keep the key. An agent's change stops at the Gate for someone who may approve it",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_space_status",
+      "summary": "Talk for everyone in the Space: whether a key is set, on or off, who set it, when it was last checked and how many people use their own key",
+      "toolset": "meta"
+    },
+    {
+      "deferred": true,
+      "name": "talk_status",
+      "summary": "Talk for the person asking: on or off, provider, language, model and what covers them (their own key, the Space key or nothing). Never a key",
+      "toolset": "meta"
+    },
+    {
       "deferred": false,
       "name": "task_ask",
       "summary": "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",
@@ -8578,6 +8662,12 @@
       "deferred": false,
       "name": "tasks_act",
       "summary": "Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "tasks_agent_on_it",
+      "summary": "Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads \"<Agent> is on it for you\". Only that person, or the host, may say so",
       "toolset": "tasks"
     },
     {
@@ -9185,6 +9275,12 @@
       "name": "threads_update",
       "summary": "Rename a thread",
       "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "time_convert",
+      "summary": "Convert a time between time zones, or turn \"tomorrow 2pm\" into a time. Use it for any time not already in the person's zone; never work out zones, dates or epoch numbers yourself",
+      "toolset": "meta"
     },
     {
       "deferred": false,

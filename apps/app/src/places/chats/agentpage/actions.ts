@@ -29,6 +29,16 @@ export function saveRoleLine(d: PageDeps, agentId: string, description: string, 
   });
 }
 
+/** A face picked on the agent's page: saved on the agent, and the line below offers Undo, which puts the face it wore back. */
+export function saveFace(d: PageDeps, agentId: string, face: string, previous: string): Promise<boolean> {
+  return attempt(d, "save the face", async () => {
+    await d.call("agents.update", { agentId, patch: { face } } satisfies CapMap["agents.update"]["in"]);
+    d.note("Face changed.", async () => {
+      try { await d.call("agents.update", { agentId, patch: { face: previous } } satisfies CapMap["agents.update"]["in"]); d.note("Face is back."); } catch { d.note("Could not undo the face. Try again."); }
+    });
+  });
+}
+
 /** The Chat button: a new chat with this agent, opened in place. */
 export async function startChat(d: PageDeps, agentId: string, name: string): Promise<string | null> {
   try {

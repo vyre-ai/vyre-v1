@@ -144,6 +144,10 @@ const manifest = defineManifest({
       out: { conversationId: cnvId, contactId: t.opt(id.record), linked: t.enm('sure', 'unsure', 'none'), taskId: t.opt(id.task) },
       emits: ['conversation.created', 'conversation.matched', 'conversation.needs_match', 'conversation.reply_received'], idem: 'natural',
     }),
+    read('inbox.thread_conversation', 'The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)', {
+      in: { threadId: t.str({ description: 'The provider thread id, as mail_thread_get and the mail search give it', examples: ['18c2a1f04e9b'] }) },
+      out: { conversationId: t.opt(cnvId), contactId: t.opt(id.record), subject: t.opt(t.str()) }, tool: 'inbox', label: 'find',
+    }),
     read('inbox.counts', 'Unread counts for the sidebar: per inbox, per number and the Needs a match total', {
       in: {}, out: { byInbox: t.arr(t.obj({ kind: t.enm('mailbox', 'number'), id: t.str(), name: t.opt(t.str({ description: 'What the sidebar shows: the mailbox address or the number display name (telephony number displayName), never the id' })), unread: t.int() })), total: t.int(), needsMatch: t.int() }, tool: 'inbox',
     }),

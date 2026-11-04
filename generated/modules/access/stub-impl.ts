@@ -38,6 +38,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "access.labels.list": async () => ({"labels":[{"label":"public","providers":"any","rank":1,"syncToLaptop":true}]} as unknown) as never,
   "access.labels.set": async () => ({"ok":true} as unknown) as never,
   "access.lists": async () => ({"counts":{},"next":"example","rows":[{"folderId":"fld_a1b2c3","following":true,"id":"rec_a1b2c3","level":"view","starred":true,"title":"example","type":"space","via":"owner"}],"total":1} as unknown) as never,
+  "access.make_owner": async () => ({"ok":true} as unknown) as never,
   "access.policies.list": async () => ({"policies":[{"key":"gate.send","kind":"gate","scope":"space","updatedAt":1760000000000,"value":{}}]} as unknown) as never,
   "access.policies.reset": async () => ({"ok":true} as unknown) as never,
   "access.policies.set": async () => ({"policy":{"key":"gate.send","kind":"gate","scope":"space","updatedAt":1760000000000,"value":{}}} as unknown) as never,
