@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AppsPage, otherSignIns, whatItDoes } from "../pages/AppsList.tsx";
+import { createRoot } from "test-renderer";
 import { mountPage } from "./page-kit.tsx";
 
 const connector = (key: string, title: string, connections: number, over: Record<string, unknown> = {}) => ({ key, title, mode: "api", scope: "space", builtin: true, version: "1.0.0", state: "live", domains: [], secrets: [], connections, syncedTypes: [], actions: [], sources: [], ...over });
@@ -20,7 +21,7 @@ test("what an app does is in plain words and sign-ins with no app are the other 
 });
 
 test("one list: connected apps show Manage, the others Connect, Google and Microsoft are rows, the Kit row opens diagnostics, stray sign-ins sit under Other sign-ins", async () => {
-  const p = await mountPage(<AppsPage />, ROWS);
+  const p = await mountPage(createRoot, <AppsPage />, ROWS);
   try {
     const t = p.text();
     assert.ok(p.has("app-manage-hubspot") && !p.has("app-connect-hubspot"), "connected: Manage only");
@@ -34,7 +35,7 @@ test("one list: connected apps show Manage, the others Connect, Google and Micro
 });
 
 test("Manage on Google Workspace and Connect on Microsoft 365 open their setup pages", async () => {
-  const p = await mountPage(<AppsPage />, ROWS);
+  const p = await mountPage(createRoot, <AppsPage />, ROWS);
   try {
     await p.press("app-manage-google");
     await p.press("app-connect-microsoft");
@@ -43,7 +44,7 @@ test("Manage on Google Workspace and Connect on Microsoft 365 open their setup p
 });
 
 test("Manage lists the people who signed in, and Disconnect asks first, then ends every sign-in of the app", async () => {
-  const p = await mountPage(<AppsPage />, ROWS);
+  const p = await mountPage(createRoot, <AppsPage />, ROWS);
   try {
     await p.press("app-manage-hubspot");
     const t = p.text();
@@ -57,7 +58,7 @@ test("Manage lists the people who signed in, and Disconnect asks first, then end
 });
 
 test("Connect starts the sign-in for that app, with the app already chosen", async () => {
-  const p = await mountPage(<AppsPage />, { ...ROWS, "connectors.get": { connector: connector("lawmatics", "Lawmatics", 0, { secrets: [{ name: "Token", description: "API key" }] }) }, "vault.items.list": { items: [] } });
+  const p = await mountPage(createRoot, <AppsPage />, { ...ROWS, "connectors.get": { connector: connector("lawmatics", "Lawmatics", 0, { secrets: [{ name: "Token", description: "API key" }] }) }, "vault.items.list": { items: [] } });
   try {
     await p.press("app-connect-lawmatics");
     assert.ok(p.has("connection-create-object"), "the sign-in form is open");
@@ -66,7 +67,7 @@ test("Connect starts the sign-in for that app, with the app already chosen", asy
 });
 
 test("Add a custom app opens the connector builder", async () => {
-  const p = await mountPage(<AppsPage />, ROWS);
+  const p = await mountPage(createRoot, <AppsPage />, ROWS);
   try {
     await p.press("apps-new");
     assert.ok(p.has("connector-create-object"));
@@ -74,7 +75,7 @@ test("Add a custom app opens the connector builder", async () => {
 });
 
 test("no label on the page uses the words the Console dropped", async () => {
-  const p = await mountPage(<AppsPage />, ROWS);
+  const p = await mountPage(createRoot, <AppsPage />, ROWS);
   try {
     assert.doesNotMatch(p.text(), /\b(connector|principal|grant|scope|tenant)s?\b/i);
     assert.doesNotMatch(p.text(), /!/);

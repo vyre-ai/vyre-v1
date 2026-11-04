@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { ExportPage, INCLUDED, NEVER } from "../pages/ExportPage.tsx";
+import { createRoot } from "test-renderer";
 import { mountPage } from "./page-kit.tsx";
 
 const SPACE = (owner: string) => ({ space: { id: "spc_1", name: "Northwind", kind: "team", owner, fingerprint: "ab", address: { mode: "relay" }, defaults: {}, createdAt: 1 } });
@@ -12,7 +13,7 @@ const BYTES = { base64: "YWJj", mime: "application/zip", size: 3, truncated: fal
 const ME = { me: { id: "usr_sample", name: "Me", role: "" } };
 
 test("the page lists what the export holds and what it never holds, in plain words", async () => {
-  const p = await mountPage(<ExportPage />, { "spaces.get": SPACE("usr_sample"), "schema.describe": TYPES }, undefined, ME);
+  const p = await mountPage(createRoot, <ExportPage />, { "spaces.get": SPACE("usr_sample"), "schema.describe": TYPES }, undefined, ME);
   try {
     const t = p.text();
     for (const [, title] of INCLUDED) assert.ok(t.includes(title), title);
@@ -24,7 +25,7 @@ test("the page lists what the export holds and what it never holds, in plain wor
 
 test("Export everything calls spaces.export, shows the Space is being packed, then the finished file with a Done button", async () => {
   let ready = false;
-  const p = await mountPage(<ExportPage />, { "spaces.get": SPACE("usr_sample"), "schema.describe": TYPES }, (cap) => {
+  const p = await mountPage(createRoot, <ExportPage />, { "spaces.get": SPACE("usr_sample"), "schema.describe": TYPES }, (cap) => {
     if (cap === "spaces.export") return { runId: "run_1" };
     if (cap === "backup.export_status") { if (!ready) throw new Error("not yet"); return READY; }
     if (cap === "files.get") return FILE;
@@ -49,7 +50,7 @@ test("Export everything calls spaces.export, shows the Space is being packed, th
 });
 
 test("when the file is ready at once the row shows it without waiting", async () => {
-  const p = await mountPage(<ExportPage />, { "spaces.get": SPACE("usr_sample"), "schema.describe": TYPES }, (cap) => cap === "spaces.export" ? { runId: "run_1" } : cap === "backup.export_status" ? READY : cap === "files.get" ? FILE : cap === "files.read" ? BYTES : { ok: true }, ME);
+  const p = await mountPage(createRoot, <ExportPage />, { "spaces.get": SPACE("usr_sample"), "schema.describe": TYPES }, (cap) => cap === "spaces.export" ? { runId: "run_1" } : cap === "backup.export_status" ? READY : cap === "files.get" ? FILE : cap === "files.read" ? BYTES : { ok: true }, ME);
   try {
     await p.press("export-all-start");
     assert.ok(p.text().includes("Ready: northwind-export.zip"));
@@ -57,14 +58,14 @@ test("when the file is ready at once the row shows it without waiting", async ()
 });
 
 test("only the Owner can export everything", async () => {
-  const p = await mountPage(<ExportPage />, { "spaces.get": SPACE("usr_other"), "schema.describe": TYPES }, undefined, ME);
+  const p = await mountPage(createRoot, <ExportPage />, { "spaces.get": SPACE("usr_other"), "schema.describe": TYPES }, undefined, ME);
   try {
     assert.ok(!p.has("export-all-start") && p.text().includes("Owners only"));
   } finally { p.restore(); }
 });
 
 test("Records only exports one record type as a spreadsheet through records.export", async () => {
-  const p = await mountPage(<ExportPage />, { "spaces.get": SPACE("usr_sample"), "schema.describe": TYPES }, (cap) => cap === "records.export" ? { fileId: "fil_2" } : cap === "files.get" ? { file: { name: "matters.csv", size: 3 } } : cap === "files.read" ? BYTES : { ok: true }, ME);
+  const p = await mountPage(createRoot, <ExportPage />, { "spaces.get": SPACE("usr_sample"), "schema.describe": TYPES }, (cap) => cap === "records.export" ? { fileId: "fil_2" } : cap === "files.get" ? { file: { name: "matters.csv", size: 3 } } : cap === "files.read" ? BYTES : { ok: true }, ME);
   try {
     assert.ok(!p.has("export-records-form"));
     await p.press("export-records-open");

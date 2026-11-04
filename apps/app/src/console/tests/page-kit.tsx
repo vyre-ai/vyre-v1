@@ -11,7 +11,7 @@ import { dataWith } from "./sheet-helper.tsx";
 export interface Call { cap: string; input: Record<string, unknown> }
 export interface Opened { page: string; args?: Record<string, unknown> | undefined }
 
-export async function mountPage(el: ReactElement, rows: Record<string, unknown>, answer: (cap: string, input: Record<string, unknown>) => unknown = () => ({ ok: true }), extra: Partial<ConsoleData> = {}) {
+export async function mountPage(createRoot: () => { render(el: ReactElement): void; unmount(): void; container: unknown }, el: ReactElement, rows: Record<string, unknown>, answer: (cap: string, input: Record<string, unknown>) => unknown = () => ({ ok: true }), extra: Partial<ConsoleData> = {}) {
   const restore = installDom();
   const calls: Call[] = [];
   const opened: Opened[] = [];
@@ -25,7 +25,6 @@ export async function mountPage(el: ReactElement, rows: Record<string, unknown>,
   const inner = (base.screens as unknown as { capQuery(cap: string, input?: Record<string, unknown>): unknown }).capQuery;
   const screens = { ...base.screens, capQuery: (cap: string, input?: Record<string, unknown>) => { reads.push({ cap, input: input ?? {} }); return inner(cap, input); } } as never;
   const data: ConsoleData = { ...base, screens, nav: { ...base.nav, openPage: (page, args) => { opened.push({ page, args }); } } };
-  const { createRoot } = await import("test-renderer");
   const renderer = createRoot();
   await act(async () => { renderer.render(<ConsoleDataProvider value={data}>{el}</ConsoleDataProvider>); });
   await flush();
