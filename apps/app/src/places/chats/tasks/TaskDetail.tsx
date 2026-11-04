@@ -337,10 +337,10 @@ function YourAction({ task, view, me, run, menu, list, mode, setMode, nameOf }: 
   if (mode === "submit") return prompt("What you did, in one line", task.reviewer || task.approver ? "Hand in" : "Mark done", () => { if (text.trim()) void run("tasks.submit", { summary: text.trim() }).then(close); });
   if (mode === "block") return prompt("What is in the way", "Report it", () => { if (text.trim()) void run("tasks.block", { reason: text.trim() }).then(close); });
   if (mode === "fixes") return prompt("One fix per line", "Send back", () => { const fixes = fixesFromText(text); if (fixes.length) void run("tasks.review", { verdict: "send_back", fixes }).then(close); }, true);
-  if (mode === "reject") return prompt("Why not", "Send back", () => { if (text.trim()) void run("tasks.decide", { verdict: "reject", reason: text.trim() }).then(close); }, true);
+  if (mode === "reject") return prompt("Why not", "Deny", () => { if (text.trim()) void run("tasks.decide", { verdict: "reject", reason: text.trim() }).then(close); }, true);
   const giveBack = canRelease(task, me) ? <Btn label="Give it back" testID="task-release" onPress={() => void run("tasks.release", {})} /> : null;
-  if (move === "review") return <View style={st.actions}><Btn label="Allow" primary testID="task-approve" onPress={() => void run("tasks.review", { verdict: "approve" })} /><Btn label="Send back" testID="task-send-back" onPress={() => setMode("fixes")} /></View>;
-  if (move === "approve") return <View style={st.actions}><Btn label="Allow" primary testID="task-approve" onPress={() => void run("tasks.decide", { verdict: "approve" })} /><Btn label="Send back" testID="task-reject" onPress={() => setMode("reject")} /></View>;
+  if (move === "review") return <View style={st.actions}><Btn label="Looks good" primary testID="task-approve" onPress={() => void run("tasks.review", { verdict: "approve" })} /><Btn label="Send back" testID="task-send-back" onPress={() => setMode("fixes")} /></View>;
+  if (move === "approve") return <View style={st.actions}><Btn label="Allow" primary testID="task-approve" onPress={() => void run("tasks.decide", { verdict: "approve" })} /><Btn label="Deny" testID="task-reject" onPress={() => setMode("reject")} /></View>;
   // from To do or Doing the same moves: start (from To do), hand in, say what blocks it; from To do it can also go to an agent
   const handIn = <Btn label={handInLabel(task)} primary={task.state !== "todo"} testID="task-submit" onPress={() => setMode("submit")} />;
   const blocked = <Btn label="Blocked" testID="task-blocked" onPress={() => setMode("block")} />;

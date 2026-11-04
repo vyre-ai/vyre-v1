@@ -263,7 +263,7 @@ export default defineManifest({
       needsYou: true, initial: 'awaiting_approval', closeOn: 'act', slots: ['approver'],
       actions: [
         { key: 'approve', label: 'Allow', to: 'done', note: 'optional' },
-        { key: 'reject', label: 'Send back', to: 'doing', note: 'required' },
+        { key: 'reject', label: 'Deny', to: 'doing', note: 'required' },
         { key: 'delegate', label: 'Hand over', cap: 'tasks.delegate', note: 'optional' },
         { key: 'snooze', label: 'Snooze', cap: 'tasks.snooze' },
       ],

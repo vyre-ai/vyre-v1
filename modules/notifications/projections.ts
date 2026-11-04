@@ -21,7 +21,7 @@ const a = (label: string, cap: string): Action => ({ label, cap });
 const needsYou = (agent = true): Partial<KindDef> => ({ pushTitle: "{{space}} needs you", ...(agent ? { agentRateKey: "agent_interrupt" } : {}) });
 
 export const KINDS: readonly KindDef[] = [
-  kind("approval.requested", "interrupt", "chats", "Approval needed: {{title}}", { ...needsYou(), actions: [a("Allow", "tasks.act"), a("Send back", "tasks.act")], backstopEmailAfterHours: 4 }),
+  kind("approval.requested", "interrupt", "chats", "Approval needed: {{title}}", { ...needsYou(), actions: [a("Allow", "tasks.act"), a("Deny", "tasks.act")], backstopEmailAfterHours: 4 }),
   kind("answer.requested", "interrupt", "chats", "Needs your answer: {{title}}", { ...needsYou(), actions: [a("Answer", "tasks.act")], backstopEmailAfterHours: 4 }),
   kind("unblock.requested", "interrupt", "chats", "Needs you: {{title}}", { ...needsYou(), actions: [a("Open", "tasks.act")], backstopEmailAfterHours: 4 }),
   kind("approval.backstop", "interrupt", "chats", "Still waiting on you: {{title}}", { pushTitle: "{{space}} needs you", actions: [a("Open", "tasks.act")], respectHours: false }),

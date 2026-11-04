@@ -58,11 +58,7 @@ export function limitAllows(usage: Obj | undefined): boolean {
 
 const SYSTEM = "You keep a short digest of a group conversation for an assistant that may be asked to join it. Write plain prose or short bullets: who is in it, what was decided, what is open and who owns it, and names, dates and numbers that matter. Keep what was in the previous digest that still matters. No preamble.";
 
-export interface DigestDeps {
-  db: Db; call: Call; now: () => number; log?: (msg: string, attrs?: Record<string, unknown>) => void;
-  /** One request and one answer on an account, as the person it is for (the engine's one-shot; engine.complete is refused at depth 0, which is where this background batch calls from). */
-  complete(i: { asker: string; accountRef: string; model?: string; system: string; prompt: string }): Promise<{ text: string }>;
-}
+export interface DigestDeps { db: Db; call: Call; now: () => number; log?: (msg: string, attrs?: Record<string, unknown>) => void }
 const running = new Set<string>();
 
 /**
@@ -86,7 +82,7 @@ export function maybeRefreshDigest(d: DigestDeps, o: { threadId: string; agentId
       let source = fresh.map((m) => `${o.nameOf(m.author.id)}: ${m.body.replace(/\s+/g, " ").trim()}`).join("\n");
       if (source.length > SOURCE_CHARS) source = source.slice(source.length - SOURCE_CHARS);
       const prompt = `${have ? `Previous digest:\n${have.text}\n\n` : ""}New messages:\n${source}\n\nWrite the updated digest.`;
-      const out = await d.complete({ asker: o.asker, accountRef: resolved.accountRef, ...(model ? { model } : {}), system: SYSTEM, prompt });
+      const out = (await d.call("engine.complete", { accountRef: resolved.accountRef, ...(model ? { model } : {}), system: SYSTEM, prompt }, o.asker)) as { text?: string };
       const text = String(out.text ?? "").trim().slice(0, DIGEST_CHARS);
       if (text !== "") {
         saveDigest(d.db, o.threadId, o.agentId, text, fresh.at(-1)!.threadSeq, d.now());

@@ -48,7 +48,7 @@ test("an agent inserts a live invoices block; a member sees only the invoices th
   const ev = h.named("project.overview_edited");
   assert.deepEqual(ev.map((e) => [e.payload["authorKind"], e.payload["rev"]]), [["agent", 1]]);
   assert.equal(h.only("chat.post").length, 1);
-  assert.match(h.only("chat.post")[0]!.input.body, /^Helper edited the Overview: added a live records block\.$/);
+  assert.match(h.only("chat.post")[0]!.input.body, /^Helper edited the Overview: added a live records block "Invoices"\.$/);
   // Dana opens every invoice; Leo, two of three
   const asDana = await run(h, "projects.live_block.query", { projectId: p.projectId, blockId: block.id });
   assert.deepEqual([asDana.rows.length, asDana.hidden, asDana.total], [3, 0, 3]);
@@ -58,7 +58,7 @@ test("an agent inserts a live invoices block; a member sees only the invoices th
   assert.deepEqual(contractErrors("projects.live_block.query", "out", asLeo), []);
   assert.equal(JSON.stringify(asLeo).includes("INV-3"), false, "the row they may not open is not in the answer");
 });
-const defaultCount = (): number => 7;
+const defaultCount = (): number => 6;
 
 test("undo puts the page back, then the undo can be undone; only the latest change is undone", async () => {
   const h = harness();
@@ -79,7 +79,7 @@ test("undo puts the page back, then the undo can be undone; only the latest chan
   const fresh = harness();
   const q = await mkProject(fresh);
   await refused(run(fresh, "projects.overview_doc.undo", { projectId: q.projectId }), "validation.precondition_failed");
-  assert.equal(before.length, 7);
+  assert.equal(before.length, 6);
 });
 
 test("ops: insert after a block, update, move and delete; a bad op or block is refused and changes nothing", async () => {
@@ -364,4 +364,91 @@ test("goals the reader may not open are counted through goals.count: the differe
   assert.equal(JSON.stringify(out).includes("gol_2"), false);
   h.world.down.add("goals.count");
   assert.equal((await run(h, "projects.live_block.query", { projectId: p.projectId, type: "goal", spec: {} })).hidden, 0, "a reader who may not ask is told nothing hidden, not a guess");
+});
+
+test("a save says what it changed, an agent's block is named with its title, and an older version can be restored as a new one", async () => {
+  const { describeChange } = await import("../handlers/overview.ts");
+  const live = (id: string, title: string, status: string, view?: string) => ({ id, kind: "live" as const, live: { type: "tasks" as const, spec: { title, status }, ...(view ? { view: view as "list" } : {}) } });
+  assert.equal(describeChange([live("a", "Open tasks", "open")], [live("a", "Open tasks", "late")]), "changed the filter of Open tasks");
+  assert.equal(describeChange([live("a", "Open tasks", "open")], [live("a", "Open tasks", "open", "table")]), "changed the view of Open tasks");
+  assert.equal(describeChange([], [live("b", "Late work", "late")]), 'added a live tasks block "Late work"');
+  assert.equal(describeChange([live("b", "Late work", "late")], []), 'removed a live tasks block "Late work"');
+  assert.equal(describeChange([{ id: "t", kind: "text", text: "a" }], [{ id: "t", kind: "text", text: "b" }]), "edited a paragraph");
+  const h = harness();
+  const p = await mkProject(h);
+  const one = await run(h, "projects.overview_edit", { projectId: p.projectId, ops: [{ op: "insert", block: { kind: "text", text: "First" } }] });
+  const first = { rev: one.rev as number };
+  await run(h, "projects.overview_edit", { projectId: p.projectId, baseRev: first.rev, ops: [{ op: "insert", block: { kind: "text", text: "Added later" } }] });
+  const second = await run(h, "projects.overview_doc.get", { projectId: p.projectId });
+  assert.ok(second.markdown.includes("Added later"));
+  const back = await run(h, "projects.overview_doc.restore", { projectId: p.projectId, rev: first.rev, baseRev: second.rev });
+  assert.equal(back.restored, first.rev);
+  const now = await run(h, "projects.overview_doc.get", { projectId: p.projectId });
+  assert.ok(!now.markdown.includes("Added later"), "the older page is back");
+  assert.equal(now.latest.summary, `restored version ${first.rev}`);
+  assert.equal(now.rev, back.rev, "the restore is a revision of its own");
+  await refused(run(h, "projects.overview_doc.restore", { projectId: p.projectId, rev: 999 }), "validation.not_found");
+  await refused(run(h, "projects.overview_doc.restore", { projectId: p.projectId, rev: first.rev, baseRev: second.rev }), "validation.precondition_failed");
+});
+
+test("a tasks block can show what is waiting, and what is assigned to the reader (assigned: me)", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  const waiting = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "tasks", spec: { status: "waiting" } });
+  assert.equal(waiting.type, "tasks");
+  const mine = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "tasks", spec: { status: "all", assigned: "me" } });
+  assert.ok(Array.isArray(mine.rows));
+});
+
+test("a metric that sums a money field adds the amounts, whether the field holds a number or { amount, currency }, and says the currency", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  const money = [
+    { id: "m1", fields: { number: "A", status: "sent", amount: { amount: 1200, currency: "USD" } }, openTo: [DANA] },
+    { id: "m2", fields: { number: "B", status: "sent", amount: { amount: 800.5, currency: "USD" } }, openTo: [DANA] },
+    { id: "m3", fields: { number: "C", status: "sent", amount: 99 }, openTo: [DANA] },
+  ];
+  invoices(h, money);
+  const out = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "metric", spec: { title: "Unpaid", type: "invoice", op: "sum", field: "amount" } });
+  assert.equal(out.value, 2099.5, "a money value is its amount, not NaN or 0");
+  assert.equal(out.unit, "USD");
+  assert.deepEqual(contractErrors("projects.live_block.query", "out", out), []);
+  const count = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "metric", spec: { title: "Invoices", type: "invoice", op: "count" } });
+  assert.equal(count.value, 3);
+  assert.equal(count.unit, undefined);
+});
+
+test("amounts in different currencies are never added together: the metric answers one total per currency", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  const mixed = [
+    { id: "x1", fields: { number: "A", status: "sent", amount: { amount: 3000, currency: "USD" } }, openTo: [DANA] },
+    { id: "x2", fields: { number: "B", status: "sent", amount: { amount: 1550, currency: "USD" } }, openTo: [DANA] },
+    { id: "x3", fields: { number: "C", status: "sent", amount: { amount: 900, currency: "EUR" } }, openTo: [DANA] },
+  ];
+  invoices(h, mixed);
+  const out = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "metric", spec: { title: "Unpaid", type: "invoice", op: "sum", field: "amount" } });
+  assert.equal(out.value, undefined, "no single number when there is more than one currency");
+  assert.equal(out.unit, undefined);
+  assert.deepEqual(out.parts, [{ unit: "USD", value: 4550 }, { unit: "EUR", value: 900 }]);
+  assert.equal(out.total, 3);
+  assert.deepEqual(contractErrors("projects.live_block.query", "out", out), []);
+  // one currency: one number, as before
+  invoices(h, mixed.slice(0, 2));
+  const one = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "metric", spec: { title: "Unpaid", type: "invoice", op: "sum", field: "amount" } });
+  assert.deepEqual([one.value, one.unit, one.parts], [4550, "USD", undefined]);
+});
+
+test("a heading never repeats the title of the live block under it, in the default page or any built-in template", async () => {
+  const { BUILTIN_TEMPLATES, defaultBlocks } = await import("../handlers/overview.ts");
+  const pages = [defaultBlocks(), ...BUILTIN_TEMPLATES.map((b) => b.blocks)];
+  for (const blocks of pages) {
+    blocks.forEach((b, i) => {
+      const n = blocks[i + 1];
+      if (b.kind !== "heading" || n?.kind !== "live") return;
+      const title = String((n.live?.spec as { title?: unknown } | undefined)?.title ?? "").trim().toLowerCase();
+      assert.notEqual(title, b.text.trim().toLowerCase(), `"${b.text}" sits above a block with the same title`);
+    });
+  }
+  assert.ok(!BUILTIN_TEMPLATES.find((b) => b.templateId === "tpl_client_account")!.blocks.some((b) => b.kind === "heading" && b.text === "Invoices"));
 });

@@ -30,6 +30,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "projects.overview_doc.apply_template": Handler<"projects.overview_doc.apply_template", X>;
   "projects.overview_doc.get": Handler<"projects.overview_doc.get", X>;
   "projects.overview_doc.history": Handler<"projects.overview_doc.history", X>;
+  "projects.overview_doc.restore": Handler<"projects.overview_doc.restore", X>;
   "projects.overview_doc.save": Handler<"projects.overview_doc.save", X>;
   "projects.overview_doc.templates.list": Handler<"projects.overview_doc.templates.list", X>;
   "projects.overview_doc.templates.save": Handler<"projects.overview_doc.templates.save", X>;

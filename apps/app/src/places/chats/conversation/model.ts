@@ -123,11 +123,11 @@ export function pokeLine(m: Pick<Message, "blocks">, nameOf: (id: string) => str
 }
 
 /** The quiet line a hook leaves (lane l-hooks): its words, what happened to it, and the hook it is about, so the line can offer Details or Edit. */
-export interface HookLine { line: string; kind: string; hookId?: string; reason?: string; by?: string; subject?: string; scope?: string; agentId?: string; /** Up to two steps a check wrote: a button label and what pressing it says to the assistant */ next?: Array<{ label: string; ask: string }> }
+export interface HookLine { line: string; kind: string; hookId?: string; reason?: string; by?: string; subject?: string; scope?: string; tool?: string; /** The stop was answered, for everyone in the chat: Allow (this time), Always allow or Deny */ resolved?: "allowed" | "always" | "denied"; /** For Always allow: the act and its target in plain words */ resolvedWhat?: string; agentId?: string; /** Up to two steps a check wrote: a button label and what pressing it says to the assistant */ next?: Array<{ label: string; ask: string }> }
 export function hookLineOf(m: Pick<Message, "blocks">): HookLine | null {
   const d = m.blocks.find((x) => x.type === "hook")?.data as { line?: unknown; kind?: unknown; hookId?: unknown; reason?: unknown } | null | undefined;
   if (!d || typeof d.line !== "string" || typeof d.kind !== "string") return null;
-  return { line: d.line, kind: d.kind, ...(typeof d.hookId === "string" ? { hookId: d.hookId } : {}), ...(typeof d.reason === "string" ? { reason: d.reason } : {}), ...(typeof (d as { by?: unknown }).by === "string" ? { by: (d as { by: string }).by } : {}), ...(typeof (d as { subject?: unknown }).subject === "string" ? { subject: (d as { subject: string }).subject } : {}), ...(typeof (d as { scope?: unknown }).scope === "string" ? { scope: (d as { scope: string }).scope } : {}), ...(typeof (d as { agentId?: unknown }).agentId === "string" ? { agentId: (d as { agentId: string }).agentId } : {}), ...nextOf((d as { next?: unknown }).next) };
+  return { line: d.line, kind: d.kind, ...(typeof d.hookId === "string" ? { hookId: d.hookId } : {}), ...(typeof d.reason === "string" ? { reason: d.reason } : {}), ...(typeof (d as { by?: unknown }).by === "string" ? { by: (d as { by: string }).by } : {}), ...(typeof (d as { subject?: unknown }).subject === "string" ? { subject: (d as { subject: string }).subject } : {}), ...(typeof (d as { scope?: unknown }).scope === "string" ? { scope: (d as { scope: string }).scope } : {}), ...(typeof (d as { agentId?: unknown }).agentId === "string" ? { agentId: (d as { agentId: string }).agentId } : {}), ...(typeof (d as { tool?: unknown }).tool === "string" ? { tool: (d as { tool: string }).tool } : {}), ...(typeof (d as { resolvedWhat?: unknown }).resolvedWhat === "string" ? { resolvedWhat: (d as { resolvedWhat: string }).resolvedWhat } : {}), ...(["allowed", "always", "denied"].includes(String((d as { resolved?: unknown }).resolved)) ? { resolved: (d as { resolved: "allowed" | "always" | "denied" }).resolved } : {}), ...nextOf((d as { next?: unknown }).next) };
 }
 /** The steps a check offered, read from the block: at most two, each a short label and a plain sentence; anything else is dropped. */
 function nextOf(v: unknown): { next?: Array<{ label: string; ask: string }> } {
@@ -148,10 +148,14 @@ export function hookLead(text: string): [string, string] {
   return m ? [m[1]!, text.slice(m[1]!.length)] : ["", text];
 }
 /** What a line offers beyond its words. A block shows Details (the hook, in the Hooks tab), Allow this once and Ask an admin; a hook that is still there shows Edit. */
-export type HookLineAct = "details" | "edit" | "once" | "ask";
-export function hookLineActs(h: HookLine): HookLineAct[] {
+/** The one approval vocabulary: Allow (this time only), Always allow (saves the rule through the hooks layer, for that hook's scope) and Deny (closes the line, the stop stands). A person who cannot decide is offered Ask an admin instead. */
+export type HookLineAct = "details" | "edit" | "allow" | "always" | "deny" | "ask";
+export function hookLineActs(h: HookLine, canDecide?: boolean): HookLineAct[] {
   if (h.hookId === undefined) return [];
-  if (h.kind === "blocked") return ["details", "once", "ask"];
+  // an answered stop shows how it was answered and Details; nothing more to decide
+  if (h.kind === "blocked" && h.resolved !== undefined) return ["details"];
+  // until it is known whether this person may decide, only Details is shown, so the line never changes under the pointer
+  if (h.kind === "blocked") return canDecide === undefined ? ["details"] : canDecide ? ["details", "allow", "always", "deny"] : ["details", "ask"];
   if (h.kind === "failed") return ["details"];
   return h.kind === "added" || h.kind === "changed" ? ["edit"] : [];
 }

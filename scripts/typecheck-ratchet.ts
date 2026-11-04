@@ -24,12 +24,17 @@ export function judge(count: number, baseline: number): { ok: boolean; lower: bo
   return { ok: true, lower: false, words: `${count} typecheck errors, as allowed.` };
 }
 
+/** A CI runner, where a ratchet that cannot count must fail rather than pass. */
+export const inCi = (env: Record<string, string | undefined> = process.env): boolean => env["GITHUB_ACTIONS"] === "true" || env["CI"] === "true";
+
 function main(): void {
   const root = process.cwd();
   const baselineFile = path.join(root, "scripts/typecheck-baseline.json");
-  if (!fs.existsSync(path.join(root, "node_modules/react-native/package.json"))) { console.log("typecheck ratchet skipped: react-native is not installed here"); return; }
+  // On a CI runner a skip is a failure: the gates step read "skipped" on every push until 5 Nov while the count drifted to 313, so it passed without counting.
+  const skip = (why: string): void => { console.log(`typecheck ratchet ${inCi() ? "cannot run" : "skipped"}: ${why}`); if (inCi()) process.exit(1); };
+  if (!fs.existsSync(path.join(root, "node_modules/react-native/package.json"))) return skip("react-native is not installed here");
   const tsc = [process.env["TSC"] ?? "", path.join(root, "node_modules/.bin/tsc"), path.join(root, "tools/gen/node_modules/.bin/tsc")].find((p) => p !== "" && fs.existsSync(p));
-  if (!tsc) { console.log("typecheck ratchet skipped: no tsc installed here"); return; }
+  if (!tsc) return skip("no tsc installed here");
   const r = spawnSync(tsc, ["-p", "tsconfig.typecheck.json"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
   const count = countErrors(`${r.stdout}\n${r.stderr}`);
   const baseline = (JSON.parse(fs.readFileSync(baselineFile, "utf8")) as { count: number }).count;

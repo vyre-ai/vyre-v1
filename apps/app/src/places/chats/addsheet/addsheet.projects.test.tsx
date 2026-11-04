@@ -112,3 +112,39 @@ test("pressing a person in the people popover opens their profile through the ch
 });
 
 
+
+/** The line under the Add sheet when Sara is picked on the sample project. */
+async function projectFooter(linked: boolean): Promise<string> {
+  let line = "";
+  await withDom(async () => {
+    const s = createSampleProject({ linked });
+    const root = await mount(createRoot, <ProjectPageDataProvider value={asLead(s.data)}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>);
+    await flush(); await flush(); await flush();
+    await press(find(root, "project-more"));
+    await flush();
+    await press(find(root, "menu-item-Add People…"));
+    await flush();
+    await press(find(root, "as-row-person:usr_sara"));
+    line = textOf(find(root, "as-line-std")).replace(/\s+/g, " ").trim();
+  });
+  return line;
+}
+
+test("a project chat: the footer names the project's folder, and its records only when some are linked", async () => {
+  assert.equal(await projectFooter(true), "They'll see this chat's messages from now on, Rivera engagement's files, and its 1 linked record.");
+  assert.equal(await projectFooter(false), "They'll see this chat's messages from now on, and Rivera engagement's files.");
+});
+
+test("a chat whose record cannot be found leaves records out of the footer, with no error text", async () => {
+  await withDom(async () => {
+    const s = createSample("idle");
+    const data = { ...s.data, async call(cap: string, input: unknown) { if (cap === "search.resolve") return {}; return s.data.call(cap, input); } };
+    const root = await mount(createRoot, <Conversation data={data} />);
+    await press(find(root, "add-agent"));
+    await flush();
+    await press(find(root, "as-row-person:usr_maya"));
+    const line = textOf(find(root, "as-line-std")).replace(/\s+/g, " ").trim();
+    assert.equal(line, "They'll see this chat's messages from now on, and its files folder Client intake uploads.");
+    assert.ok(!/error|could not|not found|undefined|null/i.test(textOf(find(root, "add-sheet"))), "no error text");
+  });
+});
