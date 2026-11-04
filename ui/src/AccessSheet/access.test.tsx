@@ -586,3 +586,19 @@ test("a person gives no more than they have: a level above maxLevel is not in a 
     assert.ok(find(root, "menu-item-Can manage") === null);
   });
 });
+
+test("an outside agent on Here now has an x that calls onRemoveHere; earlierMessages false keeps the earlier switch hidden", async () => {
+  await withDom(async () => {
+    const removed: string[] = [];
+    const here = [{ id: "out_cc", name: "Claude Code", kind: "outside" as const }, { id: "agt_mira", name: "Mira", kind: "agent" as const }];
+    const root = await mount(createRoot, <AccessSheet {...add({ here, onRemoveHere: (e) => removed.push(e.id), earlierMessages: false })} />);
+    assert.equal(find(root, "as-here-remove-agt_mira"), null, "only an outside agent is taken out here");
+    await press(find(root, "as-here-remove-out_cc"));
+    assert.deepEqual(removed, ["out_cc"]);
+    await press(find(root, "as-row-person:usr_sara"));
+    assert.equal(find(root, "as-earlier"), null);
+    const shown = await mount(createRoot, <AccessSheet {...add()} />);
+    await press(find(shown, "as-row-person:usr_sara"));
+    assert.ok(find(shown, "as-earlier"), "on by default");
+  });
+});

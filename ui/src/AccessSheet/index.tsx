@@ -103,6 +103,7 @@ export type {
 } from "./props.ts";
 export { DEFAULT_AGENT_SETTINGS, frozenAddSheetProps, frozenShareSheetProps } from "./props.ts";
 export * from "./model.ts";
+export { Face as AccessFace, Icon as AccessIcon, IconButton as AccessIconButton, PokeButton as AccessPokeButton, SettingsPopover as AgentSettingsPopover } from "./parts.tsx";
 
 const DEFAULT_MODELS = ["Opus 5.5", "Sonnet 5.5", "Haiku 5.5", "GPT-5 Codex"] as const;
 
@@ -308,6 +309,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
             </View>
             {agent && props.onPoke ? <PokeButton name={name} testID={`as-here-poke-${e.id}`} onPress={() => props.onPoke?.(e.id)} /> : null}
             {agent ? <IconButton icon="gear" label="How and when it responds" testID={`as-gear-${e.id}`} onPress={(x, y) => openPop({ src: "here", id: e.id, x, y })} /> : null}
+            {e.kind === "outside" && props.onRemoveHere ? <IconButton icon="x" label={`Remove ${name} from here`} testID={`as-here-remove-${e.id}`} size={12} onPress={() => props.onRemoveHere?.(e)} /> : null}
           </View>
         );
       })}
@@ -322,7 +324,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
   const idle = lines.length === 0 ? idleLine(props.mode, share?.itemType, share?.itemName) : "";
 
   const noOutside = (props.directory.outside ?? []).length === 0;
-  const showEarlier = add !== null && showsEarlier(picks);
+  const showEarlier = add !== null && add.earlierMessages !== false && showsEarlier(picks);
   const label = actionLabel(props.mode, picks, compactLabel);
 
   /* ---------- the views ---------- */

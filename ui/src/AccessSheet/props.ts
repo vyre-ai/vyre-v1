@@ -183,6 +183,8 @@ interface CommonProps {
   agentSettings?: Readonly<Record<string, AgentSettings>>;
   /** The gear on a Here now row saved new settings for that agent. */
   onAgentSettings?(agentId: string, settings: AgentSettings): void;
+  /** Add mode: take an outside agent out of the chat. Shown as an x on its Here now row; the host calls threads.outside_agent.remove. */
+  onRemoveHere?(entry: AccessEntry): void;
   /** The models the New agent view offers. */
   models?: readonly string[];
   link?: LinkInfo;
@@ -196,6 +198,8 @@ interface CommonProps {
 export interface AddSheetProps extends CommonProps {
   mode: "add";
   target: AddTarget;
+  /** False where no capability can give a new member the earlier messages: the "Include earlier messages" switch stays hidden. Default true. */
+  earlierMessages?: boolean;
   /** The picks and whether earlier messages go with them. */
   onAdd(picks: readonly AccessPick[], opts: { earlier: boolean }): void;
 }

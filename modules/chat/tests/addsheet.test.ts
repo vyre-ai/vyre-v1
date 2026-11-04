@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { DANA, DRAFTER, INTAKE, MAYA, LEO, assertEventsConform, contractErrors, harness as baseHarness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
-import { agentsOf, ensure, insertMessage, insertThread, addMember, mintId } from "../projections.ts";
+import { addAgent, agentsOf, ensure, insertMessage, insertThread, addMember, mintId } from "../projections.ts";
+import { mayAnswerUntagged } from "../../../lib/route.ts";
 
 type Fn = (ctx: Harness["ctx"], input: any) => Promise<any>;
 const h = handlers as unknown as Record<string, Fn>;
@@ -78,7 +79,6 @@ test("threads.agent_settings.set: bad input is refused in words, a stranger find
   const id = await chatOf(hn);
   await h["threads.add_agent"]!(hn.ctx, { threadId: id, agentId: DRAFTER });
   const set = (input: Record<string, unknown>, ctx = hn.ctx) => h["threads.agent_settings.set"]!(ctx, { threadId: id, agentId: DRAFTER, ...input });
-  assert.equal(await failure(set({ when: "topics" })), "validation.bad_input", "topics need words");
   assert.equal(await failure(set({ when: "hours", hoursFrom: "9am" })), "validation.bad_input");
   assert.equal(await failure(set({ topics: "x".repeat(201) })), "validation.bad_input");
   assert.equal(await failure(set({ style: "long" })), "validation.bad_input");
@@ -349,4 +349,42 @@ test("threads.invite_guest: a guest of one channel chat by email, view or reply;
 
 test("a message id is minted the usual way (guard for the helper the tests use)", () => {
   assert.match(mintId("msg"), /^msg_[a-z0-9]+$/);
+});
+
+// ---- 6 who may change how an agent answers, and the topics draft
+
+test("threads.agent_settings.set: the person who added the agent, the chat's owner, a manager and the lead agent may change it; everyone else is told who can", async () => {
+  const { hn } = world();
+  const id = await chatOf(hn);                          // Dana owns it; Intake leads
+  addMember(hn.ctx, id, MAYA);
+  addMember(hn.ctx, id, LEO);
+  addAgent(hn.ctx, id, { agentId: DRAFTER, mode: "listen", addedBy: MAYA });
+  const set = (ctx: Harness["ctx"], input: Record<string, unknown> = { style: "full" }) => h["threads.agent_settings.set"]!(ctx, { threadId: id, agentId: DRAFTER, ...input });
+  await set(hn.person(MAYA), { style: "full" });           // the person who added it
+  await set(hn.ctx, { style: "short" });                   // the chat's owner
+  await set({ ...hn.person(LEO), authorize: () => ({ effect: "allow" }) } as Harness["ctx"], { style: "full" });   // someone who manages the chat
+  await set(hn.agent(INTAKE), { style: "short" });         // the lead agent
+  const refused = hn.person(LEO);
+  assert.equal(await failure(set(refused)), "permission.role_lacks_permission", "another member");
+  try { await set(refused); assert.fail("should refuse"); } catch (e) {
+    assert.equal((e as Error).message, "Only Maya, the chat's owner or someone who manages this chat can change how Ember answers.".replace("Ember", "Drafter"));
+  }
+  // an agent that is not the lead changes nothing, unless it added the agent itself
+  assert.equal(await failure(set(hn.agent(DRAFTER))), "permission.role_lacks_permission", "a teammate that is not the lead");
+  assert.equal(await failure(set({ ...hn.agent(DRAFTER), actingFor: MAYA } as Harness["ctx"])), "permission.role_lacks_permission", "the app acting for someone else's agent");
+  addAgent(hn.ctx, id, { agentId: "agt_extra", mode: "listen", addedBy: DRAFTER });
+  await h["threads.agent_settings.set"]!(hn.agent(DRAFTER), { threadId: id, agentId: "agt_extra", style: "full" });
+  assert.equal(agentsOf(hn.db, id).find((a) => a.agentId === "agt_extra")?.style, "full", "the agent that added it may");
+});
+
+test("threads.agent_settings.set: Only on topics with the box still empty is a draft that is kept and answers as Always until the words are there", async () => {
+  const { hn } = world();
+  const id = await chatOf(hn);
+  await h["threads.add_agent"]!(hn.ctx, { threadId: id, agentId: DRAFTER });
+  const draft = await h["threads.agent_settings.set"]!(hn.ctx, { threadId: id, agentId: DRAFTER, when: "topics", topics: "  " });
+  const row = draft.thread.agents.find((a: any) => a.agentId === DRAFTER);
+  assert.deepEqual([row.when, row.topics], ["topics", undefined], "kept, no error while typing");
+  assert.equal(mayAnswerUntagged({ id: DRAFTER, mode: "listen", when: "topics" } as never, "Where is the invoice?", undefined), true, "answers as Always while the box is empty");
+  assert.equal(mayAnswerUntagged({ id: DRAFTER, mode: "listen", when: "topics", topics: "contracts" } as never, "Where is the invoice?", undefined), false, "and by its topics once they are written");
+  assert.equal(mayAnswerUntagged({ id: DRAFTER, mode: "listen", when: "topics", topics: "invoices" } as never, "Where is the invoice?", undefined), true);
 });

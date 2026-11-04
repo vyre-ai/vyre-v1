@@ -6,3 +6,11 @@
 - A person can only give what they have. Levels above their own are greyed with "(you do not have this)".
 - Share: a level for each person, group or the whole Space, with a line that says what each level lets them do. Vault items can be used without being seen. Agents are shared at four levels, and your own Assistant says it can't be shared.
 - On a phone the sheet rises from the bottom and the main button reads "Add 3".
+- The Add people and agents sheet is now the one way to add anyone. The + in the message box (under This chat), the + in the chat header, the people count, a channel, a reply thread, the right pane's Threads and Crew tabs, a project's people count and its Teammates tab, and the new chat screen's With row all open the same sheet. The old "Add as listening" list, the two reply-mode menu items and the project's Add teammate form are gone.
+- The people count lists who is here with Add people and agents first. Each agent there has a Poke button and a gear for how and when it answers. Making another agent the one that answers everything still asks first.
+- Poking an agent leaves a quiet line, "Sara poked Docs", and the reply it writes says "Poked by Sara".
+- Added people go in with one line after, for example "Docs and Sara were added". A guest is invited by email, a new chat agent belongs to the chat, and an outside agent is added to that chat only and can be taken out with the x on its row under Here now. A person who can only view can add viewers only.
+- On a project, a new agent made in the sheet becomes a teammate of that project. A teammate's role (Lead, Member, Reviewer) is chosen on its row.
+- The "Include earlier messages" switch stays hidden for now: nothing in the server gives a new member the earlier messages yet.
+- Whoever added an agent to a chat can change how and when it answers, and so can the chat's owner, anyone who manages the chat and the chat's lead agent. Anyone else is told who can: "Only Maya, the chat's owner or someone who manages this chat can change how Drafter answers."
+- Choosing "Only on topics" before any topic is typed no longer errors. It is kept as a draft, and the agent answers everything until the topics are written.

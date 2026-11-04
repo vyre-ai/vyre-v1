@@ -74,15 +74,6 @@ export async function stopAll(data: ConversationData): Promise<void> {
   await data.call("engine.stop_all", { threadId: data.threadId } satisfies CapMap["engine.stop_all"]["in"]);
 }
 
-/** Leads or Listening for one agent. The engine keeps one lead per thread: making another agent lead turns the old lead into a listener and says which. */
-export async function setMode(data: ConversationData, agentId: string, mode: AgentMode): Promise<CapMap["engine.set_mode"]["out"]> {
-  return (await data.call("engine.set_mode", { threadId: data.threadId, agentId, mode } satisfies CapMap["engine.set_mode"]["in"])) as CapMap["engine.set_mode"]["out"];
-}
-
-export async function addAgent(data: ConversationData, agentId: string): Promise<void> {
-  await data.call("threads.add_agent", { threadId: data.threadId, agentId, mode: "listen" } satisfies CapMap["threads.add_agent"]["in"]);
-}
-
 export async function removeAgent(data: ConversationData, agentId: string): Promise<void> {
   await data.call("threads.remove_agent", { threadId: data.threadId, agentId } satisfies CapMap["threads.remove_agent"]["in"]);
 }

@@ -11,7 +11,7 @@ import { HoverBar, MessageView } from "./MessageView.tsx";
 import * as act from "./actions.ts";
 import {
   WINDOW, beforeCursor, byOrder, dayLabel, faces, lastMessages, leadOf, mentionsIn, mergePages, pendingMessage, queueNote, queuedCount, respondersFor, sendKind, stillPending, stopLabel,
-  swapNeeded, timeline, whoLine, workOf, workingAgents, bodyBlocks, findMatches, reportLabel, matchLine, modelLabel, participants, placeholderFor, summarizeOpen, openVerdict, CHAT_OPEN_BUDGET_MS,
+  swapNeeded, timeline, whoLine, workOf, workingAgents, bodyBlocks, findMatches, reportLabel, matchLine, modelLabel, placeholderFor, summarizeOpen, openVerdict, CHAT_OPEN_BUDGET_MS,
 } from "./model.ts";
 import { changeCount, editedNote, isPlanFile, isProposal, planFileLine, proposalActs, proposalData } from "./proposal.tsx";
 import type { Message, Pending, Thread } from "./model.ts";
@@ -121,11 +121,10 @@ test("stop and stop all: the header says which, and each calls its capability; t
 
 test("mode: making Docs lead turns Intake into a listener; one lead per thread", async () => {
   const s = createSample("idle");
-  const r = await act.setMode(s.data, "agt_docs", "lead");
-  assert.equal(r.leadAgentId, "agt_docs");
+  await s.data.call("threads.agent_settings.set", { threadId: "c1", agentId: "agt_docs", mode: "lead" });
   assert.deepEqual(thread(s).agents.map((a) => [a.agentId, a.mode]), [["agt_intake", "listen"], ["agt_docs", "lead"]]);
   assert.ok(has(html(s), "Docs will reply"));
-  await act.addAgent(s.data, "agt_research");
+  await s.data.call("threads.add_agent", { threadId: "c1", agentId: "agt_research", mode: "listen" });
   await act.removeAgent(s.data, "agt_docs");
   assert.deepEqual(thread(s).agents.map((a) => a.agentId), ["agt_intake", "agt_research"]);
 });
@@ -282,7 +281,7 @@ test("the header has the agent chip with a face and mode mark, the participants 
   const out = html(s);
   inOrder(out, ['data-testid="conversation-title"', 'data-testid="face-agt_intake"', ">Intake<", 'data-testid="participants-button"', 'data-testid="find-button"', 'data-testid="pane-button"', 'data-testid="more-button"']);
   assert.ok(has(out, "3 in this thread"));
-  assert.deepEqual(participants(thread(s), s.data.nameOf).map((p) => [p.name, p.role]), [["You", "Person"], ["Intake", "Replies to everything"], ["Docs", "Only when @mentioned"]]);
+  assert.ok(has(out, 'data-testid="add-agent"') && has(out, 'aria-label="Add people and agents"'), "the header + is the one Add people and agents sheet");
 });
 
 test("find in chat: matches are ignoring case and accents, counted, and stepped", () => {

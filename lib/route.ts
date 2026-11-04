@@ -61,7 +61,8 @@ export function aboutTopics(topics: string | undefined, text: string | undefined
 /** May this agent answer a message nobody tagged it in, by its own When setting? */
 export function mayAnswerUntagged(a: RouteAgent, text: string | undefined, minutes: number | undefined): boolean {
   if (a.quiet === true) return false;
-  if (a.when === "topics") return aboutTopics(a.topics, text);
+  // Only on topics with no topics written yet is a draft: it answers as Always until the words are there
+  if (a.when === "topics" && (a.topics ?? "").trim() !== "") return aboutTopics(a.topics, text);
   if (a.when === "hours") return insideHours(a.hoursFrom, a.hoursTo, minutes);
   return true;
 }
