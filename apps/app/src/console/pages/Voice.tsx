@@ -5,7 +5,9 @@ import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { Group, Section, StatusLabel } from "../shell/ui.tsx";
+import { Glyph } from "../shell/glyphs.tsx";
+import { Group, Lead, Section } from "../shell/ui.tsx";
+import { IconTile } from "./CiRunners.tsx";
 import { Actions, Button, Field, Note, ReadState, useAction, useRead } from "./shared.tsx";
 
 type SpaceOut = CapMap["talk.space.status"]["out"];
@@ -60,11 +62,17 @@ export function VoiceSettings(): ReactElement {
   const note = s.set ? [name, who, `checked ${agoLine(s.checkedAt, data.clock().now)}`].filter(Boolean).join(" · ") : `One ${name} key can cover everyone. People just press the mic, and can never read the key.`;
   const owned = s.peopleOwnKey ?? 0;
   const form = !s.set || replacing;
+  const failing = s.set && s.state === "failing";
+  const stateWord = failing ? "Not working" : s.on ? "Working" : "Paused";
   return (
     <View testID="console-voice">
-      <Section title="Voice">
+      <Text testID="voice-intro" style={{ fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginHorizontal: 2, marginBottom: 12 }}>Press the mic and your words land in the message. One key here covers everyone, and nobody can read it.</Text>
+      {failing ? <Section title="Needs you" count={1}>
+        <Group><Row id="voice-need" title={`${name} stopped accepting the key`} note="Replace the key, or check again if it was a passing problem." leading={<Lead><View style={{ width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--warn-wash, var(--sel))" as string }}><Glyph name="warn" size={15} color="var(--warn)" /></View></Lead>} trailing={<Button label="Replace key" testID="voice-need-replace" onPress={() => setReplacing(true)} />} /></Group>
+      </Section> : null}
+      <View>
         <Group>
-          <Row id="voice-status" title={voiceHeadline(s)} note={note} trailing={s.set ? <StatusLabel status={s.state === "failing" ? "failed" : s.on ? "active" : "paused"} /> : undefined} />
+          <Row id="voice-status" title={voiceHeadline(s)} note={note} leading={<IconTile icon="mic" {...(failing ? { tone: "warn" as const } : {})} />} trailing={s.set ? <Text testID="voice-state" style={{ fontSize: 12.5, color: (failing ? "var(--warn)" : "var(--ink-3)") as string }}>{stateWord}</Text> : undefined} />
           {s.set ? <Row id="voice-own" title="People with their own key" note={owned === 0 ? "Nobody. The Space key covers everyone" : `${owned}. Their own key wins for them`} /> : null}
         </Group>
         {form ? (
@@ -84,11 +92,11 @@ export function VoiceSettings(): ReactElement {
             <Button label="Check now" onPress={() => void action.run("talk.space.check", {}, "Checked")} disabled={action.busy} testID="voice-check" />
             {gone
               ? <Button danger label="Remove from the Vault" onPress={() => void action.run("talk.space.disconnect", {}, "Key removed").then(() => setGone(false))} testID="voice-remove-yes" />
-              : <Button label="Remove key" onPress={() => setGone(true)} testID="voice-remove" />}
+              : <Button danger label="Remove key" onPress={() => setGone(true)} testID="voice-remove" />}
           </Actions>
         )}
         {action.note !== "" ? <Text accessibilityRole="status" testID="voice-note" style={{ marginTop: 8, fontSize: 12.5, color: "var(--ink-3)" }}>{action.note}</Text> : null}
-      </Section>
+      </View>
     </View>
   );
 }
