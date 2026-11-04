@@ -36,6 +36,7 @@ export function ReachLink({ r, label, deps, testID, textStyle }: { r: Reach; lab
       {peek !== null ? (
         <View testID={`${testID}-peek`} style={st.card} accessibilityRole="summary">
           <Text style={st.title}>{peek.title}</Text>
+          {/* ui-rows-lint: not a list (the lines of a peek, as text) */}
           {peek.lines.map((l) => <Text key={l} style={st.line}>{l}</Text>)}
           {peek.tell !== undefined && line === "" ? (
             <Pressable testID={`${testID}-tell`} accessibilityRole="button" onPress={() => void tell(peek.tell!.reason)}><Text style={st.link}>{peek.tell.label}</Text></Pressable>

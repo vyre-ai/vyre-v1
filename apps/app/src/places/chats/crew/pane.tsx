@@ -179,6 +179,7 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
       {member.state === "working" && member.step ? <><Text style={st.section}>Now</Text><Text testID="crew-peek-step" style={st.rowLine}>{member.step}</Text></> : null}
       {member.found ? <><Text style={st.section}>Answer</Text><Text testID="crew-peek-answer" style={st.rowLine}>{member.found}</Text></> : null}
       {isCode(member) ? <><Text style={st.section}>Code</Text><Text testID="crew-peek-code" style={st.mono}>{member.branch} · +{member.added ?? 0} −{member.deleted ?? 0} · {member.files?.length ?? 0} files{member.tests ? ` · ${testsWords(member.tests)}` : ""}</Text></> : null}
+      {/* ui-rows-lint: not a list (a helper's notes, a log of lines) */}
       {log.length > 0 ? <><Text style={st.section}>Notes</Text>{log.map((n) => <View key={n.messageId} testID={`crew-note-${n.messageId}`} style={st.note}><Text style={st.noteWho}>{WHO[n.who]}{n.who === "parent" && n.seenAt !== undefined ? " · seen" : ""}</Text><Text style={st.rowLine}>{n.body}</Text></View>)}</> : null}
       <Text style={st.section}>Cost and time</Text>
       <View style={st.kv}><Text style={st.k}>Time</Text><Text testID="crew-peek-time" style={st.v}>{timeOf(member, now)}</Text></View>

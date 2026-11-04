@@ -46,6 +46,7 @@ export function ActivityPage(): ReactElement {
   return <View testID="console-activity">
     <Segmented value={tab} onChange={(key) => setTab(key as RunTab)} options={[{ key: "all", title: `All ${n("all")}` }, { key: "active", title: `Active ${n("active")}` }, { key: "waiting", title: `Waiting ${n("waiting")}` }, { key: "failed", title: `Failed and stopped ${n("failed")}` }]} />
     <Group testID="activity-runs">
+      {/* ui-rows-lint: not a list (each run is a ui/Row, wrapped with the detail that opens under it) */}
       {shown.map((r) => <View key={r.id}>
         <Row id={`run-${r.id}`} title={r.name ?? kindWord(r.kind)} note={`${data.name(r.owner) === r.owner ? "Someone" : data.name(r.owner)} · ${ago(now, r.startedAt)}`} trailing={<StatusLabel status={statusWords(r)} />} onPress={() => setOpen(open === r.id ? null : r.id)} />
         {open === r.id ? <RunDetail run={r} onChanged={list.refresh} /> : null}

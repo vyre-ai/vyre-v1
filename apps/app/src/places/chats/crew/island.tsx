@@ -15,6 +15,7 @@ export function CrewIsland({ status, onPress }: { status: CrewStatusOut; onPress
       <Pressable accessibilityRole="button" accessibilityLabel={c.needsYou > 0 ? `${c.needsYou} helper needs you` : `${c.active} helpers working`} testID="crew-island" onPress={onPress} style={st.pill}>
         <View style={[st.dot, { backgroundColor: (c.needsYou > 0 ? "var(--warn)" : "var(--accent)") as string }]} />
         <Text testID="crew-island-text" style={st.text}>{c.needsYou > 0 ? "Needs you" : "Working"}</Text>
+        {/* ui-rows-lint: not a list (the faces of the helpers at work) */}
         <View style={st.faces}>{active.slice(0, 5).map((m) => <Avatar key={m.id} name={nameOf(m)} seedId={m.agentId} kind="agent" size={20} />)}</View>
       </Pressable>
     </View>

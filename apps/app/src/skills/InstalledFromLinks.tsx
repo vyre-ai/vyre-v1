@@ -63,6 +63,7 @@ export function InstalledFromLinks({ call, nameOf = (id) => id }: { call: Call; 
         actions={[{ label: "Update", primary: true, disabled: busy, onPress: () => void apply() }, { label: "Not now", onPress: () => setUpdate(null) }]}>
         <View style={{ gap: 6 }}>
           <Text style={quiet}>{update.plan.diff ? `${changedCount(update.plan.diff)} ${changedCount(update.plan.diff) === 1 ? "file" : "files"} changed` : ""}</Text>
+          {/* ui-rows-lint: not a list (the lines of a diff) */}
           {update.plan.diff ? diffRows(update.plan.diff).map((r, n) => <Text key={n} style={[mono, r.kind === "head" ? { color: "var(--ink-3)" } : null]}>{r.text}</Text>) : null}
         </View>
       </Dialog>

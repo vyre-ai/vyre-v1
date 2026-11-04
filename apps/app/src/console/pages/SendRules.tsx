@@ -60,6 +60,7 @@ export function SendRulesPage(): ReactElement {
       </Section>
       <Section title="Sending limits">
         <Group testID="send-limits">
+          {/* ui-rows-lint: not a list (sending limits, each a setting line with its own control) */}
           {LIMITS.map((def) => <Limit key={def.key} def={def} />)}
         </Group>
       </Section>
