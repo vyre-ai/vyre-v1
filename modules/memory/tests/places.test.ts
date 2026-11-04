@@ -439,3 +439,26 @@ test("LEAK: what an agent saved for its memory in a private chat stays the start
   await remember(room.ctx, { text: "The cobalt launch review is on Friday.", layer: "agent", agentId: AGENT, threadId: "thr_priv" });
   assert.match(await ask(as(MAYA), "thr_priv", "cobalt launch review on friday"), /Friday/);
 });
+
+test("LEAK: a channel that began with one person keeps what the agent kept before the second person was added; a channel made with its people shows late joiners everything", async () => {
+  const raw = openRaw();
+  const clock = { t: NOW };
+  let added = false;
+  const sharedAt = NOW + 1000;
+  const threads = (me: string) => (b: Record<string, unknown>) => {
+    const id = String(b["threadId"]);
+    if (id !== "thr_plans") throw new Error("not found");
+    if (me !== MAYA && !(added && me === OMAR)) throw new Error("not found");
+    return { thread: { threadId: id, kind: "channel", channelId: "chn_plans", starter: MAYA, members: added ? [person(MAYA), person(OMAR)] : [person(MAYA)], agents: [{ agentId: AGENT, mode: "lead" }], ...(added ? { sharedAt } : {}) } };
+  };
+  const as = (who: string, principal: { kind: "person" | "agent"; id: string } = person(who) as never) => harness({ raw, clock, principal, ...(principal.kind === "agent" ? { actingFor: who } : {}), respond: {
+    "threads.get": threads(who), "channels.get": () => ({ channel: { visibility: "invite", members: added ? [person(MAYA), person(OMAR)] : [person(MAYA)] } }), "agents.get": () => ({ agent: { folderId: "fld_helper", captureMode: "auto", ownerId: MAYA } }), "chat.noted": () => ({ posted: true }) } });
+  const agent = as(MAYA, { kind: "agent", id: AGENT });
+  (agent.ctx as { thread?: string }).thread = "thr_plans";
+  await remember(agent.ctx, { text: "The acme budget ceiling is eighty thousand dollars.", layer: "agent", agentId: AGENT, threadId: "thr_plans" });
+  clock.t = sharedAt + 1000;
+  added = true;
+  for (const who of [OMAR, MAYA]) {
+    assert.doesNotMatch(await ask(as(who), "thr_plans", "what is the acme budget ceiling in dollars"), /eighty/, `${who} in the channel that gained a person`);
+  }
+});
