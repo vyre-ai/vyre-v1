@@ -2,7 +2,7 @@
 // answer here that approves, loosens or skips anything. A hook that errors or runs out of time is logged and shown, never a block.
 import { BLOCKING, matches, namesOf, parseCheck, plainTools, redact, scopeRank, validNext } from "../../lib/hooks.ts";
 import type { HookFire, HookVerdict } from "../../agent/src/tools/hooks.ts";
-import { applicable, logRun, helpersActive, link, lineage, takePass } from "./projections.ts";
+import { applicable, logRun, helpersActive, link, lineage, parentOf, takePass } from "./projections.ts";
 import type { HooksCtx, Rec } from "./projections.ts";
 import { hostSeams } from "./seams.ts";
 import type { CheckAnswer } from "../../lib/hooks.ts";
@@ -77,6 +77,11 @@ async function say(ctx: HooksCtx, threadId: string, body: string, kind: "blocked
   try {
     await ctx.call("chat.hook_line", { threadId, body, kind, hookId: h.id, scope: h.scope, by: h.madeBy, byKind: h.madeByKind, ...(reason ? { reason } : {}), ...(tool ? { tool } : {}), ...(next ? { next } : {}), ...(agentId ? { agentId } : {}) });
   } catch (e) { ctx.log?.warn("a hook line was not posted", { error: e instanceof Error ? e.message : String(e) }); }
+  // a stop in a helper's thread also reaches the chat it works for, so its lead and the people there see it
+  const parent = kind === "blocked" ? parentOf(ctx, threadId) : null;
+  if (parent) {
+    try { await ctx.call("chat.hook_line", { threadId: parent, body: `A hook stopped a helper: ${reason ?? ""}`.trim(), kind: "blocked", scope: h.scope, by: h.madeBy, byKind: h.madeByKind, ...(reason ? { reason } : {}) }); } catch { /* the helper's own line stands */ }
+  }
 }
 
 /** Hooks that plugins brought, as agent-scope command hooks, so they take their place in the one order. They do not run for Claude Code: it loads the plugin's own hooks itself. */

@@ -340,3 +340,13 @@ test("a chat hook binds a helper that works for the chat: the same tool is stopp
   const listed = (await w.call("hooks.list", { threadId: "thr_h1" }, maya)).hooks.map((h: { scope: string }) => h.scope);
   assert.ok(listed.includes("chat"), "the helper's hooks include the chat's");
 });
+
+test("a helper's very first call is bound by the chat's rules even before the helper-started event has been folded in: the thread itself says which chat it works for", async () => {
+  const w = world();
+  w.s.command = async () => stop;
+  await w.call("hooks.set", { scope: "chat", threadId: "thr_a", event: "tool.before", kind: "command", command: "guard" }, maya);
+  w.s.helperParents["thr_first"] = "thr_a";
+  const v = await w.fire({ event: "tool.before", tool: "x", threadId: "thr_first", threadKind: "helper", agentId: "agt_helper" });
+  assert.equal(v.block?.reason, "Not on a Friday.", "stopped on the first call, with no link yet");
+  assert.equal((await w.fire({ event: "tool.before", tool: "x", threadId: "thr_other", threadKind: "helper", agentId: "agt_helper" })).block, null, "a helper of nothing is not bound");
+});

@@ -257,6 +257,13 @@ export async function fire(ctx: HooksCtx, i: Omit<HookFire, "asker"> & { asker?:
     if (ctx.call && a.kind === "person") { try { await ctx.call("agents.get", { agentId: i.agentId }); } catch { raise(ctx, "permission.no_grant", "That agent is not one you can use."); } }
   }
   const asker = a.kind === "service" ? i.asker! : a.asker;
+  // a helper's very first call can come before the helper-started event has been folded in: ask the thread itself which chat it works for, so the chat's rules bind it from its first step
+  if ((i.threadKind === "helper" || i.threadKind === undefined) && parentOf(ctx, i.threadId) === null && ctx.call) {
+    try {
+      const t = (await ctx.call("threads.get", { threadId: i.threadId })) as { thread?: { kind?: string; parentThreadId?: string } };
+      if (t.thread?.kind === "helper" && typeof t.thread.parentThreadId === "string") link(ctx, i.threadId, t.thread.parentThreadId);
+    } catch { /* not readable: the event link, if it comes, will do */ }
+  }
   return fireHooks(ctx, { ...i, asker });
 }
 export { link, helpersActive };
