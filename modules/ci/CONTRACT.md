@@ -38,3 +38,9 @@ Each run of a linked repository is linked to its project with `projects.links.li
 
 ## GitHub App permissions
 `ci.settings.get` also returns `githubApp: { ready, installed, missing[], acceptUrl, orgAcceptUrl }`. When `ready` is false and the App is installed, the Console card says "<Space>'s GitHub app needs new permissions. Accept on GitHub" and links to `acceptUrl` (a personal account) or `orgAcceptUrl` (an organization) until it is accepted. `missing` lists what is still needed, for example "administration: write" or "event: workflow_job".
+
+## The accept line on project rows
+`ci.project.get` also returns `appNeedsAccept`, `acceptUrl` and `orgAcceptUrl`. When `appNeedsAccept` is true, the project's CI rows show "<Space>'s GitHub app needs new permissions" with an Accept button that opens `acceptUrl` (a personal account) or `orgAcceptUrl` (an organization) on GitHub. The Console card reads the same from `ci.settings.get` `githubApp`.
+
+## Needs-you lines
+When the runner download cannot be verified against the checksum Vyre pins, no machine starts: the run is `refused` with a plain note, `ci.job_refused` has `code: "runner_unverified"`, and the admins get one Inbox line a day (`ci.blocked`, shown with the `ci.paused` kind).

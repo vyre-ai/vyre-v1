@@ -1182,6 +1182,7 @@ export function stubs(ctx: CallCtx) {
       repos: {
         list: call("github.repos.list"),
       },
+      runner_release: call("github.runner_release"),
       runners: {
         jit_config: call("github.runners.jit_config"),
         remove: call("github.runners.remove"),
