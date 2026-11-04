@@ -176,6 +176,7 @@
         "modules/settings/",
         "modules/vault/",
         "modules/vault-requests/",
+        "modules/talk/",
         "modules/audit/",
         "modules/governance/",
         "package-lock.json"
@@ -189,6 +190,7 @@
         "settings",
         "vault",
         "vault-requests",
+        "talk",
         "audit",
         "governance"
       ]
@@ -483,6 +485,7 @@
     "updates": "L7b",
     "vault": "L7a",
     "vault-requests": "L7a",
+    "talk": "L7a",
     "zoom": "L5"
   }
 }
