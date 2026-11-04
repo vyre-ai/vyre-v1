@@ -40,6 +40,18 @@ test("a teammate says so in its kind and project, and kind is on every read", as
   assert.deepEqual(listed.map((a: any) => [a.agentId, a.kind]), [[made.agentId, "teammate"]]);
 });
 
+test("an agent made for a project is one of the project's people in the same write: members.set runs with role member, and if it fails no agent is left behind", async () => {
+  const hn = harness();
+  const made = (await H["agents.create"]!(hn.person(DANA), { name: "Reviewer", projectId: "prj_1" })).agent;
+  const set = hn.world.calls.filter((c: any) => c.cap === "projects.members.set");
+  assert.deepEqual(set.map((c: any) => [c.input.projectId, c.input.principal, c.input.role]), [["prj_1", made.agentId, "member"]]);
+  hn.world.answer("projects.members.set", () => { throw Object.assign(new Error("no"), { error: { code: "permission.denied", message: "no" } }); });
+  await assert.rejects(() => H["agents.create"]!(hn.person(DANA), { name: "Second", projectId: "prj_1" }));
+  assert.equal(hn.rows("SELECT id FROM agents_agent WHERE name = 'Second'").length, 0, "the agent is not left behind");
+  const plain = (await H["agents.create"]!(hn.person(DANA), { name: "Plain" })).agent;
+  assert.ok(plain.agentId && !hn.world.calls.some((c: any) => c.cap === "projects.members.set" && c.input.principal === plain.agentId), "an agent with no project is nobody's member");
+});
+
 test("agents made before the column are read from what they carried: the migration moves the role word and the teammate key", async () => {
   const hn = harness();
   const [id] = await ensureAssistant(hn.person(DANA), born(DANA, "Dana Reyes"));
