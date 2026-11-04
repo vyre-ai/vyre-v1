@@ -7,7 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "./lib.mjs";
-import { bootFreshSpace, edge, ownerSession } from "../../apps/app/tests/real-app-harness.test.ts";
+import { bootFreshSpace, claimOnEdge, dismissOnboarding, edge, ownerSession } from "../../apps/app/tests/real-app-harness.test.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const args = parseArgs(process.argv.slice(2));
@@ -21,18 +21,38 @@ const web = await edge(dist, space.url);
 const { chromium } = await import("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
 let failed = 0;
+// claim the Space as its owner once, the way a person does, to get a session the Space knows as an admin
+let session = null;
+if (space.claim) {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+  const page = await ctx.newPage();
+  await page.goto(claimOnEdge(space.claim, web.origin), { waitUntil: "load", timeout: 60000 });
+  try {
+    await page.getByTestId("claim-name").fill("Olivia Owner");
+    await page.getByTestId("claim-username").fill("olivia");
+    await page.getByTestId("claim-password").fill("correct horse battery 9");
+    await page.getByTestId("claim-confirm").fill("correct horse battery 9");
+    await page.getByTestId("claim-next").click();
+    await page.getByTestId("claim-saved").click();
+    await page.getByTestId("claim-create").click();
+    await page.getByTestId("shell").waitFor({ timeout: 30000 });
+    session = await page.evaluate(() => localStorage.getItem("vyre.session.v1"));
+  } catch (e) { console.log(`claim failed: ${e instanceof Error ? e.message : String(e)}`); }
+  await ctx.close();
+}
 const say = (ok, line) => { console.log(`${ok ? "ok  " : "FAIL"} ${line}`); if (!ok) failed += 1; };
 try {
   for (const skin of ["paper", "graphite"]) {
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
     const seed = await ctx.newPage();
     await seed.goto(`${web.origin}/home?skin=${skin}`, { waitUntil: "load", timeout: 60000 });
-    await seed.evaluate((v) => localStorage.setItem("vyre.session.v1", v), JSON.stringify(ownerSession(space, web.origin)));
+    await seed.evaluate((v) => localStorage.setItem("vyre.session.v1", v), session ?? JSON.stringify(ownerSession(space, web.origin)));
     await seed.close();
     const page = await ctx.newPage();
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(`${web.origin}/console?skin=${skin}#screen=console.ai-voice`, { waitUntil: "load", timeout: 60000 });
+    await dismissOnboarding(page).catch(() => false);
     const there = await page.getByTestId("console-voice").waitFor({ timeout: 30000 }).then(() => true, () => false);
     if (!there) { console.log("testids: " + JSON.stringify((await page.$$eval("[data-testid]", (n) => n.map((x) => x.getAttribute("data-testid")))).slice(0, 60))); }
     say(there, `${skin}: the Voice page draws for the owner`);
