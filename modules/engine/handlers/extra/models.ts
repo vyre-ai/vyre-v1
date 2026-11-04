@@ -5,7 +5,8 @@
 // models are the provider's own list (providers.test). Every row is named the way the vendor names it.
 import { windowFor } from "../../../../agent/src/transcript/windows.ts";
 import { actorOf, raise } from "../../projections.ts";
-import { ensureRuntime } from "../../runtime.ts";
+import { completerOf, ensureRuntime } from "../../runtime.ts";
+import { CLI_PROBE_PARALLEL, CLI_PROBE_TIMEOUT_MS, PROBE_CAP, PROBE_PROMPT, noteAccount, confirmedFor, probeModels, probeRunning, probing, unavailableFor } from "../../model-health.ts";
 import { LIVE_DRIVERS, modelsFor, savedTested, saveTested } from "../../live-models.ts";
 import type { LiveModel, ModelsState } from "../../live-models.ts";
 import type { EngineCtx } from "../../projections.ts";
@@ -66,7 +67,7 @@ function prettyModel(model: string): string {
 }
 
 interface ModelInfo {
-  provider: string; model: string; title: string; driver: Driver; contextTokens?: number; allowed: boolean; reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit"; resetsAt?: number;
+  provider: string; model: string; title: string; driver: Driver; contextTokens?: number; allowed: boolean; reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit" | "checking"; resetsAt?: number;
   /** The CLI's own name that resolves to this model today (Claude Code's opus): a pick saved as the alias is this row. */
   alias?: string; isDefault?: boolean; efforts?: string[]; defaultEffort?: string;
 }
@@ -128,15 +129,29 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
   for (const { p, models } of found) {
     // a model this account ran out of is listed greyed, with when it comes back when the provider said (engine.usage.get shows its meter full)
     const out = modelLimits(ctx.db, p.handle ?? p.itemId, ctx.now());
+    // a model this account just refused is not offered until it works again (model-health.ts)
+    const ref = p.handle ?? p.itemId;
+    const refused = unavailableFor(ctx.db, ref, ctx.now());
+    // an API key's models are checked once, in the background, with one tiny request each (capped): until a model is confirmed it is shown greyed as "Checking..."
+    const checking = new Set<string>();
+    const isCli = subs.includes(p);
+    noteAccount(ctx.db, p.id, ref);
+    if (!passive && p.spaceKey !== true && completerOf() !== null) {
+      const known = confirmedFor(ctx.db, ref, ctx.now());
+      const unsure = models.filter((m) => !refused.has(m) && !known.has(m)).slice(0, PROBE_CAP);
+      for (const m of unsure) checking.add(m);
+      if (unsure.length > 0) probeModels(ctx.db, ref, unsure, async (r, m) => { await ctx.call("engine.complete", { accountRef: r, prompt: PROBE_PROMPT, model: m }); }, ctx.now, isCli ? { parallel: CLI_PROBE_PARALLEL, timeoutMs: CLI_PROBE_TIMEOUT_MS } : {});
+    }
     for (const model of models) {
+      if (refused.has(model)) continue;
       const why = blockedBy(policy, { provider: p.providerKey, model, ...(label === undefined ? {} : { label }), keepsNothing: keeps(p) });
       const spent = why === null ? out.get(model) : undefined;
       const lm = live.get(`${p.providerKey}/${model}`);
       // a pick saved as the alias (sonnet) ran out under that name: the row it resolves to is greyed too
       const spentAs = spent ?? (why === null && lm?.alias ? out.get(lm.alias) : undefined);
       const row: ModelInfo = {
-        provider: p.providerKey, model, title: lm?.title ?? prettyModel(model), driver: driverOf(p), contextTokens: windowFor(model, p.providerKey), allowed: why === null && spentAs === undefined,
-        ...(why !== null ? { reason: why } : spentAs ? { reason: "usage_limit" as const, ...(spentAs.resetsAt !== undefined ? { resetsAt: spentAs.resetsAt } : {}) } : {}),
+        provider: p.providerKey, model, title: lm?.title ?? prettyModel(model), driver: driverOf(p), contextTokens: windowFor(model, p.providerKey), allowed: why === null && spentAs === undefined && !checking.has(model),
+        ...(why !== null ? { reason: why } : checking.has(model) && spentAs === undefined ? { reason: "checking" as const } : spentAs ? { reason: "usage_limit" as const, ...(spentAs.resetsAt !== undefined ? { resetsAt: spentAs.resetsAt } : {}) } : {}),
         ...(lm?.alias ? { alias: lm.alias } : {}), ...(lm?.isDefault ? { isDefault: true } : {}), ...(lm?.efforts ? { efforts: lm.efforts } : {}), ...(lm?.defaultEffort ? { defaultEffort: lm.defaultEffort } : {}),
       };
       const key = `${row.provider}/${row.model}`;
@@ -154,7 +169,17 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
   const order = new Map([...live.keys()].map((k, i) => [k, i]));
   const rank = (m: ModelInfo): number => order.get(`${m.provider}/${m.model}`) ?? Number.MAX_SAFE_INTEGER;
   const out = [...byKey.values()].sort((a, b) => Number(b.allowed) - Number(a.allowed) || a.provider.localeCompare(b.provider) || rank(a) - rank(b) || a.model.localeCompare(b.model));
-  const listed = listState(states, ctx.now());
+  const refs = chosen.map((p) => p.handle ?? p.itemId);
+  // the menu's second call waits a moment for the checks it started and answers with their result
+  if (!passive && input.wait === true && probing(refs).length > 0) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([Promise.all(probing(refs)), new Promise<void>((r) => { timer = setTimeout(r, WAIT_MS); })]);
+    if (timer !== undefined) clearTimeout(timer);
+    return modelsList(ctx, { ...input, wait: false, refresh: false });
+  }
+  const checkingNow = !passive && refs.some(probeRunning);
+  const base = listState(states, ctx.now());
+  const listed = checkingNow ? { ...(base ?? { source: "live" as const }), refreshing: true, failed: base?.failed ?? false } : base;
   return { models: out, ...(listed ? { listed } : {}) };
 }
 
@@ -199,4 +224,24 @@ export function providerState(driver: Driver, all: readonly ProviderRow[], polic
     driver, kind: CLI.has(driver) ? "cli" : "api", title: DRIVER_TITLE[driver], connected, allowed: why === null,
     ...(why === null ? {} : { reason: reasonText(why, label) }),
   };
+}
+
+/**
+ * A model was just picked: check it on every account that lists it, now, whether or not it is within the background check's cap. Reads only saved or shipped lists (no vendor call of its own), starts nothing
+ * when the model is already confirmed or known bad, and never throws.
+ */
+export async function probePick(ctx: EngineCtx, model: string): Promise<void> {
+  try {
+    if (completerOf() === null || model === "auto") return;
+    const all = await myProviders(ctx);
+    for (const p of all) {
+      if (p.state !== "ok" || p.spaceKey === true) continue;
+      const ref = p.handle ?? p.itemId;
+      const isCli = p.connection === "subscription" && LIVE_DRIVERS.has(driverOf(p));
+      const listed = isCli ? (await modelsFor(ctx.db, { ref, driver: driverOf(p) }, actorOf(ctx), { now: ctx.now, passive: true })).models.map((m) => m.id) : savedTested(ctx.db, ref);
+      if (!listed.includes(model)) continue;
+      if (confirmedFor(ctx.db, ref, ctx.now()).has(model) || unavailableFor(ctx.db, ref, ctx.now()).has(model)) continue;
+      probeModels(ctx.db, ref, [model], async (r, m) => { await ctx.call("engine.complete", { accountRef: r, prompt: PROBE_PROMPT, model: m }); }, ctx.now, isCli ? { parallel: CLI_PROBE_PARALLEL, timeoutMs: CLI_PROBE_TIMEOUT_MS } : {});
+    }
+  } catch (e) { ctx.log.warn("a picked model was not checked", { error: e instanceof Error ? e.message : "unknown" }); }
 }

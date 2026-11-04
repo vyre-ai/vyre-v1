@@ -128,6 +128,9 @@ export default defineManifest({
     read('projects.list', 'List the projects the caller is in (Agents, Projects and Journeys show only those you are in)', {
       in: { type: t.opt(id.recordType), mine: t.opt(t.bool()), status: t.opt(t.str()), ...pageIn }, out: { projects: t.arr(projectRow), ...pageOut }, tool: 'records', label: 'filter',
     }),
+    read('projects.roles_of', 'The projects where one person holds a role, and which role, limited to the projects the asker can see', {
+      in: { personId: id.user }, out: { roles: t.arr(t.obj({ projectId: id.project, title: t.str(), role })) }, tool: 'records', label: 'check',
+    }),
     read('projects.overview', 'The Overview: brief and goal, status with its update, next three milestones, what is late or waiting, recent decisions, people, linked records, pinned files, recent threads', {
       in: { projectId: id.project },
       out: {

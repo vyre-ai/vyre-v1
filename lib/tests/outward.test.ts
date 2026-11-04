@@ -37,3 +37,40 @@ test("an edit puts the new body back in the right field and nothing else changes
   assert.deepEqual(withBody("mail.send", { to: [{ address: "a@x.test" }], subject: "s", text: "old", html: "<p>old</p>" }, "new"), { to: [{ address: "a@x.test" }], subject: "s", text: "new" });
   assert.equal(withBody("files.write", {}, "x"), null);
 });
+
+import { whenWords } from "../outward.ts";
+
+test("a calendar entry reads as an event: title, invitees, where with its link, the agenda, and whether they are emailed", () => {
+  const g = outwardOf("google.calendar.create_event", {
+    summary: "Rivera closing prep", description: "Agenda\n- the deed\n- the fee", location: "https://us02web.zoom.us/j/123456", sendUpdates: "all",
+    start: { dateTime: "2026-11-04T14:00:00-08:00", timeZone: "America/Los_Angeles" }, end: { dateTime: "2026-11-04T15:00:00-08:00", timeZone: "America/Los_Angeles" },
+    attendees: [{ email: "dana@client.test" }, { email: "sam@firm.test" }],
+  })!;
+  assert.equal(g.channel, "event");
+  assert.equal(g.event!.title, "Rivera closing prep");
+  assert.equal(g.event!.link, "https://us02web.zoom.us/j/123456");
+  assert.equal(g.event!.where, undefined, "the link is not also a place");
+  assert.equal(g.event!.notify, true);
+  assert.deepEqual(g.to.map((r) => r.address), ["dana@client.test", "sam@firm.test"]);
+  assert.equal(g.body, "Agenda\n- the deed\n- the fee");
+  assert.equal(g.bodyField, "description");
+  assert.equal(g.titleField, "summary");
+  assert.equal(outwardOf("google.calendar.create_event", { summary: "x", sendUpdates: "none", attendees: [{ email: "a@b.c" }] })!.event!.notify, false);
+  const v = outwardOf("calendar.create_event", { title: "Standup", startsAt: Date.UTC(2026, 10, 4, 22, 0), endsAt: Date.UTC(2026, 10, 4, 22, 30), agenda: "Blockers", location: "Room 4", attendees: [{ email: "a@b.c", name: "Ana" }] })!;
+  assert.equal(v.bodyField, "agenda");
+  assert.equal(v.event!.where, "Room 4");
+  assert.equal(v.to[0]!.name, "Ana");
+  const m = outwardOf("ms.calendar.create_event", { subject: "Review", body: "Notes", start: { dateTime: "2026-11-04T14:00:00.0000000", timeZone: "UTC" }, end: { dateTime: "2026-11-04T15:00:00.0000000", timeZone: "UTC" }, teamsMeeting: true })!;
+  assert.equal(m.event!.startMs, Date.UTC(2026, 10, 4, 14, 0));
+  assert.equal(m.event!.join, "teams");
+  assert.equal(m.titleField, "subject");
+});
+
+test("when: the event's own zone first, the viewer's after, and the viewer's alone when the event named none", () => {
+  const e = { title: "x", startMs: Date.UTC(2026, 10, 4, 22, 0), endMs: Date.UTC(2026, 10, 4, 23, 0), tz: "America/Los_Angeles", notify: false };
+  assert.equal(whenWords(e, "Asia/Karachi"), "Wed 4 Nov, 2:00 to 3:00 pm PST · Thu 5 Nov, 3:00 am yours");
+  assert.equal(whenWords(e, "America/Los_Angeles"), "Wed 4 Nov, 2:00 to 3:00 pm PST");
+  const { tz: _t, ...bare } = e;
+  assert.equal(whenWords(bare, "UTC"), "Wed 4 Nov, 10:00 to 11:00 pm");
+  assert.equal(whenWords({ title: "x", notify: false }), null);
+});

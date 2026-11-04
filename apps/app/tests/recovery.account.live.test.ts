@@ -57,7 +57,11 @@ test('saved-code recovery: same keys, private Vault data kept, old password and 
       await page.getByTestId('tab-you').click();await page.getByTestId('row-you-sign-out').click();
       await page.getByTestId('si-user').waitFor({ timeout: 20000 });
       assert.equal(await storedSession(), undefined, 'sign-out removes the stored session');
-      assert.equal((await context.request.post(`${web.origin}/v1/identity/whoami`, { headers: { authorization: `Bearer ${ownerToken}` }, data: {} })).status(), 401, 'the signed-out bearer is revoked');
+      // the screen goes back to sign-in at once; the server revokes the bearer a moment later, so wait for that and then insist on 401
+      const whoami = async (): Promise<number> => (await context.request.post(`${web.origin}/v1/identity/whoami`, { headers: { authorization: `Bearer ${ownerToken}` }, data: {} })).status();
+      let status = await whoami();
+      for (let i = 0; i < 25 && status !== 401; i++) { await new Promise((r) => setTimeout(r, 200)); status = await whoami(); }
+      assert.equal(status, 401, 'the signed-out bearer is revoked');
     });
     await t.test('a wrong recovery code fails and changes nothing', async () => {
       await page.getByTestId('signin-help').click();await page.getByTestId('recovery-username').waitFor();await noOverflow();await page.screenshot({ path: path.join(shots, 'recovery-form-phone.png') });

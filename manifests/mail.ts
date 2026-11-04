@@ -30,6 +30,7 @@ const messageRow = t.obj({
   id: emlId, mailboxId: id.mailbox, inboxIds: t.arr(id.mailbox), threadId: t.str(), direction: t.enm('in', 'out'), status: msgStatus,
   from: recipient, to: t.arr(recipient), cc: t.arr(recipient), subject: t.str(), snippet: t.str(), sentAt: t.ts(), contactId: t.opt(id.record),
   isPrivate: t.bool(), draftedByAgent: t.opt(id.agent),
+  earlier: t.opt(t.obj({ at: t.ts(), text: t.str(), subject: t.str() }, { description: 'An agent draft that replaced an earlier one from the same agent on the same thread: when the earlier was written and what it said' })),
 });
 const messageDetail = t.obj({
   message: messageRow, text: t.opt(t.str()), html: t.opt(t.str()),

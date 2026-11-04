@@ -26,7 +26,10 @@ const prRow = t.obj({
   labels: t.arr(t.str()), assignees: t.arr(t.str()), body: t.opt(t.str()), mergedAt: t.opt(t.ts()), additions: t.opt(t.int()), deletions: t.opt(t.int()), changedFiles: t.opt(t.int()),
 });
 const issueRow = t.obj({ repo, number: t.int(), title: t.str(), state: t.enm('open', 'closed'), author: t.str(), url: t.str(), labels: t.arr(t.str()), assignees: t.arr(t.str()), body: t.opt(t.str()) });
-const eventName = t.enm('ping', 'installation', 'push', 'pull_request', 'issues', 'check_run', 'workflow_run');
+const eventName = t.enm('ping', 'installation', 'push', 'pull_request', 'issues', 'check_run', 'workflow_run', 'workflow_job');
+const meAction = t.enm('read', 'push_branch', 'open_pr', 'comment', 'merge', 'push_default');
+const meMode = t.enm('always', 'ask', 'never');
+const mePolicy = t.obj({ read: meMode, push_branch: meMode, open_pr: meMode, comment: meMode, merge: meMode, push_default: meMode });
 const methodEnum = t.enm('merge', 'squash', 'rebase');
 
 const prSync: SyncedTypeDef = {
@@ -79,7 +82,7 @@ const capabilities = [
   }),
   read('github.health', 'Health probe: GET /app', { in: {}, out: healthOut }),
   // ---- pull requests
-  read('github.pull_request.get', 'Read a pull request live from GitHub', { in: prRef, out: { pullRequest: prRow }, tool: 'records', deferred: true }),
+  read('github.pull_request.get', 'Read a pull request live from GitHub. A person with a connected GitHub is read as them: their policy for reading and the repositories they reach apply, and consumer (such as linked.prs) shows in Used by', { in: { ...prRef, consumer: t.opt(t.str({ pattern: '^[a-z][a-z0-9_.:-]{1,60}$', examples: ['linked.prs'] })) }, out: { pullRequest: prRow }, tool: 'records', deferred: true }),
   read('github.pull_request.list_files', 'Changed files of a pull request (the Changes tab)', {
     in: { ...prRef, ...pageIn }, out: { files: t.arr(t.obj({ path: t.str(), status: t.str(), additions: t.int(), deletions: t.int(), patch: t.opt(t.str()) })), ...pageOut }, tool: 'records', deferred: true,
   }),
@@ -115,11 +118,51 @@ const capabilities = [
   write('github.issue.assign_agent', 'Assign an issue to an agent: creates a task whose result lands as a linked changeset', {
     in: { recordId: id.record, agentId: id.agent }, out: { taskId: id.task }, on: ['record', '/recordId'], perm: 'records.edit', emits: ['github.issue_assigned'], idem: 'key', tool: 'records',
   }),
+  // ---- a person's own GitHub and the one token broker
+  write('github.me.connect', 'Start connecting my own GitHub: the address to send me to (the Space\'s own GitHub app when an admin set one up, else the default Vyre app), with PKCE. The refresh token ends up in my own Vault (Mine)', {
+    in: { return: t.opt(t.str({ maxLength: 400, description: 'Where to send the browser after GitHub, with the code in the address fragment: this Space\'s own address or a loopback one' })) }, out: { authUrl: t.str(), state: t.str(), source: t.enm('space', 'vyre') }, level: 'use', audit: 'always', errors: ['permission.no_grant', 'internal.unavailable'],
+  }),
+  write('github.me.complete', 'Finish connecting my GitHub: GitHub sent me back with a code; trade it, learn who I am on GitHub and keep the refresh token in my Vault', {
+    in: { code: t.str(), state: t.str() }, out: { login: t.str(), source: t.enm('space', 'vyre') }, level: 'use', emits: ['github.me_connected'], audit: 'always', errors: ['validation.bad_input', 'provider.auth_failed'],
+  }),
+  read('github.me.status', 'Is my GitHub connected, as whom, through which app, and does it need connecting again', {
+    in: {}, out: { connected: t.bool(), login: t.opt(t.str()), source: t.opt(t.enm('space', 'vyre')), connectedAt: t.opt(t.ts()), needsReconnect: t.bool() },
+  }),
+  write('github.me.disconnect', 'Disconnect my GitHub: revoke it, delete the refresh token from my Vault and forget approvals', { in: {}, out: { disconnected: t.bool() }, level: 'use', emits: ['github.me_disconnected'], audit: 'always' }),
+  read('github.me.reach', 'The repositories and organisations I reach through the app; each organisation says whether the app is installed on all repositories, chosen ones or not at all, and gives the address to install or ask', {
+    in: {}, out: { login: t.str(), orgs: t.arr(t.obj({ login: t.str(), install: t.enm('all', 'selected', 'none'), url: t.nullable(t.str()) })), repos: t.arr(t.obj({ repo, installationId: t.int() })) },
+    errors: ['validation.precondition_failed', 'provider.auth_failed'],
+  }),
+  read('github.me.policy.get', 'What I let each kind of use do on GitHub: Always, Ask me first or Never', { in: {}, out: { policy: mePolicy } }),
+  write('github.me.policy.set', 'Change what I let a kind of use do: read, push a branch, open a pull request, comment, merge, push to the default branch', {
+    in: { policy: t.obj({ read: t.opt(meMode), push_branch: t.opt(meMode), open_pr: t.opt(meMode), comment: t.opt(meMode), merge: t.opt(meMode), push_default: t.opt(meMode) }) }, out: { policy: mePolicy }, level: 'use', audit: 'always', idem: 'natural',
+  }),
+  outward('github.me.approve', 'Ask me before something uses my GitHub for this repository and kind of use (the Gate holds it; once I approve, it is good for ten minutes)', {
+    in: { repo, action: meAction, consumer: t.str() }, out: { approved: t.bool() }, gate: 'post',
+  }),
+  write('github.token', 'The one way to get a GitHub token: for a person (the caller, or an agent on that person\'s own turn), one repository and one kind of use; short-lived, narrowed to that, returned as a filler handle and never the token. Follows the person\'s Always, Ask me first or Never', {
+    in: { person: t.opt(t.str()), repo, action: meAction, consumer: t.str({ pattern: '^[a-z][a-z0-9_.:-]{1,60}$', examples: ['crew', 'agent.github', 'linked.prs'] }) },
+    out: { handle: id.handle, expiresAt: t.ts(), repo, permissions: t.rec(t.str()) }, risk: 'high', audit: 'always', level: 'use', errors: ['permission.no_grant', 'validation.not_found', 'validation.precondition_failed', 'provider.auth_failed'],
+  }),
+  write('github.session_env', 'For one turn of Claude Code, Codex or Grok: GH_TOKEN and GITHUB_TOKEN as filler handles and a git credential helper, scoped to the owner\'s repositories the person lets run without asking', {
+    in: { repos: t.arr(repo, { minItems: 1, maxItems: 20 }), consumer: t.str({ pattern: '^[a-z][a-z0-9_.:-]{1,60}$' }) },
+    out: { env: t.rec(t.str()), gitConfig: t.arr(t.str()), repos: t.arr(repo), skipped: t.arr(repo), expiresAt: t.ts() }, risk: 'high', audit: 'always', level: 'use', errors: ['permission.no_grant', 'validation.not_found', 'validation.precondition_failed'],
+  }),
+  read('github.me.usage', 'Where my GitHub was last used, by consumer (crew, CI, linked pull requests, agent tools): the Used by list', {
+    in: {}, out: { uses: t.arr(t.obj({ consumer: t.str(), repo, action: t.str(), at: t.ts() })) },
+  }),
+  // ---- runners (the CI module starts one machine per job)
+  write('github.runners.jit_config', 'Make a just-in-time runner for one job: GitHub answers a config the new machine runs with, once. Called by the CI module; the config is never stored', {
+    in: { repo, name: t.str({ pattern: '^[A-Za-z0-9_.-]{1,64}$' }), labels: t.arr(t.str(), { minItems: 1, maxItems: 10 }), installationId: t.opt(t.int()) }, out: { runnerId: t.int(), jitConfig: t.str() },
+    risk: 'high', audit: 'always', idem: 'key', errors: ['provider.auth_failed', 'validation.not_found'],
+  }),
+  write('github.runners.remove', 'Take back a runner that never ran a job (its machine failed to start)', { in: { repo, runnerId: t.int({ minimum: 1 }) }, out: { removed: t.bool() }, audit: 'always', idem: 'natural' }),
+  read('github.actions.secrets', 'How many Actions secrets a repository holds; null when GitHub would not say', { in: { repo }, out: { count: t.nullable(t.int({ minimum: 0 })) } }),
   // ---- webhook intake
   write('github.receive_webhook', 'Record a verified GitHub delivery after dedupe; normalise push, pull request, issue, check and workflow events', {
-    in: { deliveryId: t.str(), event: eventName, action: t.opt(t.str()), repo: t.opt(repo), installationId: t.opt(t.int()), number: t.opt(t.int()), sha: t.opt(t.str()), branch: t.opt(t.str()), conclusion: t.opt(t.str()), name: t.opt(t.str()) },
+    in: { deliveryId: t.str(), event: eventName, action: t.opt(t.str()), repo: t.opt(repo), installationId: t.opt(t.int()), number: t.opt(t.int()), sha: t.opt(t.str()), branch: t.opt(t.str()), conclusion: t.opt(t.str()), name: t.opt(t.str()), jobId: t.opt(t.int()), runId: t.opt(t.int()), labels: t.opt(t.arr(t.str(), { maxItems: 20 })), runnerName: t.opt(t.str()) },
     out: { accepted: t.bool() },
-    emits: ['github.event_received', 'repo.pushed', 'pull_request.opened', 'pull_request.merged', 'pull_request.closed', 'issue.opened', 'github.check_completed', 'workflow.completed'], idem: 'natural', offline: 'online',
+    emits: ['github.event_received', 'repo.pushed', 'pull_request.opened', 'pull_request.merged', 'pull_request.closed', 'issue.opened', 'github.check_completed', 'workflow.completed', 'workflow_job.queued', 'workflow_job.completed'], idem: 'natural', offline: 'online',
   }),
 ];
 
@@ -180,6 +223,12 @@ export default defineManifest({
       trigger: { title: 'A CI check finishes', fields: ['/repo', '/name', '/conclusion'] },
     }),
     ev('workflow.completed', 'A workflow run finished', { p: { repo, name: t.str(), conclusion: t.str(), sha: t.str() }, subject: ['entity', '/repo'] }),
+    ev('github.me_connected', 'A person connected their own GitHub', { p: { person: t.str(), login: t.str(), source: t.enm('space', 'vyre') }, subject: ['entity', '/person'], retention: 'audit' }),
+    ev('github.me_disconnected', 'A person disconnected their GitHub', { p: { person: t.str(), login: t.str() }, subject: ['entity', '/person'], retention: 'audit' }),
+    ev('workflow_job.queued', 'A workflow job is waiting for a runner; fork says whether its run came from another repository (unknown counts as a fork)', {
+      p: { repo, jobId: t.int(), runId: t.int(), name: t.str(), labels: t.arr(t.str()), fork: t.enm('no', 'yes', 'unknown') }, subject: ['entity', '/repo'],
+    }),
+    ev('workflow_job.completed', 'A workflow job finished, on any runner', { p: { repo, jobId: t.int(), runId: t.int(), name: t.str(), labels: t.arr(t.str()), conclusion: t.str(), runnerName: t.opt(t.str()) }, subject: ['entity', '/repo'] }),
   ],
   capabilities,
   connectors: [
@@ -191,7 +240,7 @@ export default defineManifest({
     }),
     conn('github', 'GitHub', {
       mode: 'api', scope: 'space',
-      auth: { type: 'github_app', appIdSecret: 'GitHub_App_Id', privateKeySecret: 'GitHub_App_Key', permissions: { contents: 'write', pull_requests: 'write', issues: 'write', checks: 'read', metadata: 'read' }, installation: 'org' },
+      auth: { type: 'github_app', appIdSecret: 'GitHub_App_Id', privateKeySecret: 'GitHub_App_Key', permissions: { contents: 'write', pull_requests: 'write', issues: 'write', checks: 'read', metadata: 'read', actions: 'read', administration: 'write', secrets: 'read' }, installation: 'org' },
       domains: ['api.github.com', 'github.com'],
       secrets: [
         { name: 'GitHub_App_Key', description: 'GitHub App private key (PEM) used to mint installation tokens' },

@@ -2,7 +2,7 @@
 // Neutral ground (--sunk), one ring (--line), 28% radius, the mark in the brand's own colour (ink when the brand is black).
 // Web draws inline svg; native has no svg here, so it shows the brand's first letter until a native icon set lands.
 
-import { createElement, memo } from "react";
+import { createElement, memo, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, StyleSheet, Text, View } from "react-native";
 import type { ViewStyle } from "react-native";
@@ -51,6 +51,8 @@ function tileStyle(size: number): ViewStyle {
 export const AppIcon = memo(function AppIcon({ brand, size = APP_ICON_DEFAULT_SIZE, name, testID }: AppIconProps): ReactElement {
   const label = name ?? brand;
   const id = testID ?? `appicon-${brand}`;
+  // a brand's icon file that does not load (missing, blocked, a bad answer) shows the lettered tile instead of a broken image
+  const [broken, setBroken] = useState(false);
   const glyph = GLYPHS[brand];
   if (glyph) {
     const s = Math.round(size * 0.55);
@@ -66,14 +68,14 @@ export const AppIcon = memo(function AppIcon({ brand, size = APP_ICON_DEFAULT_SI
   }
   const key = markKey(brand);
   const mark = key ? BRANDS[key] : undefined;
-  const file = !mark ? toolKey(brand) : null;
+  const file = !mark && !broken ? toolKey(brand) : null;
   if (file !== null) {
     // the brand's own icon file, on white as an app icon sits
     const ext = TOOL_FILES[file];
     const s = Math.round(size * (ext === "png" ? 0.86 : 0.62));
     return (
       <View testID={id} accessible={false} accessibilityLabel={label} style={[tileStyle(size), { backgroundColor: "#fff" }]} {...webProps({ dataSet: { appicon: file } })}>
-        {web ? createElement("img", { src: `/tools/${file}.${ext}`, alt: "", width: s, height: s, draggable: false, style: { display: "block", objectFit: "contain" } }) : <Text style={[styles.letter, { fontSize: Math.round(size * 0.46), color: "#333" }]}>{letterOf(brand, name)}</Text>}
+        {web ? createElement("img", { src: `/tools/${file}.${ext}`, alt: "", width: s, height: s, draggable: false, style: { display: "block", objectFit: "contain" }, onError: () => setBroken(true), ref: (el: { complete?: boolean; naturalWidth?: number } | null) => { if (el && el.complete === true && el.naturalWidth === 0) setBroken(true); } }) : <Text style={[styles.letter, { fontSize: Math.round(size * 0.46), color: "#333" }]}>{letterOf(brand, name)}</Text>}
       </View>
     );
   }

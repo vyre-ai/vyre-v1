@@ -218,6 +218,9 @@ export default defineManifest({
       in: { state: t.str(), code: t.opt(t.str()), error: t.opt(t.str()) }, out: { connectionId: id.connection }, level: 'use', emits: ['connection.reconnected', 'connection.created'], errors: ['auth.invalid_code', 'auth.unauthenticated', 'permission.no_grant', 'provider.auth_failed', 'provider.network', 'provider.bad_response', 'validation.precondition_failed'], offline: 'online',
     }),
     read('connections.test', 'Probe a connection with the connector health call', { in: { connectionId: id.connection }, out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()) }, on: ['connection', '/connectionId'], emits: ['connection.needs_reconnect'], tool: 'engineer' }),
+    write('connections.mark_working', 'System: another module proved this connection works (Google delegation passed its check, or a mailbox or calendar poll succeeded). A pending, failing or signed-out connection becomes active, and its last used time is stamped at most once a minute. A paused one stays paused', {
+      in: { connectionId: id.connection }, out: { state: t.enm('pending', 'active', 'failing', 'needs_reconnect', 'paused'), stamped: t.bool() }, level: 'view', errors: ['validation.not_found'],
+    }),
     write('connections.delete', 'Remove a connection; synced types bound to it pause', { in: { connectionId: id.connection }, out: { deleted: t.bool() }, on: ['connection', '/connectionId'], level: 'manage', audit: 'always', emits: ['connection.deleted'], tool: 'engineer' }),
     // ---- synced types
     read('sync_types.list', 'List synced types with state, pending pushes, conflicts and schema changes', { in: { connector: t.opt(id.connector), ...pageIn }, out: { syncedTypes: t.arr(syncedTypeRow), ...pageOut }, tool: 'records', label: 'filter' }),

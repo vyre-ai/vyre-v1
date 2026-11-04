@@ -453,3 +453,10 @@ test("a name ending in -a is never claimed, so no one can stand on another name'
   assert.equal((await a.say({ t: "host.claim", name: "harbor-a" })).status, "invalid");
   assert.equal((await a.say({ t: "host.claim", name: "harbor" })).status, "claimed");
 });
+
+test("/health says ok and the version stamped at deploy (RELAY_VERSION), or dev where none was", async t => {
+  const rt = world(t);
+  assert.deepEqual(await (await rt.fetch("https://relay.vyre.run/health")).json(), { ok: true, version: "dev" });
+  const stamped = await worker.fetch(new Request("https://relay.vyre.run/health"), { RELAY_VERSION: "1.4.1" });
+  assert.deepEqual(await stamped.json(), { ok: true, version: "1.4.1" });
+});

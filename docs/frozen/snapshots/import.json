@@ -18,7 +18,7 @@
     "sessions.delete@1": "019c9a8430417161a84238be712a1bdad7eec147c83564635221bb1df12ab7c0",
     "sessions.get@1": "73e7e2ba055ecd64d6220cef2ab0309a8acf7276dcca890b44327682327b604a",
     "sessions.import@1": "f4a0585c3604d30f87b18bfa2cf213c9758dc095486355daf0d958cc34136e77",
-    "sessions.list@1": "61c170b65e1b4325483489bc7b4db978eaab551bc454cbb359aa86257c84735d",
+    "sessions.list@1": "142720981d9e6d35a7cc906ba26abba04027cec9101b8f387bd40605a47c2c7e",
     "sessions.rename@1": "966c3f6b156f43e5f6338b2076b93ca3a427a9a6dd4594bd4b5c670e9a2b6f7c"
   },
   "events": {

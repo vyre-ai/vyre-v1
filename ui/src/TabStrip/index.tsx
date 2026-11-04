@@ -160,6 +160,8 @@ export interface TabStripViewProps extends TabStripProps {
   label?: string;
   /** Pinned tabs with 7 px padding instead of 10: a narrow side pane that has to fit four tabs (the prototype's agent pane). */
   tight?: boolean;
+  /** The open tab is marked by a line under it, not a filled pill: for the tabs of a page or a pane (the owner bans pill tabs there). The main tab strip keeps its file tabs. */
+  underline?: boolean;
   /** No bar of its own: no fill and no rule under the tabs, for a strip that sits inside a pane's body (the prototype's agent pane). */
   bare?: boolean;
   /** A lone tab has no Close button. Only the main tab strip sets it: closing its last tab just reopens the start place. A pane keeps its Close (that is how the pane closes). */
@@ -260,6 +262,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         tab={tab}
         on={on}
         tight={props.tight === true}
+        underline={props.underline === true}
         widest={on ? TAB_MAX_WIDTH : cap}
         dropTarget={drag !== null && drag.over === tab.key && drag.from !== tab.key}
         canClose={onClose !== undefined}
@@ -344,10 +347,11 @@ function IconButton({ name, label, onPress: press, nodeRef }: { name: string; la
   );
 }
 
-function TabItem({ tab, on, tight, widest, dropTarget, canClose, only, nodeRef, onPress: press, onClose, trigger, onKeyDown, onDragStart, onDragOver, onDragEnd, onLayout }: {
+function TabItem({ tab, on, tight, underline, widest, dropTarget, canClose, only, nodeRef, onPress: press, onClose, trigger, onKeyDown, onDragStart, onDragOver, onDragEnd, onLayout }: {
   tab: TabSpec;
   on: boolean;
   tight: boolean;
+  underline: boolean;
   /** The most this tab may take. */
   widest: number;
   dropTarget: boolean;
@@ -382,7 +386,7 @@ function TabItem({ tab, on, tight, widest, dropTarget, canClose, only, nodeRef, 
       // (and the x hid itself) right as you reached for it; enter and leave do not fire for a move into a child
       {...(Platform.OS === "web" ? {} : { onHoverIn: () => setOver(true), onHoverOut: () => setOver(false) })}
       onLayout={(event) => onLayout(event.nativeEvent.layout.x, event.nativeEvent.layout.width)}
-      style={[styles.tab, { maxWidth: widest }, pinned ? styles.tabPinned : null, pinned && tight ? styles.tabTight : null, over && !on ? HOVER : null, on ? ACTIVE : null, dropTarget ? DROP : null]}
+      style={[styles.tab, { maxWidth: widest }, pinned ? styles.tabPinned : null, pinned && tight ? styles.tabTight : null, underline ? LINE_TAB : null, over && !on ? (underline ? HOVER_LINE : HOVER) : null, on ? (underline ? ACTIVE_LINE : ACTIVE) : null, dropTarget ? DROP : null]}
       {...trigger}
       {...webProps({
         title: name,
@@ -423,6 +427,10 @@ function TabItem({ tab, on, tight, widest, dropTarget, canClose, only, nodeRef, 
 // Plain objects (not StyleSheet ids) so the painted token is visible in the element's inline style.
 const HOVER = { backgroundColor: "var(--hover)" };
 const ACTIVE = { backgroundColor: "var(--sel)" };
+/* the underline kind: no fill, the open tab has a 2 px line on the strip's own rule */
+const LINE_TAB = { borderRadius: 0, backgroundColor: "transparent" };
+const HOVER_LINE = { backgroundColor: "transparent" };
+const ACTIVE_LINE = { backgroundColor: "transparent", boxShadow: "inset 0 -2px 0 var(--ink)" };
 const DROP = { boxShadow: "inset 2px 0 0 var(--accent)" } as unknown as ViewStyle;
 const HIDDEN = { opacity: 0 };
 

@@ -5,12 +5,14 @@
 /** The daemon says a vault key is locked by its reason, or (older daemons) in these words. A person stays signed in. */
 export function isVaultLockedError(e: unknown): boolean {
   const x = e as { message?: string; details?: { reason?: string }; error?: { message?: string; details?: { reason?: string } } } | null | undefined;
-  return x?.details?.reason === "vault_locked" || x?.error?.details?.reason === "vault_locked" || /vault key is locked/i.test(x?.message ?? x?.error?.message ?? "");
+  return x?.details?.reason === "vault_locked" || x?.error?.details?.reason === "vault_locked" || /vault key is locked|sign-ins are locked/i.test(x?.message ?? x?.error?.message ?? "");
 }
 
 export type Unlock = (password: string) => Promise<void>;
 /** What the prompt does with one request: ask for the password, run `unlock` until it works or the person cancels. True when the key is open. */
-export type Asker = (unlock: Unlock) => Promise<boolean>;
+export type Asker = (unlock: Unlock, words?: PromptWords) => Promise<boolean>;
+/** Words and the way out for one ask: a Space server says "sign-ins" and offers Forgot password. */
+export interface PromptWords { title?: string; sub?: string; forgot?: () => void }
 
 let asker: Asker | null = null;
 let open: Promise<boolean> | null = null;
@@ -19,10 +21,10 @@ let open: Promise<boolean> | null = null;
 export function registerVaultPrompt(a: Asker | null): void { asker = a; }
 
 /** Ask once, however many calls are waiting: they all share the one prompt and its answer. False when no prompt is mounted. */
-export function askVaultUnlock(unlock: Unlock): Promise<boolean> {
+export function askVaultUnlock(unlock: Unlock, words?: PromptWords): Promise<boolean> {
   if (!asker) return Promise.resolve(false);
   if (open) return open;
-  const run = asker(unlock).finally(() => { open = null; });
+  const run = asker(unlock, words).finally(() => { open = null; });
   open = run;
   return run;
 }

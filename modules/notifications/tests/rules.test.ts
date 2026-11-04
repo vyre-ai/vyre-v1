@@ -47,7 +47,7 @@ const SAMPLE: Record<string, Record<string, unknown>> = {
   "mention.thread": { where: "Intake" }, "run.failed": { name: "Weekly", message: "no mailbox" }, "conflict.needs_you": { title: "Lee" },
   "access.requested": { from: "Bob", level: "edit", title: "Clients" }, "access.decided": { title: "Clients", decision: "approved" }, "sync.attention": { device: "Laptop" },
   "health.degraded": { service: "Mail", state: "slow" }, "problem.report": { from: "Bob" }, "member.joined": { name: "Cara", space: "Northwind" }, "member.join_requested": { name: "Dana", space: "Northwind" }, "limit.hit": { title: "Scout" }, "machine.alert": { title: "Berlin box has 8% disk left" },
-  "space.deletion_scheduled": { title: "The Space is scheduled for deletion on 18 November 2026. Everything is removed then." }, "space.deletion_cancelled": { title: "The scheduled deletion of the Space was cancelled." },
+  "space.deletion_scheduled": { title: "The Space is scheduled for deletion on 18 November 2026. Everything is removed then." }, "space.deletion_cancelled": { title: "The scheduled deletion of the Space was cancelled." }, "ci.paused": { title: "CI paused: this month's cap of $10 is reached" }, "item.shared": { from: "Irfad", title: "Dex" },
 };
 for (const def of KINDS.filter((k) => k.key !== "vault.rotation_due")) {
   test(`kind ${def.key}: lands at ${def.level} in ${def.place} with its actions and a readable line`, async () => {
@@ -297,7 +297,11 @@ test("the fanout consumer files a row for the events that name a kind and ignore
   const h = harness();
   const ctx = h.ctxFor(null, sender);
   const fan = consumers["notifications.fanout"];
-  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "space.deletion_scheduled", "space.deletion_cancelled"]);
+  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "space.deletion_scheduled", "space.deletion_cancelled", "access.shared_with", "ci.paused"]);
+  const shared = await fan.run(ctx, { name: "access.shared_with", payload: { to: alice.id, resource: { type: "agent", id: "agt_dex" }, level: "use", byName: "Irfad", title: "Dex", message: "Take a look" } });
+  assert.equal(shared.length, 1);
+  assert.equal(row(h, shared[0]!).kind, "item.shared");
+  assert.match(String(row(h, shared[0]!).title), /Irfad shared Dex with you/);
   const a = await fan.run(ctx, { name: "task.requested", payload: { taskId: "tsk_1", kind: "approve", title: "Retainer", assigned: { kind: "person", id: alice.id } } });
   assert.equal(a.length, 1);
   assert.equal(row(h, a[0]!).kind, "approval.requested");
@@ -380,4 +384,19 @@ test("a Space scheduled for deletion, and the deletion cancelled, reach every ad
   assert.equal(cancelled.length, 2);
   assert.equal(row(h, cancelled[0]!).title, "The scheduled deletion of the Space was cancelled.");
   assert.equal(h.emails.length, 4, "the cancel is emailed too");
+});
+
+test("ci.paused files one Inbox-style line for each admin, and the same month collapses", async () => {
+  const h = harness();
+  const base = as(svc);
+  const ctx = { ...h.ctxFor(null, base), call: async (cap: string) => (cap === "access.roles.list" ? { roles: [{ id: "rol_admin", name: "Admin", permissions: [] }] } : { holders: [{ kind: "person", id: alice.id }, { kind: "person", id: bob.id }] }) } as never;
+  const fan = consumers["notifications.fanout"];
+  const ev = { name: "ci.paused", payload: { title: "CI paused: this month's cap of $10 is reached", capUsd: 10, month: "2026-11" } };
+  const ids = await fan.run(ctx, ev as never);
+  assert.equal(ids.length, 2);
+  await fan.run(ctx, ev as never);
+  const all = rows(h).filter((r) => r.kind === "ci.paused");
+  assert.equal(all.length, 2, "the second event collapses into the first");
+  assert.equal(all[0].title, "CI paused: this month's cap of $10 is reached");
+  assert.equal(all[0].place, "console");
 });

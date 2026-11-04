@@ -9,7 +9,7 @@ import type { Room } from "../../../lib/room-left.ts";
 import { latestVersion, hostSeams } from "../seams.ts";
 import { roomsFor, turnCounter } from "../rooms.ts";
 import { busyNow, findingsOf, readMoves, recordMove, syncBusy } from "../more.ts";
-import { isSystemCall } from "../../../lib/trust.ts";
+import { isHostService, isSystemCall } from "../../../lib/trust.ts";
 import { BUSY_BELOW } from "../../../lib/room-left.ts";
 
 type Row = Record<string, unknown>;
@@ -18,7 +18,7 @@ const GB = 1024 ** 3;
 /** The person acting, and whether they manage the Space's servers. A call from the host (a system caller) is an admin with no person. */
 export function viewerOf(ctx: MachinesCtx): Viewer {
   const person = ctx.principal.kind === "person" ? ctx.principal.id : (ctx.actingFor ?? "");
-  const admin = ctx.principal.kind === "service" || (ctx.authorize?.({ perm: "server.network", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow");
+  const admin = isHostService(ctx.principal) || (ctx.authorize?.({ perm: "server.network", level: "manage" }, { type: "space", id: ctx.space }).effect === "allow");
   return { id: person, admin };
 }
 
@@ -289,7 +289,7 @@ export async function moveRecord(ctx: MachinesCtx, input: { turnId?: string; ask
  * (machine.changed), so a cached answer never goes on ignoring room.
  */
 export async function alertsNotify(ctx: MachinesCtx, _input: Record<string, never>) {
-  if (ctx.principal.kind !== "service") raise(ctx, "permission.no_grant", "Only the host sends machine alerts to the Inbox.");
+  if (!isHostService(ctx.principal)) raise(ctx, "permission.no_grant", "Only the host sends machine alerts to the Inbox.");
   ensure(ctx.db);
   const recs = allMachines(ctx), host: Viewer = { id: "", admin: true };
   const now = await alertsFor(ctx, host, recs, new Map(), pinsOf(ctx));

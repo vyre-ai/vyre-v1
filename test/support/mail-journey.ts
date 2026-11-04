@@ -6,7 +6,7 @@ import type { Screens, Seat } from "./mail-browser.ts";
 export const OUT = "shots-evidence/personal-mail";
 export const CLIENT = { id: "e2e-client.apps.googleusercontent.com", secret: "e2e-client-secret-GOCSPX" };
 
-/** Settings > Connections > Sign in with your own account: the guided panel, filled and saved. */
+/** Settings > Connected > Sign in with your own account: the guided panel, filled and saved. */
 export async function guidedSetup(s: Screens, who: Seat, dir: string): Promise<void> {
   await open(who, s, "/settings");
   await who.page.getByTestId("row-page-connected").click();

@@ -131,7 +131,7 @@ export default defineManifest({
 
     // ---- sharing (a thin front over access.share with the vault levels)
     write('vault.share', 'Share an item or folder with a person, group, agent or automation at Use, View, Edit or Manage; subscription sign-ins are never shareable', {
-      ...V, idem: 'key', in: { resource: t.obj({ type: t.enm('vault_item', 'vault_folder'), id: t.str({ examples: ['vit_a1b2c3'] }) }), subject: subjectRef, level },
+      ...V, idem: 'key', in: { resource: t.obj({ type: t.enm('vault_item', 'vault_folder'), id: t.str({ examples: ['vit_a1b2c3'] }) }), subject: subjectRef, level, notify: t.opt(t.obj({ message: t.opt(t.str()) })) },
       out: { granted: t.bool() }, emits: ['grant.created', 'access.changed', 'folder.shared'], audit: 'always', tool: 'vault', offline: 'online', team: true, errors: ['validation.precondition_failed', 'permission.not_contained'],
     }),
     write('vault.unshare', 'Stop sharing an item or folder with someone', {

@@ -97,13 +97,13 @@ test("in a sealed thread the server-written messages are refused with bad_input 
   const before = hn.rows("SELECT * FROM chat_message WHERE thread = ?", sealed).length;
   const agent = hn.agent(INTAKE, DANA);
   const refusals = [
-    h["chat.question.ask"]!(agent, { threadId: sealed, prompt: "Which?", mode: "free" }),
+    h["chat.question.ask"]!(agent, { threadId: sealed, prompt: "Which one do you want?", mode: "free" }),
     h["chat.plan.propose"]!(agent, { threadId: sealed, title: "Plan", steps: [{ text: "One" }] }),
     h["chat.helper.start"]!(agent, { threadId: sealed, title: "Side", instruction: "Look" }),
     h["chat.handoff"]!(agent, { threadId: sealed, toAgentId: "agt_drafter", note: "Over to you" }),
   ];
   for (const p of refusals) await assert.rejects(p, (e) => codeOf(e) === "validation.bad_input");
   assert.equal(hn.rows("SELECT * FROM chat_message WHERE thread = ?", sealed).length, before, "no message was written in the sealed thread");
-  const q = await h["chat.question.ask"]!(agent, { threadId: open, prompt: "Which?", mode: "free" });
+  const q = await h["chat.question.ask"]!(agent, { threadId: open, prompt: "Which one do you want?", mode: "free" });
   assert.deepEqual(contractErrors("chat.question.ask", "out", q), []);
 });

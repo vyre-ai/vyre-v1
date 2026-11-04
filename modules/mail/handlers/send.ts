@@ -24,6 +24,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   allow, bad, EMAIL, ensure, first, isId, missing, newId, normalizeEmail, num, partyJson, readStrings, rowsOf, snippetOf, statements, str, strOrNull,
+  readParties,
 } from "../projections.ts";
 import type { MailCtx, Party, Row } from "../projections.ts";
 import { footerHtml, footerText, hasPublicAddress, unsubscribeLink } from "./unsubscribe.ts";
@@ -257,6 +258,27 @@ function compose(ctx: SendCtx, input: SendAsIn | SendIn, draft: Row | null): Com
   };
 }
 
+/** A body that ends in a cut-off marker: a preview or a draft cut short, never a finished email. */
+const CUT_OFF = /(?:\.\.\.|\u2026)\s*$/;
+
+/**
+ * The send input of an agent's draft, from the draft itself: its recipients, Cc, Bcc, subject and body. A draft an agent wrote and no person has edited (version 1) whose body ends in a cut-off marker is
+ * refused: that is a preview or a truncation, not words anyone chose. After a person has saved it (mail.draft), what they kept is theirs.
+ */
+function asStored(ctx: SendCtx, input: SendIn, draft: Row): SendIn {
+  const body = bodyOf(ctx, str(draft, "id"));
+  const text = strOrNull(body, "text") ?? strOrNull(body, "html") ?? "";
+  if (CUT_OFF.test(text) && num(draft, "version") <= 1) refuse(ctx, "This draft ends in a cut-off marker, so it looks like a preview, not a finished email. Open it, finish it and send again. Nothing was sent.");
+  const { text: _t, html: _h, ...rest } = input;
+  return {
+    ...rest,
+    to: readParties(str(draft, "toAddresses")), cc: readParties(str(draft, "ccAddresses")), bcc: readParties(strOrNull(body, "bcc") ?? "[]"),
+    subject: str(draft, "subject"),
+    ...(strOrNull(body, "text") ? { text: str(body, "text") } : {}), ...(strOrNull(body, "html") ? { html: str(body, "html") } : {}),
+    ...(strOrNull(draft, "contactId") ? { contactId: str(draft, "contactId") } : {}),
+  };
+}
+
 function bodyOf(ctx: SendCtx, id: string): Row | null {
   return first(ctx.db.all(`SELECT * FROM mail_body WHERE "messageId" = ?`, id));
 }
@@ -400,6 +422,8 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
   if (prior) return JSON.parse(prior) as SendOut;
 
   const pending = input.draftId === undefined ? null : loadPending(ctx, input.draftId, input.mailboxId);
+  // An agent's draft goes out as it is stored: its own words, recipients, Cc and subject, whatever a composer or a card holds at the moment of Send (the person edits it with mail.draft first). Never a preview.
+  if (pending && strOrNull(pending, "draftedByAgent") && str(pending, "status") === "draft") input = asStored(ctx, input, pending);
   const parent = input.replyToMessageId === undefined ? null : loadParent(ctx, input.replyToMessageId, input.mailboxId);
   const composed = compose(ctx, input, pending);
   const p = await makePlan(ctx, input, composed, input.route, true);

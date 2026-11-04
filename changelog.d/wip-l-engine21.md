@@ -37,6 +37,11 @@
 - The per-chat placement words are read again when a machine is drained, hits its limits, runs out of room or has room again (`machine.changed`). The Moved-from line under Ran on comes from l-machines.
 - The skills index in a turn shows 130 characters of each description again (it was cut to 90, which hid "test before enabling" from the chat benchmark).
 - In the Mac and Windows app an artifact opens as a page of its own host (a child webview over the viewer), because WebKit keeps no cookie that a cross-site frame sets. Browsers and Chrome still frame it.
+- A tool the model finds with tool_search is callable in the next step of the same turn, not the next turn. The same search twice in a turn gets a plain hint. The Inbox reads (`inbox_counts`, `inbox_list_by_thread`, `inbox_thread`, `mail_thread_get`, `mail_message_get`) are listed in every turn. A replay of the Inbox question went from 19 model calls to 3, and to 2 with the read listed.
+- A turn records the model that really ran: the session wrappers no longer drop it, so a swapped turn is no longer filed under the model that was asked for. A swapped turn on a Space account says `space`, not the asker's own key.
+- A flat-plan account that reports a cost of 0 shows "Flat plan" in a reply's Details, never $0.00.
+- The relay's `/health` answers `{ ok: true, version }`. The version is stamped at deploy (`RELAY_VERSION`, from package.json) and is `dev` where none was set.
+- Agents get times in the person's zone: every turn says the zone and its UTC offset, calendar, mail, inbox and task results carry `<key>Local` strings beside ISO and epoch times, and a new `time_convert` tool turns "tomorrow 2pm PT" or a time in one zone into another, so a model never works zones out itself.
 
 ## What's new
 - Agents on Claude Code or Codex can work in a goal's folder: it shows as goal/ and their changes are saved to Vyre.
