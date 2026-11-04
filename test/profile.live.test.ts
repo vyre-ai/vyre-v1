@@ -81,15 +81,26 @@ function hostLog(d: Daemon): string {
 }
 
 /** Post as `who` mentioning the agent, and wait for the agent's next reply in the thread. */
-async function ask(d: Daemon, threadId: string, agentId: string, body: string, key: string, who = "usr_olivia"): Promise<string> {
-  const agentReplies = async (): Promise<string[]> => ((await ok(d, "chat.messages.list", { threadId }, who)).messages as Array<{ author?: { kind?: string }; body?: string }>).filter((m) => m.author?.kind === "agent" && (m.body ?? "") !== "").map((m) => m.body as string);
-  const before = (await agentReplies()).length;
-  await ok(d, "chat.post", { threadId, body, mentions: [{ kind: "agent", id: agentId }], idempotencyKey: key }, who);
+/**
+ * Ask an agent and read its answer. In a channel the agent answers in the thread under the asking message (agents reply in threads), so the answer is read there; in any other chat it is in the chat. `where`
+ * says which it was, so a test can prove a channel's answer did not land in the main chat.
+ */
+async function ask(d: Daemon, threadId: string, agentId: string, body: string, key: string, who = "usr_olivia", where?: { in?: "thread" | "chat" }): Promise<string> {
+  const mine = async (id: string): Promise<string[]> => ((await ok(d, "chat.messages.list", { threadId: id }, who)).messages as Array<{ author?: { kind?: string }; body?: string }>).filter((m) => m.author?.kind === "agent" && (m.body ?? "") !== "").map((m) => m.body ?? "");
+  const before = (await mine(threadId)).length;
+  const posted = (await ok(d, "chat.post", { threadId, body, mentions: [{ kind: "agent", id: agentId }], idempotencyKey: key }, who)).message as { messageId: string };
   const end = Date.now() + 40_000;
   for (;;) {
     await d.hooks?.pump?.();
-    const all = await agentReplies();
-    if (all.length > before) return all[all.length - 1]!;
+    const inChat = await mine(threadId);
+    const under = ((await ok(d, "threads.list", { parentThreadId: threadId }, who)).threads as Array<{ threadId: string; parentMessageId?: string }>).find((t) => t.parentMessageId === posted.messageId);
+    const inThread = under ? await mine(under.threadId) : [];
+    if (inThread.length > 0) {
+      assert.notEqual(where?.in, "chat", "the answer was in the thread, not in the chat");
+      assert.equal(inChat.length, before, "the answer is under the ask: the main chat did not get it");
+      return inThread[inThread.length - 1]!;
+    }
+    if (inChat.length > before) { assert.notEqual(where?.in, "thread", "the answer was in the chat, not in the thread"); return inChat[inChat.length - 1]!; }
     if (Date.now() > end) throw new Error(`no reply to ${key}; host log ${hostLog(d)}`);
     await new Promise<void>((r) => setTimeout(r, 200));
   }
@@ -134,7 +145,7 @@ test("profile live: private only in Olivia's own chats, public everywhere, share
 
     // a public channel with Olivia and Noah: Olivia asks, then Noah asks
     const ch = (await ok(d, "channels.create", { name: "intake-team", visibility: "public", memberIds: ["usr_noah"], agentIds: [billing], idempotencyKey: "pl-channel" })).channel as { mainThreadId: string };
-    const inChannel = await ask(d, ch.mainThreadId, billing, "Draft the client update for the team.", "pl-ch1");
+    const inChannel = await ask(d, ch.mainThreadId, billing, "Draft the client update for the team.", "pl-ch1", "usr_olivia", { in: "thread" });
     assert.ok(inChannel.includes(PUBLIC), inChannel);
     assert.ok(!inChannel.includes(PRIVATE) && !inChannel.includes(LEARNED), `a private fact in a channel turn: ${inChannel}`);
     assert.match(inChannel, /public profile only/);

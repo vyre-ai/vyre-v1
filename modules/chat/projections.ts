@@ -255,10 +255,10 @@ function inheritedMode(db: Db, t: ThreadRec): ChatMode {
   return mode;
 }
 
-/** Do agents reply in the thread under the asking message? The person's own choice, else on for a channel and for a project's main chat (a chat about a record), off for the rest (direct chats, your Assistant, personal chats, Asks, threads, helpers). */
+/** Do agents reply in the thread under the asking message? The person's own choice, else on for a channel (a project's main chat is its channel) and off for every other chat: groups, direct chats, your Assistant, personal chats, a chat about a record, task chats, Asks, threads, helpers. */
 export function agentsReplyInThreads(t: ThreadRec): boolean {
   if (t.kind !== "channel" && t.kind !== "chat") return false;
-  return t.repliesIn ?? (t.kind === "channel" || (t.recordId !== undefined && t.scopeType === undefined));
+  return t.repliesIn ?? t.kind === "channel";
 }
 
 export function threadOut(db: Db, t: ThreadRec): Record<string, unknown> {

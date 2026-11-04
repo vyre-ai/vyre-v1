@@ -407,6 +407,7 @@ test("pure: the footer words, the timer and the also-sent lookup", () => {
   assert.equal(repliesOf({ kind: "chat" }), false, "a direct chat defaults off");
   assert.equal(repliesOf({ kind: "channel", repliesIn: 0 }), false, "the person's own choice wins");
   assert.equal(repliesOf({ kind: "chat", repliesIn: 1 }), true);
+  assert.equal(repliesOf({ kind: "chat", recordId: "rec_1" }), false, "a chat about a record stays inline");
   assert.equal(repliesOf({ kind: "thread" }), undefined, "a thread has no such choice");
   assert.deepEqual([...alsoSentIds([{ blocks: [{ type: "from_thread", data: { threadId: "t1", messageId: "a" } }, { type: "from_thread", data: { threadId: "t9", messageId: "b" } }, { type: "from_thread", data: { threadId: "t1", messageId: "" } }] }, {}], "t1")], ["a"]);
 });
