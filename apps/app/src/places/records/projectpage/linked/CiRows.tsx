@@ -21,7 +21,7 @@ export function CiGroup({ repo, runs, now, projectTitle, askAssistant }: { repo:
           <View key={r.runId} testID={`ci-run-${r.runId}`} accessibilityLabel={`${r.jobName}, ${RUN_WORD[look]}`}>
             <Row id={`ci-run-${r.runId}`} inert tall title={r.jobName} note={runLine(r, now)}
               leading={<View style={st.mark}><Text style={[st.markText, look === "failed" && st.bad, look === "passed" && st.ok, look === "running" && st.accent]}>{MARK[look]}</Text></View>}
-              trailing={<Text style={[st.state, look === "failed" && st.bad, look === "passed" && st.ok]}>{RUN_WORD[look]}</Text>} />
+              trailing={<Text style={st.state}>{RUN_WORD[look]}</Text>} />   {/* the status word in muted ink; the colour sits on the tile */}
             {look === "failed" && r.note ? <Text numberOfLines={2} testID={`ci-why-${r.runId}`} style={st.why}>{r.note}</Text> : null}
           </View>
         );
@@ -43,8 +43,8 @@ const st = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 28 },
   repo: { fontSize: 12.5, color: "var(--ink-3)" as string },
   run: { fontSize: 12, color: "var(--accent)" as string },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 50, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8 },
-  mark: { width: 28, height: 28, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
+  row: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 50, paddingVertical: 7, paddingHorizontal: 8, borderRadius: 11 },
+  mark: { width: 28, height: 28, marginRight: 10, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
   markText: { fontSize: 13, color: "var(--ink-2)" as string },
   title: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
   sub: { fontSize: 12, color: "var(--ink-3)" as string },
