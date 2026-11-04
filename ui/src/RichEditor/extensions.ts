@@ -37,7 +37,7 @@ const Keeps = Extension.create({
   addGlobalAttributes() {
     const quiet = (v: unknown) => ({ default: v, rendered: false });
     return [
-      { types: ["paragraph", "heading", "bulletList", "orderedList", "taskList", "blockquote", "codeBlock", "horizontalRule", "rawBlock", "liveBlock"], attributes: { tight: quiet(false), blockId: quiet(null) } },
+      { types: ["paragraph", "heading", "bulletList", "orderedList", "taskList", "blockquote", "codeBlock", "horizontalRule", "rawBlock", "liveBlock"], attributes: { tight: quiet(false), blockId: { default: null, rendered: false, keepOnSplit: false } } },
       { types: ["bulletList", "orderedList", "taskList"], attributes: { marker: quiet("-"), delim: quiet(".") } },
       { types: ["listItem", "taskItem"], attributes: { gap: quiet(false) } },
       { types: ["codeBlock"], attributes: { fence: quiet("```") } },

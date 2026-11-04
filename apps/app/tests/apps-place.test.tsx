@@ -188,6 +188,8 @@ test("Add sending domain goes to the Console's Sending domains with Add domain o
   const { addDomain: _gone, ...nav } = s.data.nav;
   const without = renderToStaticMarkup(<Apps data={{ ...s.data, nav }} start={{ group: "domains" }} />).replaceAll("<!-- -->", "");
   assert.ok(!has(without, 'aria-label="Add sending domain"') && !has(without, 'data-testid="apps-new-group"'), "no button, no menu entry");
+  assert.ok(has(without, 'data-testid="apps-domains-admin"') && has(without, "An owner or admin adds sending domains."), "a plain line says who adds them");
+  assert.ok(!has(html(createSampleApps(), { group: "domains" }), 'data-testid="apps-domains-admin"'), "someone who can add them gets the button, not the line");
   const opened: string[] = [];
   const allowed = appsData(sampleRuntime({ screens: s.data.screens, call: s.data.call, opened }), true);
   allowed.nav.addDomain?.();

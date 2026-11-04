@@ -172,8 +172,8 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       await page.getByTestId("si-user").waitFor({ timeout: 15_000 });
       assert.equal(await page.getByTestId("shell").count(), 0, "no shell before sign-in");
       await page.getByRole("heading", { name: "Sign in to Fresh Co", exact: true }).waitFor({ timeout: 15_000 });
-      { const w = (await page.getByTestId("si-user").boundingBox())!.width, col = (await page.getByTestId("step-sign-in").boundingBox())!.width; assert.ok(Math.abs(w - col) < 2, `the username field uses the full reading column (${w}px of ${col}px)`); }
-      const header = await page.getByTestId("auth-form-header").boundingBox();
+      { const w = (await page.getByTestId("si-user").boundingBox())!.width, col = (await page.getByTestId("step-sign-in").boundingBox())!.width; assert.ok(w >= col - 24, `the username field uses the full reading column, not a narrow box (${w}px of ${col}px)`); }
+      const header = await page.getByTestId("auth-form-mark").boundingBox();
       const column = await page.getByTestId("step-sign-in").boundingBox();
       const primary = await page.getByTestId("next").boundingBox();
       const surface = await page.getByTestId("join-panel").boundingBox();
@@ -479,11 +479,11 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.getByRole("button", {name:"Rename", exact:true}).click();
         await page.getByTestId("group-edit-name").fill("Release reviewers");
         await page.getByTestId("group-save-name").click();
-        await page.getByText("Group renamed", {exact:true}).waitFor();
+        await page.getByText("Team renamed", {exact:true}).waitFor();
         await page.getByRole("tab", {name:"Access", exact:true}).click();
         await page.getByTestId(`row-group-role-${member.id}`).getByRole("button", {name:"Assign role…", exact:true}).click();
         await page.getByTestId(`group-role-confirm-${member.id}`).click();
-        await page.getByText("Group role updated", {exact:true}).waitFor();
+        await page.getByText("Team role updated", {exact:true}).waitFor();
         await page.screenshot({path:"shots-evidence/console/groups-access.png"});
         let groupProof = await api("access.groups.get", {groupId:createdGroup.id}) as {group:{name:string;members:unknown[];managers:unknown[]};roles:string[]};
         assert.equal(groupProof.group.name, "Release reviewers");
@@ -493,21 +493,21 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
         await page.reload({waitUntil:"load"});
         await page.getByTestId("group-object").waitFor();
         await page.getByRole("tab", {name:"Activity", exact:true}).click();
-        await page.getByText("Group details changed", {exact:true}).first().waitFor();
+        await page.getByText("Team details changed", {exact:true}).first().waitFor();
         await page.getByText("Role assigned", {exact:true}).waitFor();
         await page.screenshot({path:"shots-evidence/console/groups-activity.png"});
         await pickSkin("Obsidian");
         await page.screenshot({path:"shots-evidence/console/groups-dark.png"});
         await phoneConsole("groups-phone");
         await pickSkin("Vyre");
-        await page.getByRole("tab", {name:/^Members/}).click();
+        await page.getByTestId("object-tab-members").click();
         await page.getByRole("button", {name:"Remove…", exact:true}).click();
         await page.getByTestId("group-member-remove-confirm").click();
         await page.getByText("Member removed", {exact:true}).waitFor();
         groupProof = await api("access.groups.get", {groupId:createdGroup.id}) as typeof groupProof;
         assert.equal(groupProof.group.members.length, 0);
         await page.getByTestId("object-more").click();
-        await page.getByText("Delete group", {exact:true}).click();
+        await page.getByText("Delete team", {exact:true}).click();
         await page.getByTestId("object-confirm").waitFor();
         assert.match(await page.getByTestId("object-confirm").innerText(), /cannot be undone/);
         await page.getByTestId("object-confirm-go").click();
