@@ -3,11 +3,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { TextInput } from "react-native";
-import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../ui/src/testing/dom.ts";
-import { DraftCard, ProviderDraftCard } from "./draft-card.tsx";
-import { workCardOf } from "../../../../../../agent/src/tools/work-cards.ts";
-import { draftOf } from "../../../../../../ui/src/blocks/link-card/state.ts";
-import { linkCardOf } from "../../../../../../ui/src/blocks/link-card/model.ts";
+import { find, flush, installDom, mount, press, textOf, typeInto } from "../ui/src/testing/dom.ts";
+import { DraftCard, ProviderDraftCard } from "../apps/app/src/places/chats/conversation/draft-card.tsx";
+import { workCardOf } from "../agent/src/tools/work-cards.ts";
+import { draftOf } from "../ui/src/blocks/link-card/state.ts";
+import { linkCardOf } from "../ui/src/blocks/link-card/model.ts";
 
 installDom();
 type Call = { cap: string; input: any };   // eslint-disable-line @typescript-eslint/no-explicit-any

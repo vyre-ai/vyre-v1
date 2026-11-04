@@ -2,9 +2,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { build } from "../../../scripts/avatars/chrome-faces.ts";
+import { build } from "../scripts/avatars/chrome-faces.ts";
 
-const file = new URL("../src/ui/faces.js", import.meta.url);
+const file = new URL("../apps/chrome/src/ui/faces.js", import.meta.url);
 
 test("faces.js is what scripts/avatars/chrome-faces.ts writes from the library (rerun it after changing the faces)", () => {
   assert.ok(fs.existsSync(file), "run: node --import tsx scripts/avatars/chrome-faces.ts");
