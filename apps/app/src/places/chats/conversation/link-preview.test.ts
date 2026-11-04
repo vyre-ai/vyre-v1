@@ -1,3 +1,4 @@
+// @tsx
 // The hover on a link and the click agree (owner, 4 Nov 2026): a person who can open a helper chat never reads "You cannot open this" when they hover it.
 import test from "node:test";
 import assert from "node:assert/strict";

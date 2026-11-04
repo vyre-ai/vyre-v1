@@ -31,7 +31,7 @@ function scripted(): { rt: ShellRuntime; calls: { cap: string; input: Record<str
     if (cap === "sites.delete") { sites = sites.filter((s) => s.siteId !== i["siteId"]); return { deleted: true }; }
     return {};
   };
-  const rt = { call, me: { id: "usr_me", name: "Irfad" }, space: { id: "s", kind: "team", name: "MLA" }, open: () => undefined } as unknown as ShellRuntime;
+  const rt = { call, me: { id: "usr_me", name: "Irfad" }, space: { id: "s", kind: "team", name: "MLA" }, open: () => undefined, clock: () => ({ now: 1_762_000_000_000 }) } as unknown as ShellRuntime;
   return { rt, calls };
 }
 

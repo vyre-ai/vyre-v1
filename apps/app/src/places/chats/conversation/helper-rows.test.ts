@@ -1,3 +1,4 @@
+// @tsx
 // One row per helper, updated in place (owner, 4 Nov 2026).
 import test from "node:test";
 import assert from "node:assert/strict";
