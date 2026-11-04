@@ -21,3 +21,8 @@ test("it says when each form fits, so a model chooses by the information", () =>
   assert.match(REPLY_FORMAT, /Numbers by time or category/);
   assert.match(REPLY_FORMAT, /never a table for one row/);
 });
+
+test("it gives one form for pointing at an item, and never an address or a bare id", () => {
+  assert.ok(REPLY_FORMAT.includes("[[Name|id]]"));
+  assert.match(REPLY_FORMAT, /Never type an address, a bare id or a ref\.vyre\.invalid link/);
+});

@@ -12,12 +12,17 @@ import type { ConversationData } from "./model.ts";
 type Data = Pick<ConversationData, "call" | "nav">;
 
 /** The id prefixes agents are given, and the kind each one is. */
-const KIND_OF: Record<string, string> = { rec: "record", file: "file", fil: "file", task: "task", tsk: "task", thr: "chat", chn: "channel", ch: "channel" };
-const ID = /\b(rec|file|fil|task|tsk|thr|chn|ch)_[0-9A-Za-z]{8,}\b/g;
-const NAME_OF: Record<string, string> = { record: "a record", file: "a file", task: "a task", chat: "a chat", channel: "a channel" };
+const KIND_OF: Record<string, string> = { rec: "record", file: "file", fil: "file", task: "task", tsk: "task", thr: "chat", chn: "channel", ch: "channel", usr: "person", note: "note", nte: "note" };
+// an id written in the words, never one that is already part of an address (the part after a slash)
+const ID = /(?<![/\w])(rec|file|fil|task|tsk|thr|chn|ch|usr|note|nte)_[0-9A-Za-z]{8,}\b/g;
+/** The ids inside reference addresses: they need their names looked up like any other, and are never rewritten as text. */
+const REF_ID = /ref\.vyre\.invalid\/[a-z]+\/((?:rec|file|fil|task|tsk|thr|chn|ch|usr|note|nte)_[0-9A-Za-z]{8,})/g;
+/** What an id that could not be named is drawn as: nothing a person can read (a zero-width mark keeps the link from being empty). */
+const HIDDEN = "\u200b";
+
 const HOST = "https://ref.vyre.invalid/";
 /** The form agents are told to write: [[Rivera Holdings|rec_01...]], the name, a bar, the id. The name is shown and the id never. */
-const NAMED = /\[\[([^\]|\n]+)\|((?:rec|file|fil|task|tsk|thr|chn|ch)_[0-9A-Za-z]{8,})\]\]/g;
+const NAMED = /\[\[([^\]|\n]+)\|((?:rec|file|fil|task|tsk|thr|chn|ch|usr|note|nte)_[0-9A-Za-z]{8,})\]\]/g;
 
 /** A task's short key, as people and agents write it in chat and commits: VY-142. Only a key the Space knows, that the reader may see, becomes a link. */
 const KEY = /\b[A-Z]{2,6}-\d{1,6}\b/g;
@@ -40,9 +45,14 @@ export function withKeys(raw: string, known: ReadonlyMap<string, string>): strin
 /** The ids a text names, once each, outside code (a fenced or inline `code` span is the agent showing an id on purpose). */
 export function idsIn(text: string): IdRef[] {
   const seen = new Map<string, IdRef>();
-  for (const m of stripCode(text).replace(NAMED, " ").matchAll(ID)) {
+  const plain = stripCode(text).replace(NAMED, " ");
+  for (const m of plain.matchAll(ID)) {
     const id = m[0]!;
     if (!seen.has(id)) seen.set(id, { id, kind: KIND_OF[m[1]!.toLowerCase()]! });
+  }
+  for (const m of plain.matchAll(REF_ID)) {
+    const id = m[1]!;
+    if (!seen.has(id)) seen.set(id, { id, kind: KIND_OF[id.split("_")[0]!.toLowerCase()]! });
   }
   return [...seen.values()];
 }
@@ -57,7 +67,7 @@ export function withNames(text: string, names: ReadonlyMap<string, string | null
   return parts.map((p, i) => (i % 2 === 1 ? p : p.replace(both, (all, title?: string, namedId?: string, pre?: string) => {
     if (namedId !== undefined && title !== undefined) return link(title, namedId);
     const kind = KIND_OF[(pre ?? "").toLowerCase()]!;
-    return link(names.get(all) ?? NAME_OF[kind] ?? "a link", all);
+    return link(names.get(all) ?? HIDDEN, all);
   }))).join("");
 }
 
@@ -120,7 +130,7 @@ export function refBlocks(blocks: readonly Block[], names: ReadonlyMap<string, s
       if (i > at) out.push({ t: "text", v: text.slice(at, i) });
       const id = m[2] ?? m[0];
       const kind = KIND_OF[id.split("_")[0]!.toLowerCase()]!;
-      out.push({ t: "link", href: `${HOST}${kind}/${id}`, c: [{ t: "text", v: m[1]?.trim() ?? names.get(id) ?? NAME_OF[kind] ?? "a link" }] });
+      out.push({ t: "link", href: `${HOST}${kind}/${id}`, c: [{ t: "text", v: m[1]?.trim() ?? names.get(id) ?? HIDDEN }] });
       at = i + m[0].length;
     }
     if (at < text.length) out.push({ t: "text", v: text.slice(at) });

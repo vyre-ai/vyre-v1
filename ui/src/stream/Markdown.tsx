@@ -61,6 +61,8 @@ function inlineNodes(items: readonly Inline[], onLink?: (href: string) => void, 
         const href = n.href;
         const own = renderLink ? renderLink(href, inlineNodes(n.c, onLink, renderLink), i) : null;
         if (own !== null && own !== undefined) { out.push(own); break; }
+        // a reference address nothing resolved: the words it has (none), never a link to an address
+        if (/^https:\/\/ref\.vyre\.invalid\//i.test(href)) { out.push(<Fragment key={i}>{inlineNodes(n.c, onLink, renderLink)}</Fragment>); break; }
         out.push(
           <Text key={i} accessibilityRole="link" onPress={() => (onLink ? onLink(href) : void Linking.openURL(href))} style={styles.link}>
             {inlineNodes(n.c, onLink, renderLink)}

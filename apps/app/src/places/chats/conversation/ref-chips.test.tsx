@@ -11,11 +11,11 @@ test("ids in a reply are found once each, by kind, and never inside code", () =>
   assert.equal(idsIn("task_01abcdefghij and thr_01abcdefghij")[1]!.kind, "chat");
 });
 
-test("an id is written as a link by its name; unknown, it says what it is and never the id", () => {
+test("an id is written as a link by its name; unknown, it is hidden and never the id", () => {
   const known = withNames(`Done: ${REC}.`, new Map([[REC, "Rivera Holdings"]]));
   assert.equal(known, "Done: [Rivera Holdings](https://ref.vyre.invalid/record/" + REC + ").");
   const unknown = withNames(`Done: ${REC}.`, new Map());
-  assert.ok(!unknown.includes(`[${REC}`) && unknown.includes("[a record]"));
+  assert.ok(!unknown.includes(`[${REC}`) && unknown.includes("[\u200b]"));
   assert.equal(withNames("see `" + REC + "`", new Map()), "see `" + REC + "`", "code stays as written");
   assert.deepEqual(refOfHref("https://ref.vyre.invalid/record/" + REC), { kind: "record", id: REC });
   assert.equal(refOfHref("https://example.com/x"), null);
@@ -54,4 +54,14 @@ test("a real file id is a link, and a task key written where the name goes reads
 
 test("a link to a kind the chat cannot open shows its name, never the raw form", () => {
   assert.equal(withKeys("sent [[Asked plainly|eml_01a19b0aa7524816]]", new Map()), "sent Asked plainly");
+});
+
+test("an id inside a reference address is named by lookup and never rewritten; a bare person, note or task id is a chip or hidden", () => {
+  const url = "https://ref.vyre.invalid/task/tsk_sirxsh97mm3gw1";
+  assert.deepEqual(idsIn(`Open [Send Josh the link](${url}) now`), [{ id: "tsk_sirxsh97mm3gw1", kind: "task" }]);
+  assert.equal(withNames(`Open [Send Josh the link](${url}) now`, new Map([["tsk_sirxsh97mm3gw1", "Send Josh the meeting link"]])), `Open [Send Josh the link](${url}) now`, "the address is left whole");
+  assert.deepEqual(idsIn("ask usr_01abcdefghij about note_01abcdefghij").map((r) => r.kind), ["person", "note"]);
+  const named = withNames("ask usr_01abcdefghij", new Map([["usr_01abcdefghij", "Sara Malik"]]));
+  assert.equal(named, "ask [Sara Malik](https://ref.vyre.invalid/person/usr_01abcdefghij)");
+  assert.match(withNames("ask usr_01abcdefghij", new Map()), /^ask \[\u200b\]\(/, "an id that does not resolve is a link with no words: nothing shows");
 });
