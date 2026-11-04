@@ -282,6 +282,8 @@ export interface AccountQuery {
   /** Why the last account was left: "overloaded" is the vendor being busy, not a limit, so it is not set aside to rest and the chat says it was busy. */
   why?: "overloaded";
 }
+/** A turn whose model the engine said is not available: who asked, on which account, and the engine's own words (Details only). */
+export interface ModelQuery { threadId: string; agentId: string; askerId: string; account: ResolvedAccount; message: string }
 export interface SessionSpec {
   threadId: string; agent: EngineAgent; asker: string; turnId: string; traceId: string; account?: ResolvedAccount;
   /** The chat's mode for this turn. Absent: the driver's older behaviour (a session of a step or a one-shot job has no chat mode). */

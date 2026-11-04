@@ -26,6 +26,8 @@ import { withAudienceReset } from "./audience-reset.ts";
 import { withChatSettings } from "./chat-settings.ts";
 import { withSpaceKeyTurns } from "./space-key-turns.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
+import { createModelSwitch } from "./model-switch.ts";
+import { markConfirmed } from "./model-health.ts";
 import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
 import { skipLocked } from "./locked-account.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
@@ -290,6 +292,8 @@ let compactor: Compactor | null = null;
 export const compactorOf = (): Compactor | null => compactor;
 /** One request and one answer on an account, through the same opener the turn engine uses: for jobs that need a model but are not a chat (memory upkeep). Null before the runtime exists. */
 export const completerOf = (): typeof completer => completer;
+/** Tests: stand in for the runtime's one-request completer. */
+export const bindCompleter = (c: typeof completer): void => { completer = c; };
 
 /** Run one turn of a pseudo-agent on the account and collect its text and token counts. */
 async function oneShot(openSession: OpenSession, i: CompleteIn, now: () => number): Promise<CompleteOut> {
@@ -496,6 +500,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         return row ? providerOfDriver(row.driver) : undefined;
       },
     });
+    const modelSwitch = createModelSwitch({ call: h.call, db: ctx.db, accountFor: runnableAccount(h), now, ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) });
     const engine = createTurnEngine({
       holder: h.holder, openSession: withHeldNotes(withChatSettings(withSpaceKeyTurns(withTurnContext(goalFolder(nativeSkills(withCompaction(withTranscript(withRecall(withAudienceReset(bridge ? bridge.tap(openSession) : openSession, { db: ctx.db, call: h.call, now, ...(opener ? { drop: (threadId: string) => opener.pool.drop(threadId) } : {}), ...(h.log ? { log: h.log } : {}) }), h.call), h.call, now), ctx.db))), turnContext, async (spec) => runningLine(spec, await placeWords(spec))), { call: h.call, db: ctx.db, now, ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) }), h.call)), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
@@ -503,13 +508,14 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
       resolveAccount: (q) => limitSwitch.resolve(q),
       nextAccount: (q) => limitSwitch.next(q),
+      nextModel: async (q) => { try { return await modelSwitch(q); } catch (e) { if (typeof (e as { code?: unknown } | null)?.code !== "string") h.log?.("the model swap failed", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); throw e; } },
       onNoAccount: async (info) => {
         try { await unblock(h, ctx.db, info); }
         catch (e) { h.log?.("could not open the Unblock task for a turn with no account", { threadId: info.threadId, asker: info.asker, error: e instanceof Error ? e.message : String(e) }); throw e; }
       },
       // memory learns from the turn in the background (learn.ts): scheduled here, never awaited, so the reply is not held for it
       onQuestionsLeft: async (turn, blocks) => { for (const blockId of blocks) { try { await h.call("chat.question.withdraw", { threadId: turn.threadId, blockId }, turn.agentId); } catch { /* it stays in its chat */ } } },
-      onTurnEnd: (turn, account) => { roller.ranOn(turn.id, account); learnAfterTurn(h, turn, account); titleAfterTurn(h, turn, account); return meter(h, turn, account); },
+      onTurnEnd: (turn, account) => { if (turn.state === "completed" && account && turn.model) { try { markConfirmed(ctx.db, account.ref, turn.model, now()); } catch { /* a mark that stays only hides a model a little longer */ } } roller.ranOn(turn.id, account); learnAfterTurn(h, turn, account); titleAfterTurn(h, turn, account); return meter(h, turn, account); },
       onLimits: (account, reading) => recordAccountLimits(ctx.db, account.ref, reading, now()),
       // the answer check (gap 6): an answer built on something not everyone in the chat may open goes to the asker privately
       ...(h.mayAll ? {

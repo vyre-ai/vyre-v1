@@ -18,7 +18,7 @@ import { preview, withMode } from "./lead.ts";
 import type {
   AgentMode, DriverEvent, EngineAgent, EngineEvent, EngineSession, IncomingMessage, OpenSession, OpenThread, Placement, PreviewResult,
   QueueItem, ReceiveResult, SpendRow, StoredMessage, ToolResult, ToolTrace, TurnInfo, TurnRow,
-  AccountQuery, ResolvedAccount,
+  AccountQuery, ModelQuery, ResolvedAccount,
 } from "./types.ts";
 import type { RoutePolicy, RouteMention } from "../../../lib/route.ts";
 
@@ -57,6 +57,11 @@ export interface EngineOptions {
    * this turn; null means nothing is left and the turn fails as it did. Only before the turn produced anything: a half-written answer is never repeated on another account.
    */
   nextAccount?: (q: AccountQuery) => Promise<ResolvedAccount | null>;
+  /**
+   * The model the turn asked for is not available on the account (the engine said so, engine.model_unavailable) and nothing was said yet: the host picks the next best model, makes it the chat's pick,
+   * says so in one quiet line and answers the account that serves it; the turn runs again at once. Null: nothing else to try, the turn fails as it did. A throw with a `code` ends the turn with that code.
+   */
+  nextModel?: (q: ModelQuery) => Promise<ResolvedAccount | null>;
   /** No account could be found for a turn: raise the Unblock task for the starter; when it is answered the host calls wake() to run the turn again. */
   onNoAccount?: (info: { threadId: string; turnId: string; agentId: string; asker: string; routine: boolean }) => Promise<void> | void;
   /**
@@ -122,6 +127,9 @@ const KEEP_TURNS = 5_000;
 const ACCOUNT_FAILURE: ReadonlySet<string> = new Set(["provider.auth_failed", "auth.expired", "provider.rate_limited", "provider.overloaded"]);
 /** The vendor is busy (owner ruling, 3 Nov 2026): one more try on the same account before the backup takes the turn. Not a limit. */
 const OVERLOADED = "provider.overloaded";
+const MODEL_GONE = "engine.model_unavailable";
+/** How many models a turn moves through before it gives up. */
+const MAX_MODEL_SWITCHES = 4;
 const MAX_FALLBACKS = 8;
 
 interface Running { turnId: string; agentId: string; asker: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean; /** why it was cancelled, said in the chat */ why?: string }
@@ -462,6 +470,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       }
       const failedRefs: string[] = [];
       const busyTried = new Set<string>();
+      let modelSwitches = 0;
       for (;;) {
       const session = await opts.openSession({ threadId: st.thread.id, agent, asker, turnId: turn.id, traceId: turn.traceId, ...(paying ? { account: paying } : {}) });
       run.session = session;
@@ -559,6 +568,17 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
               ended = true;
               break;
             }
+            // The model is not there on this account, before the turn said anything: the next best model answers, and the person never retries by hand.
+            if (ev.code === MODEL_GONE && opts.nextModel && paying && reply === "" && blockIdx === 0 && modelSwitches < MAX_MODEL_SWITCHES) {
+              modelSwitches += 1;
+              try { switchTo = await opts.nextModel({ threadId: st.thread.id, agentId: item.agentId, askerId: asker, account: paying, message: ev.message }); }
+              catch (e) {
+                const code = (e as { code?: unknown } | null)?.code;
+                if (typeof code === "string") { flush("text"); turn.error = { code, message: e instanceof Error ? e.message : code }; ended = true; break; }
+                switchTo = null;
+              }
+              if (switchTo) { ended = true; break; }
+            }
             // A key that is refused or out of quota, before the turn said anything: the next account in the agent's order takes it, and the failed one is skipped.
             if (opts.nextAccount && paying && ACCOUNT_FAILURE.has(ev.code) && reply === "" && blockIdx === 0 && failedRefs.length < MAX_FALLBACKS) {
               try { switchTo = await opts.nextAccount({ threadId: st.thread.id, agentId: item.agentId, askerId: asker, unavailable: [...failedRefs, paying.ref], ...(ev.code === OVERLOADED ? { why: "overloaded" as const } : {}) }); }
@@ -580,7 +600,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       }
       if (switchTo) {
         try { await session.close(); } catch { /* dropped */ }
-        info.switches.push({ at: now(), from: paying?.ref ?? "", to: switchTo.ref, why: lastCode });
+        if (lastCode !== MODEL_GONE) info.switches.push({ at: now(), from: paying?.ref ?? "", to: switchTo.ref, why: lastCode });
         paying = switchTo;
         continue;
       }

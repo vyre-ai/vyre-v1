@@ -1,7 +1,7 @@
 // A turn that ended without a reply is a plain sentence with one action, never a card named after its internal status.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { installProgram, isTurnStatus, statusView, withoutAnswered } from "./status.ts";
+import { installProgram, isTurnStatus, statusView, withoutAnswered, wordsFor } from "./status.ts";
 
 const block = (data: Record<string, unknown>) => ({ id: "b1", type: "turn_status", v: 1, state: "done", data, traceId: "t" }) as never;
 
@@ -142,4 +142,11 @@ test("the chat line for a locked sign-in carries Unlock: it opens the same sheet
   const { statusView } = await import("./status.ts");
   const v = statusView({ id: "b1", type: "turn_status", v: 1, data: { state: "key_locked", text: "Your sign-ins are locked on this server, so the Space AI key answered." } } as never);
   assert.deepEqual(v, { kind: "wait", id: "b1", text: "Your sign-ins are locked on this server, so the Space AI key answered.", action: { key: "unlock_vault", label: "Unlock" } });
+});
+
+test("no model works: one plain card that says what to do, with Open AI accounts and no code in the words", () => {
+  const w = wordsFor("engine.no_model_works");
+  assert.equal(w.message, "None of your AI accounts can answer right now.");
+  assert.deepEqual(w.next, [{ key: "connect_ai", label: "Open AI accounts" }]);
+  assert.doesNotMatch(`${w.message} ${w.cause ?? ""}`, /engine\.|--/);
 });
