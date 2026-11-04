@@ -85,3 +85,4 @@
 - Add sending domain in Apps opens the Console's Sending domains with Add domain ready, and is not shown to anyone who cannot open the Console.
 - The accounts live test names each account once per turn, with the original messages back so the chat title call still runs.
 - The activity-line live test waits for the line to read Thinking instead of reading a node that may be redrawn.
+- A tab strip that cannot close its tabs draws no close button over their labels, and a hidden close button takes no clicks.

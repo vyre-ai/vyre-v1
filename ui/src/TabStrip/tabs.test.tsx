@@ -174,7 +174,7 @@ test("an underline strip marks the open tab with a line, never a filled pill; th
 });
 
 test("a close button that is not shown takes no click: a press on the right edge of a short tab selects the tab", () => {
-  const html = renderToStaticMarkup(<TabStrip tabs={[{ key: "chat", title: "Chat" }, { key: "plan", title: "Plan" }]} active="chat" onSelect={() => undefined} />);
+  const html = renderToStaticMarkup(<TabStrip tabs={[{ key: "chat", title: "Chat" }, { key: "plan", title: "Plan" }]} active="chat" onSelect={() => undefined} onClose={() => undefined} />);
   const close = /<[^>]*tab-close-plan[^>]*>/.exec(html)?.[0] ?? "";
   assert.match(close, /pointer-events:\s*none/, "hidden close, no click");
 });
