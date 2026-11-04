@@ -97,6 +97,24 @@
       "note": "Console page voice over scripted Northwind data."
     },
     {
+      "id": "CONSOLIDATE_02-voice_failing",
+      "route": "/m/CONSOLIDATE_02?part=voice_failing",
+      "proto": "console,{skin}",
+      "note": "Console Voice, variant failing."
+    },
+    {
+      "id": "CONSOLIDATE_02-voice_eleven",
+      "route": "/m/CONSOLIDATE_02?part=voice_eleven",
+      "proto": "console,{skin}",
+      "note": "Console Voice, variant eleven."
+    },
+    {
+      "id": "CONSOLIDATE_02-voice_new",
+      "route": "/m/CONSOLIDATE_02?part=voice_new",
+      "proto": "console,{skin}",
+      "note": "Console Voice, variant new."
+    },
+    {
       "id": "CONSOLIDATE_02-aipolicy",
       "route": "/m/CONSOLIDATE_02?part=aipolicy",
       "proto": "console,{skin}",
