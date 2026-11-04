@@ -1,9 +1,11 @@
+// @reads /modules/chat/migrations/0007_mentions.sql
 // How a teammate answers (the profile's "How <name> responds here"): their usual reply time and, for one chat, how they hear about it. A plain read from chats the ASKER is in, so it never draws on a
 // place the asker cannot open: a chat the asker is not a member of is never read, whoever else is in it.
 //   Replies: from the last 30 days of chats both are in, the time from a message that asked something of them (a mention of them by person id, a reply to their message, or any line from the other
 //            person in a direct chat) until their next message in that chat. Mentions are the composer's chips, kept per message (chat_mention); a name typed as plain words is not one. The median is the answer; fewer than three such moments is "unknown", never a guess.
 //   Notifies: for one chat both are in. A direct chat tells them of every message (message.direct); a group chat or channel tells them of @mentions and followed threads (notify.ts); a thread they
 //            left says off, which the members of it can see. A mute made in Notifications settings is private to them and is never read here (owner ruling, 4 Nov).
+import { readFileSync } from "node:fs";
 import { askerOf, membersOf, refOf } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
 import { followMode } from "./follow.ts";
@@ -32,13 +34,23 @@ export function paceOf(waits: readonly number[]): Pace {
   return "slow";
 }
 
-const TABLE = 'CREATE TABLE IF NOT EXISTS "chat_mention" ("message" TEXT NOT NULL, "thread" TEXT NOT NULL, "person" TEXT NOT NULL, "at" INTEGER NOT NULL, PRIMARY KEY ("message", "person"))';
+const SCHEMA = readFileSync(new URL("../migrations/0007_mentions.sql", import.meta.url), "utf8")
+  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
+  .split(";").map((x) => x.trim()).filter((x) => x.length > 0);
 const ready = new WeakSet<object>();
+/** The table is the module's 0007 migration; a database that has not run it yet (a fresh test handle) gets the same statements once. */
 function ensureMentionTable(ctx: Pick<ChatCtx, "db">): void {
   if (ready.has(ctx.db)) return;
-  ctx.db.run(TABLE);
-  ctx.db.run('CREATE INDEX IF NOT EXISTS "chat_mention__person" ON "chat_mention" ("person", "thread")');
+  try { ctx.db.all('SELECT message FROM chat_mention WHERE message = ?', "probe"); } catch { for (const stmt of SCHEMA) ctx.db.run(stmt); }
   ready.add(ctx.db);
+}
+
+/** Forgets mentions (memory rule 9): those of one message, of every message in a thread, or of one person who was mentioned. */
+export function forgetMentions(ctx: Pick<ChatCtx, "db">, what: { message?: string; thread?: string; person?: string }): void {
+  ensureMentionTable(ctx);
+  if (what.message !== undefined) ctx.db.run('DELETE FROM chat_mention WHERE "message" = ?', what.message);
+  if (what.thread !== undefined) ctx.db.run('DELETE FROM chat_mention WHERE "thread" = ?', what.thread);
+  if (what.person !== undefined) ctx.db.run('DELETE FROM chat_mention WHERE "person" = ?', what.person);
 }
 
 /** Keeps who a message mentioned, by person id: the composer's chips. The reply-time read matches on these, never on a name in the words. */

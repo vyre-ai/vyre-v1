@@ -1,7 +1,7 @@
 // chat.pace_of: how a teammate answers, for their profile. A usual reply time from chats the asker is in with them, and how they hear about one chat.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handlers } from "../impl.ts";
+import { consumers, handlers } from "../impl.ts";
 import { paceOf } from "../handlers/pace.ts";
 import { ensureFollowTable } from "../handlers/follow.ts";
 import { DANA, LEO, MAYA, contractErrors, harness } from "../fixtures/harness.ts";
@@ -121,4 +121,62 @@ test("a mute made in Notifications is private: nothing is asked of that module, 
   assert.equal((await h["chat.pace_of"]!(hn.ctx, { personId: MAYA, threadId: dm })).notifies, "all");
   assert.deepEqual(hn.callLog.filter((c) => c.cap.startsWith("notifications.")), [], "no call reaches the notifications module");
   assert.deepEqual(asked, []);
+});
+
+// ---- forgetting (memory rule 9): a mention goes with its message, its chat and the person ----
+
+const mentionRows = (hn: ReturnType<typeof harness>, where = ""): number => (hn.rows(`SELECT * FROM chat_mention ${where}`)).length;
+async function mentioned(hn: ReturnType<typeof harness>, thread: string, who: string = MAYA): Promise<string> {
+  return (await h["chat.post"]!(hn.ctx, { threadId: thread, body: "@Maya can you send the letter?", mentions: [{ kind: "person", id: who }], idempotencyKey: key() })).message.messageId as string;
+}
+
+test("a mention is stored by person id, once per person and message, from the chips", async () => {
+  const hn = harness({ calls: names });
+  const room = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() })).thread.threadId as string;
+  await h["threads.members.add"]!(hn.ctx, { threadId: room, personId: LEO });
+  const id = (await h["chat.post"]!(hn.ctx, { threadId: room, body: "@Maya @Maya @Leo", mentions: [{ kind: "person", id: MAYA }, { kind: "person", id: MAYA }, { kind: "person", id: LEO }], idempotencyKey: key() })).message.messageId as string;
+  assert.deepEqual(hn.rows("SELECT message, person FROM chat_mention ORDER BY person").map((r) => [r["message"], r["person"]]), [[id, LEO], [id, MAYA]]);
+  await h["chat.post"]!(hn.ctx, { threadId: room, body: "@Maya in plain words only", idempotencyKey: key() });
+  assert.equal(mentionRows(hn), 2, "a name in the words stores nothing");
+});
+
+test("deleting a message deletes its mention rows and no one else's", async () => {
+  const hn = harness({ calls: names });
+  const room = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() })).thread.threadId as string;
+  const a = await mentioned(hn, room);
+  const b = await mentioned(hn, room);
+  assert.equal(mentionRows(hn), 2);
+  await h["chat.delete_message"]!(hn.ctx, { threadId: room, messageId: a });
+  assert.deepEqual(hn.rows("SELECT message FROM chat_mention").map((r) => r["message"]), [b]);
+});
+
+test("erasing a chat deletes the mention rows of its messages and of the threads under it; another chat's stay", async () => {
+  const hn = harness({ calls: { ...names, "files.resolve": () => ({ kind: "none" }) } });
+  const gone = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() })).thread.threadId as string;
+  const kept = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: LEO, idempotencyKey: key() })).thread.threadId as string;
+  await mentioned(hn, gone);
+  await mentioned(hn, gone);
+  const stay = await mentioned(hn, kept, LEO);
+  await h["threads.erase"]!(hn.ctx, { threadId: gone, idempotencyKey: key() });
+  assert.deepEqual(hn.rows("SELECT message FROM chat_mention").map((r) => r["message"]), [stay]);
+});
+
+test("the retention purge deletes the mention rows of the messages it removes", async () => {
+  const hn = harness({ calls: names });
+  const room = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() })).thread.threadId as string;
+  await mentioned(hn, room);
+  hn.advance(60_000);
+  const late = await mentioned(hn, room);
+  await h["chat.transcript.purge"]!(hn.ctx, { before: hn.clock.t - 30_000, idempotencyKey: key() });
+  assert.deepEqual(hn.rows("SELECT message FROM chat_mention").map((r) => r["message"]), [late], "only the old message's row went");
+});
+
+test("a person removed from the Space has their mention rows removed; the others' stay", async () => {
+  const hn = harness({ calls: names });
+  const room = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() })).thread.threadId as string;
+  await h["threads.members.add"]!(hn.ctx, { threadId: room, personId: LEO });
+  await mentioned(hn, room, MAYA);
+  await mentioned(hn, room, LEO);
+  await consumers["chat.person_left"].run(hn.as({ kind: "service", id: "svc_host" }), { payload: { personId: MAYA } });
+  assert.deepEqual(hn.rows("SELECT person FROM chat_mention").map((r) => r["person"]), [LEO]);
 });
