@@ -18,7 +18,7 @@ export const ME = "usr_irfad";
 export const NAMES: Record<string, string> = { ...namesFor("harbor"), ...namesFor("northwind", { usr_irfad: "You", role_finance: "Finance" }) };
 const SOURCES: Record<string, string> = { "chat:c3": "October invoices", "chat:c4": "Rivera engagement letter", "chat:c6": "County records search", "chat:c1": "Rivera intake", "chat:c2": "Competitor pricing", "chat:c7": "Plan the Q4 offsite", "chat:h1": "Moreno shoot Saturday", "chat:h2": "Moreno gallery" };
 
-const approve = [{ key: "approve", label: "Approve" }, { key: "send_back", label: "Send back", note: "required" as const }];
+const approve = [{ key: "approve", label: "Allow" }, { key: "send_back", label: "Send back", note: "required" as const }];
 const review = [{ key: "review", label: "Looks good" }, { key: "send_back", label: "Send back", note: "required" as const }];
 
 function task(id: string, kind: Task["kind"], by: string, title: string, summary: string, why: string, chat: string, updatedAt: number, o: Partial<Task> = {}): Task {

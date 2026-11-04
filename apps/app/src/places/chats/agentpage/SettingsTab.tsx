@@ -52,7 +52,7 @@ export function SettingsTab({ agent, deps, window }: { agent: AgentRow; deps: Pa
       entries.push({
         key: `s-${s.suggestionId}`, type: "row", title: suggestionTitle(s), note: s.widening ? "Widens what the agent may do: a Space admin approves it" : s.reason ?? `Proposed by ${data.nameOf(s.proposedBy)}`, leading: <LeadIcon name="edit" color="var(--accent)" />, testID: `suggestion-${s.suggestionId}`,
         trailing: data.canEdit
-          ? <View style={st.pair}><TextButton label="Accept" primary testID={`accept-${s.suggestionId}`} onPress={() => void acceptSuggestion(deps, s)} /><TextButton label="Dismiss" testID={`dismiss-${s.suggestionId}`} onPress={() => void dismissSuggestion(deps, s)} /></View>
+          ? <View style={st.pair}><TextButton label="Allow" primary testID={`accept-${s.suggestionId}`} onPress={() => void acceptSuggestion(deps, s)} /><TextButton label="Dismiss" testID={`dismiss-${s.suggestionId}`} onPress={() => void dismissSuggestion(deps, s)} /></View>
           : <TextButton label="Suggested" disabled testID={`suggested-${s.suggestionId}`} onPress={() => undefined} />,
       });
     }

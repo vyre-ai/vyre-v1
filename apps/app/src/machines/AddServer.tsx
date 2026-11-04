@@ -38,7 +38,7 @@ export function AddServerSheet({ sheet, servers, busy, error, now, onNickname, o
   const actions = phase === "name"
     ? [{ label: "Cancel", testID: "add-cancel", onPress: onClose }, { label: busy ? "Making" : "Get command", testID: "add-make", primary: true, disabled: busy || !validNickname(sheet.nickname), onPress: onMake }]
     : phase === "waiting" ? [{ label: "Cancel", testID: "add-cancel", onPress: onClose }]
-    : phase === "compare" && arrived ? [{ label: "Decline", testID: "add-decline", onPress: () => onDecline(arrived.serverId) }, { label: busy ? "Approving" : "Approve", testID: "add-approve", primary: true, disabled: busy, onPress: () => onApprove(arrived.serverId) }]
+    : phase === "compare" && arrived ? [{ label: "Deny", testID: "add-decline", onPress: () => onDecline(arrived.serverId) }, { label: busy ? "Allowing" : "Allow", testID: "add-approve", primary: true, disabled: busy, onPress: () => onApprove(arrived.serverId) }]
     : [{ label: "Done", testID: "add-done", primary: true, onPress: onClose }];
   return (
     <Dialog title="Add a server" testID="add-server-sheet" width={520} onClose={onClose} actions={actions}>

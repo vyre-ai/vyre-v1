@@ -112,7 +112,7 @@ test("arrow keys step through rows only, and stop at the ends", () => {
 });
 
 test("Needs you kinds: Approve and Review in the accent, Blocked in the warning tone", () => {
-  assert.deepEqual(needsKind(need("a", "approve")), { label: "Approve", tone: "accent" });
+  assert.deepEqual(needsKind(need("a", "approve")), { label: "Allow", tone: "accent" });
   assert.deepEqual(needsKind(need("a", "review")), { label: "Review", tone: "accent" });
   assert.deepEqual(needsKind(need("a", "unblock")), { label: "Blocked", tone: "warn" });
   assert.deepEqual(needsKind(need("a", "work", true)), { label: "Blocked", tone: "warn" });
