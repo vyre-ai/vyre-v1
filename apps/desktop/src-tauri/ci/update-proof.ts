@@ -135,7 +135,7 @@ if (kept) {
   const after = charsOf(run.log().split("page serviceworker")[1] ?? "");
   console.log(`update-proof: first start over the shipped app's profile: worker removed=${removed}, then ${after} chars`);
   if (!removed) failures.push("upgrade: the earlier version's service worker was not removed");
-  if (after === 0) failures.push("upgrade: the app draws nothing after removing the earlier worker");
+  if (after === 0) { failures.push("upgrade: the app draws nothing after removing the earlier worker"); console.log(`update-proof: the shell said, after the worker was removed:\n${(run.log().split("page serviceworker")[1] ?? "").split("\n").slice(0, 40).join("\n")}`); }
   await quit("upgraded-start");
 } else {
   // the earlier steps of this job ran the app on this profile and ended it with a force kill (run-shell.sh's trap): start as a fresh person, keeping a listing of what was there
