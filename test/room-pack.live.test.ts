@@ -88,7 +88,8 @@ test("a tagged agent in a 300-message room gets the roster, the recent messages 
   assert.ok(oneShots.length >= 1, "a digest batch ran");
   const source = oneShots[0]!.split("New messages:\n")[1] ?? "";
   const lines = source.split("\n").filter((l) => l.trim() !== "" && !l.startsWith("Write the updated digest"));
-  assert.ok(lines.length >= 300, `the batch read the room's messages (${lines.length} lines)`);
+  // the room is read from its newest 200 messages (the chat history window), so the first batch holds 200 of the 300 and the digest says it covers up to the newest
+  assert.ok(lines.length >= 200, `the batch read the room's messages (${lines.length} lines)`);
   assert.ok(lines.every((l) => /^[^:]+: (Message \d+: |@Intake )/.test(l)), "the digest is built from the room's own messages and nothing else");
   assert.match(recent, /\((person|agent)\): /, "who said it");
   assert.match(room, /Agents: you \(this is you\)/);

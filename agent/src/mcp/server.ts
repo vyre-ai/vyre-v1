@@ -97,6 +97,8 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   const recheckMs = deps.recheckMs ?? RECHECK_MS;
   const maxBody = deps.maxBodyBytes ?? MAX_BODY;
   const byToken = new Map<string, Session>();
+  /** The tools each chat has found, across the sessions of its engine process: a process started again keeps them. */
+  const foundByChat = new Map<string, Set<string>>();
   const bySession = new Map<string, Session>();
 
   const originOk = (origin: string | undefined): boolean => origin === undefined || LOOPBACK.test(origin) || (deps.allowedOrigins?.includes(origin) ?? false);
@@ -117,6 +119,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     // the one hooks layer, for every engine that reaches Vyre here: the port is the host's, bound when its engine runtime starts
     const hooks: CallHooks = { fire: (c, f) => (hooksHolder.port ? hooksHolder.port.fire({ ...f, agentId: c.agentId, asker: c.asker, threadId: c.thread.threadId, threadKind: c.thread.kind, ...(c.turnId ? { turnId: c.turnId } : {}), engine: caller.provider ?? "cli", source: "tools" }) : Promise.resolve(NO_VERDICT)) };
     const tools = createToolSession({
+      ...(caller.kind === "driver" ? { loadedStore: foundByChat } : {}),
       catalog: deps.catalog, defaults: deps.defaults, invoke, hooks,
       levelFor: () => caller.askLevel ?? null,
       canEngineer: () => false,

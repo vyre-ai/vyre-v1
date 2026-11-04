@@ -105,6 +105,9 @@ test("a Codex sign-in the CLI refreshes during a turn is saved back: the next tu
         return m ? String(m.body) : null;
       }, () => `no reply to "${body.slice(0, 20)}": ${JSON.stringify(seen)} ${log(false).slice(0, 4000)}`);
     };
+    // This test is about the CLI's refreshed sign-in. Memory's learning pass also runs a one-shot on this account after a turn, and this stand-in CLI acts on words in its prompt ("authrefresh r1" from the chat), so the pass would
+    // refresh the token a second time. The Space's own setting turns the pass off for the test (memory.learn_daily_passes, the daily cap on model passes); learning has its own tests.
+    await ok("settings.set_space", { key: "memory.learn_daily_passes", value: 0 });
     const refreshedLine = async (): Promise<Any[]> => ((await ok("vault.item.history", { itemId: item.id })).entries as Any[]).filter((e) => e.detail === "Codex refreshed its sign-in");
 
     // ---- turn 1: the CLI starts on the signed-in token and refreshes it
