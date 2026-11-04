@@ -3,9 +3,9 @@
 //   a note a hook leaves reaches the model as context; a chat hook set by the agent itself stops a Vyre tool, and the reason reaches the chat and hooks.runs.list; a Space block wins over it;
 //   and with the hooks layer down (the endpoint the hooks ask is gone) the same call goes on.
 // Hooks here are command hooks (they run in the sandbox, no second model call), so a turn costs one short model reply. The model is the engine's cheapest (haiku for Claude Code; HOOKS_CODEX_MODEL for Codex,
-// else its default). Runs only with VYRE_HEAVY_DOCKER=1 and the engine's sign-in in the environment: CLAUDE_CODE_OAUTH_TOKEN for Claude Code; CODEX_AUTH_JSON (the text of a ChatGPT-signed-in ~/.codex/auth.json; the test wraps it as the Vault holds sign-in files) for Codex. A missing one skips that engine
-// and says so. The values are never printed. Vyre today runs Codex only on a ChatGPT sign-in (the provider "codex" connects by subscription only); an OpenAI API key runs the OpenAI API driver, not the Codex CLI,
-// so OPENAI_API_KEY cannot be used here.
+// else its default). Runs only with VYRE_HEAVY_DOCKER=1 and the engine's sign-in in the environment: CLAUDE_CODE_OAUTH_TOKEN for Claude Code; for Codex OPENAI_API_KEY (the Codex provider's "with an API
+// key" connection, needs l-models wip/l-codexkey) or else CODEX_AUTH_JSON (the text of a ChatGPT-signed-in ~/.codex/auth.json, wrapped as the Vault holds sign-in files). A missing one skips that engine and
+// says so. The values are never printed.
 // The engines are found in HOOKS_CLI_DIR (default /root/cli/bin). Grok has no account here: its hook files are generated and unit-tested but unproven on a real run.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -25,10 +25,10 @@ const PASSWORD = "correct horse battery staple 9";
 const CLI_DIR = process.env["HOOKS_CLI_DIR"] ?? "/root/cli/bin";
 const HEAVY = process.env["VYRE_HEAVY_DOCKER"] === "1";
 
-interface Engine { id: "claude_code" | "codex"; bin: string; env: string; model: string | undefined }
+interface Engine { id: "claude_code" | "codex"; bin: string; env: string; /** Another variable that also signs the engine in */ alt?: string; model: string | undefined }
 const ENGINES: Engine[] = [
   { id: "claude_code", bin: "claude", env: "CLAUDE_CODE_OAUTH_TOKEN", model: "haiku" },
-  { id: "codex", bin: "codex", env: "CODEX_AUTH_JSON", model: process.env["HOOKS_CODEX_MODEL"] },
+  { id: "codex", bin: "codex", env: "OPENAI_API_KEY", alt: "CODEX_AUTH_JSON", model: process.env["HOOKS_CODEX_MODEL"] },
 ];
 
 type Reply = { status: number; data: any };   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -43,8 +43,10 @@ async function waitFor<T>(d: Daemon, f: () => Promise<T | null>, ms: number, why
 }
 
 for (const eng of ENGINES) {
-  const key = process.env[eng.env];
-  const skip: string | false = !HEAVY ? "needs VYRE_HEAVY_DOCKER=1 (the CLI runs in the real sandbox)" : !key ? `skipped: ${eng.env} is not set, so the real ${eng.bin} cannot sign in` : !fs.existsSync(path.join(CLI_DIR, eng.bin)) ? `skipped: ${path.join(CLI_DIR, eng.bin)} is not installed` : false;
+  // Codex: an OpenAI API key (the provider "Codex, with an API key", l-models wip/l-codexkey), or else a ChatGPT-signed-in auth.json
+  const authJson = eng.id === "codex" && !process.env[eng.env] ? process.env[eng.alt!] : undefined;
+  const key = process.env[eng.env] ?? authJson;
+  const skip: string | false = !HEAVY ? "needs VYRE_HEAVY_DOCKER=1 (the CLI runs in the real sandbox)" : !key ? `skipped: ${eng.env}${eng.alt ? ` (or ${eng.alt})` : ""} is not set, so the real ${eng.bin} cannot sign in` : !fs.existsSync(path.join(CLI_DIR, eng.bin)) ? `skipped: ${path.join(CLI_DIR, eng.bin)} is not installed` : false;
 
   test(`hooks on the real ${eng.bin}: a note reaches the model, an agent's own chat hook stops a Vyre tool, a Space block wins, and with the hooks layer down the call goes on`, { skip, timeout: 600_000 }, async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), `vyre-hooks-${eng.bin}-`));
@@ -73,12 +75,18 @@ for (const eng of ENGINES) {
         const p = await call(d, token, "providers.subscription_complete", { flowId: flow.data.flowId });
         assert.equal((await call(d, token, "providers.set_space_use", { idempotencyKey: "hc-use", providerId: p.data.provider.id, allow: true })).status, 200);
       } else {
+        if (!authJson) {
+          const p = await call(d, token, "providers.add", { idempotencyKey: "hc-provider", providerKey: "codex", connection: "api_key", apiKey: key!, scope: "mine" });
+          assert.equal(p.status, 200, JSON.stringify(p.data).replaceAll(key!, "[key]"));
+          assert.equal((await call(d, token, "providers.set_space_use", { idempotencyKey: "hc-use", providerId: p.data.provider.id, allow: true })).status, 200);
+        } else {
         const folder = await call(d, token, "vault.folders.create", { idempotencyKey: "hc-folder", name: "Accounts", scope: "mine" });
         const flow = await call(d, token, "providers.subscription_start", { idempotencyKey: "hc-flow", providerKey: "codex" });
         assert.equal((await call(d, token, "vault.item.put", { idempotencyKey: "hc-item", folderId: folder.data.folder.id, name: "Dana_Codex", kind: "ai_subscription", fields: [{ key: "credentials", value: JSON.stringify({ ".codex/auth.json": key! }), secret: true }] })).status, 200);
         const p = await call(d, token, "providers.subscription_complete", { flowId: flow.data.flowId });
         assert.equal(p.status, 200, JSON.stringify(p.data).replaceAll(key!, "[key]"));
         assert.equal((await call(d, token, "providers.set_space_use", { idempotencyKey: "hc-use", providerId: p.data.provider.id, allow: true })).status, 200);
+        }
       }
       const made = await call(d, token, "agents.create", { name: "Intake", role: "You answer in as few words as you can.", idempotencyKey: "hc-agent", ...(eng.model ? { model: eng.model } : {}) });
       assert.equal(made.status, 200, JSON.stringify(made.data));
