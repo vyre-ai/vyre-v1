@@ -253,6 +253,13 @@ export function whenLabel(at: number, now: number, offsetMin: number): string {
 }
 
 /** Which threads open by default: any with something new, and the newest. A person's own toggle wins. */
+/** How long the thread a link asked for stays marked. */
+export const MARK_MS = 2200;
+/** The thread a link asked for, when this conversation holds it; otherwise nothing, and the conversation opens as it always does. */
+export const askedThread = (asked: string | undefined, all: readonly MailThread[]): string | undefined => (asked !== undefined && all.some((t) => t.threadId === asked) ? asked : undefined);
+/** Which thread the feed scrolls to: the asked one when there is one, else the first with something new. */
+export const landsOn = (asked: string | undefined, threadId: string, firstFresh: boolean): boolean => (asked !== undefined ? asked === threadId : firstFresh);
+
 export function threadOpen(t: MailThread, all: readonly MailThread[], fresh: ReadonlySet<string>, toggled: Readonly<Record<string, boolean>>): boolean {
   const own = toggled[t.threadId];
   if (own !== undefined) return own;

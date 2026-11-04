@@ -19,3 +19,4 @@
 - A reply that links an email thread or a calendar event with [[Name|id]] shows it as a chip; an id that does not resolve shows the Name as plain words, never the brackets. The reply guide says which ids can be linked.
 - A chip for an email thread in a reply opens the Inbox conversation that holds it (new read capability inbox.thread_conversation, mapped through the stored provider thread id).
 - The composer's memory switch uses the memory glyph instead of a lock: "Remembering this chat. Press to stop." and, when off, a crossed glyph with "Not remembering this chat".
+- Opening an Inbox conversation from an email-thread link lands on that thread: it opens, scrolls into view and is marked for about two seconds.

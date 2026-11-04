@@ -332,6 +332,8 @@ export interface ThreadView {
   onMessage(id: string, open: boolean): void;
   onQuote(id: string): void;
   onSig(id: string): void;
+  /** A link asked for this thread: it is marked for a moment. */
+  marked?: boolean;
   onImages(): void;
   onReply(mode: "one" | "all"): void;
   onAttachment?(name: string): void;
@@ -370,7 +372,7 @@ export function ThreadCard({ e, v }: { e: ThreadEntry; v: ThreadView }): ReactEl
   }
   const many = last ? last.to.length + last.cc.length > 1 : false;
   return (
-    <View style={[th.th, fresh > 0 && th.thNew]} testID={`thread:${t.threadId}`} onLayout={v.onLayoutY ? (ev) => v.onLayoutY?.(ev.nativeEvent.layout.y) : undefined}>
+    <View style={[th.th, fresh > 0 && th.thNew, v.marked === true && th.thMark]} testID={`thread:${t.threadId}`} {...(v.marked === true ? ({ dataSet: { marked: "1" } } as object) : {})} onLayout={v.onLayoutY ? (ev) => v.onLayoutY?.(ev.nativeEvent.layout.y) : undefined}>
       <Pressable
         accessibilityRole="button" accessibilityLabel={`${t.subject}, ${t.messageCount} messages${fresh ? `, ${fresh} new` : ""}`} accessibilityState={{ expanded: v.open }} testID={`thread-toggle:${t.threadId}`}
         onPress={v.onToggle} style={(st: { hovered?: boolean }) => [th.thh, v.open && th.thhOpen, hover(st) && th.thhOver]}
@@ -505,6 +507,7 @@ export function MailHtmlStyle(): ReactElement | null {
 const th = StyleSheet.create({
   th: { marginVertical: 8, borderRadius: 12, backgroundColor: "var(--raised)", borderWidth: 1, borderColor: "var(--line)" },
   thNew: { borderColor: "var(--line-2)" },
+  thMark: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
   thh: { paddingTop: 11, paddingBottom: 10, paddingHorizontal: 14, borderRadius: 11 },
   thhOpen: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
   thhOver: { backgroundColor: "var(--hover)" },

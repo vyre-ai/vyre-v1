@@ -30,6 +30,7 @@ import { followMenuEntries, quickEntries, templateEntries, threadMenuEntries } f
 import {
   buildFeed, canSend, cannedLists, choicesFor, emailRef, firstName, draftCards, headerOf, initialDraft, messageOpen, namedTo, pickInbox, replyMessage, replyTarget, sendBlocker, startChannel, textTarget, threadMailbox, threadOpen,
 } from "./model.ts";
+import { MARK_MS, askedThread, landsOn } from "./model.ts";
 import type { Chan, ComposerDraft, DraftCard, DraftRow, InboxChoice, MailThread, SendOptions, ThreadOut, ThreadsOut } from "./model.ts";
 import { Bubbles, CallLine, DaySep, DraftBlock, EmailItem, MailHtmlStyle, QuietLine, ThreadCard } from "./parts.tsx";
 import { usePhone } from "../softphone/phone.tsx";
@@ -41,6 +42,8 @@ type DraftsOut = { drafts: DraftRow[] };
 export interface ContactTabProps {
   conversationId: string;
   contactId?: string;
+  /** An email thread to land on: it opens, scrolls into view and is marked for a moment (a chat link to an email thread). */
+  threadId?: string;
   /** Open the person's or company's record (the header link and a record chip). */
   onOpenRecord?(contactId: string, recordId?: string): void;
   /** Ask Vyre about this conversation: the contact when it has one, else the conversation itself, with the name the head shows. */
@@ -147,6 +150,10 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const [sigs, setSigs] = useState<readonly string[]>([]);
   const freshRef = useRef<{ conv: string; ids: ReadonlySet<string> } | null>(null);
   const landed = useRef<string | null>(null);
+  // the thread a link asked for is marked for a moment, so the eye finds it
+  const [mark, setMark] = useState<string | null>(props.threadId ?? null);
+  useEffect(() => { if (props.threadId) setMark(props.threadId); }, [props.threadId]);
+  useEffect(() => { if (mark === null) return; const id = setTimeout(() => setMark(null), MARK_MS); return () => clearTimeout(id); }, [mark]);
   const [attached, setAttached] = useState<readonly { name: string }[]>([]);
 
   const dock = usePhone();
@@ -196,7 +203,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
   const textTo = conv ? (ask?.phone?.to ?? textTarget(conv, items)) : null;
 
   // the newest message is at the foot: open scrolled down, and again when something arrives; a thread with something new is landed on, subject first
-  useEffect(() => { if (landed.current !== conversationId) scroll.current?.scrollToEnd?.({ animated: false }); }, [feed.length, cards.length]);
+  useEffect(() => { if (!(landed.current ?? "").startsWith(`${conversationId}:`)) scroll.current?.scrollToEnd?.({ animated: false }); }, [feed.length, cards.length]);
   // opening the conversation reads it
   const unread = conv?.unreadCount ?? 0;
   useEffect(() => { if (unread > 0) void markRead(data, conversationId); }, [conversationId, unread > 0]);
@@ -347,11 +354,14 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             case "day": return <DaySep key={f.key} label={f.label} />;
             case "thread": {
               const t = f.thread;
+              const asked = askedThread(props.threadId, mailThreads);
+              const landKey = `${conversationId}:${asked ?? ""}`;
               const firstFresh = mailThreads.length > 0 && feed.find((x) => x.kind === "thread" && x.thread.messages.some((m) => fresh.has(m.message.id))) === f;
               return (
                 <ThreadCard key={f.key} e={f} v={{
                   mine, fresh, now: clock.now, offsetMin: clock.offsetMin, narrow: phone,
-                  open: threadOpen(t, mailThreads, fresh, thOpen),
+                  open: asked === t.threadId && thOpen[t.threadId] === undefined ? true : threadOpen(t, mailThreads, fresh, thOpen),
+                  marked: mark === t.threadId,
                   msgOpen: (id) => { const m = t.messages.find((x) => x.message.id === id)?.message; return m ? messageOpen(t, m, fresh, msgOpen) : false; },
                   quoteOpen: (id) => quotes.includes(id), sigOpen: (id) => sigs.includes(id),
                   onToggle: () => setThOpen((o) => ({ ...o, [t.threadId]: !threadOpen(t, mailThreads, fresh, o) })),
@@ -362,7 +372,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
                   chipsOf: (id) => { const i = items.find((x) => x.id === id); return i ? (emailRef(i).chips ?? []) : []; },
                   onChip: (title, recordId) => props.onOpenRecord?.(conv.contactId ?? "", recordId ?? title),
                   ...(props.onOpenAttachment ? { onAttachment: props.onOpenAttachment } : {}),
-                  ...(firstFresh ? { onLayoutY: (y: number) => { if (landed.current === conversationId) return; landed.current = conversationId; scroll.current?.scrollTo?.({ y: Math.max(0, y - 16), animated: false }); } } : {}),
+                  ...(landsOn(asked, t.threadId, firstFresh) ? { onLayoutY: (y: number) => { if (landed.current === landKey) return; landed.current = landKey; scroll.current?.scrollTo?.({ y: Math.max(0, y - 16), animated: false }); } } : {}),
                 }} />
               );
             }
