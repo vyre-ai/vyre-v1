@@ -305,7 +305,7 @@ const MAX_STEP = 2_000;
 
 export async function questionAsk(
   ctx: ChatCtx,
-  input: { threadId: string; prompt: string; mode: "single" | "multi" | "free"; options?: Array<{ key: string; label: string; detail?: string }>; allowOther?: boolean; card?: { kind: "terminal"; command: string; host?: string; risk?: string }; idempotencyKey?: string },
+  input: { threadId: string; prompt: string; mode: "single" | "multi" | "free"; options?: Array<{ key: string; label: string; detail?: string }>; allowOther?: boolean; recommended?: number; card?: { kind: "terminal"; command: string; host?: string; risk?: string }; idempotencyKey?: string },
 ) {
   ensure(ctx.db);
   const t = open(ctx, input.threadId);
@@ -322,8 +322,9 @@ export async function questionAsk(
       keys.add(o.key);
     }
   }
+  if (input.recommended !== undefined && (input.mode === "free" || input.recommended >= options.length)) raise(ctx, "validation.bad_input", "The recommended option must be one of the options.", { recommended: input.recommended });
   const blockId = mintId("blk", ctx.now());
-  const data: Record<string, unknown> = { threadId: t.id, blockId, prompt, mode: input.mode, options, allowOther: input.allowOther ?? false, ...(input.card ? { card: input.card } : {}) };
+  const data: Record<string, unknown> = { threadId: t.id, blockId, prompt, mode: input.mode, options, allowOther: input.allowOther ?? false, ...(input.recommended !== undefined ? { recommended: input.recommended } : {}), ...(input.card ? { card: input.card } : {}) };
   const taskId = await openAsk(ctx, t, { kind: "answer", blockId, block: { type: "question", data }, title: prompt, summary: prompt });
   if (taskId !== undefined) data["taskId"] = taskId;
   const m = insertMessage(ctx, t.id, { author: ctx.principal.id, kind: authorKind(ctx), body: "", blocks: [{ type: "question", v: 1, id: blockId, data, state: "waiting", traceId: ctx.trace.traceId }] });

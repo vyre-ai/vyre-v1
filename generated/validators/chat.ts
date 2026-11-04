@@ -2812,6 +2812,7 @@ if ("prompt" in o1918) lf(o1918["prompt"], p + "/prompt", e, L1);
 if ("mode" in o1918) lf(o1918["mode"], p + "/mode", e, L542);
 if ("options" in o1918) d_s_1d32907513(o1918["options"], p + "/options", e);
 if ("allowOther" in o1918) lf(o1918["allowOther"], p + "/allowOther", e, L3);
+if ("recommended" in o1918) lf(o1918["recommended"], p + "/recommended", e, L17);
 if ("card" in o1918) {
 {
 const x1919 = o1918["card"];

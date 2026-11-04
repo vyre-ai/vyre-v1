@@ -77,7 +77,8 @@ const text = (v: unknown): string => (typeof v === "string" ? v : "");
 
 /**
  * The questions agents are waiting on, oldest first, for the Island to offer as a shortcut. Only a plain single-choice or free-text question is here: a multi-choice question, a terminal
- * card and a folder-mount card need their own card, so they stay in the chat. The first option marked "Recommended" is the filled one (the option's detail says so); with none marked, none is.
+ * card and a folder-mount card need their own card, so they stay in the chat. The filled one is the option the agent recommended (the question's `recommended` index); a question from before
+ * that field falls back to the first option whose detail starts with "Recommended"; with neither, none is filled.
  */
 export function questionsOf(messages: readonly Pick<Message, "author" | "blocks">[], nameOf: (id: string) => string): IslandQuestion[] {
   const out: IslandQuestion[] = [];
@@ -91,10 +92,11 @@ export function questionsOf(messages: readonly Pick<Message, "author" | "blocks"
       const options = questionOptions(d);
       if (mountOffers(options) !== null) continue;
       const raw = Array.isArray(d["options"]) ? d["options"] : [];
+      const rec = typeof d["recommended"] === "number" && Number.isInteger(d["recommended"]) ? (d["recommended"] as number) : null;
       let marked = false;
       const choices = options.map((o, i): IslandChoice => {
         const detail = isRec(raw[i]) ? text((raw[i] as Record<string, unknown>)["detail"]) : "";
-        const recommended = !marked && /^recommended/i.test(detail);
+        const recommended = rec !== null ? i === rec : !marked && /^recommended/i.test(detail);
         if (recommended) marked = true;
         return { id: o.id, label: o.label, detail, recommended };
       });

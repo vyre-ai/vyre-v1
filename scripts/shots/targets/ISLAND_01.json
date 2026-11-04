@@ -1,0 +1,43 @@
+{
+  "targets": [
+    {
+      "id": "ISLAND_01-working",
+      "route": "/m/ISLAND_01?view=working",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='island-pill']",
+      "note": "The Island while an agent works: the mark, the word, one face per working agent, as built before."
+    },
+    {
+      "id": "ISLAND_01-question",
+      "route": "/m/ISLAND_01?view=question",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='island-question']",
+      "note": "An agent asks: the Island is the question, the asker's face with an amber ring, choices with the recommended one filled, Other, and who can answer."
+    },
+    {
+      "id": "ISLAND_01-several",
+      "route": "/m/ISLAND_01?view=several",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='island-count']",
+      "note": "Three questions waiting: 1 of 3 with arrows."
+    },
+    {
+      "id": "ISLAND_01-other",
+      "route": "/m/ISLAND_01?view=question",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='island-other']",
+      "click": "[data-testid='island-other']",
+      "after": "[data-testid='island-other-field']",
+      "note": "Other open: a short text field and Send."
+    },
+    {
+      "id": "ISLAND_01-answered",
+      "route": "/m/ISLAND_01?view=question",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='island-choice-2gb']",
+      "click": "[data-testid='island-choice-2gb']",
+      "after": "[data-testid='island-pill']",
+      "note": "After pressing 2 GB: the pill goes back to Working."
+    }
+  ]
+}

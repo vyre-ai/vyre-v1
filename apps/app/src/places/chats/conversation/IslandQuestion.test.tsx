@@ -172,3 +172,13 @@ test("questionsOf: waiting single and free questions from agents; multi, termina
   assert.equal(out[0]!.other, true);
   assert.deepEqual([out[1]!.choices.length, out[1]!.other], [0, true]);
 });
+
+test("questionsOf: the recommended index fills that option; the Recommended text is only the fallback for a question without it", () => {
+  const opts = [{ key: "a", label: "A", detail: "Recommended" }, { key: "b", label: "B" }, { key: "c", label: "C" }];
+  const [withIndex, without] = questionsOf([
+    ask([blk("x", { prompt: "Pick", mode: "single", options: opts, recommended: 2 })]),
+    ask([blk("y", { prompt: "Pick", mode: "single", options: opts })]),
+  ], (id) => id);
+  assert.deepEqual(withIndex!.choices.map((c) => c.recommended), [false, false, true], "the index wins over the text");
+  assert.deepEqual(without!.choices.map((c) => c.recommended), [true, false, false]);
+});

@@ -7327,6 +7327,7 @@ export type ChatQuestionAskIn = {
       detail?: string;
     }>;
   allowOther?: boolean;
+  recommended?: number;
   card?: {
     kind: "terminal";
     command: string;

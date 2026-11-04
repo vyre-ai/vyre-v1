@@ -141,6 +141,18 @@ test("chat.question.ask writes the block the answer capability expects", async (
   await refuses(hn, "chat.question.ask", "validation.not_found", () => g["chat.question.ask"](hn.person(MAYA), { threadId, prompt: "Hi", mode: "free" }));
 });
 
+test("chat.question.ask keeps the option the agent recommends, and refuses a position that is not an option", async () => {
+  const hn = harness();
+  const threadId = await chatOf(hn);
+  const options = [{ key: "2gb", label: "2 GB" }, { key: "10gb", label: "10 GB" }];
+  const input = { threadId, prompt: "How large can an upload be?", mode: "single" as const, options, recommended: 1 };
+  const out = await ok(hn, "chat.question.ask", input, () => g["chat.question.ask"](hn.agent(), input));
+  const data = JSON.parse(String(hn.rows("SELECT data FROM chat_block WHERE id = ?", out.blockId)[0]!["data"])) as Record<string, unknown>;
+  assert.equal(data["recommended"], 1);
+  await refuses(hn, "chat.question.ask", "validation.bad_input", () => g["chat.question.ask"](hn.agent(), { threadId, prompt: "Pick", mode: "single", options, recommended: 2 }));
+  await refuses(hn, "chat.question.ask", "validation.bad_input", () => g["chat.question.ask"](hn.agent(), { threadId, prompt: "Anything?", mode: "free", recommended: 0 }));
+});
+
 test("a question can carry a terminal card, and what the person ran comes back as the answer", async () => {
   const hn = harness();
   const threadId = await chatOf(hn);

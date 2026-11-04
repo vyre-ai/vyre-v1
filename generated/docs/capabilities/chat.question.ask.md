@@ -34,6 +34,7 @@ type In = {
       detail?: string;
     }>;
   allowOther?: boolean;
+  recommended?: number;
   card?: {
     kind: "terminal";
     command: string;
@@ -82,6 +83,7 @@ type Out = {
       }
     ],
     "prompt": "example",
+    "recommended": 1,
     "threadId": "thr_a1b2c3"
   },
   "output": {

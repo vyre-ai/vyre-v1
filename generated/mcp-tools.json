@@ -4293,6 +4293,11 @@
           "prompt": {
             "type": "string"
           },
+          "recommended": {
+            "description": "The position (0 is the first) of the option you recommend; it is drawn as the main choice",
+            "minimum": 0,
+            "type": "integer"
+          },
           "threadId": {
             "examples": [
               "thr_a1b2c3"
