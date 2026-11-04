@@ -36,7 +36,7 @@ export interface HeldCardProps {
   /** The face in the header when it is not the recipient's: the agent that wrote the draft. */
   headFace?: { name: string; seed: string; kind: "agent" | "person" };
   /** Who it goes to, as faces and names, above the subject: "To", and "Cc" when there is one. The recipient must be seen before Send. */
-  peopleRows?: ReadonlyArray<{ label: string; people: ReadonlyArray<{ name: string; seed: string }> }>;
+  peopleRows?: ReadonlyArray<{ label: string; people: ReadonlyArray<{ name: string; seed: string; /** under the name: the number or address it goes to */ sub?: string }> }>;
   /** A calendar entry's guests, as faces and names, shown after its When line; and whether they are emailed. */
   invitees?: ReadonlyArray<{ name: string; seed: string }>;
   inviteNote?: string;
@@ -130,7 +130,7 @@ export function HeldCard(p: HeldCardProps): ReactElement {
       ) : null}
       <View style={st.rows}>
         {(p.peopleRows ?? []).filter((r) => r.people.length > 0).map((r) => (
-          <View key={r.label} style={st.row} testID={`${p.testID}-people-${r.label.toLowerCase()}`}><Text style={st.label}>{r.label}</Text><View style={st.guests}>{r.people.slice(0, 6).map((g, i) => <View key={`${g.seed}${i}`} style={st.guest}><Face name={g.name} seedId={g.seed} kind="person" size={18} /><Text style={st.value}>{g.name}</Text></View>)}{r.people.length > 6 ? <Text style={st.sub}>{`and ${r.people.length - 6} more`}</Text> : null}</View></View>
+          <View key={r.label} style={st.row} testID={`${p.testID}-people-${r.label.toLowerCase()}`}><Text style={st.label}>{r.label}</Text><View style={st.guests}>{r.people.slice(0, 6).map((g, i) => <View key={`${g.seed}${i}`} style={st.guest}><Face name={g.name} seedId={g.seed} kind="person" size={g.sub ? 24 : 18} /><View><Text style={st.value}>{g.name}</Text>{g.sub ? <Text style={st.sub}>{g.sub}</Text> : null}</View></View>)}{r.people.length > 6 ? <Text style={st.sub}>{`and ${r.people.length - 6} more`}</Text> : null}</View></View>
         ))}
         {editing && p.editTo ? (
           <View style={st.row}><Text style={st.label}>To</Text><TextInput accessibilityLabel="To" testID={`${p.testID}-to`} value={draft.to} onChangeText={(v) => setDraft((d) => ({ ...d, to: v }))} style={st.input} /></View>

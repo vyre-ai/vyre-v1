@@ -509,3 +509,17 @@ test("an agent's draft shows who it goes to above the subject, with Cc when ther
   assert.ok(has(html, 'data-testid="draft:dr_elena-people-cc"') && has(html, "Sam Cole"), "Cc names the person copied");
   assert.ok(has(html, "Intake"), "the agent is named");
 });
+
+test("a text draft goes to a contact by name: the name and face, with the number under it; a number nobody matches stays a number", () => {
+  const { out } = tab("marcus");
+  const at = out.indexOf('data-testid="draft:dr_marcus-people-to"');
+  assert.ok(at > 0);
+  const row = out.slice(at, at + 3000);
+  assert.ok(row.includes("Marcus Pruitt"), "the contact's name");
+  assert.ok(/\+1[\d\s]{8,}/.test(row.slice(row.indexOf("Marcus Pruitt"))), "the number under it");
+  const s = createContactTabSample();
+  const [card] = draftCards((s.replica.run("mail.drafts.list", { contactId: "ct_marcus" })!.data).drafts, titles(northwind), new Map());
+  const bare = renderToStaticMarkup(<DraftBlock d={card!} offsetMin={0} onSend={async () => ""} onDrop={async () => undefined} loadText={async () => ""} onSave={async () => undefined} />).replaceAll("<!-- -->", "");
+  const to = bare.slice(bare.indexOf('data-testid="draft:dr_marcus-people-to"'), bare.indexOf('data-testid="draft:dr_marcus-people-to"') + 1500);
+  assert.ok(!to.includes("Marcus Pruitt"), "no contact, no name: the bare number");
+});

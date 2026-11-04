@@ -222,7 +222,7 @@ export function DraftBlock({ d, offsetMin = 0, nameOf, onSend, onDrop, loadText,
     <View testID={`draft:${d.id}`} style={s.drWrap}>
       <HeldCard
         testID={`draft:${d.id}`} agent={d.agent} title={`${d.agent} drafted a ${d.channel === "sms" ? "text" : "reply"}`} to={[]} verb="" headFace={{ name: d.agent, seed: d.agentId ?? d.agent, kind: "agent" }}
-        peopleRows={[{ label: "To", people: d.toParties.map((p) => ({ name: p.name || nameOf?.(p.address) || p.address, seed: p.address })) }, { label: "Cc", people: d.ccParties.map((p) => ({ name: p.name || nameOf?.(p.address) || p.address, seed: p.address })) }]}
+        peopleRows={[{ label: "To", people: d.toParties.map((p) => { const name = p.name || nameOf?.(p.address) || p.address; return { name, seed: p.address, ...(name !== p.address ? { sub: p.address } : {}) }; }) }, { label: "Cc", people: d.ccParties.map((p) => { const name = p.name || nameOf?.(p.address) || p.address; return { name, seed: p.address, ...(name !== p.address ? { sub: p.address } : {}) }; }) }]}
         schedule={d.earlier ? `Updated ${clockTime(d.updatedAt, offsetMin)}` : null} subject={d.channel === "sms" ? undefined : subject} body={text} edited={edited}
         fields={d.via ? [["From", d.via]] : []} state="waiting" doneLine={done ?? "Sent"} editable editSubject={d.channel !== "sms"}
         {...(d.earlier ? { earlier: { text: d.earlier.text } } : {})} {...(editor ? { editor } : {})} sendLabel="Send" stoppedNote={sendsLine(d.from)}
