@@ -539,12 +539,15 @@ export function createContextBuilder(d: ContextDeps) {
 
     // a room (a group chat, a project chat, a channel): the roster, a digest of what came before, and the recent messages with names and times, from the database and with no tool call
     let roomKeep = false;
+    let cutFromSeq: number | undefined;
     if (isRoom(th) && process.env["VYRE_ROOM_PACK"] !== "off") {   // the switch is for measuring the pack against none
       const zoneName = str((zone?.["row"] as Obj | undefined)?.["value"]) ?? "UTC";
       const isThread = kind === "thread" || str(th?.["parentThreadId"]) !== undefined;
       const listed = await read<Obj>("chat.messages.list", { threadId: input.threadId, limit: READ_LIMIT }, asker);
       const all = arr<Obj>(listed?.["messages"]).map((m): RoomMessage => ({ messageId: str(m["messageId"]) ?? "", threadSeq: Number(m["threadSeq"] ?? 0), author: { kind: String((m["author"] as Obj | undefined)?.["kind"] ?? ""), id: str((m["author"] as Obj | undefined)?.["id"]) ?? "" }, kind: str(m["kind"]) ?? "text", body: str(m["body"]) ?? "", createdAt: Number(m["createdAt"] ?? 0) }));
-      const sharedAt = typeof th?.["sharedAt"] === "number" ? (th["sharedAt"] as number) : undefined;
+      // the asker's own cut: a person who came into the room later has not read what was said before they came, so neither has the answer to them (the first person reads it all)
+      const joined = (th?.["joinedAt"] as Record<string, unknown> | undefined)?.[asker];
+      const sharedAt = typeof joined === "number" ? joined : undefined;
       const visible = sharedAt === undefined ? all : all.filter((m) => m.createdAt >= sharedAt);
       const agentIds = new Set(agents.map((a) => a.id));
       const win = recentWindow({ messages: all, agentId, ...(input.trigger?.id ? { triggerId: input.trigger.id } : {}), ...(sharedAt !== undefined ? { sharedAt } : {}), isThread, zone: zoneName, nameOf: who, isAgent: (id) => id.startsWith("agt_") || agentIds.has(id) });
@@ -556,10 +559,15 @@ export function createContextBuilder(d: ContextDeps) {
       add("recent", false, pack.recent);
       d.digests?.refresh({ threadId: input.threadId, agentId, asker, messages: visible, nameOf: who });
       roomKeep = win.lines.length > 0;
+      if (sharedAt !== undefined) {
+        // every message the driver would be given for this asker starts at the first one they could read; the summary of the whole chat is the earlier turns, so it goes
+        const firstSeq = all.find((m) => m.createdAt >= sharedAt)?.threadSeq;
+        cutFromSeq = firstSeq ?? Number.MAX_SAFE_INTEGER;
+      }
     }
 
     const older = str(summary?.["summary"]);
-    if (older) add("earlier", false, `${cutTo(older, 8_000)}\nThe full transcript is chats/${input.threadId}/transcript.md; transcript_search finds an exact line.`);
+    if (older && cutFromSeq === undefined) add("earlier", false, `${cutTo(older, 8_000)}\nThe full transcript is chats/${input.threadId}/transcript.md; transcript_search finds an exact line.`);
     const taken = d.handoff?.(input.threadId);
     if (taken) add("handoff", false, taken);
     add("screen", false, screenText(screen));
@@ -568,13 +576,20 @@ export function createContextBuilder(d: ContextDeps) {
     if (w.length > 0) add("waiting", false, w.map((x) => `- ${x}`).join("\n"));
 
     const ordered = SECTION_ORDER.flatMap((id) => sections.filter((s) => s.id === id));
-    return { sections: ordered, names: nameMap, ...(screen ? { screen } : {}), ...(roomKeep ? { keepHistory: 1 } : older ? { keepHistory: KEEP_TURNS } : {}) };
+    return { sections: ordered, names: nameMap, ...(screen ? { screen } : {}), ...(roomKeep ? { keepHistory: 1 } : older ? { keepHistory: KEEP_TURNS } : {}), ...(cutFromSeq !== undefined ? { historyFromSeq: cutFromSeq } : {}) };
   }
 
   return { build };
 }
 
 export type ContextBuilder = ReturnType<typeof createContextBuilder>;
+
+/** The input with the history the asker may have: nothing from before they joined (historyFromSeq), then the newest keepHistory of it. */
+function withCuts(input: TurnInput, context: TurnContext): TurnInput {
+  let history = context.historyFromSeq !== undefined ? input.history.filter((h) => h.threadSeq >= (context.historyFromSeq as number)) : input.history;
+  if (context.keepHistory !== undefined && history.length > context.keepHistory) history = history.slice(-context.keepHistory);
+  return { ...input, context, history };
+}
 
 /** An OpenSession whose sessions get the turn context on every send. A context that fails to build never holds the turn: it runs without. */
 /**
@@ -601,7 +616,7 @@ export function withTurnContext(open: OpenSession, b: ContextBuilder, running?: 
             const line = running ? await running(spec) : undefined;
             if (line && context) context = { ...context, sections: [...context.sections.filter((s) => s.id !== "running"), { id: "running", stable: true, text: line }].sort((x, y) => SECTION_ORDER.indexOf(x.id) - SECTION_ORDER.indexOf(y.id)) };
           } catch { /* a turn without the line is still a turn */ }
-          yield* session.send(context ? { ...input, context, ...(context.keepHistory !== undefined && input.history.length > context.keepHistory ? { history: input.history.slice(-context.keepHistory) } : {}) } : input);
+          yield* session.send(context ? withCuts(input, context) : input);
         })(),
       },
     }) as EngineSession;

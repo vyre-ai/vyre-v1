@@ -84,7 +84,11 @@ export function maybeRefreshDigest(d: DigestDeps, o: { threadId: string; agentId
       const prompt = `${have ? `Previous digest:\n${have.text}\n\n` : ""}New messages:\n${source}\n\nWrite the updated digest.`;
       const out = (await d.call("engine.complete", { accountRef: resolved.accountRef, ...(model ? { model } : {}), system: SYSTEM, prompt }, o.asker)) as { text?: string };
       const text = String(out.text ?? "").trim().slice(0, DIGEST_CHARS);
-      if (text !== "") saveDigest(d.db, o.threadId, o.agentId, text, fresh.at(-1)!.threadSeq, d.now());
+      if (text !== "") {
+        saveDigest(d.db, o.threadId, o.agentId, text, fresh.at(-1)!.threadSeq, d.now());
+        // the same batch lets memory note what the room said (memory.capture is idempotent per sentence, skips quiet lines and what came before the chat was shared); a Space without it just goes on
+        await d.call("memory.capture", { threadId: o.threadId, reason: "idle" }, o.asker).catch(() => undefined);
+      }
     } catch (e) {
       d.log?.("room digest skipped", { threadId: o.threadId, why: e instanceof Error ? e.message.slice(0, 120) : "unknown" });
     } finally {

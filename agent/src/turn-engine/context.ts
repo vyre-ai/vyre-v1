@@ -73,6 +73,8 @@ export interface TurnContext {
   screen?: ScreenContext;
   /** When the sections hold a summary of older turns, only this many of the newest messages go word for word. */
   keepHistory?: number;
+  /** The first message number this asker may have been given: a person who joined later was never given the ones before. History older than this is dropped. */
+  historyFromSeq?: number;
 }
 
 const MAX_SECTION = 6_000;

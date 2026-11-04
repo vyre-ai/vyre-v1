@@ -49,10 +49,23 @@ test("a tagged agent's first request has the roster, the digest and the recent w
 
 test("what was said before a second person joined is never in the pack", async () => {
   const messages = [row(1, "usr_maya", "Private: my salary idea is 100k."), row(2, "usr_maya", "Private: do not tell anyone."), row(3, "usr_maya", "Adding Omar now."), row(4, "usr_omar", "@Intake hi")];
-  const w = world({ messages, thread: { sharedAt: T0 + 3 * 60_000 } });
+  const w = world({ messages, thread: { joinedAt: { usr_omar: T0 + 3 * 60_000 } }, extra: { "chat.transcript.summary": { summary: "Maya's salary idea is 100k." } } });
   const ctx = await createContextBuilder({ call: w.call, now: () => T0 + 600_000 }).build(input(4));
   const all = ctx.sections.map((s) => s.text).join("\n");
-  assert.doesNotMatch(all, /salary idea|do not tell anyone/);
+  assert.doesNotMatch(all, /salary idea|do not tell anyone/, "not in the pack, and the summary of the whole chat is left out for the newcomer");
+  assert.equal(ctx.historyFromSeq, 3, "the history the driver is given starts at the first message the newcomer could read");
+  // the history the driver is given is cut the same way
+  const { withTurnContext } = await import("../context.ts");
+  let seen: TurnInput | undefined;
+  const open = async () => ({ warm: true, async *send(i: TurnInput) { seen = i; yield { type: "done" as const }; }, sendToolResult() {}, inject() {}, async cancel() {}, async close() {} });
+  const hist: StoredMessage[] = [1, 2, 3, 4].map((n) => ({ ...trigger(n), id: `msg_${n}`, threadSeq: n, body: n < 3 ? `Private: line ${n}` : `Shared: line ${n}` }));
+  const wrapped = await withTurnContext(open as never, createContextBuilder({ call: w.call, now: () => T0 + 600_000 }))({ threadId: "thr_1", agent: { id: "agt_intake", mode: "listen" }, asker: "usr_omar" } as never);
+  for await (const _ of wrapped.send({ ...input(4), history: hist })) void _;
+  assert.ok(seen && seen.history.every((h) => h.threadSeq >= 3 && !/Private/.test(h.body)), JSON.stringify(seen?.history.map((h) => h.body)));
+  // the person who was there from the start reads it all
+  const first = await createContextBuilder({ call: w.call, now: () => T0 + 600_000 }).build({ ...input(4), asker: "usr_maya" });
+  assert.equal(first.historyFromSeq, undefined);
+  assert.match(text(first, "recent"), /salary idea/);
   assert.match(text(ctx, "recent"), /Adding Omar now\./);
 });
 
@@ -112,10 +125,12 @@ test("the digest batch: due after 30 new messages or 10 quiet minutes, never ove
   const scoped = { all: (sql: string, ...a: unknown[]) => db.prepare(sql).all(...(a as never[])), run: (sql: string, ...a: unknown[]) => ({ changes: Number(db.prepare(sql).run(...(a as never[])).changes) }) };
   const msgs = Array.from({ length: 31 }, (_, i) => ({ ...row(i + 1, "usr_maya", `m${i + 1}`) }));
   const completes: Array<{ model?: string }> = [];
+  const captured: Array<{ threadId: string; reason: string }> = [];
   const mk = (usage: unknown) => async (cap: string, i: unknown): Promise<unknown> => {
     if (cap === "engine.account.resolve") return { accountRef: "#Maya", allowed: true };
     if (cap === "engine.usage.get") return usage;
     if (cap === "engine.models.list") return { models: [{ model: "claude-opus-5-5", allowed: true }, { model: "claude-haiku-5-5", allowed: true }] };
+    if (cap === "memory.capture") { captured.push(i as { threadId: string; reason: string }); return {}; }
     if (cap === "engine.complete") { completes.push(i as { model?: string }); return { text: "Digest: launch Friday." }; }
     throw new Error(cap);
   };
@@ -131,6 +146,7 @@ test("the digest batch: due after 30 new messages or 10 quiet minutes, never ove
   await settle();
   assert.deepEqual(completes.map((c) => c.model), ["claude-haiku-5-5"]);
   assert.deepEqual([getDigest(scoped as never, "thr_9", "agt_intake")?.text, getDigest(scoped as never, "thr_9", "agt_intake")?.upToSeq], ["Digest: launch Friday.", 31]);
+  assert.deepEqual(captured, [{ threadId: "thr_9", reason: "idle" }], "memory captures once per batch, after the digest write");
   // nothing new: not due
   assert.equal(maybeRefreshDigest({ ...base, call: mk({}) }, { threadId: "thr_9", agentId: "agt_intake", asker: "usr_maya", messages: msgs, nameOf: (id) => id }), false);
 });

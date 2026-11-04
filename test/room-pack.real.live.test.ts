@@ -4,13 +4,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { boot, call, seededDir, waitFor } from "./support/live.ts";
+import { boot, call, hostLog, seededDir, waitFor } from "./support/live.ts";
 import { join } from "./member-key-kit.ts";
 
 const KEY = process.env["OPENCODE_API_KEY"];
 
 test("real model: time to first visible text in a seeded 300-message room, with and without the pack, and one real digest", { skip: !KEY && "OPENCODE_API_KEY is not set", timeout: 900_000 }, async () => {
-  const d = await boot(seededDir(), null);
+  if (process.env["SPY"]) {
+    const real = globalThis.fetch;
+    let n = 0;
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("opencode.ai") && n++ < 3) {
+        const h = Object.fromEntries(Object.entries((init?.headers ?? {}) as Record<string, string>).map(([k, v]) => [k, k.toLowerCase() === "authorization" ? (() => { const got = String(v).slice(7); let pre = 0; while (pre < got.length && got[pre] === KEY![pre]) pre++; return `Bearer <${got.length} chars, common prefix ${pre}, is substring ${KEY!.includes(got)}, has newline ${/\s/.test(got)}, first4 ${got.slice(0, 4)}>`; })() : v]));
+        const b = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+        console.log(`SPY ${url} headers ${JSON.stringify(h)} body keys ${Object.keys(b).join(",")} model ${String(b["model"])} tools ${Array.isArray(b["tools"]) ? b["tools"].length : 0}`);
+      }
+      return real(input, init);
+    }) as typeof fetch;
+  }
+  const d = await boot(seededDir(), null, { realVault: true });
   try {
     const unlock = await fetch(`${d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${d.token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
     assert.equal(unlock.status, 204);
@@ -18,9 +31,11 @@ test("real model: time to first visible text in a seeded 300-message room, with 
     assert.equal(prov.status, 200, JSON.stringify(prov.data).replaceAll(KEY!, "***"));
     const models = (await call(d, "engine.models.list", { refresh: true, wait: true })).data.models as Array<{ model: string; allowed: boolean }> | undefined;
     const ok = (models ?? []).filter((m) => m.allowed);
-    const model = ok.find((m) => /glm|kimi|deepseek|qwen|minimax/i.test(m.model))?.model ?? ok[0]?.model;
+    const model = ok.find((m) => /glm-5\.3-flash/i.test(m.model))?.model ?? ok.find((m) => /flash/i.test(m.model))?.model ?? ok[0]?.model;
     console.log(`models: ${ok.map((m) => m.model).join(", ")}; using ${model}`);
     assert.ok(model, "the account lists a model");
+    const accts = (await call(d, "engine.accounts.list", { place: "chat" })).data.accounts as Array<{ ref: string; name: string; provider: string; usable: boolean; kind: string }>;
+    console.log(`accounts: ${accts.map((a) => `${a.ref}|${a.provider}|${a.kind}|usable ${a.usable}`).join("; ")}`);
     const omar = await join(d, "omar");
     const made0 = await call(d, "agents.create", { name: "Intake", role: "You answer intake questions briefly.", idempotencyKey: "rr-agent" });
     const agent = made0.data.agent.agentId as string;
@@ -30,11 +45,14 @@ test("real model: time to first visible text in a seeded 300-message room, with 
     const threadId = made.data.channel.mainThreadId as string;
     await waitFor(async () => { await d.hooks?.pump?.(); return (await call(d, "chat.messages.list", { threadId })).status === 200 ? true : null; }, 20_000);
     await call(d, "threads.set_mode", { threadId, mode: "auto", idempotencyKey: "rr-auto" });
+    const pick = await call(d, "engine.set_model", { threadId, agentId: agent, model, provider: "opencode_go", idempotencyKey: "rr-pick" });
+    console.log(`set_model ${pick.status} ${JSON.stringify(pick.data).slice(0, 200)}`);
     const script = [
       "We ship the client portal on Friday 13 November. Maya owns the launch checklist.", "Omar owns the pricing page and the FAQ.", "Decision: pricing stays at 49 a month, no annual discount for launch.",
       "Blocked: the SSO redirect fails on staging, Omar is chasing the vendor.", "Sam from support joins on Wednesday for the customer email.", "Decision: the launch email goes out Thursday 12 November at 9am.",
     ];
-    for (let i = 1; i <= 300; i++) {
+    const N = Number(process.env["ROOM_N"] ?? 300);
+    for (let i = 1; i <= N; i++) {
       const as = i % 2 === 0 ? omar.token : d.token;
       const body = i <= script.length * 40 && i % 40 === 1 ? script[(i - 1) / 40]! : `Message ${i}: checklist item ${i} is ${i % 7 === 0 ? "blocked on pricing" : "on track"}.`;
       for (let tries = 0; tries < 90; tries++) {
@@ -54,13 +72,18 @@ test("real model: time to first visible text in a seeded 300-message room, with 
         if (!JSON.stringify(p.data).includes("rate_limit")) assert.fail(JSON.stringify(p.data).slice(0, 200));
         await new Promise<void>((res) => setTimeout(res, 1_000));
       }
+      const seen = ((await call(d, "chat.messages.list", { threadId })).data.messages as unknown[]).length;
       const at = await waitFor(async () => {
         const r = await call(d, "engine.live_turns", { threadId });
         const turns = (r.data.turns ?? []) as Array<{ text: string }>;
-        return turns.some((x) => x.text.trim() !== "") ? Date.now() : null;
-      }, 120_000);
+        if (turns.some((x) => x.text.trim() !== "")) return Date.now();
+        // a short reply can be done between two polls: the message itself is then the first visible text
+        const m = (await call(d, "chat.messages.list", { threadId })).data.messages as Array<{ author: { kind: string }; body: string }>;
+        return m.slice(seen).some((x) => x.author.kind === "agent" && x.body.trim() !== "") ? Date.now() : null;
+      }, 120_000, () => hostLog(d).replaceAll(KEY!, "***").slice(0, 7000));
       // let the turn finish before the next one
       await waitFor(async () => { const r = await call(d, "engine.live_turns", { threadId }); return ((r.data.turns ?? []) as unknown[]).length === 0 ? true : null; }, 180_000);
+      await new Promise<void>((res) => setTimeout(res, 800));
       return at - t0;
     };
     await firstText("off", 0);   // the first turn builds the runtime and warms the connection
@@ -109,6 +132,7 @@ test("real model: time to first visible text in a seeded 300-message room, with 
     const pt = priv.data.channel.mainThreadId as string;
     await waitFor(async () => { await d.hooks?.pump?.(); return (await call(d, "chat.messages.list", { threadId: pt })).status === 200 ? true : null; }, 20_000);
     await call(d, "threads.set_mode", { threadId: pt, mode: "auto", idempotencyKey: "rr-auto2" });
+    await call(d, "engine.set_model", { threadId: pt, agentId: agent, model, provider: "opencode_go", idempotencyKey: "rr-pick2" });
     await ask(pt, d.token, "@Intake private note for me only: my budget ceiling for the Acme deal is 80000 dollars, remember it.", "rr-w3a");
     const add = await call(d, "channels.members.add", { channelId: priv.data.channel.channelId, personIds: [omar.personId], idempotencyKey: "rr-add2" });
     assert.equal(add.status, 200, JSON.stringify(add.data));
