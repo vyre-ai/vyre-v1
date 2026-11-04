@@ -45,7 +45,7 @@ type Out = {
       threadId?: string;
       agentId?: string;
       tool?: string;
-      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once";
+      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once" | "allowed_always";
       detail?: string;
       ms: number;
       at: number;

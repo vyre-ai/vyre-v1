@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS "hooks_run" (
   "thread_id" TEXT,
   "agent_id" TEXT,
   "tool" TEXT,
+  "targets" TEXT,
   "outcome" TEXT NOT NULL,
   "detail" TEXT,
   "ms" INTEGER NOT NULL DEFAULT 0,
@@ -58,4 +59,24 @@ CREATE TABLE IF NOT EXISTS "hooks_pass" (
   "by" TEXT NOT NULL,
   "expires_at" INTEGER NOT NULL,
   "used_at" INTEGER
+);
+
+-- "Always allow": this hook lets this kind of act go by from now on, in its own scope. It keeps guarding everything else. Added by a person who may change the hook; an admin can remove it.
+CREATE TABLE IF NOT EXISTS "hooks_allow" (
+  "id" TEXT PRIMARY KEY,
+  "hook_id" TEXT NOT NULL,
+  "tool" TEXT NOT NULL,
+  "target" TEXT NOT NULL DEFAULT '',
+  "by" TEXT NOT NULL,
+  "created_at" INTEGER NOT NULL,
+  "removed_at" INTEGER
+);
+
+-- A note for the agent's next turn in a chat: the person denied a stop, so it stands.
+CREATE TABLE IF NOT EXISTS "hooks_note" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "thread_id" TEXT NOT NULL,
+  "text" TEXT NOT NULL,
+  "used_at" INTEGER,
+  "at" INTEGER NOT NULL
 );

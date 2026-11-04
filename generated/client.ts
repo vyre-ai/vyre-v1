@@ -424,6 +424,7 @@ export function createClient(transport: Transport) {
         search: call("chat.history.search", 1),
       },
       hook_line: call("chat.hook_line", 1),
+      hook_resolve: call("chat.hook_resolve", 1),
       make_task: call("chat.make_task", 1),
       message: {
         get: call("chat.message.get", 1),
@@ -1384,8 +1385,11 @@ export function createClient(transport: Transport) {
       write_digest: call("home.write_digest", 1),
     },
     hooks: {
+      allow_always: call("hooks.allow_always", 1),
       allow_once: call("hooks.allow_once", 1),
+      allow_remove: call("hooks.allow_remove", 1),
       ask_admin: call("hooks.ask_admin", 1),
+      deny: call("hooks.deny", 1),
       fire: call("hooks.fire", 1),
       list: call("hooks.list", 1),
       pause: call("hooks.pause", 1),

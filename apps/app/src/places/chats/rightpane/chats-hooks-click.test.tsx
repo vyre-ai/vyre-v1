@@ -135,3 +135,25 @@ test("Last ran reads from the newest run: when, and what it did", async () => {
     assert.match(textOf(find(root, "hook-title-hok_1")), /^Before any email$/);
   } finally { off(); }
 });
+
+test("an always-allow rule shows in the hook's row in plain words and Remove calls hooks.allow_remove; one who may not change the hook sees no Remove", async () => {
+  const off = installDom();
+  try {
+    const { d, calls, notes } = deps();
+    const h = hook({ allowed: [{ id: "alw_1", what: "sending an email", by: "usr_a", createdAt: 1 }] } as Partial<Hook>);
+    const root = await mount(createRoot, card(d, h));
+    assert.match(textOf(find(root, "hook-allowed-alw_1")), /Always allowed for\s+sending an email/);
+    // the rule's button ends that one exception and says so; "Remove" is the hook's own and appears once
+    assert.match(textOf(find(root, "hook-allowed-remove-alw_1")), /^Stop allowing$/);
+    assert.equal((textOf(root).match(/\bRemove\b/g) ?? []).length, 1, "one Remove in the card: the hook's");
+    assert.ok(find(root, "hook-remove-hok_1"), "and it is the hook's own");
+    assert.ok(!textOf(find(root, "hook-allowed-alw_1")).includes("Remove"), "the rule row has no Remove");
+    await press(find(root, "hook-allowed-remove-alw_1"));
+    await flush();
+    assert.deepEqual(calls, [{ cap: "hooks.allow_remove", input: { id: "alw_1" } }]);
+    assert.equal(notes.at(-1)?.text, "The hook guards sending an email again");
+    const other = await mount(createRoot, card(d, { ...h, canChange: false } as Hook));
+    assert.ok(find(other, "hook-allowed-alw_1"));
+    assert.equal(find(other, "hook-allowed-remove-alw_1"), null);
+  } finally { off(); }
+});
