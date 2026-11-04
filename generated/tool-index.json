@@ -1370,6 +1370,18 @@
     },
     {
       "deferred": false,
+      "name": "chat_helper_note_seen",
+      "summary": "Mark the notes waiting for a helper as read",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_helper_notes",
+      "summary": "The notes in a helper chat with who sent each: the person, the agent that started it, or the helper",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_helper_steer",
       "summary": "Ask a helper that is working something, in its own chat: the person it works for only, while it runs",
       "toolset": "chats"
@@ -4229,6 +4241,12 @@
       "name": "health_support_bundle",
       "summary": "Make a support bundle: versions, recent traces, health, logs without content (works with the gateway down through the CLI)",
       "toolset": "engineer"
+    },
+    {
+      "deferred": true,
+      "name": "helper_note",
+      "summary": "Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer",
+      "toolset": "chats"
     },
     {
       "deferred": false,

@@ -392,6 +392,21 @@ export default defineManifest({
     write('chat.helper.steer', 'Ask a helper that is working something, in its own chat: the person it works for only, while it runs', {
       in: { ...threadT, body: t.str({ maxLength: 20000 }) }, out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', idem: 'key', emits: ['message.received'], tool: 'chats', errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
+    write('chat.helper.note', 'Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer', {
+      in: {
+        ...threadT, body: t.str({ maxLength: 20000 }), kind: t.opt(t.enm('followup', 'progress', 'question', 'result')), needsPerson: t.opt(t.bool()),
+        options: t.opt(t.arr(t.obj({ key: t.str(), label: t.str() }), { maxItems: 20 })),
+      },
+      out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.note', 'message.received', 'block.waiting'], tool: 'chats', mcpName: 'helper_note', deferred: true, agent: { planMode: 'blocked' },
+      errors: ['validation.not_found', 'validation.precondition_failed', 'validation.bad_input'],
+    }),
+    write('chat.helper.note_seen', 'Mark the notes waiting for a helper as read', {
+      in: threadT, out: { marked: t.int() }, on: ['thread', '/threadId'], level: 'use', tool: 'chats', errors: ['validation.not_found'],
+    }),
+    read('chat.helper.notes', 'The notes in a helper chat with who sent each: the person, the agent that started it, or the helper', {
+      in: threadT, out: { notes: t.arr(t.obj({ messageId: id.message, authorId: t.str(), who: t.enm('brief', 'person', 'parent', 'helper'), body: t.str(), kind: t.opt(t.str()), state: t.opt(t.str()), seenAt: t.opt(t.ts()) })) },
+      on: ['thread', '/threadId'], tool: 'chats',
+    }),
     read('chat.helpers.list', 'Helpers running under a chat, with status', {
       in: threadT, out: { helpers: t.arr(t.obj({ threadId: id.thread, title: t.str(), status: t.enm('running', 'done', 'failed', 'stopped'), agentId: id.agent, model: t.opt(t.str()), pick: t.opt(t.rec()), startedAt: t.ts() })) },
       on: ['thread', '/threadId'], tool: 'chats',
@@ -561,6 +576,9 @@ export default defineManifest({
     }),
     ev('helper.started', 'A helper sub-task thread started under a chat', {
       p: { helperThreadId: id.thread, parentThreadId: id.thread, agentId: id.agent, model: t.opt(t.str()) }, subject: ['thread', '/helperThreadId'], vis: 'participants',
+    }),
+    ev('helper.note', 'A note went between a helper and the agent that started it', {
+      p: { helperThreadId: id.thread, direction: t.enm('up', 'down'), kind: t.enm('followup', 'progress', 'question', 'result'), messageId: id.message }, subject: ['thread', '/helperThreadId'], vis: 'participants',
     }),
     ev('plan.proposed', 'An agent proposed a plan', { p: { planId: id.plan, threadId: id.thread, steps: t.int() }, subject: ['thread', '/threadId'], vis: 'participants' }),
     ev('plan.approved', 'A plan was approved (with or without edits)', { p: { planId: id.plan, threadId: id.thread, edited: t.bool(), by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants' }),

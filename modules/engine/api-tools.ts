@@ -66,6 +66,10 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     },
     ...(d.plugins ? { dynamic: d.plugins.dynamic, hooks: d.plugins.hooks } : {}) });
   const primed = new Set<string>();
+  const hasHelpers = async (t: { threadId: string; asker: string }): Promise<boolean> => {
+    if (!d.call) return false;
+    try { return (((await d.call("chat.helpers.list", { threadId: t.threadId }, t.asker)) as { helpers?: unknown[] }).helpers?.length ?? 0) > 0; } catch { return false; }
+  };
   const prepare = async (t: { threadId: string; agentId: string; asker: string; turnId: string }): Promise<void> => {
     if (!d.call || primed.has(t.turnId)) return;
     primed.add(t.turnId);
@@ -82,6 +86,8 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     const scope = th?.scopeType && th.scopeId ? { type: th.scopeType, id: th.scopeId } : undefined;
     // who is in and a message to a teammate are listed in every chat, without a tool_search (owner ruling 3 Nov, lane l-agentdm)
     session.preload(t.threadId, TEAMMATE_TOOLS);
+    // a helper and the agent that started it talk with helper_note: listed in a helper chat and in the chat above it, so neither has to search for it
+    if (th?.kind === "helper" || await hasHelpers(t)) session.preload(t.threadId, ["helper_note"]);
     facts.set(t.threadId, { kind: th?.kind ?? "chat", planMode: th?.planMode === true, ...(th?.mode === "ask" || th?.mode === "auto" || th?.mode === "plan" ? { mode: th.mode } : {}), ...(scope ? { scope } : {}) });
     if (th?.kind === "ask" && scope) {
       const lvl = await d.call("chat.ask_level", { threadId: t.threadId }, t.asker).catch(() => undefined) as { level?: Level | null } | undefined;

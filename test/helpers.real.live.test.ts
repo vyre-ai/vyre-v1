@@ -74,8 +74,12 @@ test("REAL MODEL: helpers are one row each, the lead answers once, a helper chat
       const ms = await list(chat);
       const rows = ms.flatMap((m) => m.blocks.filter((b) => b.type === "helper"));
       const reports = rows.filter((b) => b.data?.["status"] === "done" || b.data?.["status"] === "failed");
-      const agentTexts = ms.filter((m) => m.author.kind === "agent" && m.blocks.every((b) => b.type !== "helper") && m.body.trim() !== "");
-      return rows.length >= 3 && reports.length >= 2 && agentTexts.length >= 1 ? ms : null;
+      // the lead's one combined answer comes after the last helper has reported, not before
+      const lastReport = ms.reduce((at, m, i) => (m.blocks.some((b) => b.type === "helper" && (b.data?.["status"] === "done" || b.data?.["status"] === "failed")) ? i : at), -1);
+      const combined = ms.filter((m, i) => i > lastReport && m.author.kind === "agent" && m.blocks.every((b) => b.type !== "helper") && m.body.trim() !== "" && !/still working|waiting|running now|I.ll |once |as soon as|restarted/i.test(m.body));
+      // every helper that was started has reported (a retry counts as one more started)
+      const started = rows.filter((b) => b.state === "live" || b.data?.["status"] === undefined).length;
+      return started >= 2 && reports.length >= started && lastReport >= 0 && combined.length >= 1 ? ms : null;
     }, 170_000, () => hostLog(d)).catch(async (e) => { console.log("TRANSCRIPT", JSON.stringify((await list(chat)).map((m) => [m.author.kind, m.body.slice(0, 200), m.blocks.map((b) => b.type)]))); { const { DatabaseSync } = await import("node:sqlite"); const db = new DatabaseSync(d.paths.modules, { readOnly: true }); console.log("TURNS", JSON.stringify(db.prepare("SELECT model, engine, account_ref, state, substr(error, 1, 600) AS error FROM engine_turns").all())); db.close(); } throw e; });
     const ms = await list(chat);
     console.log("TRANSCRIPT", JSON.stringify(ms.map((m) => [m.author.kind, m.body.slice(0, 400), m.blocks.map((b) => `${b.type}:${b.state ?? ""}:${String(b.data?.["status"] ?? "")}`)])));

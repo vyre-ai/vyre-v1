@@ -400,6 +400,9 @@ export function createClient(transport: Transport) {
       fork: call("chat.fork", 1),
       handoff: call("chat.handoff", 1),
       helper: {
+        note: call("chat.helper.note", 1),
+        note_seen: call("chat.helper.note_seen", 1),
+        notes: call("chat.helper.notes", 1),
         start: call("chat.helper.start", 1),
         steer: call("chat.helper.steer", 1),
       },

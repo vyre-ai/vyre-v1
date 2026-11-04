@@ -7,7 +7,7 @@
 import { createTranscript, redact, refreshSummary, transcriptPath } from "../../../agent/src/transcript/index.ts";
 import type { Part, Turn } from "../../../agent/src/transcript/index.ts";
 import {
-  addAgent, addMember, agentsOf, askerOf, blockBy, ensure, hopLimit, insertBlock, insertMessage, insertPlan, insertThread, lastMessage, messageBy, mintId, patchBlockInMessage, planBy, raise,
+  addAgent, addMember, agentsOf, askerOf, blockBy, ensure, hopLimit, insertBlock, insertMessage, insertPlan, insertThread, lastMessage, lastMessages, messageBy, mintId, patchBlockInMessage, planBy, raise,
   refOf, threadBy, threadOut,
 } from "../projections.ts";
 import type { ChatCtx, Db, PlanStep, ThreadRec } from "../projections.ts";
@@ -305,7 +305,15 @@ export async function questionAsk(
   input: { threadId: string; prompt: string; mode: "single" | "multi" | "free"; options?: Array<{ key: string; label: string; detail?: string }>; allowOther?: boolean; card?: { kind: "terminal"; command: string; host?: string; risk?: string }; idempotencyKey?: string },
 ) {
   ensure(ctx.db);
-  const t = open(ctx, input.threadId);
+  return questionIn(ctx, open(ctx, input.threadId), input);
+}
+
+/** A question card in a thread the caller has already been let into. `by` is who the card speaks as and who hears the answer; `extra` rides in the block data. */
+export async function questionIn(
+  ctx: ChatCtx, t: ThreadRec,
+  input: { prompt: string; mode: "single" | "multi" | "free"; options?: Array<{ key: string; label: string; detail?: string }>; allowOther?: boolean; card?: { kind: "terminal"; command: string; host?: string; risk?: string } },
+  by?: { id: string; kind: "agent" | "text"; extra?: Record<string, unknown> },
+) {
   const prompt = input.prompt.trim();
   if (prompt === "" || prompt.length > MAX_PROMPT) raise(ctx, "validation.bad_input", `A question needs words, at most ${MAX_PROMPT} characters.`);
   const options = input.options ?? [];
@@ -320,12 +328,12 @@ export async function questionAsk(
     }
   }
   const blockId = mintId("blk", ctx.now());
-  const data: Record<string, unknown> = { threadId: t.id, blockId, prompt, mode: input.mode, options, allowOther: input.allowOther ?? false, ...(input.card ? { card: input.card } : {}) };
+  const data: Record<string, unknown> = { threadId: t.id, blockId, prompt, mode: input.mode, options, allowOther: input.allowOther ?? false, ...(input.card ? { card: input.card } : {}), ...(by?.extra ?? {}) };
   const taskId = await openAsk(ctx, t, { kind: "answer", blockId, block: { type: "question", data }, title: prompt, summary: prompt });
   if (taskId !== undefined) data["taskId"] = taskId;
-  const m = insertMessage(ctx, t.id, { author: ctx.principal.id, kind: authorKind(ctx), body: "", blocks: [{ type: "question", v: 1, id: blockId, data, state: "waiting", traceId: ctx.trace.traceId }] });
+  const m = insertMessage(ctx, t.id, { author: by?.id ?? ctx.principal.id, kind: by?.kind ?? authorKind(ctx), body: "", blocks: [{ type: "question", v: 1, id: blockId, data, state: "waiting", traceId: ctx.trace.traceId }] });
   insertBlock(ctx, { id: blockId, thread: t.id, message: m.id, type: "question", data });
-  deliver(ctx, t, m, [], author(ctx), { notify: false });
+  deliver(ctx, t, m, [], by ? { kind: "agent", id: by.id } : author(ctx), { notify: false });
   ctx.emit("block.waiting", t.id, { threadId: t.id, blockId, blockType: "question" });
   return { blockId, messageId: m.id };
 }
@@ -541,6 +549,124 @@ export async function helperSteer(ctx: ChatCtx, input: { threadId: string; body:
   return { messageId: m.id };
 }
 
+// ---- notes between a helper and the agent that started it ------------------------------------------------------------------------------------------
+
+type NoteKind = "followup" | "progress" | "question" | "result";
+const NOTE_KINDS: readonly NoteKind[] = ["followup", "progress", "question", "result"];
+
+/** The notes in a helper chat that a helper asked and nobody has answered yet. */
+function openQuestions(ctx: ChatCtx, helperId: string) {
+  return lastMessages(ctx.db, helperId, 100).flatMap((m) => m.blocks.filter((b) => b["type"] === "helper_note" && (b["data"] as Row)["kind"] === "question" && (b["data"] as Row)["state"] === "open").map((b) => ({ m, b })));
+}
+
+/**
+ * One note between a helper and the agent that started it, kept in the helper's chat with each side's own identity (the person's steers are theirs, chat.helper.steer). From the parent
+ * (or any agent let into the parent chat): a follow-up for the running helper. From the helper itself: progress, a result, or a question. A question goes to the parent agent, which answers it
+ * with its next step and the person is not asked. Only when `needsPerson` is set does it become a question card in the parent chat (a task in Needs you); the card speaks as the parent agent,
+ * so the answer comes back to the parent, which passes it down as a follow-up.
+ */
+export async function helperNote(
+  ctx: ChatCtx,
+  input: { threadId: string; body: string; kind?: NoteKind; needsPerson?: boolean; options?: Array<{ key: string; label: string }> },
+) {
+  ensure(ctx.db);
+  const h = threadBy(ctx.db, input.threadId);
+  if (!h || h.kind !== "helper" || h.parentThreadId === undefined) raise(ctx, "validation.not_found", "That is not a helper chat.");
+  const body = input.body.trim();
+  if (body === "" || body.length > 20_000) raise(ctx, "validation.bad_input", "Write the note.");
+  const kind: NoteKind = input.kind ?? "followup";
+  if (!NOTE_KINDS.includes(kind)) raise(ctx, "validation.bad_input", "That is not a kind of note.");
+  if (ctx.principal.kind !== "agent") raise(ctx, "validation.precondition_failed", "A person asks a helper with chat.helper.steer, as themselves.");
+  // the kind says which way it goes: a follow-up goes down to the helper, the rest go up to the agent that started it (the same agent can be both, when it gave itself the helper)
+  const up = kind !== "followup";
+  if (up && !agentsOf(ctx.db, h.id).some((a) => a.agentId === ctx.principal.id)) raise(ctx, "validation.precondition_failed", "Only the helper itself sends progress, a question or a result.");
+  const parent = threadBy(ctx.db, h.parentThreadId);
+  if (!parent) raise(ctx, "validation.not_found", "The chat this helper belongs to is gone.");
+  const blockId = mintId("blk", ctx.now());
+  const by = { kind: "agent" as const, id: ctx.principal.id };
+
+  if (!up) {
+    // down: the parent speaks to its running helper
+    visible(ctx, parent.id);
+    if (h.closedAt !== undefined) raise(ctx, "validation.precondition_failed", "This helper has finished. Start another, or answer in the chat.");
+    const lead = agentsOf(ctx.db, h.id)[0];
+    if (!lead) raise(ctx, "validation.precondition_failed", "This helper has no agent to tell.");
+    const m = insertMessage(ctx, h.id, { author: by.id, kind: "agent", body, blocks: [{ type: "helper_note", v: 1, id: blockId, data: { direction: "down", kind, from: by, state: "sent" }, state: "sent", traceId: ctx.trace.traceId }] });
+    // what the helper asked is now answered, in its chat and in the chat above
+    for (const q of openQuestions(ctx, h.id)) {
+      const data = q.b["data"] as Row;
+      patchBlockInMessage(ctx.db, q.m.id, String(q.b["id"]), (b) => ({ ...b, data: { ...(b["data"] as Row), state: "answered" } }));
+      if (typeof data["parentMessageId"] === "string" && typeof data["parentBlockId"] === "string") patchBlockInMessage(ctx.db, data["parentMessageId"], data["parentBlockId"], (b) => ({ ...b, data: { ...(b["data"] as Row), state: "answered" } }));
+    }
+    ctx.emit("helper.note", h.id, { helperThreadId: h.id, direction: "down", kind, messageId: m.id });
+    deliver(ctx, h, m, [{ kind: "agent", id: lead.agentId }], by, { notify: false, job: lead.agentId === by.id });
+    return { messageId: m.id };
+  }
+
+  // up: the helper tells the agent that started it
+  const data: Row = { direction: "up", kind, from: by, state: kind === "question" ? "open" : "sent" };
+  const m = insertMessage(ctx, h.id, { author: by.id, kind: "agent", body, blocks: [{ type: "helper_note", v: 1, id: blockId, data, state: "sent", traceId: ctx.trace.traceId }] });
+  if (kind === "question") {
+    const line = h.parentMessageId !== undefined ? messageBy(ctx.db, h.parentMessageId) : null;
+    const parentAgent = line?.author?.startsWith("agt_") ? line.author : (agentsOf(ctx.db, parent.id).find((a) => a.mode === "lead") ?? agentsOf(ctx.db, parent.id)[0])?.agentId;
+    const title = h.title ?? "a helper";
+    if (parentAgent === undefined) raise(ctx, "validation.precondition_failed", "Nobody in the chat above can answer.");
+    if (input.needsPerson === true) {
+      // only the person can say: a card in the chat above, in Needs you; it speaks as the agent that started the helper, so the answer reaches that agent
+      const q = await questionIn(ctx, parent, { prompt: `${title} asks: ${body}`, mode: input.options && input.options.length > 0 ? "single" : "free", ...(input.options && input.options.length > 0 ? { options: input.options } : {}) }, { id: parentAgent, kind: "agent", extra: { helperThreadId: h.id, helperNoteId: m.id } });
+      data["needsPerson"] = true;
+      data["parentMessageId"] = q.messageId;
+      data["parentBlockId"] = q.blockId;
+    } else {
+      const depth = (lastMessage(ctx.db, parent.id)?.depth ?? 0) + 1;
+      if (depth > (await hopLimit(ctx))) raise(ctx, "validation.precondition_failed", "The agents have passed this on too many times. A person has to reply first.");
+      const pblock = mintId("blk", ctx.now());
+      const pm = insertMessage(ctx, parent.id, { author: by.id, kind: "agent", body: `Helper "${title}" asks: ${body}`, depth, blocks: [{ type: "helper_note", v: 1, id: pblock, data: { direction: "up", kind, from: by, state: "open", helperThreadId: h.id }, state: "sent", traceId: ctx.trace.traceId }] });
+      data["parentMessageId"] = pm.id;
+      data["parentBlockId"] = pblock;
+      deliver(ctx, parent, pm, [{ kind: "agent", id: parentAgent }], by, { notify: false, job: parentAgent === by.id });
+    }
+    patchBlockInMessage(ctx.db, m.id, blockId, (b) => ({ ...b, data }));
+  }
+  ctx.emit("helper.note", h.id, { helperThreadId: h.id, direction: "up", kind, messageId: m.id });
+  return { messageId: m.id };
+}
+
+/** The helper's agent has read what is waiting for it: every note to it that was not yet seen gets the time. */
+export async function helperNotesSeen(ctx: ChatCtx, input: { threadId: string }) {
+  ensure(ctx.db);
+  const h = threadBy(ctx.db, input.threadId);
+  if (!h || h.kind !== "helper") raise(ctx, "validation.not_found", "That is not a helper chat.");
+  visible(ctx, h.id);
+  const at = ctx.now();
+  let marked = 0;
+  for (const m of lastMessages(ctx.db, h.id, 100)) {
+    for (const b of m.blocks) {
+      const d = b["data"] as Row | undefined;
+      if (b["type"] === "helper_note" && d?.["direction"] === "down" && d["seenAt"] === undefined) {
+        patchBlockInMessage(ctx.db, m.id, String(b["id"]), (x) => ({ ...x, data: { ...(x["data"] as Row), seenAt: at, state: "seen" } }));
+        marked += 1;
+      }
+    }
+  }
+  return { marked };
+}
+
+export async function helperNotes(ctx: ChatCtx, input: { threadId: string }) {
+  ensure(ctx.db);
+  const h = threadBy(ctx.db, input.threadId);
+  if (!h || h.kind !== "helper") raise(ctx, "validation.not_found", "That is not a helper chat.");
+  visible(ctx, h.id);
+  const notes = lastMessages(ctx.db, h.id, 200).map((m, i) => {
+    const b = m.blocks.find((x) => x["type"] === "helper_note");
+    const d = (b?.["data"] as Row | undefined) ?? {};
+    // the three voices: the person (a steer, or the brief), the agent that started it, and the helper
+    const who = i === 0 && !b ? "brief" : m.author.startsWith("usr_") ? "person" : d["direction"] === "down" ? "parent" : "helper";
+    return { messageId: m.id, authorId: m.author, who, body: m.body, ...(b ? { kind: d["kind"], state: d["state"], ...(d["seenAt"] !== undefined ? { seenAt: d["seenAt"] } : {}) } : {}) };
+  });
+  return { notes };
+}
+
 export async function helpersList(ctx: ChatCtx, input: { threadId: string }) {
   ensure(ctx.db);
   const parent = visible(ctx, input.threadId);
@@ -605,5 +731,8 @@ export const g24dHandlers = {
   "chat.helper.start": helperStart,
   "chat.helpers.list": helpersList,
   "chat.helper.steer": helperSteer,
+  "chat.helper.note": helperNote,
+  "chat.helper.note_seen": helperNotesSeen,
+  "chat.helper.notes": helperNotes,
   "chat.handoff": handoff,
 };

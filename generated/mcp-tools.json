@@ -10262,6 +10262,58 @@
     },
     {
       "blocks": [],
+      "cap": "chat.helper.note_seen",
+      "deferred": false,
+      "description": "Mark the notes waiting for a helper as read",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_helper_note_seen",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.helper.notes",
+      "deferred": false,
+      "description": "The notes in a helper chat with who sent each: the person, the agent that started it, or the helper",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "chat_helper_notes",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.helper.steer",
       "deferred": false,
       "description": "Ask a helper that is working something, in its own chat: the person it works for only, while it runs",
@@ -29277,6 +29329,68 @@
       "name": "health_support_bundle",
       "planMode": "blocked",
       "toolset": "engineer",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "chat.helper.note",
+      "deferred": true,
+      "description": "Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "body": {
+            "maxLength": 20000,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "followup",
+              "progress",
+              "question",
+              "result"
+            ],
+            "type": "string"
+          },
+          "needsPerson": {
+            "type": "boolean"
+          },
+          "options": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "label"
+              ],
+              "type": "object"
+            },
+            "maxItems": 20,
+            "type": "array"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "body"
+        ],
+        "type": "object"
+      },
+      "name": "helper_note",
+      "planMode": "blocked",
+      "toolset": "chats",
       "v": 1
     },
     {

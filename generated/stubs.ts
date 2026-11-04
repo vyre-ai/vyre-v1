@@ -400,6 +400,9 @@ export function stubs(ctx: CallCtx) {
       fork: call("chat.fork"),
       handoff: call("chat.handoff"),
       helper: {
+        note: call("chat.helper.note"),
+        note_seen: call("chat.helper.note_seen"),
+        notes: call("chat.helper.notes"),
         start: call("chat.helper.start"),
         steer: call("chat.helper.steer"),
       },

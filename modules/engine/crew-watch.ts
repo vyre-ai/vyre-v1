@@ -87,6 +87,8 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
     if (e.kind === "start") askers.set(e.turnId, e.asker);
     const job = o.db.all("SELECT * FROM engine_crew_job WHERE thread_id = ?", e.threadId)[0] as Row | undefined;
     if (!job) {
+      // a helper's agent starts a turn: the notes waiting for it are read now
+      if (e.kind === "start") { try { await o.host.call("chat.helper.note_seen", { threadId: e.threadId }, e.asker); } catch { /* not a helper chat, or nothing waiting */ } }
       if (e.kind === "end") ended.set(e.turnId, e.code === "host_lost" ? "lost" : e.state);
       if (e.kind === "final") await helperResult(e);
       return;

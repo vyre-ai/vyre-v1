@@ -7,6 +7,8 @@ import { createContextBuilder } from "../context.ts";
 
 test("replies that name a tool or an id are caught, plain replies are not", () => {
   assert.deepEqual(internalNames("task_submit wasn't in my direct tool list, so I called it through use_tool."), ["task_submit", "use_tool"]);
+  assert.deepEqual(internalNames("Done. The task is submitted."), ["The task is submitted"]);
+  assert.deepEqual(internalNames("Mars has two moons, Phobos and Deimos."), []);
   assert.deepEqual(internalNames("I asked usr_2191954f8e634c40c6 and thr_01a1a3a5 about it"), ["usr_2191954f8e634c40c6", "thr_01a1a3a5"]);
   assert.deepEqual(internalNames("The pricing page lists three plans. I handed in the result and asked Aliza about the last one."), []);
   assert.deepEqual(internalNames("Use the user_name field and the next_step column."), [], "ordinary words with underscores are fine");
