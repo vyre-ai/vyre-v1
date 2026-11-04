@@ -446,7 +446,7 @@ export default defineManifest({
       tool: 'chats', mcpName: 'sub_task_model', agent: { planMode: 'blocked', blocks: ['model_switch', 'helper'] },
     }),
     write('chat.helper.steer', 'Ask a helper that is working something, in its own chat: the person it works for only, while it runs', {
-      in: { ...threadT, body: t.str({ maxLength: 20000 }) }, out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', idem: 'key', emits: ['message.received'], tool: 'chats', errors: ['validation.not_found', 'validation.precondition_failed'],
+      in: { ...threadT, body: t.str({ maxLength: 20000 }) }, out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', idem: 'key', emits: ['message.received', 'helper.note'], tool: 'chats', errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
     write('chat.helper.note', 'Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer', {
       in: {
