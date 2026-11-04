@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Calendar, ME, TEAM, createCalendarSample } from "../calendar/index.ts";
-import { DAY, HH, HOUR, MONTH_CAP, allDayLane, blockOf, eventsOn, isBand, lanesOf, monthCell } from "../calendar/model.ts";
+import { DAY, HH, HOUR, LINE, MONTH_CAP, TEXT_TOP, allDayLane, blockOf, eventsOn, isBand, lanesOf, monthCell } from "../calendar/model.ts";
 import type { EventRow } from "../calendar/model.ts";
 import { InboxDataProvider, InboxStateProvider } from "../sidebar/index.ts";
 
@@ -117,4 +117,20 @@ test("a card keeps no time line under the card drawn over it", () => {
   assert.equal(p.room, HH / 2, "the next card starts half an hour below");
   assert.deepEqual([blockOf(p, D0).lines, blockOf(p, D0).time], [2, "none"], "so the range would sit under it and is left out");
   assert.equal(l.find((x) => x.e.id === "q")!.room, undefined, "the card on top has all its room");
+});
+
+test("no text of a covered card sits under the card over it, and the strip beside a cascaded card holds no text", () => {
+  const day = [row("p", "Pipeline review", 9, 9.75), row("q", "Quick sync", 9.5, 10), row("n", "NDA walk-through: Alvarez Design", 10, 10.5), row("m", "Meeting with Priya", 10, 10.5), row("h", "Hartwell intake", 10.25, 11), row("c", "Cole Dental walkthrough", 14, 14.75), row("t", "Intake triage", 14.25, 14.75), row("z", "Z", 16, 16.25), row("y", "Y", 16.1, 16.5)];
+  const l = lanesOf(day);
+  let covered = 0;
+  for (const a of l) {
+    if (a.band || a.more) continue;
+    const b = blockOf(a, D0);
+    if (a.room === undefined) { assert.equal(b.clip, undefined, `${a.e.title} is not covered`); continue; }
+    covered++;
+    const bottom = TEXT_TOP + b.lines * LINE + (b.time === "none" ? 0 : LINE);
+    assert.ok(bottom <= Math.max(a.room, TEXT_TOP + LINE), `${a.e.title}: its text ends at ${bottom} px, above the ${a.room} px where the next card starts`);
+    assert.ok(b.clip !== undefined && b.clip >= TEXT_TOP + LINE, "the text is clipped there");
+  }
+  assert.ok(covered >= 3, "the crowded day has covered cards");
 });

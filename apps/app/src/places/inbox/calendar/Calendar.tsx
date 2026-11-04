@@ -384,7 +384,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
       <View key={e.id} {...menuTrigger((x, y) => eventMenu(e, x, y))} style={[s.cev, { top: b.top, height: b.height, left: b.left as unknown as number, width: b.width as unknown as number, zIndex: rise === e.id ? 20 : b.z, backgroundImage: tint(col, isPast(e, clockNow.now) ? 9 : 15), borderLeftColor: col }, cal.selected === e.id && s.cevSel]} testID={`event:${e.id}`}>
         <Pressable
           accessibilityRole="button" accessibilityLabel={`${e.title}, ${eventLine(e, off)}`} accessibilityState={{ selected: cal.selected === e.id }} testID={`event-body:${e.id}`}
-          onPress={(ev) => pressEvent(e.id, ev)} onHoverIn={hoverIn(e.id)} onHoverOut={hoverOut} {...({ onPointerDown: startEvent(e, "move") } as object)} style={[s.cevIn, inline && s.cevInline, laid.lanes > 1 && s.cevInNarrow]}
+          onPress={(ev) => pressEvent(e.id, ev)} onHoverIn={hoverIn(e.id)} onHoverOut={hoverOut} {...({ onPointerDown: startEvent(e, "move") } as object)} style={[s.cevIn, inline && s.cevInline, (laid.lanes > 1 || b.clip !== undefined) && s.cevInNarrow, b.clip !== undefined && { maxHeight: b.clip, overflow: "hidden", flex: 0 }]}
         >
           <Text numberOfLines={b.lines} style={[s.cevTitle, inline && s.cevTitleInline, isPast(e, clockNow.now) && s.cevPast]}>{e.title}</Text>
           {b.time === "none" ? null : <Text numberOfLines={1} style={s.cevSmall}>{when}</Text>}

@@ -234,8 +234,14 @@ export function lanesOf(list: readonly EventRow[]): Laid[] {
   return out;
 }
 
+/** Padding above a card's text and the height of one line of it. */
+export const TEXT_TOP = 1;
+export const LINE = 14;
+
 export interface Block {
   top: number; height: number; left: string; width: string; z: number;
+  /** The height the text may take when a card is drawn over this one (clip there); unset when nothing covers it. */
+  clip: number | undefined;
   /** Under 40 px. */
   one: boolean;
   /** How many lines the title may take before it is cut: one in a block under 30 px, else two. */
@@ -250,11 +256,14 @@ export function blockOf(l: Laid, day: number): Block {
   const height = Math.max(20, offsetToY(Math.min(l.e.endsAt, day + DAY) - Math.max(l.e.startsAt, day)) - 1);
   // a narrow lane (events that start together) shows its title on one line with an ellipsis and no time line, so no word is ever split
   const narrow = l.lanes > 1;
+  // a covered card shows only the text that fits above the top of the card over it: lines that would be cut are not drawn
   const seen = Math.min(height, l.room ?? Infinity);
-  const lines = seen < 30 || narrow ? 1 : 2;
-  const time = narrow ? "none" : seen >= 44 ? "range" : height < 30 ? "start" : "none";
+  const fit = Math.max(1, Math.floor((seen - TEXT_TOP) / LINE));
+  const lines = narrow || height < 30 ? 1 : Math.min(2, fit);
+  const time = narrow ? "none" : seen >= 44 ? "range" : height < 30 && l.room === undefined ? "start" : "none";
   const off = l.level * CASCADE;
-  return { top, height, left: `calc(${off}px + ${l.lane} * (100% - ${off}px) / ${l.lanes} + 2px)`, width: `calc((100% - ${off}px) / ${l.lanes} - 4px)`, z: 2 + l.level, one: height < 40, lines, time };
+  const clip = l.room === undefined ? undefined : Math.max(TEXT_TOP + LINE, l.room);
+  return { top, height, clip, left: `calc(${off}px + ${l.lane} * (100% - ${off}px) / ${l.lanes} + 2px)`, width: `calc((100% - ${off}px) / ${l.lanes} - 4px)`, z: 2 + l.level, one: height < 40, lines, time };
 }
 
 /** The events of one day: timed ones in order, all-day ones apart. */
