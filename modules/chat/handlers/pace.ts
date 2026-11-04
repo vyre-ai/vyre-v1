@@ -1,9 +1,9 @@
 // How a teammate answers (the profile's "How <name> responds here"): their usual reply time and, for one chat, how they hear about it. A plain read from chats the ASKER is in, so it never draws on a
 // place the asker cannot open: a chat the asker is not a member of is never read, whoever else is in it.
-//   Replies: from the last 30 days of chats both are in, the time from a message that asked something of them (an @ with their name, a reply to their message, or any line from the other person in a
-//            direct chat) until their next message in that chat. The median is the answer; fewer than three such moments is "unknown", never a guess.
-//   Notifies: for one chat both are in. A direct chat tells them of every message (message.direct); a group chat or channel tells them of @mentions and followed threads (notify.ts); a chat they
-//            muted (a thread they muted or left, or a mute in Notifications, asked of that module for this one chat) says off.
+//   Replies: from the last 30 days of chats both are in, the time from a message that asked something of them (a mention of them by person id, a reply to their message, or any line from the other
+//            person in a direct chat) until their next message in that chat. Mentions are the composer's chips, kept per message (chat_mention); a name typed as plain words is not one. The median is the answer; fewer than three such moments is "unknown", never a guess.
+//   Notifies: for one chat both are in. A direct chat tells them of every message (message.direct); a group chat or channel tells them of @mentions and followed threads (notify.ts); a thread they
+//            left says off, which the members of it can see. A mute made in Notifications settings is private to them and is never read here (owner ruling, 4 Nov).
 import { askerOf, membersOf, refOf } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
 import { followMode } from "./follow.ts";
@@ -32,16 +32,21 @@ export function paceOf(waits: readonly number[]): Pace {
   return "slow";
 }
 
-async function nameOf(ctx: ChatCtx, id: string): Promise<string> {
-  try {
-    const out = (await ctx.call?.("access.principals.get", { principal: { kind: "person", id } })) as { principal?: { name?: unknown } } | undefined;
-    return typeof out?.principal?.name === "string" ? out.principal.name.trim() : "";
-  } catch { return ""; }
+const TABLE = 'CREATE TABLE IF NOT EXISTS "chat_mention" ("message" TEXT NOT NULL, "thread" TEXT NOT NULL, "person" TEXT NOT NULL, "at" INTEGER NOT NULL, PRIMARY KEY ("message", "person"))';
+const ready = new WeakSet<object>();
+function ensureMentionTable(ctx: Pick<ChatCtx, "db">): void {
+  if (ready.has(ctx.db)) return;
+  ctx.db.run(TABLE);
+  ctx.db.run('CREATE INDEX IF NOT EXISTS "chat_mention__person" ON "chat_mention" ("person", "thread")');
+  ready.add(ctx.db);
 }
 
-/** Whether they muted this chat in Notifications: that module keeps the mute, and tells this one fact to someone who can open the chat. Unanswered (not available) reads as not muted. */
-async function mutedInSettings(ctx: ChatCtx, person: string, threadId: string): Promise<boolean> {
-  try { return ((await ctx.call?.("notifications.hears_in", { personId: person, threadId })) as { muted?: boolean } | undefined)?.muted === true; } catch { return false; }
+/** Keeps who a message mentioned, by person id: the composer's chips. The reply-time read matches on these, never on a name in the words. */
+export function recordMentions(ctx: Pick<ChatCtx, "db" | "now">, messageId: string, threadId: string, mentions: ReadonlyArray<{ kind: string; id: string }>): void {
+  const people = [...new Set(mentions.filter((m) => m.kind === "person").map((m) => m.id))];
+  if (people.length === 0) return;
+  ensureMentionTable(ctx);
+  for (const id of people) ctx.db.run('INSERT OR IGNORE INTO chat_mention ("message", "thread", "person", "at") VALUES (?, ?, ?, ?)', messageId, threadId, id, ctx.now());
 }
 
 export async function paceOfPerson(ctx: ChatCtx, input: { personId: string; threadId?: string }): Promise<{ replies: Pace; samples: number; notifies?: Notifies }> {
@@ -57,9 +62,7 @@ export async function paceOfPerson(ctx: ChatCtx, input: { personId: string; thre
          AND EXISTS (SELECT 1 FROM chat_thread_member b WHERE b."thread" = t."id" AND b."principal" = ? AND b."deleted_at" IS NULL)
        LIMIT ${MAX_THREADS}`, me, them,
   ) as Row[];
-  const first = (await nameOf(ctx, them)).split(/\s+/)[0] ?? "";
-  const full = (await nameOf(ctx, them)).toLowerCase();
-  const tag = first === "" ? null : `@${first.toLowerCase()}`;
+  ensureMentionTable(ctx);
   const since = ctx.now() - WINDOW_MS;
   const waits: number[] = [];
   for (const r of rows) {
@@ -69,6 +72,7 @@ export async function paceOfPerson(ctx: ChatCtx, input: { personId: string; thre
     const msgs = ctx.db.all(
       `SELECT "id", "author", "kind", "body", "replyTo", "createdAt" FROM chat_message WHERE "thread" = ? AND "createdAt" >= ? AND "deleted_at" IS NULL AND "kind" = 'text' ORDER BY "threadSeq" LIMIT ${MAX_MESSAGES}`, id, since,
     ) as Row[];
+    const named = new Set((ctx.db.all('SELECT "message" FROM chat_mention WHERE "thread" = ? AND "person" = ?', id, them) as Row[]).map((m) => str(m["message"])));
     const mine = new Set(msgs.filter((m) => str(m["author"]) === them).map((m) => str(m["id"])));
     let waiting: number | null = null;   // the time of the earliest line still waiting on them
     for (const m of msgs) {
@@ -80,8 +84,7 @@ export async function paceOfPerson(ctx: ChatCtx, input: { personId: string; thre
         continue;
       }
       if (refOf(author).kind !== "person" || waiting !== null) continue;
-      const body = str(m["body"]).toLowerCase();
-      const asked = direct || (typeof m["replyTo"] === "string" && mine.has(m["replyTo"])) || (tag !== null && body.includes(tag)) || (full !== "" && body.includes(`@${full}`));
+      const asked = direct || (typeof m["replyTo"] === "string" && mine.has(m["replyTo"])) || named.has(str(m["id"]));
       if (asked) waiting = at;
     }
   }
@@ -92,8 +95,7 @@ export async function paceOfPerson(ctx: ChatCtx, input: { personId: string; thre
     const t = rows.find((r) => str(r["id"]) === input.threadId);
     if (t !== undefined) {
       const people = membersOf(ctx.db, input.threadId).filter((p) => p.startsWith("usr_"));
-      const muted = followMode(ctx, input.threadId, them) !== undefined || (await mutedInSettings(ctx, them, input.threadId));
-      out.notifies = muted ? "off" : people.length === 2 ? "all" : "mentions";
+      out.notifies = followMode(ctx, input.threadId, them) === "left" ? "off" : people.length === 2 ? "all" : "mentions";
     }
   }
   return out;

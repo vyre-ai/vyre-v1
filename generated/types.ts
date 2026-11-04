@@ -28637,13 +28637,6 @@ export type NotificationsDigestCollectOut = {
       count: number;
     }>;
 };
-export type NotificationsHearsInIn = {
-  personId: string;
-  threadId: string;
-};
-export type NotificationsHearsInOut = {
-  muted: boolean;
-};
 export type NotificationsKindSetLevelIn = {
   kind: "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed" | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided" | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread" | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused";
   level?: "interrupt" | "badge" | "digest";
@@ -45476,7 +45469,6 @@ export interface CapMap {
   "notifications.delegate.resolve": { in: NotificationsDelegateResolveIn; out: NotificationsDelegateResolveOut };
   "notifications.delegate.set": { in: NotificationsDelegateSetIn; out: NotificationsDelegateSetOut };
   "notifications.digest.collect": { in: NotificationsDigestCollectIn; out: NotificationsDigestCollectOut };
-  "notifications.hears_in": { in: NotificationsHearsInIn; out: NotificationsHearsInOut };
   "notifications.kind.set_level": { in: NotificationsKindSetLevelIn; out: NotificationsKindSetLevelOut };
   "notifications.kinds.list": { in: NotificationsKindsListIn; out: NotificationsKindsListOut };
   "notifications.list": { in: NotificationsListIn; out: NotificationsListOut };

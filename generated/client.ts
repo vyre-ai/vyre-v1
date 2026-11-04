@@ -2031,7 +2031,6 @@ export function createClient(transport: Transport) {
       digest: {
         collect: call("notifications.digest.collect", 1),
       },
-      hears_in: call("notifications.hears_in", 1),
       kind: {
         set_level: call("notifications.kind.set_level", 1),
       },

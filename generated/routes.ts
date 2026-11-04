@@ -26758,24 +26758,6 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
-    "path": "/v1/notifications/hears_in",
-    "cap": "notifications.hears_in",
-    "v": 1,
-    "module": "notifications",
-    "effects": "read",
-    "permission": null,
-    "level": "view",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "low",
-    "offline": null,
-    "teamOnly": false,
-    "gate": null
-  },
-  {
-    "method": "POST",
     "path": "/v1/notifications/kind/set_level",
     "cap": "notifications.kind.set_level",
     "v": 1,
@@ -27585,10 +27567,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/portal/accounts",
@@ -27607,7 +27586,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/portal/file_link",
@@ -33150,10 +33132,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/skills/save",
@@ -33171,7 +33150,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/skills/set_enabled",
@@ -38666,10 +38648,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/items/export_mine",
@@ -38687,7 +38666,10 @@ const routes7: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "secret_export"
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/items/list",

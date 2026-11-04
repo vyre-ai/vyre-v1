@@ -135,9 +135,6 @@ export default defineManifest({
     }),
     write('notifications.mute.clear', 'End a mute', { in: { target: mutable }, out: { cleared: t.bool() }, level: 'use', emits: ['notification.unmuted'], tool: 'meta' }),
     read('notifications.mute.list', 'My active mutes', { in: {}, out: { mutes: t.arr(t.obj({ target: mutable, until: t.ts() })) }, tool: 'meta' }),
-    read('notifications.hears_in', 'Whether a teammate has muted one chat or channel, for their profile: only that, never what else they mute; asked by someone who can open the chat', {
-      in: { personId: id.user, threadId: id.thread }, out: { muted: t.bool() }, tool: 'meta', label: 'check',
-    }),
     write('notifications.away.set', 'Set myself away until a time; approvals go to a person, a role or no one; only calls interrupt', {
       in: { until: t.ts(), delegate: delegateTo }, out: { until: t.ts() }, level: 'use', emits: ['away.set'], tool: 'meta', offline: 'queue', cli: 'vyre away set',
     }),
