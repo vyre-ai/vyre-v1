@@ -332,6 +332,10 @@ const stamps = new WeakMap<object, Map<string, number>>();
  * used". A good answer from Google makes it active and stamps its last use, at most once a minute per connection. Never throws: a connection that cannot be told does not stop the read.
  */
 export async function markWorking(ctx: GoogleCtx, connectionId: string, o: { force?: boolean } = {}): Promise<void> {
+  // Only a caller the connectors module would trust makes this call: the host (its polls and checks) or someone who manages the Space connection. A member whose own mail or calendar read went
+  // through the Space's delegation is neither, and a refused call on every one of their reads is noise; the host's next poll stamps it.
+  const mayTell = isTrustedService(ctx.principal) || ctx.authorize({ perm: "connectors.manage", level: "edit" }, { type: "space", id: ctx.space }).effect === "allow";
+  if (!mayTell) return;
   const now = ctx.now();
   const lastStamp = stamps.get(ctx.db) ?? new Map<string, number>();
   stamps.set(ctx.db, lastStamp);

@@ -57,7 +57,7 @@ test("every kind of item a call site opens by subject is read before it opens, a
   const types = new Set(sites.flatMap((s) => [...s.body.matchAll(/subject:\s*\{\s*type:\s*"([a-z_]+)"/g)].map((m) => m[1]!)));
   assert.ok(types.has("task") && types.has("record") && types.has("file") && types.has("thread"), `found ${[...types].join(", ")}`);
   // kinds that are judged: a read of their own
-  const JUDGED = new Set(["thread", "chat", "task", "record", "contact", "file", "doc", "document", "project", "goal", "run", "automation", "agent", "channel", "folder"]);
+  const JUDGED = new Set(["thread", "chat", "task", "record", "contact", "file", "doc", "document", "project", "goal", "run", "automation", "agent", "channel", "folder", "person"]);
   // kinds the door passes through because they are not a thing someone can be refused: the place's own listings and a person-less target
   const PASSED = new Set(["artifact", "call", "view", "note", "item", "vault", "journey", "mail", "email", "meeting", "event", "conversation", "message"]);
   for (const type of types) {

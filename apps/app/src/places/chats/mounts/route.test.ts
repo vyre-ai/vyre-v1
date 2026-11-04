@@ -102,3 +102,12 @@ test("a project opens in Chats as its own page: subject=project:<id>, with the t
   assert.deepEqual(next.route, { view: "project", projectId: "prj_1", tab: "knows" });
   assert.equal(next.pane, false);
 });
+
+test("a link to a person names the person and no page: the place keeps its page and opens their profile beside it", async () => {
+  const { personOfHash } = await import("./route.ts");
+  assert.equal(personOfHash("subject=person:usr_omar"), "usr_omar");
+  assert.equal(personOfHash("#subject=person%3Ausr_omar"), "usr_omar");
+  assert.equal(personOfHash("subject=thread:thr_1"), null);
+  assert.equal(personOfHash(""), null);
+  assert.deepEqual(fromHash("subject=person:usr_omar").route, START.route, "as a page it is nothing: the profile is not a route");
+});

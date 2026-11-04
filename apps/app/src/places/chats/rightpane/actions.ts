@@ -206,3 +206,21 @@ export function crewRunAgain(d: PaneDeps, jobId: string, name: string): Promise<
 export function crewStop(d: PaneDeps, jobId: string, name: string): Promise<boolean> {
   return attempt(d, `stop ${name}`, async () => { await d.call("engine.crew.stop", { jobId, idempotencyKey: key("stop", jobId) }); d.note(`Stopped ${name}`); });
 }
+
+/* ---------- hooks ---------- */
+
+/** Pause a hook or turn it back on. */
+export function hookPause(d: PaneDeps, id: string, threadId: string, paused: boolean): Promise<boolean> {
+  return attempt(d, paused ? "pause that hook" : "turn that hook back on", async () => { await d.call("hooks.pause", { id, paused, threadId }); d.note(paused ? "Hook paused" : "Hook running again"); });
+}
+/** Remove a hook. Undo makes the same hook again. */
+export function hookRemove(d: PaneDeps, id: string, threadId: string, again: Record<string, unknown>): Promise<boolean> {
+  return attempt(d, "remove that hook", async () => {
+    await d.call("hooks.remove", { id, threadId });
+    d.note("Hook removed", () => attempt(d, "bring it back", async () => { await d.call("hooks.set", again); }).then(() => undefined));
+  });
+}
+/** Save the words of a hook. */
+export function hookSave(d: PaneDeps, input: Record<string, unknown>): Promise<boolean> {
+  return attempt(d, "save that hook", async () => { await d.call("hooks.set", input); d.note("Hook saved"); });
+}

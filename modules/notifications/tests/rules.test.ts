@@ -297,7 +297,7 @@ test("the fanout consumer files a row for the events that name a kind and ignore
   const h = harness();
   const ctx = h.ctxFor(null, sender);
   const fan = consumers["notifications.fanout"];
-  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused"]);
+  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "ci.blocked"]);
   const shared = await fan.run(ctx, { name: "access.shared_with", payload: { to: alice.id, resource: { type: "agent", id: "agt_dex" }, level: "use", byName: "Irfad", title: "Dex", message: "Take a look" } });
   assert.equal(shared.length, 1);
   assert.equal(row(h, shared[0]!).kind, "item.shared");
@@ -399,4 +399,10 @@ test("ci.paused files one Inbox-style line for each admin, and the same month co
   assert.equal(all.length, 2, "the second event collapses into the first");
   assert.equal(all[0].title, "CI paused: this month's cap of $10 is reached");
   assert.equal(all[0].place, "console");
+});
+
+test("the top bar says who wants what for an agent's request, with no label in front of it", async () => {
+  const { render } = await import("../projections.ts");
+  assert.equal(render("Approval needed: {{title}}", { title: "Intake wants to message Noah Berg" }), "Intake wants to message Noah Berg");
+  assert.equal(render("Approval needed: {{title}}", { title: "Retainer for Lee" }), "Approval needed: Retainer for Lee", "any other title keeps its label");
 });

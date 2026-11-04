@@ -150,3 +150,29 @@ test("the digest batch: due after 30 new messages or 10 quiet minutes, never ove
   // nothing new: not due
   assert.equal(maybeRefreshDigest({ ...base, call: mk({}) }, { threadId: "thr_9", agentId: "agt_intake", asker: "usr_maya", messages: msgs, nameOf: (id) => id }), false);
 });
+
+test("a turn in the thread under a room gets the parent room's pack, the same as a turn in the chat, and keeps to what was said after the latest join", async () => {
+  const parentMsgs = [row(1, "usr_maya", "Private: my salary idea is 100k."), row(2, "usr_maya", "Adding Omar now."), row(3, "usr_omar", "Find a time for the vendor call."), row(4, "agt_docs", "Docs is on the quotes.")];
+  const parent = { threadId: "thr_chan", kind: "channel", title: "Vendor onboarding", members: people, agents: [{ agentId: "agt_intake", mode: "listen" }, { agentId: "agt_docs", mode: "lead" }], joinedAt: { usr_omar: T0 + 2 * 60_000 } };
+  const threadRow = { threadId: "thr_1", kind: "thread", parentThreadId: "thr_chan", parentMessageId: "msg_3", members: [{ kind: "person", id: "usr_omar" }], agents: [{ agentId: "agt_intake", mode: "lead" }] };
+  const asked: string[] = [];
+  const answers: Record<string, (i: any) => unknown> = {
+    "agents.get": () => ({ agent: { agentId: "agt_intake", name: "Intake", role: "You answer intake questions." } }),
+    "threads.get": (i) => ({ thread: i.threadId === "thr_chan" ? parent : threadRow }),
+    "access.principals.list": () => ({ principals }),
+    "settings.get": () => ({ row: { value: "Asia/Karachi" } }),
+    "chat.messages.list": (i) => ({ messages: i.threadId === "thr_chan" ? parentMsgs : [], hasMore: false }),
+    "chat.message.get": () => ({ message: row(3, "usr_omar", "Find a time for the vendor call.") }),
+    "chat.transcript.summary": () => ({ summary: "Maya's salary idea is 100k." }),
+  };
+  const call = async (cap: string, i?: unknown): Promise<unknown> => { asked.push(`${cap}:${(i as { threadId?: string } | undefined)?.threadId ?? ""}`); const a = answers[cap]; if (!a) throw new Error(`no ${cap}`); return a(i); };
+  const digestAsked: string[] = [];
+  const ctx = await createContextBuilder({ call, now: () => T0 + 600_000, digests: { get: (t: string) => { digestAsked.push(t); return undefined; }, refresh: (o: { threadId: string }) => { digestAsked.push(`refresh:${o.threadId}`); } } }).build({ ...input(3), threadId: "thr_1" });
+  const room = text(ctx, "room"), recent = text(ctx, "recent"), parentText = text(ctx, "parent");
+  assert.match(room, /The room \("Vendor onboarding", a channel\)\. People: Maya Chen, Omar Haddad \(asked you\)\. Agents: you \(this is you\), Docs \(lead\)/, "the roster is the parent room's");
+  assert.match(recent, /Docs \(agent\): Docs is on the quotes\./, "the parent chat's recent messages");
+  assert.match(recent, /Adding Omar now\./);
+  assert.doesNotMatch([room, recent, parentText].join("\n"), /salary idea/, "nothing from before the latest join, in the pack or in the loose parent lines");
+  assert.match(parentText, /hangs off this message/, "the message it hangs off is still named");
+  assert.ok(digestAsked.includes("thr_chan") && digestAsked.includes("refresh:thr_chan") && !digestAsked.includes("thr_1"), "the digest is the room's, kept under the room");
+});

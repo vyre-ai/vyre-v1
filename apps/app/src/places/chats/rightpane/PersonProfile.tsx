@@ -6,10 +6,11 @@ import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { LeadIcon } from "./parts.tsx";
+import { chatName } from "../../../../../../lib/chat-name.ts";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { ProfileHeader } from "./ProfileHeader.tsx";
 import type { HeaderAction, Presence } from "./ProfileHeader.tsx";
-import { cityOf, hoursWords, lastActive, localTime, personLine, presenceWord, responsibleFor } from "./person-model.ts";
+import { cityOf, hoursWords, lastActive, localTime, notifyWords, paceWords, personLine, presenceWord, publicLines, responsibleFor } from "./person-model.ts";
 import type { PresenceState } from "./person-model.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 
@@ -35,6 +36,12 @@ export interface PersonProfileProps {
   /** Opens the Add people and agents sheet on the open chat; without it the third action is Mention. */
   onAdd?: (() => void) | undefined;
   openThread?(threadId: string): void; openFile?(fileId: string): void; openTask?(taskId: string): void;
+  /** The directory name of a person or agent, and who the viewer is: a chat in Shared context takes its one name (lib/chat-name.ts). */
+  nameOf?: ((id: string) => string) | undefined; meId?: string | undefined;
+  /** The chat this profile was opened from: how they hear about it (Notifies) is read for it. */
+  threadId?: string | undefined;
+  /** Opens a project the two of you can see (Shared context). */
+  openProject?(projectId: string): void;
   initialTab?: PersonTab;
 }
 
@@ -65,7 +72,10 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
   const first = p.name.split(/\s+/)[0] ?? p.name;
   const presence = useRead<PresenceOut | undefined>(p.call, "devices.presence", { people: [p.id] }, (o) => (o as CapMap["devices.presence"]["out"]).people[0]);
   const pub = useRead<PublicOut>(p.call, "settings.public_of", { personId: p.id }, (o) => o as PublicOut);
-  const roles = useRead<{ project: string; role: string }[]>(p.call, "projects.roles_of", { personId: p.id }, (o) => (o as CapMap["projects.roles_of"]["out"]).roles.map((r) => ({ project: r.title, role: ROLE_WORD[r.role] ?? r.role })));
+  const roles = useRead<{ id: string; project: string; role: string }[]>(p.call, "projects.roles_of", { personId: p.id }, (o) => (o as CapMap["projects.roles_of"]["out"]).roles.map((r) => ({ id: r.projectId, project: r.title, role: ROLE_WORD[r.role] ?? r.role })));
+  const shared = useRead<ThreadRow[]>(p.call, "threads.list", { kind: ["chat"], mine: true, order: "latest", limit: 60 }, (o) => (o as CapMap["threads.list"]["out"]).threads.filter((t) => t.members.some((m) => m.kind === "person" && m.id === p.id)));
+  const pace = useRead<CapMap["chat.pace_of"]["out"]>(p.call, "chat.pace_of", { personId: p.id, ...(p.threadId ? { threadId: p.threadId } : {}) }, (o) => o as CapMap["chat.pace_of"]["out"]);
+  const known = useRead<string[]>(p.call, "memory.profile.get", { personId: p.id }, (o) => publicLines(o as CapMap["memory.profile.get"]["out"]));
   const state = presence?.state as PresenceState | undefined;
   const time = localTime(p.now(), pub?.timezone);
   const dot: Presence | undefined = state === "online" ? "on" : state === "away" ? "away" : state === "offline" ? "asleep" : undefined;
@@ -87,7 +97,7 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
         ))}
       </View>
       <ScrollView style={st.body} contentContainerStyle={st.content}>
-        {tab === "about" ? <About {...p} roles={roles ?? []} first={first} state={state} lastSeenAt={presence?.lastSeenAt} pub={pub} time={time} /> : null}
+        {tab === "about" ? <About {...p} pace={pace} chats={shared ?? []} known={known ?? []} roles={roles ?? []} first={first} state={state} lastSeenAt={presence?.lastSeenAt} pub={pub} time={time} /> : null}
         {tab === "chats" ? <Chats {...p} first={first} /> : null}
         {tab === "files" ? <Files {...p} first={first} /> : null}
         {tab === "tasks" ? <Tasks {...p} first={first} /> : null}
@@ -100,7 +110,13 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
 const label = (t: string): ReactElement => <Text key={t} style={st.label}>{t}</Text>;
 const kv = (k: string, v: string | undefined): ReactElement | null => (v === undefined || v === "" ? null : <View key={k} style={st.kv}><Text style={st.k}>{k}</Text><Text style={[st.v, st.vEnd]}>{v}</Text></View>);
 
-function About(p: PersonProfileProps & { roles: readonly { project: string; role: string }[]; first: string; state: PresenceState | undefined; lastSeenAt: number | undefined; pub: PublicOut | null; time: string | undefined }): ReactElement {
+/** A chat's one name: its title, else who is in it (lib/chat-name.ts), the same as the sidebar and the tabs. */
+export function chatLabel(p: PersonProfileProps, t: ThreadRow): string {
+  const name = p.nameOf ?? ((id: string): string => id);
+  return chatName({ title: t.title, kind: t.kind, agents: t.agents.map((a) => a.agentId), people: t.members.filter((m) => m.kind === "person" && m.id !== p.meId).map((m) => m.id) }, name);
+}
+
+function About(p: PersonProfileProps & { pace: CapMap["chat.pace_of"]["out"] | null; chats: readonly ThreadRow[]; known: readonly string[]; roles: readonly { id: string; project: string; role: string }[]; first: string; state: PresenceState | undefined; lastSeenAt: number | undefined; pub: PublicOut | null; time: string | undefined }): ReactElement {
   const roles = p.roles;
   const resp = responsibleFor(p.title ?? p.pub?.title, roles);
   const away = p.state === "away";
@@ -109,10 +125,22 @@ function About(p: PersonProfileProps & { roles: readonly { project: string; role
     <View testID="person-about">
       {label("Responsible for")}<Text testID="person-resp" style={st.body14}>{resp}</Text>
       {p.state !== undefined ? <>{label("Right now")}<View style={st.now}><View style={[st.dot, { backgroundColor: (away ? "var(--warn)" : p.state === "online" ? "var(--ok)" : "var(--ink-4)") as string }]} /><View><Text style={st.v}>{presenceWord(p.state)}</Text>{now ? <Text style={st.sub}>{now}</Text> : null}</View></View></> : null}
-      {p.pub?.timezone || p.pub?.hours || p.pub?.pronouns ? label(`About ${p.first}`) : null}
-      {kv("Local time", p.time && p.pub?.timezone ? `${p.time} · ${cityOf(p.pub.timezone)}` : undefined)}
-      {kv("Working hours", p.pub?.hours ? `${hoursWords(p.pub.hours)}, ${p.first}'s time` : undefined)}
+      {p.pace !== null || p.pub?.hours || p.pub?.timezone ? <>{label(`How ${p.first} responds here`)}
+        {kv("Replies", p.pace !== null ? paceWords(p.pace.replies) : undefined)}
+        {kv("Notifies", notifyWords(p.pace?.notifies))}
+        {kv("Available", p.pub?.hours ? hoursWords(p.pub.hours) : undefined)}
+        {kv("Their time", p.time && p.pub?.timezone ? `${p.time} · ${cityOf(p.pub.timezone)}` : undefined)}</> : null}
+      {p.roles.length > 0 || p.chats.length > 0 ? <>{label("Shared context")}
+        {p.roles.map((r) => (
+          <Row key={r.id} id={`person-project-${r.id}`} title={r.project} note={`Project · ${r.role}`} leading={<LeadIcon name="folder" />} onPress={() => p.openProject?.(r.id)} />
+        ))}
+        {p.chats.slice(0, 3).map((t) => (
+          <Row key={t.threadId} id={`person-shared-chat-${t.threadId}`} title={chatLabel(p, t)} note="Chat · you both" leading={<LeadIcon name="chat" />} onPress={() => p.openThread?.(t.threadId)} />
+        ))}</> : null}
+      {p.pub?.pronouns || p.known.length > 0 ? label(`About ${p.first}`) : null}
       {kv("Pronouns", p.pub?.pronouns)}
+      {/* ui-rows-lint: not a list (the public lines about the person, read-only paragraphs under About) */}
+      {p.known.map((line) => <Text key={line} testID="person-known" style={[st.body14, st.fact]}>{line}</Text>)}
     </View>
   );
 }
@@ -170,6 +198,7 @@ const st = StyleSheet.create({
   k: { flexShrink: 0, fontSize: 13.5, color: "var(--ink-3)" as string },
   vEnd: { flex: 1, textAlign: "right" },
   v: { flexShrink: 1, fontSize: 14, lineHeight: 19, color: "var(--ink)" as string },
+  fact: { paddingVertical: 6 },
   sub: { fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string },
   row: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 56, paddingVertical: 10 },
   rowText: { flex: 1, minWidth: 0 },

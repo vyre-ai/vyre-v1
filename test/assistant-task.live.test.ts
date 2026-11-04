@@ -76,7 +76,16 @@ test("Team: the Assistant completes Mia's own task for her, with the send held o
     const dm = (await api("usr_mia", "chat.start", { kind: "chat", agentIds: [], personId: "usr_noah", idempotencyKey: "at-dm" })).data.thread.threadId as string;
     assert.equal((await list("usr_noah", dm)).filter((m) => /figures/.test(m.body ?? "")).length, 0, "nothing went before Mia pressed Send");
     assert.equal((await api("usr_mia", "tasks.act", { taskId: approvalId, action: "approve" })).status, 200);
-    await waitFor(async () => (await list("usr_noah", dm)).find((m) => /figures are ready/.test(m.body ?? "")) ?? null, 30_000, () => hostLog(d));
+    // a Space agent writes as itself: Noah reads the figures in the agent's own chat with him, not in Mia's chat with him
+    await waitFor(async () => {
+      await d.hooks?.pump?.();
+      const recent = (await api("usr_noah", "chat.recent", { filter: "all" })).data as Record<string, Array<{ threadId: string }> | undefined>;
+      for (const t of [...(recent["today"] ?? []), ...(recent["yesterday"] ?? []), ...(recent["earlier"] ?? [])]) {
+        const hit = (await list("usr_noah", t.threadId)).find((m) => /figures are ready/.test(m.body ?? ""));
+        if (hit) return hit;
+      }
+      return null;
+    }, 30_000, () => hostLog(d));
 
     // then the task is handed in for her: Done, and the line names who did it for whom
     await waitFor(async () => ((await api("usr_mia", "tasks.get", { taskId })).data.task.state === "done" ? true : null), 30_000, () => hostLog(d));

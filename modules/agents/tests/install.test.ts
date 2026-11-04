@@ -466,14 +466,15 @@ test("a private repository is read with the person's own GitHub: the token handl
   assert.equal(await fails(call(hn, "install.from_link", { url: "https://github.com/acme/secret-skill" })), "provider.unavailable", "a repo they cannot reach reads as one that cannot be read");
 });
 
-test("a skill is an access resource: its owner holds manage on it, a grant goes through access, and what the Share sheet changes there follows into the agents' side and people's cards", async () => {
+test("a skill is an access resource: it is born with its owner named, nobody calls access.share as the owner, a grant goes through access, and what the Share sheet changes there follows into the agents' side and people's cards", async () => {
   const { hn } = world();
   const agent = await agentOf(hn, hn.ctx, "Intake");
   const reader = await agentOf(hn, hn.ctx, "Reader");
   const s = (await call(hn, "skills.save", { text: SKILL("billing-rules", "How we bill."), ownerAgentId: agent })).skill;
   const grants = () => hn.world.calls.filter((c) => c.cap === "access.share").map((c) => c.input);
-  assert.deepEqual(grants().map((g) => [g.resource, g.subject, g.level, g.source]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
-    [[{ type: "skill", id: s.skillId }, { kind: "agent", id: agent }, "manage", "skill:owner"], [{ type: "skill", id: s.skillId }, { kind: "person", id: DANA }, "manage", "skill:owner"]], "the agent and the person who owns it");
+  assert.deepEqual(grants(), [], "the owner's manage comes from the host registering the new skill, never from the person sharing it with themselves");
+  const born = hn.named("skill.mine_changed").find((e) => e.payload["skillId"] === s.skillId);
+  assert.equal(born?.payload["ownerId"], DANA, "an agent's skill is owned by the person who owns the agent");
   hn.clear();
   await call(hn, "skills.grant", { skillId: s.skillId, agentId: reader, level: "edit" });
   assert.deepEqual(grants().map((g) => [g.subject, g.level, g.source]), [[{ kind: "agent", id: reader }, "edit", "skill:grant"]]);
@@ -498,6 +499,7 @@ test("a skill is an access resource: its owner holds manage on it, a grant goes 
   assert.equal(hn.rows("SELECT * FROM agents_skill_grants").length, 0, "another resource is not a skill");
   // a skill added by hand is registered too and has its first version
   const mine = (await call(hn, "skills.mine.add", { text: SKILL("deploy-checks", "Run checks.") })).skill;
-  assert.ok(hn.world.calls.some((c) => c.cap === "access.share" && c.input.resource.id === mine.skillId));
+  assert.equal(hn.world.calls.some((c) => c.cap === "access.share" && c.input.resource.id === mine.skillId), false, "no self-share");
+  assert.equal(hn.named("skill.mine_changed").find((e) => e.payload["skillId"] === mine.skillId)?.payload["ownerId"], DANA, "born with its owner named");
   assert.equal((await call(hn, "skills.history", { skillId: mine.skillId })).revisions.length, 1);
 });

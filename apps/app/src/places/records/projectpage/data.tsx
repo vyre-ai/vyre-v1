@@ -49,6 +49,9 @@ export interface ProjectNav {
   openUrl?(url: string): void;
   /** Starts a chat with the Assistant with this first message (Linked's fix card). */
   askAssistant?(text: string): void;
+  /** A person's profile and an agent's page, through the reach rule. Absent: the row does nothing. */
+  openPerson?(personId: string): void;
+  openAgent?(agentId: string): void;
 }
 
 export interface ProjectPageData {

@@ -33,9 +33,9 @@ test("the list says what, from where, at which commit and who installed it; a re
   const w = world();
   const root = await mount(createRoot as never, <InstalledFromLinks call={w.call} nameOf={(id) => ({ usr_dana: "Dana", usr_maya: "Maya" } as Record<string, string>)[id] ?? id} />);
   await flush(); await flush();
-  assert.match(textOf(find(root!, "row-install-row-ins_1")!), /pdf-forms[\s\S]*a skill · acme\/pdf-skill · a41f9c2 · installed by Dana/);
-  assert.match(textOf(find(root!, "row-install-row-ins_2")!), /a remote MCP server · mcp\.tasks\.example · installed by Maya/);
-  assert.ok(find(root!, "install-see-ins_1"));
+  assert.match(textOf(find(root!, "row-install-row-ins_1")!), /pdf-forms[\s\S]*Skill[\s\S]*Dana installed it[\s\S]*Commit a41f9c2/);
+  assert.match(textOf(find(root!, "row-install-row-ins_2")!), /Remote MCP[\s\S]*Maya installed it[\s\S]*mcp\.tasks\.example/);
+  assert.ok(find(root!, "install-see-ins_1"), "a newer commit puts See changes on its row");
   assert.equal(find(root!, "install-see-ins_2"), null);
   assert.deepEqual(w.calls[0], { cap: "install.list", input: { all: true } });
 });
@@ -52,13 +52,12 @@ test("See changes opens the diff and changes nothing; Update applies it for the 
   assert.equal(w.calls.some((c) => c.cap === "install.apply"), false, "looking changes nothing");
 });
 
-test("up to date says so; Remove takes the row away", async () => {
+test("a current install has no See changes; Remove takes the row away", async () => {
   const w = world(false);
   const root = await mount(createRoot as never, <InstalledFromLinks call={w.call} />);
   await flush(); await flush();
-  await press(find(root!, "install-see-ins_1")!);
-  await flush();
-  assert.match(textOf(find(root!, "skills-installed-note")!), /pdf-forms is up to date\./);
+  assert.equal(find(root!, "install-see-ins_1"), null, "current: no See changes, no ready mark");
+  assert.equal(find(root!, "install-ready-ins_1"), null);
   await press(find(root!, "install-remove-ins_1")!);
   await flush(); await flush();
   assert.equal(find(root!, "row-install-row-ins_1"), null);

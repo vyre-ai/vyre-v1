@@ -68,3 +68,12 @@ test("ElevenLabs: the key goes in one header to the single-use token address, th
   assert.equal((await bad(429)).code, "provider.rate_limited");
   assert.equal((await bad(500)).code, "provider.unavailable");
 });
+
+test("a key that may not make tokens is told what to fix in that provider's own words", async () => {
+  const say = (provider: string) => fails(createTalkHost({ vault, fetch: answer(403, "") }).check(ctx, { provider, apiKey: KEY }));
+  const dg = await say("deepgram");
+  assert.deepEqual([dg.reason, dg.message], ["role", "That key cannot make short-lived tokens. Make one with the Member role."]);
+  const el = await say("elevenlabs");
+  assert.deepEqual([el.reason, el.message], ["role", "That key can't make speech-to-text tokens. Make one in ElevenLabs with Speech to Text access."]);
+  assert.doesNotMatch(el.message, /Member/);
+});

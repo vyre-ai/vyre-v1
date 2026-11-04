@@ -70,7 +70,6 @@ function AppRoute(): ReactElement {
     <StartupUpdate>
       <SessionGate baseUrl={hydrationBaseUrl(path !== null)} onHub={setHub} voice={loadTwilioDevice} />
       {hub ? <UrlSync hub={hub} /> : null}
-      {/* OpenLink is held off here until l-chrome2a mounts it in ShellHost with the real runtime: mounted here it read hub.session().runtime, which does not exist, and the app could not open */}
       {hub ? <WhatsNewOnce /> : null}
     </StartupUpdate>
   );

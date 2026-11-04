@@ -248,6 +248,12 @@ export function fromHash(hash: string): Shown {
   }
 }
 
+/** The person a link names (`subject=person:<id>`), else null. A person is not a page: the place shows their profile in the right pane and leaves the page alone. */
+export function personOfHash(hash: string): string | null {
+  const m = /^person:(.+)$/.exec(new URLSearchParams(hash.replace(/^#/, "")).get("subject") ?? "");
+  return m?.[1] ?? null;
+}
+
 /** A link or tab switch arrives while the place is mounted: the same page keeps its pane and place, a different page replaces them. A layer the link names (Open Terminal on the landing, All agents) goes up over the page that is already there. */
 export function linkedTo(s: Shown, hash: string): Shown {
   const next = hash === "" ? START : fromHash(hash);

@@ -50,7 +50,8 @@ export function lineOf(m: Pick<CrewMember, "state" | "step" | "found">): string 
 export const stateWord = (s: MemberState): string => (s === "working" ? "Working" : s === "needs_you" ? "Needs you" : s === "done" ? "Done" : s === "failed" ? "Failed" : "Stopped");
 
 /** The role next to the name: what the helper was asked to do, short. */
-export const roleOf = (m: Pick<CrewMember, "title">): string => (m.title.length > 28 ? `${m.title.slice(0, 27)}…` : m.title);
+/** What it was asked, next to its name. A helper with no name of its own is called by what it was asked, so there is nothing to add. */
+export const roleOf = (m: Pick<CrewMember, "title"> & { name?: string | undefined }): string => (m.name === undefined || m.name === m.title ? "" : m.title.length > 28 ? `${m.title.slice(0, 27)}…` : m.title);
 
 /** The name a row wears: the helper's own name, else its title. */
 export const nameOf = (m: Pick<CrewMember, "name" | "title">): string => m.name ?? m.title;

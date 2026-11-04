@@ -10,6 +10,9 @@ import { createToolSession } from "../tools/call.ts";
 import { decideLocal, dialFor } from "../tools/local.ts";
 import { localFacts } from "../tools/local-facts.ts";
 import type { ToolSession } from "../tools/call.ts";
+import { hooksHolder, NO_VERDICT } from "../tools/hooks.ts";
+import type { CallHooks } from "../tools/call.ts";
+import { CLI_EVENT } from "../../../lib/hooks.ts";
 import type { ToolCtx, ToolDef } from "../tools/types.ts";
 import type { Invoke } from "../../../host/src/invoke.ts";
 import { makeError } from "../../../host/src/routes/errors.ts";
@@ -111,8 +114,10 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       // An outside agent stopped at a role its person holds asks that person (docs/ask-the-person.md); the door says 'always' for what only a person does.
       return deps.invoke(cap, input, { ...rest, principal: caller.principal, origin: "mcp", space: caller.space, ...(thread !== undefined && (!outsideCall || thread.startsWith("thr_")) ? { thread } : {}), ...(outsideCall ? { auditAll: true, askPerson: seed.askPerson ?? "if_refused", ...(setup ? { setupGrant: true } : {}) } : {}) });
     };
+    // the one hooks layer, for every engine that reaches Vyre here: the port is the host's, bound when its engine runtime starts
+    const hooks: CallHooks = { fire: (c, f) => (hooksHolder.port ? hooksHolder.port.fire({ ...f, agentId: c.agentId, asker: c.asker, threadId: c.thread.threadId, threadKind: c.thread.kind, ...(c.turnId ? { turnId: c.turnId } : {}), engine: caller.provider ?? "cli", source: "tools" }) : Promise.resolve(NO_VERDICT)) };
     const tools = createToolSession({
-      catalog: deps.catalog, defaults: deps.defaults, invoke,
+      catalog: deps.catalog, defaults: deps.defaults, invoke, hooks,
       levelFor: () => caller.askLevel ?? null,
       canEngineer: () => false,
       // A CLI engine's session works for one chat, so a local tool follows that chat's mode, under the owner's floor. An outside agent has none: outside.ts refuses local tools before they get here.
@@ -350,6 +355,22 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         } catch {
           return err(id, INTERNAL_ERROR, "Something went wrong on our side.");
         }
+      }
+      case "vyre/hook": {
+        // the vyre-hook shim of a CLI engine: its own built-in tools and subagents (Vyre's own tools already pass through the tool session, so they are not asked twice)
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "driver") return err(id, INVALID_REQUEST, "No session.");
+        const p = (req.params ?? {}) as { event?: unknown; payload?: Record<string, unknown> };
+        const event = CLI_EVENT[String(p.event)];
+        const body = p.payload ?? {};
+        const tool = typeof body["tool_name"] === "string" ? (body["tool_name"] as string) : undefined;
+        if (!event || !hooksHolder.port || (tool?.startsWith("mcp__vyre__") ?? false)) return ok(id, { block: null, notes: [] });
+        const v = await hooksHolder.port.fire({
+          event, agentId: s.ctx.agentId, asker: s.ctx.asker, threadId: s.ctx.thread.threadId, threadKind: s.ctx.thread.kind, engine: s.caller.provider ?? "cli", source: "cli",
+          ...(tool ? { tool } : {}), ...(body["tool_input"] !== undefined ? { input: body["tool_input"] } : {}), ...(body["tool_response"] !== undefined ? { output: body["tool_response"] } : {}),
+          ...(typeof body["prompt"] === "string" ? { prompt: body["prompt"] as string } : {}),
+        });
+        return ok(id, { block: v.block ? v.block.reason : null, notes: v.notes });
       }
       default:
         return isNote ? null : err(id, METHOD_NOT_FOUND, `Method not found: ${req.method}`);

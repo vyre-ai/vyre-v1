@@ -12,7 +12,7 @@ const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith("--")) || "/root/wt/tmp-l-editor/composer";
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync("/root/wt/base/node_modules/.bin/expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), { cwd: appDir, stdio: "inherit", env: exportEnv() });
 }
 fs.mkdirSync(out, { recursive: true });
 // [window width, pane width]: the window widths of the brief, and the 700 px chat column beside a task pane in a wide window

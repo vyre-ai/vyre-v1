@@ -7,6 +7,7 @@ import type { LiveQuery } from "../../../../../client/src/index.ts";
 import { BANNER_QUERY, bannerTarget, collapseKey } from "../notifications/model.ts";
 import type { Notification } from "../notifications/model.ts";
 import { notices as shared } from "./model.ts";
+import { viewing } from "./viewing.ts";
 import type { NoticeKind, NoticeStore } from "./model.ts";
 
 type ListOut = CapMap["notifications.list"]["out"];
@@ -62,14 +63,38 @@ export function useNotificationNotices(p: NotificationNoticesProps | null, store
       store.resolve(noticeIdOf(n));
       p.open(bannerTarget(n));
     };
+    // what is about the chat (or the thread beside it) the person is reading is not announced: they see it, so it is marked seen. A thread's chat is found once, from the thread itself.
+    const parents = new Map<string, string | null>();
+    const asked = new Set<string>();
+    const quieted = new Set<string>();
+    const isViewed = (n: Notification): boolean => {
+      if (n.subject?.type !== "thread") return false;
+      if (viewing.has(n.subject.id)) return true;
+      const id = n.subject.id;
+      if (!parents.has(id)) {
+        if (!asked.has(id)) {
+          asked.add(id);
+          void Promise.resolve(p.call("threads.get", { threadId: id })).then((r) => { parents.set(id, (r as { thread?: { parentThreadId?: string } } | undefined)?.thread?.parentThreadId ?? null); read(); }, () => parents.set(id, null));
+        }
+        return false;
+      }
+      const up = parents.get(id);
+      return up !== null && up !== undefined && viewing.has(up);
+    };
     const read = (): void => {
       const s = q.getSnapshot();
       if (s.status !== "ready") return;
-      raised.current = syncNotifications(store, raised.current, s.data.notifications, act);
+      const shown = s.data.notifications.filter((n) => {
+        if (n.level !== "interrupt" || n.seenAt !== undefined || !isViewed(n)) return true;
+        if (!quieted.has(n.id)) { quieted.add(n.id); void Promise.resolve(p.call("notifications.mark_seen", { notificationIds: [n.id] })).catch(() => undefined); }
+        return false;
+      });
+      raised.current = syncNotifications(store, raised.current, shown, act);
     };
     const off = q.subscribe(read);
+    const offView = viewing.subscribe(read);
     read();
-    return () => { off(); for (const id of raised.current) store.resolve(id); raised.current = new Set(); };
+    return () => { off(); offView(); for (const id of raised.current) store.resolve(id); raised.current = new Set(); };
   }, [p, store]);
 }
 

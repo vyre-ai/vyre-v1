@@ -11,7 +11,7 @@ import { Group, Lead, Line, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Switch } from "../../places/settings/ui.tsx";
 import { LogoTile } from "../../places/vault/layout/parts.tsx";
-import { GithubAppLine, IconTile } from "./CiRunners.tsx";
+import { IconTile } from "./CiRunners.tsx";
 import type { CiSettings } from "./CiRunners.tsx";
 import { Actions, Button, Field, FormSheet, Note, ReadState, useAction, useRead } from "./shared.tsx";
 
@@ -48,6 +48,12 @@ export function postManifest(out: { manifest: unknown; postUrl: string }): void 
   form.appendChild(input); doc.body.appendChild(form); form.submit();
 }
 
+/** The org named in the accept link (github.com/organizations/<org>/...), else the Space's name. */
+export function acceptOrg(orgUrl: string | null, fallback: string): string {
+  const m = orgUrl?.match(/\/organizations\/([^/]+)\//);
+  return m?.[1] ? decodeURIComponent(m[1]) : fallback;
+}
+
 /** The helper line under a card: 12px, muted, with a gap above and the section gap below. */
 function Foot({ children, top = 8, testID = "gh-foot" }: { children: string; top?: number; testID?: string }): ReactElement {
   return <Text accessibilityRole="status" testID={testID} style={{ fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string, marginTop: top, paddingHorizontal: 2 }}>{children}</Text>;
@@ -59,10 +65,13 @@ export const secretWord = (isSet: boolean): string => isSet ? "Set in Vault" : "
 const Value = ({ children }: { children: string }): ReactElement => <Text style={{ fontSize: 13, color: "var(--ink-3)" as string }}>{children}</Text>;
 const GhMark = (): ReactElement => <Lead><LogoTile name="github" size={30} /></Lead>;
 
+export const ACCEPT_POLL_MS = 5000;
+export const ACCEPT_POLL_MAX_MS = 300_000;
 export function GithubAppPage(): ReactElement {
   const data = useConsoleData();
   const sign = useRead<{ github: Sign }>("members.sign_in_github.get");
   const ci = useRead<CiSettings>("ci.settings.get");
+  const [accepting, setAccepting] = useState(false);
   const [app, setApp] = useState<App | null>(null);
   const [installs, setInstalls] = useState<Installs>([]);
   const [rev, setRev] = useState(0);
@@ -96,7 +105,20 @@ export function GithubAppPage(): ReactElement {
     if (complete) { setConfirm(true); return; }
     setWantOwn(false);
   };
+  const gapp = ci.data?.githubApp;
+  const acceptUrl = gapp && gapp.installed && !gapp.ready ? (gapp.acceptUrl ?? gapp.orgAcceptUrl) : null;
+  // after Accept the person is on GitHub: ask again every few seconds (up to five minutes) so the row clears by itself once the permissions are accepted
+  useEffect(() => {
+    if (!accepting || !acceptUrl) return undefined;
+    const t0 = Date.now();
+    const timer = setInterval(() => { if (Date.now() - t0 > ACCEPT_POLL_MAX_MS) { clearInterval(timer); return; } ci.refresh(); }, ACCEPT_POLL_MS);
+    (timer as unknown as { unref?: () => void }).unref?.();
+    return () => clearInterval(timer);
+  }, [accepting, acceptUrl, ci]);
   return <View testID="console-github-app">
+    {acceptUrl ? <Section title="Needs you" count={1}>
+      <Group><Row id="gh-need-perms" title={`GitHub needs you to accept new permissions for ${acceptOrg(gapp?.orgAcceptUrl ?? null, data.space.name)}`} note="Until you accept them, jobs stay on GitHub's own runners." leading={<IconTile icon="warn" tone="warn" />} trailing={<Button small label="Accept" testID="gh-need-accept" onPress={() => { open(acceptUrl); setAccepting(true); }} />} /></Group>
+    </Section> : null}
     <Section title="GitHub app">
       <Group>
         <Row id="gh-own" title="Use our own GitHub app" note={ownLine(on, complete, data.space.name)} leading={<GhMark />} trailing={<Switch on={on} label="Use our own GitHub app" testID="gh-own-switch" disabled={action.busy} onChange={flip} />} />
@@ -105,7 +127,7 @@ export function GithubAppPage(): ReactElement {
           <Actions><Button label="Switch back" testID="gh-off-yes" disabled={action.busy} onPress={() => void action.run("members.sign_in_github.clear", {}, "Members use the Vyre GitHub app").then(() => { setConfirm(false); setWantOwn(false); })} /><Button label="Cancel" testID="gh-off-cancel" onPress={() => setConfirm(false)} /></Actions>
         </View> : null}
       </Group>
-      {on ? null : <Foot top={14} testID="gh-foot-off">The Vyre GitHub app needs nothing from you. Switch to your own app if your GitHub org requires it, or you want its name on the permission screen.</Foot>}
+      {on || acceptUrl ? null : <Foot top={14} testID="gh-foot-off">The Vyre GitHub app needs nothing from you. Switch to your own app if your GitHub org requires it, or you want its name on the permission screen.</Foot>}
     </Section>
     {on ? <>
       <Section title="App details">
@@ -130,7 +152,6 @@ export function GithubAppPage(): ReactElement {
         <Foot top={14} testID="gh-foot-own">{`${data.space.name} uses its own GitHub app. Reconnect once.`}</Foot>
         {app ? <View style={{ marginTop: 12, flexDirection: "row" }}><Button small label="Check again" testID="gh-recheck" disabled={action.busy} onPress={() => void action.run("github.installations.list", {}, "Checked").then((out) => { if (out) refresh(); })} /></View> : null}
       </Section>
-      {ci.data ? <GithubAppLine settings={ci.data} /> : null}
     </> : null}
     {action.note ? <Note>{action.note}</Note> : null}
     {sheet === "keys" ? <KeysSheet sign={g} onClose={() => setSheet(null)} onDone={() => { setSheet(null); refresh(); }} /> : null}

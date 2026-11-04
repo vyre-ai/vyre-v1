@@ -35,7 +35,12 @@ test("Team server channel: a member's own Claude sign-in answers her message wit
       let seen: unknown = null;
       return waitFor(async () => {
         await d.hooks?.pump?.();
-        const ms = (await api(d, who.token, "chat.messages.list", { threadId })).data.messages as Array<{ messageId: string; author?: { kind?: string; id?: string }; body?: string }> | undefined;
+        // in a channel the agent answers in the thread under the asking message: read the chat and the threads under it
+        type Msg = { messageId: string; author?: { kind?: string; id?: string }; body?: string };
+        const ms = [
+          ...(((await api(d, who.token, "chat.messages.list", { threadId })).data.messages ?? []) as Msg[]),
+          ...(await Promise.all((((await api(d, who.token, "threads.list", { parentThreadId: threadId })).data.threads ?? []) as Array<{ threadId: string }>).map(async (t) => ((await api(d, who.token, "chat.messages.list", { threadId: t.threadId })).data.messages ?? []) as Msg[]))).flat(),
+        ];
         seen = ms;
         return ms?.find((m) => !before.includes(m.messageId) && (m.author?.kind === "agent" || m.author?.id === agentId) && (m.body ?? "") !== "")?.body ?? null;
       }, 40_000, () => `${JSON.stringify(seen).slice(0, 3000)}\n${hostLog(d)}`);

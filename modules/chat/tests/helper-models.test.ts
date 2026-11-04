@@ -97,3 +97,21 @@ test("Change model: only the person it works for, an unavailable model falls bac
   assert.deepEqual([fell.model, fell.fellBackFrom], ["claude-haiku-5-5", "claude-sonnet-5-5"]);
   assert.equal((await failure(() => g["chat.helper.restart"](hn.person(DANA), { threadId, model: "claude-opus-5-5", account: "#Mine_Claude" }))).code, "validation.not_found", "a chat is not a helper");
 });
+
+test("any member of the chat can message a running helper; someone outside it cannot; the words are theirs and the chat above sees them as a line, not a message to answer", async () => {
+  const { addMember } = await import("../projections.ts");
+  const { MAYA, LEO } = await import("../fixtures/harness.ts");
+  const hn = world("same_provider");
+  const threadId = await chatOf(hn);
+  addMember(hn.ctx, threadId, MAYA, "member");
+  const h = (await startHelper(hn, threadId, {})).helper["threadId"] as string;
+  const before = hn.named("message.received").length;
+  const sent = await g["chat.helper.steer"](hn.person(MAYA), { threadId: h, body: "Also check the fees page.", idempotencyKey: "s-1" });
+  assert.ok(sent.messageId);
+  const mine = hn.rows("SELECT author, body FROM chat_message WHERE thread = ? AND body = ?", h, "Also check the fees page.");
+  assert.deepEqual(mine.map((r) => r["author"]), [MAYA], "credited to the person who wrote it, not to the asker");
+  const seen = hn.rows("SELECT author, body FROM chat_message WHERE thread = ? AND body LIKE ?", threadId, 'To "%');
+  assert.equal(seen.length, 1, "the chat above sees what the helper was told");
+  assert.equal(hn.named("message.received").slice(before).filter((e) => e.payload["copy"] === true).length, 1, "and it is flagged as a copy: no agent answers it");
+  assert.equal((await failure(() => g["chat.helper.steer"](hn.person(LEO), { threadId: h, body: "hi", idempotencyKey: "s-2" }))).code, "validation.precondition_failed", "not in the chat");
+});

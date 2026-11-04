@@ -112,13 +112,17 @@ test("the star toggles with stars.toggle; the name and the more button open the 
   } finally { off(); }
 });
 
-test("People opens the one Add people and agents sheet", async () => {
+test("People opens the people popover; Add People in the project's menu opens the one Add people and agents sheet", async () => {
   const off = installDom(); widen(1280);
   try {
     const t = setup();
     const root = await mount(createRoot, page(t));
     await flush();
     await press(find(root, "project-members")); await flush();
+    assert.ok(find(root, "people-popover"));
+    await press(find(root, "people-footer")); await flush();
+    await press(find(root, "project-more")); await flush();
+    await press(find(root, "menu-item-Add People…")); await flush();
     assert.ok(find(root, "add-sheet"));
   } finally { off(); }
 });

@@ -39,6 +39,7 @@
         "modules/mcp/",
         "modules/notes/",
         "modules/machines/",
+        "modules/hooks/",
         "package-lock.json"
       ],
       "modules": [
@@ -50,7 +51,8 @@
         "terminal",
         "mcp",
         "notes",
-        "machines"
+        "machines",
+        "hooks"
       ]
     },
     {
@@ -455,6 +457,7 @@
     "mail": "L5",
     "mailgun": "L5",
     "machines": "L2",
+    "hooks": "L2",
     "mcp": "L2",
     "meetings": "L5",
     "members": "L7a",
