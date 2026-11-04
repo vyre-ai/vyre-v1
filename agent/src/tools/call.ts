@@ -8,6 +8,10 @@ import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesS
 import type { AccessDeps } from "./access.ts";
 import type { LocalDecision } from "./local.ts";
 import type { Refusal, ToolCtx, ToolDef, ToolResult, ToolSet } from "./types.ts";
+import { withLocalTimes } from "../../../lib/time-convert.ts";
+
+/** The capabilities whose results are times a person schedules by. */
+const TIMED = /^(?:calendar|mail|inbox|tasks|meetings|events)\./;
 
 export type ToolOutcome =
   | { kind: "result"; result: ToolResult; traceId: string }
@@ -35,6 +39,8 @@ export interface CallDeps extends AccessDeps {
   dynamic?: DynamicTools;
   hooks?: CallHooks;
   invoke: Invoke;
+  /** The asker's time zone, when known: a calendar, mail, inbox or task result then carries each time in it as well (lib/time-convert.ts withLocalTimes). */
+  zoneOf?(ctx: ToolCtx): string | undefined;
   traceId?(): string;
   /** A tool call crashed inside the server with an error nobody named: told once, with the cause, so the log can say why this trace failed. */
   onUnexpected?(cap: string, error: unknown, traceId: string): void;
@@ -182,7 +188,9 @@ export function createToolSession(deps: CallDeps): ToolSession {
         if (typeof made === "string") await deps.invoke("chat.flow_card", { threadId: ctx.thread.threadId, automationId: made, idempotencyKey: `flow-card:${made}` }, seed).catch(() => undefined);
       }
       recordWork(ctx.turnId, workCardOf(t.cap, input, res.output));
-      const content: { data: unknown; blocks?: string[] } = { data: res.output };
+      // times in the person's zone beside the ISO and epoch ones, for the tools that return times people schedule by
+      const zone = TIMED.test(t.cap) ? deps.zoneOf?.(ctx) : undefined;
+      const content: { data: unknown; blocks?: string[] } = { data: zone ? withLocalTimes(res.output, zone) : res.output };
       if (t.blocks.length > 0) content.blocks = t.blocks;
       if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
       return { kind: "result", traceId: res.traceId, result: { ok: true, content } };

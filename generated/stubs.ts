@@ -860,6 +860,7 @@ export function stubs(ctx: CallCtx) {
         set: call("engine.subscription_share.set"),
       },
       switch: call("engine.switch"),
+      time_convert: call("engine.time_convert"),
       turn: {
         append: call("engine.turn.append"),
         enqueue: call("engine.turn.enqueue"),

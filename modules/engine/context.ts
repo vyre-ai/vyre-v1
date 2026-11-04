@@ -14,6 +14,7 @@ type Obj = Record<string, unknown>;
 import { CONNECTOR_CHAT, CONNECTOR_SKILL, CRM_CHAT, CRM_SKILL } from "../../lib/connector-chat.ts";
 import { COMPANY_INTENT } from "../../lib/company-flow.ts";
 import { ABOUT_VYRE_INTENT, ABOUT_VYRE_SKILL } from "../../lib/about-vyre.ts";
+import { offsetMinutes } from "../../lib/time-convert.ts";
 
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
 /** How to name a record, file, task or chat in a reply: by link, never by id. */
@@ -113,7 +114,9 @@ export function timeLine(at: number, zone?: string): string {
   let tz = zone && zone !== "" ? zone : "UTC";
   let text: string;
   try { text = fmt(tz); } catch { tz = "UTC"; text = fmt(tz); }
-  return `It is ${text.replace(" at ", ", ")} (${tz}).`;
+  const off = offsetMinutes(at, tz);
+  // the person's zone and its offset are stated, and the model is told to convert with time_convert: the owner's Assistant worked a meeting's day out wrong from epoch numbers in its head
+  return `It is ${text.replace(" at ", ", ")} (${tz}). That is UTC${off < 0 ? "-" : "+"}${Math.floor(Math.abs(off) / 60)}${Math.abs(off) % 60 ? `:${String(Math.abs(off) % 60).padStart(2, "0")}` : ""}. The person's time zone is ${tz}: say times in it. To move a time between zones, or to turn "tomorrow 2pm PT" into a time, call time_convert; never work out zones, dates or epoch numbers yourself.`;
 }
 
 /** A routine or watcher in one line the agent can act on: kind, title, when, state, id. */

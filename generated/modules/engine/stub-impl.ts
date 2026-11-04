@@ -70,6 +70,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.stop_all": async () => ({"stopped":1} as unknown) as never,
   "engine.subscription_share.set": async () => ({"enabled":true,"sandboxStopped":true} as unknown) as never,
   "engine.switch": async () => ({"engine":"example","handoffTurns":1,"model":"example","quietLine":"Switched to Codex, picked up from the summary and the last 20 turns"} as unknown) as never,
+  "engine.time_convert": async () => ({"given":"example","inYourZone":"example","instant":"example","note":"example","personZone":"example","zones":[{"text":"example","zone":"example"}]} as unknown) as never,
   "engine.turn.append": async () => ({"idx":1} as unknown) as never,
   "engine.turn.enqueue": async () => ({"qseq":1} as unknown) as never,
   "engine.turn.fallback": async () => ({"ok":true} as unknown) as never,

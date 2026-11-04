@@ -41,6 +41,7 @@
 - A turn records the model that really ran: the session wrappers no longer drop it, so a swapped turn is no longer filed under the model that was asked for. A swapped turn on a Space account says `space`, not the asker's own key.
 - A flat-plan account that reports a cost of 0 shows "Flat plan" in a reply's Details, never $0.00.
 - The relay's `/health` answers `{ ok: true, version }`. The version is stamped at deploy (`RELAY_VERSION`, from package.json) and is `dev` where none was set.
+- Agents get times in the person's zone: every turn says the zone and its UTC offset, calendar, mail, inbox and task results carry `<key>Local` strings beside ISO and epoch times, and a new `time_convert` tool turns "tomorrow 2pm PT" or a time in one zone into another, so a model never works zones out itself.
 
 ## What's new
 - Agents on Claude Code or Codex can work in a goal's folder: it shows as goal/ and their changes are saved to Vyre.
