@@ -420,10 +420,53 @@ test("goals.create reports what happened to each helper: seated when the chat to
   assert.deepEqual(upd.seated.map((s: { id: string; inChat: boolean }) => [s.id, s.inChat]), [[ALIZA, true]]);
 });
 
+test("the owner edits a draft in place: title, finish line, deadline, lead, owner, helpers and the drafted plan, each through goals.update", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal({ plan: [step("a", "First step"), step("b", "Second step")] }), lead);
+  const got = await w.call("goals.get", { goalId: goal.id }, owner);
+  assert.deepEqual(got.draftPlan.map((c: { key: string }) => c.key), ["a", "b"], "a draft shows its drafted plan");
+  const edit = await w.call("goals.update", {
+    goalId: goal.id, title: "Lab 8: 320 sign-ups", finish: { ...goal.finish, line: "Luma registrations reach 320" }, deadline: T0 + 6 * DAY, leadAgentId: HELPER,
+    helpers: [{ kind: "person", id: ALIZA }], plan: [step("b", "Second step first"), step("c", "A new step")],
+  }, owner);
+  assert.equal(edit.goal.title, "Lab 8: 320 sign-ups");
+  assert.equal(edit.goal.finish.line, "Luma registrations reach 320");
+  assert.equal(edit.goal.deadline, T0 + 6 * DAY);
+  assert.equal(edit.goal.leadAgentId, HELPER);
+  assert.deepEqual(edit.seated.map((s: { id: string; inChat: boolean }) => [s.id, s.inChat]), [[ALIZA, true]]);
+  assert.ok(w.state.calls.some((c) => c.cap === "threads.add_agent" && c.input.agentId === HELPER && c.input.mode === "lead"), "the new lead takes the chat");
+  const again = await w.call("goals.get", { goalId: goal.id }, owner);
+  assert.deepEqual(again.draftPlan.map((c: { key: string }) => c.key), ["b", "c"]);
+  const acts = (await w.call("goals.activity", { goalId: goal.id }, owner)).activity;
+  assert.ok(acts.some((a: { kind: string; text: string }) => a.kind === "edit" && /title/.test(a.text) && /plan/.test(a.text)), "the edit is in the activity");
+  // the owner can hand the goal to someone else; what the old owner allowed does not carry over
+  const handed = await w.call("goals.update", { goalId: goal.id, owner: ALIZA }, owner);
+  assert.equal(handed.goal.owner, ALIZA);
+  assert.ok(handed.goal.permissions.every((p: { granted: boolean }) => p.granted === false));
+  // a stranger cannot, and a running goal's plan is its tasks
+  await assert.rejects(w.call("goals.update", { goalId: goal.id, title: "x" }, { id: STRANGER, kind: "person", origin: "app" }));
+  const live = await w.call("goals.create", labGoal({ idempotencyKey: "k2" }));
+  await assert.rejects(w.call("goals.update", { goalId: live.goal.id, plan: [step("z", "Nope")] }, owner), /Only a draft/);
+});
+
 test("the agent that drafted a goal may add to its plan before Start; another agent may not", async () => {
   const w = world({ count: 10 });
   const { goal } = await w.call("goals.create", labGoal(), { id: "agt_drafter", kind: "agent", actingFor: OWNER });
   const added = await w.call("goals.plan", { goalId: goal.id, children: [step("x", "A step")] }, { id: "agt_drafter", kind: "agent", actingFor: OWNER });
   assert.equal(added.drafted, 1);
   await assert.rejects(w.call("goals.plan", { goalId: goal.id, children: [step("y", "Another")] }, { id: "agt_other", kind: "agent", actingFor: OWNER }), /lead agent or the owner/);
+});
+
+test("an agent starts a draft only when the owner just asked in their own message; otherwise the draft stays and the card waits", async () => {
+  const w = world({ count: 10 });
+  const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
+  const { goal } = await w.call("goals.create", labGoal({ sourceThreadId: "thr_chat" }), agent);
+  assert.equal(goal.status, "draft");
+  assert.ok(w.state.posts.some((p) => p.threadId === "thr_chat" && p.blocks?.[0]?.data.kind === "draft"), "the card with Start is in the chat");
+  for (const messageId of [undefined, "msg_other", "msg_owner_old"]) {
+    await assert.rejects(w.call("goals.confirm", { goalId: goal.id, ...(messageId ? { messageId } : {}) }, agent), /Only the owner starts a goal/);
+  }
+  const started = (await w.call("goals.confirm", { goalId: goal.id, messageId: "msg_owner_start" }, agent)).goal;
+  assert.equal(started.status, "planning");
+  assert.ok(started.permissions.every((p: { granted: boolean }) => p.granted === false), "an agent's start grants no permission");
 });

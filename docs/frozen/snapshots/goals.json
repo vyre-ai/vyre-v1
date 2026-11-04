@@ -6,12 +6,12 @@
     "goals.brief@1": "277cb78316c9c57bbe77b8d34007b3078231ea70f4aad66d11811b98a4cef104",
     "goals.checklist.tick@1": "60ddc616c3a83f65255c668c1f9cb70c30fd0292148e1dd4198ba519e5ccfcaa",
     "goals.complete@1": "a74cadd099d2ea62d6c40a12f6ea4ed47e910b33ec85e4878a515f9d85e8fcbb",
-    "goals.confirm@1": "365ecc7676d1c14977930f234523db0a8e6cd9bf009e73b1113d71e1f64be9d3",
+    "goals.confirm@1": "2b87696254bd82ee8f18cee0d879f11f9ede689cb4790b5169352a8a5a871741",
     "goals.create@1": "8e46f8f1a32deb49494a84f21fa4f2b6d323e1bf745800270d5f372f9dffa666",
     "goals.extend@1": "5465dcd0ee34365e9e985246abbae7380ccdc1fcaf281b2cc2da6c422bb508be",
     "goals.finish@1": "e8e5f51130459346f1ff79c9397e77153e8a2ec63a2d63fe8823027a3c902c48",
     "goals.folder@1": "199d5b478cf98f51da257bd3efd3f88ca52e00a802007360b4119469aeb641b9",
-    "goals.get@1": "f30878b4c5141f3fe2c465242441c9612165d458d4fe68960a0e1a10d95f2717",
+    "goals.get@1": "11d83c602643c79ed0a48272b1ba8095436eb65ebbb53a4639f0decf1ef656a8",
     "goals.go@1": "71f213bd864ff6d517af6f652f3d864a0f3a4015f3044384522a084792f1254b",
     "goals.list@1": "7b2b15cbfa08687b3d0f79ed1e36944f8885ccecb722bcd049df6cdd78dc86f4",
     "goals.mark_stuck@1": "265804a14ce615fe1db4edac981085401f9c49ec3e78a0db65cec0d690dc80fb",
@@ -25,7 +25,7 @@
     "goals.sources@1": "8f157fffa3e21cc939d21c57dbc937d135053cef8d63b0d6a4e4a44369fcb3d1",
     "goals.step@1": "db25831193d76dd85750f2495e8b59a1638cbfe2d2b374b1349c29baed49ef00",
     "goals.stop@1": "e67d49a8cc5e490883f548c7f7d8d1eb71814670987ef871282c04df9042193e",
-    "goals.update@1": "1bde84958038f149d57d774b44db6ba734484d9fb55211c5d39d3f7f299aa742",
+    "goals.update@1": "2ec140627110ebccc2d5df2f4dd50195974ba9be85a903870f52d4f7e33fc4cf",
     "goals.wake_claim@1": "10b861ccb20e85d1b2e868ebabe51a7b4ee51cd5b7f5bbec3e1a023404b23d47"
   },
   "events": {

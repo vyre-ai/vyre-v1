@@ -1,6 +1,6 @@
 # goals.update
 
-Change a goal: its finish line, deadline, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)
+Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)
 
 | | |
 |---|---|
@@ -85,6 +85,30 @@ type In = {
       granted?: boolean;
     }>;
   stuckAfter?: number;
+  leadAgentId?: string;
+  owner?: string;
+  plan?: Array<{
+      key: string;
+      title: string;
+      why: string;
+      impact?: string;
+      brief?: string;
+      doneMeans?: Array<string>;
+      assigned: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      reviewer?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      approver?: {
+        kind: "person" | "agent" | "group" | "role";
+        id: string;
+      };
+      dependsOn?: Array<string>;
+      due?: number;
+    }>;
 };
 ```
 
@@ -256,13 +280,43 @@ type Out = {
         "kind": "person"
       }
     ],
+    "leadAgentId": "agt_a1b2c3",
     "outcome": "example",
+    "owner": "usr_a1b2c3",
     "permissions": [
       {
         "act": "send",
         "granted": true,
         "label": "Send email from the Lab template",
         "target": "mail.send"
+      }
+    ],
+    "plan": [
+      {
+        "approver": {
+          "id": "agt_a1b2c3",
+          "kind": "person"
+        },
+        "assigned": {
+          "id": "agt_a1b2c3",
+          "kind": "person"
+        },
+        "brief": "example",
+        "dependsOn": [
+          "example"
+        ],
+        "doneMeans": [
+          "example"
+        ],
+        "due": 1760000000000,
+        "impact": "+40 to +60 registrations",
+        "key": "reminder",
+        "reviewer": {
+          "id": "agt_a1b2c3",
+          "kind": "person"
+        },
+        "title": "example",
+        "why": "Lab 7 attendees registered at 31% after one reminder last time"
       }
     ],
     "projectId": "prj_a1b2c3",

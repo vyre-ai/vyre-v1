@@ -117,12 +117,12 @@ export default defineManifest({
       emits: EMITS, tool: 'tasks', mcpName: 'goals_create', cli: 'vyre goals create',
       errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
-    write('goals.confirm', 'Start a drafted goal: the owner presses Start on its card. The standing permissions it names hold from this press', {
-      in: { ...target, permissions: t.opt(t.arr(t.str(), { description: 'The labels of the permissions to grant; all when omitted' })) }, out: { goal: goalRow }, level: 'member',
+    write('goals.confirm', 'Start a drafted goal: the owner presses Start on its card, or an agent acting for the owner starts it with messageId, the message in which the owner asked for it, in the goal chat and under 15 minutes old. An agent start grants no permission. The standing permissions it names hold from this press', {
+      in: { ...target, permissions: t.opt(t.arr(t.str(), { description: 'The labels of the permissions to grant; all when omitted' })), messageId: t.opt(id.message) }, out: { goal: goalRow }, level: 'member',
       emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     read('goals.get', 'One goal: its finish line and progress, the plan as tasks, who is helping, what waits on whom, budget used and the latest activity', {
-      in: target, out: { goal: goalRow, tasks: t.arr(taskLine), waiting: t.arr(waitLine), activity: t.arr(activity), readings: t.arr(reading) }, level: 'member', tool: 'tasks', mcpName: 'goals_get', label: 'check',
+      in: target, out: { goal: goalRow, draftPlan: t.opt(t.arr(planChild)), tasks: t.arr(taskLine), waiting: t.arr(waitLine), activity: t.arr(activity), readings: t.arr(reading) }, level: 'member', tool: 'tasks', mcpName: 'goals_get', label: 'check',
       errors: ['validation.not_found'],
     }),
     read('goals.list', 'Goals by scope: mine, the ones I help with, a project, a record, a task, or all I can see', {
@@ -132,11 +132,12 @@ export default defineManifest({
     read('goals.activity', 'The activity of a goal, newest first: every reading, wake-up, step, task and status change, and why', {
       in: { ...target, before: t.opt(t.ts()), limit: t.opt(t.int({ minimum: 1, maximum: 200 })) }, out: { activity: t.arr(activity) }, level: 'member', tool: 'tasks', errors: ['validation.not_found'],
     }),
-    write('goals.update', 'Change a goal: its finish line, deadline, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)', {
+    write('goals.update', 'Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)', {
       in: {
         ...target, title: t.opt(t.str({ minLength: 1, maxLength: 140 })), outcome: t.opt(t.str()), finish: t.opt(finish), deadline: t.opt(t.ts()), budget: t.opt(budget), rhythm: t.opt(rhythm),
         quiet: t.opt(t.nullable(quiet)), zone: t.opt(t.str()), helpers: t.opt(t.arr(who, { maxItems: 20 })), projectId: t.opt(t.nullable(id.project)), recordIds: t.opt(t.arr(id.record, { maxItems: 50 })),
         permissions: t.opt(t.arr(permission, { maxItems: 10 })), stuckAfter: t.opt(t.int({ minimum: 1, maximum: 20 })),
+        leadAgentId: t.opt(id.agent), owner: t.opt(id.user), plan: t.opt(t.arr(planChild, { maxItems: 50, description: 'A draft goal only: the drafted plan, replaced whole' })),
       },
       out: { goal: goalRow, seated: t.opt(t.arr(seat)) }, level: 'member', emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),

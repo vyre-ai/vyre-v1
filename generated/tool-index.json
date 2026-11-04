@@ -3645,7 +3645,7 @@
     {
       "deferred": false,
       "name": "goals_confirm",
-      "summary": "Start a drafted goal: the owner presses Start on its card. The standing permissions it names hold from this press",
+      "summary": "Start a drafted goal: the owner presses Start on its card, or an agent acting for the owner starts it with messageId, the message in which the owner asked for it, in the goal chat and under 15 minutes old. An agent start grants no permission. The standing permissions it names hold from this press",
       "toolset": "tasks"
     },
     {
@@ -3741,7 +3741,7 @@
     {
       "deferred": false,
       "name": "goals_update",
-      "summary": "Change a goal: its finish line, deadline, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)",
+      "summary": "Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)",
       "toolset": "tasks"
     },
     {
