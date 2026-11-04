@@ -34,6 +34,8 @@ const READS: Readonly<Record<string, (id: string, args: Readonly<Record<string, 
   automation: (id) => ({ cap: "automations.get", input: { automationId: id } }),
   project: (id) => ({ cap: "projects.get", input: { projectId: id } }),
   agent: (id) => ({ cap: "agents.get", input: { agentId: id } }),
+  // a teammate opens as their public profile: the read the person pane makes
+  person: (id) => ({ cap: "memory.profile.get", input: { personId: id } }),
   file: (id) => ({ cap: "files.get", input: { fileId: id } }),
   doc: (id) => ({ cap: "files.get", input: { fileId: id } }),
   document: (id) => ({ cap: "files.get", input: { fileId: id } }),
