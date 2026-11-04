@@ -11,6 +11,7 @@ HTTP 403. Retryable: no.
 - access.actors.revoke
 - access.actors.set_engineer_mcp
 - access.actors.update
+- access.agents_can_call.set
 - access.audience_set
 - access.check
 - access.grants.update
@@ -30,4 +31,3 @@ HTTP 403. Retryable: no.
 - audit.archives.list
 - audit.checkpoints.list
 - audit.export
-- audit.get

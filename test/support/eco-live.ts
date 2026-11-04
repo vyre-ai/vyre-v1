@@ -155,7 +155,7 @@ export async function claimedSpace(standIn: OpenSession, name = "Crew Co"): Prom
   const token = ((await claimed.json()) as { data: { session: { token: string } } }).data.session.token;
   assert.equal(await holdKeyOnOwnNode(d.url, token, made.personKey), true);
   const api: Api = async (cap, input) => {
-    const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(input) });
+    const r = await fetch(`${d.url}/v1/${cap.replaceAll(".", "/")}`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${token}` }, body: JSON.stringify(input) }).catch((e: unknown) => { throw new Error(`${cap}: ${String(e)} (the daemon closed the connection) ${hostLog(d)}`); });
     const body = (await r.json()) as { data?: unknown };
     assert.equal(r.status, 200, `${cap}: ${r.status} ${JSON.stringify(body)}`);
     return body.data;

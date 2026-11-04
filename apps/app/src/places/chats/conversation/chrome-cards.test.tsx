@@ -32,18 +32,17 @@ test("the words follow the act: Send, Post, Pay or Delete, and the matching Don'
 test("the held card draws the four fields and three buttons; once answered it says what happened and has no buttons", () => {
   const open = renderToStaticMarkup(<HeldSendCard id="b1" data={HELD} agentId="agt_scout" actions={ok} />);
   const t = flat(open);
-  assert.match(t, /Held: send this/);
-  assert.match(t, /Scout wants to send this/);
+  assert.match(t, /Scout wants to send this to dana@client\.test/);
   assert.match(t, /Where mail\.google\.com, in your Chrome/);
   assert.match(t, /Scout stopped before Send/);
-  for (const w of ["To", "dana@client.test", "From", "olivia@firm.test", "Subject", "Your signed deed", "Message", "Hi Dana, the signed deed is attached."]) assert.ok(t.includes(w), w);
-  for (const id of ["send", "edit", "drop"]) assert.match(open, new RegExp(`chrome-held-${id}-b1`));
+  for (const w of ["From", "olivia@firm.test", "Subject", "Your signed deed", "Hi Dana, the signed deed is attached."]) assert.ok(t.includes(w), w);
+  for (const id of ["send", "edit", "drop"]) assert.match(open, new RegExp(`chrome-held-b1-${id}`));
   assert.match(t, /Don't send/);
   const sent = renderToStaticMarkup(<HeldSendCard id="b1" data={{ ...HELD, state: "sent" }} agentId="agt_scout" />);
   assert.match(flat(sent), /Sent/);
-  assert.ok(!/chrome-held-send/.test(sent));
+  assert.ok(!/chrome-held-b1-send/.test(sent));
   assert.match(flat(renderToStaticMarkup(<HeldSendCard id="b2" data={{ ...HELD, state: "dropped" }} agentId="agt_scout" />)), /Not sent/);
-  assert.match(flat(renderToStaticMarkup(<HeldSendCard id="b3" data={{ ...HELD, kind: "payment", card: {}, summary: "payment: Pay now on shop.test" }} agentId="agt_scout" />)), /Scout wants to make this payment.*payment: Pay now on shop\.test/);
+  assert.match(flat(renderToStaticMarkup(<HeldSendCard id="b3" data={{ ...HELD, kind: "payment", card: {}, summary: "payment: Pay now on shop.test" }} agentId="agt_scout" />)), /Pay now on shop\.test/);
   assert.ok(!/<script|onerror/i.test(renderToStaticMarkup(<HeldSendCard id="b4" data={{ ...HELD, card: { message: "<script>x</script>" } }} agentId="a" />)), "text is text");
 });
 

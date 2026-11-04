@@ -1,6 +1,7 @@
 // What the goals module reads from the event log: its tasks moving, turns in its chats (budget), turns parked on a person (waiting), mentions (folder access). Each is safe to read twice.
 import { ENDED, LIVE, addTask, addThread, allGoals, dispatch, ensure, getGoal, goalOfTask, goalOfThread, openWake, note, queueWake, rootOf, saveGoal, setStatus, threadsOf } from "../projections.ts";
 import type { Goal, GoalsCtx, Who } from "../projections.ts";
+import { whoToken } from "../../../lib/words/time.ts";
 import { addWait, dropWait, ensureFolder, setTaskState, spend, stuck, syncGrants, tick, tickFromTask, tryCall, unstick } from "./life.ts";
 
 type Obj = Record<string, unknown>;
@@ -111,7 +112,7 @@ export async function onMention(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
   const g = goalId ? getGoal(ctx.db, goalId) : undefined;
   if (!g?.folderId || !personId.startsWith("usr_") || personId === g.owner || g.helpers.some((h) => h.id === personId)) return [];
   await tryCall(ctx, "access.share", { resource: { type: "folder", id: g.folderId }, subject: { kind: "person", id: personId }, level: "view", source: `goal:${g.id}:mention`, idempotencyKey: `goal-mention:${g.id}:${personId}` });
-  note(ctx, g.id, "access", `${personId} was mentioned in the goal chat and can read its folder.`, personId);
+  note(ctx, g.id, "access", `${whoToken(personId)} was mentioned in the goal chat and can now open its folder.`, personId);
   saveGoal(ctx, g);
   return [g.id];
 }
@@ -121,7 +122,7 @@ export async function sweep(ctx: GoalsCtx): Promise<string[]> {
   ensure(ctx.db);
   const ids = allGoals(ctx.db, "status IN ('planning', 'active', 'waiting', 'stuck', 'paused') OR id IN (SELECT goal_id FROM goals_wake WHERE state = 'pending')").map((g) => g.id);
   for (const id of ids) {
-    try { await tick(ctx, id); } catch (e) { note(ctx, id, "error", `The goal's clock failed once: ${e instanceof Error ? e.message.slice(0, 200) : String(e)}`); }
+    try { await tick(ctx, id); } catch (e) { note(ctx, id, "error", `A check-in did not run. It will try again at the next one.`); }
   }
   return ids;
 }

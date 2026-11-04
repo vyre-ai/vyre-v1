@@ -242,12 +242,17 @@ export function AppsLoading(): ReactElement {
   return <View style={s.page} testID="apps-loading-frame"><View style={[s.side, s.sideWide]}><View style={s.sh}><Text accessibilityRole="header" style={s.title}>Apps</Text></View></View><View style={s.main}><View style={s.skeleton}>{skeleton()}</View></View></View>;
 }
 
+function ArtifactsMoved({ data, id }: { data: AppsData; id?: string }): ReactElement {
+  useEffect(() => { data.nav.openArtifact?.(id); }, [data, id]);
+  return <View style={s.page} testID="apps-artifacts-moved" />;
+}
+
 export default function AppsLayout({ data, start, route }: { data?: AppsData | undefined; start?: AppsStart | undefined; route?: AppsRoute | undefined }): ReactElement {
   const provided = useOptionalAppsData();
   const v = data ?? provided;
   if (!v) return <AppsLoading />;
-  // artifacts need no team and no server: they are a person's own
-  if (route?.kind === "artifacts") return <AppsDataProvider value={v}><View style={s.page}><AppsSurface route={route} /></View></AppsDataProvider>;
+  // an old link to an artifact lands in Chats, under the Artifacts row (no Apps page for it)
+  if (route?.kind === "artifacts") return <ArtifactsMoved data={v} {...(route.id ? { id: route.id } : {})} />;
   if (!v.team) return <View style={s.page} testID="apps-needs-team"><View style={s.center}><NeedsTeamSpace density="regular" what="Forms" onAction={v.nav.joinTeam} /></View></View>;
   return <AppsDataProvider value={v}><Page initial={start} route={route} /></AppsDataProvider>;
 }

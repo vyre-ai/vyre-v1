@@ -12,6 +12,10 @@ import { collect } from "./model.ts";
 import { askLine, askRows, denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, plainRows, sentLine, wantsLine } from "./approval-model.ts";
 import type { DiffLine } from "./approval-model.ts";
 import { Face } from "../needsyou/parts.tsx";
+import { HeldCard } from "./held-card.tsx";
+import type { HeldEditor } from "./held-card.tsx";
+import { outwardOf, scheduleWords, verbOfChannel } from "../../../../../../lib/outward.ts";
+import type { Outward, Recipient } from "../../../../../../lib/outward.ts";
 import { useFollow } from "./use-follow.ts";
 import { DECIDED_LINE, isDecided } from "../../../shell/decided.ts";
 
@@ -31,7 +35,7 @@ async function subjectOf(data: Data, cap: string, input: Record<string, unknown>
   return undefined;
 }
 
-export function ApprovalCard({ taskId, agent, agentId, data, face }: { taskId: string; agent: string; agentId: string; data: Data; /** an agent asking for its person wears that person's face (lane l-agentdm) */ face?: string }): ReactElement | null {
+export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { taskId: string; agent: string; agentId: string; data: Data; /** an agent asking for its person wears that person's face (lane l-agentdm) */ face?: string; /** the held card's editor, when a test or a screenshot puts its own in */ editor?: HeldEditor }): ReactElement | null {
   const [task, setTask] = useState<Task | null | undefined>(undefined);
   const [subject, setSubject] = useState<string | undefined>(undefined);
   /** For an edit of a file that exists: what is taken out and put in, instead of the new text alone. */
@@ -70,6 +74,35 @@ export function ApprovalCard({ taskId, agent, agentId, data, face }: { taskId: s
 
   if (task === undefined || task === null) return null;
   const held = heldOf(task.blocks);
+  // a held message, email, text or post: the one held card (held-card.tsx). The Gate writes who, how, when and what into the hold; a hold parked before that is read from its input the same way.
+  const ow: Outward | null = held.what || held.plain ? null : held.outward ?? outwardOf(held.cap, held.input);
+  if (ow) {
+    const ended = outcome ?? outcomeOf(task.state);
+    const nameOf = (r: Recipient): string => (r.kind === "person" ? subject ?? "a teammate" : r.kind === "thread" ? "this chat" : r.address ?? "");
+    const first = ow.to[0] ? nameOf(ow.to[0]) : "";
+    const hhmm = new Date((task as { updatedAt?: number }).updatedAt ?? Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    const answer = (key: "approve" | "reject", note?: string): Promise<void> => Promise.resolve(data.call("tasks.act", { taskId, action: key, ...(note !== undefined ? { note } : {}) })).then(
+      () => { setOutcome(key === "approve" ? "allowed" : "denied"); },
+      (e: unknown) => { if (isDecided(e)) { void load(); throw new Error(DECIDED_LINE); } throw e; },
+    );
+    return (
+      <HeldCard
+        testID={ended ? `approval-done-${taskId}` : `approval-${taskId}`} agent={agent} to={ow.to.map((r) => ({ name: nameOf(r), seed: r.id ?? r.address ?? agentId, kind: "person" as const }))} verb={verbOfChannel(ow, nameOf)}
+        schedule={scheduleWords(ow.schedule, (at) => `at ${new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`)} subject={ow.subject} body={ow.body}
+        edited={Boolean(ow.edited)} state={ended === "allowed" ? "sent" : ended === "denied" ? "dropped" : "waiting"}
+        doneLine={ended === "allowed" ? `Sent${first ? ` to ${first}` : ""} · ${hhmm}` : "Not sent"} editable={Boolean(held.holdId) && !ended} editSubject={false}
+        {...(editor ? { editor } : {})} onSend={() => answer("approve")} onDrop={(reason) => answer("reject", denyNote(reason))}
+        onSave={async ({ body }) => {
+          if (!held.holdId) throw new Error("This cannot be edited.");
+          await data.call("gate.holds.revise", { holdId: held.holdId, taskId, body });
+          // the edit is a lesson for the agent: the way the person changed what it wrote (memory's own path for corrections; where memory does not have it yet, nothing is lost)
+          void Promise.resolve(data.call("memory.corrections.record", { agentId, how: "edit", was: ow.body, now: body })).catch(() => undefined);
+          described.current = true;
+          await load();
+        }}
+      />
+    );
+  }
   // a change held only because the chat is in Ask first is a person's to always allow; any other act needs an admin, so the card does not offer it
   const allowable = held.act === "approve";
   const ended = outcome ?? outcomeOf(task.state);

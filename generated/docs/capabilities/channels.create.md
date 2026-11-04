@@ -30,6 +30,7 @@ type In = {
   topic?: string;
   memberIds?: Array<string>;
   agentIds?: Array<string>;
+  leadAgentId?: string;
   folderId?: string;
   recordId?: string;
   idempotencyKey: string;
@@ -61,6 +62,13 @@ type Out = {
         effort?: "low" | "medium" | "high" | "max";
         accountRef?: string;
         watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
       }>;
     unread: number;
     createdAt: number;
@@ -88,6 +96,7 @@ type Out = {
     ],
     "folderId": "fld_a1b2c3",
     "idempotencyKey": "idem_1",
+    "leadAgentId": "agt_a1b2c3",
     "memberIds": [
       "usr_a1b2c3"
     ],
@@ -103,10 +112,17 @@ type Out = {
           "accountRef": "example",
           "agentId": "agt_a1b2c3",
           "effort": "low",
+          "hoursFrom": "09:00",
+          "hoursTo": "09:00",
           "mode": "lead",
           "model": "claude-sonnet-5-5",
+          "owned": true,
           "provider": "anthropic",
-          "watches": true
+          "quiet": true,
+          "style": "short",
+          "topics": "example",
+          "watches": true,
+          "when": "always"
         }
       ],
       "archived": true,

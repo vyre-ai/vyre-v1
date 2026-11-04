@@ -52,6 +52,7 @@ export const BRIDGE_OPS = Object.freeze({
   "login.check": "the filler compares a submitted login with the vault and says known, changed or new, without revealing anything",
   "ask.page": "start an Ask about this page with an agent; the page title and address go, the question is the person's",
   "artifact.open": "open an artifact link as the signed-in person: the Space mints a single-use address and the extension opens it in a tab (never page cookies)",
+  "artifact.thumb": "keep a small picture of an artifact the person just opened (480 px webp, password and card fields blacked out first) so its card and the Artifacts grid show it",
   "app.open": "open the Vyre app at a place (the Vault, an item, a chat, a note, a skill, Automations > Watching)",
   "chat.ask": "send a side panel message to an agent in the active Space: the same thread as Vyre Chats; the reply streams back as chat.delta pushes",
   "chat.search": "find the person's chats in the active Space by words, for the side panel's chat search",

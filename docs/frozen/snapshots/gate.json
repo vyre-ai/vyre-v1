@@ -15,6 +15,7 @@
     "gate.grants.take@1": "f81795602a390c47c918595cf5a172d315f318539a29ca7d64b0641f43e344d8",
     "gate.holds.get@1": "e3862a29bae7cee1649021b5cf50f44fadaf6f43219850d1d766cc7ed03e034e",
     "gate.holds.list@1": "718a2482ac0a8c70a2e430962ee46c80cf9d67175dd4bd0231bbd92a54f54f6d",
+    "gate.holds.revise@1": "e09848527a354aa5770e42049d1cae28fbdcb10c9a18117ba04fae6b29a7a0fa",
     "gate.links.known@1": "bc42884b6a6dc7cc1892fe6593bb5b4c36c410be8209cc72d578a85ce0a69b0c",
     "gate.park@1": "08f2117d0f92615a03d0e42ff4a23e5c71f9b36a098946066c32f694d31a02f4",
     "gate.release@1": "2c929a04c862141d1e413753f1386ce4bd932a2fe4d7983236aed29b4190ba78",
@@ -28,6 +29,7 @@
     "gate.denied": "cae31b87778e20e896c1361ebb6c488f7cb0767dec534ac30bfb6a20aab043ad",
     "gate.expired": "d6361048bd2c0552c18d5a0db35e23785e7e7f2c14e12368b116ecf0d788de57",
     "gate.requested": "2edd8fb98424aa449929cb488b989b054c5359f651b23a30ec4ce5c8f0a3aa1f",
+    "gate.revised": "cd64dcca72dc11fb1d29ea0a1bfb0ce7c109695db5691ec0fc15d2987b98727b",
     "gate.rule_changed": "42f1a4db43329e6d83aff7b29ff59a412dfc411034ed394ec964fa03d3118221"
   }
 }

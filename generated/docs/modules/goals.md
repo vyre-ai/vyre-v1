@@ -11,7 +11,7 @@ Requires: nothing.
 - [goals.brief](../capabilities/goals.brief.md): What the lead agent of a goal reads at each wake-up: the finish line and where it stands, why it was woken, the plan, what waits, the budget and the rules
 - [goals.checklist.tick](../capabilities/goals.checklist.tick.md): The owner ticks or unticks one condition of a checklist goal
 - [goals.complete](../capabilities/goals.complete.md): When a goal ends (done or missed), write its retrospective: what worked, what did not, and a playbook worth repeating. It is saved to the goal, its project and Space memory. On an owner-says-done goal whose work is finished, it asks the owner to confirm instead
-- [goals.confirm](../capabilities/goals.confirm.md): Start a drafted goal: the owner presses Start on its card. The standing permissions it names hold from this press
+- [goals.confirm](../capabilities/goals.confirm.md): Start a drafted goal: the owner presses Start on its card, or an agent acting for the owner starts it with messageId, the message in which the owner asked for it, in the goal chat and under 15 minutes old. An agent start grants no permission. The standing permissions it names hold from this press
 - [goals.create](../capabilities/goals.create.md): Give an agent a goal with a finish line: it plans the work as tasks, works across days, posts progress, asks for approvals and says when it is stuck. Drafted by an agent, it waits for its owner to press Start
 - [goals.extend](../capabilities/goals.extend.md): Move the deadline of a goal; a missed goal starts again
 - [goals.finish](../capabilities/goals.finish.md): The owner says a goal is done (the finish line of an owner-says-done goal, or done early)
@@ -30,7 +30,7 @@ Requires: nothing.
 - [goals.sources](../capabilities/goals.sources.md): What a goal could count, for drafting a measurable finish line: record types with their counts, connections, and the outside MCP servers the lead can read
 - [goals.step](../capabilities/goals.step.md): Before a step with an effect (a send, a post, a record change), claim it by id; a step already done answers done with its result, so a retried wake-up never repeats it. Finish it with finish true
 - [goals.stop](../capabilities/goals.stop.md): Stop a goal for good: its open tasks are withdrawn and its permissions end
-- [goals.update](../capabilities/goals.update.md): Change a goal: its finish line, deadline, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)
+- [goals.update](../capabilities/goals.update.md): Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)
 - [goals.wake_claim](../capabilities/goals.wake_claim.md): System: the engine claims one wake-up of a goal before it starts the turn, so a wake-up read twice runs once. Only the server may call it
 
 ## Events (12)

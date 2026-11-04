@@ -4,12 +4,13 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (82)
+## Capabilities (84)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: a pin (the chat's account, the agent's key, the step's key), the person's own, the Space AI accounts whose uses cover the turn (cheapest that fits, not capped), the backups, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not
 - [engine.compact](../capabilities/engine.compact.md): Compact a chat: free the context of the agent's engine, keeping what the person names, and say so in one line with the context left. With always, the words are kept for every compaction of this chat
 - [engine.complete](../capabilities/engine.complete.md): One request and one answer on an account the caller can run on, for work that is not a chat (memory upkeep); returns the text and the token counts and posts nothing
+- [engine.crew.chat_repo](../capabilities/engine.crew.chat_repo.md): The repository of a chat that has its own work folder for the crew, or nothing yet
 - [engine.crew.list](../capabilities/engine.crew.list.md): The crew of a chat: one row per teammate job, newest first, with what each is on and how it stands
 - [engine.crew.merge](../capabilities/engine.crew.merge.md): Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. It is local: it leaves this computer only when it is pushed
 - [engine.crew.message](../capabilities/engine.crew.message.md): Send a message to a teammate in its own thread; a teammate that stopped picks up where it left off
@@ -84,6 +85,7 @@ Requires: nothing.
 - [engine.turn.start](../capabilities/engine.turn.start.md): Start a queued turn on the placement chosen (host or device); records account, engine and model
 - [engine.turn.wait](../capabilities/engine.turn.wait.md): Park a turn until a task, an answered block, a run or a time
 - [engine.turns.list](../capabilities/engine.turns.list.md): Turns of a thread, newest first
+- [engine.turns.running](../capabilities/engine.turns.running.md): Engine only: the turns running now with the machine each runs on (agent, asker, start, place; no message or title), for the Machines page
 - [engine.usage.get](../capabilities/engine.usage.get.md): For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated
 - [engine.usage.query](../capabilities/engine.usage.query.md): Usage by day, person, agent or model; people see their own, managers their agents, admins all
 - [engine.use_policy.export](../capabilities/engine.use_policy.export.md): Export the AI use policy (models, providers, label rules, limits, accounts) as a file

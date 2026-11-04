@@ -3,6 +3,7 @@
 //
 // Also here: the runtime that wires the turn engine to this module's SQL (queue, lease, messages, parked tool calls), so a second host that takes a thread over
 // with recover() replays the same message bodies, and a tool call held at the Gate parks the turn on its task (turn.waiting) until resume().
+import { forgetPlacement } from "./placement-cache.ts";
 import { recallPick } from "./last-pick.ts";
 import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { EngineOptions, TurnEngine } from "../../agent/src/turn-engine/engine.ts";
@@ -36,6 +37,8 @@ export { nodeCliLauncher, nodeCliReport } from "./node-cli.ts";
 
 /** The host half arrives here at boot (ruling 31 and 32): the runtime opens real sessions through it. */
 export const hostSeams = { setEngineHost };
+/** The warm pool the Machines page can empty (host/src/daemon/machine-fix.ts). */
+export { openerOf } from "./projections.ts";
 
 /** The runtime is built at boot, not at the first message, and recovers threads a dead host left mid-turn. */
 export const periodic = {
@@ -87,6 +90,11 @@ export const consumers = {
       if (event.name === "agent.paused") return stopAgent(ctx, engine, id, "paused");
       return resumeAgent(ctx, engine, id, async (threadId, asker) => { await openAs(ctx, threadId, asker); });
     },
+  },
+  /** A machine was drained, its limits changed, or it ran out of room or has room again: where a chat runs may differ now, so the per-chat placement words are read again (placement-cache.ts). */
+  "engine.placement_cache": {
+    on: ["machine.changed"],
+    run: async (): Promise<void> => { forgetPlacement(); },
   },
   /** A new chat starts on the model its person last picked, so the composer shows it before the first message (last-pick.ts). */
   "engine.remembered_pick": {

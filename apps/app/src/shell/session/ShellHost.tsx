@@ -204,7 +204,11 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     if (!ask) return;
     const key = tabKey(location.place, location.hash);
     let off = false;
-    session.call(ask.cap, ask.input).then((out) => { const name = ask.name(out); if (!off && name) hub.retitle(key, name); }, () => undefined);
+    session.call(ask.cap, ask.input).then((out) => {
+      const name = ask.name(out);
+      if (!off && name) hub.retitle(key, name);
+      if (ask.resolve) void ask.resolve(out, session.call, session.me.id).then((full) => { if (!off && full) hub.retitle(key, full); }, () => undefined);
+    }, () => undefined);
     return () => { off = true; };
   }, [session, hub, location.place, location.hash]);
 

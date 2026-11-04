@@ -94,6 +94,26 @@ test("the finish line's date and the Due chip come from the one deadline; the ch
   assert.equal(dueWords(fri, PKT), "Sat 7 Nov, 18:00");
   assert.equal(lineWithDue("Luma registrations for Lab 8 reach 300 by Friday", fri, PKT), `Luma registrations for Lab 8 reach 300 by ${dueWords(fri, PKT)}`);
   assert.equal(lineWithDue("Luma registrations reach 300 by Mon 10 Nov, 18:00", fri, PKT), `Luma registrations reach 300 by ${dueWords(fri, PKT)}`, "an old date in the words gives way to the real deadline");
+  assert.equal(lineWithDue("Luma registrations reach 300 by Wed 11 Nov 2026, 04:16 PKT", fri, PKT), `Luma registrations reach 300 by ${dueWords(fri, PKT)}`, "a date with a year and a zone name is not left behind");
   assert.equal(lineWithDue("Every onboarding task closed", fri, PKT), `Every onboarding task closed by ${dueWords(fri, PKT)}`);
   assert.deepEqual([niceStep(100), niceStep(120), niceStep(7), niceStep(0)], [100, 200, 10, 1]);
+});
+
+test("editing helpers: the finish line loses a closing date, the date field round trips in the person's zone, a list moves one item", async () => {
+  const { bareLine, fromLocalInput, moved, nameList, toLocalInput, canEdit } = await import("./model.ts");
+  assert.equal(bareLine("Luma registrations for Lab 8 reach 300 by Friday"), "Luma registrations for Lab 8 reach 300");
+  assert.equal(bareLine("Luma registrations reach 300 by Fri 7 Nov, 18:00."), "Luma registrations reach 300");
+  assert.equal(bareLine("Every onboarding task closed"), "Every onboarding task closed");
+  const fri = Date.UTC(2026, 10, 7, 13, 0);
+  assert.equal(toLocalInput(fri, 300), "2026-11-07T18:00");
+  assert.equal(fromLocalInput("2026-11-07T18:00", 300), fri);
+  assert.equal(fromLocalInput("2026-11-07", 300), null);
+  assert.deepEqual(moved(["a", "b", "c"], 0, 2), ["b", "c", "a"]);
+  assert.deepEqual(moved(["a", "b", "c"], 2, 0), ["c", "a", "b"]);
+  assert.deepEqual(moved(["a", "b"], 0, 5), ["a", "b"]);
+  assert.equal(nameList(["Aliza", "Rubab"]), "Aliza and Rubab");
+  assert.equal(nameList(["Aliza", "Rubab", "Content"]), "Aliza, Rubab and Content");
+  assert.equal(canEdit({ owner: "usr_a", status: "draft" }, "usr_a"), true);
+  assert.equal(canEdit({ owner: "usr_a", status: "done" }, "usr_a"), false);
+  assert.equal(canEdit({ owner: "usr_a", status: "active" }, "usr_b"), false);
 });

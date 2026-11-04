@@ -15,6 +15,7 @@
     "members.accept@1": "9af5a80748f728e037df9b5d59c7ccefd2ebf1aa07093f73389a8571ddafd7c5",
     "members.invites.create@1": "5c478e129eac464c0105102e15fe0889f29545b90dc1157f8e177d406b18a9a9",
     "members.invites.extend@1": "67fdc5bd78964948ec5fbeb196bff5e800a1ab925f322fa5af3754a7a71017e6",
+    "members.invites.guest@1": "1642badf16842b498a431c6e0135f389ba5dcd4dbeb3b9081dd5e20ee1bd0827",
     "members.invites.list@1": "6931d3b24f457d36ca7aee49002d91522273c5b6e6514f8d5e2904d26a048480",
     "members.invites.preview@1": "5b6aed9c60f9aa57d60a33466da096693936b5b0b0fc9bdab84ea983a7fcadf6",
     "members.invites.revoke@1": "586d5c9849945923c6ae6089d8f068983795e4683d44bb195a5bad64852a2ca6",
