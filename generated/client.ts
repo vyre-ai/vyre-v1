@@ -2861,6 +2861,7 @@ export function createClient(transport: Transport) {
       remove_agent: call("threads.remove_agent", 1),
       reopen: call("threads.reopen", 1),
       restore: call("threads.restore", 1),
+      set_agent_replies: call("threads.set_agent_replies", 1),
       set_folder: call("threads.set_folder", 1),
       set_mode: call("threads.set_mode", 1),
       set_plan_mode: call("threads.set_plan_mode", 1),

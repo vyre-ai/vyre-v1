@@ -9620,6 +9620,12 @@
     },
     {
       "deferred": false,
+      "name": "threads_set_agent_replies",
+      "summary": "Choose where the agents of a chat reply: in the thread under the message that asked them, or in the chat itself. Approvals and answers an agent marks Also send to the chat still come to the chat",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_set_folder",
       "summary": "Set the thread work folder (the folder chip above the composer)",
       "toolset": "chats"

@@ -67094,6 +67094,36 @@
     },
     {
       "blocks": [],
+      "cap": "threads.set_agent_replies",
+      "deferred": false,
+      "description": "Choose where the agents of a chat reply: in the thread under the message that asked them, or in the chat itself. Approvals and answers an agent marks Also send to the chat still come to the chat",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "inThreads": {
+            "type": "boolean"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "inThreads"
+        ],
+        "type": "object"
+      },
+      "name": "threads_set_agent_replies",
+      "planMode": "blocked",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "threads.set_folder",
       "deferred": false,
       "description": "Set the thread work folder (the folder chip above the composer)",

@@ -110,6 +110,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "threads.remove_agent": Handler<"threads.remove_agent", X>;
   "threads.reopen": Handler<"threads.reopen", X>;
   "threads.restore": Handler<"threads.restore", X>;
+  "threads.set_agent_replies": Handler<"threads.set_agent_replies", X>;
   "threads.set_folder": Handler<"threads.set_folder", X>;
   "threads.set_mode": Handler<"threads.set_mode", X>;
   "threads.set_plan_mode": Handler<"threads.set_plan_mode", X>;

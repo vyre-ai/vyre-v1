@@ -6655,6 +6655,7 @@ export type ChatAsksOfOut = {
       listed: boolean;
       planMode: boolean;
       mode?: "ask" | "auto" | "plan";
+      agentRepliesInThreads?: boolean;
       members: Array<{
           kind: "person" | "agent" | "actor" | "service";
           id: string;
@@ -6816,6 +6817,7 @@ export type ChatForkOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -6879,6 +6881,7 @@ export type ChatHandoffOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -6995,6 +6998,7 @@ export type ChatHelperStartOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -7314,6 +7318,7 @@ export type ChatOpenAsChatOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -7882,6 +7887,7 @@ export type ChatStartOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -7943,6 +7949,7 @@ export type ChatThreadOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -41267,6 +41274,7 @@ export type ThreadsAddAgentOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -41333,6 +41341,7 @@ export type ThreadsAgentConfigureOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -41398,6 +41407,7 @@ export type ThreadsAgentCreateOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -41466,6 +41476,7 @@ export type ThreadsAgentSettingsSetOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -41532,6 +41543,7 @@ export type ThreadsCloseOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -41612,6 +41624,7 @@ export type ThreadsGetOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -41696,6 +41709,7 @@ export type ThreadsListOut = {
       listed: boolean;
       planMode: boolean;
       mode?: "ask" | "auto" | "plan";
+      agentRepliesInThreads?: boolean;
       members: Array<{
           kind: "person" | "agent" | "actor" | "service";
           id: string;
@@ -41816,6 +41830,7 @@ export type ThreadsMembersAddOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -41877,6 +41892,7 @@ export type ThreadsMembersRemoveOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -41938,6 +41954,7 @@ export type ThreadsMoveOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42000,6 +42017,7 @@ export type ThreadsOutsideAgentAddOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42066,6 +42084,7 @@ export type ThreadsOutsideAgentRemoveOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42137,6 +42156,7 @@ export type ThreadsRemoveAgentOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42197,6 +42217,7 @@ export type ThreadsReopenOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42257,6 +42278,69 @@ export type ThreadsRestoreOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
+    members: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    agents: Array<{
+        agentId: string;
+        mode: "lead" | "listen";
+        model?: string;
+        provider?: string;
+        effort?: "low" | "medium" | "high" | "max";
+        accountRef?: string;
+        watches?: boolean;
+        when?: "always" | "topics" | "hours";
+        topics?: string;
+        hoursFrom?: string;
+        hoursTo?: string;
+        style?: "short" | "full";
+        quiet?: boolean;
+        owned?: boolean;
+      }>;
+    createdAt: number;
+    closedAt?: number;
+    joinedAt?: Record<string, unknown>;
+    sharedAt?: number;
+    replyCount?: number;
+    lastMessageAt?: number;
+    path?: Array<{
+        title: string;
+        threadId: string;
+      }>;
+    unread?: number;
+    following?: boolean;
+    muted?: boolean;
+    repliers?: Array<{
+        kind: "person" | "agent" | "actor" | "service";
+        id: string;
+      }>;
+    parentTitle?: string;
+    preview?: string;
+  };
+};
+export type ThreadsSetAgentRepliesIn = {
+  threadId: string;
+  inThreads: boolean;
+};
+export type ThreadsSetAgentRepliesOut = {
+  thread: {
+    threadId: string;
+    kind: "chat" | "channel" | "thread" | "ask" | "run" | "helper" | "console";
+    title?: string;
+    starter?: string;
+    channelId?: string;
+    parentThreadId?: string;
+    parentMessageId?: string;
+    recordId?: string;
+    folderId?: string;
+    scopeType?: string;
+    scopeId?: string;
+    listed: boolean;
+    planMode: boolean;
+    mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42318,6 +42402,7 @@ export type ThreadsSetFolderOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42379,6 +42464,7 @@ export type ThreadsSetModeOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42440,6 +42526,7 @@ export type ThreadsSetPlanModeOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -42507,6 +42594,7 @@ export type ThreadsUpdateOut = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -46054,6 +46142,7 @@ export interface CapMap {
   "threads.remove_agent": { in: ThreadsRemoveAgentIn; out: ThreadsRemoveAgentOut };
   "threads.reopen": { in: ThreadsReopenIn; out: ThreadsReopenOut };
   "threads.restore": { in: ThreadsRestoreIn; out: ThreadsRestoreOut };
+  "threads.set_agent_replies": { in: ThreadsSetAgentRepliesIn; out: ThreadsSetAgentRepliesOut };
   "threads.set_folder": { in: ThreadsSetFolderIn; out: ThreadsSetFolderOut };
   "threads.set_mode": { in: ThreadsSetModeIn; out: ThreadsSetModeOut };
   "threads.set_plan_mode": { in: ThreadsSetPlanModeIn; out: ThreadsSetPlanModeOut };

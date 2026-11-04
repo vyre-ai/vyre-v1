@@ -30,6 +30,7 @@ const threadRow = t.obj({
   threadId: id.thread, kind: threadKind, title: t.opt(t.str()), starter: t.opt(t.str()), channelId: t.opt(id.channel),
   parentThreadId: t.opt(id.thread), parentMessageId: t.opt(id.message), recordId: t.opt(id.record), folderId: t.opt(id.folder),
   scopeType: t.opt(t.str({ examples: ['record'] })), scopeId: t.opt(t.str()), listed: t.bool(), planMode: t.bool(), mode: t.opt(chatMode),
+  agentRepliesInThreads: t.opt(t.bool({ description: 'Agents reply in the thread under the message that asked them (a chat or channel only): on for a project or channel main chat, off for direct chats unless the person turns it on' })),
   members: t.arr(principalRef), agents: t.arr(threadAgent), createdAt: t.ts(), closedAt: t.opt(t.ts()),
   joinedAt: t.opt(t.rec()),   // person id to the time they joined, for every person after the first
   sharedAt: t.opt(t.ts()),   // when a second person joined: messages before it were not said to the room
@@ -108,7 +109,7 @@ export default defineManifest({
     }, 'thread', { parent: { entity: 'thread', field: 'thread' }, parentField: 'thread', fts: ['body'], sync: { window: { days: 90 }, profile: { desktop: 'all', phone: 'window', web: 'all' } } }),
     entity('thread', 'chat_thread', 'thr_', {
       kind: 'choice', title: 'text', starter: 'person', recordId: 'text', folderId: 'text', scopeType: 'text', scopeId: 'text', channelId: 'text',
-      parentThreadId: 'text', parentMessageId: 'text', listed: 'checkbox', modePlan: 'checkbox', createdAt: 'datetime', closedAt: 'datetime',
+      parentThreadId: 'text', parentMessageId: 'text', listed: 'checkbox', modePlan: 'checkbox', repliesIn: 'number', createdAt: 'datetime', closedAt: 'datetime',
     }, 'thread', { ownerField: 'starter', fts: ['title'], sync: { window: { recentCount: 200, starred: true } } }),
     entity('thread_member', 'chat_thread_member', 'thm_', { thread: 'text', principal: 'text', role: 'choice', fromAt: 'datetime' }, 'thread', { parent: { entity: 'thread', field: 'thread' }, parentField: 'thread' }),
     entity('thread_agent', 'chat_thread_agent', 'tha_', {
@@ -161,6 +162,9 @@ export default defineManifest({
     }),
     write('threads.set_mode', 'Set how much the agents of a chat may do alone: auto (the default), ask (Ask first) or plan. Anything that leaves Vyre is held for a yes in every mode', {
       in: { ...threadT, mode: chatMode }, out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'use', emits: ['thread.updated', 'thread.plan_mode_changed'], tool: 'chats', offline: 'queue', idem: 'natural',
+    }),
+    write('threads.set_agent_replies', 'Choose where the agents of a chat reply: in the thread under the message that asked them, or in the chat itself. Approvals and answers an agent marks Also send to the chat still come to the chat', {
+      in: { ...threadT, inThreads: t.bool() }, out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'use', emits: ['thread.updated'], tool: 'chats', offline: 'queue', idem: 'natural', errors: ['validation.not_found', 'validation.bad_input'],
     }),
     write('threads.agent.configure', 'Pick the model, provider, effort or account an agent answers with, for this chat or as the agent default; null clears a field', {
       in: {

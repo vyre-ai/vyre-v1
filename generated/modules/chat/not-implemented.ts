@@ -110,6 +110,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "threads.remove_agent": async (ctx) => { throw new VyreErr(notImplemented("threads.remove_agent", ctx.trace)); },
   "threads.reopen": async (ctx) => { throw new VyreErr(notImplemented("threads.reopen", ctx.trace)); },
   "threads.restore": async (ctx) => { throw new VyreErr(notImplemented("threads.restore", ctx.trace)); },
+  "threads.set_agent_replies": async (ctx) => { throw new VyreErr(notImplemented("threads.set_agent_replies", ctx.trace)); },
   "threads.set_folder": async (ctx) => { throw new VyreErr(notImplemented("threads.set_folder", ctx.trace)); },
   "threads.set_mode": async (ctx) => { throw new VyreErr(notImplemented("threads.set_mode", ctx.trace)); },
   "threads.set_plan_mode": async (ctx) => { throw new VyreErr(notImplemented("threads.set_plan_mode", ctx.trace)); },

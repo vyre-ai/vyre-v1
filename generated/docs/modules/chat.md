@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, mcp, members.
 
-## Capabilities (110)
+## Capabilities (111)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -111,6 +111,7 @@ Requires: engine, mcp, members.
 - [threads.remove_agent](../capabilities/threads.remove_agent.md): Remove an agent from a thread
 - [threads.reopen](../capabilities/threads.reopen.md): Reopen a closed thread
 - [threads.restore](../capabilities/threads.restore.md): Undo the delete of my chat (the Undo toast), while it has not been purged
+- [threads.set_agent_replies](../capabilities/threads.set_agent_replies.md): Choose where the agents of a chat reply: in the thread under the message that asked them, or in the chat itself. Approvals and answers an agent marks Also send to the chat still come to the chat
 - [threads.set_folder](../capabilities/threads.set_folder.md): Set the thread work folder (the folder chip above the composer)
 - [threads.set_mode](../capabilities/threads.set_mode.md): Set how much the agents of a chat may do alone: auto (the default), ask (Ask first) or plan. Anything that leaves Vyre is held for a yes in every mode
 - [threads.set_plan_mode](../capabilities/threads.set_plan_mode.md): Switch plan mode for a thread: the agent may read and plan but changes nothing until a plan is approved

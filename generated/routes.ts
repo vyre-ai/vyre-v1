@@ -37584,6 +37584,25 @@ const routes6: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/threads/set_agent_replies",
+    "cap": "threads.set_agent_replies",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "queue",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/threads/set_folder",
     "cap": "threads.set_folder",
     "v": 1,
@@ -38648,7 +38667,10 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "secret_export"
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/items/list",
@@ -38666,10 +38688,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/items/match",

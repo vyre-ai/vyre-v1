@@ -86,6 +86,9 @@ const SETTINGS_SCHEMA = readFileSync(new URL("./migrations/0005_agent_settings.s
 const HISTORY_SCHEMA = readFileSync(new URL("./migrations/0006_history_from.sql", import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+const REPLIES_SCHEMA = readFileSync(new URL("./migrations/0007_replies_in.sql", import.meta.url), "utf8")
+  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
+  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
 
 /** Make sure the chat tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. The per-chat agent settings (0005) are added the same way when their columns are missing. */
@@ -94,6 +97,7 @@ export function ensure(db: Db): void {
   try { db.all("SELECT id FROM chat_plan WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   try { db.all("SELECT respond, owned, grants FROM chat_thread_agent WHERE id = ?", "probe"); } catch { for (const stmt of SETTINGS_SCHEMA) { try { db.run(stmt); } catch { /* the column is already there */ } } }
   try { db.all("SELECT fromAt FROM chat_thread_member WHERE id = ?", "probe"); } catch { for (const stmt of HISTORY_SCHEMA) { try { db.run(stmt); } catch { /* the column is already there */ } } }
+  try { db.all("SELECT repliesIn FROM chat_thread WHERE id = ?", "probe"); } catch { for (const stmt of REPLIES_SCHEMA) { try { db.run(stmt); } catch { /* the column is already there */ } } }
   ready.add(db);
 }
 
@@ -127,6 +131,8 @@ export const codeOfMode = (m: ChatMode): number => (m === "plan" ? 1 : m === "au
 export interface ThreadRec {
   id: string; kind: ThreadKind; title?: string; starter?: string; recordId?: string; folderId?: string; scopeType?: string; scopeId?: string; channelId?: string;
   parentThreadId?: string; parentMessageId?: string; listed: boolean; planMode: boolean; mode: ChatMode; createdAt: number; closedAt?: number;
+  /** The person's own choice of where agents reply (null column: the default of the kind of chat). */
+  repliesIn?: boolean;
 }
 export function threadOf(r: Row): ThreadRec {
   const mode = modeOfCode(r["modePlan"]);
@@ -135,6 +141,7 @@ export function threadOf(r: Row): ThreadRec {
   set("title", optStr(r["title"])); set("starter", optStr(r["starter"])); set("recordId", optStr(r["recordId"])); set("folderId", optStr(r["folderId"]));
   set("scopeType", optStr(r["scopeType"])); set("scopeId", optStr(r["scopeId"])); set("channelId", optStr(r["channelId"]));
   set("parentThreadId", optStr(r["parentThreadId"])); set("parentMessageId", optStr(r["parentMessageId"])); set("closedAt", optNum(r["closedAt"]));
+  if (r["repliesIn"] !== null && r["repliesIn"] !== undefined) o.repliesIn = Number(r["repliesIn"]) === 1;
   return o;
 }
 
@@ -248,6 +255,12 @@ function inheritedMode(db: Db, t: ThreadRec): ChatMode {
   return mode;
 }
 
+/** Do agents reply in the thread under the asking message? The person's own choice, else on for a project or channel main chat and off for the rest (direct chats, your Assistant, personal chats, Asks, threads, helpers). */
+export function agentsReplyInThreads(t: ThreadRec): boolean {
+  if (t.kind !== "channel" && t.kind !== "chat") return false;
+  return t.repliesIn ?? t.kind === "channel";
+}
+
 export function threadOut(db: Db, t: ThreadRec): Record<string, unknown> {
   const mode = inheritedMode(db, t);
   const out: Record<string, unknown> = {
@@ -257,6 +270,7 @@ export function threadOut(db: Db, t: ThreadRec): Record<string, unknown> {
     createdAt: t.createdAt,
   };
   const set = (k: string, v: unknown): void => { if (v !== undefined) out[k] = v; };
+  if (t.kind === "channel" || t.kind === "chat") out["agentRepliesInThreads"] = agentsReplyInThreads(t);
   set("title", t.title); set("starter", t.starter); set("channelId", t.channelId); set("parentThreadId", t.parentThreadId); set("parentMessageId", t.parentMessageId);
   set("recordId", t.recordId); set("folderId", t.folderId); set("scopeType", t.scopeType); set("scopeId", t.scopeId); set("closedAt", t.closedAt);
   const stat = (db.all('SELECT COUNT(*) AS n, MAX("createdAt") AS last FROM chat_message WHERE "thread" = ? AND deleted_at IS NULL', t.id)[0] ?? {}) as { n?: number; last?: number | null };
