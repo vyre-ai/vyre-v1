@@ -86,7 +86,7 @@ export function GithubPage(): ReactElement {
     <>
       {status.needsReconnect ? (
         <Section testID="github-reconnect">
-          <SettingsRow id="github.reconnect" first lead={<Glyph name="link" size={16} />} label={`${data.space.name} uses its own GitHub app. Reconnect once.`} sub="Your repos and permissions stay as they are."
+          <SettingsRow id="github.reconnect" first lead={<Glyph name="link" size={16} />} label="Reconnect GitHub once" sub={`${data.space.name} uses its own GitHub app. Your repos and permissions stay as they are.`}
             control={<SmallButton label="Reconnect" primary testID="gh-reconnect" onPress={connect} />} />
         </Section>
       ) : null}

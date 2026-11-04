@@ -7,6 +7,11 @@ import fs from "node:fs";
 import { guardCrashes } from "../../apps/app/tests/crash-guard.ts";
 import { SIZES, bootScreens, browserOrSkip, open, seat, setScheme, shoot } from "./mail-browser.ts";
 
+/** Scroll every scrollable box on the page to its end, so the shot shows what is below the fold. */
+async function scrollEnd(page: import("playwright-core").Page): Promise<void> {
+  await page.evaluate(() => { for (const el of Array.from(document.querySelectorAll<HTMLElement>("*"))) { const o = getComputedStyle(el).overflowY; if ((o === "auto" || o === "scroll") && el.scrollHeight > el.clientHeight + 20) el.scrollTop = el.scrollHeight; } });
+  await page.waitForTimeout(300);
+}
 export const OUT = "shots-evidence/settings";
 const PAGES: { id: string; title: string; sub: string }[] = [
   { id: "profile", title: "Profile", sub: "How people in this Space see you." },
@@ -61,6 +66,11 @@ export async function walkSettings(t: TestContext, only: "owner" | "member"): Pr
         assert.ok(!/Couldn't load|Something went wrong|undefined|\[object/.test(text), `${who}/${p.id}: no error text`);
         await guard.check(p.id);
         await shoot(me.page, dir, p.id);
+        if (["ai", "github", "notifications", "appearance", "signin"].includes(p.id)) {
+          await scrollEnd(me.page);
+          await guard.check(`${p.id}-end`);
+          await shoot(me.page, dir, `${p.id}-end`);
+        }
         if (p.id === "github") {
           assert.ok(text.includes("maya-codes") && text.includes("northwind-law"), `${who}: the connected account and its orgs show`);
           gh.reconnect = true;
@@ -68,7 +78,7 @@ export async function walkSettings(t: TestContext, only: "owner" | "member"): Pr
           await me.page.getByTestId("row-page-github").click();
           await me.page.getByTestId("page-github").waitFor();
           await me.page.waitForTimeout(800);
-          assert.ok((await me.page.getByTestId("page-github").innerText()).includes("Reconnect once"), `${who}: the reconnect line shows`);
+          assert.ok((await me.page.getByTestId("page-github").innerText()).includes("Reconnect GitHub once"), `${who}: the reconnect line shows`);
           await guard.check("github-reconnect");
           await shoot(me.page, dir, "github-reconnect");
           gh.reconnect = false;
