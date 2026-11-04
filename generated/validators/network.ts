@@ -1225,6 +1225,9 @@ if ("detail" in o4553) lf(o4553["detail"], p + "/commands" + '/' + i4552 + "/det
 }
 }
 }
+if ("version" in o4550) lf(o4550["version"], p + "/version", e, L1);
+if ("relayVersion" in o4550) lf(o4550["relayVersion"], p + "/relayVersion", e, L1);
+if ("relayOlder" in o4550) lf(o4550["relayOlder"], p + "/relayOlder", e, L3);
 }
 }
 }

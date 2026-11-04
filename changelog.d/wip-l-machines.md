@@ -5,3 +5,4 @@
 - Console and Settings read machines.* (apps/app/src/machines/api.ts); the network module's machines capabilities and the second sampler are gone.
 - Machines: turn limits hold at once. Room is counted from the engine's running turns on each machine (not warm idle engine processes or the 30 s report), and one turn at a time is placed and started on a machine, so two turns started back to back respect a limit of 1.
 - Machines: Stop idle sessions stops everyone's idle engine sessions for the Space server (admin), and only the owner's for a member's own computer; the confirm says how many will stop.
+- Network: `network.status` returns `version` (this Space server's), `relayVersion` (read from the relay's /health on the relay link, about every five minutes) and `relayOlder` (the Console's amber "Update available").
