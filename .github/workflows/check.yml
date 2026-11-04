@@ -117,6 +117,8 @@ jobs:
         run: node scripts/lint/no-silent-calls.ts --enforce
       - name: no-noop-opt-out (enforced); the no-dead-buttons gate has no opt-out attribute
         run: node scripts/lint/no-noop-opt-out.ts
+      - name: shared-time ratchet (scripts/lint/shared-time.test.ts); a time drawn in a shared place uses ui/Time and the Space's time zone, and the known list may only shrink
+        run: node --test --test-reporter=spec scripts/lint/shared-time.test.ts
       - name: rules-of-hooks (enforced); React's rules of hooks over apps/ and ui/ on the syntax tree, no allow comment (a hook after an early return crashed every chat on 3464fa6b6)
         run: |
           [ -d tools/gen/node_modules/typescript ] || bash tools/gen/check.sh   # TypeScript comes from tools/gen, installed by the contracts gate script, as the typecheck step below does

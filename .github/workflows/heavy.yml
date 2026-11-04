@@ -45,6 +45,8 @@ jobs:
           echo "$sum  $d/docker-compose" | sha256sum -c -
           chmod +x "$d/docker-compose"; "$d/docker-compose" version
           echo "bin=$d/docker-compose" >> "$GITHUB_OUTPUT"
+      - name: python3 serves the test's release channel over 127.0.0.1 HTTP (install.heavy.test.sh)
+        run: python3 --version
       - name: The Linux install on real Docker, none skipped (scripts/install/linux/install.test.ts)
         env:
           VYRE_HEAVY_DOCKER: "1"
