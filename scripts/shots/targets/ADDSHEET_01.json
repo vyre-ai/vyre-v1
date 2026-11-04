@@ -136,15 +136,19 @@
       "route": "/m/ADDSHEET_01",
       "proto": "chats,{skin}",
       "waitFor": "[data-testid='conversation']",
-      "note": "After a poke: the quiet line and the reply's Poked by.",
+      "note": "After a poke from the people popover: right-click Docs, press Poke, then the quiet line and the reply's Poked by.",
       "steps": [
         [
           "click",
           "[data-testid='participants-button']"
         ],
         [
+          "rclick",
+          "[data-testid='people-row-agt_docs']"
+        ],
+        [
           "click",
-          "[data-testid='people-poke-agt_docs']"
+          "[data-testid='menu-item-Poke']"
         ],
         [
           "wait",
