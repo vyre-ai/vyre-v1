@@ -3,7 +3,7 @@
 // Reads ci.settings.get, ci.cost.month, ci.runs.list (per repository) and ci.runs.get; writes ci.settings.set (turn on, turn off, every setting, raise the cap).
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import { WarnTile } from "./overview/Overview.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
@@ -95,6 +95,19 @@ export function settingEntries(field: "region" | "size" | "maxConcurrent" | "max
 }
 const titleOf = (list: readonly Pick[], key: string): string => list.find((o) => o.key === key)?.title ?? key;
 
+/** Below this width a setting's picker drops under its label instead of sitting beside it. */
+export const STACK_BELOW = 760;
+export const stackPickers = (width: number): boolean => width > 0 && width < STACK_BELOW;   // an unmeasured screen (a static render) keeps the desktop layout
+/** Run rows on a narrow screen put the status over the cost, so the subline keeps the width. */
+export const stackRunEnd = stackPickers;
+
+/** A Settings row with a picker: beside the label on a wide screen; on a narrow one the label and hint take the full width and the picker sits under them, left-aligned with the text. */
+function PickRow({ id, title, note, icon, picker }: { id: string; title: string; note?: string; icon: string; picker: ReactElement }): ReactElement {
+  const stacked = stackPickers(useWindowDimensions().width);
+  if (!stacked) return <Row id={id} title={title} {...(note ? { note } : {})} leading={<IconTile icon={icon} />} trailing={picker} />;
+  return <View testID={`${id}-stacked`}><Row id={id} tall={Boolean(note)} title={title} {...(note ? { note } : {})} leading={<IconTile icon={icon} />} /><View style={{ paddingLeft: 48, paddingBottom: 8, marginLeft: -6, alignItems: "flex-start" }}>{picker}</View></View>;
+}
+
 function PickButton({ value, entries, testID, label }: { value: string; entries: MenuEntry[]; testID: string; label: string }): ReactElement {
   const menu = useMenu();
   const ref = useRef<unknown>(null);
@@ -144,6 +157,7 @@ function StatTile({ id, icon, label, big, sub, warn = false, children }: { id: s
 
 export function CiRunnersPage(): ReactElement {
   const data = useConsoleData();
+  const width = useWindowDimensions().width;
   const settings = useRead<CiSettings>("ci.settings.get");
   const on = settings.data?.settings.enabled === true;
   const cost = useRead<CiCost>("ci.cost.month", {}, { enabled: on });
@@ -217,7 +231,7 @@ export function CiRunnersPage(): ReactElement {
         {list.slice(0, 20).map((r) => {
           const w = runWord(r); const len = runLength(r, now);
           const icon = w.word === "Failed" ? "xc" : w.word === "Passed" ? "ok" : "clock";
-          return <Row key={r.runId} id={`ci-run-${r.runId}`} tall title={runTitle(r.jobName)} note={[r.repo, ago(now, r.queuedAt), len === undefined ? undefined : durationWord(len), r.note ?? undefined].filter(Boolean).join(" · ")} leading={<IconTile icon={icon} tone={w.tone === "bad" ? "bad" : w.tone === "ok" ? "ok" : "warn"} />} trailing={<View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><Stat id={`ci-run-state-${r.runId}`} word={w.word} tone={w.tone} /><Text style={{ fontSize: 12.5, color: "var(--ink-3)" as string }}>{dollars(r.costUsd)}</Text><Glyph name="chevR" size={12} color="var(--ink-3)" /></View>} onPress={() => setSheet({ run: r.runId })} />;
+          return <Row key={r.runId} id={`ci-run-${r.runId}`} tall title={runTitle(r.jobName)} note={[r.repo, ago(now, r.queuedAt), len === undefined ? undefined : durationWord(len), r.note ?? undefined].filter(Boolean).join(" · ")} leading={<IconTile icon={icon} tone={w.tone === "bad" ? "bad" : w.tone === "ok" ? "ok" : "warn"} />} trailing={stackRunEnd(width) ? <View style={{ alignItems: "flex-end", gap: 2 }}><Stat id={`ci-run-state-${r.runId}`} word={w.word} tone={w.tone} /><Text style={{ fontSize: 12.5, color: "var(--ink-3)" as string }}>{dollars(r.costUsd)}</Text></View> : <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><Stat id={`ci-run-state-${r.runId}`} word={w.word} tone={w.tone} /><Text style={{ fontSize: 12.5, color: "var(--ink-3)" as string }}>{dollars(r.costUsd)}</Text><Glyph name="chevR" size={12} color="var(--ink-3)" /></View>} onPress={() => setSheet({ run: r.runId })} />;
         })}
       </Group>
     </Section>
@@ -228,12 +242,12 @@ export function CiRunnersPage(): ReactElement {
     </Section>
     <Section title="Settings">
       <Group>
-        <Row id="ci-cloud" title="Cloud account" note="The key stays in Vault. Machines are created and deleted here" leading={<IconTile icon="key" />} trailing={<PickButton label="Cloud account" testID="ci-pick-account" value={accountWord(vaultItems, cfg.vaultKeyRef)} entries={accountEntries(vaultItems, cfg.vaultKeyRef ?? "", (handle) => void set({ vaultKeyRef: handle }, "Cloud account saved"), () => data.nav.openApp({ screen: "vault.layout" }))} />} />
-        <Row id="ci-region" title="Region" leading={<IconTile icon="globe" />} trailing={<PickButton label="Region" testID="ci-pick-region" value={titleOf(REGIONS, cfg.region)} entries={settingEntries("region", cfg.region, 0, key("region"))} />} />
-        <Row id="ci-size" title="Machine size" note="A short job costs about a cent" leading={<IconTile icon="cpu" />} trailing={<PickButton label="Machine size" testID="ci-pick-size" value={titleOf(SIZES, cfg.size)} entries={settingEntries("size", cfg.size, 0, key("size"))} />} />
-        <Row id="ci-max" title="Most at once" note="More jobs wait in line" leading={<IconTile icon="play" />} trailing={<PickButton label="Most at once" testID="ci-pick-max" value={String(cfg.maxConcurrent)} entries={settingEntries("maxConcurrent", cfg.maxConcurrent, 0, key("maxConcurrent"))} />} />
-        <Row id="ci-mins" title="Time limit per job" note="A job past this is stopped and its machine deleted" leading={<IconTile icon="clock" />} trailing={<PickButton label="Time limit per job" testID="ci-pick-mins" value={`${cfg.maxJobMinutes} min`} entries={settingEntries("maxJobMinutes", cfg.maxJobMinutes, 0, key("maxJobMinutes"))} />} />
-        <Row id="ci-cap" title="Monthly cap" note="CI pauses when the month's cost reaches it" leading={<IconTile icon="card" />} trailing={<PickButton label="Monthly cap" testID="ci-pick-cap" value={dollars(cfg.monthlyCapUsd)} entries={settingEntries("monthlyCapUsd", cfg.monthlyCapUsd, c?.spentUsd ?? 0, key("monthlyCapUsd"))} />} />
+        <PickRow id="ci-cloud" title="Cloud account" note="The key stays in Vault. Machines are created and deleted here" icon="key" picker={<PickButton label="Cloud account" testID="ci-pick-account" value={accountWord(vaultItems, cfg.vaultKeyRef)} entries={accountEntries(vaultItems, cfg.vaultKeyRef ?? "", (handle) => void set({ vaultKeyRef: handle }, "Cloud account saved"), () => data.nav.openApp({ screen: "vault.layout" }))} />} />
+        <PickRow id="ci-region" title="Region" icon="globe" picker={<PickButton label="Region" testID="ci-pick-region" value={titleOf(REGIONS, cfg.region)} entries={settingEntries("region", cfg.region, 0, key("region"))} />} />
+        <PickRow id="ci-size" title="Machine size" note="A short job costs about a cent" icon="cpu" picker={<PickButton label="Machine size" testID="ci-pick-size" value={titleOf(SIZES, cfg.size)} entries={settingEntries("size", cfg.size, 0, key("size"))} />} />
+        <PickRow id="ci-max" title="Most at once" note="More jobs wait in line" icon="play" picker={<PickButton label="Most at once" testID="ci-pick-max" value={String(cfg.maxConcurrent)} entries={settingEntries("maxConcurrent", cfg.maxConcurrent, 0, key("maxConcurrent"))} />} />
+        <PickRow id="ci-mins" title="Time limit per job" note="A job past this is stopped and its machine deleted" icon="clock" picker={<PickButton label="Time limit per job" testID="ci-pick-mins" value={`${cfg.maxJobMinutes} min`} entries={settingEntries("maxJobMinutes", cfg.maxJobMinutes, 0, key("maxJobMinutes"))} />} />
+        <PickRow id="ci-cap" title="Monthly cap" note="CI pauses when the month's cost reaches it" icon="card" picker={<PickButton label="Monthly cap" testID="ci-pick-cap" value={dollars(cfg.monthlyCapUsd)} entries={settingEntries("monthlyCapUsd", cfg.monthlyCapUsd, c?.spentUsd ?? 0, key("monthlyCapUsd"))} />} />
       </Group>
     </Section>
     <Section title="Safety">

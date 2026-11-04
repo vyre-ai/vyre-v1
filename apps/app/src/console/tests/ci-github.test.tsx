@@ -6,8 +6,8 @@ import { find, flush, installDom, mount, press, textOf, typeInto } from "../../.
 import type { Node } from "../../../../../ui/src/testing/dom.ts";
 import { ConsoleDataProvider } from "../shell/data.tsx";
 import { createSampleConsole, SAMPLE_NOW } from "../shell/sample.ts";
-import { CAPS, CiRunnersPage, accountWord, dayStart, dollars, durationWord, isPaused, longestToday, pickEntries, raisedCap, runTitle, runUrl, runWord, runsToday, settingEntries, sinceWord, todayBreakdown } from "../pages/CiRunners.tsx";
-import { GithubAppPage, appComplete, installUrl, manifestReturn, ownLine, postManifest } from "../pages/GithubApp.tsx";
+import { CAPS, CiRunnersPage, STACK_BELOW, stackPickers, stackRunEnd, accountWord, dayStart, dollars, durationWord, isPaused, longestToday, pickEntries, raisedCap, runTitle, runUrl, runWord, runsToday, settingEntries, sinceWord, todayBreakdown } from "../pages/CiRunners.tsx";
+import { GithubAppPage, secretWord, valueWord, appComplete, installUrl, manifestReturn, ownLine, postManifest } from "../pages/GithubApp.tsx";
 import { dataWith } from "./sheet-helper.tsx";
 
 const SETTINGS = { enabled: false, provider: "digitalocean", vaultKeyRef: "#Northwind_DO", region: "nyc3", size: "s-4vcpu-8gb", image: "ubuntu-24-04-x64", maxConcurrent: 3, monthlyCapUsd: 50, maxJobMinutes: 30, labels: ["vyre"] };
@@ -363,4 +363,17 @@ test("when the app needs new permissions the GitHub tab says so with Accept on G
     await tap(root, "ci-github-accept");
     assert.deepEqual(opened, ["url:https://github.com/organizations/northwind/settings/installations/7/permissions/update"]);
   } finally { restore(); }
+});
+
+test("a setting's picker stacks under its label below 760 wide, and not on a wide or an unmeasured screen", () => {
+  assert.equal(STACK_BELOW, 760);
+  assert.equal(stackPickers(390), true); assert.equal(stackPickers(759), true);
+  assert.equal(stackPickers(760), false); assert.equal(stackPickers(1440), false); assert.equal(stackPickers(0), false);
+  assert.equal(stackRunEnd(390), true); assert.equal(stackRunEnd(1440), false);
+});
+
+test("App details values: a secret reads Set in Vault, a missing value reads Not set", () => {
+  assert.equal(secretWord(true), "Set in Vault"); assert.equal(secretWord(false), "Not set");
+  assert.equal(valueWord(undefined), "Not set"); assert.equal(valueWord(null), "Not set"); assert.equal(valueWord(""), "Not set");
+  assert.equal(valueWord(42), "42"); assert.equal(valueWord("Iv1.abc"), "Iv1.abc");
 });

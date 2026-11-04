@@ -32,6 +32,9 @@ const t = {
 };
 const card = { padding: 14, gap: 8, borderBottomWidth: 1, borderBottomColor: "var(--line)" } as const;
 const actions = { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 4 } as const;
+/** In the Console a card's rows sit 10px from the card edge and 1px lines divide them. `index` is the row's place in its list. */
+export const consoleLine = (index: number): { paddingVertical: number; borderTopWidth: number; borderTopColor: string } => ({ paddingVertical: 10, borderTopWidth: index === 0 ? 0 : 1, borderTopColor: "var(--line)" });
+const lined = (rows: readonly ReactElement[]): ReactElement[] => rows.map((r, i) => <View key={r.key ?? i} style={consoleLine(i)}>{r}</View>);
 const quietText = (s: string): ReactElement => <Text style={t.quiet}>{s}</Text>;
 
 /** What a skill can touch, as plain lines under a small heading. */
@@ -89,16 +92,16 @@ export function SkillsLists(p: ListsProps): ReactElement {
     return <View testID="skills-console" style={{ gap: 4 }}>
       <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, marginBottom: 6 }}><Text style={[t.lead, { flex: 1 }]}>Space-wide skills apply to every member and their agents at once, with no card to approve.</Text></View>
       <Section title="Space-wide" testID="skills-space">
-        {page.space.length > 0 ? page.space.map(spaceRow) : <Row id="skills-space-none" title="No Space-wide skills yet" note="Add one, or make a member's shared skill Space-wide" />}
+        {page.space.length > 0 ? lined(page.space.map(spaceRow)) : <View style={consoleLine(0)}><Row id="skills-space-none" title="No Space-wide skills yet" note="Add one, or make a member's shared skill Space-wide" /></View>}
       </Section>
       <Section title="Who may add skills that run code" testID="skills-policy" note="Off by default. Members approve their own skills and the ones shared with them either way.">
-        <Row id="skills-policy-scripts" title="Only admins add skills that run scripts or start tool servers" trailing={<Switch on={page.policy.scriptsAdminOnly} label="Only admins add skills that run scripts" testID="skills-policy-switch" onChange={p.onPolicy} />} />
+        <View style={consoleLine(0)}><Row id="skills-policy-scripts" title="Only admins add skills that run scripts or start tool servers" trailing={<Switch on={page.policy.scriptsAdminOnly} label="Only admins add skills that run scripts" testID="skills-policy-switch" onChange={p.onPolicy} />} /></View>
       </Section>
       <Section title="Members' skills" testID="skills-members" note="Names only. You can read a skill only when its owner shared it.">
-        {members.length > 0 ? members.map((m) => <Row key={`${m.owner}:${m.name}`} id={`skill-member-${m.owner}-${m.name}`} title={m.name} note={`${m.ownerName}${m.shared ? (m.toSpace ? " · Shared with everyone here" : " · Shared") : ""}`}
+        {members.length > 0 ? lined(members.map((m) => <Row key={`${m.owner}:${m.name}`} id={`skill-member-${m.owner}-${m.name}`} title={m.name} note={`${m.ownerName}${m.shared ? (m.toSpace ? " · Shared with everyone here" : " · Shared") : ""}`}
           {...(m.skillId ? { onPress: () => p.onView({ skillId: m.skillId! }) } : {})}
-          trailing={m.shared ? <SmallButton label="Make Space-wide" testID={`skill-adopt-${m.name}`} disabled={p.busy === true} onPress={() => p.onAdopt(m)} /> : undefined} />)
-          : <Row id="skills-members-none" title="No member has a skill of their own yet" />}
+          trailing={m.shared ? <SmallButton label="Make Space-wide" testID={`skill-adopt-${m.name}`} disabled={p.busy === true} onPress={() => p.onAdopt(m)} /> : undefined} />))
+          : <View style={consoleLine(0)}><Row id="skills-members-none" title="No member has a skill of their own yet" /></View>}
       </Section>
       {builtin}
     </View>;
