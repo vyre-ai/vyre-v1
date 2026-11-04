@@ -1,5 +1,6 @@
 // callTool (ARCH 6.7): every tool call is one capability invoke, as the agent acting for the asker. Nothing here decides access, Gate or audit; the invoke pipeline does,
 // and no mode (Ask, Allow, Auto) or plan state can make this module skip it. We only (a) refuse what was never offered this turn, (b) route the answer back as a tool result.
+import { nextReads } from "./next.ts";
 import { HostError, makeError } from "../../../host/src/routes/errors.ts";
 import type { CtxSeed, Invoke } from "../../../host/src/invoke.ts";
 import { heldCard, recordWork, workCardOf } from "./work-cards.ts";
@@ -182,8 +183,15 @@ export function createToolSession(deps: CallDeps): ToolSession {
         if (typeof made === "string") await deps.invoke("chat.flow_card", { threadId: ctx.thread.threadId, automationId: made, idempotencyKey: `flow-card:${made}` }, seed).catch(() => undefined);
       }
       recordWork(ctx.turnId, workCardOf(t.cap, input, res.output));
-      const content: { data: unknown; blocks?: string[] } = { data: res.output };
+      const content: { data: unknown; blocks?: string[]; next?: string } = { data: res.output };
       if (t.blocks.length > 0) content.blocks = t.blocks;
+      // a list names the tool that reads one item, and that tool is listed from now on: no search to find it
+      const reads = nextReads(t.name);
+      if (reads.length > 0) {
+        const set = toolsFor(deps, ctx), offered = new Set([...set.listed, ...set.searchable].map((x) => x.name));
+        const ready = reads.filter((n) => offered.has(n));
+        if (ready.length > 0) { for (const n of ready) loadedSet(ctx.thread.threadId).add(n); content.next = `To read one of these, call ${ready.join(" or ")} with its id. ${ready.length > 1 ? "They are" : "It is"} ready to call now.`; }
+      }
       if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
       return { kind: "result", traceId: res.traceId, result: { ok: true, content } };
     } catch (e) {
