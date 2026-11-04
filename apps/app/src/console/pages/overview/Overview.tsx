@@ -129,6 +129,7 @@ export function Overview(): ReactElement {
           <View style={s.tileHead}><Glyph name={t.icon} size={14} color="var(--ink-3)" /><Text style={s.tileLabel}>{t.label}</Text></View>
           <View style={s.tileBig}>{t.tone ? <Dot tone={t.tone} size={8} /> : null}<Text style={s.big}>{t.big}</Text></View>
           <Text style={s.tileSub}>{t.sub}</Text>
+          {/* ui-rows-lint: not a list (the meter bars inside one tile) */}
           {t.bars ? t.bars.map(([k, v]) => <View key={k} style={s.barRow}><Text style={s.barLabel}>{k}</Text><View style={s.barTrack}><View style={[s.barFill, { width: `${v}%` as unknown as number }, v >= 85 && s.barWarn]} /></View><Text style={s.barVal}>{v}%</Text></View>) : null}
         </Pressable>
       ))}

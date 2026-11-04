@@ -135,6 +135,7 @@ function MakeDialog({ onClose, onSave }: { onClose(): void; onSave(s: CustomSkin
         <Text style={t.lab}>Base</Text>
         <Segmented value={base} label="Base" testID="make-base" onChange={(v) => setBase(v as "light" | "dark")} options={[{ value: "light", label: "Light" }, { value: "dark", label: "Dark" }]} />
         <Text style={t.lab}>Accent</Text>
+        {/* ui-rows-lint: not a list (a row of colour swatches, one choice) */}
         <View style={t.swatches}>{ACCENTS.map((c) => <Pressable key={c} accessibilityRole="button" accessibilityLabel={`Accent ${c}`} testID={`make-accent-${c}`} onPress={() => setAccent(c)} style={[t.swatch, { backgroundColor: c }, accent === c && t.swatchOn, pointer]} />)}</View>
         <Text style={t.lab}>Contrast</Text>
         <Segmented value={contrast} label="Contrast" testID="make-contrast" onChange={(v) => setContrast(v as Contrast)} options={[{ value: "soft", label: "Soft" }, { value: "standard", label: "Standard" }, { value: "high", label: "High" }]} />

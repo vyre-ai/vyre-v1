@@ -96,6 +96,7 @@ export function GithubPage(): ReactElement {
       <Section title="Where Vyre can work" testID="github-where">
         {reach === null || reach.orgs.length === 0
           ? <SettingsRow id="github.where.none" first label="No organisations yet" sub="Install Vyre on your account or an organisation on GitHub, then it shows here." />
+          // ui-rows-lint: not a list (each line is a SettingsRow, which draws a ui/Row itself)
           : reach.orgs.map((o, i) => {
             const n = reach.repos.filter((r) => r.repo.startsWith(`${o.login}/`)).length;
             return <SettingsRow key={o.login} id={`github.org.${o.login}`} first={i === 0} lead={<Glyph name="link" size={16} />} label={o.login} sub={installWords(o, n)}
@@ -103,6 +104,7 @@ export function GithubPage(): ReactElement {
           })}
       </Section>
       <Section title="What agents may do" testID="github-perms">
+        {/* ui-rows-lint: not a list (each line is a SettingsRow, which draws a ui/Row itself) */}
         {GH_PERMS.map((p, i) => (
           <SettingsRow key={p.key} id={`github.perm.${p.key}`} first={i === 0} label={p.label} sub={p.sub}
             control={<Choice value={policy?.[p.key] ?? "ask"} options={GH_LEVELS} label={p.label} testID={`gh-perm-${p.key}`} onChange={(v) => setLevel(p.key, v as Level)} />} />
@@ -111,6 +113,7 @@ export function GithubPage(): ReactElement {
       <Section title="Used by" testID="github-used">
         {uses.length === 0
           ? <SettingsRow id="github.used.none" first label="Nothing yet" sub="Crews, CI, sessions and the Linked tab show here once they use your GitHub." />
+          // ui-rows-lint: not a list (each line is a SettingsRow, which draws a ui/Row itself)
           : uses.slice(0, 8).map((u, i) => <SettingsRow key={`${u.consumer}-${u.at}-${i}`} id={`github.used.${i}`} first={i === 0} label={consumerWords(u.consumer)} sub={`${u.action} · ${u.repo}`} />)}
       </Section>
     </>

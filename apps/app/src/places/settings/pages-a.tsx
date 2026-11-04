@@ -161,6 +161,7 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
     const now = chans[k.key] ?? (k.mine?.channels as Channel[] | undefined) ?? levelChannels(k.level);
     list.push(
       <SettingsRow key={k.key} id={`kind.${k.key}`} label={kindLabel(k.title)} first={i === 0} sub={channelWords(now)} help="Pick where it reaches you. With none picked it adds a dot only."
+        /* ui-rows-lint: not a list (the channel chips of one row's control) */
         control={<View style={{ flexDirection: "row", gap: 6 }} testID={`kind-${k.key}`}>{CHANNELS.map((c) => <Chip key={c.key} label={c.label} on={now.includes(c.key)} testID={`kind-${k.key}-${c.key}`} onPress={() => toggle(k.key, now, c.key)} />)}</View>} />,
     );
   });
