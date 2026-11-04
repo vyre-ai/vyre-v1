@@ -22,5 +22,7 @@ type Payload = {
   act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   taskId: string;
   by: string;
+  was: string;
+  now: string;
 };
 ```
