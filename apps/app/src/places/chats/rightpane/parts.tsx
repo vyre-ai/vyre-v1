@@ -104,13 +104,13 @@ export function Switch({ on, label, onPress, testID }: { on: boolean; label: str
 }
 
 /** A small text button in a section: "Wake", "Give back", "Run now". `primary` is the one filled action. */
-export function TextButton({ label, onPress, primary = false, disabled = false, testID }: { label: string; onPress: () => void; primary?: boolean; disabled?: boolean; testID?: string }): ReactElement {
+export function TextButton({ label, onPress, primary = false, filled = false, disabled = false, testID }: { label: string; onPress: () => void; primary?: boolean; /** a quiet filled button, for an offer that has to be seen */ filled?: boolean; disabled?: boolean; testID?: string }): ReactElement {
   const [over, setOver] = useState(false);
   return (
     <Pressable
       accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} testID={testID} onPress={onPress}
       onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)}
-      style={[s.btn, primary ? s.btnPrimary : over && s.btnOver, disabled && { opacity: 0.5 }]}
+      style={[s.btn, primary ? s.btnPrimary : filled ? s.btnFilled : over && s.btnOver, disabled && { opacity: 0.5 }]}
     >
       <Text style={[s.btnText, primary && s.btnTextPrimary]}>{label}</Text>
     </Pressable>
@@ -203,6 +203,7 @@ export const s = StyleSheet.create({
   switchKnobOn: { alignSelf: "flex-end" },
   btn: { height: 26, paddingHorizontal: 10, borderRadius: 7, alignItems: "center", justifyContent: "center", flexDirection: "row" },
   btnOver: { backgroundColor: "var(--hover)" as string },
+  btnFilled: { backgroundColor: "var(--sel)" as string },
   btnPrimary: { backgroundColor: "var(--accent)" as string },
   btnText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },
   btnTextPrimary: { color: "var(--accent-ink)" as string },

@@ -20,7 +20,7 @@ export function NoComputerRow({ name, onGive }: { name: string; onGive?: (() => 
     <View testID="about-no-computer" style={st.quiet}>
       <Icon name="terminal" size={16} color="var(--ink-3)" />
       <Text style={st.quietText}><Text style={st.quietLead}>No computer.</Text> {name} works through tools and your Chrome.</Text>
-      {onGive ? <TextButton label={`Give ${name} a computer`} onPress={onGive} testID="about-give" /> : null}
+      {onGive ? <TextButton label={`Give ${name} a computer`} onPress={onGive} filled testID="about-give" /> : null}
     </View>
   );
 }
