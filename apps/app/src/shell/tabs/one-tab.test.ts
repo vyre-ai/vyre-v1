@@ -82,3 +82,39 @@ test("the controller stamps the tab in use, saves it, and closes a saved duplica
   assert.ok((stamped.at ?? 0) > 1_700_000_000_000, "the tab in use carries when it was used");
   assert.ok(readTabs(data.get(key) ?? null)!.tabs.find((t) => t.key === "files")!.at !== undefined, "and it is saved");
 });
+
+test("one blank chat: starting another focuses the one that is open instead of adding a second tab", () => {
+  const data = new Map<string, string>();
+  const storage: TabsStorage = { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => { data.set(k, v); } };
+  const c = createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "nw", storage, start: "chats" });
+  c.openPlace("chats", "subject=thread:thr_1", "New chat");
+  c.retitle("chats:subject=thread:thr_1", "New chat", true);
+  c.openPlace("files");
+  // a second chat is started: it opens as a tab, and once it is known to be blank too it gives way to the first
+  c.openPlace("chats", "subject=thread:thr_2", "New chat");
+  assert.equal(c.state().active, "chats:subject=thread:thr_2");
+  c.retitle("chats:subject=thread:thr_2", "New chat", true);
+  assert.deepEqual(keys(c.state()), ["chats", "chats:subject=thread:thr_1", "files"].filter((k) => keys(c.state()).includes(k)), "no second blank tab");
+  assert.equal(c.state().tabs.filter((t) => t.empty === true).length, 1);
+  assert.equal(c.state().active, "chats:subject=thread:thr_1", "the blank chat that was open is selected");
+  // a chat that has its first message is not blank: it stays beside the blank one
+  c.openPlace("chats", "subject=thread:thr_3", "New chat");
+  c.retitle("chats:subject=thread:thr_3", "Can you draft the renewal", false);
+  assert.ok(keys(c.state()).includes("chats:subject=thread:thr_3"));
+  assert.equal(c.state().tabs.find((t) => t.key === "chats:subject=thread:thr_3")?.empty, undefined);
+  // a blank chat that gets a message is no longer blank, and a later blank one may stay
+  c.retitle("chats:subject=thread:thr_1", "Renewal", false);
+  c.openPlace("chats", "subject=thread:thr_4", "New chat");
+  c.retitle("chats:subject=thread:thr_4", "New chat", true);
+  assert.ok(keys(c.state()).includes("chats:subject=thread:thr_4"));
+});
+
+test("saved blank chats close on load, keeping one: the one used last; chats with messages stay", () => {
+  const blank = (id: string, at: number): TabEntry => ({ ...tab("chats", `subject=thread:${id}`, "New chat", at), empty: true });
+  const s = state([tab("files"), blank("a", 5), blank("b", 9), tab("chats", "subject=thread:c", "Renewal", 1), blank("d", 2)], "chats:subject=thread:a");
+  const out = dedupeTabs(s);
+  assert.deepEqual(keys(out), ["files", "chats:subject=thread:b", "chats:subject=thread:c"]);
+  assert.equal(out.active, "chats:subject=thread:b", "the selection moves to the blank chat that stays");
+  const read = dedupeTabs(readTabs(writeTabs(s))!);
+  assert.deepEqual(keys(read), keys(out), "the same after a save and a read");
+});

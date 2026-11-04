@@ -150,6 +150,7 @@ const FADE_CSS = [
 export const TAB_STRIP_HEIGHT = 38;
 export const TAB_HEIGHT = 30;
 const TAB_MAX_WIDTH = 200;
+const TITLE_MAX_WIDTH = 150;
 const TAB_MIN_WIDTH = 112;
 const TAB_GAP = 2;
 /** The strip's padding and its two buttons, which stay beside the tabs. */
@@ -382,7 +383,7 @@ function TabItem({ tab, on, tight, widest, dropTarget, canClose, only, nodeRef, 
       // (and the x hid itself) right as you reached for it; enter and leave do not fire for a move into a child
       {...(Platform.OS === "web" ? {} : { onHoverIn: () => setOver(true), onHoverOut: () => setOver(false) })}
       onLayout={(event) => onLayout(event.nativeEvent.layout.x, event.nativeEvent.layout.width)}
-      style={[styles.tab, { maxWidth: widest }, pinned ? styles.tabPinned : null, pinned && tight ? styles.tabTight : null, over && !on ? HOVER : null, on ? ACTIVE : null, dropTarget ? DROP : null]}
+      style={[styles.tab, { maxWidth: widest }, !on && !pinned ? styles.tabIdle : null, pinned ? styles.tabPinned : null, pinned && tight ? styles.tabTight : null, over && !on ? HOVER : null, on ? ACTIVE : null, dropTarget ? DROP : null]}
       {...trigger}
       {...webProps({
         title: name,
@@ -410,7 +411,7 @@ function TabItem({ tab, on, tight, widest, dropTarget, canClose, only, nodeRef, 
           focusable={false}
           testID={`tab-close-${tab.key}`}
           onPress={onClose}
-          style={[styles.close, showClose ? null : HIDDEN]}
+          style={[styles.close, on ? null : styles.closeOver, showClose ? null : HIDDEN]}
           {...webProps({ title: "Close" })}
         >
           <MenuIcon icon="x" color={ink} size={12} />
@@ -435,8 +436,12 @@ const styles = StyleSheet.create({
   spacer: { flexGrow: 1 },
   tab: { height: TAB_HEIGHT, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 10, paddingRight: 5, borderRadius: 10 },
   tabPinned: { paddingRight: 10 },
+  // a tab that is not selected holds no room for its Close: the button sits over the right padding when the pointer is on the tab, so every tab is the same distance from the next
+  tabIdle: { paddingRight: 10 },
   tabTight: { paddingLeft: 7, paddingRight: 7 },
-  title: { flexShrink: 1, fontSize: 12.5, lineHeight: 16 },
+  // one longest title for every tab: longer names are cut with an ellipsis
+  title: { flexShrink: 1, maxWidth: TITLE_MAX_WIDTH, fontSize: 12.5, lineHeight: 16 },
   close: { width: 20, height: 20, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  closeOver: { position: "absolute", right: 3, top: 5, backgroundColor: "var(--hover)" as string },
   iconButton: { width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center" },
 });

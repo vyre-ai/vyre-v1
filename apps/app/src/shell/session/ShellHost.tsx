@@ -201,7 +201,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     const ask = target.subject ? titleAsk(target.subject, target.args) : typeTitleAsk(location.place, target.args);
     if (!ask) return;
     const key = tabKey(location.place, location.hash);
-    return followTitle(session, target, ask, (t) => hub.retitle(key, t));
+    return followTitle(session, target, ask, (t, empty) => hub.retitle(key, t, empty));
   }, [session, hub, location.place, location.hash]);
 
   // Inbox is on the rail once something flows in: the answer follows the mailbox, calendar and number reads (and their change events), and is kept for the next launch

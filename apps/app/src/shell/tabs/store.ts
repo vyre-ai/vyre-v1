@@ -20,6 +20,8 @@ export interface TabEntry {
   pinned?: boolean;
   /** When the tab was last the selected one (ms): the most recent of two tabs for the same thing is the one that stays. */
   at?: number;
+  /** A chat with no name and no message yet: one such tab is kept, and starting another focuses it. */
+  empty?: true;
 }
 
 export interface TabsState {
@@ -194,9 +196,25 @@ export function dedupeTabs(state: TabsState): TabsState {
     const cur = winner.get(id);
     winner.set(id, cur === undefined ? t : newest(cur, t));
   }
-  const tabs = state.tabs.filter((t) => t.isNew === true || winner.get(tabKey(t.place, t.hash)) === t || t.pinned === true);
+  // blank chats left open: one stays, the one used last
+  const blanks = state.tabs.filter((t) => t.empty === true && t.pinned !== true && winner.get(tabKey(t.place, t.hash)) === t);
+  const blank = blanks.reduce<TabEntry | undefined>((a, b) => (a === undefined ? b : newest(a, b)), undefined);
+  const tabs = state.tabs.filter((t) => (t.isNew === true || winner.get(tabKey(t.place, t.hash)) === t || t.pinned === true) && !(t.empty === true && t.pinned !== true && t !== blank));
   if (tabs.length === state.tabs.length) return state;
   return { tabs, active: tabs.some((t) => t.key === state.active) ? state.active : ([...tabs].sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0]?.key ?? "") };
+}
+
+/**
+ * A chat tab that is known to be empty (no name, no message) is the one blank chat the person has open. When another empty chat tab is already there, the newer one closes and the older one
+ * is selected in its place: starting a new chat focuses the blank one instead of opening a second.
+ */
+export function collapseEmpty(state: TabsState, key: string): TabsState {
+  const tab = state.tabs.find((t) => t.key === key);
+  if (tab === undefined || tab.empty !== true) return state;
+  const other = state.tabs.find((t) => t.key !== key && t.empty === true && t.pinned !== true);
+  if (other === undefined) return state;
+  const tabs = state.tabs.filter((t) => t.key !== key);
+  return { tabs, active: state.active === key ? other.key : state.active };
 }
 
 export function writeTabs(state: TabsState): string {
@@ -224,7 +242,7 @@ export function readTabs(raw: string | null): TabsState | null {
   const renamed = new Map<string, string>();
   for (const row of data["tabs"] as unknown[]) {
     if (!isRecord(row)) return null;
-    const { key, title, place, hash, isNew, pinned, at } = row;
+    const { key, title, place, hash, isNew, pinned, at, empty } = row;
     if (typeof key !== "string" || typeof title !== "string" || typeof place !== "string" || !KNOWN_PLACES.has(place)) return null;
     const hashText = typeof hash === "string" && hash !== "" ? hash : undefined;
     // a tab saved on Home reopens in Chats, where Home went
@@ -251,6 +269,7 @@ export function readTabs(raw: string | null): TabsState | null {
       ...(isNew === true ? { isNew: true } : {}),
       ...(pinned === true ? { pinned: true } : {}),
       ...(typeof at === "number" ? { at } : {}),
+      ...(empty === true && hashText !== undefined ? { empty: true as const } : {}),
     });
   }
   const active = renamed.get(data["active"]) ?? data["active"];
@@ -280,7 +299,7 @@ export interface TabsController {
   closeMany(keys: readonly string[]): void;
   reorder(keys: readonly string[]): void;
   /** Rename a tab (a chat title arrives after the tab opens). */
-  retitle(key: string, title: string): void;
+  retitle(key: string, title: string, empty?: boolean): void;
 }
 
 export interface TabsControllerOptions {
@@ -350,9 +369,10 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
     close(key) { set(closeTab(state, key)); },
     closeMany(keys) { set(closeTabs(state, keys)); },
     reorder(keys) { set(reorderTabs(state, keys)); },
-    retitle(key, title) {
+    retitle(key, title, empty) {
       if (findTab(state, key) === undefined) return;
-      set({ tabs: state.tabs.map((t) => (t.key === key ? { ...t, title } : t)), active: state.active });
+      const next = { tabs: state.tabs.map((t) => (t.key === key ? (({ empty: _e, ...rest }) => ({ ...rest, title, ...(empty === true ? { empty: true as const } : {}) }))(t) : t)), active: state.active };
+      set(empty === true ? collapseEmpty(next, key) : next);
     },
   };
 }

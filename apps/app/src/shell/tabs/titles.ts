@@ -78,13 +78,13 @@ export interface TitleSession {
  * Names a tab for its item: the name, else the next read (a chat's first message), else the ask's own empty name ("New chat"). A chat is read again whenever it changes, so the tab follows
  * its first message and its renames. Returns the stop.
  */
-export function followTitle(session: TitleSession, target: { subject?: { type: string; id: string } }, ask: Ask, retitle: (title: string) => void): () => void {
+export function followTitle(session: TitleSession, target: { subject?: { type: string; id: string } }, ask: Ask, retitle: (title: string, empty?: boolean) => void): () => void {
   let off = false;
   const read = (a: Ask): Promise<string | null> => session.call(a.cap, a.input).then((out) => a.name(out) ?? (a.next ? read(a.next) : null), () => null);
   let latest = 0;
   const run = (): void => {
     const mine = ++latest;
-    void read(ask).then((name) => { const t = name ?? ask.empty; if (!off && mine === latest && t) retitle(t); });
+    void read(ask).then((name) => { const t = name ?? ask.empty; if (!off && mine === latest && t) retitle(t, name === null); });
   };
   run();
   const sub = target.subject;
