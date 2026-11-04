@@ -181,7 +181,7 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
   if (o.hooks) replica.put("hooks", [
     hk("hok_chat", "chat", "outward.before", "check", { instruction: "Check the address is in Contacts" }, "before any email, check the address is in Contacts", "agt_intake", "agent", true),
     hk("hok_run", "run", "tool.before", "check", { instruction: "Only open links from the quotes you were sent" }, "before a helper opens a link, only open links from the quotes you were sent", "agt_intake", "agent", true),
-    hk("hok_agent", "agent", "tool.after", "command", { command: "format-changed.sh" }, "after an edit, format the changed files", "agt_intake", "agent", true),
+    hk("hok_agent", "agent", "tool.after", "command", { command: "format-changed.sh" }, "after a helper edits a file, format the changed files", "agt_intake", "agent", true),
     hk("hok_space", "space", "prompt.submit", "check", { instruction: "No client names in prompts" }, "before each message is read, no client names", "usr_irfad", "admin", o.admin === true),
   ]);
   replica.resolve("hooks.runs.list", () => ({ runs: o.hooks ? [

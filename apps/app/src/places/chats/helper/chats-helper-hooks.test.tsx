@@ -12,7 +12,7 @@ const html = (s: Sample): string => clean(renderToStaticMarkup(<HelperChat data=
 
 test("a helper with hooks shows them: its own first, then the inherited, each tagged", () => {
   const out = html(createSample("done", { hooks: true }));
-  assert.ok(out.includes('data-testid="helper-hooks"') && out.includes("Hooks for this helper"));
+  assert.ok(out.includes('data-testid="helper-hooks"') && /Hooks for /.test(out));
   const own = out.indexOf('data-testid="helper-hook-hok_own"'), run = out.indexOf('data-testid="helper-hook-hok_run"'), space = out.indexOf('data-testid="helper-hook-hok_space"');
   assert.ok(own >= 0 && own < run && run < space);
   assert.ok(out.includes("From Intake") || /From [A-Z]/.test(out), "the lead's own say From <lead>");

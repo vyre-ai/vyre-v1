@@ -300,7 +300,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   /* ---------- the other pages ---------- */
   const importedData = useMemo<ImportedData>(() => ({ call: rt.call, clock: rt.clock, spaceId: rt.space.id, assistantId: rt.assistant.id, openChat: go.chat }), [rt, go]);
   const helperId = route.view === "helper" ? route.threadId : "";
-  const helper = useMemo(() => helperData(rt, go, helperId, nameOf), [rt, go, helperId, nameOf]);
+  const helper = useMemo(() => { const h = helperData(rt, go, helperId, nameOf); return { ...h, nav: { ...h.nav, openHooks: (hookId: string) => { setPaneTab("hooks"); setHookSel(hookId); setRightOn(null); go.openPane(); } } }; }, [rt, go, helperId, nameOf]);
   const agentId = route.view === "agent" ? route.agentId : "";
   const agentQ = useLive<AgentOut>(rt.screens, "chats.agent-page", "agent", agentId !== "" ? { agentId } : null);
   const agentRow = agentQ.status === "ready" && agentId !== "" ? agentQ.data.agent : null;

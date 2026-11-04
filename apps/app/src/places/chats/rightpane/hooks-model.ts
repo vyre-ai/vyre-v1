@@ -55,6 +55,12 @@ export function restoreInput(h: Hook, threadId: string): Record<string, unknown>
   return { scope: h.scope, event: h.event, kind: h.kind, matcher: h.matcher, timeoutSec: h.timeoutSec, helpers: h.helpers, summary: h.line, threadId, ...(h.agentId ? { agentId: h.agentId } : {}), ...(whatOf(h) ? (h.kind === "command" ? { command: whatOf(h) } : h.kind === "check" ? { instruction: whatOf(h) } : { cap: whatOf(h), input: (h.spec as { input?: unknown }).input ?? {} }) : {}) };
 }
 
+/** When a hook runs, in the plain words its maker gave it: the part of its line before the first comma, capitalised ("Before any email"). The event words are the fallback. */
+export function titleOf(h: Pick<Hook, "line" | "event">): string {
+  const first = h.line.split(",")[0]!.trim();
+  const t = first !== "" && first.length <= 90 ? first : EVENT_WORDS[h.event] ?? h.event;
+  return t[0]!.toUpperCase() + t.slice(1);
+}
 /** What the newest run of a hook did, in a few words: "stopped files_tree", "let through once", "added a note". */
 export type HookRun = CapMap["hooks.runs.list"]["out"]["runs"][number];
 export function ranWhat(r: Pick<HookRun, "outcome" | "tool">): string {
@@ -69,8 +75,8 @@ export function ranWhat(r: Pick<HookRun, "outcome" | "tool">): string {
     default: return `checked${on}`;
   }
 }
-/** "Ran 2 min ago, stopped files_tree", or "Not run yet". `runs` are newest first, as hooks.runs.list gives them. */
+/** "Last ran 2 min ago, stopped files_tree", or "Never ran". `runs` are newest first, as hooks.runs.list gives them. */
 export function lastRan(hookId: string, runs: readonly HookRun[], ago: (ts: number) => string): string {
   const r = runs.find((x) => x.hookId === hookId);
-  return r ? `Ran ${ago(r.at)} · ${ranWhat(r)}` : "Not run yet";
+  return r ? `Last ran ${ago(r.at)}, ${ranWhat(r)}` : "Never ran";
 }

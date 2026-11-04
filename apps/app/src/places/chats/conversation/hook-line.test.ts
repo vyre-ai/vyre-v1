@@ -2,7 +2,7 @@
 // The quiet line a hook leaves in a chat (lane l-hooks): its words, and the side button it offers (Edit for a hook that is still there, Details for one that stopped something).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hookLineActs, hookLineOf, hookLineText, isCard } from "./model.ts";
+import { hookLineActs, hookLineOf, hookLineText, isCard, hookLead } from "./model.ts";
 
 const msg = (data: Record<string, unknown>) => ({ blocks: [{ id: "b", type: "hook", v: 1, state: "done", data }] }) as never;
 
@@ -26,4 +26,11 @@ test("a line about a person names them as the reader does, never Someone", () =>
   const q = hookLineOf(msg({ line: "Someone asked an admin about a hook: x", kind: "asked", hookId: "h", by: "usr_maya", subject: "rule" }))!;
   assert.equal(hookLineText(q, () => "Maya Chen"), "Maya Chen asked an admin about a hook: rule");
   assert.equal(hookLineText(hookLineOf(msg({ line: "A hook stopped this: no", kind: "blocked" }))!, () => "x"), "A hook stopped this: no");
+});
+
+test("the lead words of a hook line are the name before added, or A hook stopped this:", () => {
+  assert.deepEqual(hookLead("Intake added a hook in this chat: before any email, check"), ["Intake", " added a hook in this chat: before any email, check"]);
+  assert.deepEqual(hookLead("A hook stopped this: no"), ["A hook stopped this:", " no"]);
+  assert.deepEqual(hookLead("Maya Chen let a hook go by once: x"), ["Maya Chen", " let a hook go by once: x"]);
+  assert.deepEqual(hookLead("nothing to lead"), ["", "nothing to lead"]);
 });

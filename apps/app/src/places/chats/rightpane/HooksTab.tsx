@@ -10,7 +10,7 @@ import { hookPause, hookRemove, hookSave } from "./actions.ts";
 import { PANE_SCREEN } from "./ThreadsTab.tsx";
 import { agoLabel } from "./model.ts";
 import { usePaneData, useScreenQuery } from "./data.tsx";
-import { EVENT_ORDER, EVENT_WORDS, KIND_ORDER, KIND_WORDS, canRemoveNote, countLine, draftOf, grouped, kindWord, lastRan, madeBy, restoreInput, setInput, whatOf } from "./hooks-model.ts";
+import { EVENT_ORDER, EVENT_WORDS, KIND_ORDER, KIND_WORDS, canRemoveNote, countLine, titleOf, draftOf, grouped, kindWord, lastRan, madeBy, restoreInput, setInput, whatOf } from "./hooks-model.ts";
 import type { Draft, Hook, HookKind, HookRun } from "./hooks-model.ts";
 import { PaneList, TextButton } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
@@ -28,7 +28,7 @@ export function HookCard({ h, threadId, deps, selected, nameOf, ran, startEditin
   };
   return (
     <View testID={`hook-${h.id}`} style={[s.card, h.paused && s.off, selected && s.sel]}>
-      <Text style={s.when}>{EVENT_WORDS[h.event] ?? h.event}{h.matcher && h.matcher !== "*" ? ` ${h.matcher}` : ""}</Text>
+      <Text testID={`hook-title-${h.id}`} style={s.when}>{titleOf(h)}</Text>
       {edit ? (
         <View testID={`hook-form-${h.id}`} style={s.form}>
           <Text style={s.label}>When</Text>
@@ -70,7 +70,7 @@ export function HooksTab({ deps, window, selected }: { deps: PaneDeps; window?: 
   const agentsOn = q.status === "ready" ? q.data.agentHooks : true;
   // a real name wherever the shell knows it (the Space directory), else the agent's own; never "A person"
   const nameOf = (id: string): string => (id === data.agent.agentId ? data.agent.name : data.nameOf?.(id) ?? data.people?.find((p) => p.id === id)?.name ?? "Someone in this Space");
-  const entries: Entry[] = [{ key: "count", type: "label", text: "Hooks", right: countLine(hooks) }];
+  const entries: Entry[] = [{ key: "head", type: "block", node: <View key="head" testID="hooks-head" style={s.head}><Text accessibilityRole="header" style={s.title}>Hooks</Text><Text testID="hooks-count" style={s.count}>{countLine(hooks)}</Text></View> }];
   if (hooks.length === 0) entries.push({ key: "none", type: "empty", text: `No hooks here. ${data.agent.name} can add its own when you ask.`, testID: "hooks-empty" });
   for (const g of grouped(hooks, data.agent.name)) {
     entries.push({ key: `l-${g.key}`, type: "label", text: g.title, right: String(g.hooks.length) });
@@ -81,15 +81,18 @@ export function HooksTab({ deps, window, selected }: { deps: PaneDeps; window?: 
 }
 
 const s = StyleSheet.create({
-  card: { marginHorizontal: 10, marginBottom: 8, padding: 11, borderRadius: 12, backgroundColor: "var(--raised)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object,
+  card: { marginHorizontal: 10, marginBottom: 8, paddingVertical: 11, paddingHorizontal: 13, borderRadius: 13, backgroundColor: "var(--sunk)" as string },
   off: { opacity: 0.6 },
-  sel: { boxShadow: "inset 0 0 0 2px var(--accent)" } as object,
-  when: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
-  what: { marginTop: 4, fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string },
-  kind: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
-  meta: { marginTop: 4, fontSize: 12, color: "var(--ink-3)" as string },
-  acts: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginTop: 8 },
-  locked: { fontSize: 12, color: "var(--ink-3)" as string },
+  sel: { boxShadow: "inset 0 0 0 1.5px var(--accent-line, var(--accent))" } as object,
+  head: { paddingHorizontal: 12, paddingTop: 6, paddingBottom: 8 },
+  title: { fontSize: 17, fontWeight: "600", color: "var(--ink)" as string },
+  count: { marginTop: 2, fontSize: 13, color: "var(--ink-3)" as string },
+  when: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
+  what: { marginTop: 4, fontSize: 13.5, lineHeight: 19, color: "var(--ink-2)" as string },
+  kind: { fontSize: 13.5, fontWeight: "500", color: "var(--ink)" as string },
+  meta: { marginTop: 4, fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
+  acts: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 2, marginTop: 8, marginHorizontal: -9, marginBottom: -4 },
+  locked: { fontSize: 12, marginLeft: 9, color: "var(--ink-4)" as string },
   form: { marginTop: 6 },
   label: { marginTop: 6, fontSize: 11.5, color: "var(--ink-3)" as string },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },

@@ -3,7 +3,7 @@
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { kindWord, whatOf } from "../rightpane/hooks-model.ts";
+import { kindWord, titleOf, whatOf } from "../rightpane/hooks-model.ts";
 import type { Hook } from "../rightpane/hooks-model.ts";
 
 export type HelperHooksOut = CapMap["hooks.list"]["out"];
@@ -13,21 +13,21 @@ export function splitHooks(hooks: readonly Hook[], helperThreadId: string): { ow
   return { own: hooks.filter((h) => h.scope === "run" && h.threadId === helperThreadId), inherited: hooks.filter((h) => !(h.scope === "run" && h.threadId === helperThreadId)) };
 }
 
-export function HelperHooks({ hooks, helperThreadId, lead, open }: { hooks: readonly Hook[]; helperThreadId: string; lead: string; open?: (hookId: string) => void }): ReactElement | null {
+export function HelperHooks({ hooks, helperThreadId, lead, name, open }: { hooks: readonly Hook[]; helperThreadId: string; lead: string; /** The helper's own name: "Hooks for Research" */ name: string; open?: (hookId: string) => void }): ReactElement | null {
   if (hooks.length === 0) return null;
   const { own, inherited } = splitHooks(hooks, helperThreadId);
   const row = (h: Hook, tag: string): ReactElement => (
     <Pressable key={h.id} accessibilityRole="button" accessibilityLabel={`${tag}: ${h.line}`} testID={`helper-hook-${h.id}`} disabled={!open} onPress={() => open?.(h.id)} style={st.row}>
       <View style={st.text}>
-        <Text numberOfLines={1} style={st.when}>{h.line}</Text>
-        <Text numberOfLines={1} style={st.what}>{kindWord(h)}: {whatOf(h)}</Text>
+        <Text style={st.when}>{titleOf(h)}</Text>
+        <Text style={st.what}>{kindWord(h)}: {whatOf(h)}</Text>
       </View>
       <Text style={st.tag}>{tag}</Text>
     </Pressable>
   );
   return (
     <View testID="helper-hooks" style={st.root}>
-      <View style={st.head}><Text accessibilityRole="header" style={st.label}>{`Hooks for this helper`}</Text><Text style={st.label}>{own.length + inherited.length}</Text></View>
+      <View style={st.head}><Text accessibilityRole="header" style={st.label}>{`Hooks for ${name}`}</Text><Text style={st.label}>{own.length + inherited.length}</Text></View>
       {own.map((h) => row(h, `From ${lead}`))}
       {inherited.map((h) => row(h, "Inherited"))}
     </View>

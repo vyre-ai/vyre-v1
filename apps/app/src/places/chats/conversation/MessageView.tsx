@@ -40,6 +40,7 @@ import { AccessRequestCard, isAccessRequest } from "./accessrequest.tsx";
 import { RedactRequestCard, isRedactRequest } from "./redactrequest.tsx";
 import { ChecklistCard, isChecklist } from "./checklist.tsx";
 import { HookLineActs } from "./hookline.tsx";
+import { hookLead } from "./model.ts";
 import { NoteOfferCard, isNoteOffer } from "./noteoffer.tsx";
 import { QuoteCard, WebPageCard, isQuote, isWebPage } from "./webpage.tsx";
 import { ChromeStepCard, HeldSendCard, isChromeHeld, isChromeStep } from "./chrome-cards.tsx";
@@ -191,11 +192,22 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
         </View>
       );
     }
+    if (hookLine) {
+      // a hook line (lane l-hooks): the lock where other lines have a dot, the lead words in ink, the way forward quiet at the right, no time
+      const words = hookLineText(hookLine, props.actions.nameOf ?? unnamed);
+      const [lead, rest] = hookLead(words);
+      return (
+        <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
+          <Glyph name="lock" size={13} color="var(--ink-4)" />
+          <Text style={st.hookText}><Text style={st.hookLead}>{lead}</Text>{rest}</Text>
+          {props.actions.files ? <HookLineActs id={item.key} line={hookLine} threadId={props.actions.files.threadId} call={props.actions.files.call} {...(props.actions.openHooks ? { open: (hookId: string) => props.actions.openHooks?.(hookId) } : {})} linkStyle={st.hookAct} quietStyle={st.hookAct} /> : null}
+        </View>
+      );
+    }
     return (
       <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
         <View style={st.eventDot} />
-        <Text style={st.eventText}>{hookLine ? hookLineText(hookLine, props.actions.nameOf ?? unnamed) : pokeLine(item.message, props.actions.nameOf ?? unnamed) ?? item.text}</Text>
-        {hookLine && props.actions.files ? <HookLineActs id={item.key} line={hookLine} threadId={props.actions.files.threadId} call={props.actions.files.call} {...(props.actions.openHooks ? { open: (hookId: string) => props.actions.openHooks?.(hookId) } : {})} linkStyle={st.eventLink} quietStyle={st.eventText} /> : null}
+        <Text style={st.eventText}>{pokeLine(item.message, props.actions.nameOf ?? unnamed) ?? item.text}</Text>
         <Text style={st.eventTime}>{item.time}</Text>
       </View>
     );
@@ -621,6 +633,9 @@ export const st = StyleSheet.create({
   eventText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
   eventLink: { color: "var(--accent)" as string, textDecorationLine: "underline", cursor: "pointer" } as object,
   eventTime: { fontSize: 11.5, color: "var(--ink-4)" as string },
+  hookText: { flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 19, color: "var(--ink-2)" as string },
+  hookLead: { color: "var(--ink)" as string, fontWeight: "500" },
+  hookAct: { fontSize: 12.5, color: "var(--ink-3)" as string, cursor: "pointer" } as object,
   gapTop: { marginTop: 18 },
   // the mark sits outside the message (marks.ts), so nothing touches its edge
   found: MARK.found as object,
