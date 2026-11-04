@@ -166,12 +166,12 @@ export function InstallCard({ id, data, chat, mine = true }: { id: string; data:
               {absent.map((k) => (
                 <View key={k} style={st.gap}>
                   <View style={st.row}>
-                    <Text style={st.v}>{added.has(k) ? `${k} · added` : `${k} is not in your Vault`}</Text>
-                    {!added.has(k) && keyOpen !== k ? <TextButton label="Add it" testID={`install-addkey-${k}-${id}`} onPress={() => { setKeyOpen(k); setKeyLine(null); }} /> : null}
+                    <Text style={st.vtext}>{added.has(k) ? `${k} · added` : `${k} is not in your Vault`}</Text>
+                    {!added.has(k) && keyOpen !== k ? <TextButton label="Add it" ring testID={`install-addkey-${k}-${id}`} onPress={() => { setKeyOpen(k); setKeyLine(null); }} /> : null}
                   </View>
                   {keyOpen === k ? (
                     <View style={st.gap}>
-                      <TextInput value={keyValue} onChangeText={setKeyValue} secureTextEntry placeholder={`Paste ${k}`} accessibilityLabel={k} testID={`install-keyvalue-${k}-${id}`} style={st.input} />
+                      <TextInput value={keyValue} onChangeText={setKeyValue} secureTextEntry placeholder={`Paste ${k}`} accessibilityLabel={k} testID={`install-keyvalue-${k}-${id}`} style={[st.input, st.keyInput]} />
                       <Text style={st.summary}>It stays in your Vault.</Text>
                       <View style={st.row}><TextButton label="Save to Vault" primary testID={`install-keysave-${k}-${id}`} onPress={() => { void saveKey(k); }} /><TextButton label="Cancel" onPress={() => { setKeyOpen(null); setKeyValue(""); }} /></View>
                       {keyLine ? <Text style={st.sub}>{keyLine}</Text> : null}
@@ -240,6 +240,8 @@ const st = StyleSheet.create({
   sub: { fontSize: 12.5, color: "var(--ink-2)" as string, lineHeight: 18 },
   grid: { gap: 7, backgroundColor: "var(--bg)" as string, borderRadius: 10, padding: 10 },
   keys: { flex: 1, gap: 6 },
+  vtext: { fontSize: 13, lineHeight: 19, color: "var(--ink)" as string },
+  keyInput: { flex: 0, alignSelf: "stretch", minHeight: 34 },
   rowLine: { flexDirection: "row", gap: 10, alignItems: "flex-start" },
   k: { width: 70, flexShrink: 0, fontSize: 13, color: "var(--ink-3)" as string },
   v: { flex: 1, fontSize: 13, lineHeight: 19, color: "var(--ink)" as string },

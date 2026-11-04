@@ -39,8 +39,10 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   const jump = () => page.click("text=Jump to latest", { timeout: 1500 }).then(() => page.waitForTimeout(400)).catch(() => undefined);
   if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
   await jump();
-  for (const sel of [].concat(t.click ?? [])) { await page.click(sel).catch(() => { found = false; }); await page.waitForTimeout(700); await jump(); }
-  await page.waitForTimeout(900);
+  const bottom = () => page.evaluate(() => { for (const e of document.querySelectorAll("*")) if (e.scrollHeight > e.clientHeight + 40 && getComputedStyle(e).overflowY !== "visible" && getComputedStyle(e).overflowY !== "hidden") e.scrollTop = e.scrollHeight; }).then(() => page.waitForTimeout(300));
+  for (const sel of [].concat(t.click ?? [])) { await page.click(sel).catch(() => { found = false; }); await page.waitForTimeout(700); await page.mouse.move(2, 2); await jump(); }
+  await bottom();
+  await page.waitForTimeout(600);
   const file = path.join(out, `${t.id.replace("INSTALL_02-", "")}-${skin}-${size}.png`);
   await page.screenshot({ path: file });
   console.log(`shot ${path.basename(file)} waitFor=${found}${errs.length ? " errors=" + errs.join(" | ").slice(0, 400) : ""}`);
