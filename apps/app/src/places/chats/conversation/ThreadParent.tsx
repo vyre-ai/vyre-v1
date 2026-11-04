@@ -10,7 +10,7 @@ import type { Clock } from "../rightpane/model.ts";
 interface Parent { who: string; whoId: string; at?: number; body: string }
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 
-export function ThreadParent({ threadId, messageId, call, nameOf, kindOf, clock, count, onOpen }: { threadId?: string | undefined; messageId?: string | undefined; call: Call; nameOf(id: string): string; kindOf?: ((id: string) => "person" | "agent") | undefined; clock?: Clock | undefined; count?: number | undefined; onOpen?: (() => void) | undefined }): ReactElement | null {
+export function ThreadParent({ threadId, messageId, call, nameOf, kindOf, clock, count, writing, onOpen }: { threadId?: string | undefined; messageId?: string | undefined; call: Call; nameOf(id: string): string; kindOf?: ((id: string) => "person" | "agent") | undefined; clock?: Clock | undefined; count?: number | undefined; /** Who is writing the first reply right now: the divider says so instead of "No replies yet". */ writing?: string | undefined; onOpen?: (() => void) | undefined }): ReactElement | null {
   const [parent, setParent] = useState<Parent | null>(null);
   useEffect(() => {
     if (!threadId || !messageId) return undefined;
@@ -36,7 +36,7 @@ export function ThreadParent({ threadId, messageId, call, nameOf, kindOf, clock,
   const divider = count !== undefined ? (
     <View testID="thread-replies-divider" style={st.divider}>
       <View style={st.rule} />
-      <Text style={st.dividerText}>{count === 0 ? "No replies yet" : `${count} ${count === 1 ? "reply" : "replies"}`}</Text>
+      <Text style={st.dividerText}>{count === 0 ? (writing ? `${writing} is writing` : "No replies yet") : `${count} ${count === 1 ? "reply" : "replies"}`}</Text>
       <View style={st.rule} />
     </View>
   ) : null;

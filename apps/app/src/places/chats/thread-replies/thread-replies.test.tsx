@@ -223,32 +223,42 @@ test("on a phone the thread is a full-screen sheet with a back arrow, and back c
   widen(1280);
 });
 
-test("an empty thread says so; a long thread opens on its last reply", async () => {
+const withRoot = (s: Sample): Sample => {
+  const call = s.data.call;
+  s.data.call = async (cap: string, input: unknown) => (cap === "chat.message.get" ? { message: { author: { id: "usr_irfad" }, body: "Find a time for the vendor call next week.", createdAt: at(9, 21) } } : call(cap, input));
+  return s;
+};
+
+test("an empty thread shows its root message first, then No replies yet, and no Say something to start; a long thread opens on its last reply", async () => {
   installDom(); widen(1280);
-  const empty = channel();
+  const empty = withRoot(channel());
   empty.replica.put("threads", [threadRow()]);
   const a = await mount(createRoot, side(empty, false));
-  await flush();
-  assert.match(textOf(find(a, "thread-empty")), /No replies yet/);
+  await flush(); await flush();
+  assert.match(textOf(find(a, "thread-parent")), /You\s+9:21/);
+  assert.match(textOf(find(a, "thread-parent")), /Find a time for the vendor call/);
+  assert.match(textOf(find(a, "thread-replies-divider")), /No replies yet/);
+  assert.doesNotMatch(textOf(a), /Say something to start/);
 
-  const long = channel();
+  const long = withRoot(channel());
   long.replica.put("threads", [threadRow({ replyCount: 60, lastMessageAt: at(11, 0) })]);
   long.replica.put("messages", Array.from({ length: 60 }, (_, i) => msg(`tl${i + 1}`, "t_c2", i + 1, i % 2 === 0 ? me : intake, `Reply number ${i + 1}`, { createdAt: at(9, 22) + i * 1000 })));
   const b = await mount(createRoot, side(long, false));
   await flush();
-  assert.equal(find(b, "thread-empty"), null);
   assert.ok(find(b, "msg-tl60"), "the newest reply is on the page");
-  assert.ok(find(b, "composer-input") ?? find(b, "composer"), "with the composer under it");
+  assert.match(textOf(find(b, "thread-replies-divider")), /60 replies/);
 });
 
-test("while the agent writes its first reply the thread does not say it is empty", async () => {
+test("while the agent writes its first reply the divider says who is writing, not No replies yet", async () => {
   installDom(); widen(1280);
-  const s = channel();
+  const s = withRoot(channel());
   s.replica.put("threads", [threadRow()]);
   const turns = [{ threadId: "t_c2", agentId: "agt_intake", state: "writing" as const, startedAt: Date.now() - 3_000 }];
   const root = await mount(createRoot, <ThreadSide rt={{ screens: s.data.screens, call: s.data.call, connection: s.data.connection } as unknown as ShellRuntime} threadId="t_c2" data={{ ...s.data, threadId: "t_c2", live: liveOf(turns) }} narrow={false} onClose={() => undefined} say={() => undefined} />);
-  await flush();
-  assert.equal(find(root, "thread-empty"), null, "it is writing, not empty");
+  await flush(); await flush();
+  const divider = textOf(find(root, "thread-replies-divider"));
+  assert.match(divider, /Intake is writing/);
+  assert.doesNotMatch(divider, /No replies yet/);
 });
 
 test("a reply that was also sent to the chat carries the mark in the thread; one that was not does not", async () => {
