@@ -48,3 +48,12 @@ test("the rendered Hooks tab holds no snake_case name in its words", () => {
   const hit = SNAKE.exec(text);
   assert.equal(hit, null, `a name showed: ${hit?.[0]}`);
 });
+
+test("a script is described by what it is for, not its file name; an event reads as an action, never a tool", async () => {
+  const { describedAs, EVENT_WORDS } = await import("./hooks-model.ts");
+  assert.equal(describedAs({ line: "before a helper acts, keep to the Space rules" }), "Keep to the Space rules");
+  assert.equal(whatOf({ kind: "command", spec: { command: "rules.sh" }, line: "before a helper acts, keep to the Space rules" } as never), "Keep to the Space rules");
+  assert.equal(whatOf({ kind: "command", spec: { command: "rules.sh" }, line: "" } as never), "rules.sh", "no description, the file name is all there is");
+  assert.equal(EVENT_WORDS["tool.before"], "Before any action");
+  assert.equal(EVENT_WORDS["tool.after"], "After any action");
+});

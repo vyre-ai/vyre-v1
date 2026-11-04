@@ -10,7 +10,7 @@ export const KIND_WORDS: Readonly<Record<HookKind, string>> = { command: "Run a 
 export const KIND_ORDER: readonly HookKind[] = ["command", "check", "action"];
 /** When a hook runs, in a few words (the "When" of the form). */
 export const EVENT_WORDS: Readonly<Record<string, string>> = {
-  "session.start": "When a session starts", "prompt.submit": "Before each message is read", "tool.before": "Before a tool runs", "tool.after": "After a tool runs",
+  "session.start": "When a session starts", "prompt.submit": "Before each message is read", "tool.before": "Before any action", "tool.after": "After any action",
   "outward.before": "Before anything leaves Vyre", "turn.end": "When a turn ends", "helper.start": "Before a helper starts", "helper.end": "When a helper ends",
 };
 export const EVENT_ORDER: readonly string[] = Object.keys(EVENT_WORDS);
@@ -34,9 +34,16 @@ export function rawOf(h: Pick<Hook, "kind" | "spec">): string {
   const s = (h.spec ?? {}) as { command?: string; instruction?: string; cap?: string };
   return (h.kind === "check" ? s.instruction : h.kind === "action" ? s.cap : s.command) ?? "";
 }
-/** What a card says the hook does: an action is its plain words ("post in the chat"), never a capability name. */
-export function whatOf(h: Pick<Hook, "kind" | "spec">): string {
+/** What a script does, in the plain words its maker gave the hook: the part of its line after the first comma ("keep to the Space rules"). The file name belongs to the edit form. */
+export function describedAs(h: Pick<Hook, "line">): string {
+  const i = h.line.indexOf(",");
+  const d = i >= 0 ? h.line.slice(i + 1).trim() : "";
+  return d === "" ? "" : d[0]!.toUpperCase() + d.slice(1);
+}
+/** What a card says the hook does: an action is its plain words ("Post in the chat"), a script is what it is for, never a capability name or a file name. */
+export function whatOf(h: Pick<Hook, "kind" | "spec"> & { line?: string }): string {
   if (h.kind === "action") { const w = capWords(((h.spec ?? {}) as { cap?: string }).cap); return w[0]!.toUpperCase() + w.slice(1); }
+  if (h.kind === "command" && h.line) { const d = describedAs({ line: h.line }); if (d !== "") return d; }
   return rawOf(h);
 }
 /** "Made by Assistant", or the person's name where it is known. */
@@ -54,7 +61,7 @@ export function setInput(h: Hook, d: Draft, threadId: string): Record<string, un
   const what = d.what.trim();
   if (what === "") return null;
   return {
-    id: h.id, scope: h.scope, event: d.event, kind: d.kind, matcher: !ACTION_EVENTS.has(d.event) ? "" : d.only === choiceFor(h.matcher) ? h.matcher : matcherFor(d.only), threadId, timeoutSec: h.timeoutSec, helpers: h.helpers,
+    id: h.id, summary: h.line, scope: h.scope, event: d.event, kind: d.kind, matcher: !ACTION_EVENTS.has(d.event) ? "" : d.only === choiceFor(h.matcher) ? h.matcher : matcherFor(d.only), threadId, timeoutSec: h.timeoutSec, helpers: h.helpers,
     ...(d.kind === "command" ? { command: what } : d.kind === "check" ? { instruction: what } : { cap: what, input: (h.spec as { input?: unknown }).input ?? {} }),
   };
 }

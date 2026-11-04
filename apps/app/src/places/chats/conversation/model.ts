@@ -135,7 +135,7 @@ export function hookLead(text: string): [string, string] {
   const m = /^(.+?)( (?:added|set|changed|removed|paused|turned|let|asked) )/.exec(text);
   return m ? [m[1]!, text.slice(m[1]!.length)] : ["", text];
 }
-/** What a line offers beyond its words. A block shows Details (the hook, in the Hooks tab), Run once anyway and Ask an admin; a hook that is still there shows Edit. */
+/** What a line offers beyond its words. A block shows Details (the hook, in the Hooks tab), Allow this once and Ask an admin; a hook that is still there shows Edit. */
 export type HookLineAct = "details" | "edit" | "once" | "ask";
 export function hookLineActs(h: HookLine): HookLineAct[] {
   if (h.hookId === undefined) return [];

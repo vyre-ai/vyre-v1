@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ChatRightPane } from "./ChatRightPane.tsx";
 import { hookPause, hookRemove, hookSave } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
-import { countLine, draftOf, grouped, restoreInput, setInput, whatOf } from "./hooks-model.ts";
+import { countLine, draftOf, grouped, rawOf, restoreInput, setInput, whatOf } from "./hooks-model.ts";
 import type { Hook } from "./hooks-model.ts";
 import { tabsOf } from "./model.ts";
 import type { TabKey } from "./model.ts";
@@ -33,7 +33,7 @@ test("the hooks are grouped: this chat, this run and its helpers, the agent ever
   const order = ["label-l-chat", "label-l-run", "label-l-agent", "label-l-space"].map((n) => { const i = out.indexOf(`data-testid="${n}"`); assert.ok(i >= 0, n); return i; });
   for (const name of ["This chat", "This run and its helpers", "Intake everywhere"]) assert.ok(out.includes(name), name);
   assert.deepEqual([...order].sort((a, b) => a - b), order);
-  for (const needle of ["Before any email", "Ask a quick check", "Check the address is in Contacts", "Run a script", "format-changed.sh", "4 in this chat, 0 paused"]) assert.ok(out.includes(needle), needle);
+  for (const needle of ["Before any email", "Ask a quick check", "Check the address is in Contacts", "Run a script", "Format the changed files", "4 in this chat, 0 paused"]) assert.ok(out.includes(needle), needle);
   assert.ok(out.includes("Intake can add its own hooks") || out.includes("can add its own hooks"), "the foot says who may add hooks");
   assert.deepEqual(grouped(hooksOf(createSample("northwind", { hooks: true })), "Intake").map((g) => g.key), ["chat", "run", "agent", "space"]);
   assert.equal(countLine([]), "0 in this chat, 0 paused");
@@ -68,7 +68,7 @@ test("Edit offers the three kinds, Save writes the new words through hooks.set, 
   assert.deepEqual([input["id"], input["kind"], input["command"], input["event"]], ["hok_chat", "command", "check-address.sh", "tool.before"]);
   assert.equal(await hookSave(d, input), true);
   assert.equal(notes.at(-1)?.text, "Hook saved");
-  assert.equal(whatOf(hooksOf(s).find((x) => x.id === "hok_chat")!), "check-address.sh");
+  assert.equal(rawOf(hooksOf(s).find((x) => x.id === "hok_chat")!), "check-address.sh");
   const action = setInput(h, { event: "turn.end", kind: "action", what: "chat.post", only: "any" }, s.data.threadId)!;
   assert.equal(action["cap"], "chat.post");
   assert.ok(html(s).includes('data-testid="hook-edit-hok_chat"'));
@@ -80,9 +80,9 @@ test("Remove takes the hook away and Undo makes the same hook again", async () =
   const h = hooksOf(s).find((x) => x.id === "hok_agent")!;
   assert.equal(await hookRemove(d, h.id, s.data.threadId, restoreInput(h, s.data.threadId)), true);
   assert.equal(hooksOf(s).some((x) => x.id === "hok_agent"), false);
-  assert.equal(notes.at(-1)?.text, "Hook removed");
+  assert.equal(notes.at(-1)?.text, "Removed: hook");
   await notes.at(-1)!.undo!();
-  assert.ok(hooksOf(s).some((x) => whatOf(x) === "format-changed.sh"), "the same words are back");
+  assert.ok(hooksOf(s).some((x) => rawOf(x) === "format-changed.sh"), "the same words are back");
   s.failNext("hooks.remove");
   assert.equal(await hookRemove(d, "hok_chat", s.data.threadId, {}), false);
   assert.match(notes.at(-1)!.text, /^Could not remove that hook/);

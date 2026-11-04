@@ -1,4 +1,4 @@
-// The way forward on a hook line (lane l-hooks): "A hook stopped this" offers Details, Run once anyway and Ask an admin. Each is pressed and calls one capability; the server's refusal (a Space hook is an admin's
+// The way forward on a hook line (lane l-hooks): "A hook stopped this" offers Details, Allow this once and Ask an admin. Each is pressed and calls one capability; the server's refusal (a Space hook is an admin's
 // to let go by) is said in its own words; an added hook offers Edit.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -14,7 +14,7 @@ function setup(fail?: string) {
   return { calls, opened, el: (line = blocked) => <HookLineActs id="m1" line={line} threadId="thr_1" call={call} open={(h) => opened.push(h)} linkStyle={{}} quietStyle={{}} /> };
 }
 
-test("a block offers Details, Run once anyway and Ask an admin; Details opens the hook", async () => {
+test("a block offers Details, Allow this once and Ask an admin; Details opens the hook", async () => {
   const off = installDom();
   try {
     const s = setup();
@@ -25,7 +25,7 @@ test("a block offers Details, Run once anyway and Ask an admin; Details opens th
   } finally { off(); }
 });
 
-test("Run once anyway calls hooks.allow_once and says what happens next; Ask an admin calls hooks.ask_admin", async () => {
+test("Allow this once calls hooks.allow_once and says what happens next; Ask an admin calls hooks.ask_admin", async () => {
   const off = installDom();
   try {
     const a = setup();

@@ -39,8 +39,7 @@ import { KeyRequestCard, isKeyRequest } from "./keyrequest.tsx";
 import { AccessRequestCard, isAccessRequest } from "./accessrequest.tsx";
 import { RedactRequestCard, isRedactRequest } from "./redactrequest.tsx";
 import { ChecklistCard, isChecklist } from "./checklist.tsx";
-import { HookLineActs } from "./hookline.tsx";
-import { hookLead } from "./model.ts";
+import { HookLineRow } from "./hookline.tsx";
 import { NoteOfferCard, isNoteOffer } from "./noteoffer.tsx";
 import { QuoteCard, WebPageCard, isQuote, isWebPage } from "./webpage.tsx";
 import { ChromeStepCard, HeldSendCard, isChromeHeld, isChromeStep } from "./chrome-cards.tsx";
@@ -192,17 +191,9 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
         </View>
       );
     }
-    if (hookLine) {
-      // a hook line (lane l-hooks): the lock where other lines have a dot, the lead words in ink, the way forward quiet at the right, no time
-      const words = hookLineText(hookLine, props.actions.nameOf ?? unnamed);
-      const [lead, rest] = hookLead(words);
-      return (
-        <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
-          <Glyph name="lock" size={13} color="var(--ink-4)" />
-          <Text style={st.hookText}><Text style={st.hookLead}>{lead}</Text>{rest}</Text>
-          {props.actions.files ? <HookLineActs id={item.key} line={hookLine} threadId={props.actions.files.threadId} call={props.actions.files.call} {...(props.actions.openHooks ? { open: (hookId: string) => props.actions.openHooks?.(hookId) } : {})} linkStyle={st.hookAct} quietStyle={st.hookAct} /> : null}
-        </View>
-      );
+    if (hookLine && props.actions.files) {
+      // a hook line (lane l-hooks): the lock where other lines have a dot, the lead words in ink, the way forward quiet
+      return <HookLineRow id={item.key} line={hookLine} words={hookLineText(hookLine, props.actions.nameOf ?? unnamed)} threadId={props.actions.files.threadId} call={props.actions.files.call} {...(props.actions.openHooks ? { open: (hookId: string) => props.actions.openHooks?.(hookId) } : {})} st={{ event: st.event, text: st.hookText, lead: st.hookLead, act: st.hookAct }} />;
     }
     return (
       <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>

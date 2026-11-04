@@ -91,7 +91,7 @@ test("Pause calls hooks.pause; Remove calls hooks.remove and its Undo makes the 
     await press(find(root, "hook-remove-hok_1"));
     await flush();
     assert.equal(calls[1]!.cap, "hooks.remove");
-    assert.equal(notes.at(-1)?.text, "Hook removed");
+    assert.equal(notes.at(-1)?.text, "Removed: Before any email");
     await notes.at(-1)!.undo!();
     assert.equal(calls[2]!.cap, "hooks.set");
     assert.equal(calls[2]!.input["instruction"], "Check the address is in Contacts");

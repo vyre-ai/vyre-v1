@@ -14,7 +14,7 @@ test("a hook block is a quiet line, never a card, and carries its words", () => 
   assert.equal(hookLineOf(msg({ kind: "added" })), null);
 });
 
-test("an added or changed hook offers Edit; a block offers Details, Run once anyway and Ask an admin; a failure Details; a removed hook or one with no id nothing", () => {
+test("an added or changed hook offers Edit; a block offers Details, Allow this once and Ask an admin; a failure Details; a removed hook or one with no id nothing", () => {
   const a = (kind: string, hookId?: string) => hookLineActs(hookLineOf(msg({ line: "x", kind, ...(hookId ? { hookId } : {}) }))!);
   assert.deepEqual([a("added", "h"), a("changed", "h"), a("blocked", "h"), a("failed", "h")], [["edit"], ["edit"], ["details", "once", "ask"], ["details"]]);
   assert.deepEqual([a("removed", "h"), a("blocked"), a("allowed", "h")], [[], [], []]);

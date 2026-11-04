@@ -21,6 +21,7 @@ type RunsOut = { runs: HookRun[] };
 
 export function HookCard({ h, threadId, deps, selected, nameOf, ran, startEditing = false, onSaved }: { h: Hook; threadId: string; deps: PaneDeps; selected: boolean; nameOf: (id: string) => string; /** The line "Ran 2 min ago · stopped files_tree" */ ran: string; startEditing?: boolean; onSaved?: () => void }): ReactElement {
   const [edit, setEdit] = useState(startEditing);
+  const [focus, setFocus] = useState(false);
   const [draft, setDraft] = useState<Draft>(() => draftOf(h));
   const save = (): void => {
     const input = setInput(h, draft, threadId);
@@ -35,8 +36,8 @@ export function HookCard({ h, threadId, deps, selected, nameOf, ran, startEditin
           <Pick label="When" id={`hook-event-${h.id}`} value={draft.event} options={EVENT_ORDER.map((e) => ({ key: e, title: EVENT_WORDS[e]! }))} onChange={(event) => setDraft({ ...draft, event })} />
           {ACTION_EVENTS.has(draft.event) ? <Pick label="Only for" id={`hook-only-${h.id}`} value={draft.only} options={ACTION_CHOICES.map((c) => ({ key: c.key, title: c.title }))} onChange={(only) => setDraft({ ...draft, only })} /> : null}
           <Pick label="What it does" id={`hook-kind-${h.id}`} value={draft.kind} options={KIND_ORDER.map((k) => ({ key: k, title: KIND_WORDS[k] }))} onChange={(kind) => setDraft({ ...draft, kind: kind as HookKind })} />
-          <TextInput testID={`hook-what-${h.id}`} accessibilityLabel="What it does" value={draft.what} onChangeText={(what) => setDraft({ ...draft, what })} style={s.input} multiline />
-          <View style={s.acts}>
+          <TextInput testID={`hook-what-${h.id}`} accessibilityLabel="What it does" value={draft.what} onChangeText={(what) => setDraft({ ...draft, what })} onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} style={[s.input, focus && s.inputFocus]} multiline />
+          <View style={s.formActs}>
             <TextButton label="Save" primary onPress={save} testID={`hook-save-${h.id}`} />
             <TextButton label="Cancel" onPress={() => { setDraft(draftOf(h)); setEdit(false); }} testID={`hook-cancel-${h.id}`} />
           </View>
@@ -48,7 +49,7 @@ export function HookCard({ h, threadId, deps, selected, nameOf, ran, startEditin
           <View style={s.acts}>
             <TextButton label={h.paused ? "Resume" : "Pause"} onPress={() => { void hookPause(deps, h.id, threadId, !h.paused); }} testID={`hook-pause-${h.id}`} />
             {h.canChange ? <TextButton label="Edit" onPress={() => setEdit(true)} testID={`hook-edit-${h.id}`} /> : null}
-            {h.canChange ? <TextButton label="Remove" onPress={() => { void hookRemove(deps, h.id, threadId, restoreInput(h, threadId)); }} testID={`hook-remove-${h.id}`} /> : <Text testID={`hook-locked-${h.id}`} style={s.locked}>{canRemoveNote}</Text>}
+            {h.canChange ? <TextButton label="Remove" onPress={() => { void hookRemove(deps, h.id, threadId, restoreInput(h, threadId), titleOf(h)); }} testID={`hook-remove-${h.id}`} /> : <Text testID={`hook-locked-${h.id}`} style={s.locked}>{canRemoveNote}</Text>}
           </View>
         </>
       )}
@@ -101,7 +102,7 @@ export function HooksTab({ deps, window, selected }: { deps: PaneDeps; window?: 
 const s = StyleSheet.create({
   card: { marginHorizontal: 10, marginBottom: 8, paddingVertical: 11, paddingHorizontal: 13, borderRadius: 13, backgroundColor: "var(--sunk)" as string },
   off: { opacity: 0.6 },
-  sel: { boxShadow: "inset 0 0 0 1.5px var(--accent-line, var(--accent))" } as object,
+  sel: { boxShadow: "inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 40%, transparent)" } as object,
   head: { paddingHorizontal: 12, paddingTop: 6, paddingBottom: 8 },
   title: { fontSize: 17, fontWeight: "600", color: "var(--ink)" as string },
   count: { marginTop: 2, fontSize: 13, color: "var(--ink-3)" as string },
@@ -112,10 +113,12 @@ const s = StyleSheet.create({
   acts: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 2, marginTop: 8, marginHorizontal: -9, marginBottom: -4 },
   locked: { fontSize: 12, marginLeft: 9, color: "var(--ink-4)" as string },
   form: { marginTop: 6 },
-  label: { marginTop: 6, fontSize: 11.5, color: "var(--ink-3)" as string },
+  label: { marginTop: 6, fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
   pick: { marginTop: 6 },
-  pickBtn: { marginTop: 4, height: 32, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, borderRadius: 9, backgroundColor: "var(--raised)" as string },
+  pickBtn: { marginTop: 4, height: 34, paddingHorizontal: 10, flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, borderRadius: 10, backgroundColor: "var(--raised)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object,
   pickText: { flexShrink: 1, fontSize: 13.5, color: "var(--ink)" as string },
-  input: { marginTop: 6, minHeight: 36, padding: 8, borderRadius: 9, fontSize: 13.5, color: "var(--ink)" as string, backgroundColor: "var(--sunk)" as string },
+  input: { marginTop: 4, minHeight: 34, paddingVertical: 7, paddingHorizontal: 10, borderRadius: 10, fontSize: 13.5, lineHeight: 19, color: "var(--ink)" as string, backgroundColor: "var(--raised)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object,
+  inputFocus: { boxShadow: "inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 60%, transparent)" } as object,
+  formActs: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 },
   foot: { margin: 12, fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string },
 });

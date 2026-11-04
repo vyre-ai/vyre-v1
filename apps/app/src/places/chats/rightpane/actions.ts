@@ -207,10 +207,10 @@ export function hookPause(d: PaneDeps, id: string, threadId: string, paused: boo
   return attempt(d, paused ? "pause that hook" : "turn that hook back on", async () => { await d.call("hooks.pause", { id, paused, threadId }); d.note(paused ? "Hook paused" : "Hook running again"); });
 }
 /** Remove a hook. Undo makes the same hook again. */
-export function hookRemove(d: PaneDeps, id: string, threadId: string, again: Record<string, unknown>): Promise<boolean> {
+export function hookRemove(d: PaneDeps, id: string, threadId: string, again: Record<string, unknown>, title = "hook"): Promise<boolean> {
   return attempt(d, "remove that hook", async () => {
     await d.call("hooks.remove", { id, threadId });
-    d.note("Hook removed", () => attempt(d, "bring it back", async () => { await d.call("hooks.set", again); }).then(() => undefined));
+    d.note(`Removed: ${title}`, () => attempt(d, "bring it back", async () => { await d.call("hooks.set", again); }).then(() => undefined));
   });
 }
 /** Save the words of a hook. */

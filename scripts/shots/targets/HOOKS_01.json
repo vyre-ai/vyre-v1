@@ -66,6 +66,19 @@
       "after": "[data-testid='hook-form-hok_chat']",
       "note": "The When picker open: a quiet menu of plain choices, never pills.",
       "proto": "chat,at:crew;t=55;hooks=hchat,{skin}"
+    },
+    {
+      "id": "HOOKS_01-helper-hover",
+      "route": "/m/HOOKS_01?view=helper",
+      "waitFor": "[data-testid='helper-hooks']",
+      "steps": [
+        [
+          "hover",
+          "[data-testid='helper-hook-hok_run']"
+        ]
+      ],
+      "note": "A helper's hook row under the pointer: a hairline tint and a chevron, since the row opens the Hooks tab.",
+      "proto": "chat,at:crew;t=55;hooks=hchat,{skin}"
     }
   ]
 }
