@@ -64,6 +64,7 @@ const progress = t.obj({
   value: t.opt(t.num()), target: t.opt(t.num()), start: t.opt(t.num()), percent: t.opt(t.int({ minimum: 0, maximum: 100 })), readAt: t.opt(t.ts()), error: t.opt(t.str()),
   itemsDone: t.opt(t.int()), items: t.opt(t.int()), tasksDone: t.int(), tasks: t.int(),
 });
+const seat = t.obj({ kind: t.enm('person', 'agent'), id: t.str(), inChat: t.bool(), error: t.opt(t.str()) });
 const goalRow = t.obj({
   id: goalId, title: t.str(), outcome: t.opt(t.str()), finish, deadline: t.ts(), owner: id.user, leadAgentId: id.agent, helpers: t.arr(who),
   projectId: t.opt(id.project), recordIds: t.arr(id.record), budget, rhythm, zone: t.str({ examples: ['Asia/Karachi'] }), quiet: t.nullable(quiet), permissions: t.arr(permission),
@@ -112,7 +113,7 @@ export default defineManifest({
         permissions: t.opt(t.arr(permission, { maxItems: 10 })), plan: t.opt(t.arr(planChild, { maxItems: 50 })), stuckAfter: t.opt(t.int({ minimum: 1, maximum: 20 })),
         sourceThreadId: t.opt(id.thread), start: t.opt(t.bool()),
       },
-      out: { goal: goalRow, overlaps: t.arr(t.obj({ goalId, title: t.str(), recordId: id.record })) }, level: 'member',
+      out: { goal: goalRow, overlaps: t.arr(t.obj({ goalId, title: t.str(), recordId: id.record })), seated: t.arr(seat), plan: t.obj({ drafted: t.int(), attached: t.int() }) }, level: 'member',
       emits: EMITS, tool: 'tasks', mcpName: 'goals_create', cli: 'vyre goals create',
       errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
@@ -137,7 +138,7 @@ export default defineManifest({
         quiet: t.opt(t.nullable(quiet)), zone: t.opt(t.str()), helpers: t.opt(t.arr(who, { maxItems: 20 })), projectId: t.opt(t.nullable(id.project)), recordIds: t.opt(t.arr(id.record, { maxItems: 50 })),
         permissions: t.opt(t.arr(permission, { maxItems: 10 })), stuckAfter: t.opt(t.int({ minimum: 1, maximum: 20 })),
       },
-      out: { goal: goalRow }, level: 'member', emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
+      out: { goal: goalRow, seated: t.opt(t.arr(seat)) }, level: 'member', emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('goals.pause', 'Pause a goal: no wake-ups and none of its tasks wake their agents until it is resumed', {
       in: { ...target, reason: t.opt(t.str()) }, out: { goal: goalRow }, level: 'member', emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
@@ -163,7 +164,7 @@ export default defineManifest({
     }),
     write('goals.plan', 'Add tasks to the plan of a goal: each with its brief, what done means, who does it (an agent, a person, a group) and what it waits on. They are tasks like any other and show "Part of" the goal', {
       in: { ...target, children: t.arr(planChild, { minItems: 1, maxItems: 50 }) },
-      out: { tasks: t.arr(t.obj({ key: t.str(), taskId: id.task, created: t.bool() })) }, level: 'member', emits: EMITS, tool: 'tasks', mcpName: 'goals_plan_update',
+      out: { tasks: t.arr(t.obj({ key: t.str(), taskId: id.task, created: t.bool() })), drafted: t.opt(t.int({ description: 'For a draft goal: how many steps the drafted plan holds now. They become tasks when the owner starts it' })) }, level: 'member', emits: EMITS, tool: 'tasks', mcpName: 'goals_plan_update',
       errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     write('goals.report', 'Post the check-in in the goal chat: the real number against the pace, what changed and why, what was done, the next best step. One per wake-up; short and specific', {
