@@ -103,6 +103,7 @@ export interface OpenerHost {
   };
 }
 
+import { PEOPLE_RULE, PROBE_RULE } from "../../lib/probe.ts";
 const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a message come with their source: say where you know a thing from. Quotes are the exact words people wrote in earlier chats and runs: quote them as written, never reword them, and use memory_quote with a ref to read a whole line or to look for words. Look up with memory_search, save what you learn with memory_remember and cite where it came from, and close a fact that is wrong or no longer true with memory_forget. Memory you cannot see is not yours to guess.";
 
 /**
@@ -113,7 +114,7 @@ const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a mes
  */
 export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec, input?: TurnInput) => Promise<SystemBlock[]> {
   return async (spec, input) => {
-    const memory: ContextSection[] = [{ id: "memory", stable: true, text: MEMORY_RULES }];
+    const memory: ContextSection[] = [{ id: "memory", stable: true, text: `${MEMORY_RULES} ${PROBE_RULE} ${PEOPLE_RULE}` }];
     try {
       const out = (await call("memory.map.get", { agentId: spec.agent.id }, spec.asker)) as { map?: { body?: string } };
       if (out.map?.body) memory.push({ id: "memory", stable: true, text: `Your memory map (MAP.md):\n${out.map.body}` });

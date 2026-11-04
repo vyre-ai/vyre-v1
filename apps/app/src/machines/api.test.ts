@@ -45,12 +45,13 @@ test("a machine's page: the range cut from the series, a stranger's computer cha
   const full = await loadMachine(async () => ({
     machine: listRow(), series: { "1h": [], "24h": [pt(1, { cpuPct: 30, memPct: 40, diskFreePct: 60, netInBps: 2e6, netOutBps: 1e6 }), pt(2, {})], "7d": [], "30d": [] }, privacy: "full", alerts: [],
     findings: [{ key: "disk", state: "degraded", detail: "Disk is 92% full", next: "Clear old turn caches and logs.", fix: "clear_caches" }], work: [{ kind: "turn", agentId: "agt_scout", what: "Working on a turn", where: "In a chat", minutes: 3 }, { kind: "site", what: "Serving Intake", where: "Site", minutes: 0 }],
-    lastFix: { fix: "clear_caches", at: 5, state: "done", detail: "Cleared 2 GB." },
+    lastFix: { fix: "clear_caches", at: 5, state: "done", detail: "Cleared 2 GB." }, idleSessions: 3,
   }), toRow(listRow() as never), "24h");
   assert.deepEqual(full.series.points, [{ t: 1, cpu: 30, mem: 40, disk: 40, netIn: 2, netOut: 1 }, { t: 2, cpu: null, mem: null, disk: null, netIn: null, netOut: null }]);
   assert.equal(full.series.step, 600_000);
   assert.deepEqual(full.work.map((w) => w.agent), ["agt_scout", "Site"]);
   assert.equal(full.lastFix?.detail, "Cleared 2 GB.");
+  assert.equal(full.idleSessions, 3);
   const theirs = await loadMachine(async () => ({ machine: listRow({ restricted: true, load: undefined }), series: { "1h": [], "24h": [pt(1, { vyreCpuPct: 7, vyreMemBytes: 0.4 * GB })], "7d": [], "30d": [] }, privacy: "vyre_only", alerts: [], findings: [], work: [] }), toRow(listRow() as never), "24h");
   assert.deepEqual(theirs.series.points[0], { t: 1, cpu: 7, mem: 5, disk: null, netIn: null, netOut: null });
   assert.equal(theirs.privacy, "vyre_only");
@@ -63,4 +64,11 @@ test("the calls the page makes", async () => {
   await pinMachine(call, "srv_box", "agt_scout", true);
   assert.deepEqual(await fixMachine(call, "space", "stop_idle"), { state: "done", detail: "ok" });
   assert.deepEqual(seen, [["machines.set", { machineId: "srv_box", drain: true }], ["machines.set", { machineId: "srv_box", pinAgent: { agentId: "agt_scout", pinned: true } }], ["machines.fix", { machineId: "space", fix: "stop_idle" }]]);
+});
+
+test("the confirm of Stop idle sessions says how many will stop, and whose", async () => {
+  const { stopLine } = await import("./MachinesView.tsx");
+  assert.equal(stopLine(0, true), "No idle engine sessions are open.");
+  assert.match(stopLine(7, true), /^This stops 7 idle engine sessions on the Space server, whoever they belong to\./);
+  assert.match(stopLine(1, false), /^This stops 1 idle engine session of yours on this computer\./);
 });

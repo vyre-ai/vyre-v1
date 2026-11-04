@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { capPhrase } from "../shell/format.ts";
 import type { ReactElement } from "react";
 import { View } from "react-native";
 import type { AccessReviewsGetOut, AccessReviewsListOut, AuditListOut, TasksGetOut } from "../../../../../generated/types.ts";
@@ -52,7 +53,7 @@ function ReviewTasks({items,onOpen}:{items:AccessReviewsGetOut["items"];onOpen:(
 function ReviewActivity({reviewId}:{reviewId:string}):ReactElement{
  const data=useConsoleData();const query=useRead<AuditListOut>("audit.list",{target:{kind:"review",id:reviewId},limit:100});const[more,setMore]=useState<AuditListOut|null>(null);const[busy,setBusy]=useState(false);const[error,setError]=useState("");
  if(!query.data)return <ReadState error={query.error} retry={query.refresh}/>;const rows=[...query.data.rows,...(more?.rows??[])];const next=more?more.next:query.data.next;
- return <ObjectSection title="Activity"><Group>{rows.map((row)=><Row key={row.id} id={`review-activity-${row.id}`} title={row.action.replace(/[._]/g," ")} note={`${data.name(row.actor.id)===row.actor.id?"Administrator":data.name(row.actor.id)} · ${new Date(row.at).toLocaleString()}`}/>)}</Group>{!rows.length?<Empty icon="doc">No recorded changes to this review</Empty>:null}{next?<Button label="Load earlier activity" disabled={busy} onPress={()=>{setBusy(true);void data.call("audit.list",{target:{kind:"review",id:reviewId},cursor:next,limit:100}).then((value)=>{const out=value as AuditListOut;setMore({...out,rows:[...(more?.rows??[]),...out.rows]});},()=>setError("Couldn’t load earlier activity.")).finally(()=>setBusy(false));}}/>:null}{error?<Note>{error}</Note>:null}</ObjectSection>;
+ return <ObjectSection title="Activity"><Group>{rows.map((row)=><Row key={row.id} id={`review-activity-${row.id}`} title={capPhrase(row.action)} note={`${data.name(row.actor.id)===row.actor.id?"Administrator":data.name(row.actor.id)} · ${new Date(row.at).toLocaleString()}`}/>)}</Group>{!rows.length?<Empty icon="doc">No recorded changes to this review</Empty>:null}{next?<Button label="Load earlier activity" disabled={busy} onPress={()=>{setBusy(true);void data.call("audit.list",{target:{kind:"review",id:reviewId},cursor:next,limit:100}).then((value)=>{const out=value as AuditListOut;setMore({...out,rows:[...(more?.rows??[]),...out.rows]});},()=>setError("Couldn’t load earlier activity.")).finally(()=>setBusy(false));}}/>:null}{error?<Note>{error}</Note>:null}</ObjectSection>;
 }
 
 function ReviewTask({taskId}:{taskId:string}):ReactElement{

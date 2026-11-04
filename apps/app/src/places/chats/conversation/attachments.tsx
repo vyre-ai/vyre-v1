@@ -1,5 +1,6 @@
 // Files and links inside a message. A file attached to a message is a chip: its real name and size, a click opens it beside the chat, a right-click offers Open and Copy name. A [[link]] in the
 // text is the thing it points at: hover shows what it is, a click opens it. Both look the thing up once and keep the answer, so a long chat asks a handful of times, not once per row.
+import { resolveExternal } from "./external-ref.ts";
 import { memo, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -151,7 +152,7 @@ function Chip({ id, data, menu }: { id: string; data: Pick<ConversationData, "ca
 
 export interface LinkRef { kind: string; id: string; title: string }
 
-const kindName: Record<string, string> = { record: "Record", file: "File", folder: "Folder", channel: "Channel" };
+const kindName: Record<string, string> = { record: "Record", file: "File", folder: "Folder", channel: "Channel", mail: "Email", event: "Event" };
 
 const previews = new WeakMap<object, Map<string, Promise<{ title: string; line: string } | null>>>();
 export function preview(data: Pick<ConversationData, "call">, r: LinkRef): Promise<{ title: string; line: string } | null> {
@@ -159,6 +160,10 @@ export function preview(data: Pick<ConversationData, "call">, r: LinkRef): Promi
   if (!m) { m = new Map(); previews.set(data.call, m); }
   const key = `${r.kind}:${r.id}`;
   let p = m.get(key);
+  if (!p && (r.kind === "mail" || r.kind === "event")) {
+    p = resolveExternal(data, r.id).then((x) => (x ? { title: x.title, line: r.kind === "mail" ? "Email thread" : "Calendar event" } : null));
+    m.set(key, p);
+  }
   if (!p) {
     p = Promise.resolve(data.call("search.resolve", { kind: r.kind, itemId: r.id })).then(
       (out) => {

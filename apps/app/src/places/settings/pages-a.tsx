@@ -6,6 +6,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Avatar, assistantId, assistantLook, setAssistantLook, subscribeAssistant } from "../../../../../ui/src/Avatar/index.tsx";
 import { Bar, RegistrySections, useRead } from "./blocks.tsx";
+import { ContactVerify } from "./ContactVerify.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { SignInApps } from "./SignInApps.tsx";
 import { OutsideAgents } from "./OutsideAgents.tsx";
@@ -14,6 +15,7 @@ import { ROW_HELP, clock, labelOf, moneyLabel, rowHelp, sectionsFor } from "./mo
 import type { SettingRow } from "./model.ts";
 import { SettingRowFor, useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
+import { VoiceRows } from "./VoiceRows.tsx";
 import { Choice, Field, Glyph, Section, SettingsRow, SmallButton, Switch, Value, pointer } from "./ui.tsx";
 import { useOpenConnect } from "../../shell/connect/context.ts";
 import { statusNote, useSpaceAi } from "../../ai-signin/SpaceAiStatus.tsx";
@@ -80,8 +82,8 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
       {before}
       {contact ? (
         <Section title="Contact">
-          <SettingsRow id="profile.contact" label="Email" first found={found === "profile.contact"} control={<Field value={c.email ?? ""} label="Email" placeholder="Add an email" width={260} testID="ctl-profile.contact.email" onCommit={(v) => void change(contact, { ...c, email: v })} />} />
-          <SettingsRow id="profile.contact.phone" label="Phone" control={<Field value={c.phone ?? ""} label="Phone" placeholder="Add a phone number" width={260} testID="ctl-profile.contact.phone" onCommit={(v) => void change(contact, { ...c, phone: v })} />} />
+          <SettingsRow id="profile.contact" label="Email" first found={found === "profile.contact"} control={<View style={{ alignItems: "flex-end", gap: 6 }}><Field value={c.email ?? ""} label="Email" placeholder="Add an email" width={260} testID="ctl-profile.contact.email" onCommit={(v) => void change(contact, { ...c, email: v })} /><ContactVerify channel="email" value={(c.email ?? "").trim()} /></View>} />
+          <SettingsRow id="profile.contact.phone" label="Phone" control={<View style={{ alignItems: "flex-end", gap: 6 }}><Field value={c.phone ?? ""} label="Phone" placeholder="Add a phone number" width={260} testID="ctl-profile.contact.phone" onCommit={(v) => void change(contact, { ...c, phone: v })} /><ContactVerify channel="phone" value={(c.phone ?? "").trim()} /></View>} />
         </Section>
       ) : null}
       {copy ? <CopyFromSpace onClose={() => setCopy(false)} /> : null}
@@ -219,6 +221,22 @@ export function olderLine(n: number): string | null {
   return n <= 0 ? null : `and ${n} older sign-in${n === 1 ? "" : "s"}`;
 }
 
+/** The start of this month in the person's own clock, as the milliseconds the usage read takes. */
+export function monthStart(now: number, offsetMin: number): number {
+  const local = new Date(now + offsetMin * 60_000);
+  return Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), 1) - offsetMin * 60_000;
+}
+
+/** The value the Default model row shows: the last pick (its provider found from the models on offer when the pick did not keep one), else the Space default, else nothing. */
+export function defaultModelValue(last: { provider?: string; model?: string } | null, defaults: { provider?: string; model?: string } | null, options: readonly { value: string }[]): string {
+  if (last?.model) {
+    if (last.provider) return `${last.provider}/${last.model}`;
+    const hit = options.find((o) => o.value.endsWith(`/${last.model}`));
+    if (hit) return hit.value;
+  }
+  return defaults?.provider && defaults.model ? `${defaults.provider}/${defaults.model}` : "";
+}
+
 export function AiPage({ rows, found }: PageProps): ReactElement {
   const data = useSettingsData();
   const openConnect = useOpenConnect();
@@ -230,7 +248,8 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   const personal = useIsPersonal();
   const noSpaceKey = !personal && accounts.status === "ready" && !accounts.data.accounts.some((a) => a.spaceKey === true);
   const spaceAi = useSpaceAi(data.call, { me: data.me.id, off: !noSpaceKey });
-  const usage = useScreenQuery<UsageOut>(MODELS, "usage", { by: "model" });
+  // "You and your agents this month": this person's own turns since the first of the month. Someone who manages AI spend would otherwise be handed the whole Space for all time; that view is Console > AI > Spend and limits.
+  const usage = useScreenQuery<UsageOut>(MODELS, "usage", { by: "model", personId: data.me.id, from: monthStart(data.clock().now, data.clock().offsetMin) });
   // older sign-ins: shown on request, removed one by one by the person (never by Vyre on its own)
   const [openOlder, setOpenOlder] = useState<string | null>(null);
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
@@ -240,7 +259,9 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   const options: { value: string; label: string }[] = [];
   if (models.status === "ready") for (const m of models.data.models) if (m.allowed) options.push({ value: `${m.provider}/${m.model}`, label: m.title });
   const d = defaults.status === "ready" ? defaults.data : null;
-  const cur = d?.provider && d.model ? `${d.provider}/${d.model}` : "";
+  // the Default model is what a new chat starts on: the model the person last picked, else the Space default
+  const last = useRead<CapMap["engine.last_pick.get"]["out"]>("engine.last_pick.get");
+  const cur = defaultModelValue(last, d, options);
   const fb = d?.fallback[0] ? `${d.fallback[0].provider}/${d.fallback[0].model}` : "";
   const setDefault = (v: string, slot: "model" | "fallback"): void => {
     const [provider, model] = v.split("/");
@@ -301,7 +322,7 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   return (
     <>
       <Section>
-        <SettingsRow id="model.default" label="Default model" help={ROW_HELP["model.default"]!} first found={found === "model.default"} control={<Choice value={cur} options={options} label="Default model" testID="ctl-model-default" onChange={(v) => setDefault(v, "model")} />} />
+        <SettingsRow id="model.default" label="Default model" sub={last?.model ? "Your last pick. A new chat starts on it" : "A new chat starts on the model you pick"} help={ROW_HELP["model.default"]!} first found={found === "model.default"} control={<Choice value={cur} options={options} label="Default model" testID="ctl-model-default" onChange={(v) => setDefault(v, "model")} />} />
         <SettingsRow id="model.fallback" label="Fallback model" help={ROW_HELP["model.fallback"]!} found={found === "model.fallback"} control={<Choice value={fb} options={options} label="Fallback model" testID="ctl-model-fallback" onChange={(v) => setDefault(v, "fallback")} />} />
       </Section>
       <RegistrySections page="ai" rows={rows} found={found} />
@@ -310,6 +331,7 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
         {acc}
         <SettingsRow id="open-vault" label="Sign-ins and keys" sub="Add an account, or let the Space use yours" lead={<Glyph name="key" size={15} />} first={acc.length === 0} onPress={() => data.nav.openVault()} control={<Glyph name="chevR" size={13} />} />
       </Section>
+      <VoiceRows found={found} />
     </>
   );
 }

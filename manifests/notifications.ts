@@ -13,7 +13,7 @@ const kindKey = t.enm(
   'approval.requested', 'answer.requested', 'unblock.requested', 'approval.backstop', 'dm', 'mention', 'call.incoming', 'agent.blocked', 'incident.owned', 'task.assigned', 'reply.followed',
   'agent.task_finished', 'digest.away', 'mention.thread', 'run.failed', 'conflict.needs_you', 'access.requested', 'access.decided',
   'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'limit.hit', 'vault.rotation_due', 'reply.thread',
-  'task.turn', 'task.returned', 'task.finished', 'task.due', 'machine.alert', 'ci.paused',
+  'task.turn', 'task.returned', 'task.finished', 'task.due', 'machine.alert', 'item.shared', 'ci.paused',
 );
 const notificationRow = t.obj({
   id: id.notification, kind: kindKey, level, place, title: t.str(), body: t.opt(t.str()), subject: t.opt(resourceRef), count: t.int({ minimum: 1 }),
@@ -66,6 +66,7 @@ export default defineManifest({
     notif('conflict.needs_you', 'badge', 'records', 'Two edits conflict on {{title}}', { actions: [{ label: 'Resolve', cap: 'tasks.act' }] }),
     notif('access.requested', 'badge', 'console', '{{from}} asks for {{level}} access to {{title}}', { actions: [{ label: 'Review', cap: 'tasks.act' }] }),
     notif('access.decided', 'badge', 'home', 'Your access request for {{title}} was {{decision}}'),
+    notif('item.shared', 'badge', 'inbox', '{{from}} shared {{title}} with you'),
     notif('sync.attention', 'badge', 'settings', 'Sync needs attention on {{device}}'),
     notif('health.degraded', 'badge', 'console', '{{service}} is {{state}}'),
     // a machine needs a look (disk nearly full, memory pressure, offline with pinned work, a failed backup): one Inbox line for each admin, and the Console's dot on Machines

@@ -15,6 +15,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "notes.pin": Handler<"notes.pin", X>;
   "notes.restore": Handler<"notes.restore", X>;
   "notes.search": Handler<"notes.search", X>;
+  "notes.set_owner": Handler<"notes.set_owner", X>;
   "notes.share": Handler<"notes.share", X>;
   "notes.to_record": Handler<"notes.to_record", X>;
   "notes.to_task": Handler<"notes.to_task", X>;

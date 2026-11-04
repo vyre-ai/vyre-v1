@@ -13,7 +13,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { swapNeeded } from "../conversation/model.ts";
 import { PeoplePop } from "./PeoplePop.tsx";
 import type { PeopleRow } from "./PeoplePop.tsx";
-import { addedLine, addsSomeone, directoryOf, failedLine, hereSub, maxLevelOf, projectExtras, settingsOf, titleOfTarget } from "./model.ts";
+import { addedLine, addsSomeone, directoryOf, failedLine, hereSub, maxLevelOf, projectExtras, roleWord, settingsOf, titleOfTarget } from "./model.ts";
 import type { AddOpen, AddSheetDeps, ThreadAgentRow, ThreadRow } from "./model.ts";
 
 type Out<K extends keyof CapMap> = CapMap[K]["out"];
@@ -176,7 +176,7 @@ export async function runAdd(deps: AddSheetDeps, r: Loaded, picks: readonly Acce
 type Surface =
   | { k: "sheet"; open: AddOpen; r: Loaded }
   | { k: "pick"; r: Loaded; onPicks(picks: readonly AccessPick[]): void }
-  | { k: "people"; thread: ThreadRow; x: number; y: number; onOpenAgent(id: string): void; outside: ReadonlySet<string> }
+  | { k: "people"; thread: ThreadRow; x: number; y: number; onOpenAgent(id: string): void; outside: ReadonlySet<string>; meRole: string }
   | { k: "settings"; thread: ThreadRow; agentId: string; x: number; y: number; outside: ReadonlySet<string> };
 
 export interface AddSheetApi {
@@ -241,7 +241,10 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
   }, []);
   /** The chat's agents as the server keeps them: the copy a screen holds may leave out how each answers (Listening, When, Style). */
   const freshThread = useCallback(async (seen: ThreadRow): Promise<ThreadRow> => (await tryCall<Out<"threads.get">>(d.current, "threads.get", { threadId: seen.threadId }))?.thread ?? seen, []);
-  const showPeople = useCallback((p: { thread: ThreadRow; x: number; y: number; onOpenAgent(agentId: string): void }): void => { void Promise.all([outsideOf(), freshThread(p.thread)]).then(([outside, thread]) => setSurface({ k: "people", ...p, thread, outside })); }, [outsideOf, freshThread]);
+  const showPeople = useCallback((p: { thread: ThreadRow; x: number; y: number; onOpenAgent(agentId: string): void }): void => {
+    void Promise.all([outsideOf(), freshThread(p.thread), tryCall<Out<"access.principals.list">>(d.current, "access.principals.list", {})]).then(([outside, thread, people]) =>
+      setSurface({ k: "people", ...p, thread, outside, meRole: roleWord(people?.principals.find((x) => x.id === d.current.me.id)?.roles) }));
+  }, [outsideOf, freshThread]);
   const showSettings = useCallback((p: { thread: ThreadRow; agentId: string; x: number; y: number }): void => { void Promise.all([outsideOf(), freshThread(p.thread)]).then(([outside, thread]) => setSurface({ k: "settings", ...p, thread, outside })); }, [outsideOf, freshThread]);
 
   let element: ReactElement | null = null;
@@ -282,7 +285,7 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
     const t = surface.thread;
     const only = t.agents.length === 1;
     const rows: PeopleRow[] = [
-      ...t.members.filter((m) => m.kind === "person").map((m): PeopleRow => ({ id: m.id, name: deps.nameOf(m.id), kind: "person", sub: m.id === deps.me.id ? "You" : "Person" })),
+      ...t.members.filter((m) => m.kind === "person").map((m): PeopleRow => ({ id: m.id, name: m.id === deps.me.id ? "You" : deps.nameOf(m.id), kind: "person", sub: m.id === deps.me.id ? surface.meRole : "Person" })),
       ...t.agents.map((a): PeopleRow => ({ id: a.agentId, name: deps.nameOf(a.agentId), kind: surface.outside.has(a.agentId) ? "outside" : "agent", sub: hereSub(a, only) })),
     ];
     element = (
@@ -319,7 +322,7 @@ function ChatAgentSettings({ deps, thread, agentId, outside, x, y, save, poke, c
       const old = deps.nameOf(lead.agentId);
       confirm([
         { head: `${old} leads this chat. Make ${name} lead instead? ${old} will keep listening.` },
-        { label: "Swap", onSelect: () => { setValue(next); save(thread.threadId, agentId, next, false); deps.toast(`${name} now answers everything. ${old} answers only when tagged.`); } },
+        { label: "Swap", onSelect: () => { setValue(next); save(thread.threadId, agentId, next, false); deps.toast(`${name} now answers everything. ${old} answers only when mentioned.`); } },
         { label: "Cancel" },
       ], x, y, name);
       return;

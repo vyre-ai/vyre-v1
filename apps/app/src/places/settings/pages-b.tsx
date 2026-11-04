@@ -4,6 +4,8 @@ import { useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
+import { RegistrySections } from "./blocks.tsx";
+import { ApprovalsSection } from "./Approvals.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { DEVICES, useScreenQuery, useSettingsData } from "./data.tsx";
 import type { SettingsData, SpaceSecurity, SpaceTile } from "./data.tsx";
@@ -72,6 +74,7 @@ export function SignInPage(): ReactElement {
         {list}
         {others > 0 ? <SettingsRow id="revoke-others" label="Sign out of every other device" danger onPress={() => void data.call("devices.revoke_others", {}).then(() => saved.saved("Signed out of the others")).catch(fail)} control={<Glyph name="chevR" size={13} />} /> : null}
       </Section>
+      <ApprovalsSection />
       <YourSpaces />
     </>
   );
@@ -217,6 +220,7 @@ export function AppearancePage({ rows, found }: PageProps): ReactElement {
   const shown = hover ?? current;
   return (
     <>
+      <RegistrySections page="appearance" rows={rows} found={found} skip={["appearance.skin"]} />
       {skinRow ? (
         <View testID="row-appearance.skin" {...webOnly({ dataSet: { sid: "appearance.skin" } })} style={found === "appearance.skin" ? a.foundBlock : undefined}>
           <Text accessibilityRole="header" style={a.heading}>Skin</Text>

@@ -16,6 +16,10 @@ import {
   NO_OUTSIDE,
   OUTSIDE_NOTE,
   accessCount,
+  EVERYONE_IDS,
+  levelDefs,
+  accessView,
+  redundantVia,
   accessSubtitle,
   actionLabel,
   addLines,
@@ -92,6 +96,7 @@ export type {
   RecordsMode,
   RowFlag,
   ShareInput,
+  ShareOpts,
   ShareItemType,
   ShareLevel,
   ShareResourceType,
@@ -135,13 +140,24 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
   const models = props.models ?? DEFAULT_MODELS;
   const type = share?.itemType;
   const giving = { maxLevel: props.maxLevel, canGive: props.canGive };
-  const ctx: RoleContext = { mode: props.mode, itemType: type, offered: share?.levels, giving };
+  const generalLevel = share ? accessView({ shares: share.shares.filter((r) => !cleared.includes(`${r.subjectKind}:${r.subjectId}`)), itemType: share.itemType, resourceId: share.resourceId, ownerId: share.ownerId, ownerName: share.ownerName, folderName: share.folderName, agentsOn: share.agentsOn }).general.level : null;
+  const ctx: RoleContext = { mode: props.mode, itemType: type, offered: share?.levels, giving, general: generalLevel };
+  const [notify, setNotify] = useState(true);
+  const [message, setMessage] = useState("");
+  const [refusal, setRefusal] = useState<string | null>(null);
+  const spaceName = share?.spaceName ?? "the Space";
   const viewOnly = add !== null && isViewOnly(giving);
   const assistantItem = share !== null && share.itemKind === "assistant";
 
   const taken = useMemo(() => {
     const s = share ? takenFromRows(props.directory, share.shares.filter((r) => !cleared.includes(`${r.subjectKind}:${r.subjectId}`))) : new Set<string>((props.here ?? []).map((e) => entryKey(e.kind, e.id)));
     for (const p of picks) s.add(p.key);
+    if (share) {
+      // already shown above: the owner and the viewer are in People, Everyone is the General access row
+      if (share.ownerId) s.add(entryKey("person", share.ownerId));
+      if (share.meId) s.add(entryKey("person", share.meId));
+      for (const id of EVERYONE_IDS) s.add(entryKey("group", id));
+    }
     return s;
   }, [props.directory, props.here, share, picks, cleared]);
   const secs = sections({ directory: props.directory, query: q, mode: props.mode, itemType: type, taken });
@@ -179,7 +195,11 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
     if (picks.length === 0) return;
     if (add) add.onAdd(picks, { earlier });
     else if (share) {
-      for (const input of shareCalls(share, picks, share.newKey)) share.onShare?.(input);
+      // a person who already holds this level or more through Everyone gains nothing from their own grant: refused, with the reason
+      const same = picks.find((p) => p.kind === "person" && share.itemType !== undefined && redundantVia(share.itemType, generalLevel, p.role as ShareLevel, spaceName) !== null);
+      if (same !== undefined) { setRefusal(`${same.name}: ${redundantVia(share.itemType, generalLevel, same.role as ShareLevel, spaceName)}. Pick a higher level, or remove them.`); return; }
+      const opts: ShareOpts = { notify: share.notifyPeople === true && notify, ...(message.trim() !== "" ? { message: message.trim() } : {}) };
+      for (const input of shareCalls(share, picks, share.newKey)) share.onShare?.(input, opts);
       for (const g of picks.filter((p) => p.kind === "guest")) if (g.email !== undefined) share.onInviteGuest?.({ email: g.email, level: g.role as "view" });
     }
     props.onClose();
@@ -219,7 +239,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
       return (
         <SettingsPopover
           name={p.name} face={<Face kind={p.kind} id={p.id} name={p.name} assistant={p.assistant} size={26} />} value={p.settings ?? DEFAULT_AGENT_SETTINGS} outside={p.kind === "outside"} anchor={pop}
-          onChange={(settings) => patchPick(p.key, { settings })} {...(props.onPoke && p.kind !== "new" ? { onPoke: () => props.onPoke?.(p.id) } : {})} onClose={() => setPop(null)}
+          onChange={(settings) => patchPick(p.key, { settings })} onClose={() => setPop(null)}
         />
       );
     }
@@ -250,7 +270,6 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
           </View>
           <View style={st.plusBox}><Icon name="plus" size={13} color={t("ink-4")} /></View>
         </Pressable>
-        {add && isAgentKind(e.kind) && props.onPoke ? <PokeButton name={name} testID={`as-poke-${e.id}`} onPress={() => props.onPoke?.(e.id)} /> : null}
       </View>
     );
   };
@@ -277,7 +296,6 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
             </View>
           </View>
           <View style={[st.pickCtl, phone && st.pickCtlPhone]}>
-            {agent && add && props.onPoke && p.kind !== "new" ? <PokeButton name={p.name} testID={`as-poke-${p.id}`} onPress={() => props.onPoke?.(p.id)} /> : null}
             {agent && add
               ? <Picker label={`How ${p.name} responds`} value={pickHowLabel(p)} testID={`as-settings-${p.key}`} onPress={open} />
               : agent ? null : <Picker label={`Role for ${p.name}`} value={roleName(p.kind, p.role, ctx)} testID={`as-role-${p.key}`} onPress={(x, y) => roleMenu(p, x, y)} />}
@@ -331,7 +349,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
 
   const title = add ? "Add people and agents" : `Share “${share?.itemName ?? ""}”`;
   const subtitle = add ? `to ${add.target.name}` : share ? (share.records?.subtitle ?? share.subtitle ?? accessSubtitle(share.itemType, accessCount({ shares: share.shares, itemType: share.itemType, resourceId: share.resourceId, ownerId: share.ownerId, ownerName: share.ownerName, folderName: share.folderName }), share.itemLabel)) : "";
-  const placeholder = picks.length > 0 ? "Add another" : add ? "Add people or agents" : type === "agent" ? "Add people or groups" : "Add people, groups or agents";
+  const placeholder = picks.length > 0 ? "Add another" : add ? "Add people or agents" : type === "agent" ? "Add people or teams" : "Add people, teams or agents";
 
   const main = (
     <>
@@ -358,7 +376,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
       ) : null}
       <ScrollView style={st.body} keyboardShouldPersistTaps="handled" testID="as-body">
         {picks.length > 0 ? <><View style={st.sectRow}><Text style={st.sectText}>{add ? "Adding" : "Sharing with"}</Text></View>{picks.map(pickRow)}</> : null}
-        {share ? <AccessList p={share} offered={share.levels} cleared={cleared} onCleared={(k) => setCleared((c) => [...c, k])} /> : null}
+        {share ? <AccessList p={share} compact={compactLabel} offered={share.levels} cleared={cleared} onCleared={(k) => setCleared((c) => [...c, k])} /> : null}
         {section("Suggested", secs.suggested, share ? undefined : "You work with these most")}
         {secs.invite === null ? null : (
           <View>
@@ -389,10 +407,19 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
         {hereBlock}
       </ScrollView>
       <View style={st.footTop}>
-        {lines.length > 0 ? <Notes lines={lines} /> : <Text style={st.note} testID="as-idle">{idle}</Text>}
+        {lines.length > 0 ? <Notes lines={lines} /> : idle === "" ? null : <Text style={st.note} testID="as-idle">{idle}</Text>}
+        {refusal ? <Text style={st.refusal} accessibilityRole="alert" testID="as-refused">{refusal}</Text> : null}
+        {share && share.notifyPeople === true && picks.length > 0 ? (
+          <View style={{ gap: 6 }} testID="as-notify">
+            <Switch label="Notify people" on={notify} onChange={setNotify} testID="as-notify-switch" />
+            {notify ? <TextInput value={message} onChangeText={setMessage} placeholder="Add a message (optional)" placeholderTextColor={t("ink-3")} accessibilityLabel="Message to the people you share with" testID="as-message" style={st.message} /> : null}
+          </View>
+        ) : null}
         {showEarlier ? <Switch label="Include earlier messages" on={earlier} onChange={setEarlier} testID="as-earlier" /> : null}
         <View style={st.footBtns}>
           {share?.records ? <ExportMore rec={share.records} /> : null}
+          {share?.onCopyLink ? <Pill label={copied ? "Link copied" : "Copy link"} icon="link" testID="as-copy-link" onPress={() => { share.onCopyLink?.(); markCopied(); }} /> : null}
+          {share?.onCopyLink && copied ? <Text style={st.note} testID="as-copied-note">Only people with access can open it</Text> : null}
           <View style={{ flex: 1 }} />
           <Pill label="Cancel" testID="as-cancel" onPress={props.onClose} />
           <Pill label={label} primary disabled={picks.length === 0} testID="as-add" onPress={confirm} />
@@ -443,5 +470,6 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
 
 /** True when the person can give every level the item offers. */
 function canGiveAll(share: ShareSheetProps, props: Pick<AccessSheetProps, "maxLevel" | "canGive">): boolean {
-  return roleOptions("person", { mode: "share", itemType: share.itemType, offered: share.levels, giving: { maxLevel: props.maxLevel, canGive: props.canGive } }).every((o) => !o.locked);
+  // a level above the giver's own is not offered, so the person can give everything only when every level of the item is on offer
+  return roleOptions("person", { mode: "share", itemType: share.itemType, offered: share.levels, giving: { maxLevel: props.maxLevel, canGive: props.canGive } }).length === levelDefs(share.itemType, share.levels).length;
 }

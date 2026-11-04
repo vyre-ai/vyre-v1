@@ -39,6 +39,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "access.labels.list": Handler<"access.labels.list", X>;
   "access.labels.set": Handler<"access.labels.set", X>;
   "access.lists": Handler<"access.lists", X>;
+  "access.make_owner": Handler<"access.make_owner", X>;
   "access.policies.list": Handler<"access.policies.list", X>;
   "access.policies.reset": Handler<"access.policies.reset", X>;
   "access.policies.set": Handler<"access.policies.set", X>;

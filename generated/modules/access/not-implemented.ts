@@ -39,6 +39,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "access.labels.list": async (ctx) => { throw new VyreErr(notImplemented("access.labels.list", ctx.trace)); },
   "access.labels.set": async (ctx) => { throw new VyreErr(notImplemented("access.labels.set", ctx.trace)); },
   "access.lists": async (ctx) => { throw new VyreErr(notImplemented("access.lists", ctx.trace)); },
+  "access.make_owner": async (ctx) => { throw new VyreErr(notImplemented("access.make_owner", ctx.trace)); },
   "access.policies.list": async (ctx) => { throw new VyreErr(notImplemented("access.policies.list", ctx.trace)); },
   "access.policies.reset": async (ctx) => { throw new VyreErr(notImplemented("access.policies.reset", ctx.trace)); },
   "access.policies.set": async (ctx) => { throw new VyreErr(notImplemented("access.policies.set", ctx.trace)); },

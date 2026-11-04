@@ -298,3 +298,19 @@ test("the webhook URL needs a webhook trigger, stays the same until rotated, and
   assert.equal(webhookSecretMatches(ctx, id, rot.url.split("/").pop() as string), true);
   assert.equal(webhookSecretMatches(ctx, "aut_other", secret), false);
 });
+
+test("set_owner hands a Space Automation to another person; a Personal one cannot be handed over", async () => {
+  const h = harness({ calls: { "access.share": () => ({}) } });
+  const personal = await mk(h, { name: "Mine" });
+  await refused(h.call("automations.set_owner", { automationId: personal, ownerId: bob.id }, alice), "validation.bad_input");
+  const space = await mk(h, { name: "Shared" });
+  await h.call("automations.set_enabled", { automationId: space, enabled: true }, alice);
+  await h.call("automations.promote", { automationId: space, confirm: true }, alice);
+  await refused(h.call("automations.set_owner", { automationId: space, ownerId: alice.id }, alice), "validation.bad_input");
+  const r = await h.call("automations.set_owner", { automationId: space, ownerId: bob.id }, alice);
+  assert.equal(r.automation.ownerId, bob.id);
+  assert.equal((await get(h, space)).ownerId, bob.id);
+  const kept = h.calls.find((c) => c.cap === "access.share");
+  assert.deepEqual((kept?.input as { subject: unknown; level: string }).subject, { kind: "person", id: alice.id });
+  assert.equal((kept?.input as { level: string }).level, "manage", "the previous owner keeps Manage");
+});

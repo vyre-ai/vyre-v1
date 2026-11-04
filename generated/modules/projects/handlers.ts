@@ -23,6 +23,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "projects.plan": Handler<"projects.plan", X>;
   "projects.post_update": Handler<"projects.post_update", X>;
   "projects.reschedule": Handler<"projects.reschedule", X>;
+  "projects.roles_of": Handler<"projects.roles_of", X>;
   "projects.share_out": Handler<"projects.share_out", X>;
   "projects.shared_view": Handler<"projects.shared_view", X>;
   "projects.stages.set": Handler<"projects.stages.set", X>;

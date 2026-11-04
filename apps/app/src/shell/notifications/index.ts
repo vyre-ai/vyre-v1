@@ -1,8 +1,5 @@
-// Notifications UI (P-L9_16): interrupt banners, place marks, the offline queue line.
-export { NotificationBanners } from "./Banners.tsx";
-export type { BannersProps } from "./Banners.tsx";
+// Notifications UI (P-L9_16): place marks, the offline queue line, and the pure rules the top bar's notifications slot reads (shell/noticeslot/bridge.ts).
 export { QueueIndicator } from "./QueueIndicator.tsx";
 export type { QueueIndicatorProps } from "./QueueIndicator.tsx";
-export { BANNER_TTL_MS, BannerStack, MAX_BANNERS, collapseKey, placeMarks, queueLine, wantsBanner } from "./model.ts";
-export type { Banner, Notification, NotificationAction, PlaceId, PlaceMark, QueueLine } from "./model.ts";
-export { arrivals, bannerTarget } from "./model.ts";
+export { BANNER_QUERY, collapseKey, placeMarks, queueLine, wantsBanner, bannerTarget } from "./model.ts";
+export type { Notification, NotificationAction, PlaceId, PlaceMark, QueueLine } from "./model.ts";

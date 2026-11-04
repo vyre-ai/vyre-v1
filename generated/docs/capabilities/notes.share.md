@@ -31,6 +31,9 @@ type In = {
       role: "edit" | "view" | "remove";
     }>;
   space?: "off" | "view" | "edit";
+  notify?: {
+    message?: string;
+  };
 };
 ```
 
@@ -104,6 +107,9 @@ type Out = {
   "name": "example",
   "input": {
     "noteId": "nte_a1b2c3",
+    "notify": {
+      "message": "example"
+    },
     "people": [
       {
         "personId": "usr_a1b2c3",

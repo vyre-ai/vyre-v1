@@ -1,0 +1,4 @@
+- Talk: a mic in every composer. Press or hold, speak, and your words land in the message; Esc takes them back and nothing sends until you press Send.
+- Talk turns on the first time you press it: pick Deepgram, paste a key, and it listens at once. The key goes straight to your Vault and is checked with a real call.
+- Voice in Console: one Deepgram key covers everyone in the Space. People just press the mic and can never read the key. A person's own key wins. In Settings, one line says what covers you.
+- Agents can change Talk for you ("switch Talk to Spanish") and post the key card. Only a person adds a key, and changing the Space's Talk stops for someone who may approve it.
