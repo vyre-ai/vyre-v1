@@ -118,7 +118,7 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
       <View style={s.strip} testID="project-strip" accessibilityLabel="Project at a glance">
         <Text style={s.stripText}>{plural(p.openTasks, "open task")}</Text>
         <Text style={[s.stripText, p.lateTasks > 0 && s.late]} testID="project-late">{p.lateTasks > 0 ? `${p.lateTasks} late` : "None late"}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="People and agents" aria-haspopup="dialog" testID="project-members" onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number } }) => setPeople({ x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 })}><Text style={s.stripText}>{plural(p.memberCount, "person", "people")}</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="People and agents" aria-haspopup="dialog" testID="project-members" onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { right: number; bottom: number } } }) => { const r = e.currentTarget?.getBoundingClientRect?.(); setPeople(r ? { x: r.right, y: r.bottom } : { x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 }); }}><Text style={s.stripText}>{plural(p.memberCount, "person", "people")}</Text></Pressable>
       </View>
       {d.nav.openGoal ? <GoalsOf scope="project" id={projectId} call={d.call} changes={d.changes} now={d.now()} offsetMin={0} nameOf={d.nameOf} openGoal={d.nav.openGoal} testID="project-goals" /> : null}
       <TabStrip underline tabs={TAB_SPECS} active={tab} onSelect={(k) => { setTab(k as TabKey); onTabChange?.(k as TabKey); }} />

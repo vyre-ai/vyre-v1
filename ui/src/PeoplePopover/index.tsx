@@ -59,9 +59,9 @@ export function PeoplePopover({ where, rows, meId, perms, anchor, onOpen, onActi
     doc.addEventListener("keydown", key);
     return () => doc.removeEventListener("keydown", key);
   }, [at, count, rows, footer.id, onClose, onOpen, onFooter]);
-  const width = Math.min(340, (win.width || 1024) - 16);
+  const width = Math.min(260, (win.width || 1024) - 16);
   const left = Math.max(8, Math.min(anchor.x - width, (win.width || 1024) - width - 8));
-  const top = Math.max(8, anchor.y + 6);
+  const top = Math.max(8, anchor.y + 4);
   const place = { position: web ? "fixed" : "absolute", left, top, width } as unknown as ViewStyle;
   const rowMenu = (r: MemberRow, x: number, y: number): void => {
     const items = memberMenu(r, perms, meId);
@@ -79,7 +79,7 @@ export function PeoplePopover({ where, rows, meId, perms, anchor, onOpen, onActi
               onPress={() => onOpen(r)} {...menuTrigger((x, y) => rowMenu(r, x, y))}
               style={({ hovered }: { hovered?: boolean }) => [st.row, (hovered === true || at === i) && st.lit, at === i && st.kb]}
             >
-              {r.kind === "person" ? <Avatar name={r.name} seedId={r.id} size={22} /> : <Avatar name={r.name} seedId={r.id} kind="agent" size={22} />}
+              {r.kind === "person" ? <Avatar name={r.name} seedId={r.id} size={24} /> : <Avatar name={r.name} seedId={r.id} kind="agent" size={24} />}
               <Text style={st.name} numberOfLines={1}>{r.id === meId ? "You" : r.name}</Text>
               <Text style={st.role} numberOfLines={1} testID={`people-role-${r.id}`}>{r.role}</Text>
             </Pressable>
@@ -103,11 +103,11 @@ const st = StyleSheet.create({
   layer: { position: (web ? "fixed" : "absolute") as unknown as "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99997 },
   pop: { padding: 5, borderRadius: 12, backgroundColor: "var(--raised)" as string, minWidth: 220 },
   head: { paddingHorizontal: 8, paddingTop: 7, paddingBottom: 3, fontSize: 11, fontWeight: "600", color: "var(--ink-3)" as string },
-  row: { flexDirection: "row", alignItems: "center", gap: 9, height: 30, paddingHorizontal: 8, borderRadius: 6 },
+  row: { flexDirection: "row", alignItems: "center", gap: 9, height: 32, paddingHorizontal: 8, borderRadius: 6 },
   lit: { backgroundColor: "var(--hover)" as string },
   kb: { backgroundColor: "var(--sel)" as string },
   name: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string },
-  role: { fontSize: 11.5, color: "var(--ink-3)" as string, paddingLeft: 12 },
+  role: { fontSize: 12, color: "var(--ink-3)" as string, paddingLeft: 12 },
   ic: { width: 22, alignItems: "center", justifyContent: "center" },
   rule: { height: 1, backgroundColor: "var(--line)" as string, marginVertical: 5, marginHorizontal: 6 },
 });
