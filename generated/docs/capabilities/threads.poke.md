@@ -19,7 +19,7 @@ Poke an agent: one turn for it now, even if it is listening. It reads the last 1
 | HTTP | POST /v1/threads/poke |
 | MCP tool | threads_poke (chats) |
 | CLI | none |
-| Emits | message.received, agent.engaged |
+| Emits | message.received, agent.engaged, message.direct, message.mentioned, thread.replied, thread.unarchived, thread.updated |
 
 ## Input
 

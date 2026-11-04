@@ -335,7 +335,7 @@ export async function mineAdd(ctx: AgentsCtx, input: { text: string; files?: Fil
   const id = mintId("sko", now);
   ctx.db.run("INSERT INTO agents_skill_own (id, owner, project_id, name, description, text, files_json, source, version, perms_json, setup_json, agents_json, enabled, at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, 1, ?, ?)",
     id, person, projectId, parsed.skill.name, parsed.skill.description, input.text, JSON.stringify(files), source, version, JSON.stringify(perms), JSON.stringify(input.agents ?? ["*"]), now, now);
-  ctx.emit("skill.mine_changed", id, { skillId: id, name: parsed.skill.name, op: "added", by: person });
+  ctx.emit("skill.mine_changed", id, { skillId: id, name: parsed.skill.name, op: "added", by: person, ownerId: person });
   // D27: a name already in this person's list stays with the first; this one is shown and indexed with its source in front
   const page = await skillsPage(ctx, projectId ? { projectId } : {});
   const row = page.mine.find((m) => m.skillId === id)!;

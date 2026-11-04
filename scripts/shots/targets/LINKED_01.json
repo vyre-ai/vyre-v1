@@ -1,0 +1,207 @@
+{
+  "targets": [
+    {
+      "id": "LINKED_01-tab",
+      "route": "/m/LINKED_01?part=tab",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='project-linked']",
+      "steps": [],
+      "note": "Linked: groups, auto marks, rules and the CI rows with the failure line and the fix card."
+    },
+    {
+      "id": "LINKED_01-peek",
+      "route": "/m/LINKED_01?part=tab",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='link-peek-lnk_5']",
+      "steps": [
+        "click|row-lk-lnk_5"
+      ],
+      "note": "A file the viewer cannot open: only its kind, a read-only peek, Ask for access."
+    },
+    {
+      "id": "LINKED_01-asked",
+      "route": "/m/LINKED_01?part=tab",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='link-asked-lnk_5']",
+      "steps": [
+        "click|row-lk-lnk_5",
+        "click|link-ask-lnk_5"
+      ],
+      "note": "After Ask for access."
+    },
+    {
+      "id": "LINKED_01-show",
+      "route": "/m/LINKED_01?part=tab",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='menu']",
+      "steps": [
+        "click|linked-show"
+      ],
+      "note": "The Show menu: All and each group with its count."
+    },
+    {
+      "id": "LINKED_01-filtered",
+      "route": "/m/LINKED_01?part=tab",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='linked-group-Code']",
+      "steps": [
+        "click|linked-show",
+        "click|menu-item-Code"
+      ],
+      "note": "Show: Code, with the CI rows."
+    },
+    {
+      "id": "LINKED_01-rowmenu",
+      "route": "/m/LINKED_01?part=tab",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='menu']",
+      "steps": [
+        "click|link-more-lnk_2"
+      ],
+      "note": "A link's menu: Open, Copy link, Unlink."
+    },
+    {
+      "id": "LINKED_01-unlinked",
+      "route": "/m/LINKED_01?part=tab",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='linked-notice']",
+      "steps": [
+        "click|link-more-lnk_2",
+        "click|menu-item-Unlink"
+      ],
+      "note": "After unlinking an auto link: it will not come back, with Undo."
+    },
+    {
+      "id": "LINKED_01-link",
+      "route": "/m/LINKED_01?part=tab",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='link-sheet']",
+      "steps": [
+        "click|linked-add"
+      ],
+      "note": "Link something: search Vyre, paste a link."
+    },
+    {
+      "id": "LINKED_01-link-pasted",
+      "route": "/m/LINKED_01?part=tab",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='link-line']",
+      "steps": [
+        "click|linked-add",
+        "fill|link-url|https://github.com/northwind/website/pull/217",
+        "click|link-url-go"
+      ],
+      "note": "A pasted pull request linked."
+    },
+    {
+      "id": "LINKED_01-rule",
+      "route": "/m/LINKED_01?part=tab",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='rule-sheet']",
+      "steps": [
+        "click|rule-new"
+      ],
+      "note": "Link automatically: a rule."
+    },
+    {
+      "id": "LINKED_01-rule-record",
+      "route": "/m/LINKED_01?part=tab",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='rule-sheet']",
+      "steps": [
+        "click|rule-new",
+        "click|rule-kind-record_filter"
+      ],
+      "note": "A rule for matching records."
+    },
+    {
+      "id": "LINKED_01-empty",
+      "route": "/m/LINKED_01?part=empty",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='linked-empty']",
+      "steps": [],
+      "note": "Nothing linked yet."
+    },
+    {
+      "id": "LINKED_01-member",
+      "route": "/m/LINKED_01?part=member",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='project-linked']",
+      "steps": [],
+      "note": "A reader: no Link something, no rules to change."
+    },
+    {
+      "id": "LINKED_01-noci",
+      "route": "/m/LINKED_01?part=noci",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='project-linked']",
+      "steps": [],
+      "note": "A project with no linked repository: no CI rows."
+    },
+    {
+      "id": "LINKED_01-accept",
+      "route": "/m/LINKED_01?part=accept",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='ci-accept']",
+      "steps": [],
+      "note": "A member: GitHub needs an admin to accept new permissions, with Ask an admin."
+    },
+    {
+      "id": "LINKED_01-accept-asked",
+      "route": "/m/LINKED_01?part=accept",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='ci-accept']",
+      "steps": [
+        "click|ci-accept-ask"
+      ],
+      "note": "After Ask an admin."
+    },
+    {
+      "id": "LINKED_01-accept-admin",
+      "route": "/m/LINKED_01?part=accept-admin",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='ci-accept-go']",
+      "steps": [],
+      "note": "An admin: Accept."
+    },
+    {
+      "id": "LINKED_01-rule-only",
+      "route": "/m/LINKED_01?part=rule-only",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='ci-rows']",
+      "steps": [],
+      "note": "A project whose only link to its repository is a repo rule: its CI rows show."
+    },
+    {
+      "id": "LINKED_01-ci",
+      "route": "/m/LINKED_01?part=tab",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='ci-fix']",
+      "steps": [
+        "see|ci-fix"
+      ],
+      "note": "The CI rows scrolled into view: status, the failure line and the fix card."
+    },
+    {
+      "id": "LINKED_01-rules",
+      "route": "/m/LINKED_01?part=tab",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='linked-rules']",
+      "steps": [
+        "see|linked-rules"
+      ],
+      "note": "Link automatically: the rules with their counts."
+    },
+    {
+      "id": "LINKED_01-accept-ci",
+      "route": "/m/LINKED_01?part=accept",
+      "proto": "pj-rivera,{skin}",
+      "waitFor": "[data-testid='ci-accept']",
+      "steps": [
+        "click|ci-accept-ask",
+        "see|ci-fix"
+      ],
+      "note": "After Ask an admin, the CI rows below the line."
+    }
+  ]
+}

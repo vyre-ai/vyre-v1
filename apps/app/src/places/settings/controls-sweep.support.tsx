@@ -17,7 +17,8 @@ const pressables = (n: N, out: Map<string, N> = new Map()): string[] => {
   return [...out.keys()];
 };
 
-export async function sweep(createRoot: () => { render(el: ReactElement): void; container: unknown }, page: string, who: "owner" | "member"): Promise<void> {
+/** `createRoot` comes from the test file: only tests import test-renderer (boundaries B6). */
+export async function sweep(createRoot: Parameters<typeof mount>[0], page: string, who: "owner" | "member"): Promise<void> {
   const restore = installDom();
   try {
     const s = createSampleSettings(who === "owner" ? northwind : harbor);

@@ -98,6 +98,7 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openSpaceSwitcher: () => rt.open({ screen: "spaces.switcher" }),
     openNewChannel: () => requestChannelSheet("new"),
     openSubject: (subject) => rt.open({ subject }),
+    openProject: (projectId) => rt.open({ subject: { type: "project", id: projectId } }),
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.changes ? { changes: rt.changes } : {}),

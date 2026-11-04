@@ -55,6 +55,7 @@ type Out = {
     listed: boolean;
     planMode: boolean;
     mode?: "ask" | "auto" | "plan";
+    agentRepliesInThreads?: boolean;
     members: Array<{
         kind: "person" | "agent" | "actor" | "service";
         id: string;
@@ -123,6 +124,7 @@ type Out = {
   },
   "output": {
     "thread": {
+      "agentRepliesInThreads": true,
       "agents": [
         {
           "accountRef": "example",

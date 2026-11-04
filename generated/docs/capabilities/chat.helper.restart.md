@@ -19,7 +19,7 @@ Start a helper again on another model: the person it works for picks an account 
 | HTTP | POST /v1/chat/helper/restart |
 | MCP tool | chat_helper_restart (chats) |
 | CLI | none |
-| Emits | helper.note, message.received |
+| Emits | helper.note, message.received, message.direct, message.mentioned, thread.replied, thread.unarchived |
 
 ## Input
 

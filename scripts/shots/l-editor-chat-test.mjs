@@ -12,7 +12,7 @@ const args = process.argv.slice(2);
 const shotsDir = (args.find((a) => a.startsWith("--shots=")) ?? "").slice(8);
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync("/root/wt/base/node_modules/.bin/expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), { cwd: appDir, stdio: "inherit", env: exportEnv() });
 }
 const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");

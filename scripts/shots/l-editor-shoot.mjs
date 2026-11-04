@@ -12,7 +12,7 @@ const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith("--")) || "/root/wt/tmp-l-editor/shots";
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync("/root/wt/base/node_modules/.bin/expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), { cwd: appDir, stdio: "inherit", env: exportEnv() });
 }
 fs.mkdirSync(out, { recursive: true });
 const SIZES = { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };

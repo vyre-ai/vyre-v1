@@ -19,7 +19,7 @@ The owner hands an item to someone else: they become the owner and the previous 
 | HTTP | POST /v1/access/make_owner |
 | MCP tool | none |
 | CLI | none |
-| Emits | grant.created, access.changed |
+| Emits | grant.created, access.changed, grant.revoked |
 
 ## Input
 

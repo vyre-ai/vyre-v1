@@ -4,7 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CORE_SPACE } from "../fixtures/seed/core/index.ts";
-import { KEY, boot, connect, hostLog, seededDir, stop, waitFor } from "./support/eco-live.ts";
+import { KEY, boot, connect, hostLog, seededDir, stop, waitFor, listAll } from "./support/eco-live.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 import type { DriverEvent, EngineSession, OpenSession, TurnInput } from "../agent/src/turn-engine/types.ts";
 
@@ -63,7 +63,7 @@ test("Team: Mia asks X in Olivia's channel, X @mentions Y; Y runs for Mia and ca
     // Y answers one way or the other: a reply (it ran on someone's account) or a failure card (nobody it runs for has one)
     const yMsg = await waitFor(async () => {
       await d.hooks?.pump?.();
-      const ms = (await api("usr_mia", "chat.messages.list", { threadId })).data.messages as Msg[];
+      const ms = (await listAll<Msg>(api, "usr_mia", threadId));
       return ms?.find((m) => m.author?.id === ids.y) ?? null;
     }, 20_000, () => hostLog(d));
 

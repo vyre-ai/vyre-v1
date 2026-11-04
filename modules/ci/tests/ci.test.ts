@@ -77,7 +77,8 @@ test("start: the just-in-time runner comes first, then one machine tagged for th
   await w.turnOn();
   await w.job("queued", { jobId: 20 });
   assert.equal(w.state.jit.length, 1);
-  assert.deepEqual(w.state.jit[0], { repo: "northwind/site", name: w.state.jit[0]!["name"], labels: ["vyre"] });
+  assert.deepEqual(w.state.jit[0], { repo: "northwind/site", name: w.state.jit[0]!["name"], labels: ["vyre"], idempotencyKey: w.state.jit[0]!["idempotencyKey"] });
+  assert.match(String(w.state.jit[0]!["idempotencyKey"]), /^jit-cir_[a-z0-9]{12}$/);
   assert.match(String(w.state.jit[0]!["name"]), /^vyre-ci-[a-z0-9]{12}$/);
   const [d] = w.state.droplets;
   assert.ok(d);
@@ -299,7 +300,7 @@ test("reads: a member sees the runs of a project they are in, not another's; the
   await assert.rejects(w.call("ci.runs.list", {}, admin), (e: any) => e.error.code === "validation.bad_input");   // eslint-disable-line @typescript-eslint/no-explicit-any
   assert.equal((await w.call("ci.runs.get", { runId: mine.runs[0].runId }, maya)).run.jobId, 90);
   const p = await w.call("ci.project.get", { projectId: "prj_site" }, maya);
-  assert.deepEqual(p, { linked: true, repo: "northwind/site", enabled: true, labels: ["vyre"], live: 1, queued: 0 });
+  assert.deepEqual(p, { linked: true, repo: "northwind/site", enabled: true, labels: ["vyre"], live: 1, queued: 0, appNeedsAccept: false, acceptUrl: null, orgAcceptUrl: null });
   const off = world({ links: { "northwind/site": "prj_site" } });
   assert.equal((await off.call("ci.project.get", { projectId: "prj_site" })).enabled, false);
 });
@@ -364,4 +365,87 @@ test("only the host service counts as an admin by kind: a service a tenant can m
     await assert.rejects(w.call("ci.settings.get", {}, { id, kind: "service" }), (e: any) => e.error.code === "permission.no_grant");   // eslint-disable-line @typescript-eslint/no-explicit-any
   }
   assert.ok((await w.call("ci.settings.get", {}, { id: "svc_host", kind: "service" })).settings);
+});
+
+test("runner pin: a download whose checksum matches the pin runs; a mismatch, no checksum or an unreachable GitHub refuses with a plain note and one Needs-you line a day", async () => {
+  const w = world();
+  await w.turnOn();
+  await w.job("queued", { jobId: 120 });
+  assert.equal(w.state.droplets.length, 1, "the pin matches");
+  assert.equal(w.state.cloudCalls.filter((c) => c.path === "/v2/droplets" && c.method === "POST").length, 1);
+  // a swapped download
+  const bad = world();
+  await bad.turnOn();
+  bad.state.runnerDigest = "sha256:" + "0".repeat(64);
+  await bad.job("queued", { jobId: 121 });
+  await bad.job("queued", { jobId: 122 });
+  assert.equal(bad.state.droplets.length, 0, "nothing starts");
+  assert.equal(bad.state.jit.length, 0, "not even a runner config is asked for");
+  const runs = (await bad.call("ci.runs.list", { repo: "northwind/site" })).runs;
+  assert.deepEqual(runs.map((r: { state: string }) => r.state), ["refused", "refused"]);
+  assert.match(runs[0].note, /checksum differs/);
+  assert.deepEqual(bad.named("ci.job_refused").map((e) => e.payload["code"]), ["runner_unverified", "runner_unverified"]);
+  assert.equal(bad.named("ci.blocked").length, 1, "one Needs-you line a day");
+  assert.match(String(bad.named("ci.blocked")[0]!.payload["title"]), /^CI is waiting on you: /);
+  bad.advance(2 * DAY);
+  await bad.job("queued", { jobId: 123 });
+  assert.equal(bad.named("ci.blocked").length, 2);
+  // no checksum listed, and GitHub down
+  const none = world();
+  await none.turnOn();
+  none.state.runnerDigest = null;
+  await none.job("queued", { jobId: 124 });
+  assert.match((await none.call("ci.runs.list", { repo: "northwind/site" })).runs[0].note, /lists no checksum/);
+  const down = world();
+  await down.turnOn();
+  down.state.releaseDown = true;
+  await down.job("queued", { jobId: 125 });
+  assert.match((await down.call("ci.runs.list", { repo: "northwind/site" })).runs[0].note, /could not check/);
+  assert.equal(down.state.droplets.length, 0);
+  // fixed: the next job runs
+  down.state.releaseDown = false;
+  await down.job("queued", { jobId: 126 });
+  assert.equal(down.state.droplets.length, 1);
+});
+
+test("a project with no git remote in Files still gets CI from its Linked tab: a repository rule, or a linked pull request or commit", async () => {
+  // the repository is only known by the project's links: the Files folder has no remote
+  const w = world({ links: {} });
+  w.state.noRemote.add("prj_docs");
+  w.state.noRemote.add("prj_site");
+  w.state.linkRules["prj_docs"] = "Northwind/Docs";
+  w.state.linkedPrs["prj_site"] = "northwind/site";
+  w.state.links = { "northwind/docs": "prj_docs", "northwind/site": "prj_site" };   // the projects exist; their remotes do not
+  await w.turnOn();
+  await w.job("queued", { jobId: 130, repo: "northwind/docs" });
+  await w.job("queued", { jobId: 131, repo: "northwind/site" });
+  assert.equal(w.state.droplets.length, 2);
+  const p = await w.call("ci.project.get", { projectId: "prj_docs" });
+  assert.deepEqual([p.linked, p.repo], [true, "northwind/docs"]);
+  assert.deepEqual((await w.call("ci.project.get", { projectId: "prj_site" })).repo, "northwind/site");
+  // no remote, no rule, no linked item: no CI
+  const none = world();
+  none.state.noRemote.add("prj_site");
+  assert.deepEqual((await none.call("ci.project.get", { projectId: "prj_site" })).linked, false);
+});
+
+test("project rows carry the accept line when the GitHub App needs new permissions, for anyone who sees the project", async () => {
+  const w = world({ members: { prj_site: ["usr_maya"] } });
+  await w.turnOn();
+  w.state.appPerms = { actions: "read" };
+  const p = await w.call("ci.project.get", { projectId: "prj_site" }, maya);
+  assert.equal(p.appNeedsAccept, true);
+  assert.equal(p.acceptUrl, "https://github.com/settings/installations/555");
+  assert.equal(p.orgAcceptUrl, "https://github.com/organizations/northwind/settings/installations/555");
+});
+
+test("a Space whose projects cannot be listed fails loudly instead of quietly giving no CI", async () => {
+  const w = world();
+  await w.turnOn();
+  const c = w.ctxFor({ id: "svc_host", kind: "service" });
+  const base = c.call.bind(c);
+  c.call = async (cap, input) => { if (cap === "projects.links.list") throw Object.assign(new Error("no such capability"), { error: { code: "internal.unavailable" } }); return base(cap, input); };
+  w.state.noRemote.add("prj_site");
+  const { consumers } = await import("../impl.ts");
+  await assert.rejects(consumers["ci.workflow_job"].run(c, { name: "workflow_job.queued", payload: { repo: "northwind/site", jobId: 140, runId: 640, name: "build", labels: ["self-hosted", "vyre"], fork: "no" } }), (e: any) => e.error.code === "internal.unavailable");   // eslint-disable-line @typescript-eslint/no-explicit-any
 });

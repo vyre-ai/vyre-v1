@@ -226,3 +226,14 @@ test("Edit on an event changes its title and agenda in place: Save goes to the G
   await flush();
   assert.deepEqual(w.calls.find((c) => c.cap === "gate.holds.revise")?.input, { holdId: "hld_1", taskId: "tsk_1", body: "New agenda", title: "Closing prep, moved" });
 });
+
+test("a message to a handle: the Gate's name for the recipient is on the card, with the agent's face and never a teammate orb", async () => {
+  const named = block("chat.message_person", { to: "noah", body: "The vendor call is Thursday at 14:00." }, { channel: "message", to: [{ kind: "person", id: "noah", name: "Noah Berg" }], body: "The vendor call is Thursday at 14:00.", bodyField: "body" });
+  const w = world([named]);
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_intake" data={w.d} />);
+  const t = textOf(root);
+  assert.match(t, /Intake wants to message Noah Berg/, "who, from the real input");
+  assert.ok(!/teammate/.test(t), "no vague word");
+  assert.ok(find(root, "face-Intake"), "the face is the agent that is asking");
+  assert.equal(find(root, "face-Noah Berg"), null, "not the recipient's");
+});

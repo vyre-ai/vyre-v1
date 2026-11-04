@@ -76,6 +76,11 @@ export function Section({ title, note, help, children, testID, right }: { title?
 }
 
 
+/** On a phone a menu picker stays on the label's line when both are short: the picker's name is 14 characters or fewer and the label fits on two lines. Otherwise it goes under the label. */
+export function pickerStacks(label: string, pickerLabel: string): boolean {
+  return pickerLabel.length > 14 || label.length > 48;
+}
+
 export interface SettingsRowProps {
   id: string;
   label: string;
@@ -103,8 +108,9 @@ export function SettingsRow({ id, label, sub, subAlert = false, lead, control, f
   // On a phone a control that needs room (a menu, a field, a stepper) goes under its label and takes the width; a switch or a small button stays beside it.
   const narrow = useWindowDimensions().width < 560;
   const small = inline || isValidElement(control) && (control.type === Switch || control.type === SmallButton || control.type === Value);
+  const shortPick = isValidElement(control) && control.type === Choice && !pickerStacks(label, choiceLabel(control.props as ChoiceProps));
   // a button beside a long sentence would cut the sentence off on a phone, so it goes under it
-  const stack = narrow && control !== undefined && control !== null && (!small || (sub?.length ?? 0) > 34);
+  const stack = narrow && control !== undefined && control !== null && ((!small && !shortPick) || (sub?.length ?? 0) > 34);
   return (
     <>
       <View style={wrap} {...webOnly({ dataSet: { sid: id } })}>
@@ -135,12 +141,15 @@ export function Switch({ on, onChange, label, disabled = false, testID }: { on: 
   );
 }
 
-/** A quiet button that opens a menu of choices; the label is the current choice and a chevron. */
-export function Choice({ value, options, onChange, label, testID, mono = false, connect }: {
+interface ChoiceProps {
   value: string; options: readonly { value: string; label: string }[]; onChange(v: string): void; label: string; testID?: string; mono?: boolean;
   /** Ends the menu with Connect: what to connect, what to do with the account that comes back, and whether the options hold no real account yet. */
   connect?: { need: ConnectNeed; onConnected(account: Connected): void; empty: boolean };
-}): ReactElement {
+}
+const choiceLabel = (p: ChoiceProps): string => p.options.find((o) => o.value === p.value)?.label ?? p.value;
+
+/** A quiet button that opens a menu of choices; the label is the current choice and a chevron. */
+export function Choice({ value, options, onChange, label, testID, mono = false, connect }: ChoiceProps): ReactElement {
   const { element, show } = useMenu();
   const openConnect = useOpenConnect();
   const [over, setOver] = useState(false);
@@ -168,27 +177,28 @@ export function Choice({ value, options, onChange, label, testID, mono = false, 
 }
 
 /** A text field that saves when you leave it or press Enter; Escape puts the old value back. A value that breaks `pattern` is not saved and says why. */
-export function Field({ value, onCommit, label, placeholder, mono = false, pattern, width = 200, testID, prefix, secureTextEntry = false }: {
-  value: string; onCommit(v: string): void; label: string; placeholder?: string; mono?: boolean; pattern?: string; width?: number; testID?: string; prefix?: string; secureTextEntry?: boolean;
+export function Field({ value, onCommit, label, placeholder, mono = false, pattern, width = 200, testID, prefix, secureTextEntry = false, autoFocus = false, onClose }: {
+  value: string; onCommit(v: string): void; autoFocus?: boolean; onClose?: () => void; label: string; placeholder?: string; mono?: boolean; pattern?: string; width?: number; testID?: string; prefix?: string; secureTextEntry?: boolean;
 }): ReactElement {
   const [draft, setDraft] = useState<string | null>(null);
   const [err, setErr] = useState(false);
   const shown = draft ?? value;
   const bad = (v: string): boolean => (pattern ? !new RegExp(pattern).test(v) : false);
   const done = (): void => {
-    if (draft === null) return;
+    if (draft === null) { onClose?.(); return; }
     if (bad(draft)) { setErr(true); return; }
     setErr(false);
     if (draft !== value) onCommit(draft);
     setDraft(null);
+    onClose?.();
   };
   return (
     <View style={s.fieldWrap}>
       {prefix ? <Text style={s.prefix}>{prefix}</Text> : null}
       <TextField
-        accessibilityLabel={label} testID={testID} value={shown} placeholder={placeholder} secureTextEntry={secureTextEntry}
+        accessibilityLabel={label} testID={testID} value={shown} placeholder={placeholder} secureTextEntry={secureTextEntry} autoFocus={autoFocus}
         onChangeText={(t) => { setDraft(t); setErr(false); }} onBlur={done} onSubmitEditing={done}
-        onKeyPress={((e: KeyEventLike) => { if (e.key === "Escape") { setDraft(null); setErr(false); } }) as never}
+        onKeyPress={((e: KeyEventLike) => { if (e.key === "Escape") { setDraft(null); setErr(false); onClose?.(); } }) as never}
         style={[{ width, height: 32, borderRadius: 7, paddingHorizontal: 10, fontSize: 13 }, mono && s.mono, err && { borderColor: "var(--danger)" as string }]}
       />
     </View>

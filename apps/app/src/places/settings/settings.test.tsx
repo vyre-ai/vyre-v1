@@ -164,6 +164,17 @@ test("AI: defaults, how agents work with you, usage with bars, the accounts and 
   assert.equal(moneyLabel(48_200_000), "$48.20");
 });
 
+test("AI accounts: Codex on an API key reads 'Codex, with an API key' next to the ChatGPT sign-in", () => {
+  assert.ok(!has(html(createSampleSettings(northwind), { initialPage: "ai" }), "Codex, with an API key"), "not shown until the account exists");
+  const withCodex = createSampleSettings(northwind);
+  withCodex.replica.put("accounts", [
+    { id: "acc_cx1", ref: "acc_cx1", driver: "codex", kind: "subscription", title: "Codex", name: "Codex, dana@example.com", mine: true, status: "ok" },
+    { id: "acc_cx2", ref: "acc_cx2", driver: "codex", kind: "api_key", title: "Codex", name: "Codex, with an API key", mine: true, status: "ok" },
+  ] as never);
+  const shown = html(withCodex, { initialPage: "ai" });
+  assert.ok(has(shown, "Codex, dana@example.com") && has(shown, "Codex, with an API key"));
+});
+
 test("Email and calendar lists mailboxes with their state and a way to pause, calendars, your numbers, and the connect tiles to add another", () => {
   const out = mailHtml(createSampleSettings(northwind));
   assert.ok(has(out, "irfad@northwind.example") && has(out, "Google, private to you") && has(out, "Syncing") && has(out, "Pause"));

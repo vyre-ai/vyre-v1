@@ -83,3 +83,4 @@
 - A direct message always carries the person's name in the sidebar, as it does on its tab.
 - A withdrawn request names its own key in the footer ("A dismiss"), not "A approve".
 - Add sending domain in Apps opens the Console's Sending domains with Add domain ready, and is not shown to anyone who cannot open the Console.
+- The accounts live test names each account once per turn, with the original messages back so the chat title call still runs.

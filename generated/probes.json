@@ -388,6 +388,13 @@
     {
       "completeMs": 100,
       "firstPaintMs": 50,
+      "id": "screen.console.hooks",
+      "place": "console",
+      "screen": "console.hooks"
+    },
+    {
+      "completeMs": 100,
+      "firstPaintMs": 50,
       "id": "screen.console.integrations",
       "place": "console",
       "screen": "console.integrations"

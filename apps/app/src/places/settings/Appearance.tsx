@@ -52,7 +52,7 @@ export function AppearancePage({ rows, found }: { rows: readonly SettingRow[]; f
     setLook(next);
     data.nav.applyLook?.(next);
     void Promise.resolve(data.call("settings.set", { key: LOOK_KEY, value: next })).then(
-      () => saved.saved(line, undo ? () => { setLook(undo); data.nav.applyLook?.(undo); void data.call("settings.set", { key: LOOK_KEY, value: undo }); } : undefined),
+      () => saved.saved(line, undo ? () => { setLook(undo); data.nav.applyLook?.(undo); void Promise.resolve(data.call("settings.set", { key: LOOK_KEY, value: undo })).catch((e: unknown) => { setLook(next); data.nav.applyLook?.(next); saved.failed(e instanceof Error ? e.message : "That did not work."); }); } : undefined),
       (e: unknown) => { setLook(look); data.nav.applyLook?.(look); saved.failed(e instanceof Error ? e.message : "That did not work."); },
     );
   };

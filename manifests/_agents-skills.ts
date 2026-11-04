@@ -104,7 +104,7 @@ export const skillScopeCapabilities: CapabilityDef[] = [
 ];
 
 export const skillScopeEvents: EventDef[] = [
-  ev('skill.mine_changed', 'A person added, changed or removed one of their own skills', { p: { skillId: skoId, name: t.str(), op: t.enm('added', 'changed', 'removed', 'updated'), by: t.str() }, subject: ['entity', '/skillId'], vis: 'owner' }),
+  ev('skill.mine_changed', 'A person added, changed or removed one of their own skills', { p: { skillId: skoId, name: t.str(), op: t.enm('added', 'changed', 'removed', 'updated'), by: t.str(), ownerId: t.opt(t.str({ description: 'On a new skill: the person who owns it (for an agent\'s skill, the person who owns the agent)' })) }, subject: ['skill', '/skillId'], vis: 'owner' }),
   ev('skill.shared', 'A person shared one of their skills, or stopped', { p: { skillId: skoId, name: t.str(), to: t.arr(t.str()), stop: t.bool(), by: t.str() }, subject: ['entity', '/skillId'], vis: 'participants' }),
   ev('skill.share_decided', 'A person added a skill shared with them, or said Not now', { p: { skillId: skoId, name: t.str(), decision: t.enm('add', 'not_now'), by: t.str() }, subject: ['entity', '/skillId'], vis: 'participants' }),
   ev('skill.policy_changed', 'An admin changed who may add skills that run scripts', { p: { scriptsAdminOnly: t.bool(), by: t.str() }, subject: ['entity', '/by'] }),

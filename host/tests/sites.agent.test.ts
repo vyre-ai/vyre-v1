@@ -2,6 +2,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { bootCore } from "../../fixtures/seed/core/index.ts";
@@ -9,6 +10,15 @@ import { fakePlatform } from "../src/platform/index.ts";
 import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
+
+/** One GET to the daemon as another host name (the artifact host shares the daemon's port). */
+function ask(base: string, p: string, headers: Record<string, string>, host: string): Promise<{ status: number; headers: http.IncomingHttpHeaders; body: string }> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(base);
+    const r = http.request({ host: u.hostname, port: u.port, path: p, method: "GET", headers: { host, ...headers } }, (res) => { const c: Buffer[] = []; res.on("data", (x: Buffer) => c.push(x)); res.on("end", () => resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(c).toString("utf8") })); });
+    r.on("error", reject); r.end();
+  });
+}
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
 
@@ -47,7 +57,14 @@ test("an agent publishes an artifact for its person, and its going public is hel
     assert.equal(pub.json.data.url, `https://team.example.com/a/${id}`);
     const open = await call("olivia", "/v1/sites/artifact_open", { idempotencyKey: "o1", artifactId: id });
     assert.equal(open.status, 200, JSON.stringify(open.json));
-    assert.equal(await (await fetch(`${d.url}${open.json.data.path}`)).text(), "<p>42</p>");
+    // the artifact opens on its own host (a separate origin), by a one-time code traded for that host's cookie; the app's origin serves nothing of it
+    const artifactHost = new URL(open.json.data.url as string).host;
+    assert.ok(!/\/k\//.test(open.json.data.path as string), "no token in the address");
+    const first = await ask(d.url, open.json.data.path as string, {}, artifactHost);
+    assert.equal(first.status, 302);
+    const cookie = /(__vyre_a=[^;]+)/.exec(String(first.headers["set-cookie"]?.[0] ?? ""))?.[1] ?? "";
+    assert.ok(cookie, "the code gives a session cookie for the artifact host");
+    assert.equal((await ask(d.url, String(first.headers.location), { cookie }, artifactHost)).body, "<p>42</p>");
     const list = await call("olivia", "/v1/sites/list", { kind: "artifact" });
     assert.ok(JSON.stringify(list.json).includes(id), "it is in the person's list");
     const made = await call("agent", "/v1/sites/create", { idempotencyKey: "s1", name: "Shop", port: 3000 });
