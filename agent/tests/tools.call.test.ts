@@ -192,3 +192,21 @@ test("a probe call is refused before anything runs: example.com, a bare test and
   assert.equal(real.kind, "result");
   assert.deepEqual(invoked, ["records.get"]);
 });
+
+test("a value the person typed themselves passes the probe guard; the same value invented by the agent is refused", async () => {
+  const loaded = loadGenerated();
+  const invoked: string[] = [];
+  const session = createToolSession({ catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => "trace_fixed", invoke: async (cap) => { invoked.push(cap); return { status: "ok", output: {}, traceId: "t" } as never; } });
+  const input = { type: "lead", fields: { name: "test", site: "https://example.com" } };
+  const invented = await session.call(ctx(), "records_create", input);
+  assert.equal(invented.kind, "error", "the agent made it up: refused");
+  assert.deepEqual(invoked, []);
+  const asked = await session.call(ctx({ said: "Please make a lead called test and use https://example.com as its site" }), "records_create", input);
+  assert.equal(asked.kind, "result", "the person asked for exactly that: it runs");
+  assert.deepEqual(invoked, ["records.create"]);
+  // the person asked for one of the two values only: the other is still the agent's invention
+  invoked.length = 0;
+  const half = await session.call(ctx({ said: "make a lead called test" }), "records_create", input);
+  assert.equal(half.kind, "error");
+  assert.deepEqual(invoked, []);
+});

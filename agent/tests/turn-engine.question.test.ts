@@ -88,3 +88,17 @@ test("text that comes after a tool step is a new paragraph: A, a tool, B reads A
   await e2.idle("T");
   assert.equal(e2.messages("T").filter((m) => m.author.kind === "agent").at(-1)?.body, "A.\nB.");
 });
+
+test("the tool runner is told what the people said since the agent last spoke, and nothing from before its last message", async () => {
+  const seen: string[] = [];
+  const p = scriptedProvider({ script: [{ type: "tool_call", id: "c1", name: "records_get", input: {} }, { type: "text", text: "Done." }, { type: "done" }] });
+  const runner = toolRunnerFrom(async (_c) => ({ kind: "result", result: { ok: true, content: {} } }));
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, callTool: async (c, ctx) => { seen.push(ctx.said ?? ""); return runner(c, ctx); } });
+  engine.openThread(thread());
+  engine.receive({ threadId: "T", author: person, body: "make a lead called test" });
+  await engine.idle("T");
+  assert.equal(seen[0], "make a lead called test");
+  engine.receive({ threadId: "T", author: person, body: "and another one called demo" });
+  await engine.idle("T");
+  assert.equal(seen.at(-1), "and another one called demo", "words from before the agent's last message are not counted");
+});

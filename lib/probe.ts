@@ -12,23 +12,26 @@ const LOREM = /lorem ipsum/i;
 const FREE = new Set(["q", "query", "search", "term", "pattern", "filter", "keyword", "keywords", "text_search"]);
 
 /** The placeholder in a value, as the words that show it, or null. Walks objects and lists; a field named for searching is left alone. */
-export function probeIn(v: unknown, key = ""): string | null {
+export function probeIn(v: unknown, key = "", said = ""): string | null {
   if (typeof v === "string") {
     const s = v.trim();
+    // a value the person typed themselves is theirs to ask for ("make a task called test", "open example.com")
+    const mine = (what: string): boolean => said !== "" && said.toLowerCase().includes(what.toLowerCase());
     if (FREE.has(key)) return null;
     if (s === "") return null;   // an empty required field is the schema's refusal, with its own message
     if (/__probe/i.test(s)) return s;
-    if (WHOLE.test(s)) return s;
-    if (LOREM.test(s)) return s;
-    if (HOST.test(s)) return s;
-    if (s.length < 80 && !s.includes(" ") && PROBE_ID.test(s)) return s;
+    if (WHOLE.test(s)) return mine(s) ? null : s;
+    if (LOREM.test(s)) return mine(s) ? null : s;
+    const host = HOST.exec(s);
+    if (host) return mine(host[0]) ? null : s;
+    if (s.length < 80 && !s.includes(" ") && PROBE_ID.test(s)) return mine(s) ? null : s;
     return null;
   }
-  if (Array.isArray(v)) { for (const x of v) { const p = probeIn(x, key); if (p !== null) return p; } return null; }
+  if (Array.isArray(v)) { for (const x of v) { const p = probeIn(x, key, said); if (p !== null) return p; } return null; }
   if (v !== null && typeof v === "object") {
     for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
       if (k === "idempotencyKey") continue;
-      const p = probeIn(x, k);
+      const p = probeIn(x, k, said);
       if (p !== null) return p;
     }
   }

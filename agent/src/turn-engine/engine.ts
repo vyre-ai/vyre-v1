@@ -22,7 +22,11 @@ import type {
 } from "./types.ts";
 import type { RoutePolicy, RouteMention } from "../../../lib/route.ts";
 
-export interface ToolContext { threadId: string; turnId: string; agentId: string; asker: string }
+export interface ToolContext {
+  threadId: string; turnId: string; agentId: string; asker: string;
+  /** What the people in the chat said since this agent last spoke: a value a person typed themselves is theirs to ask for, however much it looks like a placeholder (lib/probe.ts). */
+  said?: string;
+}
 /** A tool call parked at the Gate: the task that decides it, and the Run when the call belongs to one. */
 export interface HeldCall { taskId: string; runId?: string }
 export type ToolRunResult = ToolResult & { held?: HeldCall; /** a question asked of the person: park on its block, no further model call until it is answered */ parkOn?: { blockId: string } };
@@ -341,6 +345,17 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     if (spendRows.length > KEEP_TURNS) spendRows.splice(0, spendRows.length - KEEP_TURNS);
   }
 
+  /** The words people wrote in this chat since the agent last spoke (newest first back to its last message). */
+  function saidSince(st: ThreadState, agentId: string): string {
+    const out: string[] = [];
+    for (let i = st.messages.length - 1; i >= 0; i--) {
+      const m = st.messages[i]!;
+      if (m.author.kind === "agent" && m.author.id === agentId) break;
+      if (m.author.kind === "person") out.push(m.body);
+    }
+    return out.join("\n");
+  }
+
   async function runTurn(st: ThreadState, item: QueueItem): Promise<void> {
     const agent = st.thread.agents.find((a) => a.id === item.agentId);
     // A wake that continues a parked turn runs on the account that was paying, and answers the held call.
@@ -456,7 +471,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             afterTool = true;
             queue.touch(st.thread.id, item.qseq);
             const trace = traceTool(info, { id: ev.id, name: ev.name, startedAt: now(), ...detailOf(ev.input) });
-            const result = await runTool(opts.callTool, { id: ev.id, name: ev.name, input: ev.input }, { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker }).finally(() => { inTool = false; lastSeen = hr(); });
+            const result = await runTool(opts.callTool, { id: ev.id, name: ev.name, input: ev.input }, { threadId: st.thread.id, turnId: turn.id, agentId: item.agentId, asker, said: saidSince(st, item.agentId) }).finally(() => { inTool = false; lastSeen = hr(); });
             if (trace) { trace.endedAt = now(); trace.ok = result.ok; if (result.held) trace.held = result.held.taskId; }
             if (result.parkOn) asked.push(result.parkOn.blockId);
             if (run.cancelled || run.lostLease) break;
