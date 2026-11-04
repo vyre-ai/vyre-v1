@@ -239,15 +239,15 @@ test("Space time zone: pick a city, read one line of what it changes, then save 
     assert.match(p.text(), /Pakistan[^,]*, Karachi/, "the button names the zone, the city and its time");
     assert.match(p.text(), /Time zone for new members/, "the member default is a different row with its own name");
     await p.press("infra-space-timezone");
-    assert.ok(p.find("zone-row-America/Los_Angeles"), "Los Angeles is in the list with the time there now");
-    await p.press("zone-row-America/Los_Angeles");
+    assert.ok(p.find("row-zone-America/Los_Angeles"), "Los Angeles is in the list with the time there now");
+    await p.press("row-zone-America/Los_Angeles");
     assert.equal(p.called("spaces.timezone.set").length, 0, "choosing is not saving");
     assert.match(p.text(), /Check-ins, due times and schedules will read in Pacific Time\./);
     await p.press("infra-space-timezone-cancel");
     assert.equal(p.called("spaces.timezone.set").length, 0);
     assert.doesNotMatch(p.text(), /will read in Pacific Time/);
     await p.press("infra-space-timezone");
-    await p.press("zone-row-America/Los_Angeles");
+    await p.press("row-zone-America/Los_Angeles");
     assert.match(p.text(), /Deadlines already set keep their real moment: one set for \w{3} \d{1,2} \w{3}, 4:16 PM Pakistan[^.]* now reads \w{3} \d{1,2} \w{3}, \d:16 [AP]M Pacific Time\. Nothing moves\./, "a real deadline, before and after");
     assert.match(p.text(), /Everyone's own time follows beside it\./);
     await p.press("infra-space-timezone-save");

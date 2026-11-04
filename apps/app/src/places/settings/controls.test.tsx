@@ -113,13 +113,13 @@ test("Profile: Your time zone is a city picker; choosing a city saves profile.ti
     assert.match(textOf(root), /Your time zone/);
     await press(picker);
     await flush();
-    await press(find(root, "zone-row-Asia/Karachi"));
+    await press(find(root, "row-zone-Asia/Karachi"));
     await flush();
     const sets = calls("settings.set").filter((c) => (c.input as { key: string }).key === "profile.timezone");
     assert.deepEqual(sets.at(-1)!.input, { key: "profile.timezone", value: "Asia/Karachi" });
     await press(find(root, "ctl-profile.timezone"));
     await flush();
-    await press(find(root, "zone-extra"));
+    await press(find(root, "row-zone-extra"));
     await flush();
     const device = new Intl.DateTimeFormat().resolvedOptions().timeZone;
     assert.deepEqual(calls("settings.set").filter((c) => (c.input as { key: string }).key === "profile.timezone").at(-1)!.input, { key: "profile.timezone", value: device });
