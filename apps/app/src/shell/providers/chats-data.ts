@@ -98,6 +98,7 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openSpaceSwitcher: () => rt.open({ screen: "spaces.switcher" }),
     openNewChannel: () => requestChannelSheet("new"),
     openSubject: (subject) => rt.open({ subject }),
+    openProject: (projectId) => rt.open({ subject: { type: "project", id: projectId } }),
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.changes ? { changes: rt.changes } : {}),
@@ -171,7 +172,6 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     },
     openNote: (noteId) => rt.open({ screen: "chats.notes", args: { noteId } }),
     openGoal: (goalId) => rt.open({ subject: { type: "goal", id: goalId } }),
-    openProject: (projectId) => rt.open({ subject: { type: "project", id: projectId } }),
     openUrl: (url) => rt.openUrl(url),
     openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),   // the same page the Needs you sign-in opens
     openSpaceAiKey: () => rt.open({ screen: "console.ai-models" }),
