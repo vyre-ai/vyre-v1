@@ -76,7 +76,7 @@ export default defineManifest({
     }),
     write('hooks.fire', 'System: ask what the hooks say about one event. The engine, the tool session and the CLI shim call it; it returns a block with its reason, notes for the model, and how many ran. Hooks that fail or run out of time never block', {
       in: {
-        event, agentId: id.agent, threadId: id.thread, turnId: t.opt(t.str()), threadKind: t.opt(t.str()), engine: t.opt(t.str()), source: t.opt(t.enm('engine', 'tools', 'cli')),
+        event, agentId: id.agent, threadId: id.thread, asker: t.opt(id.user), turnId: t.opt(t.str()), threadKind: t.opt(t.str()), engine: t.opt(t.str()), source: t.opt(t.enm('engine', 'tools', 'cli')),
         tool: t.opt(t.str()), cap: t.opt(t.str()), input: t.opt(t.json()), output: t.opt(t.json()), ok: t.opt(t.bool()), prompt: t.opt(t.str()), title: t.opt(t.str()),
       },
       out: verdict, level: 'member', emits: ['hook.blocked'], errors: [],

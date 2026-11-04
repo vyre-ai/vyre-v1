@@ -3,7 +3,7 @@
   "capabilities": {
     "hooks.allow_once@1": "c57ca65447a87a2c5bd63de791392c5d4a6834a3f69ca84879087e0fc096101a",
     "hooks.ask_admin@1": "48311cdf6c127983a9dff91e29ec5f178bc3afaa2bddd47d041ea1f1e3f5aed4",
-    "hooks.fire@1": "4d195dcff0808b8abb48d57a34c79db6779a7e94d547471c16b630c7211296b4",
+    "hooks.fire@1": "8168fbd075de671ffa47f503025567a2e7c1d99e350f5f7e2a111b368786ee61",
     "hooks.list@1": "025fd2bb395615596897e1bfd0d9329776a5c659da62b36ba6e4bafe4590569a",
     "hooks.pause@1": "0a9914a398fd10c545af6fd0f19776376ead1e662b1ef0fd4d8c6af71da2961b",
     "hooks.policy.get@1": "157740ee212569141a6e5e8c39c6b4818fe69cdfbe605ed681c2c3289ccc44c7",

@@ -242,3 +242,48 @@ test("Ask an admin: one event for the admins, and a quiet line; an agent cannot 
   assert.ok(w.s.lines.some((l) => l["kind"] === "asked"));
   await assert.rejects(w.call("hooks.ask_admin", { id: h.id, threadId: "thr_a" }, agent()), /Only a person/);
 });
+
+const TENANT = { id: "svc_0123456789abcdef0123456789abcdef", kind: "service" as const };   // an Automation's service principal
+const FORM = { id: "svc_form_contact", kind: "service" as const };
+const ENGINE = { id: "svc_engine", kind: "service" as const };
+const HOST = { id: "svc_host", kind: "service" as const };
+
+test("an untrusted service (an Automation's, a form's) is refused by hooks.set, hooks.runs.list and the fire path, and by everything else", async () => {
+  const w = world();
+  const mine = (await w.call("hooks.set", { scope: "chat", event: "tool.before", kind: "command", command: "guard", threadId: "thr_a" }, maya)).hook;
+  for (const who of [TENANT, FORM]) {
+    await assert.rejects(w.call("hooks.set", { scope: "space", event: "tool.before", kind: "command", command: "x" }, who), /may not use hooks/);
+    await assert.rejects(w.call("hooks.runs.list", { threadId: "thr_a" }, who), /may not use hooks/);
+    await assert.rejects(w.call("hooks.fire", { agentId: "agt_intake", threadId: "thr_a", event: "tool.before", tool: "x", asker: MAYA }, who), /may not use hooks/);
+    for (const [cap, input] of [["hooks.list", {}], ["hooks.remove", { id: mine.id }], ["hooks.pause", { id: mine.id, paused: true }], ["hooks.allow_once", { id: mine.id, threadId: "thr_a" }], ["hooks.ask_admin", { id: mine.id, threadId: "thr_a" }], ["hooks.policy.get", {}], ["hooks.policy.set", { agentHooks: false }]] as const) {
+      await assert.rejects(w.call(cap, input as Record<string, unknown>, who), /may not use hooks/, cap);
+    }
+  }
+  assert.equal(w.s.ran.length, 0, "nothing ran for them");
+});
+
+test("a trusted service (the host, the engine) may fire for a named person and read, and may not set, remove, pause, let go by or switch anything", async () => {
+  const w = world();
+  w.s.command = async () => stop;
+  await w.call("hooks.set", { scope: "person", event: "prompt.submit", kind: "command", command: "mine" }, maya);
+  for (const who of [HOST, ENGINE]) {
+    const v = await w.call("hooks.fire", { agentId: "agt_intake", threadId: "thr_a", event: "prompt.submit", prompt: "x", asker: MAYA }, who);
+    assert.ok(v.block, "it fires the person's hook for them");
+    assert.equal((await w.call("hooks.list", {}, who)).hooks.length, 1);
+    await assert.rejects(w.call("hooks.fire", { agentId: "agt_intake", threadId: "thr_a", event: "prompt.submit" }, who), /Name the person/);
+    await assert.rejects(w.call("hooks.set", { scope: "space", event: "tool.before", kind: "command", command: "x" }, who), /not by a service/);
+    await assert.rejects(w.call("hooks.policy.set", { agentHooks: false }, who), /not by a service/);
+    await assert.rejects(w.call("hooks.remove", { id: "hok_x" }, who), /not by a service/);
+  }
+});
+
+test("a person or an agent can only fire for themselves, and only read the runs of a chat they can use or a hook they may change", async () => {
+  const w = world();
+  await assert.rejects(w.call("hooks.fire", { agentId: "agt_intake", threadId: "thr_a", event: "tool.before", asker: ADMIN }, maya), /only ask about your own/);
+  const h = (await w.call("hooks.set", { scope: "person", event: "tool.before", kind: "command", command: "x" }, admin)).hook;
+  await assert.rejects(w.call("hooks.runs.list", { hookId: h.id }, maya), /Name a chat you can use/);
+  await assert.rejects(w.call("hooks.runs.list", {}, maya), /Name a chat you can use/);
+  w.s.threadsDenied.add("thr_x");
+  await assert.rejects(w.call("hooks.runs.list", { threadId: "thr_x" }, maya), /not one you can use/);
+  assert.deepEqual((await w.call("hooks.runs.list", { hookId: h.id }, admin)).runs, []);
+});
