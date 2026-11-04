@@ -48,6 +48,8 @@ import { canRelease, canTake, handInLabel, movesFor } from "./moves.ts";
 import type { Move } from "./moves.ts";
 import { useTaskPeople } from "./people.ts";
 import type { Seat } from "./people.ts";
+import { useZones } from "../../../../../../ui/src/Time/index.tsx";
+import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
 
 type History = CapMap["tasks.history"]["out"];
 type TaskOut = CapMap["tasks.get"]["out"];
@@ -601,7 +603,8 @@ function Rail({ task, rt, nameOf, run, menu, seats, openTask, kidsCount, begin }
   useEffect(() => setLabelText((task.labels ?? []).join(" ")), [task.labels]);
   const notes = Object.entries(task.workingNotes).filter(([k]) => !OWN_NOTE.test(k));
   const fieldsQ = useTypeFields(rt);
-  const due = dueLabel(task.due, clock.now, clock.offsetMin);
+  const zones = useZones();
+  const due = dueLabel(task.due, clock.now, zones);
   const noteRows: ReactElement[] = [];
   for (const [k, v] of notes) if (k !== NOTES_KEY) noteRows.push(<Text key={k} style={st.quiet}>{`${k}: ${v}`}</Text>);
   const customRows: ReactElement[] = [];
@@ -615,7 +618,7 @@ function Rail({ task, rt, nameOf, run, menu, seats, openTask, kidsCount, begin }
     {(task.assigned.kind === "group" || task.assigned.kind === "role") ? <KV label="Taken by" testID="rail-taken" {...(canTake(task) ? { onPress: () => void run("tasks.take", {}) } : canRelease(task, rt.me.id) ? { onPress: () => void run("tasks.release", {}) } : {})}>{task.takenBy ? <Text numberOfLines={1} style={st.kvVal}>{task.takenBy === rt.me.id ? "You (give it back)" : nameOf(task.takenBy)}</Text> : <Text style={st.kvAdd}>{canTake(task) ? "Take it" : "Nobody yet"}</Text>}</KV> : null}
     <KV label="Reviewer" testID="rail-reviewer" onPress={(e) => slotMenu("reviewer", e)}>{person("reviewer", task.reviewer)}</KV>
     <KV label="Approver" testID="rail-approver" onPress={(e) => slotMenu("approver", e)}>{person("approver", task.approver)}</KV>
-    <KV label="Due" testID="rail-due" onPress={(e) => { const at = pointAt(e); menu.show(dueEntries(act, (when) => void run("tasks.update", { due: when })), at.x, at.y, "other", { label: "Due" }); }}>{due.text ? <Text style={[st.kvVal, due.late && { color: "var(--danger)" as string }]}>{due.text}</Text> : <Text style={st.kvAdd}>Add</Text>}</KV>
+    <KV label="Due" testID="rail-due" onPress={(e) => { const at = pointAt(e); menu.show(dueEntries(act, (when) => void run("tasks.update", { due: when })), at.x, at.y, "other", { label: "Due" }); }}>{due.text ? <Tooltip text={due.title ?? ""}><Text style={[st.kvVal, due.late && { color: "var(--danger)" as string }]}>{due.text}</Text></Tooltip> : <Text style={st.kvAdd}>Add</Text>}</KV>
     <KV label="Priority" testID="rail-priority" onPress={(e) => { const at = pointAt(e); menu.show(priorityEntries(task.priority, (k) => void run("tasks.update", { priority: k })), at.x, at.y, "other", { label: "Priority" }); }}><Text style={st.kvVal}>{PRIORITIES.find((p) => p.key === (task.priority ?? "normal"))?.title}</Text></KV>
     <View style={{ height: 12 }} />
     <KV label="Project" testID="rail-project" onPress={(e) => { if (task.recordId) rt.open({ subject: { type: "record", id: task.recordId } }); else void pickProject(e); }}>{task.recordId ? <ProjectName rt={rt} recordId={task.recordId} /> : <Text style={st.kvAdd}>Add</Text>}</KV>

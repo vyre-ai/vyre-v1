@@ -1,6 +1,8 @@
 // The Tasks page as plain data (no React): which section a task sits in, the flat list the virtual list draws, grouping, sorting, the quiet filters, and the words of a due date. Every function is pure and fast at
 // 5,000 rows: one pass over the rows, no lookup that walks them again.
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { dateIn, dayIn, partsIn, titleOf } from "../../../../../../lib/zones.ts";
+import type { Zones } from "../../../../../../lib/zones.ts";
 import type { TaskState } from "../../../../../../ui/src/TaskPage/model.ts";
 
 export type IndexOut = CapMap["tasks.index"]["out"];
@@ -228,12 +230,17 @@ export function buildEntries(b: BuildIn): Entry[] {
 const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** A due date in the words a person uses, and whether it has passed. */
-export function dueLabel(due: number | undefined, now: number, offsetMin: number): { text: string; late: boolean } {
+/** A due date in the words a person uses, and whether it has passed. In a Space's zone with a person's own beside it when they differ (`title` carries both for hover); a plain number is a fixed offset (a private list, a test). */
+export function dueLabel(due: number | undefined, now: number, z: number | Zones): { text: string; late: boolean; title?: string } {
   if (due === undefined) return { text: "", late: false };
-  const start = dayStart(now, offsetMin);
-  const days = Math.floor((dayStart(due, offsetMin) - start) / DAY);
-  const d = new Date(due + offsetMin * 60_000);
+  if (typeof z !== "number") {
+    const days = dayIn(due, z.space) - dayIn(now, z.space);
+    const text = days === 0 ? "Today" : days === 1 ? "Tomorrow" : days === -1 ? "Yesterday" : days > 1 && days < 7 ? WEEKDAY[partsIn(due, z.space).dow]! : dateIn(due, z.space).replace(/^\w+ /, "");
+    return { text, late: days < 0, title: titleOf(due, z) };
+  }
+  const start = dayStart(now, z);
+  const days = Math.floor((dayStart(due, z) - start) / DAY);
+  const d = new Date(due + z * 60_000);
   const text = days === 0 ? "Today" : days === 1 ? "Tomorrow" : days === -1 ? "Yesterday" : days > 1 && days < 7 ? WEEKDAY[d.getUTCDay()]! : `${d.getUTCDate()} ${MONTH[d.getUTCMonth()]}`;
   return { text, late: due < start };
 }
