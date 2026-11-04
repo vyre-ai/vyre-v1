@@ -112,7 +112,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, setup:
   const showComputer = hasComputer || (setup && !noComputers);
   const [own, setOwn] = useState<TabKey>(initialTab ?? DEFAULT_TAB);
   const wanted = controlled ?? own;
-  const tab: TabKey = wanted === "computer" && !showComputer ? "about" : wanted === "terminal" && !hasComputer ? "about" : wanted;
+  const tab: TabKey = wanted === "computer" && !showComputer ? "about" : wanted;
   // Open on an install card: the Skills tab, with that skill lit
   const [lit, setLit] = useState<string | undefined>(undefined);
   // the Skills tab appears once the person has skills (their own, an agent's they own, or shared with them)

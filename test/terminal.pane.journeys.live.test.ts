@@ -28,11 +28,11 @@ function scriptedTerminal(opened: Array<Record<string, unknown>>): TerminalHost 
   };
 }
 
-for (const kind of ["personal", "team"] as const) test(`terminal pane journey, ${kind}: Open terminal in the chat pane opens a terminal on this computer`, async (t) => {
+for (const kind of ["personal", "team"] as const) for (const own of [false, true]) test(`terminal pane journey, ${kind}, agent ${own ? "with" : "without"} its own computer: Open terminal in the chat pane opens a terminal on ${own ? "the agent's computer" : "this computer"}`, async (t) => {
   const env = await browserOrSkip();
   if (typeof env === "string") { t.skip(env); return; }
   const s = await bootScreens({ kind, engineOpenSession: standIn }, env);
-  const dir = `shots-evidence/terminal-pane/${kind}`;
+  const dir = `shots-evidence/terminal-pane/${kind}${own ? "-agent-computer" : ""}`;
   const opened: Array<Record<string, unknown>> = [];
   try {
     const w = s.world;
@@ -44,10 +44,12 @@ for (const kind of ["personal", "team"] as const) test(`terminal pane journey, $
       await w.owner.ok("providers.add", { providerKey: "anthropic", connection: "api_key", apiKey: KEY, name: "My Claude", scope: "mine" });
       agentId = (await w.owner.ok("agents.create", { name: "Desk", role: "You help." })).agent.agentId as string;
     }
-    // Terminal is the agent computer's (rc.21 redesign): it appears once the agent has one, so the Desk agent gets a computer on a capable host first
-    bindComputers({ ...fakeHost().host, async tool() { return { ok: true, frame: "iVBORw0KGgo=" }; } } as unknown as ComputerHost);
-    const computerId = (await w.owner.ok("computers.provision", { agentId })).computer.computerId as string;
-    await w.owner.ok("computers.wake", { computerId });
+    // every agent has a Terminal; with its own computer it opens there, without one it opens on this computer
+    if (own) {
+      bindComputers({ ...fakeHost().host, async tool() { return { ok: true, frame: "iVBORw0KGgo=" }; } } as unknown as ComputerHost);
+      const computerId = (await w.owner.ok("computers.provision", { agentId })).computer.computerId as string;
+      await w.owner.ok("computers.wake", { computerId });
+    }
     await w.owner.ok("chat.start", { kind: "chat", agentIds: [agentId], title: "Desk work" });
     const me = await seat(s, w.owner, "Owner");
     const guard = guardCrashes(me.page);
@@ -67,8 +69,11 @@ for (const kind of ["personal", "team"] as const) test(`terminal pane journey, $
     await me.page.getByTestId("terminal-tab").waitFor({ timeout: 20_000 });
     assert.equal(await me.page.getByText("Could not open").count(), 0, "no dead button");
     assert.equal(opened.length, 1);
-    assert.equal(opened[0]!["host"], "device");
-    assert.ok(typeof opened[0]!["deviceId"] === "string" && (opened[0]!["deviceId"] as string).length > 0, "the terminal names the computer it opens on");
+    if (own) assert.equal(opened[0]!["host"], "agent_computer", "it opens on the agent's own computer");
+    else {
+      assert.equal(opened[0]!["host"], "device");
+      assert.ok(typeof opened[0]!["deviceId"] === "string" && (opened[0]!["deviceId"] as string).length > 0, "the terminal names the computer it opens on");
+    }
     await shoot(me.page, dir, "pane-open");
     await phonePass(me, s, dir, [{ name: "chat", route: "/chat" }]);
     assert.deepEqual(me.errors, [], "no page errors");

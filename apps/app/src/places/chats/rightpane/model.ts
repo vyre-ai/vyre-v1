@@ -11,18 +11,18 @@ export const TABS: readonly { key: TabKey; title: string }[] = [
   { key: "memory", title: "Knows" },
   { key: "routines", title: "Routines" },
 ];
-/** Terminal belongs to the agent's computer and sits after Files, where the shell has one. */
+/** Terminal sits after Files, for every agent, where the shell has one. It opens where the chat runs: the agent's computer when it has one, else this computer; the host chip lists only machines the person may use. */
 export const TERMINAL_TAB: { key: TabKey; title: string } = { key: "terminal", title: "Terminal" };
 /** The Crew tab: shown only in a chat that has teammates working for it, right after Chats. */
 export const CREW_TAB: { key: TabKey; title: string } = { key: "crew", title: "Crew" };
-/** The tabs of a pane, shown only when useful: Computer once the agent has one, Terminal with it where the shell has a terminal, Crew when teammates work for the chat. */
+/** The tabs of a pane, shown only when useful: Computer once the agent has one, Terminal for every agent where the shell has a terminal, Crew when teammates work for the chat. */
 export const tabsOf = (terminal: boolean, crew = false, computer = true, skills = false, hooks = false): readonly { key: TabKey; title: string }[] => {
   const out: { key: TabKey; title: string }[] = [];
   for (const t of TABS) {
     if (t.key === "computer" && !computer) continue;
     out.push(t);
     if (t.key === "threads" && crew) out.push(CREW_TAB);
-    if (t.key === "files" && terminal && computer) out.push(TERMINAL_TAB);
+    if (t.key === "files" && terminal) out.push(TERMINAL_TAB);   // every agent has a Terminal (owner, 31 Oct: reaching every machine, safe); its host chip picks the machine
   }
   if (hooks) out.push(HOOKS_TAB);   // once the chat has hooks (l-hooks)
   if (skills) out.push(SKILLS_TAB);   // once the person has skills (l-install)
