@@ -37,6 +37,7 @@ type Out = {
       installId: string;
       kind: string;
       name: string;
+      version?: string;
       repo: string;
       commit: string;
       url: string;
@@ -73,7 +74,8 @@ type Out = {
         "kind": "example",
         "name": "example",
         "repo": "example",
-        "url": "example"
+        "url": "example",
+        "version": "example"
       }
     ]
   }

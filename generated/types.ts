@@ -19981,6 +19981,7 @@ export type InstallCheckUpdateOut = {
     commit: string;
     url: string;
     path?: string;
+    version?: string;
     needs: {
       domains: Array<string>;
       vaultKeys: Array<string>;
@@ -20017,6 +20018,9 @@ export type InstallCheckUpdateOut = {
     diff?: {
       from: string;
       to: string;
+      fromVersion?: string;
+      toVersion?: string;
+      newAccess?: Array<string>;
       added: Array<string>;
       removed: Array<string>;
       changed: Array<{
@@ -20042,6 +20046,7 @@ export type InstallFromLinkOut = {
     commit: string;
     url: string;
     path?: string;
+    version?: string;
     needs: {
       domains: Array<string>;
       vaultKeys: Array<string>;
@@ -20078,6 +20083,9 @@ export type InstallFromLinkOut = {
     diff?: {
       from: string;
       to: string;
+      fromVersion?: string;
+      toVersion?: string;
+      newAccess?: Array<string>;
       added: Array<string>;
       removed: Array<string>;
       changed: Array<{
@@ -20103,6 +20111,7 @@ export type InstallGetOut = {
     commit: string;
     url: string;
     path?: string;
+    version?: string;
     needs: {
       domains: Array<string>;
       vaultKeys: Array<string>;
@@ -20139,6 +20148,9 @@ export type InstallGetOut = {
     diff?: {
       from: string;
       to: string;
+      fromVersion?: string;
+      toVersion?: string;
+      newAccess?: Array<string>;
       added: Array<string>;
       removed: Array<string>;
       changed: Array<{
@@ -20158,6 +20170,7 @@ export type InstallListOut = {
       installId: string;
       kind: string;
       name: string;
+      version?: string;
       repo: string;
       commit: string;
       url: string;
@@ -47658,6 +47671,7 @@ export type SkillMineChangedPayload = {
   name: string;
   op: "added" | "changed" | "removed" | "updated";
   by: string;
+  ownerId?: string;
 };
 export type SkillPolicyChangedPayload = {
   scriptsAdminOnly: boolean;

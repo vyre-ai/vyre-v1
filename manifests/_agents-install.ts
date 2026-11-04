@@ -12,12 +12,12 @@ const level = t.enm('use', 'edit', 'manage');
 const insId = t.id('ins');
 const needs = t.obj({ domains: t.arr(t.str()), vaultKeys: t.arr(t.str()), files: t.arr(t.str()) });
 const diff = t.obj({
-  from: t.str(), to: t.str(), added: t.arr(t.str()), removed: t.arr(t.str()),
+  from: t.str(), to: t.str(), fromVersion: t.opt(t.str()), toVersion: t.opt(t.str()), newAccess: t.opt(t.arr(t.str())), added: t.arr(t.str()), removed: t.arr(t.str()),
   changed: t.arr(t.obj({ path: t.str(), plus: t.arr(t.str()), minus: t.arr(t.str()) })),
 });
 const plan = t.obj({
   planId: insId, state: t.str(), kind: t.enm('skill', 'plugin', 'mcp_local', 'mcp_remote', 'site'), flavor: t.opt(t.enm('claude', 'codex')), name: t.str(),
-  summary: t.str({ description: 'What it does, in plain words, read from its README and manifest' }), repo: t.str(), commit: t.str({ description: 'The exact commit it was read at; installs are pinned to it' }), url: t.str(), path: t.opt(t.str()),
+  summary: t.str({ description: 'What it does, in plain words, read from its README and manifest' }), repo: t.str(), commit: t.str({ description: 'The exact commit it was read at; installs are pinned to it' }), url: t.str(), path: t.opt(t.str()), version: t.opt(t.str({ description: 'The version the package names for itself, when it names one' })),
   needs, runs: t.opt(t.obj({ command: t.str(), args: t.arr(t.str()) })), skills: t.arr(t.str()), problems: t.arr(t.str()),
   card: t.obj({ name: t.str(), kind: t.str(), summary: t.str(), commit: t.str(), needs }, { description: 'Copy this into install.apply as card: the held act carries it, so the card draws without a second fetch' }),
   who: t.arr(t.obj({ key: t.enm('me', 'agent', 'space'), label: t.str(), allowed: t.bool(), adminOnly: t.opt(t.bool()) })),
@@ -44,7 +44,7 @@ export const installCapabilities: CapabilityDef[] = [
     errors: ['validation.bad_input', 'validation.not_found', 'validation.precondition_failed', 'permission.no_grant', 'provider.unavailable'],
   }),
   read('install.list', 'What was installed from links, by the person asking (an admin may ask for the whole Space)', {
-    in: { all: t.opt(t.bool()) }, out: { installs: t.arr(t.obj({ installId: insId, kind: t.str(), name: t.str(), repo: t.str(), commit: t.str(), url: t.str(), by: t.str(), at: t.ts(), installed: t.rec(t.json()) })) },
+    in: { all: t.opt(t.bool()) }, out: { installs: t.arr(t.obj({ installId: insId, kind: t.str(), name: t.str(), version: t.opt(t.str()), repo: t.str(), commit: t.str(), url: t.str(), by: t.str(), at: t.ts(), installed: t.rec(t.json()) })) },
     perm: null, level: 'view', tool: 'agents', mcpName: 'install_list',
   }),
   read('install.get', 'One plan, as its card draws it: what it is, what it needs, the commit, who can get it, and for an update the diff', {
