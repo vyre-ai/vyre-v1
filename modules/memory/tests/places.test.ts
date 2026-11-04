@@ -271,6 +271,10 @@ test("a private chat that gains people: what was said before stays private, in m
   const inGroup = harness({ raw: s.raw, principal: person(DANA), respond });
   const g = await quote(inGroup.ctx, { q: "decided", excludeThreadId: "thr_group" });
   assert.deepEqual(g.quotes.map((x) => x.ref), ["r2"]);
+  // an agent's own tool call carries its chat in ctx.thread, not in the input: the earlier line stays out of it too
+  const asAgent = harness({ raw: s.raw, principal: { kind: "agent", id: AGENT }, actingFor: DANA, respond });
+  (asAgent.ctx as { thread?: string }).thread = "thr_group";
+  assert.deepEqual((await quote(asAgent.ctx, { q: "decided" })).quotes.map((x) => x.ref), ["r2"]);
   const alone = harness({ raw: s.raw, principal: person(DANA), respond });
   const a = await quote(alone.ctx, { q: "decided", excludeThreadId: "thr_dana_alone" });
   assert.deepEqual(a.quotes.map((x) => x.ref).sort(), ["r1", "r2"]);

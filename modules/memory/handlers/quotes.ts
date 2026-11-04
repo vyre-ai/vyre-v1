@@ -1,7 +1,7 @@
 // memory.quote (memory ruling 1B and 3): exact recall, line by line. It asks the chat module for the words of every message and transcript row (turns, tool calls and results, which is what a run
 // step is) that the ASKER could open themselves, and answers with the stored text, who wrote it, when, and a link that opens the chat scrolled to that line. Nothing is stored here and nothing
 // is paraphrased: no card, no recall. Access is the chat module's (chat.history.search), run as the asker, so a person who was not in a chat never gets a line from it, not even through an agent.
-import { actorOf, ensure, loadFact, makeAccess, raise } from "../projections.ts";
+import { actorOf, ensure, hereOf, loadFact, makeAccess, raise } from "../projections.ts";
 import { recallable } from "../../../lib/recall-intent.ts";
 import { chatAudience } from "../../../lib/audience.ts";
 import type { MemCtx } from "../projections.ts";
@@ -98,7 +98,9 @@ export async function quote(ctx: MemCtx, input: { q?: string; ref?: string; thre
     if (!(await access.showsFrom(q.threadId))) continue;
     if (await earlier(q)) {
       const s = sharedAt.get(q.threadId)!;
-      const room = input.excludeThreadId !== undefined ? await chatAudience((cap, i) => ctx.call(cap, i), input.excludeThreadId) : { space: false, people: [actorOf(ctx)] };
+      // the chat being answered: the one named, or (an agent's own tool call) the one the call came from
+      const here = hereOf(ctx, input.excludeThreadId);
+      const room = here !== undefined ? await chatAudience((cap, i) => ctx.call(cap, i), here) : { space: false, people: [actorOf(ctx)] };
       if (room.space || room.people.some((p) => p !== s.starter)) continue;
     }
     shown.push(q);
