@@ -8,6 +8,10 @@ import { bootScreens, browserOrSkip, open, phonePass, seat, shoot } from "./supp
 import { standIn } from "./memory-live-kit.ts";
 import { bindHost as bindTerminal } from "../modules/terminal/impl.ts";
 import type { TerminalHost } from "../modules/terminal/projections.ts";
+import { bindHost as bindComputers } from "../modules/computers/projections.ts";
+import type { ComputerHost } from "../modules/computers/projections.ts";
+import { fakeHost } from "../modules/computers/fixtures/fake-host.ts";
+import { guardCrashes } from "../apps/app/tests/crash-guard.ts";
 
 const KEY = "sk-ant-api03-JOURNEYkeyVALUE9876543210zyxwvuts"; // secret-scan: fake
 
@@ -40,8 +44,13 @@ for (const kind of ["personal", "team"] as const) test(`terminal pane journey, $
       await w.owner.ok("providers.add", { providerKey: "anthropic", connection: "api_key", apiKey: KEY, name: "My Claude", scope: "mine" });
       agentId = (await w.owner.ok("agents.create", { name: "Desk", role: "You help." })).agent.agentId as string;
     }
+    // Terminal is the agent computer's (rc.21 redesign): it appears once the agent has one, so the Desk agent gets a computer on a capable host first
+    bindComputers({ ...fakeHost().host, async tool() { return { ok: true, frame: "iVBORw0KGgo=" }; } } as unknown as ComputerHost);
+    const computerId = (await w.owner.ok("computers.provision", { agentId })).computer.computerId as string;
+    await w.owner.ok("computers.wake", { computerId });
     await w.owner.ok("chat.start", { kind: "chat", agentIds: [agentId], title: "Desk work" });
     const me = await seat(s, w.owner, "Owner");
+    const guard = guardCrashes(me.page);
     await open(me, s, "/chat");
     await me.page.getByTestId("chats-place").waitFor({ timeout: 20_000 });
     await me.page.getByText("Desk work", { exact: true }).first().click();
@@ -51,7 +60,8 @@ for (const kind of ["personal", "team"] as const) test(`terminal pane journey, $
     // the pane's tabs that do not fit sit behind the chevron: in a Team Space (Computer is also there) Terminal is one of them
     if (await me.page.getByTestId("tab-terminal").count() > 0) await me.page.getByTestId("tab-terminal").click();
     else { await me.page.getByTestId("tab-more").click(); await me.page.getByRole("menuitem", { name: "Terminal" }).or(me.page.getByRole("button", { name: "Terminal", exact: true })).first().click(); }
-    await me.page.getByTestId("terminal-pane-open").waitFor({ timeout: 20_000 });
+    await me.page.getByTestId("terminal-pane-open").waitFor({ timeout: 20_000 }).catch(async (e: unknown) => { await guard.check("waiting for Open terminal"); throw e; });
+    await guard.check("on the Terminal tab");
     await shoot(me.page, dir, "pane-empty");
     await me.page.getByTestId("terminal-pane-open").click();
     await me.page.getByTestId("terminal-tab").waitFor({ timeout: 20_000 });
@@ -62,5 +72,5 @@ for (const kind of ["personal", "team"] as const) test(`terminal pane journey, $
     await shoot(me.page, dir, "pane-open");
     await phonePass(me, s, dir, [{ name: "chat", route: "/chat" }]);
     assert.deepEqual(me.errors, [], "no page errors");
-  } finally { bindTerminal(null); await s.close(); }
+  } finally { bindComputers(null); bindTerminal(null); await s.close(); }
 });
