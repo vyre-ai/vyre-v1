@@ -56,6 +56,7 @@ export function CrewOverview({ status, call, threadId, onPeek, onRefresh, initia
     <View testID="crew-overview" style={st.page}>
       <Text accessibilityRole="header" style={st.title}>Crew</Text>
       <Text testID="crew-overview-totals" style={st.sub}>
+        {/* ui-rows-lint: not a list (the totals are one sentence; each part is a word you press to sort) */}
         {totalsParts(status.totals).map((p, i) => (
           <Text key={p.key}>{i > 0 ? " · " : ""}<Text accessibilityRole="button" testID={`crew-sort-${p.key}`} onPress={() => setSortKey(p.key)} style={sortKey === p.key && p.key !== "state" ? st.sortOn : undefined}>{p.text}</Text></Text>
         ))}
