@@ -395,7 +395,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     const place = railPlace(where);
     if (!place || !o.navigate) return;
     const go = (): void => { o.navigate?.(place, targetHash(t), t.background === true); };
-    if (!needsJudging(t)) { go(); return; }
+    // a tab or view of what is already open is not a new door: no read, no refusal
+    if (t.local === true || !needsJudging(t)) { go(); return; }
     void judge(t, judging).then((r) => {
       if (r.to === "open") { go(); return; }
       // the last resort: a link should have drawn plain before it was pressed. Under test it is a failure, so the suite counts zero of these.

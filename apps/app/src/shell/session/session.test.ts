@@ -942,3 +942,19 @@ test("session: the one door asks reach: a member's click on a Console page or on
   assert.equal(admin.went.length, 3, "an admin goes everywhere");
   assert.deepEqual(admin.said, []);
 });
+
+
+test("session: a tab change inside the page already open is not a new door: it navigates even when the item would be refused", async () => {
+  const routes: RouteRow[] = [...ROUTES, { method: "POST", path: "/v1/projects/get", cap: "projects.get", v: 1 }];
+  const screens = async (): Promise<Map<string, ScreenIndexEntry>> => new Map([["files.list", SCREENS.get("files.list")!]]);
+  const gw = sessionGateway({ "POST /v1/projects/get": () => ({ status: 403, body: { error: { code: "auth.forbidden", message: "no", traceId: "t" } } }) });
+  const went: string[] = [];
+  const said: string[] = [];
+  const s = await openRealSession({ baseUrl: "http://s.test", token: "t", fetch: gw.fetch, routes: async () => routes, screens, dial: fakeServer().dial, navigate: (p, h) => went.push(`${p} ${h}`), notice: (t) => said.push(t), pollMs: 1_000_000 });
+  s.runtime.open({ subject: { type: "project", id: "prj_1" }, args: { tab: "plan" }, local: true });
+  s.runtime.open({ subject: { type: "project", id: "prj_1" }, args: { tab: "plan" } });
+  await new Promise((r) => setTimeout(r, 40));
+  s.close();
+  assert.deepEqual(went, ["records subject=project%3Aprj_1&tab=plan"], "the local move goes; the same open as a new door is refused");
+  assert.equal(said.length, 1);
+});

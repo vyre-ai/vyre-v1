@@ -185,9 +185,11 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
     if (link) {
       const b = item.message.blocks.find((x) => x.type === "link_card")!;
       return (
-        <View testID={`event-${item.key}`} style={st.event}>
-          <View style={st.eventCard}><LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} /></View>
-          <Text style={st.eventTime}>{item.time}</Text>
+        <View testID={`event-${item.key}`} style={[st.event, (link.style === "noted" || link.style === "question") && st.eventCentre]}>
+          {link.style === "noted" ? <LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} time={item.time} /> : <>
+            <View style={st.eventCard}><LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} /></View>
+            {link.style === "question" ? null : <Text style={st.eventTime}>{item.time}</Text>}
+          </>}
         </View>
       );
     }
@@ -532,7 +534,7 @@ function Reactions({ m, a, mine }: { m: Message; a: MessageActions; mine: boolea
 /* ---------- native cards ---------- */
 
 /** A link card in the conversation: names by the chat's own lookup, a fact opens the Knows tab of the pane (where the chat has memory), anything else opens beside the chat. */
-function LinkCardView({ id, data, actions, size, trusted }: { id: string; data: LinkCardData; actions: MessageActions; size: number; trusted: boolean }): ReactElement {
+function LinkCardView({ id, data, actions, size, trusted, time }: { id: string; data: LinkCardData; actions: MessageActions; size: number; trusted: boolean; time?: string }): ReactElement {
   const memory = useThreadMemory();
   const [done, setDone] = useState<ReadonlySet<string>>(new Set());
   // a button with a capability calls it as the person and reads as done; one that fails says nothing is done (the button stays)
@@ -554,7 +556,7 @@ function LinkCardView({ id, data, actions, size, trusted }: { id: string; data: 
     void Promise.resolve(actions.host.invoke("access.request", { resource: { type: t.type === "chat" ? "thread" : t.type, id: t.id }, level: "view", idempotencyKey: `ask:${t.type}:${t.id}` })).then(() => setAsked(true), () => undefined);
   };
   const open = (t: NonNullable<LinkCardData["target"]>): void => { if (t.type === "thread" && actions.openMessage) actions.openMessage(t.id, ""); else if (t.type === "fact" && memory?.memory.showKnows) memory.memory.showKnows(); else actions.openBeside(t.type, t.id); };
-  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={new Set([...done, ...doneByState(data, seen.state)])} state={seen.state} hidden={hidden} {...(hidden && data.target ? { onAskAccess: askAccess, asked } : {})} />;
+  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={new Set([...done, ...doneByState(data, seen.state)])} state={seen.state} hidden={hidden} {...(time ? { time } : {})} {...(hidden && data.target ? { onAskAccess: askAccess, asked } : {})} />;
 }
 
 /** What a work card says now, read as this reader: its state while it is live (read again on every change in the Space), and whether they may open it at all. */
@@ -680,6 +682,7 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
 export const st = StyleSheet.create({
   day: { alignSelf: "center", fontSize: 12, color: "var(--ink-3)" as string, marginTop: 18, marginBottom: 6 },
   eventCard: { flexShrink: 1, minWidth: 0 },
+  eventCentre: { justifyContent: "center" },
   event: { minHeight: 28, flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8, marginBottom: 2 },
   eventDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ink-4)" as string },
   eventText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
