@@ -227,6 +227,14 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   replica.resolve("github.me.reach", () => ({ login: "irfad7", orgs: [{ login: "irfad7", install: "all", url: "https://github.com/settings/installations/1" }, { login: "vyre-ai", install: "selected", url: "https://github.com/organizations/vyre-ai/settings/installations/2" }, { login: "northwind", install: "none", url: null }], repos: [{ repo: "vyre-ai/vyre-v1", installationId: 2 }, { repo: "vyre-ai/site", installationId: 2 }, { repo: "irfad7/notes", installationId: 1 }] }) as CapMap["github.me.reach"]["out"]);
   replica.resolve("github.me.policy.get", () => ({ policy: { ...ghPolicy } }) as unknown as CapMap["github.me.policy.get"]["out"]);
   replica.resolve("github.me.usage", () => ({ uses: [{ consumer: "crews", repo: "vyre-ai/vyre-v1", action: "Opened a pull request", at: 1 }, { consumer: "ci", repo: "vyre-ai/site", action: "Read code", at: 2 }] }) as CapMap["github.me.usage"]["out"]);
+  const machine = {
+    machineId: "srv_dev_mbp", kind: "computer", name: "Irfad's MacBook Pro", mine: true, ownerId: space.me.id, online: true, draining: false, restricted: false, lastSeenAt: 1_760_000_000_000, latencyMs: 18, version: "1.4.1", os: "macOS 15", arch: "arm64",
+    cores: 8, memBytes: 16e9, diskBytes: 500e9, load: { cpuPct: 21, memUsedBytes: 8e9, diskFreeBytes: 300e9 }, runs: { turns: 1, agentComputers: 0, sites: 0, automations: 0 }, can: ["claude_code"], limits: { maxTurns: 4, maxAgentComputers: 0 }, pinned: [], room: { score: 40, tightest: "cpu" },
+  };
+  replica.resolve("machines.list", () => ({ machines: [machine] }) as never);
+  replica.resolve("machines.get", () => ({ machine, series: { "1h": [], "24h": [], "7d": [], "30d": [] }, findings: [], alerts: [], privacy: { restricted: false } }) as never);
+  replica.resolve("machines.alerts", () => ({ alerts: [] }) as never);
+  replica.resolve("computers.hosts", () => ({ available: false, hosts: [] }) as never);
   replica.resolve("devices.mine", () => ({ devices: (replica.rows("devices") as unknown as Row[]).filter((x) => x["revokedAt"] === undefined), sessions: [] }) as unknown as CapMap["devices.mine"]["out"]);
   replica.resolve("notifications.mute.list", () => ({ mutes: (replica.rows("mutes") as unknown as { target: { kind: string; id: string }; until: number }[]).map((m) => ({ target: m.target, until: m.until })) }) as CapMap["notifications.mute.list"]["out"]);
   replica.resolve("notifications.kinds.list", () => ({
@@ -280,11 +288,13 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     },
     "settings.kit.set_mine": (i: { kitId: string | null }) => { const k = replica.rows("kit")[0]!; replica.put("kit", [{ ...k, person: i.kitId, effective: i.kitId ?? String(k["space"]) }]); return { kit: { person: i.kitId } }; },
     "engine.defaults.set": (i: { provider?: string; model?: string; fallback?: { provider: string; model: string }[] }) => { const cur = replica.rows("defaults")[0]!; replica.put("defaults", [{ ...cur, ...(i.provider ? { provider: i.provider } : {}), ...(i.model ? { model: i.model } : {}), ...(i.fallback ? { fallback: i.fallback } : {}) }]); return { ok: true }; },
-    "notifications.kind.set_level": (i: { kind: string; level: string }) => { if (i.kind === "approval.requested" && i.level !== "interrupt") throw new Error("Approval reminders never go below Interrupt."); return { kind: i.kind, level: i.level, channels: [] }; },
+    "notifications.kind.set_level": (i: { kind: string; level?: string; channels?: string[] }) => { const lvl = i.level ?? ((i.channels ?? []).some((c) => c !== "email") ? "interrupt" : "badge"); if (i.kind === "approval.requested" && lvl !== "interrupt") throw new Error("Approval reminders never go below Interrupt."); return { kind: i.kind, level: lvl, channels: i.channels ?? [] }; },
     "notifications.mute.clear": (i: { target: { id: string } }) => { replica.remove("mutes", [i.target.id]); return { ok: true }; },
     "github.me.connect": () => ({ authUrl: "https://github.com/login/oauth/authorize?state=x", state: "x", source: "vyre" }),
     "github.me.disconnect": () => { ghOn = false; return { disconnected: true }; },
     "github.me.policy.set": (i: { policy: Record<string, string> }) => { Object.assign(ghPolicy, i.policy); return { policy: { ...ghPolicy } }; },
+    "machines.set": () => ({ ok: true }),
+    "machines.fix": () => ({ ok: true }),
     "devices.revoke": (i: { deviceId: string }) => { const cur = replica.rows("devices").find((x) => x.id === i.deviceId); if (cur) replica.put("devices", [{ ...cur, revokedAt: SAMPLE_NOW }]); return { ok: true }; },
     "devices.revoke_others": () => { let n = 0; for (const x of replica.rows("devices")) if (!x["current"] && x["revokedAt"] === undefined) { replica.put("devices", [{ ...x, revokedAt: SAMPLE_NOW }]); n++; } return { revoked: n }; },
     "mail.mailbox.pause": (i: { mailboxId: string }) => { const m = replica.rows("mailboxes").find((x) => x.id === i.mailboxId); if (m) replica.put("mailboxes", [{ ...m, state: "paused" }]); return { ok: true }; },

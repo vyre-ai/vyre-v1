@@ -42,7 +42,7 @@ test("Notifications: Notify me on lists each kind with how it arrives, with no e
   const out = html(createSampleSettings(northwind), { initialPage: "notifications" });
   assert.ok(has(out, "Notify me on"));
   for (const t of ["Needs you", "Mentions", "Replies to you", "Agent finished a long task", "Routines", "Channel messages"]) assert.ok(has(out, t), t);
-  assert.ok(has(out, "Desktop and phone") && has(out, "Badge only") && has(out, "In my summary"));
+  assert.ok(has(out, "Desktop and phone") && has(out, "Badge only") && has(out, ">Email<"));
   for (const gone of ["Interrupt rings and shows a banner", "Waits outside your working hours", "How each kind arrives"]) assert.ok(!has(out, gone), gone);
 });
 

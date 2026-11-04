@@ -138,7 +138,7 @@ test("rows that have no reader or belong elsewhere are not drawn", () => {
 
 test("Notifications: each kind with how it arrives, the delivery rows and who is muted", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "notifications" });
-  assert.ok(has(out, "Notify me on") && has(out, "Needs you") && has(out, "Mentions") && has(out, "Desktop and phone") && has(out, "Badge only") && has(out, "In my summary"));
+  assert.ok(has(out, "Notify me on") && has(out, "Needs you") && has(out, "Mentions") && has(out, "Desktop and phone") && has(out, "Badge only") && has(out, ">Email<"));
   assert.ok(!has(out, "Interrupt") && !has(out, "threads"), "no system words");
   assert.ok(!has(out, "Waits outside your working hours") && !has(out, "How each kind arrives"));
   assert.ok(has(out, "Email me if an approval waits") && !has(out, "Alert me on replies") && has(out, "away, send Needs you to") && has(out, "Tell me when routines succeed") && has(out, 'data-testid="ctl-quiet-on"') && has(out, 'data-testid="ctl-hand-to"'));
@@ -155,10 +155,10 @@ test("unmuting changes the list", async () => {
 
 test("AI: defaults, how agents work with you, usage with bars, the accounts and the Vault", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "ai" });
-  assert.ok(has(out, "Default model") && has(out, "GPT-5") && has(out, "Fallback model") && has(out, "Claude Haiku 5.5"));
+  assert.ok(has(out, "Default model") && has(out, "GPT-5") && has(out, "Backup model") && has(out, "Used when the default is busy") && has(out, "Claude Haiku 5.5"));
   assert.ok(has(out, 'data-testid="usage"') && has(out, "OpenAI team key") && has(out, "$48.20") && has(out, "168 turns"));
   assert.ok(has(out, "Run my chats on this computer") && has(out, "Agents can open side tabs"));
-  assert.ok(has(out, "AI accounts") && has(out, "Sign in again") && has(out, "Working"));
+  assert.ok(has(out, "Your sign-ins") && has(out, "Sign in again") && has(out, "Working"));
   assert.ok(has(out, 'data-testid="row-open-vault"'));
   assert.ok(has(html(createSampleSettings(northwind), { initialPage: "memory" }), "Who pays for memory"), "Who pays for memory moved to Memory and privacy");
   assert.equal(moneyLabel(48_200_000), "$48.20");
