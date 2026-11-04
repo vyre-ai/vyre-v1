@@ -30,7 +30,7 @@ export type Item =
       /** What needs an admin ("Offline", "Disk almost full"), when something does. */
       needs?: string;
     }
-  | { kind: "item"; type: "record" | "file" | "folder" | "chat" | "task" | "run" | "computer" | "vault" | "agent" | "project"; id: string; title: string; place?: PlaceId; hash?: string;
+  | { kind: "item"; type: string; id: string; title: string; place?: PlaceId; hash?: string;
       /** The viewer's level on it, when the caller read it from the same grant the destination checks. */
       level?: Level; private?: boolean; members?: readonly string[]; owner?: string;
       /** A line a peek may show when the viewer cannot open it but may know it exists (a task someone else holds shows its title). Absent: no peek. */

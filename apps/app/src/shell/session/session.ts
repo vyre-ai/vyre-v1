@@ -1,3 +1,6 @@
+import { NO_ACCESS, judge, needsJudging } from "../reach/target.ts";
+import type { Judge } from "../reach/target.ts";
+import { adminPages } from "../providers/settings-admin.ts";
 import { isAssistantRow } from "../../../../../lib/agent-kind.ts";
 import {createRecordsPreview} from "../../../../../client/src/gateway/records-preview.ts";
 // A signed-in Space, open (ARCH 7.0): who you are, the Space's name and kind, the capability caller on its gateway, the screen hooks every place reads, the live link that keeps them fresh, and the
@@ -48,6 +51,8 @@ export interface OpenSessionOptions {
   spaceCards?: readonly SpaceDef[];
   /** Where a click goes: the shell maps a screen or subject to a place and shows it. */
   navigate?(place: PlaceId, hash: string, background?: boolean): void;
+  /** A click reach turned away: one quiet line. */
+  notice?(text: string): void;
   /** A click that opens something of the shell itself (the search, a new tab, the Space switcher): screens whose place is `shell`. */
   shell?(screen: string, args: Record<string, unknown>): void;
   /** The session ended on the server (401): the shell goes back to sign-in. */
@@ -351,11 +356,29 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     return a ? { id: a.agentId, name: assistantName(a.name, who.name) } : { id: "assistant", name: "Assistant" };
   };
 
+  // every click that opens something goes through this one door, and reach decides: the Console page or the item must be one this person can open (shell/reach/target.ts)
+  const judging: Judge = {
+    viewer: () => ({ id: me.id, spaceId: space.id, ...(livePerms ? { perms: livePerms } : {}) }),
+    call: (cap, input) => reach(cap, input),
+    consolePages: () => consolePagesOnce(),
+    memo: new Map(),
+  };
+  let consoleRead: Promise<ReadonlySet<string>> | null = null;
+  const consolePagesOnce = (): Promise<ReadonlySet<string>> => {
+    if (consoleRead === null) {
+      consoleRead = space.kind === "personal" || (who.roles.length > 0 && plainRoleOnly(who.roles, space.kind)) ? Promise.resolve(new Set<string>())
+        : (reach("console.nav", {}) as Promise<Parameters<typeof adminPages>[0]>).then((out) => adminPages(out), () => new Set<string>());
+    }
+    return consoleRead;
+  };
   const open = (t: ShellTarget): void => {
     const where = t.screen ? (screens.get(t.screen)?.place ?? "") : (t.subject ? (placeForSubject(t.subject.type) ?? "") : "");
     if (where === "shell") { if (t.screen) o.shell?.(t.screen, t.args ?? {}); return; }
     const place = railPlace(where);
-    if (place && o.navigate) o.navigate(place, targetHash(t), t.background === true);
+    if (!place || !o.navigate) return;
+    const go = (): void => { o.navigate?.(place, targetHash(t), t.background === true); };
+    if (!needsJudging(t)) { go(); return; }
+    void judge(t, judging).then((r) => { if (r.to === "open") go(); else o.notice?.(NO_ACCESS); });
   };
 
   // a Space that never learnt its name answers its id: it is called by its address instead (spaces/space-label.ts)

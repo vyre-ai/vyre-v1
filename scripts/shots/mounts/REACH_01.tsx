@@ -60,7 +60,7 @@ export default function Mount(): ReactNode {
   return (
     <View style={{ flex: 1, minHeight: 700, backgroundColor: "var(--win)" as string }}>
       <PopupDataProvider value={data as never}><ComputerPopup data={data as never} /></PopupDataProvider>
-      {went !== "" ? <Text testID="reach-went" style={{ position: "absolute", left: 24, bottom: 96, fontSize: 14, color: "#fff", backgroundColor: "#111", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>{went}</Text> : null}
+      {went !== "" ? <Text testID="reach-went" style={{ position: "absolute", zIndex: 1000, left: 24, top: 100, fontSize: 14, color: "#fff", backgroundColor: "#111", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 }}>{went}</Text> : null}
     </View>
   );
 }
