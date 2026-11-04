@@ -10,7 +10,7 @@ import { extraHandlers } from "./extra/index.ts";
 import { mcpCall, mcpRead, mcpTools, mcpOauthComplete, mcpOauthStart, mcpOauthStatus } from "./mcp.ts";
 import { stepTurn } from "../step-turn.ts";
 import { usageGet } from "./usage.ts";
-import { list as crewList, merge as crewMerge, message as crewMessage, push as crewPush, repoGet as crewRepoGet, repoSet as crewRepoSet, start as crewStart, stop as crewStop, wait as crewWait, workspace as crewWorkspace } from "./crew.ts";
+import { list as crewList, merge as crewMerge, message as crewMessage, push as crewPush, repoGet as crewRepoGet, chatRepoGet as crewChatRepo, repoSet as crewRepoSet, start as crewStart, stop as crewStop, wait as crewWait, workspace as crewWorkspace } from "./crew.ts";
 import { capsSet, pauseAll, raiseLimit, recordUsage, resumeAll, spendGet, usageQuery } from "./spend.ts";
 
 export const handlers = {
@@ -45,6 +45,7 @@ export const handlers = {
   "engine.turn.record_usage": recordUsage,
   "engine.crew.repo.set": crewRepoSet,
   "engine.crew.repo.get": crewRepoGet,
+  "engine.crew.chat_repo": crewChatRepo,
   "engine.crew.start": crewStart,
   "engine.crew.list": crewList,
   "engine.crew.workspace": crewWorkspace,

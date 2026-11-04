@@ -41,10 +41,12 @@ test("Team: after hours, the hourly limit and a mute hold Mia's agent messages; 
   const list = async (who: string, threadId: string): Promise<Msg[]> => { await d.hooks?.pump?.(); return ((await api(who, "chat.messages.list", { threadId })).data.messages as Msg[] | undefined) ?? []; };
   try {
     await connect(d);
-    const agentId = (await api("usr_olivia", "agents.create", { name: "Ops", role: "You help the team.", idempotencyKey: "h-agent" })).data.agent.agentId as string;
+    const agentId = (await api("usr_olivia", "agents.create", { name: "Ops", role: "You help the team.", ownerId: "usr_mia", idempotencyKey: "h-agent" })).data.agent.agentId as string;
     const keys = await api("usr_olivia", "vault.folders.create", { idempotencyKey: "h-ai", name: "AI accounts", scope: "shared" });
     const acct = await api("usr_olivia", "providers.add", { idempotencyKey: "h-acct", providerKey: "anthropic", connection: "api_key", apiKey: `${KEY}A`, name: "Team AI", scope: "shared", folderId: keys.data.folder.id });
     assert.equal((await api("usr_olivia", "agents.update", { agentId, patch: { accountPolicy: "key", accountKey: acct.data.provider.handle }, idempotencyKey: "h-upd" })).status, 200);
+    // this test is about an Assistant writing for its person: Ops is Mia's and stands in as her Assistant (a Space agent writes as itself, test/agent-dm.self.live.test.ts)
+    { const { DatabaseSync } = await import("node:sqlite"); const db = new DatabaseSync(d.paths.modules); db.prepare("UPDATE agents_agent SET kind = 'assistant' WHERE id = ?").run(agentId); db.close(); }
     const chat = (await api("usr_mia", "chat.start", { kind: "chat", agentIds: [agentId], idempotencyKey: "h-chat" })).data.thread.threadId as string;
     let k = 0;
     const tell = async (body: string): Promise<void> => {

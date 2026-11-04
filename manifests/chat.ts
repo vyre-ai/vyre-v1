@@ -71,7 +71,7 @@ const searchHit = t.obj({
   thread: t.obj({ kind: threadKind, title: t.opt(t.str()), channelName: t.opt(t.str()), agentIds: t.arr(id.agent), memberIds: t.arr(t.str()) }),
 });
 const personStatus = t.obj({
-  personId: id.user, name: t.str(), state: t.enm('online', 'away', 'offline', 'unknown'), lastSeenAt: t.opt(t.ts()), awayUntil: t.opt(t.ts()),
+  handle: t.str({ description: 'A short handle for the person that message_person takes; people are named, never shown by id', examples: ['aliza-3c6'] }), name: t.str(), state: t.enm('online', 'away', 'offline', 'unknown'), lastSeenAt: t.opt(t.ts()), awayUntil: t.opt(t.ts()),
   timezone: t.opt(t.str({ examples: ['Asia/Karachi'] })), localTime: t.opt(t.str({ examples: ['3:40 PM'] })), hours: t.opt(t.str({ examples: ['Mon to Fri, 09:00 to 17:00'] })), inHours: t.bool(),
   mutedUntil: t.opt(t.ts()), wouldGo: t.str({ description: 'When a message to them would go, in words' }),
 });
@@ -391,17 +391,17 @@ export default defineManifest({
     // ---- an agent reaches a teammate for its person (owner ruling 3 Nov, lane l-agentdm): who is in, a message in the person's own direct chat, the teammate's mute
     read('chat.people_status', 'Your teammates as you see them: online, away or offline and when last seen, their local time and working hours, and when a message to them would go. Only people in this Space, never anything private', {
       in: { personIds: t.opt(t.arr(id.user, { maxItems: 50 })), q: t.opt(t.str({ description: 'Part of a name; omitted: everyone' })) },
-      out: { people: t.arr(personStatus) }, level: 'view', tool: 'chats', mcpName: 'people_status', deferred: true, agent: { planMode: 'allowed' }, label: 'filter',
+      out: { people: t.arr(personStatus), how: t.str({ description: 'How your messages go: as yourself in your own chat with each person, or for the person you work for, signed as them (Agent)' }) }, level: 'view', tool: 'chats', mcpName: 'people_status', deferred: true, agent: { planMode: 'allowed' }, label: 'filter',
     }),
-    write('chat.message_person', 'Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour', {
+    write('chat.message_person', 'Message a teammate. An Assistant writes for its person in their direct chat, signed as them (Agent). Any other agent writes as itself in its own chat with them. Cards allowed; waits for away and after hours unless urgent; 3 an hour', {
       in: {
-        to: id.user, body: t.str({ maxLength: 4000 }), timing: t.opt(t.enm('now', 'online', 'at')), at: t.opt(t.ts()), urgent: t.opt(t.bool()),
+        to: t.str({ description: 'The handle people_status gives, or the person\'s name' }), body: t.str({ maxLength: 4000 }), timing: t.opt(t.enm('now', 'online', 'at')), at: t.opt(t.ts()), urgent: t.opt(t.bool()),
         card: t.opt(t.obj({
           kind: t.enm('approval', 'review', 'key'), title: t.str({ minLength: 1, maxLength: 200, description: 'What to approve or review, or the key\'s name' }), detail: t.opt(t.str({ maxLength: 2000 })),
           fields: t.opt(t.arr(t.str({ pattern: '^[A-Za-z][A-Za-z0-9_]*$' }), { maxItems: 10, description: 'A key card: the field names wanted' })),
         })),
       },
-      out: { state: t.enm('sent', 'scheduled'), threadId: id.thread, messageId: t.opt(id.message), dueAt: t.opt(t.ts()), when: t.str(), taskId: t.opt(id.task), requestId: t.opt(t.str()) },
+      out: { state: t.enm('sent', 'scheduled'), threadId: id.thread, messageId: t.opt(id.message), dueAt: t.opt(t.ts()), when: t.str(), as: t.enm('person', 'self'), taskId: t.opt(id.task), requestId: t.opt(t.str()) },
       level: 'view', idem: 'key', gate: { act: 'send', when: "actor.kind != 'person'" }, emits: ['thread.started', 'message.received', 'message.direct', 'message.mentioned', 'thread.replied', 'thread.unarchived'], audit: 'always',
       tool: 'chats', mcpName: 'message_person', deferred: true, agent: { planMode: 'blocked' }, errors: ['validation.not_found', 'validation.precondition_failed'],
     }),

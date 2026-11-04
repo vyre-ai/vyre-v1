@@ -733,6 +733,7 @@ export function stubs(ctx: CallCtx) {
       compact: call("engine.compact"),
       complete: call("engine.complete"),
       crew: {
+        chat_repo: call("engine.crew.chat_repo"),
         list: call("engine.crew.list"),
         merge: call("engine.crew.merge"),
         message: call("engine.crew.message"),

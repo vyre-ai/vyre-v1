@@ -60,6 +60,12 @@ import { MARK } from "./marks.ts";
 import type { ReplySummary } from "./replies.ts";
 import type { Clock } from "../rightpane/model.ts";
 
+/** A principal id left in someone's words (an agent printed `usr_...`) shows as the name it stands for, when the Space knows it. */
+export function namedIds(body: string, nameOf?: (id: string) => string): string {
+  if (!nameOf || !/usr_[0-9a-f]{8,}/.test(body)) return body;
+  return body.replace(/\busr_[0-9a-f]{8,}\b/g, (id) => { const n = nameOf(id); return n && n !== id && !n.startsWith("usr_") ? n : id; });
+}
+
 export interface MessageActions {
   copy(text: string): void;
   edit(messageId: string, body: string): void;
@@ -356,8 +362,10 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   const person = item.who.kind === "person";
   // a crew result card says it all (who, what changed, the teammate's words): the message's own text is for the lead agent that wakes on it, so the card stands alone
   const crewCard = m.blocks.some(isCrewResult) || crewStart !== undefined;
-  const chips = useRefChips(m.body, actions.files);
-  const blocks = stream || crewCard ? null : bodyBlocks(chips.body === m.body ? m.messageId : `${m.messageId}#${chips.body.length}:${chips.body.slice(-24)}`, chips.body);
+  // a person's id that slips into an agent's words reads as their name
+  const words = namedIds(m.body, actions.nameOf);
+  const chips = useRefChips(words, actions.files);
+  const blocks = stream || crewCard ? null : bodyBlocks(chips.body === words ? m.messageId : `${m.messageId}#${chips.body.length}:${chips.body.slice(-24)}`, chips.body);
   const runCfg = actions.runCode;
   const renderCode = useMemo(() => (runCfg ? (b: { lang: string; text: string; closed: boolean }) => { const c = commandOf(b.lang, b.text, b.closed); return c ? <RunCode command={c} cfg={runCfg} /> : null; } : undefined), [runCfg]);
   const subjects = useSubjectBlocks(blocks);

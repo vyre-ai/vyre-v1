@@ -137,7 +137,7 @@ test("a person watches a crew build in a plain chat in the real app: the Crew ta
         // on a phone the pane covers the chat: the pane saying Merged is the check, and the phone run stops there
         if (phone) { await page.getByText(/Merged/).first().waitFor({ timeout: 15_000 }); await shoot(page, `${mode}-3-merged-pane`); await ctx.close(); continue; }
         await card.getByText(/Merged/).first().waitFor({ timeout: 15_000 });
-        const repo = ((await api("engine.crew.repo.get", { projectId: chat })).repo as { path: string }).path;
+        const repo = ((await api("engine.crew.chat_repo", { threadId: chat })).repo as { path: string }).path;
         assert.equal(fs.readFileSync(path.join(repo, "dark-mode.txt"), "utf8"), "toggle: on\n");
         assert.match(git(repo, "log", "--format=%s", "-n", "2"), /Merge crew\/ember-1/);
         await shoot(page, `${mode}-3-merged`);

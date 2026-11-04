@@ -149,7 +149,7 @@ async function crewOfTwo(o: { inProject: boolean }): Promise<void> {
     assert.equal(new Set(jobs.map((j) => j.branch)).size, 2, "each teammate has its own branch");
     for (const j of jobs) assert.ok(j.branch.startsWith("crew/"), j.branch);
     assert.deepEqual(jobs.map((j) => j.projectId ?? null), o.inProject ? [project, project] : [null, null]);
-    const repo = (await s.api("engine.crew.repo.get", { projectId: o.inProject ? project : chat })).repo as { path: string; baseBranch: string; branch: string };
+    const repo = (await (o.inProject ? s.api("engine.crew.repo.get", { projectId: project }) : s.api("engine.crew.chat_repo", { threadId: chat }))).repo as { path: string; baseBranch: string; branch: string };
     assert.deepEqual([repo.baseBranch, repo.branch], ["main", "main"]);
     assert.ok(repo.path.startsWith(path.join(dir, "trees") + path.sep), repo.path);
     assert.equal(git(repo.path, "remote").trim(), "", "no remote: GitHub is optional");

@@ -17113,6 +17113,32 @@
     },
     {
       "blocks": [],
+      "cap": "engine.crew.chat_repo",
+      "deferred": false,
+      "description": "The repository of a chat that has its own work folder for the crew, or nothing yet",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "engine_crew_chat_repo",
+      "planMode": "allowed",
+      "toolset": "chats",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "engine.crew.repo.get",
       "deferred": false,
       "description": "The project's repository for the crew, or nothing when none is set",
@@ -17120,7 +17146,10 @@
       "inputSchema": {
         "properties": {
           "projectId": {
-            "description": "A project, or a chat (a thread id) that has its own work folder",
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -38173,7 +38202,7 @@
       "blocks": [],
       "cap": "chat.message_person",
       "deferred": true,
-      "description": "Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour",
+      "description": "Message a teammate. An Assistant writes for its person in their direct chat, signed as them (Agent). Any other agent writes as itself in its own chat with them. Cards allowed; waits for away and after hours unless urgent; 3 an hour",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -38241,10 +38270,7 @@
             "type": "string"
           },
           "to": {
-            "examples": [
-              "usr_a1b2c3"
-            ],
-            "pattern": "^usr_[a-z0-9]+$",
+            "description": "The handle people_status gives, or the person's name",
             "type": "string"
           },
           "urgent": {

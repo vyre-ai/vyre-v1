@@ -45,7 +45,7 @@ Requires: engine, mcp.
 - [chat.history.search](../capabilities/chat.history.search.md): Word-for-word search over the chat messages and transcript rows (turns, tool calls and results) the asker could open themselves; used by memory for exact quotes. Returns the stored words, author, time and a link that opens the chat at that line
 - [chat.make_task](../capabilities/chat.make_task.md): Turn a message into a task: the title is its first line, the task points back at it and a "Task created" card in the thread links to the task. An agent may do it for the person it acts for
 - [chat.message.get](../capabilities/chat.message.get.md): Read one message with its blocks
-- [chat.message_person](../capabilities/chat.message_person.md): Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour
+- [chat.message_person](../capabilities/chat.message_person.md): Message a teammate. An Assistant writes for its person in their direct chat, signed as them (Agent). Any other agent writes as itself in its own chat with them. Cards allowed; waits for away and after hours unless urgent; 3 an hour
 - [chat.messages.list](../capabilities/chat.messages.list.md): Messages of a thread by sequence window (last 50 first, older stream in)
 - [chat.open_as_chat](../capabilities/chat.open_as_chat.md): Open an Ask pane as a normal chat so it appears in Recent
 - [chat.open_tab](../capabilities/chat.open_tab.md): Open a side tab beside the chat for the person (a file, record, diff, terminal); respects the person tab setting and posts a line

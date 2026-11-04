@@ -9,6 +9,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.accounts.list": async (ctx) => { throw new VyreErr(notImplemented("engine.accounts.list", ctx.trace)); },
   "engine.compact": async (ctx) => { throw new VyreErr(notImplemented("engine.compact", ctx.trace)); },
   "engine.complete": async (ctx) => { throw new VyreErr(notImplemented("engine.complete", ctx.trace)); },
+  "engine.crew.chat_repo": async (ctx) => { throw new VyreErr(notImplemented("engine.crew.chat_repo", ctx.trace)); },
   "engine.crew.list": async (ctx) => { throw new VyreErr(notImplemented("engine.crew.list", ctx.trace)); },
   "engine.crew.merge": async (ctx) => { throw new VyreErr(notImplemented("engine.crew.merge", ctx.trace)); },
   "engine.crew.message": async (ctx) => { throw new VyreErr(notImplemented("engine.crew.message", ctx.trace)); },

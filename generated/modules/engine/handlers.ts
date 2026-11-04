@@ -9,6 +9,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "engine.accounts.list": Handler<"engine.accounts.list", X>;
   "engine.compact": Handler<"engine.compact", X>;
   "engine.complete": Handler<"engine.complete", X>;
+  "engine.crew.chat_repo": Handler<"engine.crew.chat_repo", X>;
   "engine.crew.list": Handler<"engine.crew.list", X>;
   "engine.crew.merge": Handler<"engine.crew.merge", X>;
   "engine.crew.message": Handler<"engine.crew.message", X>;
