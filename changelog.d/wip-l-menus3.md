@@ -1,0 +1,1 @@
+- Artifacts: the card's right-click and its ... button open one menu: Open, Share, Copy Link, Rename and Delete for the owner, Open and Copy Link for anyone else. Rename asks for the new name; Delete asks on the card first.

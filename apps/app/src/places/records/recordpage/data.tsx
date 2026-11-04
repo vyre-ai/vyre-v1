@@ -50,7 +50,6 @@ export interface RecordPageData {
   /** The people and agents a comment can @mention (you left out). */
   mentionables?(): readonly PickEntry[];
   /** The Chat tab: this record's Ask pane drawn in place. The shell fills it in; where it cannot, the tab says so. */
-  renderChat?(type: string, recordId: string): ReactElement;
   /** The Files tab: the record's own folder (its `folder` field, else the one made for it on the first attach) and storing files in it. Where the shell cannot, the tab lists the folder only. */
   files?: {
     folderOf(target: { type: string; recordId: string; title: string }): Promise<string | null>;

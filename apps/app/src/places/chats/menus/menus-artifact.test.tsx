@@ -1,4 +1,4 @@
-// The Artifacts page menu: right-click a row gives Open, Share, Copy Link, Rename and Delete for the owner and Open and Copy Link for anyone else; Rename and Delete reach sites.update and
+// The Artifacts page menu: right-click a card (or its ... button) gives Open, Share, Copy Link, Rename and Delete for the owner and Open and Copy Link for anyone else; Rename and Delete reach sites.update and
 // sites.delete, and Delete asks first.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -31,7 +31,7 @@ function scripted(): { rt: ShellRuntime; calls: { cap: string; input: Record<str
     if (cap === "sites.delete") { sites = sites.filter((s) => s.siteId !== i["siteId"]); return { deleted: true }; }
     return {};
   };
-  const rt = { call, me: { id: "usr_me", name: "Irfad" }, space: { id: "s", kind: "team", name: "MLA" }, open: () => undefined, clock: () => ({ now: 1_762_000_000_000 }) } as unknown as ShellRuntime;
+  const rt = { call, me: { id: "usr_me", name: "Irfad" }, space: { id: "s", kind: "team", name: "MLA" }, open: () => undefined, clock: () => ({ now: 1_762_000_000_000 }), principals: { getSnapshot: () => ({ status: "ready", data: [{ id: "usr_dana", name: "Dana", kind: "person" }] }), subscribe: () => () => undefined } } as unknown as ShellRuntime;
   return { rt, calls };
 }
 
@@ -40,12 +40,17 @@ test("the owner's artifact has Open, Share, Copy Link, Rename and Delete; someon
   const { rt } = scripted();
   const root = await mount(createRoot, <ArtifactsPage rt={rt} />);
   await flush();
-  await rightClick(root, "row-artifact-sit_a");
+  await rightClick(root, "artifact-card-sit_a");
   await flush();
   assert.deepEqual(labels(root), ["Open", "Share…", "Copy Link", "Rename…", "Delete…"]);
   await press(find(root, "menu-item-Copy Link"));
   await flush();
-  await rightClick(root, "row-artifact-sit_b");
+  await press(find(root, "artifacts-filter"));
+  await flush();
+  const all = ((): Node | null => { let hit: Node | null = null; const walk = (n: Node | string): void => { if (typeof n === "string" || hit) return; const t = n.props["data-testid"]; if (typeof t === "string" && /^menu-item-\s*All$/.test(t) && typeof n.props["onClick"] === "function") hit = n; for (const c of n.children ?? []) walk(c); }; walk(root); return hit; })();
+  await press(all);
+  await flush();
+  await rightClick(root, "artifact-card-sit_b");
   await flush();
   assert.deepEqual(labels(root), ["Open", "Copy Link"]);
 });
@@ -55,24 +60,34 @@ test("Delete asks first, then calls sites.delete; Rename calls sites.update with
   const { rt, calls } = scripted();
   const root = await mount(createRoot, <ArtifactsPage rt={rt} />);
   await flush();
-  await rightClick(root, "row-artifact-sit_a");
+  await rightClick(root, "artifact-card-sit_a");
   await flush();
   await press(find(root, "menu-item-Rename…"));
   await flush();
-  const field = find(root, "artifact-rename-sit_a");
+  const field = find(root, "text-ask-field");
   assert.ok(field);
   await typeInto(field, "Intake funnel v2");
-  await act(async () => { (find(root, "artifact-rename-sit_a")!.props["onBlur"] as (e: unknown) => void)({ nativeEvent: {}, target: { value: "Intake funnel v2" } }); });
+  await press(find(root, "text-ask-go"));
   await flush();
   assert.deepEqual(calls.filter((c) => c.cap === "sites.update").map((c) => c.input), [{ siteId: "sit_a", name: "Intake funnel v2" }]);
 
-  await rightClick(root, "row-artifact-sit_a");
+  await rightClick(root, "artifact-card-sit_a");
   await flush();
   await press(find(root, "menu-item-Delete…"));
   await flush();
   assert.equal(calls.filter((c) => c.cap === "sites.delete").length, 0, "nothing is deleted until it is confirmed");
-  assert.ok(find(root, "artifact-delete-ask"));
-  await press(find(root, "artifact-delete-yes"));
+  assert.ok(find(root, "artifact-card-sit_a-sure"), "the card asks first");
+  await press(find(root, "artifact-card-sit_a-delete"));
   await flush();
   assert.deepEqual(calls.filter((c) => c.cap === "sites.delete").map((c) => c.input), [{ siteId: "sit_a" }]);
+});
+
+test("the card's own ... button opens the same menu as a right-click", async () => {
+  installDom();
+  const { rt } = scripted();
+  const root = await mount(createRoot, <ArtifactsPage rt={rt} />);
+  await flush();
+  await press(find(root, "artifact-card-sit_a-more"));
+  await flush();
+  assert.deepEqual(labels(root), ["Open", "Share…", "Copy Link", "Rename…", "Delete…"]);
 });

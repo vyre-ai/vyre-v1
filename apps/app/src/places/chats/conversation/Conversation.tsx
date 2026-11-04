@@ -68,7 +68,7 @@ import type { AiReady } from "./ai-ready.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
   WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
-  directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeline, otherPeople, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
+  directWith, mentionable, muteOfferFor, onBehalfOf, threadKindNote, timeLabel, timeline, otherPeople, titleOf, whoLine, workingAgents, withoutAnswered } from "./model.ts";
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 import { messageLink } from "../../../share/rows.ts";
@@ -111,7 +111,7 @@ export function Conversation({ data, compact = false }: { data?: ConversationDat
   const ctx = useOptionalConversationData();
   const value = data ?? ctx;
   if (!value) return <ConversationLoading />;
-  return <ConversationDataProvider value={value}><CompactContext.Provider value={compact}><ChatMemoryProvider memory={value.memory} threadId={value.threadId}><ConversationView /></ChatMemoryProvider></CompactContext.Provider></ConversationDataProvider>;
+  return <ConversationDataProvider value={value}><CompactContext.Provider value={compact}><ChatMemoryProvider memory={value.memory ? { ...value.memory, time: (at: number) => timeLabel(at, value.clock()) } : value.memory} threadId={value.threadId}><ConversationView /></ChatMemoryProvider></CompactContext.Provider></ConversationDataProvider>;
 }
 
 /** The frame before data: a header bar, messages the size of real ones and a composer box, so nothing moves when the thread arrives. */
