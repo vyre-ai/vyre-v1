@@ -30,22 +30,36 @@ test("running helpers: a held request, Change model, a person messaging a helper
   const shots = process.env["VYRE_CREW_SHOTS"] ?? fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-shots-"));
   fs.mkdirSync(shots, { recursive: true });
 
-  let lead = ""; let chat = "";
+  let lead = ""; let chat = ""; let dir = ""; let owner = "";
   const model = scriptedModel(async function* (input, run) {
-    if (input.agent.id !== lead) return;
     const body = input.trigger?.body ?? "";
-    if (input.threadId === chat) {
-      if (/start the helpers/.test(body)) {
+    if (input.agent.id === lead && input.threadId === chat) {
+      if (/start the crew/.test(body)) {
         yield* run("tool_search", { query: "sub task helper" });
-        yield* run("sub_task_model", { threadId: input.threadId, title: "Read the vendor page", instruction: "Reader job: read the vendor page and tell me the price.", idempotencyKey: "w-1" });
-        yield* run("sub_task_model", { threadId: input.threadId, title: "Write the summary", instruction: "Writer job: write the summary file.", idempotencyKey: "w-2" });
-        yield { type: "text", text: "Two helpers are on it." };
+        yield* run("sub_task_model", { threadId: input.threadId, title: "Check the calendar", instruction: "Calendar job: find a free slot next week.", idempotencyKey: "w-1" });
+        yield* run("sub_task_model", { threadId: input.threadId, title: "Compare the quotes", instruction: "Quotes job: compare the two vendor quotes.", idempotencyKey: "w-2" });
+        yield* run("sub_task_model", { threadId: input.threadId, title: "Write the summary", instruction: "Writer job: write the summary file.", idempotencyKey: "w-3" });
+        yield* run("tool_search", { query: "crew teammate" });
+        yield* run("crew_start", { threadId: input.threadId, idempotencyKey: "w-code", title: "Fix the invoice date bug", brief: "Fix the invoice date bug and add a test." });
+        yield { type: "text", text: "Three helpers and a coder are on it. I will bring it together when they are back." };
+      } else if (/Compare the quotes/.test(body) && input.trigger?.author.kind === "agent") {
+        yield { type: "text", text: "Harbor costs more up front but is ready in two weeks [2]. Pine Works is cheaper but takes four [2]. The calendar check is still running [1]." };
       }
       return;
     }
+    if (input.agent.id !== lead) {
+      // a coder teammate: it adds its file on its own branch, then says so
+      const work = workFolder(dir, owner, input.threadId, input.agent.id);
+      await waitFor(async () => (fs.existsSync(path.join(work, ".git")) ? true : null), 30_000);
+      fs.writeFileSync(path.join(work, "invoice-dates.ts"), "export const fixed = true;\n");
+      git(work, "add", "-A"); git(work, "commit", "--quiet", "-m", "fix the invoice date bug");
+      yield { type: "text", text: "Fixed the date bug and added a test." };
+      return;
+    }
     if (/Keep it short/.test(body)) { yield { type: "text", text: "Noted. I will keep it short." }; return; }
-    if (/Starting again on/.test(body)) { yield { type: "text", text: "Restarted. The price is $4,180." }; return; }
-    if (/Reader job/.test(body)) { await new Promise((r) => setTimeout(r, 90_000)); yield { type: "text", text: "The price is $4,180." }; return; }
+    if (/Starting again on/.test(body)) { yield { type: "text", text: "Restarted. Thursday at 14:00 is free." }; return; }
+    if (/Calendar job/.test(body)) { await new Promise((r) => setTimeout(r, 150_000)); yield { type: "text", text: "Thursday at 14:00 is free." }; return; }
+    if (/Quotes job/.test(body)) { await new Promise((r) => setTimeout(r, 20_000)); yield { type: "text", text: "Harbor is $4,180 in two weeks. Pine Works is $3,920 in four." }; return; }
     if (/Writer job/.test(body)) {
       yield* run("tool_search", { query: "files create" });
       yield* run("files_create", { name: "summary.md", content: "Summary", idempotencyKey: "w-file" });
@@ -53,6 +67,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
     }
   });
   const fresh = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-helper-rows-")));
+  dir = fresh;
   const d = await boot(fresh, model, { config: loadConfig(["--data-dir", fresh, "--port", "0", "--space", "spc_fresh", "--space-name", "Crew Co"], {}, "1.2.3") });
   const web = await edge(dist, d.url);
   const browser = await engine.launch(exe ? { executablePath: exe, args: ["--no-sandbox"] } : {});
@@ -81,21 +96,28 @@ test("running helpers: a held request, Change model, a person messaging a helper
     await api("engine.pool.status", {});
 
     lead = await waitFor(async () => { await d.hooks?.pump?.(); const r = await api("agents.assistant_of", { personId: (await api("identity.whoami", {})).principal.id }); return typeof r.agentId === "string" ? (r.agentId as string) : null; }, 40_000);
-    chat = (await api("chat.start", { kind: "chat", agentIds: [lead], title: "Pricing research", idempotencyKey: "j-chat" })).thread.threadId as string;
+    chat = (await api("chat.start", { kind: "chat", agentIds: [lead], title: "Vendor call and quotes", idempotencyKey: "j-chat" })).thread.threadId as string;
     for (const flow of ["team", "personal", "member"]) await api("spaces.onboarding.seen", { flow }).catch(() => undefined);
     const me = (await api("identity.whoami", {})).principal.id as string;
+    owner = me;
     const marker = (await api("spaces.get", {})).space.fingerprint as string;
     const session = { baseUrl: web.origin, token, personId: me, marker, def: { spaceId, name: "Crew Co", kind: "team", address: web.origin, role: "Owner", tint: ["#6E5CF0", "#9B6BE8"], kit: "northwind", skinDefault: "system", starred: true, needsYou: false, console: true, terminal: false, counts: {}, dots: {} } };
     const shoot = async (page: import("playwright-core").Page, name: string): Promise<void> => { await page.screenshot({ path: path.join(shots, `${name}.png`) }); };
     const phone = process.env["VYRE_CREW_PHONE"] === "1";
 
     await api("threads.set_mode", { threadId: chat, mode: "ask" }).catch(() => undefined);
-    await api("chat.post", { threadId: chat, body: "start the helpers", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "w-ask" });
+    await api("chat.post", { threadId: chat, body: "start the crew", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "w-ask" });
     await waitFor(async () => {
       const r = (await api("engine.helpers.status", { threadId: chat })).helpers as Array<{ state: string }>;
-      return r.length === 2 && r.some((h) => h.state === "working") ? r : null;
+      return r.length >= 3 && r.some((h) => h.state === "working") ? r : null;
     }, 60_000, () => hostLog(d));
     const size = phone ? "phone" : "wide";
+    // a thread under the first message, and a reply sent also to the chat
+    const first = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ messageId: string }>)[0]!.messageId;
+    const th = (await api("chat.thread", { threadId: chat, messageId: first })).thread.threadId as string;
+    await api("chat.post", { threadId: th, body: "Decision: book Thursday 14:00 and go with Harbor.", alsoToChat: true, idempotencyKey: "w-also" });
+    const copied = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ body: string; blocks: Array<{ type: string }> }>).some((m) => m.body.startsWith("Decision:") && m.blocks.some((b) => b.type === "from_thread"));
+    assert.ok(copied, "Also post to the chat puts the decision in the chat, marked from the thread");
 
     for (const [skin, mode] of [["paper", "light"], ["graphite", "dark"]] as const) {
       const ctx = await browser.newContext({ viewport: phone ? { width: 390, height: 844 } : { width: 1440, height: 900 } });
@@ -103,18 +125,31 @@ test("running helpers: a held request, Change model, a person messaging a helper
       const page = await ctx.newPage();
       page.on("console", (c) => { if (c.type() === "error") console.error("CONSOLE", c.text().slice(0, 300)); });
       await page.goto(`${web.origin}/chats?skin=${skin}`, { waitUntil: "load" });
-      await page.getByText("Pricing research", { exact: false }).first().waitFor({ timeout: 40_000 });
+      await page.getByText("Vendor call and quotes", { exact: false }).first().waitFor({ timeout: 40_000 });
       const later = page.getByText("Finish later", { exact: true });
       if (await later.count()) await later.first().click().catch(() => undefined);
-      await page.getByText("Pricing research", { exact: false }).first().click({ timeout: 30_000 });
-      await page.getByTestId("crew-strip").first().waitFor({ timeout: 30_000 }).catch(async (e) => { await shoot(page, `FAILED-strip-${mode}`); throw e; });
-      // a held request: the helper that waits for a yes shows its card with Today, Always and No
-      const held = await page.getByTestId(/^approval-today-/).count().catch(() => 0);
-      console.log("HELD_CARD", mode, held);
+      await page.getByText("Vendor call and quotes", { exact: false }).first().click({ timeout: 30_000 });
+      await page.getByTestId("crew-strip").first().waitFor({ timeout: 40_000 }).catch(async (e) => { await shoot(page, `FAILED-strip-${mode}`); throw e; });
+      await page.waitForTimeout(4000);
+      await shoot(page, `crew-t14-running-${mode}-${size}`);
+      console.log("HELD_CARD", mode, await page.locator('[data-testid^="approval-"]').count());
       await shoot(page, `crew-t27-held-${mode}-${size}`);
-      // Change model on the running helper
-      await page.locator('[role="button"][data-testid^="crew-chip-"]').first().click({ timeout: 15_000 });
+      // the quotes helper reports: the answer marks what came from which helper with chips
+      await page.getByText(/Pine Works is cheaper/).first().waitFor({ timeout: 90_000 }).catch(async (e) => { await shoot(page, `FAILED-answer-${mode}`); throw e; });
+      console.log("CITE_CHIPS", mode, await page.locator('[data-testid^="cite-"]').count());
+      await page.locator('[data-testid="cite-2"]').first().hover().catch(() => undefined);
+      await page.waitForTimeout(400);
+      await shoot(page, `crew-t45-citations-${mode}-${size}`);
+      console.log("CODE_ROW", mode, await page.locator('[data-testid$="-branch"]').count());
+      await shoot(page, `crewcode-${mode}-${size}`);
+      // the header chip and the Crew pane
+      await page.getByTestId("helpers-button").first().click({ timeout: 15_000 });
+      await page.getByTestId("crew-overview").first().waitFor({ timeout: 20_000 });
+      await shoot(page, `crew-over-${mode}-${size}`);
+      await page.locator('[data-testid^="crew-chip-"][role="button"]').first().click({ timeout: 15_000 });
       await page.getByTestId("crew-peek").first().waitFor({ timeout: 20_000 });
+      await shoot(page, `crew-peek1-${mode}-${size}`);
+      // Change model on the running helper
       await page.getByTestId("crew-peek-change-model").click({ timeout: 10_000 });
       await page.locator('[data-testid^="row-crew-change-"]').first().waitFor({ timeout: 20_000 });
       await shoot(page, `crewmodels-choices-${mode}-${size}`);
@@ -124,15 +159,15 @@ test("running helpers: a held request, Change model, a person messaging a helper
       await page.getByTestId("crew-change-go").click();
       await page.waitForTimeout(3000);
       // the helper chat: ask it something, it answers the person
-      await page.getByTestId("crew-peek-open").click({ timeout: 15_000 }).catch(async () => { await page.getByTestId("crew-peek-back").click(); await page.locator('[data-testid^="row-crew-row-"]').first().click(); await page.getByTestId("crew-peek-open").click(); });
+      await page.getByTestId("crew-peek-open").click({ timeout: 15_000 });
       await page.getByText(/Brief from/).first().waitFor({ timeout: 20_000 });
       await page.getByLabel(/^Ask .* something$/).first().fill("Keep it short.", { timeout: 15_000 });
       await page.getByTestId("helper-ask-send").click();
-      await page.getByText("Noted. I will keep it short.").first().waitFor({ timeout: 60_000 }).catch(async (e) => { await shoot(page, `FAILED-answer-${mode}`); throw e; });
+      await page.getByText("Noted. I will keep it short.").first().waitFor({ timeout: 60_000 }).catch(async (e) => { await shoot(page, `FAILED-reply-${mode}`); throw e; });
       assert.ok(await page.getByText(/replying to you/).count() > 0, "the helper says whom it answers");
       await shoot(page, `crew-chat1-ask-${mode}-${size}`);
       // the chat above sees what the person told the helper
-      await page.getByText(/started by .* in Pricing research|Pricing research/).first().click({ timeout: 10_000 }).catch(() => undefined);
+      await page.getByText("Vendor call and quotes", { exact: false }).first().click({ timeout: 10_000 }).catch(() => undefined);
       await page.getByText(/^To ".*": Keep it short\.$/).first().waitFor({ timeout: 30_000 }).catch(async (e) => { await shoot(page, `FAILED-to-line-${mode}`); throw e; });
       await shoot(page, `crew-t27-toline-${mode}-${size}`);
       await ctx.close();
