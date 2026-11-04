@@ -94,6 +94,19 @@ test("/open/<kind>/<id>: signed out, sign in, land on the item; without access, 
       assert.match(text, /A file you don't have access to/);
       assert.ok(!text.includes("Okafor"), "the name is never shown");
       await p.waitForTimeout(1200);
+      // the hidden file's name is nowhere: not on the page, in the title bar, in a tab, in what the device keeps, or in the Space's recents for this person
+      const hidden = ["Okafor", closed];
+      const where: Record<string, string> = {
+        page: await p.locator("body").innerText(),
+        title: await p.title(),
+        tabs: (await p.locator("[role=tab]").allInnerTexts()).join(" | "),
+        storage: await p.evaluate(() => JSON.stringify({ ...localStorage, ...sessionStorage })),
+        recents: JSON.stringify(await (await ctx.request.post(`${web.origin}/v1/search/recent/list`, { headers: { authorization: `Bearer ${await p.evaluate(() => { const all = JSON.parse(localStorage.getItem("vyre.session.v1")!); return all.sessions[location.origin].token as string; })}` }, data: { limit: 20 } })).json()),
+      };
+      for (const [w, text] of Object.entries(where)) for (const h of hidden) assert.ok(!text.includes(h), `${h} is in ${w}: ${text.slice(0, 200)}`);
+      // the tab beside Chats is the file this same person opened and could open a step earlier, not the hidden one
+      if (size === "wide") assert.ok(where["tabs"]!.includes("Rivera engagement"), `the earlier tab: ${where["tabs"]}`);
+      else assert.ok(!where["tabs"]!.includes("Rivera"), "a phone has no tab for a file at all");
       await p.screenshot({ path: path.join(shots, `open-3-peek-${size}-paper.png`) });
       await p.getByTestId("open-link-ask").click();
       await p.getByTestId("open-link-asked").waitFor({ timeout: 10_000 });
