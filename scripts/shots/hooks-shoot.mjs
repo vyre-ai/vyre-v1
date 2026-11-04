@@ -32,7 +32,7 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   await page.waitForSelector(t.waitFor, { timeout: 15000 }).catch(() => errs.push(`no ${t.waitFor}`));
   await page.waitForTimeout(900);
   for (const [op, sel] of t.steps ?? []) {
-    try { if (op === "click") await page.click(sel, { timeout: 8000 }); } catch (e) { errs.push(`${op} ${sel}: ${String(e).slice(0, 120)}`); }
+    try { if (op === "click") await page.click(sel, { timeout: 8000 }); else if (op === "hover") { await page.hover(sel, { timeout: 8000 }); const box = await (await page.$(sel)).boundingBox(); await page.mouse.move(box.x + 8, box.y + 8, { steps: 6 }); await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 6 }); } } catch (e) { errs.push(`${op} ${sel}: ${String(e).slice(0, 120)}`); }
     await page.waitForTimeout(400);
   }
   if (t.after) await page.waitForSelector(t.after, { timeout: 6000 }).catch(() => errs.push(`no ${t.after}`));

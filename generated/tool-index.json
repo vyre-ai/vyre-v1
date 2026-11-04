@@ -4454,6 +4454,12 @@
     },
     {
       "deferred": false,
+      "name": "hooks_runs_latest",
+      "summary": "The newest run of each hook in one chat, one row per hook: what \"Last ran\" on a hook card reads. Only for a chat you can use",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "hooks_set",
       "summary": "Add or change a hook that runs at an event (before a tool, before anything leaves Vyre, a message, a turn end, a helper) as a command, a check or one action. For yourself: scope agent, chat or run. It can stop something, add a note or run its own action; never skip a rule",
       "toolset": "agents"

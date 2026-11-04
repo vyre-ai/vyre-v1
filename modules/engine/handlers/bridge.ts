@@ -420,7 +420,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       } catch { /* no task to read: the agents listen as before */ }
     }
     const agents: EngineAgent[] = got.thread.agents.map((a) => ({
-      id: a.agentId, ...(a.name ? { name: a.name } : {}), mode: taskLead === a.agentId ? "lead" : a.mode, ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}), ...(outside.has(a.agentId) ? { outside: true } : {}), ...settingsOf(a),
+      id: a.agentId, ...(a.name ? { name: a.name } : {}), mode: a.mode, ...(taskLead === a.agentId ? { taskLead: true as const } : {}), ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}), ...(outside.has(a.agentId) ? { outside: true } : {}), ...settingsOf(a),
     }));
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.recent(threadId, 1).length === 0) {
@@ -463,6 +463,14 @@ export function createBridge(o: BridgeOptions): Bridge {
     const a = (p["author"] ?? {}) as { kind?: string; id?: string };
     // an agent's message is read as the person it speaks for when the event says so (the first brief of a crew teammate: nobody has spoken in its thread yet)
     const readAs = str(p["actingFor"]).startsWith("usr_") ? str(p["actingFor"]) : str(a.id);
+    // the first line of a task's thread is its brief (the AI step posts it as the person who started the task): the task's own baton wakes the agent that holds it, so the brief wakes nobody a second time
+    // (an AI step's brief starts "## Goal"; a person's own first words in a task's thread are a message like any other)
+    if (Number(p["threadSeq"]) === 1 && a.kind === "person") {
+      try {
+        const first = (await reader(ctx, readAs, threadId)("chat.message.get", { threadId, messageId })) as { message?: { body?: string } };
+        if (/^## Goal\n/.test(String(first.message?.body ?? "")) && (((await reader(ctx, readAs, threadId)("threads.get", { threadId })) as { thread?: { scopeType?: string } }).thread?.scopeType) === "task") return { skipped: "task_brief" };
+      } catch { /* not readable: route it as any message */ }
+    }
     if (!(await open(ctx, threadId, messageId, readAs))) return { skipped: "no_agents" };
     if (store.get(messageId)) return { skipped: "known" };
     const got = (await reader(ctx, readAs, threadId)("chat.message.get", { threadId: home, messageId })) as { message: Row };

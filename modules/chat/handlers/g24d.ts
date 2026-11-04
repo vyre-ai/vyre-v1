@@ -307,8 +307,11 @@ const MAX_STEP = 2_000;
 /** Under three words, or only a probe word: nothing worth a card on someone's list. */
 export function isProbe(prompt: string, hasChoices = false): boolean {
   const words = prompt.toLowerCase().replace(/[^\p{L}\p{N}\s']/gu, " ").split(/\s+/).filter((w) => w !== "");
-  // a choice between options may be short ("Which court?"); a free question needs a sentence
-  return (words.length < 3 && !(hasChoices && words.length >= 1)) || words.every((w) => /^(test|testing|tests|hi|hello|hey|ping|asdf|foo|bar|ok|okay)$/.test(w));
+  // only a placeholder is refused, never a short real question ("Who signed?", "Which court?"): no words at all, words that are all test words, "question 1", lorem ipsum
+  void hasChoices;
+  if (words.length === 0) return true;
+  if (/^(question|q|prompt|ask)\s*\d*$/.test(words.join(" ")) || /^lorem ipsum\b/.test(words.join(" "))) return true;
+  return words.every((w) => /^(test|testing|tests|hi|hello|hey|ping|asdf|foo|bar|ok|okay|placeholder|todo|tbd|xxx|\d+)$/.test(w));
 }
 
 /** The agent's own question taken back: its turn ended without waiting for it. The card closes as withdrawn and its task is closed behind it. Only the agent that asked (or a person in the chat) may. */
@@ -343,7 +346,7 @@ export async function questionIn(
   const prompt = input.prompt.trim();
   if (prompt === "" || prompt.length > MAX_PROMPT) raise(ctx, "validation.bad_input", `A question needs words, at most ${MAX_PROMPT} characters.`);
   // a question is a card and a task on a person's list: it needs a real question, not a probe ("test", "hi", one word)
-  if (isProbe(prompt, (input.options ?? []).length >= 1)) raise(ctx, "validation.bad_input", "Ask a real question: say in a sentence what you need to know. A question of one or two words, or a test, is not put on anyone's list.");
+  if (isProbe(prompt, (input.options ?? []).length >= 1)) raise(ctx, "validation.bad_input", "Ask a real question: say what you need to know. A placeholder (\"test\", \"hi\", \"question 1\") is not put on anyone's list.");
   const options = input.options ?? [];
   if (input.mode === "free" && options.length > 0) raise(ctx, "validation.bad_input", "A free-text question has no options.");
   if (input.mode !== "free") {

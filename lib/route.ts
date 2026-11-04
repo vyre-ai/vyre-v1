@@ -11,7 +11,7 @@
 // it brings back (a Job's line) each carry the next hop, so an agent that starts a helper after every result stops at the same budget.
 
 export interface RouteAgent {
-  id: string; /** the name people say it by, for a message that names the agent in words */ name?: string; mode: "lead" | "listen"; /** a watcher acts unasked as a routine and is never the one agent that answers */ watching?: boolean;
+  id: string; /** the name people say it by, for a message that names the agent in words */ name?: string; mode: "lead" | "listen"; /** the agent that works this task, in its thread: answers a person there without an @, never an agent's line */ taskLead?: boolean; /** a watcher acts unasked as a routine and is never the one agent that answers */ watching?: boolean;
   /** Listening: reads the chat and never answers, not even when tagged. Only a poke makes it speak. */
   quiet?: boolean;
   /** When it answers a message nobody tagged: always (absent), only when the message is about its topics, or only inside its hours. A tag always reaches it, quiet agents aside. */
@@ -115,7 +115,7 @@ export function route(thread: RouteThread, m: RouteMessage, policy: RoutePolicy 
   const alone = thread.people !== undefined && thread.people.every((id) => id === m.author.id);
   const solo = thread.agents.length === 1 && thread.agents[0]!.watching !== true && thread.agents[0]!.quiet !== true && (!fromAgent || job) && !m.author.id.startsWith("svc_")
     && (thread.kind === undefined || PERSON_CHATS.has(thread.kind) || (alone && thread.personal === true));
-  const lead = thread.agents.find((a) => a.mode === "lead" && a.quiet !== true) ?? (solo ? thread.agents[0] : undefined);
+  const lead = thread.agents.find((a) => a.mode === "lead" && a.quiet !== true) ?? (!fromAgent ? thread.agents.find((a) => a.taskLead === true && a.quiet !== true) : undefined) ?? (solo ? thread.agents[0] : undefined);
   const leads = lead && !(fromAgent && !job && lead.id === m.author.id) && mayAnswerUntagged(lead, m.text, m.minutes) ? [lead.id] : [];
   // an agent set to Only on topics speaks up, tagged or not, when a person's message is about them (the lead is not asked twice)
   const volunteers = fromAgent ? [] : thread.agents.filter((a) => a.mode === "listen" && a.when === "topics" && a.quiet !== true && a.watching !== true && !leads.includes(a.id) && aboutTopics(a.topics, m.text)).map((a) => a.id);
