@@ -60,10 +60,15 @@ function Page({ who, view, skin }: { who: string; view: string; skin: string }):
       const el = (globalThis as { document?: Doc }).document?.querySelector("[data-testid='composer-field']");
       if (!el) return;
       el.focus?.();
-      const proto = (globalThis as unknown as { HTMLTextAreaElement: { prototype: object } }).HTMLTextAreaElement.prototype;
-      (Object.getOwnPropertyDescriptor(proto, "value")?.set as ((v: string) => void) | undefined)?.call(el, "@");
-      el.setSelectionRange?.(1, 1);
-      el.dispatchEvent?.(new (globalThis as unknown as { Event: new (t: string, i: object) => unknown }).Event("input", { bubbles: true }));
+      const g = globalThis as unknown as { HTMLTextAreaElement: { prototype: object; new (): unknown }; Event: new (t: string, i: object) => unknown; document?: { execCommand?: (c: string, u: boolean, v: string) => boolean } };
+      if (el instanceof (g.HTMLTextAreaElement as unknown as new () => object)) {
+        (Object.getOwnPropertyDescriptor(g.HTMLTextAreaElement.prototype, "value")?.set as ((v: string) => void) | undefined)?.call(el, "@");
+        el.setSelectionRange?.(1, 1);
+        el.dispatchEvent?.(new g.Event("input", { bubbles: true }));
+      } else {
+        // the composer is the shared editor now (a contenteditable): type the @ the way a person does
+        g.document?.execCommand?.("insertText", false, "@");
+      }
     }, 800);
     return () => clearTimeout(t);
   }, [ask]);
