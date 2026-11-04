@@ -18,3 +18,6 @@
 - Typing @name for someone who is not in the chat now offers "Aliza isn't in this chat" with Add Aliza first and Start a channel instead second, and says what they will see. Once someone joins, agents in that chat stop using the private part of your profile.
 - An agent a chat made for itself is now visible to everyone who can read the chat, whoever made it. A person who joins gets it, and a person who leaves loses it.
 - Closing the "Only on topics" settings with no topic written says "Add a topic or pick another mode". Until a topic is written the agent answers everything.
+- A person added to a private chat without earlier messages never receives them: the sync server holds back every message from before their start, with its pins, reactions and attachments, on every device. The chat's file export, the channel stream and the transcript search hold the same line.
+- When someone who joined without the earlier messages asks an agent, the agent is told "Maya joined at 10:40 UTC and can't see earlier messages; don't quote them to Maya."
+- When someone who was added without earlier messages is added again with "Include earlier messages", every device of theirs is sent the earlier rows on its next sync, with no wait and no manual step.

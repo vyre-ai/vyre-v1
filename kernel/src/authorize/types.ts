@@ -10,7 +10,9 @@ export type ReasonCode =
   | "role_lacks_permission" | "above_clearance" | "on_hold" | "suspended" | "provider_label" | "agent_needs_actor";
 
 export type PrincipalKind = "person" | "agent" | "svc";
-export interface PrincipalRow { id: string; kind: PrincipalKind; owner?: string | null; status: "active" | "suspended" | "removed"; name?: string }
+export interface PrincipalRow { id: string; kind: PrincipalKind; owner?: string | null; status: "active" | "suspended" | "removed"; name?: string;
+  /** An agent that is its person's own Assistant (not a Space agent, not an outside agent): it is their hands on what they own (owner ruling 4 Nov 2026). Set from agent.privacy_set. */
+  assistant?: boolean }
 export interface RoleRow { id: string; clearance: number; perms: readonly string[]; name?: string; assignableToAgents?: boolean }
 export interface GroupMemberRow { group: string; member: string }
 /** `holder` is a person, an agent, a svc or a group id. */

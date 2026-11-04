@@ -57,7 +57,7 @@ const channelRow = t.obj({
   unread: t.int(), createdAt: t.ts(), restricted: t.opt(t.bool()),   // Console only: an invite-only channel the admin is not in; they can archive it and change who is in it, not read it
 });
 const recentRow = t.obj({
-  threadId: id.thread, kind: threadKind, title: t.str(), agents: t.arr(id.agent), unread: t.int(), working: t.bool(), starred: t.bool(),
+  threadId: id.thread, kind: threadKind, title: t.str(), agents: t.arr(id.agent), unread: t.int(), repliesUnread: t.opt(t.int({ minimum: 1, description: 'New replies, to messages the asker follows, in this chat: its row is bold with this count' })), working: t.bool(), starred: t.bool(),
   lastAt: t.ts(), preview: t.opt(t.str()), people: t.opt(t.arr(id.user, { description: 'The other people in the chat, never the asker: a direct message names the one person it is with' })),
 });
 const mention = t.obj({ kind: t.enm('person', 'agent'), id: t.str({ examples: ['usr_a1b2c3'] }) });
@@ -108,7 +108,7 @@ export default defineManifest({
       kind: 'choice', title: 'text', starter: 'person', recordId: 'text', folderId: 'text', scopeType: 'text', scopeId: 'text', channelId: 'text',
       parentThreadId: 'text', parentMessageId: 'text', listed: 'checkbox', modePlan: 'checkbox', createdAt: 'datetime', closedAt: 'datetime',
     }, 'thread', { ownerField: 'starter', fts: ['title'], sync: { window: { recentCount: 200, starred: true } } }),
-    entity('thread_member', 'chat_thread_member', 'thm_', { thread: 'text', principal: 'text', role: 'choice' }, 'thread', { parent: { entity: 'thread', field: 'thread' }, parentField: 'thread' }),
+    entity('thread_member', 'chat_thread_member', 'thm_', { thread: 'text', principal: 'text', role: 'choice', fromAt: 'datetime' }, 'thread', { parent: { entity: 'thread', field: 'thread' }, parentField: 'thread' }),
     entity('thread_agent', 'chat_thread_agent', 'tha_', {
       thread: 'text', agentId: 'text', mode: 'choice', model: 'text', provider: 'text', effort: 'choice', accountRef: 'text', addedBy: 'text', watches: 'checkbox',
     }, 'thread', { parent: { entity: 'thread', field: 'thread' }, parentField: 'thread' }),
@@ -221,6 +221,9 @@ export default defineManifest({
       in: { ...threadT, agentId: id.agent, note: t.opt(t.str({ description: 'A line for the agent, shown in the chat' })) },
       out: { messageId: id.message, delivered: t.enm('engine', 'outside_queue') }, on: ['thread', '/threadId'], level: 'use', idem: 'none', risk: 'low', emits: ['message.received', 'agent.engaged'], tool: 'chats', offline: 'online',
       errors: ['validation.not_found', 'validation.bad_input', 'permission.no_grant', 'validation.precondition_failed'],
+    }),
+    read('chat.read_floor', 'Where the caller\'s reading of one chat starts: the time they were added without Include earlier messages, or nothing when they read all of it. The engine tells an agent so before it answers them', {
+      in: threadT, out: { fromAt: t.opt(t.ts()) }, on: ['thread', '/threadId'], tool: 'chats', label: 'filter', agent: { planMode: 'allowed' },
     }),
     read('chat.history.page', 'Older messages and tool calls of THIS chat before a given message number, at most 100 at a time, oldest first inside the page; the agent reads further back than the window it was given. It refuses any other chat than the one the agent is working in', {
       in: { ...threadT, before: t.int({ minimum: 1, description: 'The message number (threadSeq) of the oldest message you can see' }), limit: t.opt(t.int({ minimum: 1, maximum: 100 })) },
@@ -363,7 +366,7 @@ export default defineManifest({
     read('chat.recent', 'Sidebar Recent: Starred, Today, Yesterday, Earlier with unread counts and the working pulse, then the chats I archived (they are in no other group)', { level: 'member',
       in: { filter: t.opt(t.enm('all', 'unread', 'people', 'agents')) },
       out: { starred: t.arr(recentRow), today: t.arr(recentRow), yesterday: t.arr(recentRow), earlier: t.arr(recentRow), archived: t.arr(recentRow), nextUnread: t.nullable(id.thread),
-        threadsUnread: t.opt(t.int({ minimum: 0, description: 'Unread messages, from someone else, across the inline threads the asker is in (the Threads row)' })) }, tool: 'chats', label: 'filter',
+        threadsUnread: t.opt(t.int({ minimum: 0, description: 'New replies, from someone else, across the replies the asker follows (each chat carries its own count as repliesUnread)' })) }, tool: 'chats', label: 'filter',
     }),
     read('chat.composer.suggest', 'Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates', {
       in: { symbol: t.enm('@', '#', '/'), q: t.str(), threadId: t.opt(id.thread) },
@@ -375,6 +378,15 @@ export default defineManifest({
       tool: 'chats', label: 'filter', mcpName: 'chat_search', agent: { planMode: 'allowed' }, rate: { n: 60, perSeconds: 60, scope: 'principal' },
     }),
     // ---- native blocks, plan mode
+    write('chat.note_offer.make', 'Offer to save something from this chat as a note: a small card with a preview of the note, Save and Not now. At most once per topic and rarely; says offered false with a reason when the person has it off or it is too soon', {
+      in: { ...threadT, title: t.str({ maxLength: 200 }), body: t.str({ maxLength: 4000 }), topic: t.str({ description: 'What it is about, in a few words; the same topic is offered once in a chat' }), messageId: t.opt(id.message) },
+      out: { offered: t.bool(), why: t.opt(t.enm('off', 'already_offered', 'too_soon', 'declined_recently')), blockId: t.opt(id.block), messageId: t.opt(id.message) },
+      on: ['thread', '/threadId'], level: 'use', tool: 'chats', mcpName: 'offer_note', agent: { planMode: 'blocked', blocks: ['note_offer'] }, errors: ['validation.bad_input', 'validation.not_found'],
+    }),
+    write('chat.note_offer.answer', 'Save or dismiss an offer to keep something from this chat as a note. Save makes the person\'s own private note that links back to the message', {
+      in: { ...threadT, blockId: id.block, decision: t.enm('save', 'dismiss') }, out: { state: t.enm('saved', 'dismissed'), noteId: t.opt(t.str()) },
+      on: ['thread', '/threadId'], level: 'use', offline: 'online', agent: false, errors: ['validation.not_found', 'validation.precondition_failed'],
+    }),
     write('chat.answer_block', 'Answer a question or plan block; the answer is queued as a wake so the parked turn continues', {
       in: { ...threadT, blockId: id.block, answer: t.json() }, out: { ok: t.bool() }, on: ['thread', '/threadId'], level: 'use',
       emits: ['block.answered'], tool: 'chats', offline: 'queue', errors: ['validation.precondition_failed'],
@@ -621,6 +633,9 @@ export default defineManifest({
     }),
     block('poked', { by: id.user, agentId: id.agent }, 'Poked by {{by}}'),
     block('poke', { agentId: id.agent, by: id.user, note: t.opt(t.str()) }, '{{by}} poked an agent'),
+    block('note_offer', {
+      threadId: id.thread, blockId: id.block, person: t.opt(id.user), title: t.str(), body: t.str(), topic: t.str(), messageId: t.opt(id.message), state: t.enm('offered', 'saved', 'dismissed'), noteId: t.opt(t.str()),
+    }, 'Offer to save a note: {{title}}', { actions: [{ key: 'save', label: 'Save', cap: 'chat.note_offer.answer', input: { threadId: '/threadId', blockId: '/blockId', decision: 'save' } }, { key: 'dismiss', label: 'Not now', cap: 'chat.note_offer.answer', input: { threadId: '/threadId', blockId: '/blockId', decision: 'dismiss' } }] }),
     block('tab_opened', { targetType: t.str(), targetId: t.str(), title: t.str(), agentId: id.agent }, 'Opened {{title}} beside the chat', { opens: { tab: 'target', input: { type: '/targetType', id: '/targetId' } } }),
     block('helper', {
       threadId: id.thread, parentThreadId: id.thread, title: t.str(), status: t.enm('running', 'done', 'failed', 'stopped'), agentId: id.agent, model: t.opt(t.str()),

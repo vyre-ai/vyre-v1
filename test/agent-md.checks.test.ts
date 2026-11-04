@@ -28,3 +28,16 @@ for (const [label, text] of cases) {
     assert.deepEqual(items.map((i) => [i.label, i.sev]), [[`${out.lines} / 150 lines`, "ok"], ["Inherits VYRE.md", "ok"], ["No overrides", "ok"], ["Nothing repeated from agent.toml", "ok"], ["No secrets", "ok"]]);
   });
 }
+
+for (const [say, ok] of [
+  ["Inherits: VYRE.md", true], ["Inherits VYRE.md. Overrides: none.", true], ["Follows VYRE.md.", true], ["follows the Space’s VYRE.md", true], ["Extends VYRE.md", true], ["Builds on VYRE.md", true],
+  ["Based on: VYRE.md", true], ["Never follows anything", false], ["See VYRE.md", false], ["", false],
+] as const) {
+  test(`the inherits check ${ok ? "accepts" : "does not accept"} "${say}"`, () => {
+    const out = lintText("agent_md", `# Intake\n\n${say}\n\n## Use me when\nA form arrives.\n`, undefined, { vyreText: GUIDE_MD });
+    assert.equal(out.inherits, ok);
+    const chip = lintItems(out, `# Intake\n\n${say}\n`).find((i) => i.k === "inherits");
+    assert.equal(chip?.sev, ok ? "ok" : "warn");
+    if (ok) assert.equal(chip?.line, 3, "the chip jumps to the line that says it");
+  });
+}

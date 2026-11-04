@@ -105,10 +105,10 @@ export interface RolloverCheck extends RollDecision { ctx: Context }
 
 /** Whether this thread's window is full enough to roll now, from the engine's report (`used`) or an estimate from the characters said since `fromTurn`. */
 export function rolloverCheck(
-  t: Transcript,
-  o: { threadId: string; used?: number; window?: number; model?: string | null; provider?: string | null; fromTurn?: number; blocked?: string | null; jobs?: number; waited?: number; sinceRoll?: number | null; limits?: RollLimits },
+  t: Pick<Transcript, "turns">,
+  o: { threadId: string; used?: number; /** The characters said so far, when the caller has no transcript rows to count (the engine module counts the chat's messages). */ chars?: number; window?: number; model?: string | null; provider?: string | null; fromTurn?: number; blocked?: string | null; jobs?: number; waited?: number; sinceRoll?: number | null; limits?: RollLimits },
 ): RolloverCheck {
-  const chars = t.turns(o.threadId, o.fromTurn ?? 1).reduce((n, x) => n + plain(x).length, 0);
+  const chars = o.chars ?? t.turns(o.threadId, o.fromTurn ?? 1).reduce((n, x) => n + plain(x).length, 0);
   const ctx = contextOf({ ...(o.used === undefined ? {} : { used: o.used }), ...(o.window === undefined ? {} : { window: o.window }), chars, model: o.model ?? null, provider: o.provider ?? null });
   return { ...decide({ ctx, ...(o.blocked === undefined ? {} : { blocked: o.blocked }), ...(o.jobs === undefined ? {} : { jobs: o.jobs }), ...(o.waited === undefined ? {} : { waited: o.waited }), ...(o.sinceRoll === undefined ? {} : { sinceRoll: o.sinceRoll }), ...(o.limits ? { limits: o.limits } : {}) }), ctx };
 }

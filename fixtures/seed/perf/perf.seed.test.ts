@@ -1,4 +1,4 @@
-// P-L11_03: the perf seed builder, checked at the small `ci` scale so the fast lane stays fast. The full scale is built by scripts/seed-perf.ts and measured in perf/server/server.test.ts.
+// P-L11_03: the perf seed builder, checked at the small `ci` scale so the fast lane stays fast. The full scale is built by scripts/seed-perf.ts and measured in perf/server/server.*.test.ts.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";

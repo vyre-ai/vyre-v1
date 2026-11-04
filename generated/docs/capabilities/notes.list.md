@@ -60,6 +60,13 @@ type Out = {
         hasShot: boolean;
         at: number;
       };
+      from?: {
+        threadId?: string;
+        messageId?: string;
+        title?: string;
+        at: number;
+        readable: boolean;
+      };
       linked: Array<{
           kind: "task" | "record";
           id: string;
@@ -127,6 +134,13 @@ type Out = {
         },
         "color": "",
         "createdAt": 1760000000000,
+        "from": {
+          "at": 1760000000000,
+          "messageId": "msg_a1b2c3",
+          "readable": true,
+          "threadId": "thr_a1b2c3",
+          "title": "example"
+        },
         "hasImage": true,
         "labels": [
           "Lab 8"

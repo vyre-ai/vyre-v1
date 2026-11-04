@@ -73,7 +73,7 @@ export type VaultRoute =
   | { surface: "requests" }
   | { surface: "connections"; add?: true };
 
-function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, connectionsAdd }: { initial?: Selection | undefined; sheet?: InitialSheet | undefined; view?: "env" | "fields" | undefined; route: VaultRoute; onRouteClose(): void; connectionsInitial?: ConnectionsData | undefined; connectionsAdd?: AddInitial | undefined }): ReactElement {
+function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, connectionsAdd, connectionsSite }: { initial?: Selection | undefined; sheet?: InitialSheet | undefined; view?: "env" | "fields" | undefined; route: VaultRoute; onRouteClose(): void; connectionsInitial?: ConnectionsData | undefined; connectionsAdd?: AddInitial | undefined; connectionsSite?: boolean | undefined }): ReactElement {
   const data = useVaultData();
   const online = useOnline();
   const canShare = allows(useOptionalShellRuntime(), GATE.sharedVault);   // a guest keeps nothing in the Vault: no New shared folder to press
@@ -312,7 +312,7 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
         )
       ) : (
         <>
-          <ItemList items={visible} selectedId={effectiveId} providerOf={providerOf} healthIds={healthIds} clock={clock} onSelect={(id) => { setSelectedId(id); if (!twoPane) setDetailOpen(true); }} onOpen={(id) => { setSelectedId(id); setEditing(id); }} onMenu={itemMenu} />
+          <ItemList sections={selection.kind === "all" || query.trim() !== ""} items={visible} selectedId={effectiveId} providerOf={providerOf} healthIds={healthIds} clock={clock} onSelect={(id) => { setSelectedId(id); if (!twoPane) setDetailOpen(true); }} onOpen={(id) => { setSelectedId(id); setEditing(id); }} onMenu={itemMenu} />
           {selection.kind === "providers" && !query ? <ConnectHere connected={signedIn} onPick={(pick) => setAddingProvider(pick ?? true)} /> : null}
         </>
       )}
@@ -340,7 +340,7 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
     : route.surface === "requests"
       ? <RequestsView requests={requests} items={all} onClose={onRouteClose} />
     : route.surface === "connections"
-      ? <ConnectionsView initialAdd={connectionsAdd ?? route.add === true} {...(wide ? {} : { onClose: onRouteClose })} {...(connectionsInitial ? { initialData: connectionsInitial } : {})} />
+      ? <ConnectionsView initialAdd={connectionsAdd ?? route.add === true} {...(connectionsSite ? { initialSite: true } : {})} {...(wide ? {} : { onClose: onRouteClose })} {...(connectionsInitial ? { initialData: connectionsInitial } : {})} />
       : null;
 
   return (
@@ -540,15 +540,17 @@ export interface VaultProps {
   connectionsInitial?: ConnectionsData | undefined;
   /** Vault > Connections opens with the Add sheet at this step (screenshot mounts). */
   connectionsAdd?: AddInitial | undefined;
+  /** Vault > Connections opens with the Add a site sheet (screenshot mounts). */
+  connectionsSite?: boolean | undefined;
 }
 
-export default function VaultLayout({ data, initial, sheet, view, route = { surface: "layout" }, onRouteClose = () => undefined, connectionsInitial, connectionsAdd }: VaultProps): ReactElement {
+export default function VaultLayout({ data, initial, sheet, view, route = { surface: "layout" }, onRouteClose = () => undefined, connectionsInitial, connectionsAdd, connectionsSite }: VaultProps): ReactElement {
   const provided = useOptionalVaultData();
   const d = data ?? provided;
   if (!d) return <VaultLoading />;
   return (
     <VaultDataProvider value={d}>
-      <Page initial={initial} sheet={sheet} view={view} route={route} onRouteClose={onRouteClose} connectionsInitial={connectionsInitial} connectionsAdd={connectionsAdd} />
+      <Page initial={initial} sheet={sheet} view={view} route={route} onRouteClose={onRouteClose} connectionsInitial={connectionsInitial} connectionsAdd={connectionsAdd} connectionsSite={connectionsSite} />
     </VaultDataProvider>
   );
 }

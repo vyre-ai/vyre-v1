@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { Platform } from "react-native";
 
 export const PATHS = {
+  chat: '<path d="M3 4h12v9H8l-3 2.4V13H3z"/>',
   note: '<path d="M4 3h10v8l-4 4H4zM14 11h-4v4"/>',
   pin: '<path d="M7 2.5h4l-.5 4.3L13 9v1.6H5V9l2.5-2.2zM9 10.6v4.9"/>',
   pinf: '<path d="M7 2.5h4l-.5 4.3L13 9v1.6H5V9l2.5-2.2z" fill="currentColor"/><path d="M9 10.6v4.9"/>',

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { test } from "node:test";
-import { createPublicPathRoute, formTarget, PUBLIC_SANDBOX } from "./public-path.ts";
+import { APP_FRAME_ANCESTORS, createPublicPathRoute, formTarget, PUBLIC_SANDBOX } from "./public-path.ts";
 import { publicPathOk } from "../seams/relay.ts";
 
 async function serve(inner: { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } | null): Promise<{ url: string; fell: string[]; close(): Promise<void> }> {
@@ -76,5 +76,18 @@ test("an artifact's plain address opens the app, and only a token below it serve
     const miss = await fetch(`${s.url}/a/sit_abc/k/${"0".repeat(48)}/`);
     assert.equal(miss.status, 404);
     assert.ok(String(miss.headers.get("content-security-policy")).includes(PUBLIC_SANDBOX));
+    // framed by the app's own origins only: this one, and the desktop app's (Mac and Windows); a public site is not an artifact and is not restricted
+    assert.ok(String(miss.headers.get("content-security-policy")).includes(APP_FRAME_ANCESTORS));
+    assert.match(APP_FRAME_ANCESTORS, /^frame-ancestors 'self' tauri:\/\/localhost http:\/\/tauri\.localhost https:\/\/tauri\.localhost$/);
+    assert.ok(!String((await fetch(`${s.url}/p/nothing/`)).headers.get("content-security-policy")).includes("frame-ancestors"));
   } finally { await s.close(); }
+});
+
+test("the desktop shell's own CSP lets its artifact viewer frame a Space's address (it fell back to default-src 'self' and the frame was blank)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const conf = JSON.parse(readFileSync(new URL("../../../apps/desktop/src-tauri/tauri.conf.json", import.meta.url), "utf8")) as { app?: { security?: { csp?: string } } };
+  const csp = conf.app?.security?.csp ?? "";
+  const frame = /(?:^|;)\s*frame-src ([^;]+)/.exec(csp)?.[1] ?? "";
+  assert.ok(frame.split(/\s+/).includes("https:"), `frame-src names https: (a Space's own address); csp: ${csp}`);
+  assert.ok(!/frame-src[^;]*\*(?:\s|;|$)/.test(csp.replace(/:\*/g, "")), "no bare wildcard");
 });

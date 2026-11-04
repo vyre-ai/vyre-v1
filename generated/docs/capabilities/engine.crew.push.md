@@ -38,7 +38,7 @@ type Out = {
     jobId: string;
     threadId: string;
     leadThreadId: string;
-    projectId: string;
+    projectId?: string;
     agentId: string;
     name?: string;
     title: string;

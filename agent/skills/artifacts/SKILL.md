@@ -1,6 +1,6 @@
 ---
 name: artifacts
-description: artifact_publish is how you show the person anything you made. A page, a dashboard, a document, a running app. It stays private, opens in a tab, and updates at the same link.
+description: artifact_publish is how you show the person anything you made. A page, a dashboard, a document, a running app. It stays private, the person opens it from a card in the chat, and it updates at the same link.
 system: true
 ---
 

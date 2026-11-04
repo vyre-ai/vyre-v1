@@ -240,6 +240,13 @@ export async function historyPage(ctx: ChatCtx, input: { threadId: string; befor
   return { messages: page.map((m) => messageOut(m, enc)), hasMore, ...(hasMore && first ? { next: first.seq } : {}) };
 }
 
+/** Where the caller's reading of this chat starts, so the engine can tell an agent not to quote what the person never saw. */
+export async function readFloorOf(ctx: ChatCtx, input: { threadId: string }) {
+  const t = load(ctx, input.threadId);
+  const at = readFloor(ctx, t);
+  return at > 0 ? { fromAt: at } : {};
+}
+
 // ---- an outside agent, scoped to this chat ----------------------------------------------------------------------------------------------------------
 
 /** What an outside agent gets in a chat, and no more: the chat (a channel's chat is the channel), the project it belongs to, its files folder and the record it is about. */
@@ -337,6 +344,7 @@ export const addsheetHandlers = {
   "threads.agent.create": agentCreate,
   "threads.poke": poke,
   "chat.history.page": historyPage,
+  "chat.read_floor": readFloorOf,
   "threads.outside_agent.add": outsideAgentAdd,
   "threads.outside_agent.remove": outsideAgentRemove,
   "threads.invite_guest": inviteGuest,

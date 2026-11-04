@@ -1471,6 +1471,268 @@ export const PROTO_INBOXES: readonly unknown[] = [
 
 export const PROTO_CONTACTS: readonly unknown[] = [
  {
+  "id": "josh",
+  "name": "Josh Cohen",
+  "co": "Cohen & Shah Law",
+  "email": "josh@cohenshah.example",
+  "phone": "+1 404 555 0187",
+  "rec": "Cohen & Shah Law",
+  "owner": "Irfad Imtiaz",
+  "follow": true,
+  "sug": "Assistant",
+  "tasks": [
+   {
+    "t": "Clio Grow setup call with Rachel",
+    "due": "Wed"
+   }
+  ],
+  "msgs": [
+   {
+    "id": "m1",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 2950,
+    "subj": "Re: Claude in Chrome for Clio Grow + follow-up",
+    "body": "Hi Josh,\n\nAdding Irfad, who set up Claude in Chrome for our own Clio Grow intake. Irfad, Josh wants the same setup for his intake team, and a follow-up after each consult.",
+    "from": "maya@northwind.example",
+    "raw": "Hi Josh,\n\nAdding Irfad, who set up Claude in Chrome for our own Clio Grow intake. Irfad, Josh wants the same setup for his intake team, and a follow-up after each consult.\n\nMaya Chen\nClient Success | Northwind\n+1 415 555 0140\n\nOn Tue, Oct 20, 2026 at 4:12 PM Josh Cohen <josh@cohenshah.example>\nwrote:\n> Hi Maya,\n>\n> Could someone walk us through the Claude in Chrome setup for Clio Grow? Our intake team re-types every web lead by hand.\n>\n> Josh",
+    "th": "gm:18c2a1f04e9b",
+    "mid": "<c1.maya@northwind.example>",
+    "irt": "<j0.josh@cohenshah.example>",
+    "refs": [
+     "<j0.josh@cohenshah.example>"
+    ],
+    "to": [
+     "josh@cohenshah.example"
+    ],
+    "cc": [
+     "irfad@northwind.example"
+    ]
+   },
+   {
+    "id": "m2",
+    "t": "mail",
+    "dir": "out",
+    "inb": "work",
+    "a": 2830,
+    "subj": "Re: Claude in Chrome for Clio Grow + follow-up",
+    "body": "Hi Josh,\n\nHappy to. The short version: Claude in Chrome reads each new lead in Clio Grow, fills the matter fields and leaves a note for your team to check before anything is saved. I can set it up with your intake lead on a 30-minute call. Tuesday or Wednesday afternoon both work.\n\nIrfad",
+    "from": "irfad@northwind.example",
+    "raw": "Hi Josh,\n\nHappy to. The short version: Claude in Chrome reads each new lead in Clio Grow, fills the matter fields and leaves a note for your team to check before anything is saved. I can set it up with your intake lead on a 30-minute call. Tuesday or Wednesday afternoon both work.\n\nIrfad\n\nOn Thu, Oct 22, 2026 at 11:30 AM Maya Chen <maya@northwind.example> wrote:\n> Adding Irfad, who set up Claude in Chrome for our own Clio Grow intake.",
+    "th": "gm:18c2a1f04e9b",
+    "mid": "<c2.irfad@northwind.example>",
+    "irt": "<c1.maya@northwind.example>",
+    "refs": [
+     "<j0.josh@cohenshah.example>",
+     "<c1.maya@northwind.example>"
+    ],
+    "to": [
+     "josh@cohenshah.example"
+    ],
+    "cc": [
+     "maya@northwind.example"
+    ]
+   },
+   {
+    "id": "m3",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 2700,
+    "subj": "RE: Claude in Chrome for Clio Grow + follow-up",
+    "body": "Thanks, I will put in the card for the Clio seat today. Wednesday at 2 works for us. Rachel Ortiz runs intake and will join.",
+    "from": "josh@cohenshah.example",
+    "raw": "Thanks, I will put in the card for the Clio seat today. Wednesday at 2 works for us. Rachel Ortiz runs intake and will join.\n\nJosh Cohen\nManaging Partner | Cohen & Shah Law\n(404) 555-0187 | cohenshah.example\n\nCONFIDENTIALITY NOTICE: This email and any attachments may contain privileged and confidential information intended only for the named recipient. If you received it in error, please tell the sender and delete it.\n\nFrom: Irfad Imtiaz <irfad@northwind.example>\nSent: Thursday, October 22, 2026 1:30 PM\nTo: Josh Cohen <josh@cohenshah.example>\nCc: Maya Chen <maya@northwind.example>\nSubject: Re: Claude in Chrome for Clio Grow + follow-up\n\nHi Josh,\n\nHappy to. The short version: Claude in Chrome reads each new lead in Clio Grow...",
+    "th": "gm:18c2a1f04e9b",
+    "mid": "<c3.josh@cohenshah.example>",
+    "irt": "<c2.irfad@northwind.example>",
+    "refs": [
+     "<j0.josh@cohenshah.example>",
+     "<c1.maya@northwind.example>",
+     "<c2.irfad@northwind.example>"
+    ],
+    "to": [
+     "irfad@northwind.example"
+    ],
+    "cc": [
+     "maya@northwind.example"
+    ]
+   },
+   {
+    "id": "m4",
+    "t": "mail",
+    "dir": "out",
+    "inb": "work",
+    "a": 2660,
+    "subj": "Re: Claude in Chrome for Clio Grow + follow-up",
+    "body": "❤️ Irfad Imtiaz reacted via Gmail <https://www.google.com/gmail/about/?utm_source=gmail-in-product&utm_medium=et&utm_campaign=emojireactionemail#app>",
+    "from": "irfad@northwind.example",
+    "raw": "❤️ Irfad Imtiaz reacted via Gmail <https://www.google.com/gmail/about/?utm_source=gmail-in-product&utm_medium=et&utm_campaign=emojireactionemail#app>\n\nOn Thu, Oct 22, 2026 at 3:40 PM Josh Cohen <josh@cohenshah.example> wrote:\n> Thanks, I will put in the card for the Clio seat today.",
+    "th": "gm:18c2a1f04e9b",
+    "mid": "<r1.irfad@northwind.example>",
+    "irt": "<c3.josh@cohenshah.example>",
+    "ctype": "text/vnd.google.email-reaction+json",
+    "rjson": "{\"version\":1,\"emoji\":\"❤️\"}",
+    "to": [
+     "josh@cohenshah.example"
+    ],
+    "cc": [
+     "maya@northwind.example"
+    ]
+   },
+   {
+    "id": "m5",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 96,
+    "subj": "RE: Claude in Chrome for Clio Grow + follow-up",
+    "body": "Hi Irfad,\n\nQuick one before Wednesday. Our lead form also feeds a Google Sheet that Rachel's team works from, so the intake team sees each lead twice. Could Claude in Chrome check the sheet first and skip anything already in Clio Grow? If that is easy, we would also like it to tag the practice area, so the right attorney gets the lead the same morning.\n\nThe second thing is the follow-up. Right now nobody writes after the consult, so the lead goes quiet and we lose about a third of them. A short email the next morning, then we will call on day three. Could the same setup draft that email for Rachel to send?",
+    "from": "josh@cohenshah.example",
+    "raw": "Hi Irfad,\n\nQuick one before Wednesday. Our lead form also feeds a Google Sheet that Rachel's team works from, so the intake team sees each lead twice. Could Claude in Chrome check the sheet first and skip anything already in Clio Grow? If that is easy, we would also like it to tag the practice area, so the right attorney gets the lead the same morning.\n\nThe second thing is the follow-up. Right now nobody writes after the consult, so the lead goes quiet and we lose about a third of them. A short email the next morning, then we will call on day three. Could the same setup draft that email for Rachel to send?\n\nJosh Cohen\nManaging Partner | Cohen & Shah Law\n(404) 555-0187 | cohenshah.example\n\nCONFIDENTIALITY NOTICE: This email and any attachments may contain privileged and confidential information intended only for the named recipient. If you received it in error, please tell the sender and delete it.\n\n-----Original Message-----\nFrom: Josh Cohen <josh@cohenshah.example>\nSent: Thursday, October 22, 2026 3:40 PM\nTo: Irfad Imtiaz <irfad@northwind.example>\nSubject: RE: Claude in Chrome for Clio Grow + follow-up\n\nThanks, I will put in the card for the Clio seat today.",
+    "unread": true,
+    "th": "gm:18c2a1f04e9b",
+    "mid": "<c4.josh@cohenshah.example>",
+    "irt": "<c3.josh@cohenshah.example>",
+    "refs": [
+     "<j0.josh@cohenshah.example>",
+     "<c3.josh@cohenshah.example>"
+    ],
+    "to": [
+     "irfad@northwind.example"
+    ],
+    "cc": [
+     "maya@northwind.example"
+    ]
+   },
+   {
+    "id": "m6",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 61,
+    "subj": "RE: Claude in Chrome for Clio Grow + follow-up",
+    "body": "One more: Rachel is out Wednesday afternoon. Can we do 11:00 instead?\n\nJosh",
+    "from": "josh@cohenshah.example",
+    "raw": "One more: Rachel is out Wednesday afternoon. Can we do 11:00 instead?\n\nJosh\n\nSent from my iPhone\n\n> On Oct 24, 2026, at 9:04 AM, Josh Cohen <josh@cohenshah.example> wrote:\n>\n> Hi Irfad,\n> Quick one before Wednesday.",
+    "unread": true,
+    "th": "gm:18c2a1f04e9b",
+    "mid": "<c5.josh@cohenshah.example>",
+    "irt": "<c4.josh@cohenshah.example>",
+    "refs": [
+     "<c4.josh@cohenshah.example>"
+    ],
+    "to": [
+     "irfad@northwind.example"
+    ],
+    "cc": [
+     "maya@northwind.example"
+    ]
+   },
+   {
+    "id": "m7",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 1530,
+    "subj": "Welcome to Scout, Josh",
+    "body": "",
+    "from": "andrey@scout.example",
+    "raw": "",
+    "th": "gm:18c39f7b2d10",
+    "html": "<div style=\"font-family:Arial,sans-serif;color:#222\"><img src=\"https://cdn.scout.example/mail/logo.png\" width=\"96\" alt=\"Scout\"><p>Hi Josh,</p><p>Welcome to Scout. Your workspace for <b>Cohen &amp; Shah Law</b> is ready, and your team can sign in now.</p><p><a href=\"https://app.scout.example/w/cohen-shah?utm_source=welcome\" style=\"background:#1f6f5c;color:#fff;padding:10px 16px\">Open your workspace</a></p><p>Irfad is copied here. He will connect Scout to Clio Grow when you meet.</p><p>Andrey</p><div class=\"gmail_signature\"><table><tr><td style=\"font-size:11px;color:#888\">Andrey Volkov<br>CEO, Scout<br>scout.example</td></tr></table></div><img src=\"https://t.scout.example/o.gif?u=josh\" width=\"1\" height=\"1\" alt=\"\"><script>track()</script></div>",
+    "mid": "<w1.andrey@scout.example>",
+    "to": [
+     "josh@cohenshah.example"
+    ],
+    "cc": [
+     "irfad@northwind.example"
+    ]
+   },
+   {
+    "id": "m8",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 1410,
+    "subj": "RE: Welcome to Scout, Josh",
+    "body": "Thanks Andrey. I am in and the team is set up.\n\nIrfad, can you connect it to Clio Grow when we meet Wednesday?",
+    "from": "josh@cohenshah.example",
+    "raw": "Thanks Andrey. I am in and the team is set up.\n\nIrfad, can you connect it to Clio Grow when we meet Wednesday?\n\nJosh Cohen\nManaging Partner | Cohen & Shah Law\n(404) 555-0187 | cohenshah.example\n\nCONFIDENTIALITY NOTICE: This email and any attachments may contain privileged and confidential information intended only for the named recipient. If you received it in error, please tell the sender and delete it.\n\n-----Original Message-----\nFrom: Andrey Volkov <andrey@scout.example>\nSent: Friday, October 23, 2026 9:10 AM\nTo: Josh Cohen <josh@cohenshah.example>\nCc: Irfad Imtiaz <irfad@northwind.example>\nSubject: Welcome to Scout, Josh\n\nHi Josh,\nWelcome to Scout. Your workspace for Cohen & Shah Law is ready.",
+    "th": "gm:18c39f7b2d10",
+    "mid": "<w2.josh@cohenshah.example>",
+    "irt": "<w1.andrey@scout.example>",
+    "refs": [
+     "<w1.andrey@scout.example>"
+    ],
+    "to": [
+     "andrey@scout.example"
+    ],
+    "cc": [
+     "irfad@northwind.example"
+    ]
+   }
+  ]
+ },
+ {
+  "id": "andrey",
+  "name": "Andrey Volkov",
+  "co": "Scout",
+  "email": "andrey@scout.example",
+  "phone": "",
+  "rec": "Scout",
+  "owner": "Irfad Imtiaz",
+  "follow": false,
+  "sug": "Assistant",
+  "tasks": [],
+  "msgs": [
+   {
+    "id": "m7",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 1530,
+    "subj": "Welcome to Scout, Josh",
+    "body": "",
+    "from": "andrey@scout.example",
+    "raw": "",
+    "th": "gm:18c39f7b2d10",
+    "html": "<div style=\"font-family:Arial,sans-serif;color:#222\"><img src=\"https://cdn.scout.example/mail/logo.png\" width=\"96\" alt=\"Scout\"><p>Hi Josh,</p><p>Welcome to Scout. Your workspace for <b>Cohen &amp; Shah Law</b> is ready, and your team can sign in now.</p><p><a href=\"https://app.scout.example/w/cohen-shah?utm_source=welcome\" style=\"background:#1f6f5c;color:#fff;padding:10px 16px\">Open your workspace</a></p><p>Irfad is copied here. He will connect Scout to Clio Grow when you meet.</p><p>Andrey</p><div class=\"gmail_signature\"><table><tr><td style=\"font-size:11px;color:#888\">Andrey Volkov<br>CEO, Scout<br>scout.example</td></tr></table></div><img src=\"https://t.scout.example/o.gif?u=josh\" width=\"1\" height=\"1\" alt=\"\"><script>track()</script></div>",
+    "mid": "<w1.andrey@scout.example>",
+    "to": [
+     "josh@cohenshah.example"
+    ],
+    "cc": [
+     "irfad@northwind.example"
+    ]
+   },
+   {
+    "id": "m8",
+    "t": "mail",
+    "dir": "in",
+    "inb": "work",
+    "a": 1410,
+    "subj": "RE: Welcome to Scout, Josh",
+    "body": "Thanks Andrey. I am in and the team is set up.\n\nIrfad, can you connect it to Clio Grow when we meet Wednesday?",
+    "from": "josh@cohenshah.example",
+    "raw": "Thanks Andrey. I am in and the team is set up.\n\nIrfad, can you connect it to Clio Grow when we meet Wednesday?\n\nJosh Cohen\nManaging Partner | Cohen & Shah Law\n(404) 555-0187 | cohenshah.example\n\nCONFIDENTIALITY NOTICE: This email and any attachments may contain privileged and confidential information intended only for the named recipient. If you received it in error, please tell the sender and delete it.\n\n-----Original Message-----\nFrom: Andrey Volkov <andrey@scout.example>\nSent: Friday, October 23, 2026 9:10 AM\nTo: Josh Cohen <josh@cohenshah.example>\nCc: Irfad Imtiaz <irfad@northwind.example>\nSubject: Welcome to Scout, Josh\n\nHi Josh,\nWelcome to Scout. Your workspace for Cohen & Shah Law is ready.",
+    "th": "gm:18c39f7b2d10",
+    "mid": "<w2.josh@cohenshah.example>",
+    "irt": "<w1.andrey@scout.example>",
+    "refs": [
+     "<w1.andrey@scout.example>"
+    ],
+    "to": [
+     "andrey@scout.example"
+    ],
+    "cc": [
+     "irfad@northwind.example"
+    ]
+   }
+  ]
+ },
+ {
   "id": "elena",
   "name": "Elena Rivera",
   "co": "Rivera Holdings",
@@ -1492,7 +1754,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
   ],
   "msgs": [
    {
-    "id": "m1",
+    "id": "m9",
     "t": "mail",
     "dir": "in",
     "inb": "hello",
@@ -1520,7 +1782,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     "q": "On Mon, Oct 19, Intake wrote:\n> Please send the intake form and a signed copy of the engagement letter when you can."
    },
    {
-    "id": "m2",
+    "id": "m10",
     "t": "mail",
     "dir": "out",
     "inb": "work",
@@ -1530,17 +1792,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     "q": "On Mon, Oct 19, Elena Rivera wrote:\n> Hi, here is the completed intake form and the signed engagement letter."
    },
    {
-    "id": "m3",
-    "t": "step",
-    "dir": "out",
-    "inb": "intake",
-    "a": 3000,
-    "text": "Welcome series, step 2 sent",
-    "camp": "Welcome series",
-    "agent": "Intake"
-   },
-   {
-    "id": "m4",
+    "id": "m11",
     "t": "call",
     "dir": "in",
     "inb": "tw",
@@ -1568,7 +1820,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     ]
    },
    {
-    "id": "m5",
+    "id": "m12",
     "t": "sms",
     "dir": "in",
     "inb": "tw",
@@ -1576,7 +1828,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     "body": "Thanks for the call. I'll send the lease Thursday."
    },
    {
-    "id": "m6",
+    "id": "m13",
     "t": "sms",
     "dir": "out",
     "inb": "tw",
@@ -1584,7 +1836,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     "body": "Perfect. We'll watch for it."
    },
    {
-    "id": "m7",
+    "id": "m14",
     "t": "mail",
     "dir": "in",
     "inb": "work",
@@ -1628,7 +1880,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
   ],
   "msgs": [
    {
-    "id": "m8",
+    "id": "m15",
     "t": "mail",
     "dir": "out",
     "inb": "work",
@@ -1646,7 +1898,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     ]
    },
    {
-    "id": "m9",
+    "id": "m16",
     "t": "mail",
     "dir": "in",
     "inb": "work",
@@ -1656,7 +1908,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     "q": "On Mon, Oct 12, Irfad Imtiaz wrote:\n> Hi Marcus, invoice 1038 for September is attached. Net 15."
    },
    {
-    "id": "m10",
+    "id": "m17",
     "t": "sms",
     "dir": "in",
     "inb": "bnum",
@@ -1665,7 +1917,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     "unread": true
    },
    {
-    "id": "m11",
+    "id": "m18",
     "t": "draft",
     "dir": "out",
     "inb": "bnum",
@@ -1694,7 +1946,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
   ],
   "msgs": [
    {
-    "id": "m12",
+    "id": "m19",
     "t": "mail",
     "dir": "out",
     "inb": "work",
@@ -1712,7 +1964,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     ]
    },
    {
-    "id": "m13",
+    "id": "m20",
     "t": "mail",
     "dir": "in",
     "inb": "work",
@@ -1722,28 +1974,17 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     "q": "On Thu, Oct 19, Irfad Imtiaz wrote:\n> Hi Priya, the proposal is attached."
    },
    {
-    "id": "m14",
+    "id": "m21",
     "t": "mail",
     "dir": "out",
     "inb": "intake",
     "a": 6000,
     "subj": "Spring check-in",
     "body": "Hi Priya, a quick check-in from Northwind. Is a spring review still useful for Nair Studio?",
-    "camp": "Spring check-in",
     "agent": "Intake"
    },
    {
-    "id": "m15",
-    "t": "step",
-    "dir": "out",
-    "inb": "intake",
-    "a": 5990,
-    "text": "Spring check-in, step 1 sent",
-    "camp": "Spring check-in",
-    "agent": "Intake"
-   },
-   {
-    "id": "m16",
+    "id": "m22",
     "t": "mail",
     "dir": "in",
     "inb": "intake",
@@ -1751,14 +1992,13 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     "subj": "Re: Spring check-in",
     "body": "Yes, we would like to book a review for next week. Tuesday morning works best.\n\nPriya",
     "unread": true,
-    "camp": "Spring check-in",
     "chips": [
      "Nair Studio"
     ],
     "q": "On Mon, Oct 19, Intake wrote:\n> Hi Priya, a quick check-in from Northwind. Is a spring review still useful for Nair Studio?"
    },
    {
-    "id": "m17",
+    "id": "m23",
     "t": "draft",
     "dir": "out",
     "inb": "intake",
@@ -1788,7 +2028,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
   ],
   "msgs": [
    {
-    "id": "m18",
+    "id": "m24",
     "t": "sms",
     "dir": "out",
     "inb": "tw",
@@ -1796,7 +2036,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     "body": "Hi Dana, the renewal quote is coming Monday."
    },
    {
-    "id": "m19",
+    "id": "m25",
     "t": "vm",
     "dir": "in",
     "inb": "tw",
@@ -1826,7 +2066,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
   "tasks": [],
   "msgs": [
    {
-    "id": "m20",
+    "id": "m26",
     "t": "mail",
     "dir": "in",
     "inb": "support",
@@ -1835,7 +2075,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     "body": "Hi, the login link in my email says it expired. Can you send a new one?\n\nTomas"
    },
    {
-    "id": "m21",
+    "id": "m27",
     "t": "mail",
     "dir": "out",
     "inb": "support",
@@ -1845,7 +2085,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     "q": "On Sat, Oct 24, Tomas Berg wrote:\n> Hi, the login link in my email says it expired."
    },
    {
-    "id": "m22",
+    "id": "m28",
     "t": "mail",
     "dir": "in",
     "inb": "support",
@@ -1876,7 +2116,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
   "tasks": [],
   "msgs": [
    {
-    "id": "m23",
+    "id": "m29",
     "t": "sms",
     "dir": "in",
     "inb": "tw",
@@ -1884,7 +2124,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     "body": "Running 10 min late for our 2pm"
    },
    {
-    "id": "m24",
+    "id": "m30",
     "t": "call",
     "dir": "in",
     "inb": "tw",
@@ -1893,7 +2133,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     "missed": true
    },
    {
-    "id": "m25",
+    "id": "m31",
     "t": "sms",
     "dir": "out",
     "inb": "tw",
@@ -1915,7 +2155,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
   "tasks": [],
   "msgs": [
    {
-    "id": "m26",
+    "id": "m32",
     "t": "mail",
     "dir": "in",
     "inb": "hello",
@@ -1939,7 +2179,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
   "tasks": [],
   "msgs": [
    {
-    "id": "m27",
+    "id": "m33",
     "t": "mail",
     "dir": "in",
     "inb": "pers",
@@ -1948,7 +2188,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     "body": "Are you free Friday at 7? The new place on Valencia has a table."
    },
    {
-    "id": "m28",
+    "id": "m34",
     "t": "mail",
     "dir": "out",
     "inb": "pers",
@@ -1977,25 +2217,23 @@ export const PROTO_CONTACTS: readonly unknown[] = [
   ],
   "msgs": [
    {
-    "id": "m29",
+    "id": "m35",
     "t": "mail",
     "dir": "out",
     "inb": "intake",
     "a": 4400,
     "subj": "Spring check-in",
     "body": "Hi Jonas, a quick check-in from Northwind. Is a spring review still useful for Keller Bakery?",
-    "camp": "Spring check-in",
     "agent": "Intake"
    },
    {
-    "id": "m30",
+    "id": "m36",
     "t": "mail",
     "dir": "in",
     "inb": "intake",
     "a": 1300,
     "subj": "Re: Spring check-in",
     "body": "Not right now, but check back with me in June.\n\nJonas",
-    "camp": "Spring check-in",
     "chips": [
      "Keller Bakery"
     ],
@@ -2016,7 +2254,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
   "tasks": [],
   "msgs": [
    {
-    "id": "m31",
+    "id": "m37",
     "t": "mail",
     "dir": "in",
     "inb": "work",
@@ -2034,7 +2272,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     ]
    },
    {
-    "id": "m32",
+    "id": "m38",
     "t": "mail",
     "dir": "out",
     "inb": "work",
@@ -2058,7 +2296,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
   "tasks": [],
   "msgs": [
    {
-    "id": "m33",
+    "id": "m39",
     "t": "sms",
     "dir": "out",
     "inb": "tw",
@@ -2066,7 +2304,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
     "body": "Hi Nina, your files are in the shared folder."
    },
    {
-    "id": "m34",
+    "id": "m40",
     "t": "sms",
     "dir": "in",
     "inb": "tw",
@@ -2101,7 +2339,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
   ],
   "msgs": [
    {
-    "id": "m35",
+    "id": "m41",
     "t": "mail",
     "dir": "in",
     "inb": "hello",
@@ -2134,7 +2372,7 @@ export const PROTO_CONTACTS: readonly unknown[] = [
   ],
   "msgs": [
    {
-    "id": "m36",
+    "id": "m42",
     "t": "sms",
     "dir": "in",
     "inb": "tw",

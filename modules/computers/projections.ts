@@ -117,6 +117,9 @@ export function hostFor(ctx: Pick<CompCtx, "db" | "now">, computerId: string): C
   return hostPort;
 }
 
+export { bindPersonalChrome, personalChrome } from "../../lib/personal-chrome.ts";
+export type { PersonalChrome } from "../../lib/personal-chrome.ts";
+
 let hostPort: ComputerHost | null = null;
 export function bindHost(h: ComputerHost | null): void { hostPort = h; }
 export const boundHost = (): ComputerHost | null => hostPort;

@@ -29,6 +29,7 @@ export const ROWS: readonly Def[] = [
   d("chrome.agents_use_my_browser", "person", "This computer", "Let agents use my Chrome (per Space, only that Space agents, with a visible indicator)", {}),
   d("engine.local_runs", "person", "Models and usage", "Run my private chats on this computer", true),
   d("kit.person_choice", "person", "appearance", "My Kit", null),
+  d("notes.offers", "person", "Notes", "Offer to save useful things from chats as notes", true),
   d("notifications.alert_replies", "person", "Notifications", "Alert me on replies", false),
   d("notifications.email_backstop", "person", "Notifications", "Email me once if an approval waits 4 hours", true),
   d("notifications.hand_needs_you_to", "person", "Notifications", "While you are away, hand Needs you to (a person; none leaves it with you)", null),

@@ -6,6 +6,7 @@
 //   channels.stream                  the timeline: messages and Run items, repeated runs of one flow collapsed into one row
 //   channels.stream_prefs.*          what I hide (People, Agents, Runs) in one channel
 // The access level of each capability was checked on the channel before these run. Read cursors belong to threads.mark_read (table chat_thread_read, made here if it is not there yet).
+import { readFloor } from "./floor.ts";
 import {
   MAX_NAME, askerOf, channelBy, channelByName, channelOfRecord, channelOut, ensure, membersOf, agentsOf, isMember, addAgent, addMember, messageOf, nameKey, raise, threadBy, threadOf,
 } from "../projections.ts";
@@ -279,7 +280,8 @@ export async function channelsStream(ctx: ChatCtx, input: { channelId: string; b
   // A Run shows as one row of its own, so the system line chat.start wrote for it is left out.
   const runs = (ctx.db.all("SELECT * FROM chat_thread WHERE parentThreadId = ? AND kind = 'run' AND deleted_at IS NULL ORDER BY createdAt, id LIMIT 1000", main.id) as Row[]).map(threadOf);
   const lines = new Set(runs.map((r) => r.parentMessageId));
-  const msgs = (ctx.db.all("SELECT * FROM chat_message WHERE thread = ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT 1000", main.id) as Row[]).map(messageOf).reverse();
+  // the stream holds no message from before a newcomer's start
+  const msgs = (ctx.db.all("SELECT * FROM chat_message WHERE thread = ? AND createdAt >= ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT 1000", main.id, readFloor(ctx, main)) as Row[]).map(messageOf).reverse();
 
   let entries: Entry[] = [
     ...msgs.filter((m) => !lines.has(m.id)).map((m): Entry => ({ at: m.createdAt, message: { id: m.id, authorKind: authorKindOf(m.author) } })),

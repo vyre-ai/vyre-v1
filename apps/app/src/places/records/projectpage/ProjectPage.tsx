@@ -186,7 +186,7 @@ export function ChatTab({ o, channelName, now, projectId }: { o: Overview; chann
     <ScrollView style={s.scroll} contentContainerStyle={s.scrollIn} testID="project-chat">
       <Text style={s.lead} testID="project-chat-is-channel">{`This project has one chat. It is the channel ${channelName}, so everything said here is said there.`}</Text>
       <Pressable accessibilityRole="button" testID="project-open-channel" onPress={() => d.nav.openChannel(o.project.channelId)} style={s.open}><Text style={s.openText}>{`Open ${channelName} in Chats`}</Text></Pressable>
-      <Section title="Threads" count={o.recentThreads.length} id="project-threads">{rows.length ? rows : <Text style={s.dim}>No threads yet.</Text>}</Section>
+      <Section title="Chats" count={o.recentThreads.length} id="project-threads">{rows.length ? rows : <Text style={s.dim}>No chats yet.</Text>}</Section>
       {projectId ? <ImportedHistory projectId={projectId} /> : null}
     </ScrollView>
   );

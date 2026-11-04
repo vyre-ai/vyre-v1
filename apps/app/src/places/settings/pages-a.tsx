@@ -325,6 +325,11 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
 
 /** The apps and agents you let in. Every connection lives in Vault > Connections (owner ruling D28): this page shows how many and links there. Mail, calendars and numbers have their own page
  * (Email and calendar, MailPage.tsx), which is where Inbox comes from. */
+/** Settings, Notes: what Vyre may do with your notes. For now one switch: whether an agent may offer to save something from a chat as a note. */
+export function NotesSettingsPage({ rows, found }: PageProps): ReactElement {
+  return <RegistrySections page="notes" rows={rows} found={found} />;
+}
+
 export function ConnectedPage({ rows, found }: PageProps): ReactElement {
   return (
     <>

@@ -178,6 +178,17 @@ export type MountBlockData = {
   state: string;
   lagSeconds?: number;
 };
+export type NoteOfferBlockData = {
+  threadId: string;
+  blockId: string;
+  person?: string;
+  title: string;
+  body: string;
+  topic: string;
+  messageId?: string;
+  state: "offered" | "saved" | "dismissed";
+  noteId?: string;
+};
 export type PlanBlockData = {
   threadId: string;
   blockId: string;
@@ -305,6 +316,7 @@ export interface BlockDataMap {
   "memory_saved": MemorySavedBlockData;
   "model_switch": ModelSwitchBlockData;
   "mount": MountBlockData;
+  "note_offer": NoteOfferBlockData;
   "plan": PlanBlockData;
   "poke": PokeBlockData;
   "poked": PokedBlockData;
@@ -672,6 +684,37 @@ export const blockRegistry = [
         "folderId": "/folderId"
       }
     }
+  },
+  {
+    "type": "note_offer",
+    "v": 1,
+    "module": "chat",
+    "component": "ui:BlockNoteOffer",
+    "fallback": "Offer to save a note: {{title}}",
+    "waitsForAnswer": false,
+    "actions": [
+      {
+        "key": "save",
+        "label": "Save",
+        "cap": "chat.note_offer.answer",
+        "input": {
+          "threadId": "/threadId",
+          "blockId": "/blockId",
+          "decision": "save"
+        }
+      },
+      {
+        "key": "dismiss",
+        "label": "Not now",
+        "cap": "chat.note_offer.answer",
+        "input": {
+          "threadId": "/threadId",
+          "blockId": "/blockId",
+          "decision": "dismiss"
+        }
+      }
+    ],
+    "opens": null
   },
   {
     "type": "plan",

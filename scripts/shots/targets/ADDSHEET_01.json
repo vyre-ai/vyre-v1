@@ -167,6 +167,27 @@
         ]
       ],
       "after": "[data-testid='channel-offer']"
+    },
+    {
+      "id": "ADDSHEET_01-earlier",
+      "route": "/m/ADDSHEET_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='conversation']",
+      "note": "A person picked: the Include earlier messages switch is off by default, and the line says they read from now on.",
+      "steps": [
+        [
+          "open"
+        ],
+        [
+          "click",
+          "[data-testid='as-row-person:usr_maya']"
+        ],
+        [
+          "click",
+          "[data-testid='as-earlier']"
+        ]
+      ],
+      "after": "[data-testid='as-earlier']"
     }
   ]
 }

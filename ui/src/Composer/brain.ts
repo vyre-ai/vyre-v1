@@ -73,6 +73,8 @@ export interface ComposerAgent {
   provider?: string;
   /** What the strip says for the model ("Sonnet 5.5", "Auto"). */
   modelTitle?: string;
+  /** The pick this chat starts with cannot run here (the person's remembered model, on a server that does not have it): the strip says so in one quiet line. */
+  unavailable?: boolean;
   /** The paying account's name, shown only when two accounts of one provider are connected. */
   accountName?: string;
   effort?: Effort;

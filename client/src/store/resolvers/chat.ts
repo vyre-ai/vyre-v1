@@ -1,4 +1,5 @@
 // Chat reads from the replica: threads.get, threads.list, chat.messages.list. Thread, member, agent and message rows are synced entities (chat_*), so a conversation opens with no network.
+// NOTE: nothing fills these tables yet (no module emits sync rows for chat), and private chat rows are enc 2 (owner only) with scope by thread grants, not membership. Read modules/sync/README.md before building chat sync.
 // What the device does not keep is not invented: unread counts and the working pulse are server state, so chat.recent is left to the gateway.
 import type { LocalDb, SqlRow } from "../space.ts";
 import { MISS, resolver } from "./types.ts";

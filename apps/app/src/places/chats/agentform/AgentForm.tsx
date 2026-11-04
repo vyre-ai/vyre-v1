@@ -13,6 +13,7 @@ import { Switch } from "../../automations/config/parts.tsx";
 import { shareRows } from "../../../share/rows.ts";
 import { accessCount } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { MarkdownEditor } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { aiMenu } from "../../vault/providers/aiMenu.ts";
 import { aiCaption, aiName, automaticLine } from "../../vault/providers/pick.ts";
 import { useSpaceAi } from "../../vault/providers/useSpaceAi.ts";
@@ -147,7 +148,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
         </View>
 
         <Section title="Instructions" note="AGENT.md">
-          <TextInput testID="agent-instructions" accessibilityLabel="Instructions" multiline value={shown} onChangeText={(instructions) => { setTouched(true); set({ instructions }); }} style={[st.text, st.tall]} />
+          <View style={st.md}><MarkdownEditor testID="agent-instructions" label="Instructions" value={shown} onChange={(instructions) => { setTouched(true); set({ instructions }); }} minHeight={260} /></View>
         </Section>
 
         <Section title="Context" note="It always knows these">
@@ -158,7 +159,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
           </View>
           {note !== null ? (
             <View style={st.noteBox}>
-              <TextInput testID="agent-note-text" accessibilityLabel="The note" multiline autoFocus value={note} onChangeText={setNote} placeholder="What should it always know?" placeholderTextColor="var(--ink-3)" style={st.text} />
+              <View style={st.md}><MarkdownEditor testID="agent-note-text" label="The note" autoFocus value={note} onChange={setNote} placeholder="What should it always know?" toggle={false} minHeight={90} density="compact" /></View>
               <View style={st.row}>
                 <Btn label="Keep" primary testID="agent-note-keep" onPress={() => { if (note.trim() !== "") setNotes((l) => [...l, note.trim()]); setNote(null); }} />
                 <Btn label="Cancel" testID="agent-note-cancel" onPress={() => setNote(null)} />
@@ -272,6 +273,7 @@ const st = StyleSheet.create({
   secNote: { fontSize: 12.5, color: "var(--ink-3)" as string },
   text: { minHeight: 120, borderRadius: 12, padding: 12, fontSize: 14, lineHeight: 21, color: "var(--ink)" as string, backgroundColor: "var(--field)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   tall: { height: 190 },
+  md: { borderRadius: 12, backgroundColor: "var(--field)" as string, overflow: "hidden" },
   field: { height: 34, borderRadius: 9, paddingHorizontal: 11, marginTop: 4, fontSize: 14, color: "var(--ink)" as string, backgroundColor: "var(--field)" as string, outlineStyle: "none", outlineWidth: 0 } as object,
   drop: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, padding: 10, borderRadius: 14, boxShadow: "inset 0 0 0 1.5px var(--line-2)" } as object,
   file: { flexDirection: "row", alignItems: "center", gap: 6, height: 30, maxWidth: 220, paddingHorizontal: 10, borderRadius: 9, backgroundColor: "var(--sunk)" as string },

@@ -198,7 +198,9 @@ export function createBridge(o: BridgeOptions): Bridge {
       const setup = program ? /\((offline|checksum|unsupported|disk|failed)\)\.?$/.exec(e.message ?? "")?.[1] : undefined;
       // A Vault that could not be read gives the code it answered with (a fixed word shape, never the text that came with it).
       const reason = e.code === "engine.vault_unreadable" ? /^The Vault could not be read \(([a-z_]+(?:\.[a-z_]+)*)\)\.$/.exec(e.message ?? "")?.[1] : undefined;
-      return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}) } };
+      // a picked model nothing can serve: the words name the model and what can run (model-fallback.ts noModelWords), a fixed sentence of Vyre's own
+      const detail = e.code === "engine.model_unavailable" ? e.message : undefined;
+      return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(detail ? { detail } : {}), ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}) } };
     }
     return { type: "turn_status", v: 1, data: { state: "cancelled", turnId: e.turnId } };
   };
@@ -335,8 +337,9 @@ export function createBridge(o: BridgeOptions): Bridge {
     });
   }
 
-  type RosterAgent = { agentId: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown; quiet?: boolean; when?: "always" | "topics" | "hours"; topics?: string; hoursFrom?: string; hoursTo?: string; style?: "short" | "full" };
-  type ThreadGet = { thread: { kind?: string; starter?: string; agents: RosterAgent[] } };
+  type RosterAgent = { agentId: string; name?: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown; quiet?: boolean; when?: "always" | "topics" | "hours"; topics?: string; hoursFrom?: string; hoursTo?: string; style?: "short" | "full" };
+  type ThreadGet = { thread: { kind?: string; starter?: string; members?: Array<{ kind?: string; id: string }>; agents: RosterAgent[] } };
+  const peopleOf = (g: ThreadGet): string[] | undefined => (g.thread.members ? g.thread.members.filter((x) => (x.kind ?? "person") === "person").map((x) => x.id) : undefined);
   /** How and when an agent answers in this chat, as the chat holds it, for the engine's routing and for the turn. */
   const settingsOf = (a: RosterAgent): Pick<EngineAgent, "quiet" | "when" | "topics" | "hoursFrom" | "hoursTo" | "style"> => ({
     ...(a.quiet === true ? { quiet: true as const } : {}), ...(a.when && a.when !== "always" ? { when: a.when } : {}), ...(a.topics ? { topics: a.topics } : {}),
@@ -399,7 +402,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       } catch { /* an agent that cannot be read runs on the account's default */ }
     }
     const agents: EngineAgent[] = got.thread.agents.map((a) => ({
-      id: a.agentId, mode: a.mode, ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}), ...(outside.has(a.agentId) ? { outside: true } : {}), ...settingsOf(a),
+      id: a.agentId, ...(a.name ? { name: a.name } : {}), mode: a.mode, ...(a.model || own.get(a.agentId) ? { model: a.model ?? own.get(a.agentId) as string } : {}), ...(a.accountRef ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watching: true } : {}), ...(outside.has(a.agentId) ? { outside: true } : {}), ...settingsOf(a),
     }));
     const store = sqlMessages(ctx.db, ctx.now);
     if (store.recent(threadId, 1).length === 0) {
@@ -414,7 +417,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       }
     }
     try {
-      engine.openThread({ id: threadId, kind: (got.thread.kind ?? "chat") as ThreadKind, starter: got.thread.starter ?? "", agents });
+      engine.openThread({ id: threadId, kind: (got.thread.kind ?? "chat") as ThreadKind, starter: got.thread.starter ?? "", agents, ...(peopleOf(got) ? { people: peopleOf(got)! } : {}) });
     } catch (e) {
       if (!(e instanceof RangeError) || !/already open/.test(e.message)) throw e;
     }
@@ -487,13 +490,25 @@ export function createBridge(o: BridgeOptions): Bridge {
     }
     // a poke: the agent answers now, from the last 12 messages, and its reply says who poked it. It reads further back with chat_history_page.
     if (poke !== undefined && poke.by) pokedBy.set(`${threadId}:${poke.agentId}`, poke.by);
+    // a person named in the message is spoken to only if they are in the chat: read who is, now, so someone added since the thread opened counts
+    let people: string[] | undefined;
+    if (mentions.some((m) => m.kind === "person") || got.message.replyTo) {
+      try { people = peopleOf((await reader(ctx, authorId, threadId)("threads.get", { threadId })) as ThreadGet); } catch { /* the people the thread opened with stand */ }
+    }
     const job = p["job"] === true ? str(p["actingFor"]) || authorId : undefined;
     // an agent's post speaks for the person it acted for (chat.post's actingFor): a turn it sets off runs for that person, never for the chat's starter; with nobody behind it, it runs for no one
     const speaksFor = a.kind === "agent" && str(p["actingFor"]).startsWith("usr_") ? str(p["actingFor"]) : undefined;
     const res = withMessageId(messageId, () => eng.receive({
-      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note + (poke ? POKE_NOTE : ""), replyToPerson, ...(job ? { job } : {}), ...(speaksFor ? { asker: speaksFor } : {}),
+      threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note + (poke ? POKE_NOTE : ""), replyToPerson, ...(people ? { people } : {}), ...(job ? { job } : {}), ...(speaksFor ? { asker: speaksFor } : {}),
       ...(poke ? { poke: { agentId: poke.agentId, by: poke.by ?? authorId } } : {}), ...(minutes === undefined ? {} : { minutes }),
     }));
+    // an agent handed the chat to another: one quiet line shows the chain ("Intake asked Docs")
+    if (res.chain) {
+      const nameOfAgent = (id: string): string => eng.agents(threadId).find((x) => x.id === id)?.name ?? "an agent";
+      const text = `${nameOfAgent(res.chain.from)} asked ${res.chain.to.map(nameOfAgent).join(" and ")}`;
+      try { await o.postAs(res.chain.from, { threadId, body: "", mentions: [], clientId: brgId(), blocks: [{ type: "turn_status", v: 1, data: { state: "note", text } }], ...(speaksFor ? { actingFor: speaksFor } : {}) } as never); }
+      catch (e) { ctx.log.warn("the hand-off line could not be shown", { threadId, error: e instanceof Error ? e.message : String(e) }); }
+    }
     return { receivedAs: res.responders };
   }
 

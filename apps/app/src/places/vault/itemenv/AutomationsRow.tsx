@@ -29,8 +29,9 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
     let live = true;
     void (async () => {
       try {
-        const out = (await data.call("providers.list", {})) as { providers?: { state?: unknown }[] } | null;
-        if (live) setAccounts((out?.providers ?? []).map((p) => ({ state: typeof p.state === "string" ? p.state : "ok" })));
+        const out = (await data.call("engine.accounts.list", {})) as { accounts?: { status?: unknown }[] } | null;
+        // the Vault's own words for a state: signed out is "needs_sign_in", failing is "failing"
+        if (live) setAccounts((out?.accounts ?? []).map((a) => ({ state: a.status === "expired" ? "needs_sign_in" : a.status === "failed" ? "failing" : "ok" })));
       } catch { if (live) setAccounts(null); }
     })();
     return () => { live = false; };
