@@ -248,19 +248,20 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   }, [list, quick, quickFiles, rt, say, scope, store]);
 
   // the Ask line under the list: words open a chat with the assistant; with files, the chat is started here so the files go with the first message
-  const askAssistant = useCallback((p: ComposerSend): void => {
+  const askAssistant = useCallback((p: ComposerSend): Promise<void> | void => {
     if (p.files.length === 0) { openChat(p.text); return; }
     const text = p.text.trim();
     const key = newKey();
-    void realAssistant(rt.assistant.id, (cap, input) => rt.call(cap as never, input as never)).then((agentId) => {
+    // a failed start gives the draft back with the reason (the composer keeps what was written)
+    return realAssistant(rt.assistant.id, (cap, input) => rt.call(cap as never, input as never)).then((agentId) => {
       if (agentId === null) throw new Error("no assistant yet");
       return rt.call("chat.start", { kind: "chat", agentIds: [agentId], title: (text || p.files[0]!.name).split(/\s+/).slice(0, 6).join(" "), idempotencyKey: key });
     }).then(async (out) => {
       const id = (out as CapMap["chat.start"]["out"]).thread.threadId;
       await postWithFiles(uploadDeps(rt), id, text, p.files, `tasks-ask:${key}`);
       rt.open({ subject: { type: "thread", id } });
-    }).catch((e: unknown) => say(failure(e, "Could not start the chat with those files.")));
-  }, [openChat, rt, say]);
+    }).catch((e: unknown) => { throw new Error(failure(e, "Could not start the chat with those files.")); });
+  }, [openChat, rt]);
 
   /* ---------- keys ---------- */
   useEffect(() => {

@@ -393,3 +393,24 @@ test("a provider with a long model list scrolls inside the Model submenu and can
     assert.deepEqual(log, ["model:m7"]);
   });
 });
+
+test("a send that fails gives the draft back with the reason and Try again; trying again sends it", async () => {
+  installDom();
+  const sent: string[] = [];
+  let fail = true;
+  const root = await mount(createRoot, <Composer whoWillAnswer="" lead="Intake" onSubmit={(p: ComposerSend) => { sent.push(p.text); return fail ? Promise.reject(new Error("Could not start the chat.")) : Promise.resolve(); }} />);
+  const field = find(root, "composer-field");
+  await focus(field);
+  await typeInto(field, "hello there");
+  await keyDown(find(root, "composer-field"), "Enter");
+  await flush();
+  assert.deepEqual(sent, ["hello there"]);
+  assert.equal(find(root, "composer-field")!.props.value, "hello there", "the draft is back in the field");
+  assert.match(textOf(find(root, "composer-send-error")), /Could not start the chat\.\s*Try again/);
+  fail = false;
+  await press(find(root, "composer-send-retry"));
+  await flush();
+  assert.deepEqual(sent, ["hello there", "hello there"]);
+  assert.equal(find(root, "composer-send-error"), null, "a good send clears the line");
+  assert.equal(find(root, "composer-field")!.props.value, "", "and the field is empty again");
+});
