@@ -4,7 +4,7 @@
 // "Needs you" lists the hooks that stopped something, failed or ran out of time lately (hooks.runs.list).
 import { useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { View } from "react-native";
+import { View, useWindowDimensions } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Switch } from "../../places/settings/ui.tsx";
@@ -46,6 +46,14 @@ export function whereWords(h: Pick<Hook, "scope" | "agentId">, nameOf: (id: stri
   return h.scope === "chat" ? "One chat" : "One run";
 }
 
+/** What the last run did, in a word a person reads: allowed, ran, stopped one, failed, ran out of time. */
+export function lastRunWords(r: Pick<Run, "outcome">, kind: string): string {
+  if (r.outcome === "blocked") return "stopped one";
+  if (r.outcome === "error") return "failed";
+  if (r.outcome === "timeout") return "ran out of time";
+  return kind === "check" ? "allowed" : "ran";
+}
+
 /** "Made by Sara Malik (admin)", "Made by Assistant (agent)". */
 export function madeByWords(h: Pick<Hook, "madeBy" | "madeByKind">, nameOf: (id: string) => string): string {
   return `Made by ${nameOf(h.madeBy)}${h.madeByKind === "admin" ? " (admin)" : h.madeByKind === "agent" ? " (agent)" : ""}`;
@@ -83,6 +91,7 @@ function useHooks(): { data: Loaded | undefined; error: string | undefined; refr
 
 export function HooksPage(): ReactElement {
   const cd = useConsoleData();
+  const narrow = useWindowDimensions().width < 600;
   const read = useHooks();
   const action = useAction(read.refresh);
   const [confirm, setConfirm] = useState("");
@@ -118,21 +127,21 @@ export function HooksPage(): ReactElement {
       </Section>
       <Section title="In this Space" count={hooks.length} right={<Button label="Add a hook" testID="hooks-add" onPress={() => setAdding(true)} />}>
         {hooks.length === 0 ? (
-          <Empty testID="hooks-empty" icon="bolt" action={{ label: "Add a hook", onPress: () => setAdding(true) }}>No hooks yet. Add one to run a check or a command when something happens.</Empty>
+          <Empty testID="hooks-empty" icon="bolt">No hooks yet. Add one to run a check or a command when something happens.</Empty>
         ) : (
           <Group testID="hooks-list">
             {hooks.map((h) => {
               const last = lastRun(h.id);
-              const how = h.paused ? "Paused" : last ? `Last ran ${ago(now, last.at)}` : "Not run lately";
+              const how = h.paused ? "Paused" : last ? `Last ran ${ago(now, last.at)}, ${lastRunWords(last, h.kind)}` : "Not run lately";
               return (
                 <Row key={h.id} id={`hook-${h.id}`} tall title={h.line} leading={<IconTile icon="bolt" />}
-                  note={`${EVENT_WORDS[h.event] ?? h.event} · ${kindWord(h)}: ${whatOf(h)}\n${whereWords(h, nameOf)} · ${madeByWords(h, nameOf)} · ${how}`}
+                  note={`${kindWord(h)}: ${whatOf(h)}\n${whereWords(h, nameOf)} · ${madeByWords(h, nameOf)} · ${how}`}
                   trailing={
-                    <Actions>
-                      <Button label={h.paused ? "Resume" : "Pause"} testID={`hook-pause-${h.id}`} disabled={action.busy || !h.canChange} {...(!h.canChange ? { why: "Only an admin or the one who made it can change this" } : {})}
+                    <View style={narrow ? { gap: 6 } : { flexDirection: "row", gap: 8 }}>
+                      <Button small={narrow} label={h.paused ? "Resume" : "Pause"} testID={`hook-pause-${h.id}`} disabled={action.busy || !h.canChange} {...(!h.canChange ? { why: "Only an admin or the one who made it can change this" } : {})}
                         onPress={() => void action.run("hooks.pause", { id: h.id, paused: !h.paused }, h.paused ? "Hook running again" : "Hook paused")} />
-                      <Button label="Remove" testID={`hook-remove-${h.id}`} danger disabled={action.busy || !h.canChange} {...(!h.canChange ? { why: "Only an admin or the one who made it can change this" } : {})} onPress={() => setConfirm(h.id)} />
-                    </Actions>} />
+                      <Button small={narrow} label="Remove" testID={`hook-remove-${h.id}`} danger disabled={action.busy || !h.canChange} {...(!h.canChange ? { why: "Only an admin or the one who made it can change this" } : {})} onPress={() => setConfirm(h.id)} />
+                    </View>} />
               );
             })}
           </Group>

@@ -1,7 +1,7 @@
 // Console > Agents > Hooks: each control is pressed by its testID and the capability it calls is read back. Four hooks: an admin's command, one an agent made, a paused one and one that stopped something lately.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { HooksPage, madeByWords, needsYou, whereWords } from "../pages/Hooks.tsx";
+import { HooksPage, lastRunWords, madeByWords, needsYou, whereWords } from "../pages/Hooks.tsx";
 import { createRoot } from "test-renderer";
 import { mountPage } from "./page-kit.tsx";
 import type { Hook } from "../../places/chats/rightpane/hooks-model.ts";
@@ -41,6 +41,8 @@ test("plain words: where a hook applies, who made it, and which runs need a pers
   assert.equal(madeByWords({ madeBy: "usr_sara", madeByKind: "admin" }, nameOf), "Made by Sara Malik (admin)");
   assert.equal(madeByWords({ madeBy: "agt_a", madeByKind: "agent" }, nameOf), "Made by Assistant (agent)");
   assert.equal(madeByWords({ madeBy: "usr_sara", madeByKind: "person" }, nameOf), "Made by Sara Malik");
+  assert.deepEqual(["ok", "blocked", "error", "timeout"].map((o) => lastRunWords({ outcome: o } as never, "check")), ["allowed", "stopped one", "failed", "ran out of time"]);
+  assert.equal(lastRunWords({ outcome: "ok" } as never, "command"), "ran");
   const need = needsYou(RUNS as never, NOW);
   assert.deepEqual(need.map((r) => r.hookId), ["hk_block"], "only the newest bad run of a hook, and only from the last week");
 });
@@ -116,12 +118,12 @@ test("a hook the person cannot change has Pause and Remove off", async () => {
   } finally { p.restore(); }
 });
 
-test("empty: no hooks gives one sentence and an Add button that opens the sheet", async () => {
+test("empty: no hooks gives one sentence and an Add a hook button that opens the sheet", async () => {
   const p = await mountPage(createRoot, <HooksPage />, { ...ROWS, "hooks.runs.list": { runs: [] } }, answer([], []), clock);
   try {
     assert.ok(p.has("hooks-empty") && p.text().includes("No hooks yet. Add one to run a check or a command when something happens."));
     assert.ok(!p.text().includes("Needs you"));
-    await p.press("hooks-empty-action");
+    await p.press("hooks-add");
     assert.ok(p.has("hook-sheet"));
   } finally { p.restore(); }
 });
