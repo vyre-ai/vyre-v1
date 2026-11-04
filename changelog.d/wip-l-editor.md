@@ -17,3 +17,5 @@
 - The composer lays its controls under the field when its own width is under 560 px (a chat column beside a task pane, a phone), so the field is never squeezed to a few words wide. The text starts at the + button's left edge, an empty field is one line, and the controls sit in a row of 32 px boxes with 8 px gaps, centred on one line. The lock now sits level with the model, effort and Send, and says in its tooltip what it does.
 - The empty composer's placeholder now draws in the shared field (it never did).
 - A reply that links an email thread or a calendar event with [[Name|id]] shows it as a chip; an id that does not resolve shows the Name as plain words, never the brackets. The reply guide says which ids can be linked.
+- A chip for an email thread in a reply opens the Inbox conversation that holds it (new read capability inbox.thread_conversation, mapped through the stored provider thread id).
+- The composer's memory switch uses the memory glyph instead of a lock: "Remembering this chat. Press to stop." and, when off, a crossed glyph with "Not remembering this chat".

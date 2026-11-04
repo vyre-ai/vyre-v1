@@ -1374,6 +1374,7 @@ export function stubs(ctx: CallCtx) {
       recipients_search: call("inbox.recipients_search"),
       send_options: call("inbox.send_options"),
       thread: call("inbox.thread"),
+      thread_conversation: call("inbox.thread_conversation"),
       threads: call("inbox.threads"),
       unmatch: call("inbox.unmatch"),
       unmatched: call("inbox.unmatched"),

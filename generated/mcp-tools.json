@@ -30603,6 +30603,32 @@
     },
     {
       "blocks": [],
+      "cap": "inbox.thread_conversation",
+      "deferred": false,
+      "description": "The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "threadId": {
+            "description": "The provider thread id, as mail_thread_get and the mail search give it",
+            "examples": [
+              "18c2a1f04e9b"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId"
+        ],
+        "type": "object"
+      },
+      "name": "inbox_thread_conversation",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "inbox.threads",
       "deferred": false,
       "description": "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role",

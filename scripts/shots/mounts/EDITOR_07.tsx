@@ -24,7 +24,7 @@ export default function Mount() {
           {...(st === "long" || st === "chips" ? { value: LONG } : {})}
           {...(st === "chips" ? { folder: "Clients / Rivera", attachments: [{ name: "Engagement letter.pdf", size: 120400 }] } : {})}
           {...(st === "reply" ? { banner: <Text style={{ fontSize: 12.5, color: "var(--ink-3)" }}>Replying to Priya Raman: "Can you check the retainer?"</Text> } : {})}
-          barExtra={<MemorySwitch threadId="t1" call={async () => ({ remember: true })} say={() => undefined} />}
+          barExtra={<MemorySwitch threadId="t1" call={async () => ({ remember: st !== "off" })} say={() => undefined} />}
           onSubmit={() => undefined}
         />
       </View>

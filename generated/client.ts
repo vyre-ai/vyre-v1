@@ -1374,6 +1374,7 @@ export function createClient(transport: Transport) {
       recipients_search: call("inbox.recipients_search", 1),
       send_options: call("inbox.send_options", 1),
       thread: call("inbox.thread", 1),
+      thread_conversation: call("inbox.thread_conversation", 1),
       threads: call("inbox.threads", 1),
       unmatch: call("inbox.unmatch", 1),
       unmatched: call("inbox.unmatched", 1),

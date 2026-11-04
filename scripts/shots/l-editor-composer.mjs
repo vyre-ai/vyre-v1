@@ -17,7 +17,7 @@ if (!args.includes("--skip-export")) {
 fs.mkdirSync(out, { recursive: true });
 // [window width, pane width]: the window widths of the brief, and the 700 px chat column beside a task pane in a wide window
 const SIZES = [[1440, 0], [1100, 0], [800, 0], [700, 0], [560, 0], [390, 0], [1440, 700], [1440, 600]];
-const STATES = ["empty", "long", "chips", "reply", "strip"];
+const STATES = ["empty", "long", "chips", "reply", "strip", "off"];
 const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
