@@ -6,7 +6,7 @@
 import { defineManifest, ev, gateAct, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, principalRef, risk } from './_common.ts';
 
-const actKey = t.enm('send', 'post', 'pay', 'delete', 'transfer', 'enroll_node', 'connection_change', 'push_protected', 'secret_export', 'site_promote', 'signature_send', 'spend_raise', 'signin_change', 'approve');
+const actKey = t.enm('send', 'post', 'pay', 'delete', 'transfer', 'enroll_node', 'connection_change', 'push_protected', 'secret_export', 'site_promote', 'signature_send', 'spend_raise', 'signin_change', 'install', 'approve');
 const holdState = t.enm('held', 'approved', 'denied', 'expired');
 const approverRule = t.str({ description: "role:<name>, owner or asker", examples: ['role:admin'] });
 const ruleRow = t.obj({

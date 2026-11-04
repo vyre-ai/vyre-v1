@@ -22881,6 +22881,7 @@
               "signature_send",
               "spend_raise",
               "signin_change",
+              "install",
               "approve"
             ],
             "type": "string"
@@ -22973,6 +22974,7 @@
               "signature_send",
               "spend_raise",
               "signin_change",
+              "install",
               "approve"
             ],
             "type": "string"
@@ -23066,6 +23068,7 @@
               "signature_send",
               "spend_raise",
               "signin_change",
+              "install",
               "approve"
             ],
             "type": "string"
