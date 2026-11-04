@@ -31914,6 +31914,42 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/spaces/delete_cancel",
+    "cap": "spaces.delete_cancel",
+    "v": 1,
+    "module": "spaces",
+    "effects": "write",
+    "permission": null,
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/spaces/delete_due",
+    "cap": "spaces.delete_due",
+    "v": 1,
+    "module": "spaces",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/spaces/export",
     "cap": "spaces.export",
     "v": 1,
@@ -31926,6 +31962,24 @@ const routes5: Route[] = [
     },
     "idempotency": "key",
     "risk": "high",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/spaces/export_latest",
+    "cap": "spaces.export_latest",
+    "v": 1,
+    "module": "spaces",
+    "effects": "read",
+    "permission": "records.export",
+    "level": "manage",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
     "offline": null,
     "teamOnly": false,
     "gate": null
@@ -33070,7 +33124,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sync_types/make_native",
@@ -33127,10 +33184,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sync_types/record_state",

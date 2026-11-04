@@ -2418,7 +2418,10 @@ export function stubs(ctx: CallCtx) {
     },
     spaces: {
       delete: call("spaces.delete"),
+      delete_cancel: call("spaces.delete_cancel"),
+      delete_due: call("spaces.delete_due"),
       export: call("spaces.export"),
+      export_latest: call("spaces.export_latest"),
       get: call("spaces.get"),
       image: call("spaces.image"),
       leave: call("spaces.leave"),

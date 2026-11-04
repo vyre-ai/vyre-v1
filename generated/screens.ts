@@ -8061,6 +8061,10 @@ export const screens: ScreenIndexEntry[] = [
       }
     },
     "actions": {
+      "cancel": {
+        "cap": "spaces.delete_cancel",
+        "input": {}
+      },
       "update": {
         "cap": "spaces.update",
         "input": {
@@ -8084,7 +8088,8 @@ export const screens: ScreenIndexEntry[] = [
       "delete": {
         "cap": "spaces.delete",
         "input": {
-          "confirmName": "/state/confirmName"
+          "confirmName": "/state/confirmName",
+          "withoutExport": "/state/withoutExport"
         },
         "confirm": "Delete the Space for everyone?"
       },

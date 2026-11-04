@@ -311,13 +311,16 @@ Events:
 
 ### spaces
 
-Capabilities to implement: 20. Events to emit: 10. Contract tests that must go green: `generated/tests/spaces/`.
+Capabilities to implement: 23. Events to emit: 12. Contract tests that must go green: `generated/tests/spaces/`.
 
 Capabilities:
 - follows.list (read, grant only, level view)
 - follows.toggle (write, grant only, level view)
 - spaces.delete (write, grant only, level manage, gate delete)
+- spaces.delete_cancel (write, grant only, level manage)
+- spaces.delete_due (write, grant only, level view)
 - spaces.export (write, records.export, level manage)
+- spaces.export_latest (read, records.export, level manage)
 - spaces.get (read, grant only, level member)
 - spaces.image (read, grant only, level view)
 - spaces.leave (write, grant only, level view)
@@ -342,6 +345,8 @@ Events:
 - onboarding.step_completed
 - space.address_changed
 - space.deleted
+- space.deletion_cancelled
+- space.deletion_scheduled
 - space.ownership_transferred
 - space.updated
 - star.added

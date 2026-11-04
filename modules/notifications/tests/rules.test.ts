@@ -47,6 +47,7 @@ const SAMPLE: Record<string, Record<string, unknown>> = {
   "mention.thread": { where: "Intake" }, "run.failed": { name: "Weekly", message: "no mailbox" }, "conflict.needs_you": { title: "Lee" },
   "access.requested": { from: "Bob", level: "edit", title: "Clients" }, "access.decided": { title: "Clients", decision: "approved" }, "sync.attention": { device: "Laptop" },
   "health.degraded": { service: "Mail", state: "slow" }, "problem.report": { from: "Bob" }, "member.joined": { name: "Cara", space: "Northwind" }, "limit.hit": { title: "Scout" }, "machine.alert": { title: "Berlin box has 8% disk left" },
+  "space.deletion_scheduled": { title: "The Space is scheduled for deletion on 18 November 2026. Everything is removed then." }, "space.deletion_cancelled": { title: "The scheduled deletion of the Space was cancelled." },
 };
 for (const def of KINDS.filter((k) => k.key !== "vault.rotation_due")) {
   test(`kind ${def.key}: lands at ${def.level} in ${def.place} with its actions and a readable line`, async () => {
@@ -296,7 +297,7 @@ test("the fanout consumer files a row for the events that name a kind and ignore
   const h = harness();
   const ctx = h.ctxFor(null, sender);
   const fan = consumers["notifications.fanout"];
-  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "machine.alert"]);
+  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "machine.alert", "space.deletion_scheduled", "space.deletion_cancelled"]);
   const a = await fan.run(ctx, { name: "task.requested", payload: { taskId: "tsk_1", kind: "approve", title: "Retainer", assigned: { kind: "person", id: alice.id } } });
   assert.equal(a.length, 1);
   assert.equal(row(h, a[0]!).kind, "approval.requested");
@@ -346,4 +347,26 @@ test("a team's people hear a task given to the team; the person who asked hears 
   assert.equal(row(h, due[0]!).title, "Due today: Send the bill");
   const nudge = await fan.run(ctx, { name: "task.nudged", payload: { taskId: "tsk_g1", title: "Send the bill", why: "waiting_on_decision", notify: bob.id } });
   assert.equal(row(h, nudge[0]!).kind, "approval.backstop");
+});
+
+test("a Space scheduled for deletion, and the deletion cancelled, reach every admin as an Inbox line and one email each, with the date and the way to cancel", async () => {
+  const h = harness();
+  h.callee("access.roles.list", () => ({ roles: [{ id: "rol_owner", name: "Owner" }, { id: "rol_admin", name: "Admin" }, { id: "rol_member", name: "Member" }] }));
+  h.callee("access.roles.get", (i: { roleId: string }) => ({ holders: i.roleId === "rol_owner" ? [{ kind: "person", id: alice.id }] : i.roleId === "rol_admin" ? [{ kind: "person", id: bob.id }, { kind: "agent", id: "agt_x" }] : [{ kind: "person", id: "usr_member" }] }));
+  const fan = consumers["notifications.fanout"];
+  const ctx = h.ctxFor(null, sender);
+  const at = Date.UTC(2026, 10, 18, 9, 0, 0);
+  const made = await fan.run(ctx, { name: "space.deletion_scheduled", payload: { by: alice.id, at } });
+  assert.equal(made.length, 2, "the owner and the admin; not the member, not an agent");
+  assert.deepEqual(made.map((id) => row(h, id).person).sort(), [alice.id, bob.id].sort());
+  const first = row(h, made[0]!);
+  assert.equal(first.kind, "space.deletion_scheduled");
+  assert.equal(first.place, "inbox");
+  assert.equal(first.title, "The Space is scheduled for deletion on 18 November 2026. Everything is removed then.");
+  assert.deepEqual(JSON.parse(first.actions), [{ label: "Cancel deletion", cap: "spaces.delete_cancel" }]);
+  assert.deepEqual(h.emails.map((m) => [m.to, m.subject]).sort(), [alice.id, bob.id].sort().map((to) => [to, first.title]));
+  const cancelled = await fan.run(ctx, { name: "space.deletion_cancelled", payload: { by: bob.id } });
+  assert.equal(cancelled.length, 2);
+  assert.equal(row(h, cancelled[0]!).title, "The scheduled deletion of the Space was cancelled.");
+  assert.equal(h.emails.length, 4, "the cancel is emailed too");
 });

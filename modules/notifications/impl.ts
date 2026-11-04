@@ -99,6 +99,10 @@ async function planTask(ctx: NotifCtx, e: Ev): Promise<SendIn[]> {
   return [];
 }
 
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+/** A date in words, in UTC: 18 November 2026. */
+export const dayOf = (ms: number): string => { const d = new Date(ms); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+
 /** Everyone who holds the Owner or Admin role: the people a machine alert is for. */
 async function adminsOf(ctx: NotifCtx): Promise<string[]> {
   if (!ctx.call) return [];
@@ -120,6 +124,12 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
   if (e.name === "machine.alert") {
     // one line for each admin; it collapses while the same alert lasts, and the machine page is where it opens
     return adminsOf(ctx).then((to) => to.map((id) => ({ to: id, kind: "machine.alert", subject: { type: "space", id: String(p.machineId ?? "") }, title: String(p.title ?? "A machine needs a look"), collapseKey: `machine.alert:${String(p.alertId ?? "")}` })));
+  }
+  if (e.name === "space.deletion_scheduled" || e.name === "space.deletion_cancelled") {
+    // every Owner and Admin hears of it; the line carries the date and the way to cancel
+    const scheduled = e.name === "space.deletion_scheduled";
+    const title = scheduled ? `The Space is scheduled for deletion on ${dayOf(Number(p.at))}. Everything is removed then.` : "The scheduled deletion of the Space was cancelled.";
+    return adminsOf(ctx).then((to) => to.map((id) => ({ to: id, kind: e.name, subject: { type: "space", id: ctx.space }, title, collapseKey: `${e.name}:${String(p.at ?? p.by ?? "")}` })));
   }
   if (e.name === "run.succeeded" && p.kind === "routine" && ctx.call) {
     // Alerts: a routine that succeeded is told only to people who asked for successes too (failures always come through run.failed)
@@ -149,7 +159,7 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
   "notifications.fanout": {
-    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "machine.alert"],
+    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "machine.alert", "space.deletion_scheduled", "space.deletion_cancelled"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
       const planned = await plan(ctx, event);
       const out: string[] = [];

@@ -2418,7 +2418,10 @@ export function createClient(transport: Transport) {
     },
     spaces: {
       delete: call("spaces.delete", 1),
+      delete_cancel: call("spaces.delete_cancel", 1),
+      delete_due: call("spaces.delete_due", 1),
       export: call("spaces.export", 1),
+      export_latest: call("spaces.export_latest", 1),
       get: call("spaces.get", 1),
       image: call("spaces.image", 1),
       leave: call("spaces.leave", 1),

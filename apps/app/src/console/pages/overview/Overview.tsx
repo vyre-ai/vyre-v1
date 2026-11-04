@@ -30,6 +30,7 @@ export const ATTENTION_PAGE: Readonly<Record<Attention["kind"], string>> = {
   limit_hit: "spend",
   access_review_due: "reviews",
   no_ai_account: "aiaccounts",
+  space_deletion_scheduled: "spacedel",
 };
 
 export const ATTENTION_SENTENCE: Readonly<Record<Attention["kind"], string>> = {
@@ -42,6 +43,7 @@ export const ATTENTION_SENTENCE: Readonly<Record<Attention["kind"], string>> = {
   limit_hit: "A limit was reached",
   access_review_due: "An access review is due",
   no_ai_account: "Your team has no AI account",
+  space_deletion_scheduled: "Everything is removed then",
 };
 
 
@@ -126,7 +128,7 @@ export function Overview(): ReactElement {
               key={`${a.kind}-${a.ref ?? i}`}
               id={`attn-${a.kind}-${a.ref ?? i}`}
               title={a.title}
-              note={a.kind === "home_channel" ? a.next : `${ATTENTION_SENTENCE[a.kind]} since ${ago(now, a.since)}${compact ? `. ${a.next}` : ""}`}
+              note={a.kind === "home_channel" ? a.next : a.kind === "space_deletion_scheduled" ? ATTENTION_SENTENCE[a.kind] : `${ATTENTION_SENTENCE[a.kind]} since ${ago(now, a.since)}${compact ? `. ${a.next}` : ""}`}
               leading={<Lead><Glyph name="warn" size={16} color="var(--warn)" /></Lead>}
               {...(compact ? {} : { trailing: fix(a, i) ?? <LinkButton label={a.next} onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])} testID={`attn-go-${i}`} /> })}
               onPress={() => data.nav.openPage(ATTENTION_PAGE[a.kind])}
