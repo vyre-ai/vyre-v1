@@ -80,12 +80,20 @@ export const askerOf = (ctx: Pick<ChatCtx, "principal" | "actingFor">): string =
 const SCHEMA = readFileSync(new URL("./migrations/0001_chat.sql", import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+const SETTINGS_SCHEMA = readFileSync(new URL("./migrations/0005_agent_settings.sql", import.meta.url), "utf8")
+  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
+  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+const HISTORY_SCHEMA = readFileSync(new URL("./migrations/0006_history_from.sql", import.meta.url), "utf8")
+  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
+  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
 
-/** Make sure the chat tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
+/** Make sure the chat tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. The per-chat agent settings (0005) are added the same way when their columns are missing. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
   try { db.all("SELECT id FROM chat_plan WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT respond, owned, grants FROM chat_thread_agent WHERE id = ?", "probe"); } catch { for (const stmt of SETTINGS_SCHEMA) { try { db.run(stmt); } catch { /* the column is already there */ } } }
+  try { db.all("SELECT fromAt FROM chat_thread_member WHERE id = ?", "probe"); } catch { for (const stmt of HISTORY_SCHEMA) { try { db.run(stmt); } catch { /* the column is already there */ } } }
   ready.add(db);
 }
 
@@ -178,7 +186,17 @@ export function addMember(ctx: Pick<ChatCtx, "db" | "now">, thread: string, prin
   );
 }
 
-export interface AgentRec { agentId: string; mode: Mode; model?: string; provider?: string; effort?: string; accountRef?: string; watches?: boolean }
+export type Respond = "always" | "topics" | "hours";
+export type Style = "short" | "full";
+export interface AgentRec {
+  agentId: string; mode: Mode; model?: string; provider?: string; effort?: string; accountRef?: string; watches?: boolean;
+  /** when it answers a message nobody @mentioned: always (the default), only on topics, or only inside hours */
+  when?: Respond; topics?: string; hoursFrom?: string; hoursTo?: string; style?: Style;
+  /** Listening: reads the chat and never posts unless someone pokes it */
+  quiet?: boolean;
+  /** the chat made this agent for itself and removes it with the chat */
+  owned?: boolean;
+}
 export function agentsOf(db: Db, thread: string): AgentRec[] {
   return (db.all("SELECT * FROM chat_thread_agent WHERE thread = ? AND deleted_at IS NULL ORDER BY rowid", thread) as Row[]).map((r) => {
     const o: AgentRec = { agentId: str(r["agentId"]), mode: str(r["mode"]) === "lead" ? "lead" : "listen" };
@@ -187,17 +205,34 @@ export function agentsOf(db: Db, thread: string): AgentRec[] {
     const effort = optStr(r["effort"]); if (effort !== undefined) o.effort = effort;
     const accountRef = optStr(r["accountRef"]); if (accountRef !== undefined) o.accountRef = accountRef;
     if (flag(r["watches"])) o.watches = true;
+    const when = optStr(r["respond"]); if (when === "topics" || when === "hours") o.when = when;
+    const topics = optStr(r["topics"]); if (topics !== undefined && topics !== "") o.topics = topics;
+    const from = optStr(r["hoursFrom"]); if (from !== undefined) o.hoursFrom = from;
+    const to = optStr(r["hoursTo"]); if (to !== undefined) o.hoursTo = to;
+    const style = optStr(r["style"]); if (style === "short" || style === "full") o.style = style;
+    if (flag(r["quiet"])) o.quiet = true;
+    if (flag(r["owned"])) o.owned = true;
     return o;
   });
 }
-export function addAgent(ctx: Pick<ChatCtx, "db" | "now">, thread: string, a: { agentId: string; mode: Mode; model?: string | undefined; provider?: string | undefined; effort?: string | undefined; accountRef?: string | undefined; addedBy: string }): void {
+export function addAgent(ctx: Pick<ChatCtx, "db" | "now">, thread: string, a: { agentId: string; mode: Mode; model?: string | undefined; provider?: string | undefined; effort?: string | undefined; accountRef?: string | undefined; addedBy: string; owned?: boolean | undefined; quiet?: boolean | undefined }): void {
   if (ctx.db.all("SELECT 1 AS x FROM chat_thread_agent WHERE thread = ? AND agentId = ? AND deleted_at IS NULL", thread, a.agentId).length > 0) return;
   const now = ctx.now();
   ctx.db.run(
-    `INSERT INTO chat_thread_agent (id, thread, agentId, mode, model, provider, effort, accountRef, addedBy, watches, version, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, NULL)`,
-    mintId("tha", now), thread, a.agentId, a.mode, a.model ?? null, a.provider ?? null, a.effort ?? null, a.accountRef ?? null, a.addedBy, now,
+    `INSERT INTO chat_thread_agent (id, thread, agentId, mode, model, provider, effort, accountRef, addedBy, watches, version, updated_at, deleted_at, owned, quiet)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, NULL, ?, ?)`,
+    mintId("tha", now), thread, a.agentId, a.mode, a.model ?? null, a.provider ?? null, a.effort ?? null, a.accountRef ?? null, a.addedBy, now, a.owned === true ? 1 : null, a.quiet === true ? 1 : null,
   );
+}
+
+/** One agent of a thread as the contract shows it: the mode (lead or listen, as before), and how and when it answers when that was set. */
+export function agentOut(a: AgentRec): Record<string, unknown> {
+  return {
+    agentId: a.agentId, mode: a.mode, ...(a.model !== undefined ? { model: a.model } : {}), ...(a.provider !== undefined ? { provider: a.provider } : {}), ...(a.effort !== undefined ? { effort: a.effort } : {}),
+    ...(a.accountRef !== undefined ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watches: a.watches } : {}),
+    ...(a.when !== undefined ? { when: a.when } : {}), ...(a.topics !== undefined ? { topics: a.topics } : {}), ...(a.hoursFrom !== undefined ? { hoursFrom: a.hoursFrom } : {}), ...(a.hoursTo !== undefined ? { hoursTo: a.hoursTo } : {}),
+    ...(a.style !== undefined ? { style: a.style } : {}), ...(a.quiet === true ? { quiet: true } : {}), ...(a.owned === true ? { owned: true } : {}),
+  };
 }
 
 /** The full thread row of the contract. */
@@ -218,7 +253,7 @@ export function threadOut(db: Db, t: ThreadRec): Record<string, unknown> {
   const out: Record<string, unknown> = {
     threadId: t.id, kind: t.kind, listed: t.listed, planMode: t.planMode || mode === "plan", mode,
     members: membersOf(db, t.id).map(refOf),
-    agents: agentsOf(db, t.id).map((a) => ({ agentId: a.agentId, mode: a.mode, ...(a.model !== undefined ? { model: a.model } : {}), ...(a.provider !== undefined ? { provider: a.provider } : {}), ...(a.effort !== undefined ? { effort: a.effort } : {}), ...(a.accountRef !== undefined ? { accountRef: a.accountRef } : {}), ...(a.watches !== undefined ? { watches: a.watches } : {}) })),
+    agents: agentsOf(db, t.id).map(agentOut),
     createdAt: t.createdAt,
   };
   const set = (k: string, v: unknown): void => { if (v !== undefined) out[k] = v; };

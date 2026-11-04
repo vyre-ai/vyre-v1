@@ -386,6 +386,7 @@ export function stubs(ctx: CallCtx) {
         list: call("chat.helpers.list"),
       },
       history: {
+        page: call("chat.history.page"),
         search: call("chat.history.search"),
       },
       make_task: call("chat.make_task"),
@@ -1557,6 +1558,7 @@ export function stubs(ctx: CallCtx) {
       invites: {
         create: call("members.invites.create"),
         extend: call("members.invites.extend"),
+        guest: call("members.invites.guest"),
         list: call("members.invites.list"),
         preview: call("members.invites.preview"),
         revoke: call("members.invites.revoke"),
@@ -2617,6 +2619,10 @@ export function stubs(ctx: CallCtx) {
       add_agent: call("threads.add_agent"),
       agent: {
         configure: call("threads.agent.configure"),
+        create: call("threads.agent.create"),
+      },
+      agent_settings: {
+        set: call("threads.agent_settings.set"),
       },
       archive: call("threads.archive"),
       close: call("threads.close"),
@@ -2624,6 +2630,7 @@ export function stubs(ctx: CallCtx) {
       erase: call("threads.erase"),
       follow: call("threads.follow"),
       get: call("threads.get"),
+      invite_guest: call("threads.invite_guest"),
       leave: call("threads.leave"),
       list: call("threads.list"),
       make_channel: call("threads.make_channel"),
@@ -2632,6 +2639,11 @@ export function stubs(ctx: CallCtx) {
         add: call("threads.members.add"),
         remove: call("threads.members.remove"),
       },
+      outside_agent: {
+        add: call("threads.outside_agent.add"),
+        remove: call("threads.outside_agent.remove"),
+      },
+      poke: call("threads.poke"),
       remove_agent: call("threads.remove_agent"),
       reopen: call("threads.reopen"),
       restore: call("threads.restore"),

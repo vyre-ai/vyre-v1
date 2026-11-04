@@ -386,6 +386,7 @@ export function createClient(transport: Transport) {
         list: call("chat.helpers.list", 1),
       },
       history: {
+        page: call("chat.history.page", 1),
         search: call("chat.history.search", 1),
       },
       make_task: call("chat.make_task", 1),
@@ -1557,6 +1558,7 @@ export function createClient(transport: Transport) {
       invites: {
         create: call("members.invites.create", 1),
         extend: call("members.invites.extend", 1),
+        guest: call("members.invites.guest", 1),
         list: call("members.invites.list", 1),
         preview: call("members.invites.preview", 1),
         revoke: call("members.invites.revoke", 1),
@@ -2617,6 +2619,10 @@ export function createClient(transport: Transport) {
       add_agent: call("threads.add_agent", 1),
       agent: {
         configure: call("threads.agent.configure", 1),
+        create: call("threads.agent.create", 1),
+      },
+      agent_settings: {
+        set: call("threads.agent_settings.set", 1),
       },
       archive: call("threads.archive", 1),
       close: call("threads.close", 1),
@@ -2624,6 +2630,7 @@ export function createClient(transport: Transport) {
       erase: call("threads.erase", 1),
       follow: call("threads.follow", 1),
       get: call("threads.get", 1),
+      invite_guest: call("threads.invite_guest", 1),
       leave: call("threads.leave", 1),
       list: call("threads.list", 1),
       make_channel: call("threads.make_channel", 1),
@@ -2632,6 +2639,11 @@ export function createClient(transport: Transport) {
         add: call("threads.members.add", 1),
         remove: call("threads.members.remove", 1),
       },
+      outside_agent: {
+        add: call("threads.outside_agent.add", 1),
+        remove: call("threads.outside_agent.remove", 1),
+      },
+      poke: call("threads.poke", 1),
       remove_agent: call("threads.remove_agent", 1),
       reopen: call("threads.reopen", 1),
       restore: call("threads.restore", 1),

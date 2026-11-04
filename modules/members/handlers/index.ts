@@ -1,5 +1,5 @@
 // One handler per members capability (20). Invites and the join are invite.ts, suspend and the removal wizard remove.ts, sign-in policy, second factor and SSO policy.ts.
-import { accept, invitesCreate, invitesExtend, invitesList, invitesPreview, invitesRevoke, joinsList, joinsRetry } from "./invite.ts";
+import { accept, invitesCreate, invitesGuest, invitesExtend, invitesList, invitesPreview, invitesRevoke, joinsList, joinsRetry } from "./invite.ts";
 import { githubClear, githubGet, githubSet } from "./github.ts";
 import { policyGetH, policySet, secondFactorReport, ssoList, ssoRemove, ssoSet, ssoTest } from "./policy.ts";
 import { companyHandlers } from "./company.ts";
@@ -8,6 +8,7 @@ import { reactivate, remove, removePreview, suspend } from "./remove.ts";
 export const handlers = {
   "members.accept": accept,
   "members.invites.create": invitesCreate,
+  "members.invites.guest": invitesGuest,
   "members.invites.extend": invitesExtend,
   "members.invites.list": invitesList,
   "members.invites.preview": invitesPreview,

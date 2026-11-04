@@ -24,7 +24,7 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agents.outside.connect](../capabilities/agents.outside.connect.md): System: make the agent an app becomes when a person allows it. Called by mcp.oauth.allow, never by a client
 - [agents.outside.enqueue](../capabilities/agents.outside.enqueue.md): System: a mention or a task for an outside agent waits in its queue until it asks
 - [agents.outside.seen](../capabilities/agents.outside.seen.md): System: an outside agent called a tool: its status follows
-- [agents.outside.usable](../capabilities/agents.outside.usable.md): May the person asking give this agent work? An outside agent takes work from its owner only; every other agent says yes
+- [agents.outside.usable](../capabilities/agents.outside.usable.md): May the person asking give this agent work (a task, an automation step, a crew)? An outside agent takes work from its owner only; any other agent needs Can use on it (Can chat with is not enough); a person's Assistant is theirs alone
 - [agents.pause](../capabilities/agents.pause.md): Pause an agent with a reason; the status shows who paused it
 - [agents.restore](../capabilities/agents.restore.md): Restore an agent from Trash
 - [agents.restore_version](../capabilities/agents.restore_version.md): Restore AGENT.md or agent.toml to an earlier version

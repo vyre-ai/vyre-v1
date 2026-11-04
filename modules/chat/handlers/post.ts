@@ -116,17 +116,19 @@ export function inertCard(data: unknown): unknown {
 
 /**
  * What a message sets in motion, once it is stored: message.received for the engine and the replicas, then the notices people get.
- * `author` is who the event names (the call's principal); a mention of a person who cannot see the thread notifies nobody (a private chat never gains people).
+ * `author` is who the event names (the call's principal); a mention of a person who cannot see the thread notifies nobody (a private chat gains people only by threads.members.add, so a person it does not hold hears nothing).
  * `notify: false` sends message.received only. chat.start declares no message.direct, so the first message of a new direct message cannot notify the other person from there (a contract gap, see the packet comment).
  */
-export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions: Mention[], author: { kind: "person" | "agent" | "actor" | "service"; id: string }, opts: { notify?: boolean; job?: boolean } = {}): void {
+export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions: Mention[], author: { kind: "person" | "agent" | "actor" | "service"; id: string }, opts: { notify?: boolean; job?: boolean; poke?: { agentId: string; by: string; outside?: boolean } } = {}): void {
   ctx.emit("message.received", thread.id, {
     messageId: m.id, threadId: thread.id, threadSeq: m.seq, author, kind: m.kind, depth: m.depth, mentions, hasBlocks: m.blocks.length > 0,
     ...(m.via ? { via: m.via.routineOwner } : {}), ...(opts.job === true ? { job: true } : {}),
     // an agent speaks for the person it works for: the engine reads a private thread as that person when nobody has spoken in it yet
     ...(author.kind === "agent" && ctx.actingFor?.startsWith("usr_") ? { actingFor: ctx.actingFor } : {}),
     // a person typed this: not a line a module or the server posted in their name. Only these words can ask for an outward act (chat design, hole 3)
-    ...(author.kind === "person" && ctx.depth === 0 && (ctx.origin === "user" || ctx.origin === "sync") ? { typed: true } : {}),
+    ...(author.kind === "person" && ctx.depth === 0 && (ctx.origin === "user" || ctx.origin === "sync") && opts.poke === undefined ? { typed: true } : {}),
+    // a poke starts a turn for that agent now (threads.poke); its line is never the person's own typed request
+    ...(opts.poke ? { poke: opts.poke } : {}),
   });
   if (opts.notify === false) return;
   const root = rootOf(ctx, thread);

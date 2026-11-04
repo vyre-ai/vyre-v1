@@ -15,6 +15,8 @@ export const NOW = 1_760_000_000_000;
 export const SPACE = "spc_test";
 const TRACE = "0123456789abcdef0123456789abcdef";
 export const MIGRATION = fileURLToPath(new URL("../migrations/0001_members.sql", import.meta.url));
+/** The table a guest invited from a chat is scoped by (lane l-addsheet). */
+export const GUEST_MIGRATION = fileURLToPath(new URL("../migrations/0003_guest_scope.sql", import.meta.url));
 
 type Cell = string | number | null;
 export type Row = Record<string, Cell>;
@@ -173,7 +175,7 @@ export class FakeMembersDb implements RawDb {
   readonly log: string[] = [];
 
   constructor(migrationPath: string = MIGRATION) {
-    this.tables = parseMigration(readFileSync(migrationPath, "utf8"));
+    this.tables = parseMigration(readFileSync(migrationPath, "utf8") + (migrationPath === MIGRATION ? "\n" + readFileSync(GUEST_MIGRATION, "utf8") : ""));
   }
 
   rows(table: string): Row[] { return this.table(table).rows.map((r) => ({ ...r })); }

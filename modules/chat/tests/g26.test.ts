@@ -15,7 +15,7 @@ const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any
 const NOW = 1_760_000_000_000;
 
 async function chatWith(hn: Harness, ...ids: string[]) {
-  // a private chat never gains people, so a chat with another person is a direct message started with them
+  // a chat with another person starts as a direct message with them
   const input = ids.length > 0 ? { kind: "chat", personId: ids[0], idempotencyKey: `k${ids.join("")}${Math.random()}` } : { kind: "chat", agentIds: [INTAKE], idempotencyKey: `k${Math.random()}` };
   return (await h["chat.start"]!(hn.ctx, input)).thread.threadId as string;
 }

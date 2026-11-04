@@ -13,11 +13,18 @@ import { blockSchema, id, level, pageIn, pageOut, principalRef, purgeOut, replyT
 
 const threadKind = t.enm('chat', 'channel', 'thread', 'ask', 'run', 'helper', 'console');
 const agentMode = t.enm('lead', 'listen');
+// How an agent answers in one chat (the Add people and agents sheet): lead = Answers everything, listen = Answers when tagged, quiet = Listening (reads, posts only when poked). A quiet agent shows as mode 'listen' with quiet true.
+const agentSetMode = t.enm('lead', 'listen', 'quiet');
+const agentWhen = t.enm('always', 'topics', 'hours');
+const agentStyle = t.enm('short', 'full');
+const hhmm = t.str({ pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$', examples: ['09:00'] });
 const effort = t.enm('low', 'medium', 'high', 'max');
 const chatMode = t.enm('ask', 'auto', 'plan');
 const threadAgent = t.obj({
   agentId: id.agent, mode: agentMode, model: t.opt(t.str({ examples: ['claude-sonnet-5-5'] })), provider: t.opt(t.str({ examples: ['anthropic'] })),
   effort: t.opt(effort), accountRef: t.opt(t.str({ description: 'Vault handle or subscription account reference; never a secret' })), watches: t.opt(t.bool()),
+  when: t.opt(agentWhen), topics: t.opt(t.str({ description: 'A few words: the agent answers an untagged message only when it is about one of them' })), hoursFrom: t.opt(hhmm), hoursTo: t.opt(hhmm),
+  style: t.opt(agentStyle), quiet: t.opt(t.bool()), owned: t.opt(t.bool()),
 });
 const threadRow = t.obj({
   threadId: id.thread, kind: threadKind, title: t.opt(t.str()), starter: t.opt(t.str()), channelId: t.opt(id.channel),
@@ -199,9 +206,44 @@ export default defineManifest({
     write('threads.remove_agent', 'Remove an agent from a thread', {
       in: { ...threadT, agentId: id.agent }, out: { thread: threadRow }, on: ['thread', '/threadId'], perm: 'channels.agents', emits: ['agent.disengaged'], tool: 'chats',
     }),
-    write('threads.members.add', 'Add a person to a thread; a private chat never gains people, so this offers a channel instead', {
-      in: { ...threadT, personId: id.user }, out: { thread: threadRow }, on: ['thread', '/threadId'], emits: ['channel.member_added'], tool: 'chats',
-      errors: ['validation.precondition_failed'],
+    write('threads.agent_settings.set', 'Set how and when one agent answers in one chat: mode lead (answers everything), listen (when tagged) or quiet (listening, posts only when poked); when always, topics or hours; topics, hours and style (short or full). A tag or a poke still reaches an agent that is not quiet', {
+      in: {
+        ...threadT, agentId: id.agent, mode: t.opt(agentSetMode), when: t.opt(agentWhen), topics: t.opt(t.nullable(t.str())), hoursFrom: t.opt(t.nullable(hhmm)), hoursTo: t.opt(t.nullable(hhmm)), style: t.opt(agentStyle),
+      },
+      out: { thread: threadRow }, on: ['thread', '/threadId'], level: 'use', emits: ['thread.updated'], tool: 'chats', offline: 'queue', idem: 'natural', errors: ['validation.not_found', 'validation.bad_input'],
+    }),
+    write('threads.agent.create', 'Make an agent for this chat or channel and add it as listening in one step: a name, a one-line brief (use me for) and a model. It belongs to the chat: it is not on the Agents page, and it is removed with the chat or when it is removed from it', {
+      in: { ...threadT, name: t.str({ examples: ['Checker'] }), brief: t.opt(t.str({ description: 'One line: use me for' })), model: t.opt(t.str()), mode: t.opt(agentSetMode) },
+      out: { thread: threadRow, agentId: id.agent }, on: ['thread', '/threadId'], level: 'use', idem: 'key', perm: 'agents.create', emits: ['agent.engaged', 'thread.updated'], tool: 'chats', offline: 'online',
+      errors: ['validation.not_found', 'validation.bad_input', 'validation.duplicate', 'validation.precondition_failed'],
+    }),
+    write('threads.poke', 'Poke an agent: one turn for it now, even if it is listening. It reads the last 12 messages and tool calls, answers the poker, and its reply carries "Poked by <person>". An outside agent gets the poke in its queue', {
+      in: { ...threadT, agentId: id.agent, note: t.opt(t.str({ description: 'A line for the agent, shown in the chat' })) },
+      out: { messageId: id.message, delivered: t.enm('engine', 'outside_queue') }, on: ['thread', '/threadId'], level: 'use', idem: 'none', risk: 'low', emits: ['message.received', 'agent.engaged'], tool: 'chats', offline: 'online',
+      errors: ['validation.not_found', 'validation.bad_input', 'permission.no_grant', 'validation.precondition_failed'],
+    }),
+    read('chat.history.page', 'Older messages and tool calls of THIS chat before a given message number, at most 100 at a time, oldest first inside the page; the agent reads further back than the window it was given. It refuses any other chat than the one the agent is working in', {
+      in: { ...threadT, before: t.int({ minimum: 1, description: 'The message number (threadSeq) of the oldest message you can see' }), limit: t.opt(t.int({ minimum: 1, maximum: 100 })) },
+      out: { messages: t.arr(messageRow), hasMore: t.bool(), next: t.opt(t.int({ description: 'Pass as before to go further back' })) },
+      on: ['thread', '/threadId'], tool: 'chats', mcpName: 'chat_history_page', label: 'filter', agent: { planMode: 'allowed' }, errors: ['permission.no_grant', 'validation.not_found'],
+    }),
+    write('threads.outside_agent.add', 'Bring an outside agent into this chat with exactly this chat, its project, files folder and record, each tagged with the chat; it shows as "<person> (Agent)" and removing it ends access at once. You can only give what you hold', {
+      in: { ...threadT, agentId: id.agent, mode: t.opt(agentSetMode) }, out: { thread: threadRow, granted: t.arr(t.obj({ type: t.str(), id: t.str(), level: t.str() })) },
+      on: ['thread', '/threadId'], level: 'use', perm: 'channels.agents', idem: 'natural', audit: 'always', emits: ['agent.engaged'], tool: 'chats', offline: 'online',
+      errors: ['validation.not_found', 'validation.bad_input', 'permission.not_contained', 'permission.no_grant', 'validation.precondition_failed'],
+    }),
+    write('threads.outside_agent.remove', 'Take an outside agent out of this chat and end every grant that bringing it in gave, at once', {
+      in: { ...threadT, agentId: id.agent }, out: { thread: threadRow, revoked: t.int({ minimum: 0 }) }, on: ['thread', '/threadId'], level: 'use', perm: 'channels.agents', idem: 'natural', audit: 'always', emits: ['agent.disengaged'], tool: 'chats', offline: 'online',
+      errors: ['validation.not_found'],
+    }),
+    write('threads.invite_guest', 'Invite someone by email as a guest of this channel chat only: no files folder, no records, no other chats. level view reads, reply also writes. Only the channel owner or a manager invites; a private chat becomes a channel first', {
+      in: { ...threadT, email: t.str({ examples: ['sam@example.com'] }), level: t.opt(t.enm('view', 'reply')) }, out: { inviteId: id.invite, link: t.str() },
+      on: ['thread', '/threadId'], level: 'use', idem: 'key', audit: 'always', emits: ['member.invited'], tool: 'chats', offline: 'online',
+      errors: ['validation.not_found', 'validation.bad_input', 'validation.precondition_failed', 'validation.duplicate', 'permission.not_contained'],
+    }),
+    write('threads.members.add', 'Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker\'s private profile there. A chat\'s own agents become visible to the newcomer.', {
+      in: { ...threadT, personId: id.user, fromStart: t.opt(t.bool({ description: 'The newcomer reads the messages from before they were added. Default: false in a private chat, true in a goal chat and a channel.' })) },
+      out: { thread: threadRow }, on: ['thread', '/threadId'], emits: ['channel.member_added'], tool: 'chats',
     }),
     write('threads.members.remove', 'Remove a person from a thread', {
       in: { ...threadT, personId: id.user }, out: { thread: threadRow }, on: ['thread', '/threadId'], emits: ['channel.member_removed'], tool: 'chats',
@@ -501,7 +543,7 @@ export default defineManifest({
     ev('channel.erased', 'A channel was erased for good with its messages (ids only)', { p: { channelId: id.channel }, subject: ['entity', '/channelId'], retention: 'audit' }),
     ev('transcripts.purged', 'Chat transcripts past their retention were removed (a count)', { p: { removed: t.int({ minimum: 0 }) }, subject: ['entity', '/removed'], retention: 'audit' }),
     ev('message.received', 'A message was posted in a thread (ids and counts only, never the text)', {
-      p: { messageId: id.message, threadId: id.thread, threadSeq: t.int(), author: principalRef, kind: t.str(), depth: t.int(), mentions: t.arr(mention), hasBlocks: t.bool(), via: t.opt(id.user), actingFor: t.opt(id.user), job: t.opt(t.bool()), typed: t.opt(t.bool()) },
+      p: { messageId: id.message, threadId: id.thread, threadSeq: t.int(), author: principalRef, kind: t.str(), depth: t.int(), mentions: t.arr(mention), hasBlocks: t.bool(), via: t.opt(id.user), actingFor: t.opt(id.user), job: t.opt(t.bool()), typed: t.opt(t.bool()), poke: t.opt(t.obj({ agentId: id.agent, by: id.user, outside: t.opt(t.bool()) })) },
       subject: ['thread', '/threadId'], label: 'subject', retention: 'transcripts', trigger: { title: 'A message is posted', fields: ['/threadId', '/author/kind'] },
     }),
     ev('message.edited', 'A message was edited', { p: { messageId: id.message, threadId: id.thread }, subject: ['thread', '/threadId'], label: 'subject', retention: 'transcripts' }),
@@ -577,6 +619,8 @@ export default defineManifest({
         { key: 'reject', label: 'Reject', cap: 'chat.plan.reject', input: { threadId: '/threadId', planId: '/planId' } },
       ],
     }),
+    block('poked', { by: id.user, agentId: id.agent }, 'Poked by {{by}}'),
+    block('poke', { agentId: id.agent, by: id.user, note: t.opt(t.str()) }, '{{by}} poked an agent'),
     block('tab_opened', { targetType: t.str(), targetId: t.str(), title: t.str(), agentId: id.agent }, 'Opened {{title}} beside the chat', { opens: { tab: 'target', input: { type: '/targetType', id: '/targetId' } } }),
     block('helper', {
       threadId: id.thread, parentThreadId: id.thread, title: t.str(), status: t.enm('running', 'done', 'failed', 'stopped'), agentId: id.agent, model: t.opt(t.str()),

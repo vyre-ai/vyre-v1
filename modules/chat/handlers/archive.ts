@@ -10,6 +10,7 @@ import type { ChatCtx, ThreadRec } from "../projections.ts";
 import { ensureArchiveTables } from "./archive-state.ts";
 import { load, out } from "./g24a.ts";
 import { rootOf } from "./post.ts";
+import { ownedIn, trashOwned } from "./owned.ts";
 
 type Row = Record<string, unknown>;
 
@@ -75,6 +76,8 @@ export async function deleteChat(ctx: ChatCtx, input: { threadId: string }) {
   }
   ensureArchiveTables(ctx);
   const now = ctx.now();
+  // the agents this chat made for itself go to Trash with it
+  await trashOwned(ctx, ownedIn(ctx, family(ctx, t.id)));
   for (const id of family(ctx, t.id)) {
     ctx.db.run('UPDATE chat_message SET "deleted_at" = ?, "updated_at" = ? WHERE "thread" = ? AND "deleted_at" IS NULL', now, now, id);
     ctx.db.run('UPDATE chat_thread SET "deleted_at" = ?, "updated_at" = ?, "version" = "version" + 1 WHERE "id" = ? AND "deleted_at" IS NULL', now, now, id);
@@ -100,6 +103,7 @@ export async function restoreChat(ctx: ChatCtx, input: { threadId: string }) {
     ctx.db.run('UPDATE chat_thread SET "deleted_at" = NULL, "updated_at" = ?, "version" = "version" + 1 WHERE "id" = ? AND "deleted_at" = ?', now, id, at);
   }
   ctx.db.run('DELETE FROM chat_thread_deleted WHERE "thread" = ?', input.threadId);
+  await trashOwned(ctx, ownedIn(ctx, family(ctx, input.threadId)), true);
   ctx.emit("thread.restored", input.threadId, { person, threadId: input.threadId });
   return out(ctx, input.threadId);
 }

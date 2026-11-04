@@ -4,6 +4,7 @@
 //   chat.helper.start / chat.helpers.list / chat.handoff   sub-task threads and agent-to-agent threads
 // No handler here calls a model. transcript.summarize writes the plain extract of agent/src/transcript (the floor every switch and rollover already uses) and marks the thread as wanting a
 // model refresh; search is lexical, because the module holds no embedding index.
+import { readFloor } from "./floor.ts";
 import { createTranscript, redact, refreshSummary, transcriptPath } from "../../../agent/src/transcript/index.ts";
 import type { Part, Turn } from "../../../agent/src/transcript/index.ts";
 import {
@@ -226,7 +227,8 @@ export async function transcriptSearch(
 export async function transcriptSummary(ctx: ChatCtx, input: { threadId: string }) {
   ensureTranscript(ctx.db);
   const t = visible(ctx, input.threadId);
-  const r = (ctx.db.all("SELECT * FROM chat_transcript_summary WHERE thread = ?", t.id) as Row[])[0];
+  // the summary is made of the whole chat: a reader whose history starts later gets none, so what was hidden from them never reaches an agent working for them
+  const r = readFloor(ctx, t) > 0 ? undefined : (ctx.db.all("SELECT * FROM chat_transcript_summary WHERE thread = ?", t.id) as Row[])[0];
   return { summary: r ? String(r["summary"]) : "", upToIdx: r ? Number(r["upToIdx"]) : 0, updatedAt: r ? Number(r["updatedAt"]) : 0, transcriptPath: transcriptPath(t.id) };
 }
 
