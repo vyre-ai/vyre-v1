@@ -16,6 +16,19 @@ const PAGES: { id: string; title: string; sub: string }[] = [
   { id: "computer", title: "This device", sub: "This computer and what Vyre can do on it." },
   { id: "signin", title: "Privacy and security", sub: "Your password, two-step sign-in and where you are signed in." },
 ];
+/** GitHub answers as a connected account: the daemon's GitHub egress cannot be faked from a test, so these five reads are answered at the browser's edge; every other call is the real daemon's. */
+const gh = { reconnect: false };
+const POLICY = { read: "always", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "never" };
+async function stubGithub(page: import("playwright-core").Page): Promise<void> {
+  await page.route(/\/v1\/github\/me\/(status|reach|policy\/get|usage)$/, async (route) => {
+    const k = /\/me\/(.+)$/.exec(route.request().url())?.[1];
+    const data = k === "status" ? { connected: true, login: "maya-codes", source: "vyre", connectedAt: Date.now() - 9 * 86_400_000, needsReconnect: gh.reconnect }
+      : k === "reach" ? { login: "maya-codes", orgs: [{ login: "maya-codes", install: "all", url: "https://github.com/settings/installations/1" }, { login: "northwind-law", install: "selected", url: "https://github.com/organizations/northwind-law/settings/installations/2" }, { login: "closed-org", install: "none", url: "https://github.com/apps/vyre/installations/new/permissions?target_id=10" }], repos: [{ repo: "maya-codes/notes", installationId: 1 }, { repo: "northwind-law/website", installationId: 2 }, { repo: "northwind-law/intake-forms", installationId: 2 }] }
+      : k === "usage" ? { uses: [{ consumer: "Scout", repo: "northwind-law/website", action: "pr", at: Date.now() - 3_600_000 }, { consumer: "Scout", repo: "maya-codes/notes", action: "read", at: Date.now() - 86_400_000 }] }
+      : { policy: POLICY };
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ data }) });
+  });
+}
 const BANNED = ["principal", "grant", "actor", "schema", "gate", "suppression", "retention", "tenant", "capability", "sandbox.denied", "trace"];
 
 test("settings journey: the seven pages as Owner and as Member, the look and a channel saved on the server", async (t) => {
@@ -29,7 +42,9 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
       const me = await seat(s, person, role);
       const dir = `${OUT}/${who}`;
       await me.page.setViewportSize({ width: 1440, height: 900 });   // the prototype's width, for side-by-side shots
-      await open(me, s, "/settings");
+      await stubGithub(me.page);
+      gh.reconnect = false;
+      await open(me, s, "/settings?skin=paper");   // Paper for the light pictures, Graphite for the dark ones
       await me.page.getByTestId("settings-place").waitFor({ timeout: 30_000 });
       const nav = (await me.page.getByTestId("settings-nav").innerText()).replace(/\s+/g, " ");
       for (const p of PAGES) assert.ok(nav.includes(p.title), `${who}: the page list has ${p.title}`);
@@ -43,6 +58,17 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
         for (const b of BANNED) { const m = new RegExp(`(^|[^a-z])${b}([^a-z]|$)`, "i").exec(text); assert.ok(!m, `${who}/${p.id}: no "${b}" in: ...${m ? text.slice(Math.max(0, m.index - 60), m.index + 60) : ""}...`); }
         assert.ok(!/Couldn't load|Something went wrong|undefined|\[object/.test(text), `${who}/${p.id}: no error text`);
         await shoot(me.page, dir, p.id);
+        if (p.id === "github") {
+          assert.ok(text.includes("maya-codes") && text.includes("northwind-law"), `${who}: the connected account and its orgs show`);
+          gh.reconnect = true;
+          await me.page.getByTestId("row-page-profile").click();
+          await me.page.getByTestId("row-page-github").click();
+          await me.page.getByTestId("page-github").waitFor();
+          await me.page.waitForTimeout(800);
+          assert.ok((await me.page.getByTestId("page-github").innerText()).includes("Reconnect once"), `${who}: the reconnect line shows`);
+          await shoot(me.page, dir, "github-reconnect");
+          gh.reconnect = false;
+        }
       }
       // a notification channel and the look, as that person, saved on the server
       await me.page.getByTestId("row-page-notifications").click();
@@ -60,7 +86,7 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
       // the phone: every page, light and dark (the list is one screen and a page another, with a back arrow between them)
       await me.page.setViewportSize(SIZES.phone);
       for (const p of PAGES) {
-        await open(me, s, "/settings");
+        await open(me, s, "/settings?skin=paper");
         const row = me.page.getByTestId(`row-page-${p.id}`);
         if (!(await row.isVisible().catch(() => false))) await me.page.getByTestId("back").click().catch(() => undefined);
         await row.click();
@@ -69,6 +95,15 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
         const phoneText = (await me.page.getByTestId(`page-${p.id}`).innerText()).replace(/\s+/g, " ");
         assert.ok(phoneText.includes(p.sub), `${who}/${p.id}: the sentence on a phone`);
         await shoot(me.page, dir, `phone-${p.id}`).then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
+        if (p.id === "github") {
+          gh.reconnect = true;
+          await open(me, s, "/settings?skin=paper");
+          await me.page.getByTestId("row-page-github").click();
+          await me.page.getByTestId("page-github").waitFor();
+          await me.page.waitForTimeout(800);
+          await shoot(me.page, dir, "phone-github-reconnect").then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
+          gh.reconnect = false;
+        }
       }
       await me.page.setViewportSize({ width: 1440, height: 900 });
       assert.deepEqual(me.errors, [], `${who}: no page errors`);
