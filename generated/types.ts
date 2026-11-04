@@ -10939,6 +10939,11 @@ export type EngineCrewStatusOut = {
       tokensIn: number;
       tokensOut: number;
       costMicros: number;
+      tests?: {
+        state: "running" | "passing" | "failing";
+        passed?: number;
+        failed?: number;
+      };
     }>;
   totals: {
     members: number;

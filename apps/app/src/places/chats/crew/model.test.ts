@@ -1,7 +1,7 @@
 // The crew model: every sentence a person reads about the crew, from the numbers engine.crew.status returns.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
+import { keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
 import type { CrewMember, CrewTotals } from "./model.ts";
 
 const T = (o: Partial<CrewTotals> = {}): CrewTotals => ({ members: 3, working: 0, done: 3, needsYou: 0, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: 41_000, ...o });
@@ -60,4 +60,21 @@ test("code work shows branch and change, the model tag says what really ran, the
   assert.equal(modelTag({}), "");
   assert.deepEqual(tokenSplit({ tokensIn: 750, tokensOut: 250 }), { input: 0.75, output: 0.25 });
   assert.deepEqual(tokenSplit({ tokensIn: 0, tokensOut: 0 }), { input: 0, output: 0 });
+});
+
+test("tests read as a person says them, and the keys do what the pane says", () => {
+  assert.equal(testsWords(undefined), "");
+  assert.equal(testsWords({ state: "running" }), "Tests running");
+  assert.equal(testsWords({ state: "passing" }), "Tests passing");
+  assert.equal(testsWords({ state: "passing", passed: 12 }), "12 tests passing");
+  assert.equal(testsWords({ state: "failing", failed: 3 }), "3 failing");
+  assert.equal(testsWords({ state: "failing" }), "Tests failing");
+  const rows = [{ id: "a" }, { id: "b" }, { id: "c" }];
+  assert.deepEqual(keyAction({ key: ".", metaKey: true }, rows), { kind: "stop_all" });
+  assert.deepEqual(keyAction({ key: ".", ctrlKey: true }, rows), { kind: "stop_all" });
+  assert.deepEqual(keyAction({ key: "2", code: "Digit2", altKey: true }, rows), { kind: "jump", id: "b" });
+  assert.deepEqual(keyAction({ key: "¡", code: "Digit1", altKey: true }, rows), { kind: "jump", id: "a" }, "Option on a Mac types a symbol; the code still says which digit");
+  assert.equal(keyAction({ key: "9", code: "Digit9", altKey: true }, rows), null, "no ninth helper");
+  assert.equal(keyAction({ key: "2", code: "Digit2" }, rows), null, "a bare digit is just typing");
+  assert.equal(keyAction({ key: ".", }, rows), null);
 });

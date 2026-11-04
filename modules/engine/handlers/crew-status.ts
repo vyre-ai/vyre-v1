@@ -1,6 +1,7 @@
 // engine.crew.status (owner, 4 Nov 2026): one read of everything under a chat that works for it, for the Island, the header chip and the Crew pane. Helpers come from engine.helpers.status; teammates from their jobs
 // (branch, files from the git summary the job kept). Tokens and cost are the turn rows' own, the model is the one each turn reported, the account is the one that paid. Nothing is estimated: a number that is not
 // known is left out (test counts are not kept anywhere yet, so they are not here).
+import { testsOf } from "../helper-tests.ts";
 import { ensure } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 import { helpersStatus } from "./helpers.ts";
@@ -51,6 +52,7 @@ export async function crewStatus(ctx: EngineCtx, input: { threadId: string }) {
       tokensIn: turns.reduce((n, t) => n + num(t["tokens_in"]), 0), tokensOut: turns.reduce((n, t) => n + num(t["tokens_out"]), 0), costMicros: turns.reduce((n, t) => n + num(t["cost_micros"]), 0),
     });
   }
+  for (const m of members) { const t = testsOf(ctx.db, m.id); if (t) m.tests = t; }
   const by = (s: MemberState): number => members.filter((m) => m.state === s).length;
   const totals = {
     members: members.length, working: by("working"), done: by("done"), needsYou: by("needs_you"), failed: by("failed"), stopped: by("stopped"),

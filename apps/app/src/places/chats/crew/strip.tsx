@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
-import { clock, isCode, lineOf, modelTag, nameOf, roleOf, stripTitle, stripTone } from "./model.ts";
+import { clock, isCode, lineOf, modelTag, nameOf, roleOf, stripTitle, stripTone, testsWords } from "./model.ts";
 import type { CrewMember, CrewTotals } from "./model.ts";
 
 const web = Platform.OS === "web";
@@ -72,6 +72,7 @@ export function HelperChip({ m, now, selected = false, index = 0, onPress, onRet
           <View style={st.l3}>
             {code ? <Text numberOfLines={1} testID={`${id}-branch`} style={st.branch}>{m.branch}</Text> : null}
             {code && (m.added !== undefined || m.deleted !== undefined) ? <Text testID={`${id}-diff`} style={st.mono}><Text style={st.add}>+{m.added ?? 0}</Text> <Text style={st.del}>−{m.deleted ?? 0}</Text></Text> : null}
+            {code && m.tests ? <Text testID={`${id}-tests`} style={[st.mono, m.tests.state === "passing" && st.add, m.tests.state === "failing" && st.del]}>{testsWords(m.tests)}</Text> : null}
             {tag ? <Text numberOfLines={1} testID={`${id}-model`} style={st.mono}>{tag}</Text> : null}
           </View>
         ) : null}

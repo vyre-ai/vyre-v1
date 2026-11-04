@@ -63,6 +63,11 @@ type Out = {
       tokensIn: number;
       tokensOut: number;
       costMicros: number;
+      tests?: {
+        state: "running" | "passing" | "failing";
+        passed?: number;
+        failed?: number;
+      };
     }>;
   totals: {
     members: number;
@@ -128,6 +133,11 @@ type Out = {
         "startedAt": 1760000000000,
         "state": "working",
         "step": "example",
+        "tests": {
+          "failed": 1,
+          "passed": 1,
+          "state": "running"
+        },
         "title": "example",
         "tokensIn": 1,
         "tokensOut": 1,

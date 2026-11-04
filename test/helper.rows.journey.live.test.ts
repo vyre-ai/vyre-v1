@@ -110,10 +110,23 @@ test("helpers are one row each, updated in place, the lead answers once, and a h
       await page.getByText(/^Both helpers are back/).first().waitFor({ timeout: 30_000 });
       assert.equal(await page.getByText("Started a helper", { exact: false }).count(), 0, "no 'Started a helper' line");
       assert.equal(await page.getByText(/found:/).count(), 0, "no pasted result");
-      await shoot(page, `${mode}-1-rows`);
-      await page.getByText("Open", { exact: true }).first().click({ timeout: 15_000 });
+      // one strip for the two helpers, a row each, no Open button
+      await page.getByTestId("crew-strip").first().waitFor({ timeout: 20_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-strip`); throw e; });
+      assert.equal(await page.getByTestId("crew-strip").count(), 1, "one strip");
+      assert.equal(await page.locator('[data-testid^="crew-chip-"][data-testid$="-line"]').count(), 2, "a row per helper");
+      assert.equal(await page.getByText("Open", { exact: true }).count(), 0, "no Open button");
+      await shoot(page, `crew-t27-${mode}-${phone ? "phone" : "wide"}`);
+      // the row opens the peek in the pane
+      await page.locator('[role="button"][data-testid^="crew-chip-"]').first().click({ timeout: 15_000 });
+      await page.getByTestId("crew-peek").first().waitFor({ timeout: 20_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-peek`); throw e; });
+      await shoot(page, `crew-peek1-${mode}-${phone ? "phone" : "wide"}`);
+      await page.getByTestId("crew-peek-back").click({ timeout: 10_000 });
+      await page.getByTestId("crew-overview").first().waitFor({ timeout: 20_000 });
+      await shoot(page, `crew-over-${mode}-${phone ? "phone" : "wide"}`);
+      await page.getByTestId("crew-overview").locator('[data-testid^="crew-row-"]').first().click({ timeout: 10_000 });
+      await page.getByTestId("crew-peek-open").click({ timeout: 15_000 });
       await page.getByText(/Brief from/).first().waitFor({ timeout: 20_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-helper-chat`); throw e; });
-      await shoot(page, `${mode}-2-helper-chat`);
+      await shoot(page, `crew-chat1-${mode}-${phone ? "phone" : "wide"}`);
       await ctx.close();
     }
   } finally { await browser.close(); web.close(); await stop(d); }

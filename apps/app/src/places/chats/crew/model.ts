@@ -155,3 +155,11 @@ export function crewChipOf(t: CrewTotals): { active: number; total: number; labe
   const label = c.needsYou > 0 ? `${t.members} ${noun}, ${c.needsYou} ${c.needsYou === 1 ? "needs" : "need"} you` : c.active > 0 ? `${c.active} ${c.active === 1 ? "helper" : "helpers"} working` : `${t.members} ${noun}, all done`;
   return { active: c.active, total: t.members, label };
 }
+
+/** What the last test run said: "Tests running", "Tests passing" (with the count when known), "3 failing". */
+export function testsWords(t: CrewMember["tests"]): string {
+  if (!t) return "";
+  if (t.state === "running") return "Tests running";
+  if (t.state === "passing") return t.passed !== undefined ? `${t.passed} tests passing` : "Tests passing";
+  return t.failed !== undefined ? `${t.failed} failing` : "Tests failing";
+}

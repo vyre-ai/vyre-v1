@@ -162,3 +162,22 @@ test("the helper chat keeps all three senders: the brief and a follow-up from th
   assert.equal((steer.input as { body: string }).body, "And the acreage.");
   assert.match(textOf(find(root, "helper-line")), /Sent/);
 });
+
+test("Show keeps one kind of helper and checks the one showing; the token bar splits input from output; code rows say what the tests did", async () => {
+  const { showEntries } = await import("./pane.tsx");
+  const picked: string[] = [];
+  const entries = showEntries("working", (x) => picked.push(x));
+  assert.deepEqual(entries.map((e) => e.label), ["All", "Working", "Needs you", "Done", "Failed"]);
+  assert.deepEqual(entries.filter((e) => e.checked).map((e) => e.label), ["Working"]);
+  entries[3]!.onSelect(); assert.deepEqual(picked, ["done"]);
+  const only = await mount(createRoot, <CrewOverview status={status(three(), T({ failed: 1 }))} call={async () => ({})} threadId="thr_0" onPeek={() => undefined} onRefresh={() => undefined} initialShow="failed" />);
+  assert.ok(find(only, "crew-row-thr_c")); assert.equal(find(only, "crew-row-thr_a"), null); assert.equal(find(only, "crew-row-thr_b"), null);
+  const none = await mount(createRoot, <CrewOverview status={status([three()[1]!])} call={async () => ({})} threadId="thr_0" onPeek={() => undefined} onRefresh={() => undefined} initialShow="done" />);
+  assert.match(textOf(find(none, "crew-empty-show")), /No helper is done yet/);
+  const tok = await mount(createRoot, <CrewOverview status={status(three(), T({ tokensIn: 12_300, tokensOut: 800 }))} call={async () => ({})} threadId="thr_0" onPeek={() => undefined} onRefresh={() => undefined} />);
+  assert.match(textOf(find(tok, "crew-tokens")), /12\.3k\s*in\s*·\s*800\s*out/);
+  const noTok = await mount(createRoot, <CrewOverview status={status(three(), T({ tokensIn: 0, tokensOut: 0 }))} call={async () => ({})} threadId="thr_0" onPeek={() => undefined} onRefresh={() => undefined} />);
+  assert.equal(find(noTok, "crew-tokens"), null, "no bar when nothing is known");
+  const code = await mount(createRoot, <CrewStrip members={[M({ id: "k1", branch: "helper/a", added: 1, deleted: 0, tests: { state: "failing", failed: 3 } }), M({ id: "k2", branch: "helper/b", tests: { state: "passing" } })]} totals={T({ members: 2, working: 2, done: 0, needsYou: 0 })} onPeek={() => undefined} />);
+  assert.equal(textOf(find(code, "crew-chip-k1-tests")), "3 failing"); assert.equal(textOf(find(code, "crew-chip-k2-tests")), "Tests passing");
+});

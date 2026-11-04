@@ -7,20 +7,24 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-na
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { MemberRing, timeOf, useNow } from "./strip.tsx";
-import { clock, isCode, keyAction, lineOf, modelTag, money, nameOf, ranTogether, roleOf, shows, sorted, span, stateWord, timeline, tokenSplit, tokens, totalsLine } from "./model.ts";
+import { clock, isCode, keyAction, testsWords, lineOf, modelTag, money, nameOf, ranTogether, roleOf, shows, sorted, span, stateWord, timeline, tokenSplit, tokens, totalsLine } from "./model.ts";
 import type { CrewMember, CrewStatusOut, Show } from "./model.ts";
 import type { Call } from "./status.ts";
 
 const web = Platform.OS === "web";
 const SHOW: Array<{ key: Show; label: string }> = [{ key: "all", label: "All" }, { key: "working", label: "Working" }, { key: "needs_you", label: "Needs you" }, { key: "done", label: "Done" }, { key: "failed", label: "Failed" }];
+const NONE: Record<Show, string> = { all: "No helpers yet.", working: "No helper is working right now.", needs_you: "No helper needs you.", done: "No helper is done yet.", failed: "No helper failed." };
 const BAR = { working: "var(--accent)", needs_you: "var(--warn)", done: "var(--accent)", failed: "var(--ink-4)", stopped: "var(--ink-4)" } as const;
 
 function Face({ m, size = 34 }: { m: CrewMember; size?: number }): ReactElement {
   return <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}><MemberRing state={m.state} size={size} id={`crew-pane-${m.id}`} /><Avatar name={nameOf(m)} seedId={m.agentId} kind="agent" size={Math.round(size * 0.74)} /></View>;
 }
 
-export function CrewOverview({ status, call, threadId, onPeek, onRefresh }: { status: CrewStatusOut; call: Call; threadId: string; onPeek: (id: string) => void; onRefresh: () => void }): ReactElement {
-  const [show, setShow] = useState<Show>("all");
+/** The Show menu: which helpers the list keeps. The one now showing is checked. */
+export const showEntries = (current: Show, pick: (s: Show) => void): Array<{ label: string; checked: boolean; onSelect: () => void }> => SHOW.map((o) => ({ label: o.label, checked: o.key === current, onSelect: () => pick(o.key) }));
+
+export function CrewOverview({ status, call, threadId, onPeek, onRefresh, initialShow = "all" }: { status: CrewStatusOut; call: Call; threadId: string; onPeek: (id: string) => void; onRefresh: () => void; initialShow?: Show }): ReactElement {
+  const [show, setShow] = useState<Show>(initialShow);
   const menu = useMenu();
   const live = status.totals.working + status.totals.needsYou > 0;
   const now = useNow(live);
@@ -47,7 +51,7 @@ export function CrewOverview({ status, call, threadId, onPeek, onRefresh }: { st
       <Text testID="crew-overview-totals" style={st.sub}>{totalsLine(status.totals)}</Text>
       <View style={st.bar}>
         <Text style={st.label}>Show</Text>
-        <Pressable accessibilityRole="button" testID="crew-show" onPress={(e) => { const r = (e as unknown as { nativeEvent?: { pageX?: number; pageY?: number } }).nativeEvent; menu.show(SHOW.map((o) => ({ label: o.label, onSelect: () => setShow(o.key) })), r?.pageX ?? 0, r?.pageY ?? 0, "context", { label: "Show" }); }} style={st.pill}><Text style={st.pillText}>{SHOW.find((o) => o.key === show)!.label}</Text></Pressable>
+        <Pressable accessibilityRole="button" testID="crew-show" onPress={(e) => { const r = (e as unknown as { nativeEvent?: { pageX?: number; pageY?: number } }).nativeEvent; menu.show(showEntries(show, setShow), r?.pageX ?? 0, r?.pageY ?? 0, "context", { label: "Show" }); }} style={st.pill}><Text style={st.pillText}>{SHOW.find((o) => o.key === show)!.label}</Text></Pressable>
         {live ? <Pressable accessibilityRole="button" testID="crew-stop-all" onPress={stopAll} style={st.pill}><Text style={st.pillText}>Stop all</Text></Pressable> : null}
       </View>
 
@@ -74,7 +78,7 @@ export function CrewOverview({ status, call, threadId, onPeek, onRefresh }: { st
       {status.totals.filesChanged > 0 ? <View style={st.kv}><Text style={st.k}>Files changed</Text><Text testID="crew-files" style={st.v}>{status.totals.filesChanged} · <Text style={{ color: "var(--ok)" as string }}>+{status.totals.added}</Text> <Text style={{ color: "var(--danger)" as string }}>−{status.totals.deleted}</Text></Text></View> : null}
 
       <View style={st.listHead}><Text style={st.section}>Helpers</Text><Text style={st.hint}>{status.totals.done} of {status.totals.members} done</Text></View>
-      {rows.length === 0 ? <Text testID="crew-empty-show" style={st.hint}>Nothing {SHOW.find((o) => o.key === show)!.label.toLowerCase()} right now.</Text> : null}
+      {rows.length === 0 ? <Text testID="crew-empty-show" style={st.hint}>{NONE[show]}</Text> : null}
       {rows.map((m, i) => (
         <Pressable key={m.id} accessibilityRole="button" accessibilityLabel={`${nameOf(m)}, ${stateWord(m.state)}`} testID={`crew-row-${m.id}`} onPress={() => onPeek(m.id)} style={st.row}>
           <Face m={m} />
@@ -132,7 +136,7 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
       <View style={st.brief}><Text testID="crew-peek-brief" style={st.briefText}>{brief?.body ?? member.title}</Text></View>
       {member.state === "working" && member.step ? <><Text style={st.section}>Now</Text><Text testID="crew-peek-step" style={st.rowLine}>{member.step}</Text></> : null}
       {member.found ? <><Text style={st.section}>Answer</Text><Text testID="crew-peek-answer" style={st.rowLine}>{member.found}</Text></> : null}
-      {isCode(member) ? <><Text style={st.section}>Code</Text><Text testID="crew-peek-code" style={st.mono}>{member.branch} · +{member.added ?? 0} −{member.deleted ?? 0} · {member.files?.length ?? 0} files</Text></> : null}
+      {isCode(member) ? <><Text style={st.section}>Code</Text><Text testID="crew-peek-code" style={st.mono}>{member.branch} · +{member.added ?? 0} −{member.deleted ?? 0} · {member.files?.length ?? 0} files{member.tests ? ` · ${testsWords(member.tests)}` : ""}</Text></> : null}
       {log.length > 0 ? <><Text style={st.section}>Notes</Text>{log.map((n) => <View key={n.messageId} testID={`crew-note-${n.messageId}`} style={st.note}><Text style={st.noteWho}>{WHO[n.who]}{n.who === "parent" && n.seenAt !== undefined ? " · seen" : ""}</Text><Text style={st.rowLine}>{n.body}</Text></View>)}</> : null}
       <Text style={st.section}>Cost and time</Text>
       <View style={st.kv}><Text style={st.k}>Time</Text><Text testID="crew-peek-time" style={st.v}>{timeOf(member, now)}</Text></View>
