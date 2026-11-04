@@ -1,12 +1,12 @@
-# ci.run.finished
+# ci.job_refused
 
-A job ended and its machine was deleted; the cost is recorded
+A job asked for a runner and was refused, with the reason in plain words
 
 | | |
 |---|---|
 | Module | ci |
 | Schema version | 1 |
-| Subject | entity at /runId |
+| Subject | entity at /repo |
 | Visibility | space |
 | Label | none |
 | Replay | pure |
@@ -18,11 +18,9 @@ A job ended and its machine was deleted; the cost is recorded
 
 ```ts
 type Payload = {
-  runId: string;
   repo: string;
   jobId: number;
-  conclusion: string;
-  costUsd: number;
-  minutes: number;
+  reason: string;
+  code: "fork_with_secrets" | "cap_reached" | "not_enabled" | "no_key";
 };
 ```

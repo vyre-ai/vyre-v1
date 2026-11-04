@@ -1,6 +1,6 @@
-# ci.run.failed
+# ci.run_finished
 
-A machine could not be made for a job, or it was lost before the job ran
+A job ended and its machine was deleted; the cost is recorded
 
 | | |
 |---|---|
@@ -21,6 +21,8 @@ type Payload = {
   runId: string;
   repo: string;
   jobId: number;
-  reason: string;
+  conclusion: string;
+  costUsd: number;
+  minutes: number;
 };
 ```

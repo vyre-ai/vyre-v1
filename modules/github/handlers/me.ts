@@ -8,7 +8,7 @@
 //   own token shows they reach the repository. No personal access token is stored anywhere; the refresh token is a Vault (Mine) item of the person and GitHub rotates it on every refresh.
 // DECISION: an agent uses a person's GitHub only on that person's own turns: the caller is the person, or an agent acting for them (ctx.actingFor). Any other caller is refused.
 // DECISION: Ask me first is the Gate's: github.me.approve is an outward call, so the Gate holds it and makes the Approve task; once released, the approval is good for ten minutes for that repository and kind of use.
-import { createHash, randomBytes } from "node:crypto";
+import { sha256b64 } from "../../../kernel/src/seal/wire.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import { api, bad, codeOf, ensure, ensureMe, first, installationFor, intOrUndef, list, mintToken, needHost, obj, refuse, repoPath, rowsOf, strOrUndef, text } from "../projections.ts";
 import type { GithubCtx, UserHost } from "../projections.ts";
@@ -49,7 +49,8 @@ function userHost(ctx: GithubCtx): UserHost {
   if (!u) throw fail("internal.unavailable", ctx.trace.traceId, { message: "Connecting a personal GitHub is not set up on this server." });
   return u;
 }
-const b64url = (b: Buffer): string => b.toString("base64url");
+const b64url = (b: Uint8Array): string => Buffer.from(b).toString("base64url");
+const randomBytes = (n: number): Uint8Array => globalThis.crypto.getRandomValues(new Uint8Array(n));
 
 // ---- the person's access token
 
@@ -77,13 +78,15 @@ export async function userToken(ctx: GithubCtx, person: string): Promise<string>
 
 // ---- connect
 
-export async function meConnect(ctx: GithubCtx): Promise<{ authUrl: string; state: string; source: "space" | "vyre" }> {
+export async function meConnect(ctx: GithubCtx, input: { return?: string } = {}): Promise<{ authUrl: string; state: string; source: "space" | "vyre" }> {
   ensure(ctx); ensureMe(ctx);
   const person = personOf(ctx), u = userHost(ctx), app = await u.app(ctx);
-  const state = b64url(randomBytes(18)), verifier = b64url(randomBytes(32));
+  // "<random>.<where to go back to>": the route at /hooks/github/connect reads the return address from it and refuses one that is not this Space's or a loopback address
+  const ret = typeof input.return === "string" && input.return.length > 0 && input.return.length <= 400 ? input.return : null;
+  const state = b64url(randomBytes(18)) + (ret ? `.${Buffer.from(ret, "utf8").toString("base64url")}` : `.${b64url(new TextEncoder().encode("/"))}`), verifier = b64url(randomBytes(32));
   ctx.db.run(`DELETE FROM github_me_state WHERE "createdAt" < ?`, ctx.now() - STATE_TTL);
   ctx.db.run(`INSERT INTO github_me_state ("state", "person", "verifier", "createdAt") VALUES (?, ?, ?, ?)`, state, person, verifier, ctx.now());
-  const q = new URLSearchParams({ client_id: app.clientId, redirect_uri: await u.redirectUri(ctx), state, code_challenge: b64url(createHash("sha256").update(verifier).digest()), code_challenge_method: "S256" });
+  const q = new URLSearchParams({ client_id: app.clientId, redirect_uri: await u.redirectUri(ctx), state, code_challenge: sha256b64(verifier), code_challenge_method: "S256" });
   return { authUrl: `https://github.com/login/oauth/authorize?${q.toString()}`, state, source: app.source };
 }
 
@@ -103,7 +106,27 @@ export async function meComplete(ctx: GithubCtx, input: { code: string; state: s
   put(ctx, "github_me", { person }, { login, githubId, source, connectedAt: ctx.now(), needsReconnect: 0 });
   for (const a of ACTIONS) ctx.db.run(`INSERT OR IGNORE INTO github_policy ("person", "action", "mode") VALUES (?, ?, ?)`, person, a, DEFAULT_POLICY[a]);
   ctx.emit("github.me_connected", `entity/${person}`, { person, login, source });
+  // one connection: it also lets them sign in to Vyre with this GitHub. Best effort and silent: an account already linked to another GitHub, or a server with no GitHub sign-in, is left as it is.
+  if (got.linkTicket) await ctx.call("identity.github_link", { code: got.linkTicket }).catch((e) => ctx.log.warn("github: could not link the sign-in", { code: codeOf(e) }));
   return { login, source };
+}
+
+/**
+ * The host, after someone signed in with GitHub: the tokens that sign-in left connect their GitHub too (host call github.adopt_sign_in). A GitHub app that issues no expiring tokens leaves none, and nothing happens.
+ * A person already connected is left as they are.
+ */
+export async function adoptSignIn(ctx: GithubCtx, input: { githubId: string; person: string }): Promise<{ adopted: boolean }> {
+  ensure(ctx); ensureMe(ctx);
+  if (first(ctx.db.all(`SELECT "person" FROM github_me WHERE "person" = ?`, input.person))) return { adopted: false };
+  const u = userHost(ctx), got = await u.adopt(ctx, { githubId: input.githubId });
+  if (!got) return { adopted: false };
+  await u.keep(ctx, input.person, { refreshToken: got.refreshToken });
+  cacheOf(ctx.db).set(input.person, { token: got.accessToken, expiresAt: got.expiresAt });
+  const source = (await u.app(ctx)).source;
+  put(ctx, "github_me", { person: input.person }, { login: got.login, githubId: Number(input.githubId) || 0, source, connectedAt: ctx.now(), needsReconnect: 0 });
+  for (const a of ACTIONS) ctx.db.run(`INSERT OR IGNORE INTO github_policy ("person", "action", "mode") VALUES (?, ?, ?)`, input.person, a, DEFAULT_POLICY[a]);
+  ctx.emit("github.me_connected", `entity/${input.person}`, { person: input.person, login: got.login, source });
+  return { adopted: true };
 }
 
 export function meStatus(ctx: GithubCtx): { connected: boolean; login?: string; source?: "space" | "vyre"; connectedAt?: number; needsReconnect: boolean } {

@@ -45,7 +45,7 @@ export interface GithubHost {
   publicUrl(ctx: GithubCtx): Promise<string>;
 }
 
-export interface UserTokens { accessToken: string; refreshToken: string; expiresAt: number }
+export interface UserTokens { accessToken: string; refreshToken: string; expiresAt: number; /** a ticket the host minted for the GitHub identity just verified; identity.github_link takes it in place of a code */ linkTicket?: string }
 export interface UserHost {
   /** The OAuth client to use: the Space's own GitHub App when an admin set one up, otherwise the default Vyre app. */
   app(ctx: GithubCtx): Promise<{ clientId: string; source: "space" | "vyre" }>;
@@ -53,6 +53,8 @@ export interface UserHost {
   /** GitHub rotates the refresh token on each refresh: the new one comes back. A refresh GitHub refuses throws provider.auth_failed. */
   refresh(ctx: GithubCtx, a: { refreshToken: string }): Promise<UserTokens>;
   revoke(ctx: GithubCtx, a: { accessToken: string }): Promise<void>;
+  /** Tokens a sign-in with GitHub left for this GitHub id (taken once), or null. */
+  adopt(ctx: GithubCtx, a: { githubId: string }): Promise<{ login: string; accessToken: string; refreshToken: string; expiresAt: number } | null>;
   /** The person's own Vault, Mine item "GitHub". */
   keep(ctx: GithubCtx, person: string, a: { refreshToken: string }): Promise<void>;
   recall(ctx: GithubCtx, person: string): Promise<string | null>;

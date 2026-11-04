@@ -120,7 +120,7 @@ const capabilities = [
   }),
   // ---- a person's own GitHub and the one token broker
   write('github.me.connect', 'Start connecting my own GitHub: the address to send me to (the Space\'s own GitHub app when an admin set one up, else the default Vyre app), with PKCE. The refresh token ends up in my own Vault (Mine)', {
-    in: {}, out: { authUrl: t.str(), state: t.str(), source: t.enm('space', 'vyre') }, level: 'use', audit: 'always', errors: ['permission.no_grant', 'internal.unavailable'],
+    in: { return: t.opt(t.str({ maxLength: 400, description: 'Where to send the browser after GitHub, with the code in the address fragment: this Space\'s own address or a loopback one' })) }, out: { authUrl: t.str(), state: t.str(), source: t.enm('space', 'vyre') }, level: 'use', audit: 'always', errors: ['permission.no_grant', 'internal.unavailable'],
   }),
   write('github.me.complete', 'Finish connecting my GitHub: GitHub sent me back with a code; trade it, learn who I am on GitHub and keep the refresh token in my Vault', {
     in: { code: t.str(), state: t.str() }, out: { login: t.str(), source: t.enm('space', 'vyre') }, level: 'use', emits: ['github.me_connected'], audit: 'always', errors: ['validation.bad_input', 'provider.auth_failed'],

@@ -26,7 +26,7 @@ Turning on needs a key and a cap above zero, else `validation.precondition_faile
 States: `queued` (waiting for a free machine, `note` says "Waiting for a free machine: 3 of 3 are busy."), `starting`, `running`, `finished` (`conclusion` is GitHub's), `failed` (`note` says why in plain words), `swept` (the sweeper deleted it), `refused` (`note` says why: a fork with secrets, or "CI paused: this month's cap of $X is reached"). `costUsd` is final once `endedAt` is set; for a `running` run compute the live figure from `startedAt` and the size.
 
 ## Events (for live refresh)
-`ci.run.started`, `ci.run.finished`, `ci.run.failed`, `ci.run.swept`, `ci.job.refused` (with `code`: fork_with_secrets, cap_reached, not_enabled, no_key), `ci.settings_changed`, and `ci.paused` (the admins get an Inbox line "CI paused: this month's cap of $X is reached").
+`ci.run_started`, `ci.run_finished`, `ci.run_failed`, `ci.run_swept`, `ci.job_refused` (with `code`: fork_with_secrets, cap_reached, not_enabled, no_key), `ci.settings_changed`, and `ci.paused` (the admins get an Inbox line "CI paused: this month's cap of $X is reached").
 
 ## Things the UI should say plainly
 - Cost is per second, at least 60 seconds and one cent per machine, billed to the Space's own cloud account. GitHub minutes are not used.

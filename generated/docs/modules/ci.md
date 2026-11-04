@@ -17,10 +17,10 @@ Requires: nothing.
 
 ## Events (7)
 
-- [ci.job.refused](../events/ci.job.refused.md): A job asked for a runner and was refused, with the reason in plain words
+- [ci.job_refused](../events/ci.job_refused.md): A job asked for a runner and was refused, with the reason in plain words
 - [ci.paused](../events/ci.paused.md): CI paused: this month's cap is reached (once a month; the admins' Inbox line)
-- [ci.run.failed](../events/ci.run.failed.md): A machine could not be made for a job, or it was lost before the job ran
-- [ci.run.finished](../events/ci.run.finished.md): A job ended and its machine was deleted; the cost is recorded
-- [ci.run.started](../events/ci.run.started.md): A cloud machine was made for a job and the runner is on it
-- [ci.run.swept](../events/ci.run.swept.md): The sweeper deleted a machine: past its time limit, or with no live run
+- [ci.run_failed](../events/ci.run_failed.md): A machine could not be made for a job, or it was lost before the job ran
+- [ci.run_finished](../events/ci.run_finished.md): A job ended and its machine was deleted; the cost is recorded
+- [ci.run_started](../events/ci.run_started.md): A cloud machine was made for a job and the runner is on it
+- [ci.run_swept](../events/ci.run_swept.md): The sweeper deleted a machine: past its time limit, or with no live run
 - [ci.settings_changed](../events/ci.settings_changed.md): An admin changed the CI settings (never the key)

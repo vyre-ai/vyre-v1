@@ -15473,7 +15473,9 @@ export type GithubMeCompleteOut = {
   login: string;
   source: "space" | "vyre";
 };
-export type GithubMeConnectIn = Record<string, unknown>;
+export type GithubMeConnectIn = {
+  return?: string;
+};
 export type GithubMeConnectOut = {
   authUrl: string;
   state: string;
@@ -50195,12 +50197,12 @@ export interface EventMap {
   "channel.updated": ChannelUpdatedPayload;
   "checklist.dismissed": ChecklistDismissedPayload;
   "checkout.completed": CheckoutCompletedPayload;
-  "ci.job.refused": CiJobRefusedPayload;
+  "ci.job_refused": CiJobRefusedPayload;
   "ci.paused": CiPausedPayload;
-  "ci.run.failed": CiRunFailedPayload;
-  "ci.run.finished": CiRunFinishedPayload;
-  "ci.run.started": CiRunStartedPayload;
-  "ci.run.swept": CiRunSweptPayload;
+  "ci.run_failed": CiRunFailedPayload;
+  "ci.run_finished": CiRunFinishedPayload;
+  "ci.run_started": CiRunStartedPayload;
+  "ci.run_swept": CiRunSweptPayload;
   "ci.settings_changed": CiSettingsChangedPayload;
   "client_log.uploaded": ClientLogUploadedPayload;
   "computer.configured": ComputerConfiguredPayload;
