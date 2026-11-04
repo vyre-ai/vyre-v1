@@ -166,6 +166,8 @@ try {
       await page.getByText("Open the thread", { exact: true }).first().click({ timeout: 8000 }).catch(() => console.log("noopen"));
       await page.waitForTimeout(1500);
       await shot(page, `thread-approval-${mode}`);
+      await page.mouse.click(700, 760);   // click on empty space: nothing keeps focus
+      await shot(page, `main-approval-unfocused-${mode}`);
       await ctx.close(); }
   }
   { const { page, ctx } = await open("usr_mia", { mode: "light", w: 390, hh: 844 });

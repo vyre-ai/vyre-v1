@@ -397,11 +397,19 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
 /* ---------- anyone else's ---------- */
 
 /** An approval asked in a thread rises to the chat as one quiet line: the whole line is a button that opens the thread, where the held card is the newest thing. */
+/** Keyboard focus only: a ring after a click or a tap is noise, so the ring shows when the last thing the person did was press a key. */
+let byKeyboard = false;
+{
+  const doc = (globalThis as { document?: { addEventListener(t: string, f: () => void, c?: boolean): void } }).document;
+  doc?.addEventListener("keydown", () => { byKeyboard = true; }, true);
+  doc?.addEventListener("pointerdown", () => { byKeyboard = false; }, true);
+  doc?.addEventListener("mousedown", () => { byKeyboard = false; }, true);
+}
 const isApprovalUp = (b: { type: string; data?: unknown }): boolean => b.type === "from_thread" && (b.data as { messageId?: unknown } | null)?.messageId === "";
 function ApprovalLine({ id, who, threadId, open }: { id: string; who: string; threadId: string; open(threadId: string): void }): ReactElement {
   return (
     <Pressable testID={`approval-line-${id}`} accessibilityRole="button" accessibilityLabel={`${who} needs your OK. Open the thread`} onPress={() => open(threadId)}
-      style={({ hovered, focused }: { hovered?: boolean; focused?: boolean }) => [st.approvalLine, hovered === true && st.approvalOver, focused === true && st.approvalFocus]}>
+      style={({ hovered, focused }: { hovered?: boolean; focused?: boolean }) => [st.approvalLine, hovered === true && st.approvalOver, focused === true && byKeyboard && st.approvalFocus]}>
       <Text style={st.approvalText}>{`${who} needs your OK in a thread. `}<Text style={st.approvalOpen}>Open the thread</Text></Text>
     </Pressable>
   );
