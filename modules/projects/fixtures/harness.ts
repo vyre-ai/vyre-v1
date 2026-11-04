@@ -39,6 +39,7 @@ export function fakeWorld(clock: { t: number }) {
   const recordShares = new Map<string, Array<{ subject: { kind: string; id: string }; level: string }>>();
   const channels = new Map<string, { channelId: string; mainThreadId: string; name: string; folderId?: string; recordId?: string }>();
   const posts: Array<{ threadId: string; body: string }> = [];
+  const channelPeople = new Map<string, Set<string>>();
   const threadFolders = new Map<string, string>();
   const keys = new Map<string, unknown>();
   const types = new Map<string, { key: string; title: string; template?: string }>([["project", { key: "project", title: "Project", template: "project" }], ["contact", { key: "contact", title: "Contact" }]]);
@@ -100,6 +101,8 @@ export function fakeWorld(clock: { t: number }) {
       return { channel: c };
     }),
     "channels.get": (i) => ({ channel: channels.get(i.channelId) ?? fail("validation.not_found", "no such channel") }),
+    "channels.members.add": (i) => { const set = channelPeople.get(i.channelId) ?? new Set<string>(); for (const id of i.personIds as string[]) set.add(id); channelPeople.set(i.channelId, set); return { channel: channels.get(i.channelId) }; },
+    "channels.members.remove": (i) => { channelPeople.get(i.channelId)?.delete(i.personId); return { channel: channels.get(i.channelId) }; },
     "chat.post": (i, o) => keyed(o, "cp", () => { posts.push({ threadId: i.threadId, body: i.body }); return { message: { messageId: next("msg") } }; }),
     "chat.thread": () => ({ thread: { threadId: next("thr") } }),
     "threads.get": (i) => (i.threadId === "thr_missing" ? fail("validation.not_found", "no such thread") : { thread: { threadId: i.threadId } }),
@@ -138,7 +141,7 @@ export function fakeWorld(clock: { t: number }) {
     },
     "tasks.dependencies.remove": (i) => { const t = tasks.get(i.taskId) ?? fail("validation.not_found", "no such task"); t.dependsOn = t.dependsOn.filter((d) => d !== i.dependsOnId); return { task: taskRow(t) }; },
   };
-  return { calls, outside, records, recordShares, tasks, grants, folders, channels, posts, threadFolders, types, handlers, root, down, unknown, next, agents, trashed };
+  return { calls, outside, records, recordShares, tasks, grants, folders, channels, channelPeople, posts, threadFolders, types, handlers, root, down, unknown, next, agents, trashed };
 }
 export type FakeWorld = ReturnType<typeof fakeWorld>;
 

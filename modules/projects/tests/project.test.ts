@@ -568,3 +568,12 @@ test("archive and unarchive need Manage: a person with no grant on the project i
   h.allowOnly(() => true);
   assert.deepEqual((await run(h, "projects.list", {})).projects.length, 1, "nothing changed");
 });
+
+test("a person given a role on a project is added to its invite-only channel (so the Chat tab opens for them), and leaves it when removed", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" });
+  assert.ok(h.world.channelPeople.get(p.channelId)?.has(MAYA), "Maya is in the project's channel");
+  await run(h, "projects.members.remove", { projectId: p.projectId, principal: MAYA });
+  assert.ok(!h.world.channelPeople.get(p.channelId)?.has(MAYA), "and out of it when she leaves the project");
+});
