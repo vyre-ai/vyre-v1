@@ -475,6 +475,26 @@ export function stubs(ctx: CallCtx) {
       },
       unpin: call("chat.unpin"),
     },
+    ci: {
+      cost: {
+        month: call("ci.cost.month"),
+      },
+      job: {
+        intake: call("ci.job.intake"),
+      },
+      project: {
+        get: call("ci.project.get"),
+      },
+      runs: {
+        get: call("ci.runs.get"),
+        list: call("ci.runs.list"),
+      },
+      settings: {
+        get: call("ci.settings.get"),
+        set: call("ci.settings.set"),
+      },
+      sweep: call("ci.sweep"),
+    },
     comms: {
       senders: {
         list: call("comms.senders.list"),
@@ -1101,6 +1121,9 @@ export function stubs(ctx: CallCtx) {
       sync: call("git.sync"),
     },
     github: {
+      actions: {
+        secrets: call("github.actions.secrets"),
+      },
       app: {
         complete: call("github.app.complete"),
         create_manifest: call("github.app.create_manifest"),
@@ -1121,6 +1144,19 @@ export function stubs(ctx: CallCtx) {
         create: call("github.issue.create"),
         get: call("github.issue.get"),
         update: call("github.issue.update"),
+      },
+      me: {
+        approve: call("github.me.approve"),
+        complete: call("github.me.complete"),
+        connect: call("github.me.connect"),
+        disconnect: call("github.me.disconnect"),
+        policy: {
+          get: call("github.me.policy.get"),
+          set: call("github.me.policy.set"),
+        },
+        reach: call("github.me.reach"),
+        status: call("github.me.status"),
+        usage: call("github.me.usage"),
       },
       pull_request: {
         ask_author_fix: call("github.pull_request.ask_author_fix"),
@@ -1143,6 +1179,12 @@ export function stubs(ctx: CallCtx) {
       repos: {
         list: call("github.repos.list"),
       },
+      runners: {
+        jit_config: call("github.runners.jit_config"),
+        remove: call("github.runners.remove"),
+      },
+      session_env: call("github.session_env"),
+      token: call("github.token"),
     },
     goals: {
       activity: call("goals.activity"),

@@ -1,0 +1,22 @@
+{
+  "module": "ci",
+  "capabilities": {
+    "ci.cost.month@1": "afb6cf9eb415e65dde26035dc106e97df43ac5859e69a95e18b513f9ceb5dde9",
+    "ci.job.intake@1": "6049bbb4aff2e5f44555acce53c39b0a16aaf1cc109956726709e8fe83ce76f4",
+    "ci.project.get@1": "9cf745e26139123cc6c2aed713dced9b3f2510df20044fea9a25364f0b949377",
+    "ci.runs.get@1": "9cc58019ed39737a296a8cb176c25bae0a502e6fd130a1c91ab38d25ad67bb32",
+    "ci.runs.list@1": "a5c21b167dc8986f9d7601edaf930116ac59b3004c566cabb1d4c60777a3f41f",
+    "ci.settings.get@1": "b8b50df254b93266d6ba1a7df80f944f2b77691e416e388c8bbbaab43e4617df",
+    "ci.settings.set@1": "cdca98907bb3ca6f92155c3ff4b42dffd76ef2338364fb82b7d089c25a1110d3",
+    "ci.sweep@1": "fd1ffbe140ddbb1a4273b048f08d5ba0ea19f58acef11a62cdac9293c1eb2b0d"
+  },
+  "events": {
+    "ci.job.refused": "65013b275b4cd901637f06846a4278a98902022766e055e217381a023002bd5b",
+    "ci.paused": "5485f29b55ab4af5b77ecba2105b84c22e98958368b04fafd45b5594304add59",
+    "ci.run.failed": "d2b27e1d83a0f32f244881842a86caa048f49abde90938939a76b100d566f79e",
+    "ci.run.finished": "dfeeba6194434e7ea6fc46e51d0f27ebd07031362d0abc6dbf59dd8d3138254d",
+    "ci.run.started": "e39c573e6904953403cdb915cbdd9fd75a0e5c2125d2bd5c16a56350badf02c7",
+    "ci.run.swept": "b4383412e7f8c70b8d01aff3c88c2bef4a3c60522a8a0af24382cbec51083a84",
+    "ci.settings_changed": "27790b51fb9ed117e8ebf6b55766de27ef830f6ec54a13c993f54c1dd9cf240e"
+  }
+}

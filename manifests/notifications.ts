@@ -13,7 +13,7 @@ const kindKey = t.enm(
   'approval.requested', 'answer.requested', 'unblock.requested', 'approval.backstop', 'dm', 'mention', 'call.incoming', 'agent.blocked', 'incident.owned', 'task.assigned', 'reply.followed',
   'agent.task_finished', 'digest.away', 'mention.thread', 'run.failed', 'conflict.needs_you', 'access.requested', 'access.decided',
   'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'limit.hit', 'vault.rotation_due', 'reply.thread',
-  'task.turn', 'task.returned', 'task.finished', 'task.due', 'machine.alert', 'item.shared', 'space.deletion_scheduled', 'space.deletion_cancelled',
+  'task.turn', 'task.returned', 'task.finished', 'task.due', 'machine.alert', 'item.shared', 'space.deletion_scheduled', 'space.deletion_cancelled', 'ci.paused',
 );
 const notificationRow = t.obj({
   id: id.notification, kind: kindKey, level, place, title: t.str(), body: t.opt(t.str()), subject: t.opt(resourceRef), count: t.int({ minimum: 1 }),
@@ -74,6 +74,8 @@ export default defineManifest({
     // the Space was scheduled for deletion, or the deletion was cancelled: one Inbox line for each admin, and an email to each (the date and the way to cancel)
     notif('space.deletion_scheduled', 'badge', 'inbox', '{{title}}', { actions: [{ label: 'Cancel deletion', cap: 'spaces.delete_cancel' }] }),
     notif('space.deletion_cancelled', 'badge', 'inbox', '{{title}}'),
+    // CI paused for the month: the cap is reached; one Inbox line for each admin
+    notif('ci.paused', 'badge', 'console', '{{title}}', { actions: [{ label: 'Open', cap: 'ci.cost.month' }] }),
     notif('problem.report', 'badge', 'console', 'Problem report from {{from}}', { actions: [{ label: 'Review', cap: 'tasks.act' }] }),
     notif('member.joined', 'digest', 'home', '{{name}} joined {{space}}'),
     notif('limit.hit', 'badge', 'chats', '{{title}} hit its limit', { actions: [{ label: 'Raise once', cap: 'tasks.act' }, { label: 'Stop', cap: 'tasks.act' }] }),

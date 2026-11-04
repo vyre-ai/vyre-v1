@@ -17,6 +17,8 @@ import { createImapSecretResolver } from "./imap.ts";
 import type { ImapSecretResolver } from "./imap.ts";
 import { createMailgunHost, createResendHost } from "./mail-providers.ts";
 import type { MailgunHostSeam, ResendHostSeam } from "./mail-providers.ts";
+import { createCiHost } from "./ci.ts";
+import type { CiHostSeam } from "./ci.ts";
 import { createGithubHost, createStripeHost, createTwilioHost, createZoomHost } from "./comms.ts";
 import type { GithubHostSeam, StripeHostSeam, TwilioHostSeam, ZoomHostSeam } from "./comms.ts";
 import type { FillerPort } from "./filler.ts";
@@ -66,6 +68,8 @@ export interface SeamSetters {
   setTwilioHost?: ((h: TwilioHostSeam | null) => void) | undefined;
   setGithubHost?: ((h: GithubHostSeam | null) => void) | undefined;
   setZoomHost?: ((h: ZoomHostSeam | null) => void) | undefined;
+  /** the CI runners (l-ci-runners): the Space's cloud key from the Vault, used for one call to the provider's API */
+  setCiHost?: ((h: CiHostSeam | null) => void) | undefined;
   /** Dropbox as a file source (live folders L3): the app key and secret, sign-in and refresh, uploads and downloads */
   setDropboxHost?: ((h: DropboxHostSeam | null) => void) | undefined;
   /** Talk: the provider's grant, with the key read from the Vault at the last moment */
@@ -125,6 +129,7 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.free
   setMailgunHost: (d: SeamDriverDeps) => createMailgunHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
   setStripeHost: (d: SeamDriverDeps) => createStripeHost({ vault: d.vault }),
   setTwilioHost: (d: SeamDriverDeps) => createTwilioHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, publicUrl: d.publicUrl }),
+  setCiHost: (d: SeamDriverDeps) => createCiHost({ vault: d.vault, fetch: d.fetch }),
   setZoomHost: (d: SeamDriverDeps) => createZoomHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs }),
   setDropboxHost: (d: SeamDriverDeps) => createDropboxHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
   setTalkHost: (d: SeamDriverDeps) => createTalkHost({ vault: d.vault, fetch: d.fetch }),

@@ -475,6 +475,26 @@ export function createClient(transport: Transport) {
       },
       unpin: call("chat.unpin", 1),
     },
+    ci: {
+      cost: {
+        month: call("ci.cost.month", 1),
+      },
+      job: {
+        intake: call("ci.job.intake", 1),
+      },
+      project: {
+        get: call("ci.project.get", 1),
+      },
+      runs: {
+        get: call("ci.runs.get", 1),
+        list: call("ci.runs.list", 1),
+      },
+      settings: {
+        get: call("ci.settings.get", 1),
+        set: call("ci.settings.set", 1),
+      },
+      sweep: call("ci.sweep", 1),
+    },
     comms: {
       senders: {
         list: call("comms.senders.list", 1),
@@ -1101,6 +1121,9 @@ export function createClient(transport: Transport) {
       sync: call("git.sync", 1),
     },
     github: {
+      actions: {
+        secrets: call("github.actions.secrets", 1),
+      },
       app: {
         complete: call("github.app.complete", 1),
         create_manifest: call("github.app.create_manifest", 1),
@@ -1121,6 +1144,19 @@ export function createClient(transport: Transport) {
         create: call("github.issue.create", 1),
         get: call("github.issue.get", 1),
         update: call("github.issue.update", 1),
+      },
+      me: {
+        approve: call("github.me.approve", 1),
+        complete: call("github.me.complete", 1),
+        connect: call("github.me.connect", 1),
+        disconnect: call("github.me.disconnect", 1),
+        policy: {
+          get: call("github.me.policy.get", 1),
+          set: call("github.me.policy.set", 1),
+        },
+        reach: call("github.me.reach", 1),
+        status: call("github.me.status", 1),
+        usage: call("github.me.usage", 1),
       },
       pull_request: {
         ask_author_fix: call("github.pull_request.ask_author_fix", 1),
@@ -1143,6 +1179,12 @@ export function createClient(transport: Transport) {
       repos: {
         list: call("github.repos.list", 1),
       },
+      runners: {
+        jit_config: call("github.runners.jit_config", 1),
+        remove: call("github.runners.remove", 1),
+      },
+      session_env: call("github.session_env", 1),
+      token: call("github.token", 1),
     },
     goals: {
       activity: call("goals.activity", 1),

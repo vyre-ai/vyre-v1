@@ -131,6 +131,10 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
     const title = scheduled ? `The Space is scheduled for deletion on ${dayOf(Number(p.at))}. Everything is removed then.` : "The scheduled deletion of the Space was cancelled.";
     return adminsOf(ctx).then((to) => to.map((id) => ({ to: id, kind: e.name, subject: { type: "space", id: ctx.space }, title, collapseKey: `${e.name}:${String(p.at ?? p.by ?? "")}` })));
   }
+  if (e.name === "ci.paused") {
+    // the monthly cap is reached: one line for each admin, once for the month
+    return adminsOf(ctx).then((to) => to.map((id) => ({ to: id, kind: "ci.paused", subject: { type: "space", id: "ci" }, title: String(p.title ?? "CI paused"), collapseKey: `ci.paused:${String(p.month ?? "")}` })));
+  }
   if (e.name === "run.succeeded" && p.kind === "routine" && ctx.call) {
     // Alerts: a routine that succeeded is told only to people who asked for successes too (failures always come through run.failed)
     return ctx.call("runs.get", { runId: p.runId }).then((r) => {
@@ -164,7 +168,7 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
   "notifications.fanout": {
-    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled"],
+    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
       const planned = await plan(ctx, event);
       const out: string[] = [];
