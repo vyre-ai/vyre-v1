@@ -13,7 +13,7 @@ import type { FetchFn } from "../src/platform/probes.ts";
 import { loadConfig } from "../src/daemon/config.ts";
 import { startDaemon } from "../src/daemon/daemon.ts";
 
-const LIVE = ["access", "audit", "devices", "governance", "identity", "members", "settings", "spaces", "vault", "vault-requests"];
+const LIVE = ["access", "audit", "devices", "governance", "identity", "members", "settings", "spaces", "talk", "vault", "vault-requests"];   // talk (Voice) is an L7a module too
 const STUB: string[] = [];
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
