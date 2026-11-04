@@ -15,3 +15,4 @@
 - Avatar: the synchronous first draw is limited to 6 faces per frame (the rest take the cached-bitmap path), so long lists keep their scroll speed. New live test test/avatar-scroll.live.test.ts measures a 60-face Add sheet scroll.
 - Reach: a person opened from the people popover is read as their public profile (memory.profile.get) before it opens.
 - Reach: a refused person profile shows "You can't see this person's profile" and opens nothing; an allowed one opens in Chats.
+- Person profile: pressing a person in the chat People popover (or opening a person link) opens their public profile in the chat's right pane. About adds the public lines of memory.profile.get; the private part never reaches the pane.

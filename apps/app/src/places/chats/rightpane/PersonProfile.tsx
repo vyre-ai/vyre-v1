@@ -9,7 +9,7 @@ import { LeadIcon } from "./parts.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { ProfileHeader } from "./ProfileHeader.tsx";
 import type { HeaderAction, Presence } from "./ProfileHeader.tsx";
-import { cityOf, hoursWords, lastActive, localTime, personLine, presenceWord, responsibleFor } from "./person-model.ts";
+import { cityOf, hoursWords, lastActive, localTime, personLine, presenceWord, publicLines, responsibleFor } from "./person-model.ts";
 import type { PresenceState } from "./person-model.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 
@@ -66,6 +66,7 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
   const presence = useRead<PresenceOut | undefined>(p.call, "devices.presence", { people: [p.id] }, (o) => (o as CapMap["devices.presence"]["out"]).people[0]);
   const pub = useRead<PublicOut>(p.call, "settings.public_of", { personId: p.id }, (o) => o as PublicOut);
   const roles = useRead<{ project: string; role: string }[]>(p.call, "projects.roles_of", { personId: p.id }, (o) => (o as CapMap["projects.roles_of"]["out"]).roles.map((r) => ({ project: r.title, role: ROLE_WORD[r.role] ?? r.role })));
+  const known = useRead<string[]>(p.call, "memory.profile.get", { personId: p.id }, (o) => publicLines(o as CapMap["memory.profile.get"]["out"]));
   const state = presence?.state as PresenceState | undefined;
   const time = localTime(p.now(), pub?.timezone);
   const dot: Presence | undefined = state === "online" ? "on" : state === "away" ? "away" : state === "offline" ? "asleep" : undefined;
@@ -87,7 +88,7 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
         ))}
       </View>
       <ScrollView style={st.body} contentContainerStyle={st.content}>
-        {tab === "about" ? <About {...p} roles={roles ?? []} first={first} state={state} lastSeenAt={presence?.lastSeenAt} pub={pub} time={time} /> : null}
+        {tab === "about" ? <About {...p} known={known ?? []} roles={roles ?? []} first={first} state={state} lastSeenAt={presence?.lastSeenAt} pub={pub} time={time} /> : null}
         {tab === "chats" ? <Chats {...p} first={first} /> : null}
         {tab === "files" ? <Files {...p} first={first} /> : null}
         {tab === "tasks" ? <Tasks {...p} first={first} /> : null}
@@ -100,7 +101,7 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
 const label = (t: string): ReactElement => <Text key={t} style={st.label}>{t}</Text>;
 const kv = (k: string, v: string | undefined): ReactElement | null => (v === undefined || v === "" ? null : <View key={k} style={st.kv}><Text style={st.k}>{k}</Text><Text style={[st.v, st.vEnd]}>{v}</Text></View>);
 
-function About(p: PersonProfileProps & { roles: readonly { project: string; role: string }[]; first: string; state: PresenceState | undefined; lastSeenAt: number | undefined; pub: PublicOut | null; time: string | undefined }): ReactElement {
+function About(p: PersonProfileProps & { known: readonly string[]; roles: readonly { project: string; role: string }[]; first: string; state: PresenceState | undefined; lastSeenAt: number | undefined; pub: PublicOut | null; time: string | undefined }): ReactElement {
   const roles = p.roles;
   const resp = responsibleFor(p.title ?? p.pub?.title, roles);
   const away = p.state === "away";
@@ -109,10 +110,11 @@ function About(p: PersonProfileProps & { roles: readonly { project: string; role
     <View testID="person-about">
       {label("Responsible for")}<Text testID="person-resp" style={st.body14}>{resp}</Text>
       {p.state !== undefined ? <>{label("Right now")}<View style={st.now}><View style={[st.dot, { backgroundColor: (away ? "var(--warn)" : p.state === "online" ? "var(--ok)" : "var(--ink-4)") as string }]} /><View><Text style={st.v}>{presenceWord(p.state)}</Text>{now ? <Text style={st.sub}>{now}</Text> : null}</View></View></> : null}
-      {p.pub?.timezone || p.pub?.hours || p.pub?.pronouns ? label(`About ${p.first}`) : null}
+      {p.pub?.timezone || p.pub?.hours || p.pub?.pronouns || p.known.length > 0 ? label(`About ${p.first}`) : null}
       {kv("Local time", p.time && p.pub?.timezone ? `${p.time} · ${cityOf(p.pub.timezone)}` : undefined)}
       {kv("Working hours", p.pub?.hours ? `${hoursWords(p.pub.hours)}, ${p.first}'s time` : undefined)}
       {kv("Pronouns", p.pub?.pronouns)}
+      {p.known.map((line) => <Text key={line} testID="person-known" style={[st.body14, st.fact]}>{line}</Text>)}
     </View>
   );
 }
@@ -170,6 +172,7 @@ const st = StyleSheet.create({
   k: { flexShrink: 0, fontSize: 13.5, color: "var(--ink-3)" as string },
   vEnd: { flex: 1, textAlign: "right" },
   v: { flexShrink: 1, fontSize: 14, lineHeight: 19, color: "var(--ink)" as string },
+  fact: { paddingVertical: 6 },
   sub: { fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string },
   row: { flexDirection: "row", alignItems: "center", gap: 14, minHeight: 56, paddingVertical: 10 },
   rowText: { flex: 1, minWidth: 0 },

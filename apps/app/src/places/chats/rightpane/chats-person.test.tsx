@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PERSON_TABS, PersonProfile, personActions } from "./PersonProfile.tsx";
-import { cityOf, hoursWords, lastActive, localTime, personLine, presenceWord, responsibleFor } from "./person-model.ts";
+import { cityOf, hoursWords, lastActive, localTime, personLine, presenceWord, publicLines, responsibleFor } from "./person-model.ts";
 
 const clean = (s: string): string => s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 const has = (s: string, n: string): boolean => s.includes(n);
@@ -79,4 +79,10 @@ test("responsible for is the title plus the roles they hold on projects the aske
   assert.equal(responsibleFor("Account lead", [{ project: "Client portal launch", role: "Lead" }, { project: "Northwind renewal", role: "Reviewer" }]), "Account lead. Lead on Client portal launch, Reviewer on Northwind renewal.");
   assert.equal(responsibleFor("Account lead", []), "Account lead.");
   assert.equal(responsibleFor(undefined, []), "Member.");
+});
+
+test("About shows the public part of the profile only: current public facts, never a private or replaced one", () => {
+  const f = (text: string, place: string, status: string): { text: string; place: string; status: string } => ({ text, place, status });
+  assert.deepEqual(publicLines({ public: [f("Prefers short replies", "public", "current"), f("Out on Friday", "public", "closed"), f("Takes calls after 4", "private", "current"), f("  ", "public", "current")] }), ["Prefers short replies"]);
+  assert.deepEqual(publicLines(null), []);
 });
