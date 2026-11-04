@@ -37,6 +37,7 @@ export function PropertiesRow({ facts, props, canEdit, onSet, onAdd }: { facts: 
   return (
     <View testID="overview-props" accessibilityLabel="Properties">
       <View style={s.grid}>
+        {/* ui-rows-lint: not a list (a grid of labels and values) */}
         {rows.map((r) => <View key={r.k} style={s.row}><Text style={s.key}>{r.k}</Text><View style={s.cell}>{r.node}</View></View>)}
       </View>
       {canEdit ? <Pressable accessibilityRole="button" accessibilityLabel="Add a property" testID="prop-add" onPress={onAdd} style={s.add}><Text style={s.addText}>+ Add a property</Text></Pressable> : null}

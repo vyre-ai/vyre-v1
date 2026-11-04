@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Row } from "../../../../../../../ui/src/Row/index.tsx";
 import { useMenu } from "../../../../../../../ui/src/Menu/index.tsx";
 import { useProjectPageData } from "../data.tsx";
 import { countLine, hiddenLine, kindOf, liveReady, liveTitle } from "./model.ts";
@@ -33,6 +34,7 @@ function Rows({ rows, view, open }: { rows: readonly LiveRowOut[]; view: LiveVie
   if (view === "table") {
     return (
       <View testID="live-table" accessibilityRole="table" style={s.table}>
+        {/* ui-rows-lint: not a list (the rows of a table, with columns) */}
         {rows.map((r) => (
           <Pressable key={r.id} accessibilityRole="button" accessibilityLabel={r.title} testID={`live-row-${r.id}`} onPress={() => open(r)} style={({ hovered }: { hovered?: boolean }) => [s.trow, hovered === true && s.over]}>
             <Text numberOfLines={1} style={[s.cell, s.cellTitle]}>{r.title}</Text>
@@ -46,6 +48,7 @@ function Rows({ rows, view, open }: { rows: readonly LiveRowOut[]; view: LiveVie
   if (view === "cards") {
     return (
       <View testID="live-cards" style={s.cards}>
+        {/* ui-rows-lint: not a list (cards in a grid) */}
         {rows.map((r) => (
           <Pressable key={r.id} accessibilityRole="button" accessibilityLabel={r.title} testID={`live-row-${r.id}`} onPress={() => open(r)} style={({ hovered }: { hovered?: boolean }) => [s.card, hovered === true && s.over]}>
             <Text numberOfLines={2} style={s.cardTitle}>{r.title}</Text>
@@ -58,12 +61,7 @@ function Rows({ rows, view, open }: { rows: readonly LiveRowOut[]; view: LiveVie
   return (
     <View testID="live-list">
       {rows.map((r) => (
-        <Pressable key={r.id} accessibilityRole="button" accessibilityLabel={r.title} testID={`live-row-${r.id}`} onPress={() => open(r)} style={({ hovered }: { hovered?: boolean }) => [s.lrow, hovered === true && s.over]}>
-          <View style={[s.dot, { backgroundColor: STATE_TONE[r.state ?? ""] ?? "var(--ink-4)" }]} />
-          <Text numberOfLines={1} style={s.lrowTitle}>{r.title}</Text>
-          {r.state ? <Text style={s.lrowState}>{wordOf(r.state)}</Text> : null}
-          {r.detail ? <Text numberOfLines={1} style={s.lrowDetail}>{r.detail}</Text> : null}
-        </Pressable>
+        <Row key={r.id} id={`live-${r.id}`} title={r.title} {...(r.state || r.detail ? { note: [wordOf(r.state), r.detail].filter(Boolean).join(" · ") } : {})} leading={<View style={[s.dot, { backgroundColor: STATE_TONE[r.state ?? ""] ?? "var(--ink-4)" }]} />} onPress={() => open(r)} />
       ))}
     </View>
   );
