@@ -43,8 +43,19 @@ CREATE TABLE IF NOT EXISTS "hooks_run" (
   "event" TEXT NOT NULL,
   "thread_id" TEXT,
   "agent_id" TEXT,
+  "tool" TEXT,
   "outcome" TEXT NOT NULL,
   "detail" TEXT,
   "ms" INTEGER NOT NULL DEFAULT 0,
   "at" INTEGER NOT NULL
+);
+
+-- One person's "run once anyway": the next time this hook would stop something in this chat it lets it through, and the pass is used up. Ten minutes at most.
+CREATE TABLE IF NOT EXISTS "hooks_pass" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "hook_id" TEXT NOT NULL,
+  "thread_id" TEXT NOT NULL,
+  "by" TEXT NOT NULL,
+  "expires_at" INTEGER NOT NULL,
+  "used_at" INTEGER
 );

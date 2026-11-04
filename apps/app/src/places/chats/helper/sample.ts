@@ -77,7 +77,7 @@ export function createSample(variant: Variant = "done", o: { online?: boolean; h
   if (o.hooks) replica.put("hooks", [
     hk("hok_own", "run", thread.threadId, "before a helper opens a link, only open links from the quotes you were sent", "check", { instruction: "Only open links from the quotes" }, "agt_lead", "agent"),
     hk("hok_run", "run", "c2", "before a tool, no client names in a search", "check", { instruction: "No client names" }, "agt_lead", "agent"),
-    hk("hok_space", "space", undefined, "before a tool, keep to the Space rules", "command", { command: "rules.sh" }, "usr_admin", "admin"),
+    hk("hok_space", "space", undefined, "before a tool, keep to the Space rules", "command", { command: "rules.sh" }, "usr_irfad", "admin"),
   ]);
   replica.resolve("hooks.list", () => ({ hooks: o.hooks ? (replica.rows("hooks") as unknown[]) : [], agentHooks: true }));
   replica.resolve("threads.get", (_t, input) => {

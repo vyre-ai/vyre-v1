@@ -30698,6 +30698,66 @@
       "v": 1
     },
     {
+      "blocks": [],
+      "cap": "hooks.runs.list",
+      "deferred": false,
+      "description": "What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first. since and outcomes narrow it before the limit; scope space is a Space admin's read of every Space hook's runs (anyone else gets only what they could see anyway)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "hookId": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "outcomes": {
+            "items": {
+              "enum": [
+                "ok",
+                "blocked",
+                "note",
+                "error",
+                "timeout",
+                "skipped",
+                "allowed_once"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "scope": {
+            "enum": [
+              "space"
+            ],
+            "type": "string"
+          },
+          "since": {
+            "description": "Only runs at or after this time",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "hooks_runs",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
       "blocks": [
         "hook"
       ],
@@ -44669,7 +44729,8 @@
               "item.shared",
               "space.deletion_scheduled",
               "space.deletion_cancelled",
-              "ci.paused"
+              "ci.paused",
+              "hook.asked"
             ],
             "type": "string"
           },
@@ -45139,7 +45200,8 @@
               "item.shared",
               "space.deletion_scheduled",
               "space.deletion_cancelled",
-              "ci.paused"
+              "ci.paused",
+              "hook.asked"
             ],
             "type": "string"
           },

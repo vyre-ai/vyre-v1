@@ -30,7 +30,7 @@ const SCHEMA = readFileSync(new URL("./migrations/0001_hooks.sql", import.meta.u
 const ready = new WeakSet<object>();
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { for (const q of ["SELECT id FROM hooks_hook WHERE id = ?", "SELECT helper_thread FROM hooks_link WHERE helper_thread = ?", "SELECT key FROM hooks_policy WHERE key = ?", "SELECT id FROM hooks_run WHERE id = ?"]) db.all(q, "probe"); }
+  try { for (const q of ["SELECT id FROM hooks_hook WHERE id = ?", "SELECT helper_thread FROM hooks_link WHERE helper_thread = ?", "SELECT key FROM hooks_policy WHERE key = ?", "SELECT id FROM hooks_run WHERE id = ?", "SELECT id FROM hooks_pass WHERE id = ?"]) db.all(q, "probe"); }
   catch { for (const s of SCHEMA) db.run(s); }
   ready.add(db);
 }
@@ -114,9 +114,24 @@ export function applicable(ctx: HooksCtx, q: { event: string; agentId: string; a
 }
 
 // ---- runs ----
-export function logRun(ctx: HooksCtx, r: { hookId: string; event: string; threadId: string; agentId: string; outcome: string; detail?: string; ms: number }): void {
+export function logRun(ctx: HooksCtx, r: { hookId: string; event: string; threadId: string; agentId: string; tool?: string; outcome: string; detail?: string; ms: number }): void {
   ensure(ctx.db);
-  ctx.db.run("INSERT INTO hooks_run (hook_id, event, thread_id, agent_id, outcome, detail, ms, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", r.hookId, r.event, r.threadId, r.agentId, r.outcome, r.detail ?? null, r.ms, ctx.now());
+  ctx.db.run("INSERT INTO hooks_run (hook_id, event, thread_id, agent_id, tool, outcome, detail, ms, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", r.hookId, r.event, r.threadId, r.agentId, r.tool ?? null, r.outcome, r.detail ?? null, r.ms, ctx.now());
   // a short log: the newest 500
   ctx.db.run("DELETE FROM hooks_run WHERE id <= (SELECT MAX(id) FROM hooks_run) - 500");
+}
+
+// ---- "run once anyway" ----
+export const PASS_MS = 10 * 60_000;
+export function addPass(ctx: HooksCtx, hookId: string, threadId: string, by: string): void {
+  ensure(ctx.db);
+  ctx.db.run("INSERT INTO hooks_pass (hook_id, thread_id, by, expires_at) VALUES (?, ?, ?, ?)", hookId, threadId, by, ctx.now() + PASS_MS);
+}
+/** Uses up a live pass for this hook in this chat: true when there was one (the hook is let go by this once). */
+export function takePass(ctx: HooksCtx, hookId: string, threadId: string): boolean {
+  ensure(ctx.db);
+  const r = ctx.db.all("SELECT id FROM hooks_pass WHERE hook_id = ? AND thread_id = ? AND used_at IS NULL AND expires_at > ? ORDER BY id LIMIT 1", hookId, threadId, ctx.now())[0] as Row | undefined;
+  if (!r) return false;
+  ctx.db.run("UPDATE hooks_pass SET used_at = ? WHERE id = ? AND used_at IS NULL", ctx.now(), r["id"]);
+  return true;
 }

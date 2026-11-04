@@ -5,6 +5,8 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "hooks.allow_once": async (ctx) => { throw new VyreErr(notImplemented("hooks.allow_once", ctx.trace)); },
+  "hooks.ask_admin": async (ctx) => { throw new VyreErr(notImplemented("hooks.ask_admin", ctx.trace)); },
   "hooks.fire": async (ctx) => { throw new VyreErr(notImplemented("hooks.fire", ctx.trace)); },
   "hooks.list": async (ctx) => { throw new VyreErr(notImplemented("hooks.list", ctx.trace)); },
   "hooks.pause": async (ctx) => { throw new VyreErr(notImplemented("hooks.pause", ctx.trace)); },

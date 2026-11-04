@@ -6,7 +6,7 @@ import { HOOK_EVENTS, HOOK_KINDS, HOOK_SCOPES, plainLine, redact } from "../../.
 import { isHostService } from "../../../lib/trust.ts";
 import type { HookFire } from "../../../lib/hooks.ts";
 import { ACTION_DENIED, fire as fireHooks } from "../eval.ts";
-import { agentHooksOn, allHooks, ensure, helpersActive, hookById, link, nextSeq, parentOf, raise, setAgentHooks } from "../projections.ts";
+import { addPass, PASS_MS, agentHooksOn, allHooks, ensure, helpersActive, hookById, link, nextSeq, parentOf, raise, setAgentHooks } from "../projections.ts";
 import type { HooksCtx, Rec, Spec } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -166,7 +166,35 @@ export async function list(ctx: HooksCtx, i: { scope?: string; threadId?: string
   return { hooks: rows.map((h) => outRow(h, a)), agentHooks: agentHooksOn(ctx) };
 }
 
-const RUN_OUTCOMES = ["ok", "blocked", "note", "error", "timeout", "skipped"];
+/** The same rules as changing the hook, for letting it go by once: a person's own press (never an agent), and a Space hook only an admin's. */
+export async function allowOnce(ctx: HooksCtx, i: { id: string; threadId: string }): Promise<{ allowed: boolean; expiresAt: number }> {
+  ensure(ctx.db);
+  const a = actorOf(ctx);
+  if (a.kind === "agent") raise(ctx, "permission.no_grant", "Only a person lets a hook go by.");
+  const h = hookById(ctx, i.id);
+  if (!h) raise(ctx, "validation.not_found", "That hook does not exist.");
+  if (!(await mayUseThread(ctx, i.threadId))) raise(ctx, "permission.no_grant", "That chat is not one you can use.");
+  if (h.scope === "space" && !a.admin) raise(ctx, "permission.no_grant", "Only an admin can let a Space hook go by. You can ask one.");
+  if (!a.admin && !mayChange(h, a)) raise(ctx, "permission.no_grant", "That hook is not yours to let go by. You can ask an admin.");
+  addPass(ctx, h.id, i.threadId, a.id);
+  ctx.emit("hook.changed", i.threadId, { hookId: h.id, scope: h.scope, change: "allowed_once", by: a.id, line: h.line, threadId: i.threadId });
+  if (ctx.call) { try { await ctx.call("chat.hook_line", { threadId: i.threadId, body: `${a.admin && h.scope === "space" ? "An admin" : "Someone"} let a hook go by once: ${h.line}`, kind: "allowed", hookId: h.id, scope: h.scope, by: a.id, subject: h.line }); } catch { /* the pass stands without its line */ } }
+  return { allowed: true, expiresAt: ctx.now() + PASS_MS };
+}
+export async function askAdmin(ctx: HooksCtx, i: { id: string; threadId: string; note?: string }): Promise<{ asked: boolean }> {
+  ensure(ctx.db);
+  const a = actorOf(ctx);
+  if (a.kind === "agent") raise(ctx, "permission.no_grant", "Only a person asks the admins.");
+  const h = hookById(ctx, i.id);
+  if (!h) raise(ctx, "validation.not_found", "That hook does not exist.");
+  if (!(await mayUseThread(ctx, i.threadId))) raise(ctx, "permission.no_grant", "That chat is not one you can use.");
+  const note = i.note ? redact(i.note, 300) : undefined;
+  ctx.emit("hook.admin_asked", i.threadId, { hookId: h.id, threadId: i.threadId, line: h.line, by: a.id, ...(note ? { note } : {}) });
+  if (ctx.call) { try { await ctx.call("chat.hook_line", { threadId: i.threadId, body: `Someone asked an admin about a hook: ${h.line}`, kind: "asked", hookId: h.id, scope: h.scope, by: a.id, subject: h.line }); } catch { /* the question stands without its line */ } }
+  return { asked: true };
+}
+
+const RUN_OUTCOMES = ["ok", "blocked", "note", "error", "timeout", "skipped", "allowed_once"];
 /**
  * What the hooks did lately, newest first. The caller sees the runs of hooks they could list: the Space's, their own person hooks, and the agent, chat and run hooks they made or that were made for them.
  * `since` and `outcomes` narrow the log before the limit is taken, so a busy week cannot push the failures out. `scope: "space"` is the admin's Space-wide read: only runs of Space hooks, from every
@@ -199,7 +227,7 @@ export async function runsList(ctx: HooksCtx, i: { hookId?: string; threadId?: s
     if (rows.length < 200) break;
     before = Number(rows[rows.length - 1]!["id"]);
   }
-  return { runs: out.map((r) => ({ id: r["id"], hookId: r["hook_id"], event: r["event"], threadId: r["thread_id"] ?? undefined, agentId: r["agent_id"] ?? undefined, outcome: r["outcome"], detail: r["detail"] ?? undefined, ms: r["ms"], at: r["at"] })) };
+  return { runs: out.map((r) => ({ id: r["id"], hookId: r["hook_id"], event: r["event"], threadId: r["thread_id"] ?? undefined, agentId: r["agent_id"] ?? undefined, tool: r["tool"] ?? undefined, outcome: r["outcome"], detail: r["detail"] ?? undefined, ms: r["ms"], at: r["at"] })) };
 }
 
 export function policyGet(ctx: HooksCtx): { agentHooks: boolean } { ensure(ctx.db); return { agentHooks: agentHooksOn(ctx) }; }

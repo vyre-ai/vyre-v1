@@ -20,6 +20,34 @@
       "proto": "chat,at:crew;t=55;hooks=hchat,{skin}",
       "waitFor": "[data-testid='helper-hooks']",
       "note": "A helper's page with its hooks: the ones its lead gave it, and the Inherited ones."
+    },
+    {
+      "id": "HOOKS_01-tab-edit",
+      "route": "/m/HOOKS_01?view=tab",
+      "waitFor": "[data-testid='hooks-list']",
+      "steps": [
+        [
+          "click",
+          "[data-testid='hook-edit-hok_chat']"
+        ]
+      ],
+      "after": "[data-testid='hook-form-hok_chat']",
+      "note": "The Edit form open on a hook: When, What it does (Run a script, Ask a quick check, Do an action), Save and Cancel.",
+      "proto": "chat,at:crew;t=55;hooks=hchat,{skin}"
+    },
+    {
+      "id": "HOOKS_01-tab-undo",
+      "route": "/m/HOOKS_01?view=tab",
+      "waitFor": "[data-testid='hooks-list']",
+      "steps": [
+        [
+          "click",
+          "[data-testid='hook-remove-hok_agent']"
+        ]
+      ],
+      "after": "[data-testid='pane-notice']",
+      "note": "After Remove: the hook is gone and the notice at the foot says Hook removed, with Undo.",
+      "proto": "chat,at:crew;t=55;hooks=hchat,{skin}"
     }
   ]
 }

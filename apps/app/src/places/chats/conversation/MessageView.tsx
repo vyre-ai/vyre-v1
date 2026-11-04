@@ -48,6 +48,7 @@ import { KeyRequestCard, isKeyRequest } from "./keyrequest.tsx";
 import { AccessRequestCard, isAccessRequest } from "./accessrequest.tsx";
 import { RedactRequestCard, isRedactRequest } from "./redactrequest.tsx";
 import { ChecklistCard, isChecklist } from "./checklist.tsx";
+import { HookLineActs } from "./hookline.tsx";
 import { NoteOfferCard, isNoteOffer } from "./noteoffer.tsx";
 import { InstallCard, isInstallPlan } from "../install/InstallCard.tsx";
 import { QuoteCard, WebPageCard, isQuote, isWebPage } from "./webpage.tsx";
@@ -66,7 +67,7 @@ import { AttachmentChips, LinkedText, MountRefs, refsOf } from "./attachments.ts
 import { unnamed } from "../names.ts";
 import type { ConversationData } from "./data.tsx";
 import type { GlyphName } from "./parts.tsx";
-import { hookLineAction, hookLineOf, pokeLine, pokedBy, reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isSystemLine, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
+import { hookLineOf, hookLineText, pokeLine, pokedBy, reportLabel, bodyBlocks, cardLine, collect, errorRow, isCard, isErrorBlock, isSystemLine, isTurnStatus, onBehalfOf, planSteps, questionOptions, statusView, terminalAskOf, workOf } from "./model.ts";
 import type { CardLine, Item, Message } from "./model.ts";
 import { ReplyLine } from "./ReplyLine.tsx";
 import { MARK } from "./marks.ts";
@@ -196,7 +197,6 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
       );
     }
     const hookLine = hookLineOf(item.message);
-    const hookAct = hookLine ? hookLineAction(hookLine) : null;
     const origin = forkOrigin(item.message);
     if (origin && props.actions.openMessage) {
       const go = props.actions.openMessage;
@@ -214,8 +214,8 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
     return (
       <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
         <View style={st.eventDot} />
-        <Text style={st.eventText}>{pokeLine(item.message, props.actions.nameOf ?? unnamed) ?? item.text}</Text>
-        {hookLine && hookAct && props.actions.openHooks ? <Text testID={`hook-line-${item.key}`} accessibilityRole="link" onPress={() => props.actions.openHooks?.(hookLine.hookId)} style={st.eventLink}>{hookAct.label}</Text> : null}
+        <Text style={st.eventText}>{hookLine ? hookLineText(hookLine, props.actions.nameOf ?? unnamed) : pokeLine(item.message, props.actions.nameOf ?? unnamed) ?? item.text}</Text>
+        {hookLine && props.actions.files ? <HookLineActs id={item.key} line={hookLine} threadId={props.actions.files.threadId} call={props.actions.files.call} {...(props.actions.openHooks ? { open: (hookId: string) => props.actions.openHooks?.(hookId) } : {})} linkStyle={st.eventLink} quietStyle={st.eventText} /> : null}
         <Text style={st.eventTime}>{item.time}</Text>
       </View>
     );

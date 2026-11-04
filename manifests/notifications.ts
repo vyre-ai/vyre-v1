@@ -13,7 +13,7 @@ const kindKey = t.enm(
   'approval.requested', 'answer.requested', 'unblock.requested', 'approval.backstop', 'dm', 'mention', 'call.incoming', 'agent.blocked', 'incident.owned', 'task.assigned', 'reply.followed',
   'agent.task_finished', 'digest.away', 'mention.thread', 'run.failed', 'conflict.needs_you', 'access.requested', 'access.decided',
   'sync.attention', 'health.degraded', 'problem.report', 'member.joined', 'member.join_requested', 'limit.hit', 'vault.rotation_due', 'reply.thread',
-  'task.turn', 'task.returned', 'task.finished', 'task.due', 'machine.alert', 'item.shared', 'space.deletion_scheduled', 'space.deletion_cancelled', 'ci.paused',
+  'task.turn', 'task.returned', 'task.finished', 'task.due', 'machine.alert', 'item.shared', 'space.deletion_scheduled', 'space.deletion_cancelled', 'ci.paused', 'hook.asked',
 );
 const notificationRow = t.obj({
   id: id.notification, kind: kindKey, level, place, title: t.str(), body: t.opt(t.str()), subject: t.opt(resourceRef), count: t.int({ minimum: 1 }),
@@ -76,6 +76,8 @@ export default defineManifest({
     notif('space.deletion_cancelled', 'badge', 'inbox', '{{title}}'),
     // CI paused for the month: the cap is reached; one Inbox line for each admin
     notif('ci.paused', 'badge', 'console', '{{title}}', { actions: [{ label: 'Open', cap: 'ci.cost.month' }] }),
+    // someone asked the admins about a hook that stopped something: one Inbox line for each admin, opening the Hooks list
+    notif('hook.asked', 'badge', 'inbox', '{{title}}', { actions: [{ label: 'Open', cap: 'hooks.list' }] }),
     notif('problem.report', 'badge', 'console', 'Problem report from {{from}}', { actions: [{ label: 'Review', cap: 'tasks.act' }] }),
     notif('member.joined', 'digest', 'home', '{{name}} joined {{space}}'),
     // someone asked to join through the Request to join link: one line for each admin, opening Console > People > Requests

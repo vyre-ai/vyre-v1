@@ -2,7 +2,7 @@
 // answer here that approves, loosens or skips anything. A hook that errors or runs out of time is logged and shown, never a block.
 import { BLOCKING, matches, namesOf, parseCheck, redact, scopeRank } from "../../lib/hooks.ts";
 import type { HookFire, HookVerdict } from "../../lib/hooks.ts";
-import { applicable, logRun, helpersActive, link, lineage } from "./projections.ts";
+import { applicable, logRun, helpersActive, link, lineage, takePass } from "./projections.ts";
 import type { HooksCtx, Rec } from "./projections.ts";
 import { hostSeams } from "./seams.ts";
 import type { CheckAnswer } from "../../lib/hooks.ts";
@@ -73,10 +73,10 @@ async function viaEngine(ctx: HooksCtx, who: Who, instruction: string, payload: 
 }
 
 const said = new Map<string, number>();
-async function say(ctx: HooksCtx, threadId: string, body: string, kind: "blocked" | "failed", h: Rec, reason?: string): Promise<void> {
+async function say(ctx: HooksCtx, threadId: string, body: string, kind: "blocked" | "failed", h: Rec, reason?: string, tool?: string): Promise<void> {
   if (!ctx.call) return;
   try {
-    await ctx.call("chat.hook_line", { threadId, body, kind, hookId: h.id, scope: h.scope, by: h.madeBy, byKind: h.madeByKind, ...(reason ? { reason } : {}) });
+    await ctx.call("chat.hook_line", { threadId, body, kind, hookId: h.id, scope: h.scope, by: h.madeBy, byKind: h.madeByKind, ...(reason ? { reason } : {}), ...(tool ? { tool } : {}) });
   } catch (e) { ctx.log?.warn("a hook line was not posted", { error: e instanceof Error ? e.message : String(e) }); }
 }
 
@@ -103,6 +103,12 @@ export async function fire(ctx: HooksCtx, f: HookFire): Promise<HookVerdict> {
   const verdict: HookVerdict = { block: null, notes: [], ran: 0 };
   for (const h of order) {
     if (tooly && !names.some((n) => matches(h.matcher, n))) continue;
+    // a person pressed "Run once anyway" on this hook in this chat: it lets this one through, and the pass is used up
+    if (BLOCKING.has(f.event) && !h.id.startsWith("plugin:") && takePass(ctx, h.id, f.threadId)) {
+      verdict.ran++;
+      logRun(ctx, { hookId: h.id, event: f.event, threadId: f.threadId, agentId: f.agentId, ...(f.tool ? { tool: f.tool } : {}), outcome: "allowed_once", ms: 0 });
+      continue;
+    }
     const t0 = Date.now();
     let o: Out;
     try {
@@ -115,7 +121,7 @@ export async function fire(ctx: HooksCtx, f: HookFire): Promise<HookVerdict> {
     verdict.ran++;
     const ms = Date.now() - t0;
     if (o.outcome === "blocked" && !BLOCKING.has(f.event)) o = { outcome: "ok", detail: "this event cannot be stopped" };
-    if (!h.id.startsWith("plugin:")) logRun(ctx, { hookId: h.id, event: f.event, threadId: f.threadId, agentId: f.agentId, outcome: o.outcome, ...(o.detail || o.block ? { detail: o.detail ?? o.block ?? "" } : {}), ms });
+    if (!h.id.startsWith("plugin:")) logRun(ctx, { hookId: h.id, event: f.event, threadId: f.threadId, agentId: f.agentId, ...(f.tool ? { tool: f.tool } : {}), outcome: o.outcome, ...(o.detail || o.block ? { detail: o.detail ?? o.block ?? "" } : {}), ms });
     if (o.outcome === "error" || o.outcome === "timeout") {
       const key = `${h.id}|${f.threadId}`;
       if (Date.now() - (said.get(key) ?? 0) > 3_600_000) {
@@ -128,7 +134,7 @@ export async function fire(ctx: HooksCtx, f: HookFire): Promise<HookVerdict> {
     if (o.block) {
       verdict.block = { reason: o.block, hookId: h.id, by: h.madeBy, scope: h.scope };
       ctx.emit("hook.blocked", f.threadId, { hookId: h.id, event: f.event, threadId: f.threadId, agentId: f.agentId, reason: o.block, scope: h.scope, by: h.madeBy });
-      await say(ctx, f.threadId, `A hook stopped this: ${o.block}`, "blocked", h, o.block);
+      await say(ctx, f.threadId, `A hook stopped this: ${o.block}`, "blocked", h, o.block, f.tool);
       break;
     }
   }

@@ -1382,6 +1382,8 @@ export function createClient(transport: Transport) {
       write_digest: call("home.write_digest", 1),
     },
     hooks: {
+      allow_once: call("hooks.allow_once", 1),
+      ask_admin: call("hooks.ask_admin", 1),
       fire: call("hooks.fire", 1),
       list: call("hooks.list", 1),
       pause: call("hooks.pause", 1),

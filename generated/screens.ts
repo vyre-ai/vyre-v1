@@ -1846,6 +1846,14 @@ export const screens: ScreenIndexEntry[] = [
           "threadId": "/state/threadId"
         },
         "live": true
+      },
+      "hookRuns": {
+        "cap": "hooks.runs.list",
+        "input": {
+          "threadId": "/state/threadId",
+          "limit": 200
+        },
+        "live": true
       }
     },
     "actions": {

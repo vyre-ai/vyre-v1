@@ -18099,6 +18099,42 @@ const routes3: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/hooks/allow_once",
+    "cap": "hooks.allow_once",
+    "v": 1,
+    "module": "hooks",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/hooks/ask_admin",
+    "cap": "hooks.ask_admin",
+    "v": 1,
+    "module": "hooks",
+    "effects": "write",
+    "permission": null,
+    "level": "member",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "none",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/hooks/fire",
     "cap": "hooks.fire",
     "v": 1,
@@ -22081,7 +22117,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/meetings/prep/start",
@@ -22117,10 +22156,7 @@ const routes3: Route[] = [
     "offline": "queue",
     "teamOnly": false,
     "gate": "send"
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/meetings/set_state",
@@ -27548,7 +27584,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/plugins/marketplace/refresh",
@@ -27584,10 +27623,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/plugins/marketplaces/list",
@@ -33115,7 +33151,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/skills/mine/add",
@@ -33151,10 +33190,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/skills/mine/set",
@@ -38622,7 +38658,10 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "delete"
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/item/get",
@@ -38660,10 +38699,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/item/mark_rotated",

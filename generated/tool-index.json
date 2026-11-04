@@ -4442,6 +4442,12 @@
     },
     {
       "deferred": false,
+      "name": "hooks_runs",
+      "summary": "What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first. since and outcomes narrow it before the limit; scope space is a Space admin's read of every Space hook's runs (anyone else gets only what they could see anyway)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "hooks_set",
       "summary": "Add or change a hook that runs at an event (before a tool, before anything leaves Vyre, a message, a turn end, a helper) as a command, a check or one action. For yourself: scope agent, chat or run. It can stop something, add a note or run its own action; never skip a rule",
       "toolset": "agents"

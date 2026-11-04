@@ -314,7 +314,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     query: route.view === "search" ? route.q : "", openMessage: go.message, openThread: go.chat, close: go.closeSearch, copy,
   }), [rt, nameOf, byId, route, go]);
   const terminal = useMemo(() => terminalData(rt, go, { agent: leadAgent, nameOf, newKey }), [rt, go, leadAgent, nameOf]);
-  const paneCtx = useMemo(() => (threadId === null ? null : wirePane(rt, go, threadId, leadAgent, fill, terminal)), [rt, go, threadId, leadAgent, fill, terminal]);
+  const paneCtx = useMemo(() => (threadId === null ? null : wirePane(rt, go, threadId, leadAgent, fill, terminal, nameOf)), [rt, go, threadId, leadAgent, fill, terminal, nameOf]);
   /* the pane's own actions: Poke runs a poked reply, Share opens the share sheet over the agent, Add to chat opens the Add sheet, Call dials from the softphone (phone, above) */
   const add = useAddSheet({ call: rt.call as (cap: string, input: unknown) => Promise<unknown>, me: { id: rt.me.id, name: rt.me.name }, nameOf, newKey: () => newKey(), toast: (text) => setLine(text) }, { copy });
   const [shareAgent, setShareAgent] = useState<string | null>(null);
