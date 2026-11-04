@@ -242,7 +242,12 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   useEffect(() => {
     if (!projectView) return undefined;
     let live = true;
-    void Promise.resolve(rt.call("projects.get", { projectId: projectView.projectId })).then((o) => { if (live) setPjChannel({ projectId: projectView.projectId, channelId: (o as { project: { channelId: string } }).project.channelId }); }, () => { if (live) setPjChannel({ projectId: projectView.projectId, channelId: "" }); });
+    // the project's channel is shown as its main thread (the thread capabilities refuse a channel id); it is resolved here, so the route stays the project's and the page frames the chat
+    const set = (channelId: string): void => { if (live) setPjChannel({ projectId: projectView.projectId, channelId }); };
+    void Promise.resolve(rt.call("projects.get", { projectId: projectView.projectId })).then(
+      (o) => { const channelId = (o as { project: { channelId: string } }).project.channelId; void channelThread(rt.call as (cap: string, input: unknown) => Promise<unknown>, channelId).then((r) => set("threadId" in r ? r.threadId : ""), () => set("")); },
+      () => set(""),
+    );
     return () => { live = false; };
   }, [rt, projectView?.projectId]);   // eslint-disable-line react-hooks/exhaustive-deps -- one read per project
   const pjReady = projectChat && projectView !== null && pjChannel?.projectId === projectView.projectId;
