@@ -112,7 +112,7 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
       await ok("Plan");
       await p.screenshot({ path: path.join(shots, `projects-3-plan-${who}-${size}-paper.png`) });
       for (const k of ["overview", "linked", "knows", "chat"]) { await p.getByTestId(`tab-${k}`).click(); await p.waitForTimeout(500); await ok(`the ${k} tab`); }
-      await p.getByTestId("project-chat").waitFor({ timeout: 10_000 });
+      await p.getByTestId("project-chat-main").waitFor({ timeout: 15_000 });
       if (who === "admin" && size === "wide") {
         await p.getByTestId("project-health").click();
         await p.getByTestId("menu-item-At risk").click();

@@ -169,6 +169,8 @@ export interface TabStripViewProps extends TabStripProps {
   hideLoneClose?: boolean;
   /** No options button at the end: the strip's menu is the right-click on a tab. */
   noOptions?: boolean;
+  /** A row of page sections, not documents: no tab has a close button, so none holds room for one. */
+  noClose?: boolean;
   /** The whole menu of a tab, built by the host from its own state (Close, Pin, Reopen). It replaces the standard Close entries and `menu`'s extras. */
   entries?: (key: string) => readonly MenuEntry[];
 }
@@ -269,7 +271,7 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         widest={on ? TAB_MAX_WIDTH : cap}
         dropTarget={drag !== null && drag.over === tab.key && drag.from !== tab.key}
         canClose={onClose !== undefined}
-        only={props.hideLoneClose === true && tabs.length === 1}
+        only={(props.hideLoneClose === true && tabs.length === 1) || props.noClose === true}
         nodeRef={(node) => { nodes.current[tab.key] = node; }}
         onPress={() => select(tab.key)}
         onClose={() => {

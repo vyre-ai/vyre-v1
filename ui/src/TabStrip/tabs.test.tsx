@@ -173,3 +173,8 @@ test("a close button that is not shown takes no click: a press on the right edge
   const close = /<[^>]*tab-close-plan[^>]*>/.exec(html)?.[0] ?? "";
   assert.match(close, /pointer-events:\s*none/, "hidden close, no click");
 });
+
+test("a strip of page sections (noClose) has no close button on any tab, so no tab holds room for one", () => {
+  const html = renderToStaticMarkup(<TabStrip noClose tabs={[{ key: "chat", title: "Chat" }, { key: "plan", title: "Plan" }]} active="chat" onSelect={() => undefined} />);
+  assert.doesNotMatch(html, /tab-close-/);
+});
