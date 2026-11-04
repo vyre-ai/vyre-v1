@@ -66,7 +66,7 @@ export function HelperChip({ m, now, selected = false, index = 0, onPress, onRet
         <Avatar name={name} seedId={m.agentId} kind="agent" size={28} />
       </View>
       <View style={st.main}>
-        <View style={st.l1}><Text numberOfLines={1} style={st.name}>{name}</Text><Text numberOfLines={1} testID={`${id}-role`} style={st.role}>{roleOf(m)}</Text></View>
+        <View style={st.l1}><Text numberOfLines={1} style={st.name}>{name}</Text>{roleOf(m) !== "" ? <Text numberOfLines={1} testID={`${id}-role`} style={st.role}>{roleOf(m)}</Text> : null}</View>
         <Text numberOfLines={1} testID={`${id}-line`} style={[st.line, m.state === "failed" && st.lineFail, m.state === "needs_you" && st.lineWait]}>{lineOf(m)}</Text>
         {code || tag ? (
           <View style={st.l3}>

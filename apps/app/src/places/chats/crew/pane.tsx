@@ -81,7 +81,7 @@ export function CrewOverview({ status, call, threadId, onPeek, onRefresh, initia
       {rows.length === 0 ? <Text testID="crew-empty-show" style={st.hint}>{NONE[show]}</Text> : null}
       {rows.map((m) => (
         <Row
-          key={m.id} id={`crew-row-${m.id}`} title={`${nameOf(m)} · ${roleOf(m)}`} note={lineOf(m)} tall onPress={() => onPeek(m.id)} leading={<Face m={m} />}
+          key={m.id} id={`crew-row-${m.id}`} title={roleOf(m) !== "" ? `${nameOf(m)} · ${roleOf(m)}` : nameOf(m)} note={lineOf(m)} tall onPress={() => onPeek(m.id)} leading={<Face m={m} />}
           trailing={<Text testID={`crew-row-${m.id}-state`} style={[st.rowState, m.state === "working" && { color: "var(--accent)" as string }, m.state === "needs_you" && { color: "var(--warn)" as string }, m.state === "done" && { color: "var(--ok)" as string }]}>{stateWord(m.state)}</Text>}
         />
       ))}

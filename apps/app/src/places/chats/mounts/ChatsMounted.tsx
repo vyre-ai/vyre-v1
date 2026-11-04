@@ -24,6 +24,7 @@ import { createComposerFill } from "../conversation/data.tsx";
 import type { ComposerFill } from "../conversation/data.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { AgentPane } from "../AgentPane.tsx";
+import { CrewProvider } from "../crew/context.tsx";
 import { useAddSheet } from "../addsheet/index.ts";
 import { AgentShareHost } from "../agentform/AgentShare.tsx";
 import { pokeInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
@@ -408,6 +409,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
 
   const showMain = !(narrow && right !== null);
   return (
+    <CrewProvider call={rt.call as (cap: string, input: unknown) => Promise<unknown>} threadId={threadId ?? ""} onShow={() => { if (!shown.pane) go.togglePane(); }}>
     <View testID="chats-place" style={st.row}>
       <ChatsSidebarSlot data={side} open={openKey} {...(window ? { window } : {})} />
       {showMain ? (
@@ -422,6 +424,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
       <Layer shown={shown} rt={rt} go={go} nameOf={nameOf} list={list} counter={counter} terminal={terminal} window={window} />
       {line ? <View testID="chats-line" accessibilityRole="alert" accessibilityLiveRegion="polite" style={st.toast}><Text style={st.toastText}>{line.text}</Text>{line.action ? <TextButton label={line.action.label} testID="chats-line-action" onPress={() => { const run = line.action?.run; setLineState(null); run?.(); }} /> : null}</View> : null}
     </View>
+    </CrewProvider>
   );
 }
 
