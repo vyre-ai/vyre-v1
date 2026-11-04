@@ -299,3 +299,28 @@ test("reads: a member sees the runs of a project they are in, not another's; the
   const off = world({ links: { "northwind/site": "prj_site" } });
   assert.equal((await off.call("ci.project.get", { projectId: "prj_site" })).enabled, false);
 });
+
+test("linked tab: a run shows on its project as Running, then Passed or Failed, with the job, the time and the address; a missing links capability changes nothing", async () => {
+  const w = world();
+  await w.turnOn();
+  await w.job("queued", { jobId: 100 });
+  const [first] = w.state.links_;
+  assert.equal(first!["kind"], "ci.run");
+  assert.equal(first!["projectId"], "prj_site");
+  assert.equal(first!["state"], "Running");
+  assert.match(String(first!["ref"]), /^cir_[a-z0-9]{12}$/);
+  assert.equal(first!["url"], "https://github.com/northwind/site/actions/runs/600/job/100");
+  w.advance(4 * MIN);
+  await w.job("completed", { jobId: 100, conclusion: "success" });
+  const done = w.state.links_.at(-1)!;
+  assert.equal(done["ref"], first!["ref"]);
+  assert.equal(done["state"], "Passed");
+  assert.equal(done["label"], "build · northwind/site · 4 min");
+  await w.job("queued", { jobId: 101 });
+  w.advance(2 * MIN);
+  await w.job("completed", { jobId: 101, conclusion: "failure" });
+  assert.equal(w.state.links_.at(-1)!["state"], "Failed");
+  w.state.noLinkCap = true;
+  await w.job("queued", { jobId: 102 });
+  assert.equal(w.state.droplets.length, 1, "the job still runs when the project cannot be linked");
+});

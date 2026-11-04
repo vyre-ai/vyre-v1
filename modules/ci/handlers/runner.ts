@@ -57,6 +57,19 @@ export function spentThisMonth(ctx: CiCtx): number {
 }
 const liveCount = (ctx: CiCtx): number => runsIn(ctx, ["starting", "running"]).length;
 
+// ---- the project's Linked tab
+
+/** Show a run on its project's Linked tab: kind "ci.run", the run id as ref, a state of Running, Passed or Failed, a label with the job and how long it took, and the job's address on GitHub. Best effort and repeatable. */
+export async function linkRun(ctx: CiCtx, runId: string): Promise<void> {
+  const r = runBy(ctx, "run_id", runId);
+  if (!r || !r.projectId || r.state === "queued" || r.state === "refused") return;
+  const state = r.state === "starting" || r.state === "running" ? "Running" : r.state === "finished" && /^success$/.test(r.conclusion ?? "") ? "Passed" : "Failed";
+  const minutes = r.startedAt === null ? 0 : Math.max(1, Math.round(((r.endedAt ?? ctx.now()) - r.startedAt) / 60_000));
+  const label = `${r.jobName} · ${r.repo} · ${state === "Running" ? `running ${minutes} min` : `${minutes} min`}`;
+  try { await ctx.call("projects.links.link", { projectId: r.projectId, kind: "ci.run", ref: r.runId, state, label, url: `https://github.com/${r.repo}/actions/runs/${r.workflowRunId}/job/${r.jobId}` }); }
+  catch (e) { ctx.log.warn("ci: a run could not be linked to its project", { code: code(e) }); }
+}
+
 // ---- intake
 
 export interface JobIn { action: "queued" | "completed"; repo: string; jobId: number; runId: number; name?: string | undefined; labels: string[]; fork?: "no" | "yes" | "unknown" | undefined; conclusion?: string | undefined }
@@ -120,6 +133,7 @@ async function start(ctx: CiCtx, s: Settings, run: Run, price: number): Promise<
     dropletId = String(id);
     patchRun(ctx, run.runId, { state: "running", droplet_id: dropletId, runner_id: runnerId, started_at: ctx.now() });
     ctx.emit("ci.run.started", `entity/${run.runId}`, { runId: run.runId, repo: run.repo, jobId: run.jobId, dropletId, size: s.size });
+    await linkRun(ctx, run.runId);
     return "started";
   } catch (e) {
     const why = code(e) === "provider.auth_failed" ? "The cloud did not accept the key. Check the Vault item chosen in the CI settings." : code(e) === "validation.bad_input" ? "The cloud refused the machine settings (region, size or image)." : "A machine could not be made.";
@@ -127,6 +141,7 @@ async function start(ctx: CiCtx, s: Settings, run: Run, price: number): Promise<
     if (runnerId !== null) await ctx.call("github.runners.remove", { repo: run.repo, runnerId }).catch(() => undefined);
     patchRun(ctx, run.runId, { state: "failed", ended_at: ctx.now(), cost_usd: 0, note: why });
     ctx.emit("ci.run.failed", `entity/${run.runId}`, { runId: run.runId, repo: run.repo, jobId: run.jobId, reason: why });
+    await linkRun(ctx, run.runId);
     return "failed";
   }
 }
@@ -148,6 +163,7 @@ async function finish(ctx: CiCtx, s: Settings, a: JobIn): Promise<{ handled: Han
   const cost = run.dropletId ? costOf(run.priceHourly ?? PRICE_HOURLY[run.size ?? ""] ?? 0, seconds) : 0;
   patchRun(ctx, run.runId, { state: "finished", ended_at: ctx.now(), conclusion: a.conclusion ?? "unknown", cost_usd: cost, ...(run.dropletId ? {} : { note: "Ended before a machine was made." }) });
   ctx.emit("ci.run.finished", `entity/${run.runId}`, { runId: run.runId, repo: run.repo, jobId: run.jobId, conclusion: a.conclusion ?? "unknown", costUsd: cost, minutes: Math.ceil(seconds / 60) });
+  await linkRun(ctx, run.runId);
   await drain(ctx, s);
   return { handled: "finished" };
 }
@@ -202,6 +218,7 @@ export async function sweep(ctx: CiCtx): Promise<{ deleted: number; started: num
     const cost = costOf(price, age / 1000);
     if (run) patchRun(ctx, run.runId, { state: "swept", ended_at: ctx.now(), cost_usd: cost, note: `Deleted after more than ${s.maxJobMinutes + SWEEP_GRACE_MIN} minutes.` });
     ctx.emit("ci.run.swept", `entity/${d.id}`, { runId: run?.runId ?? known?.runId ?? null, dropletId: d.id, reason, costUsd: cost });
+    if (run) await linkRun(ctx, run.runId);
   }
   const alive = new Set(droplets.map((d) => d.id));
   for (const r of live) {   // a run whose machine is gone: the cloud lost it, or it was deleted by hand
@@ -209,6 +226,7 @@ export async function sweep(ctx: CiCtx): Promise<{ deleted: number; started: num
       const cost = costOf(r.priceHourly ?? 0, (ctx.now() - (r.startedAt ?? ctx.now())) / 1000);
       patchRun(ctx, r.runId, { state: "failed", ended_at: ctx.now(), cost_usd: cost, note: "The machine was lost before the job ended." });
       ctx.emit("ci.run.failed", `entity/${r.runId}`, { runId: r.runId, repo: r.repo, jobId: r.jobId, reason: "The machine was lost before the job ended." });
+      await linkRun(ctx, r.runId);
     }
   }
   return { deleted, started: await drain(ctx, s) };

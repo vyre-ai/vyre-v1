@@ -32,3 +32,6 @@ States: `queued` (waiting for a free machine, `note` says "Waiting for a free ma
 - Cost is per second, at least 60 seconds and one cent per machine, billed to the Space's own cloud account. GitHub minutes are not used.
 - A pull request from a fork does not run on a cloud machine while the repository holds secrets.
 - The GitHub App needs the new permissions (Actions read, Administration write, Secrets read) and the workflow_job event. A Space whose App was made before this must accept them in GitHub; until then a job simply stays on GitHub.
+
+## The project's Linked tab
+Each run of a linked repository is linked to its project with `projects.links.link` (best effort, repeated on every change): `kind: "ci.run"`, `ref` the run id, `state` one of `Running`, `Passed`, `Failed`, `label` like `build · northwind/site · 4 min`, `url` the job's page on GitHub. Refused and waiting runs are not linked. The state is also in `ci.runs.list` for a live read.
