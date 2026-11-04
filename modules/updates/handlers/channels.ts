@@ -38,6 +38,8 @@ export interface Installer {
   previous(): Promise<string[]>;
   /** Fetch the artifact, check its sha256 against the manifest's, switch to it and restart. Resolves once the process is up again. */
   install(release: ReleaseInfo, channel?: Channel): Promise<void>;
+  /** The version of the running process, for a server that has no vyre-server (run from source). Absent when the host does not know it. */
+  running?(): string | undefined;
   /** Does the running server answer its health probe? */
   healthy(): Promise<boolean>;
   /** Switch back to a kept version and restart. */
@@ -299,7 +301,8 @@ export async function status(ctx: UpdateCtx, _input: Record<string, unknown>) {
     current = null;
   }
   const state = readState(ctx);
-  if (current === null) return { managedElsewhere: true, channel: channelOf(state) };
+  // it still knows the version it runs (l-consolidate): say it, with nothing waiting and nothing ran
+  if (current === null) { const running = d.installer.running?.(); return { ...(parseVersion(running) ? { current: running as string } : {}), managedElsewhere: true, channel: channelOf(state) }; }
   const w = waiting(state, current);
   const last = historyRows(ctx, 1)[0];
   return {

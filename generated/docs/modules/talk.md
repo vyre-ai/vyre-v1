@@ -11,8 +11,8 @@ Requires: nothing.
 - [talk.connect](../capabilities/talk.connect.md): A person adds or replaces their own Talk key: it is checked with the provider at once, then kept in their Mine folder. A person does this, never an agent
 - [talk.disconnect](../capabilities/talk.disconnect.md): A person removes their own Talk key from the Vault
 - [talk.session](../capabilities/talk.session.md): Open one Talk session: mints a short-lived provider token and the socket address. Own key first, then the Space key. Audited per person; the key itself never leaves the server
-- [talk.space.check](../capabilities/talk.space.check.md): Check the Space key with the provider now
-- [talk.space.configure](../capabilities/talk.space.configure.md): Turn Talk for everyone on or off, and keep the key. An agent's change stops at the Gate for someone who may approve it
+- [talk.space.check](../capabilities/talk.space.check.md): Check the Space key now: a real one-second grant against the provider the Space picked, with the key from the Vault
+- [talk.space.configure](../capabilities/talk.space.configure.md): Turn Talk for everyone on or off, and pick which provider (Deepgram or ElevenLabs) covers people; its key must be added first. An agent's change stops at the Gate for someone who may approve it
 - [talk.space.connect](../capabilities/talk.space.connect.md): An admin adds or replaces the key that covers everyone: it is checked at once, then kept in a Restricted Shared folder. A person does this, never an agent
 - [talk.space.disconnect](../capabilities/talk.space.disconnect.md): Remove the Space key from the Vault; people with their own key keep working
 - [talk.space.status](../capabilities/talk.space.status.md): Talk for everyone in the Space: whether a key is set, on or off, who set it, when it was last checked and how many people use their own key

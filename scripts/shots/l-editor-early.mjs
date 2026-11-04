@@ -10,7 +10,7 @@ const { exportEnv } = await import(path.join(REPO, "scripts/lib/registry-hash.mj
 const appDir = path.join(REPO, "scripts/shots/app");
 if (!process.argv.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync("/root/wt/base/node_modules/.bin/expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync("/root/wt/l-editor/node_modules/.bin/expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
 }
 const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");

@@ -8955,13 +8955,13 @@
     {
       "deferred": true,
       "name": "talk_space_check",
-      "summary": "Check the Space key with the provider now",
+      "summary": "Check the Space key now: a real one-second grant against the provider the Space picked, with the key from the Vault",
       "toolset": "meta"
     },
     {
       "deferred": true,
       "name": "talk_space_configure",
-      "summary": "Turn Talk for everyone on or off, and keep the key. An agent's change stops at the Gate for someone who may approve it",
+      "summary": "Turn Talk for everyone on or off, and pick which provider (Deepgram or ElevenLabs) covers people; its key must be added first. An agent's change stops at the Gate for someone who may approve it",
       "toolset": "meta"
     },
     {

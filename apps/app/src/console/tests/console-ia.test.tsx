@@ -27,6 +27,7 @@ test("the shape: ten places, a subtitle on each, at most seven tabs a place, Spa
   assert.deepEqual(SECTIONS.find((s) => s.id === "machines")!.tabs.map((t) => t.label), ["Overview", "Servers", "Agent computers", "CI runners", "Diagnostics"]);
   assert.deepEqual(SECTIONS.find((s) => s.id === "apps")!.tabs.map((t) => t.label), ["Connected apps", "GitHub", "Developers"]);
   assert.deepEqual(SECTIONS.find((s) => s.id === "security")!.tabs.map((t) => t.label), ["Sign-in", "Access reviews", "Audit log"]);
+  assert.deepEqual(SECTIONS.find((s) => s.id === "space")!.tabs.map((t) => t.label), ["General", "Transfer or delete"]);
   assert.ok(html({}).includes('data-testid="page-subtitle"'), "the subtitle is drawn");
 });
 
@@ -54,7 +55,7 @@ const LANDS: Record<string, [string, string]> = {
   connectors: ["apps", "apps"], connections: ["apps", "apps"], company: ["apps", "company"], google: ["apps", "google"], microsoft: ["apps", "microsoft"], kit: ["machines", "diagnostics"], webhooks: ["apps", "webhooks"], keys: ["apps", "keys"],
   machines: ["machines", "machines"], computers: ["machines", "machines"], network: ["machines", "network"], server: ["machines", "server"], updates: ["machines", "updates"], diagnostics: ["machines", "diagnostics"], support: ["machines", "support"], speed: ["machines", "speed"],
   ci: ["machines", "ci"], ghapp: ["apps", "ghapp"],
-  audit: ["security", "audit"], space: ["space", "space"],
+  audit: ["security", "audit"], space: ["space", "space"], billing: ["space", "space"],
   "def-access": ["security", "reviews"], "def-agents": ["ai", "gate"], "def-memory": ["ai", "memlearn"], "def-data": ["data", "schema"], "def-apps": ["messaging", "domains"], "def-advanced": ["space", "space"],
 };
 

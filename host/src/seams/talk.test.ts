@@ -54,3 +54,17 @@ test("a locked Vault and a gone Space key say so", async () => {
   assert.equal(f.reason, "no_key");
   assert.match(f.message, /Console, Voice/);
 });
+
+test("ElevenLabs: the key goes in one header to the single-use token address, the token comes back, and a probe uses the same call", async () => {
+  const seen: { url: string; init: { headers: Record<string, string>; body: string } }[] = [];
+  const f: SeamFetch = async (url, init) => { seen.push({ url, init: init as never }); return { status: 200, text: async () => JSON.stringify({ token: "sutkn_1" }), arrayBuffer: async () => new ArrayBuffer(0) }; };
+  const host = createTalkHost({ vault, fetch: f });
+  assert.deepEqual(await host.mint(ctx, { provider: "elevenlabs", handle: "#E.api_key", own: false, ttl: 1 }), { token: "sutkn_1", expiresIn: 900 });
+  assert.equal(seen[0]!.url, "https://api.elevenlabs.io/v1/single-use-token/realtime_scribe");
+  assert.deepEqual(seen[0]!.init.headers, { "xi-api-key": KEY });
+  const bad = (status: number) => fails(createTalkHost({ vault, fetch: answer(status, "") }).check(ctx, { provider: "elevenlabs", apiKey: KEY }));
+  assert.equal((await bad(401)).reason, "revoked");
+  assert.equal((await bad(403)).reason, "role");
+  assert.equal((await bad(429)).code, "provider.rate_limited");
+  assert.equal((await bad(500)).code, "provider.unavailable");
+});

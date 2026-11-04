@@ -3,6 +3,7 @@
 import { insertFact, normal } from "./factcore.ts";
 import type { NewFact } from "./factcore.ts";
 import { sameSubject, disagree, kindOf, placeOf } from "./place.ts";
+import type { Place } from "./place.ts";
 import { mintId, readFact, rowsOf, str } from "./projections.ts";
 import type { Fact, MemCtx } from "./projections.ts";
 import { trail } from "./trail.ts";
@@ -22,7 +23,11 @@ function neighbours(ctx: MemCtx, n: SharedIn, placeKind: string, placeId: string
 }
 
 export async function writeShared(ctx: MemCtx, n: SharedIn): Promise<SharedOut> {
-  const place = await placeOf(ctx, n.threadId);
+  return writeSharedWith(ctx, n, await placeOf(ctx, n.threadId));
+}
+
+/** The same with the place already known, so the per-turn learn pass (which cannot wait) writes through the one door too. */
+export function writeSharedWith(ctx: MemCtx, n: SharedIn, place: Place): SharedOut {
   const kind = kindOf(n.kind);
   const common: NewFact = { ...n, kind, place: { kind: place.kind, id: place.id, ...(place.parent ? { parent: place.parent } : {}) }, placeThread: n.threadId, audience: n.heard };
   const same = neighbours(ctx, n, place.kind, place.id);
