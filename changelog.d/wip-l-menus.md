@@ -10,3 +10,7 @@
 - A message menu has Mark Unread From Here, and a chat menu has Move to Project. A task menu has Follow and Copy Link.
 - Voice can use ElevenLabs as well as Deepgram. An admin adds a key for each and picks which one covers people (Console, Voice). Check now runs a real one-second grant against the picked provider.
 - Voice favours the words Vyre mishears: Vyre, the Space name and the names of its agents and people are passed to Deepgram and ElevenLabs as boosted terms.
+- Every Space has a time zone. An admin sets it in Console, Space, General (a city picker with the time in each, and one line saying what changes before it saves). Goals, check-ins, due dates, task chips, message times and project dates in shared places read in it, with your own time quietly beside it ("9:00 AM (10:00 PM your time)"). Hover or long press shows both zones and the full date. Private chats use only your own zone.
+- Your own time zone is in Settings, Profile, with a city picker and "Use this computer's time zone".
+- Agents in a shared place are told the Space's zone and the time in it, so the dates they write match what everyone reads. A new goal starts in the Space's zone.
+- A goal's finish line no longer ends in a stray dash after the agent's own date is replaced by the real deadline.
