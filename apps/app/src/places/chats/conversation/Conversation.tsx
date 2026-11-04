@@ -3,6 +3,7 @@
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
 import { useFrameStore } from "./frame.ts";
+import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips } from "./helper-rows.ts";
 import { useCrew } from "../crew/context.tsx";
 import { crewChipOf } from "../crew/model.ts";
@@ -470,19 +471,15 @@ function ConversationView(): ReactElement {
     return items;
   };
   const moreMenu = (x: number, y: number): void => { menu.show(moreEntries(), x, y, "other", { label: "Chat" }); };
-  // in a project's frame the page draws these in its own header (conversation/frame.ts)
-  useEffect(() => {
-    if (!frame) return;
-    frame.set({
-      find: { active: finding, toggle: () => setFinding((f) => !f) },
-      pane: { toggle: () => data.nav.togglePane() },
-      helpers: crewChip ? { label: crewChip.label, badge: crewChip.active > 0 ? crewChip.active : crewChip.total, onPress: () => crew!.show(null) }
-        : helpers.length > 0 ? { label: `${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`, badge: helpers.length, onPress: helpersMenu } : null,
-      stop: isWorking ? { label: stopLabel(working, nameOf), onPress: stopMenu } : null,
-      chatEntries: moreEntries,
-    });
-  });
-  useEffect(() => () => frame?.set(null), [frame]);
+  // in a project's frame the page draws these in its own header (conversation/frame.ts). The controls are built here, and a small child hands them over: hooks cannot sit down here, after the early returns.
+  const frameFeed: FrameControls | null = frame ? {
+    find: { active: finding, toggle: () => setFinding((f) => !f) },
+    pane: { toggle: () => data.nav.togglePane() },
+    helpers: crewChip ? { label: crewChip.label, badge: crewChip.active > 0 ? crewChip.active : crewChip.total, onPress: () => crew!.show(null) }
+      : helpers.length > 0 ? { label: `${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`, badge: helpers.length, onPress: helpersMenu } : null,
+    stop: isWorking ? { label: stopLabel(working, nameOf), onPress: stopMenu } : null,
+    chatEntries: moreEntries,
+  } : null;
 
   /* ---------- the message actions, one object for every row ---------- */
   const muteOffer = muteOfferFor(all, data.me.id, (id, person) => muteSeen.current.has(id) || mutedHere.has(person));
@@ -639,6 +636,7 @@ function ConversationView(): ReactElement {
   return (
     <DropRoute testID="conversation-drop" style={ROUTE_STYLE} onOther={takeShare}>
     <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root}>
+      <FrameFeed frame={frame} feed={frameFeed} />
       {compact || inFrame ? null : (
       <View testID="conversation-head" accessibilityRole="header" style={st.head}>
         {mobileBack ? <IconButton icon="back" label="Back" size={32} testID="conversation-back" onPress={() => mobileBack()} /> : null}
@@ -905,3 +903,11 @@ const st = StyleSheet.create({
   closed: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
   composerBox: { alignSelf: "center", width: "100%", maxWidth: 708, paddingHorizontal: 24, paddingBottom: 16 },
 });
+
+
+/** Hands the conversation's header controls to the frame it is drawn in, and takes them back when it leaves. Its own component, so its hooks run on every render of the conversation, loaded or not. */
+function FrameFeed({ frame, feed }: { frame: FrameStore | null | undefined; feed: FrameControls | null }): null {
+  useEffect(() => { if (frame && feed) frame.set(feed); });
+  useEffect(() => () => frame?.set(null), [frame]);
+  return null;
+}
