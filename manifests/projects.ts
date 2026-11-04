@@ -21,6 +21,18 @@ const ruleBody = {
   kind: t.enm('repo', 'record_filter', 'email_domain'), repo: t.opt(t.str({ examples: ['vyre-ai/website'] })), recordType: t.opt(id.recordType), field: t.opt(t.str()), equals: t.opt(t.str()), domain: t.opt(t.str({ examples: ['client.com'] })),
 };
 const ruleRow = t.obj({ ruleId: t.str({ examples: ['rul_a1b2c3'] }), ...ruleBody, by: t.str(), at: t.ts() });
+const liveType = t.enm('tasks', 'milestones', 'links', 'records', 'metric', 'ci', 'goal', 'people', 'status');
+const liveBody = t.obj({ type: liveType, spec: t.rec(t.json()), view: t.opt(t.enm('list', 'table', 'count', 'cards')) });
+const pageBlock = t.obj({ id: t.str({ examples: ['blk_a1b2c3'] }), kind: t.enm('text', 'heading', 'live'), text: t.opt(t.str()), level: t.opt(t.int({ minimum: 1, maximum: 3 })), live: t.opt(liveBody), by: t.opt(t.str()), at: t.opt(t.ts()) });
+const pageBlockIn = t.obj({ id: t.opt(t.str()), kind: t.enm('text', 'heading', 'live'), text: t.opt(t.str()), level: t.opt(t.int({ minimum: 1, maximum: 3 })), live: t.opt(liveBody) });
+const pageOp = t.obj({
+  op: t.enm('insert', 'update', 'move', 'delete', 'set_property'), id: t.opt(t.str({ description: 'The block to change, move or delete' })), after: t.opt(t.str({ description: 'Insert or move after this block id; start or end' })),
+  block: t.opt(pageBlockIn), key: t.opt(t.str({ description: 'A custom field of the project, for set_property' })), value: t.opt(t.json()),
+});
+const pageProp = t.obj({ key: t.str(), title: t.str(), type: t.str(), value: t.opt(t.json()) });
+const revRow = t.obj({ rev: t.int({ minimum: 1 }), by: t.str(), authorKind: t.enm('person', 'agent'), summary: t.str(), undoOf: t.opt(t.int()), at: t.ts() });
+const pageTemplate = t.obj({ templateId: t.str({ examples: ['tpl_client_account'] }), title: t.str(), summary: t.opt(t.str()), builtin: t.bool(), blocks: t.int({ minimum: 0 }), by: t.str(), at: t.ts() });
+const liveRow = t.obj({ id: t.str(), title: t.str(), state: t.opt(t.str()), detail: t.opt(t.str()), url: t.opt(t.str()) });
 const helperRow = t.obj({
   jobId: t.str(), threadId: id.thread, agentId: id.agent, name: t.opt(t.str()), title: t.str(), state: t.enm('working', 'done', 'needs_you', 'stopped'), startedAt: t.ts(), endedAt: t.opt(t.ts()),
 });
@@ -122,6 +134,8 @@ export default defineManifest({
     ev('project.item_linked', 'Something was linked to a project, by a person, an agent or a rule', { p: { projectId: id.project, linkId: t.str(), kind: linkKind, ref: t.str(), source: t.enm('manual', 'agent', 'rule'), ruleId: t.opt(t.str()), by: t.str() }, subject: ['project', '/projectId'] }),
     ev('project.item_unlinked', 'A link was taken off a project', { p: { projectId: id.project, linkId: t.str(), kind: linkKind, ref: t.str(), by: t.str() }, subject: ['project', '/projectId'] }),
     ev('project.link_rules_set', 'The rules that link matching new items to a project changed', { p: { projectId: id.project, rules: t.int({ minimum: 0 }), by: t.str() }, subject: ['project', '/projectId'] }),
+    ev('project.overview_edited', 'The Overview page changed (an edit, a save, an applied template or an undo), by a person or an agent', { p: { projectId: id.project, rev: t.int({ minimum: 1 }), by: t.str(), authorKind: t.enm('person', 'agent'), summary: t.str(), undoOf: t.opt(t.int()) }, subject: ['project', '/projectId'] }),
+    ev('project.overview_template_saved', 'A page template was saved for the Space', { p: { projectId: t.str(), templateId: t.str(), title: t.str(), by: t.str() }, subject: ['project', '/projectId'] }),
     ev('project.file_pinned', 'A file was pinned to the Overview', { p: { projectId: id.project, fileId: id.file }, subject: ['project', '/projectId'] }),
     ev('project.file_unpinned', 'A pinned file was removed from the Overview', { p: { projectId: id.project, fileId: id.file }, subject: ['project', '/projectId'] }),
     ev('project.chat_filed', 'A private chat was filed under a project (it stays private)', { p: { projectId: id.project, threadId: id.thread }, subject: ['project', '/projectId'] }),
@@ -250,6 +264,46 @@ export default defineManifest({
     write('projects.links.rules.set', 'Set the rules that link matching new items to the project: a repository, a record filter or an email domain', {
       in: { projectId: id.project, rules: t.arr(t.obj({ ruleId: t.opt(t.str()), ...ruleBody })) }, out: { rules: t.arr(ruleRow) },
       on: ['project', '/projectId'], audit: 'always', emits: ['project.link_rules_set'], tool: 'records', errors: ['validation.bad_input'],
+    }),
+    // ---- the Overview as a page
+    read('projects.overview_doc.get', 'The Overview page: its blocks (text, headings and live blocks that hold only a spec), its revision and the project\'s custom fields for the page header', {
+      in: { projectId: id.project }, out: { rev: t.int({ minimum: 0 }), blocks: t.arr(pageBlock), properties: t.arr(pageProp), updatedBy: t.opt(t.str()), updatedAt: t.opt(t.ts()), latest: t.opt(revRow) },
+      on: ['project', '/projectId'], tool: 'records', label: 'check',
+    }),
+    write('projects.overview_doc.save', 'Save the whole Overview page from the editor; baseRev is the revision it was opened at, and a page changed since says so instead of overwriting', {
+      in: { projectId: id.project, blocks: t.arr(pageBlockIn), baseRev: t.opt(t.int({ minimum: 0 })) }, out: { rev: t.int({ minimum: 1 }), blocks: t.arr(pageBlock) },
+      on: ['project', '/projectId'], level: 'edit', audit: 'always', emits: ['project.overview_edited'], tool: 'records', errors: ['validation.bad_input', 'validation.precondition_failed'],
+    }),
+    write('projects.overview_edit', 'Edit the Overview by ops: insert, update, move, delete a block, or set_property on a custom field of the project. One revision for the call, carrying its author; an agent\'s edit leaves one quiet line in the project channel', {
+      in: { projectId: id.project, ops: t.arr(pageOp), baseRev: t.opt(t.int({ minimum: 0 })) }, out: { rev: t.int({ minimum: 1 }), summary: t.str(), blocks: t.arr(pageBlock) },
+      on: ['project', '/projectId'], level: 'edit', audit: 'always', emits: ['project.overview_edited'], tool: 'records', mcpName: 'overview_edit', errors: ['validation.bad_input', 'validation.not_found', 'validation.precondition_failed'],
+    }),
+    read('projects.overview_get', 'Read the Overview as Markdown with every block led by its id, the project\'s custom fields and the kinds of live block, so overview_edit can name what to change', {
+      in: { projectId: id.project }, out: { rev: t.int({ minimum: 0 }), markdown: t.str(), properties: t.arr(pageProp), liveTypes: t.arr(liveType) },
+      on: ['project', '/projectId'], tool: 'records', mcpName: 'overview_get', label: 'check',
+    }),
+    write('projects.overview_doc.undo', 'Undo the latest change to the Overview: the blocks and any property it set go back as they were; the undo is a revision too', {
+      in: { projectId: id.project, rev: t.opt(t.int({ minimum: 1 })) }, out: { rev: t.int({ minimum: 1 }), undid: t.int({ minimum: 1 }), blocks: t.arr(pageBlock) },
+      on: ['project', '/projectId'], level: 'edit', audit: 'always', emits: ['project.overview_edited'], tool: 'records', errors: ['validation.precondition_failed'],
+    }),
+    read('projects.overview_doc.history', 'The Overview\'s revisions, newest first, each with who made it and what changed', {
+      in: { projectId: id.project, limit: t.opt(t.int({ minimum: 1, maximum: 100 })) }, out: { revisions: t.arr(revRow) }, on: ['project', '/projectId'], tool: 'records', label: 'filter',
+    }),
+    read('projects.live_block.query', 'Evaluate a live block for the reader: the rows they may open, how many they may not (hidden), and for a metric its value. The block stores only its spec', {
+      in: { projectId: id.project, blockId: t.opt(t.str()), type: t.opt(liveType), spec: t.opt(t.rec(t.json())) },
+      out: { type: liveType, rows: t.arr(liveRow), hidden: t.int({ minimum: 0 }), total: t.int({ minimum: 0 }), value: t.opt(t.num()), label: t.opt(t.str()) },
+      on: ['project', '/projectId'], tool: 'records', label: 'check', errors: ['validation.bad_input', 'validation.not_found'],
+    }),
+    read('projects.overview_doc.templates.list', 'The Space\'s Overview page templates: Client account, Software project and Hiring, and any saved since', {
+      out: { templates: t.arr(pageTemplate) }, tool: 'records',
+    }),
+    write('projects.overview_doc.templates.save', 'Save a page template for the Space, from a project\'s Overview or from blocks; an agent can too', {
+      in: { title: t.str(), summary: t.opt(t.str()), projectId: t.opt(id.project), blocks: t.opt(t.arr(pageBlockIn)), templateId: t.opt(t.str()) }, out: { template: pageTemplate },
+      audit: 'always', emits: ['project.overview_template_saved'], tool: 'records', errors: ['validation.bad_input'],
+    }),
+    write('projects.overview_doc.apply_template', 'Put a template\'s blocks on a project\'s Overview, replacing the page (one revision, so Undo brings the old page back)', {
+      in: { projectId: id.project, templateId: t.str(), baseRev: t.opt(t.int({ minimum: 0 })) }, out: { rev: t.int({ minimum: 1 }), blocks: t.arr(pageBlock) },
+      on: ['project', '/projectId'], level: 'edit', audit: 'always', emits: ['project.overview_edited'], tool: 'records', errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
     // ---- overview upkeep
     write('projects.post_update', 'Post the status update (by the lead, or drafted weekly by an agent) to the project channel and keep it on the Overview', {

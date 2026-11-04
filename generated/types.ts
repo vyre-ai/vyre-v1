@@ -27936,6 +27936,26 @@ export type ProjectsListOut = {
   next?: string;
   total?: number;
 };
+export type ProjectsLiveBlockQueryIn = {
+  projectId: string;
+  blockId?: string;
+  type?: "tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status";
+  spec?: Record<string, unknown>;
+};
+export type ProjectsLiveBlockQueryOut = {
+  type: "tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status";
+  rows: Array<{
+      id: string;
+      title: string;
+      state?: string;
+      detail?: string;
+      url?: string;
+    }>;
+  hidden: number;
+  total: number;
+  value?: number;
+  label?: string;
+};
 export type ProjectsMembersListIn = {
   projectId: string;
 };
@@ -28077,6 +28097,221 @@ export type ProjectsOverviewOut = {
       title: string;
       at: number;
     }>;
+};
+export type ProjectsOverviewDocApplyTemplateIn = {
+  projectId: string;
+  templateId: string;
+  baseRev?: number;
+};
+export type ProjectsOverviewDocApplyTemplateOut = {
+  rev: number;
+  blocks: Array<{
+      id: string;
+      kind: "text" | "heading" | "live";
+      text?: string;
+      level?: number;
+      live?: {
+        type: "tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status";
+        spec: Record<string, unknown>;
+        view?: "list" | "table" | "count" | "cards";
+      };
+      by?: string;
+      at?: number;
+    }>;
+};
+export type ProjectsOverviewDocGetIn = {
+  projectId: string;
+};
+export type ProjectsOverviewDocGetOut = {
+  rev: number;
+  blocks: Array<{
+      id: string;
+      kind: "text" | "heading" | "live";
+      text?: string;
+      level?: number;
+      live?: {
+        type: "tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status";
+        spec: Record<string, unknown>;
+        view?: "list" | "table" | "count" | "cards";
+      };
+      by?: string;
+      at?: number;
+    }>;
+  properties: Array<{
+      key: string;
+      title: string;
+      type: string;
+      value?: unknown;
+    }>;
+  updatedBy?: string;
+  updatedAt?: number;
+  latest?: {
+    rev: number;
+    by: string;
+    authorKind: "person" | "agent";
+    summary: string;
+    undoOf?: number;
+    at: number;
+  };
+};
+export type ProjectsOverviewDocHistoryIn = {
+  projectId: string;
+  limit?: number;
+};
+export type ProjectsOverviewDocHistoryOut = {
+  revisions: Array<{
+      rev: number;
+      by: string;
+      authorKind: "person" | "agent";
+      summary: string;
+      undoOf?: number;
+      at: number;
+    }>;
+};
+export type ProjectsOverviewDocSaveIn = {
+  projectId: string;
+  blocks: Array<{
+      id?: string;
+      kind: "text" | "heading" | "live";
+      text?: string;
+      level?: number;
+      live?: {
+        type: "tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status";
+        spec: Record<string, unknown>;
+        view?: "list" | "table" | "count" | "cards";
+      };
+    }>;
+  baseRev?: number;
+};
+export type ProjectsOverviewDocSaveOut = {
+  rev: number;
+  blocks: Array<{
+      id: string;
+      kind: "text" | "heading" | "live";
+      text?: string;
+      level?: number;
+      live?: {
+        type: "tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status";
+        spec: Record<string, unknown>;
+        view?: "list" | "table" | "count" | "cards";
+      };
+      by?: string;
+      at?: number;
+    }>;
+};
+export type ProjectsOverviewDocTemplatesListIn = Record<string, unknown>;
+export type ProjectsOverviewDocTemplatesListOut = {
+  templates: Array<{
+      templateId: string;
+      title: string;
+      summary?: string;
+      builtin: boolean;
+      blocks: number;
+      by: string;
+      at: number;
+    }>;
+};
+export type ProjectsOverviewDocTemplatesSaveIn = {
+  title: string;
+  summary?: string;
+  projectId?: string;
+  blocks?: Array<{
+      id?: string;
+      kind: "text" | "heading" | "live";
+      text?: string;
+      level?: number;
+      live?: {
+        type: "tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status";
+        spec: Record<string, unknown>;
+        view?: "list" | "table" | "count" | "cards";
+      };
+    }>;
+  templateId?: string;
+};
+export type ProjectsOverviewDocTemplatesSaveOut = {
+  template: {
+    templateId: string;
+    title: string;
+    summary?: string;
+    builtin: boolean;
+    blocks: number;
+    by: string;
+    at: number;
+  };
+};
+export type ProjectsOverviewDocUndoIn = {
+  projectId: string;
+  rev?: number;
+};
+export type ProjectsOverviewDocUndoOut = {
+  rev: number;
+  undid: number;
+  blocks: Array<{
+      id: string;
+      kind: "text" | "heading" | "live";
+      text?: string;
+      level?: number;
+      live?: {
+        type: "tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status";
+        spec: Record<string, unknown>;
+        view?: "list" | "table" | "count" | "cards";
+      };
+      by?: string;
+      at?: number;
+    }>;
+};
+export type ProjectsOverviewEditIn = {
+  projectId: string;
+  ops: Array<{
+      op: "insert" | "update" | "move" | "delete" | "set_property";
+      id?: string;
+      after?: string;
+      block?: {
+        id?: string;
+        kind: "text" | "heading" | "live";
+        text?: string;
+        level?: number;
+        live?: {
+          type: "tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status";
+          spec: Record<string, unknown>;
+          view?: "list" | "table" | "count" | "cards";
+        };
+      };
+      key?: string;
+      value?: unknown;
+    }>;
+  baseRev?: number;
+};
+export type ProjectsOverviewEditOut = {
+  rev: number;
+  summary: string;
+  blocks: Array<{
+      id: string;
+      kind: "text" | "heading" | "live";
+      text?: string;
+      level?: number;
+      live?: {
+        type: "tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status";
+        spec: Record<string, unknown>;
+        view?: "list" | "table" | "count" | "cards";
+      };
+      by?: string;
+      at?: number;
+    }>;
+};
+export type ProjectsOverviewGetIn = {
+  projectId: string;
+};
+export type ProjectsOverviewGetOut = {
+  rev: number;
+  markdown: string;
+  properties: Array<{
+      key: string;
+      title: string;
+      type: string;
+      value?: unknown;
+    }>;
+  liveTypes: Array<"tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status">;
 };
 export type ProjectsPinFileIn = {
   projectId: string;
@@ -42208,11 +42443,21 @@ export interface CapMap {
   "projects.links.rules.set": { in: ProjectsLinksRulesSetIn; out: ProjectsLinksRulesSetOut };
   "projects.links.unlink": { in: ProjectsLinksUnlinkIn; out: ProjectsLinksUnlinkOut };
   "projects.list": { in: ProjectsListIn; out: ProjectsListOut };
+  "projects.live_block.query": { in: ProjectsLiveBlockQueryIn; out: ProjectsLiveBlockQueryOut };
   "projects.members.list": { in: ProjectsMembersListIn; out: ProjectsMembersListOut };
   "projects.members.remove": { in: ProjectsMembersRemoveIn; out: ProjectsMembersRemoveOut };
   "projects.members.set": { in: ProjectsMembersSetIn; out: ProjectsMembersSetOut };
   "projects.open_task_thread": { in: ProjectsOpenTaskThreadIn; out: ProjectsOpenTaskThreadOut };
   "projects.overview": { in: ProjectsOverviewIn; out: ProjectsOverviewOut };
+  "projects.overview_doc.apply_template": { in: ProjectsOverviewDocApplyTemplateIn; out: ProjectsOverviewDocApplyTemplateOut };
+  "projects.overview_doc.get": { in: ProjectsOverviewDocGetIn; out: ProjectsOverviewDocGetOut };
+  "projects.overview_doc.history": { in: ProjectsOverviewDocHistoryIn; out: ProjectsOverviewDocHistoryOut };
+  "projects.overview_doc.save": { in: ProjectsOverviewDocSaveIn; out: ProjectsOverviewDocSaveOut };
+  "projects.overview_doc.templates.list": { in: ProjectsOverviewDocTemplatesListIn; out: ProjectsOverviewDocTemplatesListOut };
+  "projects.overview_doc.templates.save": { in: ProjectsOverviewDocTemplatesSaveIn; out: ProjectsOverviewDocTemplatesSaveOut };
+  "projects.overview_doc.undo": { in: ProjectsOverviewDocUndoIn; out: ProjectsOverviewDocUndoOut };
+  "projects.overview_edit": { in: ProjectsOverviewEditIn; out: ProjectsOverviewEditOut };
+  "projects.overview_get": { in: ProjectsOverviewGetIn; out: ProjectsOverviewGetOut };
   "projects.pin_file": { in: ProjectsPinFileIn; out: ProjectsPinFileOut };
   "projects.plan": { in: ProjectsPlanIn; out: ProjectsPlanOut };
   "projects.post_update": { in: ProjectsPostUpdateIn; out: ProjectsPostUpdateOut };
@@ -45340,6 +45585,20 @@ export type ProjectMemberSetPayload = {
   role: "lead" | "member" | "reviewer" | "guest";
   previous?: "lead" | "member" | "reviewer" | "guest";
 };
+export type ProjectOverviewEditedPayload = {
+  projectId: string;
+  rev: number;
+  by: string;
+  authorKind: "person" | "agent";
+  summary: string;
+  undoOf?: number;
+};
+export type ProjectOverviewTemplateSavedPayload = {
+  projectId: string;
+  templateId: string;
+  title: string;
+  by: string;
+};
 export type ProjectSharedOutPayload = {
   projectId: string;
   expiresAt?: number;
@@ -47253,6 +47512,8 @@ export interface EventMap {
   "project.link_rules_set": ProjectLinkRulesSetPayload;
   "project.member_removed": ProjectMemberRemovedPayload;
   "project.member_set": ProjectMemberSetPayload;
+  "project.overview_edited": ProjectOverviewEditedPayload;
+  "project.overview_template_saved": ProjectOverviewTemplateSavedPayload;
   "project.shared_out": ProjectSharedOutPayload;
   "project.stages_changed": ProjectStagesChangedPayload;
   "project.task_rescheduled": ProjectTaskRescheduledPayload;

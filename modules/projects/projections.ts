@@ -1,5 +1,6 @@
 // @reads /modules/projects/migrations/0001_projects.sql
 // @reads /modules/projects/migrations/0002_links.sql
+// @reads /modules/projects/migrations/0003_overview.sql
 // Projects: rows, ports to the modules a project works through, and the plan arithmetic (spec 3.4, 2.12; ARCH 7.4).
 // A project is a record of the `project` type (or a type cloned from it): its fields live in records. This module keeps what only the project knows (channel, folder, roles, stages, the start of a
 // task, dependency arrows, cascade proposals, the status update, pins). Tasks are owned by module tasks and are read through tasks.list; the due date is the task's own.
@@ -59,7 +60,7 @@ export const isPerson = (ctx: Pick<ProjectsCtx, "principal" | "actingFor">): boo
 
 // ---- schema ----
 
-const SCHEMA = ["0001_projects.sql", "0002_links.sql"].flatMap((file) => readFileSync(new URL(`./migrations/${file}`, import.meta.url), "utf8")
+const SCHEMA = ["0001_projects.sql", "0002_links.sql", "0003_overview.sql"].flatMap((file) => readFileSync(new URL(`./migrations/${file}`, import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0));
 const ready = new WeakSet<object>();
@@ -67,7 +68,7 @@ const ready = new WeakSet<object>();
 /** Make sure the projects tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. */
 export function ensure(db: Db): void {
   if (ready.has(db)) return;
-  try { db.all("SELECT key FROM projects_key WHERE key = ?", "probe"); db.all("SELECT ruleId FROM projects_rule WHERE ruleId = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
+  try { db.all("SELECT key FROM projects_key WHERE key = ?", "probe"); db.all("SELECT ruleId FROM projects_rule WHERE ruleId = ?", "probe"); db.all("SELECT templateId FROM projects_page_template WHERE templateId = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   ready.add(db);
 }
 
@@ -494,4 +495,47 @@ export function allRules(db: Db): Rule[] {
 export function replaceRules(db: Db, projectId: string, rules: readonly Rule[]): void {
   db.run("DELETE FROM projects_rule WHERE projectId = ?", projectId);
   for (const r of rules) db.run("INSERT INTO projects_rule (ruleId, projectId, kind, spec, byWho, at) VALUES (?, ?, ?, ?, ?, ?)", r.ruleId, projectId, r.kind, JSON.stringify(r.spec), r.by, r.at);
+}
+
+
+// ---- the Overview page ----
+
+export type LiveType = "tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status";
+export const LIVE_TYPES: readonly LiveType[] = ["tasks", "milestones", "links", "records", "metric", "ci", "goal", "people", "status"];
+export interface PageBlock {
+  id: string; kind: "text" | "heading" | "live"; text?: string | undefined; level?: number | undefined;
+  live?: { type: LiveType; spec: Record<string, unknown>; view?: "list" | "table" | "count" | "cards" | undefined } | undefined;
+  by?: string | undefined; at?: number | undefined;
+}
+export interface DocRow { rev: number; blocks: PageBlock[]; by: string; at: number }
+export function docOf(db: Db, projectId: string): DocRow | undefined {
+  const r = (db.all("SELECT * FROM projects_doc WHERE projectId = ?", projectId) as Row[])[0];
+  return r ? { rev: num(r["rev"]), blocks: parseJson<PageBlock[]>(r["blocks"], []), by: str(r["byWho"]), at: num(r["at"]) } : undefined;
+}
+export interface RevRow { rev: number; by: string; authorKind: "person" | "agent"; summary: string; undoOf?: number | undefined; at: number; before: PageBlock[]; props?: Record<string, unknown> | undefined }
+export function revsOf(db: Db, projectId: string, limit = 50): RevRow[] {
+  return (db.all("SELECT * FROM projects_doc_rev WHERE projectId = ? ORDER BY rev DESC LIMIT ?", projectId, limit) as Row[]).map((r) => ({
+    rev: num(r["rev"]), by: str(r["byWho"]), authorKind: str(r["authorKind"]) as RevRow["authorKind"], summary: str(r["summary"]), undoOf: optNum(r["undoOf"]), at: num(r["at"]),
+    before: parseJson<PageBlock[]>(r["before"], []), props: parseJson<Record<string, unknown> | undefined>(r["props"], undefined),
+  }));
+}
+/** Write the page as a new revision. The oldest revisions beyond 200 are dropped. */
+export function saveDoc(db: Db, projectId: string, o: { blocks: PageBlock[]; before: PageBlock[]; props?: Record<string, unknown> | undefined; by: string; authorKind: "person" | "agent"; summary: string; undoOf?: number | undefined; at: number }): number {
+  const rev = (docOf(db, projectId)?.rev ?? 0) + 1;
+  db.run("INSERT INTO projects_doc (projectId, rev, blocks, byWho, at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(projectId) DO UPDATE SET rev = excluded.rev, blocks = excluded.blocks, byWho = excluded.byWho, at = excluded.at", projectId, rev, JSON.stringify(o.blocks), o.by, o.at);
+  db.run("INSERT INTO projects_doc_rev (projectId, rev, blocks, before, props, byWho, authorKind, summary, undoOf, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", projectId, rev, JSON.stringify(o.blocks), JSON.stringify(o.before), o.props ? JSON.stringify(o.props) : null, o.by, o.authorKind, o.summary, o.undoOf ?? null, o.at);
+  db.run("DELETE FROM projects_doc_rev WHERE projectId = ? AND rev <= ?", projectId, rev - 200);
+  return rev;
+}
+export interface PageTemplate { templateId: string; title: string; summary?: string | undefined; blocks: PageBlock[]; builtin: boolean; by: string; at: number }
+const toTemplate = (r: Row): PageTemplate => ({ templateId: str(r["templateId"]), title: str(r["title"]), summary: optStr(r["summary"]), blocks: parseJson<PageBlock[]>(r["blocks"], []), builtin: num(r["builtin"]) === 1, by: str(r["byWho"]), at: num(r["at"]) });
+export function templatesOf(db: Db): PageTemplate[] {
+  return (db.all("SELECT * FROM projects_page_template ORDER BY builtin DESC, at ASC, templateId ASC") as Row[]).map(toTemplate);
+}
+export function templateBy(db: Db, templateId: string): PageTemplate | undefined {
+  const r = (db.all("SELECT * FROM projects_page_template WHERE templateId = ?", templateId) as Row[])[0];
+  return r ? toTemplate(r) : undefined;
+}
+export function saveTemplate(db: Db, t: PageTemplate): void {
+  db.run("INSERT INTO projects_page_template (templateId, title, summary, blocks, builtin, byWho, at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(templateId) DO UPDATE SET title = excluded.title, summary = excluded.summary, blocks = excluded.blocks", t.templateId, t.title, t.summary ?? null, JSON.stringify(t.blocks), t.builtin ? 1 : 0, t.by, t.at);
 }

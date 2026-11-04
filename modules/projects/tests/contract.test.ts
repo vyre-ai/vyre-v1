@@ -11,8 +11,8 @@ import { mkChain, mkProject, run } from "../fixtures/seed.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "projects");
 
-test("the handler table covers exactly the 37 capabilities of the projects manifest", () => {
-  assert.equal(mine.length, 37);
+test("the handler table covers exactly the 47 capabilities of the projects manifest", () => {
+  assert.equal(mine.length, 47);
   assert.deepEqual(Object.keys(handlers).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof handlers[c.name], "function", c.name);
 });
@@ -122,6 +122,23 @@ const scenarios: Scenario[] = [
   { cap: "projects.links.unlink", run: (hn) => run(hn, "projects.links.unlink", { projectId: NONE, kind: "url", ref: "x" }), expect: "validation.not_found" },
   { cap: "projects.links.rules.set", setup: withProject, run: (hn, p) => run(hn, "projects.links.rules.set", { projectId: p.projectId, rules: [{ kind: "repo", repo: "vyre-ai/website" }, { kind: "email_domain", domain: "client.com" }] }) },
   { cap: "projects.links.rules.set", setup: withProject, run: (hn, p) => run(hn, "projects.links.rules.set", { projectId: p.projectId, rules: [{ kind: "repo", repo: "nope" }] }), expect: "validation.bad_input" },
+  { cap: "projects.overview_doc.get", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.get", { projectId: p.projectId }) },
+  { cap: "projects.overview_doc.get", run: (hn) => run(hn, "projects.overview_doc.get", { projectId: NONE }), expect: "validation.not_found" },
+  { cap: "projects.overview_doc.save", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.save", { projectId: p.projectId, blocks: [{ kind: "text", text: "Hello" }], baseRev: 0 }) },
+  { cap: "projects.overview_doc.save", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.save", { projectId: p.projectId, blocks: [{ kind: "text", text: "Hello" }], baseRev: 7 }), expect: "validation.precondition_failed" },
+  { cap: "projects.overview_edit", setup: withProject, run: (hn, p) => run(hn, "projects.overview_edit", { projectId: p.projectId, ops: [{ op: "insert", block: { kind: "text", text: "Hi" } }] }) },
+  { cap: "projects.overview_edit", setup: withProject, run: (hn, p) => run(hn, "projects.overview_edit", { projectId: p.projectId, ops: [{ op: "delete", id: "blk_none" }] }), expect: "validation.not_found" },
+  { cap: "projects.overview_get", setup: withProject, run: (hn, p) => run(hn, "projects.overview_get", { projectId: p.projectId }) },
+  { cap: "projects.overview_doc.undo", setup: async (hn) => { const p = await withProject(hn); await run(hn, "projects.overview_edit", { projectId: p.projectId, ops: [{ op: "insert", block: { kind: "text", text: "Hi" } }] }); hn.clear(); return p; }, run: (hn, p) => run(hn, "projects.overview_doc.undo", { projectId: p.projectId }) },
+  { cap: "projects.overview_doc.undo", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.undo", { projectId: p.projectId }), expect: "validation.precondition_failed" },
+  { cap: "projects.overview_doc.history", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.history", { projectId: p.projectId, limit: 5 }) },
+  { cap: "projects.live_block.query", setup: withProject, run: (hn, p) => run(hn, "projects.live_block.query", { projectId: p.projectId, type: "status", spec: {} }) },
+  { cap: "projects.live_block.query", setup: withProject, run: (hn, p) => run(hn, "projects.live_block.query", { projectId: p.projectId, type: "records", spec: {} }), expect: "validation.bad_input" },
+  { cap: "projects.overview_doc.templates.list", run: (hn) => run(hn, "projects.overview_doc.templates.list", {}) },
+  { cap: "projects.overview_doc.templates.save", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.templates.save", { title: "Mine", projectId: p.projectId }) },
+  { cap: "projects.overview_doc.templates.save", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.templates.save", { title: "", projectId: p.projectId }), expect: "validation.bad_input" },
+  { cap: "projects.overview_doc.apply_template", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.apply_template", { projectId: p.projectId, templateId: "tpl_hiring" }) },
+  { cap: "projects.overview_doc.apply_template", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.apply_template", { projectId: p.projectId, templateId: "tpl_none" }), expect: "validation.not_found" },
 ];
 
 test("every path through every capability: answers match the schema, errors are declared, events are declared and match their schemas", async () => {
@@ -149,7 +166,7 @@ test("every path through every capability: answers match the schema, errors are 
     assert.deepEqual(assertEventsConform(hn), [], s.cap);
   }
   assert.deepEqual([...covered].sort(), mine.map((c) => c.name).sort(), "every capability has a happy path");
-  assert.ok(happy >= 30 && unhappy >= 33, `${happy} happy, ${unhappy} unhappy`);
+  assert.ok(happy >= 40 && unhappy >= 42, `${happy} happy, ${unhappy} unhappy`);
 });
 
 test("the capabilities that change something raise their declared events and the reads raise none", async () => {

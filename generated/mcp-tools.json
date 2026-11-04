@@ -42946,6 +42946,164 @@
     },
     {
       "blocks": [],
+      "cap": "projects.overview_edit",
+      "deferred": false,
+      "description": "Edit the Overview by ops: insert, update, move, delete a block, or set_property on a custom field of the project. One revision for the call, carrying its author; an agent's edit leaves one quiet line in the project channel",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "baseRev": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "ops": {
+            "items": {
+              "properties": {
+                "after": {
+                  "description": "Insert or move after this block id; start or end",
+                  "type": "string"
+                },
+                "block": {
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "text",
+                        "heading",
+                        "live"
+                      ],
+                      "type": "string"
+                    },
+                    "level": {
+                      "maximum": 3,
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "live": {
+                      "properties": {
+                        "spec": {
+                          "additionalProperties": {
+                            "description": "Any JSON value"
+                          },
+                          "type": "object"
+                        },
+                        "type": {
+                          "enum": [
+                            "tasks",
+                            "milestones",
+                            "links",
+                            "records",
+                            "metric",
+                            "ci",
+                            "goal",
+                            "people",
+                            "status"
+                          ],
+                          "type": "string"
+                        },
+                        "view": {
+                          "enum": [
+                            "list",
+                            "table",
+                            "count",
+                            "cards"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "spec"
+                      ],
+                      "type": "object"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind"
+                  ],
+                  "type": "object"
+                },
+                "id": {
+                  "description": "The block to change, move or delete",
+                  "type": "string"
+                },
+                "key": {
+                  "description": "A custom field of the project, for set_property",
+                  "type": "string"
+                },
+                "op": {
+                  "enum": [
+                    "insert",
+                    "update",
+                    "move",
+                    "delete",
+                    "set_property"
+                  ],
+                  "type": "string"
+                },
+                "value": {
+                  "description": "Any JSON value"
+                }
+              },
+              "required": [
+                "op"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "ops"
+        ],
+        "type": "object"
+      },
+      "name": "overview_edit",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_get",
+      "deferred": false,
+      "description": "Read the Overview as Markdown with every block led by its id, the project's custom fields and the kinds of live block, so overview_edit can name what to change",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "overview_get",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "chat.people_status",
       "deferred": true,
       "description": "Your teammates as you see them: online, away or offline and when last seen, their local time and working hours, and when a message to them would go. Only people in this Space, never anything private",
@@ -45190,6 +45348,55 @@
     },
     {
       "blocks": [],
+      "cap": "projects.live_block.query",
+      "deferred": false,
+      "description": "Evaluate a live block for the reader: the rows they may open, how many they may not (hidden), and for a metric its value. The block stores only its spec",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "blockId": {
+            "type": "string"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "spec": {
+            "additionalProperties": {
+              "description": "Any JSON value"
+            },
+            "type": "object"
+          },
+          "type": {
+            "enum": [
+              "tasks",
+              "milestones",
+              "links",
+              "records",
+              "metric",
+              "ci",
+              "goal",
+              "people",
+              "status"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_live_block_query",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "projects.members.list",
       "deferred": false,
       "description": "List people and agents on a project with their roles",
@@ -45357,6 +45564,344 @@
       },
       "name": "projects_overview",
       "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_doc.apply_template",
+      "deferred": false,
+      "description": "Put a template's blocks on a project's Overview, replacing the page (one revision, so Undo brings the old page back)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "baseRev": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "templateId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "templateId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_overview_doc_apply_template",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_doc.get",
+      "deferred": false,
+      "description": "The Overview page: its blocks (text, headings and live blocks that hold only a spec), its revision and the project's custom fields for the page header",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_overview_doc_get",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_doc.history",
+      "deferred": false,
+      "description": "The Overview's revisions, newest first, each with who made it and what changed",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "maximum": 100,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_overview_doc_history",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_doc.save",
+      "deferred": false,
+      "description": "Save the whole Overview page from the editor; baseRev is the revision it was opened at, and a page changed since says so instead of overwriting",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "baseRev": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "blocks": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "text",
+                    "heading",
+                    "live"
+                  ],
+                  "type": "string"
+                },
+                "level": {
+                  "maximum": 3,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "live": {
+                  "properties": {
+                    "spec": {
+                      "additionalProperties": {
+                        "description": "Any JSON value"
+                      },
+                      "type": "object"
+                    },
+                    "type": {
+                      "enum": [
+                        "tasks",
+                        "milestones",
+                        "links",
+                        "records",
+                        "metric",
+                        "ci",
+                        "goal",
+                        "people",
+                        "status"
+                      ],
+                      "type": "string"
+                    },
+                    "view": {
+                      "enum": [
+                        "list",
+                        "table",
+                        "count",
+                        "cards"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "spec"
+                  ],
+                  "type": "object"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "blocks"
+        ],
+        "type": "object"
+      },
+      "name": "projects_overview_doc_save",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_doc.templates.list",
+      "deferred": false,
+      "description": "The Space's Overview page templates: Client account, Software project and Hiring, and any saved since",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "projects_overview_doc_templates_list",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_doc.templates.save",
+      "deferred": false,
+      "description": "Save a page template for the Space, from a project's Overview or from blocks; an agent can too",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "blocks": {
+            "items": {
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "text",
+                    "heading",
+                    "live"
+                  ],
+                  "type": "string"
+                },
+                "level": {
+                  "maximum": 3,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "live": {
+                  "properties": {
+                    "spec": {
+                      "additionalProperties": {
+                        "description": "Any JSON value"
+                      },
+                      "type": "object"
+                    },
+                    "type": {
+                      "enum": [
+                        "tasks",
+                        "milestones",
+                        "links",
+                        "records",
+                        "metric",
+                        "ci",
+                        "goal",
+                        "people",
+                        "status"
+                      ],
+                      "type": "string"
+                    },
+                    "view": {
+                      "enum": [
+                        "list",
+                        "table",
+                        "count",
+                        "cards"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "spec"
+                  ],
+                  "type": "object"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "templateId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title"
+        ],
+        "type": "object"
+      },
+      "name": "projects_overview_doc_templates_save",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.overview_doc.undo",
+      "deferred": false,
+      "description": "Undo the latest change to the Overview: the blocks and any property it set go back as they were; the undo is a revision too",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "rev": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_overview_doc_undo",
+      "planMode": "blocked",
       "toolset": "records",
       "v": 1
     },

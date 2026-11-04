@@ -6301,6 +6301,18 @@
       "toolset": "chats"
     },
     {
+      "deferred": false,
+      "name": "overview_edit",
+      "summary": "Edit the Overview by ops: insert, update, move, delete a block, or set_property on a custom field of the project. One revision for the call, carrying its author; an agent's edit leaves one quiet line in the project channel",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "overview_get",
+      "summary": "Read the Overview as Markdown with every block led by its id, the project's custom fields and the kinds of live block, so overview_edit can name what to change",
+      "toolset": "records"
+    },
+    {
       "deferred": true,
       "name": "people_status",
       "summary": "Your teammates as you see them: online, away or offline and when last seen, their local time and working hours, and when a message to them would go. Only people in this Space, never anything private",
@@ -6626,6 +6638,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_live_block_query",
+      "summary": "Evaluate a live block for the reader: the rows they may open, how many they may not (hidden), and for a metric its value. The block stores only its spec",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_members_list",
       "summary": "List people and agents on a project with their roles",
       "toolset": "records"
@@ -6652,6 +6670,48 @@
       "deferred": false,
       "name": "projects_overview",
       "summary": "The Overview: brief and goal, status with its update, next three milestones, what is late or waiting, recent decisions, people, linked records, pinned files, recent threads",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_apply_template",
+      "summary": "Put a template's blocks on a project's Overview, replacing the page (one revision, so Undo brings the old page back)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_get",
+      "summary": "The Overview page: its blocks (text, headings and live blocks that hold only a spec), its revision and the project's custom fields for the page header",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_history",
+      "summary": "The Overview's revisions, newest first, each with who made it and what changed",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_save",
+      "summary": "Save the whole Overview page from the editor; baseRev is the revision it was opened at, and a page changed since says so instead of overwriting",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_templates_list",
+      "summary": "The Space's Overview page templates: Client account, Software project and Hiring, and any saved since",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_templates_save",
+      "summary": "Save a page template for the Space, from a project's Overview or from blocks; an agent can too",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_overview_doc_undo",
+      "summary": "Undo the latest change to the Overview: the blocks and any property it set go back as they were; the undo is a revision too",
       "toolset": "records"
     },
     {

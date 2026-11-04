@@ -2031,6 +2031,9 @@ export function stubs(ctx: CallCtx) {
         unlink: call("projects.links.unlink"),
       },
       list: call("projects.list"),
+      live_block: {
+        query: call("projects.live_block.query"),
+      },
       members: {
         list: call("projects.members.list"),
         remove: call("projects.members.remove"),
@@ -2038,6 +2041,19 @@ export function stubs(ctx: CallCtx) {
       },
       open_task_thread: call("projects.open_task_thread"),
       overview: call("projects.overview"),
+      overview_doc: {
+        apply_template: call("projects.overview_doc.apply_template"),
+        get: call("projects.overview_doc.get"),
+        history: call("projects.overview_doc.history"),
+        save: call("projects.overview_doc.save"),
+        templates: {
+          list: call("projects.overview_doc.templates.list"),
+          save: call("projects.overview_doc.templates.save"),
+        },
+        undo: call("projects.overview_doc.undo"),
+      },
+      overview_edit: call("projects.overview_edit"),
+      overview_get: call("projects.overview_get"),
       pin_file: call("projects.pin_file"),
       plan: call("projects.plan"),
       post_update: call("projects.post_update"),

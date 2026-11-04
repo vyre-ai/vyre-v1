@@ -1,0 +1,406 @@
+// Projects, the Overview as a page people and agents both edit (owner, 4 Nov 2026), for any kind of project.
+// The page is a list of blocks: text, headings, and live blocks that store only a spec (never the data) and are evaluated when the page is read, through the reader's own access, with a count of the rows
+// they may not open. The project is a record, so its custom fields come from the records schema and show in the page header. Every change is a revision with its author and can be undone; an edit is
+// audited, fires an event, and an agent's edit leaves one quiet line in the project channel. Agents read the page as Markdown with block ids (overview_get) and edit it by ops (overview_edit).
+// DECISION: the notes module here is a Keep-style note with no block document, collaboration or history, so the page lives in this module: its blocks, and a log of revisions. Two writers are kept apart by
+// the revision they based their change on, not by live merging.
+import {
+  LIVE_TYPES, attachesOf, call, clean, codeOf, docOf, emitP, ensure, isOpenState, loadTasks, me, membersOf, newId, planTask, plansOf, projectRow, raise, readRecord, revsOf, saveDoc, saveTemplate,
+  templateBy, templatesOf, tolerant, visible, writeRecord,
+} from "../projections.ts";
+import type { In, LiveType, PageBlock, Project, ProjectsCtx, RevRow } from "../projections.ts";
+import { liveOf } from "./attach.ts";
+
+const LIVE_VIEWS = ["list", "table", "count", "cards"] as const;
+type View = (typeof LIVE_VIEWS)[number];
+
+// ---- the starting pages ----
+
+const live = (id: string, type: LiveType, spec: Record<string, unknown>, view: View = "list"): PageBlock => ({ id, kind: "live", live: { type, spec, view } });
+const head = (id: string, text: string, level = 2): PageBlock => ({ id, kind: "heading", text, level });
+const text = (id: string, t: string): PageBlock => ({ id, kind: "text", text: t });
+
+/** A page for a project that never had one: how it stands, what is next, who is on it. */
+export const defaultBlocks = (): PageBlock[] => [
+  live("blk_status", "status", { title: "Status" }), head("blk_h_next", "Next"), live("blk_next", "milestones", { title: "Next milestones", limit: 3 }),
+  head("blk_h_work", "Late or waiting"), live("blk_open", "tasks", { title: "Open tasks", status: "late" }), head("blk_h_people", "People and agents"), live("blk_people", "people", { title: "People and agents" }),
+];
+
+export interface Builtin { templateId: string; title: string; summary: string; blocks: PageBlock[] }
+export const BUILTIN_TEMPLATES: readonly Builtin[] = [
+  {
+    templateId: "tpl_client_account", title: "Client account", summary: "A client's work in one place: invoices, mail, tasks and who is on it.",
+    blocks: [
+      live("b_status", "status", { title: "Status" }), head("b_h_about", "About this client"), text("b_about", "Who they are, what we do for them, and what to watch."),
+      head("b_h_inv", "Invoices"), live("b_inv", "records", { title: "Invoices", type: "invoice" }, "table"), live("b_owed", "metric", { title: "Unpaid", type: "invoice", op: "sum", field: "amount", filter: { status: "sent" } }, "count"),
+      head("b_h_mail", "Mail"), live("b_mail", "links", { title: "Mail threads", kind: "mail_thread" }), head("b_h_tasks", "Work"), live("b_tasks", "tasks", { title: "Open tasks", status: "open" }),
+      live("b_next", "milestones", { title: "Next milestones", limit: 3 }), head("b_h_people", "People and agents"), live("b_people", "people", { title: "People and agents" }),
+    ],
+  },
+  {
+    templateId: "tpl_software_project", title: "Software project", summary: "Pull requests, CI, tasks and milestones for a code project.",
+    blocks: [
+      live("b_status", "status", { title: "Status" }), head("b_h_goal", "Goal"), live("b_goal", "goal", { title: "Goal" }), head("b_h_code", "Code"),
+      live("b_prs", "links", { title: "Pull requests", kind: "github.pr" }), live("b_ci", "ci", { title: "CI runs" }), head("b_h_work", "Work"), live("b_tasks", "tasks", { title: "Open tasks", status: "open" }),
+      live("b_next", "milestones", { title: "Next milestones", limit: 3 }), head("b_h_people", "People and agents"), live("b_people", "people", { title: "People and agents" }),
+    ],
+  },
+  {
+    templateId: "tpl_hiring", title: "Hiring", summary: "Candidates, interviews and the people running the search.",
+    blocks: [
+      live("b_status", "status", { title: "Status" }), head("b_h_role", "The role"), text("b_role", "What the role is, what good looks like, and the pay range."),
+      head("b_h_cand", "Candidates"), live("b_cand", "records", { title: "Candidates", type: "candidate" }, "table"), live("b_count", "metric", { title: "Candidates in the pipeline", type: "candidate", op: "count" }, "count"),
+      head("b_h_int", "Interviews"), live("b_cal", "links", { title: "Interviews", kind: "calendar_event" }), live("b_tasks", "tasks", { title: "Open tasks", status: "open" }), head("b_h_people", "People and agents"), live("b_people", "people", { title: "People and agents" }),
+    ],
+  },
+];
+
+/** The built-in templates are in the Space's template list from the first read. */
+export function seedTemplates(ctx: ProjectsCtx): void {
+  BUILTIN_TEMPLATES.forEach((b, i) => { if (!templateBy(ctx.db, b.templateId)) saveTemplate(ctx.db, { templateId: b.templateId, title: b.title, summary: b.summary, blocks: b.blocks, builtin: true, by: "system", at: ctx.now() + i }); });
+}
+
+/** A template's blocks for a page: new ids, authored by whoever applies it. */
+function fresh(ctx: ProjectsCtx, blocks: readonly PageBlock[]): PageBlock[] {
+  return blocks.map((b) => ({ ...b, id: newId("blk", ctx.now()), by: me(ctx), at: ctx.now(), ...(b.live ? { live: { ...b.live, spec: { ...b.live.spec } } } : {}) }));
+}
+
+// ---- reading the page ----
+
+const PROTECTED = new Set(["title", "summary", "status", "lead", "start", "due", "goal", "status_update", "status_update_at", "stages", "channel", "folder", "pinned_files"]);
+interface FieldDef { key: string; title?: string; type?: string; options?: unknown }
+
+async function customFields(ctx: ProjectsCtx, p: Project): Promise<FieldDef[]> {
+  const got = await tolerant<{ type?: { fields?: FieldDef[] } }>(ctx, "schema.types.get", { type: p.type }, {});
+  return (got.type?.fields ?? []).filter((f) => !PROTECTED.has(f.key));
+}
+
+async function properties(ctx: ProjectsCtx, p: Project): Promise<Array<{ key: string; title: string; type: string; value?: unknown }>> {
+  const [defs, fields] = await Promise.all([customFields(ctx, p), readRecord(ctx, p).catch(() => ({} as Record<string, unknown>))]);
+  return defs.map((d) => clean({ key: d.key, title: d.title ?? d.key, type: d.type ?? "text", value: fields[d.key] }));
+}
+
+const withAuthor = (b: PageBlock, by: string, at: number): PageBlock => ({ ...b, by, at });
+const view = (b: PageBlock) => clean({ id: b.id, kind: b.kind, text: b.text, level: b.level, live: b.live ? clean({ type: b.live.type, spec: b.live.spec, view: b.live.view }) : undefined, by: b.by, at: b.at });
+const revView = (r: RevRow) => clean({ rev: r.rev, by: r.by, authorKind: r.authorKind, summary: r.summary, undoOf: r.undoOf, at: r.at });
+
+export async function docGet(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const p = visible(ctx, input.projectId, "view");
+  seedTemplates(ctx);
+  const d = docOf(ctx.db, p.projectId);
+  const revs = revsOf(ctx.db, p.projectId, 1);
+  return clean({
+    rev: d?.rev ?? 0, blocks: (d?.blocks ?? defaultBlocks()).map(view), properties: await properties(ctx, p),
+    updatedBy: d?.by, updatedAt: d?.at, latest: revs[0] ? revView(revs[0]) : undefined,
+  });
+}
+
+export async function history(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const p = visible(ctx, input.projectId, "view");
+  return { revisions: revsOf(ctx.db, p.projectId, Math.min(100, Math.max(1, Number(input.limit ?? 30)))).map(revView) };
+}
+
+// ---- changing it ----
+
+function checkBlock(ctx: ProjectsCtx, b: In): Omit<PageBlock, "id"> {
+  const kind = b?.kind;
+  if (kind === "text" || kind === "heading") {
+    if (typeof b.text !== "string") raise(ctx, "validation.bad_input", "A text block needs its text.");
+    if (b.text.length > 20_000) raise(ctx, "validation.bad_input", "That block is too long.");
+    return clean({ kind, text: b.text, level: kind === "heading" ? Math.min(3, Math.max(1, Number(b.level ?? 2))) : undefined }) as Omit<PageBlock, "id">;
+  }
+  if (kind === "live") return { kind, live: checkLive(ctx, b.live) };
+  raise(ctx, "validation.bad_input", "A block is text, a heading or a live block.", { kind: String(kind) });
+}
+function checkLive(ctx: ProjectsCtx, l: In | undefined): NonNullable<PageBlock["live"]> {
+  if (!l || !LIVE_TYPES.includes(l.type)) raise(ctx, "validation.bad_input", "That kind of live block does not exist.", { type: String(l?.type) });
+  const spec = (l.spec && typeof l.spec === "object" && !Array.isArray(l.spec) ? l.spec : {}) as Record<string, unknown>;
+  if (JSON.stringify(spec).length > 4000) raise(ctx, "validation.bad_input", "That block's settings are too long.");
+  if ((l.type === "records" || l.type === "metric") && (typeof spec["type"] !== "string" || spec["type"] === "")) raise(ctx, "validation.bad_input", "Say which record type the block shows.", { type: l.type });
+  if (l.type === "metric" && spec["op"] !== "count" && spec["op"] !== "sum") raise(ctx, "validation.bad_input", "A metric counts or sums.", { type: "metric" });
+  if (l.type === "metric" && spec["op"] === "sum" && typeof spec["field"] !== "string") raise(ctx, "validation.bad_input", "A sum needs the field to add up.", { type: "metric" });
+  if (l.type === "links" && spec["kind"] !== undefined && typeof spec["kind"] !== "string") raise(ctx, "validation.bad_input", "A links block takes a kind of link.", { type: "links" });
+  const v = l.view === undefined ? undefined : (LIVE_VIEWS as readonly string[]).includes(l.view) ? (l.view as View) : raise(ctx, "validation.bad_input", "That view does not exist.", { view: String(l.view) });
+  return clean({ type: l.type as LiveType, spec, view: v });
+}
+
+const brief = (b: PageBlock): string => (b.kind === "live" ? `a live ${b.live!.type} block` : b.kind === "heading" ? `the heading "${(b.text ?? "").slice(0, 40)}"` : "a paragraph");
+
+/** Apply ops to a page: answers the new blocks, a line saying what changed, and the property values the ops replaced. */
+export async function applyOps(ctx: ProjectsCtx, p: Project, start: readonly PageBlock[], ops: readonly In[]): Promise<{ blocks: PageBlock[]; summary: string; props: Record<string, unknown>; changed: number }> {
+  let blocks = start.map((b) => ({ ...b }));
+  const said: string[] = [];
+  const props: Record<string, unknown> = {};
+  const by = me(ctx);
+  const at = ctx.now();
+  const find = (id: unknown): number => { const i = blocks.findIndex((b) => b.id === id); if (i < 0) raise(ctx, "validation.not_found", "That block is not on the page.", { blockId: String(id) }); return i; };
+  const place = (after: unknown): number => (after === undefined || after === null || after === "end" ? blocks.length : after === "start" ? 0 : find(after) + 1);
+  for (const op of ops) {
+    switch (op.op) {
+      case "insert": {
+        const b = withAuthor({ id: newId("blk", at), ...checkBlock(ctx, op.block ?? {}) }, by, at);
+        blocks.splice(place(op.after), 0, b);
+        said.push(`added ${brief(b)}`);
+        break;
+      }
+      case "update": {
+        const i = find(op.id);
+        const cur = blocks[i]!;
+        const patch = op.block ?? {};
+        const next = cur.kind === "live" && patch.live === undefined && patch.kind === undefined ? cur : { id: cur.id, ...checkBlock(ctx, { kind: cur.kind, ...(cur.kind === "live" ? {} : { text: cur.text, level: cur.level }), ...patch }) };
+        blocks[i] = withAuthor(next, by, at);
+        said.push(`changed ${brief(blocks[i]!)}`);
+        break;
+      }
+      case "move": {
+        const i = find(op.id);
+        const [b] = blocks.splice(i, 1);
+        blocks.splice(place(op.after), 0, withAuthor(b!, by, at));
+        said.push(`moved ${brief(b!)}`);
+        break;
+      }
+      case "delete": {
+        const i = find(op.id);
+        const [b] = blocks.splice(i, 1);
+        said.push(`removed ${brief(b!)}`);
+        break;
+      }
+      case "set_property": {
+        const key = String(op.key ?? "");
+        const defs = await customFields(ctx, p);
+        if (!defs.some((d) => d.key === key)) raise(ctx, "validation.bad_input", "That property is not one of this project's fields. An admin adds fields in the Records settings.", { key });
+        if (!(key in props)) props[key] = (await readRecord(ctx, p).catch(() => ({} as Record<string, unknown>)))[key] ?? null;
+        await writeRecord(ctx, p, { [key]: op.value === undefined ? null : op.value });
+        said.push(`set ${defs.find((d) => d.key === key)?.title ?? key}`);
+        break;
+      }
+      default: raise(ctx, "validation.bad_input", "An edit is insert, update, move, delete or set_property.", { op: String(op.op) });
+    }
+  }
+  if (blocks.length > 300) raise(ctx, "validation.bad_input", "A page holds at most 300 blocks.");
+  return { blocks, summary: said.length === 0 ? "no change" : said.slice(0, 4).join(", ") + (said.length > 4 ? ` and ${said.length - 4} more` : ""), props, changed: said.length };
+}
+
+async function commit(ctx: ProjectsCtx, p: Project, before: readonly PageBlock[], r: { blocks: PageBlock[]; summary: string; props: Record<string, unknown> }, undoOf?: number): Promise<number> {
+  const authorKind = ctx.principal.kind === "agent" ? "agent" : "person";
+  const rev = saveDoc(ctx.db, p.projectId, { blocks: r.blocks, before: [...before], props: Object.keys(r.props).length ? r.props : undefined, by: me(ctx), authorKind, summary: r.summary, undoOf, at: ctx.now() });
+  emitP(ctx, "project.overview_edited", p.projectId, clean({ rev, by: me(ctx), authorKind, summary: r.summary, undoOf }));
+  return rev;
+}
+
+/** An agent's edit leaves one quiet line in the project channel: who changed what. */
+async function say(ctx: ProjectsCtx, p: Project, summary: string): Promise<void> {
+  if (ctx.principal.kind !== "agent" || !p.threadId) return;
+  const who = await tolerant<{ agent?: { name?: string } }>(ctx, "agents.get", { agentId: ctx.principal.id }, {});
+  try { await call(ctx, "chat.post", { threadId: p.threadId, body: `${who.agent?.name ?? "An agent"} edited the Overview: ${summary}.` }, { idempotencyKey: `prj-ov:${p.projectId}:${ctx.now()}:${summary.length}` }); } catch (e) {
+    ctx.log.warn("projects: the Overview edit was kept but not mentioned in the channel", { project: p.projectId, error: codeOf(e) });
+  }
+}
+
+function stale(ctx: ProjectsCtx, p: Project, baseRev: unknown): void {
+  const cur = docOf(ctx.db, p.projectId)?.rev ?? 0;
+  if (typeof baseRev === "number" && baseRev !== cur) raise(ctx, "validation.precondition_failed", "Someone changed the page since you opened it. Open it again and redo your change.", { reason: "stale_revision", rev: cur });
+}
+
+export async function docSave(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const p = visible(ctx, input.projectId, "edit");
+  stale(ctx, p, input.baseRev);
+  const before = docOf(ctx.db, p.projectId)?.blocks ?? defaultBlocks();
+  const known = new Map(before.map((b) => [b.id, b]));
+  const at = ctx.now();
+  const blocks: PageBlock[] = (Array.isArray(input.blocks) ? input.blocks : []).map((raw: In): PageBlock => {
+    const checked = checkBlock(ctx, raw);
+    const id = typeof raw.id === "string" && raw.id !== "" ? raw.id : newId("blk", at);
+    const old = known.get(id);
+    // a block whose content did not change keeps its author and time
+    return old && JSON.stringify({ ...old, by: undefined, at: undefined }) === JSON.stringify({ id, ...checked }) ? old : withAuthor({ id, ...checked }, me(ctx), at);
+  });
+  if (blocks.length > 300) raise(ctx, "validation.bad_input", "A page holds at most 300 blocks.");
+  const summary = JSON.stringify(blocks) === JSON.stringify(before) ? "no change" : "edited the page";
+  const rev = await commit(ctx, p, before, { blocks, summary, props: {} });
+  return { rev, blocks: blocks.map(view) };
+}
+
+export async function edit(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const p = visible(ctx, input.projectId, "edit");
+  stale(ctx, p, input.baseRev);
+  const ops = Array.isArray(input.ops) ? (input.ops as In[]) : [];
+  if (ops.length === 0 || ops.length > 50) raise(ctx, "validation.bad_input", "Send between 1 and 50 changes.");
+  const before = docOf(ctx.db, p.projectId)?.blocks ?? defaultBlocks();
+  const r = await applyOps(ctx, p, before, ops);
+  const rev = await commit(ctx, p, before, r);
+  await say(ctx, p, r.summary);
+  return { rev, summary: r.summary, blocks: r.blocks.map(view) };
+}
+
+/** Undo the latest change: the page, and any property it set, go back as they were. The undo is a revision of its own, so it can be undone too. */
+export async function undo(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const p = visible(ctx, input.projectId, "edit");
+  const cur = docOf(ctx.db, p.projectId);
+  const last = revsOf(ctx.db, p.projectId, 1)[0];
+  if (!cur || !last) raise(ctx, "validation.precondition_failed", "There is nothing to undo.", { reason: "nothing_to_undo" });
+  if (typeof input.rev === "number" && input.rev !== last.rev) raise(ctx, "validation.precondition_failed", "Only the latest change can be undone.", { reason: "not_latest", rev: last.rev });
+  const reverted: Record<string, unknown> = {};
+  if (last.props) {
+    const now = await readRecord(ctx, p).catch(() => ({} as Record<string, unknown>));
+    for (const [k, v] of Object.entries(last.props)) { reverted[k] = now[k] ?? null; await writeRecord(ctx, p, { [k]: v }); }
+  }
+  const rev = await commit(ctx, p, cur.blocks, { blocks: last.before, summary: `undid: ${last.summary}`, props: reverted }, last.rev);
+  return { rev, undid: last.rev, blocks: last.before.map(view) };
+}
+
+// ---- templates ----
+
+export async function templatesList(ctx: ProjectsCtx, _input: In): Promise<unknown> {
+  ensure(ctx.db);
+  seedTemplates(ctx);
+  return { templates: templatesOf(ctx.db).map((t) => clean({ templateId: t.templateId, title: t.title, summary: t.summary, builtin: t.builtin, blocks: t.blocks.length, by: t.by, at: t.at })) };
+}
+
+export async function templateSave(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  seedTemplates(ctx);
+  const title = typeof input.title === "string" ? input.title.trim() : "";
+  if (!title) raise(ctx, "validation.bad_input", "Name the template.");
+  let blocks: PageBlock[];
+  if (typeof input.projectId === "string") {
+    const p = visible(ctx, input.projectId, "view");
+    blocks = docOf(ctx.db, p.projectId)?.blocks ?? defaultBlocks();
+  } else if (Array.isArray(input.blocks)) {
+    blocks = (input.blocks as In[]).map((b) => ({ id: newId("blk", ctx.now()), ...checkBlock(ctx, b) }));
+  } else raise(ctx, "validation.bad_input", "Say which project's page to keep, or send the blocks.");
+  if (blocks.length === 0 || blocks.length > 300) raise(ctx, "validation.bad_input", "A template holds between 1 and 300 blocks.");
+  const clone = blocks.map((b) => clean({ id: b.id, kind: b.kind, text: b.text, level: b.level, live: b.live })) as PageBlock[];
+  const existing = typeof input.templateId === "string" ? templateBy(ctx.db, input.templateId) : undefined;
+  if (existing?.builtin) raise(ctx, "validation.bad_input", "The built-in templates stay as they are. Save yours under a new name.");
+  const templateId = existing?.templateId ?? newId("tpl", ctx.now());
+  saveTemplate(ctx.db, { templateId, title, summary: typeof input.summary === "string" ? input.summary : undefined, blocks: clone, builtin: false, by: me(ctx), at: ctx.now() });
+  emitP(ctx, "project.overview_template_saved", typeof input.projectId === "string" ? input.projectId : "template", { templateId, title, by: me(ctx) });
+  return { template: clean({ templateId, title, summary: typeof input.summary === "string" ? input.summary : undefined, builtin: false, blocks: clone.length, by: me(ctx), at: ctx.now() }) };
+}
+
+export async function templateApply(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  seedTemplates(ctx);
+  const p = visible(ctx, input.projectId, "edit");
+  const tpl = templateBy(ctx.db, String(input.templateId));
+  if (!tpl) raise(ctx, "validation.not_found", "That template does not exist.");
+  stale(ctx, p, input.baseRev);
+  const before = docOf(ctx.db, p.projectId)?.blocks ?? defaultBlocks();
+  const blocks = fresh(ctx, tpl.blocks);
+  const rev = await commit(ctx, p, before, { blocks, summary: `applied the ${tpl.title} template`, props: {} });
+  await say(ctx, p, `applied the ${tpl.title} template`);
+  return { rev, blocks: blocks.map(view) };
+}
+
+// ---- agents read the page as Markdown ----
+
+/** The page as Markdown for an agent, every block led by its id: `[blk_ab12] ## Heading`, and a live block as a fenced line with its spec. */
+export function markdownOf(blocks: readonly PageBlock[]): string {
+  return blocks.map((b) => {
+    if (b.kind === "heading") return `[${b.id}] ${"#".repeat(b.level ?? 2)} ${b.text ?? ""}`;
+    if (b.kind === "text") return `[${b.id}] ${b.text ?? ""}`;
+    return `[${b.id}] :::live ${b.live!.type} ${JSON.stringify(b.live!.spec)}${b.live!.view ? ` view=${b.live!.view}` : ""}`;
+  }).join("\n\n");
+}
+
+export async function overviewGet(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const p = visible(ctx, input.projectId, "view");
+  const d = docOf(ctx.db, p.projectId);
+  const blocks = d?.blocks ?? defaultBlocks();
+  const props = await properties(ctx, p);
+  return { rev: d?.rev ?? 0, markdown: markdownOf(blocks), properties: props, liveTypes: [...LIVE_TYPES] };
+}
+
+// ---- live blocks ----
+
+export interface LiveRow { id: string; title: string; state?: string | undefined; detail?: string | undefined; url?: string | undefined }
+const day = (ms: number | undefined): string | undefined => (ms === undefined ? undefined : new Date(ms).toISOString().slice(0, 10));
+const cap = (spec: Record<string, unknown>, dflt = 20): number => Math.min(100, Math.max(1, Number(spec["limit"] ?? dflt)));
+const asText = (v: unknown): string => (v === null || v === undefined ? "" : String(v));
+
+/** Evaluate a live block for the reader: the rows they may open, how many they may not, and for a metric its value. The block stores only its spec. */
+export async function evaluate(ctx: ProjectsCtx, p: Project, type: LiveType, spec: Record<string, unknown>): Promise<{ rows: LiveRow[]; hidden: number; total: number; value?: number; label?: string }> {
+  const now = ctx.now();
+  const done = (rows: LiveRow[], hidden = 0, extra: { value?: number; label?: string } = {}) => ({ rows: rows.slice(0, cap(spec)).map((r) => clean(r)), hidden, total: rows.length + hidden, ...extra });
+  switch (type) {
+    case "tasks": case "milestones": {
+      const tasks = await loadTasks(ctx, p);
+      const plans = plansOf(ctx.db, p.projectId);
+      let all = tasks.map((t) => planTask(t, plans.get(t.taskId)));
+      all = all.filter((t) => (type === "milestones" ? t.milestone && t.status !== "done" && t.status !== "canceled" && (t.due ?? Infinity) >= now : true));
+      const st = spec["status"];
+      if (type === "tasks") {
+        if (st === "late") all = all.filter((t) => isOpenState(t.status) && t.due !== undefined && t.due < now);
+        else if (st === "open" || st === undefined) all = all.filter((t) => isOpenState(t.status));
+        else if (st === "done") all = all.filter((t) => t.status === "done");
+      }
+      if (typeof spec["assigned"] === "string") all = all.filter((t) => t.assigned === spec["assigned"]);
+      all.sort((a, b) => (a.due ?? Infinity) - (b.due ?? Infinity));
+      return done(all.map((t) => ({ id: t.taskId, title: t.title, state: t.status, detail: [day(t.due), t.due !== undefined && t.due < now && isOpenState(t.status) ? "late" : undefined].filter(Boolean).join(" · ") || undefined, url: `/tasks/${t.taskId}` })));
+    }
+    case "links": case "ci": {
+      const kind = type === "ci" ? "ci.run" : typeof spec["kind"] === "string" ? spec["kind"] : undefined;
+      const rows: LiveRow[] = [];
+      let hidden = 0;
+      for (const a of attachesOf(ctx.db, p.projectId, kind)) {
+        const l = await liveOf(ctx, a);
+        // a link whose source answers nothing and that was made with nothing to show is one the reader may not open
+        if (l.label === undefined && l.state === undefined && l.url === undefined) { hidden += 1; continue; }
+        rows.push(clean({ id: a.linkId, title: l.label ?? a.ref, state: l.state, detail: a.kind, url: l.url }) as LiveRow);
+      }
+      return done(rows, hidden);
+    }
+    case "records": case "metric": {
+      const recType = String(spec["type"]);
+      const filter = spec["filter"] && typeof spec["filter"] === "object" ? spec["filter"] : undefined;
+      const q = await tolerant<{ rows?: Array<{ id: string; fields: Record<string, unknown> }>; total?: number }>(ctx, "records.query", { type: recType, ...(filter ? { filter } : {}), limit: 500 }, {});
+      const seen = q.rows ?? [];
+      // the type's whole count, whoever may open the rows, so the reader is told how many they may not
+      const all = await tolerant<{ count?: number }>(ctx, "records.counts", { type: recType, ...(filter ? { filter } : {}) }, {});
+      const visibleN = q.total ?? seen.length;
+      const hidden = Math.max(0, (all.count ?? visibleN) - visibleN);
+      if (type === "metric") {
+        const field = String(spec["field"] ?? "");
+        const value = spec["op"] === "sum" ? seen.reduce((s, r) => s + (Number(r.fields[field]) || 0), 0) : visibleN;
+        return { rows: [], hidden, total: visibleN + hidden, value, label: asText(spec["title"]) || (spec["op"] === "sum" ? `Sum of ${field}` : "Count") };
+      }
+      const titleOf = (f: Record<string, unknown>, id: string): string => asText(f["title"] ?? f["name"] ?? f["number"] ?? id);
+      return done(seen.map((r) => ({ id: r.id, title: titleOf(r.fields, r.id), state: asText(r.fields["status"] ?? r.fields["stage"]) || undefined, detail: spec["show"] && typeof spec["show"] === "string" ? asText(r.fields[spec["show"]]) || undefined : undefined, url: `/records/${recType}/${r.id}` })), hidden);
+    }
+    case "goal": {
+      const f = await readRecord(ctx, p).catch(() => ({} as Record<string, unknown>));
+      const g = asText(f["goal"]);
+      return done(g ? [{ id: "goal", title: g }] : []);
+    }
+    case "people": return done(membersOf(ctx.db, p.projectId).map((m) => ({ id: m.principal, title: m.principal, state: m.role, detail: m.kind })));
+    case "status": {
+      const [fields, tasks] = await Promise.all([readRecord(ctx, p).catch(() => ({} as Record<string, unknown>)), loadTasks(ctx, p).catch(() => [])]);
+      const row = projectRow(ctx, p, fields, tasks);
+      return done([{ id: "status", title: row.status, state: row.health ?? undefined, detail: `${row.openTasks} open, ${row.lateTasks} late` }]);
+    }
+  }
+}
+
+export async function liveQuery(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const p = visible(ctx, input.projectId, "view");
+  let type: LiveType;
+  let spec: Record<string, unknown>;
+  if (typeof input.blockId === "string") {
+    const b = (docOf(ctx.db, p.projectId)?.blocks ?? defaultBlocks()).find((x) => x.id === input.blockId);
+    if (!b || b.kind !== "live") raise(ctx, "validation.not_found", "That live block is not on the page.", { blockId: input.blockId });
+    type = b.live!.type; spec = b.live!.spec;
+  } else {
+    const l = checkLive(ctx, { type: input.type, spec: input.spec });
+    type = l.type; spec = l.spec;
+  }
+  const out = await evaluate(ctx, p, type, spec);
+  return clean({ type, ...out });
+}

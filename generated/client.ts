@@ -2031,6 +2031,9 @@ export function createClient(transport: Transport) {
         unlink: call("projects.links.unlink", 1),
       },
       list: call("projects.list", 1),
+      live_block: {
+        query: call("projects.live_block.query", 1),
+      },
       members: {
         list: call("projects.members.list", 1),
         remove: call("projects.members.remove", 1),
@@ -2038,6 +2041,19 @@ export function createClient(transport: Transport) {
       },
       open_task_thread: call("projects.open_task_thread", 1),
       overview: call("projects.overview", 1),
+      overview_doc: {
+        apply_template: call("projects.overview_doc.apply_template", 1),
+        get: call("projects.overview_doc.get", 1),
+        history: call("projects.overview_doc.history", 1),
+        save: call("projects.overview_doc.save", 1),
+        templates: {
+          list: call("projects.overview_doc.templates.list", 1),
+          save: call("projects.overview_doc.templates.save", 1),
+        },
+        undo: call("projects.overview_doc.undo", 1),
+      },
+      overview_edit: call("projects.overview_edit", 1),
+      overview_get: call("projects.overview_get", 1),
       pin_file: call("projects.pin_file", 1),
       plan: call("projects.plan", 1),
       post_update: call("projects.post_update", 1),

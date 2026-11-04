@@ -7,6 +7,7 @@ import {
 } from "./project.ts";
 import { recordFilesFolder } from "./folders.ts";
 import { link, linksList, rulesSet, unlink } from "./attach.ts";
+import { docGet, docSave, edit as overviewEdit, history as overviewHistory, liveQuery, overviewGet, templateApply, templateSave, templatesList as pageTemplatesList, undo as overviewUndo } from "./overview.ts";
 import { crew, forChannel, set, updateDraft, updateEdit } from "./upkeep.ts";
 import { teammatesCreate, teammatesList, teammatesRemove } from "./teammates.ts";
 
@@ -16,6 +17,16 @@ export const handlers = {
   "projects.teammates.list": teammatesList,
   "projects.teammates.remove": teammatesRemove,
   "projects.crew": crew,
+  "projects.live_block.query": liveQuery,
+  "projects.overview_doc.apply_template": templateApply,
+  "projects.overview_doc.get": docGet,
+  "projects.overview_doc.history": overviewHistory,
+  "projects.overview_doc.save": docSave,
+  "projects.overview_doc.templates.list": pageTemplatesList,
+  "projects.overview_doc.templates.save": templateSave,
+  "projects.overview_doc.undo": overviewUndo,
+  "projects.overview_edit": overviewEdit,
+  "projects.overview_get": overviewGet,
   "projects.for_channel": forChannel,
   "projects.links.link": link,
   "projects.links.list": linksList,
