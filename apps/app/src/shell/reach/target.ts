@@ -104,3 +104,8 @@ export async function judge(t: OpenTarget, j: Judge): Promise<Reach> {
 
 /** What a click that reach turned away says. */
 export const NO_ACCESS = "You do not have access to that";
+
+/** The plain line for a refused click: the same quiet notice for every subject, worded for a person's profile. */
+export function noAccessLine(t: OpenTarget): string {
+  return t.subject?.type === "person" ? "You can't see this person's profile" : NO_ACCESS;
+}
