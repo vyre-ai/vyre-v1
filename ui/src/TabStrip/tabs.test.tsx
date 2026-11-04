@@ -14,7 +14,7 @@ const TABS: readonly TabSpec[] = [
 ];
 
 test("each tab renders with its title, the active one is selected, pinned tabs have no close button", () => {
-  const html = renderToStaticMarkup(<TabStrip tabs={TABS} active="b" />);
+  const html = renderToStaticMarkup(<TabStrip tabs={TABS} active="b" onClose={() => undefined} />);
   assert.match(html, /role="tablist"/);
   assert.equal(html.match(/role="tab"/g)?.length, 4);
   for (const tab of TABS) assert.ok(html.includes(tab.title), `title ${tab.title}`);
@@ -23,6 +23,11 @@ test("each tab renders with its title, the active one is selected, pinned tabs h
   assert.doesNotMatch(html, /tab-close-home/, "pinned tab has no close");
   assert.match(html, /tab-close-a/);
   assert.match(html, /tab-close-c/);
+});
+
+test("a strip that cannot close its tabs draws no close button over their labels (an invisible one still takes the click)", () => {
+  const html = renderToStaticMarkup(<TabStrip tabs={TABS} active="b" />);
+  assert.doesNotMatch(html, /tab-close-/);
 });
 
 test("the active tab is the only one in the tab order (roving tabindex)", () => {

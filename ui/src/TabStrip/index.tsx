@@ -410,7 +410,7 @@ function TabItem({ tab, on, tight, underline, widest, dropTarget, canClose, only
       {extraTab.lead !== undefined ? extraTab.lead : null}
       {tab.icon !== undefined && tab.icon.length > 0 ? <MenuIcon icon={tab.icon} color={ink} size={14} /> : null}
       {extraTab.iconOnly === true ? null : <Text numberOfLines={1} style={[styles.title, { color: ink }]}>{tab.title}</Text>}
-      {pinned || only ? null : (
+      {pinned || only || !canClose ? null : (
         <Pressable
           role="button"
           aria-label={`Close ${tab.title}`}
