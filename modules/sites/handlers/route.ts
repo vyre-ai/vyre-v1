@@ -494,7 +494,7 @@ async function artifactPublish(ctx: Ctx, input: unknown): Promise<{ artifactId: 
   // the picture and the chat that made it are kept with the artifact; the first chat stays its source
   let kept: Record<string, unknown> = {};
   try { const v: unknown = JSON.parse(isNull(row.settings) ? "{}" : str(row.settings)); if (v !== null && typeof v === "object") kept = v as Record<string, unknown>; } catch { /* an old row */ }
-  if (thumb !== undefined) kept["thumb"] = thumb;
+  if (thumb !== undefined) { kept["thumb"] = thumb; kept["thumbAt"] = now; }
   if (ctx.thread && kept["chatId"] === undefined) kept["chatId"] = ctx.thread;
   ctx.db.run("UPDATE sites_site SET settings = ? WHERE id = ?", JSON.stringify(kept), id);
   touchActivity(ctx.db, id, "site.published", now);
@@ -535,6 +535,24 @@ function chatViewing(ctx: Ctx, input: unknown): { ok: boolean } {
 }
 
 const hashHex = async (text: string): Promise<string> => Array.from(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(text))), (b) => b.toString(16).padStart(2, "0")).join("");
+
+/** Keeps the picture a person's browser took when it opened the artifact: only when there is none, or the artifact changed since the last one. Anyone who can open it may send it. */
+async function artifactThumbSet(ctx: Ctx, input: unknown): Promise<{ set: boolean }> {
+  const o = rec(ctx, input);
+  const row = mustSite(ctx, reqStr(ctx, o, "artifactId"));
+  if (row.kind !== "artifact") fail(ctx, "validation.bad_input", "That is a site, not an artifact.", { field: "artifactId" });
+  const thumb = reqStr(ctx, o, "thumb");
+  if (thumb.length > THUMB_MAX || !/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(thumb)) fail(ctx, "validation.bad_input", "A thumbnail is a small png, jpeg or webp data URL.", { field: "thumb" });
+  let kept: Record<string, unknown> = {};
+  try { const v: unknown = JSON.parse(isNull(row.settings) ? "{}" : str(row.settings)); if (v !== null && typeof v === "object") kept = v as Record<string, unknown>; } catch { /* an old row */ }
+  const at = typeof kept["thumbAt"] === "number" ? kept["thumbAt"] : 0;
+  if (typeof kept["thumb"] === "string" && at >= num(row.updated_at)) return { set: false };
+  kept["thumb"] = thumb;
+  kept["thumbAt"] = ctx.now();
+  // not touch: a picture is not a change to the artifact
+  ctx.db.run("UPDATE sites_site SET settings = ? WHERE id = ?", JSON.stringify(kept), str(row.id));
+  return { set: true };
+}
 
 async function artifactOpen(ctx: Ctx, input: unknown): Promise<{ path: string; url?: string; expiresAt: number }> {
   const id = reqStr(ctx, rec(ctx, input), "artifactId");
@@ -644,5 +662,6 @@ export const routeHandlers = {
   "sites.logs": (ctx: Ctx, input: unknown) => sitesLogs(ctx, input),
   "sites.artifact_publish": (ctx: Ctx, input: unknown) => artifactPublish(ctx, input),
   "sites.artifact_open": (ctx: Ctx, input: unknown) => artifactOpen(ctx, input),
+  "sites.artifact_thumb_set": (ctx: Ctx, input: unknown) => artifactThumbSet(ctx, input),
   "sites.chat_viewing": (ctx: Ctx, input: unknown) => chatViewing(ctx, input),
 };

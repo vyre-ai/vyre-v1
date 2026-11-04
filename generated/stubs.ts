@@ -2309,6 +2309,7 @@ export function stubs(ctx: CallCtx) {
       addon_remove: call("sites.addon_remove"),
       artifact_open: call("sites.artifact_open"),
       artifact_publish: call("sites.artifact_publish"),
+      artifact_thumb_set: call("sites.artifact_thumb_set"),
       build: call("sites.build"),
       chat_viewing: call("sites.chat_viewing"),
       create: call("sites.create"),

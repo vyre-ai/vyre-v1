@@ -31744,6 +31744,13 @@ export type SitesArtifactPublishOut = {
   updated: boolean;
   opened: boolean;
 };
+export type SitesArtifactThumbSetIn = {
+  artifactId: string;
+  thumb: string;
+};
+export type SitesArtifactThumbSetOut = {
+  set: boolean;
+};
 export type SitesBuildIn = {
   siteId: string;
   branch?: string;
@@ -42673,6 +42680,7 @@ export interface CapMap {
   "sites.addon_remove": { in: SitesAddonRemoveIn; out: SitesAddonRemoveOut };
   "sites.artifact_open": { in: SitesArtifactOpenIn; out: SitesArtifactOpenOut };
   "sites.artifact_publish": { in: SitesArtifactPublishIn; out: SitesArtifactPublishOut };
+  "sites.artifact_thumb_set": { in: SitesArtifactThumbSetIn; out: SitesArtifactThumbSetOut };
   "sites.build": { in: SitesBuildIn; out: SitesBuildOut };
   "sites.chat_viewing": { in: SitesChatViewingIn; out: SitesChatViewingOut };
   "sites.create": { in: SitesCreateIn; out: SitesCreateOut };

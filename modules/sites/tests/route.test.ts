@@ -215,3 +215,24 @@ test("an artifact keeps its picture and the chat that made it, and reads back th
     assert.equal(kept.site.thumb, thumb);
   } finally { configureRoutes(null); }
 });
+
+test("a picture taken on open is kept once, and again only after the artifact changes", async () => {
+  const w = harness();
+  let t0 = 1_000;
+  const ctx = { ...w.ctx, now: () => t0, thread: undefined };
+  configureRoutes(host({ artifacts: { folder: async () => "fld_a", put: async () => undefined } }) as never);
+  const a = "data:image/webp;base64,AAAA", b = "data:image/webp;base64,BBBB";
+  try {
+    const pub = await h["sites.artifact_publish"]!(ctx, { title: "Numbers", html: "<p>1</p>" });
+    assert.equal((await h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: a })).set, true, "the first open sets it");
+    t0 += 10;
+    assert.equal((await h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: b })).set, false, "the same version keeps the first");
+    assert.equal((await h["sites.get"]!(ctx, { siteId: pub.artifactId })).site.thumb, a);
+    t0 += 10;
+    await h["sites.artifact_publish"]!(ctx, { title: "Numbers", html: "<p>2</p>" });
+    t0 += 10;
+    assert.equal((await h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: b })).set, true, "a republish takes a new one on its next open");
+    assert.equal((await h["sites.get"]!(ctx, { siteId: pub.artifactId })).site.thumb, b);
+    await assert.rejects(() => h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: "javascript:1" }), /small png, jpeg or webp/);
+  } finally { configureRoutes(null); }
+});
