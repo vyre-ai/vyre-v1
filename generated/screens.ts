@@ -321,7 +321,7 @@ export const screens: ScreenIndexEntry[] = [
     "module": "access",
     "place": "shell",
     "slot": "sheet",
-    "builtin": "ui:ShareSheet",
+    "builtin": "ui:AccessSheet",
     "caller": "principal",
     "queries": {
       "shares": {
@@ -2783,6 +2783,43 @@ export const screens: ScreenIndexEntry[] = [
     },
     "needs": [
       "policy.manage"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
+    "id": "console.machines",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsoleMachines",
+    "caller": "principal",
+    "queries": {
+      "machines": {
+        "cap": "machines.list",
+        "input": {},
+        "live": true
+      }
+    },
+    "actions": {
+      "set": {
+        "cap": "machines.set",
+        "input": {
+          "machineId": "/state/machineId"
+        }
+      },
+      "fix": {
+        "cap": "machines.fix",
+        "input": {
+          "machineId": "/state/machineId",
+          "fix": "/state/fix"
+        }
+      }
+    },
+    "needs": [
+      "console.access"
     ],
     "perf": {
       "firstPaintMs": 50,

@@ -44,7 +44,7 @@ import { createCompactor, withCompaction } from "./compact.ts";
 import type { Compactor } from "./compact.ts";
 import { keepEvery, keepsSession, resumeId, saveResumeId } from "./cli-sessions.ts";
 import { recordAccountLimits } from "./handlers/usage.ts";
-import { learnAfterTurn } from "./learn.ts";
+import { learnAfterTurn, titleAfterTurn } from "./learn.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
 import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
 import { ensureExtra } from "./handlers/extra/schema.ts";
@@ -506,7 +506,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         catch (e) { h.log?.("could not open the Unblock task for a turn with no account", { threadId: info.threadId, asker: info.asker, error: e instanceof Error ? e.message : String(e) }); throw e; }
       },
       // memory learns from the turn in the background (learn.ts): scheduled here, never awaited, so the reply is not held for it
-      onTurnEnd: (turn, account) => { roller.ranOn(turn.id, account); learnAfterTurn(h, turn, account); return meter(h, turn, account); },
+      onTurnEnd: (turn, account) => { roller.ranOn(turn.id, account); learnAfterTurn(h, turn, account); titleAfterTurn(h, turn, account); return meter(h, turn, account); },
       onLimits: (account, reading) => recordAccountLimits(ctx.db, account.ref, reading, now()),
       // the answer check (gap 6): an answer built on something not everyone in the chat may open goes to the asker privately
       ...(h.mayAll ? {

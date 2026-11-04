@@ -36,7 +36,7 @@ export function isFiltered(f: AuditFilter): boolean {
   return f.query.trim() !== "" || f.cls !== null || f.traceId !== null;
 }
 
-/** "Priya Raman changed role Omar, for Andrey": the actor, the act, what it touched, and on whose behalf. */
+/** "Priya Raman assigned a role to Omar Haddad, for Andrey": who did what to which thing, and on whose behalf (lib/words). An id the directory has no name for is left out, not read out. */
 export function rowTitle(r: AuditRow, name: (id: string) => string): string {
   const what = r.resource ? name(r.resource.id) : "";
   return auditSentence({ actor: name(r.actor.id), action: r.action, ...(r.resource && what !== "" && what !== "Someone" ? { resource: what } : {}), ...(r.onBehalfOf ? { onBehalfOf: name(r.onBehalfOf.id) } : {}) });

@@ -1,0 +1,8 @@
+{
+  "targets": [
+    { "id": "NAME_01-untitled", "route": "/m/NAME_01?part=untitled", "proto": "chatlist,{skin}", "waitFor": "[data-testid='conversation-title']", "note": "A chat with no title yet: the sidebar row and the header both read who is in it." },
+    { "id": "NAME_01-titled", "route": "/m/NAME_01?part=titled", "proto": "chatlist,{skin}", "waitFor": "[data-testid='conversation-title']", "note": "After the first real request the chat has its made title, the same in the sidebar and the header." }
+    ,{ "id": "NAME_01-group", "route": "/m/NAME_01?part=group", "proto": "chatlist,{skin}", "waitFor": "[data-testid='conversation-people']", "note": "A group chat header: the title, the other people's faces, then the agents." }
+    ,{ "id": "NAME_01-grouphover", "route": "/m/NAME_01?part=group", "proto": "chatlist,{skin}", "waitFor": "[data-testid='conversation-people']", "hover": "[aria-label^='Intake, ']", "note": "A group chat with the pointer over an agent's answer: Make task and Remember sit in the hover bar next to Copy, Reply in thread, Fork and Pin." }
+  ]
+}

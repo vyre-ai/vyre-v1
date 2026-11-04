@@ -82,6 +82,19 @@ export function createSampleProject(): SampleProject {
           return { moved };
         }
         case "projects.open_task_thread": return { threadId: `thr_${String(i["taskId"])}` };
+        // the Add people and agents sheet (lane l-addsheet)
+        case "projects.members.list": return { members: [{ principal: "usr_maya", role: "lead", kind: "person", since: at(-9) }, { principal: "usr_omar", role: "member", kind: "person", since: at(-9) }, { principal: "agt_docs", role: "member", kind: "agent", since: at(-8) }] };
+        case "projects.members.set": return { member: { principal: i["principal"], role: i["role"], kind: String(i["principal"]).startsWith("agt_") ? "agent" : "person", since: SAMPLE_NOW } };
+        case "projects.teammates.list": return { teammates: [{ agentId: "agt_docs", name: "Docs", role: "member", roleLine: "Drafts the letters", status: "awake", madeForProject: false }] };
+        case "agents.create": return { agent: { agentId: "agt_new", name: i["name"], status: "awake" } };
+        case "access.principals.list": return { principals: [
+          { id: "usr_maya", kind: "person", name: "Maya Chen", status: "active", roles: [], groups: [], createdAt: SAMPLE_NOW },
+          { id: "usr_omar", kind: "person", name: "Omar Haddad", status: "active", roles: [], groups: [], createdAt: SAMPLE_NOW },
+          { id: "usr_sara", kind: "person", name: "Sara Malik", status: "active", roles: [], groups: [], title: "Associate", createdAt: SAMPLE_NOW },
+        ] };
+        case "agents.list": return { agents: [["agt_docs", "Docs"], ["agt_intake", "Intake"], ["agt_billing", "Billing"]].map(([id, name]) => ({ agentId: id, name, kind: "agent", face: id, status: "awake", ownerId: "usr_maya", folderId: "fld", accountPolicy: "asker", accountFallback: [], toolsAllowed: [], toolsDenied: [], vaultKeys: [], limits: {}, captureMode: "auto", hasComputer: false, templateVersion: 1, createdAt: SAMPLE_NOW })) };
+        case "access.check": return { decision: { effect: "allow", reason: "", steps: [], decisionId: "dec_1" } };
+        case "channels.get": return { channel: { channelId: "chn_rivera", mainThreadId: "thr_main", name: "rivera", visibility: "invite", archived: false, members: [], agents: [] } };
         default: throw new Error(`no handler for ${cap}`);
       }
     },

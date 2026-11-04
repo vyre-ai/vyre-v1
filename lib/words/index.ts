@@ -6,3 +6,5 @@ export type { Described } from "./errors.ts";
 export { auditPhrase, auditSentence, actParts, sayWords, leaksCode } from "./audit.ts";
 export { fileEventWords } from "./files.ts";
 export { stepWords, durationWords } from "./steps.ts";
+export { actionWords, actionSentence } from "./actions.ts";
+export type { ActionSentence } from "./actions.ts";

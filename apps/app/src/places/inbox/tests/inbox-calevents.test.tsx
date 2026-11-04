@@ -10,7 +10,7 @@ import { find, flush, installDom, mount, press, textOf, typeInto } from "../../.
 import type { Node } from "../../../../../../ui/src/testing/dom.ts";
 import { Calendar, ME, TEAM, createCalendarSample } from "../calendar/index.ts";
 import type { CalendarSample } from "../calendar/index.ts";
-import { DAY, HOUR, MIN, startOfDay } from "../calendar/model.ts";
+import { DAY, HH, HOUR, MIN, startOfDay } from "../calendar/model.ts";
 import { editDraft, editInput, eventLink, linkParts, repeatsLine, rsvpSummary, undoInput, whenLine } from "../calendar/eventpane/model.ts";
 import { SAMPLE_NOW } from "../contactlist/sample.ts";
 import { InboxDataProvider, InboxStateProvider } from "../sidebar/index.ts";
@@ -176,8 +176,8 @@ test("a drag moves an event with Undo; one click on an empty slot starts a new e
   try {
     const body = find(root, "event-body:e_planning")!;
     await act(async () => { (body.props["onPointerDown"] as (e: unknown) => void)({ clientX: 100, clientY: 200, button: 0, stopPropagation() {} }); });
-    await act(async () => { handlers["pointermove"]?.({ clientX: 100, clientY: 252 }); });
-    await act(async () => { handlers["pointerup"]?.({ clientX: 100, clientY: 252 }); });
+    await act(async () => { handlers["pointermove"]?.({ clientX: 100, clientY: 200 + HH }); });
+    await act(async () => { handlers["pointerup"]?.({ clientX: 100, clientY: 200 + HH }); });
     await settle();
     assert.equal(ev(s, "e_planning").startsAt, TODAY + 15 * HOUR, "one hour later");
     assert.match(textOf(find(root, "cal-undo")), /Moved “Quarterly planning”/);
@@ -186,8 +186,8 @@ test("a drag moves an event with Undo; one click on an empty slot starts a new e
     assert.equal(ev(s, "e_planning").startsAt, TODAY + 14 * HOUR, "Undo puts it back");
 
     const col = find(root, `col:${TODAY}`)!;
-    await act(async () => { (col.props["onPointerDown"] as (e: unknown) => void)({ clientX: 50, clientY: 8 * 52 + 300, button: 0, currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 300, width: 100, height: 1248 }) } }); });
-    await act(async () => { handlers["pointerup"]?.({ clientX: 50, clientY: 8 * 52 + 300 }); });
+    await act(async () => { (col.props["onPointerDown"] as (e: unknown) => void)({ clientX: 50, clientY: 8 * HH + 300, button: 0, currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 300, width: 100, height: 24 * HH }) } }); });
+    await act(async () => { handlers["pointerup"]?.({ clientX: 50, clientY: 8 * HH + 300 }); });
     await settle();
     assert.ok(find(root, "cal-card"), "the new event card");
     assert.match(textOf(find(root, "cal-card-when")), /8:00 to 8:30 AM/);
@@ -281,8 +281,8 @@ test("Add a video call asks for one of the connected services; the new-event car
   g.addEventListener = (t: string, f: (e: unknown) => void) => { handlers[t] = f; };
   try {
     const col = find(root, `col:${TODAY + DAY}`)!;
-    await act(async () => { (col.props["onPointerDown"] as (e: unknown) => void)({ clientX: 50, clientY: 12 * 52 + 300, button: 0, currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 300, width: 100, height: 1248 }) } }); });
-    await act(async () => { handlers["pointerup"]?.({ clientX: 50, clientY: 12 * 52 + 300 }); });
+    await act(async () => { (col.props["onPointerDown"] as (e: unknown) => void)({ clientX: 50, clientY: 12 * HH + 300, button: 0, currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 300, width: 100, height: 24 * HH }) } }); });
+    await act(async () => { handlers["pointerup"]?.({ clientX: 50, clientY: 12 * HH + 300 }); });
     await settle();
   } finally { g.addEventListener = add; }
   assert.match(textOf(find(root, "cal-card-video")), /Google Meet/, "a Google calendar starts on Meet");

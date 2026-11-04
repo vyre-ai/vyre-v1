@@ -99,12 +99,28 @@ async function planTask(ctx: NotifCtx, e: Ev): Promise<SendIn[]> {
   return [];
 }
 
+/** Everyone who holds the Owner or Admin role: the people a machine alert is for. */
+async function adminsOf(ctx: NotifCtx): Promise<string[]> {
+  if (!ctx.call) return [];
+  try {
+    const roles = ((await ctx.call("access.roles.list", {})) as { roles?: Array<{ id: string; name: string; permissions?: string[] }> }).roles ?? [];
+    const ids = roles.filter((r) => (r.permissions ?? []).includes("server.network") || r.name === "Owner" || r.name === "Admin").map((r) => r.id);
+    const out = new Set<string>();
+    for (const roleId of ids) for (const h of ((await ctx.call("access.roles.get", { roleId })) as { holders?: Array<{ kind?: string; id?: string }> }).holders ?? []) if (h.kind === "person" && typeof h.id === "string") out.add(h.id);
+    return [...out].slice(0, 100);
+  } catch { return []; }
+}
+
 const TASK_EVENTS: ReadonlySet<string> = new Set(["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged"]);
 
 /** Who an event is for and what it says, for the events whose manifest names a notification kind. Undefined means this event files nothing. */
 export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefined> | SendIn | SendIn[] | undefined {
   const p = e.payload;
   if (TASK_EVENTS.has(e.name)) return planTask(ctx, e);
+  if (e.name === "machine.alert") {
+    // one line for each admin; it collapses while the same alert lasts, and the machine page is where it opens
+    return adminsOf(ctx).then((to) => to.map((id) => ({ to: id, kind: "machine.alert", subject: { type: "space", id: String(p.machineId ?? "") }, title: String(p.title ?? "A machine needs a look"), collapseKey: `machine.alert:${String(p.alertId ?? "")}` })));
+  }
   if (e.name === "run.succeeded" && p.kind === "routine" && ctx.call) {
     // Alerts: a routine that succeeded is told only to people who asked for successes too (failures always come through run.failed)
     return ctx.call("runs.get", { runId: p.runId }).then((r) => {
@@ -133,7 +149,7 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
   "notifications.fanout": {
-    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined"],
+    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "machine.alert"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
       const planned = await plan(ctx, event);
       const out: string[] = [];

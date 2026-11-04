@@ -12,7 +12,8 @@ import { ConsoleShell, skinMenuEntries, SYSTEM_SKIN } from "../shell/ConsoleShel
 import type { ConsoleShellProps } from "../shell/ConsoleShell.tsx";
 import { ConsoleDataProvider } from "../shell/data.tsx";
 import { ago, actionPhrase, activityTitle, money } from "../shell/format.ts";
-import { GROUPS, PAGES, PAGE_NOTE, pageById, visiblePages } from "../shell/nav.ts";
+import { PAGES, PAGE_NOTE, pageById, visiblePages } from "../shell/nav.ts";
+import { SECTIONS } from "../shell/sections.ts";
 import { AUDIT, NAMES, SAMPLE_NOW, createSampleConsole } from "../shell/sample.ts";
 import type { SampleConsole } from "../shell/sample.ts";
 
@@ -33,20 +34,43 @@ test("the top bar: Space mark and name, Console, health dot, Search, Assistant, 
   assert.ok(has(html(createSampleConsole(), { assistantOpen: true }), 'data-testid="console-assistant"'));
 });
 
-test("the navigation: Overview first, the Space defaults open, then the groups, Audit log and Space last", () => {
+test("the navigation: nine places, Overview first and Space last after a gap, and the place a page is in shows its tabs", () => {
   const out = html(createSampleConsole());
-  assert.deepEqual([...GROUPS], ["Space defaults", "Access", "Agents and actors", "Data", "AI", "Comms", "Integrations", "Infrastructure"]);
-  for (const g of GROUPS) assert.ok(has(out, `data-testid="navgroup-${g}"`), g);
+  assert.deepEqual(SECTIONS.map((s) => s.id), ["overview", "access", "ai", "agents", "connections", "machines", "safety", "data", "space"]);
   const at = (id: string): number => { const i = out.indexOf(`data-testid="${id}"`); assert.ok(i >= 0, id); return i; };
-  assert.ok(at("row-nav-overview") < at("navgroup-Space defaults") && at("navgroup-Space defaults") < at("row-nav-def-agents") && at("row-nav-def-agents") < at("navgroup-Access"));
-  assert.ok(at("navgroup-Infrastructure") < at("row-nav-audit") && at("row-nav-audit") < at("row-nav-space"));
-  assert.ok(!has(out, 'data-testid="row-nav-sessions"') && !has(out, 'data-testid="row-nav-schema"'), "the rest are folded");
-  assert.ok(has(tag(out, "navgroup-Space defaults"), 'aria-expanded="true"') && has(tag(out, "navgroup-Data"), 'aria-expanded="false"'));
+  const ids = SECTIONS.map((s) => at(`row-nav-${s.id}`));
+  assert.deepEqual([...ids].sort((a, b) => a - b), ids, "the places are in order");
+  assert.ok(!has(out, 'data-testid="row-nav-sessions"') && !has(out, 'data-testid="row-nav-schema"') && !has(out, 'data-testid="navgroup-Access"'), "no page of its own in the list, no groups");
   assert.match(tag(out, "row-nav-overview"), /var\(--sel\)/);
-  assert.doesNotMatch(tag(out, "row-nav-people"), /var\(--sel\)/);
-  const data = html(createSampleConsole(), { initialPage: "schema" });
-  assert.ok(has(data, 'data-testid="row-nav-schema"') && has(data, 'data-testid="page-schema"'), "opening a page unfolds its group");
-  assert.match(tag(data, "row-nav-schema"), /var\(--sel\)/);
+  assert.doesNotMatch(tag(out, "row-nav-access"), /var\(--sel\)/);
+  assert.ok(!has(out, 'data-testid="console-tabs"'), "Overview has one tab and so no strip");
+  const people = html(createSampleConsole(), { initialPage: "people" });
+  assert.match(tag(people, "row-nav-access"), /var\(--sel\)/);
+  for (const tab of ["people", "groups", "permissions", "policies", "reviews"]) assert.ok(has(people, `data-testid="tab-${tab}"`), tab);
+  assert.ok(has(tag(people, "tab-people"), 'aria-selected="true"') && !has(people, 'data-testid="console-views"'), "People has no views");
+  // Permissions is one tab with a text switch: the matrix, roles, grants and the checker
+  const roles = html(createSampleConsole(), { initialPage: "roles" });
+  assert.ok(has(tag(roles, "tab-permissions"), 'aria-selected="true"'), "an old address lands on the tab it moved into");
+  for (const v of ["permissions", "roles", "grants", "checker"]) assert.ok(has(roles, `data-testid="view-${v}"`), v);
+  assert.ok(has(tag(roles, "view-roles"), 'aria-selected="true"'));
+  // an old page id lands on its new home
+  assert.ok(has(html(createSampleConsole(), { initialPage: "computers" }), 'data-testid="page-machines"'));
+  assert.ok(has(html(createSampleConsole(), { initialPage: "sessions" }), 'data-testid="view-sessions"'));
+  // the Space defaults sit under the page they configure
+  assert.ok(has(html(createSampleConsole(), { initialPage: "gate" }), 'data-testid="extra-def-agents"'));
+});
+
+test("a person finds a page by its old name: the search says where it is now", async () => {
+  const { OLD_NAMES, nowIn, sectionOf, resolve } = await import("../shell/sections.ts");
+  const where = Object.fromEntries(OLD_NAMES.map(([n, id]) => [n, nowIn(id)]));
+  assert.equal(where["Sessions"], "People and access, Sign-in and sessions, Sessions and devices");
+  assert.equal(where["Infrastructure"], "Machines, Machines");
+  assert.equal(where["Actors"], "Agents and skills, Outside agents");
+  assert.equal(where["Access checker"], "People and access, Permissions, Check access");
+  assert.equal(resolve("computers"), "machines");
+  for (const [name, id] of OLD_NAMES) assert.ok(sectionOf(id), `${name} has a home`);
+  // every page of the registry is somewhere in a section
+  for (const p of PAGES) assert.ok(sectionOf(p.id), `${p.id} is in a section`);
 });
 
 test("every nav page names a screen of the registry, and the pages this packet draws are the Overview and the Audit log", () => {
@@ -57,14 +81,14 @@ test("every nav page names a screen of the registry, and the pages this packet d
   assert.equal(screensById.get("audit.log")!.needs.includes("audit.read"), true);
 });
 
-test("pages hide by permission: a Developer sees Schema, Server and the Audit log, and no people management", () => {
+test("pages hide by permission: a Developer sees Schema, the Space server and the Audit log, and no people management", () => {
   const dev = createSampleConsole({ viewer: "developer" });
   const out = html(dev, { initialPage: "schema" });
-  assert.ok(has(out, 'data-testid="navgroup-Data"') && has(out, 'data-testid="row-nav-schema"'));
-  assert.ok(has(out, 'data-testid="navgroup-Infrastructure"'));
-  assert.ok(has(out, 'data-testid="row-nav-audit"') && has(out, 'data-testid="row-nav-overview"'));
-  assert.ok(!has(out, 'data-testid="navgroup-Access"') && !has(out, 'data-testid="row-nav-people"'), "no people management");
-  assert.ok(!has(out, 'data-testid="navgroup-AI"') && !has(out, 'data-testid="navgroup-Comms"'));
+  assert.ok(has(out, 'data-testid="row-nav-data"') && has(out, 'data-testid="row-nav-machines"') && has(out, 'data-testid="row-nav-safety"'));
+  assert.ok(has(out, 'data-testid="row-nav-overview"') && has(out, 'data-testid="page-schema"'));
+  assert.ok(!has(out, 'data-testid="row-nav-access"') && !has(out, 'data-testid="tab-people"'), "no people management");
+  assert.ok(!has(out, 'data-testid="row-nav-agents"'), "no agent management");
+  assert.ok(!has(out, 'data-testid="tab-backups"'), "a Data place with one page the person may open has no strip");
   const ids = visiblePages(dev.data.can).map((p) => p.id);
   assert.ok(ids.includes("server") && !ids.includes("network"), "Server needs server.logs, Network needs server.network");
   assert.ok(visiblePages(createSampleConsole().data.can).length === PAGES.length, "the Owner sees every page");

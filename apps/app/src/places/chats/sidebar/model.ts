@@ -1,5 +1,6 @@
 // Chats sidebar (spec 3.2, 2.23): the pure part. What each section shows, worked out from the capability answers (types from generated/types.ts).
 // No React and no I/O here, so grouping, filters, the Cmd-digit map, next unread and the local new-chat row are tested without a renderer.
+import { chatName } from "../../../../../../lib/chat-name.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ImportedRow } from "../imported/model.ts";
 import type { TeamNow } from "../../../shell/team/now.ts";
@@ -76,7 +77,8 @@ export function rowOf(item: RecentItem, agentName: (id: string) => string, perso
   const name = person !== null && personName ? personName(person) : null;
   return {
     threadId: item.threadId,
-    title: name !== null && (item.title === "" || item.title === "New chat") ? name : item.title,
+    // one name for a chat, the same in the list, the header, the tabs and search (lib/chat-name.ts): a direct message is the person, any other chat its title, else who is in it
+    title: chatName({ title: item.title, kind: item.kind, agents: item.agents, people: item.people ?? [] }, (id) => (id.startsWith("agt_") || id === "assistant" ? agentName(id) : personName ? personName(id) : id)),
     who: agent !== undefined ? agentName(agent) : name ?? item.title,
     ...(agent !== undefined ? { whoId: agent } : person !== null ? { whoId: person } : {}),
     kind: agent !== undefined ? "agent" : "person",

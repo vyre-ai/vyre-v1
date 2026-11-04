@@ -1,6 +1,4 @@
 // The rest of You: Sign-in and devices (with your Spaces), Appearance (skin and the keyboard list) and This computer.
-import { SessionImport } from "./SessionImport.tsx";
-import { ComputersSection } from "./Computers.tsx";
 import { KEYBOARD_MAP, formatCombo } from "../../shell/keyboard/map.ts";
 import { useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
@@ -252,14 +250,7 @@ function Shortcuts({ found }: { found: boolean }): ReactElement {
 
 // ---------------------------------------------------------------- This computer and your Spaces
 
-export function ComputerPage(): ReactElement {
-  return (
-    <>
-      <ComputersSection />
-      <SessionImport />
-    </>
-  );
-}
+export { ThisDevicePage as ComputerPage } from "./ThisDevice.tsx";
 
 function YourSpaces(): ReactElement {
   const data = useSettingsData();

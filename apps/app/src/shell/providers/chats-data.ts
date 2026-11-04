@@ -90,7 +90,7 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openChannel: a.openThread,
     openNeedsYou: (taskId) => rt.open({ screen: "tasks.needs-you", ...(taskId ? { args: { taskId } } : {}) }),
     openAllAgents: () => rt.open({ screen: "chats.all-agents" }),
-    openArtifacts: () => rt.open({ screen: "apps.artifacts" }),
+    openArtifacts: () => rt.open({ screen: "chats.artifacts" }),
     openSearch: () => rt.open({ screen: "shell.cmdk" }),
     openSpaceSwitcher: () => rt.open({ screen: "spaces.switcher" }),
     openNewChannel: () => requestChannelSheet("new"),
@@ -161,13 +161,14 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     openThread: a.openThread,
     togglePane: a.togglePane,
     openBeside: (kind, id) => {
-      if (kind === "artifact") return rt.open({ screen: "apps.artifacts", args: { selected: id } });
+      if (kind === "artifact-share") return rt.open({ subject: { type: "artifact", id }, args: { share: "1" } });
       // an email thread a reply links by its provider thread id opens in the Inbox conversation that holds it
       if (kind === "mail") return openMailThread(rt, id);
       return rt.open({ subject: { type: kind, id } });
     },
     openNote: (noteId) => rt.open({ screen: "chats.notes", args: { noteId } }),
     openGoal: (goalId) => rt.open({ subject: { type: "goal", id: goalId } }),
+    openUrl: (url) => rt.openUrl(url),
     openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),   // the same page the Needs you sign-in opens
     openSpaceAiKey: () => rt.open({ screen: "console.ai-models" }),
     ...(rt.unlockVault ? { unlockVault: () => askVaultUnlock(rt.unlockVault!) } : {}),

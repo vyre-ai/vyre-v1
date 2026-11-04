@@ -558,6 +558,8 @@ export interface ComposerProps extends ComposerShellProps {
   takesFiles?: boolean;
   /** Attach from Vyre Files, where the place opens its own picker. Without it (and with `suggest`) From Files searches Files in the # picker. */
   onAttach?: () => void;
+  /** Opens the one Add people and agents sheet for this chat: the "Add people and agents" row under This chat. Left out where the place has no such sheet. */
+  onAddPeople?: () => void;
   /** Recipients for a composer that sends outside. Mounted above the field. */
   recipients?: ReactNode;
   banner?: ReactNode;
@@ -1028,10 +1030,9 @@ export function Composer(props: ComposerProps): ReactElement {
     if (symbols.includes("hash")) plusRow("composer-symbol-hash", "Link something", I.hash, () => { setPlusOpen(false); typeSymbol("#"); }, <Kbd k="#" />);
     if (symbols.includes("at")) plusRow("composer-symbol-at", "Mention", I.at, () => { setPlusOpen(false); typeSymbol("@"); }, <Kbd k="@" />);
     if (symbols.includes("slash")) plusRow("composer-symbol-slash", "Commands", I.slash, () => { setPlusOpen(false); typeSymbol("/"); }, <Kbd k="/" />);
-    if (showMode && props.mode) {
-      plusRows.push(<GroupHead key="g-chat" label="This chat" />);
-      plusRow("plus-mode", `Mode: ${modeInfo(props.mode).label}`, MODE_ICON[props.mode], () => { setPlusOpen(false); cycleMode(); }, <Kbd k={"⇧⇥"} />);
-    }
+    if ((showMode && props.mode) || props.onAddPeople) plusRows.push(<GroupHead key="g-chat" label="This chat" />);
+    if (props.onAddPeople) plusRow("plus-people", "Add people and agents", I.people, () => { setPlusOpen(false); props.onAddPeople?.(); });
+    if (showMode && props.mode) plusRow("plus-mode", `Mode: ${modeInfo(props.mode).label}`, MODE_ICON[props.mode], () => { setPlusOpen(false); cycleMode(); }, <Kbd k={"⇧⇥"} />);
   }
 
   const listNodes: ReactElement[] = [];

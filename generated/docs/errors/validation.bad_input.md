@@ -12,6 +12,8 @@ HTTP 422. Retryable: no.
 - access.actors.revoke
 - access.actors.set_engineer_mcp
 - access.actors.update
+- access.agents_can_call.get
+- access.agents_can_call.set
 - access.audience_set
 - access.automation_senders
 - access.check
@@ -29,5 +31,3 @@ HTTP 422. Retryable: no.
 - access.groups.create
 - access.groups.defaults_get
 - access.groups.defaults_set
-- access.groups.delete
-- access.groups.get

@@ -32,6 +32,12 @@
     },
     {
       "deferred": false,
+      "name": "access_agents_can_call_get",
+      "summary": "Whether other agents may hand work to this agent (On unless a person turned it Off); engine and chat check it before one agent calls another",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "access_audience_set",
       "summary": "Choose who a record type or one record is open to: everyone, only people added or only me; a type also says who may export; a record's Files folder can follow its record",
       "toolset": "meta"
@@ -412,6 +418,18 @@
       "deferred": false,
       "name": "agents_pause",
       "summary": "Pause an agent with a reason; the status shows who paused it",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "agents_pause_person",
+      "summary": "Pause every agent of one person, or let them run again. Audited, and the person is told. Answers how many changed, never which",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "agents_people_summary",
+      "summary": "For each person whose agents you cannot see (their Assistant, the agents they keep private): how many, what they spent this month against their cap, and whether they are paused. Never names or content",
       "toolset": "agents"
     },
     {
@@ -1376,6 +1394,12 @@
     },
     {
       "deferred": false,
+      "name": "chat_history_page",
+      "summary": "Older messages and tool calls of THIS chat before a given message number, at most 100 at a time, oldest first inside the page; the agent reads further back than the window it was given. It refuses any other chat than the one the agent is working in",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "chat_make_task",
       "summary": "Turn a message into a task: the title is its first line, the task points back at it and a \"Task created\" card in the thread links to the task. An agent may do it for the person it acts for",
       "toolset": "chats"
@@ -1432,6 +1456,12 @@
       "deferred": false,
       "name": "chat_react",
       "summary": "Add or remove a reaction",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "chat_read_floor",
+      "summary": "Where the caller's reading of one chat starts: the time they were added without Include earlier messages, or nothing when they read all of it. The engine tells an agent so before it answers them",
       "toolset": "chats"
     },
     {
@@ -2534,6 +2564,12 @@
     },
     {
       "deferred": false,
+      "name": "engine_crew_chat_repo",
+      "summary": "The repository of a chat that has its own work folder for the crew, or nothing yet",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "engine_crew_repo_get",
       "summary": "The project's repository for the crew, or nothing when none is set",
       "toolset": "chats"
@@ -2782,6 +2818,12 @@
       "deferred": false,
       "name": "engine_turns_list",
       "summary": "Turns of a thread, newest first",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "engine_turns_running",
+      "summary": "Engine only: the turns running now with the machine each runs on (agent, asker, start, place; no message or title), for the Machines page",
       "toolset": "chats"
     },
     {
@@ -3627,7 +3669,7 @@
     {
       "deferred": false,
       "name": "goals_confirm",
-      "summary": "Start a drafted goal: the owner presses Start on its card. The standing permissions it names hold from this press",
+      "summary": "Start a drafted goal: the owner presses Start on its card, or an agent acting for the owner starts it with messageId, the message in which the owner asked for it, in the goal chat and under 15 minutes old. An agent start grants no permission. The standing permissions it names hold from this press",
       "toolset": "tasks"
     },
     {
@@ -3723,7 +3765,7 @@
     {
       "deferred": false,
       "name": "goals_update",
-      "summary": "Change a goal: its finish line, deadline, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)",
+      "summary": "Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)",
       "toolset": "tasks"
     },
     {
@@ -4748,6 +4790,60 @@
     },
     {
       "deferred": false,
+      "name": "machines_alerts",
+      "summary": "What needs a look: disk under 10% free, memory pressure, a machine offline with pinned work, an update waiting, a failed backup. Each says what to do",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "machines_alerts_notify",
+      "summary": "Host only: send each new machine alert to the Inbox once while it lasts, and tell the placement caches when a machine ran out of room or has room again",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "machines_fix",
+      "summary": "Press a Doctor Fix on a machine: clear old caches, stop idle engine sessions, or restart a service. The host runs it; an admin for the Space server and servers, the owner for their own computer. Audited",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "machines_get",
+      "summary": "One machine with its series for 1 hour (60 one-minute points), 24 hours (144 ten-minute), 7 days (168 hourly) and 30 days (180 four-hourly), its alerts and, for the Space server, the doctor's findings. A gap is a bucket with only its time",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "machines_list",
+      "summary": "Every machine you may see with its load, what Vyre runs on it, what it can run and its room left; agent computers nested under their host. An admin sees all, a member their own; on a member's computer an admin sees only name, online, capacity and Vyre's own work",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "machines_move_record",
+      "summary": "Engine only: keep the line of a turn that Automatic moved off a machine with no room",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "machines_moves",
+      "summary": "Recent moves, Space-wide: each turn Automatic sent to another machine because the first in the order had no room, newest first. A member sees their own",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "machines_rooms",
+      "summary": "Room left on the machines you name (ids as machines.list gives them): the number placement skips a busy machine by, and the plain words for why (\"4 of 4 turns\"). Only machines you may see; used by engine.placement.decide",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
+      "name": "machines_set",
+      "summary": "Name a machine, set the most turns or agent computers it takes at once, drain it (no new work, what runs finishes) or pin an agent to it. A server is an admin's (and its owner's); a person's own computer is theirs, and an admin may only drain it",
+      "toolset": "engineer"
+    },
+    {
+      "deferred": false,
       "name": "mail_attachment_save",
       "summary": "Save an attachment into Files",
       "toolset": "inbox"
@@ -5571,7 +5667,7 @@
     {
       "deferred": true,
       "name": "message_person",
-      "summary": "Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour",
+      "summary": "Message a teammate. An Assistant writes for its person in their direct chat, signed as them (Agent). Any other agent writes as itself in its own chat with them. Cards allowed; waits for away and after hours unless urgent; 3 an hour",
       "toolset": "chats"
     },
     {
@@ -7088,6 +7184,12 @@
     },
     {
       "deferred": false,
+      "name": "runs_people_counts",
+      "summary": "How many Runs each person's own agents have, counted and never listed: an admin sees the number, not the work",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "runs_preview_undo",
       "summary": "Show what Undo this run would reverse and what it cannot (sent messages and deployments)",
       "toolset": "automations"
@@ -7586,8 +7688,20 @@
     },
     {
       "deferred": false,
+      "name": "sites_artifact_thumb_set",
+      "summary": "Keep a small picture of an artifact, taken when someone opened it (the Vyre for Chrome extension sends it). It is set only when there is none yet or the artifact changed since the last one",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
       "name": "sites_build",
       "summary": "Build the site from its repo (the site agent runs in the repo); test and verify",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_chat_viewing",
+      "summary": "The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds",
       "toolset": "sites"
     },
     {
@@ -8888,6 +9002,18 @@
     },
     {
       "deferred": false,
+      "name": "threads_agent_create",
+      "summary": "Make an agent for this chat or channel and add it as listening in one step: a name, a one-line brief (use me for) and a model. It belongs to the chat: it is not on the Agents page, and it is removed with the chat or when it is removed from it",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_agent_settings_set",
+      "summary": "Set how and when one agent answers in one chat: mode lead (answers everything), listen (when tagged) or quiet (listening, posts only when poked); when always, topics or hours; topics, hours and style (short or full). A tag or a poke still reaches an agent that is not quiet",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_archive",
       "summary": "Archive a chat for me: it leaves my list and waits in my Archived section; the others in a group chat still see it. New messages do not bring it back, an @mention of me does",
       "toolset": "chats"
@@ -8912,6 +9038,12 @@
     },
     {
       "deferred": false,
+      "name": "threads_invite_guest",
+      "summary": "Invite someone by email as a guest of this channel chat only: no files folder, no records, no other chats. level view reads, reply also writes. Only the channel owner or a manager invites; a private chat becomes a channel first",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "threads_list",
       "summary": "List threads by kind, folder, scope or record; or the threads I am in, newest reply first",
       "toolset": "chats"
@@ -8931,13 +9063,31 @@
     {
       "deferred": false,
       "name": "threads_members_add",
-      "summary": "Add a person to a thread; a private chat never gains people, so this offers a channel instead",
+      "summary": "Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker's private profile there. A chat's own agents become visible to the newcomer.",
       "toolset": "chats"
     },
     {
       "deferred": false,
       "name": "threads_members_remove",
       "summary": "Remove a person from a thread",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_outside_agent_add",
+      "summary": "Bring an outside agent into this chat with exactly this chat, its project, files folder and record, each tagged with the chat; it shows as \"<person> (Agent)\" and removing it ends access at once. You can only give what you hold",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_outside_agent_remove",
+      "summary": "Take an outside agent out of this chat and end every grant that bringing it in gave, at once",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
+      "name": "threads_poke",
+      "summary": "Poke an agent: one turn for it now, even if it is listening. It reads the last 12 messages and tool calls, answers the poker, and its reply carries \"Poked by <person>\". An outside agent gets the poke in its queue",
       "toolset": "chats"
     },
     {

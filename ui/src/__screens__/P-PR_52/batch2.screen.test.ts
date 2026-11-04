@@ -14,8 +14,6 @@ registerHooks({
 
 const { FolderTreePlaceholder } = await import("../../FolderTree/Placeholder.tsx");
 const { frozenFolderTreeProps } = await import("../../FolderTree/props.ts");
-const { ShareSheetPlaceholder } = await import("../../ShareSheet/Placeholder.tsx");
-const { frozenShareSheetProps } = await import("../../ShareSheet/props.ts");
 const { LockedStatePlaceholder } = await import("../../LockedState/Placeholder.tsx");
 const { frozenLockedStateProps } = await import("../../LockedState/props.ts");
 const { NeedsTeamSpacePlaceholder } = await import("../../NeedsTeamSpace/Placeholder.tsx");
@@ -42,11 +40,6 @@ function check(out: Shape, label: string, density: "regular" | "compact", contai
 test("FolderTree renders its labelled placeholder from frozen props, both densities", () => {
   check(FolderTreePlaceholder(frozenFolderTreeProps), "FolderTree", "compact", "site, 2 folders");
   check(FolderTreePlaceholder({ ...frozenFolderTreeProps, density: "regular" }), "FolderTree", "regular", "2 folders");
-});
-
-test("ShareSheet renders its labelled placeholder from frozen props, both densities", () => {
-  check(ShareSheetPlaceholder(frozenShareSheetProps), "ShareSheet", "compact", "Clients, 1 shares");
-  check(ShareSheetPlaceholder({ ...frozenShareSheetProps, density: "regular" }), "ShareSheet", "regular", "Clients");
 });
 
 test("LockedState renders its labelled placeholder and the request status", () => {
@@ -89,7 +82,7 @@ test("CommentReply renders full width with the up arrow send control", () => {
 });
 
 test("every component takes a density flag of regular or compact", () => {
-  const all = [frozenFolderTreeProps, frozenShareSheetProps, frozenLockedStateProps, frozenNeedsTeamSpaceProps, frozenObjectPageProps, frozenRichEditorProps, frozenHistoryTabProps, frozenDiffTabProps, frozenCommentReplyProps];
-  assert.equal(all.length, 9);
+  const all = [frozenFolderTreeProps, frozenLockedStateProps, frozenNeedsTeamSpaceProps, frozenObjectPageProps, frozenRichEditorProps, frozenHistoryTabProps, frozenDiffTabProps, frozenCommentReplyProps];
+  assert.equal(all.length, 8);
   for (const props of all) assert.ok(props.density === "compact" || props.density === "regular");
 });
