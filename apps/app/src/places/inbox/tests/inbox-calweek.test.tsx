@@ -4,7 +4,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Calendar, ME, TEAM, createCalendarSample } from "../calendar/index.ts";
-import { DAY, HH, HOUR, LINE, MONTH_CAP, TEXT_TOP, allDayLane, blockOf, eventsOn, isBand, lanesOf, monthCell } from "../calendar/model.ts";
+import { daysTo } from "../calendar/sample.ts";
+import { DAY, HH, HOUR, LINE, MONTH_CAP, TEXT_TOP, allDayLane, blockOf, rangeShort, eventsOn, isBand, lanesOf, monthCell } from "../calendar/model.ts";
 import type { EventRow } from "../calendar/model.ts";
 import { InboxDataProvider, InboxStateProvider } from "../sidebar/index.ts";
 
@@ -133,4 +134,20 @@ test("no text of a covered card sits under the card over it, and the strip besid
     assert.ok(b.clip !== undefined && b.clip >= TEXT_TOP + LINE, "the text is clipped there");
   }
   assert.ok(covered >= 3, "the crowded day has covered cards");
+});
+
+test("agenda times: a fixed short form, AM or PM only when it changes", () => {
+  const at = (h: number, m = 0): number => D0 + h * HOUR + m * 60_000;
+  assert.equal(rangeShort(at(9, 30), at(10), 0), "9:30 to 10:00", "same half of the day: no AM or PM");
+  assert.equal(rangeShort(at(14), at(15, 30), 0), "2:00 to 3:30");
+  assert.equal(rangeShort(at(11, 30), at(12), 0), "11:30 AM to 12:00 PM", "it changes at noon, so both are named");
+});
+
+test("sample: shifted by days, today is the real today and the crowd falls Monday to Thursday of that week", () => {
+  const now = Date.UTC(2026, 10, 4, 15), n = daysTo(now);
+  const sm = createCalendarSample(undefined, { shiftDays: n });
+  assert.equal(Math.floor(sm.data.clock().now / DAY), Math.floor(now / DAY), "the sample's day is the real day");
+  const e = sm.events().find((x) => x.id === "e_x_nda")!;
+  assert.equal(new Date(e.startsAt).getUTCDay(), 3, "the 10:00 pile-up is on Wednesday of that week");
+  createCalendarSample();
 });

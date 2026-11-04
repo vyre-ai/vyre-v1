@@ -23,7 +23,7 @@ import { Icon } from "./icons.tsx";
 import { calendarMenuEntries, dayMenuEntries, eventMenuEntries, lengthMenuEntries, peopleMenuEntries } from "./menus.ts";
 import {
   DAY, HH, HOUR, MONTH_CAP, allDayLane, availabilityLine, atSlot, blockOf, calReduce, clickCreate, clock, conflicts, dateOf, dayText, directoryOf, dragCreate, dragMove, dragResize, eventLine, eventsOn, freeLine, initialCal, isBand, isPast, lanesOf, monthCell, lengthText, menuFacts,
-  minutes, monthOf, nameMap, newDraft, offsetToY, range, setLength, slotText, startOfDay, stripesOf, viewDays, viewRange, viewTitle, visibleCalendarIds, weekdayShort, whoLabel,
+  minutes, monthOf, nameMap, newDraft, offsetToY, range, rangeShort, setLength, slotText, startOfDay, stripesOf, viewDays, viewRange, viewTitle, visibleCalendarIds, weekdayShort, whoLabel,
 } from "./model.ts";
 import type { Busy, CalendarRow, Draft, EventRow, Mode, Slot, Span } from "./model.ts";
 
@@ -486,7 +486,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
   const monthBody = (
     <View style={s.cmon} testID="cal-month">
       <View style={s.mwk}>{each(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], (w) => <Text key={w} style={s.mwkText}>{w}</Text>)}</View>
-      <View style={s.mgrid}>
+      <View style={[s.mgrid, phone && s.mgridPhone]}>
         {each(days, (d) => {
           const es = monthCell(events, d);
           const cap = MONTH_CAP;
@@ -499,7 +499,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
               {...({ onDoubleClick: () => withDraft(clickCreate(d, 9 * HH)) } as object)}
               onPress={() => dispatch({ type: "go", day: d })} style={({ hovered }: { hovered?: boolean }) => [s.mc, phone && s.mcPhone, hovered === true && s.hicOver]}
             >
-              <View style={[s.mn, phone && s.mnCenter, d === today && s.mnToday, phone && d === cal.day && d !== today && s.mnSel]}><Text style={[s.mnText, out && s.mnOut, d === today && s.mnTodayText]}>{dateOf(d, off)}</Text></View>
+              <View style={[s.mn, phone && s.mnPhone, d === today && s.mnToday, phone && d === cal.day && d !== today && s.mnSel]}><Text style={[s.mnText, out && s.mnOut, d === today && s.mnTodayText]}>{dateOf(d, off)}</Text></View>
               {phone ? (
                 // iOS style: up to three dots coloured by calendar; a tap shows that day's agenda under the grid
                 <View style={s.dots} testID={`dots:${d}`}>{each(es.slice(0, 3), (e) => <View key={e.id} style={[s.cdotS, { backgroundColor: colorOf(calendars, e.calendarId) }]} />)}</View>
@@ -522,7 +522,7 @@ function Grid({ p }: { p: CalendarProps }): ReactElement {
           {monthCell(events, cal.day).length === 0 ? <Text style={s.agendaNone}>Nothing planned</Text> : each(monthCell(events, cal.day), (e) => (
             <Pressable key={e.id} accessibilityRole="button" accessibilityLabel={e.title} testID={`agenda:${e.id}`} onPress={(ev) => pressEvent(e.id, ev)} style={({ hovered }: { hovered?: boolean }) => [s.agendaRow, hovered === true && s.hicOver]}>
               <View style={[s.cdotS, { backgroundColor: colorOf(calendars, e.calendarId) }]} />
-              <Text style={s.agendaTime}>{eventLine(e, off).replace(/ (AM|PM)/g, (m) => m.toLowerCase())}</Text>
+              <Text style={s.agendaTime}>{e.allDay ? "All day" : rangeShort(e.startsAt, e.endsAt, off)}</Text>
               <Text numberOfLines={1} style={s.agendaTitle}>{e.title}</Text>
             </Pressable>
           ))}
@@ -753,17 +753,18 @@ const s = StyleSheet.create({
   cmon: { flex: 1, minHeight: 0 },
   mwk: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: ink("--line") },
   mwkText: { flex: 1, paddingTop: 8, paddingBottom: 6, paddingHorizontal: 10, fontSize: 11.5, fontWeight: "500", color: ink("--ink-3") },
+  mgridPhone: { flexGrow: 0, flexShrink: 0 },
   mgrid: { flex: 1, minHeight: 0, flexDirection: "row", flexWrap: "wrap" },
   mc: { width: "14.2857%" as unknown as number, minHeight: 104, flexGrow: 1, borderRightWidth: 1, borderBottomWidth: 1, borderRightColor: ink("--line"), borderBottomColor: ink("--line"), paddingVertical: 4, paddingHorizontal: 5, overflow: "hidden", gap: 1 },
   mcPhone: { minHeight: 44, alignItems: "center", paddingHorizontal: 1 },
   dots: { flexDirection: "row", gap: 3, justifyContent: "center", height: 8, marginTop: 2 },
-  mnCenter: { alignSelf: "center" },
+  mnPhone: { alignSelf: "center", width: 26, height: 26, minWidth: 26, paddingHorizontal: 0, borderRadius: 13, marginBottom: 2 },
   mnSel: { boxShadow: "inset 0 0 0 1.5px var(--accent)" as unknown as undefined },
-  agenda: { borderTopWidth: 1, borderTopColor: ink("--line"), paddingVertical: 8, paddingHorizontal: 14, gap: 2, maxHeight: 220 },
+  agenda: { flex: 1, minHeight: 0, borderTopWidth: 1, borderTopColor: ink("--line"), paddingVertical: 8, paddingHorizontal: 14, gap: 2 },
   agendaHead: { fontSize: 12, fontWeight: "600", color: ink("--ink-3"), marginBottom: 2 },
   agendaNone: { fontSize: 12.5, color: ink("--ink-3"), paddingVertical: 4 },
   agendaRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 30, borderRadius: 6 },
-  agendaTime: { fontSize: 12, color: ink("--ink-3"), width: 112, fontVariant: ["tabular-nums"] },
+  agendaTime: { fontSize: 12, color: ink("--ink-3"), width: 128, flexShrink: 0, fontVariant: ["tabular-nums"] },
   agendaTitle: { flex: 1, fontSize: 13, color: ink("--ink") },
   mn: { alignSelf: "flex-start", height: 20, minWidth: 20, paddingHorizontal: 5, borderRadius: 20, alignItems: "center", justifyContent: "center", marginBottom: 1 },
   mnToday: { backgroundColor: ink("--accent") },

@@ -105,6 +105,12 @@ export function range(a: number, b: number, offsetMin: number): string {
   return sm === em ? `${s.slice(0, -3)} to ${e}` : `${s} to ${e}`;
 }
 
+/** 11:30 to 12:00 (a list's time column): AM or PM only when it changes, else 11:30 AM to 1:00 PM. */
+export function rangeShort(a: number, b: number, offsetMin: number): string {
+  const s = clock(a, offsetMin), e = clock(b, offsetMin);
+  return s.slice(-2) === e.slice(-2) ? `${s.slice(0, -3)} to ${e.slice(0, -3)}` : `${s} to ${e}`;
+}
+
 /** Mon, Oct 27 */
 export function dayText(at: number, offsetMin: number): string {
   const p = parts(startOfDay(at, offsetMin), offsetMin);

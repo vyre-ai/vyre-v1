@@ -7,22 +7,22 @@ import { Calendar, ME, TEAM, createCalendarSample } from "../../../apps/app/src/
 import type { Mode } from "../../../apps/app/src/places/inbox/calendar/model.ts";
 import { DAY, startOfDay } from "../../../apps/app/src/places/inbox/calendar/model.ts";
 import { SAMPLE_NOW } from "../../../apps/app/src/places/inbox/contactlist/sample.ts";
-import { weeksTo } from "../../../apps/app/src/places/inbox/calendar/sample.ts";
+import { daysTo } from "../../../apps/app/src/places/inbox/calendar/sample.ts";
 import { InboxDataProvider, InboxSidebar, InboxStateProvider } from "../../../apps/app/src/places/inbox/sidebar/index.ts";
 import type { InboxData } from "../../../apps/app/src/places/inbox/sidebar/index.ts";
 
 export const title = "Calendar week, day and month";
 
 const SIDEBAR_W = 244;
-// the sample moves by whole weeks to the week it is shot in, so the shots show the current week (the title says so)
-const SHIFT = weeksTo(Date.now()) * 7 * DAY;
+// the sample moves by whole days so its today is the real today and the shots show the current week
+const SHIFT = daysTo(Date.now()) * DAY;
 const TODAY = startOfDay(SAMPLE_NOW + SHIFT, 0);
 
 export default function Mount(): ReactNode {
   const [q, setQ] = useState<URLSearchParams | null>(null);
   useEffect(() => { setQ(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "")); }, []);
   const width = useWindowDimensions().width;
-  const sample = useMemo(() => createCalendarSample(undefined, { shiftWeeks: weeksTo(Date.now()) }), []);
+  const sample = useMemo(() => createCalendarSample(undefined, { shiftDays: daysTo(Date.now()) }), []);
   const data = useMemo<InboxData>(() => ({ ...sample.data, call: (cap, input) => sample.data.call(cap, input).catch(() => ({})) }), [sample]);
   if (!q) return <View style={{ flex: 1 }} />;
   const phone = width > 0 && width < 720;
