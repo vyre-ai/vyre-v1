@@ -38,7 +38,16 @@ async function features(): Promise<Features> {
   let placeTools: ((p: Task["place"]) => string[]) | undefined;
   if (FEATURES.has("map")) mapText = (await import("../../modules/engine/capability-map.ts")).CAPABILITY_MAP;
   if (FEATURES.has("place")) placeTools = (await import("../../modules/engine/place-tools.ts")).placeTools;
-  return { mapText, preload: (t) => [...TEAMMATE_TOOLS, ...CORE_READ_TOOLS, ...(placeTools ? placeTools(t.place) : [])] };
+  // learned: one agent per area that has already done that area's tasks twice (the best case for it); its ten most used tools are listed at the start of the turn
+  let top: ((area: string) => string[]) | undefined;
+  if (FEATURES.has("learned")) {
+    const { recordToolUse, topTools } = await import("../../modules/engine/tool-use.ts");
+    const { harness } = await import("../../modules/engine/fixtures/harness.ts");
+    const db = harness().ctx.db as never;
+    for (const task of TASKS) for (const s of task.steps) if (!defaults.has(s.tool)) for (let i = 0; i < 2; i++) recordToolUse(db, `agt_${task.area}`, s.tool, 1000 + i);
+    top = (area) => topTools(db, `agt_${area}`);
+  }
+  return { mapText, preload: (t) => [...TEAMMATE_TOOLS, ...CORE_READ_TOOLS, ...(placeTools ? placeTools(t.place) : []), ...(top ? top(t.area) : [])] };
 }
 
 async function runTask(task: Task, f: Features, n: number): Promise<Row> {

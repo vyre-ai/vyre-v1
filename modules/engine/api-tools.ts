@@ -34,6 +34,8 @@ export interface EngineApiToolsDeps {
   /** Call a capability as a person: what the tool set of a turn depends on is read this way, before the turn's tools are chosen. */
   call?(cap: string, input: unknown, as?: string): Promise<unknown>;
   /** The MCP tools of the agent's plugins and connections, and the plugin hooks around every call (modules/engine/plugin-tools.ts). */
+  /** What each agent has used: counted after a call, read to list its top tools at the start of a turn (modules/engine/tool-use.ts). */
+  usage?: { record(agentId: string, tool: string): void; top(agentId: string): readonly string[] };
   plugins?: { extra(ctx: ToolCtx): Promise<ToolDef[]>; dynamic: DynamicTools; hooks: CallHooks };
 }
 
@@ -91,12 +93,14 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     session.preload(t.threadId, CORE_READ_TOOLS);
     // where the chat is decides which area's core tools are listed too (a goal chat the goal tools, an Ask about a file the file reads)
     session.preload(t.threadId, placeTools({ kind: th?.kind ?? "chat", scope }));
+    // and the tools this agent reaches for most, learned from its own use
+    if (d.usage) session.preload(t.threadId, d.usage.top(t.agentId));
     facts.set(t.threadId, { kind: th?.kind ?? "chat", planMode: th?.planMode === true, ...(th?.mode === "ask" || th?.mode === "auto" || th?.mode === "plan" ? { mode: th.mode } : {}), ...(scope ? { scope } : {}) });
     if (th?.kind === "ask" && scope) {
       const lvl = await d.call("chat.ask_level", { threadId: t.threadId }, t.asker).catch(() => undefined) as { level?: Level | null } | undefined;
       levels.set(levelKey(t.asker, scope), lvl?.level ?? null);
     }
   };
-  const tools = createApiTools({ session, space: d.space, system: (spec, input) => d.system(spec, input), prepare, rules: (id) => rules.get(id), thread: (id) => facts.get(id), ...(d.plugins ? { extra: d.plugins.extra } : {}) });
+  const tools = createApiTools({ session, space: d.space, system: (spec, input) => d.system(spec, input), prepare, rules: (id) => rules.get(id), thread: (id) => facts.get(id), ...(d.usage ? { used: (agentId: string, tool: string) => { if (!defaults!.has(tool)) d.usage!.record(agentId, tool); } } : {}), ...(d.plugins ? { extra: d.plugins.extra } : {}) });
   return tools;
 }

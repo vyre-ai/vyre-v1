@@ -20,6 +20,8 @@ export interface ApiToolsDeps {
   prepare?(turn: { threadId: string; agentId: string; asker: string; turnId: string }): Promise<void>;
   /** Tools this turn has besides the catalog (an agent's plugin MCP tools). Listed to the model after the catalog's own; the tool session finds them again by name. */
   extra?(ctx: ToolCtx): Promise<readonly ToolDef[]>;
+  /** Told after a call reached its tool (not a search, not a refusal): which agent used which tool. The engine counts it to list the agent's most used tools next time. */
+  used?(agentId: string, tool: string): void;
   /** What the thread is (kind, Ask scope, plan mode). Default: a plain chat. */
   thread?(threadId: string): Omit<ThreadFacts, "threadId">;
 }
@@ -64,6 +66,11 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
       };
       return { system, tools, reload };
     },
-    runner: toolRunnerFrom(async (call, ctx) => { await d.prepare?.(ctx); return d.session.call(ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId), call.name, call.input); }),
+    runner: toolRunnerFrom(async (call, ctx) => {
+      await d.prepare?.(ctx);
+      const out = await d.session.call(ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId), call.name, call.input);
+      if (out.kind === "result" && out.result.ok && call.name !== "tool_search") { try { d.used?.(ctx.agentId, call.name); } catch { /* counting never fails a call */ } }
+      return out;
+    }),
   };
 }
