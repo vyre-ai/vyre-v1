@@ -131,13 +131,14 @@ test("one message and one thread are read whole by their own tools: text kept, r
 
 test("limits: a default limit when none is given, a ceiling when too much is asked, other tools untouched", () => {
   for (const [cap, l] of Object.entries(LIMITS)) {
-    assert.equal((limited(cap, {}) as { limit: number }).limit, l.dflt, cap);
-    assert.equal((limited(cap, { limit: 500 }) as { limit: number }).limit, l.max, cap);
-    assert.equal((limited(cap, { limit: 3, q: "x" }) as { limit: number; q: string }).limit, 3);
+    const k = l.key ?? "limit";
+    assert.equal((limited(cap, {}) as Record<string, number>)[k], l.dflt, cap);
+    assert.equal((limited(cap, { [k]: 5_000_000 }) as Record<string, number>)[k], l.max, cap);
+    assert.equal((limited(cap, { [k]: 3, q: "x" }) as Record<string, number>)[k], 3);
   }
   const input = { a: 1 };
-  assert.equal(limited("tasks.list", input), input);
-  assert.equal(limited("tasks.list", undefined), undefined);
+  assert.equal(limited("tasks.get", input), input);
+  assert.equal(limited("tasks.get", undefined), undefined);
 });
 
 test("through a tool call: the invoke gets a default limit, the model gets compact rows with meta, and a tool outside the list is unchanged", async () => {
@@ -162,6 +163,90 @@ test("through a tool call: the invoke gets a default limit, the model gets compa
   const b = await session.call(ctx(), "mail_message_search", { q: "invoice", limit: 500 });
   assert.equal((seen[1] as { limit: number }).limit, 100, "the ceiling");
   assert.ok(size(b.kind === "result" ? b.result.content : null) <= RESULT_BUDGET + 1024);
-  const other = await session.call(ctx(), "tasks_list", {});
-  assert.deepEqual(other.kind === "result" ? (other.result.content as { data: unknown }).data : null, { cap: "tasks.list" }, "everything else comes back as it was");
+  session.preload("T1", ["notes_get"]);
+  const other = await session.call(ctx(), "notes_get", {});
+  assert.deepEqual(other.kind === "result" ? (other.result.content as { data: unknown }).data : null, { cap: "notes.get" }, "everything else comes back as it was");
+});
+
+// ---------------------------------------------------------------- records, files, tasks, memory and chat
+
+const recordRows = (n: number): unknown => ({ total: n + 400, next: "c", rows: Array.from({ length: n }, (_, i) => ({ id: `rec_${i}`, type: "contact", version: 3, label: 1, createdAt: DAY0, updatedAt: DAY0 + i * 6e5, holds: 0, fields: { name: `Person ${i}`, email: `p${i}@clientco.example`, phone: "+1 415 555 0100", notes: lorem(3000), history: Array.from({ length: 40 }, (_, k) => ({ at: k, text: lorem(120) })), tags: ["a", "b", "c", "d", "e"], company: `Company ${i}`, title: "Partner", address: lorem(200), source: "import", stage: "lead", owner: "usr_1", extra: lorem(900) } })) });
+const fileMeta = (i: number): unknown => ({ fileId: `fil_${i}`, folderId: "fld_1", name: `Contract draft number ${i}.docx`, kind: "document", mime: "application/vnd.openxmlformats", size: 120000, version: 4, label: 1, ownerId: "usr_1", createdAt: DAY0, updatedAt: DAY0 + i, updatedBy: "usr_1", thumb: true, holds: 0, source: { mountId: "mnt_1", provider: "google" } });
+const filesOut = (n: number): unknown => ({ total: n + 300, next: "c", files: Array.from({ length: n }, (_, i) => fileMeta(i)), folders: Array.from({ length: 40 }, (_, i) => ({ folderId: `fld_${i}`, name: `Folder ${i}`, path: `/Clients/Folder ${i}`, fileCount: 12, folderCount: 2, scope: "space", label: 1, git: false, reviewChanges: false })) });
+const tasksOut = (n: number): unknown => ({ total: n + 100, next: "c", tasks: Array.from({ length: n }, (_, i) => ({ id: `tsk_${i}`, kind: "work", title: `Review the lease and send notes ${i}`, summary: lorem(400), why: lorem(300), state: "todo", blocked: false, blocks: [{ type: "text", data: lorem(1500) }], actions: [{ key: "done", label: "Done" }, { key: "block", label: "Block" }], assigned: { kind: "person", id: "usr_1" }, fileIds: ["fil_1", "fil_2"], dependsOn: [], followers: ["usr_2", "usr_3"], workingNotes: { a: lorem(600) }, reviewLoops: 0, createdBy: "usr_1", createdAt: DAY0, updatedAt: DAY0, due: DAY0 + 864e5, priority: "high", fields: { x: lorem(500) } })) });
+const memoryOut = (n: number): unknown => ({ tookMs: 12, meaning: { state: "on", model: "m", hint: lorem(200) }, hits: Array.from({ length: n }, (_, i) => ({ kind: "fact", factId: `fct_${i}`, title: `Fact ${i}`, text: lorem(1500), layer: "person", score: 0.8123456, lesson: { used: 2, scope: "you" }, subject: { pageId: "pg_1", title: "Elena", kind: "person" }, sourceLink: "https://x.example/a", by: "usr_1", byKind: "person", versions: 2 })) });
+const chatOut = (n: number): unknown => ({ hasMore: true, messages: Array.from({ length: n }, (_, i) => ({ messageId: `msg_${i}`, threadId: "thr_1", threadSeq: 100 + i, author: { kind: i % 2 ? "agent" : "person", id: i % 2 ? "agt_1" : "usr_1" }, kind: "text", body: lorem(2500), blocks: [{ type: "table", v: 1, id: `b${i}`, data: { rows: lorem(2500) }, traceId: "t" }], depth: 0, attachments: ["fil_1"], reactions: [{ emoji: "ok", by: ["usr_1"] }], pinned: false, createdAt: DAY0 + i * 6e4 })) });
+const recentOut = (n: number): unknown => ({ starred: [], today: Array.from({ length: n }, (_, i) => ({ threadId: `thr_${i}`, kind: "chat", title: `Chat about the lease ${i} ${lorem(100)}`, agents: ["agt_1", "agt_2"], unread: 1, working: false, starred: false, lastAt: DAY0 + i, preview: lorem(300), people: ["usr_1", "usr_2"] })), yesterday: [], earlier: [], archived: [] });
+
+test("records, files, tasks, memory and chat: every list stays under the budget and far below its raw size", () => {
+  const rows: Array<[string, unknown]> = [
+    ["records.search", recordRows(100)], ["records.query", recordRows(100)], ["files.list", filesOut(100)], ["files.recent", { files: Array.from({ length: 50 }, (_, i) => fileMeta(i)) }],
+    ["tasks.list", tasksOut(80)], ["memory.search", memoryOut(30)], ["chat.messages.list", chatOut(60)], ["chat.recent", recentOut(60)],
+    ["memory.facts.list", { total: 500, next: "c", facts: Array.from({ length: 100 }, (_, i) => ({ factId: `f${i}`, layer: "person", ownerRef: "o", text: lorem(900), validFrom: DAY0, learnedAt: DAY0, sourceKind: "chat", sourceRef: "thr_1", status: "current", subject: { pageId: "p", title: "t", kind: "k" } })) }],
+    ["notes.search", { notes: Array.from({ length: 30 }, (_, i) => ({ noteId: `n${i}`, title: `Note ${i}`, snippet: lorem(600), labels: ["a"], owner: "usr_1", updatedAt: DAY0 })) }],
+    ["chat.search", { meaning: true, sealedChats: 0, tookMs: 3, hits: Array.from({ length: 30 }, (_, i) => ({ messageId: `m${i}`, threadId: "thr_1", threadSeq: i, author: { kind: "person", id: "usr_1" }, snippet: lorem(500), at: DAY0, score: 1, found: "both", thread: { kind: "chat", title: "T", agentIds: ["agt_1"], memberIds: ["usr_1", "usr_2", "usr_3"] } })) }],
+    ["chat.transcript.search", { hits: Array.from({ length: 30 }, (_, i) => ({ turnId: `t${i}`, threadId: "thr_1", idx: i, role: "user", snippet: lorem(500), at: DAY0, link: "vyre://x" })) }],
+  ];
+  for (const [cap, out] of rows) {
+    const before = size(out), s = shapeOutput(cap, out)!;
+    assert.ok(s, cap);
+    const after = size(s.data);
+    assert.equal(s.meta.bytes, after, cap);
+    assert.ok(after <= RESULT_BUDGET + 600, `${cap}: ${after} bytes after`);
+    assert.ok(before > (["files.recent", "notes.search", "chat.search", "chat.transcript.search"].includes(cap) ? 2 : 4) * after, `${cap}: ${before} before, ${after} after`);
+    console.log(`  size ${cap}: ${before} -> ${after} bytes (${s.meta.count} rows${s.meta.omitted ? `, ${s.meta.omitted} left out` : ""})`);
+  }
+});
+
+test("reading: a file's text is cut at 20000 and says so, base64 is left out, a record's long fields are cut, a transcript is cut", () => {
+  const f = shapeOutput("files.read", { text: lorem(120_000), mime: "text/plain", size: 120_000, version: 2, truncated: false })!;
+  const fd = f.data as { text: string; textCut: number; truncated: boolean };
+  assert.equal(fd.text.length, 20_000);
+  assert.equal(fd.textCut, 100_000);
+  assert.equal(fd.truncated, true);
+  const b = shapeOutput("files.read", { base64: "A".repeat(60_000), mime: "image/png", size: 45_000, version: 1, truncated: false })!;
+  assert.equal((b.data as { base64Omitted: number }).base64Omitted, 60_000);
+  assert.ok(!JSON.stringify(b.data).includes("AAAA"));
+  const r = shapeOutput("records.get", { record: { id: "rec_1", type: "contact", version: 1, label: 1, createdAt: 0, updatedAt: 0, holds: 0, fields: { notes: lorem(5000), name: "Elena", big: { x: lorem(3000) } } } })!;
+  const rd = r.data as { record: { fields: { notes: string; name: string; big: string }; fieldsCut: number } };
+  assert.equal(rd.record.fields.notes.length, 1000);
+  assert.equal(rd.record.fields.name, "Elena");
+  assert.match(rd.record.fields.big, /^\[too long/);
+  assert.equal(rd.record.fieldsCut, 2);
+  const t = shapeOutput("chat.transcript.read", { markdown: lorem(70_000), next: 21 })!;
+  assert.equal((t.data as { markdown: string; markdownCut: number; next: number }).markdown.length, 20_000);
+  assert.equal((t.data as { markdownCut: number }).markdownCut, 50_000);
+  assert.equal((t.data as { next: number }).next, 21);
+});
+
+test("rows keep what names them: a record's first fields, a task's state and due, a chat message's seq and resume point", () => {
+  const rec = (shapeOutput("records.search", recordRows(2))!.data as { rows: Array<{ id: string; fields: Record<string, unknown> }> }).rows[0]!;
+  assert.equal(rec.id, "rec_0");
+  assert.equal(Object.keys(rec.fields).length, 8, "at most eight fields");
+  assert.equal(rec.fields["name"], "Person 0");
+  assert.ok(!JSON.stringify(rec).includes("ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor. Lorem ipsum"), "a long note is cut to a line");
+  const task = (shapeOutput("tasks.list", tasksOut(2))!.data as { tasks: Array<Record<string, unknown>> }).tasks[0]!;
+  assert.deepEqual(Object.keys(task).sort(), ["assignee", "due", "id", "kind", "priority", "state", "summary", "title"]);
+  const chat = shapeOutput("chat.messages.list", chatOut(60))!;
+  assert.ok((chat.meta.omitted ?? 0) > 0 && typeof chat.meta.resume?.["before"] === "number", "rows left out: resume before the first one left out");
+  const few = shapeOutput("chat.messages.list", chatOut(3))!;
+  assert.equal(few.meta.resume?.["before"], 100, "hasMore with nothing left out: resume before the oldest row");
+  assert.ok(!JSON.stringify(chat.data).includes("traceId"), "no block data in a list of messages");
+});
+
+test("limits for the new tools, and a file is read a slice at a time", () => {
+  for (const cap of ["records.search", "records.query", "files.list", "files.recent", "tasks.list", "memory.search", "memory.facts.list", "notes.search", "chat.messages.list", "chat.search", "chat.transcript.read", "chat.transcript.search"]) {
+    const l = LIMITS[cap]!;
+    assert.equal((limited(cap, {}) as { limit: number }).limit, l.dflt, cap);
+    assert.equal((limited(cap, { limit: 9999 }) as { limit: number }).limit, l.max, cap);
+  }
+  assert.equal((limited("files.read", { fileId: "fil_1" }) as { length: number }).length, 20_000, "no length given: the first 20000");
+  assert.equal((limited("files.read", { fileId: "fil_1", length: 5_000_000 }) as { length: number }).length, 100_000);
+  assert.equal((limited("files.read", { fileId: "fil_1", offset: 20_000, length: 100 }) as { offset: number }).offset, 20_000, "the rest of the input is kept");
+});
+
+test("an answer without the contract's shape (an error body, a stand-in, a later contract) passes through as it is", () => {
+  for (const cap of Object.keys(LIMITS)) assert.equal(shapeOutput(cap, { cap }), null, cap);
+  assert.equal(shapeOutput("calendar.list_events", null), null);
+  assert.equal(shapeOutput("tasks.get", { task: {} }), null, "a tool that is not in the table");
 });

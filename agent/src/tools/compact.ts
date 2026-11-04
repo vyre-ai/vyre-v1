@@ -16,14 +16,28 @@ export const MESSAGE_CAP = 4_000;
 export const DESCRIPTION_CAP = 4_000;
 
 /** Rows a list returns when the model gives no limit, and the most it may ask for. */
-export const LIMITS: Readonly<Record<string, { dflt: number; max: number }>> = Object.freeze({
-  "calendar.list_events": { dflt: 25, max: 100 },
+export const LIMITS: Readonly<Record<string, { dflt: number; max: number; key?: string }>> = Object.freeze({
+  "calendar.list_events": { dflt: 20, max: 100 },
   "inbox.list_by_thread": { dflt: 25, max: 100 },
-  "inbox.list_by_contact": { dflt: 30, max: 100 },
+  "inbox.list_by_contact": { dflt: 25, max: 100 },
   "inbox.threads": { dflt: 10, max: 30 },
   "inbox.thread": { dflt: 30, max: 100 },
-  "mail.message.list": { dflt: 25, max: 100 },
-  "mail.message.search": { dflt: 25, max: 100 },
+  "mail.message.list": { dflt: 20, max: 100 },
+  "mail.message.search": { dflt: 20, max: 100 },
+  "records.search": { dflt: 20, max: 100 },
+  "records.query": { dflt: 20, max: 100 },
+  "files.list": { dflt: 30, max: 100 },
+  "files.recent": { dflt: 20, max: 50 },
+  "tasks.list": { dflt: 25, max: 100 },
+  "memory.search": { dflt: 10, max: 30 },
+  "memory.facts.list": { dflt: 25, max: 100 },
+  "notes.search": { dflt: 15, max: 30 },
+  "chat.messages.list": { dflt: 20, max: 60 },
+  "chat.search": { dflt: 15, max: 30 },
+  "chat.transcript.read": { dflt: 20, max: 60 },
+  "chat.transcript.search": { dflt: 15, max: 30 },
+  // a file is read a slice at a time: the text length, not a row count
+  "files.read": { dflt: READ_TEXT_CAP, max: 100_000, key: "length" },
 });
 
 export interface Meta {
@@ -61,8 +75,9 @@ export function limited(cap: string, input: unknown): unknown {
   const l = LIMITS[cap];
   if (!l) return input;
   const o = input !== null && typeof input === "object" && !Array.isArray(input) ? { ...(input as Obj) } : {};
-  const asked = typeof o["limit"] === "number" ? (o["limit"] as number) : l.dflt;
-  o["limit"] = Math.max(1, Math.min(l.max, Math.floor(asked)));
+  const k = l.key ?? "limit";
+  const asked = typeof o[k] === "number" ? (o[k] as number) : l.dflt;
+  o[k] = Math.max(1, Math.min(l.max, Math.floor(asked)));
   return o;
 }
 
@@ -118,6 +133,61 @@ function threadRow(t: Obj): Obj {
     row["last"] = { from: who(last["from"]), at: iso(num(last["at"])), snippet: oneLine(str(last["body"]), SNIPPET) };
   }
   return row;
+}
+
+// ---------------------------------------------------------------- records, files, tasks, memory, chat
+
+/** A field value as one short thing: text cut, a list as its length, a nested object left out. */
+function scalar(v: unknown): unknown {
+  if (typeof v === "string") return oneLine(v, 100);
+  if (typeof v === "number" || typeof v === "boolean" || v === null) return v;
+  if (Array.isArray(v)) return v.length <= 3 && v.every((x) => typeof x === "string" || typeof x === "number") ? v.map((x) => (typeof x === "string" ? oneLine(x, 60) : x)) : `[${v.length}]`;
+  return undefined;
+}
+function recordRow(r: Obj): Obj {
+  const fields: Obj = {};
+  let n = 0;
+  for (const [k, v] of Object.entries(obj(r["fields"]))) { const x = scalar(v); if (x !== undefined && x !== "" && n < 8) { fields[k] = x; n++; } }
+  return { id: str(r["id"]), type: str(r["type"]), updated: iso(num(r["updatedAt"])), ...(r["deletedAt"] !== undefined ? { deleted: true } : {}), fields };
+}
+function fileRow(f: Obj): Obj {
+  return { id: str(f["fileId"]), name: oneLine(str(f["name"]), 100), kind: str(f["kind"]), size: num(f["size"]), updated: iso(num(f["updatedAt"])), folder: str(f["folderId"]), ...(f["conflict"] === true ? { conflict: true } : {}) };
+}
+function folderRow(f: Obj): Obj {
+  return { id: str(f["folderId"]), path: oneLine(str(f["path"]) || str(f["name"]), 100), files: num(f["fileCount"]), folders: num(f["folderCount"]) };
+}
+function taskRow(t: Obj): Obj {
+  const row: Obj = { id: str(t["id"]), title: oneLine(str(t["title"]), 100), state: str(t["state"]), kind: str(t["kind"]), assignee: str(obj(t["assigned"])["id"]) };
+  if (num(t["due"]) > 0) row["due"] = iso(num(t["due"]));
+  if (t["blocked"] === true) row["blocked"] = true;
+  if (t["yourTurn"] === true) row["yourTurn"] = true;
+  if (str(t["priority"]) !== "" && str(t["priority"]) !== "normal") row["priority"] = str(t["priority"]);
+  if (str(t["summary"]) !== "") row["summary"] = oneLine(str(t["summary"]), 120);
+  return row;
+}
+function hitRow(h: Obj): Obj {
+  const id = str(h["noteId"]) || str(h["factId"]) || str(h["pageId"]);
+  const row: Obj = { kind: str(h["kind"]), id, title: oneLine(str(h["title"]), 80), text: oneLine(str(h["text"]), 200), layer: str(h["layer"]), score: Math.round(num(h["score"]) * 100) / 100 };
+  if (str(h["path"]) !== "") row["path"] = str(h["path"]);
+  return row;
+}
+function chatMsgRow(m: Obj): Obj {
+  const body = cut(str(m["body"]), 400);
+  const row: Obj = { id: str(m["messageId"]), seq: num(m["threadSeq"]), by: str(obj(m["author"])["id"]), at: iso(num(m["createdAt"])), text: body.text };
+  if (body.cut) row["textCut"] = body.cut;
+  if (str(m["kind"]) !== "text" && str(m["kind"]) !== "") row["kind"] = str(m["kind"]);
+  if (arr(m["blocks"]).length > 0) row["blocks"] = arr(m["blocks"]).map((b) => str(obj(b)["type"])).slice(0, 5);
+  if (arr(m["attachments"]).length > 0) row["attachments"] = arr(m["attachments"]).length;
+  return row;
+}
+
+function readFile(o: Obj): Shaped {
+  const text = typeof o["text"] === "string" ? cut(o["text"] as string, READ_TEXT_CAP) : null;
+  const data: Obj = { mime: str(o["mime"]), size: num(o["size"]), version: num(o["version"]), truncated: o["truncated"] === true || (text?.cut ?? 0) > 0 };
+  if (text) { data["text"] = text.text; if (text.cut) data["textCut"] = text.cut; }
+  if (typeof o["base64"] === "string") data["base64Omitted"] = (o["base64"] as string).length;
+  if (typeof o["url"] === "string") data["url"] = o["url"];
+  return { data, meta: { count: 1, bytes: bytesOf(data) } };
 }
 
 // ---------------------------------------------------------------- the budget
@@ -187,9 +257,19 @@ function readThread(o: Obj): Shaped {
   return { data, meta: { count: msgs.length, bytes: bytesOf(data) } };
 }
 
+const SHAPE_KEY: Readonly<Record<string, string>> = Object.freeze({
+  "calendar.list_events": "events", "calendar.get_event": "event", "inbox.list_by_thread": "threads", "inbox.list_by_contact": "rows", "inbox.threads": "threads", "inbox.thread": "items",
+  "mail.message.list": "messages", "mail.message.search": "messages", "mail.message.get": "message", "mail.thread.get": "messages", "records.search": "rows", "records.query": "rows", "records.get": "record",
+  "files.list": "files", "files.recent": "files", "files.read": "mime", "tasks.list": "tasks", "memory.search": "hits", "memory.facts.list": "facts", "notes.search": "notes", "chat.messages.list": "messages",
+  "chat.search": "hits", "chat.transcript.read": "markdown", "chat.transcript.search": "hits", "chat.recent": "today",
+});
+
 /** The agent-facing shape of one capability's answer, or null when the capability is not one of the calendar and mail reads (it is returned as it is). */
 export function shapeOutput(cap: string, output: unknown): Shaped | null {
   const o = obj(output);
+  // only an answer that has the shape of the capability's contract is shaped; anything else (an error body, a stand-in, a later contract) passes through as it is
+  const need = SHAPE_KEY[cap];
+  if (need === undefined || !(need in o)) return null;
   switch (cap) {
     case "calendar.list_events": {
       const rows = arr(o["events"]).map(obj).map(eventRow);
@@ -213,6 +293,49 @@ export function shapeOutput(cap: string, output: unknown): Shaped | null {
     case "mail.message.search": return fit("messages", mailRows(arr(o["messages"])), {}, cap === "mail.message.search" ? (r) => ({ to: Date.parse(str(r["at"])) }) : undefined, { ...paging(o), read: "mail_message_get" });
     case "mail.message.get": return readMessage(o);
     case "mail.thread.get": return readThread(o);
+    case "records.search":
+    case "records.query": return fit("rows", arr(o["rows"]).map(obj).map(recordRow), {}, undefined, { ...paging(o), read: "records_get" });
+    case "records.get": {
+      const r = obj(o["record"]);
+      const fields: Obj = {};
+      let cutFields = 0;
+      for (const [k, v] of Object.entries(obj(r["fields"]))) {
+        if (typeof v === "string") { const c = cut(v, 1000); fields[k] = c.text; if (c.cut) cutFields++; }
+        else if (typeof v === "object" && v !== null && bytesOf(v) > 1000) { fields[k] = `[too long: ${bytesOf(v)} bytes]`; cutFields++; }
+        else fields[k] = v;
+      }
+      const data: Obj = { record: { id: str(r["id"]), type: str(r["type"]), version: num(r["version"]), updated: iso(num(r["updatedAt"])), fields, ...(cutFields > 0 ? { fieldsCut: cutFields } : {}) } };
+      return { data, meta: { count: 1, bytes: bytesOf(data) } };
+    }
+    case "files.list": {
+      const folders = arr(o["folders"]).map(obj).map(folderRow).slice(0, 15);
+      return fit("files", arr(o["files"]).map(obj).map(fileRow), { folders, ...(arr(o["folders"]).length > 15 ? { moreFolders: arr(o["folders"]).length - 15 } : {}) }, undefined, { ...paging(o), read: "files_read" });
+    }
+    case "files.recent": return fit("files", arr(o["files"]).map(obj).map(fileRow), {}, undefined, { read: "files_read" });
+    case "files.read": return readFile(o);
+    case "tasks.list": return fit("tasks", arr(o["tasks"]).map(obj).map(taskRow), {}, undefined, { ...paging(o), read: "tasks_get" });
+    case "memory.search": return fit("hits", arr(o["hits"]).map(obj).map(hitRow), { ...(typeof o["locked"] === "string" ? { locked: o["locked"] } : {}) }, undefined, { read: "memory_page_get" });
+    case "memory.facts.list": return fit("facts", arr(o["facts"]).map(obj).map((f) => ({ id: str(f["factId"]), text: oneLine(str(f["text"]), 200), layer: str(f["layer"]), status: str(f["status"]), since: iso(num(f["validFrom"])) } as Obj)), {}, undefined, { ...paging(o), read: "memory_fact_get" });
+    case "notes.search": return fit("notes", arr(o["notes"]).map(obj).map((n) => ({ id: str(n["noteId"]), title: oneLine(str(n["title"]), 80), snippet: oneLine(str(n["snippet"]), SNIPPET), updated: iso(num(n["updatedAt"])) } as Obj)), {}, undefined, { read: "notes_get" });
+    case "chat.messages.list": {
+      const msgs = arr(o["messages"]).map(obj);
+      const lo = msgs.reduce((m, x) => Math.min(m, num(x["threadSeq"])), Infinity);
+      const r = fit("messages", msgs.map(chatMsgRow), {}, (row) => ({ before: num(row["seq"]) + 1 }), { read: "chat_message_get" });
+      if (o["hasMore"] === true && r.meta.omitted === undefined && Number.isFinite(lo)) r.meta.resume = { before: lo };
+      return r;
+    }
+    case "chat.search": return fit("hits", arr(o["hits"]).map(obj).map((h) => ({ id: str(h["messageId"]), thread: str(h["threadId"]), title: oneLine(str(obj(h["thread"])["title"]) || str(obj(h["thread"])["channelName"]), 60), seq: num(h["threadSeq"]), by: str(obj(h["author"])["id"]), at: iso(num(h["at"])), snippet: oneLine(str(h["snippet"]), SNIPPET) } as Obj)), {}, undefined, { read: "chat_messages_list" });
+    case "chat.transcript.search": return fit("hits", arr(o["hits"]).map(obj).map((h) => ({ thread: str(h["threadId"]), idx: num(h["idx"]), role: str(h["role"]), at: iso(num(h["at"])), snippet: oneLine(str(h["snippet"]), SNIPPET) } as Obj)), {}, undefined, { read: "transcript_read" });
+    case "chat.transcript.read": {
+      const md = cut(str(o["markdown"]), READ_TEXT_CAP);
+      const data: Obj = { markdown: md.text, ...(md.cut ? { markdownCut: md.cut } : {}), ...(typeof o["next"] === "number" ? { next: o["next"] } : {}) };
+      return { data, meta: { count: 1, bytes: bytesOf(data) } };
+    }
+    case "chat.recent": {
+      const out: Obj[] = [];
+      for (const g of ["starred", "today", "yesterday", "earlier"]) for (const t of arr(o[g]).map(obj)) out.push({ id: str(t["threadId"]), group: g, title: oneLine(str(t["title"]), 80), kind: str(t["kind"]), ...(num(t["unread"]) > 0 ? { unread: num(t["unread"]) } : {}), at: iso(num(t["lastAt"])), ...(str(t["preview"]) !== "" ? { preview: oneLine(str(t["preview"]), 100) } : {}) });
+      return fit("threads", out.slice(0, 40), {}, undefined, { total: out.length, read: "chat_messages_list" });
+    }
     default: return null;
   }
 }
