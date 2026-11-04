@@ -53,8 +53,8 @@ for (const kind of ["team", "personal"] as const) {
 
       // the record Chat tab: the right pane's overflow, then Chat
       await page.goto(`${web.origin}/records#subject=record:${rec.id}&type=contact`, { waitUntil: "load" });
-      await page.getByTestId("tab-more").waitFor({ timeout: 20_000 });
-      await page.getByTestId("tab-more").click(); await page.getByRole("menuitem", { name: "Chat", exact: true }).click();
+      // the record's Ask button opens the shared Ask pane beside the page (the record Chat tab was folded into it)
+      await page.getByTestId("record-ask").click({ timeout: 30_000 });
       const field = page.getByTestId("composer-field").first();
       await field.waitFor({ timeout: 30_000 });
       const ask = async (text: string): Promise<void> => { await field.fill(text); await field.press("Enter"); };

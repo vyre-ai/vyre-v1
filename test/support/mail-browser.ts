@@ -6,7 +6,7 @@ import path from "node:path";
 import { createCapCaller } from "../../client/src/gateway/index.ts";
 import { edge } from "../../apps/app/tests/real-app-harness.test.ts";
 import type { Edge } from "../../apps/app/tests/real-app-harness.test.ts";
-import { bootMailWorld } from "./mail-world.ts";
+import { PASSWORD, bootMailWorld } from "./mail-world.ts";
 import type { MailWorld, Person, WorldOptions } from "./mail-world.ts";
 
 export const SIZES = { desktop: { width: 1280, height: 800 }, phone: { width: 390, height: 844 } } as const;
@@ -92,6 +92,10 @@ export async function seat(s: Screens, who: Person, role: string): Promise<Seat>
 
 export async function open(seatOf: Seat, s: Screens, route: string): Promise<void> {
   await seatOf.page.goto(`${s.web.origin}${route}`, { waitUntil: "load" });
+  // the app is on this computer's address, so it shows the launch lock first (KeyGate, rc.9): the person types their password once and goes on. These journeys are not about the lock.
+  const lockOrShell = seatOf.page.getByTestId("shell").or(seatOf.page.getByTestId("mobile-shell")).or(seatOf.page.getByTestId("lock-password")).first();
+  await lockOrShell.waitFor({ timeout: 30_000 });
+  if (await seatOf.page.getByTestId("lock-password").isVisible()) { await seatOf.page.getByTestId("lock-password").fill(PASSWORD); await seatOf.page.getByRole("button", { name: "Unlock", exact: true }).click(); }
   await seatOf.page.getByTestId("shell").or(seatOf.page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30_000 });
   const onboarding = seatOf.page.getByTestId("onboarding");
   if (await onboarding.waitFor({ timeout: 4_000 }).then(() => true, () => false)) {
