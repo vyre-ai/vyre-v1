@@ -121,6 +121,10 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
     // one line for each admin; it collapses while the same alert lasts, and the machine page is where it opens
     return adminsOf(ctx).then((to) => to.map((id) => ({ to: id, kind: "machine.alert", subject: { type: "space", id: String(p.machineId ?? "") }, title: String(p.title ?? "A machine needs a look"), collapseKey: `machine.alert:${String(p.alertId ?? "")}` })));
   }
+  if (e.name === "hook.admin_asked") {
+    // one line for each admin: who asked, and which hook stopped what
+    return adminsOf(ctx).then((to) => to.filter((id) => id !== p.by).map((id) => ({ to: id, kind: "hook.asked", subject: { type: "thread", id: String(p.threadId ?? "") }, title: `${String(p.line ?? "A hook stopped something")}${typeof p.note === "string" && p.note !== "" ? `: ${p.note}` : ""}`.slice(0, 200), collapseKey: `hook.asked:${String(p.hookId ?? "")}:${String(p.by ?? "")}` })));
+  }
   if (e.name === "run.succeeded" && p.kind === "routine" && ctx.call) {
     // Alerts: a routine that succeeded is told only to people who asked for successes too (failures always come through run.failed)
     return ctx.call("runs.get", { runId: p.runId }).then((r) => {

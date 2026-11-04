@@ -27,12 +27,14 @@ Hooks module only: leave a quiet line in a chat when a hook is added, changed, r
 type In = {
   threadId: string;
   body: string;
-  kind: "added" | "changed" | "removed" | "paused" | "resumed" | "blocked" | "failed";
+  kind: "added" | "changed" | "removed" | "paused" | "resumed" | "blocked" | "failed" | "allowed" | "asked";
   hookId?: string;
   scope?: string;
   by?: string;
   byKind?: "admin" | "person" | "agent";
   reason?: string;
+  tool?: string;
+  subject?: string;
 };
 ```
 
@@ -65,7 +67,9 @@ type Out = {
     "kind": "added",
     "reason": "example",
     "scope": "example",
-    "threadId": "thr_a1b2c3"
+    "subject": "example",
+    "threadId": "thr_a1b2c3",
+    "tool": "example"
   },
   "output": {
     "messageId": "msg_a1b2c3"

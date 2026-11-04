@@ -2,7 +2,7 @@
 // The quiet line a hook leaves in a chat (lane l-hooks): its words, and the side button it offers (Edit for a hook that is still there, Details for one that stopped something).
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hookLineAction, hookLineOf, isCard } from "./model.ts";
+import { hookLineActs, hookLineOf, hookLineText, isCard } from "./model.ts";
 
 const msg = (data: Record<string, unknown>) => ({ blocks: [{ id: "b", type: "hook", v: 1, state: "done", data }] }) as never;
 
@@ -14,9 +14,16 @@ test("a hook block is a quiet line, never a card, and carries its words", () => 
   assert.equal(hookLineOf(msg({ kind: "added" })), null);
 });
 
-test("Edit for an added or changed hook, Details for a block or a failure, nothing for a removed hook or one with no id", () => {
-  const a = (kind: string, hookId?: string) => hookLineAction(hookLineOf(msg({ line: "x", kind, ...(hookId ? { hookId } : {}) }))!);
-  assert.deepEqual([a("added", "h")?.label, a("changed", "h")?.label, a("blocked", "h")?.label, a("failed", "h")?.label], ["Edit", "Edit", "Details", "Details"]);
-  assert.equal(a("removed", "h"), null);
-  assert.equal(a("blocked"), null);
+test("an added or changed hook offers Edit; a block offers Details, Run once anyway and Ask an admin; a failure Details; a removed hook or one with no id nothing", () => {
+  const a = (kind: string, hookId?: string) => hookLineActs(hookLineOf(msg({ line: "x", kind, ...(hookId ? { hookId } : {}) }))!);
+  assert.deepEqual([a("added", "h"), a("changed", "h"), a("blocked", "h"), a("failed", "h")], [["edit"], ["edit"], ["details", "once", "ask"], ["details"]]);
+  assert.deepEqual([a("removed", "h"), a("blocked"), a("allowed", "h")], [[], [], []]);
+});
+
+test("a line about a person names them as the reader does, never Someone", () => {
+  const l = hookLineOf(msg({ line: "Someone let a hook go by once: x", kind: "allowed", hookId: "h", by: "usr_maya", subject: "before the file tree is read, Space rule" }))!;
+  assert.equal(hookLineText(l, (id) => (id === "usr_maya" ? "Maya Chen" : id)), "Maya Chen let a hook go by once: before the file tree is read, Space rule");
+  const q = hookLineOf(msg({ line: "Someone asked an admin about a hook: x", kind: "asked", hookId: "h", by: "usr_maya", subject: "rule" }))!;
+  assert.equal(hookLineText(q, () => "Maya Chen"), "Maya Chen asked an admin about a hook: rule");
+  assert.equal(hookLineText(hookLineOf(msg({ line: "A hook stopped this: no", kind: "blocked" }))!, () => "x"), "A hook stopped this: no");
 });

@@ -29754,6 +29754,37 @@
       "v": 1
     },
     {
+      "blocks": [],
+      "cap": "hooks.runs.list",
+      "deferred": false,
+      "description": "What hooks did lately: which ran, what they answered, and the ones that failed or ran out of time, newest first",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "hookId": {
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "hooks_runs",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
       "blocks": [
         "hook"
       ],
@@ -43133,7 +43164,8 @@
               "task.returned",
               "task.finished",
               "task.due",
-              "machine.alert"
+              "machine.alert",
+              "hook.asked"
             ],
             "type": "string"
           },
@@ -43598,7 +43630,8 @@
               "task.returned",
               "task.finished",
               "task.due",
-              "machine.alert"
+              "machine.alert",
+              "hook.asked"
             ],
             "type": "string"
           },

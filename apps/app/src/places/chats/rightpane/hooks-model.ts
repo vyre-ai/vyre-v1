@@ -54,3 +54,23 @@ export function setInput(h: Hook, d: Draft, threadId: string): Record<string, un
 export function restoreInput(h: Hook, threadId: string): Record<string, unknown> {
   return { scope: h.scope, event: h.event, kind: h.kind, matcher: h.matcher, timeoutSec: h.timeoutSec, helpers: h.helpers, summary: h.line, threadId, ...(h.agentId ? { agentId: h.agentId } : {}), ...(whatOf(h) ? (h.kind === "command" ? { command: whatOf(h) } : h.kind === "check" ? { instruction: whatOf(h) } : { cap: whatOf(h), input: (h.spec as { input?: unknown }).input ?? {} }) : {}) };
 }
+
+/** What the newest run of a hook did, in a few words: "stopped files_tree", "let through once", "added a note". */
+export type HookRun = CapMap["hooks.runs.list"]["out"]["runs"][number];
+export function ranWhat(r: Pick<HookRun, "outcome" | "tool">): string {
+  const on = r.tool ? ` ${r.tool}` : "";
+  switch (r.outcome) {
+    case "blocked": return `stopped${on || " a call"}`;
+    case "allowed_once": return `let through once${on ? `,${on}` : ""}`;
+    case "note": return "added a note";
+    case "error": return "did not finish";
+    case "timeout": return "ran out of time";
+    case "skipped": return "had no AI account to ask";
+    default: return `checked${on}`;
+  }
+}
+/** "Ran 2 min ago, stopped files_tree", or "Not run yet". `runs` are newest first, as hooks.runs.list gives them. */
+export function lastRan(hookId: string, runs: readonly HookRun[], ago: (ts: number) => string): string {
+  const r = runs.find((x) => x.hookId === hookId);
+  return r ? `Ran ${ago(r.at)} · ${ranWhat(r)}` : "Not run yet";
+}

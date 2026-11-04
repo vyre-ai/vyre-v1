@@ -149,13 +149,15 @@ export type HelperBlockData = {
 };
 export type HookBlockData = {
   threadId: string;
-  kind: "added" | "changed" | "removed" | "paused" | "resumed" | "blocked" | "failed";
+  kind: "added" | "changed" | "removed" | "paused" | "resumed" | "blocked" | "failed" | "allowed" | "asked";
   line: string;
   hookId?: string;
   scope?: string;
   by?: string;
   byKind?: "admin" | "person" | "agent";
   reason?: string;
+  tool?: string;
+  subject?: string;
 };
 export type MemorySavedBlockData = {
   factId: string;

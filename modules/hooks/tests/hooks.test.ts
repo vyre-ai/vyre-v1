@@ -211,3 +211,34 @@ test("an agent keeps at most 30 hooks", async () => {
   for (let i = 0; i < 30; i++) await w.call("hooks.set", { scope: "agent", event: "turn.end", kind: "check", instruction: `n${i}` }, agent());
   await assert.rejects(w.call("hooks.set", { scope: "agent", event: "turn.end", kind: "check", instruction: "one more" }, agent()), /at most 30/);
 });
+
+test("Run once anyway: a person lets a hook go by once, the pass is used up, an agent cannot, and a Space hook is an admin's to let go", async () => {
+  const w = world();
+  w.s.command = async () => stop;
+  const mine = (await w.call("hooks.set", { scope: "chat", event: "tool.before", kind: "command", command: "guard", threadId: "thr_a" }, maya)).hook;
+  assert.ok((await w.fire({ event: "tool.before", tool: "files_tree" })).block, "it stops the call");
+  await assert.rejects(w.call("hooks.allow_once", { id: mine.id, threadId: "thr_a" }, agent()), /Only a person/);
+  const got = await w.call("hooks.allow_once", { id: mine.id, threadId: "thr_a" }, maya);
+  assert.equal(got.allowed, true);
+  assert.equal((await w.fire({ event: "tool.before", tool: "files_tree" })).block, null, "let through once");
+  assert.ok((await w.fire({ event: "tool.before", tool: "files_tree" })).block, "the pass is used up");
+  const runs = (await w.call("hooks.runs.list", { hookId: mine.id }, maya)).runs.map((r: { outcome: string; tool?: string }) => [r.outcome, r.tool]).reverse();
+  assert.deepEqual(runs, [["blocked", "files_tree"], ["allowed_once", "files_tree"], ["blocked", "files_tree"]]);
+  assert.ok(w.s.lines.some((l) => l["kind"] === "allowed"), "a quiet line says someone let it go by");
+  const space = (await w.call("hooks.set", { scope: "space", event: "tool.before", kind: "command", command: "rule" }, admin)).hook;
+  await assert.rejects(w.call("hooks.allow_once", { id: space.id, threadId: "thr_a" }, maya), /Only an admin can let a Space hook go by/);
+  await w.call("hooks.allow_once", { id: space.id, threadId: "thr_a" }, admin);
+  const other = world();
+  await assert.rejects(other.call("hooks.allow_once", { id: "hok_none", threadId: "thr_a" }, maya), /does not exist/);
+});
+
+test("Ask an admin: one event for the admins, and a quiet line; an agent cannot ask", async () => {
+  const w = world();
+  const h = (await w.call("hooks.set", { scope: "space", event: "tool.before", kind: "command", command: "rule", summary: "before the file tree is read, Space rule" }, admin)).hook;
+  const r = await w.call("hooks.ask_admin", { id: h.id, threadId: "thr_a", note: "I need the tree for the audit" }, maya);
+  assert.equal(r.asked, true);
+  const e = w.s.events.find((x) => x.name === "hook.admin_asked")!;
+  assert.deepEqual([e.payload["by"], e.payload["line"], e.payload["note"]], [MAYA, "before the file tree is read, Space rule", "I need the tree for the audit"]);
+  assert.ok(w.s.lines.some((l) => l["kind"] === "asked"));
+  await assert.rejects(w.call("hooks.ask_admin", { id: h.id, threadId: "thr_a" }, agent()), /Only a person/);
+});

@@ -111,11 +111,25 @@ export function pokeLine(m: Pick<Message, "blocks">, nameOf: (id: string) => str
 }
 
 /** The quiet line a hook leaves (lane l-hooks): its words, what happened to it, and the hook it is about, so the line can offer Details or Edit. */
-export interface HookLine { line: string; kind: string; hookId?: string; reason?: string }
+export interface HookLine { line: string; kind: string; hookId?: string; reason?: string; by?: string; subject?: string; scope?: string }
 export function hookLineOf(m: Pick<Message, "blocks">): HookLine | null {
   const d = m.blocks.find((x) => x.type === "hook")?.data as { line?: unknown; kind?: unknown; hookId?: unknown; reason?: unknown } | null | undefined;
   if (!d || typeof d.line !== "string" || typeof d.kind !== "string") return null;
-  return { line: d.line, kind: d.kind, ...(typeof d.hookId === "string" ? { hookId: d.hookId } : {}), ...(typeof d.reason === "string" ? { reason: d.reason } : {}) };
+  return { line: d.line, kind: d.kind, ...(typeof d.hookId === "string" ? { hookId: d.hookId } : {}), ...(typeof d.reason === "string" ? { reason: d.reason } : {}), ...(typeof (d as { by?: unknown }).by === "string" ? { by: (d as { by: string }).by } : {}), ...(typeof (d as { subject?: unknown }).subject === "string" ? { subject: (d as { subject: string }).subject } : {}), ...(typeof (d as { scope?: unknown }).scope === "string" ? { scope: (d as { scope: string }).scope } : {}) };
+}
+/** The words of a line as this reader sees them: a line about a person names them as the reader does ("Maya Chen let a hook go by once: ..."), never "Someone". */
+export function hookLineText(h: HookLine, nameOf: (id: string) => string): string {
+  if (h.by && h.subject && h.kind === "allowed") return `${nameOf(h.by)} let a hook go by once: ${h.subject}`;
+  if (h.by && h.subject && h.kind === "asked") return `${nameOf(h.by)} asked an admin about a hook: ${h.subject}`;
+  return h.line;
+}
+/** What a line offers beyond its words. A block shows Details (the hook, in the Hooks tab), Run once anyway and Ask an admin; a hook that is still there shows Edit. */
+export type HookLineAct = "details" | "edit" | "once" | "ask";
+export function hookLineActs(h: HookLine): HookLineAct[] {
+  if (h.hookId === undefined) return [];
+  if (h.kind === "blocked") return ["details", "once", "ask"];
+  if (h.kind === "failed") return ["details"];
+  return h.kind === "added" || h.kind === "changed" ? ["edit"] : [];
 }
 /** A line's side button: a block shows Details (it names the hook that stopped it), a hook that is still there shows Edit. */
 export const hookLineAction = (h: HookLine): { label: string } | null => (h.hookId === undefined || h.kind === "removed" ? null : { label: h.kind === "blocked" || h.kind === "failed" ? "Details" : "Edit" });

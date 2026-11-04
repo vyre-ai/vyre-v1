@@ -351,11 +351,12 @@ export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string
 }
 
 /** The agent's pane: its Computer tab pops the computer out and opens a terminal on it, its Threads tab opens a helper as the helper chat. */
-export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: PaneAgent, fill?: ComposerFill, terminal?: TerminalData): ChatRightPaneData {
+export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: PaneAgent, fill?: ComposerFill, terminal?: TerminalData, nameOf?: (id: string) => string): ChatRightPaneData {
   const base = paneData(rt, chatsActions(go, fill), threadId, agent);
   return {
     ...base,
     agent,
+    ...(nameOf ? { nameOf } : {}),
     ...(terminal ? { terminal } : {}),
     nav: {
       ...base.nav, openThread: (id: string) => go.thread(id), openHelper: (id: string) => go.thread(id), openComputer: (id: string) => go.computer(id),

@@ -1315,6 +1315,8 @@ export function stubs(ctx: CallCtx) {
       write_digest: call("home.write_digest"),
     },
     hooks: {
+      allow_once: call("hooks.allow_once"),
+      ask_admin: call("hooks.ask_admin"),
       fire: call("hooks.fire"),
       list: call("hooks.list"),
       pause: call("hooks.pause"),
