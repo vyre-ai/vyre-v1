@@ -14,7 +14,7 @@ import { ProjectPage, ProjectPageDataProvider } from "../../records/projectpage/
 import { createSampleProject } from "../../records/projectpage/sample.ts";
 import { useAddSheet } from "./index.ts";
 import type { AddSheetApi } from "./index.ts";
-import { SHEET, withDom, testIds, pickAndAdd } from "./addsheet.support.tsx";
+import { SHEET, withDom, pickAndAdd } from "./addsheet.support.tsx";
 
 // a right-click on a row, the way the app gets one (kept in the test file: only tests fire a native context menu)
 async function rightClick(root: Node, id: string): Promise<void> {
@@ -23,7 +23,6 @@ async function rightClick(root: Node, id: string): Promise<void> {
   await act(async () => { open?.({ preventDefault() {}, nativeEvent: { pageX: 20, pageY: 20 }, pageX: 20, pageY: 20, clientX: 20, clientY: 20 }); });
   await flush();
 }
-
 
 test("the composer's + has Add people and agents under This chat, and it opens the sheet", async () => {
   await withDom(async () => {

@@ -1,4 +1,4 @@
-// Helpers the Add people and agents tests share: the DOM, the sheet, picking rows, and a right-click on a row.
+// Helpers the Add people and agents tests share: the DOM, the sheet and picking rows.
 import { Dimensions } from "react-native";
 import { installDom, press, find, flush } from "../../../onboarding/test-dom.ts";
 import type { Node } from "../../../onboarding/test-dom.ts";
@@ -23,7 +23,3 @@ export async function pickAndAdd(root: Node, ids: string[]): Promise<void> {
   await press(find(root, "as-add"));
   await flush();
 }
-
-/* ---------- one sheet, every entry point ---------- */
-
-

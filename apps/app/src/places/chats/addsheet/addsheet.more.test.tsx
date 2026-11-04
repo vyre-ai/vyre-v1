@@ -19,7 +19,6 @@ async function rightClick(root: Node, id: string): Promise<void> {
   await flush();
 }
 
-
 test("@mentioning someone who is not in the chat shows one strip on the composer: the line, a primary Add, and a caret menu with the other ways", async () => {
   await withDom(async () => {
     const s = createSample("idle");
