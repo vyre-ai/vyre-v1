@@ -177,7 +177,7 @@ import { coreOf, createSyncEngine } from "./syncengine.ts";
 import { collectProjections, createProjectionRunner } from "./projections.ts";
 import type { ProjectionRunner } from "./projections.ts";
 import { managedNetworkPort } from "./network-driver.ts";
-import { publicOriginOf } from "./public-origin.ts";
+import { artifactHostOf as deriveArtifactHost, publicOriginOf } from "./public-origin.ts";
 import { pollCommands } from "./commands.ts";
 import { createPhonePort } from "./phone.ts";
 import type { NetworkPort, PhonePort } from "./commands.ts";
@@ -505,7 +505,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // sites: what the module answers and where the bytes go; set once the modules are loaded and the stream exists
   let sitesServing: Partial<PublicPathDeps> & { artifactSession?: PublicPathDeps["artifact"]; artifactExchange?: (code: string) => Promise<{ siteId: string; token: string; maxAgeSeconds: number } | null> } = {};
   // the host artifacts are served from, apart from the app's origin (artifact-host.ts); none until one is set up (VYRE_ARTIFACT_HOST), and artifacts then open at their keyed address as before
-  const artifactHostOf = (): string | null => o.artifactHost ?? (process.env["VYRE_ARTIFACT_HOST"] || null);
+  // explicit setting first (the option or VYRE_ARTIFACT_HOST; "off" turns it off), else derived from the Space's address: <name>-a.vyre.run for a relay name, a.<domain> for an own domain
+  const artifactHostOf = (): string | null => {
+    const set = o.artifactHost ?? (process.env["VYRE_ARTIFACT_HOST"] || null);
+    if (set !== null) return set === "off" ? null : set;
+    let claimed: { name?: string; state?: string } | undefined;
+    try { claimed = db?.all("SELECT name, state FROM network_phone WHERE id = 1")[0] as typeof claimed; } catch { /* the table comes with the network module */ }
+    return deriveArtifactHost(cfg.address, claimed?.state === "claimed" ? claimed.name : null);
+  };
   let refreshDomains: () => Promise<void> = () => Promise.resolve();
   // sites Vyre deploys, at addresses of their own: set once the sites module is loaded (configureRoutes); until then no host is a site
   let siteHosts: SiteHostDeps | null = null;
@@ -2206,6 +2213,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         host = row?.mode === "own_domain" ? ingressHostOf(row.address) : null;
         if (!host) return;
         const wrote = await network.ensureIngress(host, { replace });
+        // artifacts are served from a.<domain>, its own origin: the same upstream, its own certificate
+        const art = artifactHostOf();
+        if (art && art !== host && art.endsWith(`.${host}`)) await network.ensureIngress(art, { replace });
         if (wrote) sink.log({ space: space ?? "-", level: 30, msg: "network.ingress_written", place: "network", attrs: { host, at: replace ? "boot" : "missing" } });
         ingressFailing = null;
       } catch (e) {

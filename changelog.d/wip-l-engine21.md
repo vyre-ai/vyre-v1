@@ -32,6 +32,7 @@
 - Relay Worker: `<name>-a.vyre.run` is the artifact host. It passes its own host-only cookie to the box and one safe Set-Cookie back, serves only `/x/<code>` and `/sit_.../`, and keeps the sandbox. The app origin still drops cookies. A name ending in `-a` can no longer be claimed.
 - The composer says "Not available here" in one quiet line when the model a chat starts with (the person's remembered pick) cannot run on this server. Auto and a model that can run say nothing.
 - An artifact an agent publishes during your turn opens in a new tab when that chat is open in your app; otherwise the card says Open. `artifact_publish` returns `opened` only when it was marked for you, and the agent's wording follows it.
+- The artifact host comes from the Space's address: `<name>-a.vyre.run` for a relay name and `a.<domain>` for your own domain, with its own Caddy route. The installer prints the DNS record to add. `VYRE_ARTIFACT_HOST=off` turns it off.
 
 ## What's new
 - Agents on Claude Code or Codex can work in a goal's folder: it shows as goal/ and their changes are saved to Vyre.

@@ -50,7 +50,7 @@ test("a fresh boot with an address gets its ingress route; a second tick does no
   try {
     await daemon.ensureIngress();   // waits for the boot write
     const router = new CaddyRouter({ admin: new CaddyAdmin({ baseUrl: ADMIN, fetch: caddy.fetch }), space: "spc_core" });
-    assert.deepEqual(await router.hosts(), [HOST], "the boot wrote the route");
+    assert.deepEqual((await router.hosts()).sort(), [`a.${HOST}`, HOST].sort(), "the boot wrote the route, and the artifact host's own");
     const route = routesOf(caddy.config ?? undefined).find((r) => r["@id"] === routeId(HOST));
     assert.equal(JSON.stringify(route?.handle), JSON.stringify([{ handler: "reverse_proxy", upstreams: [{ dial: `127.0.0.1:${daemon.port}` }] }]), "to the gateway, with no auth in front");
     const after = writes(caddy);
@@ -60,10 +60,10 @@ test("a fresh boot with an address gets its ingress route; a second tick does no
     assert.equal(writes(caddy), after, "a route that is there is left alone: no Caddy reload every minute");
 
     await router.removeRoute(HOST);
-    assert.deepEqual(await router.hosts(), []);
+    assert.deepEqual(await router.hosts(), [`a.${HOST}`]);
     const removed = writes(caddy);
     await daemon.ensureIngress();
-    assert.deepEqual(await router.hosts(), [HOST], "the missing route came back");
+    assert.deepEqual((await router.hosts()).sort(), [`a.${HOST}`, HOST].sort(), "the missing route came back");
     assert.equal(writes(caddy), removed + 1, "one append, nothing else");
   } finally { await daemon.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
@@ -80,7 +80,7 @@ test("Caddy not up at boot: the daemon starts anyway and the next slow tick writ
     await res.arrayBuffer();
     caddy.down = false;
     await daemon.ensureIngress();
-    assert.deepEqual(routesOf(caddy.config ?? undefined).map((r) => r.match[0]?.host[0]), [HOST]);
+    assert.deepEqual(routesOf(caddy.config ?? undefined).map((r) => r.match[0]?.host[0]).sort(), [`a.${HOST}`, HOST].sort());
   } finally { await daemon.stop(); fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
