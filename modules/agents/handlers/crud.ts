@@ -204,11 +204,6 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime
     templateVersion: await templateVersion(ctx, template), paused: false, working: 0, lastActiveAt: now, createdAt: now, updatedAt: now,
   };
   insertAgent(ctx.db, rec);
-  // an agent made for a project is one of the project's people in the same write (listed in projects.members.list, shown in its people popover, given a role by a Lead); if that fails the agent is not left behind
-  if (input.projectId !== undefined) {
-    try { await call(ctx, "projects.members.set", { projectId: input.projectId, principal: id, role: "member", idempotencyKey: `agt-member:${id}` }); }
-    catch (e) { ctx.db.run("DELETE FROM agents_agent WHERE id = ?", id); throw e; }
-  }
   const priv = isPrivateAgent(rec);
   ctx.emit("agent.created", id, { agentId: id, name, ownerId: owner, folderId: tree.folderId, templateVersion: rec.templateVersion, ...(priv ? { private: true } : {}) });
   // access names a private agent as its person to everyone else ("Irfad Imtiaz (Agent)"); this is what tells it
