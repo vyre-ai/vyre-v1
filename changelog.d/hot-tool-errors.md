@@ -1,0 +1,1 @@
+- A tool error keeps a plain reason word such as "agent_settings" for the model, so an agent can tell why a save was refused; only id-shaped values are taken out.

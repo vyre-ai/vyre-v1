@@ -168,3 +168,14 @@ test("an unknown tool is a validation error and never reaches invoke", async () 
   assert.equal(calls.length, 0);
 });
 
+
+test("a model error keeps a plain reason word and drops an id-shaped one", async () => {
+  const { modelError } = await import("../src/tools/model-error.ts");
+  const kept = modelError(makeError("validation.precondition_failed", "trc_1", { message: "That file is an agent's settings.", details: { reason: "agent_settings", tool: "files_save" } }));
+  assert.equal(kept.details?.reason, "agent_settings");
+  assert.equal(modelError(makeError("internal.unexpected", "trc_2", { message: "x", details: { reason: "server_error" } })).details?.reason, "server_error");
+  const dropped = modelError(makeError("validation.not_found", "trc_3", { message: "No usr_5cf430c0313aa78673 here.", details: { reason: "agt_01a1a388abcd" } }));
+  assert.equal(dropped.details?.reason, undefined);
+  assert.equal(dropped.message.includes("usr_5cf430c0313aa78673"), false);
+  assert.equal(modelError(makeError("validation.precondition_failed", "trc_4", { message: "y", details: { reason: "agent_settings" } })).details?.reason, "agent_settings", "a second call gets the same answer");
+});
