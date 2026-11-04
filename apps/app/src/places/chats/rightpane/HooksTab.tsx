@@ -47,6 +47,7 @@ export function HookCard({ h, threadId, deps, selected, nameOf, ran, agentName =
         <>
           <Text style={s.what}><Text style={s.kind}>{kindWord(h)}</Text>{"  "}{whatOf(h)}</Text>
           <Text testID={`hook-meta-${h.id}`} style={s.meta}>Made by {madeBy(h, nameOf)} · <Text testID={`hook-ran-${h.id}`}>{ran}</Text>{h.paused ? " · Paused" : ""}</Text>
+          {/* ui-rows-lint: not a list (each always-allow rule is one line inside the hook's own row, with its Stop allowing) */}
           {(h.allowed ?? []).map((r) => (
             <View key={r.id} testID={`hook-allowed-${r.id}`} style={s.allowed}>
               <Text style={s.allowedText}>Always allowed for {r.what}</Text>

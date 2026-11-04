@@ -4,5 +4,5 @@ import test from "node:test";
 import { runPagesParity } from "./console-pages-parity.ts";
 
 test("production Console: Home, People and Agents draw at desktop, light and graphite, without overflow or a crash", async (t) => {
-  await runPagesParity(t, { places: ["Home", "People", "Agents"], structure: true });
+  await runPagesParity(t, { places: ["Home", "People", "Agents"], structure: true }, await import("playwright-core"));
 });

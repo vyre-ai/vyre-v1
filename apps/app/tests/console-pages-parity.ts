@@ -6,7 +6,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import type { TestContext } from "node:test";
-import type { Page } from "playwright-core";
 import { SECTIONS, resolve, sectionOf, tabOf } from "../src/console/shell/sections.ts";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
 import { openConsolePage } from "./console-nav.ts";
@@ -28,10 +27,16 @@ export interface ParityOptions {
   structure?: boolean;
 }
 
-export async function runPagesParity(t: TestContext, opts: ParityOptions): Promise<void> {
+/** playwright-core, passed in by each test file: it is a dev dependency, which only a *.test.* file may import (boundaries B6). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Playwright = { chromium: { executablePath(): string; launch(o: { executablePath: string; args: string[] }): Promise<any> } };
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Page = any;
+
+export async function runPagesParity(t: TestContext, opts: ParityOptions, pw: Playwright): Promise<void> {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
-  const { chromium } = await import("playwright-core");
+  const { chromium } = pw;
   const exe = process.env["CHROME_BIN"] || chromium.executablePath();
   assert.ok(fs.existsSync(exe), `Chromium is required at ${exe}`);
   const space = await bootFreshSpace();
