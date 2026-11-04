@@ -105,6 +105,7 @@ export function GithubAppPage(): ReactElement {
           <Actions><Button label="Switch back" testID="gh-off-yes" disabled={action.busy} onPress={() => void action.run("members.sign_in_github.clear", {}, "Members use the Vyre GitHub app").then(() => { setConfirm(false); setWantOwn(false); })} /><Button label="Cancel" testID="gh-off-cancel" onPress={() => setConfirm(false)} /></Actions>
         </View> : null}
       </Group>
+      {on ? null : <Foot top={14} testID="gh-foot-off">The Vyre GitHub app needs nothing from you. Switch to your own app if your GitHub org requires it, or you want its name on the permission screen.</Foot>}
     </Section>
     {on ? <>
       <Section title="App details">
@@ -123,13 +124,13 @@ export function GithubAppPage(): ReactElement {
       <Section title="The Space's installation">
         <Group>
           {installs.length === 0 ? <Row id="gh-no-install" title="Not installed" note="Install the app on your GitHub org so CI and Space crews can reach its repos" leading={<GhMark />} trailing={app ? <Button small label="Install" testID="gh-install" onPress={() => open(installUrl(app.slug))} /> : undefined} /> : null}
-          {installs.map((i) => <Row key={i.id} id={`gh-install-${i.id}`} title={i.account} note={`${i.repositorySelection === "all" ? "All repositories" : "Selected repositories"}. CI and Space crews use it`} leading={<GhMark />} trailing={<Button small label="Change" testID={`gh-change-${i.id}`} onPress={() => open(changeUrl(i.id))} />} />)}
+          {installs.map((i, n) => <Line key={i.id} index={n}><Row id={`gh-install-${i.id}`} title={i.account} note={`${i.repositorySelection === "all" ? "All repositories" : "Selected repositories"}. CI and Space crews use it`} leading={<GhMark />} trailing={<Button small label="Change" testID={`gh-change-${i.id}`} onPress={() => open(changeUrl(i.id))} />} /></Line>)}
         </Group>
         <Foot top={14} testID="gh-foot-own">{`${data.space.name} uses its own GitHub app. Reconnect once.`}</Foot>
         {app ? <View style={{ marginTop: 12, flexDirection: "row" }}><Button small label="Check again" testID="gh-recheck" disabled={action.busy} onPress={() => void action.run("github.installations.list", {}, "Checked").then((out) => { if (out) refresh(); })} /></View> : null}
       </Section>
       {ci.data ? <GithubAppLine settings={ci.data} /> : null}
-    </> : <Foot>The Vyre GitHub app needs nothing from you. Switch to your own app if your GitHub org requires it, or you want its name on the permission screen.</Foot>}
+    </> : null}
     {action.note ? <Note>{action.note}</Note> : null}
     {sheet === "keys" ? <KeysSheet sign={g} onClose={() => setSheet(null)} onDone={() => { setSheet(null); refresh(); }} /> : null}
     {sheet === "create" ? <CreateSheet callback={g.callbackUrl} onClose={() => setSheet(null)} onDone={refresh} /> : null}

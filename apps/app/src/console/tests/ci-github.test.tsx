@@ -270,6 +270,7 @@ test("off: members use the Vyre GitHub app, and nothing else is drawn but the li
     assert.match(text, /Use our own GitHub app/); assert.match(text, /Off\. Members use the Vyre GitHub app/);
     assert.match(text, /The Vyre GitHub app needs nothing from you\./);
     assert.ok(!find(root, "gh-create") && !find(root, "gh-keys"));
+    assert.equal((find(root, "gh-foot-off") as { props: { style: { marginTop: string } } }).props.style.marginTop, "14px", "the footnote sits 14px under the card");
   } finally { restore(); }
 });
 
@@ -286,13 +287,17 @@ test("switching on shows the values from Vault, Create one for us and the instal
 });
 
 test("own app: id, key and secret say Vault, each has a key tile; the installation and the footer name the Space", async () => {
-  const { root, restore } = await gh({ "members.sign_in_github.get": SIGN({ clientId: "Iv1.abc", secretSet: true, source: "space" }), "ci.settings.get": settingsOut() }, MADE);
+  const two = { ...MADE, "github.installations.list": { installations: [{ id: 77, account: "northwind", repositorySelection: "selected" }, { id: 78, account: "northwind-labs", repositorySelection: "all" }] } };
+  const { root, restore } = await gh({ "members.sign_in_github.get": SIGN({ clientId: "Iv1.abc", secretSet: true, source: "space" }), "ci.settings.get": settingsOut() }, two);
   try {
     const text = textOf(root);
     assert.match(textOf(find(root, "row-gh-app-id")), /Vault: GITHUB_APP_ID/); assert.match(textOf(find(root, "row-gh-app-key")), /Vault: GITHUB_APP_PRIVATE_KEY/); assert.match(textOf(find(root, "row-gh-client-secret")), /Vault: GITHUB_APP_CLIENT_SECRET/);
     assert.ok(find(root, "logo-github"), "the GitHub mark leads");
     assert.match(text, /The Space's installation/);
     assert.match(text, /Northwind uses its own GitHub app\. Reconnect once\./);
+    const top = (id: string): unknown => (find(root, id)?.parent as { props: { style?: { borderTopWidth?: unknown } } } | null)?.props?.style?.borderTopWidth;
+    assert.ok(find(root, "row-gh-install-77") && find(root, "row-gh-install-78"), "two installation rows");
+    assert.ok(top("row-gh-install-78") === 1 || top("row-gh-install-78") === "1px", "a 1px divider between the two installation rows");
   } finally { restore(); }
 });
 
