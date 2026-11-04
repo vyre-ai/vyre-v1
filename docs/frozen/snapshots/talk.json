@@ -6,11 +6,11 @@
     "talk.connect@1": "08f3a30a68bf2160e4b6966ec19ffc51cdc1f3359df7749e1de8f4de31aa7d7c",
     "talk.disconnect@1": "820c958eae828db4f0d95cb253c3fbbbba84206bd868a53b03548231865f29e1",
     "talk.session@1": "cc139864614992b75b2f4a877772b5db2f64e3d66d36b03ae3f4e4b88a556526",
-    "talk.space.check@1": "e092b8a727ecd70f10a704b81fcf80b2471581092894e8cb58903644a10f11c8",
-    "talk.space.configure@1": "c7f1571061c81166458fe1c7b11df57fadf1664fd86e1be710092879ac18e4b3",
-    "talk.space.connect@1": "db5aeb0961c3b66ed91928f54e405477075863b43f0ca6b8cec5bf98998a14cd",
-    "talk.space.disconnect@1": "d98b4b6e6db56b79fd1a580d654e0797071c6b422e795680adcef58bd67e72ed",
-    "talk.space.status@1": "1f3327f2e295bb65a673c2dee3e106111040c30cce363c2c4b40a2156d94ff9a",
+    "talk.space.check@1": "724ee30cc8419a32d942f310154f69d08c7817a27f85f54608bd991686d2a95c",
+    "talk.space.configure@1": "556892ad9774aba4bff8ff4591e363dfd726404ad5c656f4144c0d1fdbf56b9c",
+    "talk.space.connect@1": "22b903bfa1f39665a8488cf9ccb97132530ba400cb93a551d1c505cd6cd084fc",
+    "talk.space.disconnect@1": "d82e291cf5d324d7db3899d8fb19bdee82d174ca2927f91518d486cce84c59e2",
+    "talk.space.status@1": "32fa8531fa73252856f770f0b76e416b083403fac310ca01880c123e95199c13",
     "talk.status@1": "0fda1789cdc2a40b3994ced4160be338950eee28501bd2e1e86624982255f21f"
   },
   "events": {

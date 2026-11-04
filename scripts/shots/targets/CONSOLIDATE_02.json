@@ -211,12 +211,6 @@
       "note": "Console page space over scripted Northwind data."
     },
     {
-      "id": "CONSOLIDATE_02-billing",
-      "route": "/m/CONSOLIDATE_02?part=billing",
-      "proto": "console,{skin}",
-      "note": "Console page billing over scripted Northwind data."
-    },
-    {
       "id": "CONSOLIDATE_02-spacedel",
       "route": "/m/CONSOLIDATE_02?part=spacedel",
       "proto": "console,{skin}",

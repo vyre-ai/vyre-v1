@@ -1,8 +1,7 @@
-// Console > Space: General (identity, Defaults for new members), Billing, Transfer or delete. Each control is pressed by its testID; the capability and its input are read from the recorded calls.
+// Console > Space: General (identity, Defaults for new members, Plan and usage), Transfer or delete. Each control is pressed by its testID; the capability and its input are read from the recorded calls.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SpaceProfile, memberDefaults } from "../pages/InfrastructureSettings.tsx";
-import { BillingPage, dollars, spendLine, storageLine } from "../pages/Billing.tsx";
+import { SpaceProfile, memberDefaults, dollars, spendLine, storageLine } from "../pages/InfrastructureSettings.tsx";
 import { SpaceDeletePage, deleteDate, deleteName } from "../pages/SpaceDelete.tsx";
 import { createRoot } from "test-renderer";
 import { mountPage } from "./page-kit.tsx";
@@ -43,17 +42,18 @@ test("Review address change confirms before spaces.switch_address", async () => 
   } finally { p.restore(); }
 });
 
-test("Billing shows the plan, AI spend against the Space cap and storage, and Spend and limits opens that page", async () => {
-  const p = await mountPage(createRoot, <BillingPage />, {
+test("General shows the plan, AI spend against the Space limit and storage, and Spend and limits opens that page", async () => {
+  const p = await mountPage(createRoot, <SpaceProfile />, {
+    "spaces.get": SPACE("usr_sample"),
     "engine.spend.get": { caps: { monthMicros: 1_000_000_000 }, todayMicros: 0, monthMicros: 412_000_000, turnsToday: 0, paused: false },
     "console.overview": { health: "healthy", attention: [], activity: [], usage: { turnsToday: 0, costMicrosMonth: 0, members: 3, agents: 2 }, machine: { diskTotalBytes: 160 * 1024 ** 3, diskFreeBytes: 118 * 1024 ** 3 } },
   });
   try {
     const t = p.text();
-    assert.ok(t.includes("Vyre design beta") && t.includes("Contact Clearfield Labs for plans and pricing"));
+    assert.ok(t.includes("Plan and usage") && t.includes("Vyre design beta") && t.includes("Contact Clearfield Labs for plans and pricing"));
     assert.ok(t.includes("$412 of $1,000") && t.includes("42 of 160 GB"));
     assert.deepEqual(p.read("engine.spend.get").at(-1)!.input, { scope: "space" });
-    await p.press("billing-spend-open");
+    await p.press("space-spend-open");
     assert.deepEqual(p.opened.at(-1), { page: "spend", args: undefined });
   } finally { p.restore(); }
 });

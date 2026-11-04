@@ -116,7 +116,10 @@ test("choices: an unknown language or model is refused with what there is, off i
   const mia = w.as(person("usr_mia"));
   await assert.rejects(() => h.configure(mia, { language: "tlh" }), (e) => /Spanish/.test(refusal(e).message ?? ""));
   await assert.rejects(() => h.configure(mia, { model: "gpt-9" }), (e) => /Nova 3/.test(refusal(e).message ?? ""));
-  await assert.rejects(() => h.configure(mia, { provider: "elevenlabs" }), (e) => /not known/.test(refusal(e).message ?? ""));
+  await assert.rejects(() => h.configure(mia, { provider: "whisper" }), (e) => /not known/.test(refusal(e).message ?? ""));
+  const eleven = await h.configure(mia, { provider: "elevenlabs" });
+  assert.deepEqual([eleven.provider, eleven.model], ["elevenlabs", "scribe_v2_realtime"], "a provider change takes its own default model");
+  await h.configure(mia, { provider: "deepgram" });
   await h.configure(mia, { on: false });
   assert.equal(await reason(h.session(mia, {})), "off");
   assert.equal((await h.status(mia, {})).mayManage, false);
@@ -134,4 +137,48 @@ test("a stored key the provider stopped taking marks the Space row failing, and 
   assert.equal((await h.spaceCheck(admin, {})).state, "failing");
   w.answers.mint = null;
   assert.equal((await h.spaceCheck(admin, {})).state, "ok");
+});
+
+test("the Space keeps a key for each provider and picks which one covers people; a person with no key of their own gets the picked provider with its own defaults", async () => {
+  const w = world({ admins: ["usr_admin"] });
+  const admin = w.as(person("usr_admin"));
+  const mia = w.as(person("usr_mia"));
+  await spaceConnect(admin);
+  assert.deepEqual((await h.spaceStatus(admin, {})).keyed, ["deepgram"]);
+  assert.equal(await reason(h.spaceConfigure(admin, { provider: "elevenlabs" })), "no_key", "a provider with no key cannot be picked");
+  assert.equal(await reason(h.spaceConfigure(admin, {})), "validation.bad_input");
+  assert.equal(await reason(h.spaceConfigure(admin, { provider: "nope" })), "validation.bad_input");
+
+  await h.spaceConnect(admin, { provider: "elevenlabs", fields: fields(), idempotencyKey: "s2" });
+  const both = await h.spaceStatus(admin, {});
+  assert.deepEqual([both.provider, both.keyed], ["elevenlabs", ["deepgram", "elevenlabs"]], "adding a key picks it");
+  const viaEleven = await h.session(mia, {});
+  assert.equal(viaEleven.provider, "elevenlabs");
+  assert.equal(viaEleven.source, "space");
+  assert.ok(viaEleven.url.startsWith("wss://api.elevenlabs.io/v1/speech-to-text/realtime?"));
+  assert.ok(viaEleven.url.includes("model_id=scribe_v2_realtime"), "the person's Deepgram model is not carried over");
+  assert.deepEqual(viaEleven.protocols, []);
+
+  const back = await h.spaceConfigure(admin, { provider: "deepgram" });
+  assert.equal(back.provider, "deepgram");
+  assert.equal(back.on, true, "picking keeps the switch");
+  assert.equal((await h.session(mia, {})).provider, "deepgram");
+  const off = await h.spaceConfigure(admin, { on: false });
+  assert.deepEqual([off.on, off.provider], [false, "deepgram"]);
+
+  const gone = await h.spaceDisconnect(admin, {});
+  assert.deepEqual([gone.set, gone.provider, gone.keyed], [true, "elevenlabs", ["elevenlabs"]], "removing the picked key moves the pick to the one left");
+  assert.equal((await h.spaceDisconnect(admin, {})).set, false);
+});
+
+test("Check now is a one-second grant against the picked provider, and a refused key reads as failing", async () => {
+  const w = world({ admins: ["usr_admin"] });
+  const admin = w.as(person("usr_admin"));
+  await h.spaceConnect(admin, { provider: "elevenlabs", fields: fields(), idempotencyKey: "s3" });
+  const out = await h.spaceCheck(admin, {});
+  assert.equal(out.state, "ok");
+  const probe = w.minted.at(-1)!;
+  assert.deepEqual([probe.provider, probe.ttl, probe.own], ["elevenlabs", 1, false]);
+  w.answers.mint = fail("provider.auth_failed", "0".repeat(32), { message: "no" });
+  assert.equal((await h.spaceCheck(admin, {})).state, "failing");
 });
