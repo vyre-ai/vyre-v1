@@ -64,7 +64,7 @@ export interface SectionDef { title: string; note?: string; keys: readonly strin
 /** Person rows that stay in the registry but are not rows here: remembered state, what a Kit install or the composer sets, and what the chat's mode dial replaces. */
 export const HIDDEN_ROWS: readonly string[] = [
   "chat.ask_agent", "kit.person_choice", "comms.default_sender_email", "comms.default_sender_text",
-  "security.terminal_mode", "security.chrome_mode", "security.team_agents_on_my_computer", "chrome.agents_use_my_browser",
+  "security.terminal_mode", "security.chrome_mode", "security.team_agents_on_my_computer", "chrome.agents_use_my_browser", "appearance.look",
 ];
 
 /** Settings that a page draws itself (a card, a picker, a table) and so are not repeated as rows. */

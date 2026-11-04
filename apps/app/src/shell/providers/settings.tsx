@@ -18,6 +18,7 @@ import { OLD_PAGES, PAGES } from "../../places/settings/model.ts";
 import type { PageKey } from "../../places/settings/model.ts";
 import { usePlaceHash } from "../hash/context.tsx";
 import { applySkinToWindow } from "./settings-skin.ts";
+import { lookApplier } from "./settings-look.ts";
 import { nameOf } from "./misc-common.ts";
 import { openAskPane } from "../ask/pane.ts";
 import { chooseProfilePhoto } from "./settings-photo.ts";
@@ -55,10 +56,21 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
       openLink: (link) => rt.openUrl(link),
       choosePhoto: () => chooseProfilePhoto(rt),
       applySkin: (skinId) => void applySkinToWindow(rt, skinId),
+      applyLook: (look) => look_(rt).apply(look),
+      previewSkin: (id) => look_(rt).preview(id),
       ...(manageSecurity ? { manageSecurity } : {}),
     },
     clock: () => rt.clock(),
   };
+}
+
+const appliers = new Map<string, ReturnType<typeof lookApplier>>();
+/** One applier per person and Space, so a hover can end where it began. */
+function look_(rt: ShellRuntime): ReturnType<typeof lookApplier> {
+  const k = `${rt.me.id}/${rt.space.id}`;
+  let a = appliers.get(k);
+  if (!a) { a = lookApplier(rt); appliers.set(k, a); }
+  return a;
 }
 
 const isDesktopWindow = (): boolean => !!(globalThis as { __TAURI__?: unknown }).__TAURI__;

@@ -24,6 +24,7 @@ const d = (key: string, scope: "space" | "person", page: string, title: string, 
 /** The person rows of the registry, in its order. */
 export const ROWS: readonly Def[] = [
   d("appearance.skin", "person", "appearance", "Skin", "classic"),
+  d("appearance.look", "person", "appearance", "Look", {}),
   d("chat.agent_tabs", "person", "Chats", "Let agents open and switch side tabs for me", true),
   d("chat.ask_agent", "person", "Models and usage", "Agent I last used in Ask panes", null),
   d("chrome.agents_use_my_browser", "person", "This computer", "Let agents use my Chrome (per Space, only that Space agents, with a visible indicator)", {}),
@@ -100,6 +101,8 @@ export const securityOf = (_space: SampleSpace): NonNullable<SettingsData["secur
 });
 
 export interface SampleSettings {
+  /** the looks the page asked the window to wear, in order */
+  looks: import("./look.ts").Look[];
   data: SettingsData;
   replica: FakeReplica;
   space: SampleSpace;
@@ -117,6 +120,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   const replica = createFakeReplica(space.id);
   const calls: { cap: string; input: unknown }[] = [];
   const opened: string[] = [];
+  const looks: import("./look.ts").Look[] = [];
   const previews: (string | null)[] = [];
   const failing = new Set<string>();
   replica.put("settings", [...ROWS, ...SPACE_SAMPLE].map((r) => ({ id: r.key, ...r, ...(space.values[r.key] !== undefined ? { value: space.values[r.key] } : { value: r.default }) }) as unknown as Row));
@@ -315,7 +319,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   const nav: SettingsNav = {
     openLink: (l) => void opened.push(`link:${l}`),
     openVault: () => void opened.push("vault"), openSpace: (id) => void opened.push(`space:${id}`), connect: (k) => void opened.push(`connect:${k}`),
-    choosePhoto: async () => "fil_sample", previewSkin: (id) => void previews.push(id), manageSecurity: (kind, id) => void opened.push(`security:${kind}:${id}`),
+    choosePhoto: async () => "fil_sample", previewSkin: (id) => void previews.push(id), applyLook: (l) => void looks.push(l), manageSecurity: (kind, id) => void opened.push(`security:${kind}:${id}`),
   };
   const data: SettingsData = {
     // the Owner of Northwind can open everything; Harbor Studio is a Member's Space and has no Space pages
@@ -333,5 +337,5 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     peek: (cap, input) => replica.run(cap as keyof CapMap, input as never)?.data,
     me: space.me, space: { id: space.id, name: space.name }, spaces: space.spaces, name: (id) => space.names[id] ?? nameOf(space.id, id), nav, clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }), security: securityOf(space),
   };
-  return { data, replica, space, calls, opened, previews, failNext: (cap) => void failing.add(cap) };
+  return { data, replica, space, calls, opened, previews, looks, failNext: (cap) => void failing.add(cap) };
 }

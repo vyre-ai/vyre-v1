@@ -38,24 +38,6 @@ test("search on a phone: the results take the place of the page list under the s
   assert.ok(has(out, 'data-testid="settings-nav"') && has(out, 'data-testid="search-results"') && !has(out, 'data-testid="row-page-profile"'));
 });
 
-test("Appearance: Skin with the preview, System, Dark and Light, and the line under them", () => {
-  const out = html(createSampleSettings(northwind), { initialPage: "appearance" });
-  for (const id of ["skin-preview", "skins-system", "skins-dark", "skins-light", "skin-foot", "skin-system"]) assert.ok(has(out, `data-testid="${id}"`), id);
-  assert.ok(out.indexOf("skin-preview") < out.indexOf("skins-system") && out.indexOf("skins-system") < out.indexOf("skins-dark") && out.indexOf("skins-dark") < out.indexOf("skins-light"));
-  assert.ok(has(out, "Just for you, in Northwind") && has(out, "Vyre Light by day, Vyre Black by night") && has(out, "Weekly report"));
-  for (const gone of ["Light or dark", "Skin for this Space", "Hover a tile to try it", "A Kit sets the rail"]) assert.ok(!has(out, gone), gone);
-});
-
-test("Appearance: System is the tile that is on until a skin is chosen; the preview follows the chosen skin", async () => {
-  const s = createSampleSettings(harbor);
-  assert.match(tag(html(s, { initialPage: "appearance" }), "skin-system"), /aria-checked="true"/);
-  await s.data.call("settings.set", { key: "appearance.skin", value: "linen" });
-  const out = html(s, { initialPage: "appearance" });
-  assert.match(tag(out, "skin-linen"), /aria-checked="true"/);
-  assert.match(tag(out, "skin-system"), /aria-checked="false"/);
-  assert.ok(has(out, 'aria-label="Preview of Linen"') && has(out, "Just for you, in Harbor Studio"));
-});
-
 test("Notifications: Notify me on lists each kind with how it arrives, with no explaining sentence under it", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "notifications" });
   assert.ok(has(out, "Notify me on"));

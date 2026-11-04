@@ -26,6 +26,8 @@ export interface SettingsNav {
   previewSkin?(skinId: string | null): void;
   /** Applies a chosen skin to the window for good (the setting is saved by the page). */
   applySkin?(skinId: string): void;
+  /** Puts a look on the window and keeps it on this device. */
+  applyLook?(look: import("./look.ts").Look): void;
   /** Starts a sign-in change that needs its own flow (password, authenticator app, passkey, GitHub) for a Space. The shell opens it; the page only asks. */
   manageSecurity?(kind: "password" | "totp-on" | "totp-off" | "passkey" | "github-on" | "github-off" | "recovery" | "link", spaceId: string): void;
 }

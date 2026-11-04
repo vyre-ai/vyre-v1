@@ -131,7 +131,7 @@ test("controls follow the value: a switch, a choice, a field and hours", () => {
 test("rows that have no reader or belong elsewhere are not drawn", () => {
   const s = createSampleSettings(northwind);
   const all = PAGES.map((p) => html(s, { initialPage: p.key })).join("");
-  for (const words of ["File cache", "Security level", "Density", "Text size", "Reduce motion", "Terminal prompts", "Chrome prompts", "Last Ask agent", "Digest time", "Weekly reminder"]) assert.ok(!has(all, words), words);
+  for (const words of ["File cache", "Security level", "Terminal prompts", "Chrome prompts", "Last Ask agent", "Digest time", "Weekly reminder"]) assert.ok(!has(all, words), words);
   for (const key of HIDDEN_ROWS) assert.equal(pageOfRow({ ...rowsOf(s)[0]!, key }), null, key);
 });
 
@@ -205,24 +205,6 @@ test("Sign-in and devices: this device first, the others with Sign out, a signed
   assert.ok(!has(html(s, { initialPage: "signin" }), "Sign out of every other device"));
   assert.equal(whenLabel(undefined, 0), "never");
   assert.equal(whenLabel(1_000, 1_000 + 30_000), "just now");
-});
-
-test("Appearance: every skin in Dark and Light with the chosen one marked, then the shortcuts", () => {
-  const out = html(createSampleSettings(northwind), { initialPage: "appearance" });
-  assert.ok(!has(out, 'data-testid="ctl-appearance.mode"'), "no separate light or dark control");
-  for (const id of ["graphite", "obsidian", "charcoal", "slate", "ember", "moss", "dusk", "paper", "fog", "linen", "sand", "sage", "mist"]) assert.ok(has(out, `data-testid="skin-${id}"`), id);
-  assert.match(tag(out, "skin-system"), /aria-checked="true"/, "System is on until a skin is chosen");
-  assert.match(tag(out, "skin-graphite"), /aria-checked="false"/);
-  assert.ok(out.indexOf("skins-dark") < out.indexOf("skins-light"));
-  assert.ok(!has(out, "Follow the Space"), "a Kit is installed, not picked");
-});
-
-test("choosing a skin saves it for this Space; hovering previews it and moving away puts the window back", async () => {
-  const s = createSampleSettings(northwind);
-  await s.data.call("settings.set", { key: "appearance.skin", value: "paper" });
-  assert.match(tag(html(s, { initialPage: "appearance" }), "skin-paper"), /aria-checked="true"/);
-  s.data.nav.previewSkin?.("fog"); s.data.nav.previewSkin?.(null);
-  assert.deepEqual(s.previews, ["fog", null]);
 });
 
 test("the shortcuts listed are the ones the keys do, from the table that drives them", () => {

@@ -86,6 +86,7 @@ export default defineManifest({
     setting('profile.working_hours', 'person', 'profile', 'Working hours', t.obj({ days: t.arr(t.int({ minimum: 0, maximum: 6 })), from: t.str({ pattern: '^[0-2][0-9]:[0-5][0-9]$' }), to: t.str({ pattern: '^[0-2][0-9]:[0-5][0-9]$' }) }), { days: [1, 2, 3, 4, 5], from: '09:00', to: '17:00' }),
     setting('profile.contact', 'person', 'profile', 'Contact', t.obj({ email: t.opt(t.str()), phone: t.opt(t.str()) }), {}),
     setting('appearance.skin', 'person', 'appearance', 'Skin', t.str(), 'classic'),
+    setting('appearance.look', 'person', 'appearance', 'Look', t.json(), {}),
     setting('kit.person_choice', 'person', 'appearance', 'My Kit', t.nullable(id.kit), null),
     setting('kit.space_choice', 'space', 'spaces', 'Space Kit', t.nullable(id.kit), null),
   ],
