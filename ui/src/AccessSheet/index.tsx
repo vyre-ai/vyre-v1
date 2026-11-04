@@ -16,6 +16,7 @@ import {
   NO_OUTSIDE,
   OUTSIDE_NOTE,
   accessCount,
+  EVERYONE_IDS,
   levelDefs,
   accessView,
   redundantVia,
@@ -151,6 +152,12 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
   const taken = useMemo(() => {
     const s = share ? takenFromRows(props.directory, share.shares.filter((r) => !cleared.includes(`${r.subjectKind}:${r.subjectId}`))) : new Set<string>((props.here ?? []).map((e) => entryKey(e.kind, e.id)));
     for (const p of picks) s.add(p.key);
+    if (share) {
+      // already shown above: the owner and the viewer are in People, Everyone is the General access row
+      if (share.ownerId) s.add(entryKey("person", share.ownerId));
+      if (share.meId) s.add(entryKey("person", share.meId));
+      for (const id of EVERYONE_IDS) s.add(entryKey("group", id));
+    }
     return s;
   }, [props.directory, props.here, share, picks, cleared]);
   const secs = sections({ directory: props.directory, query: q, mode: props.mode, itemType: type, taken });

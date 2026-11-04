@@ -816,3 +816,12 @@ test("closing the settings popover on Only on topics with the box still empty sa
     assert.equal(find(root, "as-pop"), null, "a second close leaves; the agent answers as Always until a topic is written");
   });
 });
+
+test("the owner, the viewer and Everyone are not offered as suggestions: they are already on the sheet", async () => {
+  const dir = { ...sharePeople, people: [{ id: "usr_irfad", name: "Irfad", kind: "person" as const }, { id: "usr_me", name: "Maya", kind: "person" as const }, { id: "usr_sara", name: "Sara Malik", kind: "person" as const }], groups: [{ id: "grp_everyone", name: "Everyone", kind: "group" as const }, { id: "grp_fin", name: "Finance", kind: "group" as const }], suggested: [] };
+  const html = ssr(<AccessSheet {...share({ itemType: "note", ownerId: "usr_irfad", meId: "usr_me", directory: dir, shares: [] })} />);
+  assert.ok(!html.includes('data-testid="as-row-person:usr_irfad"'), "the owner");
+  assert.ok(!html.includes('data-testid="as-row-person:usr_me"'), "the viewer");
+  assert.ok(!html.includes('data-testid="as-row-group:grp_everyone"'), "Everyone");
+  assert.ok(html.includes('data-testid="as-row-person:usr_sara"') && html.includes('data-testid="as-row-group:grp_fin"'));
+});
