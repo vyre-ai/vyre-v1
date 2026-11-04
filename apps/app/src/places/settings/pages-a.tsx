@@ -127,6 +127,8 @@ export const KIND_LABELS: Readonly<Record<string, string>> = {
 };
 /** Kinds only a Space's owner or admins are sent: a member does not see them in the list. */
 export const ADMIN_KINDS: ReadonlySet<string> = new Set(["space.deletion_scheduled", "space.deletion_cancelled", "ci.paused", "member.joined", "member.join_requested", "limit.hit", "machine.alert", "vault.rotation_due", "hook.asked"]);
+/** The kinds a person with this role is sent: owners and admins get all, a member none of the admin-only ones. */
+export const kindsFor = <T extends { key: string }>(kinds: readonly T[], role: string): T[] => { const r = role.toLowerCase(); return r === "owner" || r === "admin" ? [...kinds] : kinds.filter((k) => !ADMIN_KINDS.has(k.key)); };
 export const kindLabel = (title: string): string => title.replace(/^Replies in your threads$/, "Replies to you").replace(/:\s*\{\{\w+\}\}$/, "").replace(/\{\{(\w+)\}\}/g, (_, w: string) => WORD[w] ?? "something");
 type MutesOut = CapMap["notifications.mute.list"]["out"];
 
@@ -167,9 +169,7 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
     );
   };
   const list: ReactElement[] = [];
-  const role = (data.spaces.find((x) => x.current)?.role ?? "").toLowerCase();
-  const isAdmin = role === "owner" || role === "admin";
-  (kinds?.kinds ?? []).filter((k) => isAdmin || !ADMIN_KINDS.has(k.key)).forEach((k, i) => {
+  kindsFor(kinds?.kinds ?? [], data.spaces.find((x) => x.current)?.role ?? "").forEach((k, i) => {
     const now = chans[k.key] ?? (k.mine?.channels as Channel[] | undefined) ?? levelChannels(k.level);
     list.push(
       <SettingsRow key={k.key} id={`kind.${k.key}`} label={KIND_LABELS[k.key] ?? kindLabel(k.title)} first={i === 0} sub={channelWords(now)} help="Pick where it reaches you. With none picked it adds a dot only."
