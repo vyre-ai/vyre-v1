@@ -103,7 +103,8 @@ export function SettingsRow({ id, label, sub, subAlert = false, lead, control, f
   // On a phone a control that needs room (a menu, a field, a stepper) goes under its label and takes the width; a switch or a small button stays beside it.
   const narrow = useWindowDimensions().width < 560;
   const small = inline || isValidElement(control) && (control.type === Switch || control.type === SmallButton || control.type === Value);
-  const stack = narrow && control !== undefined && control !== null && !small;
+  // a button beside a long sentence would cut the sentence off on a phone, so it goes under it
+  const stack = narrow && control !== undefined && control !== null && (!small || (sub?.length ?? 0) > 34);
   return (
     <>
       <View style={wrap} {...webOnly({ dataSet: { sid: id } })}>

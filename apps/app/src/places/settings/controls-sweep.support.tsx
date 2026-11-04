@@ -1,5 +1,6 @@
 // Shared by the controls-sweep tests: mounts one Settings page for an Owner or a Member and presses every control that has a test id once; none may throw. No test imports here.
 import assert from "node:assert/strict";
+import type { ReactElement } from "react";
 import { find, installDom, mount, press, textOf } from "../../../../../ui/src/testing/dom.ts";
 import { SettingsDataProvider } from "./data.tsx";
 import { SettingsPlace } from "./SettingsPlace.tsx";
@@ -16,11 +17,10 @@ const pressables = (n: N, out: Map<string, N> = new Map()): string[] => {
   return [...out.keys()];
 };
 
-export async function sweep(page: string, who: "owner" | "member"): Promise<void> {
+export async function sweep(createRoot: () => { render(el: ReactElement): void; container: unknown }, page: string, who: "owner" | "member"): Promise<void> {
   const restore = installDom();
   try {
     const s = createSampleSettings(who === "owner" ? northwind : harbor);
-    const { createRoot } = await import("test-renderer");
     const root = await mount(createRoot, <SettingsDataProvider value={s.data}><SettingsPlace width={1280} initialPage={page as never} /></SettingsDataProvider>);
     const ids = pressables(root as N).filter((id) => !/^(row-|page-|hit-|saved-slot|undo|skin-thumb|settings-)/.test(id));
     assert.ok(ids.length > 0 || page === "signin", `${page} has controls: ${textOf(root as never).slice(0, 200)}`);

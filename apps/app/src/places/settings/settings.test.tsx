@@ -12,7 +12,7 @@ import { SavedProvider } from "./saved.tsx";
 import { HIDDEN_ROWS, PAGES, clock, controlFor, hoursSummary, moneyLabel, pageOfRow, rowLabel, searchRows, sectionsFor, splitList, summaryOf, timeIn } from "./model.ts";
 import type { SettingRow, YouPage } from "./model.ts";
 import { whenLabel } from "./pages-b.tsx";
-import { defaultModelValue, monthStart } from "./pages-a.tsx";
+import { channelWords, defaultModelValue, monthStart } from "./pages-a.tsx";
 import { KEYBOARD_MAP } from "../../shell/keyboard/map.ts";
 import { SpaceDefaults } from "./SpacePages.tsx";
 import { dollars, monthNote } from "./MemorySpend.tsx";
@@ -423,4 +423,11 @@ test("Your AI with no AI account: one line and an Add AI account button, not bla
   assert.ok(has(out, "Add an AI account to choose a default model") && has(out, 'data-testid="ctl-add-ai"'));
   assert.ok(!has(out, 'data-testid="ctl-model-default"') && !has(out, 'data-testid="ctl-model-fallback"'), "no empty pickers");
   assert.ok(has(html(createSampleSettings(northwind), { initialPage: "ai" }), 'data-testid="ctl-model-default"'), "with accounts the pickers are there");
+});
+
+test("channel words: first word capital, the rest lower case, none is Badge only", () => {
+  assert.equal(channelWords(["desktop", "phone", "email"]), "Desktop, phone and email");
+  assert.equal(channelWords(["desktop", "email"]), "Desktop and email");
+  assert.equal(channelWords(["phone"]), "Phone");
+  assert.equal(channelWords([]), "Badge only");
 });
