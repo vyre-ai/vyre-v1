@@ -31180,16 +31180,72 @@
     },
     {
       "blocks": [],
-      "cap": "install.list",
+      "cap": "install.get",
       "deferred": false,
-      "description": "What was installed from links, by the person asking",
+      "description": "One plan, as its card draws it: what it is, what it needs, the commit, who can get it, and for an update the diff",
       "effects": "read",
       "inputSchema": {
-        "properties": {},
+        "properties": {
+          "planId": {
+            "examples": [
+              "ins_a1b2c3"
+            ],
+            "pattern": "^ins_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "planId"
+        ],
+        "type": "object"
+      },
+      "name": "install_get",
+      "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "install.list",
+      "deferred": false,
+      "description": "What was installed from links, by the person asking (an admin may ask for the whole Space)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "all": {
+            "type": "boolean"
+          }
+        },
         "type": "object"
       },
       "name": "install_list",
       "planMode": "allowed",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "install.remove",
+      "deferred": false,
+      "description": "Take back an install: its skill, plugin or connection is removed",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "installId": {
+            "examples": [
+              "ins_a1b2c3"
+            ],
+            "pattern": "^ins_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "installId"
+        ],
+        "type": "object"
+      },
+      "name": "install_remove",
+      "planMode": "blocked",
       "toolset": "agents",
       "v": 1
     },
@@ -53999,6 +54055,21 @@
       },
       "name": "skills_mine_update",
       "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "skills.of_agents",
+      "deferred": false,
+      "description": "The skills the agents a person owns keep for themselves, one row each",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {},
+        "type": "object"
+      },
+      "name": "skills_of_agents",
+      "planMode": "allowed",
       "toolset": "agents",
       "v": 1
     },

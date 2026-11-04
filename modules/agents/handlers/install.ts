@@ -442,8 +442,44 @@ async function deployOnSites(ctx: AgentsCtx, p: Plan, input: In, key: string, mc
   return out;
 }
 
-export async function installList(ctx: AgentsCtx, _input: In) {
+/** One plan as the card draws it, for whoever asked for it (or an admin); it is read again so the card is right after a reload and on another device. */
+export async function installGet(ctx: AgentsCtx, input: In) {
   ensure(ctx.db);
-  const rows = ctx.db.all("SELECT * FROM agents_install WHERE asker = ? AND state = 'installed' AND update_of = '' ORDER BY at DESC", me(ctx)) as Row[];
-  return { installs: rows.map((r) => { const p = parse<Plan>(r["plan_json"], {} as Plan); return { installId: str(r["id"]), kind: p.kind, name: p.name, repo: p.repo, commit: str(r["commit_sha"]), url: str(r["url"]), at: Number(r["at"]), installed: parse<Record<string, unknown>>(r["installed_json"], {}) }; }) };
+  const r = load(ctx, input.planId);
+  return { plan: planOut(ctx, str(r["id"]), parse<Plan>(r["plan_json"], {} as Plan), str(r["state"])), ...(str(r["update_of"]) ? { updateOf: str(r["update_of"]) } : {}) };
+}
+
+/** Take back what an install put: the skill, the plugin or the connection it made. A site it deployed stays on Sites (it is removed there). */
+export async function installRemove(ctx: AgentsCtx, input: In) {
+  ensure(ctx.db);
+  const r = load(ctx, input.installId);
+  if (str(r["state"]) !== "installed") return { removed: false };
+  const done = parse<Record<string, any>>(r["installed_json"], {});   // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (done["skillId"]) { const o = ownById(ctx, String(done["skillId"])); if (o) { ctx.db.run("DELETE FROM agents_skill_own WHERE id = ?", o.id); ctx.db.run("DELETE FROM agents_skill_grants WHERE skill_id = ?", o.id); ctx.emit("skill.mine_changed", o.id, { skillId: o.id, name: o.name, op: "removed", by: me(ctx) }); } }
+  if (done["pluginId"]) { ctx.db.run("DELETE FROM agents_plugins WHERE id = ?", String(done["pluginId"])); ctx.emit("plugin.uninstalled", String(done["pluginId"]), { pluginId: String(done["pluginId"]), name: parse<Plan>(r["plan_json"], {} as Plan).name, by: me(ctx) }); }
+  if (done["connectionId"]) await call(ctx, "plugins.connection.remove", { connectionId: String(done["connectionId"]) }, `${r["id"]}:rm`).catch(() => undefined);
+  ctx.db.run("DELETE FROM agents_install WHERE id = ? OR update_of = ?", str(r["id"]), str(r["id"]));
+  return { removed: true };
+}
+
+/** The skills agents the person owns keep, one row each, for the Skills list in the Tools pane. */
+export async function skillsOfAgents(ctx: AgentsCtx, _input: In) {
+  ensure(ctx.db);
+  const rows = ctx.db.all("SELECT o.* FROM agents_skill_own o WHERE o.owner LIKE 'agt_%' ORDER BY o.name") as Row[];
+  const out = [];
+  for (const r of rows) {
+    const o = ownOf(r);
+    const a = agentBy(ctx.db, o.owner);
+    if (!a || a.ownerId !== me(ctx)) continue;
+    out.push({ skillId: o.id, name: o.name, description: o.description, agentId: a.id, agentName: a.name, version: o.version, source: o.source, rev: Number((revsOf(ctx, o.id)[0] ?? {})["rev"] ?? 1), updatedAt: o.updatedAt });
+  }
+  return { skills: out };
+}
+
+export async function installList(ctx: AgentsCtx, input: In) {
+  ensure(ctx.db);
+  // an admin's Console lists every install in the Space; anyone else sees their own
+  const all = input.all === true && isAdmin(ctx);
+  const rows = (all ? ctx.db.all("SELECT * FROM agents_install WHERE state = 'installed' AND update_of = '' ORDER BY at DESC") : ctx.db.all("SELECT * FROM agents_install WHERE asker = ? AND state = 'installed' AND update_of = '' ORDER BY at DESC", me(ctx))) as Row[];
+  return { installs: rows.map((r) => { const p = parse<Plan>(r["plan_json"], {} as Plan); return { installId: str(r["id"]), kind: p.kind, name: p.name, repo: p.repo, commit: str(r["commit_sha"]), url: str(r["url"]), by: str(r["asker"]), at: Number(r["at"]), installed: parse<Record<string, unknown>>(r["installed_json"], {}) }; }) };
 }

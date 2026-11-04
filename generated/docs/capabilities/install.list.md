@@ -1,6 +1,6 @@
 # install.list
 
-What was installed from links, by the person asking
+What was installed from links, by the person asking (an admin may ask for the whole Space)
 
 | | |
 |---|---|
@@ -24,7 +24,9 @@ What was installed from links, by the person asking
 ## Input
 
 ```ts
-type In = Record<string, unknown>;
+type In = {
+  all?: boolean;
+};
 ```
 
 ## Output
@@ -38,6 +40,7 @@ type Out = {
       repo: string;
       commit: string;
       url: string;
+      by: string;
       at: number;
       installed: Record<string, unknown>;
     }>;
@@ -56,11 +59,14 @@ type Out = {
 ```json
 {
   "name": "example",
-  "input": {},
+  "input": {
+    "all": true
+  },
   "output": {
     "installs": [
       {
         "at": 1760000000000,
+        "by": "example",
         "commit": "example",
         "installId": "ins_a1b2c3",
         "installed": {},

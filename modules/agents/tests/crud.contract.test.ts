@@ -36,8 +36,8 @@ const withMarket = async (hn: Harness) => {
 const mine = registry.capabilities.filter((c) => c.module === "agents");
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
-test("the handler table covers exactly the 105 capabilities of the agents manifest", () => {
-  assert.equal(mine.length, 105);   // 105 with the nine of install-from-link and agent skills (wip/l-install); agents.people_summary and agents.pause_person (l-consolidate), then 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2, agents.instruction.append (lessons)
+test("the handler table covers exactly the 108 capabilities of the agents manifest", () => {
+  assert.equal(mine.length, 108);   // 105 with the nine of install-from-link and agent skills (wip/l-install); agents.people_summary and agents.pause_person (l-consolidate), then 68, agents.config.may_save (l-agenttoml), the eight Connections of l-connections, agents.assistant_of (l-meetings) and the fifteen skill scopes of l-skills2, agents.instruction.append (lessons)
   assert.deepEqual(Object.keys(h).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof h[c.name], "function", c.name);
 });
@@ -274,6 +274,11 @@ const scenarios: Scenario[] = [
   { cap: "install.apply", run: (hn) => h["install.apply"]!(hn.ctx, { planId: "ins_none", for: "me", idempotencyKey: k() }), expect: "validation.not_found" },
   { cap: "install.check_update", setup: async (hn) => { await withRepo(hn); const p = (await h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" })).plan; await h["install.apply"]!(hn.ctx, { planId: p.planId, for: "me", idempotencyKey: k() }); return (await h["install.list"]!(hn.ctx, {})).installs[0]; }, run: (hn, i) => h["install.check_update"]!(hn.ctx, { installId: i.installId }) },
   { cap: "install.check_update", run: (hn) => h["install.check_update"]!(hn.ctx, { installId: "ins_none" }), expect: "validation.not_found" },
+  { cap: "install.get", setup: async (hn) => { await withRepo(hn); return (await h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" })).plan; }, run: (hn, p) => h["install.get"]!(hn.ctx, { planId: p.planId }) },
+  { cap: "install.get", run: (hn) => h["install.get"]!(hn.ctx, { planId: "ins_none" }), expect: "validation.not_found" },
+  { cap: "install.remove", setup: async (hn) => { await withRepo(hn); const p = (await h["install.from_link"]!(hn.ctx, { url: "https://github.com/acme/pdf-skill" })).plan; await h["install.apply"]!(hn.ctx, { planId: p.planId, for: "me", idempotencyKey: k() }); return (await h["install.list"]!(hn.ctx, {})).installs[0]; }, run: (hn, i) => h["install.remove"]!(hn.ctx, { installId: i.installId }) },
+  { cap: "install.remove", run: (hn) => h["install.remove"]!(hn.ctx, { installId: "ins_none" }), expect: "validation.not_found" },
+  { cap: "skills.of_agents", run: (hn) => h["skills.of_agents"]!(hn.ctx, {}) },
   { cap: "install.list", run: (hn) => h["install.list"]!(hn.ctx, {}) },
   { cap: "skills.save", run: (hn) => h["skills.save"]!(hn.ctx, { text: SK("triage", "Sort new requests.") }) },
   { cap: "skills.save", run: (hn) => h["skills.save"]!(hn.ctx, { text: "no front matter" }), expect: "validation.bad_input" },

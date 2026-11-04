@@ -53,7 +53,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "install.apply": Handler<"install.apply", X>;
   "install.check_update": Handler<"install.check_update", X>;
   "install.from_link": Handler<"install.from_link", X>;
+  "install.get": Handler<"install.get", X>;
   "install.list": Handler<"install.list", X>;
+  "install.remove": Handler<"install.remove", X>;
   "plugins.agent_template.use": Handler<"plugins.agent_template.use", X>;
   "plugins.agent_templates.list": Handler<"plugins.agent_templates.list", X>;
   "plugins.allow.list": Handler<"plugins.allow.list", X>;
@@ -96,6 +98,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "skills.mine.remove": Handler<"skills.mine.remove", X>;
   "skills.mine.set": Handler<"skills.mine.set", X>;
   "skills.mine.update": Handler<"skills.mine.update", X>;
+  "skills.of_agents": Handler<"skills.of_agents", X>;
   "skills.page": Handler<"skills.page", X>;
   "skills.policy.set": Handler<"skills.policy.set", X>;
   "skills.preview": Handler<"skills.preview", X>;

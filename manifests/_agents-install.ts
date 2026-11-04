@@ -42,9 +42,19 @@ export const installCapabilities: CapabilityDef[] = [
     perm: null, level: 'use', risk: 'low', idem: 'none', audit: 'always', tool: 'agents', mcpName: 'install_check_update',
     errors: ['validation.bad_input', 'validation.not_found', 'validation.precondition_failed', 'provider.unavailable'],
   }),
-  read('install.list', 'What was installed from links, by the person asking', {
-    in: {}, out: { installs: t.arr(t.obj({ installId: insId, kind: t.str(), name: t.str(), repo: t.str(), commit: t.str(), url: t.str(), at: t.ts(), installed: t.rec(t.json()) })) },
+  read('install.list', 'What was installed from links, by the person asking (an admin may ask for the whole Space)', {
+    in: { all: t.opt(t.bool()) }, out: { installs: t.arr(t.obj({ installId: insId, kind: t.str(), name: t.str(), repo: t.str(), commit: t.str(), url: t.str(), by: t.str(), at: t.ts(), installed: t.rec(t.json()) })) },
     perm: null, level: 'view', tool: 'agents', mcpName: 'install_list',
+  }),
+  read('install.get', 'One plan, as its card draws it: what it is, what it needs, the commit, who can get it, and for an update the diff', {
+    in: { planId: insId }, out: { plan, updateOf: t.opt(insId) }, perm: null, level: 'view', tool: 'agents', mcpName: 'install_get', errors: ['validation.not_found'],
+  }),
+  write('install.remove', 'Take back an install: its skill, plugin or connection is removed', {
+    in: { installId: insId }, out: { removed: t.bool() }, perm: null, level: 'edit', risk: 'medium', idem: 'none', audit: 'always', emits: ['skill.mine_changed', 'plugin.uninstalled'], tool: 'agents', mcpName: 'install_remove', errors: ['validation.not_found'],
+  }),
+  read('skills.of_agents', 'The skills the agents a person owns keep for themselves, one row each', {
+    in: {}, out: { skills: t.arr(t.obj({ skillId: skoId, name: t.str(), description: t.str(), agentId: id.agent, agentName: t.str(), version: t.str(), source: t.str(), rev: t.int({ minimum: 1 }), updatedAt: t.ts() })) },
+    perm: null, level: 'view', tool: 'agents', mcpName: 'skills_of_agents',
   }),
   write('skills.save', 'Write a skill as its owner (the person, or an agent they own; an agent writes its own) or as an agent given edit: a new skill, or a new version of one. Every save is a version', {
     in: { text: t.str(), files: t.opt(t.rec(t.str())), skillId: t.opt(skoId), ownerAgentId: t.opt(id.agent), source: t.opt(t.str()), summary: t.opt(t.str()) }, out: { skill: skillRef },

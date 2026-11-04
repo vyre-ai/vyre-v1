@@ -1394,7 +1394,9 @@ export function createClient(transport: Transport) {
       apply: call("install.apply", 1),
       check_update: call("install.check_update", 1),
       from_link: call("install.from_link", 1),
+      get: call("install.get", 1),
       list: call("install.list", 1),
+      remove: call("install.remove", 1),
     },
     invites: {
       accept_create_account: call("invites.accept_create_account", 1),
@@ -2378,6 +2380,7 @@ export function createClient(transport: Transport) {
         set: call("skills.mine.set", 1),
         update: call("skills.mine.update", 1),
       },
+      of_agents: call("skills.of_agents", 1),
       page: call("skills.page", 1),
       policy: {
         set: call("skills.policy.set", 1),

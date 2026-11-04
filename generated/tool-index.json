@@ -4568,8 +4568,20 @@
     },
     {
       "deferred": false,
+      "name": "install_get",
+      "summary": "One plan, as its card draws it: what it is, what it needs, the commit, who can get it, and for an update the diff",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "install_list",
-      "summary": "What was installed from links, by the person asking",
+      "summary": "What was installed from links, by the person asking (an admin may ask for the whole Space)",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "install_remove",
+      "summary": "Take back an install: its skill, plugin or connection is removed",
       "toolset": "agents"
     },
     {
@@ -7972,6 +7984,12 @@
       "deferred": false,
       "name": "skills_mine_update",
       "summary": "Fetch one of your skills again from its link or repo; whoever it is shared with approves again if it can now touch more",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
+      "name": "skills_of_agents",
+      "summary": "The skills the agents a person owns keep for themselves, one row each",
       "toolset": "agents"
     },
     {

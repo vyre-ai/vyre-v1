@@ -19770,7 +19770,60 @@ export type InstallFromLinkOut = {
     };
   };
 };
-export type InstallListIn = Record<string, unknown>;
+export type InstallGetIn = {
+  planId: string;
+};
+export type InstallGetOut = {
+  plan: {
+    planId: string;
+    state: string;
+    kind: "skill" | "plugin" | "mcp_local" | "mcp_remote" | "site";
+    flavor?: "claude" | "codex";
+    name: string;
+    summary: string;
+    repo: string;
+    commit: string;
+    url: string;
+    path?: string;
+    needs: {
+      domains: Array<string>;
+      vaultKeys: Array<string>;
+      files: Array<string>;
+    };
+    runs?: {
+      command: string;
+      args: Array<string>;
+    };
+    skills: Array<string>;
+    problems: Array<string>;
+    who: Array<{
+        key: "me" | "agent" | "space";
+        label: string;
+        allowed: boolean;
+        adminOnly?: boolean;
+      }>;
+    runOn?: Array<{
+        key: "sandbox" | "space";
+        label: string;
+        needs?: string;
+      }>;
+    diff?: {
+      from: string;
+      to: string;
+      added: Array<string>;
+      removed: Array<string>;
+      changed: Array<{
+          path: string;
+          plus: Array<string>;
+          minus: Array<string>;
+        }>;
+    };
+  };
+  updateOf?: string;
+};
+export type InstallListIn = {
+  all?: boolean;
+};
 export type InstallListOut = {
   installs: Array<{
       installId: string;
@@ -19779,9 +19832,16 @@ export type InstallListOut = {
       repo: string;
       commit: string;
       url: string;
+      by: string;
       at: number;
       installed: Record<string, unknown>;
     }>;
+};
+export type InstallRemoveIn = {
+  installId: string;
+};
+export type InstallRemoveOut = {
+  removed: boolean;
 };
 export type InvitesAcceptCreateAccountIn = {
   code: string;
@@ -33326,6 +33386,20 @@ export type SkillsMineUpdateOut = {
   changed: boolean;
   growth: Array<string>;
 };
+export type SkillsOfAgentsIn = Record<string, unknown>;
+export type SkillsOfAgentsOut = {
+  skills: Array<{
+      skillId: string;
+      name: string;
+      description: string;
+      agentId: string;
+      agentName: string;
+      version: string;
+      source: string;
+      rev: number;
+      updatedAt: number;
+    }>;
+};
 export type SkillsPageIn = {
   projectId?: string;
 };
@@ -42994,7 +43068,9 @@ export interface CapMap {
   "install.apply": { in: InstallApplyIn; out: InstallApplyOut };
   "install.check_update": { in: InstallCheckUpdateIn; out: InstallCheckUpdateOut };
   "install.from_link": { in: InstallFromLinkIn; out: InstallFromLinkOut };
+  "install.get": { in: InstallGetIn; out: InstallGetOut };
   "install.list": { in: InstallListIn; out: InstallListOut };
+  "install.remove": { in: InstallRemoveIn; out: InstallRemoveOut };
   "invites.accept_create_account": { in: InvitesAcceptCreateAccountIn; out: InvitesAcceptCreateAccountOut };
   "journeys.advance": { in: JourneysAdvanceIn; out: JourneysAdvanceOut };
   "journeys.check_limits": { in: JourneysCheckLimitsIn; out: JourneysCheckLimitsOut };
@@ -43700,6 +43776,7 @@ export interface CapMap {
   "skills.mine.remove": { in: SkillsMineRemoveIn; out: SkillsMineRemoveOut };
   "skills.mine.set": { in: SkillsMineSetIn; out: SkillsMineSetOut };
   "skills.mine.update": { in: SkillsMineUpdateIn; out: SkillsMineUpdateOut };
+  "skills.of_agents": { in: SkillsOfAgentsIn; out: SkillsOfAgentsOut };
   "skills.page": { in: SkillsPageIn; out: SkillsPageOut };
   "skills.policy.set": { in: SkillsPolicySetIn; out: SkillsPolicySetOut };
   "skills.preview": { in: SkillsPreviewIn; out: SkillsPreviewOut };

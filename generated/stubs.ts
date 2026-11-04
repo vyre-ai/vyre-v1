@@ -1394,7 +1394,9 @@ export function stubs(ctx: CallCtx) {
       apply: call("install.apply"),
       check_update: call("install.check_update"),
       from_link: call("install.from_link"),
+      get: call("install.get"),
       list: call("install.list"),
+      remove: call("install.remove"),
     },
     invites: {
       accept_create_account: call("invites.accept_create_account"),
@@ -2378,6 +2380,7 @@ export function stubs(ctx: CallCtx) {
         set: call("skills.mine.set"),
         update: call("skills.mine.update"),
       },
+      of_agents: call("skills.of_agents"),
       page: call("skills.page"),
       policy: {
         set: call("skills.policy.set"),

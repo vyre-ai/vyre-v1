@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat, engine, mcp, memory, notes, runs, terminal.
 
-## Capabilities (105)
+## Capabilities (108)
 
 - [agents.assistant_of](../capabilities/agents.assistant_of.md): A person's own Assistant, for the server's modules that work for them; only the server and the person themself are answered
 - [agents.builtin_skill.get](../capabilities/agents.builtin_skill.get.md): Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer
@@ -54,7 +54,9 @@ Requires: chat, engine, mcp, memory, notes, runs, terminal.
 - [install.apply](../capabilities/install.apply.md): Install what a plan says, for the person, for one agent, or for everyone in the Space (admin only). An agent asking is held at the Gate as a card with the plan; the person presses Install
 - [install.check_update](../capabilities/install.check_update.md): Read an install's repository again. A newer commit gives an update plan with the diff; nothing changes until the plan is applied
 - [install.from_link](../capabilities/install.from_link.md): Read a GitHub link (pinned to a commit) or an MCP server address and say what it is: a skill, a plugin, a local MCP server, a remote MCP server or a site, what it does, what it needs (network, Vault keys, files) and who can get it. Nothing is installed
-- [install.list](../capabilities/install.list.md): What was installed from links, by the person asking
+- [install.get](../capabilities/install.get.md): One plan, as its card draws it: what it is, what it needs, the commit, who can get it, and for an update the diff
+- [install.list](../capabilities/install.list.md): What was installed from links, by the person asking (an admin may ask for the whole Space)
+- [install.remove](../capabilities/install.remove.md): Take back an install: its skill, plugin or connection is removed
 - [plugins.agent_template.use](../capabilities/plugins.agent_template.use.md): Make an agent from a sub-agent a plugin brought (its description becomes the role line and its prompt the start of AGENT.md)
 - [plugins.agent_templates.list](../capabilities/plugins.agent_templates.list.md): Sub-agents that installed plugins bring, as templates a new agent can start from
 - [plugins.allow.list](../capabilities/plugins.allow.list.md): The marketplaces and plugins the admin allows
@@ -97,6 +99,7 @@ Requires: chat, engine, mcp, memory, notes, runs, terminal.
 - [skills.mine.remove](../capabilities/skills.mine.remove.md): Remove one of your skills (and its shares), or take a shared one off your list
 - [skills.mine.set](../capabilities/skills.mine.set.md): Switch one of your skills (or one shared with you) on or off, pick the agents that use it, or give its tool servers their Vault keys
 - [skills.mine.update](../capabilities/skills.mine.update.md): Fetch one of your skills again from its link or repo; whoever it is shared with approves again if it can now touch more
+- [skills.of_agents](../capabilities/skills.of_agents.md): The skills the agents a person owns keep for themselves, one row each
 - [skills.page](../capabilities/skills.page.md): Settings > Skills for the person asking: cards for skills shared with them, their own skills (Mine), the Space skills an admin set, the built-in ones, and their agents to assign them to
 - [skills.policy.set](../capabilities/skills.policy.set.md): Console: who may add skills that run scripts or start tool servers (everyone, the default, or only admins)
 - [skills.preview](../capabilities/skills.preview.md): Read the skills in a link (a SKILL.md, a GitHub repo or folder, a zip), a dropped folder or a zip, with what each can touch. Nothing is saved

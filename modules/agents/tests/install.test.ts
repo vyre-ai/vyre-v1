@@ -320,3 +320,29 @@ test("an agent uses the skills of the person it answers, on that person's turn o
   assert.equal(JSON.stringify(onMaya).includes("secret method"), false);
   assert.equal(await fails(call(hn, "skills.view", { name: "dana-private" }, maya)), "validation.not_found");
 });
+
+test("a plan is read again by its id, an install is taken back, the Space's installs are an admin's list, and agents' skills are listed for their owner", async () => {
+  const { hn, maya, member, admin } = world();
+  const agent = await agentOf(hn, hn.ctx, "Intake");
+  const p = await plan(hn, "acme/pdf-skill");
+  const got = await call(hn, "install.get", { planId: p.planId });
+  assert.deepEqual([got.plan.planId, got.plan.commit, got.plan.state], [p.planId, p.commit, "planned"]);
+  member();
+  assert.equal(await fails(call(hn, "install.get", { planId: p.planId }, maya)), "validation.not_found", "another person has no say in it");
+  admin();
+  await call(hn, "install.apply", { planId: p.planId, for: "agent", agentId: agent });
+  assert.equal((await call(hn, "install.get", { planId: p.planId })).plan.state, "installed");
+  await call(hn, "skills.save", { text: SKILL("own", "Its own."), ownerAgentId: agent });
+  const rows = (await call(hn, "skills.of_agents", {})).skills;
+  assert.deepEqual(rows.map((r: { name: string; agentName: string }) => [r.name, r.agentName]).sort(), [["own", "Intake"], ["pdf-forms", "Intake"]]);
+  assert.deepEqual((await call(hn, "skills.of_agents", {}, maya)).skills, [], "not another person's agents");
+  member();
+  await call(hn, "install.apply", { planId: (await plan(hn, "acme/pdf-skill", maya)).planId, for: "me" }, maya);
+  assert.equal((await call(hn, "install.list", { all: true }, maya)).installs.length, 1, "a member sees only their own");
+  admin();
+  assert.equal((await call(hn, "install.list", { all: true })).installs.length, 2, "an admin sees the Space's");
+  const mine = (await call(hn, "install.list", {})).installs[0];
+  assert.deepEqual(await call(hn, "install.remove", { installId: mine.installId }), { removed: true });
+  assert.ok(!(await listed(hn, hn.as({ kind: "agent", id: agent }, DANA), agent)).includes("pdf-forms"));
+  assert.deepEqual(await call(hn, "install.remove", { installId: mine.installId }).catch((e) => codeOf(e)), "validation.not_found");
+});
