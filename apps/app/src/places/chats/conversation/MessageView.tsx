@@ -381,6 +381,7 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
           <TextButton label="Discard" onPress={() => actions.discardSend(m.messageId)} testID={`discard-send-${m.messageId}`} />
         </View>
       ) : null}
+      {/* ui-rows-lint: not a list (at most one line saying which thread a copy came from) */}
       {m.blocks.filter((b) => b.type === "from_thread").map((b) => {
         const tid = String((b.data as { threadId?: unknown } | null)?.threadId ?? "");
         return <Pressable key={b.id} accessibilityRole="link" testID={`from-thread-${m.messageId}`} onPress={() => (tid !== "" ? actions.openMessage?.(tid, "") : undefined)} style={st.fromThreadMine}><Text style={st.edited}>{FROM_THREAD_LINE}</Text></Pressable>;
