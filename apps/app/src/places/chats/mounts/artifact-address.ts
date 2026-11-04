@@ -1,7 +1,7 @@
-// The whole address of an opened artifact: its public origin when the Space has one, else this app's own gateway.
+// The address an opened artifact is framed or opened at. sites.artifact_open always returns a one-time code on the artifact host (/x/<code>); there is no keyed address any more.
 export const artifactAddress = (open: { path: string; url?: string | undefined }, base: string | undefined, embed = false): string => {
   const at = open.url ?? `${(base ?? "").replace(/\/+$/, "")}${open.path}`;
-  // a one-time code for the artifact host (/x/<code>): framed in the app, its cookie is partitioned to the app (the host's CSP lets only the app frame it)
+  // framed in the app, the host's cookie is partitioned to the app (the host's CSP lets only the app frame it)
   return embed && /\/x\/[0-9a-f]{48}$/.test(at) ? `${at}?embed=1` : at;
 };
 
