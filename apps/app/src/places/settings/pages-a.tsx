@@ -227,6 +227,16 @@ export function monthStart(now: number, offsetMin: number): number {
   return Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), 1) - offsetMin * 60_000;
 }
 
+/** The value the Default model row shows: the last pick (its provider found from the models on offer when the pick did not keep one), else the Space default, else nothing. */
+export function defaultModelValue(last: { provider?: string; model?: string } | null, defaults: { provider?: string; model?: string } | null, options: readonly { value: string }[]): string {
+  if (last?.model) {
+    if (last.provider) return `${last.provider}/${last.model}`;
+    const hit = options.find((o) => o.value.endsWith(`/${last.model}`));
+    if (hit) return hit.value;
+  }
+  return defaults?.provider && defaults.model ? `${defaults.provider}/${defaults.model}` : "";
+}
+
 export function AiPage({ rows, found }: PageProps): ReactElement {
   const data = useSettingsData();
   const openConnect = useOpenConnect();
@@ -249,7 +259,9 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   const options: { value: string; label: string }[] = [];
   if (models.status === "ready") for (const m of models.data.models) if (m.allowed) options.push({ value: `${m.provider}/${m.model}`, label: m.title });
   const d = defaults.status === "ready" ? defaults.data : null;
-  const cur = d?.provider && d.model ? `${d.provider}/${d.model}` : "";
+  // the Default model is what a new chat starts on: the model the person last picked, else the Space default
+  const last = useRead<CapMap["engine.last_pick.get"]["out"]>("engine.last_pick.get");
+  const cur = defaultModelValue(last, d, options);
   const fb = d?.fallback[0] ? `${d.fallback[0].provider}/${d.fallback[0].model}` : "";
   const setDefault = (v: string, slot: "model" | "fallback"): void => {
     const [provider, model] = v.split("/");
@@ -310,7 +322,7 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   return (
     <>
       <Section>
-        <SettingsRow id="model.default" label="Default model" help={ROW_HELP["model.default"]!} first found={found === "model.default"} control={<Choice value={cur} options={options} label="Default model" testID="ctl-model-default" onChange={(v) => setDefault(v, "model")} />} />
+        <SettingsRow id="model.default" label="Default model" sub={last?.model ? "Your last pick. A new chat starts on it" : "A new chat starts on the model you pick"} help={ROW_HELP["model.default"]!} first found={found === "model.default"} control={<Choice value={cur} options={options} label="Default model" testID="ctl-model-default" onChange={(v) => setDefault(v, "model")} />} />
         <SettingsRow id="model.fallback" label="Fallback model" help={ROW_HELP["model.fallback"]!} found={found === "model.fallback"} control={<Choice value={fb} options={options} label="Fallback model" testID="ctl-model-fallback" onChange={(v) => setDefault(v, "fallback")} />} />
       </Section>
       <RegistrySections page="ai" rows={rows} found={found} />

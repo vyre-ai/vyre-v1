@@ -793,6 +793,9 @@ export function createClient(transport: Transport) {
         list: call("engine.incidents.list", 1),
       },
       interrupt: call("engine.interrupt", 1),
+      last_pick: {
+        get: call("engine.last_pick.get", 1),
+      },
       lease: {
         acquire: call("engine.lease.acquire", 1),
         heartbeat: call("engine.lease.heartbeat", 1),

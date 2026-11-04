@@ -30,6 +30,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.incident.resolve": async (ctx) => { throw new VyreErr(notImplemented("engine.incident.resolve", ctx.trace)); },
   "engine.incidents.list": async (ctx) => { throw new VyreErr(notImplemented("engine.incidents.list", ctx.trace)); },
   "engine.interrupt": async (ctx) => { throw new VyreErr(notImplemented("engine.interrupt", ctx.trace)); },
+  "engine.last_pick.get": async (ctx) => { throw new VyreErr(notImplemented("engine.last_pick.get", ctx.trace)); },
   "engine.lease.acquire": async (ctx) => { throw new VyreErr(notImplemented("engine.lease.acquire", ctx.trace)); },
   "engine.lease.heartbeat": async (ctx) => { throw new VyreErr(notImplemented("engine.lease.heartbeat", ctx.trace)); },
   "engine.lease.release": async (ctx) => { throw new VyreErr(notImplemented("engine.lease.release", ctx.trace)); },

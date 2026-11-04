@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (82)
+## Capabilities (83)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: a pin (the chat's account, the agent's key, the step's key), the person's own, the Space AI accounts whose uses cover the turn (cheapest that fits, not capped), the backups, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not
@@ -31,6 +31,7 @@ Requires: nothing.
 - [engine.incident.resolve](../capabilities/engine.incident.resolve.md): Resolve an incident with a note
 - [engine.incidents.list](../capabilities/engine.incidents.list.md): AI incidents for review
 - [engine.interrupt](../capabilities/engine.interrupt.md): Interrupt now: cancel the current turn and queue the message at top priority ("stop and send")
+- [engine.last_pick.get](../capabilities/engine.last_pick.get.md): The model the caller last picked in a chat (any agent): a new chat starts on it. Empty when they have not picked one yet
 - [engine.lease.acquire](../capabilities/engine.lease.acquire.md): Take the lease on a thread (compare and set; heartbeat every 5 s, expires after 20 s)
 - [engine.lease.heartbeat](../capabilities/engine.lease.heartbeat.md): Extend the lease on a thread
 - [engine.lease.release](../capabilities/engine.lease.release.md): Release the lease on a thread
