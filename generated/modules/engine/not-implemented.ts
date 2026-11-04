@@ -42,6 +42,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.mcp.read": async (ctx) => { throw new VyreErr(notImplemented("engine.mcp.read", ctx.trace)); },
   "engine.mcp.tools": async (ctx) => { throw new VyreErr(notImplemented("engine.mcp.tools", ctx.trace)); },
   "engine.models.list": async (ctx) => { throw new VyreErr(notImplemented("engine.models.list", ctx.trace)); },
+  "engine.my_ai": async (ctx) => { throw new VyreErr(notImplemented("engine.my_ai", ctx.trace)); },
   "engine.now": async (ctx) => { throw new VyreErr(notImplemented("engine.now", ctx.trace)); },
   "engine.placement.decide": async (ctx) => { throw new VyreErr(notImplemented("engine.placement.decide", ctx.trace)); },
   "engine.placement.options": async (ctx) => { throw new VyreErr(notImplemented("engine.placement.options", ctx.trace)); },
