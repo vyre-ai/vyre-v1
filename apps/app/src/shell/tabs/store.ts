@@ -204,17 +204,9 @@ export function dedupeTabs(state: TabsState): TabsState {
   return { tabs, active: tabs.some((t) => t.key === state.active) ? state.active : ([...tabs].sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0]?.key ?? "") };
 }
 
-/**
- * A chat tab that is known to be empty (no name, no message) is the one blank chat the person has open. When another empty chat tab is already there, the newer one closes and the older one
- * is selected in its place: starting a new chat focuses the blank one instead of opening a second.
- */
-export function collapseEmpty(state: TabsState, key: string): TabsState {
-  const tab = state.tabs.find((t) => t.key === key);
-  if (tab === undefined || tab.empty !== true) return state;
-  const other = state.tabs.find((t) => t.key !== key && t.empty === true && t.pinned !== true);
-  if (other === undefined) return state;
-  const tabs = state.tabs.filter((t) => t.key !== key);
-  return { tabs, active: state.active === key ? other.key : state.active };
+/** The blank chat tab that is open, if there is one: "New chat" goes to it instead of making a second. A chat that was opened and happens to be empty is a real chat; it is only marked blank once its name was read. */
+export function blankChat(state: TabsState): TabEntry | undefined {
+  return state.tabs.find((t) => t.empty === true && t.isNew !== true);
 }
 
 export function writeTabs(state: TabsState): string {
@@ -361,6 +353,9 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
       set(moveTab(state, place, hash, title));
     },
     newTab(from) {
+      // a blank chat is already open: New chat goes to it, and no tab is added
+      const blank = blankChat(state);
+      if (blank !== undefined) { set(selectTab(state, blank.key)); return blank; }
       const tab = newTabEntry(from, state);
       set(openTab(state, tab));
       return tab;
@@ -371,8 +366,7 @@ export function createTabsController(options: TabsControllerOptions): TabsContro
     reorder(keys) { set(reorderTabs(state, keys)); },
     retitle(key, title, empty) {
       if (findTab(state, key) === undefined) return;
-      const next = { tabs: state.tabs.map((t) => (t.key === key ? (({ empty: _e, ...rest }) => ({ ...rest, title, ...(empty === true ? { empty: true as const } : {}) }))(t) : t)), active: state.active };
-      set(empty === true ? collapseEmpty(next, key) : next);
+      set({ tabs: state.tabs.map((t) => (t.key === key ? (({ empty: _e, ...rest }) => ({ ...rest, title, ...(empty === true ? { empty: true as const } : {}) }))(t) : t)), active: state.active });
     },
   };
 }

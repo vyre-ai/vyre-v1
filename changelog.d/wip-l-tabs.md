@@ -1,3 +1,3 @@
 - Tabs: opening a place that already has a tab goes to that tab instead of adding a second one (one tab per place, one per chat or record). Tab lists saved with the same place, chat or record twice close the older copy when the Space opens.
 - Tabs: a chat tab is never named "Chats". It carries the chat's name, else its first message cut short, else "New chat", and follows the chat as it changes.
-- Tabs: one blank chat at most. Starting a new chat while a blank chat tab is open selects that tab, and saved lists with several blank chats keep the one used last. Tabs hold the same room whether selected or not, and every title is cut at one longest width.
+- Tabs: one blank chat at most. New chat (the + button, Cmd-T) while a blank chat tab is open selects that tab and adds none, and saved lists with several blank chats keep the one used last. Tabs hold the same room whether selected or not, and every title is cut at one longest width.

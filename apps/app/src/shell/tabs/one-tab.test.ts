@@ -83,30 +83,36 @@ test("the controller stamps the tab in use, saves it, and closes a saved duplica
   assert.ok(readTabs(data.get(key) ?? null)!.tabs.find((t) => t.key === "files")!.at !== undefined, "and it is saved");
 });
 
-test("one blank chat: starting another focuses the one that is open instead of adding a second tab", () => {
+test("New chat goes to the blank chat that is open: the tab count never goes up while one exists, and no second blank tab ever appears", () => {
   const data = new Map<string, string>();
   const storage: TabsStorage = { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => { data.set(k, v); } };
   const c = createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "nw", storage, start: "chats" });
+  const counts: number[] = [];
+  c.subscribe(() => counts.push(c.state().tabs.length));
   c.openPlace("chats", "subject=thread:thr_1", "New chat");
   c.retitle("chats:subject=thread:thr_1", "New chat", true);
   c.openPlace("files");
-  // a second chat is started: it opens as a tab, and once it is known to be blank too it gives way to the first
-  c.openPlace("chats", "subject=thread:thr_2", "New chat");
-  assert.equal(c.state().active, "chats:subject=thread:thr_2");
-  c.retitle("chats:subject=thread:thr_2", "New chat", true);
-  assert.deepEqual(keys(c.state()), ["chats", "chats:subject=thread:thr_1", "files"].filter((k) => keys(c.state()).includes(k)), "no second blank tab");
+  const before = c.state().tabs.length;
+  const sizes: number[] = [];
+  for (let i = 0; i < 3; i++) {
+    const got = c.newTab("files");
+    sizes.push(c.state().tabs.length);
+    assert.equal(got.key, "chats:subject=thread:thr_1", "it hands back the blank chat");
+    assert.equal(c.state().active, "chats:subject=thread:thr_1", "and selects it");
+  }
+  assert.deepEqual(sizes, [before, before, before], "the tab count never goes up");
   assert.equal(c.state().tabs.filter((t) => t.empty === true).length, 1);
-  assert.equal(c.state().active, "chats:subject=thread:thr_1", "the blank chat that was open is selected");
-  // a chat that has its first message is not blank: it stays beside the blank one
-  c.openPlace("chats", "subject=thread:thr_3", "New chat");
-  c.retitle("chats:subject=thread:thr_3", "Can you draft the renewal", false);
-  assert.ok(keys(c.state()).includes("chats:subject=thread:thr_3"));
-  assert.equal(c.state().tabs.find((t) => t.key === "chats:subject=thread:thr_3")?.empty, undefined);
-  // a blank chat that gets a message is no longer blank, and a later blank one may stay
-  c.retitle("chats:subject=thread:thr_1", "Renewal", false);
-  c.openPlace("chats", "subject=thread:thr_4", "New chat");
-  c.retitle("chats:subject=thread:thr_4", "New chat", true);
-  assert.ok(keys(c.state()).includes("chats:subject=thread:thr_4"));
+  assert.ok(counts.length > 0);
+  // an old chat that happens to be empty is a real chat: it opens as its own tab and stays
+  c.openPlace("chats", "subject=thread:thr_2", "New chat");
+  assert.ok(keys(c.state()).includes("chats:subject=thread:thr_2"));
+  assert.equal(c.state().tabs.find((t) => t.key === "chats:subject=thread:thr_2")?.empty, undefined, "not marked blank until read as blank");
+  // once the blank chat has its message, New chat opens a new tab again
+  c.retitle("chats:subject=thread:thr_1", "Can you draft the renewal", false);
+  const n = c.state().tabs.length;
+  const made = c.newTab("chats");
+  assert.equal(made.isNew, true);
+  assert.equal(c.state().tabs.length, n + 1);
 });
 
 test("saved blank chats close on load, keeping one: the one used last; chats with messages stay", () => {

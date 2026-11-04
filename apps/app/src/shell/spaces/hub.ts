@@ -351,14 +351,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       const s = open();
       const was = s.tabs.state().tabs.find((t) => t.key === key);
       if (was?.title === title && (was.empty === true) === (empty === true)) return;
-      const before = s.tabs.state().active;
       s.tabs.retitle(key, title, empty);
-      // a second blank chat closed and the first one was selected: the shell shows that one
-      const now = s.tabs.state();
-      if (now.active !== before || now.tabs.find((t) => t.key === key) === undefined) {
-        const t = now.tabs.find((x) => x.key === now.active);
-        if (t !== undefined) { s.place = t.place; s.hash = t.hash ?? ""; }
-      }
       emit();
     },
     go(requested, hash, background = false) {
@@ -412,7 +405,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       const s = open();
       const tab = s.tabs.newTab(s.place);
       s.place = tab.place;
-      s.hash = "";
+      s.hash = tab.hash ?? "";
       emit();
       return tab;
     },
