@@ -13,8 +13,7 @@ import { CARD_ATTR, useRoving } from "./roving.ts";
 import type { TaskRow } from "./model.ts";
 import { BatonMarks, FaceButton, LiveWords, useLiveTurn } from "./parts.tsx";
 import type { RowEnv } from "./parts.tsx";
-import { useZones } from "../../../../../../ui/src/Time/index.tsx";
-import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
+import { TimePop, useZones } from "../../../../../../ui/src/Time/index.tsx";
 
 type Drag = { current: TaskRow | null };
 type DragStart = { dataTransfer?: { setData(t: string, v: string): void; effectAllowed: string } };
@@ -33,7 +32,7 @@ const Card = memo(function Card({ row, env, drag, tab, onActive }: { row: TaskRo
       <BatonMarks row={row} />
       {row.key && !row.reviewer && !row.approver ? <Text numberOfLines={1} style={st.key}>{row.key}</Text> : null}
       <View style={{ flex: 1 }} />
-      {due.text ? <Tooltip text={due.title ?? ""}><Text numberOfLines={1} style={[st.due, due.late && st.late]}>{due.text}</Text></Tooltip> : null}
+      {due.text ? <TimePop at={row.due as number}><Text numberOfLines={1} style={[st.due, due.late && st.late]}>{due.text}</Text></TimePop> : null}
       <FaceButton who={h} name={env.nameOf(h.id)} size={20} onPress={() => env.openProfile(h)} />
     </View>
   </Pressable>;

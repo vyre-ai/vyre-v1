@@ -74,7 +74,7 @@ import type { ReplySummary } from "./replies.ts";
 import { ThreadFooter } from "../thread-replies/ThreadFooter.tsx";
 import { AlsoSentMark } from "../thread-replies/AlsoSentMark.tsx";
 import type { Clock } from "../rightpane/model.ts";
-import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
+import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
 
 /** A principal id left in someone's words (an agent printed `usr_...`) shows as the name it stands for, when the Space knows it. */
 export function namedIds(body: string, nameOf?: (id: string) => string): string {
@@ -197,7 +197,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
         <View testID={`event-${item.key}`} style={[st.event, (link.style === "noted" || link.style === "question") && st.eventCentre]}>
           {link.style === "noted" ? <LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} time={item.time} /> : <>
             <View style={st.eventCard}><LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} /></View>
-            {link.style === "question" ? null : <Tooltip text={item.timeTitle ?? ""}><Text style={st.eventTime}>{item.time}</Text></Tooltip>}
+            {link.style === "question" ? null : <TimeTip item={item}><Text style={st.eventTime}>{item.time}</Text></TimeTip>}
           </>}
         </View>
       );
@@ -213,7 +213,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
             {"Forked from "}
             <Text testID={`fork-origin-${item.key}`} accessibilityRole="link" onPress={() => go(origin.threadId, origin.messageId)} style={st.eventLink}>{origin.title}</Text>
           </Text>
-          <Tooltip text={item.timeTitle ?? ""}><Text style={st.eventTime}>{item.time}</Text></Tooltip>
+          <TimeTip item={item}><Text style={st.eventTime}>{item.time}</Text></TimeTip>
         </View>
       );
     }
@@ -225,7 +225,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
       <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
         <View style={st.eventDot} />
         <Text style={st.eventText}>{pokeLine(item.message, props.actions.nameOf ?? unnamed) ?? item.text}</Text>
-        <Tooltip text={item.timeTitle ?? ""}><Text style={st.eventTime}>{item.time}</Text></Tooltip>
+        <TimeTip item={item}><Text style={st.eventTime}>{item.time}</Text></TimeTip>
       </View>
     );
   }
@@ -235,6 +235,11 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
 /* ---------- the hover bar and the menu: the same list in both ---------- */
 
 const firstName = (name: string): string => name.split(" ")[0] || name;
+
+/** A message's time with the hover card (full date, Space time, yours) in a shared place; plain in a private one. */
+function TimeTip({ item, children }: { item: { timeTitle?: string; message: { createdAt: number } }; children: ReactElement }): ReactElement {
+  return item.timeTitle ? <TimePop at={item.message.createdAt}>{children}</TimePop> : children;
+}
 
 export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: () => void, at: { x: number; y: number } = { x: 0, y: 0 }): MenuEntry[] {
   // groups, split by a separator: read and write it, then turn it into something, then keep it, then how it was made, then remove it last
@@ -356,7 +361,7 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
   return (
     <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message"))} style={[st.me, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
       {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, true, actions, startEdit)} onClose={() => setSheet(false)} /> : <HoverBar m={m} mine a={actions} onEdit={startEdit} visible={h.over || h.focus} />}
-      <Tooltip text={item.timeTitle ?? ""}><Text style={st.when}>{item.time}</Text></Tooltip>
+      <TimeTip item={item}><Text style={st.when}>{item.time}</Text></TimeTip>
       {editing ? (
         <View testID={`edit-${m.messageId}`} style={st.editBox}>
           <TextInput
@@ -466,7 +471,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
               </Pressable>
             </>,
           )}
-          <Tooltip text={item.timeTitle ?? ""}><Text style={st.time}>{item.time}</Text></Tooltip>
+          <TimeTip item={item}><Text style={st.time}>{item.time}</Text></TimeTip>
           {work?.short ? <Pressable accessibilityRole="button" accessibilityLabel={work.summary} testID={`work-short-${m.messageId}`} onPress={() => setWorkOpen((o) => !o)} style={{ opacity: h.over || workOpen ? 1 : 0 }}><Text style={st.time}>{work.summary}</Text></Pressable> : null}
         </View>
       ) : <Text style={st.whenLeft}>{item.time}</Text>}

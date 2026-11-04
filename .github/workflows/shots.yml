@@ -12,6 +12,10 @@ on:
         description: "Only generate package-lock.json and upload it as the artifact `lockfile`"
         required: false
         default: "false"
+      walks:
+        description: "A short round: only these browser walk files (space-separated paths), in release-evidence-walks against the export, none skipped; the screenshot shards and release-evidence do not run"
+        required: false
+        default: ""
 concurrency:
   group: shots-${{ github.ref }}
   cancel-in-progress: true
@@ -33,6 +37,7 @@ jobs:
           retention-days: 7
   shots:
     # Full runs use thirty-six bounded shards. Packet branches retain their single targeted capture.
+    if: (inputs.walks || '') == ''
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
@@ -62,6 +67,7 @@ jobs:
     # This starts beside the visual shards so release-critical PWA and real-app proof cannot wait behind the full prototype suite.
     # A GitHub-hosted VM of its own: on the self-hosted v1 hosts it shared eight cores with up to seven other jobs (load 12 to 18), real browsers and daemons ran four to five times slower than on an idle machine,
     # and the same files that pass in 14 to 60 s alone hit their 120 s caps at random. Nothing here needs the v1 hosts.
+    if: (inputs.walks || '') == ''
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -151,12 +157,19 @@ jobs:
           sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
           if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
       - name: Browser walks against the production export, none skipped
+        env:
+          WALKS: ${{ inputs.walks }}
         run: |
           set -o pipefail
           npx playwright-core install chromium
           CHROME_BIN="$(node -e 'import("playwright-core").then((p) => console.log((p.chromium ?? p.default.chromium).executablePath()))')"
           test -x "$CHROME_BIN"
           export CHROME_BIN VYRE_APP_DIST="$PWD/apps/app/dist" VYRE_REQUIRE_CHROME=1 VYRE_TEST_CAPTURE_DIR="$PWD/walks-evidence"
+          if [ -n "$WALKS" ]; then   # a short round (workflow_dispatch input walks): only the named files, each must pass, none skipped
+            node scripts/test-run.ts --slow --no-cache --no-skip --jobs 2 --files $WALKS 2>&1 | tee walks.out
+            for f in $WALKS; do grep -q "^ok .*$f" walks.out || { echo "$f did not pass" >&2; exit 1; }; done
+            exit 0
+          fi
           node scripts/test-run.ts --slow --no-cache --no-skip --jobs 2 --files apps/app/tests/automations.home.live.test.ts apps/app/tests/console.compute.live.test.ts apps/app/tests/console.ecosystem.live.test.ts apps/app/tests/console.health-fresh.live.test.ts apps/app/tests/console.infra.live.test.ts apps/app/tests/console.pages-parity-a.live.test.ts apps/app/tests/console.pages-parity-b.live.test.ts apps/app/tests/console.pages-parity-c.live.test.ts apps/app/tests/console.pages-parity-d.live.test.ts apps/app/tests/console.permissions.live.test.ts apps/app/tests/open-link.live.test.ts apps/app/tests/projects-shell.live.test.ts apps/app/tests/speed.producers.live.test.ts apps/app/tests/tab-switch.live.test.ts apps/app/tests/vault.add-save.live.test.ts scripts/shots/real-app.apps.live.test.ts test/chat-flows.journeys.live.test.ts test/crew.journey.live.test.ts test/crew.plain.journey.live.test.ts test/helper.rows.journey.live.test.ts test/outside-agents.browser.live.test.ts test/people-popover.live.test.ts test/person-profile.live.test.ts test/settings.journeys.live.test.ts test/work-flows.journeys.live.test.ts 2>&1 | tee walks.out
           # live-key tests nobody here has a key for are not counted as a pass, and not silent: they are run by hand at the cut (LANDING-RC22.md, Live-key tests)
           for T in test/helpers.real.live.test.ts test/room-pack.real.live.test.ts; do echo "run by hand at cut: $T (needs a live model key; not run here, not counted)"; done

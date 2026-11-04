@@ -205,3 +205,28 @@ export function dueText(at: number, z: Zones): string {
   const day = dateIn(at, z.viewer) !== dateIn(at, z.space) ? `${DAYS[partsIn(at, z.viewer).dow]} ` : "";
   return `${base} (${day}${clockIn(at, z.viewer)} your time)`;
 }
+
+/** The live example in a zone-change confirm: what this moment reads now, and what it will read: "Right now: Thu 5 Nov, 4:16 PM Pakistan Time. It will read Thu 5 Nov, 4:16 AM Pacific Time." */
+export function zoneExample(at: number, from: string, to: string): string {
+  const line = (zone: string): string => `${dateIn(at, zone)}, ${clockIn(at, zone)} ${zoneName(zone, at)}`;
+  return `${line(from)} now reads ${line(to)}.`;
+}
+
+/** The hover card's three lines: the full date, the time in the Space zone, and yours when it reads differently. Names, not abbreviations. */
+export function titleParts(at: number, z: Zones): { date: string; space: string; mine?: string } {
+  const p = partsIn(at, z.space);
+  const out: { date: string; space: string; mine?: string } = { date: `${DAYS[p.dow]} ${p.day} ${MONTHS[p.month - 1]} ${p.year}`, space: `${clockIn(at, z.space)} ${zoneName(z.space, at)}` };
+  if (offsetMinAt(at, z.space) !== offsetMinAt(at, z.viewer)) {
+    const q = partsIn(at, z.viewer);
+    out.mine = `${DAYS[q.dow]} ${q.day} ${MONTHS[q.month - 1]}, ${clockIn(at, z.viewer)} ${zoneName(z.viewer, at)}`;
+  }
+  return out;
+}
+
+/** A real-looking deadline for a zone-change confirm: a week from now at 4:16 PM in the old zone, and how that same moment reads in the new one. Nothing moves; only the reading does. */
+export function deadlineExample(now: number, from: string, to: string): { before: string; after: string } {
+  const week = localInput(now + 7 * DAY, from).slice(0, 10);
+  const at = instantOf(`${week}T16:16`, from) ?? now + 7 * DAY;
+  const line = (zone: string): string => `${dateIn(at, zone)}, ${clockIn(at, zone)} ${zoneName(zone, at)}`;
+  return { before: line(from), after: line(to) };
+}

@@ -12,6 +12,7 @@ import { injectCss } from "../../../../../../../ui/src/theme/css.ts";
 import { useProjectPageData } from "../data.tsx";
 import { dueWords, hiddenLine, kindOf, liveDescription, liveReady, liveTitle, metricLine, planStatus, stageWord, stateTone } from "./model.ts";
 import type { LiveOut, LiveRowOut, TypeName, View as LiveView } from "./model.ts";
+import { useZones } from "../../../../../../../ui/src/Time/index.tsx";
 
 export interface LiveAttrs { blockId: string | null; type: string; spec: unknown; view: string }
 export interface LiveApi { update(patch: { type?: string; spec?: unknown; view?: string }): void; remove(): void }
@@ -75,10 +76,11 @@ export function useOpenRow(): (r: LiveRowOut) => void {
 
 function TaskRows({ rows, now, open }: { rows: readonly LiveRowOut[]; now: number; open(r: LiveRowOut): void }): ReactElement {
   const d = useProjectPageData();
+  const zone = useZones().space;
   return (
     <View testID="live-list">
       {rows.map((r) => {
-        const due = dueWords(r.due, r.state, now);
+        const due = dueWords(r.due, r.state, now, zone);
         return (
           <Row key={r.id} id={`live-${r.id}`} title={r.title} leading={<View style={{ marginRight: 10 }}><StatusMark status={planStatus(r.state)} size={15} /></View>} onPress={() => open(r)}
             trailing={<View style={s.trail}>{due ? <Text style={[s.due, due.late && s.late]}>{due.text}</Text> : null}{r.who ? <Avatar name={d.nameOf(r.who)} kind={r.who.startsWith("agt_") ? "agent" : "person"} size={18} /> : null}</View>} />

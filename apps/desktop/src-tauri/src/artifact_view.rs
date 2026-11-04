@@ -92,7 +92,9 @@ pub fn artifact_view_show(window: Window, url: String, x: f64, y: f64, width: f6
     }
     let home = parsed.clone();
     // the page may stay on its own host (the code redirects to the artifact's clean address there) and nowhere else
-    let builder = WebviewBuilder::new(VIEW, WebviewUrl::External(parsed)).on_navigation(move |to| same_origin(to, &home));
+    let builder = WebviewBuilder::new(VIEW, WebviewUrl::External(parsed))
+        .on_navigation(move |to| { let ok = same_origin(to, &home); eprintln!("vyre-desktop: artifactview navigation {} -> {}", to.host_str().unwrap_or(""), if ok { "allowed" } else { "refused" }); ok })
+        .on_page_load(|_, p| eprintln!("vyre-desktop: artifactview page {:?} {}", p.event(), p.url().host_str().unwrap_or("")));
     window.add_child(builder, LogicalPosition::new(x, y), LogicalSize::new(width, height)).map_err(|e| e.to_string())?;
     *SHOWING.lock().map_err(|_| "The viewer is busy.".to_string())? = Some(url);
     Ok(())

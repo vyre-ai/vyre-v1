@@ -17,6 +17,8 @@ import { SettingRowFor, useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
 import { VoiceRows } from "./VoiceRows.tsx";
 import { Choice, Field, Glyph, Section, SettingsRow, SmallButton, Switch, Value, pointer } from "./ui.tsx";
+import { useZones } from "../../../../../ui/src/Time/index.tsx";
+import { zoneName, zoneCity } from "../../../../../lib/zones.ts";
 import { useOpenConnect } from "../../shell/connect/context.ts";
 import { statusNote, useSpaceAi } from "../../ai-signin/SpaceAiStatus.tsx";
 
@@ -50,12 +52,15 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
   }, [tz?.value]); // eslint-disable-line react-hooks/exhaustive-deps
   const c = (contact?.value ?? {}) as { email?: string; phone?: string };
   const here = data.spaces.find((sp) => sp.current);
+  const zones = useZones();
   const role = here?.kind === "personal" ? "" : here?.role ?? "";   // no role labels in a Personal Space
   const line = [str(handle) ? `@${str(handle)}` : "", role, str(title)].filter(Boolean).join(" · ");
   const before: ReactElement[] = [];
   for (const sec of sectionsFor("profile", rows)) {
     const items: ReactElement[] = [];
     sec.rows.forEach((r, i) => items.push(<SettingRowFor key={r.key} row={r} first={i === 0} found={found === r.key} />));
+    // the Space's own zone sits right under yours, plain text: where shared places read, and that yours follows beside it
+    if (sec.rows.some((r) => r.key === "profile.timezone") && here?.kind !== "personal") items.push(<SettingsRow key="space.timezone" id="space.timezone" label="Space time zone" sub={`${here?.name ?? "This Space"}'s shared places show times in ${zoneName(zones.space)}. Your time follows beside them.`} control={<Value text={`${zoneName(zones.space)}, ${zoneCity(zones.space)}`} testID="space-timezone-readonly" />} />);
     before.push(<Section key={sec.title} title={sec.title}>{items}</Section>);
   }
   const rowFor = (r: SettingRow | undefined, i: number, node: ReactElement, label: string, sub?: string): ReactElement | null =>

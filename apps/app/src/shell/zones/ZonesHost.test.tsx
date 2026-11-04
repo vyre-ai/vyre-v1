@@ -35,3 +35,16 @@ test("the host reads the Space zone and the person's, shows the time in both, an
   await flush();
   assert.equal(textOf(root).replace(/\s+/g, " ").trim(), "Tomorrow 10:00 PM", "the Space moved to the viewer's own zone: one reading");
 });
+
+test("a new schedule in Automations starts in the Space's zone; a schedule that has a zone keeps it", async () => {
+  const { usePersonZone } = await import("../../places/automations/canvas/TriggerForm.tsx");
+  const { scheduleOf } = await import("../../places/automations/canvas/schedule.ts");
+  installDom();
+  const seen: string[] = [];
+  const Probe = (): null => { seen.push(usePersonZone()); return null; };
+  const call = async (cap: string): Promise<unknown> => (cap === "spaces.get" ? { space: { timezone: "America/Los_Angeles" } } : { row: { key: "profile.timezone", value: "Asia/Karachi", source: "person" } });
+  await mount(createRoot, <ZonesHost rt={{ call } as unknown as ShellRuntime}><Probe /></ZonesHost>);
+  await flush();
+  assert.equal(seen.at(-1), "America/Los_Angeles", "the Space's zone, not the person's");
+  assert.equal(scheduleOf({ cron: "0 9 * * *", timezone: "Asia/Karachi", missed: "skip" }, "America/Los_Angeles").timezone, "Asia/Karachi", "a schedule already set keeps its zone: its moment does not move");
+});

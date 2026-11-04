@@ -3,11 +3,11 @@
 // The gate is makeAccess in memory/projections.ts (a person layer is read only where nobody else reads, a place's memory only against who may open it now) and, for the pointer, hidePersonal in handlers/facts.ts.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { recallFor } from "../../engine/recall.ts";
-import { pointer } from "../handlers/facts.ts";
-import { remember } from "../handlers/tools.ts";
-import { harness, openRaw, NOW } from "../fixtures/harness.ts";
-import type { TurnInput } from "../../../agent/src/turn-engine/types.ts";
+import { recallFor } from "../modules/engine/recall.ts";
+import { pointer } from "../modules/memory/handlers/facts.ts";
+import { remember } from "../modules/memory/handlers/tools.ts";
+import { harness, openRaw, NOW } from "../modules/memory/fixtures/harness.ts";
+import type { TurnInput } from "../agent/src/turn-engine/types.ts";
 
 const AGENT = "agt_intake", MAYA = "usr_maya", OMAR = "usr_omar";
 const person = (id: string) => ({ kind: "person", id });

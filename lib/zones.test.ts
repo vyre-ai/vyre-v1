@@ -60,7 +60,11 @@ test("the Space reading comes first and the viewer's beside it: 9:00 AM Pacific 
 test("a viewer in the Space's own zone, or on the same clock, sees no second reading", () => {
   const now = at("2026-11-04T15:00:00Z");
   assert.equal(whenIn(at("2026-11-04T17:00:00Z"), now, { space: PT, viewer: PT }).mine, undefined);
-  assert.equal(whenIn(at("2026-11-04T17:00:00Z"), now, { space: PT, viewer: "America/Vancouver" }).mine, undefined, "same offset, same clock");
+  assert.equal(whenIn(at("2026-11-04T17:00:00Z"), now, { space: PT, viewer: "US/Pacific" }).mine, undefined, "a link of the same zone: the same clock on every tzdata");
+  // built from the runtime itself, so it holds on any tzdata: a zone this runtime puts on the same offset as the Space's reads no second time
+  const same = zoneChoices(at("2026-11-04T17:00:00Z")).find((c) => c.zone !== PT && offsetMinAt(at("2026-11-04T17:00:00Z"), c.zone) === offsetMinAt(at("2026-11-04T17:00:00Z"), PT));
+  assert.ok(same, "the runtime lists a zone on the Pacific offset");
+  assert.equal(whenIn(at("2026-11-04T17:00:00Z"), now, { space: PT, viewer: same!.zone }).mine, undefined, `${same!.zone} has the Space's offset here`);
   assert.equal(whenIn(at("2026-11-04T17:00:00Z"), now, { space: PT, viewer: "America/Denver" }).mine, "10:00 AM");
 });
 

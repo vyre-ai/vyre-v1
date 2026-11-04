@@ -243,14 +243,20 @@ test("Space time zone: pick a city, read one line of what it changes, then save 
     assert.ok(row, "Los Angeles is in the list with the time there now");
     await p.press("menu-item-Pacific Time, Los Angeles, " + new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Los_Angeles" }).format(new Date()));
     assert.equal(p.called("spaces.timezone.set").length, 0, "choosing is not saving");
-    assert.match(p.text(), /Check-ins, due times and schedules will read in Pacific Time\. Deadlines already set keep their moment\./);
+    assert.match(p.text(), /Check-ins, due times and schedules will read in Pacific Time\./);
     await p.press("infra-space-timezone-cancel");
     assert.equal(p.called("spaces.timezone.set").length, 0);
     assert.doesNotMatch(p.text(), /will read in Pacific Time/);
     await p.press("infra-space-timezone");
     await p.press("menu-item-Pacific Time, Los Angeles, " + new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/Los_Angeles" }).format(new Date()));
+    assert.match(p.text(), /Deadlines already set keep their real moment: one set for \w{3} \d{1,2} \w{3}, 4:16 PM Pakistan[^.]* now reads \w{3} \d{1,2} \w{3}, \d:16 [AP]M Pacific Time\. Nothing moves\./, "a real deadline, before and after");
+    assert.match(p.text(), /Everyone's own time follows beside it\./);
     await p.press("infra-space-timezone-save");
     assert.deepEqual(p.called("spaces.timezone.set").at(-1)!.input, { timezone: "America/Los_Angeles" });
+    assert.match(p.text(), /Space time zone is now Pacific Time\./);
+    assert.match(p.text(), /Recorded in the audit log: changed by you, just now\./);
+    await p.press("infra-space-timezone-undo");
+    assert.deepEqual(p.called("spaces.timezone.set").at(-1)!.input, { timezone: "Asia/Karachi" }, "Undo puts the old zone back");
     assert.equal(p.called("spaces.update").length, 0, "the member default is not touched");
   } finally { p.restore(); }
 });
