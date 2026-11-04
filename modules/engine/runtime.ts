@@ -141,10 +141,11 @@ const awake = createKeepAwake();
 let host: EngineHostSeam | null = null;
 let building: Promise<TurnEngine | null> | null = null;
 let closeOpener: (() => Promise<void>) | null = null;
+let closeUnlockWatch: (() => void) | null = null;
 
 /** The module's seam: the daemon calls this at boot with the host half (null at shutdown). */
 export function setEngineHost(h: EngineHostSeam | null): void {
-  if (h === null) { void closePluginRuntime(); awake.stop(); }   // plugin servers end with the daemon, and so does holding the computer awake
+  if (h === null) { void closePluginRuntime(); awake.stop(); closeUnlockWatch?.(); closeUnlockWatch = null; }   // plugin servers end with the daemon, and so does holding the computer awake
   // At shutdown the engine processes end and MCP tokens are revoked, and then the default sandbox's wall (its egress proxy) stops: the proxy outlives nothing it served, and nothing keeps the daemon's process alive.
   if (h === null) {
     const done = (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve()).then(() => closeDefaultSandbox()).catch(() => undefined);
@@ -561,6 +562,13 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       ...(h.nodes?.devices ? { place: (thread: { id: string }) => (waitsForComputer(ctx.db, h.nodes, thread.id) ? "device" as const : "host" as const) } : {}),
     });
     running = engine;
+    // A turn parked because the person's Vault is locked runs once when this host holds their key (the Unlock a person presses lands here): one look at the keys every few seconds, no turn is started to find out.
+    if (h.keyHeld) {
+      const held = h.keyHeld;
+      const timer = setInterval(() => { for (const p of engine.parkedLocked()) if (held(p.asker)) engine.resumeLocked(p.asker); }, 5_000);
+      timer.unref?.();
+      closeUnlockWatch?.(); closeUnlockWatch = () => clearInterval(timer);
+    }
     // The reviewer seat: after a lead turn completes, the chat's reviewer is asked to check it.
     // Every turn this engine runs is reported to engine.turn.record under the engine's own id, in order per turn, so the turn list, review sampling and the agent's Working status see it.
     const recording = new Map<string, Promise<void>>();
