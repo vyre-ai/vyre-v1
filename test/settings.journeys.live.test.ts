@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { guardCrashes } from "../apps/app/tests/crash-guard.ts";
 import { SIZES, bootScreens, browserOrSkip, open, seat, setScheme, shoot } from "./support/mail-browser.ts";
 
 const OUT = "shots-evidence/settings";
@@ -42,6 +43,7 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
       const me = await seat(s, person, role);
       const dir = `${OUT}/${who}`;
       await me.page.setViewportSize({ width: 1440, height: 900 });   // the prototype's width, for side-by-side shots
+      const guard = guardCrashes(me.page);
       await stubGithub(me.page);
       gh.reconnect = false;
       await open(me, s, "/settings?skin=paper");   // Paper for the light pictures, Graphite for the dark ones
@@ -57,6 +59,7 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
         assert.ok(text.includes(p.sub), `${who}/${p.id}: the sentence under the title`);
         for (const b of BANNED) { const m = new RegExp(`(^|[^a-z])${b}([^a-z]|$)`, "i").exec(text); assert.ok(!m, `${who}/${p.id}: no "${b}" in: ...${m ? text.slice(Math.max(0, m.index - 60), m.index + 60) : ""}...`); }
         assert.ok(!/Couldn't load|Something went wrong|undefined|\[object/.test(text), `${who}/${p.id}: no error text`);
+        await guard.check(p.id);
         await shoot(me.page, dir, p.id);
         if (p.id === "github") {
           assert.ok(text.includes("maya-codes") && text.includes("northwind-law"), `${who}: the connected account and its orgs show`);
@@ -66,6 +69,7 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
           await me.page.getByTestId("page-github").waitFor();
           await me.page.waitForTimeout(800);
           assert.ok((await me.page.getByTestId("page-github").innerText()).includes("Reconnect once"), `${who}: the reconnect line shows`);
+          await guard.check("github-reconnect");
           await shoot(me.page, dir, "github-reconnect");
           gh.reconnect = false;
         }
@@ -82,6 +86,7 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
       const look = (await person.ok("settings.get", { key: "appearance.look" })).row.value as { rm: boolean };
       assert.equal(look.rm, true, `${who}: Reduce motion saved`);
       await setScheme(me.page, "dark");
+      await guard.check("appearance-after");
       await shoot(me.page, dir, "appearance-after");
       // the phone: every page, light and dark (the list is one screen and a page another, with a back arrow between them)
       await me.page.setViewportSize(SIZES.phone);
@@ -94,6 +99,7 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
         await me.page.waitForTimeout(800);
         const phoneText = (await me.page.getByTestId(`page-${p.id}`).innerText()).replace(/\s+/g, " ");
         assert.ok(phoneText.includes(p.sub), `${who}/${p.id}: the sentence on a phone`);
+        await guard.check(`phone-${p.id}`);
         await shoot(me.page, dir, `phone-${p.id}`).then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
         if (p.id === "github") {
           gh.reconnect = true;
@@ -102,11 +108,13 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
           await me.page.getByTestId("row-page-github").click();
           await me.page.getByTestId("page-github").waitFor();
           await me.page.waitForTimeout(800);
+          await guard.check("phone-github-reconnect");
           await shoot(me.page, dir, "phone-github-reconnect").then((files) => files.forEach((f) => fs.renameSync(f, f.replace("-desktop.png", "-phone.png"))));
           gh.reconnect = false;
         }
       }
       await me.page.setViewportSize({ width: 1440, height: 900 });
+      assert.deepEqual(guard.crashes(), [], `${who}: no crash logged`);
       assert.deepEqual(me.errors, [], `${who}: no page errors`);
     }
   } finally { await s.close(); }
