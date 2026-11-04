@@ -176,7 +176,7 @@ test("a refused post puts the text back in the field and says so", async () => {
   s.data.call = async (cap: string, input: unknown) => { if (cap === "records.comments.add") throw new Error("refused"); return call(cap, input); };
   await write(root, "comment-field-new", "Do not lose this");
   await send(root, "comment-field-new");
-  assert.ok(find(root, "comment-error-new"), "it says it could not post");
+  assert.match(textOf(find(root, "composer-send-error")), /Could not post\.\s*Try again/, "it says it could not post, with Try again");
   assert.equal(String((inField(root, "comment-field-new", "composer-field").props as { value?: string }).value), "Do not lose this");
 });
 
