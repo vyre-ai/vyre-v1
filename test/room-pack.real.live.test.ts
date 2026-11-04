@@ -11,6 +11,7 @@ const KEY = process.env["OPENCODE_API_KEY"];
 
 test("real model: time to first visible text in a seeded 300-message room, with and without the pack, and one real digest", { skip: !KEY && "OPENCODE_API_KEY is not set", timeout: 1_700_000 }, async () => {
   let phase = "pre-join";
+  const leaks: string[] = [];
   if (process.env["SPY"]) {
     const real = globalThis.fetch;
     let n = 0;
@@ -24,6 +25,7 @@ test("real model: time to first visible text in a seeded 300-message room, with 
       if (url.includes("chat/completions") && /(80|61)[, ]?000/.test(String(init?.body ?? ""))) {
         const body = String(init?.body ?? "");
         const hits = [...body.matchAll(/(80|61)[, ]?000/g)].slice(0, 4).map((m) => body.slice(Math.max(0, m.index! - 260), m.index! + 60).replace(/\\n/g, " / "));
+        if (phase === "post-join") leaks.push(hits[0] ?? "");
         console.log("OUT|LEAKSRC[" + phase + "] " + JSON.stringify(hits));
       }
       return real(input, init);
@@ -190,5 +192,9 @@ test("real model: time to first visible text in a seeded 300-message room, with 
       console.log(`OUT|TOOLS (transcript tail, ${md.length} chars): ${tail}`);
     }
     console.log(`OUT|WALK gained-a-person asker=maya: ${answer.slice(0, 400)}`);
+    if (process.env["SPY"]) {
+      assert.equal(leaks.length, 0, `a request after the join carried a figure said before it: ${leaks[0]?.slice(0, 300)}`);
+      assert.doesNotMatch(`${answerOmar} ${answer}`, /(80|61)[, ]?000/, "no answer carries a figure said before the join");
+    }
   } finally { delete process.env["VYRE_ROOM_PACK"]; await d.stop(); }
 });
