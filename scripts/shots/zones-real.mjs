@@ -142,9 +142,11 @@ try {
       if (skin === "paper" && size === "wide") {
         say(/9:00 AM \(\d{1,2}:\d{2} (AM|PM) your time\)/.test(text), `check-in reads ${JSON.stringify(text)}`);
         say(/\(10:00 PM your time\)/.test(text), "9:00 AM Pacific is 10:00 PM in Karachi (while Pacific is on winter time)");
-        const title = await page.locator("[title*='Pacific Time']").first().getAttribute("title").catch(() => null);
-        say(Boolean(title) && /Pacific Time/.test(title) && /Your time:/.test(title) && /Pakistan/.test(title), `hover names both zones: ${JSON.stringify(title)}`);
         await page.getByTestId("goal-checkin").hover();
+        await page.waitForTimeout(300);
+        const card = await page.getByTestId("time-pop-card").innerText().catch(() => "");
+        say(/Pacific Time/.test(card) && /Pakistan/.test(card), `hover card: ${JSON.stringify(card.replace(/\s+/g, " "))}`);
+        await page.getByTestId("goal-checkin").focus().catch(() => undefined);
       }
       await page.waitForTimeout(500);
     }
