@@ -8,6 +8,7 @@
 // to chat with the id the engine gave it as clientId), written only by the engine's own store, so the two cannot drift (a later edit is copied by the same consumer).
 // No echo: a message.received for a message the engine already holds, or one the bridge posted itself (id prefix BRIDGE_PREFIX), is never fed back to engine.receive.
 import { askedIn } from "../../../lib/asked.ts";
+import { handleOf } from "../../../lib/person-handle.ts";
 import { linksIn } from "../../../lib/grants.ts";
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
 import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.ts";
@@ -52,7 +53,7 @@ export async function withTeammates(call: (cap: string, input: unknown) => Promi
       const r = (await call("access.principals.list", { kind: "person", status: "active", q: a.target, limit: 20 })) as { principals?: Array<{ id?: string; name?: string }> } | null;
       for (const p of r?.principals ?? []) {
         const parts = String(p.name ?? "").toLowerCase().split(/\s+/).filter(Boolean);
-        if (typeof p.id === "string" && (parts.includes(a.target) || parts.join(" ") === a.target)) out.push({ act: "send", target: p.id });
+        if (typeof p.id === "string" && (parts.includes(a.target) || parts.join(" ") === a.target)) { out.push({ act: "send", target: p.id }); out.push({ act: "send", target: handleOf(String(p.name ?? ""), p.id) }); }
       }
     } catch { /* no directory here: the name alone stands */ }
   }

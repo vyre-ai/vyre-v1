@@ -222,12 +222,11 @@ export async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
     }
     const ch = await call<{ channel?: { channelId?: string; mainThreadId?: string } }>(ctx, "channels.create", {
       name: o.title, visibility: "invite", recordId, folderId, memberIds: ids.filter((i) => i.startsWith("usr_")), agentIds: ids.filter((i) => i.startsWith("agt_")),
+      // the first agent leads, so a plain message in the project's chat is answered (a channel's listeners wait to be named)
+      ...(ids.some((i) => i.startsWith("agt_")) ? { leadAgentId: ids.find((i) => i.startsWith("agt_")) } : {}),
     }, { idempotencyKey: `prj-channel:${o.key}` });
     channelId = ch.channel?.channelId;
     threadId = ch.channel?.mainThreadId;
-    // the first agent in it leads, so a plain message in the project's chat is answered (a channel's listeners wait to be named)
-    const lead1 = ids.find((i) => i.startsWith("agt_"));
-    if (lead1 && threadId) await tolerant(ctx, "engine.set_mode", { threadId, agentId: lead1, mode: "lead", idempotencyKey: `prj-lead:${o.key}` }, {});
     if (!channelId) raise(ctx, "internal.unexpected", "The project channel was not created.");
   }
 

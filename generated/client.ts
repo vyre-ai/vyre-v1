@@ -759,6 +759,7 @@ export function createClient(transport: Transport) {
       compact: call("engine.compact", 1),
       complete: call("engine.complete", 1),
       crew: {
+        chat_repo: call("engine.crew.chat_repo", 1),
         list: call("engine.crew.list", 1),
         merge: call("engine.crew.merge", 1),
         message: call("engine.crew.message", 1),

@@ -2546,6 +2546,12 @@
     },
     {
       "deferred": false,
+      "name": "engine_crew_chat_repo",
+      "summary": "The repository of a chat that has its own work folder for the crew, or nothing yet",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "engine_crew_repo_get",
       "summary": "The project's repository for the crew, or nothing when none is set",
       "toolset": "chats"
@@ -5577,7 +5583,7 @@
     {
       "deferred": true,
       "name": "message_person",
-      "summary": "Message a teammate for the person you work for, in their direct chat, signed as them (Agent); the reply comes back to this chat. Can carry an approval, review or key card. Waits for away and after hours unless urgent; 3 an hour",
+      "summary": "Message a teammate. An Assistant writes for its person in their direct chat, signed as them (Agent). Any other agent writes as itself in its own chat with them. Cards allowed; waits for away and after hours unless urgent; 3 an hour",
       "toolset": "chats"
     },
     {

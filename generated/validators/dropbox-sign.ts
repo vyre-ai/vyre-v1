@@ -5,34 +5,6 @@ import type { Check } from './core.ts';
 
 function c502_in(v: unknown, p: string, e: string[]): void {
 {
-const x2418 = v;
-const g2418 = typeOf(x2418);
-const b2418: string[] = []; lf(x2418, p, b2418, L0); if (b2418.length) e.push(...b2418);
-if (g2418 === "object") {
-if (g2418 === 'object') { const o2418 = x2418 as Record<string, unknown>;
-if (!("remoteId" in o2418)) e.push(p + "/remoteId" + ': required');
-if ("remoteId" in o2418) lf(o2418["remoteId"], p + "/remoteId", e, L1);
-}
-}
-}
-}
-
-function c502_out(v: unknown, p: string, e: string[]): void {
-{
-const x2419 = v;
-const g2419 = typeOf(x2419);
-const b2419: string[] = []; lf(x2419, p, b2419, L0); if (b2419.length) e.push(...b2419);
-if (g2419 === "object") {
-if (g2419 === 'object') { const o2419 = x2419 as Record<string, unknown>;
-if (!("cancelled" in o2419)) e.push(p + "/cancelled" + ': required');
-if ("cancelled" in o2419) lf(o2419["cancelled"], p + "/cancelled", e, L3);
-}
-}
-}
-}
-
-function c503_out(v: unknown, p: string, e: string[]): void {
-{
 const x2420 = v;
 const g2420 = typeOf(x2420);
 const b2420: string[] = []; lf(x2420, p, b2420, L0); if (b2420.length) e.push(...b2420);
@@ -45,15 +17,43 @@ if ("remoteId" in o2420) lf(o2420["remoteId"], p + "/remoteId", e, L1);
 }
 }
 
-function c504_in(v: unknown, p: string, e: string[]): void {
+function c502_out(v: unknown, p: string, e: string[]): void {
 {
 const x2421 = v;
 const g2421 = typeOf(x2421);
 const b2421: string[] = []; lf(x2421, p, b2421, L0); if (b2421.length) e.push(...b2421);
 if (g2421 === "object") {
 if (g2421 === 'object') { const o2421 = x2421 as Record<string, unknown>;
-if (!("remoteId" in o2421)) e.push(p + "/remoteId" + ': required');
-if ("remoteId" in o2421) lf(o2421["remoteId"], p + "/remoteId", e, L1);
+if (!("cancelled" in o2421)) e.push(p + "/cancelled" + ': required');
+if ("cancelled" in o2421) lf(o2421["cancelled"], p + "/cancelled", e, L3);
+}
+}
+}
+}
+
+function c503_out(v: unknown, p: string, e: string[]): void {
+{
+const x2422 = v;
+const g2422 = typeOf(x2422);
+const b2422: string[] = []; lf(x2422, p, b2422, L0); if (b2422.length) e.push(...b2422);
+if (g2422 === "object") {
+if (g2422 === 'object') { const o2422 = x2422 as Record<string, unknown>;
+if (!("remoteId" in o2422)) e.push(p + "/remoteId" + ': required');
+if ("remoteId" in o2422) lf(o2422["remoteId"], p + "/remoteId", e, L1);
+}
+}
+}
+}
+
+function c504_in(v: unknown, p: string, e: string[]): void {
+{
+const x2423 = v;
+const g2423 = typeOf(x2423);
+const b2423: string[] = []; lf(x2423, p, b2423, L0); if (b2423.length) e.push(...b2423);
+if (g2423 === "object") {
+if (g2423 === 'object') { const o2423 = x2423 as Record<string, unknown>;
+if (!("remoteId" in o2423)) e.push(p + "/remoteId" + ': required');
+if ("remoteId" in o2423) lf(o2423["remoteId"], p + "/remoteId", e, L1);
 }
 }
 }
@@ -61,13 +61,13 @@ if ("remoteId" in o2421) lf(o2421["remoteId"], p + "/remoteId", e, L1);
 
 function c504_out(v: unknown, p: string, e: string[]): void {
 {
-const x2422 = v;
-const g2422 = typeOf(x2422);
-const b2422: string[] = []; lf(x2422, p, b2422, L0); if (b2422.length) e.push(...b2422);
-if (g2422 === "object") {
-if (g2422 === 'object') { const o2422 = x2422 as Record<string, unknown>;
-if (!("fileId" in o2422)) e.push(p + "/fileId" + ': required');
-if ("fileId" in o2422) lf(o2422["fileId"], p + "/fileId", e, L37);
+const x2424 = v;
+const g2424 = typeOf(x2424);
+const b2424: string[] = []; lf(x2424, p, b2424, L0); if (b2424.length) e.push(...b2424);
+if (g2424 === "object") {
+if (g2424 === 'object') { const o2424 = x2424 as Record<string, unknown>;
+if (!("fileId" in o2424)) e.push(p + "/fileId" + ': required');
+if ("fileId" in o2424) lf(o2424["fileId"], p + "/fileId", e, L37);
 }
 }
 }
@@ -75,23 +75,23 @@ if ("fileId" in o2422) lf(o2422["fileId"], p + "/fileId", e, L37);
 
 function c505_in(v: unknown, p: string, e: string[]): void {
 {
-const x2423 = v;
-const g2423 = typeOf(x2423);
-const b2423: string[] = []; lf(x2423, p, b2423, L0); if (b2423.length) e.push(...b2423);
-if (g2423 === "object") {
+const x2425 = v;
+const g2425 = typeOf(x2425);
+const b2425: string[] = []; lf(x2425, p, b2425, L0); if (b2425.length) e.push(...b2425);
+if (g2425 === "object") {
 }
 }
 }
 
 function c506_in(v: unknown, p: string, e: string[]): void {
 {
-const x2424 = v;
-const g2424 = typeOf(x2424);
-const b2424: string[] = []; lf(x2424, p, b2424, L0); if (b2424.length) e.push(...b2424);
-if (g2424 === "object") {
-if (g2424 === 'object') { const o2424 = x2424 as Record<string, unknown>;
-if (!("remoteId" in o2424)) e.push(p + "/remoteId" + ': required');
-if ("remoteId" in o2424) lf(o2424["remoteId"], p + "/remoteId", e, L1);
+const x2426 = v;
+const g2426 = typeOf(x2426);
+const b2426: string[] = []; lf(x2426, p, b2426, L0); if (b2426.length) e.push(...b2426);
+if (g2426 === "object") {
+if (g2426 === 'object') { const o2426 = x2426 as Record<string, unknown>;
+if (!("remoteId" in o2426)) e.push(p + "/remoteId" + ': required');
+if ("remoteId" in o2426) lf(o2426["remoteId"], p + "/remoteId", e, L1);
 }
 }
 }
@@ -99,13 +99,13 @@ if ("remoteId" in o2424) lf(o2424["remoteId"], p + "/remoteId", e, L1);
 
 function c506_out(v: unknown, p: string, e: string[]): void {
 {
-const x2425 = v;
-const g2425 = typeOf(x2425);
-const b2425: string[] = []; lf(x2425, p, b2425, L0); if (b2425.length) e.push(...b2425);
-if (g2425 === "object") {
-if (g2425 === 'object') { const o2425 = x2425 as Record<string, unknown>;
-if (!("status" in o2425)) e.push(p + "/status" + ': required');
-if ("status" in o2425) lf(o2425["status"], p + "/status", e, L1);
+const x2427 = v;
+const g2427 = typeOf(x2427);
+const b2427: string[] = []; lf(x2427, p, b2427, L0); if (b2427.length) e.push(...b2427);
+if (g2427 === "object") {
+if (g2427 === 'object') { const o2427 = x2427 as Record<string, unknown>;
+if (!("status" in o2427)) e.push(p + "/status" + ': required');
+if ("status" in o2427) lf(o2427["status"], p + "/status", e, L1);
 }
 }
 }

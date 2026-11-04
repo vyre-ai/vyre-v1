@@ -5979,6 +5979,7 @@ export type ChannelsCreateIn = {
   topic?: string;
   memberIds?: Array<string>;
   agentIds?: Array<string>;
+  leadAgentId?: string;
   folderId?: string;
   recordId?: string;
   idempotencyKey: string;
@@ -6814,6 +6815,7 @@ export type ChatMessagePersonOut = {
   messageId?: string;
   dueAt?: number;
   when: string;
+  as: "person" | "self";
   taskId?: string;
   requestId?: string;
 };
@@ -6949,7 +6951,7 @@ export type ChatPeopleStatusIn = {
 };
 export type ChatPeopleStatusOut = {
   people: Array<{
-      personId: string;
+      handle: string;
       name: string;
       state: "online" | "away" | "offline" | "unknown";
       lastSeenAt?: number;
@@ -6961,6 +6963,7 @@ export type ChatPeopleStatusOut = {
       mutedUntil?: number;
       wouldGo: string;
     }>;
+  how: string;
 };
 export type ChatPinIn = {
   messageId: string;
@@ -10469,6 +10472,18 @@ export type EngineCompleteOut = {
   tokensIn: number;
   tokensOut: number;
 };
+export type EngineCrewChatRepoIn = {
+  threadId: string;
+};
+export type EngineCrewChatRepoOut = {
+  repo: {
+    projectId?: string;
+    threadId?: string;
+    path: string;
+    baseBranch: string;
+    branch: string;
+  } | null;
+};
 export type EngineCrewListIn = {
   threadId: string;
 };
@@ -10558,7 +10573,8 @@ export type EngineCrewRepoGetIn = {
 };
 export type EngineCrewRepoGetOut = {
   repo: {
-    projectId: string;
+    projectId?: string;
+    threadId?: string;
     path: string;
     baseBranch: string;
     branch: string;
@@ -10571,7 +10587,8 @@ export type EngineCrewRepoSetIn = {
 };
 export type EngineCrewRepoSetOut = {
   repo: {
-    projectId: string;
+    projectId?: string;
+    threadId?: string;
     path: string;
     baseBranch: string;
     branch: string;
@@ -41539,6 +41556,7 @@ export interface CapMap {
   "engine.accounts.list": { in: EngineAccountsListIn; out: EngineAccountsListOut };
   "engine.compact": { in: EngineCompactIn; out: EngineCompactOut };
   "engine.complete": { in: EngineCompleteIn; out: EngineCompleteOut };
+  "engine.crew.chat_repo": { in: EngineCrewChatRepoIn; out: EngineCrewChatRepoOut };
   "engine.crew.list": { in: EngineCrewListIn; out: EngineCrewListOut };
   "engine.crew.merge": { in: EngineCrewMergeIn; out: EngineCrewMergeOut };
   "engine.crew.message": { in: EngineCrewMessageIn; out: EngineCrewMessageOut };
