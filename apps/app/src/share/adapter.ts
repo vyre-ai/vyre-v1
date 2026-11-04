@@ -183,7 +183,7 @@ interface NoteLike { noteId: string; owner: string; share: NoteShare }
 export function noteAdapter(deps: AdapterDeps, noteId: string, me: string): ShareAdapter {
   const ref = { type: "note", id: noteId };
   let state: NoteLike | null = null;
-  const fetch = async (): Promise<NoteLike> => {
+  const readNote = async (): Promise<NoteLike> => {
     const out = (await deps.call("notes.get", { noteId })) as { note: NoteLike };
     state = out.note;
     return state;
@@ -191,7 +191,7 @@ export function noteAdapter(deps: AdapterDeps, noteId: string, me: string): Shar
   const adapter: ShareAdapter = {
     kind: "note", resource: ref, levels: [], hasAnyone: true,
     async list() {
-      const n = await fetch();
+      const n = await readNote();
       const isOwner = n.owner === me;
       (adapter as { levels: readonly LevelOption[] }).levels = isOwner ? LEVELS.note : [];
       return {
