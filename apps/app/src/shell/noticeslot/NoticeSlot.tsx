@@ -31,6 +31,7 @@ export function NoticeSlot({ store = shared, compact = false }: { store?: Notice
   const popover = open ? (
     <View testID="notice-popover" style={[st.popover, compact ? st.popoverCompact : null]} accessibilityRole="menu">
       {v.live.length === 0 ? <Text style={st.quiet}>Nothing needs you.</Text> : null}
+      {/* ui-rows-lint: not a list (notices, each a line with its own action button; nothing to hover or select) */}
       {v.live.map((n) => (
         <View key={n.id} testID={`notice-row-${n.id}`} style={st.row}>
           <ShellIcon name={n.kind === "locked" ? "lock" : n.kind === "offline" ? "cloudOff" : "bell"} size={13} color="var(--ink-3)" />
@@ -39,6 +40,7 @@ export function NoticeSlot({ store = shared, compact = false }: { store?: Notice
         </View>
       ))}
       {v.recent.length > 0 ? <Text style={st.head}>Recent</Text> : null}
+      {/* ui-rows-lint: not a list (the recent notices as plain lines of text) */}
       {v.recent.map((n) => <Text key={`r-${n.id}`} testID={`notice-recent-${n.id}`} style={st.recent} numberOfLines={1}>{n.text}</Text>)}
     </View>
   ) : null;

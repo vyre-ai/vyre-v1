@@ -42,6 +42,7 @@ export function ApprovalsSection(): ReactElement {
     <Section title="Approvals" testID="approvals">
       {rules.length === 0
         ? <SettingsRow id="approvals.none" label="Nothing is always allowed" first lead={<Glyph name="key" size={16} />} sub="When an agent asks, choose Always let, and the rule shows here" />
+        // ui-rows-lint: not a list (each line is a SettingsRow, which draws a ui/Row itself)
         : rules.map((r, i) => (
           <SettingsRow key={r.id} id={`approval.${r.id}`} label={approvalLine(r, data.name)} first={i === 0} lead={<Glyph name="key" size={16} />}
             control={<SmallButton label="Remove" testID={`approval-remove-${r.id}`} onPress={() => remove(r)} />} />

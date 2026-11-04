@@ -91,6 +91,7 @@ export function FacePicker({ name, value, taken, saveImage, onDone, testID = "fa
         <Text testID={`${testID}-name`} style={st.name}>{name || "New agent"}</Text>
         {hasExpressions(cur) ? (
           <View style={st.exprs}>
+            {/* ui-rows-lint: not a list (a row of expression buttons for the preview) */}
             {EXPRESSIONS.map((x) => (
               <Pressable key={x.key} accessibilityRole="button" accessibilityLabel={x.label} accessibilityState={{ selected: expr === x.key }} testID={`${testID}-expr-${x.key}`} onPress={() => setExpr(x.key)} style={({ hovered }: { hovered?: boolean }) => [st.expr, expr === x.key && st.exprOn, hovered === true && st.hover]}>
                 <Avatar name={x.label} seedId="face-picker" kind="agent" size={32} face={text} state={stateOf(x.key)} />
@@ -101,6 +102,7 @@ export function FacePicker({ name, value, taken, saveImage, onDone, testID = "fa
         ) : null}
       </View>
       <View accessibilityRole="tablist" style={st.tabs}>
+        {/* ui-rows-lint: not a list (the face family tabs) */}
         {FAMILIES.map((f) => (
           <Pressable key={f.key} accessibilityRole="tab" accessibilityState={{ selected: tab === f.key }} testID={`${testID}-tab-${f.key}`} onPress={() => setTab(f.key)} style={[st.tab, tab === f.key && st.tabOn]}>
             <Text style={[st.tabText, tab === f.key && st.tabTextOn]}>{f.label}</Text>
@@ -110,6 +112,7 @@ export function FacePicker({ name, value, taken, saveImage, onDone, testID = "fa
       {grid()}
       <View style={st.tints}>
         <View accessibilityRole="radiogroup" style={st.swatches}>
+          {/* ui-rows-lint: not a list (colour swatches) */}
           {TINTS.map((t, i) => (
             <Pressable key={t.name} accessibilityRole="radio" accessibilityLabel={t.name} accessibilityState={{ checked: cur.fam !== "img" && cur.fam !== "file" && tint === i }} testID={`${testID}-tint-${i}`} onPress={() => set(withTint(cur.fam === "img" || cur.fam === "file" ? shuffleFace("faces") : cur, i))} style={[st.swatch, { backgroundColor: t.hex as string }, cur.fam !== "img" && cur.fam !== "file" && tint === i && st.swatchOn]} />
           ))}
