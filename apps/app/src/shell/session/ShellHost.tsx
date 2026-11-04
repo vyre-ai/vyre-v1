@@ -1,4 +1,4 @@
-import{applyAppearance,restoreAppearance}from'../appearance.ts';
+import{lookApplier,restoreLook}from'../providers/settings-look.ts';
 import{sessionTheme}from'./space-theme.ts';
 import{sessionCatalogue}from'./space-catalog.ts';
 // The authenticated application shell. Kept behind SessionGate's lazy boundary so a signed-out
@@ -94,7 +94,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     return h;
   }, [given, catalogueKey, stored.def.spaceId, stored.personId]);
   const location = useHubState(hub);
-  const theme=useMemo(()=>{applyAppearance(restoreAppearance(activeStored.personId));return sessionTheme(activeStored);},[stored.personId,stored.def.spaceId,activeStored.def.skinDefault]);
+  const theme=useMemo(()=>{const th=sessionTheme(activeStored);lookApplier({me:{id:activeStored.personId},space:{id:activeStored.def.spaceId}} as never).apply(restoreLook(activeStored.personId));return th;},[stored.personId,stored.def.spaceId,activeStored.def.skinDefault]);
   const [failed, setFailed] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [searchOpen, setSearchOpen] = useState(initialSearchOpen);

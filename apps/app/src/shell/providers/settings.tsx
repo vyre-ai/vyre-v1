@@ -18,10 +18,10 @@ import { OLD_PAGES, PAGES } from "../../places/settings/model.ts";
 import type { PageKey } from "../../places/settings/model.ts";
 import { usePlaceHash } from "../hash/context.tsx";
 import { applySkinToWindow } from "./settings-skin.ts";
+import { lookApplier } from "./settings-look.ts";
 import { nameOf } from "./misc-common.ts";
 import { openAskPane } from "../ask/pane.ts";
 import { chooseProfilePhoto } from "./settings-photo.ts";
-import { appearanceAware } from "./settings-appearance.ts";
 import { loadSecurity } from "./settings-security.ts";
 import { adminTarget } from "./settings-admin.ts";
 import { useConsolePages } from "../reach/viewer.ts";
@@ -40,7 +40,7 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
     ...(consoleAllowed ? { openConsole: () => rt.open({ screen: "console.overview" }) } : {}),
     // Connect your company is its own Console page: the door is there only for a person who can open it (reach)
     ...(companyAllowed ? { openCompany: () => rt.open({ screen: "company.setup" }) } : {}),
-    screens: rt.screens, call: appearanceAware(rt.call, rt.me.id), me: { id: rt.me.id, name: rt.me.name, ...(rt.me.username ? { username: rt.me.username } : {}) }, space: { id: rt.space.id, name: rt.space.name },
+    screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name, ...(rt.me.username ? { username: rt.me.username } : {}) }, space: { id: rt.space.id, name: rt.space.name },
     spaces: rt.knownSpaces?.map(space=>({id:space.spaceId,name:space.name,addr:space.address,kind:space.kind,role:space.role,needsYou:space.needsYou?1:0,current:space.spaceId===rt.space.id}))??[{ id: rt.space.id, name: rt.space.name, addr: "", kind: rt.space.kind, role: "", needsYou: 0, current: true }],
     name: nameOf(rt),
     sessionImporter: rt.space.kind === "personal" ? desktopSessionImporter() : undefined,
@@ -59,10 +59,21 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
       openLink: (link) => rt.openUrl(link),
       choosePhoto: () => chooseProfilePhoto(rt),
       applySkin: (skinId) => void applySkinToWindow(rt, skinId),
+      applyLook: (look) => look_(rt).apply(look),
+      previewSkin: (id) => look_(rt).preview(id),
       ...(manageSecurity ? { manageSecurity } : {}),
     },
     clock: () => rt.clock(),
   };
+}
+
+const appliers = new Map<string, ReturnType<typeof lookApplier>>();
+/** One applier per person and Space, so a hover can end where it began. */
+function look_(rt: ShellRuntime): ReturnType<typeof lookApplier> {
+  const k = `${rt.me.id}/${rt.space.id}`;
+  let a = appliers.get(k);
+  if (!a) { a = lookApplier(rt); appliers.set(k, a); }
+  return a;
 }
 
 const isDesktopWindow = (): boolean => !!(globalThis as { __TAURI__?: unknown }).__TAURI__;

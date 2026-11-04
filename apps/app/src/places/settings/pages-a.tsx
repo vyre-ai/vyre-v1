@@ -117,8 +117,27 @@ function AssistantLook(): ReactElement {
 type KindsOut = CapMap["notifications.kinds.list"]["out"];
 const WORD: Readonly<Record<string, string>> = { from: "Someone", agent: "An agent", name: "Something", where: "a chat", device: "a device", service: "A service", space: "the Space", level: "more", title: "something", state: "down", reason: "a reason", decision: "decided", message: "an error" };
 /** A notification kind's title is the template of the notice; here it names the kind, so the blanks read as words, never as {{from}}. */
-export const kindLabel = (title: string): string => title.replace(/:\s*\{\{\w+\}\}$/, "").replace(/\{\{(\w+)\}\}/g, (_, w: string) => WORD[w] ?? "something");
+export const kindLabel = (title: string): string => title.replace(/^Replies in your threads$/, "Replies to you").replace(/:\s*\{\{\w+\}\}$/, "").replace(/\{\{(\w+)\}\}/g, (_, w: string) => WORD[w] ?? "something");
 type MutesOut = CapMap["notifications.mute.list"]["out"];
+
+export type Channel = "desktop" | "phone" | "email";
+export const CHANNELS: readonly { key: Channel; label: string }[] = [{ key: "desktop", label: "Desktop" }, { key: "phone", label: "Phone" }, { key: "email", label: "Email" }];
+/** "Desktop and email", "Desktop", "Badge only": where a kind reaches the person, in words. */
+export function channelWords(cs: readonly Channel[]): string {
+  const n = CHANNELS.filter((c) => cs.includes(c.key)).map((c) => c.label);
+  return n.length === 0 ? "Badge only" : n.length === 1 ? n[0]! : `${n.slice(0, -1).join(", ")} and ${n[n.length - 1]!.toLowerCase()}`;
+}
+/** The channels a plain level stands for, until the person has picked their own. */
+export const levelChannels = (level: string): Channel[] => (level === "interrupt" ? ["desktop", "phone"] : []);
+export const toggleChannel = (cs: readonly Channel[], c: Channel): Channel[] => (cs.includes(c) ? cs.filter((x) => x !== c) : CHANNELS.map((x) => x.key).filter((k) => k === c || cs.includes(k)));
+
+function Chip({ label, on, onPress, testID }: { label: string; on: boolean; onPress(): void; testID: string }): ReactElement {
+  return (
+    <Pressable accessibilityRole="button" aria-pressed={on} accessibilityLabel={label} testID={testID} onPress={onPress} style={[{ height: 28, paddingHorizontal: 10, borderRadius: 14, justifyContent: "center", borderWidth: 1, borderColor: (on ? "var(--accent)" : "var(--line)") as string, backgroundColor: (on ? "var(--accent-wash)" : "transparent") as string }, pointer]}>
+      <Text style={{ fontSize: 12.5, color: (on ? "var(--ink)" : "var(--ink-3)") as string }}>{label}</Text>
+    </Pressable>
+  );
+}
 
 export function NotificationsPage({ rows, found }: PageProps): ReactElement {
   const data = useSettingsData();
@@ -126,17 +145,24 @@ export function NotificationsPage({ rows, found }: PageProps): ReactElement {
   const kinds = useRead<KindsOut>("notifications.kinds.list");
   const mutes = useScreenQuery<MutesOut>(NOTIFICATIONS, "mutes", {});
   const [levels, setLevels] = useState<Record<string, string>>({});
-  const setLevel = (key: string, was: string, level: string): void => {
-    setLevels((cur) => ({ ...cur, [key]: level }));
-    void data.call("notifications.kind.set_level", { kind: key, level }).then(
-      () => saved.saved("Saved", async () => { setLevels((cur) => ({ ...cur, [key]: was })); await data.call("notifications.kind.set_level", { kind: key, level: was }); }),
-      (e: unknown) => { setLevels((cur) => ({ ...cur, [key]: was })); saved.failed(e instanceof Error ? e.message : "That did not save."); },
+  const [chans, setChans] = useState<Record<string, Channel[]>>({});
+  /** One press on a channel: the channels now carrying the kind, saved; Undo puts the old ones back. */
+  const toggle = (key: string, was: Channel[], c: Channel): void => {
+    const next = toggleChannel(was, c);
+    setChans((cur) => ({ ...cur, [key]: next }));
+    const send = (cs: Channel[]): Promise<unknown> => Promise.resolve(data.call("notifications.kind.set_level", { kind: key, channels: cs }));
+    void send(next).then(
+      () => saved.saved("Saved", async () => { setChans((cur) => ({ ...cur, [key]: was })); await send(was); }),
+      (e: unknown) => { setChans((cur) => ({ ...cur, [key]: was })); saved.failed(e instanceof Error ? e.message : "That did not save."); },
     );
   };
   const list: ReactElement[] = [];
   (kinds?.kinds ?? []).forEach((k, i) => {
-    const level = levels[k.key] ?? k.level;
-    list.push(<SettingsRow key={k.key} id={`kind.${k.key}`} label={kindLabel(k.title)} first={i === 0} help="Interrupt rings your desktop and phone. Badge only adds a dot. Digest waits for your next summary." control={<Choice value={level} options={LEVELS} label={k.title} testID={`kind-${k.key}`} onChange={(v) => setLevel(k.key, level, v)} />} />);
+    const now = chans[k.key] ?? (k.mine?.channels as Channel[] | undefined) ?? levelChannels(k.level);
+    list.push(
+      <SettingsRow key={k.key} id={`kind.${k.key}`} label={kindLabel(k.title)} first={i === 0} sub={channelWords(now)} help="Pick where it reaches you. With none picked it adds a dot only."
+        control={<View style={{ flexDirection: "row", gap: 6 }} testID={`kind-${k.key}`}>{CHANNELS.map((c) => <Chip key={c.key} label={c.label} on={now.includes(c.key)} testID={`kind-${k.key}-${c.key}`} onPress={() => toggle(k.key, now, c.key)} />)}</View>} />,
+    );
   });
   const muteRows: ReactElement[] = [];
   if (mutes.status === "ready") {
@@ -190,14 +216,14 @@ function AwayHand({ rows, found }: PageProps): ReactElement | null {
   const options: { value: string; label: string }[] = [{ value: "", label: "Nobody" }];
   for (const p of people?.principals ?? []) if (p.id !== data.me.id) options.push({ value: p.id, label: p.name });
   return (
-    <Section title="While you are away">
-      <SettingsRow id={row.key} label="Hand Needs you to" help={rowHelp(row)!} first found={found === row.key} control={<Choice value={typeof row.value === "string" ? row.value : ""} options={options} label="Hand Needs you to" testID="ctl-hand-to" onChange={(v) => void change(row, v === "" ? null : v)} />} />
+    <Section title="Away">
+      <SettingsRow id={row.key} label="While you're away, send Needs you to" help={rowHelp(row)!} first found={found === row.key} control={<Choice value={typeof row.value === "string" ? row.value : ""} options={options} label="While you're away, send Needs you to" testID="ctl-hand-to" onChange={(v) => void change(row, v === "" ? null : v)} />} />
     </Section>
   );
 }
 
 /** How each level reaches the person: interrupt rings the desktop and the phone, badge adds a dot only, digest waits for While you were away. A level the Space holds higher (approvals) refuses with its reason. */
-const LEVELS: readonly { value: string; label: string }[] = [{ value: "interrupt", label: "Interrupt" }, { value: "badge", label: "Badge only" }, { value: "digest", label: "Digest" }];
+const LEVELS: readonly { value: string; label: string }[] = [{ value: "interrupt", label: "Desktop and phone" }, { value: "badge", label: "Badge only" }, { value: "digest", label: "In my summary" }];
 
 // ---------------------------------------------------------------- AI
 
@@ -323,13 +349,13 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
     <>
       <Section>
         <SettingsRow id="model.default" label="Default model" sub={last?.model ? "Your last pick. A new chat starts on it" : "A new chat starts on the model you pick"} help={ROW_HELP["model.default"]!} first found={found === "model.default"} control={<Choice value={cur} options={options} label="Default model" testID="ctl-model-default" onChange={(v) => setDefault(v, "model")} />} />
-        <SettingsRow id="model.fallback" label="Fallback model" help={ROW_HELP["model.fallback"]!} found={found === "model.fallback"} control={<Choice value={fb} options={options} label="Fallback model" testID="ctl-model-fallback" onChange={(v) => setDefault(v, "fallback")} />} />
+        <SettingsRow id="model.fallback" label="Backup model" sub="Used when the default is busy" help={ROW_HELP["model.fallback"]!} found={found === "model.fallback"} control={<Choice value={fb} options={options} label="Backup model" testID="ctl-model-fallback" onChange={(v) => setDefault(v, "fallback")} />} />
       </Section>
       <RegistrySections page="ai" rows={rows} found={found} />
       {use.length > 0 ? <Section title="You and your agents this month" testID="usage">{use}</Section> : null}
-      <Section title="AI accounts">
+      <Section title="Your sign-ins" note="Each one is Working, or says why it is not. The model picker in a chat shows this same list.">
         {acc}
-        <SettingsRow id="open-vault" label="Sign-ins and keys" sub="Add an account, or let the Space use yours" lead={<Glyph name="key" size={15} />} first={acc.length === 0} onPress={() => data.nav.openVault()} control={<Glyph name="chevR" size={13} />} />
+        <SettingsRow id="open-vault" label="Keys and sign-ins" sub="Add, replace or remove them. Manage in Vault" lead={<Glyph name="key" size={15} />} first={acc.length === 0} onPress={() => data.nav.openVault()} control={<Glyph name="chevR" size={13} />} />
       </Section>
       <VoiceRows found={found} />
     </>
