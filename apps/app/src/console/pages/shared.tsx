@@ -10,6 +10,7 @@ import { States } from "../../../../../ui/src/States/index.tsx";
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import { useConsoleData } from "../shell/data.tsx";
 import { Lead, PageHelpContext, useInGroup } from "../shell/ui.tsx";
+import { detailsOf, detailsText, errorSentence } from "../../errors/details.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
 
@@ -51,7 +52,7 @@ export function useAction(refresh: () => void) {
     }
     inflight.current = true; setBusy(true); setNote("");
     try { const out = await call(cap, payload);const pending=pendingAction(out);if(pending){setNote(pending);return undefined;}const status=out as {status?:string;message?:string};if(status?.status==='failed'||status?.status==='error')throw new Error(status.message??'This action failed.'); setNote(typeof success === "function" ? await success(out as T) : success); retryKey.current=null;refresh(); return out as T; }
-    catch (e) { const error = e as { code?: string; traceId?: string; message?: string }; setNote(`${error.message ?? "Couldn’t complete this action"}${error.code ? ` (${error.code})` : ""}.${error.traceId ? ` Trace ${error.traceId}` : ""}`); return undefined; }
+    catch (e) { setNote(errorSentence(e)); return undefined; }
     finally { inflight.current = false; setBusy(false); }
   };
   return { note, busy, run };
@@ -88,10 +89,20 @@ export function Help({ children }: { children: string }): ReactElement | null {
   return moved ? null : <Info help={children} />;
 }
 export function Actions({ children }: { children: ReactNode }): ReactElement { return <View style={s.actions}>{children}</View>; }
-export function Note({ children }: { children: ReactNode }): ReactElement { return <Text accessibilityRole="status" style={s.note}>{children}</Text>; }
+/** A note under a form or list. When it is a failure sentence (errorSentence), a quiet Details shows its code and trace id with Copy; they are never part of the sentence. */
+export function Note({ children }: { children: ReactNode }): ReactElement {
+  const [open, setOpen] = useState(false);
+  const d = detailsOf(children);
+  return <View><Text accessibilityRole="status" style={s.note}>{children}</Text>
+    {d ? <View testID="note-details" style={{ marginTop: 2 }}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Details" accessibilityState={{ expanded: open }} testID="note-details-toggle" onPress={() => setOpen(!open)} style={{ alignSelf: "flex-start", paddingVertical: 2 }}><Text style={{ fontSize: 12, color: "var(--ink-3)" as string }}>{open ? "Hide details" : "Details"}</Text></Pressable>
+      {open ? <View style={{ flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}><Text testID="note-details-text" selectable style={{ fontSize: 11.5, color: "var(--ink-3)" as string, fontFamily: "var(--mono, monospace)" as string }}>{detailsText(d)}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Copy details" testID="note-details-copy" onPress={() => { void (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard?.writeText(detailsText(d)); }}><Text style={{ fontSize: 12, color: "var(--ink-2)" as string }}>Copy</Text></Pressable></View> : null}
+    </View> : null}</View>;
+}
 export function ReadState({ error, retry }: { error?: string | undefined; retry: () => void }): ReactElement { return error ? <States kind="error" message={error} retryable onRetry={retry} /> : <Text accessibilityRole="progressbar">Loading…</Text>; }
-export function Select({label,value,options,onChange,disabled=false,hint}:{label:string;value:string;options:readonly {key:string;title:string}[];onChange(value:string):void;disabled?:boolean;hint?:string}):ReactElement{
- const menu=useMenu();return <View style={s.field}><Text style={s.label}>{label}</Text><Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled} style={s.button} onPress={(event)=>{const rect=(event.currentTarget as unknown as {getBoundingClientRect?():{left:number;bottom:number}})?.getBoundingClientRect?.();menu.show(options.map((item)=>({label:item.title,checked:item.key===value,onSelect:()=>onChange(item.key)})),rect?.left??20,rect?.bottom??100,'other');}}><View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8}}><Text style={[s.buttonText,{flexShrink:1}]} numberOfLines={1}>{options.find((item)=>item.key===value)?.title??(value||'Choose…')}</Text><Glyph name="chevD" size={11} color="var(--ink-3)"/></View></Pressable>{hint ? <Text style={{ fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string }}>{hint}</Text> : null}{menu.element}</View>;
+export function Select({label,value,options,onChange,disabled=false,hint,testID}:{testID?:string;label:string;value:string;options:readonly {key:string;title:string}[];onChange(value:string):void;disabled?:boolean;hint?:string}):ReactElement{
+ const menu=useMenu();return <View style={s.field}><Text style={s.label}>{label}</Text><Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} disabled={disabled} style={s.button} onPress={(event)=>{const rect=(event.currentTarget as unknown as {getBoundingClientRect?():{left:number;bottom:number}})?.getBoundingClientRect?.();menu.show(options.map((item)=>({label:item.title,checked:item.key===value,onSelect:()=>onChange(item.key)})),rect?.left??20,rect?.bottom??100,'other');}}><View style={{flexDirection:"row",alignItems:"center",justifyContent:"space-between",gap:8}}><Text style={[s.buttonText,{flexShrink:1}]} numberOfLines={1}>{options.find((item)=>item.key===value)?.title??(value||'Choose…')}</Text><Glyph name="chevD" size={11} color="var(--ink-3)"/></View></Pressable>{hint ? <Text style={{ fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string }}>{hint}</Text> : null}{menu.element}</View>;
 }
 /** A whole number you nudge with - and +, with its explanation as a tooltip. */
 export function Stepper({ label, value, onChange, min = 1, max = 999, help }: { label: string; value: number; onChange: (value: number) => void; min?: number; max?: number; help?: string }): ReactElement {

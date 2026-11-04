@@ -247,7 +247,7 @@ function AddHook({ onClose, onSaved }: { onClose: () => void; onSaved: () => voi
       <Select label="When" value={event} options={EVENT_ORDER.map((k) => ({ key: k, title: EVENT_WORDS[k] ?? k }))} onChange={setEvent} />
       <Select label="Do this" value={kind} options={DO_THIS} onChange={(v) => setKind(v as HookKind)} />
       <Field label={WHAT_LABEL[kind]} value={what} onChange={setWhat} testID="hook-what" multiline={kind === "check"} />
-      {ACTION_EVENTS.has(event) ? <Select label="Only for" value={only} options={ACTION_CHOICES.map((c) => ({ key: c.key, title: c.title }))} onChange={setOnly} hint="Leave as Any action to run every time." /> : null}
+      {ACTION_EVENTS.has(event) ? <Select label="Only for" value={only} options={ACTION_CHOICES.map((c) => ({ key: c.key, title: c.title }))} onChange={setOnly} hint="Limits this hook to one type of action. Leave it on Any action to run for all." /> : null}
       <Stepper label="Stop after (seconds)" value={secs} onChange={setSecs} min={1} max={60} />
       {action.note ? <Note>{action.note}</Note> : null}
     </FormSheet>
