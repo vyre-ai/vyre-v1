@@ -149,7 +149,7 @@ test("for_channel finds a channel's project and says nothing for a channel witho
 
 const world = (h: Harness) => {
   const w = h.world.handlers;
-  w["github.pull_request.get"] = (i) => ({ pullRequest: { repo: i.repo, number: i.number, title: "Add the intake form", state: i.number === 12 ? "merged" : i.number === 13 ? "closed" : "open", draft: false, url: `https://github.com/${i.repo}/pull/${i.number}` } });
+  w["github.pull_request.get"] = (i) => (i.consumer !== "linked.prs" ? (() => { throw new Error("the PR read must name its consumer"); })() : { pullRequest: { repo: i.repo, number: i.number, title: "Add the intake form", state: i.number === 12 ? "merged" : i.number === 13 ? "closed" : "open", draft: false, url: `https://github.com/${i.repo}/pull/${i.number}` } });
   w["records.get"] = (i) => (i.recordId === "rec_inv" ? { record: { id: "rec_inv", type: "invoice", fields: { number: "INV-7", status: "sent", due: NOW - DAY } } } : i.recordId === "rec_paid" ? { record: { id: "rec_paid", type: "invoice", fields: { number: "INV-8", status: "paid", due: NOW - DAY } } } : h.world.records.has(i.recordId) ? { record: { id: i.recordId, type: "contact", fields: { name: "Ada" } } } : (() => { throw Object.assign(new Error("none"), { error: { code: "validation.not_found", message: "none" } }); })());
   w["files.get"] = (i) => ({ file: { fileId: i.fileId, name: "Letter.docx", updatedAt: NOW - 2 * DAY } });
   w["tasks.get"] = (i) => ({ task: { id: i.taskId, title: "Send the letter", state: "doing" } });

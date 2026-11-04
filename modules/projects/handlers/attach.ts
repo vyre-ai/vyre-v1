@@ -67,7 +67,7 @@ export const ADAPTERS: Readonly<Record<LinkKind, Port>> = {
   "github.pr": async (ctx, ref) => {
     const m = /^([^#]+)#(\d+)$/.exec(ref);
     if (!m) return undefined;
-    const got = await tolerant<{ pullRequest?: { title: string; state: string; url: string; draft?: boolean } }>(ctx, "github.pull_request.get", { repo: m[1], number: Number(m[2]) }, {});
+    const got = await tolerant<{ pullRequest?: { title: string; state: string; url: string; draft?: boolean } }>(ctx, "github.pull_request.get", { repo: m[1], number: Number(m[2]), consumer: "linked.prs" }, {});
     const pr = got.pullRequest;
     return pr ? { state: pr.draft === true && pr.state === "open" ? "Draft" : title(pr.state), label: pr.title, url: pr.url } : undefined;
   },
