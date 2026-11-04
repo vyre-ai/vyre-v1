@@ -12,3 +12,5 @@
 - Added people go in with one line after, for example "Docs and Sara were added". A guest is invited by email, a new chat agent belongs to the chat, and an outside agent is added to that chat only and can be taken out with the x on its row under Here now. A person who can only view can add viewers only.
 - On a project, a new agent made in the sheet becomes a teammate of that project. A teammate's role (Lead, Member, Reviewer) is chosen on its row.
 - The "Include earlier messages" switch stays hidden for now: nothing in the server gives a new member the earlier messages yet.
+- Whoever added an agent to a chat can change how and when it answers, and so can the chat's owner, anyone who manages the chat and the chat's lead agent. Anyone else is told who can: "Only Maya, the chat's owner or someone who manages this chat can change how Drafter answers."
+- Choosing "Only on topics" before any topic is typed no longer errors. It is kept as a draft, and the agent answers everything until the topics are written.

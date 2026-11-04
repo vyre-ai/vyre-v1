@@ -35,6 +35,29 @@ async function tellEngine(ctx: ChatCtx, threadId: string, agentId: string, mode:
 
 // ---- settings ---------------------------------------------------------------------------------------------------------------------------------------
 
+/**
+ * Who may change how one agent answers in this chat (owner rule, 4 Nov 2026): the person who added it, the chat's owner, anyone who manages the chat, and the chat's lead agent. An agent that is
+ * not the lead changes nothing unless it added the agent itself. Everyone else is told who can.
+ */
+async function mayAdjust(ctx: ChatCtx, t: ThreadRec, agentId: string): Promise<void> {
+  const row = (ctx.db.all("SELECT addedBy FROM chat_thread_agent WHERE thread = ? AND agentId = ? AND deleted_at IS NULL", t.id, agentId) as Row[])[0];
+  const adder = typeof row?.["addedBy"] === "string" ? (row["addedBy"] as string) : undefined;
+  const p = ctx.principal;
+  if (p.kind === "agent") {
+    if (p.id === adder || agentsOf(ctx.db, t.id).some((a) => a.agentId === p.id && a.mode === "lead")) return;
+  } else {
+    const me = askerOf(ctx);
+    if (me === adder) return;
+    const role = (ctx.db.all("SELECT role FROM chat_thread_member WHERE thread = ? AND principal = ? AND deleted_at IS NULL", t.id, me) as Row[])[0]?.["role"];
+    if (String(role) === "owner") return;
+    const host = ctx as ChatCtx & { authorize?: (action: { perm: string | null; level: string }, resource: { type: string; id: string | null }) => { effect?: string } };
+    const resource = t.channelId !== undefined ? { type: "channel", id: t.channelId } : { type: "thread", id: t.id };
+    if (typeof host.authorize === "function" && host.authorize({ perm: null, level: "manage" }, resource).effect === "allow") return;
+  }
+  const who = adder !== undefined && adder.startsWith("usr_") ? await nameOf(ctx, "person", adder) : "the person who added it";
+  raise(ctx, "permission.role_lacks_permission", `Only ${who}, the chat's owner or someone who manages this chat can change how ${await nameOf(ctx, "agent", agentId)} answers.`, { agentId });
+}
+
 export async function agentSettingsSet(ctx: ChatCtx, input: {
   threadId: string; agentId: string; mode?: SetMode; when?: "always" | "topics" | "hours"; topics?: string | null; hoursFrom?: string | null; hoursTo?: string | null; style?: "short" | "full";
 }) {
@@ -42,7 +65,7 @@ export async function agentSettingsSet(ctx: ChatCtx, input: {
   if (!input.agentId.startsWith("agt_")) raise(ctx, "validation.bad_input", "That is not an agent.", { agentId: input.agentId });
   const cur = agentsOf(ctx.db, t.id).find((a) => a.agentId === input.agentId);
   if (!cur) raise(ctx, "validation.not_found", "That agent is not in this chat.");
-  if (!agentMayChange(ctx, t)) raise(ctx, "permission.role_lacks_permission", "Only the lead agent of a chat changes how the others answer.");
+  await mayAdjust(ctx, t, input.agentId);
   if (input.mode !== undefined && input.mode !== "lead" && input.mode !== "listen" && input.mode !== "quiet") raise(ctx, "validation.bad_input", "An agent answers everything, answers when tagged, or listens.", { field: "mode" });
   if (input.when !== undefined && input.when !== "always" && input.when !== "topics" && input.when !== "hours") raise(ctx, "validation.bad_input", "When is always, topics or hours.", { field: "when" });
   if (input.style !== undefined && input.style !== "short" && input.style !== "full") raise(ctx, "validation.bad_input", "Style is short or full.", { field: "style" });
@@ -61,7 +84,7 @@ export async function agentSettingsSet(ctx: ChatCtx, input: {
   const from = clean("hoursFrom"), to = clean("hoursTo");
   const when = input.when ?? cur.when ?? "always";
   const nextTopics = topics === undefined ? cur.topics ?? null : topics;
-  if (when === "topics" && !nextTopics) raise(ctx, "validation.bad_input", "Say a few words the agent should answer about.", { field: "topics" });
+  // "Only on topics" with no words yet is a draft (a person is still typing): it is kept, and the agent answers as Always until the topics are filled (lib/route.ts mayAnswerUntagged)
   const nextFrom = from === undefined ? cur.hoursFrom ?? (when === "hours" ? "09:00" : null) : from;
   const nextTo = to === undefined ? cur.hoursTo ?? (when === "hours" ? "17:00" : null) : to;
   const style = input.style ?? cur.style ?? null;
