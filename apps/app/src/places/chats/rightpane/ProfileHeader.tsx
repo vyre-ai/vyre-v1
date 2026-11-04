@@ -41,6 +41,7 @@ export function ProfileHeader({ name, seedId, kind, presence, pulse = false, lin
       </View>
       {actions.length > 0 || onMore ? (
         <View testID="profile-actions" style={st.acts}>
+          {/* ui-rows-lint: not a list (the profile's action buttons in a row) */}
           {actions.map((a) => (
             <Act key={a.key} a={a} />
           ))}

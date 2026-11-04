@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { LeadIcon } from "./parts.tsx";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { ProfileHeader } from "./ProfileHeader.tsx";
 import type { HeaderAction, Presence } from "./ProfileHeader.tsx";
 import { cityOf, hoursWords, lastActive, localTime, personLine, presenceWord, responsibleFor } from "./person-model.ts";
@@ -77,6 +78,7 @@ export function PersonProfile(p: PersonProfileProps): ReactElement {
     <View testID={`profile-${p.id}`} style={st.root}>
       <ProfileHeader name={p.name} seedId={p.id} kind="person" {...(dot ? { presence: dot } : {})} line={personLine(p.title ?? pub?.title, state, time, first)} actions={actions} {...(more ? { onMore: more } : {})} testID="person-header" />
       <View style={st.tabs} accessibilityRole="tablist">
+        {/* ui-rows-lint: not a list (the profile's tabs) */}
         {PERSON_TABS.map((t) => (
           <Pressable key={t.key} role="tab" accessibilityRole="tab" aria-selected={tab === t.key} testID={`person-tab-${t.key}`} onPress={() => setTab(t.key)} style={st.tab}>
             <Text style={[st.tabText, tab === t.key && st.tabOn]}>{t.title}</Text>
@@ -121,7 +123,7 @@ function Chats(p: PersonProfileProps & { first: string }): ReactElement {
     <View testID="person-chats">
       {label(`Chats with ${p.first}`)}
       {rows === null ? null : rows.length === 0 ? <Text style={st.sub}>Nothing yet. Press Message to start one.</Text> : rows.map((t) => (
-        <Pressable key={t.threadId} role="button" testID={`person-chat-${t.threadId}`} onPress={() => p.openThread?.(t.threadId)} style={st.row}><LeadIcon name="chat" /><View style={st.rowText}><Text numberOfLines={1} style={st.v}>{t.title ?? t.preview ?? "Chat"}</Text></View></Pressable>
+        <Row key={t.threadId} id={`person-chat-${t.threadId}`} title={t.title ?? t.preview ?? "Chat"} leading={<LeadIcon name="chat" />} onPress={() => p.openThread?.(t.threadId)} />
       ))}
     </View>
   );
@@ -133,7 +135,7 @@ function Files(p: PersonProfileProps & { first: string }): ReactElement {
     <View testID="person-files">
       {label("Shared with you")}
       {rows === null ? null : rows.length === 0 ? <Text style={st.sub}>{p.first} has not shared a file with you.</Text> : rows.map((f) => (
-        <Pressable key={f.fileId} role="button" testID={`person-file-${f.fileId}`} onPress={() => p.openFile?.(f.fileId)} style={st.row}><LeadIcon name="file" /><View style={st.rowText}><Text numberOfLines={1} style={st.v}>{f.name}</Text></View></Pressable>
+        <Row key={f.fileId} id={`person-file-${f.fileId}`} title={f.name} leading={<LeadIcon name="file" />} onPress={() => p.openFile?.(f.fileId)} />
       ))}
     </View>
   );
@@ -145,7 +147,7 @@ function Tasks(p: PersonProfileProps & { first: string }): ReactElement {
     <View testID="person-tasks">
       {label(`Waiting on ${p.first}`)}
       {rows === null ? null : rows.length === 0 ? <Text style={st.sub}>Nothing is waiting on {p.first}.</Text> : rows.map((t) => (
-        <Pressable key={t.id} role="button" testID={`person-task-${t.id}`} onPress={() => p.openTask?.(t.id)} style={st.row}><LeadIcon name="check" /><View style={st.rowText}><Text numberOfLines={1} style={st.v}>{t.title}</Text></View></Pressable>
+        <Row key={t.id} id={`person-task-${t.id}`} title={t.title} leading={<LeadIcon name="check" />} onPress={() => p.openTask?.(t.id)} />
       ))}
     </View>
   );
