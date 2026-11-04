@@ -333,6 +333,14 @@ export default defineManifest({
       tool: 'chats', label: 'filter', mcpName: 'chat_search', agent: { planMode: 'allowed' }, rate: { n: 60, perSeconds: 60, scope: 'principal' },
     }),
     // ---- native blocks, plan mode
+    write('chat.title_make', 'Name a chat from its first real request: 2 to 5 plain words, on a cheap model of the account that ran the turn or from the request\'s own words, never from a greeting. Made again once if the first came from a thin request; never after a person renamed the chat', {
+      in: {
+        ...threadT,
+        account: t.opt(t.obj({ ref: t.str(), driver: t.str(), kind: t.opt(t.str()), payer: t.opt(t.str()), spaceKey: t.opt(t.bool()) }, { description: 'The account the turn ran on' })),
+      },
+      out: { made: t.bool(), title: t.opt(t.str()), why: t.opt(t.enm('renamed', 'not_a_chat', 'direct', 'small_talk', 'done', 'has_title')) },
+      on: ['thread', '/threadId'], level: 'use', emits: ['thread.updated'], errors: ['validation.not_found', 'permission.no_grant'],
+    }),
     write('chat.note_offer.make', 'Offer to save something from this chat as a note: a small card with a preview of the note, Save and Not now. At most once per topic and rarely; says offered false with a reason when the person has it off or it is too soon', {
       in: { ...threadT, title: t.str({ maxLength: 200 }), body: t.str({ maxLength: 4000 }), topic: t.str({ description: 'What it is about, in a few words; the same topic is offered once in a chat' }), messageId: t.opt(id.message) },
       out: { offered: t.bool(), why: t.opt(t.enm('off', 'already_offered', 'too_soon', 'declined_recently')), blockId: t.opt(id.block), messageId: t.opt(id.message) },

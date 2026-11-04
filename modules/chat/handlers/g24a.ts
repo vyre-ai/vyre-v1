@@ -8,6 +8,7 @@ import type { ChatCtx, Mode, ThreadKind, ThreadRec } from "../projections.ts";
 import { canSpeak, mayGovernChannel, rootOf } from "./post.ts";
 import { applyMode } from "./modes.ts";
 import { followMode, placeOf } from "./follow.ts";
+import { markRenamed } from "./title-state.ts";
 
 type Row = Record<string, unknown>;
 const MAX_AGENTS = 20;
@@ -166,6 +167,7 @@ export async function update(ctx: ChatCtx, input: { threadId: string; title: str
   if (t.kind === "channel") raise(ctx, "validation.bad_input", "A channel keeps its own name.");
   if (title === t.title) return out(ctx, t.id);
   touch(ctx, t.id, "title = ?", title);
+  markRenamed(ctx, t.id);
   ctx.emit("thread.updated", t.id, { threadId: t.id, fields: ["title"] });
   return out(ctx, t.id);
 }

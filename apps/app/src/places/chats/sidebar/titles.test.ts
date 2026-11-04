@@ -1,29 +1,37 @@
-// What an untitled chat is called: who and the day, this device's first line when it has one, and any title given on purpose first.
+// A chat's one name in the list: the title the server made or a person gave, else who is in it. No first line of a message and no date stand in for it (lib/chat-name.ts has the rule, rowOf applies it).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { defaultTitle, displayTitle, firstLine, rememberFirstLine } from "./titles.ts";
+import { displayTitle } from "./titles.ts";
+import { rowOf } from "./model.ts";
 
-const mem = new Map<string, string>();
-(globalThis as unknown as { localStorage: unknown }).localStorage = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => void mem.set(k, v) };
-const OCT31 = Date.UTC(2026, 9, 31, 12);
+const item = (over: Record<string, unknown>) => ({ threadId: "thr_1", kind: "chat", title: "", agents: [], unread: 0, working: false, starred: false, lastAt: 1, ...over }) as never;
+const agentName = (id: string): string => ({ agt_dex: "Dex", agt_mira: "Mira" }[id] ?? id);
+const personName = (id: string): string => ({ usr_aliza: "Aliza", usr_omar: "Omar" }[id] ?? id);
 
-test("the default title is who and the day, in the person's own offset", () => {
-  assert.equal(defaultTitle("Mailer", OCT31, 0), "Mailer · Oct 31");
-  assert.equal(defaultTitle("Mailer", Date.UTC(2026, 9, 31, 23), 300), "Mailer · Nov 1");
+test("one name in the list: a direct message is the person, a chat with no real title shows who is in it, a real title wins", () => {
+  assert.equal(displayTitle(rowOf(item({ title: "Heyy", people: ["usr_aliza"] }), agentName, personName)), "Aliza");
+  assert.equal(displayTitle(rowOf(item({ title: "", agents: ["agt_dex"] }), agentName, personName)), "Dex");
+  assert.equal(displayTitle(rowOf(item({ title: "New chat", agents: ["agt_dex"], people: ["usr_aliza"] }), agentName, personName)), "Dex and Aliza");
+  assert.equal(displayTitle(rowOf(item({ title: "GHL onboarding goal", agents: ["agt_dex"] }), agentName, personName)), "GHL onboarding goal");
 });
 
-test("a first line drops mentions and markup, is cut at a word, and is null when nothing is readable", () => {
-  assert.equal(firstLine("@Mailer **draft** the welcome email.\nthen send it"), "draft the welcome email");
-  assert.equal(firstLine("x".repeat(30) + " " + "y".repeat(40)), `${"x".repeat(30)}…`);
-  assert.equal(firstLine("@Mailer"), null);
-});
+import { titleOf } from "../conversation/model.ts";
 
-test("an untitled chat shows this device's first line, else who and the day; a given title always wins", () => {
-  const row = { threadId: "thr_1", title: "New chat", who: "Mailer", lastAt: OCT31 };
-  assert.equal(displayTitle(row, 0), "Mailer · Oct 31");
-  rememberFirstLine("thr_1", "Draft the welcome email for the new clients");
-  assert.equal(displayTitle(row, 0), "Draft the welcome email for the new clients");
-  rememberFirstLine("thr_1", "A later message does not rename it");
-  assert.equal(displayTitle(row, 0), "Draft the welcome email for the new clients");
-  assert.equal(displayTitle({ ...row, title: "Onboarding" }, 0), "Onboarding");
+test("the sidebar and the header agree on every kind of chat, and renaming changes both", () => {
+  const nameOf = (id: string): string => agentName(id.startsWith("usr_") ? personName(id) : id).replace("usr_", "");
+  const cases = [
+    { title: "Heyy", agents: [] as string[], people: ["usr_aliza"] },
+    { title: "", agents: ["agt_dex"], people: [] as string[] },
+    { title: "", agents: ["agt_dex"], people: ["usr_aliza"] },
+    { title: "GHL onboarding goal", agents: ["agt_dex"], people: ["usr_aliza"] },
+  ];
+  for (const c of cases) {
+    const row = rowOf(item({ title: c.title, agents: c.agents, people: c.people }), agentName, personName);
+    const thread = { threadId: "thr_1", kind: "chat", title: c.title, agents: c.agents.map((agentId) => ({ agentId, mode: "lead" })), members: [{ kind: "person", id: "usr_me" }, ...c.people.map((id) => ({ kind: "person", id }))] } as never;
+    assert.equal(titleOf(thread, (id) => (id.startsWith("agt_") ? agentName(id) : personName(id)), "usr_me"), displayTitle(row), JSON.stringify(c));
+  }
+  void nameOf;
+  // a rename is a title: both show it, except in a direct message, which is always the person
+  const renamed = rowOf(item({ title: "Sara notes", agents: ["agt_dex"], people: ["usr_aliza"] }), agentName, personName);
+  assert.equal(displayTitle(renamed), "Sara notes");
 });

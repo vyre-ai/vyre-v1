@@ -1,7 +1,7 @@
 // The goals capabilities. Who may do what is decided here (a goal is not a kernel resource yet): see projections.ts canSee, mustControl, isOwnerPress, isLead.
 import {
   ENDED, LIVE, activity, addTask, allGoals, clean, dispatch, emit, ensure, getGoal, goalOfTask, goalOut, isAdmin, isHelper, isLead, isOwner, isOwnerPress, isSystem, lineOut, note,
-  money, mustControl, newGoalId, nextCheckin, openWake, progressOf, queueWake, raise, reached, readings, reasonWords, saveGoal, setStatus, visible, wakeById, when,
+  money, mustControl, newGoalId, nextCheckin, openWake, progressOf, offsetAt, queueWake, raise, reached, readings, reasonWords, saveGoal, setStatus, visible, wakeById, when,
 } from "../projections.ts";
 import type { Finish, Goal, GoalsCtx, Permission, Retro, Who } from "../projections.ts";
 import {
@@ -9,11 +9,27 @@ import {
 } from "./life.ts";
 import type { PlanChild, Seat } from "./life.ts";
 import { sourceWords } from "../sources.ts";
+import { whoToken } from "../../../lib/words/time.ts";
+import { expandWords, whoIn } from "../../../lib/words/activity.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
 const me = (ctx: GoalsCtx): string => ctx.actingFor ?? ctx.principal.id;
 const out = (ctx: GoalsCtx, g: Goal) => ({ goal: goalOut(g, taskCounts(ctx, g.id)) });
+/** The activity as an agent or an older app reads it: the tokens filled in, times in the goal's zone, names from the directory. `tpl` keeps the sentence with its tokens so an app can fill them in for its own reader. */
+async function worded(ctx: GoalsCtx, g: Goal, rows: ReturnType<typeof activity>) {
+  const names = new Map<string, string>();
+  for (const id of new Set(rows.flatMap((r) => whoIn(r.text)))) {
+    const kind = id.startsWith("agt_") ? "agent" : "person";
+    const n = (await tryCall<{ principal?: { name?: unknown } }>(ctx, "access.principals.get", { principal: { kind, id } }))?.principal?.name;
+    names.set(id, typeof n === "string" && n !== "" && n !== id ? n : kind === "agent" ? "An agent" : "Someone");
+  }
+  return rows.map((r) => {
+    const text = expandWords(r.text, { me: me(ctx), nameOf: (id) => names.get(id) ?? "Someone", offsetMin: offsetAt(r.at, g.zone) / 60_000 });
+    return text === r.text ? r : { ...r, text, tpl: r.text };
+  });
+}
 const QUIET = { from: "22:00", to: "08:00" };
+const FIELD_WORDS: Record<string, string> = { title: "title", outcome: "outcome", finish: "finish line", deadline: "deadline", rhythm: "check-in rhythm", zone: "time zone", helpers: "helpers", recordIds: "linked records", stuckAfter: "stuck limit", quiet: "quiet hours", projectId: "project", budget: "budget", permissions: "permissions" };
 
 function checkFinish(ctx: GoalsCtx, f: Finish): void {
   if (f.kind === "number") {
@@ -72,7 +88,9 @@ export async function create(ctx: GoalsCtx, input: In) {
   const seated: Seat[] = [];
   await ensureThread(ctx, g, seated);
   emit(ctx, g, "goal.created", { title: g.title, owner: g.owner, leadAgentId: g.leadAgentId, status: g.status });
-  note(ctx, g.id, "created", `Made by ${ctx.principal.kind === "agent" ? "an agent for the owner" : "the owner"}. Finish line: ${g.finish.line}.`);
+  note(ctx, g.id, "created", ctx.principal.kind === "agent" && ctx.principal.id !== owner
+    ? `${whoToken(ctx.principal.id)} ${isOwner(ctx, g) && input.start !== false ? "made" : "drafted"} this goal for ${whoToken(owner)}.`
+    : `${whoToken(owner)} made this goal.`);
   const found = overlaps(ctx, g);
   for (const o of found) note(ctx, g.id, "overlap", `Shares a record with the goal "${o.title}": work on it goes through tasks, one at a time.`, o.goalId);
   // the owner (in the app, or an outside agent under their setup grant) starts it at once; an agent's draft waits for the owner's press on its card
@@ -118,7 +136,7 @@ export async function get(ctx: GoalsCtx, input: In) {
     const got = (await tryCall<{ task?: { id: string; key?: string; title: string; state: string; assigned?: Who; blocked?: boolean } }>(ctx, "tasks.get", { taskId: t.taskId }))?.task;
     tasks.push(clean({ taskId: t.taskId, key: got?.key ?? t.key, title: got?.title ?? t.title, state: got?.state ?? t.state, assigned: got?.assigned, blocked: got?.blocked === true }));
   }
-  return { ...out(ctx, g), tasks, waiting: waits(ctx, g.id), activity: activity(ctx.db, g.id, 30), readings: readings(ctx.db, g.id) };
+  return { ...out(ctx, g), tasks, waiting: waits(ctx, g.id), activity: await worded(ctx, g, activity(ctx.db, g.id, 30)), readings: readings(ctx.db, g.id) };
 }
 
 export async function list(ctx: GoalsCtx, input: In) {
@@ -141,7 +159,7 @@ export async function list(ctx: GoalsCtx, input: In) {
 
 export async function activityList(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
-  return { activity: activity(ctx.db, g.id, input.limit ?? 50, input.before) };
+  return { activity: await worded(ctx, g, activity(ctx.db, g.id, input.limit ?? 50, input.before)) };
 }
 
 export async function update(ctx: GoalsCtx, input: In) {
@@ -171,7 +189,7 @@ export async function update(ctx: GoalsCtx, input: In) {
   let seated: Seat[] | undefined;
   if (input.helpers) { seated = await seat(ctx, g); await shareFolder(ctx, g); }
   emit(ctx, g, "goal.updated", { fields, by: ctx.principal.id });
-  note(ctx, g.id, "edit", `Changed ${fields.join(", ")}.`);
+  note(ctx, g.id, "edit", `Changed the ${fields.map((f) => FIELD_WORDS[f] ?? f).join(", ")}.`);
   if (input.finish && LIVE.has(g.status)) { delete g.startValue; await readNow(ctx, g, "edit"); }
   if (input.permissions) await syncGrants(ctx, g, { press: pressGrants });
   // a raised budget lets a goal the budget paused go on

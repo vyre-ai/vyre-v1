@@ -5732,6 +5732,25 @@ const routes1: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/chat/title_make",
+    "cap": "chat.title_make",
+    "v": 1,
+    "module": "chat",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "thread",
+      "id": "/threadId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/chat/transcript/append",
     "cap": "chat.transcript.append",
     "v": 1,
@@ -11050,7 +11069,10 @@ const routes1: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/engine/stop_all",
@@ -11069,10 +11091,7 @@ const routes1: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes2: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/engine/subscription_share/set",
@@ -16617,7 +16636,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/governance/retention/get",
@@ -16635,10 +16657,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": true,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/governance/retention/reset",
@@ -22086,7 +22105,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/memory/profile/get",
@@ -22104,10 +22126,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/memory/profile/move",
@@ -27599,7 +27618,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/records/get",
@@ -27618,10 +27640,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/records/history",
@@ -33111,7 +33130,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sync_types/undo_push",
@@ -33129,10 +33151,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "send"
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sync_types/update",

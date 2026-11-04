@@ -1,6 +1,6 @@
 // Audit log model: the six event classes, the text of a row, and the state a filter writes into the screen query (generated/screens.ts audit.log: /state/class, /state/query, /state/traceId).
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { actionPhrase } from "../../shell/format.ts";
+import { actionSentence } from "../../../../../../lib/words/index.ts";
 
 export type AuditRow = CapMap["audit.list"]["out"]["rows"][number];
 export type AuditClass = AuditRow["class"];
@@ -36,10 +36,13 @@ export function isFiltered(f: AuditFilter): boolean {
   return f.query.trim() !== "" || f.cls !== null || f.traceId !== null;
 }
 
-/** "Priya Raman changed role Omar, for Andrey": the actor, the act, what it touched, and on whose behalf. */
+/** "Priya Raman assigned a role to Omar Haddad, for Andrey": who did what to which thing, and on whose behalf (lib/words). An id the directory has no name for is left out, not read out. */
 export function rowTitle(r: AuditRow, name: (id: string) => string): string {
-  const behalf = r.onBehalfOf ? `, for ${name(r.onBehalfOf.id)}` : "";
-  return `${name(r.actor.id)} ${actionPhrase(r.action)}${r.resource ? ` ${name(r.resource.id)}` : ""}${behalf}`;
+  const thing = r.resource ? name(r.resource.id) : "";
+  return actionSentence({
+    who: name(r.actor.id), action: r.action, thing: thing !== "" && thing !== r.resource?.id && !/^[a-z]{2,6}_[a-z0-9]{6,}$/i.test(thing) ? thing : undefined,
+    forWho: r.onBehalfOf ? name(r.onBehalfOf.id) : undefined,
+  });
 }
 
 /** The value of a before or after snapshot as readable lines; secret values are never in the log (CONSOLE-SPEC 1). */

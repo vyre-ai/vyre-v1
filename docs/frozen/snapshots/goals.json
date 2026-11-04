@@ -1,7 +1,7 @@
 {
   "module": "goals",
   "capabilities": {
-    "goals.activity@1": "71a83895b3e80ed0fa91f7e2d365a649533bfcc20434b7680daedffdb1523657",
+    "goals.activity@1": "2c6c25b286fee0102bc88335e76541428b4d61ba87ce0bad4e9d42d18d2beb5d",
     "goals.ask@1": "1bfda0f0d03a7c61f7074bd89be5f8aa71ed9d86507b9bcdbf64bb5cf9e09a18",
     "goals.brief@1": "277cb78316c9c57bbe77b8d34007b3078231ea70f4aad66d11811b98a4cef104",
     "goals.checklist.tick@1": "60ddc616c3a83f65255c668c1f9cb70c30fd0292148e1dd4198ba519e5ccfcaa",
@@ -11,7 +11,7 @@
     "goals.extend@1": "5465dcd0ee34365e9e985246abbae7380ccdc1fcaf281b2cc2da6c422bb508be",
     "goals.finish@1": "e8e5f51130459346f1ff79c9397e77153e8a2ec63a2d63fe8823027a3c902c48",
     "goals.folder@1": "199d5b478cf98f51da257bd3efd3f88ca52e00a802007360b4119469aeb641b9",
-    "goals.get@1": "a2ea3c8fa49d33582519f471ada3f0cde96a965d5533e3b1c3a5c209d7c44414",
+    "goals.get@1": "f30878b4c5141f3fe2c465242441c9612165d458d4fe68960a0e1a10d95f2717",
     "goals.go@1": "71f213bd864ff6d517af6f652f3d864a0f3a4015f3044384522a084792f1254b",
     "goals.list@1": "7b2b15cbfa08687b3d0f79ed1e36944f8885ccecb722bcd049df6cdd78dc86f4",
     "goals.mark_stuck@1": "265804a14ce615fe1db4edac981085401f9c49ec3e78a0db65cec0d690dc80fb",

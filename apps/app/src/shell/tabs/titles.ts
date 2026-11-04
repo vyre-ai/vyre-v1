@@ -1,7 +1,12 @@
 // A tab opened on an item (an automation, a record, a file, a chat, a task) is named for the item, not for its place: "Weekly digest", "Elena Rivera". The place's own name stays until the
 // item's name arrives; a subject this does not know keeps the place's name. Opening the same item again finds its tab by key (tabKey = place + hash), so tabs are one per item.
+import { chatName, hasRealTitle } from "../../../../../lib/chat-name.ts";
 
-interface Ask { cap: string; input: Record<string, unknown>; name(out: unknown): string | null }
+export interface Ask {
+  cap: string; input: Record<string, unknown>; name(out: unknown): string | null;
+  /** A name that needs more reads than the item's own (who is in a chat): asked after `name`, and replaces it when it answers. */
+  resolve?(out: unknown, call: (cap: string, input: unknown) => Promise<unknown>, meId: string): Promise<string | null>;
+}
 
 const obj = (v: unknown): Record<string, unknown> | null => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 const text = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v.trim() : null);
@@ -28,7 +33,7 @@ export function titleAsk(subject: { type: string; id: string }, args: Readonly<R
     case "task": return { cap: "tasks.get", input: { taskId: id }, name: (o) => at(o, "task", "title") };
     case "goal": return { cap: "goals.get", input: { goalId: id }, name: (o) => at(o, "goal", "title") };
     case "run": return { cap: "runs.get", input: { runId: id }, name: (o) => at(o, "run", "name") };
-    case "chat": case "thread": return { cap: "threads.get", input: { threadId: id }, name: (o) => at(o, "thread", "title") ?? "New chat" };
+    case "chat": case "thread": return { cap: "threads.get", input: { threadId: id }, name: (o) => { const t = at(o, "thread", "title"); return hasRealTitle(t) ? t : "New chat"; }, resolve: chatTabName };
     default: return null;
   }
 }
@@ -45,4 +50,22 @@ export function typeTitleAsk(place: string, args: Readonly<Record<string, unknow
       return text(t?.["plural"]) ?? text(t?.["title"]);
     },
   };
+}
+
+
+/** The tab of a chat carries the chat's one name (lib/chat-name.ts), the same as the list and the header: a direct message is the person, else the title, else who is in it. */
+async function chatTabName(out: unknown, call: (cap: string, input: unknown) => Promise<unknown>, meId: string): Promise<string | null> {
+  const t = obj(obj(out)?.["thread"]);
+  if (!t) return null;
+  const agents = (Array.isArray(t["agents"]) ? t["agents"] : []).map((a) => text(obj(a)?.["agentId"])).filter((x): x is string => x !== null);
+  const people = [...new Set((Array.isArray(t["members"]) ? t["members"] : []).map(obj).filter((m) => m !== null && m["kind"] === "person" && m["id"] !== meId).map((m) => String(m!["id"])))];
+  const title = text(t["title"]);
+  // a real title on a chat that is not a direct message needs no names
+  if (hasRealTitle(title) && !(agents.length === 0 && people.length === 1)) return title;
+  const names = new Map<string, string>();
+  const read = async (cap: string, key: string, idKey: string): Promise<void> => {
+    try { for (const r of (obj(await call(cap, {}))?.[key] as unknown[] | undefined) ?? []) { const o = obj(r); const id = text(o?.[idKey]); const n = text(o?.["name"]); if (id && n) names.set(id, n); } } catch { /* the name stays the id */ }
+  };
+  await Promise.all([agents.length ? read("agents.list", "agents", "agentId") : Promise.resolve(), people.length ? read("access.principals.list", "principals", "id") : Promise.resolve()]);
+  return chatName({ title, kind: text(t["kind"]) ?? "chat", agents, people }, (id) => names.get(id) ?? "Someone");
 }

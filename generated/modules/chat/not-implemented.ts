@@ -67,6 +67,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "chat.share": async (ctx) => { throw new VyreErr(notImplemented("chat.share", ctx.trace)); },
   "chat.start": async (ctx) => { throw new VyreErr(notImplemented("chat.start", ctx.trace)); },
   "chat.thread": async (ctx) => { throw new VyreErr(notImplemented("chat.thread", ctx.trace)); },
+  "chat.title_make": async (ctx) => { throw new VyreErr(notImplemented("chat.title_make", ctx.trace)); },
   "chat.transcript.append": async (ctx) => { throw new VyreErr(notImplemented("chat.transcript.append", ctx.trace)); },
   "chat.transcript.get": async (ctx) => { throw new VyreErr(notImplemented("chat.transcript.get", ctx.trace)); },
   "chat.transcript.purge": async (ctx) => { throw new VyreErr(notImplemented("chat.transcript.purge", ctx.trace)); },

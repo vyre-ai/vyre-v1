@@ -7533,6 +7533,21 @@ export type ChatThreadOut = {
     preview?: string;
   };
 };
+export type ChatTitleMakeIn = {
+  threadId: string;
+  account?: {
+    ref: string;
+    driver: string;
+    kind?: string;
+    payer?: string;
+    spaceKey?: boolean;
+  };
+};
+export type ChatTitleMakeOut = {
+  made: boolean;
+  title?: string;
+  why?: "renamed" | "not_a_chat" | "direct" | "small_talk" | "done" | "has_title";
+};
 export type ChatTranscriptAppendIn = {
   threadId: string;
   turnId: string;
@@ -14870,6 +14885,7 @@ export type GoalsActivityOut = {
       text: string;
       by?: string;
       ref?: string;
+      tpl?: string;
     }>;
 };
 export type GoalsAskIn = {
@@ -15662,6 +15678,7 @@ export type GoalsGetOut = {
       text: string;
       by?: string;
       ref?: string;
+      tpl?: string;
     }>;
   readings: Array<{
       at: number;
@@ -41349,6 +41366,7 @@ export interface CapMap {
   "chat.share": { in: ChatShareIn; out: ChatShareOut };
   "chat.start": { in: ChatStartIn; out: ChatStartOut };
   "chat.thread": { in: ChatThreadIn; out: ChatThreadOut };
+  "chat.title_make": { in: ChatTitleMakeIn; out: ChatTitleMakeOut };
   "chat.transcript.append": { in: ChatTranscriptAppendIn; out: ChatTranscriptAppendOut };
   "chat.transcript.get": { in: ChatTranscriptGetIn; out: ChatTranscriptGetOut };
   "chat.transcript.purge": { in: ChatTranscriptPurgeIn; out: ChatTranscriptPurgeOut };

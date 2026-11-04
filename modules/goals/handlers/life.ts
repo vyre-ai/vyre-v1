@@ -6,6 +6,7 @@ import {
 } from "../projections.ts";
 import type { Ended, Goal, GoalsCtx, Who } from "../projections.ts";
 import { readSource, sourceWords } from "../sources.ts";
+import { atToken } from "../../../lib/words/time.ts";
 
 type Obj = Record<string, unknown>;
 const why = (e: unknown): string => {
@@ -173,7 +174,7 @@ export async function readNow(ctx: GoalsCtx, g: Goal, why: string): Promise<bool
   if (!r.ok) {
     const fresh = g.readError !== r.error;
     g.readError = r.error ?? "the source did not answer"; g.readFails += 1;
-    if (fresh) { emit(ctx, g, "goal.progress", { ok: false, error: r.error }); note(ctx, g.id, "reading", `Could not read ${sourceWords(g.finish.source)}: ${r.error}`); }
+    if (fresh) { emit(ctx, g, "goal.progress", { ok: false, error: r.error }); note(ctx, g.id, "reading", `Could not read ${sourceWords(g.finish.source)}. The next check-in tries again.`); }
     return false;
   }
   delete g.readError; g.readFails = 0;
@@ -350,7 +351,7 @@ export async function startGoal(ctx: GoalsCtx, g: Goal, opts: { press: boolean; 
   await ensureThread(ctx, g);
   setStatus(ctx, g, "planning");
   emit(ctx, g, "goal.started", { by: ctx.principal.id });
-  note(ctx, g.id, "started", `Started. Finish line: ${g.finish.line}. Deadline ${when(g.deadline, g.zone)}.`);
+  note(ctx, g.id, "started", `Started. Due ${atToken(g.deadline)}.`);
   if (!opts.press) for (const p of g.permissions) p.granted = false;
   await ensureRoot(ctx, g);
   await ensureFolder(ctx, g);

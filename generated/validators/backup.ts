@@ -5,17 +5,17 @@ import type { Check } from './core.ts';
 
 function d_s_5a5759d472(v: unknown, p: string, e: string[]): void {
 {
-const x444 = v;
-const g444 = typeOf(x444);
-const b444: string[] = []; lf(x444, p, b444, L0); if (b444.length) e.push(...b444);
-if (g444 === "object") {
-if (g444 === 'object') { const o444 = x444 as Record<string, unknown>;
-if (!("kind" in o444)) e.push(p + "/kind" + ': required');
-if ("kind" in o444) lf(o444["kind"], p + "/kind", e, L247);
-if ("bucket" in o444) lf(o444["bucket"], p + "/bucket", e, L1);
-if ("region" in o444) lf(o444["region"], p + "/region", e, L1);
-if ("path" in o444) lf(o444["path"], p + "/path", e, L1);
-if ("vaultName" in o444) lf(o444["vaultName"], p + "/vaultName", e, L1);
+const x446 = v;
+const g446 = typeOf(x446);
+const b446: string[] = []; lf(x446, p, b446, L0); if (b446.length) e.push(...b446);
+if (g446 === "object") {
+if (g446 === 'object') { const o446 = x446 as Record<string, unknown>;
+if (!("kind" in o446)) e.push(p + "/kind" + ': required');
+if ("kind" in o446) lf(o446["kind"], p + "/kind", e, L247);
+if ("bucket" in o446) lf(o446["bucket"], p + "/bucket", e, L1);
+if ("region" in o446) lf(o446["region"], p + "/region", e, L1);
+if ("path" in o446) lf(o446["path"], p + "/path", e, L1);
+if ("vaultName" in o446) lf(o446["vaultName"], p + "/vaultName", e, L1);
 }
 }
 }
@@ -393,17 +393,17 @@ if ("checkedEvents" in o1685) lf(o1685["checkedEvents"], p + "/checkedEvents", e
 
 function e63_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6270 = v;
-const g6270 = typeOf(x6270);
-const b6270: string[] = []; lf(x6270, p, b6270, L0); if (b6270.length) e.push(...b6270);
-if (g6270 === "object") {
-if (g6270 === 'object') { const o6270 = x6270 as Record<string, unknown>;
-if (!("backupId" in o6270)) e.push(p + "/backupId" + ': required');
-if (!("seq" in o6270)) e.push(p + "/seq" + ': required');
-if (!("sizeBytes" in o6270)) e.push(p + "/sizeBytes" + ': required');
-if ("backupId" in o6270) lf(o6270["backupId"], p + "/backupId", e, L499);
-if ("seq" in o6270) lf(o6270["seq"], p + "/seq", e, L2);
-if ("sizeBytes" in o6270) lf(o6270["sizeBytes"], p + "/sizeBytes", e, L2);
+const x6273 = v;
+const g6273 = typeOf(x6273);
+const b6273: string[] = []; lf(x6273, p, b6273, L0); if (b6273.length) e.push(...b6273);
+if (g6273 === "object") {
+if (g6273 === 'object') { const o6273 = x6273 as Record<string, unknown>;
+if (!("backupId" in o6273)) e.push(p + "/backupId" + ': required');
+if (!("seq" in o6273)) e.push(p + "/seq" + ': required');
+if (!("sizeBytes" in o6273)) e.push(p + "/sizeBytes" + ': required');
+if ("backupId" in o6273) lf(o6273["backupId"], p + "/backupId", e, L499);
+if ("seq" in o6273) lf(o6273["seq"], p + "/seq", e, L2);
+if ("sizeBytes" in o6273) lf(o6273["sizeBytes"], p + "/sizeBytes", e, L2);
 }
 }
 }
@@ -411,15 +411,15 @@ if ("sizeBytes" in o6270) lf(o6270["sizeBytes"], p + "/sizeBytes", e, L2);
 
 function e64_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6271 = v;
-const g6271 = typeOf(x6271);
-const b6271: string[] = []; lf(x6271, p, b6271, L0); if (b6271.length) e.push(...b6271);
-if (g6271 === "object") {
-if (g6271 === 'object') { const o6271 = x6271 as Record<string, unknown>;
-if (!("target" in o6271)) e.push(p + "/target" + ': required');
-if (!("schedule" in o6271)) e.push(p + "/schedule" + ': required');
-if ("target" in o6271) lf(o6271["target"], p + "/target", e, L1);
-if ("schedule" in o6271) lf(o6271["schedule"], p + "/schedule", e, L1);
+const x6274 = v;
+const g6274 = typeOf(x6274);
+const b6274: string[] = []; lf(x6274, p, b6274, L0); if (b6274.length) e.push(...b6274);
+if (g6274 === "object") {
+if (g6274 === 'object') { const o6274 = x6274 as Record<string, unknown>;
+if (!("target" in o6274)) e.push(p + "/target" + ': required');
+if (!("schedule" in o6274)) e.push(p + "/schedule" + ': required');
+if ("target" in o6274) lf(o6274["target"], p + "/target", e, L1);
+if ("schedule" in o6274) lf(o6274["schedule"], p + "/schedule", e, L1);
 }
 }
 }
@@ -427,14 +427,14 @@ if ("schedule" in o6271) lf(o6271["schedule"], p + "/schedule", e, L1);
 
 function e65_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6272 = v;
-const g6272 = typeOf(x6272);
-const b6272: string[] = []; lf(x6272, p, b6272, L0); if (b6272.length) e.push(...b6272);
-if (g6272 === "object") {
-if (g6272 === 'object') { const o6272 = x6272 as Record<string, unknown>;
-if (!("reason" in o6272)) e.push(p + "/reason" + ': required');
-if ("backupId" in o6272) lf(o6272["backupId"], p + "/backupId", e, L499);
-if ("reason" in o6272) lf(o6272["reason"], p + "/reason", e, L1);
+const x6275 = v;
+const g6275 = typeOf(x6275);
+const b6275: string[] = []; lf(x6275, p, b6275, L0); if (b6275.length) e.push(...b6275);
+if (g6275 === "object") {
+if (g6275 === 'object') { const o6275 = x6275 as Record<string, unknown>;
+if (!("reason" in o6275)) e.push(p + "/reason" + ': required');
+if ("backupId" in o6275) lf(o6275["backupId"], p + "/backupId", e, L499);
+if ("reason" in o6275) lf(o6275["reason"], p + "/reason", e, L1);
 }
 }
 }
@@ -442,15 +442,15 @@ if ("reason" in o6272) lf(o6272["reason"], p + "/reason", e, L1);
 
 function e66_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6273 = v;
-const g6273 = typeOf(x6273);
-const b6273: string[] = []; lf(x6273, p, b6273, L0); if (b6273.length) e.push(...b6273);
-if (g6273 === "object") {
-if (g6273 === 'object') { const o6273 = x6273 as Record<string, unknown>;
-if (!("backupId" in o6273)) e.push(p + "/backupId" + ': required');
-if (!("tombstonesReplayed" in o6273)) e.push(p + "/tombstonesReplayed" + ': required');
-if ("backupId" in o6273) lf(o6273["backupId"], p + "/backupId", e, L499);
-if ("tombstonesReplayed" in o6273) lf(o6273["tombstonesReplayed"], p + "/tombstonesReplayed", e, L2);
+const x6276 = v;
+const g6276 = typeOf(x6276);
+const b6276: string[] = []; lf(x6276, p, b6276, L0); if (b6276.length) e.push(...b6276);
+if (g6276 === "object") {
+if (g6276 === 'object') { const o6276 = x6276 as Record<string, unknown>;
+if (!("backupId" in o6276)) e.push(p + "/backupId" + ': required');
+if (!("tombstonesReplayed" in o6276)) e.push(p + "/tombstonesReplayed" + ': required');
+if ("backupId" in o6276) lf(o6276["backupId"], p + "/backupId", e, L499);
+if ("tombstonesReplayed" in o6276) lf(o6276["tombstonesReplayed"], p + "/tombstonesReplayed", e, L2);
 }
 }
 }
@@ -458,13 +458,13 @@ if ("tombstonesReplayed" in o6273) lf(o6273["tombstonesReplayed"], p + "/tombsto
 
 function e67_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6274 = v;
-const g6274 = typeOf(x6274);
-const b6274: string[] = []; lf(x6274, p, b6274, L0); if (b6274.length) e.push(...b6274);
-if (g6274 === "object") {
-if (g6274 === 'object') { const o6274 = x6274 as Record<string, unknown>;
-if (!("backupId" in o6274)) e.push(p + "/backupId" + ': required');
-if ("backupId" in o6274) lf(o6274["backupId"], p + "/backupId", e, L499);
+const x6277 = v;
+const g6277 = typeOf(x6277);
+const b6277: string[] = []; lf(x6277, p, b6277, L0); if (b6277.length) e.push(...b6277);
+if (g6277 === "object") {
+if (g6277 === 'object') { const o6277 = x6277 as Record<string, unknown>;
+if (!("backupId" in o6277)) e.push(p + "/backupId" + ': required');
+if ("backupId" in o6277) lf(o6277["backupId"], p + "/backupId", e, L499);
 }
 }
 }
