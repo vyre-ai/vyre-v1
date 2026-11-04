@@ -127,6 +127,11 @@
       "status": "live"
     },
     {
+      "id": "ci",
+      "owner": "L5",
+      "status": "live"
+    },
+    {
       "id": "github",
       "owner": "L5",
       "status": "live"

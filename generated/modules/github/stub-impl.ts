@@ -4,6 +4,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "github.actions.secrets": async () => ({"count":1} as unknown) as never,
   "github.app.complete": async () => ({"appId":1,"installUrl":"example","slug":"example"} as unknown) as never,
   "github.app.create_manifest": async () => ({"manifest":{},"postUrl":"example","state":"example"} as unknown) as never,
   "github.app.get": async () => ({"events":["example"],"id":1,"name":"example","permissions":{},"slug":"example"} as unknown) as never,
@@ -32,4 +33,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "github.receive_webhook": async () => ({"accepted":true} as unknown) as never,
   "github.repo.get": async () => ({"defaultBranch":"example","description":"example","private":true,"repo":"vyre-ai/website","url":"example"} as unknown) as never,
   "github.repos.list": async () => ({"next":"example","repos":[{"defaultBranch":"example","private":true,"repo":"vyre-ai/website","url":"example"}],"total":1} as unknown) as never,
+  "github.runners.jit_config": async () => ({"jitConfig":"example","runnerId":1} as unknown) as never,
+  "github.runners.remove": async () => ({"removed":true} as unknown) as never,
 };

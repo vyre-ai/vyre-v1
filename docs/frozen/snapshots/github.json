@@ -1,6 +1,7 @@
 {
   "module": "github",
   "capabilities": {
+    "github.actions.secrets@1": "686763da57d53f596f916efbde953413eccdce70b0faf5bcd72dc9ec67cc7800",
     "github.app.complete@1": "7e0b168b1be70b2c3d314b82d7841bcb7f96ef61cc20d926bb74571c27cff6d2",
     "github.app.create_manifest@1": "10ceee50986e41e13dfb42e42971f74f6a6616da0a5a4859bec437408321dd14",
     "github.app.get@1": "3f67d4e40879a46fd96211ca433b2bc48dcdf41c84da957bb480b891470dc225",
@@ -26,14 +27,16 @@
     "github.pull_request.request_review@1": "8254682e82601e491b202a33f84490dde5905433c9a686ce0f4fe972942532ba",
     "github.pull_request.rerun_checks@1": "2fd65ffd7a8d1ade1895800337ab89b4de9a72b74adbd54c4f7d2af8aa9f26e0",
     "github.pull_request.update@1": "2e41f136b6f55ab8b240019e90ab88211f2f339d24b3c0903adb4bd441cd67bc",
-    "github.receive_webhook@1": "b328c89ecd1a819c7c1ab6ffa474c42e4dd007ea6ed5d822989047b67a96278d",
+    "github.receive_webhook@1": "636c1ff752d693c098f63b102030638c0e44d94817a025122d2ae9783dd56a13",
     "github.repo.get@1": "8aa1f7d32d3aff47fbcb13a9e18008022e54fd65a267df6d5f57ebf4169ac767",
-    "github.repos.list@1": "4ded109698c2977ab631493f4169519dcd567f65beb06dcae71438cd99260df7"
+    "github.repos.list@1": "4ded109698c2977ab631493f4169519dcd567f65beb06dcae71438cd99260df7",
+    "github.runners.jit_config@1": "d610e0e049cfffc021acc6e656bccafa7c86426e2bc902b5cb85bd9be1e2dbc4",
+    "github.runners.remove@1": "88ee7e63f232a8b46b4caa6a86f54d75cdc85728820b4c016529bf9f8c0c9047"
   },
   "events": {
     "github.app_created": "f8e1d6505e118997cd4082790bc11a43f5f5fc113c4ae8a735c901f443729639",
     "github.check_completed": "4cc73b6c027e852b8d1c300d0a6b6e6eea11fce61cd6fea91e49fd098d97a84b",
-    "github.event_received": "94d759f0b4d1441df39344f4eb0be834f179a5ca8262b3788e26f2f7d7715156",
+    "github.event_received": "44d730c6a1fa2ab50984e90dc621fd28a3e0bcd5749862bb06ffe783efa01abc",
     "github.fix_requested": "bfb7f463a97d5c0999880738d61eb7cd1e4e10cc884f0003f9d1be24c3de4720",
     "github.issue_assigned": "52f0613c824eec302df9e29d5c7e593ce07673bc4cab07dac0ea2446d2abee3f",
     "issue.opened": "a1e8e132c33147f569aa32a99a33d838007613e50d43c3e05d8b99708da55b03",
@@ -41,6 +44,8 @@
     "pull_request.merged": "aed63d2bd09a2e7857d0fd4421400dde18e856f50e5ca12237ea5084031657d4",
     "pull_request.opened": "632ace354dd638086f21fcd360ec29d01c13fe564683a2b502913d0785f7c199",
     "repo.pushed": "04881a1a299e03e9804bf29a365b1093f27e8230005eb14403abb4f39df2dd02",
-    "workflow.completed": "158d87722fe051d90838cde0c2117df83eb9ba7d3af072ad9f60c1cd053be413"
+    "workflow.completed": "158d87722fe051d90838cde0c2117df83eb9ba7d3af072ad9f60c1cd053be413",
+    "workflow_job.completed": "d2d8c90cc42d9854fd1b953c235e9e1a6f4d581bbeacf41606dd50dffbab72cf",
+    "workflow_job.queued": "abb179cecf2017aa5c32339a2e03cdf88389c51f7d8e7566f6bcf425be81d7c4"
   }
 }

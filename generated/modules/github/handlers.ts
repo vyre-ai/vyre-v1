@@ -5,6 +5,7 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "github.actions.secrets": Handler<"github.actions.secrets", X>;
   "github.app.complete": Handler<"github.app.complete", X>;
   "github.app.create_manifest": Handler<"github.app.create_manifest", X>;
   "github.app.get": Handler<"github.app.get", X>;
@@ -33,4 +34,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "github.receive_webhook": Handler<"github.receive_webhook", X>;
   "github.repo.get": Handler<"github.repo.get", X>;
   "github.repos.list": Handler<"github.repos.list", X>;
+  "github.runners.jit_config": Handler<"github.runners.jit_config", X>;
+  "github.runners.remove": Handler<"github.runners.remove", X>;
 }

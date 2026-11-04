@@ -467,6 +467,26 @@ export function createClient(transport: Transport) {
       },
       unpin: call("chat.unpin", 1),
     },
+    ci: {
+      cost: {
+        month: call("ci.cost.month", 1),
+      },
+      job: {
+        intake: call("ci.job.intake", 1),
+      },
+      project: {
+        get: call("ci.project.get", 1),
+      },
+      runs: {
+        get: call("ci.runs.get", 1),
+        list: call("ci.runs.list", 1),
+      },
+      settings: {
+        get: call("ci.settings.get", 1),
+        set: call("ci.settings.set", 1),
+      },
+      sweep: call("ci.sweep", 1),
+    },
     comms: {
       senders: {
         list: call("comms.senders.list", 1),
@@ -1080,6 +1100,9 @@ export function createClient(transport: Transport) {
       sync: call("git.sync", 1),
     },
     github: {
+      actions: {
+        secrets: call("github.actions.secrets", 1),
+      },
       app: {
         complete: call("github.app.complete", 1),
         create_manifest: call("github.app.create_manifest", 1),
@@ -1121,6 +1144,10 @@ export function createClient(transport: Transport) {
       },
       repos: {
         list: call("github.repos.list", 1),
+      },
+      runners: {
+        jit_config: call("github.runners.jit_config", 1),
+        remove: call("github.runners.remove", 1),
       },
     },
     goals: {

@@ -5,6 +5,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "github.actions.secrets": async (ctx) => { throw new VyreErr(notImplemented("github.actions.secrets", ctx.trace)); },
   "github.app.complete": async (ctx) => { throw new VyreErr(notImplemented("github.app.complete", ctx.trace)); },
   "github.app.create_manifest": async (ctx) => { throw new VyreErr(notImplemented("github.app.create_manifest", ctx.trace)); },
   "github.app.get": async (ctx) => { throw new VyreErr(notImplemented("github.app.get", ctx.trace)); },
@@ -33,4 +34,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "github.receive_webhook": async (ctx) => { throw new VyreErr(notImplemented("github.receive_webhook", ctx.trace)); },
   "github.repo.get": async (ctx) => { throw new VyreErr(notImplemented("github.repo.get", ctx.trace)); },
   "github.repos.list": async (ctx) => { throw new VyreErr(notImplemented("github.repos.list", ctx.trace)); },
+  "github.runners.jit_config": async (ctx) => { throw new VyreErr(notImplemented("github.runners.jit_config", ctx.trace)); },
+  "github.runners.remove": async (ctx) => { throw new VyreErr(notImplemented("github.runners.remove", ctx.trace)); },
 };

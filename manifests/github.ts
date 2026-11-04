@@ -26,7 +26,7 @@ const prRow = t.obj({
   labels: t.arr(t.str()), assignees: t.arr(t.str()), body: t.opt(t.str()), mergedAt: t.opt(t.ts()), additions: t.opt(t.int()), deletions: t.opt(t.int()), changedFiles: t.opt(t.int()),
 });
 const issueRow = t.obj({ repo, number: t.int(), title: t.str(), state: t.enm('open', 'closed'), author: t.str(), url: t.str(), labels: t.arr(t.str()), assignees: t.arr(t.str()), body: t.opt(t.str()) });
-const eventName = t.enm('ping', 'installation', 'push', 'pull_request', 'issues', 'check_run', 'workflow_run');
+const eventName = t.enm('ping', 'installation', 'push', 'pull_request', 'issues', 'check_run', 'workflow_run', 'workflow_job');
 const methodEnum = t.enm('merge', 'squash', 'rebase');
 
 const prSync: SyncedTypeDef = {
@@ -115,11 +115,18 @@ const capabilities = [
   write('github.issue.assign_agent', 'Assign an issue to an agent: creates a task whose result lands as a linked changeset', {
     in: { recordId: id.record, agentId: id.agent }, out: { taskId: id.task }, on: ['record', '/recordId'], perm: 'records.edit', emits: ['github.issue_assigned'], idem: 'key', tool: 'records',
   }),
+  // ---- runners (the CI module starts one machine per job)
+  write('github.runners.jit_config', 'Make a just-in-time runner for one job: GitHub answers a config the new machine runs with, once. Called by the CI module; the config is never stored', {
+    in: { repo, name: t.str({ pattern: '^[A-Za-z0-9_.-]{1,64}$' }), labels: t.arr(t.str(), { minItems: 1, maxItems: 10 }), installationId: t.opt(t.int()) }, out: { runnerId: t.int(), jitConfig: t.str() },
+    risk: 'high', audit: 'always', idem: 'key', errors: ['provider.auth_failed', 'validation.not_found'],
+  }),
+  write('github.runners.remove', 'Take back a runner that never ran a job (its machine failed to start)', { in: { repo, runnerId: t.int({ minimum: 1 }) }, out: { removed: t.bool() }, audit: 'always', idem: 'natural' }),
+  read('github.actions.secrets', 'How many Actions secrets a repository holds; null when GitHub would not say', { in: { repo }, out: { count: t.nullable(t.int({ minimum: 0 })) } }),
   // ---- webhook intake
   write('github.receive_webhook', 'Record a verified GitHub delivery after dedupe; normalise push, pull request, issue, check and workflow events', {
-    in: { deliveryId: t.str(), event: eventName, action: t.opt(t.str()), repo: t.opt(repo), installationId: t.opt(t.int()), number: t.opt(t.int()), sha: t.opt(t.str()), branch: t.opt(t.str()), conclusion: t.opt(t.str()), name: t.opt(t.str()) },
+    in: { deliveryId: t.str(), event: eventName, action: t.opt(t.str()), repo: t.opt(repo), installationId: t.opt(t.int()), number: t.opt(t.int()), sha: t.opt(t.str()), branch: t.opt(t.str()), conclusion: t.opt(t.str()), name: t.opt(t.str()), jobId: t.opt(t.int()), runId: t.opt(t.int()), labels: t.opt(t.arr(t.str(), { maxItems: 20 })), runnerName: t.opt(t.str()) },
     out: { accepted: t.bool() },
-    emits: ['github.event_received', 'repo.pushed', 'pull_request.opened', 'pull_request.merged', 'pull_request.closed', 'issue.opened', 'github.check_completed', 'workflow.completed'], idem: 'natural', offline: 'online',
+    emits: ['github.event_received', 'repo.pushed', 'pull_request.opened', 'pull_request.merged', 'pull_request.closed', 'issue.opened', 'github.check_completed', 'workflow.completed', 'workflow_job.queued', 'workflow_job.completed'], idem: 'natural', offline: 'online',
   }),
 ];
 
@@ -180,6 +187,10 @@ export default defineManifest({
       trigger: { title: 'A CI check finishes', fields: ['/repo', '/name', '/conclusion'] },
     }),
     ev('workflow.completed', 'A workflow run finished', { p: { repo, name: t.str(), conclusion: t.str(), sha: t.str() }, subject: ['entity', '/repo'] }),
+    ev('workflow_job.queued', 'A workflow job is waiting for a runner; fork says whether its run came from another repository (unknown counts as a fork)', {
+      p: { repo, jobId: t.int(), runId: t.int(), name: t.str(), labels: t.arr(t.str()), fork: t.enm('no', 'yes', 'unknown') }, subject: ['entity', '/repo'],
+    }),
+    ev('workflow_job.completed', 'A workflow job finished, on any runner', { p: { repo, jobId: t.int(), runId: t.int(), name: t.str(), labels: t.arr(t.str()), conclusion: t.str(), runnerName: t.opt(t.str()) }, subject: ['entity', '/repo'] }),
   ],
   capabilities,
   connectors: [
@@ -191,7 +202,7 @@ export default defineManifest({
     }),
     conn('github', 'GitHub', {
       mode: 'api', scope: 'space',
-      auth: { type: 'github_app', appIdSecret: 'GitHub_App_Id', privateKeySecret: 'GitHub_App_Key', permissions: { contents: 'write', pull_requests: 'write', issues: 'write', checks: 'read', metadata: 'read' }, installation: 'org' },
+      auth: { type: 'github_app', appIdSecret: 'GitHub_App_Id', privateKeySecret: 'GitHub_App_Key', permissions: { contents: 'write', pull_requests: 'write', issues: 'write', checks: 'read', metadata: 'read', actions: 'read', administration: 'write', secrets: 'read' }, installation: 'org' },
       domains: ['api.github.com', 'github.com'],
       secrets: [
         { name: 'GitHub_App_Key', description: 'GitHub App private key (PEM) used to mint installation tokens' },

@@ -46,7 +46,7 @@ const SAMPLE: Record<string, Record<string, unknown>> = {
   "reply.followed": { where: "Intake" }, "agent.task_finished": { agent: "Scout", title: "Research" }, "digest.away": {},
   "mention.thread": { where: "Intake" }, "run.failed": { name: "Weekly", message: "no mailbox" }, "conflict.needs_you": { title: "Lee" },
   "access.requested": { from: "Bob", level: "edit", title: "Clients" }, "access.decided": { title: "Clients", decision: "approved" }, "sync.attention": { device: "Laptop" },
-  "health.degraded": { service: "Mail", state: "slow" }, "problem.report": { from: "Bob" }, "member.joined": { name: "Cara", space: "Northwind" }, "limit.hit": { title: "Scout" }, "machine.alert": { title: "Berlin box has 8% disk left" },
+  "health.degraded": { service: "Mail", state: "slow" }, "problem.report": { from: "Bob" }, "member.joined": { name: "Cara", space: "Northwind" }, "limit.hit": { title: "Scout" }, "machine.alert": { title: "Berlin box has 8% disk left" }, "ci.paused": { title: "CI paused: this month's cap of $10 is reached" },
 };
 for (const def of KINDS.filter((k) => k.key !== "vault.rotation_due")) {
   test(`kind ${def.key}: lands at ${def.level} in ${def.place} with its actions and a readable line`, async () => {
@@ -296,7 +296,7 @@ test("the fanout consumer files a row for the events that name a kind and ignore
   const h = harness();
   const ctx = h.ctxFor(null, sender);
   const fan = consumers["notifications.fanout"];
-  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "machine.alert"]);
+  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "machine.alert", "ci.paused"]);
   const a = await fan.run(ctx, { name: "task.requested", payload: { taskId: "tsk_1", kind: "approve", title: "Retainer", assigned: { kind: "person", id: alice.id } } });
   assert.equal(a.length, 1);
   assert.equal(row(h, a[0]!).kind, "approval.requested");
@@ -346,4 +346,19 @@ test("a team's people hear a task given to the team; the person who asked hears 
   assert.equal(row(h, due[0]!).title, "Due today: Send the bill");
   const nudge = await fan.run(ctx, { name: "task.nudged", payload: { taskId: "tsk_g1", title: "Send the bill", why: "waiting_on_decision", notify: bob.id } });
   assert.equal(row(h, nudge[0]!).kind, "approval.backstop");
+});
+
+test("ci.paused files one Inbox-style line for each admin, and the same month collapses", async () => {
+  const h = harness();
+  const base = as(svc);
+  const ctx = { ...h.ctxFor(null, base), call: async (cap: string) => (cap === "access.roles.list" ? { roles: [{ id: "rol_admin", name: "Admin", permissions: [] }] } : { holders: [{ kind: "person", id: alice.id }, { kind: "person", id: bob.id }] }) } as never;
+  const fan = consumers["notifications.fanout"];
+  const ev = { name: "ci.paused", payload: { title: "CI paused: this month's cap of $10 is reached", capUsd: 10, month: "2026-11" } };
+  const ids = await fan.run(ctx, ev as never);
+  assert.equal(ids.length, 2);
+  await fan.run(ctx, ev as never);
+  const all = rows(h).filter((r) => r.kind === "ci.paused");
+  assert.equal(all.length, 2, "the second event collapses into the first");
+  assert.equal(all[0].title, "CI paused: this month's cap of $10 is reached");
+  assert.equal(all[0].place, "console");
 });

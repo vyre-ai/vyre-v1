@@ -4,8 +4,9 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (28)
+## Capabilities (31)
 
+- [github.actions.secrets](../capabilities/github.actions.secrets.md): How many Actions secrets a repository holds; null when GitHub would not say
 - [github.app.complete](../capabilities/github.app.complete.md): Finish the manifest flow: exchange the code, store the app key in the Vault and return the install link
 - [github.app.create_manifest](../capabilities/github.app.create_manifest.md): Start the GitHub App manifest flow that creates the app in the organisation
 - [github.app.get](../capabilities/github.app.get.md): Read the GitHub App (id, permissions, subscribed events)
@@ -34,8 +35,10 @@ Requires: nothing.
 - [github.receive_webhook](../capabilities/github.receive_webhook.md): Record a verified GitHub delivery after dedupe; normalise push, pull request, issue, check and workflow events
 - [github.repo.get](../capabilities/github.repo.get.md): Read one repository
 - [github.repos.list](../capabilities/github.repos.list.md): List repositories the App can reach
+- [github.runners.jit_config](../capabilities/github.runners.jit_config.md): Make a just-in-time runner for one job: GitHub answers a config the new machine runs with, once. Called by the CI module; the config is never stored
+- [github.runners.remove](../capabilities/github.runners.remove.md): Take back a runner that never ran a job (its machine failed to start)
 
-## Events (11)
+## Events (13)
 
 - [github.app_created](../events/github.app_created.md): The GitHub App was created and its key stored
 - [github.check_completed](../events/github.check_completed.md): A check run finished
@@ -48,3 +51,5 @@ Requires: nothing.
 - [pull_request.opened](../events/pull_request.opened.md): A pull request was opened
 - [repo.pushed](../events/repo.pushed.md): Commits were pushed to a branch
 - [workflow.completed](../events/workflow.completed.md): A workflow run finished
+- [workflow_job.completed](../events/workflow_job.completed.md): A workflow job finished, on any runner
+- [workflow_job.queued](../events/workflow_job.queued.md): A workflow job is waiting for a runner; fork says whether its run came from another repository (unknown counts as a fork)

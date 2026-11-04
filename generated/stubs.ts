@@ -467,6 +467,26 @@ export function stubs(ctx: CallCtx) {
       },
       unpin: call("chat.unpin"),
     },
+    ci: {
+      cost: {
+        month: call("ci.cost.month"),
+      },
+      job: {
+        intake: call("ci.job.intake"),
+      },
+      project: {
+        get: call("ci.project.get"),
+      },
+      runs: {
+        get: call("ci.runs.get"),
+        list: call("ci.runs.list"),
+      },
+      settings: {
+        get: call("ci.settings.get"),
+        set: call("ci.settings.set"),
+      },
+      sweep: call("ci.sweep"),
+    },
     comms: {
       senders: {
         list: call("comms.senders.list"),
@@ -1080,6 +1100,9 @@ export function stubs(ctx: CallCtx) {
       sync: call("git.sync"),
     },
     github: {
+      actions: {
+        secrets: call("github.actions.secrets"),
+      },
       app: {
         complete: call("github.app.complete"),
         create_manifest: call("github.app.create_manifest"),
@@ -1121,6 +1144,10 @@ export function stubs(ctx: CallCtx) {
       },
       repos: {
         list: call("github.repos.list"),
+      },
+      runners: {
+        jit_config: call("github.runners.jit_config"),
+        remove: call("github.runners.remove"),
       },
     },
     goals: {

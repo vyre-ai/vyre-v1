@@ -46,6 +46,9 @@ Key github, module github. Mode api, owned by a space. Auth github_app.
 - github.issue.comment
 - github.issue.close
 - github.issue.assign_agent
+- github.runners.jit_config
+- github.runners.remove
+- github.actions.secrets
 - github.receive_webhook
 
 ## Synced types

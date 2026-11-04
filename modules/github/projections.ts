@@ -59,8 +59,8 @@ export const API_VERSION = "2022-11-28";
 export const APP_ROW = "app";
 export const HANDLE = { webhook: "#GitHub_App_Webhook_Secret" } as const;
 /** What the App asks GitHub for. contents write is for pushes through the filler; the rest is what the pull request and issue pages need. */
-export const APP_PERMISSIONS: Record<string, string> = { contents: "write", pull_requests: "write", issues: "write", checks: "read", metadata: "read" };
-export const APP_EVENTS = ["push", "pull_request", "issues", "check_run", "workflow_run"];
+export const APP_PERMISSIONS: Record<string, string> = { contents: "write", pull_requests: "write", issues: "write", checks: "read", metadata: "read", actions: "read", administration: "write", secrets: "read" };
+export const APP_EVENTS = ["push", "pull_request", "issues", "check_run", "workflow_run", "workflow_job"];
 export const MAX_FIX_ROUNDS = 3;
 
 // ---- readers
