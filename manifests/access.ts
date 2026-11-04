@@ -84,6 +84,7 @@ export default defineManifest({
 
   events: [
     ev('access.changed', 'Roles, groups, labels or membership changed; bumps the authorize cache epoch', { p: { epoch: t.int(), what: t.enm('role', 'group', 'membership', 'label', 'actor', 'assignment'), by: t.str() }, subject: ['entity', '/epoch'], retention: 'audit' }),
+    ev('access.shared_with', 'A person was told an item was shared with them (when the sharer asked for that)', { p: { to: id.user, resource: resourceRef, level, byName: t.str(), title: t.str(), message: t.opt(t.str()) }, subject: ['entity', '/to'], notify: 'item.shared', retention: 'audit' }),
     ev('grant.created', 'A grant was given to a person, group, role or link', { p: { grantId: id.grant, subject: subjectRef, resource: resourceRef, level, source: t.opt(t.str()) }, subject: ['entity', '/grantId'], retention: 'audit' }),
     ev('grant.updated', 'The level, conditions or expiry of a grant changed', { p: { grantId: id.grant, level, expiresAt: t.opt(t.ts()) }, subject: ['entity', '/grantId'], retention: 'audit' }),
     ev('access.exception_set', 'A person or group was given a permission exception: Allowed or Not allowed on permissions, against their role', { p: { exceptionId: t.id('exc'), subject: excSubject, perms: t.arr(t.str()), effect: excEffect, area: t.opt(t.str()), until: t.opt(t.ts()), by: t.str() }, subject: ['entity', '/exceptionId'], retention: 'audit' }),
@@ -153,8 +154,8 @@ export default defineManifest({
 
     // ---- grants and sharing (no explicit deny grants exist)
     write('access.share', 'Give a person, group, role, agent or automation a level on a resource (flows down; folders cover their items)', {
-      ...V, idem: 'key', in: { resource: resourceRef, subject: subjectRef, level, conditions: t.opt(conditions), source: t.opt(t.str({ description: "Source tag, for example 'project:prj_a1b2c3'; removing the member revokes by source" })), export: t.opt(t.bool()), reshare: t.opt(t.bool()) },
-      out: { grant: grantRow }, emits: ['grant.created', 'access.changed', 'folder.shared'], audit: 'always', tool: 'meta', errors: ['permission.not_contained', 'validation.precondition_failed'], team: true,
+      ...V, idem: 'key', in: { resource: resourceRef, subject: subjectRef, level, conditions: t.opt(conditions), source: t.opt(t.str({ description: "Source tag, for example 'project:prj_a1b2c3'; removing the member revokes by source" })), export: t.opt(t.bool()), reshare: t.opt(t.bool()), notify: t.opt(t.obj({ message: t.opt(t.str()) }, { description: 'Tell the person: a notification and an Inbox line ("Irfad shared Dex with you"), with this optional message' })) },
+      out: { grant: grantRow }, emits: ['grant.created', 'access.changed', 'folder.shared', 'access.shared_with'], audit: 'always', tool: 'meta', errors: ['permission.not_contained', 'validation.precondition_failed'], team: true,
     }),
     write('access.automation_senders', "A person's press gives a Space Automation use of the mailboxes and numbers its send steps name, inside that person's own access, and takes back what no step names any more", {
       ...V, in: { automationId: id.automation, give: t.arr(resourceRef), keep: t.arr(resourceRef) }, out: { granted: t.arr(grantRow), revoked: t.int({ minimum: 0 }), refused: t.arr(resourceRef) },

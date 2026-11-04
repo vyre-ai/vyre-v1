@@ -71,7 +71,7 @@ test("General access sets the Space: Can edit, then No access", async () => {
     await press(find(s.tree, "as-acc-level-space"));
     await press(find(s.tree, "menu-item-Can edit"));
     await press(find(s.tree, "as-acc-level-space"));
-    await press(find(s.tree, "menu-item-No access"));
+    await press(find(s.tree, "menu-item-Only people added"));
     await flush();
     assert.deepEqual(s.patches, [{ space: "edit" }, { space: "off" }]);
   } finally { restore(); }

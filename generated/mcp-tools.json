@@ -2590,6 +2590,15 @@
             ],
             "type": "string"
           },
+          "notify": {
+            "description": "Tell the person: a notification and an Inbox line (\"Irfad shared Dex with you\"), with this optional message",
+            "properties": {
+              "message": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
           "reshare": {
             "type": "boolean"
           },
@@ -42115,7 +42124,8 @@
               "task.turn",
               "task.returned",
               "task.finished",
-              "task.due"
+              "task.due",
+              "item.shared"
             ],
             "type": "string"
           },
@@ -42579,7 +42589,8 @@
               "task.turn",
               "task.returned",
               "task.finished",
-              "task.due"
+              "task.due",
+              "item.shared"
             ],
             "type": "string"
           },
@@ -64799,6 +64810,14 @@
               "manage"
             ],
             "type": "string"
+          },
+          "notify": {
+            "properties": {
+              "message": {
+                "type": "string"
+              }
+            },
+            "type": "object"
           },
           "resource": {
             "properties": {

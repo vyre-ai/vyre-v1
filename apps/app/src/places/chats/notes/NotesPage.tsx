@@ -624,7 +624,7 @@ export function NotesPage({ rt, nameOf, noteId = null, initial, store: given, ph
       ? <TaskSheet n={sheetNote} draft={sheet.draft} setDraft={(d) => setSheet({ ...sheet, draft: d })} done={sheet.done} choices={choices} dues={dues} onMake={make} onOpenTask={(id) => { setSheet(null); rt.open({ subject: { type: "task", id } }); }} onClose={closeSheet} />
       : <RecordSheet n={sheetNote} types={types} draft={sheet.draft} setDraft={(d) => setSheet({ ...sheet, draft: d })} done={sheet.done} onMake={make} onOpenRecord={(id, type) => { setSheet(null); rt.open({ subject: { type: "record", id }, args: { type } }); }} onClose={closeSheet} />;
   } else if (shareNote) {
-    layer = <ShareSheet n={shareNote} who={who} people={people} onShare={(p) => void store.share(shareNote.noteId, p)} onClose={closeShare} />;
+    layer = <ShareSheet n={shareNote} who={who} people={people} onShare={(p) => void store.share(shareNote.noteId, p)} onCopyLink={() => copyLink(shareNote.noteId)} onClose={closeShare} />;
   } else if (open && !phone) {
     layer = (
       <NoteDialog

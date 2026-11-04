@@ -11,7 +11,7 @@ import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
 import type { ResourceType } from "../../../packages/contracts/src/types.ts";
 import type { AccessCtx, AccessStore, Cond, Db, GrantRec, Level, Ref, ResourceRec, ResourceRef, SubjectRef } from "../projections.ts";
-import { changed, EVERYONE, fnv, grantView, isExpr, isPrivateAgent, labelRank, nid, page, pkey, raise, storeOf } from "../projections.ts";
+import { agentLevel, changed, EVERYONE, fnv, grantView, isExpr, isPrivateAgent, labelRank, nid, page, pkey, raise, storeOf } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
 
 export type Via = "owner" | "grant" | "folder" | "space";
@@ -498,6 +498,7 @@ export async function joinShare(ctx: ShareCtx, input: { resource: ResourceRef; p
   const res = resourceOf(ctx, store, input.resource);
   const subject: SubjectRef = { kind: "person", id: input.person };
   checkSubject(ctx, store, subject);
+  input = { ...input, level: agentLevel(res.type, input.level) };
   if (!atLeast(res.type, levelFor(store, input.inviter, res, ctx.now()), input.level)) raise(trace, "permission.not_contained", "The person who sent the invite can no longer give this.");
   const have = [...store.grants.values()].find((g) => g.subject.kind === "person" && g.subject.id === input.person && g.resource.id === res.id && g.source === input.source);
   if (have) return { grant: grantView(have) };
@@ -511,7 +512,7 @@ export async function joinShare(ctx: ShareCtx, input: { resource: ResourceRef; p
 }
 
 export async function share(ctx: ShareCtx, input: {
-  resource: ResourceRef; subject: SubjectRef; level: Level; conditions?: Cond; source?: string; idempotencyKey?: string; export?: boolean; reshare?: boolean;
+  resource: ResourceRef; subject: SubjectRef; level: Level; conditions?: Cond; source?: string; idempotencyKey?: string; export?: boolean; reshare?: boolean; notify?: { message?: string };
 }) {
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
@@ -519,6 +520,7 @@ export async function share(ctx: ShareCtx, input: {
   const key = input.idempotencyKey ? `share:${ctx.principal.id}:${input.idempotencyKey}` : "";
   if (key) { const hit = ss.idem.get(key); if (hit) return hit as { grant: GrantRec }; }
   const res = resourceOf(ctx, store, input.resource);
+  input = { ...input, level: agentLevel(res.type, input.level) };   // Can chat with is Can use
   // a person's Assistant (and an outside agent they connected) is theirs alone: nobody else can be given it, whatever the level
   if (res.type === "agent" && isPrivateAgent(store, res.id)) raise(trace, "validation.precondition_failed", "This agent is private: it is your Assistant or an outside agent you connected, and it stays yours alone. Share a shared agent instead.");
   checkSubject(ctx, store, input.subject);
@@ -556,6 +558,12 @@ export async function share(ctx: ShareCtx, input: {
   }
   changed(ctx, store, "assignment");
   if (res.type === "folder") ctx.emit("folder.shared", res.id, { folderId: res.id, subject: grant.subject, level: grant.level, removed: false });
+  // the sharer asked to tell the person: one notification and Inbox line, never for oneself
+  if (input.notify !== undefined && created && grant.subject.kind === "person" && grant.subject.id !== ctx.principal.id) {
+    const byName = store.principals.get(actingId(ctx) ?? ctx.principal.id)?.name ?? "Someone";
+    const note = input.notify.message?.trim();
+    ctx.emit("access.shared_with", grant.subject.id, { to: grant.subject.id, resource: grant.resource, level: grant.level, byName, title: titleOf(ss, res), ...(note ? { message: note } : {}) });
+  }
   commit(ctx, store, ss, wasFresh, [res.id], false);
   const out = { grant: grantView(grant) };
   if (key) ss.idem.set(key, out);

@@ -296,7 +296,11 @@ test("the fanout consumer files a row for the events that name a kind and ignore
   const h = harness();
   const ctx = h.ctxFor(null, sender);
   const fan = consumers["notifications.fanout"];
-  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined"]);
+  assert.deepEqual(fan.on, ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "access.granted", "access.declined", "access.shared_with"]);
+  const shared = await fan.run(ctx, { name: "access.shared_with", payload: { to: alice.id, resource: { type: "agent", id: "agt_dex" }, level: "use", byName: "Irfad", title: "Dex", message: "Take a look" } });
+  assert.equal(shared.length, 1);
+  assert.equal(row(h, shared[0]!).kind, "item.shared");
+  assert.match(String(row(h, shared[0]!).title), /Irfad shared Dex with you/);
   const a = await fan.run(ctx, { name: "task.requested", payload: { taskId: "tsk_1", kind: "approve", title: "Retainer", assigned: { kind: "person", id: alice.id } } });
   assert.equal(a.length, 1);
   assert.equal(row(h, a[0]!).kind, "approval.requested");

@@ -230,7 +230,7 @@ test("an agent picked with Listening is added, then set quiet; a person is added
   });
 });
 
-test("a person who can only view cannot give Member: the option is grey and the footer says why", async () => {
+test("a person who can only view cannot give Member: the option is not offered and the footer says why", async () => {
   await withDom(async () => {
     const s = createSample("idle", { viewOnly: true });
     const root = await mount(createRoot, <Conversation data={s.data} />);
@@ -240,7 +240,7 @@ test("a person who can only view cannot give Member: the option is grey and the 
     assert.match(textOf(find(root, "as-pick-person:usr_maya")), /Can view/);
     assert.match(textOf(find(root, "as-line-limited")), /You can view here/);
     await press(find(root, "as-role-person:usr_maya"));
-    assert.match(textOf(find(root, "menu-item-Member (you do not have this)")), /you do not have this/);
+    assert.ok(find(root, "menu-item-Member") === null && find(root, "menu-item-Member (you do not have this)") === null, "a level above your own is hidden, not greyed");
   });
 });
 

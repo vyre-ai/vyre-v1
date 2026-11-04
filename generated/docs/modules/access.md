@@ -80,7 +80,7 @@ Requires: files.
 - [folders.rename](../capabilities/folders.rename.md): Rename a folder
 - [folders.unplace](../capabilities/folders.unplace.md): Take an item out of its folder back to the top of its section
 
-## Events (20)
+## Events (21)
 
 - [access.changed](../events/access.changed.md): Roles, groups, labels or membership changed; bumps the authorize cache epoch
 - [access.declined](../events/access.declined.md): An access request was declined; the note goes back to the requester
@@ -89,6 +89,7 @@ Requires: files.
 - [access.exception_set](../events/access.exception_set.md): A person or group was given a permission exception: Allowed or Not allowed on permissions, against their role
 - [access.granted](../events/access.granted.md): An access request was approved
 - [access.requested](../events/access.requested.md): Someone asked for access to a resource
+- [access.shared_with](../events/access.shared_with.md): A person was told an item was shared with them (when the sharer asked for that)
 - [access_review.closed](../events/access_review.closed.md): An access review closed
 - [access_review.opened](../events/access_review.opened.md): A quarterly access review opened and made its tasks
 - [folder.shared](../events/folder.shared.md): A folder was shared or unshared; everything in it follows

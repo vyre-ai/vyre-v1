@@ -33,7 +33,7 @@ const share = (over: Partial<ShareSheetProps> = {}): ShareSheetProps => ({ ...fr
 const sharePeople = {
   suggested: [],
   people: [{ id: "usr_sara", name: "Sara Malik", sub: "Space member", kind: "person" as const }, { id: "usr_omar", name: "Omar Reyes", sub: "Space member", kind: "person" as const }],
-  groups: [{ id: "grp_fin", name: "Finance", sub: "Group", kind: "group" as const }],
+  groups: [{ id: "grp_fin", name: "Finance", sub: "Team", kind: "group" as const }],
   agents: [{ id: "agt_docs", name: "Docs", kind: "agent" as const }],
   outside: [{ id: "out_cc", name: "Claude Code", kind: "outside" as const }],
   space: frozenShareSheetProps.directory.space,
@@ -132,14 +132,15 @@ test("two picks with roles: a person can be a member or a viewer; the line says 
   });
 });
 
-test("a viewer can add viewers only: Member is greyed and says why", async () => {
+test("a viewer can add viewers only: Member is not offered", async () => {
   await withDom(async () => {
     const root = await mount(createRoot, <AccessSheet {...add({ maxLevel: "view" })} />);
     await press(find(root, "as-row-person:usr_sara"));
     assert.match(textOf(find(root, "as-pick-person:usr_sara")), /Can view/);
     assert.match(textOf(find(root, "as-line-limited")), /You can view here, so you can add people as viewers only\. A person can give only what they have\./);
     await press(find(root, "as-role-person:usr_sara"));
-    assert.match(textOf(find(root, "menu-item-Member (you do not have this)")), /Member \(you do not have this\)/);
+    assert.ok(find(root, "menu-item-Member") === null, "Member is not offered at all: a level above your own is hidden, not greyed");
+    assert.ok(find(root, "menu-item-Can view") !== null);
   });
 });
 
@@ -308,8 +309,8 @@ test("share a note: title, subtitle, who has access, and the level choices come 
   assert.match(html, /Owner/);
   assert.match(html, /aria-label="Level for Omar Reyes: Can edit"/);
   assert.match(html, /Everyone in the Space/, "General access");
-  assert.match(html, /placeholder="Add people, groups or agents"/);
-  assert.match(html, /Pick who to share with\./);
+  assert.match(html, /placeholder="Add people, teams or agents"/);
+  assert.doesNotMatch(html, /Pick who to share with/, "the explainer covers it");
 });
 
 test("share, picks: levels, what they get, the Share button", async () => {
@@ -364,32 +365,33 @@ test("share a record type: its own level words", () => {
   assert.match(html, /Record type · 2 with access/);
 });
 
-test("share an agent: four levels, no agents or outside agents as recipients, the pays-with-their-own-account note, the four levels with nobody picked", async () => {
+test("share an agent: three levels, no agents or outside agents as recipients, the pays-with-their-own-account note, the four levels with nobody picked", async () => {
   const html = ssr(<AccessSheet {...share({ itemType: "agent", itemName: "Ember", resourceType: "agent", resourceId: "agt_ember", directory: sharePeople, shares: [] })} />);
   assert.doesNotMatch(html, /Claude Code/);
   assert.doesNotMatch(html, /aria-label="Share with Docs"/);
-  assert.match(html, /placeholder="Add people or groups"/);
+  assert.match(html, /placeholder="Add people or teams"/);
   assert.doesNotMatch(html, /Can chat with: talk to Ember/, "no legend paragraph");
   await withDom(async () => {
     const root = await mount(createRoot, <AccessSheet {...share({ itemType: "agent", itemName: "Ember", resourceType: "agent", resourceId: "agt_ember", directory: sharePeople, shares: [] })} />);
     await press(find(root, "as-row-person:usr_omar"));
     await press(find(root, "as-role-person:usr_omar"));
-    for (const l of ["Can chat with", "Can use", "Can edit", "Can manage"]) assert.ok(find(root, `menu-item-${l}`), l);
+    for (const l of ["Can use", "Can edit", "Can manage"]) assert.ok(find(root, `menu-item-${l}`), l);
+    assert.ok(find(root, "menu-item-Can chat with") === null, "Can chat with is merged into Can use");
     await press(find(root, "menu-item-Can use"));
-    assert.match(textOf(find(root, "as-line-lv-use")), /Omar Reyes can use Ember in their automations, tasks and crews, on their own account\./);
-    assert.match(textOf(find(root, "as-line-pays")), /Whoever uses Ember pays with their own AI account\. Ember reaches for them only what they can reach themselves\./);
+    assert.match(textOf(find(root, "as-line-lv-use")), /Omar Reyes can use Ember in Omar Reyes's chats, tasks and automations\./);
+    assert.match(textOf(find(root, "as-line-pays")), /Omar Reyes pays with Omar Reyes's own AI account, and Ember only sees what Omar Reyes can see\./);
     await typeInto(find(root, "as-search"), "a@b.co");
     await press(find(root, "as-invite"));
-    assert.match(textOf(find(root, "as-pick-guest:a@b.co")), /Can chat with/, "a guest gets the first level only");
+    assert.match(textOf(find(root, "as-pick-guest:a@b.co")), /Can use/, "a guest gets the first level only");
   });
 });
 
-test("sharing is capped at what the giver holds: higher levels are greyed with the words", async () => {
+test("sharing is capped at what the giver holds: higher levels are not offered", async () => {
   await withDom(async () => {
     const root = await mount(createRoot, <AccessSheet {...share({ itemType: "note", directory: sharePeople, maxLevel: "edit" })} />);
     await press(find(root, "as-row-person:usr_sara"));
     await press(find(root, "as-role-person:usr_sara"));
-    assert.ok(find(root, "menu-item-Can manage (you do not have this)"));
+    assert.ok(find(root, "menu-item-Can manage") === null, "hidden, not greyed");
     assert.ok(find(root, "menu-item-Can edit"));
     assert.match(textOf(find(root, "as-line-tail")), /You can give only what you have yourself\.$/);
   });
@@ -519,7 +521,7 @@ test("Dex: general access is one row at the top, and the folder words stay true"
   assert.match(html, /Can use/);
   assert.doesNotMatch(html, /Not in a folder/);
   assert.doesNotMatch(html, /From the folder/, "an item with no folder says the Space");
-  assert.match(html, /Other agents can hand work to it/);
+  assert.match(html, /They can hand work to Dex in their own chats/);
   const inherited = ssr(<AccessSheet {...dex({ shares: [{ subjectKind: "person", subjectId: "usr_kai", name: "Kai Lund", level: "edit", via: "space", fromFolderId: null }] })} />);
   assert.match(inherited, /From the Space/, "inherited access says the Space when there is no folder");
   assert.doesNotMatch(inherited, /From the folder|Nobody else yet/);
@@ -529,11 +531,12 @@ test("Dex: general access is one row at the top, and the folder words stay true"
 
 test("Dex: agents get one line, with On or Off", () => {
   const html = ssr(<AccessSheet {...dex()} />);
-  assert.match(html, /Agents in this Space can call Dex/);
+  assert.match(html, /Let other agents ask Dex for help/);
+  assert.doesNotMatch(html, /can call/i, "call is jargon");
   assert.match(html, /role="switch"[^>]*aria-checked="true"|aria-checked="true"[^>]*role="switch"/, "a switch, on");
   assert.doesNotMatch(html, />On</, "no On or Off text button");
   const off = ssr(<AccessSheet {...dex({ shares: [] })} />);
-  assert.match(off, /Agents in this Space can call Dex/);
+  assert.match(off, /Let other agents ask Dex for help/);
   assert.match(off, /aria-checked="false"/);
   assert.match(off, /Nobody else yet/, "truly empty");
 });
@@ -554,8 +557,11 @@ test("Dex: a level picker describes each option inside its menu", async () => {
   await withDom(async () => {
     const root = await mount(createRoot, <AccessSheet {...dex()} />);
     await press(find(root, "as-acc-level-space"));
-    assert.match(textOf(root), /Chat with it|Give it tasks|Change how it works/);
-    assert.match(textOf(root), /No access/);
+    assert.match(textOf(root), /Chat with it and put it to work in their own chats, tasks, automations and crews, on their own AI account\./);
+    assert.match(textOf(root), /Change its instructions, context and tools\./);
+    assert.match(textOf(root), /Share it, move it and delete it\./);
+    assert.match(textOf(root), /Only people added/);
+    assert.ok(find(root, "menu-item-Can chat with") === null);
   });
 });
 
@@ -642,5 +648,138 @@ test("the People count is the rows listed under People; the subtitle counts ever
     assert.match(textOf(root), /Agent · 2 with access/, "the owner and Everyone");
     const more = await mount(createRoot, <AccessSheet {...dex({ shares: [{ subjectKind: "person", subjectId: "usr_kai", name: "Kai Lund", level: "edit", via: "grant", fromFolderId: null }, { subjectKind: "person", subjectId: "usr_kai", name: "Kai Lund", level: "view", via: "folder", fromFolderId: null }] })} />);
     assert.equal(textOf(find(more, "as-count")).trim(), "2", "Kai once");
+  });
+});
+
+/* ---------- owner's logic and copy pass, 4 Nov ---------- */
+
+test("general access reads Only people added, then the levels, and says what the chosen level means", async () => {
+  await withDom(async () => {
+    const root = await mount(createRoot, <AccessSheet {...dex()} />);
+    assert.match(textOf(root), /Anyone in Northwind can use Dex/);
+    await press(find(root, "as-acc-level-space"));
+    assert.ok(find(root, "menu-item-Only people added") !== null);
+    assert.ok(find(root, "menu-item-No access") === null);
+    for (const l of ["Can use", "Can edit", "Can manage"]) assert.ok(find(root, `menu-item-${l}`) !== null, l);
+  });
+  const closed = ssr(<AccessSheet {...dex({ shares: [] })} />);
+  assert.match(closed, /Only people added can open it/);
+});
+
+test("Copy link sits at the foot left of Cancel and says who can open it", async () => {
+  await withDom(async () => {
+    let copied = 0;
+    const root = await mount(createRoot, <AccessSheet {...dex({ onCopyLink: () => { copied++; } })} />);
+    await press(find(root, "as-copy-link"));
+    assert.equal(copied, 1);
+    assert.match(textOf(root), /Only people with access can open it/);
+  });
+  assert.doesNotMatch(ssr(<AccessSheet {...dex()} />), /Copy link/, "a host with no link shows no button");
+});
+
+test("Notify people is on by default with an optional message, and both go with every share", async () => {
+  await withDom(async () => {
+    const said: Array<{ who: string; opts: unknown }> = [];
+    const root = await mount(createRoot, <AccessSheet {...dex({ directory: sharePeople, shares: [], notifyPeople: true, onShare: (i, opts) => said.push({ who: i.subject.id, opts }) })} />);
+    await typeInto(find(root, "as-search"), "omar");
+    await press(find(root, "as-row-person:usr_omar"));
+    assert.equal(find(root, "as-notify-switch")?.props["aria-checked"], true, "on by default");
+    await typeInto(find(root, "as-message"), "Take a look");
+    await press(find(root, "as-add"));
+    assert.deepEqual(said, [{ who: "usr_omar", opts: { notify: true, message: "Take a look" } }]);
+    const quiet = await mount(createRoot, <AccessSheet {...dex({ directory: sharePeople, shares: [], notifyPeople: true, onShare: (i, opts) => said.push({ who: i.subject.id, opts }) })} />);
+    await typeInto(find(quiet, "as-search"), "omar");
+    await press(find(quiet, "as-row-person:usr_omar"));
+    await press(find(quiet, "as-notify-switch"));
+    assert.ok(find(quiet, "as-message") === null, "no message box when nobody is told");
+    await press(find(quiet, "as-add"));
+    assert.deepEqual(said[1], { who: "usr_omar", opts: { notify: false } });
+  });
+});
+
+test("Remove access is the last item of a row's menu, in red, and the x does the same", async () => {
+  await withDom(async () => {
+    const gone: unknown[] = [];
+    const root = await mount(createRoot, <AccessSheet {...share({ itemType: "file", directory: sharePeople, onUnshare: (i) => gone.push(i), shares: [{ subjectKind: "person", subjectId: "p_omar", name: "Omar Reyes", level: "edit", via: "grant", fromFolderId: null }] })} />);
+    await press(find(root, "as-acc-level-p_omar"));
+    const item = find(root, "menu-item-Remove access");
+    assert.ok(item !== null, "last item");
+    await press(item);
+    assert.equal(gone.length, 1);
+  });
+});
+
+test("removing yourself says what you lose and asks first", async () => {
+  await withDom(async () => {
+    const gone: unknown[] = [];
+    const root = await mount(createRoot, <AccessSheet {...share({ itemType: "file", itemName: "Q4", directory: sharePeople, meId: "p_me", ownerId: "p_owner", ownerName: "Maya", onUnshare: (i) => gone.push(i), shares: [{ subjectKind: "person", subjectId: "p_me", name: "Irfad", level: "edit", via: "grant", fromFolderId: null }] })} />);
+    await press(find(root, "as-acc-remove-p_me"));
+    assert.equal(gone.length, 0, "nothing yet");
+    assert.match(textOf(find(root, "as-confirm")), /Remove yourself from “Q4”\? You will lose access to it\./);
+    await press(find(root, "as-confirm-no"));
+    assert.equal(gone.length, 0);
+    await press(find(root, "as-acc-remove-p_me"));
+    await press(find(root, "as-confirm-yes"));
+    assert.equal(gone.length, 1);
+  });
+});
+
+test("Make owner: only in the owner's own view, with a confirm that says you become a manager", async () => {
+  await withDom(async () => {
+    const made: unknown[] = [];
+    const rows: ShareSheetProps["shares"] = [{ subjectKind: "person", subjectId: "p_omar", name: "Omar Reyes", level: "manage", via: "grant", fromFolderId: null }];
+    const owner = await mount(createRoot, <AccessSheet {...dex({ meId: "usr_irfad", ownerId: "usr_irfad", shares: rows, onMakeOwner: (s) => made.push(s) })} />);
+    await press(find(owner, "as-acc-level-p_omar"));
+    await press(find(owner, "menu-item-Make owner"));
+    assert.match(textOf(find(owner, "as-confirm")), /You'll become a manager\./);
+    assert.equal(made.length, 0);
+    await press(find(owner, "as-confirm-yes"));
+    assert.deepEqual(made, [{ kind: "person", id: "p_omar" }]);
+    const other = await mount(createRoot, <AccessSheet {...dex({ meId: "p_omar", ownerId: "usr_irfad", shares: rows, onMakeOwner: () => undefined })} />);
+    await press(find(other, "as-acc-level-p_omar"));
+    assert.ok(find(other, "menu-item-Make owner") === null, "a manager does not see it");
+  });
+});
+
+test("a person who already has the level through Everyone says so, and adding them lower is refused with the reason", async () => {
+  const general = { subjectKind: "group" as const, subjectId: "grp_everyone", name: "Everyone", level: "edit" as const, via: "grant" as const, fromFolderId: null };
+  const kai = { subjectKind: "person" as const, subjectId: "usr_kai", name: "Kai Lund", level: "use" as const, via: "grant" as const, fromFolderId: null };
+  assert.match(ssr(<AccessSheet {...dex({ shares: [general, kai] })} />), /Already has access through Everyone in Northwind/);
+  await withDom(async () => {
+    const said: unknown[] = [];
+    const root = await mount(createRoot, <AccessSheet {...dex({ directory: sharePeople, shares: [general], onShare: (i) => said.push(i) })} />);
+    await typeInto(find(root, "as-search"), "omar");
+    await press(find(root, "as-row-person:usr_omar"));
+    // a new person starts at the level Everyone holds, which gains them nothing: refused, with the reason
+    await press(find(root, "as-add"));
+    assert.equal(said.length, 0);
+    assert.match(textOf(find(root, "as-refused")), /Already has access through Everyone in Northwind/);
+    await press(find(root, "as-role-person:usr_omar"));
+    await press(find(root, "menu-item-Can manage"));
+    await press(find(root, "as-add"));
+    assert.equal(said.length, 1, "a higher level goes through");
+  });
+});
+
+test("a new person starts at the general level when one is set, else at Can use for an agent", async () => {
+  await withDom(async () => {
+    const root = await mount(createRoot, <AccessSheet {...dex({ directory: sharePeople, shares: [] })} />);
+    await typeInto(find(root, "as-search"), "omar");
+    await press(find(root, "as-row-person:usr_omar"));
+    assert.match(textOf(find(root, "as-role-person:usr_omar")), /Can use/);
+  });
+});
+
+test("groups are Teams everywhere, and the picker descriptions are per item type", async () => {
+  const html = ssr(<AccessSheet {...share({ itemType: "note", directory: sharePeople })} />);
+  assert.doesNotMatch(html, /Groups?\b/, "no Groups");
+  await withDom(async () => {
+    const root = await mount(createRoot, <AccessSheet {...share({ itemType: "vault", itemName: "GHL", directory: sharePeople, levels: ["use", "view", "manage"] })} />);
+    await press(find(root, "as-row-person:usr_sara"));
+    await press(find(root, "as-role-person:usr_sara"));
+    assert.ok(find(root, "menu-item-Can use without seeing") !== null);
+    assert.ok(find(root, "menu-item-Can see") !== null);
+    assert.ok(find(root, "menu-item-Can manage") !== null);
+    assert.ok(find(root, "menu-item-Can edit") === null, "the Vault offers three levels");
   });
 });

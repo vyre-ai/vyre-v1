@@ -29,3 +29,15 @@ export const entries = (list: readonly { id: string; name: string; sub?: string 
 export function sheetDirectory(d: { people: readonly { id: string; name: string }[]; groups: readonly { id: string; name: string }[]; roles: readonly { id: string; name: string }[]; agents: readonly { id: string; name: string }[] }) {
   return { people: entries(d.people, "person"), groups: entries(d.groups, "group"), roles: entries(d.roles, "role"), agents: entries(d.agents, "agent") };
 }
+
+/** access.share (or vault.share) input from what the sheet hands back, with the Notify people choice folded in as `notify`. */
+export function withNotify<T extends Record<string, unknown>>(input: T, opts?: { notify: boolean; message?: string }): T & { notify?: { message?: string } } {
+  if (!opts || !opts.notify) return input;
+  return { ...input, notify: opts.message ? { message: opts.message } : {} };
+}
+
+/** Copies the link to where the person is now. The sheet says who can open it. */
+export function copyPageLink(): void {
+  const g = globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } }; location?: { href?: string } };
+  void g.navigator?.clipboard?.writeText(g.location?.href ?? "");
+}

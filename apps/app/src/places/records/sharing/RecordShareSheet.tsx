@@ -6,7 +6,7 @@ import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from
 import type { ViewStyle } from "react-native";
 import { AccessSheet } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import type { Audience, Exporters, RowFlag, ShareInput, ShareRow, UnshareInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
-import { sheetDirectory } from "../../../share/rows.ts";
+import { copyPageLink, sheetDirectory, withNotify } from "../../../share/rows.ts";
 import { States } from "../../../../../../ui/src/States/index.tsx";
 import { useRecordsData } from "../sidebar/data.tsx";
 import type { ShareTarget } from "../sidebar/data.tsx";
@@ -57,7 +57,8 @@ export function RecordShareSheet({ target, directory, spaceName, onClose }: { ta
         mode="share" itemType={target.type === "record_type" ? "rtype" : "record"} resourceType={target.type} resourceId={target.id} itemName={target.name} target="item" {...(spaceName ? { spaceName } : {})} ownerName={ownerName} {...(m.owner ? { ownerId: m.owner.id } : {})}
         levels={RECORD_LEVELS} shares={m.rows} allowExternal={false} density={phone ? "compact" : "regular"} directory={sheetDirectory({ people: directory.people ?? [], groups: directory.groups ?? [], roles: directory.roles ?? [], agents: directory.agents ?? [] })}
         {...(target.typeName ? { folderName: target.typeName } : {})} {...(out.mine ? { maxLevel: out.mine } : {})} records={records}
-        onShare={(i: ShareInput) => run(data.call("access.share", shareCall(res, i.subject, i.level)))}
+        notifyPeople onCopyLink={copyPageLink}
+        onShare={(i: ShareInput, opts) => run(data.call("access.share", withNotify(shareCall(res, i.subject, i.level), opts)))}
         onUnshare={(i: UnshareInput) => run(data.call("access.unshare", { resource: i.resource, subject: i.subject }))}
         onClose={onClose}
       />
