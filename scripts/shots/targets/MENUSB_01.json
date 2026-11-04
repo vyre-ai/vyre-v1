@@ -1,0 +1,76 @@
+{
+  "targets": [
+    {
+      "id": "MENUSB_01-vault",
+      "route": "/m/MENUSB_01?part=vault",
+      "proto": "vault,{skin}",
+      "waitFor": "[data-testid='row-vit_ghl']",
+      "rightClick": "[data-testid='row-vit_ghl']",
+      "note": "A Vault key you manage: Edit, Reveal Values, copies, Share, Move to Folder, Mark as Rotated, Usage, Move to Trash last."
+    },
+    {
+      "id": "MENUSB_01-vault-editor",
+      "route": "/m/MENUSB_01?part=vault",
+      "proto": "vault,{skin}",
+      "waitFor": "[data-testid='row-vit_stripe']",
+      "rightClick": "[data-testid='row-vit_stripe']",
+      "note": "A key you may edit: no Share, Move or Trash."
+    },
+    {
+      "id": "MENUSB_01-auto",
+      "route": "/m/MENUSB_01?part=auto",
+      "proto": "automations,{skin}",
+      "waitFor": "[data-testid^='row-auto-']",
+      "rightClick": "[data-testid^='row-auto-']",
+      "note": "An automation: Run Now, Turn On or Off, Test, Runs, Personal copy, groups, Copy Link, Move to Trash last."
+    },
+    {
+      "id": "MENUSB_01-goal",
+      "route": "/m/MENUSB_01?part=goal",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='goal-page-head']",
+      "rightClick": "[data-testid='goal-page-head']",
+      "note": "A goal you own: Pause, Mark Stuck, Report Progress, Copy Link, Stop Goal last."
+    },
+    {
+      "id": "MENUSB_01-project",
+      "route": "/m/MENUSB_01?part=project",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid='project-head']",
+      "rightClick": "[data-testid='project-head']",
+      "note": "A project you lead: Star, Share, Add People, Pin File, Copy Link."
+    },
+    {
+      "id": "MENUSB_01-tabs",
+      "route": "/m/MENUSB_01?part=tabs",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid^='tab-']",
+      "rightClick": "[data-testid='tab-home']",
+      "note": "A tab: Close, Close Other Tabs, Close Tabs to the Right, Pin Tab, Reopen Closed Tab."
+    },
+    {
+      "id": "MENUSB_01-console-person",
+      "route": "/m/MENUSB_01?part=console",
+      "proto": "console,{skin}",
+      "waitFor": "[data-testid='row-object-row-p1']",
+      "rightClick": "[data-testid='row-object-row-p1']",
+      "note": "A Console person row: Copy Name, Suspend, Change Role, Remove from Space last."
+    },
+    {
+      "id": "MENUSB_01-console-group",
+      "route": "/m/MENUSB_01?part=console",
+      "proto": "console,{skin}",
+      "waitFor": "[data-testid='row-object-row-g1']",
+      "rightClick": "[data-testid='row-object-row-g1']",
+      "note": "A Console group row: Add Person, Rename, Delete Group last."
+    },
+    {
+      "id": "MENUSB_01-console-role",
+      "route": "/m/MENUSB_01?part=console",
+      "proto": "console,{skin}",
+      "waitFor": "[data-testid='row-object-row-r1']",
+      "rightClick": "[data-testid='row-object-row-r1']",
+      "note": "A Console role row: Duplicate, Preview Changes, Delete Role last."
+    }
+  ]
+}
