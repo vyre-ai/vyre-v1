@@ -2034,6 +2034,7 @@ export function createClient(transport: Transport) {
     },
     projects: {
       apply_cascade: call("projects.apply_cascade", 1),
+      archive: call("projects.archive", 1),
       cascade: call("projects.cascade", 1),
       create: call("projects.create", 1),
       file_chat: call("projects.file_chat", 1),
@@ -2066,6 +2067,7 @@ export function createClient(transport: Transport) {
       templates: {
         list: call("projects.templates.list", 1),
       },
+      unarchive: call("projects.unarchive", 1),
       unlink_tasks: call("projects.unlink_tasks", 1),
       unpin_file: call("projects.unpin_file", 1),
       unshare_out: call("projects.unshare_out", 1),

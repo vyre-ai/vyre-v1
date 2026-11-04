@@ -71,6 +71,22 @@
       "waitFor": "[data-testid='row-object-row-r1']",
       "rightClick": "[data-testid='row-object-row-r1']",
       "note": "A Console role row: Duplicate, Preview Changes, Delete Role last."
+    },
+    {
+      "id": "MENUSB_01-machines",
+      "route": "/m/MENUSB_01?part=machines",
+      "proto": "console,{skin}",
+      "waitFor": "[data-testid='machine-srv_box']",
+      "rightClick": "[data-testid='machine-srv_box']",
+      "note": "A Console machine row for an admin: Open, Drain, Fix (clear caches, stop idle sessions, pin an agent), Copy Address, Remove from the Space last."
+    },
+    {
+      "id": "MENUSB_01-machines-member",
+      "route": "/m/MENUSB_01?part=machines",
+      "proto": "console,{skin}",
+      "waitFor": "[data-testid='machine-dev_maya']",
+      "rightClick": "[data-testid='machine-dev_maya']",
+      "note": "A member's own computer seen by an admin: Open, Drain, Copy Address only."
     }
   ]
 }

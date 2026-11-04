@@ -18,9 +18,10 @@ function world(role: string, starred = false) {
   const base = s.data.call.bind(s.data);
   s.data.call = async (cap: string, input: unknown) => {
     calls.push({ cap, input: input as never });
-    if (cap === "projects.members.list") return { members: [{ principal: { kind: "person", id: "usr_me" }, role, kind: "person", since: 0 }] };
+    if (cap === "projects.members.list") return { members: [{ principal: "usr_me", role, kind: "person", since: 0 }] };
     if (cap === "stars.list") return { stars: starred ? [{ resource: { type: "project", id: "pj_0" } }] : [] };
     if (cap === "stars.toggle") return { starred: true, following: false };
+    if (cap === "projects.archive" || cap === "projects.unarchive") return { archived: cap === "projects.archive", changed: true };
     return base(cap, input);
   };
   s.data.me = { id: "usr_me", name: "Me" };
@@ -29,16 +30,19 @@ function world(role: string, starred = false) {
 }
 const mountPage = async (w: ReturnType<typeof world>) => { const root = await mount(createRoot as never, <ProjectPageDataProvider value={w.s.data}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider>); await flush(); await flush(); return root; };
 
-test("a lead: Star, Share, Add People, Pin File, Copy Link; Star is one stars.toggle and the words follow the state; there is no Archive", async () => {
+test("a lead: Star, Share, Add People, Pin File, Archive, Copy Link; Star is one stars.toggle, Archive is one projects.archive, and the words follow the state", async () => {
   const w = world("lead");
   const root = await mountPage(w);
   await rightClick(root, "project-head");
   const labels = labelsOf(root);
-  assert.deepEqual(labels, ["Star", "Share…", "Add People…", "Pin File…", "Copy Link"], labels.join("|"));
+  assert.deepEqual(labels, ["Star", "Share…", "Add People…", "Pin File…", "Archive", "Copy Link"], labels.join("|"));
   await press(find(root as never, "menu-item-Star") as never); await flush();
   assert.deepEqual(w.calls.filter((c) => c.cap === "stars.toggle").map((c) => c.input), [{ resource: { type: "project", id: "pj_0" }, on: true }]);
   await rightClick(root, "project-head");
   assert.ok(labelsOf(root).includes("Remove Star"), "the words follow the state");
+  await press(find(root as never, "menu-item-Archive") as never); await flush();
+  assert.deepEqual(w.calls.filter((c) => c.cap === "projects.archive").map((c) => c.input), [{ projectId: "pj_0" }]);
+  await rightClick(root, "project-head");
   await press(find(root as never, "menu-item-Share…") as never); await flush();
   assert.deepEqual(w.opened, ["projects:pj_0"]);
   await rightClick(root, "project-head");

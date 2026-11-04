@@ -2034,6 +2034,7 @@ export function stubs(ctx: CallCtx) {
     },
     projects: {
       apply_cascade: call("projects.apply_cascade"),
+      archive: call("projects.archive"),
       cascade: call("projects.cascade"),
       create: call("projects.create"),
       file_chat: call("projects.file_chat"),
@@ -2066,6 +2067,7 @@ export function stubs(ctx: CallCtx) {
       templates: {
         list: call("projects.templates.list"),
       },
+      unarchive: call("projects.unarchive"),
       unlink_tasks: call("projects.unlink_tasks"),
       unpin_file: call("projects.unpin_file"),
       unshare_out: call("projects.unshare_out"),

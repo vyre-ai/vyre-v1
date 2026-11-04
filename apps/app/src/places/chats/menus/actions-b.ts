@@ -27,6 +27,8 @@ export interface MenuApiB {
   projectStar(projectId: string, on: boolean): Promise<void>;
   projectAddPerson(projectId: string, principal: { kind: "person" | "agent"; id: string }, role: string): Promise<void>;
   projectPinFile(projectId: string, fileId: string): Promise<void>;
+  projectArchive(projectId: string): Promise<void>;
+  projectUnarchive(projectId: string): Promise<void>;
   // Console rows
   personSuspend(personId: string): Promise<void>;
   personReactivate(personId: string): Promise<void>;
@@ -45,6 +47,11 @@ export interface MenuApiB {
   numberRelease(numberId: string): Promise<void>;
   domainCheck(domainId: string): Promise<void>;
   domainRemove(domainId: string): Promise<void>;
+  // Machines
+  machineDrain(machineId: string, on: boolean): Promise<void>;
+  machineFix(machineId: string, fix: "clear_caches" | "stop_idle"): Promise<void>;
+  serverRemove(serverId: string): Promise<void>;
+  myComputerRemove(serverId: string): Promise<void>;
 }
 
 export function createMenuApiB(data: Call): MenuApiB {
@@ -70,6 +77,8 @@ export function createMenuApiB(data: Call): MenuApiB {
     projectStar: (projectId, on) => c("stars.toggle", { resource: { type: "project", id: projectId }, on }),
     projectAddPerson: (projectId, principal, role) => c("projects.members.set", { projectId, principal, role, idempotencyKey: key("member", `${projectId}:${principal.id}`) }),
     projectPinFile: (projectId, fileId) => c("projects.pin_file", { projectId, fileId }),
+    projectArchive: (projectId) => c("projects.archive", { projectId }),
+    projectUnarchive: (projectId) => c("projects.unarchive", { projectId }),
 
     personSuspend: (personId) => c("members.suspend", { personId }),
     personReactivate: (personId) => c("members.reactivate", { personId }),
@@ -93,6 +102,10 @@ export function createMenuApiB(data: Call): MenuApiB {
     numberRelease: (numberId) => c("telephony.number.release", { numberId, idempotencyKey: key("release", numberId) }),
     domainCheck: (domainId) => c("mail.domain.check", { domainId }),
     domainRemove: (domainId) => c("mail.domain.remove", { domainId }),
+    machineDrain: (machineId, on) => c("machines.set", { machineId, drain: on }),
+    machineFix: (machineId, fix) => c("machines.fix", { machineId, fix }),
+    serverRemove: (serverId) => c("network.server_remove", { serverId }),
+    myComputerRemove: (serverId) => c("network.my_computer_remove", { serverId }),
   };
 }
 

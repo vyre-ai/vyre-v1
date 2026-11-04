@@ -50,9 +50,9 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
       setLoad({ status: "ready", overview, plan });
       // what the right-click menu offers follows the person's role on the project and whether they starred it
       try {
-        const members = (await d.call("projects.members.list", { projectId })) as { members?: { principal: { id: string }; role: string }[] };
+        const members = (await d.call("projects.members.list", { projectId })) as { members?: { principal: string; role: string }[] };
         const stars = (await d.call("stars.list", {})) as { stars?: { resource: { type: string; id: string } }[] };
-        const role = (members.members ?? []).find((m) => m.principal.id === d.me?.id)?.role?.toLowerCase();
+        const role = (members.members ?? []).find((m) => m.principal === d.me?.id)?.role?.toLowerCase();
         setMine({ manage: role === "lead", edit: role === "lead" || role === "member", starred: (stars.stars ?? []).some((x) => x.resource.type === "project" && x.resource.id === projectId) });
       } catch { /* the menu then offers only what anyone may do */ }
     } catch { setLoad({ status: "gone" }); }
@@ -96,10 +96,12 @@ export function ProjectPage({ projectId, tab: first = "overview", planView = "ti
   return (
     <View style={s.frame} testID="project-page" accessibilityLabel={`Project, ${p.title}`}>
       {menu.element}
-      <View style={s.head} testID="project-head" {...menuTrigger((x, y) => menu.show(projectMenu({ title: p.title, starred: mine.starred, manage: mine.manage, edit: mine.edit }, {
+      <View style={s.head} testID="project-head" {...menuTrigger((x, y) => menu.show(projectMenu({ title: p.title, starred: mine.starred, archived: p.archivedAt !== undefined, manage: mine.manage, edit: mine.edit }, {
         star: (on) => { void api.projectStar(projectId, on).then(() => { setMine((m) => ({ ...m, starred: on })); setNote(on ? "Starred" : "Star removed"); }, say); },
         share: () => d.nav.openRecordPage(p.type, p.recordId), addPeople: () => add.open({ projectId }),
-        pinFile: () => { setTab("files"); onTabChange?.("files"); }, copyLink: () => { copyToClipboard(vyreLink("project", projectId)); setNote("Link copied"); },
+        pinFile: () => { setTab("files"); onTabChange?.("files"); },
+        archive: () => { void api.projectArchive(projectId).then(() => { setNote("Archived. It left the lists and still opens; Unarchive brings it back."); void read(); }, say); },
+        unarchive: () => { void api.projectUnarchive(projectId).then(() => { setNote("Back in the lists"); void read(); }, say); }, copyLink: () => { copyToClipboard(vyreLink("project", projectId)); setNote("Link copied"); },
       }), x, y, "context", { label: p.title }))}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text accessibilityRole="header" aria-level={1} numberOfLines={1} style={s.title} testID="project-title">{p.title}</Text>

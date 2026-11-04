@@ -145,6 +145,8 @@ export function goalMenu(f: GoalFacts, d: GoalDo): MenuEntry[] {
 export interface ProjectFacts {
   title: string;
   starred: boolean;
+  /** Archived: out of the lists, still readable. */
+  archived: boolean;
   /** Manage on the project: share it, add people. */
   manage: boolean;
   /** Edit: pin a file to it. */
@@ -157,9 +159,11 @@ export interface ProjectDo {
   share(): void;
   addPeople(): void;
   pinFile(): void;
+  archive(): void;
+  unarchive(): void;
   copyLink(): void;
 }
-/** A project has no Archive: nothing behind it yet (projects.update does not exist), so it is not offered. */
+/** Archive takes a project out of the lists and keeps it readable (projects.archive); it is a manager's, and always undoable by Unarchive. */
 export function projectMenu(f: ProjectFacts, d: ProjectDo): MenuEntry[] {
   return tidy([
     d.open ? item("Open", d.open, { hint: KEY.enter }) : null,
@@ -168,6 +172,8 @@ export function projectMenu(f: ProjectFacts, d: ProjectDo): MenuEntry[] {
     f.manage ? item(ellipsis("Share"), d.share) : null,
     f.manage ? item(ellipsis("Add People"), d.addPeople) : null,
     f.edit ? item(ellipsis("Pin File"), d.pinFile) : null,
+    f.manage ? sep : null,
+    f.manage ? (f.archived ? item("Unarchive", d.unarchive) : item("Archive", d.archive)) : null,
     sep,
     item("Copy Link", d.copyLink),
   ]);
@@ -210,6 +216,43 @@ export function tabMenu(f: TabFacts, d: TabDo): MenuEntry[] {
     d.toWindow && f.item ? item("Move to New Window", d.toWindow) : null,
     f.canReopen ? sep : null,
     f.canReopen ? item("Reopen Closed Tab", d.reopen, { hint: KEY_B.reopenTab }) : null,
+  ]);
+}
+
+// ---------------------------------------------------------------- Machine (Console and Personal Space lists)
+
+export interface MachineFacts {
+  name: string;
+  draining: boolean;
+  /** Drain or undrain: an admin, or the machine's owner. */
+  canDrain: boolean;
+  /** Fix and pin an agent: the owner of a computer, an admin for the Space server and servers; an admin does not reach into a member's own computer. */
+  canFix: boolean;
+  /** Take it out of the Space: a server only, by an admin or its owner; never the Space server and never a linked device. */
+  canRemove: boolean;
+}
+export interface MachineDo {
+  open(): void;
+  drain(on: boolean): void;
+  clearCaches(): void;
+  stopIdle(): void;
+  pinAgent(): void;
+  copyAddress(): void;
+  remove(): void;
+}
+export function machineMenu(f: MachineFacts, d: MachineDo): MenuEntry[] {
+  return tidy([
+    item("Open", d.open, { hint: KEY.enter }),
+    f.canDrain ? (f.draining ? item("Undrain", () => d.drain(false)) : item("Drain", () => d.drain(true))) : null,
+    f.canFix ? sep : null,
+    f.canFix ? { head: "Fix" } : null,
+    f.canFix ? item("Clear Old Caches", d.clearCaches) : null,
+    f.canFix ? item("Stop Idle Sessions", d.stopIdle) : null,
+    f.canFix ? item(ellipsis("Pin an Agent"), d.pinAgent) : null,
+    sep,
+    item("Copy Address", d.copyAddress),
+    f.canRemove ? sep : null,
+    f.canRemove ? item(ellipsis("Remove from the Space"), d.remove, { danger: true, hint: KEY.remove }) : null,
   ]);
 }
 

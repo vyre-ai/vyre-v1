@@ -28,6 +28,7 @@ type In = {
   type?: string;
   mine?: boolean;
   status?: string;
+  archived?: boolean;
   cursor?: string;
   limit?: number;
 };
@@ -52,6 +53,7 @@ type Out = {
       memberCount: number;
       openTasks: number;
       lateTasks: number;
+      archivedAt?: number;
     }>;
   next?: string;
   total?: number;
@@ -71,6 +73,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "archived": true,
     "cursor": "example",
     "limit": 1,
     "mine": true,
@@ -81,6 +84,7 @@ type Out = {
     "next": "example",
     "projects": [
       {
+        "archivedAt": 1760000000000,
         "channelId": "chn_a1b2c3",
         "due": 1760000000000,
         "folderId": "fld_a1b2c3",

@@ -6,6 +6,7 @@ import type { Handlers } from './handlers.ts';
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
   "projects.apply_cascade": async (ctx) => { throw new VyreErr(notImplemented("projects.apply_cascade", ctx.trace)); },
+  "projects.archive": async (ctx) => { throw new VyreErr(notImplemented("projects.archive", ctx.trace)); },
   "projects.cascade": async (ctx) => { throw new VyreErr(notImplemented("projects.cascade", ctx.trace)); },
   "projects.create": async (ctx) => { throw new VyreErr(notImplemented("projects.create", ctx.trace)); },
   "projects.file_chat": async (ctx) => { throw new VyreErr(notImplemented("projects.file_chat", ctx.trace)); },
@@ -30,6 +31,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "projects.teammates.list": async (ctx) => { throw new VyreErr(notImplemented("projects.teammates.list", ctx.trace)); },
   "projects.teammates.remove": async (ctx) => { throw new VyreErr(notImplemented("projects.teammates.remove", ctx.trace)); },
   "projects.templates.list": async (ctx) => { throw new VyreErr(notImplemented("projects.templates.list", ctx.trace)); },
+  "projects.unarchive": async (ctx) => { throw new VyreErr(notImplemented("projects.unarchive", ctx.trace)); },
   "projects.unlink_tasks": async (ctx) => { throw new VyreErr(notImplemented("projects.unlink_tasks", ctx.trace)); },
   "projects.unpin_file": async (ctx) => { throw new VyreErr(notImplemented("projects.unpin_file", ctx.trace)); },
   "projects.unshare_out": async (ctx) => { throw new VyreErr(notImplemented("projects.unshare_out", ctx.trace)); },

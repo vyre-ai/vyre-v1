@@ -44955,6 +44955,32 @@
     },
     {
       "blocks": [],
+      "cap": "projects.archive",
+      "deferred": false,
+      "description": "Archive a project: it leaves the lists and stays readable, with its record, channel, folder and plan. A manager of the project",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_archive",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "projects.cascade",
       "deferred": false,
       "description": "Propose the cascade after something slips: which later tasks move and which dates still hold (an agent may call this too)",
@@ -45313,6 +45339,10 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "archived": {
+            "description": "true lists the archived projects instead of the others",
+            "type": "boolean"
+          },
           "cursor": {
             "type": "string"
           },
@@ -45907,6 +45937,32 @@
       },
       "name": "projects_templates_list",
       "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "projects.unarchive",
+      "deferred": false,
+      "description": "Bring an archived project back to the lists",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId"
+        ],
+        "type": "object"
+      },
+      "name": "projects_unarchive",
+      "planMode": "blocked",
       "toolset": "records",
       "v": 1
     },

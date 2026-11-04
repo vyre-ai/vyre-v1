@@ -75,15 +75,15 @@ test("goal: Pause or Resume by state, stuck and report only while it runs, Stop 
 });
 
 // ---- project
-const projDo = recorder<Parameters<typeof projectMenu>[1]>(["open", "share", "addPeople", "pinFile", "copyLink"]);
-test("project: star by state, Share and Add People for a manager, Pin File for an editor; no Archive", () => {
+const projDo = recorder<Parameters<typeof projectMenu>[1]>(["open", "share", "addPeople", "pinFile", "archive", "unarchive", "copyLink"]);
+test("project: star by state, Share, Add People and Archive or Unarchive for a manager, Pin File for an editor", () => {
   const d = { ...projDo, star: rec("star") };
-  assert.deepEqual(labels(projectMenu({ title: "Portal", starred: false, manage: true, edit: true }, d)), ["Open", "Star", "-", "Share…", "Add People…", "Pin File…", "-", "Copy Link"]);
-  assert.deepEqual(labels(projectMenu({ title: "Portal", starred: true, manage: false, edit: false }, d)), ["Open", "Remove Star", "-", "Copy Link"]);
-  assert.ok(!labels(projectMenu({ title: "Portal", starred: false, manage: true, edit: true }, d)).some((x) => /Archive/.test(x)), "nothing behind Archive yet");
+  assert.deepEqual(labels(projectMenu({ title: "Portal", starred: false, archived: false, manage: true, edit: true }, d)), ["Open", "Star", "-", "Share…", "Add People…", "Pin File…", "-", "Archive", "-", "Copy Link"]);
+  assert.ok(labels(projectMenu({ title: "Portal", starred: false, archived: true, manage: true, edit: true }, d)).includes("Unarchive"), "the words follow the state");
+  assert.deepEqual(labels(projectMenu({ title: "Portal", starred: true, archived: false, manage: false, edit: false }, d)), ["Open", "Remove Star", "-", "Copy Link"], "someone who only reads cannot archive");
   calls.length = 0;
-  for (const x of rows(projectMenu({ title: "Portal", starred: false, manage: true, edit: true }, d))) x.onSelect?.();
-  assert.deepEqual(calls, ["open", "star:true", "share", "addPeople", "pinFile", "copyLink"]);
+  for (const x of rows(projectMenu({ title: "Portal", starred: false, archived: false, manage: true, edit: true }, d))) x.onSelect?.();
+  assert.deepEqual(calls, ["open", "star:true", "share", "addPeople", "pinFile", "archive", "copyLink"]);
 });
 
 // ---- tab

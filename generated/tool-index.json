@@ -6632,6 +6632,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_archive",
+      "summary": "Archive a project: it leaves the lists and stays readable, with its record, channel, folder and plan. A manager of the project",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_cascade",
       "summary": "Propose the cascade after something slips: which later tasks move and which dates still hold (an agent may call this too)",
       "toolset": "tasks"
@@ -6766,6 +6772,12 @@
       "deferred": false,
       "name": "projects_templates_list",
       "summary": "Project templates: record types derived from Project and template projects from installed Kits",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
+      "name": "projects_unarchive",
+      "summary": "Bring an archived project back to the lists",
       "toolset": "records"
     },
     {

@@ -4,9 +4,10 @@ Lane L3. Kind module. Version 0.1.0.
 
 Requires: agents, records, tasks.
 
-## Capabilities (28)
+## Capabilities (30)
 
 - [projects.apply_cascade](../capabilities/projects.apply_cascade.md): Apply a cascade proposal, or keep the dates
+- [projects.archive](../capabilities/projects.archive.md): Archive a project: it leaves the lists and stays readable, with its record, channel, folder and plan. A manager of the project
 - [projects.cascade](../capabilities/projects.cascade.md): Propose the cascade after something slips: which later tasks move and which dates still hold (an agent may call this too)
 - [projects.create](../capabilities/projects.create.md): Make a project: the record, exactly one channel and one folder (Projects/<name>), and an empty plan
 - [projects.file_chat](../capabilities/projects.file_chat.md): File a private chat under the project; it stays private and the agent gets the project memory and folder
@@ -31,12 +32,14 @@ Requires: agents, records, tasks.
 - [projects.teammates.list](../capabilities/projects.teammates.list.md): The teammates of a project: agents with a role there, with the lead first. The lead is the default participant in a new chat in the project.
 - [projects.teammates.remove](../capabilities/projects.teammates.remove.md): Take a teammate off the project; one made for this project moves to Trash with it
 - [projects.templates.list](../capabilities/projects.templates.list.md): Project templates: record types derived from Project and template projects from installed Kits
+- [projects.unarchive](../capabilities/projects.unarchive.md): Bring an archived project back to the lists
 - [projects.unlink_tasks](../capabilities/projects.unlink_tasks.md): Remove a dependency arrow
 - [projects.unpin_file](../capabilities/projects.unpin_file.md): Unpin a file from the Overview
 - [projects.unshare_out](../capabilities/projects.unshare_out.md): Revoke a read-only link to the project Overview; the link answers not found at once
 
-## Events (17)
+## Events (19)
 
+- [project.archived](../events/project.archived.md): A project was archived: it left the lists and stays readable
 - [project.cascade_applied](../events/project.cascade_applied.md): A cascade proposal was applied
 - [project.cascade_proposed](../events/project.cascade_proposed.md): The plan proposed moving later tasks after a slip
 - [project.chat_filed](../events/project.chat_filed.md): A private chat was filed under a project (it stays private)
@@ -52,5 +55,6 @@ Requires: agents, records, tasks.
 - [project.task_thread_opened](../events/project.task_thread_opened.md): A task got its thread in the project channel
 - [project.tasks_linked](../events/project.tasks_linked.md): A dependency was added between two tasks
 - [project.tasks_unlinked](../events/project.tasks_unlinked.md): A dependency was removed
+- [project.unarchived](../events/project.unarchived.md): An archived project was brought back to the lists
 - [project.unshared_out](../events/project.unshared_out.md): A read-only link to the project Overview was revoked
 - [project.update_posted](../events/project.update_posted.md): A status update was posted to the project channel

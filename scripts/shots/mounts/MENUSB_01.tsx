@@ -17,6 +17,8 @@ import { createTabsController } from "../../../apps/app/src/shell/tabs/store.ts"
 import { ObjectList } from "../../../apps/app/src/console/objects/ObjectList.tsx";
 import { groupRowActions, personRowActions, roleRowActions } from "../../../apps/app/src/console/objects/row-menus.ts";
 import { createMenuApiB } from "../../../apps/app/src/places/chats/menus/actions-b.ts";
+import { MachineList } from "../../../apps/app/src/machines/MachinesView.tsx";
+import type { MachineRow } from "../../../apps/app/src/machines/model.ts";
 import type { ConversationData } from "../../../apps/app/src/places/chats/conversation/data.tsx";
 
 export const title = "Right-click menus: Vault, automations, goals, projects, tabs, Console";
@@ -37,6 +39,12 @@ function ConsoleRows(): ReactNode {
   return <Frame width={560}><ObjectList rows={rows} selectedId={null} onOpen={() => undefined} empty="none" /></Frame>;
 }
 
+const mrow = (o: Partial<MachineRow> & { serverId: string; name: string }): MachineRow => ({ kind: "server", mine: false, state: "healthy", online: true, private: false, runs: { turns: 1, agentComputers: 0, sites: 0, automations: 0 }, can: ["claude_code", "docker"], room: { n: 60, why: "" }, limits: { maxTurns: null, maxAgentComputers: null }, drain: false, pins: [], version: "1.4.1", os: "Debian 12", arch: "x64", cores: 4, memBytes: 8e9, diskBytes: 160e9, latencyMs: 34, load: { cpu: 21, memPct: 51, diskPct: 40, diskFreeBytes: 96e9 }, ...o }) as MachineRow;
+function Machines(): ReactNode {
+  const ms = [mrow({ serverId: "space", name: "Northwind server", kind: "space" }), mrow({ serverId: "srv_box", name: "Berlin box", nickname: "Berlin" }), mrow({ serverId: "dev_maya", name: "Maya's MacBook Air", kind: "linked", owner: "usr_maya", private: true })];
+  return <Frame width={1100}><MachineList data={{ machines: ms, waiting: [], alerts: [], admin: true, now: NOW }} who={(id) => id} narrow={false} now={NOW} onOpen={() => undefined} onAdd={() => undefined} scope="space" call={async () => ({})} reload={async () => undefined} /></Frame>;
+}
+
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "vault"), []);
@@ -46,7 +54,7 @@ export default function Mount(): ReactNode {
   const project = useMemo(() => {
     const s = createSampleProject();
     const base = s.data.call.bind(s.data);
-    s.data.call = async (cap: string, input: unknown) => (cap === "projects.members.list" ? { members: [{ principal: { kind: "person", id: "usr_me" }, role: "lead", kind: "person", since: 0 }] } : cap === "stars.list" ? { stars: [] } : base(cap, input));
+    s.data.call = async (cap: string, input: unknown) => (cap === "projects.members.list" ? { members: [{ principal: "usr_me", role: "lead", kind: "person", since: 0 }] } : cap === "stars.list" ? { stars: [] } : base(cap, input));
     s.data.me = { id: "usr_me", name: "Me" };
     return s;
   }, []);
@@ -57,5 +65,6 @@ export default function Mount(): ReactNode {
   if (part === "goal") return <Frame width={760}><GoalPage goalId="gol_lab8" call={goalCall} changes={undefined} me="usr_irfad" nameOf={(id) => ({ usr_irfad: "Irfad Imtiaz", agt_labdesk: "Lab Desk" } as Record<string, string>)[id] ?? id} clock={() => ({ now: NOW, offsetMin: 300 })} conversationFor={() => ({}) as ConversationData} openTask={() => undefined} openAgent={() => undefined} pane={false} /></Frame>;
   if (part === "project") return <Frame width={760}><ProjectPageDataProvider value={project.data}><ProjectPage projectId="pj_0" /></ProjectPageDataProvider></Frame>;
   if (part === "tabs") return <Frame width={760}><MainTabs controller={tabs} onGoToPlace={() => undefined} /></Frame>;
+  if (part === "machines") return <Machines />;
   return <ConsoleRows />;
 }
