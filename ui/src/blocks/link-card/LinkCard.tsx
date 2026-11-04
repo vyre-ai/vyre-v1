@@ -117,7 +117,7 @@ const st = StyleSheet.create({
   btnPrimaryText: { color: "var(--win)" as string },
   qtitle: { color: "var(--ink)" as string, fontWeight: "500", fontSize: 14 },
   sub: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginTop: -4 },
-  noted: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingTop: 12, paddingBottom: 6 },
+  noted: { width: "100%", flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, paddingTop: 12, paddingBottom: 6 },
   dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: "var(--ok)" as string },
   notedText: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string },
   notedWords: { color: "var(--ink-2, var(--ink))" as string, fontWeight: "500" },

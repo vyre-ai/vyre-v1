@@ -66,22 +66,20 @@ function UsedLine({ messageId, used, startOpen }: { messageId: string; used: Use
   ] as MenuEntry[], x, y, "context", { label: "Used memories" });
   return (
     <View testID={`mused-${messageId}`} style={st.mused} {...ownMenu(entries)}>
-      <Pressable
-        accessibilityRole="button" accessibilityState={{ expanded: open }} aria-expanded={open} accessibilityLabel={`${usedLabel(n)}, ${open ? "hide" : "show"}`} testID={`mused-toggle-${messageId}`} onPress={() => setOpen((o) => !o)}
-        style={({ hovered }: { hovered?: boolean }) => [st.head, hovered === true && st.headOver]}
-      >
-        <Icon name="bulb" size={13} color="var(--ink-3)" />
-        <Text style={st.headText}>{usedLabel(n)}</Text>
-        <View style={open ? st.flip : undefined}><Icon name="chevd" size={9} color="var(--ink-3)" /></View>
-      </Pressable>
-      {!open ? (
-        // rule 7: the citation is on the message itself: who said what the answer rests on, and when, each a chip that jumps to the message
-        <View testID={`mused-chips-${messageId}`} style={st.chips}>
-          {each(used.facts.filter((f) => f.by).slice(0, 1), (f) => (
-            <ChipLink key={f.factId} icon={glyphOf(f.sourceKind)} label={`Remembered from ${f.by === mem.me.id ? "you" : mem.nameOf(f.by!)}, ${ageText(f.at, mem.now())}`} testID={`mused-cite-${f.factId}`} onPress={() => openSource(f)} />
-          ))}
-        </View>
-      ) : null}
+      <View style={st.line}>
+        <Pressable
+          accessibilityRole="button" accessibilityState={{ expanded: open }} aria-expanded={open} accessibilityLabel={`${usedLabel(n)}, ${open ? "hide" : "show"}`} testID={`mused-toggle-${messageId}`} onPress={() => setOpen((o) => !o)}
+          style={({ hovered }: { hovered?: boolean }) => [st.head, hovered === true && st.headOver]}
+        >
+          <Icon name="bulb" size={13} color="var(--ink-3)" />
+          <Text style={st.headText}>{usedLabel(n)}</Text>
+          <View style={open ? st.flip : undefined}><Icon name="chevd" size={9} color="var(--ink-3)" /></View>
+        </Pressable>
+        {!open ? (
+          // rule 7: the citation is on the message itself, on the same quiet line: who said what the answer rests on, and when; a press jumps to the message
+          each(used.facts.filter((f) => f.by).slice(0, 1), (f) => <CiteChip key={f.factId} fact={f} onPress={() => openSource(f)} />)
+        ) : null}
+      </View>
       {open ? (
         <View testID={`mused-list-${messageId}`} style={st.list}>
           {each(used.facts, (f, i) => <FactRow key={f.factId} fact={f} first={i === 0} />)}
@@ -91,6 +89,24 @@ function UsedLine({ messageId, used, startOpen }: { messageId: string; used: Use
       ) : null}
       {menu.element}
     </View>
+  );
+}
+
+/** The time a memory was said as a person says it on a message: "9:50 am" today, "Yesterday 4:20 pm" the day before, else how long ago. */
+function citeWhen(at: number, now: number): string {
+  const d = new Date(at), day = (t: number): number => Math.floor(t / 86_400_000);
+  const h = d.getUTCHours(), clock = `${h % 12 === 0 ? 12 : h % 12}:${String(d.getUTCMinutes()).padStart(2, "0")} ${h < 12 ? "am" : "pm"}`;
+  return day(at) === day(now) ? clock : day(at) === day(now) - 1 ? `Yesterday ${clock}` : ageText(at, now);
+}
+
+/** "(chat) Remembered from Omar Haddad, 9:50 am": a bordered 24 px chip, the whole of it a press. */
+function CiteChip({ fact, onPress }: { fact: ChatFact; onPress: () => void }): ReactElement {
+  const mem = useChatMemory()!;
+  return (
+    <Pressable accessibilityRole="link" accessibilityLabel="Open the source" testID={`mused-cite-${fact.factId}`} onPress={onPress} style={({ hovered }: { hovered?: boolean }) => [st.cite, hovered === true && st.headOver]}>
+      <Icon name="chat" size={12} color="var(--ink-3)" />
+      <Text numberOfLines={1} style={st.citeText}>{`Remembered from ${fact.by === mem.me.id ? "you" : mem.nameOf(fact.by!)}, ${citeWhen(fact.at, mem.now())}`}</Text>
+    </Pressable>
   );
 }
 
@@ -191,7 +207,9 @@ const st = StyleSheet.create({
   lessonLine: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 8, minHeight: 24, marginTop: 6, paddingLeft: 4, paddingRight: 6, marginLeft: -4, borderRadius: 6 },
   lessonText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-3)" as string },
   lessonBold: { fontWeight: "500", color: "var(--ink-2)" as string },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 6 },
+  line: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 10 },
+  cite: { flexDirection: "row", alignItems: "center", gap: 6, height: 24, paddingHorizontal: 8, borderRadius: 6, boxShadow: "inset 0 0 0 1px var(--line-2)" } as object,
+  citeText: { fontSize: 12, color: "var(--ink-3)" as string },
   list: { alignSelf: "stretch", marginTop: 4, marginBottom: 2, paddingTop: 4, paddingHorizontal: 12, paddingBottom: 8, borderRadius: 12, backgroundColor: "var(--sunk)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object,
   item: { flexDirection: "row", columnGap: 8, paddingVertical: 9 },
   itemRule: { borderTopWidth: 1, borderTopColor: "var(--line)" as string },
