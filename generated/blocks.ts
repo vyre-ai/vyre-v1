@@ -158,6 +158,8 @@ export type HookBlockData = {
   reason?: string;
   tool?: string;
   subject?: string;
+  resolved?: "allowed" | "always" | "denied";
+  resolvedBy?: string;
   agentId?: string;
   next?: Array<{
       label: string;

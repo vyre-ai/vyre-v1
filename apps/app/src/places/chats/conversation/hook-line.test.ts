@@ -59,3 +59,10 @@ test("the steps of a stop ride on the agent's reply right below it, and the line
   const other2 = timeline([stop, { ...reply, author: { kind: "agent", id: "agt_b" } }] as never, ctx);
   assert.equal(other2.find((i) => i.kind === "event")!.stepsBelow, undefined, "a reply from another agent does not carry them");
 });
+
+test("a block's answer is read from its data: resolved is one of allowed, always or denied, and an answered stop offers only Details", () => {
+  const l = hookLineOf(msg({ line: "A hook stopped this: no", kind: "blocked", hookId: "h", tool: "mail_send", resolved: "denied" }))!;
+  assert.deepEqual([l.resolved, l.tool], ["denied", "mail_send"]);
+  assert.deepEqual(hookLineActs(l, true), ["details"]);
+  assert.equal(hookLineOf(msg({ line: "x", kind: "blocked", hookId: "h", resolved: "nonsense" }))!.resolved, undefined);
+});

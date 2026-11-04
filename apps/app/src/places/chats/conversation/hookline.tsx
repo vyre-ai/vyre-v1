@@ -5,8 +5,17 @@ import type { ReactElement } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Glyph } from "./parts.tsx";
 import { hookLead } from "./model.ts";
+import { actionWords } from "../../../../../../lib/hooks.ts";
 import type { HookLine, HookLineAct } from "./model.ts";
 import { hookLineActs } from "./model.ts";
+
+/** How an answered stop reads, for everyone: the answer, in plain words. */
+export function resolvedWords(line: HookLine): string | null {
+  if (line.resolved === "denied") return "Denied. The stop stands.";
+  if (line.resolved === "always") return `Always allowed for ${line.tool ? actionWords(line.tool) : "this kind of act"}. Remove it in the hook's settings.`;
+  if (line.resolved === "allowed") return "Allowed this time.";
+  return null;
+}
 
 const LABEL: Readonly<Record<HookLineAct, string>> = { details: "Details", edit: "Edit", allow: "Allow", always: "Always allow", deny: "Deny", ask: "Ask an admin" };
 
@@ -14,6 +23,8 @@ export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietS
   id: string; line: HookLine; /** The steps are drawn inside the agent's reply below this line */ stepsBelow?: boolean; threadId: string; call(cap: string, input: unknown): Promise<unknown>; open?: (hookId: string) => void; linkStyle: object; quietStyle: object; 
 }): ReactElement | null {
   const [said, setSaid] = useState<string | null>(null);
+  // an answered stop reads the same for everyone and after a reload: the line's own block says how it was answered
+  const answered = resolvedWords(line);
   const [busy, setBusy] = useState(false);
   // whether this person may change the hook: it decides between Allow, Always allow and Deny, and Ask an admin
   const [canDecide, setCanDecide] = useState<boolean | undefined>(undefined);
@@ -36,16 +47,24 @@ export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietS
   const press = (a: HookLineAct): void => {
     if (a === "details" || a === "edit") { open?.(hookId); return; }
     setBusy(true);
-    if (a === "deny") { setSaid("Denied. The stop stands."); setBusy(false); return; }
-    const run = a === "allow"
-      ? call("hooks.allow_once", { id: hookId, threadId }).then(() => "Allowed this time. Ask again and it will go ahead.")
-      : a === "always"
-        // saved through the hooks layer, for the hook's own scope: it stops stopping until it is turned back on (the server allows it only where the person may change the hook)
-        ? call("hooks.pause", { id: hookId, paused: true, threadId }).then(() => (line.scope === "space" ? "Always allowed for the Space. Turn the hook back on in Hooks to stop it again." : "Always allowed. Turn the hook back on in Hooks to stop it again."))
-        : call("hooks.ask_admin", { id: hookId, threadId }).then(() => "Asked an admin.");
+    const run = a === "deny"
+      ? call("hooks.deny", { id: hookId, threadId, messageId: id }).then(() => "Denied. The stop stands.")
+      : a === "allow"
+        ? call("hooks.allow_once", { id: hookId, threadId, messageId: id }).then(() => "Allowed this time. Ask again and it will go ahead.")
+        : a === "always"
+          // the same kind of act goes by from now on, in the hook's own scope; the hook keeps guarding the rest (the server allows it only where the person may change the hook)
+          ? call("hooks.allow_always", { id: hookId, threadId, messageId: id }).then((r) => `Always allowed for ${(r as { allowed?: { what?: string } } | null)?.allowed?.what ?? "this kind of act"}. Remove it in the hook's settings.`)
+          : call("hooks.ask_admin", { id: hookId, threadId }).then(() => "Asked an admin.");
     void run.then((t) => { setSaid(t); setBusy(false); }, (e) => { setSaid(e instanceof Error && e.message.trim() !== "" ? e.message.replace(/\.+$/, "") + "." : "That did not work. Try again."); setBusy(false); });
   };
-  if (said !== null) return <Text testID={`hook-said-${id}`} accessibilityRole="alert" style={quietStyle}>{said}</Text>;
+  if (said !== null || answered !== null) {
+    return (
+      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+        <Text testID={`hook-said-${id}`} accessibilityRole="alert" style={quietStyle}>{said ?? answered}</Text>
+        {open !== undefined ? <Text testID={`hook-act-details-${id}`} accessibilityRole="link" onPress={() => open(hookId)} style={linkStyle}>Details</Text> : null}
+      </View>
+    );
+  }
   return (
     <View style={{ gap: 6, alignSelf: "flex-start" }}>
       {acts.length > 0 ? (

@@ -44,7 +44,7 @@ test("until it is known whether the person may decide, only Details shows", asyn
   } finally { off(); }
 });
 
-test("Allow calls hooks.allow_once, Always allow pauses the hook for its scope through hooks.pause, Deny closes the line and calls nothing, Ask an admin calls hooks.ask_admin", async () => {
+test("Allow calls hooks.allow_once, Always allow adds an allow rule for that kind of act through hooks.allow_always (the hook keeps guarding the rest), Deny is recorded on the stop event through hooks.deny, Ask an admin calls hooks.ask_admin", async () => {
   const off = installDom();
   try {
     const a = setup();
@@ -52,27 +52,27 @@ test("Allow calls hooks.allow_once, Always allow pauses the hook for its scope t
     await flush();
     await press(find(r1, "hook-act-allow-m1"));
     await flush();
-    assert.deepEqual(a.calls, [{ cap: "hooks.allow_once", input: { id: "hok_1", threadId: "thr_1" } }]);
+    assert.deepEqual(a.calls, [{ cap: "hooks.allow_once", input: { id: "hok_1", threadId: "thr_1", messageId: "m1" } }]);
     assert.match(textOf(find(r1, "hook-said-m1")), /Allowed this time\. Ask again/);
     const b = setup();
     const r2 = await mount(createRoot, b.el());
     await flush();
     await press(find(r2, "hook-act-always-m1"));
     await flush();
-    assert.deepEqual(b.calls, [{ cap: "hooks.pause", input: { id: "hok_1", paused: true, threadId: "thr_1" } }]);
-    assert.match(textOf(find(r2, "hook-said-m1")), /Always allowed\./);
+    assert.deepEqual(b.calls, [{ cap: "hooks.allow_always", input: { id: "hok_1", threadId: "thr_1", messageId: "m1" } }]);
+    assert.match(textOf(find(r2, "hook-said-m1")), /Always allowed for this kind of act\. Remove it in the hook's settings\./);
     const sp = setup();
     const r3 = await mount(createRoot, sp.el({ ...blocked, scope: "space" }));
     await flush();
     await press(find(r3, "hook-act-always-m1"));
     await flush();
-    assert.match(textOf(find(r3, "hook-said-m1")), /Always allowed for the Space/);
+    assert.match(textOf(find(r3, "hook-said-m1")), /^Always allowed for/);
     const c = setup();
     const r4 = await mount(createRoot, c.el());
     await flush();
     await press(find(r4, "hook-act-deny-m1"));
     await flush();
-    assert.deepEqual(c.calls, [], "the stop stands; nothing is called");
+    assert.deepEqual(c.calls, [{ cap: "hooks.deny", input: { id: "hok_1", threadId: "thr_1", messageId: "m1" } }], "recorded on the server, on the stop event");
     assert.match(textOf(find(r4, "hook-said-m1")), /Denied\. The stop stands/);
     const d = setup(undefined, false);
     const r5 = await mount(createRoot, d.el());
@@ -144,5 +144,20 @@ test("with the steps below, the line keeps only the quiet verbs and the reply ca
     await flush();
     assert.deepEqual([calls[0]!.cap, (calls[0]!.input as { body: string }).body], ["chat.post", "Please add them"]);
     assert.match(textOf(find(reply, "hook-steps-said-m_reply")), /Sent\./);
+  } finally { off(); }
+});
+
+test("an answered stop reads the same after a reload and for everyone: the block says how it was answered, with Details, and no verbs to press", async () => {
+  const off = installDom();
+  try {
+    const s = setup();
+    for (const [resolved, tool, words] of [["denied", "mail_send", /^Denied\. The stop stands\.$/], ["always", "mail_send", /^Always allowed for sending an email\. Remove it in the hook's settings\.$/], ["allowed", "mail_send", /^Allowed this time\.$/]] as const) {
+      const root = await mount(createRoot, s.el({ ...blocked, resolved, tool }));
+      await flush();
+      assert.match(textOf(find(root, "hook-said-m1")), words, resolved);
+      assert.ok(find(root, "hook-act-details-m1"));
+      for (const a of ["allow", "always", "deny", "ask"]) assert.equal(find(root, `hook-act-${a}-m1`), null, `${resolved}: ${a}`);
+    }
+    assert.deepEqual(s.calls, [], "nothing is asked of the server to show it");
   } finally { off(); }
 });
