@@ -124,7 +124,7 @@ const ACCOUNT_FAILURE: ReadonlySet<string> = new Set(["provider.auth_failed", "a
 const OVERLOADED = "provider.overloaded";
 const MAX_FALLBACKS = 8;
 
-interface Running { turnId: string; agentId: string; asker: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean }
+interface Running { turnId: string; agentId: string; asker: string; qseq: number; session: EngineSession | null; cancelled: boolean; lostLease: boolean; /** why it was cancelled, said in the chat */ why?: string }
 /** Agent-to-agent hand-offs that may follow one person's message, and how many times one pair may pass it between them. */
 const MENTION_HOPS = 3;
 const MAX_PAIR_PASSES = 2;
@@ -147,7 +147,7 @@ export interface TurnEngine {
    * Stop button: cancel the running turn. `agentId` limits it to one agent (its running turn, its queued rows, its parked turns).
    * `clearQueue` stops everything in the thread: running, queued and parked (stop all).
    */
-  stop(threadId: string, opts?: { agentId?: string; clearQueue?: boolean }): Promise<StopResult>;
+  stop(threadId: string, opts?: { agentId?: string; clearQueue?: boolean; /** why, in a word the chat turns into a sentence: stop (a person pressed Stop), limit, left, moved */ reason?: string }): Promise<StopResult>;
   /** Take a message that is waiting in the queue out of it (it stays in the chat; the agent will not answer it). Returns how many queued rows were cancelled: 0 when it is not waiting, as when its turn has started. */
   dropQueued(threadId: string, messageId: string): number;
   /** "Stop and send" for a message that is already stored: cancel the running turn and queue the responders first. Without a message it only cancels. */
@@ -249,7 +249,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   const POKE_WINDOW = 12;
 
   function dispatch(st: ThreadState, msg: StoredMessage, interrupt: boolean, replyToPerson?: string, job?: string, asker?: string, poke?: { agentId: string; by: string }, minutes?: number): ReceiveResult {
-    const r = route({ agents: st.thread.agents, kind: st.thread.kind, ...(st.thread.people ? { people: st.thread.people } : {}) }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined, text: msg.body, ...(poke ? { poke: poke.agentId } : {}), ...(minutes === undefined ? {} : { minutes }) }, opts.policy);
+    const r = route({ agents: st.thread.agents, kind: st.thread.kind, ...(st.thread.personal ? { personal: true } : {}), ...(st.thread.people ? { people: st.thread.people } : {}) }, { author: msg.author, mentions: msg.mentions, depth: msg.depth, replyToPerson, job: job !== undefined, text: msg.body, ...(poke ? { poke: poke.agentId } : {}), ...(minutes === undefined ? {} : { minutes }) }, opts.policy);
     let responders = r.responders;
     // a round where a person spoke to all the agents: each answers alone, and no answer sets off another agent (the lead posts no summary) unless it @mentions one or the person asks again
     if (msg.author.kind === "person") { if (r.reason === "all") askedAll.set(st.thread.id, new Set(responders)); else askedAll.delete(st.thread.id); }
@@ -285,7 +285,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     responders = responders.filter((id) => !outside.has(id));
     const qseqs = responders.map((agentId) => enqueue(st, { kind, agentId, from, messageId: msg.id, priority: interrupt ? PRIORITY_INTERRUPT : 0, routine }).qseq);
     if (poke) for (const q of qseqs) pokeRows.add(`${st.thread.id}:${q}`);
-    if (interrupt && st.running) void cancelRunning(st);
+    if (interrupt && st.running) void cancelRunning(st, "interrupt");
     if (qseqs.length > 0) kick(st);
     return { responders, reason: r.reason, qseqs, messageId: msg.id, ...(chain && qseqs.length > 0 ? { chain } : {}) };
   }
@@ -302,10 +302,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     return n;
   }
 
-  async function cancelRunning(st: ThreadState): Promise<void> {
+  async function cancelRunning(st: ThreadState, why: string): Promise<void> {
     const run = st.running;
     if (!run || run.cancelled) return;
     run.cancelled = true;
+    run.why = why;
     try { await run.session?.cancel(); } catch { /* the turn is ending either way */ }
   }
 
@@ -430,7 +431,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       // a store that is gone (the host shut down under a running turn) ends the beat quietly: a throw out of a timer would take the whole process with it
       let held: boolean;
       try { held = leases.renew(st.thread.id, opts.holder, now()); } catch { stopBeat(); return; }
-      if (!held) { run.lostLease = true; void cancelRunning(st); }
+      if (!held) { run.lostLease = true; void cancelRunning(st, "lease"); }
       else if (!inTool && hr() - lastSeen > idleMs) hush(Object.assign(new Error("the session went quiet"), { code: "turn_timeout" }));
     }, HEARTBEAT_MS);
 
@@ -624,7 +625,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     recordSpend(turn);
     try { await opts.onTurnEnd?.(turn, paying ?? null); } catch { /* metering must never fail the turn */ }
     if (turn.state === "completed") emit({ type: "turn.completed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId });
-    else if (turn.state === "cancelled") emit({ type: "turn.cancelled", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId });
+    else if (turn.state === "cancelled") emit({ type: "turn.cancelled", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, ...(run.why ? { reason: run.why } : {}) });
     else emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}) });
     // The agent's answer is a message like any other: it can @mention the next agent, which counts a hop.
     if (turn.state === "completed" && (reply !== "" || mentions.length > 0)) {
@@ -678,7 +679,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           released.push({ turnId: w.turnId, agentId: w.agentId, taskId: w.taskId });
         }
       }
-      if (hit) await cancelRunning(st);
+      if (hit) await cancelRunning(st, o?.reason ?? "stop");
       return { stopped, released, dropped };
     },
     dropQueued(threadId, messageId) { need(threadId); return dropRows(threadId, messageId); },
@@ -687,7 +688,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       const run = st.running !== null && !st.running.cancelled ? st.running : null;
       const cancelled = run ? [{ turnId: run.turnId, agentId: run.agentId }] : [];
       if (messageId === undefined) {
-        if (run) await cancelRunning(st);
+        if (run) await cancelRunning(st, "interrupt");
         return { cancelled, queued: false, qseqs: [] };
       }
       const msg = findMessage(st, messageId);

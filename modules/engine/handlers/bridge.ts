@@ -203,7 +203,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       const detail = e.code === "engine.model_unavailable" ? e.message : undefined;
       return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(detail ? { detail } : {}), ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}) } };
     }
-    return { type: "turn_status", v: 1, data: { state: "cancelled", turnId: e.turnId } };
+    return { type: "turn_status", v: 1, data: { state: "cancelled", turnId: e.turnId, ...(e.type === "turn.cancelled" && e.reason ? { reason: e.reason } : {}) } };
   };
 
   const onEngine = (e: EngineEvent): void => {
@@ -339,7 +339,7 @@ export function createBridge(o: BridgeOptions): Bridge {
   }
 
   type RosterAgent = { agentId: string; name?: string; mode: "lead" | "listen"; model?: string; accountRef?: string; watches?: unknown; quiet?: boolean; when?: "always" | "topics" | "hours"; topics?: string; hoursFrom?: string; hoursTo?: string; style?: "short" | "full" };
-  type ThreadGet = { thread: { kind?: string; starter?: string; members?: Array<{ kind?: string; id: string }>; agents: RosterAgent[] } };
+  type ThreadGet = { thread: { kind?: string; scopeType?: string; starter?: string; members?: Array<{ kind?: string; id: string }>; agents: RosterAgent[] } };
   const peopleOf = (g: ThreadGet): string[] | undefined => (g.thread.members ? g.thread.members.filter((x) => (x.kind ?? "person") === "person").map((x) => x.id) : undefined);
   /** How and when an agent answers in this chat, as the chat holds it, for the engine's routing and for the turn. */
   const settingsOf = (a: RosterAgent): Pick<EngineAgent, "quiet" | "when" | "topics" | "hoursFrom" | "hoursTo" | "style"> => ({
@@ -418,7 +418,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       }
     }
     try {
-      engine.openThread({ id: threadId, kind: (got.thread.kind ?? "chat") as ThreadKind, starter: got.thread.starter ?? "", agents, ...(peopleOf(got) ? { people: peopleOf(got)! } : {}) });
+      engine.openThread({ id: threadId, kind: (got.thread.kind ?? "chat") as ThreadKind, starter: got.thread.starter ?? "", agents, ...(["task", "note", "goal"].includes(got.thread.scopeType ?? "") ? { personal: true } : {}), ...(peopleOf(got) ? { people: peopleOf(got)! } : {}) });
     } catch (e) {
       if (!(e instanceof RangeError) || !/already open/.test(e.message)) throw e;
     }

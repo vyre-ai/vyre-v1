@@ -54,3 +54,18 @@ test("in the engine: the owner's exact message runs the lead, and a person who i
   assert.deepEqual(to.responders, []);
   await engine.idle("T");
 });
+
+test("where only the person and their agent are present, the agent answers without an @; a group still needs one", () => {
+  const dex = { id: "agt_dex", name: "Dex", mode: "listen" as const };
+  const task = { agents: [dex], kind: "thread", personal: true, people: [] as string[] };
+  // a task thread on their task: the person and the agent that works it
+  assert.deepEqual(route(task, { author: me, mentions: [], text: "Please also check the invoices" }).responders, ["agt_dex"]);
+  assert.deepEqual(route({ ...task, people: ["usr_irfad"] }, { author: me, mentions: [], text: "go" }).responders, ["agt_dex"]);
+  // another person in it makes it a group: an @ picks who answers
+  assert.deepEqual(route({ ...task, people: ["usr_irfad", "usr_aliza"] }, { author: me, mentions: [], text: "go" }).responders, []);
+  assert.deepEqual(route({ ...task, people: ["usr_irfad", "usr_aliza"] }, { author: me, mentions: [{ kind: "agent", id: "agt_dex" }], text: "go" }).responders, ["agt_dex"]);
+  // a reply thread in a channel is not a personal one
+  assert.deepEqual(route({ agents: [dex], kind: "thread", people: [] as string[] }, { author: me, mentions: [], text: "go" }).responders, []);
+  // a 1:1 chat, as before
+  assert.deepEqual(route({ agents: [dex], kind: "chat", people: ["usr_irfad"] }, { author: me, mentions: [], text: "go" }).responders, ["agt_dex"]);
+});
