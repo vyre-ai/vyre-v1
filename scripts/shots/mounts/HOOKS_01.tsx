@@ -45,7 +45,7 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
       quiet("msg_hook3", "A hook stopped this: the address isn't in Contacts", "blocked", { reason: "the address isn't in Contacts" }),
     ];
     s.replica.put("messages", made.map((m) => ({ id: m.messageId, ...m })));
-    return s.data;
+    return { ...s.data, nav: { ...s.data.nav, openHooks: () => undefined } };
   }, []);
   const pane = useMemo(() => createPaneSample("northwind", { hooks: true, admin: false }), []);
   const helper = useMemo(() => createHelperSample("done", { hooks: true }), []);
