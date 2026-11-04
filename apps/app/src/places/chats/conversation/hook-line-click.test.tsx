@@ -151,8 +151,8 @@ test("an answered stop reads the same after a reload and for everyone: the block
   const off = installDom();
   try {
     const s = setup();
-    for (const [resolved, tool, words] of [["denied", "mail_send", /^Denied\. The stop stands\.$/], ["always", "mail_send", /^Always allowed for sending an email\. Remove it in the hook's settings\.$/], ["allowed", "mail_send", /^Allowed this time\.$/]] as const) {
-      const root = await mount(createRoot, s.el({ ...blocked, resolved, tool }));
+    for (const [resolved, tool, words, what] of [["denied", "mail_send", /^Denied\. The stop stands\.$/, undefined], ["always", "mail_send", /^Always allowed for sending an email to sara@acme\.com\. Remove it in the hook's settings\.$/, "sending an email to sara@acme.com"], ["always", "mail_send", /^Always allowed for every email\. Remove/, "every email"], ["always", "mail_send", /^Always allowed for sending an email\. Remove/, undefined], ["allowed", "mail_send", /^Allowed this time\.$/, undefined]] as const) {
+      const root = await mount(createRoot, s.el({ ...blocked, resolved, tool, ...(what ? { resolvedWhat: what } : {}) }));
       await flush();
       assert.match(textOf(find(root, "hook-said-m1")), words, resolved);
       assert.ok(find(root, "hook-act-details-m1"));

@@ -7160,6 +7160,7 @@ export type ChatHookResolveIn = {
   messageId: string;
   resolution: "allowed" | "always" | "denied";
   by: string;
+  what?: string;
 };
 export type ChatHookResolveOut = {
   ok: boolean;

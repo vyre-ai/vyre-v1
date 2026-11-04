@@ -418,7 +418,7 @@ export default defineManifest({
       out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', errors: ['validation.bad_input', 'validation.not_found'],
     }),
     write('chat.hook_resolve', 'Hooks module only: mark a stop line answered (allowed this time, always allowed, or denied), for everyone in the chat', {
-      in: { ...threadT, messageId: id.message, resolution: t.enm('allowed', 'always', 'denied'), by: t.str() }, out: { ok: t.bool() }, on: ['thread', '/threadId'], level: 'use', errors: ['validation.not_found'],
+      in: { ...threadT, messageId: id.message, resolution: t.enm('allowed', 'always', 'denied'), by: t.str(), what: t.opt(t.str({ maxLength: 200 })) }, out: { ok: t.bool() }, on: ['thread', '/threadId'], level: 'use', errors: ['validation.not_found'],
     }),
     write('chat.note_offer.answer', 'Save or dismiss an offer to keep something from this chat as a note. Save makes the person\'s own private note that links back to the message', {
       in: { ...threadT, blockId: id.block, decision: t.enm('save', 'dismiss') }, out: { state: t.enm('saved', 'dismissed'), noteId: t.opt(t.str()) },

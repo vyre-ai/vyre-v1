@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS "hooks_run" (
   "thread_id" TEXT,
   "agent_id" TEXT,
   "tool" TEXT,
+  "targets" TEXT,
   "outcome" TEXT NOT NULL,
   "detail" TEXT,
   "ms" INTEGER NOT NULL DEFAULT 0,
@@ -65,6 +66,7 @@ CREATE TABLE IF NOT EXISTS "hooks_allow" (
   "id" TEXT PRIMARY KEY,
   "hook_id" TEXT NOT NULL,
   "tool" TEXT NOT NULL,
+  "target" TEXT NOT NULL DEFAULT '',
   "by" TEXT NOT NULL,
   "created_at" INTEGER NOT NULL,
   "removed_at" INTEGER

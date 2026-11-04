@@ -24,13 +24,13 @@ export function hookLine(ctx: ChatCtx, input: HookLineInput): { messageId: strin
   return { messageId: m.id };
 }
 /** A stop line answered: its hook block says how and by whom, so it stays answered after a reload, for everyone in the chat. */
-export function hookLineResolve(ctx: ChatCtx, input: { threadId: string; messageId: string; resolution: "allowed" | "always" | "denied"; by: string }): { ok: boolean } {
+export function hookLineResolve(ctx: ChatCtx, input: { threadId: string; messageId: string; resolution: "allowed" | "always" | "denied"; by: string; what?: string }): { ok: boolean } {
   const t = threadBy(ctx.db, input.threadId);
   if (!t || !canSpeak(ctx, t)) raise(ctx, "validation.not_found", "That chat does not exist or is not yours.");
   const m = messageBy(ctx.db, input.messageId);
   const b = m && m.thread === t.id ? m.blocks.find((x) => x["type"] === "hook") : undefined;
   if (!m || !b) raise(ctx, "validation.not_found", "That line is not in this chat.");
-  patchBlockInMessage(ctx.db, m.id, String(b["id"]), (x) => ({ ...x, data: { ...(x["data"] as Record<string, unknown>), resolved: input.resolution, resolvedBy: input.by } }));
+  patchBlockInMessage(ctx.db, m.id, String(b["id"]), (x) => ({ ...x, data: { ...(x["data"] as Record<string, unknown>), resolved: input.resolution, resolvedBy: input.by, ...(input.what ? { resolvedWhat: input.what.slice(0, 200) } : {}) } }));
   return { ok: true };
 }
 export const hookLineHandlers = { "chat.hook_line": (ctx: ChatCtx, input: HookLineInput) => hookLine(ctx, input), "chat.hook_resolve": (ctx: ChatCtx, input: Parameters<typeof hookLineResolve>[1]) => hookLineResolve(ctx, input) };

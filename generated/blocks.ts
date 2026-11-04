@@ -160,6 +160,7 @@ export type HookBlockData = {
   subject?: string;
   resolved?: "allowed" | "always" | "denied";
   resolvedBy?: string;
+  resolvedWhat?: string;
   agentId?: string;
   next?: Array<{
       label: string;

@@ -2,11 +2,11 @@
 //   Space hooks are an admin's. Person hooks are the person's own. An agent sets hooks only for itself (agent, chat and run scope) and for the helpers it starts (run scope), as checks, notes and its own
 //   actions: nothing an agent makes can loosen a Space or person hook, skip the Gate, approve a held act or reach past the agent's own reach, because a hook can only stop work, add a note or run an
 //   action through the normal pipeline as the agent. An admin can turn agent-made hooks off for the whole Space.
-import { HOOK_EVENTS, HOOK_KINDS, HOOK_SCOPES, actionWords, plainLine, plainTools, redact } from "../../../lib/hooks.ts";
+import { HOOK_EVENTS, HOOK_KINDS, HOOK_SCOPES, actWithTarget, ruleWords, plainLine, plainTools, redact } from "../../../lib/hooks.ts";
 import { isTenantService, isTrustedService } from "../../../lib/trust.ts";
 import type { HookFire } from "../../../lib/hooks.ts";
 import { ACTION_DENIED, fire as fireHooks } from "../eval.ts";
-import { addAllow, addNote, allowById, allowsOf, lastStoppedTool, removeAllow, addPass, PASS_MS, agentHooksOn, allHooks, ensure, helpersActive, hookById, lineage, link, nextSeq, parentOf, raise, setAgentHooks } from "../projections.ts";
+import { addAllows, addNote, allowById, allowsOf, lastStopped, removeAllow, addPass, PASS_MS, agentHooksOn, allHooks, ensure, helpersActive, hookById, lineage, link, nextSeq, parentOf, raise, setAgentHooks } from "../projections.ts";
 import type { HooksCtx, Rec, Spec } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -43,7 +43,7 @@ function mayChange(h: Rec, a: Actor): boolean {
 const outRow = (ctx: HooksCtx, h: Rec, actor: Actor): Row => ({
   id: h.id, scope: h.scope, event: h.event, kind: h.kind, matcher: h.matcher, line: h.line, paused: h.paused, madeBy: h.madeBy, madeByKind: h.madeByKind,
   ...(h.threadId ? { threadId: h.threadId } : {}), ...(h.agentId ? { agentId: h.agentId } : {}), helpers: h.helpers, timeoutSec: h.timeoutSec, createdAt: h.createdAt, updatedAt: h.updatedAt,
-  allowed: allowsOf(ctx, h.id).map((r) => ({ id: r.id, what: actionWords(r.tool), by: r.by, createdAt: r.createdAt })),
+  allowed: allowsOf(ctx, h.id).map((r) => ({ id: r.id, what: ruleWords(r.tool, r.target), by: r.by, createdAt: r.createdAt })),
   spec: h.spec, mine: h.madeBy === actor.id || (actor.admin && h.scope === "space"), canChange: mayChange(h, actor), ...(h.endedAt ? { endedAt: h.endedAt } : {}),
 });
 
@@ -184,9 +184,9 @@ export async function list(ctx: HooksCtx, i: { scope?: string; threadId?: string
 }
 
 /** The stop line is answered for everyone in the chat: its block says how, so it stays resolved after a reload. */
-async function resolveLine(ctx: HooksCtx, threadId: string, messageId: string | undefined, resolution: "allowed" | "always" | "denied", by: string): Promise<void> {
+async function resolveLine(ctx: HooksCtx, threadId: string, messageId: string | undefined, resolution: "allowed" | "always" | "denied", by: string, what?: string): Promise<void> {
   if (!ctx.call || !messageId) return;
-  try { await ctx.call("chat.hook_resolve", { threadId, messageId, resolution, by }); } catch (e) { ctx.log?.warn("a stop line was not marked", { error: e instanceof Error ? e.message : String(e) }); }
+  try { await ctx.call("chat.hook_resolve", { threadId, messageId, resolution, by, ...(what ? { what } : {}) }); } catch (e) { ctx.log?.warn("a stop line was not marked", { error: e instanceof Error ? e.message : String(e) }); }
 }
 /** Who may decide about a stop: the same rule as letting the hook go by once. */
 function mayDecide(ctx: HooksCtx, a: Actor, h: Rec): void {
@@ -202,12 +202,14 @@ export async function allowAlways(ctx: HooksCtx, i: { id: string; threadId: stri
   if (!h) raise(ctx, "validation.not_found", "That hook does not exist.");
   if (!(await mayUseThread(ctx, i.threadId))) raise(ctx, "permission.no_grant", "That chat is not one you can use.");
   mayDecide(ctx, a, h);
-  const tool = lastStoppedTool(ctx, h.id, i.threadId);
-  if (!tool) raise(ctx, "validation.precondition_failed", "This hook has not stopped anything here yet, so there is nothing to always allow.");
-  const rule = addAllow(ctx, h.id, tool, a.id);
-  await resolveLine(ctx, i.threadId, i.messageId, "always", a.id);
+  const stopped = lastStopped(ctx, h.id, i.threadId);
+  if (!stopped) raise(ctx, "validation.precondition_failed", "This hook has not stopped anything here yet, so there is nothing to always allow.");
+  const rules = addAllows(ctx, h.id, stopped.tool, stopped.targets, a.id);
+  // the act and everything it was aimed at, in plain words: "sending an email to sara@acme.com", or "every email" when it had no target
+  const what = stopped.targets.length > 0 ? actWithTarget(stopped.tool, stopped.targets.join(" and ")) : ruleWords(stopped.tool, "");
+  await resolveLine(ctx, i.threadId, i.messageId, "always", a.id, what);
   ctx.emit("hook.changed", i.threadId, { hookId: h.id, scope: h.scope, change: "allowed_always", by: a.id, line: h.line, threadId: i.threadId });
-  return { allowed: { id: rule.id, what: actionWords(tool) } };
+  return { allowed: { id: rules[0]!.id, what } };
 }
 /** Take an always-allow rule away: the hook guards that kind of act again. Whoever may change the hook may remove it. */
 export async function allowRemove(ctx: HooksCtx, i: { id: string }): Promise<{ removed: boolean }> {

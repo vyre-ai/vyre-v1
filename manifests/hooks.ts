@@ -111,7 +111,7 @@ export default defineManifest({
   ],
   blocks: [
     block('hook', {
-      threadId: id.thread, kind: t.enm('added', 'changed', 'removed', 'paused', 'resumed', 'blocked', 'failed', 'allowed', 'asked'), line: t.str(), hookId: t.opt(t.str()), scope: t.opt(t.str()), by: t.opt(t.str()), byKind: t.opt(madeByKind), reason: t.opt(t.str()), tool: t.opt(t.str()), subject: t.opt(t.str()), resolved: t.opt(t.enm('allowed', 'always', 'denied')), resolvedBy: t.opt(t.str()), agentId: t.opt(id.agent), next: t.opt(t.arr(nextStep, { maxItems: 2 })),
+      threadId: id.thread, kind: t.enm('added', 'changed', 'removed', 'paused', 'resumed', 'blocked', 'failed', 'allowed', 'asked'), line: t.str(), hookId: t.opt(t.str()), scope: t.opt(t.str()), by: t.opt(t.str()), byKind: t.opt(madeByKind), reason: t.opt(t.str()), tool: t.opt(t.str()), subject: t.opt(t.str()), resolved: t.opt(t.enm('allowed', 'always', 'denied')), resolvedBy: t.opt(t.str()), resolvedWhat: t.opt(t.str()), agentId: t.opt(id.agent), next: t.opt(t.arr(nextStep, { maxItems: 2 })),
     }, '{{line}}'),
   ],
 });

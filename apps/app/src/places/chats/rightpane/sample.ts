@@ -179,7 +179,7 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
     id, scope, event, kind, matcher: "", line, paused: false, madeBy: by, madeByKind: byKind, threadId: scope === "chat" || scope === "run" ? "thr_open" : undefined, helpers: true, timeoutSec: 20, createdAt: SAMPLE_NOW - 60 * MIN, updatedAt: SAMPLE_NOW - 60 * MIN, spec, mine: false, canChange,
   });
   if (o.hooks) replica.put("hooks", [
-    { ...hk("hok_chat", "chat", "outward.before", "check", { instruction: "Check the address is in Contacts" }, "before any email, check the address is in Contacts", "agt_intake", "agent", true), allowed: [{ id: "alw_1", what: "sending a text", by: "usr_irfad", createdAt: SAMPLE_NOW - 30 * MIN }] },
+    { ...hk("hok_chat", "chat", "outward.before", "check", { instruction: "Check the address is in Contacts" }, "before any email, check the address is in Contacts", "agt_intake", "agent", true), allowed: [{ id: "alw_1", what: "sending an email to sara@acme.com", by: "usr_irfad", createdAt: SAMPLE_NOW - 30 * MIN }] },
     hk("hok_run", "run", "tool.before", "check", { instruction: "Only open links from the quotes you were sent" }, "before a helper opens a link, only open links from the quotes you were sent", "agt_intake", "agent", true),
     hk("hok_agent", "agent", "tool.after", "command", { command: "format-changed.sh" }, "after a helper edits a file, format the changed files", "agt_intake", "agent", true),
     hk("hok_space", "space", "prompt.submit", "check", { instruction: "No client names in prompts" }, "before each message is read, no client names", "usr_irfad", "admin", o.admin === true),

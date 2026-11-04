@@ -143,12 +143,47 @@ export const choiceFor = (matcher: string): string => ACTION_CHOICES.find((c) =>
 const dotted = (name: string): string => (/^[a-z]+_/.test(name) ? name.replace("_", ".") : name);
 /** A tool or capability name as an action in plain words ("sending an email"), or "an action" when it is none of the plain choices. Never the name itself. */
 export function actionWords(name: string | undefined): string {
-  if (!name) return "an action";
+  const c = choiceOf(name);
+  return c ? c.title[0]!.toLowerCase() + c.title.slice(1) : "an action";
+}
+/** Which plain choice (email, text, command, file, link, money) a tool or capability name is, or null. */
+export function choiceOf(name: string | undefined): { key: string; title: string } | null {
+  if (!name) return null;
   for (const c of ACTION_CHOICES) {
     if (c.key === "any" || c.matcher === "") continue;
-    if ([name, dotted(name), name.split(/[._]/)[0]!].some((n) => matches(c.matcher, n))) return c.title[0]!.toLowerCase() + c.title.slice(1);
+    if ([name, dotted(name), name.split(/[._]/)[0]!].some((n) => matches(c.matcher, n))) return c;
   }
-  return "an action";
+  return null;
+}
+const NOUN: Record<string, string> = { email: "email", text: "text", command: "command", file: "file change", link: "link", money: "payment" };
+const str = (v: unknown): string => (typeof v === "string" ? v : "");
+const addrs = (v: unknown): string[] => (Array.isArray(v) ? v.flatMap(addrs) : typeof v === "string" ? [v] : v && typeof v === "object" ? [str((v as { address?: unknown }).address || (v as { email?: unknown }).email)] : []);
+/** What an act is aimed at, from its input, when it has one: the recipients of an email or text (their addresses or numbers), the host of a link, the path of a file, the program of a command. Lower-cased, short, never a secret-shaped string. */
+export function targetsOf(tool: string | undefined, input: unknown): string[] {
+  const c = choiceOf(tool);
+  const i = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const clean = (xs: string[]): string[] => [...new Set(xs.map((x) => x.trim().toLowerCase()).filter((x) => x !== "" && x.length <= 120 && redact(x, 200) === x))].sort().slice(0, 12);
+  switch (c?.key) {
+    case "email": return clean([i["to"], i["cc"], i["bcc"], i["recipients"], i["address"]].flatMap(addrs));
+    case "text": return clean([i["to"], i["number"], i["phone"], i["recipients"]].flatMap(addrs));
+    case "link": return clean([str(i["url"]), ...addrs(i["urls"])].flatMap((u) => { try { return [new URL(u).hostname.replace(/^www\./, "")]; } catch { return []; } }));
+    case "file": return clean([str(i["path"]), str(i["file_path"]), str(i["filePath"]), str(i["file"])]);
+    case "command": return clean([str(i["command"]).trim().split(/\s+/)[0]!.split("/").pop() ?? ""]);
+    default: return [];
+  }
+}
+/** The kind of act and its target in plain words: "sending an email to sara@acme.com". */
+export function actWithTarget(tool: string | undefined, target: string): string {
+  const w = actionWords(tool);
+  const k = choiceOf(tool)?.key;
+  const t = target === "" ? "" : k === "email" || k === "text" ? ` to ${target}` : k === "link" ? ` on ${target}` : k === "file" ? ` at ${target}` : k === "command" ? ` (${target})` : ` for ${target}`;
+  return `${w}${t}`;
+}
+/** What an always-allow rule covers, in plain words: the act and its target, or, for an act with no target, every one of them ("every email"). */
+export function ruleWords(tool: string | undefined, target: string): string {
+  if (target !== "") return actWithTarget(tool, target);
+  const k = choiceOf(tool)?.key;
+  return `every ${(k && NOUN[k]) || "action"}`;
 }
 /** Any snake_case or dotted tool name inside a sentence swapped for plain words, so a name from the system never shows in a hook's words. */
 export function plainTools(text: string): string {

@@ -29,6 +29,7 @@ type In = {
   messageId: string;
   resolution: "allowed" | "always" | "denied";
   by: string;
+  what?: string;
 };
 ```
 
@@ -57,7 +58,8 @@ type Out = {
     "by": "example",
     "messageId": "msg_a1b2c3",
     "resolution": "allowed",
-    "threadId": "thr_a1b2c3"
+    "threadId": "thr_a1b2c3",
+    "what": "example"
   },
   "output": {
     "ok": true

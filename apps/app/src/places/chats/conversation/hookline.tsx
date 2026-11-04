@@ -12,7 +12,7 @@ import { hookLineActs } from "./model.ts";
 /** How an answered stop reads, for everyone: the answer, in plain words. */
 export function resolvedWords(line: HookLine): string | null {
   if (line.resolved === "denied") return "Denied. The stop stands.";
-  if (line.resolved === "always") return `Always allowed for ${line.tool ? actionWords(line.tool) : "this kind of act"}. Remove it in the hook's settings.`;
+  if (line.resolved === "always") return `Always allowed for ${line.resolvedWhat ?? (line.tool ? actionWords(line.tool) : "this kind of act")}. Remove it in the hook's settings.`;
   if (line.resolved === "allowed") return "Allowed this time.";
   return null;
 }

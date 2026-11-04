@@ -415,12 +415,12 @@ test("Always allow lets the same kind of act go by from now on while the hook ke
   assert.ok((await w.fire({ event: "tool.before", tool: "mail_send" })).block);
   await assert.rejects(w.call("hooks.allow_always", { id: h.id, threadId: "thr_a" }, agent()), /Only a person decides/);
   const got = await w.call("hooks.allow_always", { id: h.id, threadId: "thr_a", messageId: "msg_stop" }, maya);
-  assert.equal(got.allowed.what, "sending an email", "in plain words, never the tool name");
+  assert.equal(got.allowed.what, "every email", "an act with no target falls back to the tool, and the words say so");
   assert.deepEqual(w.s.resolved.map((r) => [r["messageId"], r["resolution"]]), [["msg_stop", "always"]], "the stop line is marked answered for everyone");
   assert.equal((await w.fire({ event: "tool.before", tool: "mail_send" })).block, null, "the same kind of act passes from now on");
   assert.ok((await w.fire({ event: "tool.before", tool: "files_write" })).block, "a different act is still stopped");
   const row = (await w.call("hooks.list", { threadId: "thr_a" }, maya)).hooks.find((x: { id: string }) => x.id === h.id);
-  assert.deepEqual(row.allowed.map((r: { what: string }) => r.what), ["sending an email"], "shown in the hook's row");
+  assert.deepEqual(row.allowed.map((r: { what: string }) => r.what), ["every email"], "shown in the hook's row");
   const runs = (await w.call("hooks.runs.list", { hookId: h.id }, maya)).runs.map((r: { outcome: string }) => r.outcome);
   assert.ok(runs.includes("allowed_always"));
   // a Space hook: only an admin; the rule is the admin's to add, and removable
@@ -450,4 +450,36 @@ test("Deny marks the stop line for everyone and tells the agent on its next turn
   assert.match(next.notes.join(" "), /denied it: the stop stands/);
   assert.deepEqual((await w.fire({ event: "prompt.submit", prompt: "again" })).notes, [], "told once");
   await assert.rejects(w.call("hooks.deny", { id: "hok_none", threadId: "thr_a" }, maya), /does not exist/);
+});
+
+test("Always allow carries the target: the same act to the same address passes, the same tool to another address is still stopped, and an act with no target falls back to the tool", async () => {
+  const { targetsOf, ruleWords } = await import("../../../lib/hooks.ts");
+  assert.deepEqual(targetsOf("mail_send", { to: [{ address: "Sara@Acme.com" }], cc: ["lee@acme.com"] }), ["lee@acme.com", "sara@acme.com"]);
+  assert.deepEqual(targetsOf("WebFetch", { url: "https://www.acme.com/pricing?x=1" }), ["acme.com"]);
+  assert.deepEqual(targetsOf("Write", { file_path: "/work/notes/a.md" }), ["/work/notes/a.md"]);
+  assert.deepEqual(targetsOf("Bash", { command: "/usr/bin/git push origin main" }), ["git"]);
+  assert.deepEqual(targetsOf("files_tree", { path: "/x" }), [], "a tool with no plain kind has no target");
+  assert.equal(ruleWords("mail_send", "sara@acme.com"), "sending an email to sara@acme.com");
+  assert.equal(ruleWords("mail_send", ""), "every email");
+  const w = world();
+  w.s.command = async () => stop;
+  const h = (await w.call("hooks.set", { scope: "chat", threadId: "thr_a", event: "tool.before", kind: "command", command: "guard", summary: "before any email, check" }, maya)).hook;
+  const send = (to: string[] | undefined, tool = "mail_send") => w.fire({ event: "tool.before", tool, cap: "mail.send", ...(to ? { input: { to } } : {}) });
+  assert.ok((await send(["sara@acme.com"])).block);
+  const got = await w.call("hooks.allow_always", { id: h.id, threadId: "thr_a", messageId: "msg_stop" }, maya);
+  assert.equal(got.allowed.what, "sending an email to sara@acme.com");
+  assert.equal(w.s.resolved[0]!["what"], "sending an email to sara@acme.com", "the stop line says what was allowed, so it reads the same after a reload");
+  assert.equal((await send(["sara@acme.com"])).block, null, "the same act to the same target passes");
+  assert.equal((await send(["SARA@acme.com"])).block, null, "however the address is written");
+  assert.ok((await send(["lee@other.com"])).block, "the same tool to another target is still stopped");
+  assert.ok((await send(["sara@acme.com", "lee@other.com"])).block, "an act aimed at one more address is stopped: every target must be allowed");
+  assert.ok((await send(undefined)).block, "a rule for one target does not cover an act with no target");
+  // a stop with no target: the rule falls back to the tool, for acts with no target
+  const w2 = world();
+  w2.s.command = async () => stop;
+  const h2 = (await w2.call("hooks.set", { scope: "chat", threadId: "thr_a", event: "tool.before", kind: "command", command: "guard" }, maya)).hook;
+  assert.ok((await w2.fire({ event: "tool.before", tool: "mail_send" })).block);
+  assert.equal((await w2.call("hooks.allow_always", { id: h2.id, threadId: "thr_a" }, maya)).allowed.what, "every email");
+  assert.equal((await w2.fire({ event: "tool.before", tool: "mail_send" })).block, null, "an act with no target passes");
+  assert.ok((await w2.fire({ event: "tool.before", tool: "mail_send", input: { to: ["x@y.com"] } })).block, "a rule for the whole tool never covers an act that has a target");
 });
