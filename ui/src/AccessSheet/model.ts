@@ -229,7 +229,7 @@ export function addLines(i: AddLinesInput): Line[] {
   const noun = targetNoun(t.kind);
   const std = P.filter((p) => p.kind !== "guest");
   const guests = P.filter((p) => p.kind === "guest");
-  if (std.length > 0) out.push({ id: "std", tone: "plain", text: `They'll see ${noun}'s messages from ${i.earlier ? "the start" : "now on"}, its files folder ${t.filesFolder}, and records in ${t.recordsFolder}.` });
+  if (std.length > 0) out.push({ id: "std", tone: "plain", text: i.earlier ? `They'll see the whole ${noun.replace(/^this /, "")}, its files folder ${t.filesFolder}, and records in ${t.recordsFolder}.` : `They'll see ${noun}'s messages from now on, its files folder ${t.filesFolder}, and records in ${t.recordsFolder}.` });
   if (guests.length > 0) out.push({ id: "guests", tone: "plain", text: `${joinNames(guests.map((g) => g.name))} ${guests.length === 1 ? "sees" : "see"} only what ${noun} allows: messages from now on, no files folder, no records.` });
   for (const o of P.filter((p) => p.kind === "outside")) {
     const reads = t.kind === "project" ? "the project's context and folders" : "its folder and the records folder";
@@ -425,33 +425,33 @@ export function noMatch(s: Sections, query: string): boolean {
 /* ---------- how an agent answers ---------- */
 
 export const HOW_OPTIONS: readonly { id: AgentHow; label: string; hint: string }[] = [
-  { id: "lead", label: "Answers everything", hint: "It is the lead here and answers every message" },
-  { id: "tag", label: "Answers when tagged", hint: "It answers when someone tags it" },
-  { id: "listen", label: "Listening", hint: "It reads, and posts only when someone pokes it" },
+  { id: "lead", label: "Answers everything", hint: "Replies to every message. It is the lead here." },
+  { id: "tag", label: "Answers when mentioned", hint: "Replies when you @mention it. The default." },
+  { id: "listen", label: "Only listens", hint: "Reads the chat and never posts unless poked." },
 ];
-export const WHEN_OPTIONS: readonly { id: AgentWhen; label: string }[] = [
-  { id: "always", label: "Always" },
-  { id: "topics", label: "Only on topics" },
-  { id: "hours", label: "Only during hours" },
+export const WHEN_OPTIONS: readonly { id: AgentWhen; label: string; hint: string }[] = [
+  { id: "always", label: "Any time", hint: "Answers whenever it would otherwise." },
+  { id: "topics", label: "Only about certain topics", hint: "Answers only messages about the topics you list." },
+  { id: "hours", label: "Only during working hours", hint: "Answers only between the times you set." },
 ];
-export const STYLE_OPTIONS: readonly { id: AgentStyle; label: string }[] = [
-  { id: "short", label: "Keep replies short" },
-  { id: "full", label: "Full detail" },
+export const STYLE_OPTIONS: readonly { id: AgentStyle; label: string; hint: string }[] = [
+  { id: "short", label: "Short replies", hint: "Keeps answers brief." },
+  { id: "full", label: "Full detail", hint: "Gives the whole answer." },
 ];
 export const TOPICS_PLACEHOLDER = "A few words, for example invoices, billing";
 
-/** An outside agent cannot be the lead of a chat from the sheet: it answers when tagged or listens. */
+/** An outside agent cannot be the lead of a chat from the sheet: it answers when mentioned or listens. */
 export function howOptions(outside: boolean): readonly { id: AgentHow; label: string; hint: string }[] {
   return outside ? HOW_OPTIONS.filter((h) => h.id !== "lead") : HOW_OPTIONS;
 }
 
 export function pokeNote(name: string): string {
-  return `A poke starts one turn now. ${name} reads the last 12 messages and tool calls, answers whoever poked, and can read further back with a tool. It reads only what the poker can read.`;
+  return `Poke asks ${name} to read the chat now and reply. It only sees what you can see.`;
 }
 
 export function settingsSummary(s: AgentSettings): string {
   const how = HOW_OPTIONS.find((h) => h.id === s.how)?.label ?? "";
-  const when = s.when === "topics" ? `Only on ${s.topics.trim() === "" ? "topics" : s.topics.trim()}` : s.when === "hours" ? `${s.hoursFrom} to ${s.hoursTo}` : "Always";
+  const when = s.when === "topics" ? `Only on ${s.topics.trim() === "" ? "topics" : s.topics.trim()}` : s.when === "hours" ? `${s.hoursFrom} to ${s.hoursTo}` : "Any time";
   return `${how} · ${when} · ${STYLE_OPTIONS.find((o) => o.id === s.style)?.label ?? ""}`;
 }
 
@@ -459,7 +459,7 @@ export function outsideSub(name: string, ownerName: string): string {
   return `${name} · shows as ${ownerName} (Agent)`;
 }
 
-export const OUTSIDE_NOTE = (ownerName: string): string => `Shown to others as “${ownerName} (Agent)”`;
+export const OUTSIDE_NOTE = (ownerName: string): string => `Others see these as ${ownerName} (Agent)`;
 export const NO_OUTSIDE = "No outside agent connected yet.";
 export const NO_MATCH = "Nobody by that name. Type an email to invite a guest.";
 
@@ -467,7 +467,7 @@ export const NO_MATCH = "Nobody by that name. Type an email to invite a guest.";
 
 type In<K extends keyof CapMap> = CapMap[K]["in"];
 
-/** Answers everything = lead; Answers when tagged = listen; Listening = quiet (reads, posts only when poked). */
+/** Answers everything = lead; Answers when mentioned = listen; Listening = quiet (reads, posts only when poked). */
 export function modeOf(how: AgentHow): "lead" | "listen" | "quiet" {
   return how === "lead" ? "lead" : how === "tag" ? "listen" : "quiet";
 }

@@ -72,6 +72,8 @@ test("the people menu lists who is here and starts with Add people and agents, w
     const pop = find(root, "people-pop");
     assert.ok(pop);
     assert.match(textOf(pop), /^\s*Add people and agents/);
+    // your own row reads "You" with your role under it, not "You / You"
+    assert.match(textOf(find(root, "people-row-usr_irfad")), /^\s*You\s+Member\s*$/);
     // a person row has nothing new; an agent row has Poke and a gear
     assert.equal(find(root, "people-poke-usr_irfad"), null);
     assert.equal(find(root, "people-gear-usr_irfad"), null);
@@ -211,7 +213,7 @@ test("an outside agent goes through threads.outside_agent.add, and its x on Here
   });
 });
 
-test("an agent picked with Listening is added, then set quiet; a person is added to the chat", async () => {
+test("an agent picked with Only listens is added, then set quiet; a person is added to the chat", async () => {
   await withDom(async () => {
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
@@ -260,7 +262,7 @@ test("Include earlier messages shows for a chat and is off by default; on, the p
     await flush();
     await press(find(root, "as-row-person:usr_omar"));
     await press(find(root, "as-earlier"));
-    assert.match(textOf(find(root, "as-line-std")), /from the start/);
+    assert.match(textOf(find(root, "as-line-std")), /They'll see the whole chat/);
     await press(find(root, "as-add"));
     await flush();
     assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").at(-1)?.input, { threadId: "c1", personId: "usr_omar", fromStart: true });
@@ -367,7 +369,7 @@ test("the gear opens How, When and Style; Listening is mode quiet; making anothe
     await press(find(root, "menu-item-Swap"));
     await flush();
     assert.equal((s.calls.filter((c) => c.cap === "threads.agent_settings.set").at(-1)?.input as { mode: string }).mode, "lead");
-    assert.ok(s.toasts.some((t) => /Docs now answers everything\. Intake answers only when tagged\./.test(t)));
+    assert.ok(s.toasts.some((t) => /Docs now answers everything\. Intake answers only when mentioned\./.test(t)));
   });
 });
 
@@ -390,7 +392,7 @@ test("settingsOf maps the chat's row to the sheet's words, and Listening is quie
   assert.equal(settingsOf({ mode: "listen" }).how, "tag");
   assert.equal(settingsOf({ mode: "listen", quiet: true }).how, "listen");
   assert.deepEqual(settingsOf({ mode: "listen", when: "hours", hoursFrom: "08:00", hoursTo: "12:00", style: "full" }), { how: "tag", when: "hours", topics: "", hoursFrom: "08:00", hoursTo: "12:00", style: "full" });
-  assert.equal(hereSub({ mode: "listen", quiet: true, owned: true }, false), "Listening · made for this chat");
+  assert.equal(hereSub({ mode: "listen", quiet: true, owned: true }, false), "Only listens · made for this chat");
 });
 
 test("directoryOf offers the Space's people and agents, the person's Assistant first, and never someone else's Assistant or a chat's own agent", () => {

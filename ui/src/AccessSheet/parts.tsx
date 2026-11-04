@@ -1,7 +1,7 @@
 // ui/AccessSheet parts: the small pieces the sheet is built from. Colours are skin tokens (CSS variables on web), so a skin switch repaints with no re-render.
 import { createElement, useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
 import { Avatar } from "../Avatar/index.tsx";
 import { SlotRow } from "../FolderTree/index.tsx";
@@ -165,6 +165,21 @@ export function Notes({ lines }: { lines: readonly { id: string; tone: "plain" |
 
 /* ---------- the settings popover: how and when an agent answers in a chat ---------- */
 
+/** One question of the settings popover as a stacked list: a radio and a name for each option, and one line of what it does. */
+function RadioList<T extends string>({ title, testID, value, options, onChange }: { title: string; testID: string; value: T; options: readonly { id: T; label: string; hint: string }[]; onChange(next: T): void }): ReactElement {
+  return (
+    <View style={{ gap: 2 }} testID={testID} accessibilityRole="radiogroup" accessibilityLabel={title}>
+      <Text style={st.frLabel}>{title}</Text>
+      {each(options, (o) => (
+        <Pressable key={o.id} accessibilityRole="radio" accessibilityState={{ checked: o.id === value }} accessibilityLabel={o.label} testID={`${testID}-${o.id}`} onPress={() => onChange(o.id)} style={({ hovered }: { hovered?: boolean }) => [st.radioRow, hovered === true && st.hover]}>
+          <View style={[st.radio, o.id === value && st.radioOn]}>{o.id === value ? <View style={st.radioDot} /> : null}</View>
+          <View style={{ flex: 1, minWidth: 0 }}><Text style={st.name}>{o.label}</Text><Text style={st.sub}>{o.hint}</Text></View>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 /** The line under the topics box when the popover is closed while it is still empty. */
 export const TOPICS_EMPTY = "Add a topic or pick another mode";
 
@@ -195,23 +210,25 @@ export function SettingsPopover({ name, face, value, outside, anchor, onChange, 
             </View>
             <IconButton icon="x" label="Close" onPress={onClose} testID="as-pop-x" />
           </View>
-          <View style={st.fr}><Text style={st.frLabel}>How</Text><View style={st.frBody}><Segmented label="How it responds" testID="as-how" value={value.how} options={howOptions(outside).map((h) => ({ id: h.id, label: h.label, hint: h.hint }))} onChange={(how) => set({ how })} /></View></View>
-          <View style={st.fr}><Text style={st.frLabel}>When</Text><View style={st.frBody}><Segmented label="When it responds" testID="as-when" value={value.when} options={WHEN_OPTIONS.map((w) => ({ id: w.id, label: w.label }))} onChange={(when) => set({ when })} /></View></View>
-          {value.when === "topics" ? (
-            <View style={st.fr}><Text style={st.frLabel} /><View style={st.frBody}>
-              <TextField accessibilityLabel="Topics" testID="as-topics" placeholder={TOPICS_PLACEHOLDER} value={value.topics} onChangeText={(topics) => { setAsked(false); set({ topics }); }} />
-              {empty && asked ? <Text style={[st.note, { color: t("danger") }]} accessibilityLiveRegion="polite" testID="as-topics-empty">{TOPICS_EMPTY}</Text> : null}
-            </View></View>
-          ) : null}
-          {value.when === "hours" ? (
-            <View style={st.fr}><Text style={st.frLabel} /><View style={[st.frBody, { flexDirection: "row", alignItems: "center", gap: 8 }]}>
-              <TextField accessibilityLabel="From" testID="as-from" placeholder="09:00" value={value.hoursFrom} onChangeText={(hoursFrom) => set({ hoursFrom })} style={st.time} />
-              <Text style={st.sub}>to</Text>
-              <TextField accessibilityLabel="To" testID="as-to" placeholder="17:00" value={value.hoursTo} onChangeText={(hoursTo) => set({ hoursTo })} style={st.time} />
-            </View></View>
-          ) : null}
-          <View style={st.fr}><Text style={st.frLabel}>Style</Text><View style={st.frBody}><Segmented label="Reply style" testID="as-style" value={value.style} options={STYLE_OPTIONS.map((s) => ({ id: s.id, label: s.label }))} onChange={(style) => set({ style })} /></View></View>
-          <Text style={st.note}>{pokeNote(name)}</Text>
+          <ScrollView style={{ maxHeight: Math.max(220, (win.height || 768) - 230) }} contentContainerStyle={{ gap: 12 }} keyboardShouldPersistTaps="handled">
+            <RadioList title="How" testID="as-how" value={value.how} options={howOptions(outside)} onChange={(how) => set({ how })} />
+            <RadioList title="When" testID="as-when" value={value.when} options={WHEN_OPTIONS} onChange={(when) => set({ when })} />
+            {value.when === "topics" ? (
+              <View style={{ paddingLeft: 26 }}>
+                <TextField accessibilityLabel="Topics" testID="as-topics" placeholder={TOPICS_PLACEHOLDER} value={value.topics} onChangeText={(topics) => { setAsked(false); set({ topics }); }} />
+                {empty && asked ? <Text style={[st.note, { color: t("danger") }]} accessibilityLiveRegion="polite" testID="as-topics-empty">{TOPICS_EMPTY}</Text> : null}
+              </View>
+            ) : null}
+            {value.when === "hours" ? (
+              <View style={{ paddingLeft: 26, flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <TextField accessibilityLabel="From" testID="as-from" placeholder="09:00" value={value.hoursFrom} onChangeText={(hoursFrom) => set({ hoursFrom })} style={st.time} />
+                <Text style={st.sub}>to</Text>
+                <TextField accessibilityLabel="To" testID="as-to" placeholder="17:00" value={value.hoursTo} onChangeText={(hoursTo) => set({ hoursTo })} style={st.time} />
+              </View>
+            ) : null}
+            <RadioList title="Style" testID="as-style" value={value.style} options={STYLE_OPTIONS} onChange={(style) => set({ style })} />
+          </ScrollView>
+          {onPoke === undefined ? null : <Text style={st.note} testID="as-pop-poke-note">{pokeNote(name)}</Text>}
           <View style={st.popFoot}>
             {onPoke === undefined ? null : <Pill label="Poke" icon="point" testID="as-pop-poke" onPress={onPoke} />}
             <Pill label="Done" primary testID="as-pop-done" onPress={onClose} />
@@ -506,6 +523,10 @@ export const pickHowLabel = (p: AccessPick): string => HOW_OPTIONS.find((h) => h
 
 export const st = StyleSheet.create({
   hover: { backgroundColor: t("hover") },
+  radioRow: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 5, paddingHorizontal: 6, borderRadius: 8 },
+  radio: { width: 16, height: 16, marginTop: 2, borderRadius: 8, borderWidth: 1.5, borderColor: t("line-2"), alignItems: "center", justifyContent: "center" },
+  radioOn: { borderColor: t("accent") },
+  radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: t("accent") },
   off: { opacity: 0.45 },
   veil: { position: (web ? "fixed" : "absolute") as unknown as "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99998, backgroundColor: "rgba(8,8,10,0.5)", alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
   veilPhone: { paddingHorizontal: 0, alignItems: "stretch", justifyContent: "flex-end" },

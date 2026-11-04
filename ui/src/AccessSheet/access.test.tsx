@@ -52,9 +52,9 @@ test("add, empty: title, search, the two makers right under it, then the section
   assert.deepEqual(order, [...order].sort((a, b) => a - b), "in the order the sheet draws them");
   assert.match(html, /Yours, private to you/);
   assert.match(html, /Assistant/);
-  assert.match(html, /Shown to others as “Irfad \(Agent\)”/);
+  assert.match(html, /Others see these as Irfad \(Agent\)/);
   assert.match(html, /Pick who to add\. You will see what they get before you confirm\./);
-  assert.match(html, /aria-label="Poke Docs"/, "Poke on a sheet agent row");
+  assert.doesNotMatch(html, /aria-label="Poke Docs"/, "no Poke on a suggestion row: the agent is not in the chat yet");
   assert.match(html, /aria-label="Poke Mira"/, "Poke on a Here now row");
   assert.match(html, /aria-label="How and when it responds"/, "the gear on a Here now agent");
   assert.doesNotMatch(html, /—|§/);
@@ -125,7 +125,7 @@ test("two picks with roles: a person can be a member or a viewer; the line says 
     await press(find(root, "menu-item-Can view"));
     assert.match(textOf(find(root, "as-pick-person:usr_sara")), /Can view/);
     await press(find(root, "as-earlier"));
-    assert.match(textOf(find(root, "as-line-std")), /from the start/);
+    assert.match(textOf(find(root, "as-line-std")), /They'll see the whole chat/);
     await press(find(root, "as-add"));
     assert.equal(got.length, 1);
     assert.deepEqual(got[0]?.map((p) => [p.id, p.role]), [["usr_sara", "view"], ["agt_docs", ""]]);
@@ -162,11 +162,15 @@ test("the settings popover: How, When with topics and hours, Style, Poke and the
     const poked: string[] = [];
     const root = await mount(createRoot, <AccessSheet {...add({ onPoke: (id) => poked.push(id) })} />);
     await press(find(root, "as-row-agent:agt_docs"));
-    assert.match(textOf(find(root, "as-summary-agent:agt_docs")), /Answers when tagged . Always . Keep replies short/);
+    assert.match(textOf(find(root, "as-summary-agent:agt_docs")), /Answers when mentioned . Any time . Short replies/);
     await press(find(root, "as-settings-agent:agt_docs"));
     assert.ok(find(root, "as-pop"));
     for (const id of ["as-how-lead", "as-how-tag", "as-how-listen", "as-when-always", "as-when-topics", "as-when-hours", "as-style-short", "as-style-full"]) assert.ok(find(root, id), id);
-    assert.match(textOf(find(root, "as-pop")), /A poke starts one turn now\. Docs reads the last 12 messages and tool calls, answers whoever poked, and can read further back with a tool\. It reads only what the poker can read\./);
+    assert.equal(find(root, "as-pop-poke"), null, "Docs is not in the chat yet: nothing to poke");
+    assert.equal(find(root, "as-pop-poke-note"), null);
+    for (const id of ["as-how-lead", "as-how-tag", "as-how-listen", "as-when-always", "as-when-topics", "as-when-hours", "as-style-short", "as-style-full"]) assert.equal(find(root, id)?.props["role"], "radio", `${id} is a radio row, not a segment`);
+    assert.match(textOf(find(root, "as-pop")), /Answers when mentioned[\s\S]*Replies when you @mention it\. The default\.[\s\S]*Only listens[\s\S]*Any time[\s\S]*Only about certain topics[\s\S]*Only during working hours[\s\S]*Short replies[\s\S]*Full detail/);
+    assert.ok(!/tagged/i.test(textOf(find(root, "as-pop"))), "mentioned, never tagged");
     await press(find(root, "as-when-topics"));
     const topics = find(root, "as-topics");
     assert.equal(topics?.props["placeholder"], "A few words, for example invoices, billing");
@@ -176,8 +180,6 @@ test("the settings popover: How, When with topics and hours, Style, Poke and the
     assert.match(textOf(find(root, "as-summary-agent:agt_docs")), /Answers everything . Only on invoices, billing . Full detail/);
     await press(find(root, "as-when-hours"));
     assert.ok(find(root, "as-from") && find(root, "as-to"));
-    await press(find(root, "as-pop-poke"));
-    assert.deepEqual(poked, ["agt_docs"]);
     await press(find(root, "as-pop-done"));
     assert.equal(find(root, "as-pop"), null);
   });
@@ -189,20 +191,24 @@ test("the same popover opens from the gear on a Here now agent and reports the n
     const root = await mount(createRoot, <AccessSheet {...add({ onAgentSettings: (id, s) => saved.push({ id, how: s.how, when: s.when }) })} />);
     await press(find(root, "as-gear-agt_mira"));
     assert.ok(find(root, "as-pop"));
+    assert.ok(find(root, "as-pop-poke"), "Mira is in the chat: it can be poked");
+    assert.equal(textOf(find(root, "as-pop-poke-note")).trim(), "Poke asks Mira to read the chat now and reply. It only sees what you can see.");
     await press(find(root, "as-how-listen"));
     assert.deepEqual(saved.at(-1), { id: "agt_mira", how: "listen", when: "always" });
   });
 });
 
-test("Poke on every agent row calls onPoke with the agent id", async () => {
+test("Poke shows only for an agent already in the chat (Here now), and calls onPoke with its id; suggestions and picks have none", async () => {
   await withDom(async () => {
     const poked: string[] = [];
     const root = await mount(createRoot, <AccessSheet {...add({ onPoke: (id) => poked.push(id) })} />);
-    await press(find(root, "as-poke-agt_docs"));
+    assert.equal(find(root, "as-poke-agt_docs"), null, "not on a suggestion row");
     await press(find(root, "as-here-poke-agt_mira"));
     await press(find(root, "as-row-agent:agt_docs"));
-    await press(find(root, "as-poke-agt_docs"));
-    assert.deepEqual(poked, ["agt_docs", "agt_mira", "agt_docs"]);
+    assert.equal(find(root, "as-poke-agt_docs"), null, "nor on an Adding row");
+    await press(find(root, "as-settings-agent:agt_docs"));
+    assert.equal(find(root, "as-pop-poke"), null, "nor in its settings popover");
+    assert.deepEqual(poked, ["agt_mira"]);
   });
 });
 
