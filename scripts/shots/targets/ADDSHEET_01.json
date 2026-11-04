@@ -136,23 +136,22 @@
       "route": "/m/ADDSHEET_01",
       "proto": "chats,{skin}",
       "waitFor": "[data-testid='conversation']",
-      "note": "After a poke from the people popover: right-click Docs, press Poke, then the quiet line and the reply's Poked by.",
+      "note": "Poke on a Here now agent row in the Add sheet, then the sheet closed: the quiet line and the reply's Poked by.",
       "steps": [
         [
-          "click",
-          "[data-testid='participants-button']"
-        ],
-        [
-          "rclick",
-          "[data-testid='people-row-agt_docs']"
+          "open"
         ],
         [
           "click",
-          "[data-testid='menu-item-Poke']"
+          "[data-testid='as-here-poke-agt_docs']"
         ],
         [
           "wait",
           "[data-testid='poked-pokeR_1']"
+        ],
+        [
+          "click",
+          "[data-testid='as-cancel']"
         ]
       ],
       "after": "[data-testid='poked-pokeR_1']"

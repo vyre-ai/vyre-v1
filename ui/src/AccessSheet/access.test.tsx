@@ -833,3 +833,15 @@ test("the phone sheet pads its bottom by the safe-area inset, so nothing sits un
   // the shell's phone card carries the inset (shared with the people list on a phone)
   assert.match(String(readFileSync(new URL("./parts.tsx", import.meta.url), "utf8")), /cardPhone:[^\n]*safe-area-inset-bottom/);
 });
+
+test("Poke is on an agent's Here now row and not on a person's", async () => {
+  await withDom(async () => {
+    const poked: string[] = [];
+    const here = [{ id: "usr_omar", name: "Omar Reyes", kind: "person" as const }, { id: "agt_mira", name: "Mira", kind: "agent" as const }];
+    const root = await mount(createRoot, <AccessSheet {...add({ here, onPoke: (id) => poked.push(id) })} />);
+    assert.ok(find(root, "as-here-poke-agt_mira"), "an agent already in the chat has Poke");
+    assert.equal(find(root, "as-here-poke-usr_omar"), null, "a person has none");
+    await press(find(root, "as-here-poke-agt_mira"));
+    assert.deepEqual(poked, ["agt_mira"]);
+  });
+});
