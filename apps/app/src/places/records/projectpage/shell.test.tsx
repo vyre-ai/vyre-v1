@@ -169,3 +169,28 @@ test("the Chat tab with a slot draws that slot and never the old list of the pro
     assert.ok(find(without, "project-chat") && !find(without, "project-chat-main"));
   } finally { off(); }
 });
+
+
+test("the Chat tab's header carries the chat's find and pane, and More is the project's items, a divider, then the chat's; other tabs show only the project's controls", async () => {
+  const { createFrameStore } = await import("../../chats/conversation/frame.ts");
+  const off = installDom(); widen(1280);
+  try {
+    const t = setup();
+    const store = createFrameStore();
+    const toggled: string[] = [];
+    store.set({ find: { active: false, toggle: () => toggled.push("find") }, pane: { toggle: () => toggled.push("pane") }, helpers: { label: "2 helpers running", badge: 2, onPress: () => toggled.push("helpers") }, stop: null, chatEntries: () => [{ label: "Plan Mode", onSelect: () => undefined }, { label: "Fork This Chat", onSelect: () => undefined }] });
+    const root = await mount(createRoot, <ProjectPageDataProvider value={t.data}><ProjectPage projectId="pj_0" space={SPACE} chatSlot={<></>} chatControls={store} /></ProjectPageDataProvider>);
+    await flush();
+    for (const id of ["find-button", "pane-button", "helpers-button"]) assert.ok(find(root, id), id);
+    assert.equal(find(root, "stop-button"), null, "no stop when nothing runs");
+    await press(find(root, "find-button")); await press(find(root, "pane-button")); await press(find(root, "helpers-button"));
+    assert.deepEqual(toggled, ["find", "pane", "helpers"]);
+    await press(find(root, "project-more")); await flush();
+    const labels: string[] = [];
+    const walk = (n: unknown): void => { const x = n as { props?: Record<string, unknown>; children?: unknown[] }; const id = x.props?.["data-testid"]; if (typeof id === "string" && id.startsWith("menu-item-")) labels.push(id.slice(10)); for (const c of x.children ?? []) if (typeof c === "object") walk(c); };
+    walk(root);
+    assert.ok(labels.indexOf("Copy Link") >= 0 && labels.indexOf("Plan Mode") > labels.indexOf("Copy Link"), `the project's items first, then the chat's: ${labels.join(", ")}`);
+    await press(find(root, "tab-plan")); await flush();
+    for (const id of ["find-button", "pane-button", "helpers-button"]) assert.equal(find(root, id), null, `${id} only on the Chat tab`);
+  } finally { off(); }
+});

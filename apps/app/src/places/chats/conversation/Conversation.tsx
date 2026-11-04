@@ -2,7 +2,7 @@
 // agent's mode menu), Helpers while any run, Stop and Stop all while any work, the pane toggle and a menu. Under it the last 50 messages (older ones stream in on request), the agent's
 // work folded into one line, and the shared composer with its who-will-reply line. A send shows on the page in the same frame, before chat.post answers; while an agent works, a plain
 // send queues for its next step and Interrupt sends it now.
-import { useInProjectFrame } from "./frame.ts";
+import { useFrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips } from "./helper-rows.ts";
 import { useCrew } from "../crew/context.tsx";
 import { crewChipOf } from "../crew/model.ts";
@@ -181,7 +181,8 @@ function NoAiLine({ data, threadId, agentId }: { data: Pick<ConversationData, "c
 }
 
 function ConversationView(): ReactElement {
-  const inFrame = useInProjectFrame();
+  const frame = useFrameStore();
+  const inFrame = frame !== null;
   const data = useConversationData();
   const compact = useContext(CompactContext);
   const liveTurns = useLiveTurns(data);
@@ -447,7 +448,7 @@ function ConversationView(): ReactElement {
       fail("Could not list the models."),
     );
   };
-  const moreMenu = (x: number, y: number): void => {
+  const moreEntries = (): MenuEntry[] => {
     const items: MenuEntry[] = [
       { label: "Plan Mode", checked: mode === "plan", onSelect: () => chooseChatMode(mode === "plan" ? "ask" : "plan") },
       ...(lead ? [{ label: `Open ${nameOf(lead.agentId)}'s Page`, onSelect: () => data.nav.openAgent(lead.agentId) } as MenuEntry] : []),
@@ -460,8 +461,22 @@ function ConversationView(): ReactElement {
       { label: "Export as JSON", onSelect: () => void runSlash("/export json", commandEnv()) } as MenuEntry,
       ...(isWorking ? [{ separator: true } as MenuEntry, { label: "Stop All", danger: true, onSelect: () => void act.stopAll(data).then(() => say("Everything stopped. The steps so far are kept."), fail("Could not stop.")) } as MenuEntry] : []),
     ];
-    menu.show(items, x, y, "other", { label: "Chat" });
+    return items;
   };
+  const moreMenu = (x: number, y: number): void => { menu.show(moreEntries(), x, y, "other", { label: "Chat" }); };
+  // in a project's frame the page draws these in its own header (conversation/frame.ts)
+  useEffect(() => {
+    if (!frame) return;
+    frame.set({
+      find: { active: finding, toggle: () => setFinding((f) => !f) },
+      pane: { toggle: () => data.nav.togglePane() },
+      helpers: crewChip ? { label: crewChip.label, badge: crewChip.active > 0 ? crewChip.active : crewChip.total, onPress: () => crew!.show(null) }
+        : helpers.length > 0 ? { label: `${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`, badge: helpers.length, onPress: helpersMenu } : null,
+      stop: isWorking ? { label: stopLabel(working, nameOf), onPress: stopMenu } : null,
+      chatEntries: moreEntries,
+    });
+  });
+  useEffect(() => () => frame?.set(null), [frame]);
 
   /* ---------- the message actions, one object for every row ---------- */
   const muteOffer = muteOfferFor(all, data.me.id, (id, person) => muteSeen.current.has(id) || mutedHere.has(person));
@@ -615,10 +630,9 @@ function ConversationView(): ReactElement {
   return (
     <DropRoute testID="conversation-drop" style={ROUTE_STYLE} onOther={takeShare}>
     <View testID="conversation" accessibilityLabel={`Conversation, ${title}`} style={st.root}>
-      {compact ? null : (
+      {compact || inFrame ? null : (
       <View testID="conversation-head" accessibilityRole="header" style={st.head}>
         {mobileBack ? <IconButton icon="back" label="Back" size={32} testID="conversation-back" onPress={() => mobileBack()} /> : null}
-        {inFrame ? null : <>
         {renaming ? (
           <RenameField
             value={title} testID="conversation-rename" label="Rename this chat" style={st.rename}
@@ -630,7 +644,6 @@ function ConversationView(): ReactElement {
             <Text numberOfLines={1} testID="conversation-title" style={st.title}>{title}</Text>
           </Pressable>
         )}
-        </>}
         {!dmWith && others.length > 0 ? (
           <View testID="conversation-people" accessibilityLabel={`With ${others.map((p) => nameOf(p)).join(", ")}`} style={st.faces}>
             {/* ui-rows-lint: not a list (the faces of the people in the chat) */}

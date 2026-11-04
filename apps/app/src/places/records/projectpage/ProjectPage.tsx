@@ -2,7 +2,7 @@
 // linked records and pinned files. Plan is the shared Plan (Timeline, Board, List, Calendar); an edit writes projects.reschedule or tasks.update, and a slip asks to move the later tasks or keep
 // their dates. Files opens the project's folder. Chat is the project's one channel: every thread of it is listed, and the arrow-out mark opens a thread as its own chat. Status, Lead and Due sit
 // under the name; the channel and the folder are icon buttons. Each action is one capability call; a refusal shows as a quiet line.
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -23,6 +23,8 @@ import type { ProjectSpace, ProjectTabKey } from "./tabs.ts";
 import { ProjectOverview } from "./overview/index.tsx";
 import { ProjectLinked } from "./linked/index.tsx";
 import { KnowsTab } from "./KnowsTab.tsx";
+import { IconButton } from "../../chats/conversation/parts.tsx";
+import type { FrameStore } from "../../chats/conversation/frame.ts";
 import { ImportedHistory } from "./ImportedHistory.tsx";
 import { TeammatesTab } from "./TeammatesTab.tsx";
 import { useAddSheet } from "../../chats/addsheet/index.ts";
@@ -36,19 +38,25 @@ export interface ProjectPageProps {
   space?: ProjectSpace;
   /** The project's main chat, drawn by the host that owns the conversation (Chats: the real conversation with its composer, crew strip and side pane). Absent: the list of its chats. */
   chatSlot?: ReactElement | null;
+  /** The controls the project's chat hands up (conversation/frame.ts): drawn in this header on the Chat tab, and its More entries follow the project's own. */
+  chatControls?: FrameStore;
   /** The Plan's view when it opens on the Plan tab. */
   planView?: "timeline" | "board" | "list" | "calendar";
 }
 
 type Load = { status: "loading" } | { status: "gone" } | { status: "ready"; overview: Overview; plan: PlanOut };
 
-export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planView = "timeline", onTabChange, chatSlot, space = { id: "", kind: "team", name: "" } }: ProjectPageProps): ReactElement {
+export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planView = "timeline", onTabChange, chatSlot, chatControls, space = { id: "", kind: "team", name: "" } }: ProjectPageProps): ReactElement {
   const d = useProjectPageData();
   const [load, setLoad] = useState<Load>({ status: "loading" });
   const [tab, setTab] = useState<ProjectTabKey>(first);
   useEffect(() => setTab(first), [first]);
   const [note, setNote] = useState<string | null>(null);
   const menu = useMenu();
+  const noFrame = useMemo(() => ({ subscribe: () => () => undefined, version: () => 0, get: () => null }), []);
+  const frameStore = chatControls ?? noFrame;
+  useSyncExternalStore(frameStore.subscribe, frameStore.version, frameStore.version);
+  const chat = tab === "chat" ? frameStore.get() : null;
   const [mine, setMine] = useState<{ manage: boolean; edit: boolean; starred: boolean; people: string[] }>({ manage: false, edit: false, starred: false, people: [] });
   const api = useMemo(() => createMenuApiB(d), [d]);
   const say = useCallback((e: unknown): void => setNote(e instanceof Error ? e.message : "That did not work."), []);
@@ -105,6 +113,8 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
     archive: () => { void api.projectArchive(projectId).then(() => { setNote("Archived. It left the lists and still opens; Unarchive brings it back."); void read(); }, say); },
     unarchive: () => { void api.projectUnarchive(projectId).then(() => { setNote("Back in the lists"); void read(); }, say); }, copyLink: () => { copyToClipboard(vyreLink("project", projectId)); setNote("Link copied"); },
   });
+  // More is one menu: the project's items, a divider, then the chat's (only on the Chat tab)
+  const moreEntries = (): MenuEntry[] => { const mine = projectEntries(); const theirs = chat ? chat.chatEntries() : []; return theirs.length > 0 ? [...mine, { separator: true } as MenuEntry, ...theirs] : mine; };
   const pick = (k: ProjectTabKey): void => { setTab(k); onTabChange?.(k); };
   const at = (e: unknown): { x: number; y: number } => { const t = (e as { nativeEvent?: { pageX?: number; pageY?: number }; clientX?: number; clientY?: number } | undefined); return { x: t?.clientX ?? t?.nativeEvent?.pageX ?? 24, y: (t?.clientY ?? t?.nativeEvent?.pageY ?? 40) + 12 }; };
   const health = p.health;
@@ -139,7 +149,15 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
           <View style={s.stack}>{mine.people.slice(0, 4).map((id) => <View key={id} style={s.stackFace}><Avatar name={d.nameOf(id)} size={20} /></View>)}</View>
           <Text style={s.pillText}>{String(p.memberCount)}</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="More" testID="project-more" onPress={(e: unknown) => { const q = at(e); menu.show(projectEntries(), q.x, q.y, "other", { label: p.title }); }} style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, hovered === true && s.hover]}><Text style={s.iconText}>{"\u2026"}</Text></Pressable>
+        {chat ? (
+          <>
+            {chat.helpers ? <IconButton icon="helper" label={chat.helpers.label} badge={chat.helpers.badge} testID="helpers-button" onPress={chat.helpers.onPress} /> : null}
+            {chat.stop ? <IconButton icon="stop" label={chat.stop.label} danger testID="stop-button" onPress={chat.stop.onPress} /> : null}
+            <IconButton icon="search" label="Find in chat" active={chat.find.active} testID="find-button" onPress={() => chat.find.toggle()} />
+            <IconButton icon="pane" label="Show or hide the pane" testID="pane-button" onPress={() => chat.pane.toggle()} />
+          </>
+        ) : null}
+        <Pressable accessibilityRole="button" accessibilityLabel="More" testID="project-more" onPress={(e: unknown) => { const q = at(e); menu.show(moreEntries(), q.x, q.y, "other", { label: p.title }); }} style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, hovered === true && s.hover]}><Text style={s.iconText}>{"\u2026"}</Text></Pressable>
       </View>
       <TabStrip underline tabs={tabs} active={tab} onSelect={(k) => pick(k as ProjectTabKey)} />
       {tab === "chat" && chatSlot ? <View style={s.chatSlot} testID="project-chat-main">{chatSlot}</View> : null}
