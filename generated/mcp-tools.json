@@ -48795,6 +48795,36 @@
     },
     {
       "blocks": [],
+      "cap": "runs.people_counts",
+      "deferred": false,
+      "description": "How many Runs each person's own agents have, counted and never listed: an admin sees the number, not the work",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "statuses": {
+            "items": {
+              "enum": [
+                "queued",
+                "running",
+                "waiting",
+                "succeeded",
+                "failed",
+                "stopped"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "name": "runs_people_counts",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "runs.preview_undo",
       "deferred": false,
       "description": "Show what Undo this run would reverse and what it cannot (sent messages and deployments)",

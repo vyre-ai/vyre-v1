@@ -7148,6 +7148,12 @@
     },
     {
       "deferred": false,
+      "name": "runs_people_counts",
+      "summary": "How many Runs each person's own agents have, counted and never listed: an admin sees the number, not the work",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "runs_preview_undo",
       "summary": "Show what Undo this run would reverse and what it cannot (sent messages and deployments)",
       "toolset": "automations"

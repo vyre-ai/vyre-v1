@@ -14,3 +14,4 @@ Area: runs. Risk: medium. Applies to: run.
 
 ## Capabilities that need it
 
+- runs.people_counts
