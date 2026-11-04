@@ -45,7 +45,7 @@ export interface AccessDirectory {
 
 /* ---------- how an agent answers in a chat ---------- */
 
-/** lead: answers everything. tag: answers when tagged. listen: reads, and posts only when poked. */
+/** lead: answers everything. tag: answers when mentioned. listen: reads, and posts only when poked. */
 export type AgentHow = "lead" | "tag" | "listen";
 export type AgentWhen = "always" | "topics" | "hours";
 export type AgentStyle = "short" | "full";

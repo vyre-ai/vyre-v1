@@ -13,7 +13,7 @@ import { blockSchema, id, level, pageIn, pageOut, principalRef, purgeOut, replyT
 
 const threadKind = t.enm('chat', 'channel', 'thread', 'ask', 'run', 'helper', 'console');
 const agentMode = t.enm('lead', 'listen');
-// How an agent answers in one chat (the Add people and agents sheet): lead = Answers everything, listen = Answers when tagged, quiet = Listening (reads, posts only when poked). A quiet agent shows as mode 'listen' with quiet true.
+// How an agent answers in one chat (the Add people and agents sheet): lead = Answers everything, listen = Answers when mentioned, quiet = Only listens (reads, posts only when poked). A quiet agent shows as mode 'listen' with quiet true.
 const agentSetMode = t.enm('lead', 'listen', 'quiet');
 const agentWhen = t.enm('always', 'topics', 'hours');
 const agentStyle = t.enm('short', 'full');

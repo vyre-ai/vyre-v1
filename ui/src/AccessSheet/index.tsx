@@ -219,7 +219,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
       return (
         <SettingsPopover
           name={p.name} face={<Face kind={p.kind} id={p.id} name={p.name} assistant={p.assistant} size={26} />} value={p.settings ?? DEFAULT_AGENT_SETTINGS} outside={p.kind === "outside"} anchor={pop}
-          onChange={(settings) => patchPick(p.key, { settings })} {...(props.onPoke && p.kind !== "new" ? { onPoke: () => props.onPoke?.(p.id) } : {})} onClose={() => setPop(null)}
+          onChange={(settings) => patchPick(p.key, { settings })} onClose={() => setPop(null)}
         />
       );
     }
@@ -250,7 +250,6 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
           </View>
           <View style={st.plusBox}><Icon name="plus" size={13} color={t("ink-4")} /></View>
         </Pressable>
-        {add && isAgentKind(e.kind) && props.onPoke ? <PokeButton name={name} testID={`as-poke-${e.id}`} onPress={() => props.onPoke?.(e.id)} /> : null}
       </View>
     );
   };
@@ -277,7 +276,6 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
             </View>
           </View>
           <View style={[st.pickCtl, phone && st.pickCtlPhone]}>
-            {agent && add && props.onPoke && p.kind !== "new" ? <PokeButton name={p.name} testID={`as-poke-${p.id}`} onPress={() => props.onPoke?.(p.id)} /> : null}
             {agent && add
               ? <Picker label={`How ${p.name} responds`} value={pickHowLabel(p)} testID={`as-settings-${p.key}`} onPress={open} />
               : agent ? null : <Picker label={`Role for ${p.name}`} value={roleName(p.kind, p.role, ctx)} testID={`as-role-${p.key}`} onPress={(x, y) => roleMenu(p, x, y)} />}

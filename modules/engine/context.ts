@@ -448,10 +448,10 @@ export function createContextBuilder(d: ContextDeps) {
     if (others.length > 0) where.push(`Also here: ${others.slice(0, 12).map(who).join(", ")}.`);
     const mates = agents.filter((a) => a.id !== agentId);
     if (mates.length > 0) {
-      // the roster: who is here, their part (lead, answers when tagged), and the one line they say to use them for, so a hand-off names the right one (owner ruling 4 Nov 2026)
+      // the roster: who is here, their part (lead, answers when mentioned), and the one line they say to use them for, so a hand-off names the right one (owner ruling 4 Nov 2026)
       const brief = new Map<string, string>();
       await Promise.all(mates.slice(0, 8).map(async (a) => { try { const r = str(((await read<Obj>("agents.get", { agentId: a.id }, asker))?.["agent"] as Obj | undefined)?.["role"]); if (r) brief.set(a.id, one(r, 100)); } catch { /* no brief */ } }));
-      where.push(`Agents here: ${mates.slice(0, 8).map((a) => `${who(a.id)} (${a.mode === "lead" ? "lead" : "answers when tagged"}${brief.has(a.id) ? `; use for: ${brief.get(a.id)}` : ""})`).join("; ")}. To hand something to one, @mention it by name in your reply with what you need; it answers on ${who(asker)}'s account, and a chain of hand-offs stops after three.`);
+      where.push(`Agents here: ${mates.slice(0, 8).map((a) => `${who(a.id)} (${a.mode === "lead" ? "lead" : "answers when mentioned"}${brief.has(a.id) ? `; use for: ${brief.get(a.id)}` : ""})`).join("; ")}. To hand something to one, @mention it by name in your reply with what you need; it answers on ${who(asker)}'s account, and a chain of hand-offs stops after three.`);
     }
     // a group chat, a discussion or a channel (more than one other participant): short, like a person in Slack. A 1:1 keeps the agent's own style (owner ruling 4 Nov 2026)
     if (kind === "channel" || others.length + mates.length >= 2) where.push(GROUP_STYLE);
