@@ -40,7 +40,7 @@ export function canMountChatField(): boolean {
 
 const CSS = [
   ".vyre-chat{outline:none;white-space:pre-wrap;word-break:break-word;overflow-wrap:break-word;overflow-y:auto;color:var(--ink);caret-color:var(--accent);min-height:22px}",
-  ".vyre-chat p{margin:0}.vyre-chat[data-empty=true] p:first-child::before{content:attr(data-placeholder);color:var(--ink-3);float:left;height:0;pointer-events:none}",
+  ".vyre-chat p{margin:0}.vyre-chat[data-empty=true]::before{content:attr(data-placeholder);color:var(--ink-3);float:left;height:0;pointer-events:none}",
   ".vyre-chat .vyre-chip{background:var(--accent-wash);border-radius:5px;box-shadow:0 0 0 2px var(--accent-wash);cursor:default;user-select:all}",
   ".vyre-chat .vyre-chip.ProseMirror-selectednode{outline:2px solid var(--accent);outline-offset:1px}",
 ].join("\n");

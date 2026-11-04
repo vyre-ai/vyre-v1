@@ -19689,6 +19689,14 @@ export type InboxThreadOut = {
   next?: string;
   total?: number;
 };
+export type InboxThreadConversationIn = {
+  threadId: string;
+};
+export type InboxThreadConversationOut = {
+  conversationId?: string;
+  contactId?: string;
+  subject?: string;
+};
 export type InboxThreadsIn = {
   conversationId?: string;
   contactId?: string;
@@ -43356,6 +43364,7 @@ export interface CapMap {
   "inbox.recipients_search": { in: InboxRecipientsSearchIn; out: InboxRecipientsSearchOut };
   "inbox.send_options": { in: InboxSendOptionsIn; out: InboxSendOptionsOut };
   "inbox.thread": { in: InboxThreadIn; out: InboxThreadOut };
+  "inbox.thread_conversation": { in: InboxThreadConversationIn; out: InboxThreadConversationOut };
   "inbox.threads": { in: InboxThreadsIn; out: InboxThreadsOut };
   "inbox.unmatch": { in: InboxUnmatchIn; out: InboxUnmatchOut };
   "inbox.unmatched": { in: InboxUnmatchedIn; out: InboxUnmatchedOut };
