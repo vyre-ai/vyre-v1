@@ -43,7 +43,7 @@ test("Lead gives a Row's leading slot its gap", () => {
   assert.match(out, /r-marginRight-/, "a right margin is set");
 });
 
-test("Invite a person is a button that opens a sheet, and the disabled Create says why as its tooltip", async () => {
+test("Invite people is a button that opens a sheet, and the disabled Create says why as its tooltip", async () => {
   const rows = { "access.principals.list": { principals: [] }, "access.roles.list": { roles: [] }, "access.groups.list": { groups: [] } };
   const out = await openSheet(createRoot, <People />, rows, "console-invite-open");
   assert.ok(!out.before.includes("Create invite"), "no form on the page");

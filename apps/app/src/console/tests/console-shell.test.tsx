@@ -159,7 +159,7 @@ test("Audit log filters: by kind, by search and by trace, with a Show all", () =
   assert.ok(has(search, 'data-testid="row-aud_004"') && has(search, 'data-testid="row-aud_011"') && !has(search, 'data-testid="row-aud_002"'));
   const trace = html(s, { initialPage: "audit", initialAudit: { filter: { ...NO_FILTER, traceId: "trc_0001" } } });
   assert.ok(has(trace, 'data-testid="row-aud_001"') && has(trace, 'data-testid="row-aud_002"') && !has(trace, 'data-testid="row-aud_003"'));
-  assert.ok(has(trace, "Showing one trace"));
+  assert.ok(has(trace, "Showing related entries"));
   const none = html(s, { initialPage: "audit", initialAudit: { filter: { ...NO_FILTER, query: "zzzz" } } });
   assert.ok(has(none, 'data-testid="audit-none"') && has(none, "No events match"));
 });
