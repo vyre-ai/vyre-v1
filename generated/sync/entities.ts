@@ -2716,6 +2716,11 @@ export const syncEntities: SyncEntityConfig[] = [
         "type": "choice",
         "label": null,
         "required": false
+      },
+      "fromAt": {
+        "type": "datetime",
+        "label": null,
+        "required": false
       }
     },
     "fts": [],

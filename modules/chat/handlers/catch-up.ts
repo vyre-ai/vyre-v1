@@ -1,5 +1,6 @@
 // "Catch me up" (rc.9 flow 3): what a person missed in a thread, read from their cursor. A plain read of the messages after it, no model and no cost, so it is the same for everyone who read as far.
 // The answer is kept per thread, person, cursor and newest message: opening the thread again without anything new reads it from there.
+import { readFloor } from "./floor.ts";
 import { askerOf } from "../projections.ts";
 import type { ChatCtx } from "../projections.ts";
 import { load } from "./g24a.ts";
@@ -15,7 +16,8 @@ export async function catchUp(ctx: ChatCtx, input: { threadId: string }) {
   const t = load(ctx, input.threadId);
   const me = askerOf(ctx);
   const cur = Number(((ctx.db.all("SELECT seq FROM chat_thread_read WHERE thread = ? AND principal = ?", t.id, me) as Row[])[0] ?? {})["seq"] ?? 0);
-  const rows = ctx.db.all('SELECT id, threadSeq, author, kind, body, blocks, pinned FROM chat_message WHERE "thread" = ? AND threadSeq > ? AND author <> ? AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT ?', t.id, cur, me, MAX_LOOK) as Row[];
+  const floor = readFloor(ctx, t);
+  const rows = ctx.db.all('SELECT id, threadSeq, author, kind, body, blocks, pinned FROM chat_message WHERE "thread" = ? AND threadSeq > ? AND author <> ? AND "createdAt" >= ' + Math.floor(floor) + ' AND deleted_at IS NULL ORDER BY threadSeq DESC LIMIT ?', t.id, cur, me, MAX_LOOK) as Row[];
   const top = rows.length > 0 ? Number(rows[0]!["threadSeq"]) : cur;
   const key = `${t.id}|${me}|${cur}|${top}|${rows.length}`;
   const hit = kept.get(key);

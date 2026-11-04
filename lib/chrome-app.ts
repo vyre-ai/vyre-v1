@@ -269,9 +269,19 @@ export function createChromeApp(deps: ChromeAppDeps) {
           } else s = session();
           if (!/^sit_[a-z0-9]+$/.test(id)) throw new AppError("validation.bad_input", "Say which artifact.");
           const out = await deps.call(s, "sites.artifact_open", { artifactId: id });
-          const url = typeof out?.url === "string" ? out.url : typeof out?.path === "string" ? `${s.address.replace(/\/+$/, "")}${out.path}` : "";
-          if (!/^https:\/\/|^http:\/\/(localhost|127\.0\.0\.1)[:/]/.test(url)) throw new AppError("provider.unavailable", "The Space did not give an address to open.");
+          const url = typeof out?.url === "string" ? out.url : "";
+          // the artifact host's one-time code, never an address with a token in it; a Space on this computer uses http://a.localhost:<port>
+          if (!/^https:\/\/[^/]+\/x\/[A-Za-z0-9]+$|^http:\/\/a\.localhost(:\d+)?\/x\/[A-Za-z0-9]+$/.test(url)) throw new AppError("provider.unavailable", "The Space did not give an address to open.");
           return { url, expiresAt: out?.expiresAt ?? null };
+        }
+        case "artifact.thumb": {
+          // A picture the extension took of an artifact the person has open. The Space keeps it only when there is none yet or the artifact changed (sites.artifact_thumb_set, View level).
+          const id = str(input["artifactId"], 80);
+          const thumb = str(input["thumb"], 60_000);
+          if (!/^sit_[a-z0-9]+$/.test(id)) throw new AppError("validation.bad_input", "Say which artifact.");
+          if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(thumb)) throw new AppError("validation.bad_input", "That is not a small picture.");
+          const out = await deps.call(session(), "sites.artifact_thumb_set", { artifactId: id, thumb });
+          return { set: out?.set === true };
         }
         case "whoami": {
           const w = await call("identity.whoami", {});

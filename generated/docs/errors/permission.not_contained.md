@@ -14,4 +14,6 @@ HTTP 403. Retryable: no.
 - folders.place
 - projects.members.set
 - projects.teammates.create
+- threads.invite_guest
+- threads.outside_agent.add
 - vault.share

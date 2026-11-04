@@ -53,7 +53,7 @@ export const askerOf = (ctx: Pick<AgentsCtx, "principal" | "actingFor">): string
 
 // ---- schema -----------------------------------------------------------------------------------------------------------------------------------------
 
-const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql", "0008_skill_scopes.sql", "0009_connections_home.sql", "0010_routine_by.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql", "0008_skill_scopes.sql", "0009_connections_home.sql", "0010_routine_by.sql", "0011_chat_owned.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
@@ -486,7 +486,7 @@ export function applyPatch(doc: TomlDoc, current: AgentConfig, patch: Record<str
 export type AgentKind = "assistant" | "teammate" | "agent";
 export type AgentRuntime = "vyre" | "outside";
 export interface AgentRec {
-  id: string; name: string; kind: AgentKind; runtime: AgentRuntime; projectId?: string; face: string; ownerId: string; folderId?: string; tomlFileId?: string; agentMdFileId?: string; tomlText: string; config: AgentConfig; configError?: Problem;
+  id: string; name: string; kind: AgentKind; runtime: AgentRuntime; projectId?: string; /** the chat or channel that made it, a teammate of that chat */ threadId?: string; face: string; ownerId: string; folderId?: string; tomlFileId?: string; agentMdFileId?: string; tomlText: string; config: AgentConfig; configError?: Problem;
   lastGoodVersionId?: string; hasComputer: boolean; templateVersion: number; paused: boolean; pausedReason?: string; pausedBy?: string; pausedAt?: number; working: number; lastActiveAt?: number;
   createdAt: number; updatedAt: number; deletedAt?: number;
 }
@@ -496,7 +496,7 @@ export function agentOf(r: Row): AgentRec {
     hasComputer: flag(r["hasComputer"]), templateVersion: num(r["templateVersion"] ?? 0), paused: flag(r["paused"]), working: num(r["working"] ?? 0), createdAt: num(r["createdAt"]), updatedAt: num(r["updatedAt"]),
   };
   const set = <K extends keyof AgentRec>(k: K, v: AgentRec[K] | undefined): void => { if (v !== undefined) o[k] = v; };
-  set("projectId", optStr(r["projectId"])); set("folderId", optStr(r["folderId"])); set("tomlFileId", optStr(r["tomlFileId"])); set("agentMdFileId", optStr(r["agentMdFileId"])); set("lastGoodVersionId", optStr(r["lastGoodVersionId"]));
+  set("projectId", optStr(r["projectId"])); set("threadId", optStr(r["threadId"])); set("folderId", optStr(r["folderId"])); set("tomlFileId", optStr(r["tomlFileId"])); set("agentMdFileId", optStr(r["agentMdFileId"])); set("lastGoodVersionId", optStr(r["lastGoodVersionId"]));
   set("pausedReason", optStr(r["pausedReason"])); set("pausedBy", optStr(r["pausedBy"])); set("pausedAt", optNum(r["pausedAt"])); set("lastActiveAt", optNum(r["lastActiveAt"])); set("deletedAt", optNum(r["deletedAt"]));
   if (r["configError"] !== null && r["configError"] !== undefined) set("configError", parseJson<Problem | undefined>(r["configError"], undefined));
   return o;
@@ -539,9 +539,9 @@ export function agentOut(a: AgentRec, now: number): Record<string, unknown> {
 
 export function insertAgent(db: Db, a: AgentRec): void {
   db.run(
-    `INSERT INTO agents_agent (id, name, nameKey, kind, runtime, projectId, face, ownerId, folderId, tomlFileId, agentMdFileId, tomlText, config, configError, lastGoodVersionId, hasComputer, templateVersion, paused, working, lastActiveAt, createdAt, updatedAt, deletedAt)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 0, 0, ?, ?, ?, NULL)`,
-    a.id, a.name, nameKey(a.name), a.kind, a.runtime, a.projectId ?? null, a.face, a.ownerId, a.folderId ?? null, a.tomlFileId ?? null, a.agentMdFileId ?? null, a.tomlText, JSON.stringify(a.config), a.lastGoodVersionId ?? null, a.hasComputer ? 1 : 0,
+    `INSERT INTO agents_agent (id, name, nameKey, kind, runtime, projectId, threadId, face, ownerId, folderId, tomlFileId, agentMdFileId, tomlText, config, configError, lastGoodVersionId, hasComputer, templateVersion, paused, working, lastActiveAt, createdAt, updatedAt, deletedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 0, 0, ?, ?, ?, NULL)`,
+    a.id, a.name, nameKey(a.name), a.kind, a.runtime, a.projectId ?? null, a.threadId ?? null, a.face, a.ownerId, a.folderId ?? null, a.tomlFileId ?? null, a.agentMdFileId ?? null, a.tomlText, JSON.stringify(a.config), a.lastGoodVersionId ?? null, a.hasComputer ? 1 : 0,
     a.templateVersion, a.lastActiveAt ?? null, a.createdAt, a.updatedAt,
   );
 }
@@ -908,6 +908,7 @@ export const ASSISTANT_AGENT_MD = (name: string): string => [
   "5. Keep one source of truth. Change the record, file or task where the fact lives, and link to it instead of copying it into a chat or a note.",
   "6. Finish the job. Work is done when the result is in place and checked, not when it is described.",
   "7. A standing instruction (\"always\", \"from now on\") goes into memory at once and holds until your owner changes it.",
+  "8. When a tool fails, say what failed in plain words. Never paste ids, traces or error codes into a reply.",
   "",
   "## How to decide",
   "Before you act, check in this order:",
@@ -986,6 +987,7 @@ export const AGENT_MD_DEFAULT = (name: string, role: string | undefined, kind: A
   "2. Ask once, with the draft ready, before anything leaves Vyre, costs money or cannot be undone. Act only after a yes.",
   "3. Never go past the asker's permissions or your own. Say who can grant what is missing.",
   "4. Use the records, files and automations that exist before making new ones, and change the one place a fact lives.",
+  "5. When a tool fails, say what failed in plain words. Never paste ids, traces or error codes into a reply.",
   "",
   "## How to decide",
   "1. Reversible, and stays inside Vyre? If not, ask first.",
@@ -1132,6 +1134,8 @@ export async function makeFile(ctx: AgentsCtx, folderId: string, name: string, t
   return (await call<{ file: FileOut }>(ctx, "files.create", { folderId, name, content: { text }, idempotencyKey: key }, { idempotencyKey: key })).file;
 }
 
+/** The chat or channel an agent was made for, or undefined. Such an agent is a teammate of that chat: the Agents page leaves it out and the chat removes it with itself. */
+export const chatOf = (a: Pick<AgentRec, "kind" | "threadId">): string | undefined => (a.kind === "teammate" ? a.threadId : undefined);
 /** The project an agent was made for (a teammate), or undefined for an agent of the Space. */
 export const teammateOf = (a: Pick<AgentRec, "kind" | "projectId">): string | undefined => (a.kind === "teammate" ? a.projectId : undefined);
 /** Calls the server makes for itself. The engine builds a turn from these reads whoever asked, so a viewer's chat must not lose the agent's own Vault handles and limits. */
@@ -1176,7 +1180,8 @@ export function withoutSetup<T extends object>(out: T): T {
 export function agentView(a: AgentRec, now: number): Record<string, unknown> {
   const out = agentOut(a, now);
   const project = teammateOf(a);
-  return project === undefined ? out : { ...out, teammateOf: project };
+  const withProject = project === undefined ? out : { ...out, teammateOf: project };
+  return a.threadId === undefined ? withProject : { ...withProject, chatOf: a.threadId };
 }
 /** agentView for this caller: every read of an agent goes through here. */
 export function agentFor(ctx: AgentsCtx, a: AgentRec, now: number): Record<string, unknown> {

@@ -11,7 +11,7 @@ import { mcpCall, mcpRead, mcpTools, mcpOauthComplete, mcpOauthStart, mcpOauthSt
 import { stepTurn } from "../step-turn.ts";
 import { usageGet } from "./usage.ts";
 import { selfAi } from "./self-ai.ts";
-import { list as crewList, merge as crewMerge, message as crewMessage, push as crewPush, repoGet as crewRepoGet, repoSet as crewRepoSet, start as crewStart, stop as crewStop, wait as crewWait, workspace as crewWorkspace } from "./crew.ts";
+import { list as crewList, merge as crewMerge, message as crewMessage, push as crewPush, repoGet as crewRepoGet, chatRepoGet as crewChatRepo, repoSet as crewRepoSet, start as crewStart, stop as crewStop, wait as crewWait, workspace as crewWorkspace } from "./crew.ts";
 import { capsSet, pauseAll, raiseLimit, recordUsage, resumeAll, spendGet, usageQuery } from "./spend.ts";
 
 export const handlers = {
@@ -47,6 +47,7 @@ export const handlers = {
   "engine.turn.record_usage": recordUsage,
   "engine.crew.repo.set": crewRepoSet,
   "engine.crew.repo.get": crewRepoGet,
+  "engine.crew.chat_repo": crewChatRepo,
   "engine.crew.start": crewStart,
   "engine.crew.list": crewList,
   "engine.crew.workspace": crewWorkspace,

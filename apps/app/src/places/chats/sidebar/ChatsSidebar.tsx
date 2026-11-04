@@ -501,7 +501,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
       case "more": return <Pressable accessibilityRole="button" accessibilityLabel={e.label} testID={`row-${e.key}`} onPress={() => open(e)} style={st.more}><Text style={st.moreText}>{e.label}</Text></Pressable>;
       case "chat": {
         const r = e.row;
-        const title = displayTitle(r, data.clock().offsetMin);
+        const title = displayTitle(r);
         return wrap(
           <Hot>{(over) => (
             <Row

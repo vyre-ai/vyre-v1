@@ -23,6 +23,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "tasks.followers.add": async (ctx) => { throw new VyreErr(notImplemented("tasks.followers.add", ctx.trace)); },
   "tasks.followers.remove": async (ctx) => { throw new VyreErr(notImplemented("tasks.followers.remove", ctx.trace)); },
   "tasks.get": async (ctx) => { throw new VyreErr(notImplemented("tasks.get", ctx.trace)); },
+  "tasks.held_revise": async (ctx) => { throw new VyreErr(notImplemented("tasks.held_revise", ctx.trace)); },
   "tasks.history": async (ctx) => { throw new VyreErr(notImplemented("tasks.history", ctx.trace)); },
   "tasks.index": async (ctx) => { throw new VyreErr(notImplemented("tasks.index", ctx.trace)); },
   "tasks.links.add": async (ctx) => { throw new VyreErr(notImplemented("tasks.links.add", ctx.trace)); },

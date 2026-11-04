@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access, home.
 
-## Capabilities (33)
+## Capabilities (34)
 
 - [company.access_log](../capabilities/company.access_log.md): Who reached whose mail, calendar or files: who made the call, the person an agent worked for, which mailbox, when
 - [company.check](../capabilities/company.check.md): Prove the key now in the Vault works, with no person involved. Answers what is wrong in plain words, or who it is; never the key. A key that works is remembered
@@ -20,6 +20,7 @@ Requires: access, home.
 - [members.accept](../capabilities/members.accept.md): Accept an invite: pick a username and password, the device makes its keys; the person becomes active
 - [members.invites.create](../capabilities/members.invites.create.md): Invite a person: role, groups, the agents, projects and channels they start in, expiry; returns the link (address, one-time code, Space key fingerprint)
 - [members.invites.extend](../capabilities/members.invites.extend.md): Give an open invite a new expiry
+- [members.invites.guest](../capabilities/members.invites.guest.md): System: an email invite as a guest of one chat only, called by threads.invite_guest as the person inviting. The role is guest and the one place is the channel; a guest reads (view) or also writes (reply). No Everyone group, no home channel, no files or records
 - [members.invites.list](../capabilities/members.invites.list.md): List invites
 - [members.invites.preview](../capabilities/members.invites.preview.md): Join page: the public Space routing id, name and logo, who invited, expiry and display fingerprint for a code
 - [members.invites.revoke](../capabilities/members.invites.revoke.md): Revoke an open invite

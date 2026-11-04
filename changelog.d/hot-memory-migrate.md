@@ -1,1 +1,0 @@
-- Memory search, recall and learning work again on a Space that was made before rc.18. Its memory store was missing the audience column, so each of them failed with "no such column: audience". The column is added the first time memory runs, and every column added after the first schema is now checked by name.

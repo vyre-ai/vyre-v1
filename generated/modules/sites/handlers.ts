@@ -9,6 +9,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.addon_remove": Handler<"sites.addon_remove", X>;
   "sites.artifact_open": Handler<"sites.artifact_open", X>;
   "sites.artifact_publish": Handler<"sites.artifact_publish", X>;
+  "sites.artifact_thumb_set": Handler<"sites.artifact_thumb_set", X>;
   "sites.build": Handler<"sites.build", X>;
   "sites.chat_viewing": Handler<"sites.chat_viewing", X>;
   "sites.create": Handler<"sites.create", X>;

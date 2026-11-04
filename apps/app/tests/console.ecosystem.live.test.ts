@@ -116,18 +116,24 @@ test("production Console: Skills and Plugins add, install, configure and connect
     await page.getByTestId("project-page").waitFor({ timeout: 20_000 });
     await page.getByText("Teammates", { exact: true }).first().click();
     await page.getByTestId("project-teammates").waitFor({ timeout: 10_000 });
-    await page.getByTestId("teammate-name").fill("Coordinator");
-    await page.getByTestId("teammate-brief").fill("Keeps the plan moving and answers first in this project's chats.");
-    await page.getByTestId("teammate-role").click();
+    // adding is the one Add people and agents sheet: New agent for this project, then Add
+    for (const [name, brief, done] of [["Coordinator", "Keeps the plan moving and answers first in this project's chats.", "Coordinator was added"], ["Security reviewer", "Checks every draft for privilege and confidentiality.", "Security reviewer was added"]] as const) {
+      await page.getByTestId("teammate-add").click();
+      await page.getByTestId("as-new").click();
+      await page.getByTestId("as-name").fill(name);
+      await page.getByTestId("as-brief").fill(brief);
+      await page.getByTestId("as-create").click();
+      await page.getByTestId("as-add").click();
+      await page.getByText(done, { exact: true }).waitFor();
+    }
+    // who answers first is set on the teammate's row
+    const first = (await api("projects.teammates.list", { projectId: project.projectId }) as { teammates: Array<{ agentId: string; name: string }> }).teammates;
+    await page.getByTestId(`teammate-role-${first.find((m) => m.name === "Coordinator")!.agentId}`).click();
     await page.getByRole("menuitem", { name: /^Lead/ }).click();
-    await page.getByTestId("teammate-add").click();
-    await page.getByText("Coordinator joined the project", { exact: true }).waitFor();
-    await page.getByTestId("teammate-name").fill("Security reviewer");
-    await page.getByTestId("teammate-brief").fill("Checks every draft for privilege and confidentiality.");
-    await page.getByTestId("teammate-role").click();
+    await page.getByText("Coordinator is now lead", { exact: true }).waitFor();
+    await page.getByTestId(`teammate-role-${first.find((m) => m.name === "Security reviewer")!.agentId}`).click();
     await page.getByRole("menuitem", { name: /^Reviewer/ }).click();
-    await page.getByTestId("teammate-add").click();
-    await page.getByText("Security reviewer joined the project", { exact: true }).waitFor();
+    await page.getByText("Security reviewer is now reviewer", { exact: true }).waitFor();
     const mates = await api("projects.teammates.list", { projectId: project.projectId }) as { teammates: Array<{ name: string; role: string; madeForProject: boolean }>; leadAgentId?: string };
     assert.deepEqual(mates.teammates.map((m) => [m.name, m.role, m.madeForProject]), [["Coordinator", "lead", true], ["Security reviewer", "reviewer", true]]);
     assert.ok(mates.leadAgentId, "the lead is the default participant");

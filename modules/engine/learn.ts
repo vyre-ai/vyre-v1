@@ -28,3 +28,15 @@ export function learnAfterTurn(h: LearnHost, turn: Readonly<TurnRow>, account: R
   setTimeout(go, 0);
   return true;
 }
+
+/** A chat is named after its first real request (chat.title_make): handed over in the background after a completed turn, as the person who asked, on the account the turn ran on. */
+export function titleAfterTurn(h: LearnHost, turn: Readonly<TurnRow>, account: ResolvedAccount | null): boolean {
+  if (turn.state !== "completed" || turn.routine || !turn.asker.startsWith("usr")) return false;
+  const input = {
+    threadId: turn.threadId,
+    ...(account ? { account: { ref: account.ref, driver: account.driver, kind: account.kind, payer: account.payer, ...(account.spaceKey ? { spaceKey: true } : {}) } } : {}),
+  };
+  const said = (e: unknown): void => h.log?.("a chat was not titled after a turn", { threadId: turn.threadId, turnId: turn.id, error: e instanceof Error ? e.message : String(e) });
+  setTimeout(() => { try { void h.call("chat.title_make", input, turn.asker).catch(said); } catch (e) { said(e); } }, 0);
+  return true;
+}

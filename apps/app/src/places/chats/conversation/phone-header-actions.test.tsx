@@ -19,6 +19,8 @@ test("the phone header keeps the title and the member count and drops the agent 
     const root = await mount(createRoot, <Conversation data={createSample("idle").data} />);
     assert.ok(find(root, "conversation-title") && find(root, "participants-button"), `${width}: title and count`);
     assert.equal(find(root, "face-agt_intake") !== null, chip, `${width} wide`);
+    // the header + is Add people and agents on a desktop; a phone has it in the composer's + and the people menu
+    assert.equal(find(root, "add-agent") !== null, chip, `${width}: header +`);
   }
   widen(1280);
 });

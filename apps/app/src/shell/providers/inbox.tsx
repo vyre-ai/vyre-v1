@@ -112,7 +112,11 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
     );
   }
   if (state.main === "replies") {
-    return <RepliesPage rt={rt} nameOf={(id) => (id === rt.me.id ? rt.me.name : (people.status === "ready" ? people.data.find((p) => p.id === id)?.name : undefined) ?? "Someone")} openChat={(id) => rt.open({ subject: { type: "thread", id } })} />;
+    return <RepliesPage rt={rt} nameOf={(id) => (id === rt.me.id ? rt.me.name : (people.status === "ready" ? people.data.find((p) => p.id === id)?.name : undefined) ?? "Someone")} openChat={(t, how) => {
+      const chat = t.parentThreadId ?? t.threadId;
+      if (how === "chat") rt.open({ screen: "chats.conversation", args: { threadId: chat } });
+      else rt.open({ screen: "chats.conversation", args: { threadId: chat, side: t.threadId, ...(t.parentMessageId ? { m: t.parentMessageId } : {}) } });
+    }} />;
   }
   if (state.main === "meetings") {
     const persons = people.status === "ready" ? people.data.filter((p) => p.kind === "person").map((p) => ({ id: p.id, name: p.name })) : [];
