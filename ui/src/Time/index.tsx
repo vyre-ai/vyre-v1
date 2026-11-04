@@ -30,6 +30,10 @@ export function useZones(personal = false): Zones {
   }, [z, here, personal]);
 }
 
+/** The Space's zone when a ZonesProvider is above, else null (a place that can fall back to something of its own). */
+export function useSpaceZone(): string | null {
+  return useContext(Ctx)?.space ?? null;
+}
 /** The same from the zones in context. */
 export function useWhenText(personal = false): (at: number, now: number) => string {
   const z = useZones(personal);
