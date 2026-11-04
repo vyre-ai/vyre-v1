@@ -201,12 +201,13 @@ function Section({ title, count, children, id }: { title: string; count?: number
   );
 }
 
-/** The head's people popover for a project: one row per member with the project role, Manage on the Overview in the footer. Lead (or whoever manages) may change a role or remove. */
+/** The head's people popover for a project: one row per member with the project role, Manage on the Overview in the footer. Lead, or a Space owner or admin, may change a role or remove. */
 function ProjectPeople({ o, projectId, at, onClose, toOverview, menu, reload, say }: { o: Overview; projectId: string; at: { x: number; y: number; left?: number }; onClose(): void; toOverview(): void; menu: ReturnType<typeof useMenu>; reload(): void; say(e: unknown): void }): ReactElement {
   const d = useProjectPageData();
   const rows: MemberRow[] = o.people.map((m) => ({ id: m.principal, name: d.nameOf(m.principal), kind: m.kind === "agent" ? "agent" : "person", role: ROLE_WORDS[m.role] }));
   const meRole = d.me ? o.people.find((m) => m.principal === d.me?.id)?.role : undefined;
-  const manages = meRole === "lead";
+  // the Lead, or the Space's owner or admin whoever is Lead: naming an agent Lead must not lock the people out of their own project (the server asks for Manage on the project, not for the Lead role)
+  const manages = meRole === "lead" || d.admin === true;
   const run = (p: Promise<unknown>): void => { p.then(reload, say); };
   const act = (action: MemberAction, r: MemberRow): void => {
     if (action === "link") { const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard; void clip?.writeText(itemLink(r.kind === "person" ? "person" : "agent", r.id)); return; }

@@ -230,3 +230,22 @@ test("roles are set in the people popover: a project's Lead gets Change role (Le
     }
   } finally { off(); }
 });
+
+test("a Space owner or admin keeps role control when someone else is Lead; a plain member does not", async () => {
+  const { act } = await import("react");
+  const off = installDom(); widen(1280);
+  try {
+    for (const admin of [true, false]) {
+      const t = setup();
+      t.data = { ...t.data, me: { id: "usr_omar", name: "Omar Haddad" }, admin };
+      const root = await mount(createRoot, page(t));
+      await flush(); await flush();
+      await press(find(root, "project-members")); await flush();
+      const open = find(root, "people-row-usr_maya")?.props["onContextMenu"] as ((e: unknown) => void) | undefined;
+      await act(async () => { open?.({ preventDefault() {}, nativeEvent: { pageX: 20, pageY: 20 }, pageX: 20, pageY: 20, clientX: 20, clientY: 20 }); });
+      await flush();
+      assert.equal(find(root, "menu-item-Change role") !== null, admin, admin ? "the admin changes roles though Maya leads" : "a plain member may not");
+      assert.equal(typeof find(root, "people-role-usr_maya")?.props.onClick === "function", admin, "the role text is a button only for who may change it");
+    }
+  } finally { off(); }
+});
