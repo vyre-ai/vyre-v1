@@ -250,6 +250,21 @@ test("unshare by grant, by resource and subject, and by source (a project member
   assert.equal(myAccess(r.ctx, "usr_b").filter((x) => x.type === "project").length, 0);
 });
 
+test("the host writing project:X grants skips the delegation check only on project X itself and on resources already carrying a project:X grant; any other resource, or another project's folder, is refused", async () => {
+  const r = rig();
+  r.item("prj_x", "usr_admin", "project"); r.item("prj_y", "usr_admin", "project");
+  const folders = { x: (await foldersCreate(r.ctx, { type: "site", name: "X files" })).folder.id, y: (await foldersCreate(r.ctx, { type: "site", name: "Y files" })).folder.id, other: (await foldersCreate(r.ctx, { type: "site", name: "Private" })).folder.id };
+  await share(r.ctx, { resource: { type: "folder", id: folders.x }, subject: { kind: "person", id: "usr_a" }, level: "manage", source: "project:prj_x" });
+  await share(r.ctx, { resource: { type: "folder", id: folders.y }, subject: { kind: "person", id: "usr_a" }, level: "manage", source: "project:prj_y" });
+  const host = { ...r.ctx, principal: { kind: "service", id: "svc_host" } } as typeof r.ctx;
+  const grant = (resource: { type: string; id: string }, source: string) => share(host, { resource, subject: { kind: "person", id: "usr_b" }, level: "view", source });
+  await grant({ type: "project", id: "prj_x" }, "project:prj_x");
+  await grant({ type: "folder", id: folders.x }, "project:prj_x");
+  assert.ok(await code(grant({ type: "project", id: "prj_y" }, "project:prj_x")), "another project is refused");
+  assert.ok(await code(grant({ type: "folder", id: folders.y }, "project:prj_x")), "another project's folder is refused");
+  assert.ok(await code(grant({ type: "folder", id: folders.other }, "project:prj_x")), "a folder no project grant names is refused");
+});
+
 test("sharing again with the same key does nothing twice; the same subject and source updates in place", async () => {
   const r = rig();
   r.item("sit_x", "usr_a");
