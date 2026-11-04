@@ -38,7 +38,7 @@ import { channelThread, isChannelId, copy, threadDoor, agentPageData, askWith, c
 import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
-import { START, fromHash, openKeyOf, step, workOf } from "./route.ts";
+import { START, fromHash, linkedTo, openKeyOf, step, workOf } from "./route.ts";
 import { Landing } from "../landing/Landing.tsx";
 import { ThreadSide } from "./ThreadSide.tsx";
 import { ArtifactsPage } from "./ArtifactsPage.tsx";
@@ -145,7 +145,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
     if (hash === linked.current) return;
     linked.current = hash;
     // a tab switch or a link: the same thing already on screen keeps its pane and its place
-    setShown((s) => { const next = hash === "" ? START : fromHash(hash); return JSON.stringify(next.route) === JSON.stringify(s.route) ? s : { ...next, pane: s.pane, terminalId: s.terminalId }; });
+    setShown((s) => linkedTo(s, hash));
   }, [hash]);
   // what is open follows into the tab and the address (the Chats tab moves with it; tabs/store.ts moveTab), so coming back lands on it
   const openedRef = useRef(opened);

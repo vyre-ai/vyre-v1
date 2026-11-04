@@ -2,7 +2,7 @@
 // The links that open Chats: a link with `with` and `about` is an Ask about an object, `with` alone is a chat with that agent, and a thread id is that thread.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { START, askAbout, fromHash, step } from "./route.ts";
+import { START, askAbout, fromHash, linkedTo, step } from "./route.ts";
 
 test("with and about make an Ask about the object, and bring names the chat whose summary comes along", () => {
   const s = fromHash("#screen=chats.conversation&with=agt_billing&about=record%3Arec_a1&bring=thr_old");
@@ -60,4 +60,15 @@ test("Open Terminal from the Space menu or Search opens the terminal list", () =
 test("Artifacts opens inside Chats like Threads, and its link lands there", () => {
   assert.deepEqual(step(START, { t: "artifacts" }).route, { view: "artifacts" });
   assert.deepEqual(fromHash("#screen=chats.artifacts").route, { view: "artifacts" });
+});
+
+test("a link that names a layer opens it over the page that is already there, and a link without one leaves the page alone", () => {
+  const onLanding = linkedTo(START, "screen=chats.terminal-list&at=1");
+  assert.equal(onLanding.route.view, "new");
+  assert.equal(onLanding.layer?.kind, "terminals", "Open Terminal on the landing puts the Terminals list up (it was dropped when the page was the same)");
+  const chat = step(START, { t: "chat", threadId: "c1", pane: true });
+  assert.equal(linkedTo(chat, "screen=chats.conversation&threadId=c1").pane, true, "the same chat keeps its pane");
+  assert.equal(linkedTo(chat, "screen=chats.conversation&threadId=c1"), chat, "and is the very same state");
+  assert.equal(linkedTo(chat, "screen=chats.all-agents").layer?.kind, "all-agents", "a layer over an open chat");
+  assert.equal(linkedTo(chat, "screen=chats.conversation&threadId=c2").route.view, "chat");
 });

@@ -97,8 +97,9 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       const done = await api("providers.subscription_complete", { flowId: flow.data.flowId });
       assert.equal(done.status, 200, `subscription_complete ${JSON.stringify(done.data).slice(0, 200)}`);
       await go("chat", "chats-place");
+      // Chats opens on the new-chat landing (its composer is there); a press on "New chat" is only needed when a chat is open
       const newChat = page.getByText("New chat", { exact: true }).first();
-      await newChat.click({ timeout: 15_000 });
+      if (await newChat.count() > 0) await newChat.click({ timeout: 15_000 });
       const composer = page.getByTestId("composer-field").or(page.locator('[data-testid="composer"] textarea')).or(page.locator('[data-testid="composer"] [contenteditable="true"]')).first();
       await composer.waitFor({ timeout: 15_000 });
       const text = `hello from the walk ${Date.now()}`;
@@ -126,6 +127,8 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await step(`Vault: add ${kind} to Mine`, async () => {
         await go("vault", "vault-place");
         await page.getByTestId("add-item").click({ timeout: 20_000 });
+        // the top-level + asks first what is being added; these are a key, login or card
+        await page.getByTestId("row-add-choose-other").click({ timeout: 10_000 });
         await page.getByTestId("add-sheet").waitFor({ timeout: 15_000 });
         await fill(page);
         const nameField = page.getByTestId("add-name");
@@ -202,9 +205,9 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       await adding.fill("Walk Contact");
       await adding.press("Enter");
       // the new record opens in its own tab, with its history beside it
-      await page.getByText("Vyre created it").first().waitFor({ timeout: 15_000 });
+      await page.getByText(/created it/).first().waitFor({ timeout: 15_000 });
       await page.getByRole("tab", { name: "Activity", exact: true }).or(page.getByRole("button", { name: "Activity", exact: true })).or(page.getByText("Activity", { exact: true })).last().click({ timeout: 10_000, force: true }).catch(() => { throw new Error("could not press the Activity tab of the record"); });
-      await page.getByText("Vyre created it").first().waitFor({ timeout: 10_000 });
+      await page.getByText(/created it/).first().waitFor({ timeout: 10_000 });
       // edit a field: show the empty ones, give the contact a job title, and see it saved
       await page.getByText(/Show \d+ empty fields/).first().click({ timeout: 10_000 }).catch(() => { throw new Error("could not press Show empty fields"); });
       // fields are click-to-edit cells: the first Empty is Job title
@@ -236,18 +239,18 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       assert.equal(await page.evaluate(() => document.documentElement.getAttribute("data-mode")), "dark", "data-mode follows the chosen skin (the preview reads it)");
       assert.notEqual(await page.evaluate(() => document.documentElement.getAttribute("data-theme")), null, "data-theme is set");
       // choosing System again: the preview follows the mode the document is in, not the one it was in
-      await page.getByText("System", { exact: true }).first().click({ timeout: 10_000 });
+      // (the default skin is called Vyre now: Vyre Light by day, Vyre Black by night)
+      await page.getByText("Vyre Light by day, Vyre Black by night", { exact: true }).first().click({ timeout: 10_000 });
       const mode = await page.evaluate(() => document.documentElement.getAttribute("data-mode"));
-      assert.equal(await page.getByTestId("skin-preview").getAttribute("aria-label"), mode === "dark" ? "Preview of Graphite" : "Preview of Paper", `the System preview matches data-mode ${mode}`);
+      assert.equal(await page.getByTestId("skin-preview").getAttribute("aria-label"), mode === "dark" ? "Preview of Vyre Black" : "Preview of Vyre Light", `the default skin's preview matches data-mode ${mode}`);
     });
 
     await step("Chats: New agent works in a Personal Space", async () => {
       await go("chat", "chats-place");
-      // the Agents header's All agents button
+      // the Agents header's New agent button opens the agent form: a name, then Create agent
       await page.getByTestId("all-agents").first().click({ timeout: 10_000 });
-      await page.getByTestId("all-agents-new").click({ timeout: 10_000 });
-      await page.getByTestId("all-agents-name").fill("Walk Agent");
-      await page.getByTestId("all-agents-create").click({ timeout: 10_000 });
+      await page.getByTestId("agent-name").fill("Walk Agent");
+      await page.getByTestId("agent-save").click({ timeout: 10_000 });
       // a real agent exists, and a chat with it is open
       await page.getByText("Walk Agent", { exact: true }).first().waitFor({ timeout: 20_000 });
       const agents = (await api("agents.list")).data.agents as { name: string }[];
@@ -319,6 +322,9 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
     await step("Terminal: the chat pane's tab opens and says where a terminal can open from", async () => {
       await go("chat", "chats-place");
       const tab = page.getByTestId("tab-terminal").or(page.getByTestId("tab-terminal-selected")).first();
+      // Chats opens on the new-chat landing: the pane belongs to a chat, so open the one the walk had earlier
+      const earlier = page.locator('[data-testid^="row-c:"]').first();
+      await earlier.click({ timeout: 15_000 });
       if (!(await tab.isVisible().catch(() => false))) await page.getByRole("button", { name: /pane/i }).first().click({ timeout: 10_000 });
       await tab.waitFor({ timeout: 15_000 });
       await tab.click({ timeout: 10_000 });

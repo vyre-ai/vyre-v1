@@ -236,6 +236,13 @@ export function fromHash(hash: string): Shown {
   }
 }
 
+/** A link or tab switch arrives while the place is mounted: the same page keeps its pane and place, a different page replaces them. A layer the link names (Open Terminal on the landing, All agents) goes up over the page that is already there. */
+export function linkedTo(s: Shown, hash: string): Shown {
+  const next = hash === "" ? START : fromHash(hash);
+  if (JSON.stringify(next.route) === JSON.stringify(s.route)) return next.layer !== null ? { ...s, layer: next.layer } : s;
+  return { ...next, pane: s.pane, terminalId: s.terminalId };
+}
+
 /** Where a popover opens: under the control that has the focus (a mouse press and a key press both leave it there), never at the pointer. */
 export function anchorOfFocus(fallback: { x: number; y: number } = { x: 8, y: 48 }): { x: number; y: number } {
   const doc = (globalThis as { document?: { activeElement?: { getBoundingClientRect?: () => { left: number; bottom: number; width: number; height: number } } | null } }).document;
