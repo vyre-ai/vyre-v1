@@ -6,7 +6,7 @@ import { placeTurn } from "../../../agent/src/placement/index.ts";
 import type { PlaceDevice, PlaceInput, PlaceServer } from "../../../agent/src/placement/index.ts";
 import { BUSY_BELOW } from "../../../lib/room-left.ts";
 import { relayOf } from "../relay.ts";
-import { usingIn } from "../node-turns.ts";
+import { usingIn, CLI_DRIVERS } from "../node-turns.ts";
 import type { ResolvedAccount, SessionSpec, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
 import { flagOn } from "./extra/config.ts";
 import { ensure, mintEngineId, openerOf, raise } from "../projections.ts";
@@ -91,7 +91,9 @@ export async function spaceOf(ctx: CallCtx): Promise<{ team: boolean; shared: bo
  * compute; every request runs on their own account). A Personal Space runs on the person's own computer, so it does. In a Team Space it does not when they have a computer linked and online that
  * runs their chats (the Space menu's "Chats run on This computer"): their turns run there, and a request made here would start an engine process on the server and spend a key it has no part in.
  */
-export async function turnsRunHere(call: (cap: string, input: unknown) => Promise<unknown>, asker: string, now: number): Promise<boolean> {
+export async function turnsRunHere(call: (cap: string, input: unknown) => Promise<unknown>, asker: string, now: number, driver?: string): Promise<boolean> {
+  // an API engine's request is a few HTTP calls on the person's own key: it has no engine process to place, so it stays on the Space (node-turns.ts CLI_DRIVERS); only a CLI engine's one-shot needs their computer
+  if (driver !== undefined && !CLI_DRIVERS.has(driver)) return true;
   const space = await spaceOf({ call } as unknown as CallCtx);
   if (!space.team) return true;
   let localRuns = true;

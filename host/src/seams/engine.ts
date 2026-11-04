@@ -65,6 +65,8 @@ export interface EngineHostSeam {
   own?: (person: string) => boolean;
   /** A Space server only: does it hold this person's key right now (they are signed in and opened it)? Absent on a person's own computer, where a turn waits for the key instead. */
   keyHeld?: (person: string) => boolean;
+  /** Whether the person's key is in this host now, on a person's own computer too (keyHeld is only for a Space server, where it chooses the account): a turn parked on a locked Vault resumes by it. */
+  keyOpen?: (person: string) => boolean;
   /** Is this module db handle this daemon's own? Two daemons in one process (the two-computer tests) share the engine module, and only the daemon whose host half it holds builds its runtime. */
   ours?: (db: unknown) => boolean;
   /** The computers that joined the Space, for a turn pinned to one of them: start the engine process there over its live socket. Absent: no turn runs on a node. */
@@ -112,6 +114,8 @@ export interface EngineHostDeps {
   putToSlot?: (url: string, bytes: Uint8Array) => Promise<void>;
   own?: (person: string) => boolean;
   keyHeld?: (person: string) => boolean;
+  /** Whether the person's key is in this host now, on a person's own computer too (keyHeld is only for a Space server, where it chooses the account): a turn parked on a locked Vault resumes by it. */
+  keyOpen?: (person: string) => boolean;
   /** The token behind a filler handle, once (the host's filler): GitHub for a CLI engine's process, for the person's own turn. */
   githubFill?: (handle: string) => string | null;
   ours?: (db: unknown) => boolean;
@@ -173,5 +177,5 @@ export function createEngineHost(d: EngineHostDeps): EngineHostSeam {
     pub({ t: "turn", turn: turnId, delta: { kind, ...rest } }, (person) => (onlyAsker !== null ? person === onlyAsker : mayRead(e.threadId, person)));
   };
   const session = d.vault ? createEngineSessionHost({ invoke: d.invoke, vault: d.vault, space: d.space, ...(d.log ? { log: d.log } : {}), ...(d.saveSignin ? { saveSignin: d.saveSignin } : {}) }) : undefined;
-  return { ...(d.closing ? { closing: d.closing } : {}), ...(d.turns ? { turns: d.turns } : {}), ...(d.mayAll ? { mayAll: d.mayAll } : {}), holder: `host:${d.space}`, call, postAs, ...(d.putToSlot ? { putToSlot: d.putToSlot } : {}), ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.engineInstall ? { engines: { install: true } } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.keyHeld ? { keyHeld: d.keyHeld } : {}), ...(d.githubFill ? { githubFill: d.githubFill } : {}), ...(d.onApiTools !== undefined ? { onApiTools: d.onApiTools } : {}), ...(d.ours ? { ours: d.ours } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
+  return { ...(d.closing ? { closing: d.closing } : {}), ...(d.turns ? { turns: d.turns } : {}), ...(d.mayAll ? { mayAll: d.mayAll } : {}), holder: `host:${d.space}`, call, postAs, ...(d.putToSlot ? { putToSlot: d.putToSlot } : {}), ...(d.publishTurn ? { stream, forgetReaders: () => { epoch++; seen.clear(); } } : {}), ...(d.now ? { now: d.now } : {}), ...(d.log ? { log: d.log } : {}), ...(session ? { session } : {}), ...(d.sandbox !== undefined ? { sandbox: d.sandbox } : {}), ...(d.dataDir ? { dataDir: d.dataDir } : {}), ...(d.cli !== undefined ? { cli: d.cli } : {}), ...(d.engineInstall ? { engines: { install: true } } : {}), ...(d.openSession !== undefined ? { openSession: d.openSession } : {}), invoke: d.invoke, space: d.space, ...(d.own ? { own: d.own } : {}), ...(d.keyHeld ? { keyHeld: d.keyHeld } : {}), ...(d.keyOpen ? { keyOpen: d.keyOpen } : {}), ...(d.githubFill ? { githubFill: d.githubFill } : {}), ...(d.onApiTools !== undefined ? { onApiTools: d.onApiTools } : {}), ...(d.ours ? { ours: d.ours } : {}), ...(d.nodes ? { nodes: d.nodes } : {}), mcpFetch: d.mcpFetch ?? createGuardedFetch({ own: false }), ...(d.pluginLaunch !== undefined ? { pluginLaunch: d.pluginLaunch } : {}) };
 }

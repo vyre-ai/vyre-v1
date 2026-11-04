@@ -12,13 +12,13 @@ export async function complete(ctx: Ctx, input: { accountRef: string; prompt: st
   // Internal only: a model request on someone's account is made by a module on behalf of a key it resolved, never by a person, an agent tool or MCP, which all arrive at depth 0.
   if (!(ctx.depth >= 1)) raise(ctx as unknown as EngineCtx, "permission.no_grant", "This is called by the Space's own jobs, not directly.");
   await ensureRuntime(ctx as unknown as EngineCtx);
-  // the asker's own turns run on their computer: a request made for them is not run (nor paid for) on this server
-  if (!(await turnsRunHere((cap, i) => ctx.call(cap, i), ctx.actingFor ?? ctx.principal.id, ctx.now()))) raise(ctx as unknown as EngineCtx, "internal.unavailable", "This person's chats run on their own computer, not here.");
   const run = completerOf();
   if (!run) raise(ctx as unknown as EngineCtx, "internal.unavailable", "The engine is not running on this host.");
   const list = (await accountsList(ctx, {} as never)) as { accounts: Array<{ ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean; itemId?: string }> };
   const row = list.accounts.find((a) => a.ref === input.accountRef);
   if (!row) raise(ctx as unknown as EngineCtx, "validation.not_found", "That account is not one you can run on.", { accountRef: input.accountRef });
+  // a CLI engine's request needs an engine process, which belongs on the computer where this person's chats run; an API key's request stays here on their own key
+  if (!(await turnsRunHere((cap, i) => ctx.call(cap, i), ctx.actingFor ?? ctx.principal.id, ctx.now(), row.driver))) raise(ctx as unknown as EngineCtx, "internal.unavailable", "This person's chats run on their own computer, not here.");
   const payer = ctx.actingFor ?? ctx.principal.id;
   const account: ResolvedAccount = {
     ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer, reason: "starter",

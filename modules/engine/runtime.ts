@@ -95,6 +95,7 @@ export interface EngineHostSeam {
   own?: (person: string) => boolean;
   /** A Space server only: does it hold this person's key now (locked-account.ts). Absent on a person's own computer. */
   keyHeld?: (person: string) => boolean;
+  keyOpen?: (person: string) => boolean;
   /** Is this module db handle this daemon's own? Two daemons in one process (the two-computer tests) share the engine module, and only the daemon whose host half it holds builds its runtime. */
   ours?: (db: unknown) => boolean;
   /** Bytes into a Files upload slot, in process (the daemon's putToSlot): a goal's files over the inline limit go up this way. */
@@ -309,10 +310,10 @@ async function digestComplete(call: (cap: string, input: unknown, as?: string) =
   const run = completer;
   if (!run) throw new Error("The engine is not running on this host.");
   const { turnsRunHere } = await import("./handlers/place.ts");
-  if (!(await turnsRunHere((cap, x) => call(cap, x, i.asker), i.asker, Date.now()))) throw new Error("This person's chats run on their own computer, not here.");
   const list = (await call("engine.accounts.list", {}, i.asker)) as { accounts: Array<{ ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean; itemId?: string }> };
   const row = list.accounts.find((a) => a.ref === i.accountRef);
   if (!row) throw new Error("That account is not one the asker can run on.");
+  if (!(await turnsRunHere((cap, x) => call(cap, x, i.asker), i.asker, Date.now(), row.driver))) throw new Error("This person's chats run on their own computer, not here.");
   const account = {
     ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: i.asker, reason: "starter",
     ...(row.itemId ? { itemId: row.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}),
@@ -563,8 +564,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     });
     running = engine;
     // A turn parked because the person's Vault is locked runs once when this host holds their key (the Unlock a person presses lands here): one look at the keys every few seconds, no turn is started to find out.
-    if (h.keyHeld) {
-      const held = h.keyHeld;
+    if (h.keyOpen ?? h.keyHeld) {
+      const held = (h.keyOpen ?? h.keyHeld)!;
       const timer = setInterval(() => { for (const p of engine.parkedLocked()) if (held(p.asker)) engine.resumeLocked(p.asker); }, 5_000);
       timer.unref?.();
       closeUnlockWatch?.(); closeUnlockWatch = () => clearInterval(timer);
