@@ -132,7 +132,7 @@ const s = StyleSheet.create({
   head: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28, marginBottom: 4 },
   title: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string, flexShrink: 1 },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--ok)" as string },
-  tag: { fontSize: 12, color: "var(--ink-3)" as string },
+  tag: { fontSize: 12, color: "var(--ink-3)" as string, flexShrink: 1 },
   btn: { minWidth: 28, height: 28, paddingHorizontal: 8, borderRadius: 7, alignItems: "center", justifyContent: "center" },
   btnText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-3)" as string },
   dim: { fontSize: 13, color: "var(--ink-3)" as string, paddingVertical: 4 },

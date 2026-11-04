@@ -43,7 +43,7 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   await page.waitForTimeout(1600);
   check(`${tag}: typing saves by itself`, /Saved/.test((await page.textContent(T("overview-status"))) ?? "") && /3 versions/.test((await page.textContent(T("overview-line"))) ?? ""));
   // the slash menu inserts a live block
-  await page.click(".ProseMirror p");
+  await page.click(".ProseMirror h1");
   await page.keyboard.press("End");
   await page.keyboard.press("Enter");
   await page.keyboard.type("/");
@@ -58,6 +58,7 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   // a block's settings
   await page.locator(`${T("live-tasks")} ${T("live-edit")}`).first().click();
   await page.waitForSelector(T("live-settings"), { timeout: 5000 });
+  await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(out, `overview-settings-${tag}.png`) });
   await page.click(T("live-spec-status-late"));
   await page.click(T("live-view-table"));
@@ -67,12 +68,14 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   // history
   await page.click(T("overview-history-open"));
   await page.waitForSelector(T("overview-history"), { timeout: 5000 });
+  await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(out, `overview-history-${tag}.png`) });
   check(`${tag}: history lists versions with Undo on the latest`, (await page.locator("[data-testid^=rev-undo-]").count()) === 1);
   await page.click(T("overview-history-done"));
   // templates
   await page.click(T("overview-template-open"));
   await page.waitForSelector(T("tpl-tpl_hiring"), { timeout: 5000 });
+  await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(out, `overview-templates-${tag}.png`) });
   await page.click(T("overview-templates-cancel"));
   // an agent's edit and Undo
