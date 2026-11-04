@@ -24,6 +24,11 @@ import type { Who } from "../trail.ts";
 import { actorOf, autoMergeKinds, bm25, ensure, mintId, num, raise, readFact, rowsOf } from "../projections.ts";
 import type { Fact, FactStatus, Layer, MemCtx, SourceKind } from "../projections.ts";
 import { heuristicExtract } from "./facts.ts";
+import { kindOf, placeOf } from "../place.ts";
+import type { Place } from "../place.ts";
+import { postNoted } from "../shared.ts";
+import { chatAudience } from "../../../lib/audience.ts";
+import type { Audience } from "../../../lib/audience.ts";
 import type { CaptureMessage } from "./facts.ts";
 
 // ---- seams for the sibling lanes
@@ -198,13 +203,16 @@ export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> 
 
   const kinds = mode === "propose" ? [] : await autoMergeKinds(ctx);
   const statusFor = (kind: string): FactStatus => (mode === "auto" || kinds.includes(kind) ? "current" : "proposed");
-  const target = seams.target({ asker, agentId, threadId: input.threadId });
+  // rule 8: what a person says in a place other people read is that place's memory, not their private one; their own one-to-one chats stay private
+  const place = shared && agentId ? await placeOf(ctx, input.threadId) : null;
+  const heard = place ? await chatAudience((cap, i) => ctx.call(cap, i), input.threadId) : null;
+  const target = place && agentId ? { layer: "agent" as const, ownerRef: agentId, agentId, projectId: null } : seams.target({ asker, agentId, threadId: input.threadId });
   const audience = seams.audience({ threadId: input.threadId, shared, people });
   const who: Who = agentId ? { actor: agentId, kind: "agent" } : whoIs(ctx);
   const sourceKind: SourceKind = t.kind === "channel" ? "channel" : "chat";
   const known = liveFacts(ctx, target);
   const keepLessons = await lessonsOn(ctx);
-  const w: Writer = { ctx, threadId: input.threadId, target, audience, who, sourceKind, statusFor, low: (kind) => kinds.includes(kind), known, mode, lessons: keepLessons, shared, agentId };
+  const w: Writer = { ctx, threadId: input.threadId, target, audience, who, sourceKind, statusFor, low: (kind) => kinds.includes(kind), known, mode, lessons: keepLessons, shared, agentId, ...(place && heard ? { place, heard } : {}) };
   const tally: Tally = { proposed: 0, merged: 0, updated: 0, closed: 0 };
 
   const tz = await timezoneOf(ctx);
@@ -295,7 +303,7 @@ export function relatedOf(known: Fact[], said: CaptureMessage[]): Fact[] {
 
 interface Writer {
   ctx: MemCtx; threadId: string; target: LearnTarget; audience: Array<[string, string]>; who: Who; sourceKind: SourceKind; statusFor(kind: string): FactStatus; low(kind: string): boolean;
-  known: Fact[]; mode: CaptureMode | null; lessons: boolean; shared: boolean; agentId: string | null;
+  known: Fact[]; mode: CaptureMode | null; lessons: boolean; shared: boolean; agentId: string | null; place?: Place; heard?: Audience;
 }
 
 const lineLink = (threadId: string, messageId: string): string => `/chats/${threadId}#${messageId}`;
@@ -307,7 +315,9 @@ function write(w: Writer, f: { text: string; kind: string; messageId: string; ke
     sourceRef: w.threadId, sourcePerson: actorOf(ctx), proposedBy: ctx.principal.id, status, lowRisk: w.low(f.kind),
     links: [["capture", f.key], ["message", f.messageId], ...w.audience], sourceLink: lineLink(w.threadId, f.messageId), how: "learn", who: w.who,
     ...(f.replaces ? { replaces: f.replaces } : {}), ...(f.why ? { why: f.why } : {}),
+    ...(w.place && w.heard ? { place: { kind: w.place.kind, id: w.place.id, ...(w.place.parent ? { parent: w.place.parent } : {}) }, placeThread: w.threadId, audience: w.heard, msgId: f.messageId, span: f.text } : {}),
   });
+  if (w.place && status === "current") void postNoted(ctx, { threadId: w.threadId, factId: fact.id, kind: kindOf(f.kind), text: f.text });
   emitProposed(ctx, fact);
   emitLearned(ctx, fact, status === "current", w.who);
   if (status === "current") emitAccepted(ctx, fact, true);
