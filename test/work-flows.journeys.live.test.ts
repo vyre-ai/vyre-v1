@@ -163,11 +163,12 @@ test("journey 8, one-tap send: an agent's email is held, Needs you shows the dra
     assert.match(await me.page.getByTestId("held-body").innerText(), /Please sign by Friday/);
     await me.page.getByTestId("held-record").getByText("Dana Fox").first().waitFor({ timeout: 20_000 });
     // the held send opens on its task page now (Held before sending): Approve sends it, Send back asks for changes
-    // the buttons are read by what they do (task-act-<action key>): approve sends the mail, reject is Send back (a note is required); their words are the server's and may change
+    // the buttons are read by what they do (task-act-<action key>): approve sends the mail, reject is Deny (a note is required, the work goes back)
     await me.page.getByTestId("task-act-approve").waitFor({ timeout: 20_000 });
-    assert.match(await me.page.getByTestId("task-act-approve").innerText(), /^(Approve|Allow)$/, "the approval button says the one approval word");
+    assert.match(await me.page.getByTestId("task-act-approve").innerText(), /^Allow$/, "the approval button says Allow");
+    assert.match(await me.page.getByTestId("task-act-reject").innerText(), /^Deny$/, "the other button says Deny (it keeps the required note and returns the work)");
     await shoot(me.page, dir, "held-draft");
-    // Send back asks what to change first (a note is required), then sends it back; Approve is the one that sends the mail
+    // Deny asks what to change first (a note is required), then sends it back; Approve is the one that sends the mail
     await me.page.getByTestId("task-act-reject").click();
     await me.page.getByPlaceholder("Add a note").fill("Add the fee to the letter");
     await shoot(me.page, dir, "ask-for-changes", { phone: false });
