@@ -247,6 +247,9 @@ test("Home: the Relay tile says its version and turns amber with Update availabl
   assert.deepEqual([ok.big, ok.sub, ok.page, ok.tone], ["Reachable", "Vyre relay · v1.4.1 · 18 ms", "network", "ok"]);
   const old = relayTile({ mode: "relay", relayVersion: "1.3.9", relayMs: 18 }, "1.4.1")!;
   assert.deepEqual([old.big, old.tone, old.page], ["Update available", "warn", "updates"], "it opens Computers, Servers, Updates");
+  const flagged = relayTile({ mode: "relay", relayVersion: "1.4.1", relayOlder: true, relayMs: 18 }, "1.4.1")!;
+  assert.deepEqual([flagged.big, flagged.page, flagged.sub], ["Update available", "updates", "Vyre relay · v1.4.1 · 18 ms"], "network.status says the relay is older: that wins");
+  assert.equal(relayTile({ mode: "relay", relayVersion: "1.3.0", relayOlder: false }, "1.4.1")!.big, "Reachable", "relayOlder false is not amber");
   assert.equal(relayTile({ mode: "own_domain" }, "1.4.1"), null, "no relay, no tile");
   assert.equal(relayTile({ mode: "relay" }, "1.4.1")!.sub, "Vyre relay", "no version read yet: just the name");
 });

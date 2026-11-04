@@ -10,6 +10,7 @@ import { ConsoleShell } from "../../console/shell/ConsoleShell.tsx";
 import { ConsoleDataProvider } from "../../console/shell/data.tsx";
 import type { ConsoleData } from "../../console/shell/data.tsx";
 import { PAGES, pageById } from "../../console/shell/nav.ts";
+import { parseConsolePage } from "../../console/shell/route.ts";
 import { Server, Diagnostics, Support } from "../../console/pages/Infrastructure.tsx";
 import { Backups } from "../../console/pages/Backups.tsx";
 import { Devices } from "../../console/pages/Devices.tsx";
@@ -104,7 +105,7 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
   if (id === "checker") return <Checker />;
   if (id === "agents") return <AgentsRegister key={args.agentId??"agents-list"} {...(args.agentId?{initialAgentId:args.agentId}:{})} />;
   if (id === "actors") return <OutsideActors key={args.actorId??"actors-list"} {...(args.actorId?{initialActorId:args.actorId}:{})} />;
-  if (id === "machines") return <MachinesPage {...(args["machineId"] ? { initialId: args["machineId"] } : {})} />;
+  if (id === "machines") return <MachinesPage key={args["machineId"] ?? "machines-list"} {...(args["machineId"] ? { initialId: args["machineId"] } : {})} />;
   if (id === "template") return <AgentTemplate />;
   if (id === "skills") return <SkillsPage />;
   if (id === "plugins") return <PluginsPage />;
@@ -183,9 +184,12 @@ export default function ConsolePlace(): ReactElement {
   if (failed && refused) return <OutsideShell rt={rt ?? null} testID="console-refused"><States kind="empty" title="Console is for admins and owners" icon="search" /></OutsideShell>;
   if (failed) return <OutsideShell rt={rt ?? null}><States kind="error" message="Couldn’t open the Console" cause="You may not have console access, or the server is unavailable." retryable onRetry={() => setAttempt((n) => n + 1)} /></OutsideShell>;
   if (!rt || !data) return <OutsideShell rt={rt ?? null}><States kind="empty" title="Opening the Console…" icon="search" /></OutsideShell>;
-  const requestedPage = target.args.page && pageById(target.args.page)?.screen === target.screen ? target.args.page : null;
+  // console.page opens any page by name, machines~<id> with a machine selected; any other screen opens the page that draws it
+  const routed = target.screen === "console.page" ? parseConsolePage(target.args.page) : null;
+  const requestedPage = routed ? (pageById(routed.page) ? routed.page : null) : target.args.page && pageById(target.args.page)?.screen === target.screen ? target.args.page : null;
   const page = requestedPage ?? PAGES.find((entry) => entry.screen === target.screen)?.id ?? "overview";
-  return <ConsoleDataProvider value={data}><ConsoleShell initialPage={page} embedded={!alone} {...(onConsoleHost() ? { noApp: true } : {})} skin={skin} onSkin={(id) => { theme?.setSkin(id); setSkin(id); }} assistant={<Assistant rt={rt} page={target.screen ?? "console.overview"} />} renderPage={(id) => spaceDefaults(rt, id) ?? consolePageFor(id, target.args)} /></ConsoleDataProvider>;
+  const pageArgs = { ...target.args, ...(routed?.args ?? {}) };
+  return <ConsoleDataProvider value={data}><ConsoleShell initialPage={page} embedded={!alone} {...(onConsoleHost() ? { noApp: true } : {})} skin={skin} onSkin={(id) => { theme?.setSkin(id); setSkin(id); }} assistant={<Assistant rt={rt} page={target.screen ?? "console.overview"} />} renderPage={(id) => spaceDefaults(rt, id) ?? consolePageFor(id, pageArgs)} /></ConsoleDataProvider>;
 }
 
 /** The states of the Console that are not the Console itself keep the theme and a way back to the app. */

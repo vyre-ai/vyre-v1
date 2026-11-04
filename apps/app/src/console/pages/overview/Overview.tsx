@@ -46,7 +46,7 @@ export const ATTENTION_SENTENCE: Readonly<Record<Attention["kind"], string>> = {
 
 
 /** What the Relay tile needs from network.status: the mode, and the relay's own version when the host has read it from the relay's health answer. */
-export interface RelayIn { mode?: "own_domain" | "relay"; relayVersion?: string; relayMs?: number; relayReachable?: boolean }
+export interface RelayIn { mode?: "own_domain" | "relay"; version?: string; relayVersion?: string; /** From network.status: the relay is an older release than the Space server. */ relayOlder?: boolean; relayMs?: number; relayReachable?: boolean }
 const versionParts = (v: string): number[] => v.replace(/^v/, "").split(".").map((x) => Number.parseInt(x, 10) || 0);
 /** True when `relay` is an older version than `server`. */
 export function relayIsOlder(relay: string, server: string): boolean {
@@ -58,7 +58,7 @@ export function relayIsOlder(relay: string, server: string): boolean {
 export function relayTile(n: RelayIn | undefined, serverVersion: string | undefined): { page: string; label: string; icon: string; big: string; sub: string; tone?: Tone } | null {
   if (!n || n.mode !== "relay") return null;
   const bits = ["Vyre relay", ...(n.relayVersion ? [`v${n.relayVersion.replace(/^v/, "")}`] : []), ...(n.relayMs !== undefined ? [`${n.relayMs} ms`] : [])];
-  if (n.relayVersion && serverVersion && relayIsOlder(n.relayVersion, serverVersion)) return { page: "updates", label: "Relay", icon: "globe", big: "Update available", sub: bits.join(" · "), tone: "warn" };
+  if (n.relayOlder === true || (n.relayOlder === undefined && n.relayVersion && serverVersion && relayIsOlder(n.relayVersion, serverVersion))) return { page: "updates", label: "Relay", icon: "globe", big: "Update available", sub: bits.join(" · "), tone: "warn" };
   return { page: "network", label: "Relay", icon: "globe", big: n.relayReachable === false ? "Not reachable" : "Reachable", sub: bits.join(" · "), ...(n.relayReachable === false ? { tone: "bad" as Tone } : { tone: "ok" as Tone }) };
 }
 
@@ -87,7 +87,9 @@ export function Overview(): ReactElement {
   const o = q.data;
   const now = data.clock().now;
   type Tile = { page: string; label: string; icon: string; big: string; sub: string; tone?: Tone };
-  const relay = relayTile(network.data as RelayIn | undefined, updates.data?.current);
+  const endpoints = useRead<CapMap["network.endpoints"]["out"]>("network.endpoints");
+  const relayEnd = endpoints.data?.endpoints.find((e) => e.kind === "relay");
+  const relay = relayTile(network.data ? { ...(network.data as RelayIn), ...(relayEnd?.rttMs !== undefined ? { relayMs: relayEnd.rttMs } : {}), ...(relayEnd ? { relayReachable: relayEnd.health !== "down" } : {}) } : undefined, (network.data as RelayIn | undefined)?.version ?? updates.data?.current);
   const backupAge = backups.data?.ageHours;
   const health: Tile[] = [
     { page: "diagnostics", label: "Space server", icon: "server", big: HEALTH_LABEL[o.health], sub: o.attention.length ? `${o.attention.length} need${o.attention.length === 1 ? "s" : ""} you` : "Nothing waiting", tone: HEALTH_TONE[o.health] },

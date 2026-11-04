@@ -33,6 +33,8 @@ export default defineManifest({
   screens: [
     screen('console.overview', 'console', 'ui:ConsoleOverview', { q: { overview: ['console.overview'] }, a: {}, needs: ['console.access'], empty: 'Nothing needs attention', perf: { firstPaintMs: 100, completeMs: 300 } }),
     screen('console.speed', 'console', 'ui:ConsoleSpeed', { q: { speed: ['console.speed'] }, needs: ['console.access'], empty: 'No speed samples yet' }),
+    // any Console page by name, for places that link into the Console: args.page is a page id, or machines~<machineId> for Computers with that machine open (machines~space is the Space server)
+    screen('console.page', 'console', 'ui:ConsolePage', { needs: ['console.access'], empty: 'Opening the Console' }),
     screen('console.usage', 'console', 'ui:ConsoleUsage', { q: { usage: ['console.usage', { period: '/period', by: '/by' }] }, needs: ['console.access'], empty: 'No usage in this period' }),
     screen('console.machines', 'console', 'ui:ConsoleMachines', { needs: ['console.access'], q: { machines: ['machines.list'] }, a: { set: ['machines.set', { machineId: '/state/machineId' }], fix: ['machines.fix', { machineId: '/state/machineId', fix: '/state/fix' }] }, empty: 'No machines yet', primary: 'Add a server' }),
     screen('console.network', 'console', 'ui:ConsoleNetwork', {

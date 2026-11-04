@@ -3047,6 +3047,23 @@ export const screens: ScreenIndexEntry[] = [
     }
   },
   {
+    "id": "console.page",
+    "module": "console-views",
+    "place": "console",
+    "slot": "main",
+    "builtin": "ui:ConsolePage",
+    "caller": "principal",
+    "queries": {},
+    "actions": {},
+    "needs": [
+      "console.access"
+    ],
+    "perf": {
+      "firstPaintMs": 50,
+      "completeMs": 100
+    }
+  },
+  {
     "id": "console.plugins",
     "module": "agents",
     "place": "console",
