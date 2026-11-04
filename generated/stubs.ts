@@ -860,6 +860,7 @@ export function stubs(ctx: CallCtx) {
         set: call("engine.subscription_share.set"),
       },
       switch: call("engine.switch"),
+      time_convert: call("engine.time_convert"),
       turn: {
         append: call("engine.turn.append"),
         enqueue: call("engine.turn.enqueue"),
@@ -875,6 +876,7 @@ export function stubs(ctx: CallCtx) {
       },
       turns: {
         list: call("engine.turns.list"),
+        running: call("engine.turns.running"),
       },
       usage: {
         get: call("engine.usage.get"),
@@ -1035,6 +1037,7 @@ export function stubs(ctx: CallCtx) {
       holds: {
         get: call("gate.holds.get"),
         list: call("gate.holds.list"),
+        revise: call("gate.holds.revise"),
       },
       links: {
         known: call("gate.links.known"),
@@ -1432,6 +1435,17 @@ export function stubs(ctx: CallCtx) {
       spans: call("logs.spans"),
       tail: call("logs.tail"),
       trace: call("logs.trace"),
+    },
+    machines: {
+      alerts: call("machines.alerts"),
+      alerts_notify: call("machines.alerts_notify"),
+      fix: call("machines.fix"),
+      get: call("machines.get"),
+      list: call("machines.list"),
+      move_record: call("machines.move_record"),
+      moves: call("machines.moves"),
+      rooms: call("machines.rooms"),
+      set: call("machines.set"),
     },
     mail: {
       attachment: {
@@ -1855,16 +1869,6 @@ export function stubs(ctx: CallCtx) {
       enroll_status: call("network.enroll_status"),
       health: call("network.health"),
       ingress_check: call("network.ingress_check"),
-      machine: call("network.machine"),
-      machine_alerts: call("network.machine_alerts"),
-      machine_alerts_notify: call("network.machine_alerts_notify"),
-      machine_fix: call("network.machine_fix"),
-      machine_move_record: call("network.machine_move_record"),
-      machine_moves: call("network.machine_moves"),
-      machine_pin: call("network.machine_pin"),
-      machine_place: call("network.machine_place"),
-      machine_set: call("network.machine_set"),
-      machines: call("network.machines"),
       my_computer_approve: call("network.my_computer_approve"),
       my_computer_code: call("network.my_computer_code"),
       my_computer_decline: call("network.my_computer_decline"),
@@ -2174,6 +2178,7 @@ export function stubs(ctx: CallCtx) {
       get: call("runs.get"),
       list: call("runs.list"),
       mark_waiting: call("runs.mark_waiting"),
+      people_counts: call("runs.people_counts"),
       pin_version: call("runs.pin_version"),
       preview_undo: call("runs.preview_undo"),
       purge: call("runs.purge"),
@@ -2554,6 +2559,7 @@ export function stubs(ctx: CallCtx) {
         remove: call("tasks.followers.remove"),
       },
       get: call("tasks.get"),
+      held_revise: call("tasks.held_revise"),
       history: call("tasks.history"),
       index: call("tasks.index"),
       links: {

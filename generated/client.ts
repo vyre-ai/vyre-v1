@@ -860,6 +860,7 @@ export function createClient(transport: Transport) {
         set: call("engine.subscription_share.set", 1),
       },
       switch: call("engine.switch", 1),
+      time_convert: call("engine.time_convert", 1),
       turn: {
         append: call("engine.turn.append", 1),
         enqueue: call("engine.turn.enqueue", 1),
@@ -875,6 +876,7 @@ export function createClient(transport: Transport) {
       },
       turns: {
         list: call("engine.turns.list", 1),
+        running: call("engine.turns.running", 1),
       },
       usage: {
         get: call("engine.usage.get", 1),
@@ -1035,6 +1037,7 @@ export function createClient(transport: Transport) {
       holds: {
         get: call("gate.holds.get", 1),
         list: call("gate.holds.list", 1),
+        revise: call("gate.holds.revise", 1),
       },
       links: {
         known: call("gate.links.known", 1),
@@ -1432,6 +1435,17 @@ export function createClient(transport: Transport) {
       spans: call("logs.spans", 1),
       tail: call("logs.tail", 1),
       trace: call("logs.trace", 1),
+    },
+    machines: {
+      alerts: call("machines.alerts", 1),
+      alerts_notify: call("machines.alerts_notify", 1),
+      fix: call("machines.fix", 1),
+      get: call("machines.get", 1),
+      list: call("machines.list", 1),
+      move_record: call("machines.move_record", 1),
+      moves: call("machines.moves", 1),
+      rooms: call("machines.rooms", 1),
+      set: call("machines.set", 1),
     },
     mail: {
       attachment: {
@@ -1855,16 +1869,6 @@ export function createClient(transport: Transport) {
       enroll_status: call("network.enroll_status", 1),
       health: call("network.health", 1),
       ingress_check: call("network.ingress_check", 1),
-      machine: call("network.machine", 1),
-      machine_alerts: call("network.machine_alerts", 1),
-      machine_alerts_notify: call("network.machine_alerts_notify", 1),
-      machine_fix: call("network.machine_fix", 1),
-      machine_move_record: call("network.machine_move_record", 1),
-      machine_moves: call("network.machine_moves", 1),
-      machine_pin: call("network.machine_pin", 1),
-      machine_place: call("network.machine_place", 1),
-      machine_set: call("network.machine_set", 1),
-      machines: call("network.machines", 1),
       my_computer_approve: call("network.my_computer_approve", 1),
       my_computer_code: call("network.my_computer_code", 1),
       my_computer_decline: call("network.my_computer_decline", 1),
@@ -2174,6 +2178,7 @@ export function createClient(transport: Transport) {
       get: call("runs.get", 1),
       list: call("runs.list", 1),
       mark_waiting: call("runs.mark_waiting", 1),
+      people_counts: call("runs.people_counts", 1),
       pin_version: call("runs.pin_version", 1),
       preview_undo: call("runs.preview_undo", 1),
       purge: call("runs.purge", 1),
@@ -2554,6 +2559,7 @@ export function createClient(transport: Transport) {
         remove: call("tasks.followers.remove", 1),
       },
       get: call("tasks.get", 1),
+      held_revise: call("tasks.held_revise", 1),
       history: call("tasks.history", 1),
       index: call("tasks.index", 1),
       links: {

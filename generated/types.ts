@@ -4970,6 +4970,7 @@ export type BrowserChromeActIn = {
   };
   threadId?: string;
   summary?: string;
+  reason?: string;
   idempotencyKey: string;
 };
 export type BrowserChromeActOut = {
@@ -7286,7 +7287,7 @@ export type ChatReplyDetailsOut = {
         reasoning?: number;
       };
       cost?: {
-        source: "subscription" | "reported" | "catalog" | "estimate" | "unknown";
+        source: "subscription" | "reported" | "catalog" | "estimate" | "unknown" | "flat";
         micros?: number;
         lines?: Array<{
             kind: "input" | "output" | "cache_read" | "cache_write";
@@ -11362,6 +11363,23 @@ export type EngineSwitchOut = {
   quietLine: string;
   handoffTurns: number;
 };
+export type EngineTimeConvertIn = {
+  when: string;
+  from?: string;
+  to?: Array<string>;
+  zone?: string;
+};
+export type EngineTimeConvertOut = {
+  instant: string;
+  given: string;
+  zones?: Array<{
+      zone: string;
+      text: string;
+    }>;
+  inYourZone: string;
+  personZone: string;
+  note?: string;
+};
 export type EngineTurnAppendIn = {
   turnId: string;
   kind: "text" | "thinking" | "tool_call" | "tool_result" | "block";
@@ -11537,7 +11555,7 @@ export type EngineTurnOfMessageOut = {
       reasoning?: number;
     };
     cost?: {
-      source: "subscription" | "reported" | "catalog" | "estimate" | "unknown";
+      source: "subscription" | "reported" | "catalog" | "estimate" | "unknown" | "flat";
       micros?: number;
       lines?: Array<{
           kind: "input" | "output" | "cache_read" | "cache_write";
@@ -11804,6 +11822,20 @@ export type EngineTurnsListOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type EngineTurnsRunningIn = Record<string, unknown>;
+export type EngineTurnsRunningOut = {
+  turns: Array<{
+      turnId: string;
+      agentId: string;
+      asker: string;
+      startedAt: number;
+      where: {
+        kind: "computer" | "server" | "space";
+        name: string;
+        nodeId?: string;
+      };
+    }>;
 };
 export type EngineUsageGetIn = {
   threadId: string;
@@ -14139,6 +14171,15 @@ export type GateHoldsListOut = {
     }>;
   next?: string;
   total?: number;
+};
+export type GateHoldsReviseIn = {
+  holdId: string;
+  taskId: string;
+  body: string;
+};
+export type GateHoldsReviseOut = {
+  ok: boolean;
+  edited: number;
 };
 export type GateLinksKnownIn = {
   url: string;
@@ -20311,6 +20352,351 @@ export type LogsTraceOut = {
       entity?: string;
     }>;
 };
+export type MachinesAlertsIn = Record<string, unknown>;
+export type MachinesAlertsOut = {
+  alerts: Array<{
+      alertId: string;
+      machineId: string;
+      kind: "disk_low" | "memory_pressure" | "offline_pinned" | "update_waiting" | "backup_failed";
+      severity: "info" | "warn" | "bad";
+      title: string;
+      detail: string;
+      next: string;
+    }>;
+};
+export type MachinesAlertsNotifyIn = Record<string, unknown>;
+export type MachinesAlertsNotifyOut = {
+  sent: number;
+};
+export type MachinesFixIn = {
+  machineId: string;
+  fix: "clear_caches" | "stop_idle" | "restart_service";
+  service?: string;
+};
+export type MachinesFixOut = {
+  state: "done" | "failed";
+  detail: string;
+};
+export type MachinesGetIn = {
+  machineId: string;
+};
+export type MachinesGetOut = {
+  machine: {
+    machineId: string;
+    kind: "space" | "server" | "computer";
+    name: string;
+    nickname?: string;
+    ownerId?: string;
+    personal: boolean;
+    mine: boolean;
+    online: boolean;
+    draining: boolean;
+    restricted: boolean;
+    lastSeenAt?: number;
+    latencyMs?: number;
+    version?: string;
+    os?: string;
+    arch?: string;
+    diskBytes?: number;
+    gpu?: string;
+    cores?: number;
+    memBytes?: number;
+    load?: {
+      cpuPct: number;
+      memUsedBytes: number;
+      diskFreeBytes: number;
+      netInBps: number;
+      netOutBps: number;
+    };
+    vyreLoad?: {
+      cpuPct: number;
+      memBytes: number;
+    };
+    runs: {
+      turns: number;
+      agentComputers: number;
+      sites: number;
+      automations: number;
+    };
+    can: Array<"claude_code" | "codex" | "docker" | "chrome">;
+    limits: {
+      maxTurns: number;
+      maxAgentComputers: number;
+    };
+    pinned: Array<{
+        agentId: string;
+      }>;
+    room: {
+      score: number;
+      tightest: "cpu" | "memory" | "turns" | "disk" | "offline" | "draining" | "busy";
+    };
+    alerts: number;
+    agentComputers: Array<{
+        computerId: string;
+        agentId: string;
+        state: string;
+        tabs: number;
+        tabLimit: number;
+        caption?: string;
+      }>;
+  };
+  series: {
+    "1h": Array<{
+        t: number;
+        cpuPct?: number;
+        memPct?: number;
+        diskFreePct?: number;
+        netInBps?: number;
+        netOutBps?: number;
+        vyreCpuPct?: number;
+        vyreMemBytes?: number;
+      }>;
+    "24h": Array<{
+        t: number;
+        cpuPct?: number;
+        memPct?: number;
+        diskFreePct?: number;
+        netInBps?: number;
+        netOutBps?: number;
+        vyreCpuPct?: number;
+        vyreMemBytes?: number;
+      }>;
+    "7d": Array<{
+        t: number;
+        cpuPct?: number;
+        memPct?: number;
+        diskFreePct?: number;
+        netInBps?: number;
+        netOutBps?: number;
+        vyreCpuPct?: number;
+        vyreMemBytes?: number;
+      }>;
+    "30d": Array<{
+        t: number;
+        cpuPct?: number;
+        memPct?: number;
+        diskFreePct?: number;
+        netInBps?: number;
+        netOutBps?: number;
+        vyreCpuPct?: number;
+        vyreMemBytes?: number;
+      }>;
+  };
+  alerts: Array<{
+      alertId: string;
+      machineId: string;
+      kind: "disk_low" | "memory_pressure" | "offline_pinned" | "update_waiting" | "backup_failed";
+      severity: "info" | "warn" | "bad";
+      title: string;
+      detail: string;
+      next: string;
+    }>;
+  work: Array<{
+      kind: "turn" | "site" | "automation";
+      agentId?: string;
+      what: string;
+      where: string;
+      minutes: number;
+    }>;
+  findings: Array<{
+      key: string;
+      state: "healthy" | "degraded" | "down";
+      detail: string;
+      next: string;
+      fix: ("clear_caches" | "stop_idle" | "update") | null;
+    }>;
+  privacy: "full" | "vyre_only";
+  lastFix?: {
+    fix: string;
+    at: number;
+    state: "done" | "failed";
+    detail: string;
+  };
+};
+export type MachinesListIn = Record<string, unknown>;
+export type MachinesListOut = {
+  machines: Array<{
+      machineId: string;
+      kind: "space" | "server" | "computer";
+      name: string;
+      nickname?: string;
+      ownerId?: string;
+      personal: boolean;
+      mine: boolean;
+      online: boolean;
+      draining: boolean;
+      restricted: boolean;
+      lastSeenAt?: number;
+      latencyMs?: number;
+      version?: string;
+      os?: string;
+      arch?: string;
+      diskBytes?: number;
+      gpu?: string;
+      cores?: number;
+      memBytes?: number;
+      load?: {
+        cpuPct: number;
+        memUsedBytes: number;
+        diskFreeBytes: number;
+        netInBps: number;
+        netOutBps: number;
+      };
+      vyreLoad?: {
+        cpuPct: number;
+        memBytes: number;
+      };
+      runs: {
+        turns: number;
+        agentComputers: number;
+        sites: number;
+        automations: number;
+      };
+      can: Array<"claude_code" | "codex" | "docker" | "chrome">;
+      limits: {
+        maxTurns: number;
+        maxAgentComputers: number;
+      };
+      pinned: Array<{
+          agentId: string;
+        }>;
+      room: {
+        score: number;
+        tightest: "cpu" | "memory" | "turns" | "disk" | "offline" | "draining" | "busy";
+      };
+      alerts: number;
+      agentComputers: Array<{
+          computerId: string;
+          agentId: string;
+          state: string;
+          tabs: number;
+          tabLimit: number;
+          caption?: string;
+        }>;
+    }>;
+  summary: {
+    online: number;
+    total: number;
+    agentComputers: number;
+    roomAvg: number;
+  };
+};
+export type MachinesMoveRecordIn = {
+  turnId?: string;
+  asker?: string;
+  agentId?: string;
+  threadId?: string;
+  from: string;
+  to: string;
+  why: string;
+};
+export type MachinesMoveRecordOut = {
+  ok: boolean;
+};
+export type MachinesMovesIn = {
+  limit?: number;
+};
+export type MachinesMovesOut = {
+  moves: Array<{
+      id: number;
+      at: number;
+      turnId: string | null;
+      asker: string | null;
+      agentId: string | null;
+      threadId: string | null;
+      from: string;
+      to: string;
+      why: string;
+    }>;
+};
+export type MachinesRoomsIn = {
+  ids: Array<string>;
+  agentId?: string;
+};
+export type MachinesRoomsOut = {
+  pinnedTo?: string;
+  rooms: Array<{
+      machineId: string;
+      name: string;
+      score: number;
+      why: string;
+      turns: number;
+      maxTurns: number;
+      draining: boolean;
+    }>;
+};
+export type MachinesSetIn = {
+  machineId: string;
+  nickname?: string | null;
+  maxTurns?: number;
+  maxAgentComputers?: number;
+  drain?: boolean;
+  pinAgent?: {
+    agentId: string;
+    pinned: boolean;
+  };
+};
+export type MachinesSetOut = {
+  machine: {
+    machineId: string;
+    kind: "space" | "server" | "computer";
+    name: string;
+    nickname?: string;
+    ownerId?: string;
+    personal: boolean;
+    mine: boolean;
+    online: boolean;
+    draining: boolean;
+    restricted: boolean;
+    lastSeenAt?: number;
+    latencyMs?: number;
+    version?: string;
+    os?: string;
+    arch?: string;
+    diskBytes?: number;
+    gpu?: string;
+    cores?: number;
+    memBytes?: number;
+    load?: {
+      cpuPct: number;
+      memUsedBytes: number;
+      diskFreeBytes: number;
+      netInBps: number;
+      netOutBps: number;
+    };
+    vyreLoad?: {
+      cpuPct: number;
+      memBytes: number;
+    };
+    runs: {
+      turns: number;
+      agentComputers: number;
+      sites: number;
+      automations: number;
+    };
+    can: Array<"claude_code" | "codex" | "docker" | "chrome">;
+    limits: {
+      maxTurns: number;
+      maxAgentComputers: number;
+    };
+    pinned: Array<{
+        agentId: string;
+      }>;
+    room: {
+      score: number;
+      tightest: "cpu" | "memory" | "turns" | "disk" | "offline" | "draining" | "busy";
+    };
+    alerts: number;
+    agentComputers: Array<{
+        computerId: string;
+        agentId: string;
+        state: string;
+        tabs: number;
+        tabLimit: number;
+        caption?: string;
+      }>;
+  };
+};
 export type MailAttachmentSaveIn = {
   messageId: string;
   attachmentId: string;
@@ -25714,347 +26100,6 @@ export type NetworkIngressCheckOut = {
   reachable: boolean;
   detail?: string;
 };
-export type NetworkMachineIn = {
-  serverId: string;
-  range?: "1h" | "24h" | "7d" | "30d";
-};
-export type NetworkMachineOut = {
-  machine: {
-    serverId: string;
-    name: string;
-    nickname?: string;
-    kind: "space" | "server" | "linked";
-    owner?: string;
-    mine: boolean;
-    state: "healthy" | "degraded" | "down";
-    online: boolean;
-    lastSeenAt?: number;
-    version?: string;
-    os?: string;
-    arch?: string;
-    cores?: number;
-    memBytes?: number;
-    diskBytes?: number;
-    latencyMs?: number;
-    load?: {
-      cpu: number;
-      memPct: number;
-      diskPct: number;
-      diskFreeBytes: number;
-    };
-    vyre?: {
-      cpu: number;
-      memPct: number;
-    };
-    private: boolean;
-    runs: {
-      turns: number;
-      agentComputers: number;
-      sites: number;
-      automations: number;
-    };
-    can: Array<string>;
-    room: {
-      n: number;
-      why: string;
-    };
-    limits: {
-      maxTurns: number | null;
-      maxAgentComputers: number | null;
-    };
-    drain: boolean;
-    pins: Array<string>;
-  };
-  series: {
-    range: "1h" | "24h" | "7d" | "30d";
-    step: number;
-    points: Array<{
-        t: number;
-        cpu: number | null;
-        mem: number | null;
-        disk: number | null;
-        netIn: number | null;
-        netOut: number | null;
-      }>;
-  };
-  findings: Array<{
-      key: string;
-      state: "healthy" | "degraded" | "down";
-      detail: string;
-      next: string;
-      fix: string | null;
-    }>;
-  work: Array<{
-      agent: string;
-      what: string;
-      where: string;
-      cpu: number;
-    }>;
-  alerts: Array<{
-      alertId: string;
-      serverId: string;
-      kind: "disk" | "memory" | "offline" | "backup" | "update";
-      title: string;
-      detail: string;
-    }>;
-  privacy: "full" | "vyre_only";
-  lastFix?: {
-    fix: string;
-    at: number;
-    state: "queued" | "done" | "failed";
-    detail?: string;
-  };
-};
-export type NetworkMachineAlertsIn = Record<string, unknown>;
-export type NetworkMachineAlertsOut = {
-  alerts: Array<{
-      alertId: string;
-      serverId: string;
-      kind: "disk" | "memory" | "offline" | "backup" | "update";
-      title: string;
-      detail: string;
-    }>;
-};
-export type NetworkMachineAlertsNotifyIn = Record<string, unknown>;
-export type NetworkMachineAlertsNotifyOut = {
-  sent: number;
-};
-export type NetworkMachineFixIn = {
-  serverId: string;
-  fix: "clear_caches" | "stop_idle" | "restart_service";
-  service?: string;
-};
-export type NetworkMachineFixOut = {
-  queued: boolean;
-  commandId: number;
-};
-export type NetworkMachineMoveRecordIn = {
-  turnId?: string;
-  asker?: string;
-  agentId?: string;
-  threadId?: string;
-  from: string;
-  to: string;
-  why: string;
-};
-export type NetworkMachineMoveRecordOut = {
-  ok: boolean;
-};
-export type NetworkMachineMovesIn = {
-  limit?: number;
-};
-export type NetworkMachineMovesOut = {
-  moves: Array<{
-      id: number;
-      at: number;
-      turnId: string | null;
-      asker: string | null;
-      agentId: string | null;
-      threadId: string | null;
-      from: string;
-      to: string;
-      why: string;
-    }>;
-};
-export type NetworkMachinePinIn = {
-  serverId: string;
-  agentId: string;
-  pinned: boolean;
-};
-export type NetworkMachinePinOut = {
-  machine: {
-    serverId: string;
-    name: string;
-    nickname?: string;
-    kind: "space" | "server" | "linked";
-    owner?: string;
-    mine: boolean;
-    state: "healthy" | "degraded" | "down";
-    online: boolean;
-    lastSeenAt?: number;
-    version?: string;
-    os?: string;
-    arch?: string;
-    cores?: number;
-    memBytes?: number;
-    diskBytes?: number;
-    latencyMs?: number;
-    load?: {
-      cpu: number;
-      memPct: number;
-      diskPct: number;
-      diskFreeBytes: number;
-    };
-    vyre?: {
-      cpu: number;
-      memPct: number;
-    };
-    private: boolean;
-    runs: {
-      turns: number;
-      agentComputers: number;
-      sites: number;
-      automations: number;
-    };
-    can: Array<string>;
-    room: {
-      n: number;
-      why: string;
-    };
-    limits: {
-      maxTurns: number | null;
-      maxAgentComputers: number | null;
-    };
-    drain: boolean;
-    pins: Array<string>;
-  };
-};
-export type NetworkMachinePlaceIn = {
-  order: Array<string>;
-};
-export type NetworkMachinePlaceOut = {
-  serverId: string | null;
-  name: string | null;
-  skipped: Array<{
-      serverId: string;
-      name: string;
-      why: string;
-    }>;
-  moved: boolean;
-  line: string | null;
-};
-export type NetworkMachineSetIn = {
-  serverId: string;
-  nickname?: string | null;
-  maxTurns?: number | null;
-  maxAgentComputers?: number | null;
-  drain?: boolean;
-};
-export type NetworkMachineSetOut = {
-  machine: {
-    serverId: string;
-    name: string;
-    nickname?: string;
-    kind: "space" | "server" | "linked";
-    owner?: string;
-    mine: boolean;
-    state: "healthy" | "degraded" | "down";
-    online: boolean;
-    lastSeenAt?: number;
-    version?: string;
-    os?: string;
-    arch?: string;
-    cores?: number;
-    memBytes?: number;
-    diskBytes?: number;
-    latencyMs?: number;
-    load?: {
-      cpu: number;
-      memPct: number;
-      diskPct: number;
-      diskFreeBytes: number;
-    };
-    vyre?: {
-      cpu: number;
-      memPct: number;
-    };
-    private: boolean;
-    runs: {
-      turns: number;
-      agentComputers: number;
-      sites: number;
-      automations: number;
-    };
-    can: Array<string>;
-    room: {
-      n: number;
-      why: string;
-    };
-    limits: {
-      maxTurns: number | null;
-      maxAgentComputers: number | null;
-    };
-    drain: boolean;
-    pins: Array<string>;
-  };
-};
-export type NetworkMachinesIn = Record<string, unknown>;
-export type NetworkMachinesOut = {
-  machines: Array<{
-      serverId: string;
-      name: string;
-      nickname?: string;
-      kind: "space" | "server" | "linked";
-      owner?: string;
-      mine: boolean;
-      state: "healthy" | "degraded" | "down";
-      online: boolean;
-      lastSeenAt?: number;
-      version?: string;
-      os?: string;
-      arch?: string;
-      cores?: number;
-      memBytes?: number;
-      diskBytes?: number;
-      latencyMs?: number;
-      load?: {
-        cpu: number;
-        memPct: number;
-        diskPct: number;
-        diskFreeBytes: number;
-      };
-      vyre?: {
-        cpu: number;
-        memPct: number;
-      };
-      private: boolean;
-      runs: {
-        turns: number;
-        agentComputers: number;
-        sites: number;
-        automations: number;
-      };
-      can: Array<string>;
-      room: {
-        n: number;
-        why: string;
-      };
-      limits: {
-        maxTurns: number | null;
-        maxAgentComputers: number | null;
-      };
-      drain: boolean;
-      pins: Array<string>;
-    }>;
-  waiting: Array<{
-      serverId: string;
-      name: string;
-      owner?: string;
-      fingerprint?: string;
-      requestedAt?: number;
-      facts?: {
-        os: string;
-        arch: string;
-        docker: boolean;
-        version: string;
-      };
-    }>;
-  alerts: Array<{
-      alertId: string;
-      serverId: string;
-      kind: "disk" | "memory" | "offline" | "backup" | "update";
-      title: string;
-      detail: string;
-    }>;
-  admin: boolean;
-  now: number;
-  spaceRoom?: {
-    n: number;
-    why: string;
-    turns: number;
-    maxTurns: number | null;
-  };
-};
 export type NetworkMyComputerApproveIn = {
   serverId: string;
 };
@@ -26217,13 +26262,11 @@ export type NetworkServerDeclineOut = {
   state: "declined";
 };
 export type NetworkServerJoinCodeIn = {
-  nickname?: string;
   idempotencyKey: string;
 };
 export type NetworkServerJoinCodeOut = {
   code: string;
   expiresAt: number;
-  address?: string;
 };
 export type NetworkServerReconnectIn = {
   serverId: string;
@@ -30133,6 +30176,15 @@ export type RunsMarkWaitingOut = {
       channelId?: string;
     };
   };
+};
+export type RunsPeopleCountsIn = {
+  statuses?: Array<"queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped">;
+};
+export type RunsPeopleCountsOut = {
+  people: Array<{
+      person: string;
+      runs: number;
+    }>;
 };
 export type RunsPinVersionIn = {
   runId: string;
@@ -36327,6 +36379,18 @@ export type TasksGetOut = {
     workerThread?: string;
   };
 };
+export type TasksHeldReviseIn = {
+  taskId: string;
+  blocks: Array<{
+      type: string;
+      v?: number;
+      data: unknown;
+    }>;
+  payloadHash: string;
+};
+export type TasksHeldReviseOut = {
+  ok: boolean;
+};
 export type TasksHistoryIn = {
   taskId: string;
   cursor?: string;
@@ -41627,6 +41691,7 @@ export interface CapMap {
   "engine.stop_all": { in: EngineStopAllIn; out: EngineStopAllOut };
   "engine.subscription_share.set": { in: EngineSubscriptionShareSetIn; out: EngineSubscriptionShareSetOut };
   "engine.switch": { in: EngineSwitchIn; out: EngineSwitchOut };
+  "engine.time_convert": { in: EngineTimeConvertIn; out: EngineTimeConvertOut };
   "engine.turn.append": { in: EngineTurnAppendIn; out: EngineTurnAppendOut };
   "engine.turn.enqueue": { in: EngineTurnEnqueueIn; out: EngineTurnEnqueueOut };
   "engine.turn.fallback": { in: EngineTurnFallbackIn; out: EngineTurnFallbackOut };
@@ -41639,6 +41704,7 @@ export interface CapMap {
   "engine.turn.start": { in: EngineTurnStartIn; out: EngineTurnStartOut };
   "engine.turn.wait": { in: EngineTurnWaitIn; out: EngineTurnWaitOut };
   "engine.turns.list": { in: EngineTurnsListIn; out: EngineTurnsListOut };
+  "engine.turns.running": { in: EngineTurnsRunningIn; out: EngineTurnsRunningOut };
   "engine.usage.get": { in: EngineUsageGetIn; out: EngineUsageGetOut };
   "engine.usage.query": { in: EngineUsageQueryIn; out: EngineUsageQueryOut };
   "engine.use_policy.export": { in: EngineUsePolicyExportIn; out: EngineUsePolicyExportOut };
@@ -41759,6 +41825,7 @@ export interface CapMap {
   "gate.grants.take": { in: GateGrantsTakeIn; out: GateGrantsTakeOut };
   "gate.holds.get": { in: GateHoldsGetIn; out: GateHoldsGetOut };
   "gate.holds.list": { in: GateHoldsListIn; out: GateHoldsListOut };
+  "gate.holds.revise": { in: GateHoldsReviseIn; out: GateHoldsReviseOut };
   "gate.links.known": { in: GateLinksKnownIn; out: GateLinksKnownOut };
   "gate.park": { in: GateParkIn; out: GateParkOut };
   "gate.release": { in: GateReleaseIn; out: GateReleaseOut };
@@ -42065,6 +42132,15 @@ export interface CapMap {
   "logs.spans": { in: LogsSpansIn; out: LogsSpansOut };
   "logs.tail": { in: LogsTailIn; out: LogsTailOut };
   "logs.trace": { in: LogsTraceIn; out: LogsTraceOut };
+  "machines.alerts": { in: MachinesAlertsIn; out: MachinesAlertsOut };
+  "machines.alerts_notify": { in: MachinesAlertsNotifyIn; out: MachinesAlertsNotifyOut };
+  "machines.fix": { in: MachinesFixIn; out: MachinesFixOut };
+  "machines.get": { in: MachinesGetIn; out: MachinesGetOut };
+  "machines.list": { in: MachinesListIn; out: MachinesListOut };
+  "machines.move_record": { in: MachinesMoveRecordIn; out: MachinesMoveRecordOut };
+  "machines.moves": { in: MachinesMovesIn; out: MachinesMovesOut };
+  "machines.rooms": { in: MachinesRoomsIn; out: MachinesRoomsOut };
+  "machines.set": { in: MachinesSetIn; out: MachinesSetOut };
   "mail.attachment.save": { in: MailAttachmentSaveIn; out: MailAttachmentSaveOut };
   "mail.auto_connect_members": { in: MailAutoConnectMembersIn; out: MailAutoConnectMembersOut };
   "mail.connect": { in: MailConnectIn; out: MailConnectOut };
@@ -42354,16 +42430,6 @@ export interface CapMap {
   "network.enroll_status": { in: NetworkEnrollStatusIn; out: NetworkEnrollStatusOut };
   "network.health": { in: NetworkHealthIn; out: NetworkHealthOut };
   "network.ingress_check": { in: NetworkIngressCheckIn; out: NetworkIngressCheckOut };
-  "network.machine": { in: NetworkMachineIn; out: NetworkMachineOut };
-  "network.machine_alerts": { in: NetworkMachineAlertsIn; out: NetworkMachineAlertsOut };
-  "network.machine_alerts_notify": { in: NetworkMachineAlertsNotifyIn; out: NetworkMachineAlertsNotifyOut };
-  "network.machine_fix": { in: NetworkMachineFixIn; out: NetworkMachineFixOut };
-  "network.machine_move_record": { in: NetworkMachineMoveRecordIn; out: NetworkMachineMoveRecordOut };
-  "network.machine_moves": { in: NetworkMachineMovesIn; out: NetworkMachineMovesOut };
-  "network.machine_pin": { in: NetworkMachinePinIn; out: NetworkMachinePinOut };
-  "network.machine_place": { in: NetworkMachinePlaceIn; out: NetworkMachinePlaceOut };
-  "network.machine_set": { in: NetworkMachineSetIn; out: NetworkMachineSetOut };
-  "network.machines": { in: NetworkMachinesIn; out: NetworkMachinesOut };
   "network.my_computer_approve": { in: NetworkMyComputerApproveIn; out: NetworkMyComputerApproveOut };
   "network.my_computer_code": { in: NetworkMyComputerCodeIn; out: NetworkMyComputerCodeOut };
   "network.my_computer_decline": { in: NetworkMyComputerDeclineIn; out: NetworkMyComputerDeclineOut };
@@ -42583,6 +42649,7 @@ export interface CapMap {
   "runs.get": { in: RunsGetIn; out: RunsGetOut };
   "runs.list": { in: RunsListIn; out: RunsListOut };
   "runs.mark_waiting": { in: RunsMarkWaitingIn; out: RunsMarkWaitingOut };
+  "runs.people_counts": { in: RunsPeopleCountsIn; out: RunsPeopleCountsOut };
   "runs.pin_version": { in: RunsPinVersionIn; out: RunsPinVersionOut };
   "runs.preview_undo": { in: RunsPreviewUndoIn; out: RunsPreviewUndoOut };
   "runs.purge": { in: RunsPurgeIn; out: RunsPurgeOut };
@@ -42855,6 +42922,7 @@ export interface CapMap {
   "tasks.followers.add": { in: TasksFollowersAddIn; out: TasksFollowersAddOut };
   "tasks.followers.remove": { in: TasksFollowersRemoveIn; out: TasksFollowersRemoveOut };
   "tasks.get": { in: TasksGetIn; out: TasksGetOut };
+  "tasks.held_revise": { in: TasksHeldReviseIn; out: TasksHeldReviseOut };
   "tasks.history": { in: TasksHistoryIn; out: TasksHistoryOut };
   "tasks.index": { in: TasksIndexIn; out: TasksIndexOut };
   "tasks.links.add": { in: TasksLinksAddIn; out: TasksLinksAddOut };
@@ -44322,6 +44390,14 @@ export type GateRequestedPayload = {
     id: string;
   };
 };
+export type GateRevisedPayload = {
+  holdId: string;
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+  taskId: string;
+  by: string;
+  was: string;
+  now: string;
+};
 export type GateRuleChangedPayload = {
   act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
   scope: "space" | "floor" | "agent";
@@ -44769,6 +44845,17 @@ export type LogAccessedPayload = {
 };
 export type LogsPurgedPayload = {
   removed: number;
+};
+export type MachineAlertPayload = {
+  alertId: string;
+  machineId: string;
+  kind: "disk_low" | "memory_pressure" | "offline_pinned" | "update_waiting" | "backup_failed";
+  title: string;
+  detail: string;
+};
+export type MachineChangedPayload = {
+  machineId: string;
+  what: Array<"nickname" | "limits" | "drain" | "pins" | "full" | "room">;
 };
 export type MailMessageErasedPayload = {
   messageId: string;
@@ -45245,17 +45332,6 @@ export type NetworkCertificateRenewedPayload = {
 export type NetworkDomainChangedPayload = {
   address: string;
   mode: "own_domain" | "relay";
-};
-export type NetworkMachineAlertPayload = {
-  alertId: string;
-  serverId: string;
-  kind: "disk" | "memory" | "offline" | "backup" | "update";
-  title: string;
-  detail: string;
-};
-export type NetworkMachineChangedPayload = {
-  serverId: string;
-  what: Array<"drain" | "limits" | "full" | "room">;
 };
 export type NetworkServerAddedPayload = {
   serverId: string;
@@ -47272,6 +47348,7 @@ export interface EventMap {
   "gate.denied": GateDeniedPayload;
   "gate.expired": GateExpiredPayload;
   "gate.requested": GateRequestedPayload;
+  "gate.revised": GateRevisedPayload;
   "gate.rule_changed": GateRuleChangedPayload;
   "git.branch_changed": GitBranchChangedPayload;
   "git.committed": GitCommittedPayload;
@@ -47346,6 +47423,8 @@ export interface EventMap {
   "kit.updated": KitUpdatedPayload;
   "log.accessed": LogAccessedPayload;
   "logs.purged": LogsPurgedPayload;
+  "machine.alert": MachineAlertPayload;
+  "machine.changed": MachineChangedPayload;
   "mail.message_erased": MailMessageErasedPayload;
   "mail.received": MailReceivedPayload;
   "mail_draft.discarded": MailDraftDiscardedPayload;
@@ -47434,8 +47513,6 @@ export interface EventMap {
   "network.certificate_failed": NetworkCertificateFailedPayload;
   "network.certificate_renewed": NetworkCertificateRenewedPayload;
   "network.domain_changed": NetworkDomainChangedPayload;
-  "network.machine_alert": NetworkMachineAlertPayload;
-  "network.machine_changed": NetworkMachineChangedPayload;
   "network.server_added": NetworkServerAddedPayload;
   "network.server_removed": NetworkServerRemovedPayload;
   "network.server_requested": NetworkServerRequestedPayload;
