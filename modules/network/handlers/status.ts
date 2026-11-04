@@ -119,7 +119,12 @@ export function statusOf(ctx: NetworkCtx) {
     return { kind: String(row['kind']), target: String(row['target']), state: 'pending' as const, at: Number(row['at']) };
   });
   const recent = [...pending, ...commands].sort((a, b) => b.at - a.at).slice(0, 10);
-  return { address: host, mode: cfg?.mode ?? "relay", certificate, publicIngress: cfg?.publicIngress ?? false, commands: recent };
+  const info = (key: string): string | undefined => { const v = asRow(ctx.db.all("SELECT value FROM network_info WHERE key = ?", key)[0])?.["value"]; return typeof v === "string" ? v : undefined; };
+  const version = info("space_version"), relayVersion = info("relay_version");
+  return {
+    address: host, mode: cfg?.mode ?? "relay", certificate, publicIngress: cfg?.publicIngress ?? false, commands: recent,
+    ...(version ? { version } : {}), ...(relayVersion ? { relayVersion } : {}), ...(version && relayVersion && versionLess(relayVersion, version) ? { relayOlder: true } : {}),
+  };
 }
 
 export function hostnames(ctx: NetworkCtx) {
@@ -230,4 +235,13 @@ export function phoneOf(ctx: NetworkCtx): PhoneRow {
   const detail = r ? str(r["detail"]) : undefined;
   if (detail && state === "failed") out.detail = detail;
   return out;
+}
+
+/** a is an older release than b (1.4.0 < 1.4.1; a pre-release is older than its release). Anything that does not parse is not older. */
+export function versionLess(a: string, b: string): boolean {
+  const parse = (v: string): { n: number[]; pre: boolean } | null => { const m = /^v?(\d+)\.(\d+)\.(\d+)(-[0-9A-Za-z.-]+)?/.exec(v); return m ? { n: [Number(m[1]), Number(m[2]), Number(m[3])], pre: !!m[4] } : null; };
+  const x = parse(a), y = parse(b);
+  if (!x || !y) return false;
+  for (let i = 0; i < 3; i++) if (x.n[i] !== y.n[i]) return x.n[i]! < y.n[i]!;
+  return x.pre && !y.pre;
 }

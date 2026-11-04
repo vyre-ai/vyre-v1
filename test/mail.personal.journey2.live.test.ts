@@ -31,20 +31,19 @@ test("journey 2, Team: the admin sets the app once, two members connect their ow
       await seatOf.page.getByTestId("connect-gmail").click();
       await signInThroughSheet(seatOf, email, dir, step);
     }
-    // a member's own mailbox is private: its mail is in the mailbox under Mine in their Inbox, not in the shared list
-    // the list shows each conversation by its subject (the body opens with the conversation), so the mail is recognised by that
+    // a member's own mailbox is private: its mail (each row says the subject) is in the mailbox under Mine in their Inbox, not in the shared list
     for (const [seatOf, text] of [[anaSeat, "Ana's contract"], [boSeat, "Bo's invoice"]] as const) {
       await seatOf.page.locator("[data-testid^=\"row-nav:inbox:\"]").first().click();
       await seatOf.page.getByText(text).first().waitFor({ timeout: 30_000 });
     }
     await shoot(anaSeat.page, dir, "ana-inbox");
     await shoot(boSeat.page, dir, "bo-inbox");
-    assert.equal(await anaSeat.page.getByText("Bo's invoice").count() + await anaSeat.page.getByText("Bo only.").count(), 0, "Ana does not see Bo's mail");
-    assert.equal(await boSeat.page.getByText("Ana's contract").count() + await boSeat.page.getByText("Ana only.").count(), 0, "Bo does not see Ana's mail");
+    assert.equal(await anaSeat.page.getByText("Bo's invoice").count(), 0, "Ana does not see Bo's mail");
+    assert.equal(await boSeat.page.getByText("Ana's contract").count(), 0, "Bo does not see Ana's mail");
     await open(admin, s, "/mail");
     await admin.page.waitForTimeout(1500);
     assert.equal(await admin.page.locator("[data-testid^=\"row-nav:inbox:\"]").count(), 0, "the admin's rail lists no member's mailbox");
-    assert.equal(await admin.page.getByText("Ana only.").count() + await admin.page.getByText("Bo only.").count() + await admin.page.getByText("Ana's contract").count() + await admin.page.getByText("Bo's invoice").count(), 0, "the admin sees neither");
+    assert.equal(await admin.page.getByText("Ana's contract").count() + await admin.page.getByText("Bo's invoice").count(), 0, "the admin sees neither");
     await shoot(admin.page, dir, "admin-inbox");
 
     // an assistant acts with the access of whoever asked

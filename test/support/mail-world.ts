@@ -1,6 +1,7 @@
 // A booted daemon for the personal mail tests: a fresh Space (Personal or Team) whose owner has claimed it, any number of members who joined by invite, each with their own bearer token,
 // and fake Google and Microsoft under it (test/support/fake-mail-providers.ts). Nothing inside the daemon is faked: the Vault, the Space seal, the mail, google and microsoft modules, the
 // gateway and the host seams are the real ones. The live test calls the capabilities as each person; the browser journey puts the real app in front of the same daemon.
+import { makeBundle } from "../../client/src/crypto/keys.ts";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
@@ -12,15 +13,14 @@ import type { FetchFn } from "../../host/src/platform/probes.ts";
 import { loadConfig } from "../../host/src/daemon/config.ts";
 import { CODE_ROOT, startDaemon } from "../../host/src/daemon/daemon.ts";
 import type { Daemon } from "../../host/src/daemon/daemon.ts";
-import { makeBundle } from "../../client/src/crypto/keys.ts";
 import { fakeMailProviders } from "./fake-mail-providers.ts";
 import type { FakeMailProviders } from "./fake-mail-providers.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
-/** A real key bundle for this password, the way sign-up makes one (client/src/crypto/keys.ts), so the app's launch lock (KeyGate) can open it with the password when a browser is on the Space. */
-async function keysFor(password: string): Promise<{ personKeyByPassword: string; personKeyByRecovery?: string; publicKey: string; privateKeyWrapped: string; spaceKeys: unknown[] }> {
-  const b = await makeBundle(password, "7F3K-9QXA-2M4D-8TZL-5WRN-6HPC", { spaceId: "spc_pmail" });
-  return { personKeyByPassword: b.personKeyByPassword, ...(b.personKeyByRecovery ? { personKeyByRecovery: b.personKeyByRecovery } : {}), publicKey: b.publicKey, privateKeyWrapped: b.privateKeyWrapped, spaceKeys: b.spaceKeys ?? [] };
+/** A person's key bundle made the way the app makes it at sign-up, so the password really opens it (the launch lock asks for it in the browser). */
+async function realKeys(): Promise<Record<string, unknown>> {
+  const m = await makeBundle(PASSWORD, "fixture recovery code 1234", { spaceId: "spc_pmail" });
+  return { personKeyByPassword: m.personKeyByPassword, personKeyByRecovery: m.personKeyByRecovery, publicKey: m.publicKey, privateKeyWrapped: m.privateKeyWrapped, spaceKeys: m.spaceKeys };
 }
 export const PASSWORD = "correct horse battery staple 9";
 const DEVICE = { deviceName: "Test browser", deviceClass: "desktop" };
@@ -112,7 +112,7 @@ export async function bootMailWorld(o: WorldOptions): Promise<MailWorld> {
   };
   assert.ok(d.claim, "a fresh Space prints a claim link");
   const code = decodeURIComponent(new URL(d.claim.url).pathname.split("/").pop() ?? "");
-  const claimed = await post("identity.claim_owner", { code, spaceId: "spc_pmail", username: "olivia", displayName: "Olivia", password: PASSWORD, ...DEVICE, keys: await keysFor(PASSWORD) });
+  const claimed = await post("identity.claim_owner", { code, spaceId: "spc_pmail", username: "olivia", displayName: "Olivia", password: PASSWORD, ...DEVICE, keys: await realKeys() });
   if (claimed.status !== 200) {
     d.sink.flush();
     const rows = new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT level, cap, msg, attrs FROM logs WHERE level >= 40 ORDER BY id DESC LIMIT 5").all();
@@ -131,7 +131,7 @@ export async function bootMailWorld(o: WorldOptions): Promise<MailWorld> {
       const roles = (await owner.ok("access.roles.list")).roles as { id: string; name: string }[];
       const role = roles.find((r) => /member/i.test(r.name)) ?? roles[0]!;
       const invite = await owner.ok("members.invites.create", { role: role.id, idempotencyKey: `pmail-invite-${++invites}` });
-      const joined = await post("members.accept", { code: decodeURIComponent(new URL(invite.link).pathname.split("/").pop() ?? ""), username, displayName: username, password: PASSWORD, ...DEVICE, keys: await keysFor(PASSWORD) });
+      const joined = await post("members.accept", { code: decodeURIComponent(new URL(invite.link).pathname.split("/").pop() ?? ""), username, displayName: username, password: PASSWORD, ...DEVICE, keys: await realKeys() });
       assert.equal(joined.status, 200, JSON.stringify(joined.body));
       return person(() => d, joined.body.data.personId as string, username, joined.body.data.token as string);
     },

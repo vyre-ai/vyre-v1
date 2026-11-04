@@ -92,11 +92,15 @@ export async function seat(s: Screens, who: Person, role: string): Promise<Seat>
 
 export async function open(seatOf: Seat, s: Screens, route: string): Promise<void> {
   await seatOf.page.goto(`${s.web.origin}${route}`, { waitUntil: "load" });
-  // the app is on this computer's address, so it shows the launch lock first (KeyGate, rc.9): the person types their password once and goes on. These journeys are not about the lock.
-  const lockOrShell = seatOf.page.getByTestId("shell").or(seatOf.page.getByTestId("mobile-shell")).or(seatOf.page.getByTestId("lock-password")).first();
-  await lockOrShell.waitFor({ timeout: 30_000 });
-  if (await seatOf.page.getByTestId("lock-password").isVisible()) { await seatOf.page.getByTestId("lock-password").fill(PASSWORD); await seatOf.page.getByRole("button", { name: "Unlock", exact: true }).click(); }
-  await seatOf.page.getByTestId("shell").or(seatOf.page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30_000 });
+  // The app asks for the password at launch while nobody holds the person's key (owner, 4 Nov): the person types it, as they would
+  const lock = seatOf.page.getByTestId("lock-password");
+  if (await lock.waitFor({ timeout: 6_000 }).then(() => true, () => false)) { await lock.fill(PASSWORD); await lock.press("Enter"); }
+  try { await seatOf.page.getByTestId("shell").or(seatOf.page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30_000 }); }
+  catch (e) {
+    // say what is on the screen instead: the picture and the refused calls are the evidence
+    await seatOf.page.screenshot({ path: "shots-evidence/open-failed.png" }).catch(() => undefined);
+    throw new Error(`${route}: the shell did not appear. Page says: ${(await seatOf.page.locator("body").innerText().catch(() => "")).slice(0, 300).replace(/\s+/g, " ")} | refused: ${seatOf.logs.slice(-6).join("; ")} | ${(e as Error).message.split("\n")[0]}`);
+  }
   const onboarding = seatOf.page.getByTestId("onboarding");
   if (await onboarding.waitFor({ timeout: 4_000 }).then(() => true, () => false)) {
     // a person leaves onboarding with Finish later; when this Space's screen has no such button the picture says what is there instead

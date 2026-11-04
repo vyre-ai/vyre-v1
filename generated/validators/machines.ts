@@ -382,6 +382,7 @@ if (!("series" in o3791)) e.push(p + "/series" + ': required');
 if (!("alerts" in o3791)) e.push(p + "/alerts" + ': required');
 if (!("work" in o3791)) e.push(p + "/work" + ': required');
 if (!("findings" in o3791)) e.push(p + "/findings" + ': required');
+if (!("idleSessions" in o3791)) e.push(p + "/idleSessions" + ': required');
 if (!("privacy" in o3791)) e.push(p + "/privacy" + ': required');
 if ("machine" in o3791) d_s_0437d902d0(o3791["machine"], p + "/machine", e);
 if ("series" in o3791) {
@@ -476,6 +477,7 @@ if (![t3797_0, t3797_1].some((x) => x.length === 0)) e.push(p + "/findings" + '/
 }
 }
 }
+if ("idleSessions" in o3791) lf(o3791["idleSessions"], p + "/idleSessions", e, L17);
 if ("privacy" in o3791) lf(o3791["privacy"], p + "/privacy", e, L716);
 if ("lastFix" in o3791) {
 {
