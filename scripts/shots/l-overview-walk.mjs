@@ -64,6 +64,7 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   await page.locator(`${T("live-tasks")} ${T("live-edit")}`).first().click();
   await page.waitForSelector(T("live-settings"), { timeout: 5000 });
   await page.waitForTimeout(500);
+  check(`${tag}: the Edit sheet says what the block shows (Live · ...), the line the phone has no hover for`, /^Live \u00B7 Tasks where status is open/.test((await page.textContent(T("live-settings-live"))) ?? ""));
   await page.screenshot({ path: path.join(out, `overview-settings-${tag}.png`) });
   check(`${tag}: the settings use selects, not pills`, (await page.locator(`${T("live-settings")} select`).count()) >= 2 && (await page.locator(`${T("live-settings")} ${T("live-spec-status")} option`).count()) === 5);
   await page.selectOption(T("live-spec-status"), "late");
@@ -71,6 +72,15 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   await page.click(T("live-settings-save"));
   await page.waitForTimeout(600);
   check(`${tag}: settings change the block (a table of late tasks)`, (await page.locator(T("live-table")).count()) >= 1);
+  // the strip's actions are reachable on every width: the block's menu (the phone's way, since it has no hover) removes a block
+  const liveBefore = await page.locator(T("live-block")).count();
+  await page.locator(`${T("live-milestones")} ${T("live-menu")}`).click();
+  await page.waitForSelector('[data-testid="menu-item-Remove from the page"]', { timeout: 5000 });
+  await page.screenshot({ path: path.join(out, `overview-blockmenu-${tag}.png`) });
+  check(`${tag}: the block menu offers Edit settings and Remove`, (await page.locator('[data-testid="menu-item-Edit settings"]').count()) === 1);
+  await page.click('[data-testid="menu-item-Remove from the page"]');
+  await page.waitForTimeout(500);
+  check(`${tag}: Remove from the block menu takes the block off the page`, (await page.locator(T("live-block")).count()) === liveBefore - 1 && (await page.locator(T("live-milestones")).count()) === 0);
   // history
   await page.click(T("overview-history-open"));
   await page.waitForSelector(T("overview-history"), { timeout: 5000 });
