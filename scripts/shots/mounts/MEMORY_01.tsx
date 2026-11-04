@@ -6,7 +6,7 @@ import { Text, View } from "react-native";
 import { Knows, SourceChip } from "../../../ui/src/Knows/index.tsx";
 import type { KnowsItem } from "../../../ui/src/Knows/model.ts";
 import { Conversation } from "../../../apps/app/src/places/chats/conversation/Conversation.tsx";
-import { MESSAGE_IDS, createChatMemorySample } from "../../../apps/app/src/places/chats/memory/sample.ts";
+import { ASSISTANT, ME, MESSAGE_IDS, createChatMemorySample } from "../../../apps/app/src/places/chats/memory/sample.ts";
 import { ChatMemoryProvider, ReplyMemory, createMemoryStore } from "../../../apps/app/src/places/chats/memory/index.ts";
 import { LinkCard } from "../../../ui/src/blocks/link-card/LinkCard.tsx";
 
@@ -26,6 +26,44 @@ const ITEMS: KnowsItem[] = [
   { factId: "f9", kind: "role", text: "Maya leads the Rivera account", state: "current", by: "Omar Haddad", at: "Yesterday 4:12 pm", canEdit: true },
 ];
 const names = (id: string): string => ({ usr_maya: "Maya", usr_omar: "Omar" } as Record<string, string>)[id] ?? id;
+
+const SHARED = { q: "msg_s1", noted: "msg_s2", dispute: "msg_s3", ask: "msg_s4", reply: "msg_s5" } as const;
+
+/** A shared chat: two people and the Assistant. A decision, the quiet Noted line with Undo, an open question between two people, then a question and the answer with its citation chip. */
+function Shared(): ReactNode {
+  const built = useMemo(() => {
+    const s = createChatMemorySample({});
+    const T = Date.now() - 3 * 3_600_000;
+    const base = { threadId: "c1", depth: 0, attachments: [], reactions: [], pinned: false } as const;
+    const card = (id: string, data: Record<string, unknown>) => [{ type: "link_card", v: 1, id: `blk_${id}`, data, state: "done", traceId: "tr" }];
+    const msgs = [
+      { ...base, messageId: SHARED.q, threadSeq: 1, author: { kind: "person", id: "usr_maya" }, kind: "text", body: "Yes, waive the consult fee for referrals. @Assistant please update the letter.", blocks: [], createdAt: T },
+      { ...base, messageId: SHARED.noted, threadSeq: 2, author: { kind: "person", id: "usr_maya" }, kind: "system", body: "Noted: decision, waive the consult fee for referrals", createdAt: T + 1000,
+        blocks: card("n", { icon: "fact", lead: "Noted: decision", style: "noted", title: "Waive the consult fee for referrals", target: { type: "fact", id: "f1" }, actions: [{ key: "undo", label: "Undo", cap: "memory.undo", input: { factId: "f1" } }] }) },
+      { ...base, messageId: SHARED.dispute, threadSeq: 3, author: { kind: "person", id: "usr_maya" }, kind: "system", body: "Open question", createdAt: T + 3_600_000,
+        blocks: card("q", { icon: "fact", lead: "Open question", style: "question", title: "Maya and Omar disagree", sub: "Which holds? Vyre will not guess.", body: "Maya said Thursday on Monday.\nOmar said Friday today.", actions: [{ key: "a", label: "Thursday", cap: "memory.question.resolve", input: {} }, { key: "b", label: "Friday", cap: "memory.question.resolve", input: {} }] }) },
+      { ...base, messageId: SHARED.ask, threadSeq: 4, author: { kind: "person", id: ME }, kind: "text", body: "@Assistant what do we do about the consult fee for referrals?", blocks: [], createdAt: T + 2 * 3_600_000 },
+      { ...base, messageId: SHARED.reply, threadSeq: 5, author: { kind: "agent", id: ASSISTANT }, kind: "agent", body: "Waive it. Maya decided that this morning, so the invoice for a referral consult stays at $0.", blocks: [], createdAt: T + 2 * 3_600_000 + 5000 },
+    ];
+    s.conv.replica.remove("messages", [MESSAGE_IDS.ask, MESSAGE_IDS.reply, MESSAGE_IDS.told, MESSAGE_IDS.held]);
+    s.conv.replica.put("messages", msgs.map((m) => ({ id: m.messageId, ...m })) as never);
+    const thread = (s.conv.replica.rows("threads") as unknown as Array<Record<string, unknown>>)[0]!;
+    s.conv.replica.put("threads", [{ ...thread, title: "Rivera account", members: [{ kind: "person", id: ME }, { kind: "person", id: "usr_maya" }, { kind: "agent", id: ASSISTANT }] }] as never);
+    const store = createMemoryStore(async (cap: string, input: unknown) => {
+      if (cap === "memory.used" && (input as { messageId?: string }).messageId === SHARED.reply) {
+        return { messageId: SHARED.reply, at: T, quotes: [], facts: [{ factId: "f1", layer: "agent", ownerRef: "agt_a", text: "Waive the consult fee for referrals.", validFrom: T, learnedAt: T, sourceKind: "channel", sourceRef: "thr_c", sourceLink: "/chats/thr_c?m=msg_1", sourceTitle: "Rivera account", status: "current", lowRisk: false, by: "usr_maya", byKind: "person" }] };
+      }
+      if (cap === "memory.learned") return { items: [], total: 0 };
+      if (cap === "memory.used") return { messageId: "x", facts: [], quotes: [] };
+      return { pages: [], total: 0 };
+    });
+    return { data: { ...s.data, memory: { ...s.memory, store, now: () => Date.now() } }, store };
+  }, []);
+  const [ready, setReady] = useState(false);
+  useEffect(() => { void Promise.all([built.store.read("memory.used", { threadId: "c1", messageId: SHARED.reply }), built.store.read("memory.learned", { threadId: "c1", limit: 200 }), built.store.read("memory.page.list", {})].map((p) => p.catch(() => undefined))).then(() => setReady(true)); }, [built]);
+  if (!ready) return <View style={{ flex: 1 }} />;
+  return <View testID="memory-shared" style={{ flex: 1, backgroundColor: "var(--win)" as string }}><Conversation data={built.data} /></View>;
+}
 
 const READS: Array<[string, unknown]> = [["memory.used", { threadId: "c1", messageId: MESSAGE_IDS.reply }], ["memory.used", { threadId: "c1", messageId: MESSAGE_IDS.held }]];
 /** An agent's reply with its "Used N memories" line under it: the citation rule 7 asks for, with each memory's source chip. */
@@ -69,6 +107,7 @@ export default function Mount(): ReactNode {
   if (part === null) return null;
   if (part === "reply") return <Reply />;
   if (part === "cite") return <Cite />;
+  if (part === "shared") return <Shared />;
   const wrap = (kids: ReactNode): ReactNode => <View style={{ padding: 16, maxWidth: 520, backgroundColor: "var(--paper)" as string, minHeight: 700 }}>{kids}</View>;
   if (part === "noted") {
     return wrap(
