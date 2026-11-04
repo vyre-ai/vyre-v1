@@ -202,8 +202,14 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     if (!ask) return;
     const key = tabKey(location.place, location.hash);
     let off = false;
-    session.call(ask.cap, ask.input).then((out) => { const name = ask.name(out); if (!off && name) hub.retitle(key, name); }, () => undefined);
-    return () => { off = true; };
+    // the name, else the next read (a chat's first message), else the ask's own empty name ("New chat")
+    const read = (a: typeof ask): Promise<string | null> => session.call(a.cap, a.input).then((out) => a.name(out) ?? (a.next ? read(a.next) : null), () => null);
+    const run = (): void => { void read(ask).then((name) => { const t = name ?? ask.empty; if (!off && t) hub.retitle(key, t); }); };
+    run();
+    // a chat's name follows the chat: it is read again when the chat changes
+    const live = target.subject && (target.subject.type === "thread" || target.subject.type === "chat") ? session.hooks.capQuery("threads.get", { threadId: target.subject.id }) : null;
+    const stop = live ? live.subscribe(run) : undefined;
+    return () => { off = true; stop?.(); };
   }, [session, hub, location.place, location.hash]);
 
   // Inbox is on the rail once something flows in: the answer follows the mailbox, calendar and number reads (and their change events), and is kept for the next launch

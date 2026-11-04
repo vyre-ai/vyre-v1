@@ -2,7 +2,8 @@
 // tabs saved with duplicates close the older ones when the Space opens, keeping the one used last.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { EMPTY_TABS, createTabsController, dedupeTabs, openTab, placeTab, readTabs, tabsStorageKey, writeTabs } from "./store.ts";
+import { EMPTY_TABS, createTabsController, dedupeTabs, openTab, placeTab, readTabs, screenTitle, tabsStorageKey, writeTabs } from "./store.ts";
+import { firstMessageTitle, titleAsk } from "./titles.ts";
 import type { TabEntry, TabsState, TabsStorage } from "./store.ts";
 
 const tab = (place: TabEntry["place"], hash?: string, title?: string, at?: number): TabEntry => ({ ...placeTab(place, hash, title), ...(at !== undefined ? { at } : {}) });
@@ -33,30 +34,49 @@ test("an item is one tab by what it shows: two chats are two tabs, the same chat
   assert.deepEqual(keys(openTab(state([plus], "new:1"), placeTab("chats"))), ["new:1", "chats"], "a + tab is not a Chats tab");
 });
 
-test("saved duplicates close on load, keeping the one used last; a place that shows 'Chats' twice keeps one", () => {
-  const s = state([tab("chats", "thr_1", "Chats", 5), tab("files"), tab("chats", "thr_2", "Chats", 9), tab("chats", "thr_3", "Intake", 1)], "chats:thr_1");
-  const out = dedupeTabs(s);
-  assert.deepEqual(keys(out), ["files", "chats:thr_2", "chats:thr_3"], "the older unnamed Chats goes, the named chat stays");
-  assert.equal(out.active, "chats:thr_2", "the selection moves to the one that stays");
-  const same = state([tab("records", "r1", "Rivera", 2), { ...tab("records", "r1", "Rivera", 8), key: "records:r1" }], "records:r1");
-  assert.equal(dedupeTabs({ tabs: [{ ...same.tabs[0]!, key: "x" }, same.tabs[1]!], active: "x" }).tabs.length, 1, "one tab per record");
-  assert.equal(dedupeTabs(s) === s, false);
+test("saved duplicates close on load, keeping the one used last; different chats never count as duplicates", () => {
+  const s = state([tab("chats", "thr_1", "Renewal", 5), tab("files"), tab("chats", "thr_1", "Renewal", 9), tab("chats", "thr_3", "Intake", 1)], "chats:thr_1");
+  const out = dedupeTabs({ ...s, tabs: s.tabs.map((t, i) => (i === 0 ? { ...t, key: "dup" } : t)) });
+  assert.deepEqual(out.tabs.map((t) => t.at), [undefined, 9, 1], "the same chat twice: the one used last");
+  const same = state([{ ...tab("records", "r1", "Rivera", 2), key: "x" }, tab("records", "r1", "Rivera", 8)], "x");
+  assert.equal(dedupeTabs(same).tabs.length, 1, "one tab per record");
+  assert.equal(dedupeTabs(same).active, "records:r1", "the selection moves to the one that stays");
   const clean = state([tab("home"), tab("chats", "thr_1", "Renewal", 1)], "home");
   assert.equal(dedupeTabs(clean), clean, "nothing duplicated: nothing changes");
-  const pinned = state([{ ...tab("chats", "thr_1", "Chats", 1), pinned: true }, tab("chats", "thr_2", "Chats", 9)], "chats:thr_2");
+  const pinned = state([{ ...tab("records", "r1", "A", 1), pinned: true, key: "p" }, tab("records", "r1", "A", 9)], "records:r1");
   assert.ok(dedupeTabs(pinned).tabs.some((t) => t.pinned === true), "a pinned tab is not closed for being old");
 });
 
-test("the controller stamps the tab in use, saves it, and cleans a saved list with two Chats when the Space opens", () => {
+test("an unnamed chat tab is a different chat from the Chats place: both survive load, and the chat shows a real title, never Chats", () => {
+  const raw = writeTabs(state([tab("chats", undefined, undefined, 20), { key: "chats:subject=thread:thr_9", title: "Chats", place: "chats", hash: "subject=thread:thr_9", at: 10 }, { key: "chats:subject=thread:thr_8", title: "Chats", place: "chats", hash: "subject=thread:thr_8", at: 5 }], "chats"));
+  const read = dedupeTabs(readTabs(raw)!);
+  assert.equal(read.tabs.length, 3, "nothing closed");
+  assert.deepEqual(read.tabs.map((t) => t.title), ["Chats", "New chat", "New chat"]);
+  assert.equal(screenTitle("subject=thread:thr_1"), "New chat");
+  assert.equal(screenTitle("subject=chat:c1"), "New chat");
+});
+
+test("a chat is named for itself: its name, else its first message cut short, else New chat", () => {
+  const ask = titleAsk({ type: "thread", id: "thr_1" })!;
+  assert.equal(ask.name({ thread: { title: "Renewal" } }), "Renewal");
+  assert.equal(ask.name({ thread: {} }), null);
+  assert.equal(ask.next?.cap, "chat.messages.list");
+  assert.equal(ask.empty, "New chat");
+  assert.equal(firstMessageTitle({ messages: [{ body: "  " }, { body: "Can you draft the\nrenewal letter for the Rivera account before Friday?" }] }), "Can you draft the renewal lette\u2026");
+  assert.equal(firstMessageTitle({ messages: [{ body: "Hello" }] }), "Hello");
+  assert.equal(firstMessageTitle({ messages: [] }), null);
+});
+
+test("the controller stamps the tab in use, saves it, and closes a saved duplicate when the Space opens", () => {
   const data = new Map<string, string>();
   const storage: TabsStorage = { getItem: (k) => data.get(k) ?? null, setItem: (k, v) => { data.set(k, v); } };
   const key = tabsStorageKey("mac", "irfad", "nw");
-  data.set(key, writeTabs(state([tab("files", undefined, undefined, 1), tab("chats", "thr_1", "Chats", 5), tab("chats", "thr_2", "Chats", 9)], "chats:thr_1")));
+  data.set(key, writeTabs(state([tab("files", undefined, undefined, 1), tab("chats", "thr_1", "Old name", 5), tab("chats", "thr_1", "Renewal", 9)], "chats:thr_1")));
   const c = createTabsController({ deviceId: "mac", personId: "irfad", spaceId: "nw", storage, start: "chats" });
-  assert.deepEqual(c.state().tabs.map((t) => t.key).filter((k) => k.startsWith("chats")), ["chats:thr_2"], "one Chats left, the one used last");
+  assert.deepEqual(c.state().tabs.filter((t) => t.key.startsWith("chats")).map((t) => t.title), ["Renewal"], "the same chat saved twice: one left, the one used last");
   c.openPlace("chats");
   assert.equal(c.state().tabs.length, 2, "opening Chats again adds nothing");
-  assert.equal(c.state().active, "chats:thr_2");
+  assert.equal(c.state().active, "chats:thr_1");
   c.openPlace("files");
   const stamped = c.state().tabs.find((t) => t.key === "files")!;
   assert.ok((stamped.at ?? 0) > 1_700_000_000_000, "the tab in use carries when it was used");

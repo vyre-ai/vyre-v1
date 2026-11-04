@@ -1,1 +1,2 @@
-- Tabs: opening a place that already has a tab goes to that tab instead of adding a second one (one tab per place, one per chat or record), and tab lists saved with duplicates close the older ones when the Space opens, keeping the one used last.
+- Tabs: opening a place that already has a tab goes to that tab instead of adding a second one (one tab per place, one per chat or record). Tab lists saved with the same place, chat or record twice close the older copy when the Space opens.
+- Tabs: a chat tab is never named "Chats". It carries the chat's name, else its first message cut short, else "New chat", and follows the chat as it changes.

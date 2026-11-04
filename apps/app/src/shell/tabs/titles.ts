@@ -1,7 +1,15 @@
 // A tab opened on an item (an automation, a record, a file, a chat, a task) is named for the item, not for its place: "Weekly digest", "Elena Rivera". The place's own name stays until the
 // item's name arrives; a subject this does not know keeps the place's name. Opening the same item again finds its tab by key (tabKey = place + hash), so tabs are one per item.
 
-interface Ask { cap: string; input: Record<string, unknown>; name(out: unknown): string | null }
+export interface Ask {
+  cap: string;
+  input: Record<string, unknown>;
+  name(out: unknown): string | null;
+  /** Read when the first read gave no name: a chat with no name of its own is called by its first message. */
+  next?: Ask;
+  /** The name when nothing gave one. */
+  empty?: string;
+}
 
 const obj = (v: unknown): Record<string, unknown> | null => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 const text = (v: unknown): string | null => (typeof v === "string" && v.trim() !== "" ? v.trim() : null);
@@ -13,6 +21,19 @@ export function recordTitle(fields: unknown): string | null {
   if (!f) return null;
   for (const k of ["name", "title", "subject", "label"]) { const t = text(f[k]); if (t) return t; }
   for (const v of Object.values(f)) { const t = text(v); if (t) return t; }
+  return null;
+}
+
+/** A chat's first message, cut short, as its tab's name. */
+export function firstMessageTitle(out: unknown): string | null {
+  const list = obj(out)?.["messages"];
+  if (!Array.isArray(list)) return null;
+  for (const m of list) {
+    const body = text(obj(m)?.["body"]);
+    if (body === null) continue;
+    const one = body.replace(/\s+/g, " ");
+    return one.length <= 32 ? one : `${one.slice(0, 31).trimEnd()}\u2026`;
+  }
   return null;
 }
 
@@ -28,7 +49,7 @@ export function titleAsk(subject: { type: string; id: string }, args: Readonly<R
     case "task": return { cap: "tasks.get", input: { taskId: id }, name: (o) => at(o, "task", "title") };
     case "goal": return { cap: "goals.get", input: { goalId: id }, name: (o) => at(o, "goal", "title") };
     case "run": return { cap: "runs.get", input: { runId: id }, name: (o) => at(o, "run", "name") };
-    case "chat": case "thread": return { cap: "threads.get", input: { threadId: id }, name: (o) => at(o, "thread", "title") ?? "New chat" };
+    case "chat": case "thread": return { cap: "threads.get", input: { threadId: id }, name: (o) => at(o, "thread", "title"), next: { cap: "chat.messages.list", input: { threadId: id }, name: firstMessageTitle }, empty: "New chat" };
     default: return null;
   }
 }

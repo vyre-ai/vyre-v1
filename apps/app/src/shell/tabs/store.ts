@@ -49,11 +49,16 @@ export function tabKey(place: PlaceId, hash?: string): string {
 /** Screens inside Chats that are a tab of their own, with the tab's name. */
 const OWN_TAB: Readonly<Record<string, string>> = { "tasks.my-work": "Tasks", "inbox.replies": "Replies", "chats.artifacts": "Artifacts", "chats.notes": "Notes", "chats.agent-form": "New agent" };
 
+/** What a chat tab is called while the chat has no name and no message. */
+export const NEW_CHAT = "New chat";
+
 /** The name a tab starts with when its screen has one of its own; the place's name otherwise. */
 export function screenTitle(hash: string | undefined): string | undefined {
   if (hash === undefined || !hash.includes("=")) return undefined;
-  const s = parseHash(hash).screen;
-  return s === undefined ? undefined : OWN_TAB[s];
+  const t = parseHash(hash);
+  // a chat is never named for its place: "New chat" until its own name or first message arrives
+  if (t.subject !== undefined && (t.subject.type === "thread" || t.subject.type === "chat")) return NEW_CHAT;
+  return t.screen === undefined ? undefined : OWN_TAB[t.screen];
 }
 
 export function findTab(state: TabsState, key: string): TabEntry | undefined {
@@ -178,8 +183,7 @@ export function tabsStorageKey(deviceId: string, personId: string, spaceId: stri
 }
 
 /**
- * Tabs saved before the rule held can show the same thing twice. One tab stays for each thing, the one used last, in the place of the first; and of the tabs of one place that still carry only the
- * place's own name (an item whose name never arrived, "Chats" again), one stays too.
+ * Tabs saved before the rule held can show the same thing twice. One tab stays for each place, chat or record, the one used last. Two chats are two tabs even when neither has a name yet.
  */
 export function dedupeTabs(state: TabsState): TabsState {
   const newest = (a: TabEntry, b: TabEntry): TabEntry => ((b.at ?? 0) >= (a.at ?? 0) && state.tabs.indexOf(b) > state.tabs.indexOf(a)) || (b.at ?? 0) > (a.at ?? 0) ? b : a;
@@ -187,17 +191,10 @@ export function dedupeTabs(state: TabsState): TabsState {
   for (const t of state.tabs) {
     if (t.isNew === true) continue;
     const id = tabKey(t.place, t.hash);
-    const nameless = t.hash !== undefined && t.title === PLACE_TITLE[t.place] && t.key !== t.place ? `nameless:${t.place}` : undefined;
-    for (const k of nameless === undefined ? [id] : [id, nameless]) { const cur = winner.get(k); winner.set(k, cur === undefined ? t : newest(cur, t)); }
+    const cur = winner.get(id);
+    winner.set(id, cur === undefined ? t : newest(cur, t));
   }
-  const keep = (t: TabEntry): boolean => {
-    if (t.isNew === true) return true;
-    const id = tabKey(t.place, t.hash);
-    if (winner.get(id) !== t) return false;
-    const nameless = t.hash !== undefined && t.title === PLACE_TITLE[t.place] && t.key !== t.place ? `nameless:${t.place}` : undefined;
-    return nameless === undefined || winner.get(nameless) === t;
-  };
-  const tabs = state.tabs.filter((t) => keep(t) || t.pinned === true);
+  const tabs = state.tabs.filter((t) => t.isNew === true || winner.get(tabKey(t.place, t.hash)) === t || t.pinned === true);
   if (tabs.length === state.tabs.length) return state;
   return { tabs, active: tabs.some((t) => t.key === state.active) ? state.active : ([...tabs].sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0]?.key ?? "") };
 }
@@ -236,13 +233,19 @@ export function readTabs(raw: string | null): TabsState | null {
     const id = isNew === true ? key : tabKey(where, hashText);
     renamed.set(key, id);
     if (seen.has(id)) {
-      if (pinned === true) { const kept = tabs.find((t) => t.key === id); if (kept !== undefined) kept.pinned = true; }
+      // the same thing saved twice: the copy used last stays, in the first one's place
+      const at0 = tabs.findIndex((t) => t.key === id);
+      const kept = tabs[at0];
+      if (kept !== undefined) {
+        if (pinned === true) kept.pinned = true;
+        if (typeof at === "number" && at > (kept.at ?? 0)) { kept.at = at; kept.title = title; }
+      }
       continue;
     }
     seen.add(id);
     tabs.push({
       key: id,
-      title: place === "home" && where !== place ? (hashText === undefined ? PLACE_TITLE.chats : title) : title,
+      title: place === "home" && where !== place ? (hashText === undefined ? PLACE_TITLE.chats : title) : hashText !== undefined && title === PLACE_TITLE[where] ? (screenTitle(hashText) ?? title) : title,
       place: where,
       ...(typeof hash === "string" && hash !== "" ? { hash } : {}),
       ...(isNew === true ? { isNew: true } : {}),
