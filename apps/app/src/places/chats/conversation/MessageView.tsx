@@ -4,7 +4,7 @@
 import { HelperRow } from "./helper-row.tsx";
 import { CrewStrip } from "../crew/strip.tsx";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
-import { holdsOf } from "../crew/model.ts";
+import { holdsOf, withTeammates } from "../crew/model.ts";
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
 import { citable, citeBody, citeRender } from "../crew/cite.tsx";
 import type { CrewStatusOut } from "../crew/model.ts";
@@ -530,7 +530,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         if (b.type === "crew_strip") {
           const blocks = ((b.data as { blocks?: Array<{ data?: unknown; state?: string }> } | null)?.blocks ?? []);
           const live = actions.crew?.status ?? null;
-          const members = blocks.map((x) => { const own = memberFromBlock(x, m.threadId); return memberOf(live, own.id) ?? own; });
+          const members = withTeammates(blocks.map((x) => { const own = memberFromBlock(x, m.threadId); return memberOf(live, own.id) ?? own; }), live);
           const rows = members.length;
           const totals = live && members.every((x) => memberOf(live, x.id) !== undefined) && live.members.filter((x) => x.kind === "helper").length === rows ? live.totals
             : { members: rows, working: members.filter((x) => x.state === "working").length, done: members.filter((x) => x.state === "done").length, needsYou: members.filter((x) => x.state === "needs_you").length, failed: members.filter((x) => x.state === "failed").length, stopped: members.filter((x) => x.state === "stopped").length, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: Math.max(0, ...members.map((x) => x.elapsedMs)) };

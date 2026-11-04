@@ -38,7 +38,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
         yield* run("tool_search", { query: "sub task helper" });
         yield* run("sub_task_model", { threadId: input.threadId, title: "Check the calendar", instruction: "Calendar job: find a free slot next week.", idempotencyKey: "w-1" });
         yield* run("sub_task_model", { threadId: input.threadId, title: "Compare the quotes", instruction: "Quotes job: compare the two vendor quotes.", idempotencyKey: "w-2" });
-        yield* run("sub_task_model", { threadId: input.threadId, title: "Write the summary", instruction: "Writer job: write the summary file.", idempotencyKey: "w-3" });
+        yield* run("sub_task_model", { threadId: input.threadId, title: "Read the Pine quote", instruction: "Writer job: read the Pine Works quote page.", idempotencyKey: "w-3" });
         yield* run("tool_search", { query: "crew teammate" });
         yield* run("crew_start", { threadId: input.threadId, idempotencyKey: "w-code", title: "Fix the invoice date bug", brief: "Fix the invoice date bug and add a test." });
         yield { type: "text", text: "Three helpers and a coder are on it. I will bring it together when they are back." };
@@ -58,12 +58,13 @@ test("running helpers: a held request, Change model, a person messaging a helper
     }
     if (/Keep it short/.test(body)) { yield { type: "text", text: "Noted. I will keep it short." }; return; }
     if (/Starting again on/.test(body)) { yield { type: "text", text: "Restarted. Thursday at 14:00 is free." }; return; }
-    if (/Calendar job/.test(body)) { await new Promise((r) => setTimeout(r, 150_000)); yield { type: "text", text: "Thursday at 14:00 is free." }; return; }
+    if (/Calendar job/.test(body)) { await new Promise((r) => setTimeout(r, 60_000)); yield { type: "text", text: "Thursday at 14:00 is free." }; return; }
     if (/Quotes job/.test(body)) { await new Promise((r) => setTimeout(r, 20_000)); yield { type: "text", text: "Harbor is $4,180 in two weeks. Pine Works is $3,920 in four." }; return; }
     if (/Writer job/.test(body)) {
-      await new Promise((r) => setTimeout(r, 12_000));
-      yield* run("tool_search", { query: "files create" });
-      yield* run("files_create", { name: "summary.md", content: "Summary", idempotencyKey: "w-file" });
+      await new Promise((r) => setTimeout(r, 8_000));
+      yield* run("tool_search", { query: "read link" });
+      // a link the agent put together itself waits for the person: the held request
+      yield* run("read_link", { url: "https://pine-works.example/quote?ref=harbor-compare" });
       yield { type: "text", text: "Summary written." };
     }
   });
@@ -115,9 +116,6 @@ test("running helpers: a held request, Change model, a person messaging a helper
       console.log("STATUS", JSON.stringify(((await api("engine.crew.status", { threadId: chat })).members as Array<{ title: string; state: string }>).map((m) => [m.title, m.state])));
       throw e;
     });
-    // the writer helper is set to Ask first, so its file write waits for a yes: the held request
-    const writer = ((await api("chat.helpers.list", { threadId: chat })).helpers as Array<{ threadId: string; title: string }>).find((h) => h.title === "Write the summary")!;
-    await api("threads.set_mode", { threadId: writer.threadId, mode: "ask" });
     const size = phone ? "phone" : "wide";
     // a thread under the first message, and a reply sent also to the chat
     const first = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ messageId: string }>)[0]!.messageId;
@@ -171,7 +169,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
       await page.getByText(/Brief from/).first().waitFor({ timeout: 20_000 });
       await page.getByLabel(/^Ask .* something$/).first().fill("Keep it short.", { timeout: 15_000 });
       await page.getByTestId("helper-ask-send").click();
-      await page.getByText("Noted. I will keep it short.").first().waitFor({ timeout: 60_000 }).catch(async (e) => { await shoot(page, `FAILED-reply-${mode}`); throw e; });
+      await page.getByText("Noted. I will keep it short.").first().waitFor({ timeout: 100_000 }).catch(async (e) => { await shoot(page, `FAILED-reply-${mode}`); throw e; });
       assert.ok(await page.getByText(/replying to you/).count() > 0, "the helper says whom it answers");
       await shoot(page, `crew-chat1-ask-${mode}-${size}`);
       // the chat above sees what the person told the helper

@@ -190,3 +190,13 @@ export function jobLine(m: Pick<CrewMember, "title"> & { name?: string | undefin
   const whose = parentName ? `${parentName}'s helper` : "";
   return [role, whose].filter((x) => x !== "").join(" · ");
 }
+
+/** The coders (teammates) of the chat join the first strip, so the whole crew reads in one place: they are on the strip that holds the earliest helper, or on the only strip there is. */
+export function withTeammates<T extends Pick<CrewMember, "startedAt">>(rows: readonly T[], live: CrewStatusOut | null): Array<T | CrewMember> {
+  if (!live) return [...rows];
+  const mates = live.members.filter((m) => m.kind === "teammate");
+  if (mates.length === 0 || rows.length === 0) return [...rows];
+  const earliest = Math.min(...live.members.filter((m) => m.kind === "helper").map((m) => m.startedAt));
+  const here = Math.min(...rows.map((r) => r.startedAt));
+  return here <= earliest ? [...rows, ...mates] : [...rows];
+}

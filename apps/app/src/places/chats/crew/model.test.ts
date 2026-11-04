@@ -1,7 +1,7 @@
 // The crew model: every sentence a person reads about the crew, from the numbers engine.crew.status returns.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { middle, faceSeed, holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
+import { withTeammates, middle, faceSeed, holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
 import type { CrewMember, CrewTotals } from "./model.ts";
 
 const T = (o: Partial<CrewTotals> = {}): CrewTotals => ({ members: 3, working: 0, done: 3, needsYou: 0, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: 41_000, ...o });
@@ -93,4 +93,12 @@ test("a helper's face is seeded by its own id, so helpers that run as one agent 
   const a = M({ id: "thr_a1", agentId: "agt_assistant" }), b = M({ id: "thr_b2", agentId: "agt_assistant" });
   assert.notEqual(faceSeed(a), faceSeed(b));
   assert.equal(faceSeed(a), faceSeed(M({ id: "thr_a1", agentId: "agt_other" })), "the same helper, the same face, whoever runs it");
+});
+
+test("the coders join the strip that holds the earliest helper, and no other", () => {
+  const h1 = M({ id: "h1", startedAt: 10 }), h2 = M({ id: "h2", startedAt: 50 }), mate = M({ id: "t1", kind: "teammate" as never, startedAt: 20 });
+  const live = { members: [h1, h2, mate], totals: T() } as never;
+  assert.deepEqual(withTeammates([h1], live).map((r) => (r as { id: string }).id), ["h1", "t1"]);
+  assert.deepEqual(withTeammates([h2], live).map((r) => (r as { id: string }).id), ["h2"], "a later strip has none");
+  assert.deepEqual(withTeammates([h1], null).map((r) => (r as { id: string }).id), ["h1"], "no read, no coders");
 });
