@@ -10,7 +10,7 @@ const HANDED_IN = /\b(?:the |this |my )?(?:task|work|result)s? (?:is |was |has b
 /** What in a reply a person should never read; empty when it is clean. */
 export function internalNames(text: string): string[] {
   const out: string[] = [];
-  for (const re of [IDS, TOOLS, HANDED_IN]) { const g = new RegExp(re.source, "g"); for (const m of text.matchAll(g)) out.push(m[0]); }
+  for (const re of [IDS, TOOLS, HANDED_IN]) { const g = new RegExp(re.source, re.flags.includes("g") ? re.flags : `${re.flags}g`); for (const m of text.matchAll(g)) out.push(m[0]); }
   return [...new Set(out)];
 }
 
