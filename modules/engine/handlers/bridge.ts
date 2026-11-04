@@ -480,6 +480,16 @@ export function createBridge(o: BridgeOptions): Bridge {
     const res = withMessageId(messageId, () => eng.receive({
       threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note, replyToPerson, ...(people ? { people } : {}), ...(job ? { job } : {}), ...(speaksFor ? { asker: speaksFor } : {}),
     }));
+    // the person said go in the thread of a task assigned to them, and an agent answers: the task is theirs to do through it, so it moves to Doing and says who is on it for them
+    if (a.kind === "person" && res.responders.length > 0) {
+      try {
+        const g = (await reader(ctx, authorId, threadId)("threads.get", { threadId })) as { thread: { scopeType?: string; scopeId?: string } };
+        if (g.thread.scopeType === "task" && typeof g.thread.scopeId === "string") {
+          const taskId = g.thread.scopeId;
+          for (const agent of res.responders.filter((r) => r.startsWith("agt_")).slice(0, 1)) await reader(ctx, authorId, threadId)("tasks.agent_on_it", { taskId, agentId: agent });
+        }
+      } catch { /* not a task of theirs, or already moving: the agent's own work goes on */ }
+    }
     // an agent handed the chat to another: one quiet line shows the chain ("Intake asked Docs")
     if (res.chain) {
       const nameOfAgent = (id: string): string => eng.agents(threadId).find((x) => x.id === id)?.name ?? "an agent";

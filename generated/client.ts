@@ -2525,6 +2525,7 @@ export function createClient(transport: Transport) {
     },
     tasks: {
       act: call("tasks.act", 1),
+      agent_on_it: call("tasks.agent_on_it", 1),
       ask: call("tasks.ask", 1),
       assign: call("tasks.assign", 1),
       block: call("tasks.block", 1),

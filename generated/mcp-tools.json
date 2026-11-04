@@ -58997,6 +58997,40 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.agent_on_it",
+      "deferred": false,
+      "description": "Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads \"<Agent> is on it for you\". Only that person, or the host, may say so",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "agentId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_agent_on_it",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.assign",
       "deferred": false,
       "description": "Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)",

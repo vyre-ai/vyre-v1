@@ -69,6 +69,10 @@ test("Team: the Assistant completes Mia's own task for her, with the send held o
     assert.match(sections[0] ?? "", /who is the person asking you, so doing it is yours to do for them/);
     assert.doesNotMatch(sections[0] ?? "", /You are not a seat/);
     const approvalId = String((card.data?.["target"] as { id?: string }).id);
+    // the baton moved when she said go: Doing, with the agent named as on it for her
+    const during = (await api("usr_mia", "tasks.get", { taskId })).data.task as { state: string; workingNotes: Record<string, string> };
+    assert.equal(during.state, "doing");
+    assert.equal(during.workingNotes["baton.on_it"], agentId);
     const dm = (await api("usr_mia", "chat.start", { kind: "chat", agentIds: [], personId: "usr_noah", idempotencyKey: "at-dm" })).data.thread.threadId as string;
     assert.equal((await list("usr_noah", dm)).filter((m) => /figures/.test(m.body ?? "")).length, 0, "nothing went before Mia pressed Send");
     assert.equal((await api("usr_mia", "tasks.act", { taskId: approvalId, action: "approve" })).status, 200);

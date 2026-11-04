@@ -8426,6 +8426,12 @@
     },
     {
       "deferred": false,
+      "name": "tasks_agent_on_it",
+      "summary": "Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads \"<Agent> is on it for you\". Only that person, or the host, may say so",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_assign",
       "summary": "Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)",
       "toolset": "tasks"

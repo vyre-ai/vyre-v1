@@ -53,3 +53,23 @@ test("the person's own act reads as theirs, with no 'did this for' line", async 
   await h.call("tasks.submit", { taskId: id, summary: "Did it myself" }, me);
   assert.ok(!lines(h).some((l) => /did this for/.test(l)), lines(h).join("|"));
 });
+
+test("the person saying go has an agent on their task: it moves to Doing and says which agent is on it for them; nobody else may say so", async () => {
+  const h = world();
+  const id = await mine(h);
+  const r = await h.call("tasks.agent_on_it", { taskId: id, agentId: bot.id }, me);
+  assert.equal(r.task.state, "doing");
+  assert.equal(findTask(h.db, id)!.workingNotes["baton.on_it"], bot.id);
+  assert.ok(h.events.some((e) => e.name === "task.transitioned"), "the baton moved");
+  // once more is no new move
+  const again = await h.call("tasks.agent_on_it", { taskId: id, agentId: bot.id }, me);
+  assert.equal(again.task.state, "doing");
+  // another person cannot put an agent on it, and neither can an agent
+  const other = await mine(h);
+  await assert.rejects(h.call("tasks.agent_on_it", { taskId: other, agentId: bot.id }, { id: cara.id }), (e) => ["permission.not_found", "validation.precondition_failed"].includes(String(codeOf(e))));
+  await assert.rejects(h.call("tasks.agent_on_it", { taskId: other, agentId: bot.id }, { id: bot.id, kind: "agent", actingFor: owner.id }), (e) => reasonOf(e) === "wrong_actor");
+  assert.equal(findTask(h.db, other)!.state, "todo");
+  // and the agent then hands it in as itself acting for them
+  const sub = await h.call("tasks.submit", { taskId: id, summary: "Sent the invoices" }, { id: bot.id, kind: "agent", actingFor: owner.id });
+  assert.equal(sub.next, "done");
+});
