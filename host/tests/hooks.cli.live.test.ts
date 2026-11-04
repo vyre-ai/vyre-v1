@@ -3,7 +3,7 @@
 //   a note a hook leaves reaches the model as context; a chat hook set by the agent itself stops a Vyre tool, and the reason reaches the chat and hooks.runs.list; a Space block wins over it;
 //   and with the hooks layer down (the endpoint the hooks ask is gone) the same call goes on.
 // Hooks here are command hooks (they run in the sandbox, no second model call), so a turn costs one short model reply. The model is the engine's cheapest (haiku for Claude Code; HOOKS_CODEX_MODEL for Codex,
-// else its default). Runs only with VYRE_HEAVY_DOCKER=1 and the engine's sign-in in the environment: CLAUDE_CODE_OAUTH_TOKEN for Claude Code; CODEX_AUTH_JSON (the text of a ChatGPT-signed-in ~/.codex/auth.json) for Codex. A missing one skips that engine
+// else its default). Runs only with VYRE_HEAVY_DOCKER=1 and the engine's sign-in in the environment: CLAUDE_CODE_OAUTH_TOKEN for Claude Code; CODEX_AUTH_JSON (the text of a ChatGPT-signed-in ~/.codex/auth.json; the test wraps it as the Vault holds sign-in files) for Codex. A missing one skips that engine
 // and says so. The values are never printed. Vyre today runs Codex only on a ChatGPT sign-in (the provider "codex" connects by subscription only); an OpenAI API key runs the OpenAI API driver, not the Codex CLI,
 // so OPENAI_API_KEY cannot be used here.
 // The engines are found in HOOKS_CLI_DIR (default /root/cli/bin). Grok has no account here: its hook files are generated and unit-tested but unproven on a real run.
@@ -75,7 +75,7 @@ for (const eng of ENGINES) {
       } else {
         const folder = await call(d, token, "vault.folders.create", { idempotencyKey: "hc-folder", name: "Accounts", scope: "mine" });
         const flow = await call(d, token, "providers.subscription_start", { idempotencyKey: "hc-flow", providerKey: "codex" });
-        assert.equal((await call(d, token, "vault.item.put", { idempotencyKey: "hc-item", folderId: folder.data.folder.id, name: "Dana_Codex", kind: "ai_subscription", fields: [{ key: "credentials", value: key!, secret: true }] })).status, 200);
+        assert.equal((await call(d, token, "vault.item.put", { idempotencyKey: "hc-item", folderId: folder.data.folder.id, name: "Dana_Codex", kind: "ai_subscription", fields: [{ key: "credentials", value: JSON.stringify({ ".codex/auth.json": key! }), secret: true }] })).status, 200);
         const p = await call(d, token, "providers.subscription_complete", { flowId: flow.data.flowId });
         assert.equal(p.status, 200, JSON.stringify(p.data).replaceAll(key!, "[key]"));
         assert.equal((await call(d, token, "providers.set_space_use", { idempotencyKey: "hc-use", providerId: p.data.provider.id, allow: true })).status, 200);
