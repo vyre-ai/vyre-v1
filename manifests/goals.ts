@@ -77,7 +77,7 @@ const goalLine = t.obj({
 });
 const taskLine = t.obj({ taskId: id.task, key: t.opt(t.str()), title: t.str(), state: t.str(), assigned: t.opt(who), blocked: t.bool() });
 const waitLine = t.obj({ taskId: id.task, kind: t.str(), title: t.str(), assigned: t.opt(who), since: t.ts() });
-const activity = t.obj({ at: t.ts(), kind: t.str({ examples: ['reading'] }), text: t.str(), by: t.opt(t.str()), ref: t.opt(t.str()) });
+const activity = t.obj({ at: t.ts(), kind: t.str({ examples: ['reading'] }), text: t.str(), by: t.opt(t.str()), ref: t.opt(t.str()), tpl: t.opt(t.str({ description: 'The sentence before its names and times were filled in, so an app can fill them in for its own reader' })) });
 const wakeReason = t.str({ examples: ['checkin'] });
 // every change to a goal can move its status, read its source, send a wake-up or end it, so every write declares the goal's events
 const EMITS: EventName[] = ['goal.created', 'goal.started', 'goal.updated', 'goal.status_changed', 'goal.progress', 'goal.woken', 'goal.resumed', 'goal.reported', 'goal.step_done', 'goal.budget_warned', 'goal.ended', 'goal.extended'];

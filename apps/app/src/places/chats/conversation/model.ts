@@ -9,6 +9,7 @@ import { createIncrementalMarkdown } from "../../../../../../ui/src/stream/markd
 import type { Block as MdBlock } from "../../../../../../ui/src/stream/markdown.ts";
 import { isTurnStatus } from "./status.ts";
 import { route } from "../../../../../../lib/route.ts";
+import { chatName } from "../../../../../../lib/chat-name.ts";
 
 export type Thread = CapMap["threads.get"]["out"]["thread"];
 export type Message = CapMap["chat.messages.list"]["out"]["messages"][number];
@@ -330,12 +331,17 @@ export function directWith(t: Thread, meId: string | undefined): string | null {
   return others.length === 1 && t.members.some((m) => m.id === meId) ? others[0]!.id : null;
 }
 
+/** The other people in a chat (never the viewer): their faces sit in the header of a chat that is not a direct message. */
+export function otherPeople(t: Pick<Thread, "members">, meId: string | undefined): string[] {
+  return [...new Set(t.members.filter((m) => m.kind === "person" && m.id !== meId).map((m) => m.id))];
+}
+
+/** The one name of a chat (lib/chat-name.ts), the same as the list shows: a direct message is the person, any other chat its title, else who is in it. */
 export function titleOf(t: Thread, nameOf: (id: string) => string, meId?: string): string {
-  if (t.title) return t.title;
-  const first = t.agents[0];
-  if (first) return nameOf(first.agentId);
-  const other = directWith(t, meId);
-  return other ? nameOf(other) : "Chat";
+  return chatName({
+    title: t.title, kind: t.kind, agents: t.agents.map((a) => a.agentId),
+    people: [...new Set(t.members.filter((m) => m.kind === "person" && m.id !== meId).map((m) => m.id))],
+  }, nameOf);
 }
 
 /** The label of the stop control: one agent working, its name; more than one, Stop all. */

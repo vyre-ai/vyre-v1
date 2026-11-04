@@ -53,11 +53,6 @@ export interface ContactTabProps {
   ask?: AskRequest;
 }
 
-const agentName = (id: string): string => {
-  const base = id.replace(/^agt_/, "");
-  return base.charAt(0).toUpperCase() + base.slice(1);
-};
-
 function HeadButton({ icon, label, on = false, testID, disabled = false, onPress, text }: { icon: IconName; label: string; on?: boolean; testID: string; disabled?: boolean; onPress(x: number, y: number): void; text?: string }): ReactElement {
   return (
     <Pressable
@@ -160,12 +155,24 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
     if (boxes.status === "ready") for (const b of boxes.data.mailboxes) m.set(b.id, b.title);
     return m;
   }, [boxes]);
-  const agents = useMemo(() => {
+  // the agents by name, read once from the Space's directory: a draft says "Assistant drafted a reply", never the agent's id
+  const [directory, setDirectory] = useState<ReadonlyMap<string, string>>(new Map());
+  useEffect(() => {
+    let off = false;
+    void Promise.resolve(data.call("agents.list", {})).then((o) => {
+      if (off) return;
+      const m = new Map<string, string>();
+      for (const a of (o as { agents?: Array<{ agentId?: string; name?: string }> } | null)?.agents ?? []) if (a.agentId && a.name) m.set(a.agentId, a.name);
+      setDirectory(m);
+    }, () => undefined);
+    return () => { off = true; };
+  }, [data]);
+  const agents = useMemo(() => new Map<string, string>([...(data.agents?.() ?? []), ...directory]), [data, directory]);
+  const addresses = useMemo(() => {
     const m = new Map<string, string>();
-    if (boxes.status === "ready") for (const b of boxes.data.mailboxes) if (b.agentId) m.set(b.agentId, agentName(b.agentId));
-    if (drafts.status === "ready") for (const d of drafts.data.drafts) if (d.draftedByAgent && !m.has(d.draftedByAgent)) m.set(d.draftedByAgent, agentName(d.draftedByAgent));
+    if (boxes.status === "ready") for (const b of boxes.data.mailboxes) m.set(b.id, b.address);
     return m;
-  }, [boxes, drafts]);
+  }, [boxes]);
   const mailThreads: readonly MailThread[] = threadsQ.status === "ready" ? threadsQ.data.threads : [];
   if (threadsQ.status === "ready" && freshRef.current?.conv !== conversationId) {
     freshRef.current = { conv: conversationId, ids: new Set(mailThreads.flatMap((t) => t.messages.filter((m) => m.unread).map((m) => m.message.id))) };
@@ -179,7 +186,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
     return m;
   }, [boxes, senders]);
   const feed = useMemo(() => buildFeed(items, clock.now, clock.offsetMin, mailThreads), [items, clock.now, clock.offsetMin, mailThreads]);
-  const cards = useMemo<DraftCard[]>(() => (drafts.status === "ready" ? draftCards(drafts.data.drafts, titles, agents) : []), [drafts, titles, agents]);
+  const cards = useMemo<DraftCard[]>(() => (drafts.status === "ready" ? draftCards(drafts.data.drafts, titles, agents, addresses) : []), [drafts, titles, agents, addresses]);
 
   const chan: Chan = over.chan ?? (conv ? startChannel(conv.lastChannel, options) : "email");
   const base = conv ? initialDraft(conv, chan, items, mailThreads, mine) : null;
@@ -373,7 +380,7 @@ function Tab({ conversationId, contactId, ...props }: ContactTabProps): ReactEle
             case "note": return <QuietLine key={f.key} text={f.item.title ?? f.item.preview ?? ""} testID={`note:${f.item.id}`} />;
           }
         })}
-        {each(cards, (d) => <DraftBlock key={d.id} d={d} note={draftNotes[d.id]} busy={busy.includes(d.id) || !online} onSend={() => void draftSend(d)} onEdit={() => draftEdit(d)} onDiscard={() => void draftDiscard(d)} />)}
+        {each(cards, (d) => <DraftBlock key={d.id} d={d} offsetMin={clock.offsetMin} note={draftNotes[d.id]} busy={busy.includes(d.id) || !online} onSend={() => void draftSend(d)} onEdit={() => draftEdit(d)} onDiscard={() => void draftDiscard(d)} />)}
       </ScrollView>
 
       <View style={s.cmpWrap} testID="contact-composer">

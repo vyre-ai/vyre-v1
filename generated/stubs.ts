@@ -435,6 +435,7 @@ export function stubs(ctx: CallCtx) {
       post: call("chat.post"),
       question: {
         ask: call("chat.question.ask"),
+        withdraw: call("chat.question.withdraw"),
       },
       react: call("chat.react"),
       recent: call("chat.recent"),
@@ -447,6 +448,7 @@ export function stubs(ctx: CallCtx) {
       share: call("chat.share"),
       start: call("chat.start"),
       thread: call("chat.thread"),
+      title_make: call("chat.title_make"),
       transcript: {
         append: call("chat.transcript.append"),
         get: call("chat.transcript.get"),

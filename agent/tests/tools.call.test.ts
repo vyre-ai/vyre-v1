@@ -128,24 +128,37 @@ test("errors from invoke come back as tool errors with their code; an unexpected
   assert.ok(!JSON.stringify(b).includes("postgres://"));
 });
 
-test("a crash inside the server reaches the agent as a plain sentence naming the tool and the trace, never a bare 500, and the log is told the cause", async () => {
+const LEAK = /\b(?:[a-z]{2,6}_[a-z0-9]{8,}|[0-9a-f]{16,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b|\b500\b/i;
+
+test("no tool error a model receives carries a trace id, an internal id or a bare 500; the full error with its trace stays beside it for the Details", async () => {
   const loaded = loadGenerated();
-  const told: Array<{ cap: string; why: string; trace: string }> = [];
-  const session = createToolSession({
-    catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => "trace_fixed",
-    invoke: async () => { throw new TypeError("Cannot read properties of undefined (reading 'length')"); },
-    onUnexpected: (cap, e, trace) => { told.push({ cap, why: e instanceof Error ? e.message : String(e), trace }); },
-  });
+  const TRACE = "6bc64f781807dd96d50562e8114b4df5";
+  const failures: Array<() => never> = [
+    () => { throw new TypeError("Cannot read properties of undefined (reading 'length') at thr_01a1a392662d48efb1762dffc795f3a3"); },
+    () => { throw new HostError(makeError("validation.not_found", TRACE, { message: "Record rec_01a1a392662d48efb1762dffc795f3a3 is not here.", details: { recordId: "rec_01a1a392662d48efb1762dffc795f3a3" }, next: [{ kind: "ask_access", label: "Ask for access to rec_01a1a392662d48efb1762dffc795f3a3", action: { cap: "access.request" as never, input: { id: "x" } } }] })); },
+    () => { throw new HostError(makeError("permission.no_grant", TRACE)); },
+    () => { throw new HostError(makeError("internal.unexpected", TRACE, { message: "Something went wrong on our side.", details: { traceId: TRACE } })); },
+  ];
+  for (const f of failures) {
+    const session = createToolSession({ catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => TRACE, invoke: async () => f() });
+    const out = await session.call(ctx(), "memory_search", { q: "notes" });
+    assert.equal(out.kind, "error");
+    if (out.kind !== "error") continue;
+    const seen = JSON.stringify(out.result.content);
+    assert.ok(!LEAK.test(seen), `the model would read: ${seen}`);
+    assert.ok(!seen.includes(TRACE), "no trace in what the model reads");
+    assert.match(out.error.traceId, /^[0-9a-f]{16,}$/, "the full error keeps its trace for the Details");
+  }
+});
+
+test("a crash inside the server reaches the agent as a plain sentence naming the tool and what to do", async () => {
+  const loaded = loadGenerated();
+  const session = createToolSession({ catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => "trace_fixed", invoke: async () => { throw new TypeError("boom"); } });
   const out = await session.call(ctx(), "memory_search", { q: "notes" });
-  assert.equal(out.kind === "error" && out.error.code, "internal.unexpected");
-  const message = out.kind === "error" ? out.error.message : "";
-  assert.match(message, /memory_search could not finish on the server just now/);
-  assert.match(message, /nothing was changed/);
-  assert.match(message, /trace_fixed/);
-  assert.ok(!/\b500\b/.test(JSON.stringify(out)), "no bare status code");
-  assert.ok(!JSON.stringify(out).includes("reading 'length'"), "the cause stays in the log");
-  assert.deepEqual(told.map((x) => [x.cap, x.trace]), [["memory.search", "trace_fixed"]]);
-  assert.match(told[0]!.why, /reading 'length'/);
+  const content = out.kind === "error" ? (out.result.content as { error: { code: string; message: string } }).error : null;
+  assert.equal(content?.code, "internal.unexpected");
+  assert.match(content?.message ?? "", /memory_search could not finish on the server just now, and nothing was changed/);
+  assert.match(content?.message ?? "", /Do not paste ids or traces/);
 });
 
 test("an unknown tool is a validation error and never reaches invoke", async () => {
@@ -155,3 +168,45 @@ test("an unknown tool is a validation error and never reaches invoke", async () 
   assert.equal(calls.length, 0);
 });
 
+
+test("a probe call is refused before anything runs: example.com, a bare test and __probe_none__ reach no capability and come back with the plain refusal; a real call still works", async () => {
+  const loaded = loadGenerated();
+  const invoked: string[] = [];
+  const session = createToolSession({ catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => "trace_fixed", invoke: async (cap) => { invoked.push(cap); return { status: "ok", output: {}, traceId: "t" } as never; } });
+  const probes: Array<[string, unknown]> = [
+    ["records_get", { recordId: "__probe_none__" }],
+    ["ask_question", { prompt: "test", mode: "free" }],
+    ["ask_question", { prompt: "Is example.com the right site for the firm?", mode: "free" }],
+    ["mail_send", { to: ["client@example.com"], subject: "Retainer", body: "Dear Lee." }],
+    ["records_create", { type: "lead", fields: { name: "foo" } }],
+  ];
+  for (const [tool, input] of probes) {
+    const out = await session.call(ctx(), tool, input);
+    assert.equal(out.kind, "error", `${tool} ${JSON.stringify(input)}`);
+    if (out.kind !== "error") continue;
+    assert.equal(out.error.code, "validation.bad_input");
+    assert.match(out.error.message, /Don't call tools to test them\. Call with the real thing the person asked for, or don't call\./);
+  }
+  assert.deepEqual(invoked, [], "nothing reached a capability: no card, hold, task or message");
+  const real = await session.call(ctx(), "records_get", { type: "lead", recordId: "rec_01a1a392662d48efb1762dffc795f3a3" });
+  assert.equal(real.kind, "result");
+  assert.deepEqual(invoked, ["records.get"]);
+});
+
+test("a value the person typed themselves passes the probe guard; the same value invented by the agent is refused", async () => {
+  const loaded = loadGenerated();
+  const invoked: string[] = [];
+  const session = createToolSession({ catalog: loaded.catalog, defaults: loaded.defaults, levelFor: () => "manage", traceId: () => "trace_fixed", invoke: async (cap) => { invoked.push(cap); return { status: "ok", output: {}, traceId: "t" } as never; } });
+  const input = { type: "lead", fields: { name: "test", site: "https://example.com" } };
+  const invented = await session.call(ctx(), "records_create", input);
+  assert.equal(invented.kind, "error", "the agent made it up: refused");
+  assert.deepEqual(invoked, []);
+  const asked = await session.call(ctx({ said: "Please make a lead called test and use https://example.com as its site" }), "records_create", input);
+  assert.equal(asked.kind, "result", "the person asked for exactly that: it runs");
+  assert.deepEqual(invoked, ["records.create"]);
+  // the person asked for one of the two values only: the other is still the agent's invention
+  invoked.length = 0;
+  const half = await session.call(ctx({ said: "make a lead called test" }), "records_create", input);
+  assert.equal(half.kind, "error");
+  assert.deepEqual(invoked, []);
+});

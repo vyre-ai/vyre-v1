@@ -333,6 +333,14 @@ export default defineManifest({
       tool: 'chats', label: 'filter', mcpName: 'chat_search', agent: { planMode: 'allowed' }, rate: { n: 60, perSeconds: 60, scope: 'principal' },
     }),
     // ---- native blocks, plan mode
+    write('chat.title_make', 'Name a chat from its first real request: 2 to 5 plain words, on a cheap model of the account that ran the turn or from the request\'s own words, never from a greeting. Made again once if the first came from a thin request; never after a person renamed the chat', {
+      in: {
+        ...threadT,
+        account: t.opt(t.obj({ ref: t.str(), driver: t.str(), kind: t.opt(t.str()), payer: t.opt(t.str()), spaceKey: t.opt(t.bool()) }, { description: 'The account the turn ran on' })),
+      },
+      out: { made: t.bool(), title: t.opt(t.str()), why: t.opt(t.enm('renamed', 'not_a_chat', 'direct', 'small_talk', 'done', 'has_title')) },
+      on: ['thread', '/threadId'], level: 'use', emits: ['thread.updated'], errors: ['validation.not_found', 'permission.no_grant'],
+    }),
     write('chat.note_offer.make', 'Offer to save something from this chat as a note: a small card with a preview of the note, Save and Not now. At most once per topic and rarely; says offered false with a reason when the person has it off or it is too soon', {
       in: { ...threadT, title: t.str({ maxLength: 200 }), body: t.str({ maxLength: 4000 }), topic: t.str({ description: 'What it is about, in a few words; the same topic is offered once in a chat' }), messageId: t.opt(id.message) },
       out: { offered: t.bool(), why: t.opt(t.enm('off', 'already_offered', 'too_soon', 'declined_recently')), blockId: t.opt(id.block), messageId: t.opt(id.message) },
@@ -346,7 +354,10 @@ export default defineManifest({
       in: { ...threadT, blockId: id.block, answer: t.json() }, out: { ok: t.bool() }, on: ['thread', '/threadId'], level: 'use',
       emits: ['block.answered'], tool: 'chats', offline: 'queue', errors: ['validation.precondition_failed'],
     }),
-    write('chat.question.ask', 'Ask the person a structured question (single, multi or free text); the turn parks until it is answered', {
+    write('chat.question.withdraw', 'Take back a question: its turn ended without waiting for it. The card closes as withdrawn and its task leaves the Needs you list. Only the agent that asked, or a person in the chat', {
+      in: { ...threadT, blockId: id.block }, out: { withdrawn: t.bool() }, on: ['thread', '/threadId'], level: 'use', emits: ['block.withdrawn'], errors: ['validation.not_found', 'permission.no_grant'],
+    }),
+    write('chat.question.ask', 'Ask the person a structured question (single, multi or free text); the turn parks until it is answered and makes no further model call; a question of fewer than three words, or only a test, is refused', {
       in: {
         ...threadT, prompt: t.str(), mode: t.enm('single', 'multi', 'free'), options: t.opt(t.arr(option)), allowOther: t.opt(t.bool()),
         card: t.opt(t.obj({ kind: t.enm('terminal'), command: t.str(), host: t.opt(t.enm('agent_computer', 'space_server', 'device')), risk: t.opt(t.enm('read', 'change', 'danger')) })),
@@ -567,6 +578,9 @@ export default defineManifest({
     }),
     ev('block.answered', 'A waiting block was answered; the answer is queued as a wake', {
       p: { threadId: id.thread, blockId: id.block, by: t.str() }, subject: ['thread', '/threadId'], vis: 'participants',
+    }),
+    ev('block.withdrawn', 'A question was taken back by the agent that asked it; its task is closed', {
+      p: { threadId: id.thread, blockId: id.block }, subject: ['thread', '/threadId'], vis: 'participants',
     }),
     ev('tab.opened', 'An agent opened a side tab for a person (delivered live to that person devices)', {
       p: { threadId: id.thread, personId: id.user, targetType: t.str(), targetId: t.str(), agentId: id.agent }, subject: ['thread', '/threadId'], vis: 'owner',

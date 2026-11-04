@@ -435,6 +435,7 @@ export function createClient(transport: Transport) {
       post: call("chat.post", 1),
       question: {
         ask: call("chat.question.ask", 1),
+        withdraw: call("chat.question.withdraw", 1),
       },
       react: call("chat.react", 1),
       recent: call("chat.recent", 1),
@@ -447,6 +448,7 @@ export function createClient(transport: Transport) {
       share: call("chat.share", 1),
       start: call("chat.start", 1),
       thread: call("chat.thread", 1),
+      title_make: call("chat.title_make", 1),
       transcript: {
         append: call("chat.transcript.append", 1),
         get: call("chat.transcript.get", 1),

@@ -39,6 +39,7 @@ test("agent-optout is exactly the automation plumbing and the provider check, an
   // a person's Notes are theirs to clip, share, delete, restore and turn into a record or a task (l-notes, agent: false); an agent takes notes with notes.create and reads them;
   // Redaction for AI is a person's decision about what agents see (l-redact): a file's agent access, its marks list and placing or removing a mark, the review, Preview as agent, the folder's
   // badges, finding what to redact and putting a request aside; an agent asks with files.redact.request and reads the redacted rendition
+  // the person it was offered to answers a "Save as a note?" card (chat.note_offer.answer); an agent offers with chat.note_offer.make
   // host-side steps an Automation runs for itself (its HTTP step, its AI step) and the label check of an AI step's records: an agent reaches the same ends through its own tools (docs/frozen/agent-tools.md)
   // a Chrome watch is the person's own: they save, remove, pause and check it from the Watch sheet in Vyre for Chrome (l-chrome2b); an agent lists watches and reports a reading with its tools
   // a Save as a note offer is answered by the person it was offered to (l-learn2): Save makes their own private note, so no agent answers it for them; an agent offers with chat.note_offer.make

@@ -220,7 +220,7 @@ export function fromHash(hash: string): Shown {
     // `with` is the agent and `about` the object (`record:rec_1`): an Ask, not a chat. A conversation link with a thread id is still that thread.
     case SCREEN.conversation: case SCREEN.ask: {
       const about = askAbout(arg("about"));
-      if (arg("threadId") !== "") return step(START, { t: "chat", threadId: arg("threadId"), ...(arg("m") === "" ? {} : { focus: arg("m") }) });
+      if (arg("threadId") !== "") return step(START, { t: "chat", threadId: arg("threadId"), ...(arg("m") === "" ? {} : { focus: arg("m") }), ...(arg("side") === "" ? {} : { side: arg("side") }) });
       if (about !== null && arg("with") !== "") return step(START, { t: "ask", agentId: arg("with"), scopeType: about.type, scopeId: about.id, ...(arg("bring") === "" ? {} : { bringFrom: arg("bring") }), ...(arg("draft") === "" ? {} : { draft: arg("draft") }), ...(arg("first") === "" ? {} : { first: arg("first") }) });
       // `with` alone is a chat with that agent: the open chat it leads, else a new one.
       return arg("with") === "" ? START : step(START, { t: "ask", agentId: arg("with"), scopeType: "", scopeId: "", ...(arg("first") === "" ? {} : { first: arg("first") }) });

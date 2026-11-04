@@ -3,6 +3,8 @@
 import { HostError, makeError } from "../../../host/src/routes/errors.ts";
 import type { CtxSeed, Invoke } from "../../../host/src/invoke.ts";
 import { heldCard, recordWork, workCardOf } from "./work-cards.ts";
+import { modelError } from "./model-error.ts";
+import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
@@ -10,7 +12,8 @@ import type { LocalDecision } from "./local.ts";
 import type { Refusal, ToolCtx, ToolDef, ToolResult, ToolSet } from "./types.ts";
 
 export type ToolOutcome =
-  | { kind: "result"; result: ToolResult; traceId: string }
+  /** `parkOn`: a question asked of the person (ask_question): the turn waits on its block and makes no further model call until it is answered. */
+  | { kind: "result"; result: ToolResult; traceId: string; parkOn?: { blockId: string } }
   | { kind: "error"; result: ToolResult; error: VyreError }
   /** Parked at the Gate: the turn shows turn.waiting {task} and resumes when it is approved or denied. */
   | { kind: "held"; result: ToolResult; taskId: string; runId?: string; traceId: string };
@@ -36,8 +39,6 @@ export interface CallDeps extends AccessDeps {
   hooks?: CallHooks;
   invoke: Invoke;
   traceId?(): string;
-  /** A tool call crashed inside the server with an error nobody named: told once, with the cause, so the log can say why this trace failed. */
-  onUnexpected?(cap: string, error: unknown, traceId: string): void;
   /** Local tools only: what Ask, Allow and Auto say. Fails closed: a missing policy refuses a local tool. */
   localPolicy?(t: ToolDef, ctx: ToolCtx, input: unknown): LocalDecision;
   /** Local tools that need a prompt: resolves true when the person allows this one call. */
@@ -69,7 +70,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
 
   const fail = (code: ErrorCode, traceId: string, o: { message?: string; details?: Record<string, unknown>; next?: NextStep[] } = {}): ToolOutcome => {
     const error = makeError(code, traceId, o);
-    return { kind: "error", error, result: { ok: false, content: { error } } };
+    return { kind: "error", error, result: { ok: false, content: { error: modelError(error) } } };
   };
 
   const askAccessNext = (ctx: ToolCtx, t: ToolDef): NextStep[] => {
@@ -104,6 +105,10 @@ export function createToolSession(deps: CallDeps): ToolSession {
     const why = refusalFor(deps, ctx, t, level);
     if (why !== null) return refused(why, ctx, t, traceId);
     if (!reachesScope(t, ctx.thread, input)) return refused("ask_scope", ctx, t, traceId);
+
+    // a tool is never called to see if it works, and never with placeholder content: refused before anything runs, so no card, hold, task or message reaches the chat
+    const placeholder = probeIn(input, "", ctx.said ?? "");
+    if (placeholder !== null) return fail("validation.bad_input", traceId, { message: PROBE_MESSAGE, details: { tool: t.name, reason: "placeholder" } });
 
     const isDynamic = !deps.catalog.byName(name);
     if (!isDynamic && !deps.defaults.has(t.name) && !(ctx.thread.scope?.type === "task" && TASK_BATON_TOOLS.has(t.name)) && !loadedSet(ctx.thread.threadId).has(t.name)) {
@@ -173,13 +178,13 @@ export function createToolSession(deps: CallDeps): ToolSession {
       const content: { data: unknown; blocks?: string[] } = { data: res.output };
       if (t.blocks.length > 0) content.blocks = t.blocks;
       if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
-      return { kind: "result", traceId: res.traceId, result: { ok: true, content } };
+      const asked = t.cap === "chat.question.ask" ? (res.output as { blockId?: unknown } | null)?.blockId : undefined;
+      return { kind: "result", traceId: res.traceId, result: { ok: true, content }, ...(typeof asked === "string" ? { parkOn: { blockId: asked } } : {}) };
     } catch (e) {
-      if (e instanceof HostError) return { kind: "error", error: e.error, result: { ok: false, content: { error: e.error } } };
-      // a failure nobody named (a crash inside a module): the model gets a plain sentence it can act on, never a bare "500", and the log gets the cause so it can be found by this trace
-      deps.onUnexpected?.(t.cap, e, traceId);
+      if (e instanceof HostError) return { kind: "error", error: e.error, result: { ok: false, content: { error: modelError(e.error) } } };
+      // a failure nobody named (a crash inside a module): a plain sentence the model can act on, never a bare "500"; the cause and stack are in the server log under this trace (host/src/invoke.ts)
       return fail("internal.unexpected", traceId, {
-        message: `${t.name} could not finish on the server just now, and nothing was changed. Try it once more; if it fails again, tell the person it did not work and give them this trace: ${traceId}.`,
+        message: `${t.name} could not finish on the server just now, and nothing was changed. Try it once more; if it fails again, tell the person in plain words that it did not work. Do not paste ids or traces.`,
         details: { tool: t.name, reason: "server_error" },
       });
     }

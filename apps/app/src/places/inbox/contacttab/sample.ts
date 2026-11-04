@@ -265,6 +265,7 @@ export function createContactTabSample(space: SampleSpace = northwind, o: { onli
 
   const data: InboxData = {
     ...base.data,
+    agents: () => new Map([["agt_intake", "Intake"], ["agt_billing", "Billing"]]),
     async call(cap, input) {
       const w = writes[cap];
       if (!w) return base.data.call(cap, input);
