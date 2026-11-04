@@ -275,6 +275,11 @@
       "dev": false
     },
     {
+      "name": "mermaid",
+      "reason": "diagrams in chat replies, drawn with securityLevel strict inside a sandboxed frame; loaded only when a reply holds one (ui/src/stream/enable-diagrams.ts)",
+      "dev": false
+    },
+    {
       "name": "katex",
       "reason": "math in chat replies, written as MathML; loaded only when a reply holds a formula (ui/src/stream/enable-diagrams.ts)",
       "dev": false
