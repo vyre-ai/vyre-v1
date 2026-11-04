@@ -103,7 +103,11 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
       await p.screenshot({ path: path.join(shots, `projects-2-project-${who}-${size}-paper.png`) });
       // the regression: pressing Plan opens the Plan
       await p.getByTestId("tab-plan").click();
-      await p.getByTestId("project-plan").waitFor({ timeout: 15_000 });
+      await p.getByTestId("project-plan").waitFor({ timeout: 15_000 }).catch(async (e: Error) => {
+        const ids = await p.evaluate(() => [...document.querySelectorAll("[data-testid]")].map((x) => x.getAttribute("data-testid")).filter((x) => /project|tab-|plan|loading|gone/.test(x ?? "")).slice(0, 30));
+        await p.screenshot({ path: path.join(shots, `debug-plan-${who}-${size}.png`) });
+        throw new Error(`Plan did not open at ${p.url()}: ${JSON.stringify(ids)} body=${(await p.locator("body").innerText()).slice(0, 200)} / ${e.message.slice(0, 40)}`);
+      });
       await p.waitForTimeout(500);
       await ok("Plan");
       await p.screenshot({ path: path.join(shots, `projects-3-plan-${who}-${size}-paper.png`) });
