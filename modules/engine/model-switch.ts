@@ -3,12 +3,12 @@
 // last pick so the next chat does not fail the same way. When no model works, the turn ends with engine.no_model_works, which the chat draws as one plain card.
 import type { ModelQuery, ResolvedAccount, AccountQuery } from "../../agent/src/turn-engine/types.ts";
 import { goneModel } from "../../agent/src/drivers/cli/errors.ts";
-import { chatSettings } from "./chat-settings.ts";
+import { chatSettings, noteSwap } from "./chat-settings.ts";
 import { BRIDGE_PREFIX } from "./handlers/bridge.ts";
 import type { PostAs } from "./handlers/bridge.ts";
 import { markUnavailable } from "./model-health.ts";
 import { modelName } from "./model-fallback.ts";
-import { recallPick } from "./last-pick.ts";
+import { recentPicks } from "./last-pick.ts";
 import { mintId } from "./projections.ts";
 import type { Db } from "./projections.ts";
 
@@ -34,15 +34,15 @@ export interface ModelSwitchDeps {
   log?: (msg: string, attrs?: Record<string, unknown>) => void;
 }
 
-/** The order to try: the same provider as the failed model, then the person's last other pick, then the Space default, then whatever else works. */
-export function candidates(rows: readonly Row[], failed: { model: string; provider: string | undefined }, lastPick: string | null): Row[] {
+/** The order to try: the same provider as the failed model, then the person's last other picks (the last three distinct models), then the Space default, then whatever else works. */
+export function candidates(rows: readonly Row[], failed: { model: string; provider: string | undefined }, lastPicks: readonly string[]): Row[] {
   const ok = rows.filter((r) => r.allowed && r.model !== failed.model && r.model !== "auto");
   const out: Row[] = [];
   const add = (r: Row | undefined): void => { if (r && !out.includes(r)) out.push(r); };
   const same = ok.filter((r) => r.provider === failed.provider);
   add(same.find((r) => r.isDefault) ?? same[0]);
   for (const r of same) add(r);
-  if (lastPick !== null && lastPick !== failed.model) add(ok.find((r) => r.model === lastPick));
+  for (const m of lastPicks) if (m !== failed.model) add(ok.find((r) => r.model === m));
   add(ok.find((r) => r.isDefault));
   for (const r of ok) add(r);
   return out;
@@ -52,18 +52,19 @@ export function createModelSwitch(d: ModelSwitchDeps): (q: ModelQuery) => Promis
   return async (q) => {
     const settings = await chatSettings(d.call, q.threadId, q.agentId, q.askerId);
     const failedId = settings.model ?? goneModel(q.message);
-    if (failedId === undefined || failedId === null) return null;
+    if (failedId === undefined || failedId === null) { d.log?.("engine: a model swap found no model to replace", { threadId: q.threadId }); return null; }
     let rows: Row[] = [];
     try { rows = ((await d.call("engine.models.list", { threadId: q.threadId }, q.askerId)) as { models?: Row[] }).models ?? []; }
     catch (e) { d.log?.("the model list could not be read for a model swap", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); }
     const was = rows.find((r) => r.model === failedId);
     // the model leaves this account's list straight away; it is tried again later (model-health.ts)
     markUnavailable(d.db, q.account.ref, failedId, d.now());
-    const last = recallPick(d.db, q.askerId, q.agentId)?.model ?? null;
+    const last = recentPicks(d.db, q.askerId);
     for (const c of candidates(rows, { model: failedId, provider: was?.provider ?? settings.provider }, last)) {
       try {
         // the pick moves to the model that answers: the chat uses it, and so does the person's next new chat
         await d.call("engine.set_model", { threadId: q.threadId, agentId: q.agentId, model: c.model, provider: c.provider }, q.askerId);
+        noteSwap(q.threadId, q.agentId, was?.model ?? settings.model, c.model);
         const account = await d.accountFor({ threadId: q.threadId, agentId: q.agentId, askerId: q.askerId });
         if (!account) continue;
         await say(q, modelSwapLine(was?.title ?? modelName(failedId), c.title ?? modelName(c.model)));

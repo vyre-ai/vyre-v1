@@ -3,8 +3,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { candidates, createModelSwitch, modelSwapLine, NO_MODEL_WORKS } from "../model-switch.ts";
-import { REST_MS, clearUnavailable, markUnavailable, unavailableFor } from "../model-health.ts";
-import { recallPick, rememberPick } from "../last-pick.ts";
+import { REST_MS, clearUnavailable, confirmedFor, forgetAll, markConfirmed, markUnavailable, resetProbes, unavailableFor } from "../model-health.ts";
+import { bindCompleter } from "../runtime.ts";
+import { recallPick, recentPicks, rememberPick } from "../last-pick.ts";
 import { modelsList } from "../handlers/extra/models.ts";
 import { resetLiveModels } from "../live-models.ts";
 import { harness } from "../fixtures/harness.ts";
@@ -19,9 +20,9 @@ const rows = [
 ];
 
 test("the order: same provider first, then the last other pick, then the default", () => {
-  assert.deepEqual(candidates(rows, { model: "beam-free", provider: "opencode_go" }, null).map((r) => r.model), ["glm-5.3", "claude-sonnet-5-5"]);
-  assert.deepEqual(candidates(rows.filter((r) => r.model !== "glm-5.3"), { model: "beam-free", provider: "opencode_go" }, "claude-sonnet-5-5").map((r) => r.model), ["claude-sonnet-5-5"]);
-  assert.deepEqual(candidates(rows, { model: "claude-sonnet-5-5", provider: "anthropic" }, null).map((r) => r.model), ["beam-free", "glm-5.3"].sort((a) => (a === "glm-5.3" ? -1 : 1)));
+  assert.deepEqual(candidates(rows, { model: "beam-free", provider: "opencode_go" }, []).map((r) => r.model), ["glm-5.3", "claude-sonnet-5-5"]);
+  assert.deepEqual(candidates(rows.filter((r) => r.model !== "glm-5.3"), { model: "beam-free", provider: "opencode_go" }, ["claude-sonnet-5-5"]).map((r) => r.model), ["claude-sonnet-5-5"]);
+  assert.deepEqual(candidates(rows, { model: "claude-sonnet-5-5", provider: "anthropic" }, []).map((r) => r.model), ["beam-free", "glm-5.3"].sort((a) => (a === "glm-5.3" ? -1 : 1)));
 });
 
 test("the mark hides a model from one account, ends by itself, and clears when the model works", () => {
@@ -85,4 +86,72 @@ test("a model no account can pay for is passed over; with none left the turn end
   const none = setup(() => false);
   await assert.rejects(() => none.sw(q), (e: { code?: string; message: string }) => e.code === NO_MODEL_WORKS && e.message === "None of your AI accounts can answer right now.");
   assert.equal(none.posts.length, 0);
+});
+
+test("the pick history keeps the last three distinct models, newest first, and the fallback walks back through them", () => {
+  const h = harness();
+  for (const [i, m] of ["a", "b", "a", "c", "d"].entries()) rememberPick(h.ctx.db, "dana", "intake", { model: m, provider: null, effort: null }, 100 + i);
+  assert.deepEqual(recentPicks(h.ctx.db, "dana"), ["d", "c", "a"]);
+  assert.deepEqual(recentPicks(h.ctx.db, "sam"), []);
+  const more = [{ provider: "p", model: "a", allowed: true }, { provider: "p", model: "c", allowed: true }, { provider: "q", model: "z", allowed: true }];
+  assert.deepEqual(candidates(more, { model: "d", provider: "other" }, ["d", "c", "a"]).map((r) => r.model), ["c", "a", "z"]);
+});
+
+test("a sign-in change forgets what was learned about the accounts' models", () => {
+  const h = harness();
+  markConfirmed(h.ctx.db, "#A", "m1", 1000);
+  markUnavailable(h.ctx.db, "#B", "m2", 1000);
+  assert.deepEqual([[...confirmedFor(h.ctx.db, "#A", 2000)], [...unavailableFor(h.ctx.db, "#B", 2000)]], [["m1"], ["m2"]]);
+  forgetAll(h.ctx.db);
+  assert.deepEqual([[...confirmedFor(h.ctx.db, "#A", 2000)], [...unavailableFor(h.ctx.db, "#B", 2000)]], [[], []]);
+});
+
+test("an API key's models are checked in the background: shown greyed as Checking until confirmed, a refused one never becomes a row, and the menu's second call gets the result", async () => {
+  resetLiveModels(); resetProbes();
+  bindCompleter(async () => ({ text: "ok", tokensIn: 1, tokensOut: 1 }));
+  try {
+    const h = harness();
+    const asked: string[] = [];
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => { release = r; });
+    const ctx: EngineCtx = {
+      ...h.ctx,
+      call: async (cap: string, input: unknown) => {
+        if (cap === "providers.list") return { providers: [OPENCODE] };
+        if (cap === "providers.test") return { ok: true, models: ["beam-free", "glm-5.3"] };
+        if (cap === "engine.complete") {
+          const m = (input as { model: string }).model;
+          asked.push(m);
+          await gate;
+          if (m === "beam-free") throw new Error("There's an issue with the selected model (beam-free). It may not exist or you may not have access to it.");
+          return { text: "ok" };
+        }
+        return h.ctx.call(cap, input);
+      },
+    };
+    const first = await modelsList(ctx, { refresh: true });
+    assert.deepEqual(first.models.map((m) => [m.model, m.allowed, m.reason]), [["beam-free", false, "checking"], ["glm-5.3", false, "checking"]]);
+    assert.equal(first.listed?.refreshing, true, "the menu asks again");
+    release();
+    const second = await modelsList(ctx, { wait: true });
+    assert.deepEqual(second.models.map((m) => [m.model, m.allowed, m.reason]), [["glm-5.3", true, undefined]]);
+    assert.deepEqual(asked.sort(), ["beam-free", "glm-5.3"], "one tiny request each");
+    // checked once: opening the menu again asks nobody
+    await modelsList(ctx, { refresh: true });
+    assert.equal(asked.length, 2);
+  } finally { bindCompleter(null); resetProbes(); }
+});
+
+test("a failure that says nothing about the model (a rate limit) confirms it; no completer, no checks", async () => {
+  resetLiveModels(); resetProbes();
+  const h = harness();
+  const mk = (limited: boolean): EngineCtx => ({ ...h.ctx, call: async (cap: string, input: unknown) => (cap === "providers.list" ? { providers: [OPENCODE] } : cap === "providers.test" ? { ok: true, models: ["glm-5.3"] } : cap === "engine.complete" ? (limited ? Promise.reject(new Error("429 rate limit")) : { text: "ok" }) : h.ctx.call(cap, input)) });
+  assert.deepEqual((await modelsList(mk(true), {})).models.map((m) => [m.model, m.allowed]), [["glm-5.3", true]], "without a completer nothing is checked");
+  bindCompleter(async () => ({ text: "", tokensIn: 0, tokensOut: 0 }));
+  try {
+    const c = mk(true);
+    await modelsList(c, { refresh: true });
+    const done = await modelsList(c, { wait: true });
+    assert.deepEqual(done.models.map((m) => [m.model, m.allowed]), [["glm-5.3", true]]);
+  } finally { bindCompleter(null); resetProbes(); }
 });

@@ -4,6 +4,7 @@
 // Also here: the runtime that wires the turn engine to this module's SQL (queue, lease, messages, parked tool calls), so a second host that takes a thread over
 // with recover() replays the same message bodies, and a tool call held at the Gate parks the turn on its task (turn.waiting) until resume().
 import { recallPick } from "./last-pick.ts";
+import { forgetAll } from "./model-health.ts";
 import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { EngineOptions, TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import { handlers as table } from "./handlers/index.ts";
@@ -128,6 +129,11 @@ export const consumers = {
   "engine.no_account_sweep": {
     on: ["provider.added"],
     run: async (ctx: EngineCtx): Promise<string[]> => closeNoAccountTasks(ctx.db),
+  },
+  /** A sign-in changed (an AI account connected, removed, re-authorized or its key changed): what was learned about which models the accounts serve is forgotten, and the next read checks them again (model-health.ts). */
+  "engine.model_health_reset": {
+    on: ["provider.added", "provider.removed", "provider.updated"],
+    run: async (ctx: EngineCtx): Promise<string[]> => { forgetAll(ctx.db); return []; },
   },
   /** A Claude, Codex or Grok sign-in was connected: Vyre installs that engine on this computer in the background when it is not here, so the first chat does not wait for it (engine-setup.ts). */
   "engine.install_on_connect": {
