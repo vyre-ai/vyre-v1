@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
-import { ReachRow } from "../../../../../../ui/src/Row/ReachRow.tsx";
 import { usePageData } from "../recordpage/data.tsx";
 import { ago } from "../recordpage/model.ts";
 import type { TypeDef } from "../recordpage/model.ts";
@@ -30,7 +29,7 @@ export function EverythingTab({ type, recordId, def, onComments }: { type: strin
   // ui-rows-lint: not a list (a capped feed of at most a hundred lines inside the record pane)
   const rows: ReactElement[] = items.map((it) => (
     <View key={it.id} style={s.row}>
-      <ReachRow subject={it.subject}
+      <Row
         id={`ev:${it.id}`} title={it.title} {...(it.note ? { note: it.note } : {})} leading={<Text style={s.kind}>{KIND_LABEL[it.kind]}</Text>}
         trailing={<Text style={s.when}>{ago(it.at, now)}</Text>} {...(open(it) ? { onPress: open(it)! } : {})}
       />
