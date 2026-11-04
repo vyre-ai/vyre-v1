@@ -82,6 +82,8 @@ const open = async (ctx, url) => {
 };
 const pick = async (page, trigger, city) => {
   await page.getByTestId(trigger).click();
+  const sheet = await page.getByTestId("zone-search").waitFor({ timeout: 8000 }).then(() => true, () => false);
+  if (!sheet) { console.log("     no sheet after the click; testids: " + JSON.stringify((await page.$$eval("[data-testid]", (n) => n.map((x) => x.getAttribute("data-testid")))).slice(-40))); await page.screenshot({ path: path.join(out, "debug-no-sheet.png") }); }
   await page.getByTestId("zone-search").fill(city);
   await page.waitForTimeout(500);
   const items = page.locator("[data-testid^='zone-row-']").filter({ hasText: city });
