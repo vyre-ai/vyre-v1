@@ -61,12 +61,13 @@ test("a reply being written says what the agent is doing, from its real steps an
     // the reply arrives and the line goes; the finished reply keeps "Worked for N s" with the steps
     await me.page.getByText(/The notes agree with the plan/).first().waitFor({ timeout: 30_000 });
     await me.page.getByTestId("activity").waitFor({ state: "hidden", timeout: 10_000 });   // the mark settles and fades away
-    const fold = me.page.locator('[data-testid^="work-"]').first();
-    await fold.waitFor({ timeout: 10_000 });
-    assert.match(await fold.innerText(), /Worked/);
+    // a short piece of work keeps its summary beside the message time (short = under the threshold, MessageView work.short) and its trail stays folded until that summary is pressed
+    const fold = me.page.locator('[data-testid^="work-short-"]').first();
+    await fold.waitFor({ timeout: 10_000, state: "attached" });
+    assert.match(await fold.getAttribute("aria-label") ?? "", /Worked/);
     assert.equal(await me.page.getByTestId(/^step-/).count(), 0, "folded by default: its steps are not showing");
     await shoot(me.page, dir, "worked-folded", { phone: false });
-    await fold.getByRole("button").click();
+    await fold.click({ force: true });
     assert.ok(await me.page.getByText("Read", { exact: false }).count() > 0);
     await shoot(me.page, dir, "worked", { phone: false });
 
