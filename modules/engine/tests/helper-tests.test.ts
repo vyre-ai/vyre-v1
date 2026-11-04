@@ -35,3 +35,14 @@ test("a helper that waits on a person points at its held request: the newest wai
   assert.equal(holdOf([{ blocks: [{ type: "turn_status", data: { state: "waiting", taskId: "tsk_old" } }] }, { blocks: [{ type: "text" }] }, { blocks: [{ type: "turn_status", data: { state: "waiting", taskId: "tsk_new" } }] }]), "tsk_new");
   assert.equal(holdOf([{ blocks: [{ type: "turn_status", data: { state: "done", taskId: "tsk_x" } }] }]), undefined);
 });
+
+test("a helper whose last turn ended but has a person's line or a restart waiting reads as working with what it will do; otherwise as the turns say", async () => {
+  const { waitingLine } = await import("../handlers/helpers.ts");
+  const ended = 1_000;
+  const person = (createdAt: number, restart = false) => ({ author: { kind: "person" }, createdAt, blocks: restart ? [{ data: { restart: true } }] : [] });
+  assert.equal(waitingLine(person(2_000, true), ended), "Starting again", "stopped, then restarted: starting, not stopped");
+  assert.equal(waitingLine(person(2_000), ended), "Reading your message", "a line to a helper that has finished");
+  assert.equal(waitingLine(person(500), ended), undefined, "a line written before the last turn ended was answered by it");
+  assert.equal(waitingLine({ author: { kind: "agent" }, createdAt: 2_000 }, ended), undefined, "the helper's own reply is not a line waiting");
+  assert.equal(waitingLine(undefined, ended), undefined);
+});

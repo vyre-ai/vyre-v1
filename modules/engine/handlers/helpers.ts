@@ -17,6 +17,13 @@ export interface HelperStatus {
   threadId: string; title: string; agentId: string; state: HelperState; step?: string; found?: string; startedAt: number; endedAt?: number; elapsedMs: number; tokensIn: number; tokensOut: number; costMicros: number;
 }
 
+export type WaitingMsg = { author?: { kind?: string }; createdAt?: number; blocks?: Array<{ data?: { restart?: boolean } }> };
+/** What the helper will do next, when its last line is a person's (or a restart) written after its last turn ended: "Starting again" or "Reading your message"; nothing when it has no line waiting. */
+export function waitingLine(tail: WaitingMsg | undefined, lastEndedAt: number): string | undefined {
+  if (!tail || tail.author?.kind !== "person" || (tail.createdAt ?? 0) < lastEndedAt) return undefined;
+  return tail.blocks?.some((b) => b.data?.restart === true) ? "Starting again" : "Reading your message";
+}
+
 type HoldMsg = { blocks?: Array<{ type?: string; data?: { state?: string; taskId?: string } }> };
 /** The held request a helper's chat ends on: the newest turn status that is waiting with a task. */
 export function holdOf(messages: readonly HoldMsg[]): string | undefined {
@@ -34,13 +41,13 @@ export async function helpersStatus(ctx: EngineCtx, input: { threadId: string })
     // the helper's own turns say how it stands: the start line's block is not rewritten when it ends (the report is a second message)
     const lastState = last ? String(last["state"]) : "";
     let state: HelperState = lastState === "waiting" ? "needs_you" : lastState === "completed" ? "done" : lastState === "failed" ? "failed" : lastState === "cancelled" ? "stopped" : h.status === "failed" ? "failed" : "working";
-    // a person's line or a restart waits for the helper's next turn: it is working on that, not stopped or done (the last turn ended before the line was written)
+    // a person's line or a restart waits for the helper's next turn: it is working on that, not stopped or done
     let starting: string | undefined;
     if ((state === "stopped" || state === "done" || state === "failed") && last) {
       try {
-        const ms = ((await ctx.call("chat.messages.list", { threadId: h.threadId })) as { messages: Array<{ author?: { kind?: string }; createdAt?: number; body?: string; blocks?: Array<{ type?: string; data?: { restart?: boolean } }> }> }).messages;
-        const tail = ms[ms.length - 1];
-        if (tail && tail.author?.kind === "person" && (tail.createdAt ?? 0) >= num(last["ended_at"] ?? 0)) { state = "working"; starting = tail.blocks?.some((b) => b.data?.restart === true) ? "Starting again" : "Reading your message"; }
+        const ms = ((await ctx.call("chat.messages.list", { threadId: h.threadId })) as { messages: WaitingMsg[] }).messages;
+        const waits = waitingLine(ms[ms.length - 1], num(last["ended_at"] ?? 0));
+        if (waits) { state = "working"; starting = waits; }
       } catch { /* the state stays as the turns say */ }
     }
     const now = ctx.now();
