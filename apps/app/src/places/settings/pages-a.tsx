@@ -357,8 +357,15 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   return (
     <>
       <Section>
+        {options.length === 0 && models.status === "ready" ? (
+          <SettingsRow id="model.none" first label="Add an AI account to choose a default model" sub="Models show up here once an AI account is connected." lead={<Glyph name="key" size={15} />}
+            control={<SmallButton label="Add AI account" primary testID="ctl-add-ai" onPress={() => (openConnect ? void openConnect({ kind: "ai" }) : data.nav.openVault())} />} />
+        ) : (
+          <>
         <SettingsRow id="model.default" label="Default model" sub={last?.model ? "Your last pick. A new chat starts on it" : "A new chat starts on the model you pick"} help={ROW_HELP["model.default"]!} first found={found === "model.default"} control={<Choice value={cur} options={options} label="Default model" testID="ctl-model-default" onChange={(v) => setDefault(v, "model")} />} />
         <SettingsRow id="model.fallback" label="Backup model" sub="Used when the default is busy" help={ROW_HELP["model.fallback"]!} found={found === "model.fallback"} control={<Choice value={fb} options={options} label="Backup model" testID="ctl-model-fallback" onChange={(v) => setDefault(v, "fallback")} />} />
+          </>
+        )}
       </Section>
       <RegistrySections page="ai" rows={rows} found={found} />
       {use.length > 0 ? <Section title="You and your agents this month" testID="usage">{use}</Section> : null}

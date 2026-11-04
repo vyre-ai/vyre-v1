@@ -415,3 +415,12 @@ test("the Default model row shows the model the person last picked, and says so;
   assert.equal(defaultModelValue({}, { provider: "anthropic", model: "claude-sonnet-5-5" }, opts), "anthropic/claude-sonnet-5-5");
   assert.equal(defaultModelValue(null, null, opts), "");
 });
+
+test("Your AI with no AI account: one line and an Add AI account button, not blank pickers", async () => {
+  const s = createSampleSettings(northwind);
+  s.replica.remove("models", s.replica.rows("models").map((r) => String(r.id)));
+  const out = html(s, { initialPage: "ai" });
+  assert.ok(has(out, "Add an AI account to choose a default model") && has(out, 'data-testid="ctl-add-ai"'));
+  assert.ok(!has(out, 'data-testid="ctl-model-default"') && !has(out, 'data-testid="ctl-model-fallback"'), "no empty pickers");
+  assert.ok(has(html(createSampleSettings(northwind), { initialPage: "ai" }), 'data-testid="ctl-model-default"'), "with accounts the pickers are there");
+});
