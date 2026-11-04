@@ -12,14 +12,15 @@ import { quickEntries, templateEntries } from "../contacttab/menus.ts";
 import { listSnippets, listTemplates, templateContent } from "../contacttab/actions.ts";
 import { cannedLists } from "../contacttab/model.ts";
 import {
-  buildFeed, headerOf, canSend, choicesFor, dayLabel, deliveryNote, draftCards, emailTarget, fill, gateLine, initialDraft, pickInbox, replySubject, sendBlocker, sentNote, startChannel, textTarget,
+  buildFeed, headerOf, canSend, choicesFor, dayLabel, deliveryNote, draftCards, emailTarget, fill, sendsLine, initialDraft, pickInbox, replySubject, sendBlocker, sentNote, startChannel, textTarget,
 } from "../contacttab/model.ts";
 import type { ComposerDraft, InboxChoice, SendOptions, ThreadItem, ThreadOut } from "../contacttab/model.ts";
-import { cutOff, loadDraft } from "../contacttab/actions.ts";
 import { discardDraft, markRead, sendAgentDraft, sendEmail, sendText, setFollow } from "../contacttab/actions.ts";
 import { Bubbles, CallLine, EmailItem } from "../contacttab/parts.tsx";
 import { createContactTabSample, threads } from "../contacttab/sample.ts";
 import type { ContactTabSample } from "../contacttab/sample.ts";
+import { DraftBlock } from "../contacttab/parts.tsx";
+import { cutOff, loadDraft } from "../contacttab/actions.ts";
 import { harbor, northwind, SAMPLE_NOW } from "../contactlist/sample.ts";
 import type { SampleSpace } from "../contactlist/sample.ts";
 import { InboxDataProvider } from "../sidebar/index.ts";
@@ -112,17 +113,18 @@ test("screen: an agent's draft shows who drafted it, the inbox it sends from, th
   const { out } = tab("elena");
   assert.ok(has(out, 'data-testid="draft:dr_elena"'));
   assert.ok(has(out, "Intake") && has(out, "drafted a reply"));
-  assert.ok(has(out, "Gate: Intake sends from Work Gmail after you approve") && has(out, 'data-testid="gate:dr_elena"'));
+  assert.ok(has(out, "Sends from") && has(out, "when you press Send") && !has(out, "Gate") && !has(out, "agt_"), "a plain line: no system words, no ids");
+  assert.ok(has(out, 'data-testid="gate:dr_elena"'));
   for (const b of ["draft-send:dr_elena", "draft-edit:dr_elena", "draft-discard:dr_elena"]) assert.ok(has(out, `data-testid="${b}"`), b);
   assert.ok(has(out, "Thanks for draft 3. I will read it tonight"));
   assert.ok(!has(tab("priya").out, 'data-testid="draft:'), "no draft, no card");
-  assert.equal(gateLine("Intake", "Work Gmail"), "Gate: Intake sends from Work Gmail after you approve");
+  assert.equal(sendsLine("techmanager@mylegalacademy.com"), "Sends from techmanager@mylegalacademy.com when you press Send");
 });
 
 test("screen: an agent's text draft says it drafted a text, shows the number and its Gate line, and has no subject", () => {
   const { out } = tab("marcus");
   assert.ok(has(out, 'data-testid="draft:dr_marcus"') && has(out, "drafted a text") && !has(out, "drafted a reply"));
-  assert.ok(has(out, "Gate: Billing sends from +1 415 555 0177 after you approve") && has(out, 'data-testid="gate:dr_marcus"'));
+  assert.ok(has(out, "Sends from") && has(out, "when you press Send") && !has(out, "Gate:") && has(out, 'data-testid="gate:dr_marcus"'));
   for (const b of ["draft-send:dr_marcus", "draft-edit:dr_marcus", "draft-discard:dr_marcus"]) assert.ok(has(out, `data-testid="${b}"`), b);
   assert.ok(has(out, "resending invoice 1041 now"));
 });
@@ -133,7 +135,7 @@ test("an agent's text draft goes out through telephony.send_sms from its number,
   const [card] = draftCards((s.replica.run("mail.drafts.list", { contactId: "ct_marcus" })!.data).drafts, titles(northwind), new Map());
   assert.ok(card);
   assert.equal(card.channel, "sms");
-  assert.equal(card.agent, "agt_billing");
+  assert.equal(card.agent, "An agent", "an agent the directory has no name for is never read out as its id");
   const note = await sendAgentDraft(s.data, card, th.conversation, "Resent.", "", "key-9");
   assert.deepEqual(s.sent[0], { cap: "telephony.send_sms", input: { numberId: "+1 415 555 0177", to: "+1 415 555 0188", body: "Resent.", contactId: "ct_marcus", idempotencyKey: "key-9" } });
   assert.ok(note.length > 0);
@@ -150,12 +152,12 @@ test("screen: the composer opens on the channel of the last message and the inbo
   const smsTab = e.slice(e.lastIndexOf("<", e.indexOf('data-testid="chan-text"')), e.indexOf(">", e.indexOf('data-testid="chan-text"')));
   assert.ok(has(smsTab, 'aria-selected="false"'), "the other tab says it is not selected");
   assert.ok(e.indexOf("Lease documents for Thursday", at(e, "Replying in")) > 0, "Replying in names the thread");
-  assert.ok(!has(e, "Sends from"), "no explaining line under the composer");
+  assert.equal(e.split("Sends from").length, e.split('data-testid="gate:').length, "the only Sends from line is an agent draft's own: none under the composer");
   assert.ok(has(e, "Elena Rivera"), "To shows the contact name");
   const fromE = at(e, 'data-testid="from-name"');
   assert.ok(e.slice(fromE, fromE + 80).includes("Work Gmail"), "From names the inbox it came in on");
   const m = tab("marcus").out;
-  assert.ok(!has(m, "Sends from") && !has(m, 'data-testid="contact-recipients"') && !has(m, 'data-testid="contact-subject"'), "a text has no Cc and Bcc recipients, no Subject and no explaining line");
+  assert.ok(m.split("Sends from").length === m.split('data-testid="gate:').length && !has(m, 'data-testid="contact-recipients"') && !has(m, 'data-testid="contact-subject"'), "a text has no Cc and Bcc recipients, no Subject and no explaining line");
   assert.ok(has(m, 'aria-label="Text from"'));
 });
 
@@ -396,6 +398,20 @@ test("a contact with no name is called by its address, and the header's quiet li
   assert.equal(headSub("Pat@Acme.test", "pat@acme.test ", undefined), null, "case and spaces do not make it a different label");
   assert.equal(headSub("Pat Lee", "pat@acme.test", undefined), "pat@acme.test", "a named contact keeps its address beside the name");
   assert.equal(headSub("pat@acme.test", "pat@acme.test", "Acme"), "Acme", "a company still shows");
+});
+
+test("an updated agent draft says Updated with the time, and the earlier draft is one click away; a first draft says neither", () => {
+  const s = createContactTabSample();
+  const rows = (s.replica.run("mail.drafts.list", { contactId: "ct_elena" })!.data).drafts;
+  const plain = draftCards(rows, titles(northwind), new Map([["agt_intake", "Intake"]]));
+  assert.equal(plain[0]!.earlier, undefined);
+  const updated = draftCards(rows.map((r) => ({ ...r, earlier: { at: SAMPLE_NOW - 3_600_000, subject: "Re: Call", text: "Thursday 3:00 am Pakistan time works." } })), titles(northwind), new Map([["agt_intake", "Intake"]]));
+  assert.equal(updated[0]!.earlier?.text, "Thursday 3:00 am Pakistan time works.");
+  const out = renderToStaticMarkup(<DraftBlock d={updated[0]!} busy={false} offsetMin={0} onSend={() => undefined} onEdit={() => undefined} onDiscard={() => undefined} />).replaceAll("<!-- -->", "");
+  assert.ok(has(out, "Updated") && has(out, `data-testid="draft-updated:${updated[0]!.id}"`) && has(out, "Show the earlier draft"));
+  assert.ok(!has(out, "Thursday 3:00 am"), "the earlier text is folded");
+  const first = renderToStaticMarkup(<DraftBlock d={plain[0]!} busy={false} onSend={() => undefined} onEdit={() => undefined} onDiscard={() => undefined} />).replaceAll("<!-- -->", "");
+  assert.ok(!has(first, "Updated") && !has(first, "earlier draft"));
 });
 
 test("Edit and Send of an agent draft use the stored draft: every character of a body longer than its preview, its own recipients and Cc, never the thread that is open", async () => {

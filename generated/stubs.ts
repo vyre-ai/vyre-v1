@@ -442,6 +442,7 @@ export function stubs(ctx: CallCtx) {
       post: call("chat.post"),
       question: {
         ask: call("chat.question.ask"),
+        withdraw: call("chat.question.withdraw"),
       },
       react: call("chat.react"),
       read_floor: call("chat.read_floor"),

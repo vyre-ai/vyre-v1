@@ -243,6 +243,28 @@ test("discard refuses mail that is not a draft, a draft the caller may not use, 
   assert.equal(row(h, made.draftId).deleted_at, null);
 });
 
+test("one pending draft per thread per agent: a new draft by the same agent on the thread takes the old one's place, and the earlier text is one click away", async () => {
+  const h = setup({ principal: AGENT, contacts: { "josh@jcs.test": [{ recordId: "rec_josh1", score: 0.9 }] } });
+  const got = await ingest(h.ctx, letter("josh@jcs.test", "<j@jcs.test>", "g-j", { mailboxId: MBX, subject: "Call", threadKey: "thread-j" }));
+  const first = await draft(h.ctx, { mailboxId: MBX, replyToMessageId: got.messageId, text: "Thursday 3:00 am Pakistan time works.", idempotencyKey: key() });
+  h.advance(60_000);
+  const second = await draft(h.ctx, { mailboxId: MBX, replyToMessageId: got.messageId, text: "2:00 PM Pacific works.", idempotencyKey: key() });
+  assert.equal(second.draftId, first.draftId, "the same draft, updated");
+  const list = await draftsList(h.ctx, { contactId: "rec_josh1" });
+  assert.equal(list.drafts.length, 1, "one draft for the thread");
+  assert.deepEqual(contractErrors("mail.drafts.list", "out", list), []);
+  assert.equal(list.drafts[0]!.snippet.includes("2:00 PM"), true);
+  assert.deepEqual([list.drafts[0]!.earlier?.text, list.drafts[0]!.earlier?.at], ["Thursday 3:00 am Pakistan time works.", NOW]);
+  // another agent on the same thread has its own draft; the same agent on another thread too
+  const other = await draft({ ...h.ctx, principal: { kind: "agent", id: "agt_other01" } } as never, { mailboxId: MBX, replyToMessageId: got.messageId, text: "A second opinion.", idempotencyKey: key() });
+  assert.notEqual(other.draftId, first.draftId);
+  assert.equal((await draftsList(h.ctx, { contactId: "rec_josh1" })).drafts.length, 2);
+  // a person's own draft is never replaced by an agent's
+  h.ctx.principal = PERSON;
+  const mine = await draft(h.ctx, { mailboxId: MBX, replyToMessageId: got.messageId, text: "My own words.", idempotencyKey: key() });
+  assert.notEqual(mine.draftId, first.draftId);
+});
+
 test("By contact shows only drafts to or from that contact: a draft to someone else filed under the contact is not theirs", async () => {
   const h = setup({ principal: AGENT, contacts: { "josh@jcs.test": [{ recordId: "rec_josh1", score: 0.9 }], "osama@mail.test": [{ recordId: "rec_osama", score: 0.9 }] } });
   const got = await ingest(h.ctx, letter("josh@jcs.test", "<j@jcs.test>", "g-j", { mailboxId: MBX, subject: "Call", threadKey: "thread-j" }));

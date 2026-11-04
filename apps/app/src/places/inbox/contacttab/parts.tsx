@@ -2,12 +2,12 @@
 // player, summary and transcript, an agent's draft with its Gate line. Colours are skin tokens, so a skin switch repaints with no re-render.
 import { createElement, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
 import { Face } from "../sidebar/parts.tsx";
-import { callLabel, clockTime, deliveryNote, duration, firstName, gateLine, isMine, isMissed, msgPreview, partyName, recipientLine, roleLine, senderName, sizeLabel, whenLabel, withLine } from "./model.ts";
+import { callLabel, clockTime, deliveryNote, duration, firstName, sendsLine, isMine, isMissed, msgPreview, partyName, recipientLine, roleLine, senderName, sizeLabel, whenLabel, withLine } from "./model.ts";
 import type { DraftCard, FeedEntry, ThreadMsg } from "./model.ts";
 
 type EmailEntry = Extract<FeedEntry, { kind: "email" }>;
@@ -195,15 +195,16 @@ export function QuietLine({ text, testID }: { text: string; testID: string }): R
 
 /** An agent's draft: what it would send, from which inbox, the Gate line, and Send, Edit and Discard. */
 export interface DraftEditing { text: string; subject: string; loading?: boolean }
-export function DraftBlock({ d, note, busy, editing = null, onChange, onSave, onCancel, onSend, onEdit, onDiscard }: {
-  d: DraftCard; note?: string | undefined; busy: boolean; editing?: DraftEditing | null;
+export function DraftBlock({ d, note, busy, offsetMin = 0, editing = null, onChange, onSave, onCancel, onSend, onEdit, onDiscard }: {
+  d: DraftCard; note?: string | undefined; busy: boolean; offsetMin?: number; editing?: DraftEditing | null;
   onChange?(next: { text: string; subject: string }): void; onSave?(): void; onCancel?(): void; onSend(): void; onEdit(): void; onDiscard(): void;
 }): ReactElement {
+  const [showEarlier, setShowEarlier] = useState(false);
   return (
     <View style={s.dr} testID={`draft:${d.id}`}>
       <View style={s.dh}>
         <Face name={d.agent} size={20} round={false} />
-        <Text style={s.dhText}><Text style={s.dhName}>{d.agent}</Text> drafted a {d.channel === "sms" ? "text" : "reply"}</Text>
+        <Text style={s.dhText}><Text style={s.dhName}>{d.agent}</Text> drafted a {d.channel === "sms" ? "text" : "reply"}{d.earlier ? <Text style={s.dhUpdated} testID={`draft-updated:${d.id}`}>{` · Updated ${clockTime(d.updatedAt, offsetMin)}`}</Text> : null}</Text>
         <View style={s.grow} />
         <Via name={d.via} />
       </View>
@@ -220,9 +221,15 @@ export function DraftBlock({ d, note, busy, editing = null, onChange, onSave, on
         {d.subject ? <Text style={s.drSj}>{d.subject}</Text> : null}
         <Text style={s.drBd}>{d.body}</Text>
       </>)}
+      {d.earlier ? (
+        <View>
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: showEarlier }} testID={`draft-earlier:${d.id}`} onPress={() => setShowEarlier((v) => !v)}><Text style={s.earlierLink}>{showEarlier ? "Hide the earlier draft" : "Show the earlier draft"}</Text></Pressable>
+          {showEarlier ? <Text style={s.earlierText} testID={`draft-earlier-text:${d.id}`}>{d.earlier.text}</Text> : null}
+        </View>
+      ) : null}
       <View style={s.gate} testID={`gate:${d.id}`}>
         <Icon name="shield" size={13} />
-        <Text style={s.gateText}>{gateLine(d.agent, d.via)}</Text>
+        <Text style={s.gateText}>{sendsLine(d.from)}</Text>
       </View>
       {note ? <Text style={s.note} accessibilityRole="alert" testID={`draft-note:${d.id}`}>{note}</Text> : null}
       {editing ? null : <View style={s.acts}>
@@ -246,6 +253,9 @@ const s = StyleSheet.create({
   dEdit: { gap: 8, paddingVertical: 6 },
   dEditSj: { fontSize: 14, fontWeight: "600", color: ink("--ink"), borderWidth: 1, borderColor: ink("--line"), borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   dEditBody: { minHeight: 140, fontSize: 13.5, lineHeight: 20, color: ink("--ink"), borderWidth: 1, borderColor: ink("--line"), borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
+  dhUpdated: { color: ink("--ink-3"), fontSize: 11.5 },
+  earlierLink: { fontSize: 12, color: ink("--accent"), paddingVertical: 4 },
+  earlierText: { fontSize: 12.5, lineHeight: 18, color: ink("--ink-3"), paddingBottom: 6 },
   daysep: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12, marginBottom: 10 },
   rule: { flex: 1, height: 1, backgroundColor: ink("--line") },
   dayText: { fontSize: 11.5, fontWeight: "500", color: ink("--ink-3") },

@@ -74,7 +74,7 @@
     "engine.turn.finish@1": "80c3ca087ef279cb9ca311c77bb9627f54f90c39530879065c7013c5541f49f6",
     "engine.turn.get@1": "d4e858a7def386c022b964e7389af11ea3221ecb493b0587fd5e986076c27e49",
     "engine.turn.of_message@1": "abc79d192c53fed2e1b318c07934c78a94066acf80a2ed87e666ebd08d380daa",
-    "engine.turn.record@1": "e0b8c1269fb37b6be250c3efe2a002a9d0a0c07c70aab12f332b29222e8f1ed2",
+    "engine.turn.record@1": "78d2ff5e4ef763ae1c4ca787db874161657bba74c7231c26d5669c909768b591",
     "engine.turn.record_usage@1": "6a84e5d0553f4d54c2848b1d4e0c8f3ee199371fb44d51a2b7ae0abb6ebd4b39",
     "engine.turn.retry@1": "0549339dc07b67bb1a7913046fef5225e7608a1f4355dc1eb9debe9d6cadd986",
     "engine.turn.start@1": "3af726d013557a892416a812073d5f5cf3cfe2268dae2c7f19d8a81ed321e1e2",

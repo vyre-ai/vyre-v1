@@ -58,6 +58,6 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
       const tools = [...set.listed, ...set.searchable.filter((t) => loaded.has(t.name)), ...extra].map(view);
       return { system, tools };
     },
-    runner: toolRunnerFrom(async (call, ctx) => { await d.prepare?.(ctx); return d.session.call(ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId), call.name, call.input); }),
+    runner: toolRunnerFrom(async (call, ctx) => { await d.prepare?.(ctx); return d.session.call({ ...ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId), ...(ctx.said !== undefined ? { said: ctx.said } : {}) }, call.name, call.input); }),
   };
 }
