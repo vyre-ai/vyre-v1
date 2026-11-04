@@ -53,6 +53,9 @@ test("accounts.list: Codex on an API key resolves to the Codex CLI as an API key
   const out = await accountsList(ctx, {});
   assert.deepEqual(out.accounts.map((a) => [a.ref, a.driver, a.kind]), [["#Dana_Codex", "codex", "subscription"], ["#Dana_CodexKey", "codex", "api_key"]]);
   assert.ok(!JSON.stringify(out).includes("sk-"));
+  assert.equal(out.accounts[1]!.name, "Codex, with an API key", "the key reads in plain words");
+  const named = await accountsList(fake(routes([prov({ id: "prv_3", handle: "#Mine", providerKey: "codex", engine: "codex", connection: "api_key", itemName: "Work Codex key" } as Partial<Prov> & { id: string; handle: string })])).ctx, {});
+  assert.equal(named.accounts[0]!.name, "Work Codex key", "a name the person gave stays");
 });
 
 test("accounts.list says which accounts keep nothing (a local model always does); a Restricted thread runs only on one that does", async () => {
