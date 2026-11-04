@@ -19,6 +19,7 @@ const plan = t.obj({
   planId: insId, state: t.str(), kind: t.enm('skill', 'plugin', 'mcp_local', 'mcp_remote', 'site'), flavor: t.opt(t.enm('claude', 'codex')), name: t.str(),
   summary: t.str({ description: 'What it does, in plain words, read from its README and manifest' }), repo: t.str(), commit: t.str({ description: 'The exact commit it was read at; installs are pinned to it' }), url: t.str(), path: t.opt(t.str()),
   needs, runs: t.opt(t.obj({ command: t.str(), args: t.arr(t.str()) })), skills: t.arr(t.str()), problems: t.arr(t.str()),
+  card: t.obj({ name: t.str(), kind: t.str(), summary: t.str(), commit: t.str(), needs }, { description: 'Copy this into install.apply as card: the held act carries it, so the card draws without a second fetch' }),
   who: t.arr(t.obj({ key: t.enm('me', 'agent', 'space'), label: t.str(), allowed: t.bool(), adminOnly: t.opt(t.bool()) })),
   runOn: t.opt(t.arr(t.obj({ key: t.enm('sandbox', 'space'), label: t.str(), needs: t.opt(t.str()) }))), diff: t.opt(diff),
 });
@@ -29,10 +30,10 @@ export const installCapabilities: CapabilityDef[] = [
   write('install.from_link', 'Read a GitHub link (pinned to a commit) or an MCP server address and say what it is: a skill, a plugin, a local MCP server, a remote MCP server or a site, what it does, what it needs (network, Vault keys, files) and who can get it. Nothing is installed', {
     in: { url: t.str({ examples: ['https://github.com/anthropics/skills/tree/main/pdf'] }) }, out: { plan },
     perm: null, level: 'use', risk: 'low', idem: 'none', audit: 'always', tool: 'agents', mcpName: 'install_from_link', agent: { planMode: 'blocked', blocks: ['install_plan'] },
-    errors: ['validation.bad_input', 'validation.not_found', 'provider.unavailable'],
+    errors: ['validation.bad_input', 'validation.not_found', 'validation.precondition_failed', 'permission.no_grant', 'provider.unavailable'],
   }),
   write('install.apply', 'Install what a plan says, for the person, for one agent, or for everyone in the Space (admin only). An agent asking is held at the Gate as a card with the plan; the person presses Install', {
-    in: { planId: insId, for: t.enm('me', 'agent', 'space'), agentId: t.opt(id.agent), runOn: t.opt(t.enm('sandbox', 'space')), authHandle: t.opt(id.handle) },
+    in: { planId: insId, card: t.opt(t.obj({ name: t.str(), kind: t.str(), summary: t.str(), commit: t.str(), needs })), for: t.enm('me', 'agent', 'space'), agentId: t.opt(id.agent), runOn: t.opt(t.enm('sandbox', 'space')), authHandle: t.opt(id.handle) },
     out: { installed: t.rec(t.json()) },
     perm: null, level: 'edit', risk: 'high', idem: 'key', audit: 'always', gate: 'install', emits: ['skill.mine_changed', 'skill.added', 'plugin.installed', 'plugin.changed'], tool: 'agents', mcpName: 'install_apply',
     errors: ['validation.bad_input', 'validation.not_found', 'validation.precondition_failed', 'permission.role_lacks_permission'],
@@ -40,7 +41,7 @@ export const installCapabilities: CapabilityDef[] = [
   write('install.check_update', 'Read an install\'s repository again. A newer commit gives an update plan with the diff; nothing changes until the plan is applied', {
     in: { installId: insId }, out: { changed: t.bool(), plan: t.opt(plan) },
     perm: null, level: 'use', risk: 'low', idem: 'none', audit: 'always', tool: 'agents', mcpName: 'install_check_update', agent: { planMode: 'blocked', blocks: ['install_plan'] },
-    errors: ['validation.bad_input', 'validation.not_found', 'validation.precondition_failed', 'provider.unavailable'],
+    errors: ['validation.bad_input', 'validation.not_found', 'validation.precondition_failed', 'permission.no_grant', 'provider.unavailable'],
   }),
   read('install.list', 'What was installed from links, by the person asking (an admin may ask for the whole Space)', {
     in: { all: t.opt(t.bool()) }, out: { installs: t.arr(t.obj({ installId: insId, kind: t.str(), name: t.str(), repo: t.str(), commit: t.str(), url: t.str(), by: t.str(), at: t.ts(), installed: t.rec(t.json()) })) },

@@ -371,3 +371,97 @@ test("asked in a chat, the plan puts one card in it with the plan's id; an updat
   hn.world.answer("chat.post", () => { throw new Error("down"); });
   assert.equal((await call(hn, "install.from_link", { url: "https://github.com/acme/pdf-skill" }, inChat)).plan.kind, "skill", "a chat that cannot be posted to does not stop the plan");
 });
+
+test("what is installed is the commit the plan was read at: a branch that moves before approval changes nothing, and a deploy builds that commit", async () => {
+  const { hn, admin } = world();
+  admin();
+  const p = await plan(hn, "acme/pdf-skill");
+  const r = repos.get("acme/pdf-skill")!;
+  const before = { ...r, files: { ...r.files } };
+  r.revision = "6666666pppppppppppppppppppppppppppppp66";
+  r.files = { ...r.files, "SKILL.md": SKILL("pdf-forms", "Fill PDF forms from a record.", "A different body pushed after the plan.") };
+  try {
+    await call(hn, "install.apply", { planId: p.planId, for: "me" });
+    const text = (await call(hn, "skills.view", { name: "pdf-forms" }).catch(() => null));
+    void text;
+    const row = hn.rows("SELECT text, version, source FROM agents_skill_own WHERE name = 'pdf-forms'")[0]!;
+    assert.doesNotMatch(String(row["text"]), /A different body/);
+    assert.equal(row["version"], "aaaaaaa");
+    assert.match(String(row["source"]), /@aaaaaaa1111111111111111111111111111111aa/);
+  } finally { repos.set("acme/pdf-skill", before); }
+  // the Sites deploy is told the commit, not the branch
+  const sites: any[] = [];
+  hn.world.answer("sites.create", (i: any) => { sites.push(i); return { site: { siteId: "sit_1", url: "https://x.test/p/crm" } }; });
+  hn.world.answer("sites.env_set", () => ({ ok: true }));
+  hn.world.answer("sites.deploy", (i: any) => { sites.push(i); return { deployment: { url: "https://x.test/p/crm" } }; });
+  hn.world.answer("plugins.connection.add", () => ({ connection: { connectionId: "mcs_1" } }));
+  const agent = await agentOf(hn, hn.ctx, "Ops");
+  const m = await plan(hn, "acme/crm-mcp");
+  await call(hn, "install.apply", { planId: m.planId, for: "agent", agentId: agent, runOn: "space", authHandle: "#Ops_mcp" });
+  assert.deepEqual(sites.map((s) => s.source?.branch), ["ddddddd4444444444444444444444444444444dd", "ddddddd4444444444444444444444444444444dd"]);
+});
+
+test("the held act carries the plan's summary, and a card that does not match the plan installs nothing", async () => {
+  const { hn } = world();
+  const p = await plan(hn, "acme/crm-mcp");
+  assert.deepEqual(p.card, { name: "crm-mcp", kind: "mcp_local", summary: p.summary, commit: p.commit, needs: p.needs });
+  const agent = await agentOf(hn, hn.ctx, "Ops");
+  const lie = { ...p.card, summary: "A harmless calculator." };
+  assert.equal(await fails(call(hn, "install.apply", { planId: p.planId, card: lie, for: "agent", agentId: agent, runOn: "sandbox" })), "validation.bad_input");
+  assert.equal(hn.rows("SELECT * FROM agents_plugins").length, 0);
+  assert.equal((await call(hn, "install.get", { planId: p.planId })).plan.state, "planned", "the plan is still waiting");
+  await call(hn, "install.apply", { planId: p.planId, card: p.card, for: "agent", agentId: agent, runOn: "sandbox" });
+  assert.equal(hn.rows("SELECT * FROM agents_plugins").length, 1);
+});
+
+test("a site install is updated by the same held flow: a diff, then the same site deployed again at the new commit", async () => {
+  const { hn, admin } = world();
+  admin();
+  const sites: any[] = [];
+  hn.world.answer("sites.create", (i: any) => { sites.push({ cap: "create", ...i }); return { site: { siteId: "sit_7", url: "https://x.test/p/portfolio" } }; });
+  hn.world.answer("sites.deploy", (i: any) => { sites.push({ cap: "deploy", ...i }); return { deployment: { url: "https://x.test/p/portfolio" } }; });
+  const p = await plan(hn, "acme/portfolio");
+  const done = (await call(hn, "install.apply", { planId: p.planId, for: "me" })).installed;
+  assert.equal(done.siteId, "sit_7");
+  const installId = (await call(hn, "install.list", {})).installs[0].installId;
+  const r = repos.get("acme/portfolio")!;
+  const before = { ...r, files: { ...r.files } };
+  r.revision = "3333333cccccccccccccccccccccccccccccc33";
+  r.files = { ...r.files, "index.html": "<h1>Hello again</h1>" };
+  try {
+    const u = await call(hn, "install.check_update", { installId });
+    assert.deepEqual(u.plan.diff.changed.map((c: { path: string }) => c.path), ["index.html"]);
+    assert.equal(sites.filter((s) => s.cap === "deploy").length, 1, "the diff deploys nothing");
+    await call(hn, "install.apply", { planId: u.plan.planId, for: "me" });
+    const deploys = sites.filter((s) => s.cap === "deploy");
+    assert.deepEqual([deploys.length, deploys[1].siteId, deploys[1].source.branch], [2, "sit_7", "3333333cccccccccccccccccccccccccccccc33"]);
+    assert.equal((await call(hn, "install.list", {})).installs[0].commit, "3333333cccccccccccccccccccccccccccccc33");
+  } finally { repos.set("acme/portfolio", before); }
+});
+
+test("a private repository is read with the person's own GitHub: the token handle goes to the reader, a person without GitHub is told to connect it, and a policy of Never is respected", async () => {
+  const { hn } = world();
+  const seen: Array<{ url?: string; tokenHandle?: string }> = [];
+  setPluginsHost({
+    async fetchTree(src) {
+      seen.push({ url: src.url, ...(src.tokenHandle ? { tokenHandle: src.tokenHandle } : {}) });
+      if (src.url?.endsWith("acme/secret-skill") && src.tokenHandle === "#fill_abc") return { files: { "SKILL.md": SKILL("secret-skill", "A private skill.") }, revision: "5".repeat(40), skipped: [] };
+      throw new Error("not found");
+    },
+  });
+  const asked: any[] = [];
+  hn.world.answer("github.token", (i: any) => { asked.push(i); return { handle: "#fill_abc", expiresAt: 1, repo: i.repo, permissions: {} }; });
+  const p = (await call(hn, "install.from_link", { url: "https://github.com/acme/secret-skill" })).plan;
+  assert.deepEqual([p.kind, p.name, p.commit], ["skill", "secret-skill", "5".repeat(40)]);
+  assert.deepEqual(asked, [{ repo: "acme/secret-skill", action: "read", consumer: "install" }]);
+  assert.deepEqual(seen.map((s) => s.tokenHandle), [undefined, "#fill_abc"], "public first, then with the handle");
+  assert.equal(JSON.stringify(p).includes("fill_abc"), false, "the handle never reaches the plan");
+  hn.world.answer("github.token", () => { throw Object.assign(new Error("Connect your GitHub first"), { error: { code: "validation.precondition_failed", message: "Connect your GitHub first" } }); });
+  const noGh = await call(hn, "install.from_link", { url: "https://github.com/acme/secret-skill" }).catch((e) => e);
+  assert.equal(codeOf(noGh), "validation.precondition_failed");
+  assert.match((noGh as { error: { message: string } }).error.message, /Connect your GitHub first, in Settings/);
+  hn.world.answer("github.token", () => { throw Object.assign(new Error("never"), { error: { code: "permission.no_grant", message: "never" } }); });
+  assert.equal(await fails(call(hn, "install.from_link", { url: "https://github.com/acme/secret-skill" })), "permission.no_grant");
+  hn.world.answer("github.token", () => { throw Object.assign(new Error("no repo"), { error: { code: "validation.not_found", message: "no repo" } }); });
+  assert.equal(await fails(call(hn, "install.from_link", { url: "https://github.com/acme/secret-skill" })), "provider.unavailable", "a repo they cannot reach reads as one that cannot be read");
+});

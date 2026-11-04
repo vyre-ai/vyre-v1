@@ -155,6 +155,7 @@ import type { GithubOAuth } from "../seams/people.ts";
 import { createSpaceAdmin } from "../seams/spaceadmin.ts";
 import { preAuthSession } from "./preauth.ts";
 import { createFiller } from "../seams/filler.ts";
+import { cloneTokens } from "../seams/plugins.ts";
 import { createProviderProbe, createVaultService, refuseModelAddress, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
 import { createPushPort, defaultFetch, wireSeams } from "../seams/index.ts";
@@ -411,7 +412,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const now = o.now ?? Date.now;
   // What holds a GitHub installation token for one use: the token is delivered once, to the git module's credential slot (a ref), and read back by the git host. It is no Vault item and is never stored.
   const gitCredentials = new Map<string, string>();
-  const filler = o.seams?.filler ?? createFiller({ git_credential: (ref, value) => { gitCredentials.set(ref, value); } }, now);
+  const filler = o.seams?.filler ?? createFiller({ git_credential: (ref, value) => { gitCredentials.set(ref, value); }, git_clone: (ref, value) => { cloneTokens.set(ref, value); } }, now);
   const codeRoot = o.codeRoot ?? CODE_ROOT;
   const platform = o.platform ?? nodePlatform();
   const hasSpace = cfg.roles.includes("space");

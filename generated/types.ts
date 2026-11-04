@@ -19943,6 +19943,17 @@ export type InboxUnmatchedOut = {
 };
 export type InstallApplyIn = {
   planId: string;
+  card?: {
+    name: string;
+    kind: string;
+    summary: string;
+    commit: string;
+    needs: {
+      domains: Array<string>;
+      vaultKeys: Array<string>;
+      files: Array<string>;
+    };
+  };
   for: "me" | "agent" | "space";
   agentId?: string;
   runOn?: "sandbox" | "space";
@@ -19979,6 +19990,17 @@ export type InstallCheckUpdateOut = {
     };
     skills: Array<string>;
     problems: Array<string>;
+    card: {
+      name: string;
+      kind: string;
+      summary: string;
+      commit: string;
+      needs: {
+        domains: Array<string>;
+        vaultKeys: Array<string>;
+        files: Array<string>;
+      };
+    };
     who: Array<{
         key: "me" | "agent" | "space";
         label: string;
@@ -20029,6 +20051,17 @@ export type InstallFromLinkOut = {
     };
     skills: Array<string>;
     problems: Array<string>;
+    card: {
+      name: string;
+      kind: string;
+      summary: string;
+      commit: string;
+      needs: {
+        domains: Array<string>;
+        vaultKeys: Array<string>;
+        files: Array<string>;
+      };
+    };
     who: Array<{
         key: "me" | "agent" | "space";
         label: string;
@@ -20079,6 +20112,17 @@ export type InstallGetOut = {
     };
     skills: Array<string>;
     problems: Array<string>;
+    card: {
+      name: string;
+      kind: string;
+      summary: string;
+      commit: string;
+      needs: {
+        domains: Array<string>;
+        vaultKeys: Array<string>;
+        files: Array<string>;
+      };
+    };
     who: Array<{
         key: "me" | "agent" | "space";
         label: string;

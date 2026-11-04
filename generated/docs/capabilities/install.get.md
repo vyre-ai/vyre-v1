@@ -55,6 +55,17 @@ type Out = {
     };
     skills: Array<string>;
     problems: Array<string>;
+    card: {
+      name: string;
+      kind: string;
+      summary: string;
+      commit: string;
+      needs: {
+        domains: Array<string>;
+        vaultKeys: Array<string>;
+        files: Array<string>;
+      };
+    };
     who: Array<{
         key: "me" | "agent" | "space";
         label: string;
@@ -100,6 +111,23 @@ type Out = {
   },
   "output": {
     "plan": {
+      "card": {
+        "commit": "example",
+        "kind": "example",
+        "name": "example",
+        "needs": {
+          "domains": [
+            "example"
+          ],
+          "files": [
+            "example"
+          ],
+          "vaultKeys": [
+            "example"
+          ]
+        },
+        "summary": "example"
+      },
       "commit": "example",
       "diff": {
         "added": [

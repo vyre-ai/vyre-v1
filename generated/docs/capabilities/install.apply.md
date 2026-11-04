@@ -26,6 +26,17 @@ Install what a plan says, for the person, for one agent, or for everyone in the 
 ```ts
 type In = {
   planId: string;
+  card?: {
+    name: string;
+    kind: string;
+    summary: string;
+    commit: string;
+    needs: {
+      domains: Array<string>;
+      vaultKeys: Array<string>;
+      files: Array<string>;
+    };
+  };
   for: "me" | "agent" | "space";
   agentId?: string;
   runOn?: "sandbox" | "space";
@@ -60,6 +71,23 @@ type Out = {
   "input": {
     "agentId": "agt_a1b2c3",
     "authHandle": "#Dana_Lawmatics",
+    "card": {
+      "commit": "example",
+      "kind": "example",
+      "name": "example",
+      "needs": {
+        "domains": [
+          "example"
+        ],
+        "files": [
+          "example"
+        ],
+        "vaultKeys": [
+          "example"
+        ]
+      },
+      "summary": "example"
+    },
     "for": "me",
     "idempotencyKey": "idem_1",
     "planId": "ins_a1b2c3",

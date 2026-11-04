@@ -31379,6 +31379,58 @@
             "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
             "type": "string"
           },
+          "card": {
+            "properties": {
+              "commit": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "needs": {
+                "properties": {
+                  "domains": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "files": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "vaultKeys": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "domains",
+                  "vaultKeys",
+                  "files"
+                ],
+                "type": "object"
+              },
+              "summary": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "kind",
+              "summary",
+              "commit",
+              "needs"
+            ],
+            "type": "object"
+          },
           "for": {
             "enum": [
               "me",

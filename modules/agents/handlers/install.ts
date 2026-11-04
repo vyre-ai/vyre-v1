@@ -250,6 +250,8 @@ function planOut(ctx: AgentsCtx, id: string, p: Plan, state: string) {
     needs: p.needs, ...(p.runs ? { runs: p.runs } : {}), skills: p.skills, problems: p.problems, who: WHO(admin),
     ...(p.kind === "mcp_local" ? { runOn: [{ key: "sandbox" as const, label: "On your computer, in the sandbox" }, { key: "space" as const, label: "Run it on the Space", needs: "A Vault key to protect it" }] } : {}),
     ...(p.diff ? { diff: p.diff } : {}),
+    // what the held act carries, so its card draws without a second fetch: an agent copies this into install.apply, and apply refuses a card that does not match the plan
+    card: { name: p.name, kind: p.kind, summary: p.summary, commit: p.commit, needs: p.needs },
   };
 }
 
@@ -273,6 +275,30 @@ async function card(ctx: AgentsCtx, planId: string, p: Plan, update = false, ins
   } catch (e) { ctx.log.warn("agents: the install card could not be posted", { error: e instanceof Error ? e.message : String(e) }); }
 }
 
+/**
+ * A GitHub repository as text files. Public repositories are read as they are. One that cannot be read that way may be private: then the person's own GitHub is asked for a short-lived read token
+ * (github.token, which follows what they let uses of their GitHub do), and the clone is made with it. A person with no GitHub connected is told so in words.
+ */
+async function readRepo(ctx: AgentsCtx, l: { owner: string; repo: string; ref?: string; path?: string }): Promise<{ files: Files; revision: string }> {
+  const url = `https://github.com/${l.owner}/${l.repo}`;
+  let tree;
+  try { tree = await treeOf(ctx, { kind: "git", url, ...(l.ref ? { ref: l.ref } : {}) }); }
+  catch (first) {
+    let handle: string | undefined;
+    try { handle = ((await ctx.call?.("github.token", { repo: `${l.owner}/${l.repo}`, action: "read", consumer: "install" })) as { handle?: string } | undefined)?.handle; }
+    catch (e) {
+      const code = (e as { error?: { code?: string }; code?: string })?.error?.code ?? (e as { code?: string })?.code;
+      if (code === "validation.precondition_failed") raise(ctx, "validation.precondition_failed", "Connect your GitHub first, in Settings, so I can read private repositories.", { reason: "github_not_connected" });
+      if (code === "permission.no_grant") raise(ctx, "permission.no_grant", "Your GitHub settings do not let me read this repository.", { reason: "github_policy" });
+    }
+    if (!handle) throw first;
+    tree = await treeOf(ctx, { kind: "git", url, ...(l.ref ? { ref: l.ref } : {}), tokenHandle: handle });
+  }
+  const pre = l.path ? `${l.path.replace(/\/$/, "")}/` : "";
+  const files = pre ? Object.fromEntries(Object.entries(tree.files).filter(([p]) => p.startsWith(pre)).map(([p, t]) => [p.slice(pre.length), t])) : tree.files;
+  return { files, revision: tree.revision };
+}
+
 export async function fromLink(ctx: AgentsCtx, input: In) {
   ensure(ctx.db);
   const url = str(input.url).trim();
@@ -289,11 +315,9 @@ export async function fromLink(ctx: AgentsCtx, input: In) {
     return { plan: planOut(ctx, rid, p, "planned") };
   }
   const l = asLink as { kind: "github"; owner: string; repo: string; ref?: string; path?: string };
-  const tree = await treeOf(ctx, { kind: "git", url: `https://github.com/${l.owner}/${l.repo}`, ...(l.ref ? { ref: l.ref } : {}) });
-  const pre = l.path ? `${l.path.replace(/\/$/, "")}/` : "";
-  const files = pre ? Object.fromEntries(Object.entries(tree.files).filter(([p]) => p.startsWith(pre)).map(([p, t]) => [p.slice(pre.length), t])) : tree.files;
+  const { files, revision } = await readRepo(ctx, l);
   if (Object.keys(files).length === 0) raise(ctx, "validation.not_found", `There is nothing at ${l.path ?? "that link"} in ${l.owner}/${l.repo}.`);
-  const found = detect(files, `${l.owner}/${l.repo}`, l.path ?? "", tree.revision, url);
+  const found = detect(files, `${l.owner}/${l.repo}`, l.path ?? "", revision, url);
   if ("problem" in found) raise(ctx, "validation.bad_input", found.problem);
   const pid = save(ctx, { asker: me(ctx), agentId, url, p: found, files });
   await card(ctx, pid, found);
@@ -324,13 +348,11 @@ export async function checkUpdate(ctx: AgentsCtx, input: In) {
   const was = parse<Plan>(r["plan_json"], {} as Plan);
   if (was.kind === "mcp_remote") return { changed: false };
   const l = classifyLink(str(r["url"])) as { kind: "github"; owner: string; repo: string; ref?: string; path?: string };
-  const tree = await treeOf(ctx, { kind: "git", url: `https://github.com/${l.owner}/${l.repo}`, ...(l.ref ? { ref: l.ref } : {}) });
-  if (tree.revision === str(r["commit_sha"])) return { changed: false };
-  const pre = l.path ? `${l.path.replace(/\/$/, "")}/` : "";
-  const files = pre ? Object.fromEntries(Object.entries(tree.files).filter(([p]) => p.startsWith(pre)).map(([p, t]) => [p.slice(pre.length), t])) : tree.files;
-  const found = detect(files, was.repo, was.path, tree.revision, str(r["url"]));
+  const { files, revision } = await readRepo(ctx, l);
+  if (revision === str(r["commit_sha"])) return { changed: false };
+  const found = detect(files, was.repo, was.path, revision, str(r["url"]));
   if ("problem" in found) raise(ctx, "validation.bad_input", found.problem);
-  found.diff = diffOf(str(r["commit_sha"]), tree.revision, parse<Files>(r["files_json"], {}), files);
+  found.diff = diffOf(str(r["commit_sha"]), revision, parse<Files>(r["files_json"], {}), files);
   const id = save(ctx, { asker: me(ctx), agentId: str(r["agent_id"]), url: str(r["url"]), p: found, files, updateOf: str(r["id"]) });
   await card(ctx, id, found, true, str(r["id"]));
   return { changed: true, plan: planOut(ctx, id, found, "planned") };
@@ -370,6 +392,10 @@ export async function apply(ctx: AgentsCtx, input: In) {
   const p = parse<Plan>(r["plan_json"], {} as Plan);
   const files = parse<Files>(r["files_json"], {});
   const forWho = input.for as "me" | "agent" | "space";
+  if (input.card !== undefined) {
+    const c = input.card as In;
+    if (c.name !== p.name || c.kind !== p.kind || c.commit !== p.commit || c.summary !== p.summary || JSON.stringify(c.needs) !== JSON.stringify(p.needs)) raise(ctx, "validation.bad_input", "The card did not match the plan, so nothing was installed.", { reason: "card_mismatch" });
+  }
   if (forWho === "space" && !isAdmin(ctx)) raise(ctx, "permission.role_lacks_permission", "Only an admin can install something for everyone in the Space.", { reason: "admin_only" });
   const agentId = forWho === "agent" ? str(input.agentId || (ctx.principal.kind === "agent" ? ctx.principal.id : "")) : "";
   if (forWho === "agent") {
@@ -387,6 +413,9 @@ export async function apply(ctx: AgentsCtx, input: In) {
       const s = skillsInTree(files, p.name).skills[0]!;
       const o = ownById(ctx, String(was["skillId"]));
       if (o) saveFor(ctx, { owner: o.owner, text: s.text, files: s.files, source: sourceOf(p), version: short(p.commit), skillId: o.id, summary: `updated to ${short(p.commit)}` });
+    } else if (was["siteId"]) {
+      // a site, or a server run on the Space: the same site is built again from the new commit
+      await call(ctx, "sites.deploy", { siteId: String(was["siteId"]), source: { repo: `https://github.com/${p.repo}`, branch: p.commit, ...(p.path ? { root: p.path } : {}) }, wait: false });
     } else if (was["pluginId"]) {
       ctx.db.run("UPDATE agents_plugins SET version = ?, contents_json = ?, files_json = ? WHERE id = ?", short(p.commit), JSON.stringify(contentsOf(p, files)), JSON.stringify(files), String(was["pluginId"]));
       ctx.emit("plugin.changed", String(was["pluginId"]), { pluginId: String(was["pluginId"]), name: p.name, by: me(ctx) });
@@ -440,10 +469,12 @@ async function call<T>(ctx: AgentsCtx, cap: string, input: Record<string, unknow
 async function deployOnSites(ctx: AgentsCtx, p: Plan, input: In, key: string, mcp = true): Promise<Record<string, unknown>> {
   if (ctx.authorize?.({ perm: "sites.deploy", level: "use" }, { type: "space", id: ctx.space }).effect !== "allow") raise(ctx, "permission.role_lacks_permission", "You may not deploy on this Space's Sites.", { reason: "no_sites" });
   if (mcp && !input.authHandle) raise(ctx, "validation.bad_input", "Choose the Vault key that protects it, so only your agents can call it.", { reason: "needs_auth" });
-  const created = await call<{ site: { siteId: string; url?: string } }>(ctx, "sites.create", { name: p.name, kind: mcp ? "api" : "site", repoUrl: `https://github.com/${p.repo}`, access: mcp ? "space" : "private" }, `${key}:site`);
+  // the deploy builds the commit the plan was read at, not whatever the branch has become
+  const src = { repo: `https://github.com/${p.repo}`, branch: p.commit, ...(p.path ? { root: p.path } : {}) };
+  const created = await call<{ site: { siteId: string; url?: string } }>(ctx, "sites.create", { name: p.name, kind: mcp ? "api" : "site", repoUrl: `https://github.com/${p.repo}`, source: src, access: mcp ? "space" : "private" }, `${key}:site`);
   const siteId = created.site.siteId;
   if (mcp) await call(ctx, "sites.env_set", { siteId, entries: [{ name: "MCP_AUTH_TOKEN", vaultHandle: String(input.authHandle) }] });
-  const dep = await call<{ deployment?: { deploymentId?: string; url?: string } }>(ctx, "sites.deploy", { siteId, wait: false });
+  const dep = await call<{ deployment?: { deploymentId?: string; url?: string } }>(ctx, "sites.deploy", { siteId, source: src, wait: false });
   const out: Record<string, unknown> = { siteId, ...(dep.deployment?.url ? { url: dep.deployment.url } : created.site.url ? { url: created.site.url } : {}), runOn: "space" };
   if (mcp) {
     const base = String(out["url"] ?? "");
