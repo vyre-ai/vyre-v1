@@ -410,7 +410,6 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
       {m.via ? <Text testID={`via-${m.messageId}`} style={st.via}>{`Sent by ${item.who.name} on a routine ${m.via.routineOwner === meId ? "you" : actions.nameOf ? actions.nameOf(m.via.routineOwner) : unnamed(m.via.routineOwner)} set`}</Text> : null}
       {work && (!work.short || !item.newgroup || workOpen) ? (
         <Fold testID={`work-${m.messageId}`} label={work.live ? `Working${work.now ? ` · ${work.now}` : ""}` : work.summary} open={work.live || workOpen} live={work.live} onToggle={() => setWorkOpen((o) => !o)}>
-          {item.hookSteps && actions.files ? <HookSteps id={m.messageId} steps={item.hookSteps.next} agentId={item.hookSteps.agentId} threadId={actions.files.threadId} call={actions.files.call} /> : null}
       {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part="line" />}
           {collect(work.steps, (l) => (
             <View key={l.id} testID={`step-${l.id}`} style={st.step}>
@@ -423,6 +422,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
       ) : null}
       {stream ? <LiveBody store={stream} hideEmpty={actions.activityOf?.(m.messageId) !== undefined} testID={`body-${m.messageId}`} style={st.body} /> : m.body && !crewCard ? <View testID={`body-${m.messageId}`} style={st.body}><MarkdownBlocks blocks={subjects.blocks} {...(subjects.renderLink || chips.renderLink ? { renderLink: ((href, kids, key) => chips.renderLink?.(href, kids, key) ?? subjects.renderLink?.(href, kids, key) ?? null) as NonNullable<typeof chips.renderLink> } : {})} {...(renderCode ? { renderCode } : {})} /></View> : null}
       {stream && actions.activityOf?.(m.messageId) ? <ActivityLine store={actions.activityOf(m.messageId)!} stream={stream} /> : null}
+          {item.hookSteps && actions.files ? <HookSteps id={m.messageId} steps={item.hookSteps.next} agentId={item.hookSteps.agentId} threadId={actions.files.threadId} call={actions.files.call} /> : null}
       {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part={work ? "cards" : "all"} />}
           {crewStart && actions.openMessage ? <CrewStartLine block={crewStart} name={actions.nameOf ? actions.nameOf(String((crewStart.data as { agentId?: unknown } | null)?.agentId ?? "")) : item.who.name} onOpen={(id) => actions.openMessage?.(id, "")} /> : null}
       {actions.files && refsOf(m).length > 0 ? <MountRefs refs={refsOf(m)} data={actions.files} /> : null}

@@ -17,15 +17,18 @@ export function splitHooks(hooks: readonly Hook[], helperThreadId: string): { ow
 
 function HookRow({ h, tag, open }: { h: Hook; tag: string; open?: (hookId: string) => void }): ReactElement {
   const [over, setOver] = useState(false);
+  // the pointer is read from the row's own mouse events, as the pane's rows do (a hover prop on a Pressable waits for a touch-free device)
   return (
-    <Pressable key={h.id} accessibilityRole="button" accessibilityLabel={`${tag}: ${h.line}`} testID={`helper-hook-${h.id}`} disabled={!open} onPress={() => open?.(h.id)} onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} style={[st.row, over && open ? st.over : null]}>
-      <View style={st.text}>
-        <Text style={st.when}>{titleOf(h)}</Text>
-        <Text style={st.what}>{kindWord(h)}: {whatOf(h)}</Text>
-      </View>
-      <Text style={st.tag}>{tag}</Text>
-      {open ? <Icon name="chev" size={11} color="var(--ink-4)" /> : null}
-    </Pressable>
+    <View {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }} style={[st.row, over && open ? st.over : null]}>
+      <Pressable key={h.id} accessibilityRole="button" accessibilityLabel={`${tag}: ${h.line}`} testID={`helper-hook-${h.id}`} disabled={!open} onPress={() => open?.(h.id)} style={st.rowIn}>
+        <View style={st.text}>
+          <Text style={st.when}>{titleOf(h)}</Text>
+          <Text style={st.what}>{kindWord(h)}: {whatOf(h)}</Text>
+        </View>
+        <Text style={st.tag}>{tag}</Text>
+        {open ? <Icon name="chev" size={11} color="var(--ink-4)" /> : null}
+      </Pressable>
+    </View>
   );
 }
 
@@ -45,7 +48,8 @@ const st = StyleSheet.create({
   root: { marginTop: 14 },
   head: { flexDirection: "row", justifyContent: "space-between", marginBottom: 4 },
   label: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
-  row: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, paddingHorizontal: 8, marginHorizontal: -8, borderRadius: 10 },
+  row: { paddingHorizontal: 8, marginHorizontal: -8, borderRadius: 10 },
+  rowIn: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
   over: { backgroundColor: "color-mix(in srgb, var(--ink) 5%, transparent)" as string },
   text: { flex: 1, minWidth: 0 },
   when: { fontSize: 14, fontWeight: "500", color: "var(--ink)" as string },
