@@ -32,7 +32,7 @@ export function RequestsPage(): ReactElement {
   const joining = joinAsked.data?.requests ?? [];
   const line = askedLine(waiting.length + joining.length);
   return <View testID="console-requests">
-    {line ? <Group testID="requests-asked"><Row id="requests-asked-line" title={line} note="Approve or decline below." /></Group> : null}
+    {line ? <Group testID="requests-asked"><Row id="requests-asked-line" title={line} note="Allow or deny below." /></Group> : null}
     <OpenInvites key={rev} roleName={roleName} showEmpty right={<Button label="New invite" testID="newinvite" onPress={() => setInviting(true)} />} />
     {joinLink.data ? <JoinLinkSection link={joinLink.data.link} requests={joining} roles={roles.data.roles} roleName={roleName} refresh={() => { joinLink.refresh(); joinAsked.refresh(); }} /> : null}
     <Section title="Asked for access" count={waiting.length} testID="requests-list">
