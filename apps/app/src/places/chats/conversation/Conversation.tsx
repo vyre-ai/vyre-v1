@@ -493,7 +493,7 @@ function ConversationView(): ReactElement {
     },
     setPinned: (id, pinned) => void act.setPinned(data, id, pinned).catch(fail("Could not pin it.")),
     react: (id, emoji, remove) => void act.react(data, id, emoji, remove).catch(fail("Could not react.")),
-    openThread: (id) => void act.openMessageThread(data, id).then((tid) => (data.nav.openReplies && thread.kind !== "thread" ? data.nav.openReplies(tid) : data.nav.openThread(tid)), fail("Could not open the replies.")),
+    openThread: (id) => void act.openMessageThread(data, id).then((tid) => data.nav.openThread(tid), fail("Could not open the replies.")),
     remove: (id) => void act.deleteMessage(data, id).catch(fail("Could not delete it.")),
     ...(data.alsoSent ? { alsoSent: data.alsoSent } : {}),
     openAgent: data.nav.openAgent,

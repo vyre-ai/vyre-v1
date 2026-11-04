@@ -7,23 +7,24 @@ import { Dimensions } from "react-native";
 import { createRoot } from "test-renderer";
 import { installDom, mount, press, find, flush, textOf } from "../../../onboarding/test-dom.ts";
 import type { Node } from "../../../onboarding/test-dom.ts";
-import { ChatsPlace } from "../ChatsPlace.tsx";
+import { ThreadSide } from "../mounts/ThreadSide.tsx";
+import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { Conversation } from "../conversation/Conversation.tsx";
 import { SAMPLE_NOW, createSample } from "../conversation/sample.ts";
 import type { Sample } from "../conversation/sample.ts";
 import type { ConversationData, LiveTurns } from "../conversation/data.tsx";
 import type { Message } from "../conversation/model.ts";
-import { createSample as createPaneSample } from "../rightpane/sample.ts";
-import { createSampleSidebar } from "../sidebar/sample.ts";
 import { replySummaries } from "../conversation/replies.ts";
 import * as actions from "../conversation/actions.ts";
-import { ThreadPane } from "./ThreadPane.tsx";
 import { alsoSentIds } from "./also-sent.ts";
 import { footerOf, mmss, repliesOf, SWITCH_TITLE } from "./model.ts";
 
 const widen = (width: number): void => Dimensions.set({ window: { width, height: 844, scale: 1, fontScale: 1 } });
 const at = (h: number, min: number): number => Date.UTC(2025, 9, 24, h, min, 0);
-const ALL = { start: 0, end: 500 };
+/** The thread beside the chat, as the shell draws it: the thread's conversation over the sample's kept copy, a wide screen (a column in the side pane) or a phone (a full-screen sheet). */
+const side = (s: Sample, narrow: boolean, threadId = "t_c2", onClose: () => void = () => undefined): ReturnType<typeof ThreadSide> => (
+  <ThreadSide rt={{ screens: s.data.screens, call: s.data.call, connection: s.data.connection } as unknown as ShellRuntime} threadId={threadId} data={{ ...s.data, threadId }} narrow={narrow} onClose={onClose} say={(t) => s.data.toast(t)} />
+);
 
 /** The sample channel: Maya's question (c1) and your ask (c2), with Intake and Docs listening. The thread under c2 is t_c2. */
 const channel = (): Sample => { const s = createSample("channel"); s.replica.put("threads", [{ id: "c1", ...(s.replica.rows("threads")[0] as object), agentRepliesInThreads: true }]); return s; };
@@ -91,27 +92,17 @@ test("a thread with nothing in it yet but an agent writing already shows the foo
   assert.doesNotMatch(foot, /0 replies/, "no zero count while it writes the first reply");
 });
 
-test("pressing the footer opens the thread beside the chat; without that, the thread opens as a chat of its own", async () => {
+test("pressing the footer opens the thread under the message through chat.thread; the shell draws it beside the chat or as a sheet", async () => {
   installDom(); widen(1280);
   const s = channel();
   s.replica.put("threads", [threadRow({ replyCount: 2, lastMessageAt: at(9, 40) })]);
-  const asked: string[] = [];
-  const root = await mount(createRoot, <Conversation data={{ ...s.data, nav: { ...s.data.nav, openReplies: (id) => void asked.push(id) } }} />);
+  const root = await mount(createRoot, <Conversation data={s.data} />);
   await press(find(root, "replies-c2"));
   await flush();
-  assert.deepEqual(asked, ["t_c2"], "openReplies got the thread under the message");
-  assert.ok(s.calls.some((c) => c.cap === "chat.thread" && (c.input as { messageId: string }).messageId === "c2"), "through chat.thread");
-  assert.ok(!s.opened.some((o) => o.startsWith("thread:")), "the thread did not open as a chat of its own");
-
-  const plain = channel();
-  plain.replica.put("threads", [threadRow({ replyCount: 2 })]);
-  const root2 = await mount(createRoot, <Conversation data={plain.data} />);
-  await press(find(root2, "replies-c2"));
-  await flush();
-  assert.ok(plain.opened.includes("thread:t_c2"), "a shell without the pane keeps the old way");
+  assert.ok(s.calls.some((c) => c.cap === "chat.thread" && (c.input as { messageId: string }).messageId === "c2"), "through chat.thread, for the message that was asked");
+  assert.deepEqual(s.opened.filter((o) => o.startsWith("thread:")), ["thread:t_c2"], "the shell is asked for that thread");
 });
 
-const place = (s: Sample): ReturnType<typeof ChatsPlace> => <ChatsPlace sidebar={createSampleSidebar().data} conversation={s.data} pane={createPaneSample("northwind").data} window={ALL} />;
 const withThread = (): Sample => {
   const s = channel();
   s.replica.put("threads", [threadRow({ replyCount: 2, lastMessageAt: at(9, 40) })]);
@@ -119,31 +110,27 @@ const withThread = (): Sample => {
   return s;
 };
 
-test("on a wide screen the thread opens in the shared side pane as a Thread tab,", async () => {
+test("on a wide screen the thread is a column in the shared side pane, with the thread's own tab", async () => {
   installDom(); widen(1280);
-  const root = await mount(createRoot, place(withThread()));
-  assert.equal(find(root, "thread-pane"), null);
-  await press(find(root, "replies-c2"));
+  const root = await mount(createRoot, side(withThread(), false));
   await flush();
-  assert.ok(find(root, "thread-pane"), "the thread is open");
-  assert.ok(find(root, "right-tab-body"), "inside the pane's own tab body");
+  assert.ok(find(root, "thread-side"), "the thread is open beside the chat");
   assert.equal(find(root, "thread-sheet"), null, "not a sheet");
   assert.match(textOf(root), /\bThread\b/, "a tab titled Thread");
+  assert.match(textOf(find(root, "thread-side")), /Tuesday has two openings/, "with its replies");
 });
 
-test("on a phone the thread opens as a full-screen sheet with a back arrow, and back returns to the chat", async () => {
+test("on a phone the thread is a full-screen sheet with a back arrow, and back closes it", async () => {
   installDom(); widen(390);
-  const root = await mount(createRoot, place(withThread()));
-  assert.equal(find(root, "chats-right-pane"), null, "a phone has no side pane");
-  await press(find(root, "replies-c2"));
+  let closed = 0;
+  const root = await mount(createRoot, side(withThread(), true, "t_c2", () => { closed += 1; }));
   await flush();
   assert.ok(find(root, "thread-sheet"), "the sheet is open");
-  assert.ok(find(root, "thread-pane"), "with the thread in it");
+  assert.ok(find(root, "thread-side"), "with the thread in it");
   assert.match(textOf(find(root, "thread-sheet")), /Thread/);
+  assert.match(textOf(find(root, "thread-sheet-title")), /intake/, "under the title of the chat it hangs in");
   await press(find(root, "thread-sheet-back"));
-  await flush();
-  assert.equal(find(root, "thread-sheet"), null, "back closes it");
-  assert.ok(find(root, "replies-c2"), "and the footer is where it was");
+  assert.equal(closed, 1, "back closes it");
   widen(1280);
 });
 
@@ -151,14 +138,14 @@ test("an empty thread says so; a long thread opens on its last reply", async () 
   installDom(); widen(1280);
   const empty = channel();
   empty.replica.put("threads", [threadRow()]);
-  const a = await mount(createRoot, <ThreadPane data={empty.data} threadId="t_c2" />);
+  const a = await mount(createRoot, side(empty, false));
   await flush();
   assert.match(textOf(find(a, "thread-empty")), /No replies yet/);
 
   const long = channel();
   long.replica.put("threads", [threadRow({ replyCount: 60, lastMessageAt: at(11, 0) })]);
   long.replica.put("messages", Array.from({ length: 60 }, (_, i) => msg(`tl${i + 1}`, "t_c2", i + 1, i % 2 === 0 ? me : intake, `Reply number ${i + 1}`, { createdAt: at(9, 22) + i * 1000 })));
-  const b = await mount(createRoot, <ThreadPane data={long.data} threadId="t_c2" />);
+  const b = await mount(createRoot, side(long, false));
   await flush();
   assert.equal(find(b, "thread-empty"), null);
   assert.ok(find(b, "msg-tl60"), "the newest reply is on the page");
@@ -169,7 +156,7 @@ test("a reply that was also sent to the chat carries the mark in the thread; one
   installDom(); widen(1280);
   const s = withThread();
   s.replica.put("messages", [msg("c3", "c1", 3, intake, "Decision: book Tuesday at 2:00.", { blocks: [{ type: "from_thread", v: 1, id: "b1", data: { threadId: "t_c2", messageId: "tm2" } }] as never })]);
-  const root = await mount(createRoot, <ThreadPane data={s.data} threadId="t_c2" />);
+  const root = await mount(createRoot, side(s, false));
   await flush();
   assert.ok(find(root, "also-sent-tm2"), "tm2 was also sent");
   assert.match(textOf(find(root, "also-sent-tm2")), /Also sent to the chat/);
@@ -183,7 +170,7 @@ test("a reply that was also sent to the chat carries the mark in the thread; one
 test("the thread's composer carries Also post to the chat, and a send from the thread with it ticked asks chat.post to also post to the chat", async () => {
   installDom(); widen(1280);
   const s = withThread();
-  const root = await mount(createRoot, <ThreadPane data={s.data} threadId="t_c2" />);
+  const root = await mount(createRoot, side(s, false));
   await flush();
   const tick = find(root, "also-to-chat");
   assert.ok(tick, "the tick is under the composer");
@@ -197,7 +184,7 @@ test("the thread's composer carries Also post to the chat, and a send from the t
 test("the chat's switch: on shows on, a press calls threads.set_agent_replies and the row follows; a direct chat starts off", async () => {
   installDom(); widen(1280);
   const s = withThread();
-  const root = await mount(createRoot, <ThreadPane data={s.data} threadId="t_c2" />);
+  const root = await mount(createRoot, side(s, false));
   await flush();
   const sw = (): Node => find(root, "thread-switch")!;
   assert.ok(sw(), "the switch is at the foot of the thread");
@@ -215,8 +202,8 @@ test("the chat's switch: on shows on, a press calls threads.set_agent_replies an
 
   // a direct chat (the sample's idle chat) has the switch off until someone turns it on
   const dm = createSample("idle");
-  dm.replica.put("threads", [{ id: "c1", ...(dm.replica.rows("threads")[0] as object), agentRepliesInThreads: false }]);
-  const r2 = await mount(createRoot, <ThreadPane data={dm.data} threadId="t_c2" />);
+  dm.replica.put("threads", [{ id: "c1", ...(dm.replica.rows("threads")[0] as object) }, threadRow()]);
+  const r2 = await mount(createRoot, side(dm, false));
   await flush();
   assert.equal(find(r2, "thread-switch")!.props["aria-checked"], false);
 });
@@ -224,7 +211,7 @@ test("the chat's switch: on shows on, a press calls threads.set_agent_replies an
 test("a write that fails puts the switch back and says so", async () => {
   installDom(); widen(1280);
   const s = withThread();
-  const root = await mount(createRoot, <ThreadPane data={s.data} threadId="t_c2" />);
+  const root = await mount(createRoot, side(s, false));
   await flush();
   s.failNext("threads.set_agent_replies");
   await press(find(root, "thread-switch"));

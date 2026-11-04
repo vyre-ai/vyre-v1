@@ -1,4 +1,4 @@
-// A reply thread beside the message it hangs off (audit Threads 2, 7, 8, 10). On a computer it fills the right column and the chat stays put; on a phone it is a sheet over the chat. The
+// A reply thread beside the message it hangs off (audit Threads 2, 7, 8, 10). On a computer it fills the right column and the chat stays put; on a phone it is a full-screen sheet over the chat (agents reply in threads). The
 // parent message sits on top (press it to go back to it in the chat), then the thread's own messages and composer. The control above it follows, mutes or leaves the thread. Escape closes it.
 import { useEffect } from "react";
 import type { ReactElement } from "react";
@@ -7,7 +7,8 @@ import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
-import { Sheet } from "../../../mobile/sheets/Sheet.tsx";
+import { ThreadSheet } from "../thread-replies/ThreadSheet.tsx";
+import { useThreadExtras } from "../thread-replies/ThreadExtras.tsx";
 import { Conversation } from "../conversation/Conversation.tsx";
 import type { ConversationData } from "../conversation/data.tsx";
 import { Glyph } from "../conversation/parts.tsx";
@@ -63,14 +64,17 @@ export function ThreadSide({ rt, threadId, data, narrow, onClose, say }: ThreadS
       {row?.replyCount ? <Text style={st.count}>{`${row.replyCount} ${row.replyCount === 1 ? "reply" : "replies"}`}</Text> : null}
     </View>
   );
+  // agents reply in threads: the empty line, "Also sent to the chat" and the chat's switch at the foot
+  const extras = useThreadExtras(rt, data, threadId, parent, say);
   const body = (
     <View testID="thread-side" style={st.body}>
       {control}
-      <View style={st.conv}><Conversation key={threadId} data={data} compact /></View>
+      <View style={st.conv}><Conversation key={threadId} data={extras.data} compact /></View>
+      {extras.foot}
       {menu.element}
     </View>
   );
-  if (narrow) return <Sheet open title="Thread" onClose={onClose}><View style={st.sheet}>{body}</View></Sheet>;
+  if (narrow) return <ThreadSheet title={extras.title} onClose={onClose}>{body}</ThreadSheet>;
   return (
     <SidePane paneKey="chats-thread-side" toggle={{ open: true, onPress: onClose }} title="Thread" tabs={[{ key: "thread", title: "Thread" }]} activeTab="thread" onCloseTab={onClose} defaultWidth={THREAD_SIDE_W}>
       {body}
@@ -80,7 +84,6 @@ export function ThreadSide({ rt, threadId, data, narrow, onClose, say }: ThreadS
 
 const st = StyleSheet.create({
   body: { flex: 1, minHeight: 0 },
-  sheet: { height: "72vh" as unknown as number, minHeight: 360 },
   conv: { flex: 1, minHeight: 0 },
   bar: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 16, paddingTop: 8 },
   follow: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, height: 26, borderRadius: 6, borderWidth: 1, borderColor: "var(--line-2)" as string },

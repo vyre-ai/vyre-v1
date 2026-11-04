@@ -1,24 +1,19 @@
 // A phone opens the thread as a full-screen sheet over the chat: a header with a back arrow, "Thread" and the chat's title, then the thread. It is drawn in the shared overlay layer so nothing in the chat covers it.
-import type { ReactElement } from "react";
+import { useEffect } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
 import { Icon } from "../needsyou/parts.tsx";
-import type { CapMap } from "../../../../../../generated/types.ts";
-import { CONVERSATION_SCREEN } from "../conversation/Conversation.tsx";
-import { ConversationDataProvider, useConversationData, useScreenQuery } from "../conversation/data.tsx";
-import type { ConversationData } from "../conversation/data.tsx";
 import { THREAD_TITLE } from "./model.ts";
-import { ThreadPane } from "./ThreadPane.tsx";
 
-/** The title of the chat the thread hangs in, under "Thread". */
-function ChatTitle(): ReactElement | null {
-  const d = useConversationData();
-  const q = useScreenQuery<CapMap["threads.get"]["out"]>(CONVERSATION_SCREEN, "thread", { threadId: d.threadId });
-  const title = q.status === "ready" ? q.data.thread.title ?? "" : "";
-  return title === "" ? null : <Text testID="thread-sheet-title" numberOfLines={1} style={st.sub}>{title}</Text>;
-}
-
-export function ThreadSheet({ data, threadId, onClose }: { data: ConversationData; threadId: string; onClose(): void }): ReactElement {
+export function ThreadSheet({ title, onClose, children }: { title: string; onClose(): void; children: ReactNode }): ReactElement {
+  useEffect(() => {
+    const doc = (globalThis as { document?: { addEventListener(t: string, f: (e: KeyboardEvent) => void): void; removeEventListener(t: string, f: (e: KeyboardEvent) => void): void } }).document;
+    if (!doc) return undefined;
+    const onKey = (e: KeyboardEvent): void => { if (e.key === "Escape") onClose(); };
+    doc.addEventListener("keydown", onKey);
+    return () => doc.removeEventListener("keydown", onKey);
+  }, [onClose]);
   return (
     <Overlay>
       <View testID="thread-sheet" accessibilityViewIsModal accessibilityLabel={THREAD_TITLE} style={st.sheet}>
@@ -26,10 +21,10 @@ export function ThreadSheet({ data, threadId, onClose }: { data: ConversationDat
           <Pressable testID="thread-sheet-back" accessibilityRole="button" accessibilityLabel="Back to the chat" onPress={onClose} hitSlop={10} style={st.back}><Icon name="back" size={18} color="var(--ink)" /></Pressable>
           <View style={st.titles}>
             <Text style={st.title}>{THREAD_TITLE}</Text>
-            <ConversationDataProvider value={data}><ChatTitle /></ConversationDataProvider>
+            {title !== "" ? <Text testID="thread-sheet-title" numberOfLines={1} style={st.sub}>{title}</Text> : null}
           </View>
         </View>
-        <View style={st.body}><ThreadPane data={data} threadId={threadId} /></View>
+        <View style={st.body}>{children}</View>
       </View>
     </Overlay>
   );
