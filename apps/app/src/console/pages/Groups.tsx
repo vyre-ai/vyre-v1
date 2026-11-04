@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { capPhrase } from "../shell/format.ts";
 import type { ReactElement } from "react";
 import { View } from "react-native";
 import type { AccessGroupsGetOut, AccessGroupsListOut, AccessPrincipalsListOut, AccessRolesListOut, AuditListOut } from "../../../../../generated/types.ts";
@@ -15,7 +16,7 @@ type Person = AccessPrincipalsListOut["principals"][number];
 type Ref = GroupRow["members"][number];
 export function groupActivityLabel(action: string): string {
   const labels: Record<string, string> = { "access.groups.create": "Group created", "access.groups.update": "Group details changed", "access.groups.add_member": "Member added", "access.groups.remove_member": "Member removed", "access.groups.delete": "Group deleted", "access.roles.assign": "Role assigned", "access.roles.unassign": "Role removed" };
-  return labels[action] ?? action.replace(/[._]/g, " ");
+  return labels[action] ?? capPhrase(action);
 }
 export function groupDeleteImpact(group: GroupRow, grants: number): string {
   return `Delete ${group.name}? ${count(group.members.length, "membership")}, ${count(group.managers.length, "manager assignment")} and ${count(grants, "direct grant")} end. Access through this group's roles ends for its members. This cannot be undone.`;
