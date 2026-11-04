@@ -286,6 +286,12 @@ pub fn run() {
             if let tauri::WindowEvent::Focused(true) = event {
                 native::on_focus(window.app_handle());
             }
+            // the artifact viewer's child webview ends before its window does: a window closed with a child webview still open did not let the Windows app exit
+            if let tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed = event {
+                if let Some(view) = window.app_handle().get_webview(artifact_view::VIEW) {
+                    let _ = view.close();
+                }
+            }
         })
         .manage(updater::SharedUpdate::default())
         .manage(AppState { sidecar: shared.clone(), personal: personal.clone(), server: server.clone(), links: Mutex::new(commands::LinkHandoff::default()), native: native::NativeState::default() })
