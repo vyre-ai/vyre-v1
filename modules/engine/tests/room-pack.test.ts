@@ -62,10 +62,10 @@ test("what was said before a second person joined is never in the pack", async (
   const wrapped = await withTurnContext(open as never, createContextBuilder({ call: w.call, now: () => T0 + 600_000 }))({ threadId: "thr_1", agent: { id: "agt_intake", mode: "listen" }, asker: "usr_omar" } as never);
   for await (const _ of wrapped.send({ ...input(4), history: hist })) void _;
   assert.ok(seen && seen.history.every((h) => h.threadSeq >= 3 && !/Private/.test(h.body)), JSON.stringify(seen?.history.map((h) => h.body)));
-  // the person who was there from the start reads it all
+  // the person who was there from the start is cut the same way: the answer goes to the whole room
   const first = await createContextBuilder({ call: w.call, now: () => T0 + 600_000 }).build({ ...input(4), asker: "usr_maya" });
-  assert.equal(first.historyFromSeq, undefined);
-  assert.match(text(first, "recent"), /salary idea/);
+  assert.equal(first.historyFromSeq, 3);
+  assert.doesNotMatch(first.sections.map((s) => s.text).join("\n"), /salary idea|do not tell anyone/);
   assert.match(text(ctx, "recent"), /Adding Omar now\./);
 });
 

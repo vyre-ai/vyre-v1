@@ -545,9 +545,10 @@ export function createContextBuilder(d: ContextDeps) {
       const isThread = kind === "thread" || str(th?.["parentThreadId"]) !== undefined;
       const listed = await read<Obj>("chat.messages.list", { threadId: input.threadId, limit: READ_LIMIT }, asker);
       const all = arr<Obj>(listed?.["messages"]).map((m): RoomMessage => ({ messageId: str(m["messageId"]) ?? "", threadSeq: Number(m["threadSeq"] ?? 0), author: { kind: String((m["author"] as Obj | undefined)?.["kind"] ?? ""), id: str((m["author"] as Obj | undefined)?.["id"]) ?? "" }, kind: str(m["kind"]) ?? "text", body: str(m["body"]) ?? "", createdAt: Number(m["createdAt"] ?? 0) }));
-      // the asker's own cut: a person who came into the room later has not read what was said before they came, so neither has the answer to them (the first person reads it all)
-      const joined = (th?.["joinedAt"] as Record<string, unknown> | undefined)?.[asker];
-      const sharedAt = typeof joined === "number" ? joined : undefined;
+      // the cut: what was said before the latest person came in was not said to the room, and what the agent answers is read by the whole room. So for every asker, in every turn of a shared chat,
+      // nothing from before the last join is sent to the model (a chat with one person has no join and is read whole)
+      const joins = Object.values((th?.["joinedAt"] as Record<string, unknown> | undefined) ?? {}).filter((x): x is number => typeof x === "number");
+      const sharedAt = joins.length > 0 ? Math.max(...joins) : undefined;
       const visible = sharedAt === undefined ? all : all.filter((m) => m.createdAt >= sharedAt);
       const agentIds = new Set(agents.map((a) => a.id));
       const win = recentWindow({ messages: all, agentId, ...(input.trigger?.id ? { triggerId: input.trigger.id } : {}), ...(sharedAt !== undefined ? { sharedAt } : {}), isThread, zone: zoneName, nameOf: who, isAgent: (id) => id.startsWith("agt_") || agentIds.has(id) });
