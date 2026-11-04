@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import type { CapMap } from "../../../../../../../generated/types.ts";
+import type { CapMap } from "../../../../../../generated/types.ts";
 import { Face, TextButton } from "../rightpane/parts.tsx";
 import type { PaneDeps } from "../rightpane/actions.ts";
 import { historyLine, skillLine } from "./model.ts";
@@ -66,6 +66,7 @@ export function SkillsTab({ deps, nameOf = SAME, highlight, renderShare }: { dep
   if (groups.length === 0) return <View testID="skills-empty" style={st.pad}><Text style={st.dim}>No skills yet. Give the Assistant a GitHub link and ask it to install it.</Text></View>;
   return (
     <ScrollView testID="skills-list" contentContainerStyle={st.pad}>
+      {/* ui-rows-lint: not a list (sections of skills, each with its own heading) */}
       {groups.map((g) => (
         <View key={g.title} style={st.group}>
           <View style={st.gh}><Text accessibilityRole="header" style={st.gt}>{g.title}</Text><Text style={st.dim}>{g.rows.length}</Text></View>
@@ -84,6 +85,7 @@ export function SkillsTab({ deps, nameOf = SAME, highlight, renderShare }: { dep
                 ) : null}
                 {share === r.skillId && renderShare ? renderShare({ type: "skill", id: r.skillId, name: r.name }, () => setShare(null)) : null}
                 {hist[r.skillId] ? (
+                  // ui-rows-lint: not a list (a skill's history, as lines of text)
                   <View testID={`skill-hist-${r.skillId}`} style={st.hist}>{hist[r.skillId]!.map((l, i) => <Text key={i} style={st.histLine}>{l}</Text>)}</View>
                 ) : null}
               </View>
