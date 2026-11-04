@@ -125,6 +125,11 @@ test("walk: an assistant adds its own chat hook, cannot set a Space rule, the ho
     const stop = (await messages()).find((m) => m.kind === "quiet" && /^A hook stopped this: /.test(m.body ?? "")) as unknown as { blocks: Array<{ data: { next?: Array<{ label: string; ask: string }>; agentId?: string } }> };
     assert.deepEqual(stop.blocks[0]!.data.next, [{ label: "Ask for another folder", ask: "Please read a different folder instead" }], "only the plain step is kept");
     assert.equal(stop.blocks[0]!.data.agentId, assistant.agentId);
+    // the stop is two items: the quiet system line, then the assistant's own reply directly after it (the app puts the steps inside that reply)
+    const all2 = await messages();
+    const at = all2.findIndex((m) => m.kind === "quiet" && /^A hook stopped this: /.test(m.body ?? ""));
+    const next = all2.slice(at + 1).find((m) => m.kind !== "quiet");
+    assert.ok(next && next.author?.kind === "agent" && /I was stopped\./.test(next.body ?? ""), "the agent's reply follows the stop line directly");
     v.script.length = 0;
     v.script.push({ text: "Reading a different folder." });
     const stepMark = v.requests.length;
