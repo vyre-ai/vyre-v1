@@ -4,13 +4,14 @@ import assert from "node:assert/strict";
 import { ALWAYS_ON, LIMITS, SendRulesPage, optionKey } from "../pages/SendRules.tsx";
 import { DncPage, parseAddresses } from "../pages/Dnc.tsx";
 import { addLabel, parseDncFile, groupCsv, reasonOf } from "../pages/dnc-import-model.ts";
+import { createRoot } from "test-renderer";
 import { mountPage } from "./page-kit.tsx";
 
 const row = (key: string, value: unknown) => ({ row: { key, scope: "space", page: "email", title: key, value, default: value, source: "default", floorable: false } });
 const WORDS = /\b(suppression|principal|grant|actor|schema|gate|retention|tenant|sandbox)s?\b|!|successfully/i;
 
 test("How sending works says every sender goes through the same API and lists the three rules that are always on", async () => {
-  const p = await mountPage(<SendRulesPage />, {}, () => { throw new Error("none"); });
+  const p = await mountPage(createRoot, <SendRulesPage />, {}, () => { throw new Error("none"); });
   try {
     const t = p.text();
     assert.ok(t.includes("How sending works") && t.includes("Every sender goes through the same API"));
@@ -21,7 +22,7 @@ test("How sending works says every sender goes through the same API and lists th
 });
 
 test("the daily limit, sending window and speed read their setting and save a choice with settings.set_space", async () => {
-  const p = await mountPage(<SendRulesPage />, {}, (cap, input) => cap === "settings.get" ? row(String(input["key"]), input["key"] === "send.window" ? "8-20" : input["key"] === "send.cap" ? 500 : 20) : { ok: true });
+  const p = await mountPage(createRoot, <SendRulesPage />, {}, (cap, input) => cap === "settings.get" ? row(String(input["key"]), input["key"] === "send.window" ? "8-20" : input["key"] === "send.cap" ? 500 : 20) : { ok: true });
   try {
     assert.deepEqual(p.called("settings.get").map((c) => c.input["key"]).sort(), ["send.cap", "send.throttle", "send.window"]);
     await p.press("seg-send.cap:2000");
@@ -35,7 +36,7 @@ test("the daily limit, sending window and speed read their setting and save a ch
 });
 
 test("a limit that cannot be read says so with a retry, never 'Not adjustable yet'", async () => {
-  const p = await mountPage(<SendRulesPage />, {}, (cap) => { if (cap === "settings.get") throw new Error("unknown setting"); return { ok: true }; });
+  const p = await mountPage(createRoot, <SendRulesPage />, {}, (cap) => { if (cap === "settings.get") throw new Error("unknown setting"); return { ok: true }; });
   try {
     assert.doesNotMatch(p.text(), /Not adjustable yet/);
     assert.ok(!p.has("seg-send.cap:2000"));
@@ -44,7 +45,7 @@ test("a limit that cannot be read says so with a retry, never 'Not adjustable ye
 });
 
 test("the page states what each limit does and shows the stored choice", async () => {
-  const p = await mountPage(<SendRulesPage />, {}, (cap, input) => cap === "settings.get" ? row(String(input["key"]), input["key"] === "send.window" ? "9-17" : input["key"] === "send.cap" ? 100 : 5) : { ok: true });
+  const p = await mountPage(createRoot, <SendRulesPage />, {}, (cap, input) => cap === "settings.get" ? row(String(input["key"]), input["key"] === "send.window" ? "9-17" : input["key"] === "send.cap" ? 100 : 5) : { ok: true });
   try {
     const t = p.text();
     assert.ok(t.includes("Daily limit") && t.includes("100 a day") && t.includes("9:00 to 17:00") && t.includes("5 a minute"));
@@ -61,7 +62,7 @@ const ENTRY = (id: string, address: string, channel = "email", reason = "unsubsc
 const LIST = { "contacts.suppression.list": { rows: [ENTRY("sup_1", "ada@x.com"), ENTRY("sup_2", "+15551234567", "sms", "stop")] } };
 
 test("the list shows who is on it with channel and reason, and a search narrows it through the list call", async () => {
-  const p = await mountPage(<DncPage />, LIST);
+  const p = await mountPage(createRoot, <DncPage />, LIST);
   try {
     const t = p.text();
     assert.ok(t.includes("Do-not-contact list") && t.includes("ada@x.com") && t.includes("Unsubscribed") && t.includes("Text") && t.includes("STOP"));
@@ -72,7 +73,7 @@ test("the list shows who is on it with channel and reason, and a search narrows 
 });
 
 test("Add takes one address or a pasted list and adds each channel with the reason chosen", async () => {
-  const p = await mountPage(<DncPage />, LIST);
+  const p = await mountPage(createRoot, <DncPage />, LIST);
   try {
     await p.press("dnc-add-open");
     await p.press("dnc-add-save");
@@ -87,7 +88,7 @@ test("Add takes one address or a pasted list and adds each channel with the reas
 });
 
 test("Remove needs a reason and sends it with the entry to contacts.suppression.remove", async () => {
-  const p = await mountPage(<DncPage />, LIST);
+  const p = await mountPage(createRoot, <DncPage />, LIST);
   try {
     await p.press("dnc-remove-sup_1");
     assert.match(p.text(), /Remove\s+ada@x\.com\s*\?/);
@@ -100,7 +101,7 @@ test("Remove needs a reason and sends it with the entry to contacts.suppression.
 });
 
 test("an empty list says nobody is on it", async () => {
-  const p = await mountPage(<DncPage />, { "contacts.suppression.list": { rows: [] } });
+  const p = await mountPage(createRoot, <DncPage />, { "contacts.suppression.list": { rows: [] } });
   try { assert.ok(p.text().includes("Nobody is on the list")); } finally { p.restore(); }
 });
 
@@ -127,7 +128,7 @@ test("the file reader takes one column, an optional header and an optional reaso
 
 test("Add from a file shows how many people it will add, and nothing is sent until the person confirms", async () => {
   const list = Array.from({ length: 214 }, (_, i) => `person${i}@x.com`).join("\n");
-  const p = await mountPage(<DncPage pick={async () => [csvFile(`email\n${list}\n`)]} />, { ...LIST, ...FILES }, filesAnswer);
+  const p = await mountPage(createRoot, <DncPage pick={async () => [csvFile(`email\n${list}\n`)]} />, { ...LIST, ...FILES }, filesAnswer);
   try {
     await p.press("dnc-file-open");
     assert.ok(p.text().includes("Add 214 people to the do-not-contact list") && p.text().includes("214 emails"));
@@ -140,7 +141,7 @@ test("Add from a file shows how many people it will add, and nothing is sent unt
 });
 
 test("confirming stores one file per channel and reason and calls contacts.suppression.import with the reason chosen", async () => {
-  const p = await mountPage(<DncPage pick={async () => [csvFile("email,reason\na@x.com,\nb@x.com,unsubscribe\n+1 555 000 1111,\n")]} />, { ...LIST, ...FILES }, filesAnswer);
+  const p = await mountPage(createRoot, <DncPage pick={async () => [csvFile("email,reason\na@x.com,\nb@x.com,unsubscribe\n+1 555 000 1111,\n")]} />, { ...LIST, ...FILES }, filesAnswer);
   try {
     await p.press("dnc-file-open");
     await p.press("seg-stop");   // the reason for rows that name none
@@ -157,7 +158,7 @@ test("confirming stores one file per channel and reason and calls contacts.suppr
 });
 
 test("a file with no address in it says so and offers nothing to confirm", async () => {
-  const p = await mountPage(<DncPage pick={async () => [csvFile("name\nAda\nBo\n")]} />, { ...LIST, ...FILES }, filesAnswer);
+  const p = await mountPage(createRoot, <DncPage pick={async () => [csvFile("name\nAda\nBo\n")]} />, { ...LIST, ...FILES }, filesAnswer);
   try {
     await p.press("dnc-file-open");
     assert.ok(p.text().includes("No email addresses or phone numbers in that file"));

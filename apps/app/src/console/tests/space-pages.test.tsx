@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { SpaceProfile, memberDefaults } from "../pages/InfrastructureSettings.tsx";
 import { BillingPage, dollars, spendLine, storageLine } from "../pages/Billing.tsx";
 import { SpaceDeletePage, deleteDate, deleteName } from "../pages/SpaceDelete.tsx";
+import { createRoot } from "test-renderer";
 import { mountPage } from "./page-kit.tsx";
 
 const SPACE = (owner: string, over: Record<string, unknown> = {}) => ({ space: { id: "spc_1", name: "Northwind", legalName: "Northwind Legal LLP", kind: "team", owner, fingerprint: "ab12 cd34", address: { mode: "relay", host: "northwind.vyre.run" }, defaults: {}, createdAt: 1, ...over } });
@@ -20,7 +21,7 @@ test("money and storage read as the prototype does", () => {
 });
 
 test("General saves the name and legal name, and Defaults for new members saves the skin and time zone into the Space defaults", async () => {
-  const p = await mountPage(<SpaceProfile />, { "spaces.get": SPACE("usr_sample", { defaults: { other: 1 } }) });
+  const p = await mountPage(createRoot, <SpaceProfile />, { "spaces.get": SPACE("usr_sample", { defaults: { other: 1 } }) });
   try {
     assert.ok(p.text().includes("Defaults for new members") && p.text().includes("northwind.vyre.run"));
     assert.doesNotMatch(p.text(), /Delete this Space|Transfer ownership/, "those moved to Transfer or delete");
@@ -33,7 +34,7 @@ test("General saves the name and legal name, and Defaults for new members saves 
 });
 
 test("Review address change confirms before spaces.switch_address", async () => {
-  const p = await mountPage(<SpaceProfile />, { "spaces.get": SPACE("usr_sample") });
+  const p = await mountPage(createRoot, <SpaceProfile />, { "spaces.get": SPACE("usr_sample") });
   try {
     await p.press("infra-space-address-review");
     assert.equal(p.called("spaces.switch_address").length, 0);
@@ -43,7 +44,7 @@ test("Review address change confirms before spaces.switch_address", async () => 
 });
 
 test("Billing shows the plan, AI spend against the Space cap and storage, and Spend and limits opens that page", async () => {
-  const p = await mountPage(<BillingPage />, {
+  const p = await mountPage(createRoot, <BillingPage />, {
     "engine.spend.get": { caps: { monthMicros: 1_000_000_000 }, todayMicros: 0, monthMicros: 412_000_000, turnsToday: 0, paused: false },
     "console.overview": { health: "healthy", attention: [], activity: [], usage: { turnsToday: 0, costMicrosMonth: 0, members: 3, agents: 2 }, machine: { diskTotalBytes: 160 * 1024 ** 3, diskFreeBytes: 118 * 1024 ** 3 } },
   });
@@ -58,7 +59,7 @@ test("Billing shows the plan, AI spend against the Space cap and storage, and Sp
 });
 
 test("Make someone the Owner: pick a person, review, then spaces.transfer_ownership names them", async () => {
-  const p = await mountPage(<SpaceDeletePage />, { "spaces.get": SPACE("usr_sample"), "access.principals.list": PEOPLE }, undefined, { me: { id: "usr_sample", name: "Me", role: "" }, name: (id: string) => id === "usr_maya" ? "Maya Chen" : id });
+  const p = await mountPage(createRoot, <SpaceDeletePage />, { "spaces.get": SPACE("usr_sample"), "access.principals.list": PEOPLE }, undefined, { me: { id: "usr_sample", name: "Me", role: "" }, name: (id: string) => id === "usr_maya" ? "Maya Chen" : id });
   try {
     await p.press("transfer-choose");
     assert.ok(p.has("row-transfer-person-usr_maya") && !p.has("row-transfer-person-usr_sample"), "you are not offered yourself");
@@ -79,7 +80,7 @@ test("dates read in words, in UTC", () => {
 });
 
 test("with no export in the last 24 hours the page offers Take an export first, and Export runs spaces.export", async () => {
-  const p = await mountPage(<SpaceDeletePage />, { "spaces.get": SPACE("usr_sample"), "access.principals.list": PEOPLE, "spaces.export_latest": {} }, undefined, me);
+  const p = await mountPage(createRoot, <SpaceDeletePage />, { "spaces.get": SPACE("usr_sample"), "access.principals.list": PEOPLE, "spaces.export_latest": {} }, undefined, me);
   try {
     assert.ok(p.read("spaces.export_latest").length >= 1, "the page asks the server for the newest export");
     await p.press("delete-open");
@@ -91,7 +92,7 @@ test("with no export in the last 24 hours the page offers Take an export first, 
 });
 
 test("an old export does not count: the same offer, and nothing is scheduled without the name typed", async () => {
-  const p = await mountPage(<SpaceDeletePage />, { "spaces.get": SPACE("usr_sample"), "access.principals.list": PEOPLE, "spaces.export_latest": { at: NOW - 25 * HOUR } }, undefined, me);
+  const p = await mountPage(createRoot, <SpaceDeletePage />, { "spaces.get": SPACE("usr_sample"), "access.principals.list": PEOPLE, "spaces.export_latest": { at: NOW - 25 * HOUR } }, undefined, me);
   try {
     await p.press("delete-open");
     assert.ok(p.text().includes("Take an export first"));
@@ -102,7 +103,7 @@ test("an old export does not count: the same offer, and nothing is scheduled wit
 });
 
 test("Delete without an export is its own explicit step: with it and the name, spaces.delete carries withoutExport", async () => {
-  const p = await mountPage(<SpaceDeletePage />, { "spaces.get": SPACE("usr_sample"), "access.principals.list": PEOPLE, "spaces.export_latest": {} }, undefined, me);
+  const p = await mountPage(createRoot, <SpaceDeletePage />, { "spaces.get": SPACE("usr_sample"), "access.principals.list": PEOPLE, "spaces.export_latest": {} }, undefined, me);
   try {
     await p.press("delete-open");
     await p.press("delete-skip-toggle");
@@ -116,7 +117,7 @@ test("Delete without an export is its own explicit step: with it and the name, s
 });
 
 test("with an export from the last 24 hours the page says so and spaces.delete needs only the typed name", async () => {
-  const p = await mountPage(<SpaceDeletePage />, { "spaces.get": SPACE("usr_sample"), "access.principals.list": PEOPLE, "spaces.export_latest": { at: NOW - 2 * HOUR } }, undefined, me);
+  const p = await mountPage(createRoot, <SpaceDeletePage />, { "spaces.get": SPACE("usr_sample"), "access.principals.list": PEOPLE, "spaces.export_latest": { at: NOW - 2 * HOUR } }, undefined, me);
   try {
     await p.press("delete-open");
     assert.ok(p.text().includes("Export taken") && !p.has("delete-skip-toggle") && !p.has("delete-export-run"));
@@ -131,7 +132,7 @@ test("with an export from the last 24 hours the page says so and spaces.delete n
 
 test("a Space scheduled for deletion says when, and Cancel deletion runs spaces.delete_cancel", async () => {
   const at = Date.UTC(2026, 10, 18, 9);
-  const p = await mountPage(<SpaceDeletePage />, { "spaces.get": SPACE("usr_sample", { deletionAt: at }), "access.principals.list": PEOPLE }, undefined, me);
+  const p = await mountPage(createRoot, <SpaceDeletePage />, { "spaces.get": SPACE("usr_sample", { deletionAt: at }), "access.principals.list": PEOPLE }, undefined, me);
   try {
     assert.ok(p.text().includes("Scheduled for deletion on 18 November 2026") && p.text().includes("Everything is removed then"));
     assert.ok(!p.has("delete-open"), "nothing more to schedule");
@@ -141,7 +142,7 @@ test("a Space scheduled for deletion says when, and Cancel deletion runs spaces.
 });
 
 test("an admin who is not the Owner sees the scheduled deletion and can cancel it", async () => {
-  const p = await mountPage(<SpaceDeletePage />, { "spaces.get": SPACE("usr_other", { deletionAt: Date.UTC(2026, 10, 18) }) }, undefined, me);
+  const p = await mountPage(createRoot, <SpaceDeletePage />, { "spaces.get": SPACE("usr_other", { deletionAt: Date.UTC(2026, 10, 18) }) }, undefined, me);
   try {
     assert.ok(p.text().includes("Scheduled for deletion on 18 November 2026"));
     await p.press("deletion-cancel");
@@ -151,7 +152,7 @@ test("an admin who is not the Owner sees the scheduled deletion and can cancel i
 });
 
 test("a person who is not the Owner can only leave the Space", async () => {
-  const p = await mountPage(<SpaceDeletePage />, { "spaces.get": SPACE("usr_other") }, undefined, { me: { id: "usr_sample", name: "Me", role: "" } });
+  const p = await mountPage(createRoot, <SpaceDeletePage />, { "spaces.get": SPACE("usr_other") }, undefined, { me: { id: "usr_sample", name: "Me", role: "" } });
   try {
     assert.ok(!p.has("transfer-choose") && !p.has("delete-open"));
     await p.press("leave-open");

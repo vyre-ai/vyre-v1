@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { ServersPage, serverLine } from "../pages/Servers.tsx";
 import { MachinesPage } from "../pages/Machines.tsx";
 import { AgentComputersPage } from "../pages/AgentComputersPage.tsx";
+import { createRoot } from "test-renderer";
 import { mountPage } from "./page-kit.tsx";
 
 const UP = { current: "1.4.1", channel: "stable" as const };
@@ -20,7 +21,7 @@ test("a server's line says online, offline or waiting", () => {
 });
 
 test("each server opens that machine; a server still waiting for approval does not", async () => {
-  const p = await mountPage(<ServersPage />, { "network.servers": SERVERS, "updates.status": UP });
+  const p = await mountPage(createRoot, <ServersPage />, { "network.servers": SERVERS, "updates.status": UP });
   try {
     assert.ok(p.text().includes("Northwind server") && p.text().includes("Berlin box"));
     await p.press("row-server-srv_box");
@@ -30,7 +31,7 @@ test("each server opens that machine; a server still waiting for approval does n
 });
 
 test("Add server opens the shared Add a server sheet and asks the Space for a join command", async () => {
-  const p = await mountPage(<ServersPage />, { "network.servers": SERVERS, "updates.status": UP }, (cap) => cap === "network.server_join_code" ? { code: "ABC123", expiresAt: Date.now() + 600000, address: "https://team.example.com" } : { ok: true });
+  const p = await mountPage(createRoot, <ServersPage />, { "network.servers": SERVERS, "updates.status": UP }, (cap) => cap === "network.server_join_code" ? { code: "ABC123", expiresAt: Date.now() + 600000, address: "https://team.example.com" } : { ok: true });
   try {
     assert.ok(!p.has("add-server-sheet"));
     await p.press("servers-add");
@@ -44,7 +45,7 @@ test("Add server opens the shared Add a server sheet and asks the Space for a jo
 });
 
 test("with no servers the page says so in plain words and still offers Add server", async () => {
-  const p = await mountPage(<ServersPage />, { "network.servers": { servers: [] }, "updates.status": UP });
+  const p = await mountPage(createRoot, <ServersPage />, { "network.servers": { servers: [] }, "updates.status": UP });
   try {
     assert.ok(p.text().includes("No servers yet. Add one to run agents around the clock."));
     await p.press("servers-empty-action");
@@ -53,9 +54,9 @@ test("with no servers the page says so in plain words and still offers Add serve
 });
 
 test("Updates: up to date says so; a newer version offers Review update, which opens the Updates view", async () => {
-  const quiet = await mountPage(<ServersPage />, { "network.servers": SERVERS, "updates.status": UP });
+  const quiet = await mountPage(createRoot, <ServersPage />, { "network.servers": SERVERS, "updates.status": UP });
   try { assert.ok(quiet.text().includes("Up to date") && !quiet.has("servers-review-update")); } finally { quiet.restore(); }
-  const p = await mountPage(<ServersPage />, { "network.servers": SERVERS, "updates.status": { ...UP, available: "1.5.0" } });
+  const p = await mountPage(createRoot, <ServersPage />, { "network.servers": SERVERS, "updates.status": { ...UP, available: "1.5.0" } });
   try {
     assert.ok(p.text().includes("1.5.0"));
     await p.press("servers-review-update");
@@ -65,8 +66,8 @@ test("Updates: up to date says so; a newer version offers Review update, which o
 
 test("Machines no longer draws the agent computers under its list; they are their own tab", async () => {
   const rows = { "machines.list": { machines: [], waiting: [] }, "computers.list": { computers: [] }, "agents.list": { agents: [] }, "computers.health": { state: "healthy", runtime: "docker" } };
-  const machines = await mountPage(<MachinesPage />, rows);
+  const machines = await mountPage(createRoot, <MachinesPage />, rows);
   try { assert.ok(!machines.has("console-agent-computers")); } finally { machines.restore(); }
-  const tab = await mountPage(<AgentComputersPage />, rows);
+  const tab = await mountPage(createRoot, <AgentComputersPage />, rows);
   try { assert.ok(tab.has("console-agent-computers")); } finally { tab.restore(); }
 });
