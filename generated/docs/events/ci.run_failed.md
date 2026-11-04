@@ -1,12 +1,12 @@
-# ci.run.swept
+# ci.run_failed
 
-The sweeper deleted a machine: past its time limit, or with no live run
+A machine could not be made for a job, or it was lost before the job ran
 
 | | |
 |---|---|
 | Module | ci |
 | Schema version | 1 |
-| Subject | entity at /dropletId |
+| Subject | entity at /runId |
 | Visibility | space |
 | Label | none |
 | Replay | pure |
@@ -18,9 +18,9 @@ The sweeper deleted a machine: past its time limit, or with no live run
 
 ```ts
 type Payload = {
-  runId: string | null;
-  dropletId: string;
-  reason: "too_long" | "no_run";
-  costUsd: number;
+  runId: string;
+  repo: string;
+  jobId: number;
+  reason: string;
 };
 ```

@@ -47,7 +47,7 @@ test("intake: a job that is not for the Space's labels, or from an unlinked repo
   assert.equal(w.state.droplets.length, 0);
   assert.equal(w.state.jit.length, 0);
   assert.equal((await w.call("ci.runs.list", { repo: "northwind/site" })).runs.length, 0);
-  assert.equal(w.named("ci.job.refused").length, 0);
+  assert.equal(w.named("ci.job_refused").length, 0);
 });
 
 test("intake: a fork pull request is refused while the repository holds secrets (or when that cannot be told), and runs when it holds none", async () => {
@@ -57,7 +57,7 @@ test("intake: a fork pull request is refused while the repository holds secrets 
   await w.job("queued", { jobId: 11, fork: "unknown" });
   assert.equal(w.state.droplets.length, 0);
   assert.equal(w.state.jit.length, 0);
-  const refused = w.named("ci.job.refused");
+  const refused = w.named("ci.job_refused");
   assert.equal(refused.length, 2);
   assert.equal(refused[0]!.payload["code"], "fork_with_secrets");
   assert.match(String(refused[0]!.payload["reason"]), /fork/);
@@ -94,7 +94,7 @@ test("start: the just-in-time runner comes first, then one machine tagged for th
   assert.equal(runs[0].dropletId, d.id);
   assert.equal(runs[0].size, "s-2vcpu-4gb");
   assert.equal(runs[0].startedAt, w.state.now);
-  const started = w.named("ci.run.started");
+  const started = w.named("ci.run_started");
   assert.equal(started.length, 1);
   assert.equal(started[0]!.payload["dropletId"], d.id);
   await w.job("queued", { jobId: 20 });   // delivered twice: still one machine
@@ -116,7 +116,7 @@ test("start: when the cloud refuses, the run fails with a plain note, the runner
   assert.match(r.note, /did not accept the key/);
   assert.equal(r.costUsd, 0);
   assert.deepEqual(w.state.removed, [7001]);
-  assert.equal(w.named("ci.run.failed").length, 1);
+  assert.equal(w.named("ci.run_failed").length, 1);
   assert.equal(JSON.stringify(w.state.events).includes("eyJhbGci"), false);
   w.state.failCreate = 403;   // the account is held for a balance: the provider's own words reach the admin
   await w.job("queued", { jobId: 32 });
@@ -139,11 +139,11 @@ test("teardown: when the job ends the machine is deleted, the cost is recorded a
   assert.equal(r.conclusion, "success");
   assert.equal(r.endedAt, w.state.now);
   assert.equal(r.costUsd, costOf(0.03571, 600));
-  const fin = w.named("ci.run.finished");
+  const fin = w.named("ci.run_finished");
   assert.equal(fin.length, 1);
   assert.equal(fin[0]!.payload["minutes"], 10);
   await w.job("completed", { jobId: 40, conclusion: "success" });   // twice: nothing more
-  assert.equal(w.named("ci.run.finished").length, 1);
+  assert.equal(w.named("ci.run_finished").length, 1);
   await w.job("completed", { jobId: 999, conclusion: "success" });  // a job on GitHub's own runners: ignored
 });
 
@@ -158,7 +158,7 @@ test("teardown: a machine that cannot be deleted yet is left for the sweeper, wh
   const out = await w.sweepNow();
   assert.equal(out.deleted, 1);
   assert.equal(w.state.droplets.length, 0);
-  assert.equal(w.named("ci.run.swept")[0]!.payload["reason"], "no_run");
+  assert.equal(w.named("ci.run_swept")[0]!.payload["reason"], "no_run");
 });
 
 test("sweeper: an orphan tagged vyre-ci with no live run is deleted; a live one is kept; another Space's machine is never touched", async () => {
@@ -171,7 +171,7 @@ test("sweeper: an orphan tagged vyre-ci with no live run is deleted; a live one 
   const out = await w.sweepNow();
   assert.equal(out.deleted, 1);
   assert.deepEqual(w.state.droplets.map((d) => d.name).sort(), ["theirs", `vyre-ci-${(w.state.jit[0]!["name"] as string).slice(8)}`].sort());
-  const swept = w.named("ci.run.swept");
+  const swept = w.named("ci.run_swept");
   assert.equal(swept.length, 1);
   assert.equal(swept[0]!.payload["dropletId"], "9001");
   assert.equal(swept[0]!.payload["runId"], null);
@@ -188,7 +188,7 @@ test("sweeper: a machine past the time limit plus 10 minutes is deleted and its 
   const r = (await w.call("ci.runs.list", { repo: "northwind/site" })).runs[0];
   assert.equal(r.state, "swept");
   assert.equal(r.costUsd, costOf(0.03571, 41 * 60));
-  assert.equal(w.named("ci.run.swept")[0]!.payload["reason"], "too_long");
+  assert.equal(w.named("ci.run_swept")[0]!.payload["reason"], "too_long");
 });
 
 test("sweeper: it never deletes on a guess when the cloud cannot be listed, and calls a vanished machine's run lost", async () => {
@@ -223,7 +223,7 @@ test("queue: at the concurrency limit a job waits, and starts when a machine fre
   assert.equal(w.state.droplets.length, 2);
   runs = (await w.call("ci.runs.list", { repo: "northwind/site" })).runs;
   assert.equal(runs.find((r: { jobId: number }) => r.jobId === 62).state, "running");
-  assert.equal(w.named("ci.run.started").length, 3);
+  assert.equal(w.named("ci.run_started").length, 3);
 });
 
 test("queue: the sweeper starts a waiting job when room appears without a webhook", async () => {
@@ -253,7 +253,7 @@ test("cap: a job that would pass the monthly cap is refused with a plain notice,
   const paused = w.named("ci.paused");
   assert.equal(paused.length, 1);
   assert.equal(paused[0]!.payload["title"], "CI paused: this month's cap of $0.05 is reached");
-  assert.equal(w.named("ci.job.refused").filter((e) => e.payload["code"] === "cap_reached").length, 2);
+  assert.equal(w.named("ci.job_refused").filter((e) => e.payload["code"] === "cap_reached").length, 2);
   const cost = await w.call("ci.cost.month", {});
   assert.equal(cost.paused, true);
   assert.equal(cost.spentUsd, costOf(0.03571, 1800));
@@ -347,4 +347,13 @@ test("repo to project: the host finds the project of a repository even when only
   assert.equal(w.state.droplets.length, 1);
   assert.equal((await w.call("ci.runs.list", { projectId: "prj_private" }, maya)).runs[0].jobId, 110);
   await assert.rejects(w.call("ci.runs.list", { projectId: "prj_private" }, { id: "usr_other", kind: "person" }), (e: any) => e.error.code === "permission.no_grant");   // eslint-disable-line @typescript-eslint/no-explicit-any
+});
+
+test("the host's own capabilities have handlers and refuse everyone else", async () => {
+  const { handlers } = await import("../impl.ts");
+  const w = world();
+  for (const cap of ["ci.job.intake", "ci.sweep"]) {
+    assert.equal(typeof handlers[cap], "function", cap);
+    await assert.rejects(Promise.resolve((handlers[cap] as (c: unknown, i: unknown) => unknown)({ ...w.ctxFor(admin), origin: "user", depth: 0 }, {})), (e: any) => e.error.code === "permission.no_grant");   // eslint-disable-line @typescript-eslint/no-explicit-any
+  }
 });

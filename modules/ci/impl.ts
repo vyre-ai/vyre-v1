@@ -1,6 +1,7 @@
 // CI runners module (lane l-ci-runners): a Space's GitHub Actions jobs run on throwaway cloud machines the Space pays for, with the Space's own cloud key.
 // The github module turns a workflow_job webhook into workflow_job.queued and workflow_job.completed events; this module reads them (consumers), starts and deletes the machines, and sweeps every 2 minutes.
 import type { Handler } from "../../host/src/invoke.ts";
+import { hostOnly } from "../../host/src/ctx/host-only.ts";
 import { costMonth, projectGet, runsGet, runsList } from "./handlers/read.ts";
 import { intake, sweep } from "./handlers/runner.ts";
 import type { JobIn } from "./handlers/runner.ts";
@@ -14,6 +15,9 @@ export const handlers: Record<string, Handler> = {
   "ci.runs.list": (ctx, i) => runsList(ctx as unknown as CiCtx, i as never),
   "ci.runs.get": (ctx, i) => runsGet(ctx as unknown as CiCtx, i as never),
   "ci.cost.month": (ctx, i) => costMonth(ctx as unknown as CiCtx, i as never),
+  // the two below are the host's own: the consumer and the sweeper run them, so the events they emit are declared; a person or an agent calling them is refused
+  "ci.job.intake": async (ctx, i) => { hostOnly(ctx, "ci.job.intake"); return intake(ctx as unknown as CiCtx, i as never); },
+  "ci.sweep": async (ctx) => { hostOnly(ctx, "ci.sweep"); return sweep(ctx as unknown as CiCtx); },
   "ci.project.get": (ctx, i) => projectGet(ctx as unknown as CiCtx, i as never),
 };
 

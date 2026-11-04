@@ -1,12 +1,12 @@
-# ci.run.started
+# ci.run_swept
 
-A cloud machine was made for a job and the runner is on it
+The sweeper deleted a machine: past its time limit, or with no live run
 
 | | |
 |---|---|
 | Module | ci |
 | Schema version | 1 |
-| Subject | entity at /runId |
+| Subject | entity at /dropletId |
 | Visibility | space |
 | Label | none |
 | Replay | pure |
@@ -18,10 +18,9 @@ A cloud machine was made for a job and the runner is on it
 
 ```ts
 type Payload = {
-  runId: string;
-  repo: string;
-  jobId: number;
+  runId: string | null;
   dropletId: string;
-  size: string;
+  reason: "too_long" | "no_run";
+  costUsd: number;
 };
 ```

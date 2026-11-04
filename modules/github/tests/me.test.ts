@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { fail } from "../../../host/src/routes/errors.ts";
-import { checkRead, meApprove, meComplete, meConnect, meDisconnect, meReach, meStatus, meUsage, policyGet, policySet, sessionEnv, token } from "../handlers/me.ts";
+import { adoptSignIn, checkRead, meApprove, meComplete, meConnect, meDisconnect, meReach, meStatus, meUsage, policyGet, policySet, sessionEnv, token } from "../handlers/me.ts";
 import { codeOf, INSTALL, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { ensure } from "../projections.ts";
@@ -19,16 +19,17 @@ async function refused(p: Promise<unknown> | unknown, code: string): Promise<voi
 
 function world() {
   const h = harness();
-  const kept = new Map<string, string>(), exchanges: Array<{ code: string; verifier: string; redirectUri: string }> = [], revoked: string[] = [], forgotten: string[] = [];
+  const pending = new Set<string>(), kept = new Map<string, string>(), exchanges: Array<{ code: string; verifier: string; redirectUri: string }> = [], revoked: string[] = [], forgotten: string[] = [];
   let n = 1, now = () => h.ctx.now();
   const user = {
     app: async () => ({ clientId: "Iv1.vyre", source: "vyre" as const }),
-    exchange: async (_c: GithubCtx, a: { code: string; verifier: string; redirectUri: string }): Promise<UserTokens> => { exchanges.push(a); return { accessToken: "ghu_1", refreshToken: "ghr_1", expiresAt: now() + 8 * HOUR }; },
+    exchange: async (_c: GithubCtx, a: { code: string; verifier: string; redirectUri: string }): Promise<UserTokens> => { exchanges.push(a); return { accessToken: "ghu_1", refreshToken: "ghr_1", expiresAt: now() + 8 * HOUR, linkTicket: "vyre-gh-link.t1" }; },
     refresh: async (_c: GithubCtx, a: { refreshToken: string }): Promise<UserTokens> => {
       if (a.refreshToken === "revoked") throw fail("provider.auth_failed", "0123456789abcdef0123456789abcdef");
       n++; return { accessToken: `ghu_${n}`, refreshToken: `ghr_${n}`, expiresAt: now() + 8 * HOUR };
     },
     revoke: async (_c: GithubCtx, a: { accessToken: string }) => { revoked.push(a.accessToken); },
+    adopt: async (_c: GithubCtx, a: { githubId: string }) => (pending.delete(a.githubId) ? { login: "maya-codes", accessToken: "ghu_sign", refreshToken: "ghr_sign", expiresAt: now() + 8 * HOUR } : null),
     keep: async (_c: GithubCtx, person: string, a: { refreshToken: string }) => { kept.set(person, a.refreshToken); },
     recall: async (_c: GithubCtx, person: string) => kept.get(person) ?? null,
     forget: async (_c: GithubCtx, person: string) => { forgotten.push(person); kept.delete(person); },
@@ -43,18 +44,19 @@ function world() {
   h.on("GET /user/orgs", { status: 200, body: [{ login: "vyre-ai", id: 9 }, { login: "other-org", id: 10 }, { login: "installed-all", id: 11 }] });
   h.tokenEndpoint();
   // the Gate: the first approve is held (needs approval); `release` is the person pressing Approve, which runs the handler
-  const gate = { held: [] as Array<Record<string, unknown>>, releaseNext: false };
+  const gate = { held: [] as Array<Record<string, unknown>>, linked: [] as string[], releaseNext: false };
   const base = h.ctx.call.bind(h.ctx);
   h.ctx.call = async (cap, input) => {
     if (cap === "github.me.approve") {
       gate.held.push(input as Record<string, unknown>);
       throw fail("permission.needs_approval", "0123456789abcdef0123456789abcdef");
     }
+    if (cap === "identity.github_link") { gate.linked.push(String((input as { code: string }).code)); return { login: "maya-codes" }; }
     return base(cap, input);
   };
   const as = (who: Partial<GithubCtx>): GithubCtx => ({ ...h.ctx, ...who });
   const connect = async (): Promise<void> => { const c = await meConnect(h.ctx); await meComplete(h.ctx, { code: "code1", state: c.state }); };
-  return { h, user, kept, exchanges, revoked, forgotten, gate, as, connect };
+  return { h, user, pending, kept, exchanges, revoked, forgotten, gate, as, connect };
 }
 
 test("connect: PKCE through the default Vyre app, the refresh token goes to the person's Vault, the same state works once", async () => {
@@ -227,4 +229,27 @@ test("a read for a linked pull request follows the person's rules and shows in U
   policySet(w.h.ctx, { policy: { read: "never" } });
   await refused(checkRead(w.h.ctx, "vyre-ai/website", "linked.prs"), "validation.precondition_failed");
   await checkRead(w.as({ principal: { kind: "service", id: "svc_host" } }), "vyre-ai/website", "linked.prs");   // the host with no person: the Space app's read
+});
+
+test("one flow: connecting also links the sign-in with the host's ticket (never returned), and signing in with GitHub connects when it left tokens", async () => {
+  const w = world();
+  await w.connect();
+  assert.deepEqual(w.gate.linked, ["vyre-gh-link.t1"]);
+  const state = (await meConnect(w.h.ctx)).state;
+  assert.match(state, /^[A-Za-z0-9_-]{24}\.[A-Za-z0-9_-]+$/, "the state carries where to return to, for the callback");
+  const w2 = world();
+  const other = w2.as({ principal: { kind: "person", id: "usr_new0001" } });
+  w2.pending.add("4242");
+  assert.deepEqual(await adoptSignIn(other, { githubId: "4242", person: "usr_new0001" }), { adopted: true });
+  assert.equal(w2.kept.get("usr_new0001"), "ghr_sign");
+  assert.equal(meStatus(other).login, "maya-codes");
+  assert.equal(policyGet(other).policy.read, "always");
+  assert.deepEqual(await adoptSignIn(other, { githubId: "4242", person: "usr_new0001" }), { adopted: false }, "already connected: left as is");
+  assert.deepEqual(await adoptSignIn(w2.as({}), { githubId: "9", person: "usr_none0001" }), { adopted: false }, "a sign-in that left no tokens connects nothing");
+});
+
+test("a return address rides in the state and a custom one is kept", async () => {
+  const w = world();
+  const c = await meConnect(w.h.ctx, { return: "https://space.vyre.test/settings" });
+  assert.equal(Buffer.from(c.state.split(".")[1]!, "base64url").toString(), "https://space.vyre.test/settings");
 });

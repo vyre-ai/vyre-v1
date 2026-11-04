@@ -24,7 +24,9 @@ Start connecting my own GitHub: the address to send me to (the Space's own GitHu
 ## Input
 
 ```ts
-type In = Record<string, unknown>;
+type In = {
+  return?: string;
+};
 ```
 
 ## Output
@@ -50,7 +52,9 @@ type Out = {
 ```json
 {
   "name": "example",
-  "input": {},
+  "input": {
+    "return": "example"
+  },
   "output": {
     "authUrl": "example",
     "source": "space",

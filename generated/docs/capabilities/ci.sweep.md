@@ -19,7 +19,7 @@ Host only: every 2 minutes, delete any machine tagged vyre-ci that is too old or
 | HTTP | POST /v1/ci/sweep |
 | MCP tool | ci_sweep (engineer) |
 | CLI | none |
-| Emits | ci.run.swept, ci.run.started, ci.run.failed |
+| Emits | ci.run_swept, ci.run_started, ci.run_failed |
 
 ## Input
 
