@@ -27,6 +27,7 @@ export function HookLineActs({ id, line, threadId, call, open, linkStyle, quietS
   if (said !== null) return <Text testID={`hook-said-${id}`} accessibilityRole="alert" style={quietStyle}>{said}</Text>;
   return (
     <View style={{ flexDirection: "row", gap: 12, marginLeft: "auto" as never }}>
+      {/* ui-rows-lint: not a list (the few action links at the right of one hook line) */}
       {acts.map((a) => (
         <Text key={a} testID={`hook-act-${a}-${id}`} accessibilityRole="link" accessibilityState={{ disabled: busy }} onPress={() => { if (!busy) press(a); }} style={linkStyle}>{LABEL[a]}</Text>
       ))}
