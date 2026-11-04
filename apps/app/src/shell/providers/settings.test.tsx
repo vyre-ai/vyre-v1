@@ -67,7 +67,7 @@ test("Choose a photo keeps the image in the person's own folder and answers the 
   const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
   const rt = { call: async (cap: string, input: unknown) => {
     calls.push({ cap, input: input as Record<string, unknown> });
-    if (cap === "files.list") return { folders: [{ folderId: "fld_space", scope: "space" }, { folderId: "fld_home", scope: "personal" }, { folderId: "fld_sub", scope: "personal", parentId: "fld_home" }] };
+    if (cap === "files.tree") return { roots: [{ key: "space", title: "Space", kind: "folder", folderId: "fld_space", count: 0 }, { key: "personal", title: "Personal", kind: "folder", folderId: "fld_home", count: 0 }] };
     return { file: { fileId: "fil_photo" } };
   } };
   const img = { name: "me.png", mime: "image/png", size: 1000, base64: "AAAA" };
@@ -78,7 +78,7 @@ test("Choose a photo keeps the image in the person's own folder and answers the 
   assert.equal(await chooseProfilePhoto(rt, async () => null), null, "cancelled");
   await assert.rejects(chooseProfilePhoto(rt, async () => ({ ...img, size: PHOTO_MAX_BYTES + 1 })), /under 2 MB/);
   const before = calls.length;
-  await assert.rejects(chooseProfilePhoto({ call: async () => ({ folders: [{ folderId: "fld_space", scope: "space" }] }) }, async () => img), /no personal folder/);
+  await assert.rejects(chooseProfilePhoto({ call: async () => ({ roots: [{ key: "space", folderId: "fld_space" }] }) }, async () => img), /no personal folder/);
   assert.equal(calls.length, before, "nothing was written");
 });
 

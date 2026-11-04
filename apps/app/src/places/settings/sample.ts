@@ -99,6 +99,8 @@ export const securityOf = (_space: SampleSpace): NonNullable<SettingsData["secur
 });
 
 export interface SampleSettings {
+  /** What the usage read was asked: the person and the start of the month the AI page sends. */
+  usageAsked: Record<string, unknown>[];
   data: SettingsData;
   replica: FakeReplica;
   space: SampleSpace;
@@ -115,6 +117,7 @@ const device = (id: string, name: string, cls: "desktop" | "phone" | "web" | "ex
 export function createSampleSettings(space: SampleSpace = northwind): SampleSettings {
   const replica = createFakeReplica(space.id);
   const calls: { cap: string; input: unknown }[] = [];
+  const usageAsked: Record<string, unknown>[] = [];
   const opened: string[] = [];
   const previews: (string | null)[] = [];
   const failing = new Set<string>();
@@ -231,7 +234,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   replica.resolve("engine.accounts.list", () => ({ accounts: replica.rows("accounts") as unknown as CapMap["engine.accounts.list"]["out"]["accounts"] }) as CapMap["engine.accounts.list"]["out"]);
   replica.resolve("engine.models.list", () => ({ models: replica.rows("models") as unknown as CapMap["engine.models.list"]["out"]["models"] }) as CapMap["engine.models.list"]["out"]);
   replica.resolve("engine.defaults.get", () => { const x = replica.rows("defaults")[0] as unknown as { provider: string; model: string; fallback: { provider: string; model: string }[] }; return { provider: x.provider, model: x.model, fallback: x.fallback }; });
-  replica.resolve("engine.usage.query", () => ({ rows: replica.rows("usage") as unknown as CapMap["engine.usage.query"]["out"]["rows"], totals: { turns: 620, tokensIn: 4_600_000, tokensOut: 940_000, costMicros: 51_800_000 } }) as CapMap["engine.usage.query"]["out"]);
+  replica.resolve("engine.usage.query", (_t, i) => { usageAsked.push(i as Record<string, unknown>); return { rows: replica.rows("usage") as unknown as CapMap["engine.usage.query"]["out"]["rows"], totals: { turns: 620, tokensIn: 4_600_000, tokensOut: 940_000, costMicros: 51_800_000 } } as CapMap["engine.usage.query"]["out"]; });
   replica.resolve("kits.list", () => ({ kits: replica.rows("kits") as unknown as CapMap["kits.list"]["out"]["kits"] }) as CapMap["kits.list"]["out"]);
   replica.resolve("settings.kit.get", () => { const k = replica.rows("kit")[0] as unknown as { space: string | null; person: string | null; effective: string }; return { kit: { space: k.space, person: k.person, effective: k.effective } }; });
 
@@ -298,7 +301,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   const screens: ScreenHooks = {
     query(screenId, name, state = {}) {
       if (screenId === "settings.page" && name === "rows") return liveQuery(replica, "settings.list", {}) as LiveQuery<unknown>;
-      if (screenId === "settings.models-usage" && name === "usage") return liveQuery(replica, "engine.usage.query", { by: "model" }) as LiveQuery<unknown>;
+      if (screenId === "settings.models-usage" && name === "usage") return liveQuery(replica, "engine.usage.query", { by: "model", ...(state["personId"] !== undefined ? { personId: state["personId"] } : {}), ...(state["from"] !== undefined ? { from: state["from"] } : {}) }) as LiveQuery<unknown>;
       return base.query(screenId, name, state);
     },
   };
@@ -322,5 +325,5 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     peek: (cap, input) => replica.run(cap as keyof CapMap, input as never)?.data,
     me: space.me, space: { id: space.id, name: space.name }, spaces: space.spaces, name: (id) => space.names[id] ?? nameOf(space.id, id), nav, clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }), security: securityOf(space),
   };
-  return { data, replica, space, calls, opened, previews, failNext: (cap) => void failing.add(cap) };
+  return { data, replica, space, calls, opened, previews, usageAsked, failNext: (cap) => void failing.add(cap) };
 }
