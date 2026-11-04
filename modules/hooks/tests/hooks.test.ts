@@ -328,3 +328,18 @@ test("a person or an agent can only fire for themselves, and only read the runs 
   await assert.rejects(w.call("hooks.runs.list", { threadId: "thr_x" }, maya), /not one you can use/);
   assert.deepEqual((await w.call("hooks.runs.list", { hookId: h.id }, admin)).runs, []);
 });
+
+test("an admin's unnamed read (the Console list) has the Space hooks' runs and never another person's own hooks or their private agent's", async () => {
+  const w = world();
+  w.s.command = async () => stop;
+  const spaceHook = (await w.call("hooks.set", { scope: "space", event: "tool.before", kind: "command", command: "guard" }, admin)).hook;
+  const mayaOwn = (await w.call("hooks.set", { scope: "person", event: "tool.before", kind: "command", command: "mine" }, maya)).hook;
+  const mayaAgent = (await w.call("hooks.set", { scope: "agent", event: "tool.before", kind: "command", command: "agent" }, agent())).hook;
+  await w.fire({ event: "tool.before", tool: "files_tree" });
+  const ids = new Set((await w.call("hooks.runs.list", { limit: 200 }, admin)).runs.map((r: { hookId: string }) => r.hookId));
+  assert.ok(ids.has(spaceHook.id), "the Space hook's runs");
+  assert.ok(!ids.has(mayaOwn.id), "not Maya's own hook");
+  assert.ok(!ids.has(mayaAgent.id), "not the hook of Maya's private agent");
+  const named = await w.call("hooks.runs.list", { hookId: mayaAgent.id }, admin);
+  assert.deepEqual(named.runs, [], "naming it gives nothing either");
+});

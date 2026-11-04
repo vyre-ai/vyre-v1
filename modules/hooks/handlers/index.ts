@@ -238,7 +238,7 @@ export async function runsList(ctx: HooksCtx, i: { hookId?: string; threadId?: s
     if (i.scope === "space" && h.scope !== "space") return false;
     if (h.scope === "space") return a.admin || !r["thread_id"] || (await mayUse(String(r["thread_id"])));
     if (h.scope === "person") return h.personId === a.asker;
-    return mayChange(h, a) || h.madeBy === a.id || h.forPerson === a.asker || (h.madeBy === a.asker && a.kind !== "agent");
+    return h.madeBy === a.id || h.forPerson === a.asker || (h.madeBy === a.asker && a.kind !== "agent");   // an admin reads Space hooks, never another person's own or their private agents' hooks
   };
   const out: Row[] = [];
   let before = Number.MAX_SAFE_INTEGER;
