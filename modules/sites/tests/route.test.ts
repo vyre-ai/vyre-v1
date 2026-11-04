@@ -110,20 +110,19 @@ test("custom domains: the records are exact, an apex takes an A, the three state
   } finally { configureRoutes(null); configureDomainEdge(null); }
 });
 
-test("a ticket opens one artifact, for its person, until it ends", async () => {
+test("without an artifact host there is no address to open: nothing with a token in it is ever made", async () => {
   const w = harness();
   configureRoutes(host() as never);
   try {
     const made = await h["sites.create"]!(w.ctx, { name: "Numbers", kind: "artifact", port: 3000 });
     await h["sites.publish"]!(w.ctx, { siteId: made.site.siteId });
-    const open = await h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId });
-    const token = /\/k\/([0-9a-f]{48})\//.exec(open.path)?.[1] as string;
-    const now = w.ctx.now();
-    assert.equal((await routeByTicket(w.ctx, made.site.siteId, token, now))?.principal, w.ctx.principal.id);
-    assert.equal(await routeByTicket(w.ctx, "sit_other", token, now), null, "for this artifact only");
-    assert.equal(await routeByTicket(w.ctx, made.site.siteId, "0".repeat(48), now), null);
-    assert.equal(await routeByTicket(w.ctx, made.site.siteId, token, open.expiresAt + 1), null, "until it ends");
+    await assert.rejects(() => h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId }), /no address for artifacts/);
+    assert.equal((w.ctx.db.all("SELECT COUNT(*) AS n FROM sites_ticket") as { n: number }[])[0]!.n, 0, "no ticket was made");
+    configureRoutes(host({ artifactHost: () => "mla-a.vyre.run" }) as never);
     await assert.rejects(() => h["sites.artifact_open"]!({ ...w.ctx, principal: { kind: "agent", id: "agt_x" } }, { artifactId: made.site.siteId }), /Only a person/);
+    configureRoutes(host({ artifactHost: () => "a.localhost:4100" }) as never);
+    const open = await h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId });
+    assert.match(open.url, /^http:\/\/a\.localhost:4100\/x\/[0-9a-f]{48}$/, "a Space on this computer: plain http on a.localhost");
   } finally { configureRoutes(null); }
 });
 
