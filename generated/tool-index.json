@@ -5690,6 +5690,12 @@
     },
     {
       "deferred": false,
+      "name": "models_catalog",
+      "summary": "Every AI account the asker can use with its models, what each can do (tools, images, context), a cost tier (cheap, standard or strong) and whether the probe found it available; for helpers that pick a model across accounts. Reads saved lists and the probe's marks only",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "mounts_add",
       "summary": "Mount a Google, SharePoint, OneDrive or Dropbox folder, a folder on your computer or a GitHub repository into a folder of the tree; the first sync is a Run",
       "toolset": "files"

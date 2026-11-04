@@ -11367,6 +11367,29 @@ export type EngineModelsListOut = {
     failed: boolean;
   };
 };
+export type EngineModelsCatalogIn = {
+  accountRef?: string;
+};
+export type EngineModelsCatalogOut = {
+  accounts: Array<{
+      ref: string;
+      label: string;
+      provider: string;
+      kind: "api_key" | "subscription" | "local";
+      usable: boolean;
+      why?: string;
+      models: Array<{
+          id: string;
+          title: string;
+          tools: boolean;
+          vision: boolean;
+          context: number;
+          tier: "cheap" | "standard" | "strong";
+          allowed: boolean;
+          available: "ok" | "checking" | "unavailable" | "unverified";
+        }>;
+    }>;
+};
 export type EngineMyAiIn = {
   threadId?: string;
   agentId?: string;
@@ -42963,6 +42986,7 @@ export interface CapMap {
   "engine.mcp.read": { in: EngineMcpReadIn; out: EngineMcpReadOut };
   "engine.mcp.tools": { in: EngineMcpToolsIn; out: EngineMcpToolsOut };
   "engine.models.list": { in: EngineModelsListIn; out: EngineModelsListOut };
+  "engine.models_catalog": { in: EngineModelsCatalogIn; out: EngineModelsCatalogOut };
   "engine.my_ai": { in: EngineMyAiIn; out: EngineMyAiOut };
   "engine.now": { in: EngineNowIn; out: EngineNowOut };
   "engine.placement.decide": { in: EnginePlacementDecideIn; out: EnginePlacementDecideOut };
