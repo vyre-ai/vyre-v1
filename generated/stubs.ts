@@ -2602,6 +2602,9 @@ export function stubs(ctx: CallCtx) {
       },
       switch_address: call("spaces.switch_address"),
       switcher: call("spaces.switcher"),
+      timezone: {
+        set: call("spaces.timezone.set"),
+      },
       transfer_ownership: call("spaces.transfer_ownership"),
       update: call("spaces.update"),
     },

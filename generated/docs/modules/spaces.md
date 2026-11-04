@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access, members.
 
-## Capabilities (23)
+## Capabilities (24)
 
 - [follows.list](../capabilities/follows.list.md): What I follow
 - [follows.toggle](../capabilities/follows.toggle.md): Follow or unfollow something so its updates reach my Inbox
@@ -25,6 +25,7 @@ Requires: access, members.
 - [spaces.onboarding.seen](../capabilities/spaces.onboarding.seen.md): Note that the onboarding screen has opened for me once, so it does not open by itself again
 - [spaces.switch_address](../capabilities/spaces.switch_address.md): Move the Space between the relay and an own domain; devices pin the Space key, so nobody is re-invited
 - [spaces.switcher](../capabilities/spaces.switcher.md): This Space tile for the switcher: name, logo, kind, role, and whether it needs the person (red dot)
+- [spaces.timezone.set](../capabilities/spaces.timezone.set.md): Set the Space time zone (an IANA name). Shared places read times in it; each person sees their own beside it. Deadlines keep their moment. An agent needs an admin to approve
 - [spaces.transfer_ownership](../capabilities/spaces.transfer_ownership.md): Owner only: hand the Space to another person
 - [spaces.update](../capabilities/spaces.update.md): Change the Space name, legal name, logo or defaults
 - [stars.list](../capabilities/stars.list.md): My starred things, newest first

@@ -62,6 +62,7 @@ Area: space. Risk: high. Applies to: space.
 - settings.floor_set
 - settings.reset_space
 - settings.set_space
+- spaces.timezone.set
 - spaces.update
 - talk.space.check
 - talk.space.configure

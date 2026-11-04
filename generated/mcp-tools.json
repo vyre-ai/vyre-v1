@@ -58326,6 +58326,31 @@
     },
     {
       "blocks": [],
+      "cap": "spaces.timezone.set",
+      "deferred": false,
+      "description": "Set the Space time zone (an IANA name). Shared places read times in it; each person sees their own beside it. Deadlines keep their moment. An agent needs an admin to approve",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "timezone": {
+            "examples": [
+              "America/Los_Angeles"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "timezone"
+        ],
+        "type": "object"
+      },
+      "name": "spaces_timezone_set",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "spaces.transfer_ownership",
       "deferred": false,
       "description": "Owner only: hand the Space to another person",

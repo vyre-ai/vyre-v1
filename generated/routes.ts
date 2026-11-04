@@ -34293,6 +34293,24 @@ const routes6: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/spaces/timezone/set",
+    "cap": "spaces.timezone.set",
+    "v": 1,
+    "module": "spaces",
+    "effects": "write",
+    "permission": "policy.manage",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": "approve"
+  },
+  {
+    "method": "POST",
     "path": "/v1/spaces/transfer_ownership",
     "cap": "spaces.transfer_ownership",
     "v": 1,
@@ -38638,7 +38656,10 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/folders/create",
@@ -38656,10 +38677,7 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/folders/delete",

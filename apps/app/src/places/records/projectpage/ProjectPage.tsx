@@ -31,6 +31,7 @@ import { useAddSheet } from "../../chats/addsheet/index.ts";
 import { PeoplePopover } from "../../../../../../ui/src/PeoplePopover/index.tsx";
 import type { MemberAction, MemberRow } from "../../../../../../ui/src/PeoplePopover/index.tsx";
 import { itemLink } from "../../../share/rows.ts";
+import { useZones } from "../../../../../../ui/src/Time/index.tsx";
 import { stageWord } from "./overview/model.ts";
 
 export interface ProjectPageProps {
@@ -221,9 +222,10 @@ function ProjectPeople({ o, projectId, at, onClose, toOverview, menu, reload, sa
 
 export function OverviewTab({ o, now }: { o: Overview; now: number }): ReactElement {
   const d = useProjectPageData();
+  const zone = useZones().space;
   const rows = (list: Overview["milestones"], prefix: string): ReactElement[] => {
     const out: ReactElement[] = [];
-    for (const t of list) out.push(<Row key={t.taskId} id={`${prefix}:${t.taskId}`} title={t.title} note={[t.stage, t.due !== undefined ? `${dateWords(t.due)} · ${dueWords(t.due, now)}` : undefined, t.assigned ? d.nameOf(t.assigned) : undefined].filter(Boolean).join(" · ")} />);
+    for (const t of list) out.push(<Row key={t.taskId} id={`${prefix}:${t.taskId}`} title={t.title} note={[t.stage, t.due !== undefined ? `${dateWords(t.due, zone)} · ${dueWords(t.due, now, zone)}` : undefined, t.assigned ? d.nameOf(t.assigned) : undefined].filter(Boolean).join(" · ")} />);
     return out;
   };
   const people: ReactElement[] = [];

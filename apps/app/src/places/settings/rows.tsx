@@ -1,6 +1,9 @@
 // Every SettingDef of the registry in one row: `SettingControl` draws the right control for the value (a switch, a choice, a number, a field or hours) and saves
 // as it is made through settings.set, which returns the previous value so Undo is one more call. A change the Space's floor refuses says so in a sentence and the control goes back.
 import type { ReactElement } from "react";
+import { ZonePicker } from "../../../../../ui/src/ZonePicker/index.tsx";
+import { deviceZone, validZone } from "../../../../../lib/zones.ts";
+import { refreshZones } from "../../shell/zones/ZonesHost.tsx";
 import { useSaved } from "./saved.tsx";
 import { useSettingsData } from "./data.tsx";
 import { controlFor, hoursSummary, labelOf, rowHelp, rowLabel, splitList, summaryOf, timeIn } from "./model.ts";
@@ -42,6 +45,11 @@ export function SettingControl({ row }: { row: SettingRow }): ReactElement {
       return <Stepper value={typeof v === "number" ? v : 0} {...(c.min !== undefined ? { min: c.min } : {})} {...(c.max !== undefined ? { max: c.max } : {})} step={c.step} label={label} testID={`ctl-${row.key}`} onChange={(n) => void change(row, n)} />;
     case "text": return <Field value={typeof v === "string" ? v : ""} label={label} testID={`ctl-${row.key}`} {...(c.pattern ? { pattern: c.pattern } : {})} mono={c.mono === true} onCommit={(n) => void change(row, n)} />;
     case "hours": return <HoursControl row={row} />;
+    case "zone": {
+      const here = deviceZone();
+      const set = (zone: string): void => { void change(row, zone).then(() => refreshZones()); };
+      return <ZonePicker value={typeof v === "string" && validZone(v) ? v : here} label={label} testID={`ctl-${row.key}`} onChange={set} extra={{ label: "Use this computer's time zone", onSelect: () => set(here) }} />;
+    }
     case "list": return <Field value={Array.isArray(v) ? v.join(", ") : ""} label={label} width={240} testID={`ctl-${row.key}`} onCommit={(n) => void change(row, splitList(n))} />;
     default:
       return <Value text={summaryOf(v)} testID={`ctl-${row.key}`} />;
