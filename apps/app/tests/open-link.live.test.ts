@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
+import { guardCrashes } from "./crash-guard.ts";
 
 const _KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
 const PASSWORD = "fixture password 123";
@@ -68,6 +69,7 @@ test("/open/<kind>/<id>: signed out, sign in, land on the item; without access, 
       const ctx = await browser.newContext({ viewport: { width: w, height: h } });
       const p = await ctx.newPage();
       const errs: string[] = [];
+      const guard = guardCrashes(p);
       p.on("pageerror", (e) => errs.push(e.message)); p.on("console", (m) => { if (m.type() === "error") errs.push(m.text().slice(0, 300)); });
       await p.goto(`${web.origin}/open/file/${open}`, { waitUntil: "load" });
       await p.getByTestId("si-user").waitFor({ timeout: 20_000 }).catch(async (e: Error) => {
@@ -86,6 +88,7 @@ test("/open/<kind>/<id>: signed out, sign in, land on the item; without access, 
       });
       assert.ok(!(await p.getByTestId("open-link-peek").count()), "a person with access sees no peek");
       await p.waitForTimeout(600);
+      await guard.check(`${size} landed on the item`);
       await p.screenshot({ path: path.join(shots, `open-2-landed-${size}-paper.png`) });
       // 2. signed in, no access: the peek with Ask for access
       await p.goto(`${web.origin}/open/file/${closed}`, { waitUntil: "load" });
@@ -94,6 +97,7 @@ test("/open/<kind>/<id>: signed out, sign in, land on the item; without access, 
       assert.match(text, /A file you don't have access to/);
       assert.ok(!text.includes("Okafor"), "the name is never shown");
       await p.waitForTimeout(1200);
+      await guard.check(`${size} the peek`);
       // the hidden file's name is nowhere: not on the page, in the title bar, in a tab, in what the device keeps, or in the Space's recents for this person
       const hidden = ["Okafor", closed];
       const where: Record<string, string> = {
