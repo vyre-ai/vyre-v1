@@ -268,6 +268,13 @@ export function stubs(ctx: CallCtx) {
       validate: call("automations.validate"),
       vault_usage: call("automations.vault_usage"),
       versions: call("automations.versions"),
+      watches: {
+        check: call("automations.watches.check"),
+        list: call("automations.watches.list"),
+        remove: call("automations.watches.remove"),
+        report: call("automations.watches.report"),
+        save: call("automations.watches.save"),
+      },
       webhook_url: {
         get: call("automations.webhook_url.get"),
         rotate: call("automations.webhook_url.rotate"),
@@ -292,6 +299,19 @@ export function stubs(ctx: CallCtx) {
       cancel: call("bookings.cancel"),
       list: call("bookings.list"),
       page_create: call("bookings.page_create"),
+    },
+    browser: {
+      cards: {
+        post: call("browser.cards.post"),
+      },
+      chrome: {
+        act: call("browser.chrome.act"),
+      },
+      sites: {
+        list: call("browser.sites.list"),
+        remove: call("browser.sites.remove"),
+        set: call("browser.sites.set"),
+      },
     },
     calendar: {
       availability: call("calendar.availability"),
@@ -786,6 +806,7 @@ export function stubs(ctx: CallCtx) {
       models: {
         list: call("engine.models.list"),
       },
+      my_ai: call("engine.my_ai"),
       now: call("engine.now"),
       placement: {
         decide: call("engine.placement.decide"),
