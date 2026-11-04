@@ -1,14 +1,14 @@
-# network.machine_fix
+# machines.fix
 
-Press a Doctor Fix on a machine: clear old caches, stop idle engine sessions, or restart a service. The host runs it; an admin for the Space server and servers it holds, the owner for their own computer. Audited
+Press a Doctor Fix on a machine: clear old caches, stop idle engine sessions, or restart a service. The host runs it; an admin for the Space server and servers, the owner for their own computer. Audited
 
 | | |
 |---|---|
-| Module | network |
+| Module | machines |
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
-| Grant level | use |
+| Grant level | view |
 | Risk | medium |
 | Resource | space |
 | Gate | none |
@@ -16,8 +16,8 @@ Press a Doctor Fix on a machine: clear old caches, stop idle engine sessions, or
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
-| HTTP | POST /v1/network/machine_fix |
-| MCP tool | network_machine_fix (engineer) |
+| HTTP | POST /v1/machines/fix |
+| MCP tool | machines_fix (engineer) |
 | CLI | none |
 | Emits | none |
 
@@ -25,7 +25,7 @@ Press a Doctor Fix on a machine: clear old caches, stop idle engine sessions, or
 
 ```ts
 type In = {
-  serverId: string;
+  machineId: string;
   fix: "clear_caches" | "stop_idle" | "restart_service";
   service?: string;
 };
@@ -35,8 +35,8 @@ type In = {
 
 ```ts
 type Out = {
-  queued: boolean;
-  commandId: number;
+  state: "done" | "failed";
+  detail: string;
 };
 ```
 
@@ -56,12 +56,12 @@ type Out = {
   "name": "example",
   "input": {
     "fix": "clear_caches",
-    "serverId": "srv_local",
+    "machineId": "example",
     "service": "example"
   },
   "output": {
-    "commandId": 1,
-    "queued": true
+    "detail": "example",
+    "state": "done"
   }
 }
 ```

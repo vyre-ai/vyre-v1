@@ -1,15 +1,31 @@
 // Machines, the page shared by the Console (every machine of the Space) and Settings, This device (my own): what a row says, how a chart is drawn and what its hover reads. Pure functions over what
-// network.machines and network.machine answer, so the page, the Console and the tests agree. The words and the numbers behind them are the prototype's (Machines, 4 Nov).
-import type { CapMap } from "../../../../generated/types.ts";
-
-export type MachinesOut = CapMap["network.machines"]["out"];
-export type MachineRow = MachinesOut["machines"][number];
-export type MachineAlert = MachinesOut["alerts"][number];
-export type MachineOut = CapMap["network.machine"]["out"];
-export type Series = MachineOut["series"];
-export type Point = Series["points"][number];
-export type Finding = MachineOut["findings"][number];
-export type Range = Series["range"];
+// machines.list and machines.get answer (api.ts turns them into these shapes), so the page, the Console and the tests agree. The words and the numbers behind them are the prototype's (Machines, 4 Nov).
+export type Range = "1h" | "24h" | "7d" | "30d";
+export interface MachineRow {
+  serverId: string; name: string; nickname?: string; kind: "space" | "server" | "linked"; owner?: string; mine: boolean;
+  state: "healthy" | "degraded" | "down"; online: boolean; lastSeenAt?: number; version?: string; os?: string; arch?: string;
+  cores?: number; memBytes?: number; diskBytes?: number; latencyMs?: number;
+  /** The whole machine's load: absent on a member's own computer seen by someone else. */
+  load?: { cpu: number; memPct: number; diskPct: number; diskFreeBytes: number };
+  /** Vyre's own share, present when the machine has reported. */
+  vyre?: { cpu: number; memPct: number };
+  private: boolean;
+  runs: { turns: number; agentComputers: number; sites: number; automations: number };
+  can: string[];
+  room: { n: number; why: string };
+  limits: { maxTurns: number | null; maxAgentComputers: number | null };
+  drain: boolean; pins: string[];
+}
+export interface MachineAlert { alertId: string; serverId: string; kind: "disk" | "memory" | "offline" | "backup" | "update"; title: string; detail: string }
+export interface Waiting { serverId: string; name: string; owner?: string; fingerprint?: string; requestedAt?: number; facts?: { os: string; arch: string; docker: boolean; version: string } }
+export interface MachinesOut { machines: MachineRow[]; waiting: Waiting[]; alerts: MachineAlert[]; admin: boolean; now: number }
+export interface Point { t: number; cpu: number | null; mem: number | null; disk: number | null; netIn: number | null; netOut: number | null }
+export interface Series { range: Range; step: number; points: Point[] }
+export interface Finding { key: string; state: "healthy" | "degraded" | "down"; detail: string; next: string; fix: "clear_caches" | "stop_idle" | "update" | null }
+export interface MachineOut {
+  machine: MachineRow; series: Series; findings: Finding[]; work: Array<{ agent: string; what: string; where: string; cpu: number }>; alerts: MachineAlert[]; privacy: "full" | "vyre_only";
+  lastFix?: { fix: string; at: number; state: "done" | "failed"; detail: string };
+}
 
 export const RANGES: readonly { key: Range; label: string }[] = [{ key: "1h", label: "1\u00a0h" }, { key: "24h", label: "24\u00a0h" }, { key: "7d", label: "7\u00a0d" }, { key: "30d", label: "30\u00a0d" }];
 export const RANGE_NOTE: Readonly<Record<Range, string>> = { "1h": "1-minute points", "24h": "10-minute points", "7d": "Downsampled after 24 hours", "30d": "Downsampled after 24 hours" };

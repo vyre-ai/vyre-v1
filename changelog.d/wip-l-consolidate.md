@@ -13,3 +13,4 @@
 - The Console shows machine alerts among what needs you, with a count on Machines.
 - An admin's agent list no longer includes another person's own agents, even with All in the Space on. A person's Assistant and the agents they keep private are never named to an admin: the Console shows one summary row per person with a count, the spend against their cap, a Spend cap and Pause all (which is audited and tells the person).
 - Usage by agent folds agents you may not see into one People's own agents line.
+- An admin who manages runs no longer sees a person's own agent runs (routines and agent runs) in the run lists or by id. They see a count per person instead (`runs.people_counts`), never the work. Shared on purpose, it still shows.

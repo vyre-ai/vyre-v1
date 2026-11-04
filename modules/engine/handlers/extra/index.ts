@@ -8,7 +8,7 @@ import { reviewList, reviewMark } from "./review.ts";
 import { reviewerGet, reviewerSet } from "../reviewer.ts";
 import { engineHealth, leaseAcquire, leaseHeartbeat, leaseRelease, queueList, queuePeek, routePreview } from "./threads.ts";
 import { turnOfMessage } from "./reply-info.ts";
-import { turnAppend, turnEnqueue, turnFallback, turnFinish, turnGet, turnRecord, turnRetry, turnStart, turnWait, turnsList } from "./turns.ts";
+import { turnAppend, turnEnqueue, turnFallback, turnFinish, turnGet, turnRecord, turnRetry, turnStart, turnWait, turnsList, turnsRunning } from "./turns.ts";
 
 export const extraHandlers = {
   "engine.placement.decide": placementDecide,
@@ -39,6 +39,8 @@ export const extraHandlers = {
   "engine.turn.get": turnGet,
   "engine.turn.of_message": turnOfMessage,
   "engine.turns.list": turnsList,
+  "engine.turns.running": turnsRunning,
+  "engine.turns.running": turnsRunning,
   "engine.turn.retry": turnRetry,
   "engine.lease.acquire": leaseAcquire,
   "engine.lease.heartbeat": leaseHeartbeat,

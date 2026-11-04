@@ -81,8 +81,6 @@ export interface CommandDeps {
   phone?: PhonePort | undefined;
   now: () => number;
   log?: Logger | undefined;
-  /** Run a machine's Fix (machine-fix.ts) on `serverId`; one plain line back. */
-  machineFix?(serverId: string, fix: string, service: string | undefined): Promise<string>;
   observed?(event: { id: string; type: 'network.domain_changed' | 'network.server_removed' | 'network.certificate_renewed'; actor: string; target: string; payload: Record<string, unknown> }): Promise<void>;
 }
 
@@ -112,9 +110,7 @@ export async function pollCommands(d: CommandDeps): Promise<number> {
     let state = 'applied';
     let detail: string | null = null;
     try {
-      const out: { detail?: string } = {};
-      state = (await runNetwork(d, kind, target, out)) ?? 'applied';
-      if (out.detail !== undefined) detail = out.detail;
+      state = (await runNetwork(d, kind, target)) ?? 'applied';
       if (state === 'applied' && d.observed) {
         const identity = { id: `evt_network_command_${id}`, actor: text(r['by_principal']), target };
         if (kind === 'set_domain' || kind === 'set_mode') {
@@ -141,7 +137,7 @@ export async function pollCommands(d: CommandDeps): Promise<number> {
   return n;
 }
 
-async function runNetwork(d: CommandDeps, kind: string, target: string, out: { detail?: string } = {}): Promise<"pending" | void> {
+async function runNetwork(d: CommandDeps, kind: string, target: string): Promise<"pending" | void> {
   const t = d.now();
   switch (kind) {
     case "set_domain": {
@@ -182,12 +178,6 @@ async function runNetwork(d: CommandDeps, kind: string, target: string, out: { d
       const state = await d.network.reconnect(target);
       if (!state) throw new Error('No server connection manager answered this reconnect.');
       if (state) d.db.run("UPDATE network_server SET state = ?, heartbeat_at = ? WHERE server_id = ?", state, state === "down" ? int(row(d.db.all("SELECT heartbeat_at FROM network_server WHERE server_id = ?", target)[0])["heartbeat_at"]) : t, target);
-      return;
-    }
-    case "machine_fix": {
-      const [serverId = "", fix = "", service] = target.split(":");
-      if (!d.machineFix) throw new Error("this host runs no fixes");
-      out.detail = await d.machineFix(serverId, fix, service);
       return;
     }
     case "remove":

@@ -1,10 +1,10 @@
-# network.machine_alerts_notify
+# machines.alerts_notify
 
-Host only: send each new machine alert to the Inbox once while it lasts
+Host only: send each new machine alert to the Inbox once while it lasts, and tell the placement caches when a machine ran out of room or has room again
 
 | | |
 |---|---|
-| Module | network |
+| Module | machines |
 | Version | 1 (since 1.0.0) |
 | Effects | write |
 | Permission | grant only |
@@ -16,10 +16,10 @@ Host only: send each new machine alert to the Inbox once while it lasts
 | Offline | online |
 | Audit | none |
 | Team Space only | no |
-| HTTP | POST /v1/network/machine_alerts_notify |
-| MCP tool | none |
+| HTTP | POST /v1/machines/alerts_notify |
+| MCP tool | machines_alerts_notify (engineer) |
 | CLI | none |
-| Emits | network.machine_alert, network.machine_changed |
+| Emits | machine.alert, machine.changed |
 
 ## Input
 

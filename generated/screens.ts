@@ -2798,24 +2798,23 @@ export const screens: ScreenIndexEntry[] = [
     "caller": "principal",
     "queries": {
       "machines": {
-        "cap": "network.machines",
+        "cap": "machines.list",
         "input": {},
         "live": true
       }
     },
     "actions": {
       "set": {
-        "cap": "network.machine_set",
+        "cap": "machines.set",
         "input": {
-          "serverId": "/state/serverId"
+          "machineId": "/state/machineId"
         }
       },
-      "pin": {
-        "cap": "network.machine_pin",
+      "fix": {
+        "cap": "machines.fix",
         "input": {
-          "serverId": "/state/serverId",
-          "agentId": "/state/agentId",
-          "pinned": "/state/pinned"
+          "machineId": "/state/machineId",
+          "fix": "/state/fix"
         }
       }
     },

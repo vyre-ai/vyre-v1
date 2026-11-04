@@ -93,7 +93,7 @@ export const consumers = {
   },
   /** A machine was drained, its limits changed, or it ran out of room or has room again: where a chat runs may differ now, so the per-chat placement words are read again (placement-cache.ts). */
   "engine.placement_cache": {
-    on: ["network.machine_changed"],
+    on: ["machine.changed"],
     run: async (): Promise<void> => { forgetPlacement(); },
   },
   /** A new chat starts on the model its person last picked, so the composer shows it before the first message (last-pick.ts). */
