@@ -11,6 +11,7 @@ import { PeoplePicker } from "../../../../../../ui/src/PeoplePicker/index.tsx";
 import type { PickEntry } from "../../../../../../ui/src/PeoplePicker/index.tsx";
 import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
 import { TextField } from "../../../../../../ui/src/TextField/index.tsx";
+import type { Zones } from "../../../../../../ui/src/Time/index.tsx";
 import { fromLocalInput, moved, toLocalInput } from "./model.ts";
 import type { PlanStep, Who } from "./model.ts";
 
@@ -45,17 +46,17 @@ export function EditText({ value, canEdit, onSave, label, testID, textStyle, mul
 }
 
 /** A date and time field in the person's zone. */
-export function DeadlineEdit({ deadline, offsetMin, canEdit, shown, onSave }: { deadline: number; offsetMin: number; canEdit: boolean; shown: ReactNode; onSave(next: number): void }): ReactElement {
+export function DeadlineEdit({ deadline, zones, canEdit, shown, onSave }: { deadline: number; zones: Zones; canEdit: boolean; shown: ReactNode; onSave(next: number): void }): ReactElement {
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(toLocalInput(deadline, offsetMin));
+  const [value, setValue] = useState(toLocalInput(deadline, zones));
   if (!canEdit) return <>{shown}</>;
   if (!editing || !web) {
     return (
-      <Pressable accessibilityRole="button" accessibilityLabel="Change the deadline" testID="goal-deadline-edit" onPress={() => { setValue(toLocalInput(deadline, offsetMin)); setEditing(true); }}
+      <Pressable accessibilityRole="button" accessibilityLabel="Change the deadline" testID="goal-deadline-edit" onPress={() => { setValue(toLocalInput(deadline, zones)); setEditing(true); }}
         style={({ hovered }: { hovered?: boolean }) => [st.editable, hovered === true && st.editableOver]}>{shown}</Pressable>
     );
   }
-  const next = fromLocalInput(value, offsetMin);
+  const next = fromLocalInput(value, zones);
   return (
     <View style={st.inline}>
       {createElement("input", {

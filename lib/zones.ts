@@ -119,13 +119,13 @@ function relativeText(at: number, now: number, zone: string, withTime: boolean):
 
 /** A time as people say it from now, in the Space zone, with the viewer's reading beside it when their zone shows a different clock. */
 export function whenIn(at: number, now: number, z: Zones): When {
-  const text = relativeText(at, now, z.space, true);
+  const text = relativeText(at, now, z.space, false);
   const differs = offsetMinAt(at, z.space) !== offsetMinAt(at, z.viewer);
   let mine: string | undefined;
   if (differs) {
     // the viewer's reading says its day only when it is not the Space's day at that moment
     const sameDay = dayIn(at, z.viewer) - dayIn(now, z.viewer) === dayIn(at, z.space) - dayIn(now, z.space) && partsIn(at, z.viewer).day === partsIn(at, z.space).day;
-    mine = sameDay ? clockIn(at, z.viewer) : relativeText(at, now, z.viewer, true);
+    mine = sameDay ? clockIn(at, z.viewer) : relativeText(at, now, z.viewer, false);
   }
   return { text, ...(mine ? { mine } : {}), title: titleOf(at, z) };
 }
@@ -189,4 +189,18 @@ export function zoneMatches(c: { zone: string; city: string; name: string }, q: 
   const needle = q.trim().toLowerCase();
   if (needle === "") return true;
   return [c.city, c.name, c.zone, c.zone.replace(/_/g, " ")].some((s) => s.toLowerCase().includes(needle));
+}
+
+/** A time as a plain string, the Space reading with the viewer's in brackets when it differs: "Tomorrow 9:00 AM (10:00 PM your time)". */
+export function whenText(at: number, now: number, z: Zones): string {
+  const w = whenIn(at, now, z);
+  return w.mine ? `${w.text} (${w.mine} your time)` : w.text;
+}
+
+/** A deadline as a date line, the viewer's time in brackets when it differs: "Sat 7 Nov, 1:00 PM (2:00 AM, Sun 8 Nov your time)". */
+export function dueText(at: number, z: Zones): string {
+  const base = dueIn(at, z);
+  if (offsetMinAt(at, z.space) === offsetMinAt(at, z.viewer)) return base;
+  const day = dateIn(at, z.viewer) !== dateIn(at, z.space) ? `, ${dateIn(at, z.viewer)}` : "";
+  return `${base} (${clockIn(at, z.viewer)}${day} your time)`;
 }

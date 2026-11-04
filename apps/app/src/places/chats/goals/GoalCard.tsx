@@ -12,6 +12,7 @@ import { askedCall, goalMenuEntries } from "./goal-menu.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
 import { Btn, Icon } from "./GoalPage.tsx";
 import { delta, fmt, lineWithDue, statusOf } from "./model.ts";
+import { useZones } from "../../../../../../ui/src/Time/index.tsx";
 import type { GoalBlock, Progress, Status } from "./model.ts";
 
 export { goalBlockOf } from "./model.ts";
@@ -19,6 +20,7 @@ export { goalBlockOf } from "./model.ts";
 interface Live { status: Status; progress: Progress; deadline: number; owner?: string }
 
 export function GoalCard({ block, call, changes, openGoal, me }: { block: GoalBlock; call(cap: string, input: unknown): Promise<unknown>; changes: Changes | undefined; openGoal?: (goalId: string) => void; me?: string }): ReactElement {
+  const zones = useZones();
   const [live, setLive] = useState<Live | null>(null);
   const [said, setSaid] = useState("");
   const menu = useMenu();
@@ -54,7 +56,7 @@ export function GoalCard({ block, call, changes, openGoal, me }: { block: GoalBl
       <Pressable accessibilityRole="link" accessibilityLabel={`Open the goal ${block.title}`} onPress={() => openGoal?.(block.goalId)} testID={`goal-card-open-${block.goalId}`}>
         <Text style={st.title}>{block.title}</Text>
       </Pressable>
-      <Text style={st.small}>{lineWithDue(block.line, live?.deadline ?? block.deadline, -new Date().getTimezoneOffset())}</Text>
+      <Text style={st.small}>{lineWithDue(block.line, live?.deadline ?? block.deadline, zones)}</Text>
       {value !== undefined && target !== undefined ? (
         <View style={st.num}>
           <Text style={st.big}>{fmt(value)}</Text><Text style={st.of}>{`/ ${fmt(target)}${block.unit ? ` ${block.unit}` : ""}`}</Text>
