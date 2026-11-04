@@ -801,6 +801,9 @@ export function createClient(transport: Transport) {
         list: call("engine.incidents.list", 1),
       },
       interrupt: call("engine.interrupt", 1),
+      last_pick: {
+        get: call("engine.last_pick.get", 1),
+      },
       lease: {
         acquire: call("engine.lease.acquire", 1),
         heartbeat: call("engine.lease.heartbeat", 1),
@@ -2063,6 +2066,7 @@ export function createClient(transport: Transport) {
       plan: call("projects.plan", 1),
       post_update: call("projects.post_update", 1),
       reschedule: call("projects.reschedule", 1),
+      roles_of: call("projects.roles_of", 1),
       share_out: call("projects.share_out", 1),
       shared_view: call("projects.shared_view", 1),
       stages: {
@@ -2555,6 +2559,21 @@ export function createClient(transport: Transport) {
       status: call("sync_types.status", 1),
       undo_push: call("sync_types.undo_push", 1),
       update: call("sync_types.update", 1),
+    },
+    talk: {
+      ask_key: call("talk.ask_key", 1),
+      configure: call("talk.configure", 1),
+      connect: call("talk.connect", 1),
+      disconnect: call("talk.disconnect", 1),
+      session: call("talk.session", 1),
+      space: {
+        check: call("talk.space.check", 1),
+        configure: call("talk.space.configure", 1),
+        connect: call("talk.space.connect", 1),
+        disconnect: call("talk.space.disconnect", 1),
+        status: call("talk.space.status", 1),
+      },
+      status: call("talk.status", 1),
     },
     tasks: {
       act: call("tasks.act", 1),

@@ -235,12 +235,25 @@ export function findReport(ctx: ReportsCtx, reportId: string): ReportRow | null 
 
 const isAdmin = (ctx: ReportsCtx): boolean => ctx.authorize({ perm: "policy.manage", level: "view" }, { type: "space", id: null }).effect === "allow";
 
-async function readPolicy(ctx: ReportsCtx): Promise<Policy> {
+/** The Space's policy alone, what an admin sets and reads back. */
+async function spacePolicy(ctx: ReportsCtx): Promise<Policy> {
   try {
     const row = asRow(asRow(await ctx.call("settings.get" as never, { key: POLICY_KEY }))?.["row"]);
     return isPolicy(row?.["value"]) ? row["value"] : "on";
   } catch {
     return "on";   // the default of the setting
+  }
+}
+
+/** What applies to this person: the Space's policy, lowered by the person's own "Send problem reports to Vyre" switch. A person who turned it off never sends automatically (On becomes Ask); they can still choose Send on a report. */
+async function readPolicy(ctx: ReportsCtx): Promise<Policy> {
+  const policy = await spacePolicy(ctx);
+  if (policy !== "on") return policy;
+  try {
+    const row = asRow(asRow(await ctx.call("settings.get" as never, { key: "reports.send" }))?.["row"]);
+    return row?.["value"] === false ? "ask" : policy;
+  } catch {
+    return policy;
   }
 }
 
@@ -349,7 +362,7 @@ export async function resolved(ctx: ReportsCtx, input: { reportId: string; issue
 }
 
 export async function policy_get(ctx: ReportsCtx, _input: Record<string, unknown>) {
-  return { policy: await readPolicy(ctx) };
+  return { policy: await spacePolicy(ctx) };
 }
 
 export async function policy_set(ctx: ReportsCtx, input: { policy: string }) {

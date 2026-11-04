@@ -31,6 +31,7 @@ import { ConnectCompanyPage } from "../../console/pages/company/ConnectCompany.t
 import { GoogleWorkspacePage } from "../../console/pages/suite/GoogleWorkspace.tsx";
 import { Microsoft365Page } from "../../console/pages/suite/Microsoft365.tsx";
 import { Models } from "../../console/pages/Models.tsx";
+import { VoiceSettings } from "../../console/pages/Voice.tsx";
 import { Spend } from "../../console/pages/Spend.tsx";
 import { ReviewSampling } from "../../console/pages/AiSettings.tsx";
 import { Incidents } from "../../console/pages/Incidents.tsx";
@@ -100,6 +101,7 @@ export function consolePageFor(id: string, args: Record<string, string | undefin
 }
 export function aiDataPageFor(id: string): ReactElement | null {
   if (id === "models") return <Models />;
+  if (id === "voice") return <VoiceSettings />;
   if (id === "spend") return <Spend />;
   if (id === "usage") return <Usage />;
   if (id === "review") return <ReviewSampling />;

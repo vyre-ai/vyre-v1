@@ -383,6 +383,9 @@ export default defineManifest({
     read('engine.defaults.get', 'The caller default model, provider, effort and fallback order in this Space', {
       out: { provider: t.opt(t.str()), model: t.opt(t.str()), effort: t.opt(effort), fallback: t.arr(t.obj({ provider: t.str(), model: t.str(), accountRef: t.opt(accountRef) })) }, tool: 'meta',
     }),
+    read('engine.last_pick.get', 'The model the caller last picked in a chat (any agent): a new chat starts on it. Empty when they have not picked one yet', {
+      out: { provider: t.opt(t.str()), model: t.opt(t.str()), effort: t.opt(effort) }, tool: 'meta',
+    }),
     write('engine.defaults.set', 'Set the caller default model, provider, effort and fallback order (the chat default)', {
       in: { provider: t.opt(t.str()), model: t.opt(t.str()), effort: t.opt(effort), fallback: t.opt(t.arr(t.obj({ provider: t.str(), model: t.str(), accountRef: t.opt(accountRef) }))) },
       out: { ok: t.bool() }, tool: 'meta', offline: 'patch', idem: 'natural', risk: 'low',
@@ -573,7 +576,7 @@ export default defineManifest({
     screen('settings.models-usage', 'settings', 'ui:ModelsUsage', {
       q: {
         accounts: ['engine.accounts.list', {}, true], models: ['engine.models.list', { accountRef: '/state/accountRef' }, true], defaults: ['engine.defaults.get', {}, true],
-        usage: ['engine.usage.query', { by: '/state/by', from: '/state/from', to: '/state/to' }, true],
+        usage: ['engine.usage.query', { by: '/state/by', from: '/state/from', to: '/state/to', personId: '/state/personId' }, true],
       },
       // No "Let the Space continue my chats when my computer is off" toggle here (owner ruling, 3 Nov 2026): it is on by default and its screen comes back with sealed chats.
       // engine.runtime.opt_in stays a capability; only the Settings action is gone.

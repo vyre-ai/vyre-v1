@@ -518,3 +518,16 @@ test("share_out fails closed: a link outside the Space is made only when the typ
   h.world.outside.answer = true;
   assert.match((await run(h, "projects.share_out", { projectId: p.projectId })).url, /^\/share\/project\//);
 });
+
+// ---- roles_of ----
+
+test("roles_of says which role a person holds on which projects, and only the projects the asker can see", async () => {
+  const h = harness();
+  const p = await mkProject(h, { title: "Client portal launch" });
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: LEO, role: "reviewer" });
+  assert.deepEqual((await run(h, "projects.roles_of", { personId: LEO })).roles, [{ projectId: p.projectId, title: "Client portal launch", role: "reviewer" }], "the maker sees Leo's role");
+  h.allowOnly(() => false);
+  assert.deepEqual((await run(h, "projects.roles_of", { personId: LEO }, h.person(MAYA))).roles, [], "Maya is not in it and cannot view it: it is not named to her");
+  assert.equal((await run(h, "projects.roles_of", { personId: LEO }, h.person(LEO))).roles.length, 1, "Leo sees his own");
+  await refused(run(h, "projects.roles_of", { personId: "agt_helper" }), "validation.bad_input");
+});

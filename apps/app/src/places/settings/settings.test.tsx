@@ -12,6 +12,7 @@ import { SavedProvider } from "./saved.tsx";
 import { HIDDEN_ROWS, PAGES, clock, controlFor, hoursSummary, moneyLabel, pageOfRow, rowLabel, searchRows, sectionsFor, splitList, summaryOf, timeIn } from "./model.ts";
 import type { SettingRow, YouPage } from "./model.ts";
 import { whenLabel } from "./pages-b.tsx";
+import { defaultModelValue, monthStart } from "./pages-a.tsx";
 import { KEYBOARD_MAP } from "../../shell/keyboard/map.ts";
 import { SpaceDefaults } from "./SpacePages.tsx";
 import { dollars, monthNote } from "./MemorySpend.tsx";
@@ -151,7 +152,7 @@ test("unmuting changes the list", async () => {
 
 test("AI: defaults, how agents work with you, usage with bars, the accounts and the Vault", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "ai" });
-  assert.ok(has(out, "Default model") && has(out, "Claude Sonnet 5.5") && has(out, "Fallback model") && has(out, "Claude Haiku 5.5"));
+  assert.ok(has(out, "Default model") && has(out, "GPT-5") && has(out, "Fallback model") && has(out, "Claude Haiku 5.5"));
   assert.ok(has(out, 'data-testid="usage"') && has(out, "OpenAI team key") && has(out, "$48.20") && has(out, "168 turns"));
   assert.ok(has(out, "Run my chats on this computer") && has(out, "Agents can open side tabs"));
   assert.ok(has(out, "AI accounts") && has(out, "Sign in again") && has(out, "Working"));
@@ -375,9 +376,33 @@ test("a notification kind's level is a choice that saves, says why when refused,
   assert.ok(s.calls.some((c) => c.cap === "notifications.kind.set_level"));
 });
 
+test("AI usage asks for this person's own turns since the first of the month, never the whole Space for all time", () => {
+  const s = createSampleSettings(northwind);
+  html(s, { initialPage: "ai" });
+  const asked = s.usageAsked.find((a) => a["by"] === "model");
+  assert.ok(asked, "the AI page reads usage by model: " + JSON.stringify(s.usageAsked));
+  assert.equal(asked!["personId"], s.space.me.id, "only this person");
+  assert.equal(asked!["from"], monthStart(s.data.clock().now, s.data.clock().offsetMin), "from the start of this month");
+  assert.ok((asked!["from"] as number) > 0);
+  const jan = Date.UTC(2026, 0, 1);
+  assert.equal(monthStart(Date.UTC(2026, 0, 31, 23, 0), 0), jan);
+  assert.equal(monthStart(Date.UTC(2026, 0, 1, 1, 0), -120), Date.UTC(2025, 11, 1) + 120 * 60_000, "a local clock behind UTC is still in the old month");
+  assert.equal(monthStart(Date.UTC(2026, 0, 1, 1, 0), 120), Date.UTC(2026, 0, 1) - 120 * 60_000, "a local clock ahead of UTC has the new month");
+});
+
 test("Settings has a Notes page with the one switch: offers to save useful things from chats as notes, on by default", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "notes" });
   assert.ok(has(out, 'data-testid="page-notes"'), "the page");
   assert.ok(has(out, "Offer to save things from chats as notes"), "the switch");
   assert.ok(PAGES.some((p) => p.key === "notes" && p.title === "Notes" && p.group === "you"));
+});
+
+test("the Default model row shows the model the person last picked, and says so; with no pick it shows the Space default", () => {
+  const out = html(createSampleSettings(northwind), { initialPage: "ai" });
+  assert.ok(has(out, "Your last pick. A new chat starts on it"), "the row says where its value comes from");
+  assert.ok(has(out, "GPT-5"), "the last pick, not the Space default (Claude Sonnet 5.5)");
+  const opts = [{ value: "anthropic/claude-sonnet-5-5" }, { value: "openai/gpt-5" }];
+  assert.equal(defaultModelValue({ model: "gpt-5" }, { provider: "anthropic", model: "claude-sonnet-5-5" }, opts), "openai/gpt-5", "a pick without a provider finds it among the models");
+  assert.equal(defaultModelValue({}, { provider: "anthropic", model: "claude-sonnet-5-5" }, opts), "anthropic/claude-sonnet-5-5");
+  assert.equal(defaultModelValue(null, null, opts), "");
 });

@@ -30,6 +30,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.incident.resolve": async () => ({"incident":{"agentId":"agt_a1b2c3","incidentId":"inc_a1b2c3","kind":"label_denied","notes":[{"at":1760000000000,"by":"example","text":"example"}],"openedAt":1760000000000,"ownerId":"usr_a1b2c3","resolvedAt":1760000000000,"state":"open","title":"example","turnId":"trn_a1b2c3"}} as unknown) as never,
   "engine.incidents.list": async () => ({"incidents":[{"agentId":"agt_a1b2c3","incidentId":"inc_a1b2c3","kind":"label_denied","notes":[{"at":1760000000000,"by":"example","text":"example"}],"openedAt":1760000000000,"ownerId":"usr_a1b2c3","resolvedAt":1760000000000,"state":"open","title":"example","turnId":"trn_a1b2c3"}],"next":"example","total":1} as unknown) as never,
   "engine.interrupt": async () => ({"queued":true} as unknown) as never,
+  "engine.last_pick.get": async () => ({"effort":"low","model":"example","provider":"example"} as unknown) as never,
   "engine.lease.acquire": async () => ({"acquired":true,"expiresAt":1760000000000} as unknown) as never,
   "engine.lease.heartbeat": async () => ({"expiresAt":1760000000000} as unknown) as never,
   "engine.lease.release": async () => ({"ok":true} as unknown) as never,

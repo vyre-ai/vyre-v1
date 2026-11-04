@@ -21,6 +21,7 @@ import { applySkinToWindow } from "./settings-skin.ts";
 import { nameOf } from "./misc-common.ts";
 import { openAskPane } from "../ask/pane.ts";
 import { chooseProfilePhoto } from "./settings-photo.ts";
+import { appearanceAware } from "./settings-appearance.ts";
 import { loadSecurity } from "./settings-security.ts";
 import { adminPages, adminTarget } from "./settings-admin.ts";
 import { PAGES as CONSOLE_PAGES } from "../../console/shell/nav.ts";
@@ -36,7 +37,7 @@ export function settingsData(rt: ShellRuntime, manageSecurity?: SettingsNav["man
     // Ask about a Settings page opens the pane beside it, about that page; the person's own settings are theirs to change, so the assistant may propose changes they then approve
     ask: (page) => { openAskPane({ thing: { kind: "settings_page", id: page.key, title: page.title }, context: { actions: ["explain a setting", "find a setting", "change a setting after the person says yes"] } }, "settings"); },
     ...(consoleAllowed ? { openConsole: () => rt.open({ screen: "console.overview" }), openCompany: () => rt.open({ screen: "company.setup" }) } : {}),
-    screens: rt.screens, call: rt.call, me: { id: rt.me.id, name: rt.me.name, ...(rt.me.username ? { username: rt.me.username } : {}) }, space: { id: rt.space.id, name: rt.space.name },
+    screens: rt.screens, call: appearanceAware(rt.call, rt.me.id), me: { id: rt.me.id, name: rt.me.name, ...(rt.me.username ? { username: rt.me.username } : {}) }, space: { id: rt.space.id, name: rt.space.name },
     spaces: rt.knownSpaces?.map(space=>({id:space.spaceId,name:space.name,addr:space.address,kind:space.kind,role:space.role,needsYou:space.needsYou?1:0,current:space.spaceId===rt.space.id}))??[{ id: rt.space.id, name: rt.space.name, addr: "", kind: rt.space.kind, role: "", needsYou: 0, current: true }],
     name: nameOf(rt),
     sessionImporter: rt.space.kind === "personal" ? desktopSessionImporter() : undefined,

@@ -801,6 +801,9 @@ export function stubs(ctx: CallCtx) {
         list: call("engine.incidents.list"),
       },
       interrupt: call("engine.interrupt"),
+      last_pick: {
+        get: call("engine.last_pick.get"),
+      },
       lease: {
         acquire: call("engine.lease.acquire"),
         heartbeat: call("engine.lease.heartbeat"),
@@ -2063,6 +2066,7 @@ export function stubs(ctx: CallCtx) {
       plan: call("projects.plan"),
       post_update: call("projects.post_update"),
       reschedule: call("projects.reschedule"),
+      roles_of: call("projects.roles_of"),
       share_out: call("projects.share_out"),
       shared_view: call("projects.shared_view"),
       stages: {
@@ -2555,6 +2559,21 @@ export function stubs(ctx: CallCtx) {
       status: call("sync_types.status"),
       undo_push: call("sync_types.undo_push"),
       update: call("sync_types.update"),
+    },
+    talk: {
+      ask_key: call("talk.ask_key"),
+      configure: call("talk.configure"),
+      connect: call("talk.connect"),
+      disconnect: call("talk.disconnect"),
+      session: call("talk.session"),
+      space: {
+        check: call("talk.space.check"),
+        configure: call("talk.space.configure"),
+        connect: call("talk.space.connect"),
+        disconnect: call("talk.space.disconnect"),
+        status: call("talk.space.status"),
+      },
+      status: call("talk.status"),
     },
     tasks: {
       act: call("tasks.act"),
