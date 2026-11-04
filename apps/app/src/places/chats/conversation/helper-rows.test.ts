@@ -64,8 +64,9 @@ test("nothing is posted per coder: the start line and the result card go once th
   const result = { messageId: "r", body: "Ember finished Fix it: 1 commit.", blocks: [{ type: "crew_result", id: "b2", data: { jobId: "crw_1", threadId: "thr_c" } }] };
   const words = { messageId: "w", body: "Three helpers are on it.", blocks: [{ type: "helper", id: "b3", data: { crew: true, helperThreadId: "thr_c" } }] };
   const other = { messageId: "o", body: "", blocks: [{ type: "crew_result", id: "b4", data: { jobId: "crw_9", threadId: "thr_x" } }] };
-  const out = hideCrewPosts([start, result, words, other], new Set(["thr_c"]), new Set(["crw_1"]));
-  assert.deepEqual(out.map((m) => m.messageId), ["w", "o"]);
+  const started = { messageId: "t", body: "Started a helper: Fix it", blocks: [{ type: "helper", id: "b5", data: { crew: true, helperThreadId: "thr_c" } }] };
+  const out = hideCrewPosts([start, started, result, words, other], new Set(["thr_c"]), new Set(["crw_1"]));
+  assert.deepEqual(out.map((m) => m.messageId), ["w", "o"], "'Started a helper' lines go with the strip row");
   assert.equal(out[0]!.blocks.length, 0, "the words stay, without the star line");
   assert.deepEqual(hideCrewPosts([start], new Set(), new Set()).map((m) => m.messageId), ["s"], "no coder in the strip, nothing is hidden");
 });

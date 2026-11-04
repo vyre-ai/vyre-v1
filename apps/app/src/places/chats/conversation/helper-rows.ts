@@ -118,7 +118,7 @@ export function hideCrewPosts<M extends Msg>(messages: readonly M[], threads: Re
     if (!m.blocks.some(mine)) return [m];
     const rest = m.blocks.filter((b) => !mine(b));
     // a line that held only the start or the result goes away; one that also carried words keeps them
-    return rest.length === 0 && m.body.trim() === "" ? [] : rest.length === 0 && (m.blocks.some((b) => b.type === "crew_result")) ? [] : [{ ...m, blocks: rest }];
+    return rest.length === 0 && (m.body.trim() === "" || /^Started a helper\b/.test(m.body) || m.blocks.some((b) => b.type === "crew_result")) ? [] : [{ ...m, blocks: rest }];
   });
 }
 
