@@ -54,6 +54,8 @@ export function workCardOf(cap: string, input: unknown, output: unknown): WorkCa
       // a message to a teammate for the person (lane l-agentdm): sent, or scheduled for later; the card opens the direct chat it went to
       const id = s(o["threadId"]);
       if (!id) return null;
+      // an agent writing as itself has its own chat with the teammate, which the person who asked cannot open: the line in the chat says where it went, so no card that opens it
+      if (o["as"] === "self") return null;
       const later = o["state"] === "scheduled";
       return { key: `dm:${s(o["messageId"]) || id}:${clip(s(i["body"]), 40)}`, icon: "thread", lead: later ? "Scheduled" : "Sent", title: clip(first(i["body"], rec(i["card"])["title"], "A message")), target: { type: "thread", id } };
     }

@@ -186,7 +186,7 @@ function ShellBody({ initialPage = DEFAULT_PAGE, initialAudit, skin = SYSTEM_SKI
   const moreBtn = useRef<unknown>(null);
   const strip = tabs.length > 1 ? (
     <View style={s.tabs} accessibilityRole="tablist" testID="console-tabs">
-      {/* ui-rows-lint: not a list (the Console place tabs) */}
+      {/* ui-rows-lint: not a list (the Console's place tabs) */}
       {shown.map((t) => {
         const on = t === activeTab;
         return <Pressable key={t.tab.label} accessibilityRole="tab" accessibilityState={{ selected: on }} aria-selected={on} testID={`tab-${t.tab.views[0]!.page}`} onPress={() => openTab(t)} style={[s.tab, on && s.tabOn, pointer]}><Text style={[s.tabText, on && s.tabTextOn]}>{t.tab.label}</Text></Pressable>;

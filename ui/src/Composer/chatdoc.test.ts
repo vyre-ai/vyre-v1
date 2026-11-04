@@ -23,7 +23,7 @@ test("a draft with 3 mentions over 10 lines becomes one paragraph with three chi
   const ranges = tokenRanges(DRAFT, [], NAMES);
   const d = chatDoc(DRAFT, ranges);
   schema.nodeFromJSON(d).check();
-  assert.deepEqual((d.content![0]!.content ?? []).filter((n) => n.type === "chip").map((n) => n.attrs!["text"]), ["@Aliza", "@Rubab", "@Sol"]);
+  assert.deepEqual((d.content![0]!.content ?? []).filter((n) => n.type === "chip").map((n) => n.attrs!["label"]), ["@Aliza", "@Rubab", "@Sol"]);
   assert.equal(chatText(d), DRAFT);
   assert.equal(chatText(chatDoc("", [])), "");
   assert.equal(chatText(chatDoc("a\n\nb", [])), "a\n\nb", "empty lines stay");

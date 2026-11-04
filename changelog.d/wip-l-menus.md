@@ -1,0 +1,11 @@
+## What's new
+- Right-click gives the menu that fits the thing. An agent has Message, Open Profile, its computer (Open, Wake or Sleep, Give It a Computer), Pause or Resume, Star, Mute and Delete Agent, with the admin items only for admins and Delete last. A person has Message, Mark as Read or Unread and Mute. A chat has Open, Open in New Tab, Rename, Star, Mark as Read or Unread, Mute, Archive, and Leave or Delete. A channel has Open, Mark as Read, Star, Mute, Copy Link, Archive Channel and Leave Channel. A message's menu is now in groups with Delete last.
+- Every menu item shows its key and the key works on the row (S star, U read, E archive, F2 rename, Cmd+Enter new tab, Cmd+Backspace delete). The words follow the real state: Star or Remove Star, Mute or Unmute, Wake or Sleep, Pause or Resume.
+- The "..." on a row opens the same menu for agents, people and channels too. On a phone's browser, hold a row for half a second to open its menu.
+- An agent's reply has Regenerate in its menu, which runs the turn that made it again. Edit and Delete are only on your own messages.
+- The menus now do more where something exists to do it: an agent can be poked in your chat with it, added to a chat, shared and sent to its instructions; a person can be added to a chat, called when a phone is set up and copied as @name; a chat has Add People, Copy Link and Notifications (mute for an hour, eight hours, a day or until you turn it back on); a channel has Invite and Notifications; a message has Copy Link; a task row has Mark Done or Reopen and Snooze.
+- Files: the file menu shows its keys (Enter, Space, F2, Delete) and a file can be shared from its menu.
+- Records: a record has Open, Star, Share, Copy Link and Delete in its menu (S stars it), and a record type in the sidebar has Open, Star, Copy Name and Edit Type.
+- Artifacts: an artifact row has Open, Share, Copy Link, Rename and Delete (Delete asks first) in its menu.
+- A message menu has Mark Unread From Here, and a chat menu has Move to Project. A task menu has Follow and Copy Link.
+- Voice can use ElevenLabs as well as Deepgram. An admin adds a key for each and picks which one covers people (Console, Voice). Check now runs a real one-second grant against the picked provider.

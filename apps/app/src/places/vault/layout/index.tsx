@@ -17,6 +17,8 @@ import type { Expiry } from "./model.ts";
 import type { Folder, Health, Item, Provider, Selection } from "./model.ts";
 import { Btn, Glyph, IconBtn, QuietLine } from "./parts.tsx";
 import { Sidebar } from "./Sidebar.tsx";
+import { vaultItemMenu } from "../../chats/menus/kinds-b.ts";
+import { createMenuApiB } from "../../chats/menus/actions-b.ts";
 import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { ResizableColumn } from "../../../../../../ui/src/SidePane/resize.tsx";
 import { Sheet } from "./Sheet.tsx";
@@ -114,6 +116,8 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
   const [addField, setAddField] = useState(false);
   const [lastFolder, setLastFolder] = useState<string | undefined>(undefined);
   const [askDelete, setAskDelete] = useState(0);
+  const [revealAll, setRevealAll] = useState(0);
+  const menuApi = useMemo(() => createMenuApiB(data), [data]);
   const [note, setNote] = useState<QuietNote | null>(null);
   const seq = useRef(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -214,16 +218,20 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
 
   const itemMenu = (item: Item, x: number, y: number): void => {
     setSelectedId(item.id);
-    const others = folderList.filter((f) => f.id !== item.folderId && (f.yourLevel === "edit" || f.yourLevel === "manage") && f.scope === "shared");
-    const canEdit = item.yourLevel === "edit" || item.yourLevel === "manage";
-    const entries: MenuEntry[] = [
-      ...(canEdit ? [{ label: "Edit…", onSelect: () => setEditing(item.id) }] : [{ label: "Open", onSelect: () => open(item.id) }]),
-      { label: "Copy handle", onSelect: () => { void copyHandle(data, item.handle); } },
-      ...(canEdit ? [{ separator: true } as MenuEntry, { label: "Mark as rotated", onSelect: () => { void data.call("vault.item.mark_rotated", { itemId: item.id }).then(() => showNote(`Marked ${item.name} rotated`)); } }] : []),
-      ...(item.yourLevel === "manage" && others.length ? [{ separator: true } as MenuEntry, { head: "Move to" } as MenuEntry, ...others.map((f): MenuEntry => ({ label: f.name, onSelect: () => { const from = item.folderId; void data.call("vault.item.move", { itemId: item.id, folderId: f.id }).then(() => showNote(`Moved ${item.name} to ${f.name}`, async () => { await data.call("vault.item.move", { itemId: item.id, folderId: from }); })); } }))] : []),
-      ...(item.yourLevel === "manage" ? [{ separator: true } as MenuEntry, { label: "Move to Trash", danger: true, onSelect: () => { open(item.id); setAskDelete((n) => n + 1); } } as MenuEntry] : []),
-    ];
-    menu.show(entries, x, y);
+    const moveTo = folderList.filter((f) => f.id !== item.folderId && (f.yourLevel === "edit" || f.yourLevel === "manage") && f.scope === "shared").map((f) => ({ id: f.id, name: f.name }));
+    // the row's own menu (chats/menus/kinds-b.ts): what the level allows, the words of each state, Move to Trash last. Reveal, Share and Usage are on the open item, which they open.
+    menu.show(vaultItemMenu(
+      { name: item.name, kind: item.kind, level: item.yourLevel, rotates: item.rotateEveryDays !== undefined, moveTo },
+      {
+        open: () => open(item.id), edit: () => setEditing(item.id),
+        reveal: () => { open(item.id); setRevealAll((n) => n + 1); },
+        copyHandle: () => { void copyHandle(data, item.handle); }, copyName: () => { void copyText(data, item.name); },
+        move: (folderId) => { const from = item.folderId; void menuApi.vaultMove(item.id, folderId).then(() => showNote(`Moved ${item.name}`, () => menuApi.vaultMove(item.id, from))); },
+        share: () => open(item.id), usage: () => open(item.id),
+        markRotated: () => { void menuApi.vaultMarkRotated(item.id).then(() => showNote(`Marked ${item.name} rotated`)); },
+        trash: () => { open(item.id); setAskDelete((n) => n + 1); },
+      },
+    ), x, y);
   };
 
   const folderMenu = (f: Folder, x: number, y: number): void => {
@@ -329,7 +337,7 @@ function Page({ initial, sheet, view, route, onRouteClose, connectionsInitial, c
     <View style={{ flex: 1, minHeight: 0 }}>
       {providerHere?.connection === "subscription" ? <ProviderPage key={providerHere.id} provider={providerHere} handle={all.find((i) => i.id === providerHere.itemId)?.handle ?? ""} onNote={showNote} /> : null}
       {providerHere && providerHere.connection !== "subscription" ? <ProviderPanel key={providerHere.id} provider={providerHere} onNote={showNote} onRemoved={() => { setSelectedId(null); setDetailOpen(false); }} /> : null}
-      {providerHere?.connection === "subscription" ? null : <ItemEnv key={effectiveId} itemId={effectiveId} askDelete={askDelete} initialMode={view} onEdit={() => { setAddField(false); setEditing(effectiveId); }} onAddField={() => { setAddField(true); setEditing(effectiveId); }} onGone={() => { setSelectedId(null); setDetailOpen(false); }} onNote={showNote} onBack={twoPane ? undefined : () => setDetailOpen(false)} />}
+      {providerHere?.connection === "subscription" ? null : <ItemEnv key={effectiveId} itemId={effectiveId} askDelete={askDelete} revealAll={revealAll} initialMode={view} onEdit={() => { setAddField(false); setEditing(effectiveId); }} onAddField={() => { setAddField(true); setEditing(effectiveId); }} onGone={() => { setSelectedId(null); setDetailOpen(false); }} onNote={showNote} onBack={twoPane ? undefined : () => setDetailOpen(false)} />}
     </View>
   ) : <NoItem text={loading ? "" : visible.length === 0 ? "" : "Select an item to see its fields"} />;
 

@@ -34,6 +34,7 @@ const card = { padding: 14, gap: 8, borderBottomWidth: 1, borderBottomColor: "va
 const actions = { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 4 } as const;
 /** In the Console a card's rows sit 10px from the card edge and 1px lines divide them. `index` is the row's place in its list. */
 export const consoleLine = (index: number): { paddingVertical: number; borderTopWidth: number; borderTopColor: string } => ({ paddingVertical: 10, borderTopWidth: index === 0 ? 0 : 1, borderTopColor: "var(--line)" });
+// ui-rows-lint: not a list (a divider around rows that are each a ui/Row already)
 const lined = (rows: readonly ReactElement[]): ReactElement[] => rows.map((r, i) => <View key={r.key ?? i} style={consoleLine(i)}>{r}</View>);
 const quietText = (s: string): ReactElement => <Text style={t.quiet}>{s}</Text>;
 

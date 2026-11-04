@@ -8,12 +8,13 @@ import { readFloor } from "./floor.ts";
 import { createTranscript, redact, refreshSummary, transcriptPath } from "../../../agent/src/transcript/index.ts";
 import type { Part, Turn } from "../../../agent/src/transcript/index.ts";
 import {
-  addAgent, addMember, agentsOf, askerOf, blockBy, ensure, hopLimit, insertBlock, insertMessage, insertPlan, insertThread, lastMessage, messageBy, mintId, patchBlockInMessage, planBy, raise,
+  addAgent, addMember, agentsOf, askerOf, blockBy, ensure, hopLimit, insertBlock, insertMessage, insertPlan, insertThread, lastMessage, lastMessages, messageBy, mintId, patchBlockInMessage, planBy, raise,
   refOf, threadBy, threadOut,
 } from "../projections.ts";
 import type { ChatCtx, Db, PlanStep, ThreadRec } from "../projections.ts";
 import { mayRecall } from "./history.ts";
 import { canSpeak, deliver } from "./post.ts";
+import { touch } from "./g24a.ts";
 import { ALREADY_DECIDED, openAsk, tellAgent } from "./waiting.ts";
 
 type Row = Record<string, unknown>;
@@ -330,7 +331,15 @@ export async function questionAsk(
   input: { threadId: string; prompt: string; mode: "single" | "multi" | "free"; options?: Array<{ key: string; label: string; detail?: string }>; allowOther?: boolean; card?: { kind: "terminal"; command: string; host?: string; risk?: string }; idempotencyKey?: string },
 ) {
   ensure(ctx.db);
-  const t = open(ctx, input.threadId);
+  return questionIn(ctx, open(ctx, input.threadId), input);
+}
+
+/** A question card in a thread the caller has already been let into. `by` is who the card speaks as and who hears the answer; `extra` rides in the block data. */
+export async function questionIn(
+  ctx: ChatCtx, t: ThreadRec,
+  input: { prompt: string; mode: "single" | "multi" | "free"; options?: Array<{ key: string; label: string; detail?: string }>; allowOther?: boolean; card?: { kind: "terminal"; command: string; host?: string; risk?: string } },
+  by?: { id: string; kind: "agent" | "text"; extra?: Record<string, unknown> },
+) {
   const prompt = input.prompt.trim();
   if (prompt === "" || prompt.length > MAX_PROMPT) raise(ctx, "validation.bad_input", `A question needs words, at most ${MAX_PROMPT} characters.`);
   // a question is a card and a task on a person's list: it needs a real question, not a probe ("test", "hi", one word)
@@ -347,12 +356,12 @@ export async function questionAsk(
     }
   }
   const blockId = mintId("blk", ctx.now());
-  const data: Record<string, unknown> = { threadId: t.id, blockId, prompt, mode: input.mode, options, allowOther: input.allowOther ?? false, ...(input.card ? { card: input.card } : {}) };
+  const data: Record<string, unknown> = { threadId: t.id, blockId, prompt, mode: input.mode, options, allowOther: input.allowOther ?? false, ...(input.card ? { card: input.card } : {}), ...(by?.extra ?? {}) };
   const taskId = await openAsk(ctx, t, { kind: "answer", blockId, block: { type: "question", data }, title: prompt, summary: prompt });
   if (taskId !== undefined) data["taskId"] = taskId;
-  const m = insertMessage(ctx, t.id, { author: ctx.principal.id, kind: authorKind(ctx), body: "", blocks: [{ type: "question", v: 1, id: blockId, data, state: "waiting", traceId: ctx.trace.traceId }] });
+  const m = insertMessage(ctx, t.id, { author: by?.id ?? ctx.principal.id, kind: by?.kind ?? authorKind(ctx), body: "", blocks: [{ type: "question", v: 1, id: blockId, data, state: "waiting", traceId: ctx.trace.traceId }] });
   insertBlock(ctx, { id: blockId, thread: t.id, message: m.id, type: "question", data });
-  deliver(ctx, t, m, [], author(ctx), { notify: false });
+  deliver(ctx, t, m, [], by ? { kind: "agent", id: by.id } : author(ctx), { notify: false });
   ctx.emit("block.waiting", t.id, { threadId: t.id, blockId, blockType: "question" });
   return { blockId, messageId: m.id };
 }
@@ -462,9 +471,42 @@ async function bindHelperTask(ctx: ChatCtx, h: { taskId: string | undefined; tit
   } catch { /* the helper goes on; only the task is missing */ }
 }
 
+interface Picked { account: string; provider: string; model: string; pick: Record<string, unknown> }
+
+/**
+ * The model and account a helper runs on, when the agent named one (or its rule asks it to). Only accounts the person may use are ever found: an account they may not use is refused, never guessed. A model that is
+ * not available falls back to the nearest available one of the same account and the pick says which it asked for. The agent's own setting decides how free it is: its provider only (the default), any provider
+ * when the person asked, or always ask first.
+ */
+async function chooseHelperModel(ctx: ChatCtx, parentId: string, askingAgent: string, input: { model?: string; provider?: string; account?: string; why?: string }): Promise<Picked | null> {
+  if (!ctx.call) return null;
+  type Cat = { accounts: Array<{ ref: string; provider: string; label: string; models: Array<{ model: string; tier: string; available: boolean }> }>; parent: { provider?: string }; policy: "same_provider" | "any" | "ask" };
+  let cat: Cat | null = null;
+  try { cat = (await ctx.call("engine.helper_models", { threadId: parentId, agentId: askingAgent })) as Cat; } catch { cat = null; }
+  if (cat === null) return null;
+  if (cat.policy === "ask" && input.model === undefined && input.account === undefined) raise(ctx, "validation.precondition_failed", "Ask the person which model this helper should use, with the choices, before you start it.", { reason: "ask_first" });
+  if (input.model === undefined && input.account === undefined) return null;
+  const account = input.account !== undefined ? cat.accounts.find((a) => a.ref === input.account || a.label === input.account) : cat.accounts.find((a) => a.models.some((m) => m.model === input.model && m.available)) ?? cat.accounts.find((a) => a.models.some((m) => m.model === input.model));
+  if (!account) raise(ctx, "permission.no_grant", "That account is not one you can use for this person. Read models_for_helpers for the accounts you can.", { reason: "account_not_theirs" });
+  if (cat.policy === "same_provider" && cat.parent.provider && account.provider !== cat.parent.provider && input.why !== "you asked") {
+    raise(ctx, "validation.precondition_failed", `Stay with ${cat.parent.provider} unless the person asked for another provider. If they did, say why: "you asked".`, { reason: "other_provider" });
+  }
+  const asked = input.model ?? account.models.find((m) => m.available)?.model;
+  if (!asked) raise(ctx, "validation.not_found", "That account has no model to use right now.");
+  const have = account.models.find((m) => m.model === asked);
+  let model = asked, fellBackFrom: string | undefined;
+  if (!have || !have.available) {
+    const same = have ? account.models.filter((m) => m.available && m.tier === have.tier) : [];
+    const next = same[0] ?? account.models.find((m) => m.available);
+    if (!next) raise(ctx, "provider.unavailable", "No model of that account is available right now.");
+    fellBackFrom = asked; model = next.model;
+  }
+  return { account: account.ref, provider: account.provider, model, pick: { accountRef: account.ref, accountLabel: account.label, provider: account.provider, model, ...(input.why ? { why: input.why } : {}), ...(fellBackFrom ? { fellBackFrom } : {}) } };
+}
+
 export async function helperStart(
   ctx: ChatCtx,
-  input: { threadId: string; title: string; instruction: string; agentId?: string; model?: string; provider?: string; effort?: string; crew?: boolean; taskId?: string; idempotencyKey?: string },
+  input: { threadId: string; title: string; instruction: string; agentId?: string; model?: string; provider?: string; effort?: string; account?: string; why?: string; crew?: boolean; taskId?: string; idempotencyKey?: string },
 ) {
   ensure(ctx.db);
   const parent = open(ctx, input.threadId);
@@ -476,6 +518,9 @@ export async function helperStart(
   const agentId = workerFor(ctx, parent, input.agentId);
   const asker = askerOf(ctx);
   const by = author(ctx);
+  // which model the helper runs on: the agent's pick, checked against the accounts the person may use and the agent's own rule (owner, 4 Nov 2026)
+  const chosen = await chooseHelperModel(ctx, parent.id, ctx.principal.kind === "agent" ? ctx.principal.id : agentId, input);
+  if (chosen) { input = { ...input, model: chosen.model, provider: chosen.provider, account: chosen.account }; }
 
   // Helpers and teammates count against the chat's one budget of agent turns (owner ruling, 3 Nov 2026): an agent's brief is one turn past whatever the chat holds now, and at
   // the limit no helper starts until a person replies or presses Continue. A person starting a helper starts the count again.
@@ -492,12 +537,12 @@ export async function helperStart(
   const blockId = mintId("blk", ctx.now());
   const line = insertMessage(ctx, parent.id, {
     author: ctx.principal.id, kind: authorKind(ctx), body: `Started a helper: ${title}`, depth,
-    blocks: [{ type: "helper", v: 1, id: blockId, data: { title, agentId, ...(input.model !== undefined ? { model: input.model } : {}), ...(input.crew === true ? { crew: true } : {}) }, state: "live", traceId: ctx.trace.traceId }],
+    blocks: [{ type: "helper", v: 1, id: blockId, data: { title, agentId, ...(input.model !== undefined ? { model: input.model } : {}), ...(chosen ? { pick: chosen.pick } : {}), ...(input.crew === true ? { crew: true } : {}) }, state: "live", traceId: ctx.trace.traceId }],
   });
   const helper = insertThread(ctx, { kind: "helper", title, starter: asker, parentThreadId: parent.id, parentMessageId: line.id, listed: false });
   patchBlockInMessage(ctx.db, line.id, blockId, (b) => ({ ...b, data: { ...(b["data"] as Record<string, unknown>), helperThreadId: helper.id } }));
   if (asker.startsWith("usr_")) addMember(ctx, helper.id, asker, "owner");
-  addAgent(ctx, helper.id, { agentId, mode: "lead", model: input.model, provider: input.provider, effort: input.effort, addedBy: asker });
+  addAgent(ctx, helper.id, { agentId, mode: "lead", model: input.model, provider: input.provider, effort: input.effort, ...(chosen ? { accountRef: chosen.account } : {}), addedBy: asker });
 
   // A worker that outlives the turn is a task: the one named, else a new one. A crew job binds its own (engine.crew.start). Best effort: the helper runs whether or not this lands.
   if (input.crew !== true) await bindHelperTask(ctx, { taskId: input.taskId, title, instruction, agentId, parentThreadId: parent.id, helperThreadId: helper.id, lineId: line.id, blockId });
@@ -510,6 +555,176 @@ export async function helperStart(
   // a brief an agent gives itself is a Job's line: it stays the agent's words, and it starts the helper, which an agent's own message never does
   deliver(ctx, helper, first, addressed, by, { notify: false, job: ctx.principal.kind === "agent" && agentId === ctx.principal.id });
   return { helper: threadOut(ctx.db, threadBy(ctx.db, helper.id)!), blockId };
+}
+
+/**
+ * Steer a helper that is working: the person who started it asks it something, in its own chat. A plain helper chat takes no messages through chat.post (it works from its brief); this is the one door, for the
+ * person it works for, while it is running. The question reaches the helper's agent as a message from the person.
+ */
+export async function helperSteer(ctx: ChatCtx, input: { threadId: string; body: string }) {
+  ensure(ctx.db);
+  const t = threadBy(ctx.db, input.threadId);
+  if (!t || t.kind !== "helper") raise(ctx, "validation.not_found", "That is not a helper chat.");
+  const asker = askerOf(ctx);
+  if (!asker.startsWith("usr_") || t.starter !== asker) raise(ctx, "validation.precondition_failed", "Only the person the helper works for can ask it something.");
+  if (t.closedAt !== undefined) raise(ctx, "validation.precondition_failed", "This helper has finished. Ask in the chat that started it.");
+  const body = input.body.trim();
+  if (body === "" || body.length > 20_000) raise(ctx, "validation.bad_input", "Write what to ask it.");
+  const lead = agentsOf(ctx.db, t.id)[0];
+  if (!lead) raise(ctx, "validation.precondition_failed", "This helper has no agent to ask.");
+  const m = insertMessage(ctx, t.id, { author: asker, kind: "text", body });
+  deliver(ctx, t, m, [{ kind: "agent", id: lead.agentId }], { kind: "person", id: asker }, { notify: false });
+  return { messageId: m.id };
+}
+
+// ---- notes between a helper and the agent that started it ------------------------------------------------------------------------------------------
+
+type NoteKind = "followup" | "progress" | "question" | "result";
+const NOTE_KINDS: readonly NoteKind[] = ["followup", "progress", "question", "result"];
+
+/** The notes in a helper chat that a helper asked and nobody has answered yet. */
+function openQuestions(ctx: ChatCtx, helperId: string) {
+  return lastMessages(ctx.db, helperId, 100).flatMap((m) => m.blocks.filter((b) => b["type"] === "helper_note" && (b["data"] as Row)["kind"] === "question" && (b["data"] as Row)["state"] === "open").map((b) => ({ m, b })));
+}
+
+/**
+ * One note between a helper and the agent that started it, kept in the helper's chat with each side's own identity (the person's steers are theirs, chat.helper.steer). From the parent
+ * (or any agent let into the parent chat): a follow-up for the running helper. From the helper itself: progress, a result, or a question. A question goes to the parent agent, which answers it
+ * with its next step and the person is not asked. Only when `needsPerson` is set does it become a question card in the parent chat (a task in Needs you); the card speaks as the parent agent,
+ * so the answer comes back to the parent, which passes it down as a follow-up.
+ */
+export async function helperNote(
+  ctx: ChatCtx,
+  input: { threadId: string; body: string; kind?: NoteKind; needsPerson?: boolean; options?: Array<{ key: string; label: string }> },
+) {
+  ensure(ctx.db);
+  const h = threadBy(ctx.db, input.threadId);
+  if (!h || h.kind !== "helper" || h.parentThreadId === undefined) raise(ctx, "validation.not_found", "That is not a helper chat.");
+  const body = input.body.trim();
+  if (body === "" || body.length > 20_000) raise(ctx, "validation.bad_input", "Write the note.");
+  const kind: NoteKind = input.kind ?? "followup";
+  if (!NOTE_KINDS.includes(kind)) raise(ctx, "validation.bad_input", "That is not a kind of note.");
+  if (ctx.principal.kind !== "agent") raise(ctx, "validation.precondition_failed", "A person asks a helper with chat.helper.steer, as themselves.");
+  // the kind says which way it goes: a follow-up goes down to the helper, the rest go up to the agent that started it (the same agent can be both, when it gave itself the helper)
+  const up = kind !== "followup";
+  if (up && !agentsOf(ctx.db, h.id).some((a) => a.agentId === ctx.principal.id)) raise(ctx, "validation.precondition_failed", "Only the helper itself sends progress, a question or a result.");
+  const parent = threadBy(ctx.db, h.parentThreadId);
+  if (!parent) raise(ctx, "validation.not_found", "The chat this helper belongs to is gone.");
+  const blockId = mintId("blk", ctx.now());
+  const by = { kind: "agent" as const, id: ctx.principal.id };
+
+  if (!up) {
+    // down: the parent speaks to its running helper
+    visible(ctx, parent.id);
+    if (h.closedAt !== undefined) raise(ctx, "validation.precondition_failed", "This helper has finished. Start another, or answer in the chat.");
+    const lead = agentsOf(ctx.db, h.id)[0];
+    if (!lead) raise(ctx, "validation.precondition_failed", "This helper has no agent to tell.");
+    const m = insertMessage(ctx, h.id, { author: by.id, kind: "agent", body, blocks: [{ type: "helper_note", v: 1, id: blockId, data: { direction: "down", kind, from: by, state: "sent" }, state: "sent", traceId: ctx.trace.traceId }] });
+    // what the helper asked is now answered, in its chat and in the chat above
+    for (const q of openQuestions(ctx, h.id)) {
+      const data = q.b["data"] as Row;
+      patchBlockInMessage(ctx.db, q.m.id, String(q.b["id"]), (b) => ({ ...b, data: { ...(b["data"] as Row), state: "answered" } }));
+      if (typeof data["parentMessageId"] === "string" && typeof data["parentBlockId"] === "string") patchBlockInMessage(ctx.db, data["parentMessageId"], data["parentBlockId"], (b) => ({ ...b, data: { ...(b["data"] as Row), state: "answered" } }));
+    }
+    ctx.emit("helper.note", h.id, { helperThreadId: h.id, direction: "down", kind, messageId: m.id });
+    deliver(ctx, h, m, [{ kind: "agent", id: lead.agentId }], by, { notify: false, job: lead.agentId === by.id });
+    return { messageId: m.id };
+  }
+
+  // up: the helper tells the agent that started it
+  const data: Row = { direction: "up", kind, from: by, state: kind === "question" ? "open" : "sent" };
+  const m = insertMessage(ctx, h.id, { author: by.id, kind: "agent", body, blocks: [{ type: "helper_note", v: 1, id: blockId, data, state: "sent", traceId: ctx.trace.traceId }] });
+  if (kind === "question") {
+    const line = h.parentMessageId !== undefined ? messageBy(ctx.db, h.parentMessageId) : null;
+    const parentAgent = line?.author?.startsWith("agt_") ? line.author : (agentsOf(ctx.db, parent.id).find((a) => a.mode === "lead") ?? agentsOf(ctx.db, parent.id)[0])?.agentId;
+    const title = h.title ?? "a helper";
+    if (parentAgent === undefined) raise(ctx, "validation.precondition_failed", "Nobody in the chat above can answer.");
+    if (input.needsPerson === true) {
+      // only the person can say: a card in the chat above, in Needs you; it speaks as the agent that started the helper, so the answer reaches that agent
+      const q = await questionIn(ctx, parent, { prompt: `${title} asks: ${body}`, mode: input.options && input.options.length > 0 ? "single" : "free", ...(input.options && input.options.length > 0 ? { options: input.options } : {}) }, { id: parentAgent, kind: "agent", extra: { helperThreadId: h.id, helperNoteId: m.id } });
+      data["needsPerson"] = true;
+      data["parentMessageId"] = q.messageId;
+      data["parentBlockId"] = q.blockId;
+    } else {
+      const depth = (lastMessage(ctx.db, parent.id)?.depth ?? 0) + 1;
+      if (depth > (await hopLimit(ctx))) raise(ctx, "validation.precondition_failed", "The agents have passed this on too many times. A person has to reply first.");
+      const pblock = mintId("blk", ctx.now());
+      const pm = insertMessage(ctx, parent.id, { author: by.id, kind: "agent", body: `Helper "${title}" asks: ${body}`, depth, blocks: [{ type: "helper_note", v: 1, id: pblock, data: { direction: "up", kind, from: by, state: "open", helperThreadId: h.id }, state: "sent", traceId: ctx.trace.traceId }] });
+      data["parentMessageId"] = pm.id;
+      data["parentBlockId"] = pblock;
+      deliver(ctx, parent, pm, [{ kind: "agent", id: parentAgent }], by, { notify: false, job: parentAgent === by.id });
+    }
+    patchBlockInMessage(ctx.db, m.id, blockId, (b) => ({ ...b, data }));
+  }
+  ctx.emit("helper.note", h.id, { helperThreadId: h.id, direction: "up", kind, messageId: m.id });
+  return { messageId: m.id };
+}
+
+/** The helper's agent has read what is waiting for it: every note to it that was not yet seen gets the time. */
+export async function helperNotesSeen(ctx: ChatCtx, input: { threadId: string }) {
+  ensure(ctx.db);
+  const h = threadBy(ctx.db, input.threadId);
+  if (!h || h.kind !== "helper") raise(ctx, "validation.not_found", "That is not a helper chat.");
+  visible(ctx, h.id);
+  const at = ctx.now();
+  let marked = 0;
+  for (const m of lastMessages(ctx.db, h.id, 100)) {
+    for (const b of m.blocks) {
+      const d = b["data"] as Row | undefined;
+      if (b["type"] === "helper_note" && d?.["direction"] === "down" && d["seenAt"] === undefined) {
+        patchBlockInMessage(ctx.db, m.id, String(b["id"]), (x) => ({ ...x, data: { ...(x["data"] as Row), seenAt: at, state: "seen" } }));
+        marked += 1;
+      }
+    }
+  }
+  return { marked };
+}
+
+export async function helperNotes(ctx: ChatCtx, input: { threadId: string }) {
+  ensure(ctx.db);
+  const h = threadBy(ctx.db, input.threadId);
+  if (!h || h.kind !== "helper") raise(ctx, "validation.not_found", "That is not a helper chat.");
+  visible(ctx, h.id);
+  const notes = lastMessages(ctx.db, h.id, 200).map((m, i) => {
+    const b = m.blocks.find((x) => x["type"] === "helper_note");
+    const d = (b?.["data"] as Row | undefined) ?? {};
+    // the three voices: the person (a steer, or the brief), the agent that started it, and the helper
+    const who = i === 0 && !b ? "brief" : m.author.startsWith("usr_") ? "person" : d["direction"] === "down" ? "parent" : "helper";
+    return { messageId: m.id, authorId: m.author, who, body: m.body, ...(b ? { kind: d["kind"], state: d["state"], ...(d["seenAt"] !== undefined ? { seenAt: d["seenAt"] } : {}) } : {}) };
+  });
+  return { notes };
+}
+
+/**
+ * Start a helper again on another model (owner, 4 Nov 2026, "Change model" in the peek): the person it works for picks an account and a model; the choice goes through the same check as a new helper (an
+ * account they may use, a model that is available, or the nearest one that is), the helper's agent takes it, and the brief is given again as a fresh job, so the helper starts over on the new model. What it
+ * had used so far stays on its row; the new work is billed to the person as any other.
+ */
+export async function helperRestart(ctx: ChatCtx, input: { threadId: string; model?: string; account?: string; provider?: string }) {
+  ensure(ctx.db);
+  const t = threadBy(ctx.db, input.threadId);
+  if (!t || t.kind !== "helper" || t.parentThreadId === undefined) raise(ctx, "validation.not_found", "That is not a helper chat.");
+  const asker = askerOf(ctx);
+  if (!asker.startsWith("usr_") || t.starter !== asker) raise(ctx, "validation.precondition_failed", "Only the person the helper works for can change its model.");
+  if (input.model === undefined && input.account === undefined) raise(ctx, "validation.bad_input", "Say which model to use.");
+  const lead = agentsOf(ctx.db, t.id)[0];
+  if (!lead) raise(ctx, "validation.precondition_failed", "This helper has no agent to restart.");
+  const chosen = await chooseHelperModel(ctx, t.parentThreadId, lead.agentId, { ...input, why: "you asked" });
+  if (!chosen) raise(ctx, "validation.precondition_failed", "That model could not be checked. Try again.");
+  const brief = lastMessages(ctx.db, t.id, 200)[0];
+  if (!brief) raise(ctx, "validation.precondition_failed", "This helper has no brief to start again from.");
+  ctx.db.run("UPDATE chat_thread_agent SET model = ?, provider = ?, accountRef = ?, version = version + 1, updated_at = ? WHERE thread = ? AND agentId = ? AND deleted_at IS NULL", chosen.model, chosen.provider, chosen.account, ctx.now(), t.id, lead.agentId);
+  if (t.closedAt !== undefined) touch(ctx, t.id, "closedAt = NULL");
+  const blockId = mintId("blk", ctx.now());
+  const word = chosen.pick["fellBackFrom"] ? `Starting again on ${chosen.model} (${String(chosen.pick["fellBackFrom"])} is not available). ` : `Starting again on ${chosen.model}. `;
+  const m = insertMessage(ctx, t.id, { author: asker, kind: "text", body: `${word}Do the brief again from the start.`, blocks: [{ type: "helper_note", v: 1, id: blockId, data: { direction: "down", kind: "followup", from: { kind: "person", id: asker }, state: "sent", restart: true }, state: "sent", traceId: ctx.trace.traceId }] });
+  ctx.emit("helper.note", t.id, { helperThreadId: t.id, direction: "down", kind: "followup", messageId: m.id });
+  deliver(ctx, t, m, [{ kind: "agent", id: lead.agentId }], { kind: "person", id: asker }, { notify: false, job: true });
+  // the row in the chat above wears the new pick
+  const line = t.parentMessageId !== undefined ? messageBy(ctx.db, t.parentMessageId) : null;
+  const hb = line?.blocks.find((b) => b["type"] === "helper" && (b["data"] as Row | undefined)?.["helperThreadId"] === t.id);
+  if (line && hb) patchBlockInMessage(ctx.db, line.id, String(hb["id"]), (b) => ({ ...b, state: "live", data: { ...(b["data"] as Row), model: chosen.model, pick: chosen.pick, status: "running" } }));
+  return { messageId: m.id, model: chosen.model, account: chosen.account, ...(chosen.pick["fellBackFrom"] ? { fellBackFrom: String(chosen.pick["fellBackFrom"]) } : {}) };
 }
 
 export async function helpersList(ctx: ChatCtx, input: { threadId: string }) {
@@ -526,7 +741,8 @@ export async function helpersList(ctx: ChatCtx, input: { threadId: string }) {
     const line = h.parentMessageId !== undefined ? messageBy(ctx.db, h.parentMessageId) : null;
     const state = line?.blocks.find((b) => b["type"] === "helper" && (b["data"] as Row | undefined)?.["helperThreadId"] === h.id)?.["state"];
     const status = state === "error" ? "failed" : state === "done" || h.closedAt !== undefined ? "done" : "running";
-    helpers.push({ threadId: h.id, title: h.title ?? "Helper", status, agentId: lead.agentId, ...(lead.model !== undefined ? { model: lead.model } : {}), startedAt: h.createdAt });
+    const pick = line?.blocks.find((b) => b["type"] === "helper" && (b["data"] as Row | undefined)?.["helperThreadId"] === h.id) ? ((line.blocks.find((b) => b["type"] === "helper")?.["data"] as Row | undefined)?.["pick"] as Row | undefined) : undefined;
+    helpers.push({ threadId: h.id, title: h.title ?? "Helper", status, agentId: lead.agentId, ...(lead.model !== undefined ? { model: lead.model } : {}), ...(pick ? { pick } : {}), startedAt: h.createdAt });
   }
   return { helpers };
 }
@@ -580,5 +796,10 @@ export const g24dHandlers = {
   "chat.question.withdraw": questionWithdraw,
   "chat.helper.start": helperStart,
   "chat.helpers.list": helpersList,
+  "chat.helper.steer": helperSteer,
+  "chat.helper.note": helperNote,
+  "chat.helper.restart": helperRestart,
+  "chat.helper.note_seen": helperNotesSeen,
+  "chat.helper.notes": helperNotes,
   "chat.handoff": handoff,
 };

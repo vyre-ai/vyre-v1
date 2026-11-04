@@ -24,10 +24,10 @@ export const tabsOf = (terminal: boolean, crew = false, computer = true, skills 
     if (t.key === "threads" && crew) out.push(CREW_TAB);
     if (t.key === "files" && terminal && computer) out.push(TERMINAL_TAB);
   }
-  if (skills) out.push(SKILLS_TAB);
+  if (skills) out.push(SKILLS_TAB);   // once the person has skills (l-install)
   return out;
 };
-/** The Skills tab: shown once the person has skills, after Routines. */
+/** The Skills tab: the person's skills and an agent's, last, once there are any. */
 export const SKILLS_TAB: { key: TabKey; title: string } = { key: "skills", title: "Skills" };
 export const DEFAULT_TAB: TabKey = "about";
 

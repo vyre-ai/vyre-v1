@@ -56,6 +56,7 @@ type Out = {
 - provider.auth_failed
 - validation.bad_input
 - validation.not_found
+- validation.precondition_failed
 
 ## Example
 

@@ -1,6 +1,5 @@
 // The runner's life (lane l-ci-runners): a job is waiting -> a just-in-time runner and a cloud machine; the job ended -> the machine is deleted; every 2 minutes the sweeper deletes what should not exist.
 // A machine runs one job and is deleted afterwards. Nothing here touches a person's computer or the Space server. The cloud key is read by the host for each call (CiHost.cloud); this file never sees it.
-import { randomUUID } from "node:crypto";
 import { costOf, PRICE_HOURLY } from "../cost.ts";
 import { ensure, metaGet, metaSet, monthOf, needHost, patchRun, readSettings, round4, runBy, RUN_COLS, runOf, runsIn } from "../projections.ts";
 import type { CiCtx, Row, Run, Settings } from "../projections.ts";
@@ -44,7 +43,7 @@ export function userData(jitConfig: string, maxMinutes: number): string {
   ].join("\n");
 }
 
-const newRunId = (): string => `cir_${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+const newRunId = (): string => `cir_${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
 const monthStart = (ms: number): number => { const d = new Date(ms); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1); };
 
 /** Cost so far this month: what ended runs cost, plus what the machines still alive have cost up to now. */

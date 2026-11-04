@@ -174,7 +174,7 @@ export function plan(ctx: NotifCtx, e: Ev): Promise<SendIn | SendIn[] | undefine
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
   "notifications.fanout": {
-    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "space.deletion_scheduled", "space.deletion_cancelled", "access.shared_with", "ci.paused"],
+    on: ["task.requested", "task.assigned", "task.completed", "task.due", "task.nudged", "run.failed", "run.succeeded", "member.joined", "member.join_requested", "access.granted", "access.declined", "machine.alert", "access.shared_with", "space.deletion_scheduled", "space.deletion_cancelled", "ci.paused"],
     async run(ctx: NotifCtx, event: Ev): Promise<string[]> {
       const planned = await plan(ctx, event);
       const out: string[] = [];

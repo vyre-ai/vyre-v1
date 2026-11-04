@@ -200,7 +200,14 @@ test("route.preview says who will reply with the same route() the server uses", 
   const two = await H["engine.route.preview"](ctx, { threadId: "thr_1", mentions: [{ kind: "agent", id: "agt_docs" }, { kind: "agent", id: "agt_intake" }] });
   assert.equal(two.line, "Docs and Intake will reply");
   assert.deepEqual(contractErrors("engine.route.preview", "out", two), []);
+  // a person named who is in the chat is addressed: no agent replies, and the lead is offered (7e9d7acba)
   assert.equal((await H["engine.route.preview"](ctx, { threadId: "thr_1", mentions: [{ kind: "person", id: "usr_sam" }] })).line, "Goes to the person you named; no agent will reply. Ask Intake too");
+  // a person named who is not in the chat is only a reference: the lead still answers
+  const members = withRoutes(h, { "threads.get": () => ({ thread: { members: [{ kind: "person", id: "usr_dana" }], agents: [{ agentId: "agt_intake", mode: "lead", name: "Intake" }] } }) });
+  assert.deepEqual(await H["engine.route.preview"](members, { threadId: "thr_1", mentions: [{ kind: "person", id: "usr_sam" }] }), { responders: ["agt_intake"], line: "Intake will reply" });
+  // no agent in the chat at all: the composer asks for a mention
+  const none = withRoutes(h, { "threads.get": () => ({ thread: { agents: [] } }) });
+  assert.equal((await H["engine.route.preview"](none, { threadId: "thr_1" })).line, "No agent will reply. @mention one");
   await assert.rejects(H["engine.route.preview"](h.ctx, { threadId: "thr_missing" }), (e) => codeOf(e) === "validation.not_found");
 });
 

@@ -294,19 +294,15 @@ function waiting(state: Map<string, string>, current: string): { version: string
 
 export async function status(ctx: UpdateCtx, _input: Record<string, unknown>) {
   const d = need(ctx);
-  // a server run from source has no vyre-server: say so in words, not as an unexpected failure
-  let notInstalled = false;
-  const current = await d.installer.current().catch((e: unknown) => {
-    if ((e as { code?: unknown } | null)?.code === "ENOENT") {
-      // A fresh daemon run from source is a normal state, not a refusal: name the running version, say nothing is waiting and nothing ran.
-      const running = d.installer.running?.();
-      if (parseVersion(running)) { notInstalled = true; return running as string; }
-      return failWith(ctx.trace.traceId, "validation.precondition_failed", "This server was not installed with vyre-server, so it is updated outside Vyre.");
-    }
-    throw e;
-  });
-  if (notInstalled) return { current, channel: channelOf(readState(ctx)) };
+  // a server run from source has no vyre-server: it is updated outside Vyre, which is an answer, not a failure
+  let current: string | null;
+  try { current = await d.installer.current(); } catch (e) {
+    if ((e as { code?: unknown } | null)?.code !== "ENOENT") throw e;
+    current = null;
+  }
   const state = readState(ctx);
+  // it still knows the version it runs (l-consolidate): say it, with nothing waiting and nothing ran
+  if (current === null) { const running = d.installer.running?.(); return { ...(parseVersion(running) ? { current: running as string } : {}), managedElsewhere: true, channel: channelOf(state) }; }
   const w = waiting(state, current);
   const last = historyRows(ctx, 1)[0];
   return {

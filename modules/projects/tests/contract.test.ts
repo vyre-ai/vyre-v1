@@ -11,8 +11,8 @@ import { mkChain, mkProject, run } from "../fixtures/seed.ts";
 
 const mine = registry.capabilities.filter((c) => c.module === "projects");
 
-test("the handler table covers exactly the 29 capabilities of the projects manifest", () => {
-  assert.equal(mine.length, 29);
+test("the handler table covers exactly the 50 capabilities of the projects manifest", () => {
+  assert.equal(mine.length, 50);   // 47 of l-projview, the one l-crews added, and archive and unarchive (l-menus)
   assert.deepEqual(Object.keys(handlers).sort(), mine.map((c) => c.name).sort());
   for (const c of mine) assert.equal(typeof handlers[c.name], "function", c.name);
 });
@@ -33,6 +33,10 @@ const withProposal = async (hn: Harness) => {
   return { ...c, proposalId: out.proposalId as string };
 };
 const NONE = "prj_none";
+const withAi = (hn: Harness): void => {
+  hn.world.handlers["engine.my_ai"] = () => ({ accounts: [{ ref: "#Dana_Claude", name: "Claude Code", provider: "anthropic", kind: "subscription", usable: true, models: [], limits: { state: "not_readable" } }] });
+  hn.world.handlers["engine.complete"] = () => ({ text: "On track.", tokensIn: 1, tokensOut: 1 });
+};
 
 const scenarios: Scenario[] = [
   { cap: "projects.create", run: (hn) => run(hn, "projects.create", { type: "project", title: "New", summary: "s", goal: "g", lead: MAYA, start: NOW, due: NOW + DAY, stages: [{ title: "Draft" }], members: [{ principal: LEO, role: "member" }] }) },
@@ -54,6 +58,9 @@ const scenarios: Scenario[] = [
   { cap: "projects.members.set", run: (hn) => run(hn, "projects.members.set", { projectId: NONE, principal: MAYA, role: "member" }), expect: "validation.not_found" },
   { cap: "projects.members.remove", setup: async (hn) => { const p = await mkProject(hn); await run(hn, "projects.members.set", { projectId: p.projectId, principal: BOT, role: "member" }); hn.clear(); return p; }, run: (hn, p) => run(hn, "projects.members.remove", { projectId: p.projectId, principal: BOT }) },
   { cap: "projects.members.remove", run: (hn) => run(hn, "projects.members.remove", { projectId: NONE, principal: MAYA }), expect: "validation.not_found" },
+  { cap: "projects.archive", setup: async (hn) => mkProject(hn), run: (hn, p) => run(hn, "projects.archive", { projectId: (p as { projectId: string }).projectId }) },
+  { cap: "projects.archive", run: (hn) => run(hn, "projects.archive", { projectId: NONE }), expect: "validation.not_found" },
+  { cap: "projects.unarchive", setup: async (hn) => { const p = await mkProject(hn); await run(hn, "projects.archive", { projectId: p.projectId }); hn.clear(); return p; }, run: (hn, p) => run(hn, "projects.unarchive", { projectId: (p as { projectId: string }).projectId }) },
   { cap: "projects.teammates.list", setup: withProject, run: (hn, p) => run(hn, "projects.teammates.list", { projectId: p.projectId }) },
   { cap: "projects.teammates.list", run: (hn) => run(hn, "projects.teammates.list", { projectId: NONE }), expect: "validation.not_found" },
   { cap: "projects.teammates.create", setup: withProject, run: (hn, p) => run(hn, "projects.teammates.create", { projectId: p.projectId, name: "Security reviewer", role: "reviewer", brief: "Reviews drafts for safety." }) },
@@ -100,6 +107,43 @@ const scenarios: Scenario[] = [
   { cap: "projects.unshare_out", setup: withProject, run: (hn, p) => run(hn, "projects.unshare_out", { projectId: p.projectId, url: "/elsewhere/x" }), expect: "validation.bad_input" },
   { cap: "projects.shared_view", setup: async (hn) => { const p = await withProject(hn); const l = await run(hn, "projects.share_out", { projectId: p.projectId }); hn.clear(); return { token: (l.url as string).slice("/share/project/".length) }; }, run: (hn, s) => run(hn, "projects.shared_view", { token: s.token }, hn.as({ kind: "service", id: "svc_host" })) },
   { cap: "projects.shared_view", run: (hn) => run(hn, "projects.shared_view", { token: "0".repeat(36) }, hn.as({ kind: "service", id: "svc_host" })), expect: "validation.not_found" },
+  { cap: "projects.set", setup: withProject, run: (hn, p) => run(hn, "projects.set", { projectId: p.projectId, health: "risk" }) },
+  { cap: "projects.set", setup: withProject, run: (hn, p) => run(hn, "projects.set", { projectId: p.projectId, health: null }) },
+  { cap: "projects.set", setup: withProject, run: (hn, p) => run(hn, "projects.set", { projectId: p.projectId, health: "great" }), expect: "validation.bad_input" },
+  { cap: "projects.update.draft", setup: async (hn) => { withAi(hn); return withProject(hn); }, run: (hn, p) => run(hn, "projects.update.draft", { projectId: p.projectId }) },
+  { cap: "projects.update.draft", setup: withProject, run: (hn, p) => run(hn, "projects.update.draft", { projectId: p.projectId }), expect: "validation.precondition_failed" },
+  { cap: "projects.update.draft", setup: async (hn) => { withAi(hn); hn.world.handlers["engine.complete"] = () => { throw new Error("down"); }; return withProject(hn); }, run: (hn, p) => run(hn, "projects.update.draft", { projectId: p.projectId }), expect: "provider.unavailable" },
+  { cap: "projects.update.edit", setup: withProject, run: (hn, p) => run(hn, "projects.update.edit", { projectId: p.projectId, text: "Going well." }) },
+  { cap: "projects.update.edit", setup: withProject, run: (hn, p) => run(hn, "projects.update.edit", { projectId: p.projectId, text: " " }), expect: "validation.bad_input" },
+  { cap: "projects.crew", setup: withProject, run: (hn, p) => run(hn, "projects.crew", { projectId: p.projectId }) },
+  { cap: "projects.crew", run: (hn) => run(hn, "projects.crew", { projectId: NONE }), expect: "validation.not_found" },
+  { cap: "projects.for_channel", setup: withProject, run: (hn, p) => run(hn, "projects.for_channel", { channelId: p.channelId }) },
+  { cap: "projects.for_channel", run: (hn) => run(hn, "projects.for_channel", { channelId: "chn_none" }) },
+  { cap: "projects.links.list", setup: withProject, run: (hn, p) => run(hn, "projects.links.list", { projectId: p.projectId }) },
+  { cap: "projects.links.list", run: (hn) => run(hn, "projects.links.list", { projectId: NONE }), expect: "validation.not_found" },
+  { cap: "projects.links.link", setup: withProject, run: (hn, p) => run(hn, "projects.links.link", { projectId: p.projectId, kind: "url", ref: "https://example.com/brief", label: "Brief" }) },
+  { cap: "projects.links.link", setup: withProject, run: (hn, p) => run(hn, "projects.links.link", { projectId: p.projectId, kind: "github.pr", ref: "bad" }), expect: "validation.bad_input" },
+  { cap: "projects.links.unlink", setup: async (hn) => { const p = await withProject(hn); await run(hn, "projects.links.link", { projectId: p.projectId, kind: "url", ref: "https://example.com/a" }); hn.clear(); return p; }, run: (hn, p) => run(hn, "projects.links.unlink", { projectId: p.projectId, kind: "url", ref: "https://example.com/a" }) },
+  { cap: "projects.links.unlink", run: (hn) => run(hn, "projects.links.unlink", { projectId: NONE, kind: "url", ref: "x" }), expect: "validation.not_found" },
+  { cap: "projects.links.rules.set", setup: withProject, run: (hn, p) => run(hn, "projects.links.rules.set", { projectId: p.projectId, rules: [{ kind: "repo", repo: "vyre-ai/website" }, { kind: "email_domain", domain: "client.com" }] }) },
+  { cap: "projects.links.rules.set", setup: withProject, run: (hn, p) => run(hn, "projects.links.rules.set", { projectId: p.projectId, rules: [{ kind: "repo", repo: "nope" }] }), expect: "validation.bad_input" },
+  { cap: "projects.overview_doc.get", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.get", { projectId: p.projectId }) },
+  { cap: "projects.overview_doc.get", run: (hn) => run(hn, "projects.overview_doc.get", { projectId: NONE }), expect: "validation.not_found" },
+  { cap: "projects.overview_doc.save", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.save", { projectId: p.projectId, blocks: [{ kind: "text", text: "Hello" }], baseRev: 0 }) },
+  { cap: "projects.overview_doc.save", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.save", { projectId: p.projectId, blocks: [{ kind: "text", text: "Hello" }], baseRev: 7 }), expect: "validation.precondition_failed" },
+  { cap: "projects.overview_edit", setup: withProject, run: (hn, p) => run(hn, "projects.overview_edit", { projectId: p.projectId, ops: [{ op: "insert", block: { kind: "text", text: "Hi" } }] }) },
+  { cap: "projects.overview_edit", setup: withProject, run: (hn, p) => run(hn, "projects.overview_edit", { projectId: p.projectId, ops: [{ op: "delete", id: "blk_none" }] }), expect: "validation.not_found" },
+  { cap: "projects.overview_get", setup: withProject, run: (hn, p) => run(hn, "projects.overview_get", { projectId: p.projectId }) },
+  { cap: "projects.overview_doc.undo", setup: async (hn) => { const p = await withProject(hn); await run(hn, "projects.overview_edit", { projectId: p.projectId, ops: [{ op: "insert", block: { kind: "text", text: "Hi" } }] }); hn.clear(); return p; }, run: (hn, p) => run(hn, "projects.overview_doc.undo", { projectId: p.projectId }) },
+  { cap: "projects.overview_doc.undo", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.undo", { projectId: p.projectId }), expect: "validation.precondition_failed" },
+  { cap: "projects.overview_doc.history", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.history", { projectId: p.projectId, limit: 5 }) },
+  { cap: "projects.live_block.query", setup: withProject, run: (hn, p) => run(hn, "projects.live_block.query", { projectId: p.projectId, type: "status", spec: {} }) },
+  { cap: "projects.live_block.query", setup: withProject, run: (hn, p) => run(hn, "projects.live_block.query", { projectId: p.projectId, type: "records", spec: {} }), expect: "validation.bad_input" },
+  { cap: "projects.overview_doc.templates.list", run: (hn) => run(hn, "projects.overview_doc.templates.list", {}) },
+  { cap: "projects.overview_doc.templates.save", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.templates.save", { title: "Mine", projectId: p.projectId }) },
+  { cap: "projects.overview_doc.templates.save", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.templates.save", { title: "", projectId: p.projectId }), expect: "validation.bad_input" },
+  { cap: "projects.overview_doc.apply_template", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.apply_template", { projectId: p.projectId, templateId: "tpl_hiring" }) },
+  { cap: "projects.overview_doc.apply_template", setup: withProject, run: (hn, p) => run(hn, "projects.overview_doc.apply_template", { projectId: p.projectId, templateId: "tpl_none" }), expect: "validation.not_found" },
 ];
 
 test("every path through every capability: answers match the schema, errors are declared, events are declared and match their schemas", async () => {
@@ -127,7 +171,7 @@ test("every path through every capability: answers match the schema, errors are 
     assert.deepEqual(assertEventsConform(hn), [], s.cap);
   }
   assert.deepEqual([...covered].sort(), mine.map((c) => c.name).sort(), "every capability has a happy path");
-  assert.ok(happy >= 22 && unhappy >= 25, `${happy} happy, ${unhappy} unhappy`);
+  assert.ok(happy >= 40 && unhappy >= 42, `${happy} happy, ${unhappy} unhappy`);
 });
 
 test("the capabilities that change something raise their declared events and the reads raise none", async () => {

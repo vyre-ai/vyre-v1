@@ -67,7 +67,7 @@ export function world(f: Fakes = {}) {
     space: "spc_test", principal: { kind: who.kind ?? "person", id: who.id }, trace: { traceId: "0123456789abcdef0123456789abcdef" }, now: () => st.now, db,
     emit: (name, subject, payload) => { st.events.push({ name, subject, payload: payload as Record<string, never> }); return { id: "evt" }; },
     log: { info: () => undefined, warn: () => undefined },
-    authorize: () => ({ effect: who.admin || who.kind === "service" ? "allow" : "deny" }),
+    authorize: () => ({ effect: who.admin || who.id === "svc_host" ? "allow" : "deny" }),
     call: async (cap, input) => {
       const i = input as Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
       if (cap === "github.runners.jit_config") {

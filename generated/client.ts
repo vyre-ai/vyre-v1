@@ -74,6 +74,7 @@ export function createClient(transport: Transport) {
       projection_health: call("access.projection_health", 1),
       propose_change: call("access.propose_change", 1),
       provider_check: call("access.provider_check", 1),
+      reach: call("access.reach", 1),
       record_marks: call("access.record_marks", 1),
       request: call("access.request", 1),
       requests: {
@@ -408,7 +409,12 @@ export function createClient(transport: Transport) {
       fork: call("chat.fork", 1),
       handoff: call("chat.handoff", 1),
       helper: {
+        note: call("chat.helper.note", 1),
+        note_seen: call("chat.helper.note_seen", 1),
+        notes: call("chat.helper.notes", 1),
+        restart: call("chat.helper.restart", 1),
         start: call("chat.helper.start", 1),
+        steer: call("chat.helper.steer", 1),
       },
       helpers: {
         list: call("chat.helpers.list", 1),
@@ -429,6 +435,7 @@ export function createClient(transport: Transport) {
         answer: call("chat.note_offer.answer", 1),
         make: call("chat.note_offer.make", 1),
       },
+      noted: call("chat.noted", 1),
       open_as_chat: call("chat.open_as_chat", 1),
       open_tab: call("chat.open_tab", 1),
       people_status: call("chat.people_status", 1),
@@ -800,6 +807,7 @@ export function createClient(transport: Transport) {
           set: call("engine.crew.repo.set", 1),
         },
         start: call("engine.crew.start", 1),
+        status: call("engine.crew.status", 1),
         stop: call("engine.crew.stop", 1),
         wait: call("engine.crew.wait", 1),
         workspace: call("engine.crew.workspace", 1),
@@ -810,6 +818,12 @@ export function createClient(transport: Transport) {
       },
       drop_queued: call("engine.drop_queued", 1),
       health: call("engine.health", 1),
+      helper_models: call("engine.helper_models", 1),
+      helpers: {
+        change_model: call("engine.helpers.change_model", 1),
+        status: call("engine.helpers.status", 1),
+        stop_all: call("engine.helpers.stop_all", 1),
+      },
       incident: {
         assign: call("engine.incident.assign", 1),
         get: call("engine.incident.get", 1),
@@ -841,6 +855,7 @@ export function createClient(transport: Transport) {
       models: {
         list: call("engine.models.list", 1),
       },
+      models_catalog: call("engine.models_catalog", 1),
       my_ai: call("engine.my_ai", 1),
       now: call("engine.now", 1),
       placement: {
@@ -1182,6 +1197,7 @@ export function createClient(transport: Transport) {
       },
       complete: call("goals.complete", 1),
       confirm: call("goals.confirm", 1),
+      count: call("goals.count", 1),
       create: call("goals.create", 1),
       extend: call("goals.extend", 1),
       finish: call("goals.finish", 1),
@@ -1780,6 +1796,10 @@ export function createClient(transport: Transport) {
         set_visibility: call("memory.page.set_visibility", 1),
         versions: call("memory.page.versions", 1),
       },
+      place: {
+        archive: call("memory.place.archive", 1),
+        list: call("memory.place.list", 1),
+      },
       pointer: call("memory.pointer", 1),
       profile: {
         add: call("memory.profile.add", 1),
@@ -1810,6 +1830,7 @@ export function createClient(transport: Transport) {
       restore: call("memory.restore", 1),
       restore_version: call("memory.restore_version", 1),
       search: call("memory.search", 1),
+      source_removed: call("memory.source_removed", 1),
       trail: call("memory.trail", 1),
       trash: {
         search: call("memory.trash.search", 1),
@@ -2111,14 +2132,28 @@ export function createClient(transport: Transport) {
     },
     projects: {
       apply_cascade: call("projects.apply_cascade", 1),
+      archive: call("projects.archive", 1),
       cascade: call("projects.cascade", 1),
       create: call("projects.create", 1),
+      crew: call("projects.crew", 1),
       file_chat: call("projects.file_chat", 1),
       files_folder: call("projects.files_folder", 1),
+      for_channel: call("projects.for_channel", 1),
       from_channel: call("projects.from_channel", 1),
       get: call("projects.get", 1),
       link_tasks: call("projects.link_tasks", 1),
+      links: {
+        link: call("projects.links.link", 1),
+        list: call("projects.links.list", 1),
+        rules: {
+          set: call("projects.links.rules.set", 1),
+        },
+        unlink: call("projects.links.unlink", 1),
+      },
       list: call("projects.list", 1),
+      live_block: {
+        query: call("projects.live_block.query", 1),
+      },
       members: {
         list: call("projects.members.list", 1),
         remove: call("projects.members.remove", 1),
@@ -2126,11 +2161,25 @@ export function createClient(transport: Transport) {
       },
       open_task_thread: call("projects.open_task_thread", 1),
       overview: call("projects.overview", 1),
+      overview_doc: {
+        apply_template: call("projects.overview_doc.apply_template", 1),
+        get: call("projects.overview_doc.get", 1),
+        history: call("projects.overview_doc.history", 1),
+        save: call("projects.overview_doc.save", 1),
+        templates: {
+          list: call("projects.overview_doc.templates.list", 1),
+          save: call("projects.overview_doc.templates.save", 1),
+        },
+        undo: call("projects.overview_doc.undo", 1),
+      },
+      overview_edit: call("projects.overview_edit", 1),
+      overview_get: call("projects.overview_get", 1),
       pin_file: call("projects.pin_file", 1),
       plan: call("projects.plan", 1),
       post_update: call("projects.post_update", 1),
       reschedule: call("projects.reschedule", 1),
       roles_of: call("projects.roles_of", 1),
+      set: call("projects.set", 1),
       share_out: call("projects.share_out", 1),
       shared_view: call("projects.shared_view", 1),
       stages: {
@@ -2144,9 +2193,14 @@ export function createClient(transport: Transport) {
       templates: {
         list: call("projects.templates.list", 1),
       },
+      unarchive: call("projects.unarchive", 1),
       unlink_tasks: call("projects.unlink_tasks", 1),
       unpin_file: call("projects.unpin_file", 1),
       unshare_out: call("projects.unshare_out", 1),
+      update: {
+        draft: call("projects.update.draft", 1),
+        edit: call("projects.update.edit", 1),
+      },
     },
     providers: {
       add: call("providers.add", 1),
@@ -2793,10 +2847,12 @@ export function createClient(transport: Transport) {
       list: call("threads.list", 1),
       make_channel: call("threads.make_channel", 1),
       mark_read: call("threads.mark_read", 1),
+      mark_unread_from: call("threads.mark_unread_from", 1),
       members: {
         add: call("threads.members.add", 1),
         remove: call("threads.members.remove", 1),
       },
+      move: call("threads.move", 1),
       outside_agent: {
         add: call("threads.outside_agent.add", 1),
         remove: call("threads.outside_agent.remove", 1),

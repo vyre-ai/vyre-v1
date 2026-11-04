@@ -10,7 +10,7 @@ export type KindKey =
   | "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed"
   | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided"
   | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread"
-  | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "space.deletion_scheduled" | "space.deletion_cancelled" | "item.shared" | "ci.paused";
+  | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused";
 export type Action = { label: string; cap: string };
 export interface KindDef {
   key: KindKey; level: Level; place: Place; title: string; pushTitle?: string; actions: Action[]; agentRateKey?: string; backstopEmailAfterHours?: number; respectHours: boolean;

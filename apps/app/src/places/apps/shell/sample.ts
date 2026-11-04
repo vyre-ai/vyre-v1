@@ -89,7 +89,7 @@ export function createSampleApps(o: { team?: boolean; gate?: boolean; deferred?:
     deferred: o.deferred ?? ["sites"],
     nav: {
       newSite: () => undefined,
-      open: (g, id) => void went.push(`open:${g}:${id}`), create: (g, k) => void went.push(`create:${g}${k ? `:${k}` : ""}`), joinTeam: () => void went.push("join"),
+      open: (g, id) => void went.push(`open:${g}:${id}`), create: (g, k) => void went.push(`create:${g}${k ? `:${k}` : ""}`), joinTeam: () => void went.push("join"), addDomain: () => void went.push("add-domain"),
       show: (g) => void went.push(`show:${g}`),
       openTask: (id) => void went.push(`task:${id}`), openThread: (id) => void went.push(`thread:${id}`),
     },

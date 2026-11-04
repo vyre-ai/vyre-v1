@@ -3,6 +3,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { fail } from "../../host/src/routes/errors.ts";
+import { isHostService } from "../../lib/trust.ts";
 
 export interface Db { all(sql: string, ...args: unknown[]): unknown[]; run(sql: string, ...args: unknown[]): { changes: number } }
 export interface CiCtx {
@@ -72,7 +73,7 @@ export function writeSettings(ctx: CiCtx, s: Settings): void {
 
 /** An admin: the host itself, or a person who may manage connectors. */
 export function isAdmin(ctx: CiCtx): boolean {
-  return ctx.principal.kind === "service" || ctx.authorize?.({ perm: "connectors.manage", level: "manage" }, { type: "space", id: ctx.space })?.effect === "allow";
+  return isHostService(ctx.principal) || ctx.authorize?.({ perm: "connectors.manage", level: "manage" }, { type: "space", id: ctx.space })?.effect === "allow";
 }
 
 export function metaGet(ctx: CiCtx, key: string): string | null {

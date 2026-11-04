@@ -431,6 +431,9 @@ export interface OpenMenu {
 interface PointerLike {
   clientX?: number;
   clientY?: number;
+  pointerType?: string;
+  button?: number;
+  stopPropagation?: () => void;
   nativeEvent?: { pageX?: number; pageY?: number };
   preventDefault?: () => void;
 }
@@ -442,14 +445,39 @@ function pointOf(event: PointerLike): { x: number; y: number } {
   };
 }
 
-/** Handlers that open a menu from a surface: right-click on web, long press on a phone, Shift-F10 and the menu key. */
+/** How long a finger rests on a surface before its menu opens (a phone's browser, which has no right-click). */
+export const LONG_PRESS_MS = 450;
+const LONG_PRESS_SLOP = 8;
+
+/** Handlers that open a menu from a surface: right-click on web, a long press with a finger on a phone's browser, Shift-F10 and the menu key. */
 export function menuTrigger(open: (x: number, y: number) => void): Record<string, unknown> {
   const onLongPress = (event: PointerLike): void => {
     const { x, y } = pointOf(event);
     open(x, y);
   };
   if (Platform.OS !== "web") return { onLongPress };
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let at = { x: 0, y: 0 };
+  let firedAt = 0;
+  const clear = (): void => { if (timer !== null) { clearTimeout(timer); timer = null; } };
   return {
+    // a finger held still opens the menu; moving, lifting or a second touch cancels; the click the lift makes is not a press on the row
+    onPointerDown: (event: PointerLike): void => {
+      if (event.pointerType !== "touch") return;
+      clear();
+      at = pointOf(event);
+      timer = setTimeout(() => { timer = null; firedAt = Date.now(); open(at.x, at.y); }, LONG_PRESS_MS);
+    },
+    onPointerMove: (event: PointerLike): void => {
+      if (timer === null) return;
+      const p = pointOf(event);
+      if (Math.abs(p.x - at.x) > LONG_PRESS_SLOP || Math.abs(p.y - at.y) > LONG_PRESS_SLOP) clear();
+    },
+    onPointerUp: clear,
+    onPointerCancel: clear,
+    onClickCapture: (event: PointerLike): void => {
+      if (firedAt !== 0 && Date.now() - firedAt < 700) { firedAt = 0; event.stopPropagation?.(); event.preventDefault?.(); }
+    },
     onContextMenu: (event: PointerLike): void => {
       event.preventDefault?.();
       const { x, y } = pointOf(event);

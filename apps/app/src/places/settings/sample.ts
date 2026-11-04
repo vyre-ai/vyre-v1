@@ -24,6 +24,7 @@ const d = (key: string, scope: "space" | "person", page: string, title: string, 
 /** The person rows of the registry, in its order. */
 export const ROWS: readonly Def[] = [
   d("appearance.skin", "person", "appearance", "Skin", "classic"),
+  d("appearance.look", "person", "appearance", "Look", {}),
   d("chat.agent_tabs", "person", "Chats", "Let agents open and switch side tabs for me", true),
   d("chat.ask_agent", "person", "Models and usage", "Agent I last used in Ask panes", null),
   d("chrome.agents_use_my_browser", "person", "This computer", "Let agents use my Chrome (per Space, only that Space agents, with a visible indicator)", {}),
@@ -100,6 +101,8 @@ export const securityOf = (_space: SampleSpace): NonNullable<SettingsData["secur
 });
 
 export interface SampleSettings {
+  /** the looks the page asked the window to wear, in order */
+  looks: import("./look.ts").Look[];
   /** What the usage read was asked: the person and the start of the month the AI page sends. */
   usageAsked: Record<string, unknown>[];
   data: SettingsData;
@@ -120,6 +123,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   const calls: { cap: string; input: unknown }[] = [];
   const usageAsked: Record<string, unknown>[] = [];
   const opened: string[] = [];
+  const looks: import("./look.ts").Look[] = [];
   const previews: (string | null)[] = [];
   const failing = new Set<string>();
   replica.put("settings", [...ROWS, ...SPACE_SAMPLE].map((r) => ({ id: r.key, ...r, ...(space.values[r.key] !== undefined ? { value: space.values[r.key] } : { value: r.default }) }) as unknown as Row));
@@ -217,6 +221,20 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
   replica.resolve("settings.list", (_t, input) => ({ rows: rowsNow().filter((r) => (input.page ? r.page === input.page : true) && (input.scope ? r.scope === input.scope : true)) }) as CapMap["settings.list"]["out"]);
   replica.resolve("settings.search", (_t, input) => ({ rows: searchRows(rowsNow(), input.q).map((h) => ({ key: h.key, page: h.page, title: h.title, score: h.score })) }) as CapMap["settings.search"]["out"]);
   replica.resolve("settings.copy_source", () => { const o = replica.rows("other")[0] as unknown as Record<string, unknown> | undefined; const { id: _i, ...rest } = o ?? {}; return rest as CapMap["settings.copy_source"]["out"]; });
+  let ghOn = space.id === "northwind";
+  const ghPolicy: Record<string, string> = { read: "always", push_branch: "ask", push_default: "never", open_pr: "ask", comment: "always", merge: "never" };
+  replica.resolve("github.me.status", () => (ghOn ? { connected: true, login: "irfad7", source: "vyre", needsReconnect: space.id === "northwind" } : { connected: false, needsReconnect: false }) as CapMap["github.me.status"]["out"]);
+  replica.resolve("github.me.reach", () => ({ login: "irfad7", orgs: [{ login: "irfad7", install: "all", url: "https://github.com/settings/installations/1" }, { login: "vyre-ai", install: "selected", url: "https://github.com/organizations/vyre-ai/settings/installations/2" }, { login: "northwind", install: "none", url: null }], repos: [{ repo: "vyre-ai/vyre-v1", installationId: 2 }, { repo: "vyre-ai/site", installationId: 2 }, { repo: "irfad7/notes", installationId: 1 }] }) as CapMap["github.me.reach"]["out"]);
+  replica.resolve("github.me.policy.get", () => ({ policy: { ...ghPolicy } }) as unknown as CapMap["github.me.policy.get"]["out"]);
+  replica.resolve("github.me.usage", () => ({ uses: [{ consumer: "crews", repo: "vyre-ai/vyre-v1", action: "Opened a pull request", at: 1 }, { consumer: "ci", repo: "vyre-ai/site", action: "Read code", at: 2 }] }) as CapMap["github.me.usage"]["out"]);
+  const machine = {
+    machineId: "srv_dev_mbp", kind: "computer", name: "Irfad's MacBook Pro", mine: true, ownerId: space.me.id, online: true, draining: false, restricted: false, lastSeenAt: 1_760_000_000_000, latencyMs: 18, version: "1.4.1", os: "macOS 15", arch: "arm64",
+    cores: 8, memBytes: 16e9, diskBytes: 500e9, load: { cpuPct: 21, memUsedBytes: 8e9, diskFreeBytes: 300e9 }, runs: { turns: 1, agentComputers: 0, sites: 0, automations: 0 }, can: ["claude_code"], limits: { maxTurns: 4, maxAgentComputers: 0 }, pinned: [], room: { score: 40, tightest: "cpu" },
+  };
+  replica.resolve("machines.list", () => ({ machines: [machine] }) as never);
+  replica.resolve("machines.get", () => ({ machine, series: { "1h": [], "24h": [], "7d": [], "30d": [] }, findings: [], alerts: [], privacy: { restricted: false } }) as never);
+  replica.resolve("machines.alerts", () => ({ alerts: [] }) as never);
+  replica.resolve("computers.hosts", () => ({ available: false, hosts: [] }) as never);
   replica.put("allow", [
     { id: "alw_1", kind: "always", act: "send", target: "usr_aliza", agentId: "agt_dex" },
     { id: "alw_2", kind: "always", act: "post", target: "chn_ops", agentId: "agt_dex" },
@@ -229,7 +247,7 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     kinds: [
       { key: "approval.requested", level: "interrupt", place: "home", title: "Needs you", respectHours: false },
       { key: "mention", level: "interrupt", place: "chats", title: "Mentions", respectHours: true },
-      { key: "reply.followed", level: "badge", place: "chats", title: "Replies in your threads", respectHours: true },
+      { key: "reply.followed", level: "badge", place: "chats", title: "Replies to you", respectHours: true },
       { key: "task.assigned", level: "badge", place: "home", title: "Agent finished a long task", respectHours: true },
       { key: "routine.failed", level: "interrupt", place: "home", title: "Routines", respectHours: true },
       { key: "digest.other", level: "digest", place: "chats", title: "Channel messages", respectHours: true },
@@ -276,8 +294,13 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     },
     "settings.kit.set_mine": (i: { kitId: string | null }) => { const k = replica.rows("kit")[0]!; replica.put("kit", [{ ...k, person: i.kitId, effective: i.kitId ?? String(k["space"]) }]); return { kit: { person: i.kitId } }; },
     "engine.defaults.set": (i: { provider?: string; model?: string; fallback?: { provider: string; model: string }[] }) => { const cur = replica.rows("defaults")[0]!; replica.put("defaults", [{ ...cur, ...(i.provider ? { provider: i.provider } : {}), ...(i.model ? { model: i.model } : {}), ...(i.fallback ? { fallback: i.fallback } : {}) }]); return { ok: true }; },
-    "notifications.kind.set_level": (i: { kind: string; level: string }) => { if (i.kind === "approval.requested" && i.level !== "interrupt") throw new Error("Approval reminders never go below Interrupt."); return { kind: i.kind, level: i.level, channels: [] }; },
+    "notifications.kind.set_level": (i: { kind: string; level?: string; channels?: string[] }) => { const lvl = i.level ?? ((i.channels ?? []).some((c) => c !== "email") ? "interrupt" : "badge"); if (i.kind === "approval.requested" && lvl !== "interrupt") throw new Error("Approval reminders never go below Interrupt."); return { kind: i.kind, level: lvl, channels: i.channels ?? [] }; },
     "notifications.mute.clear": (i: { target: { id: string } }) => { replica.remove("mutes", [i.target.id]); return { ok: true }; },
+    "github.me.connect": () => ({ authUrl: "https://github.com/login/oauth/authorize?state=x", state: "x", source: "vyre" }),
+    "github.me.disconnect": () => { ghOn = false; return { disconnected: true }; },
+    "github.me.policy.set": (i: { policy: Record<string, string> }) => { Object.assign(ghPolicy, i.policy); return { policy: { ...ghPolicy } }; },
+    "machines.set": () => ({ ok: true }),
+    "machines.fix": () => ({ ok: true }),
     "gate.allow.remove": (i: { id: string }) => { replica.remove("allow", [i.id]); return { ok: true }; },
     "devices.revoke": (i: { deviceId: string }) => { const cur = replica.rows("devices").find((x) => x.id === i.deviceId); if (cur) replica.put("devices", [{ ...cur, revokedAt: SAMPLE_NOW }]); return { ok: true }; },
     "devices.revoke_others": () => { let n = 0; for (const x of replica.rows("devices")) if (!x["current"] && x["revokedAt"] === undefined) { replica.put("devices", [{ ...x, revokedAt: SAMPLE_NOW }]); n++; } return { revoked: n }; },
@@ -315,8 +338,9 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     },
   };
   const nav: SettingsNav = {
+    openLink: (l) => void opened.push(`link:${l}`),
     openVault: () => void opened.push("vault"), openSpace: (id) => void opened.push(`space:${id}`), connect: (k) => void opened.push(`connect:${k}`),
-    choosePhoto: async () => "fil_sample", previewSkin: (id) => void previews.push(id), manageSecurity: (kind, id) => void opened.push(`security:${kind}:${id}`),
+    choosePhoto: async () => "fil_sample", previewSkin: (id) => void previews.push(id), applyLook: (l) => void looks.push(l), manageSecurity: (kind, id) => void opened.push(`security:${kind}:${id}`),
   };
   const data: SettingsData = {
     // the Owner of Northwind can open everything; Harbor Studio is a Member's Space and has no Space pages
@@ -334,5 +358,5 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     peek: (cap, input) => replica.run(cap as keyof CapMap, input as never)?.data,
     me: space.me, space: { id: space.id, name: space.name }, spaces: space.spaces, name: (id) => space.names[id] ?? nameOf(space.id, id), nav, clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }), security: securityOf(space),
   };
-  return { data, replica, space, calls, opened, previews, usageAsked, failNext: (cap) => void failing.add(cap) };
+  return { data, replica, space, calls, opened, previews, looks, usageAsked, failNext: (cap) => void failing.add(cap) };
 }

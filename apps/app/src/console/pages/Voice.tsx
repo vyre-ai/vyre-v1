@@ -42,6 +42,8 @@ export function VoiceSettings(): ReactElement {
   const [replacing, setReplacing] = useState(false);
   const [key, setKey] = useState("");
   const [gone, setGone] = useState(false);
+  /** a provider the Space has no key for yet: its key form is open */
+  const [adding, setAdding] = useState<string | null>(null);
   const checked = useRef(false);
   const s = space.data;
   // a row that says when it was last checked should not be far behind: an old answer is asked again once as the page opens
@@ -51,17 +53,18 @@ export function VoiceSettings(): ReactElement {
     void action.run("talk.space.check", {}, "");
   }, [s?.set]);
   if (!s || !me.data) return <ReadState error={space.error ?? me.error} retry={refresh} />;
-  const provider = me.data.providers.find((p) => p.key === (s.provider ?? me.data?.provider)) ?? me.data.providers[0];
+  const provider = me.data.providers.find((p) => p.key === (adding ?? s.provider ?? me.data?.provider)) ?? me.data.providers[0];
+  const keyed = s.keyed ?? [];
   const name = provider?.name ?? "Deepgram";
   const save = async (): Promise<void> => {
     if (key.trim() === "" || !provider) return;
     const out = await action.run<SpaceOut>("talk.space.connect", { provider: provider.key, fields: [{ key: "api_key", value: key, secret: true }], idempotencyKey: attempt() }, "Talk is on for everyone");
-    if (out) { setKey(""); setReplacing(false); }
+    if (out) { setKey(""); setReplacing(false); setAdding(null); }
   };
   const who = s.setBy ? `${data.name(s.setBy)} added it` : "";
   const note = s.set ? [name, who, `checked ${agoLine(s.checkedAt, data.clock().now)}`].filter(Boolean).join(" · ") : `One ${name} key can cover everyone. People just press the mic, and can never read the key.`;
   const owned = s.peopleOwnKey ?? 0;
-  const form = !s.set || replacing;
+  const form = !s.set || replacing || adding !== null;
   const failing = s.set && s.state === "failing";
   const stateWord = failing ? "Not working" : s.on ? "Working" : "Paused";
   return (
@@ -73,6 +76,16 @@ export function VoiceSettings(): ReactElement {
       <View>
         <Group>
           <Row id="voice-status" title={voiceHeadline(s)} note={note} leading={<IconTile icon="mic" {...(failing ? { tone: "warn" as const } : {})} />} trailing={s.set ? <Text testID="voice-state" style={{ fontSize: 12.5, color: (failing ? "var(--warn)" : "var(--ink-3)") as string }}>{stateWord}</Text> : undefined} />
+          {s.set && me.data.providers.length > 1 ? (
+            <Row id="voice-provider" title="Provider for everyone" note={me.data.providers.map((p) => `${p.name}${p.key === s.provider ? " (in use)" : keyed.includes(p.key) ? "" : " (no key yet)"}`).join(" · ")} trailing={
+              <Actions>
+                {/* ui-rows-lint: not a list (the buttons of one row, one per other provider) */}
+                {me.data.providers.filter((p) => p.key !== s.provider).map((p) => (
+                  <Button key={p.key} label={keyed.includes(p.key) ? `Use ${p.name}` : `Add ${p.name} key`} disabled={action.busy} testID={`voice-use-${p.key}`}
+                    onPress={() => (keyed.includes(p.key) ? void action.run("talk.space.configure", { provider: p.key }, `${p.name} covers everyone now`) : (setAdding(p.key), setKey("")))} />
+                ))}
+              </Actions>} />
+          ) : null}
           {s.set ? <Row id="voice-own" title="People with their own key" note={owned === 0 ? "Nobody. The Space key covers everyone" : `${owned}. Their own key wins for them`} /> : null}
         </Group>
         {form ? (
@@ -81,7 +94,7 @@ export function VoiceSettings(): ReactElement {
             <Note>{"Goes straight to this Space's Vault and is checked at once. It needs the Member role."}</Note>
             <Actions>
               <Button label={action.busy ? "Checking" : s.set ? "Replace key" : "Turn on for everyone"} disabled={key.trim() === "" || action.busy} why="Paste the key first" onPress={() => void save()} testID="voice-save" />
-              {replacing ? <Button label="Cancel" onPress={() => { setReplacing(false); setKey(""); }} testID="voice-cancel" /> : null}
+              {replacing || adding !== null ? <Button label="Cancel" onPress={() => { setReplacing(false); setAdding(null); setKey(""); }} testID="voice-cancel" /> : null}
               {provider ? <Button label={`Get a key from ${name}`} onPress={() => { (globalThis as { open?: (url: string, target: string) => void }).open?.(provider.keyUrl, "_blank"); }} testID="voice-get-key" /> : null}
             </Actions>
           </Group>

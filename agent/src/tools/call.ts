@@ -1,5 +1,6 @@
 // callTool (ARCH 6.7): every tool call is one capability invoke, as the agent acting for the asker. Nothing here decides access, Gate or audit; the invoke pipeline does,
 // and no mode (Ask, Allow, Auto) or plan state can make this module skip it. We only (a) refuse what was never offered this turn, (b) route the answer back as a tool result.
+import { nextReads } from "./next.ts";
 import { HostError, makeError } from "../../../host/src/routes/errors.ts";
 import type { CtxSeed, Invoke } from "../../../host/src/invoke.ts";
 import { heldCard, recordWork, workCardOf } from "./work-cards.ts";
@@ -45,6 +46,8 @@ export interface CallDeps extends AccessDeps {
   invoke: Invoke;
   /** The asker's time zone, when known: a calendar, mail, inbox or task result then carries each time in it as well (lib/time-convert.ts withLocalTimes). */
   zoneOf?(ctx: ToolCtx): string | undefined;
+  /** Name the tool that reads one item after a list result, and list it at once. For a session whose model sees a live tool list (the API driver); a CLI engine through MCP lists once, so it is left out there. */
+  nextHints?: boolean;
   traceId?(): string;
   /** Local tools only: what Ask, Allow and Auto say. Fails closed: a missing policy refuses a local tool. */
   localPolicy?(t: ToolDef, ctx: ToolCtx, input: unknown): LocalDecision;
@@ -199,8 +202,15 @@ export function createToolSession(deps: CallDeps): ToolSession {
       // times in the person's zone beside the ISO and epoch ones, for the tools that return times people schedule by
       const zone = TIMED.test(t.cap) ? deps.zoneOf?.(ctx) : undefined;
       const data = shaped ? shaped.data : res.output;
-      const content: { data: unknown; meta?: unknown; blocks?: string[] } = { data: zone ? withLocalTimes(data, zone) : data, ...(shaped ? { meta: shaped.meta } : {}) };
+      const content: { data: unknown; meta?: unknown; blocks?: string[]; next?: string } = { data: zone ? withLocalTimes(data, zone) : data, ...(shaped ? { meta: shaped.meta } : {}) };
       if (t.blocks.length > 0) content.blocks = t.blocks;
+      // a list names the tool that reads one item, and that tool is listed from now on: no search to find it
+      const reads = deps.nextHints === true ? nextReads(t.name) : [];
+      if (reads.length > 0) {
+        const set = toolsFor(deps, ctx), offered = new Set([...set.listed, ...set.searchable].map((x) => x.name));
+        const ready = reads.filter((n) => offered.has(n));
+        if (ready.length > 0) { for (const n of ready) loadedSet(ctx.thread.threadId).add(n); content.next = `To read one of these, call ${ready.join(" or ")} with its id. ${ready.length > 1 ? "They are" : "It is"} ready to call now.`; }
+      }
       if (deps.hooks?.after) void Promise.resolve(deps.hooks.after(ctx, t, input, { ok: true, output: res.output })).catch(() => undefined);
       const asked = t.cap === "chat.question.ask" ? (res.output as { blockId?: unknown } | null)?.blockId : undefined;
       return { kind: "result", traceId: res.traceId, result: { ok: true, content }, ...(typeof asked === "string" ? { parkOn: { blockId: asked } } : {}) };

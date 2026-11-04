@@ -33,6 +33,7 @@ import type { HelperChatData } from "../helper/data.tsx";
 import type { NeedsYouData } from "../needsyou/data.tsx";
 import type { PaneAgent } from "../rightpane/data.tsx";
 import type { TerminalData } from "../terminal/data.ts";
+import { machinesTarget } from "../../../console/shell/route.ts";   // the one way into Console > Computers with a machine selected (l-consolidate)
 
 type RecentOut = CapMap["chat.recent"]["out"];
 type ThreadOut = CapMap["threads.get"]["out"];
@@ -139,7 +140,7 @@ export function agentPageData(rt: ShellRuntime, go: Go, o: { agent: PaneAgent; c
 }
 
 export function helperData(rt: ShellRuntime, go: Go, threadId: string, nameOf: (id: string) => string): HelperChatData {
-  return { screens: rt.screens, call: rt.call, connection: rt.connection, threadId, nameOf, nav: { openThread: (id) => go.thread(id) }, clock: rt.clock };
+  return { screens: rt.screens, call: rt.call, connection: rt.connection, threadId, nameOf, me: { id: rt.me.id }, nav: { openThread: (id) => go.thread(id), ...(go.message ? { openMessage: (t: string, m: string) => go.message(t, m) } : {}) }, clock: rt.clock };
 }
 
 export function needsData(rt: ShellRuntime, go: Go, nameOf: (id: string) => string): NeedsYouData {
@@ -179,10 +180,10 @@ export function countingCall(call: ShellRuntime["call"], counter: CaptureCounter
   };
 }
 
-export function popupData(rt: ShellRuntime, go: Go, o: { computerId: string; agent: { agentId: string; name: string }; counter: CaptureCounter; renderChat?: ComputerPopupData["renderChat"] }): ComputerPopupData {
+export function popupData(rt: ShellRuntime, go: Go, o: { computerId: string; agent: { agentId: string; name: string }; counter: CaptureCounter; renderChat?: ComputerPopupData["renderChat"]; reach?: ComputerPopupData["reach"] }): ComputerPopupData {
   return {
     screens: rt.screens, call: countingCall(rt.call, o.counter), connection: rt.connection, computerId: o.computerId, agent: o.agent, capture: o.counter.store, ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}),
-    ...(o.renderChat ? { renderChat: o.renderChat } : {}), nav: { close: () => go.closeLayer() }, clock: rt.clock,
+    ...(o.renderChat ? { renderChat: o.renderChat } : {}), ...(o.reach ? { reach: o.reach } : {}), nav: { close: () => go.closeLayer() }, clock: rt.clock,
   };
 }
 
@@ -352,10 +353,6 @@ export function wireConversation(rt: ShellRuntime, go: Go, o: { threadId: string
 }
 
 /** The agent's pane: its Computer tab pops the computer out and opens a terminal on it, its Threads tab opens a helper as the helper chat. */
-/** Console > Computers with one machine selected: the route is `machines~<id>` (the Space's own server is `space`), as the prototype and the Console page ids spell it. */
-export function machinesTarget(nodeId?: string): { screen: string; args: Record<string, string> } {
-  return { screen: "console.page", args: { page: `machines~${nodeId && nodeId !== "" ? nodeId : "space"}` } };
-}
 
 export function wirePane(rt: ShellRuntime, go: Go, threadId: string, agent: PaneAgent, fill?: ComposerFill, terminal?: TerminalData): ChatRightPaneData {
   const base = paneData(rt, chatsActions(go, fill), threadId, agent);

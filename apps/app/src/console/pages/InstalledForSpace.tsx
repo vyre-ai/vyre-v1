@@ -137,6 +137,7 @@ export function InstalledForSpace({ call, nameOf = (id) => id, onAddSkill }: { c
           <Text style={quiet}>Nothing installed yet. Install a skill, plugin or tool server from a link.</Text>
           <SmallButton primary label="Install" testID="installed-add-empty" onPress={() => setAdding(true)} />
         </View>
+      // ui-rows-lint: not a list (a divider around rows that are each a ui/Row already)
       ) : list.map((i, n) => {
         const hold = needsYou(i);
         const u = updates[i.installId];
@@ -160,6 +161,7 @@ export function InstalledForSpace({ call, nameOf = (id) => id, onAddSkill }: { c
         <View style={{ gap: 6 }}>
           {up.diff ? <Text style={quiet}>{`${changedCount(up.diff)} ${changedCount(up.diff) === 1 ? "file" : "files"} changed`}</Text> : null}
           <Text testID="install-update-access" style={quiet}>{`New access: ${reaches(up).length > 0 ? `it now also reaches ${reaches(up).join(", ")}` : "none"}.`}</Text>
+          {/* ui-rows-lint: not a list (the lines of one update diff, monospace) */}
           {up.diff ? diffRows(up.diff).map((r, n) => <Text key={n} style={[mono, r.kind === "head" ? { color: "var(--ink-3)" } : null]}>{r.text}</Text>) : null}
         </View>
       </Dialog>
@@ -187,9 +189,11 @@ export function InstalledForSpace({ call, nameOf = (id) => id, onAddSkill }: { c
             <Text testID="install-preview-source" style={mono}>{`${plan.repo}${plan.path ? `/${plan.path}` : ""} · ${pin.label}: ${pin.value}`}</Text>
             <Text testID="install-preview-needs" style={quiet}>{`Network: ${nl.network}. Vault keys: ${nl.vault}.${nl.files !== "none" ? ` Files: ${nl.files}.` : ""}`}</Text>
             {plan.problems.length > 0 ? <Text style={quiet}>{`Heads up: ${plan.problems.slice(0, 2).join(" ")}`}</Text> : null}
+            {/* ui-rows-lint: not a list (a segmented choice of where it runs) */}
             {plan.kind === "mcp_local" && plan.runOn ? <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap" }}>{plan.runOn.map((r) => <SmallButton key={r.key} label={r.key === "sandbox" ? "Run on my agent's computer" : r.label} primary={runOn === r.key} testID={`install-run-${r.key}`} onPress={() => setRunOn(r.key)} />)}</View> : null}
             <View style={{ flexDirection: "row", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
               <Text style={quiet}>For</Text>
+              {/* ui-rows-lint: not a list (a segmented choice of who it is for) */}
               {plan.who.filter((w) => w.key !== "agent" && w.allowed).map((w) => <SmallButton key={w.key} label={w.key === "space" ? "Everyone in the Space" : "Just me"} primary={who === w.key} testID={`install-for-${w.key}`} onPress={() => setWho(w.key)} />)}
             </View>
             {needsKey ? <TextField accessibilityLabel="Vault key" testID="install-add-key" value={vault} onChangeText={setVault} placeholder="#Ops_mcp (a Vault key that protects it)" autoCapitalize="none" /> : null}

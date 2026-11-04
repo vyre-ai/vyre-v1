@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { capPhrase } from "../shell/format.ts";
 import type { ReactElement } from "react";
 import { View } from "react-native";
 import type { AccessGroupsGetOut, AccessGroupsListOut, AccessPrincipalsListOut, AccessRolesListOut, AuditListOut } from "../../../../../generated/types.ts";
@@ -6,7 +7,10 @@ import { ObjectPage, ObjectSection, withBaseTabs } from "../../../../../ui/src/O
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { ObjectList } from "../objects/ObjectList.tsx";
 import { useConsoleData } from "../shell/data.tsx";
-import { capPhrase, count } from "../shell/format.ts";
+import { groupRowActions } from "../objects/row-menus.ts";
+import { createMenuApiB } from "../../places/chats/menus/actions-b.ts";
+import { TextAsk } from "../../places/chats/menus/TextAsk.tsx";
+import { count } from "../shell/format.ts";
 import { Empty, Group, Section } from "../shell/ui.tsx";
 import { Actions, Button, Field, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
 
@@ -38,6 +42,8 @@ export function Groups({ initialId }: { initialId?: string }): ReactElement {
   const [pageError, setPageError] = useState("");
   const [bulk, setBulk] = useState<AccessGroupsGetOut[] | null>(null);
   const [create, setCreate] = useState(false);
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const api = useMemo(() => createMenuApiB(data), [data]);
   const [name, setName] = useState("");
   const list = useRead<AccessGroupsListOut>("access.groups.list", { q: search, limit: 100 });
   const refresh = () => { setMore(null); list.refresh(); };
@@ -66,8 +72,8 @@ export function Groups({ initialId }: { initialId?: string }): ReactElement {
     } catch { setPageError("Couldn’t load more teams. Try again."); }
     finally { setPaging(false); }
   };
-  return <View testID="console-groups"><Actions><Button label="New team" testID="group-create-open" onPress={() => setCreate(true)} /></Actions>
-    <ObjectList rows={rows.map((group) => ({ id: group.id, title: group.name, note: `${count(group.members.length, "member")} · ${count(group.managers.length, "manager")}`, filters: [group.builtIn ? "built-in" : "custom"], actions: [{ label: "Open team", onSelect: () => open(group.id) }], value: group }))} selectedId={null} onOpen={(row) => open(row.id)} search={{ value: search, onSearch: setSearch }} filters={[{ id: "built-in", label: "Built-in" }, { id: "custom", label: "Custom" }]} activeFilters={filters} onFilters={setFilters} picked={picked} onPicked={setPicked} bulkActions={[{ label: "Delete selected custom teams…", danger: true, onSelect: () => void prepareBulk() }]} pagination={{ ...(next ? { next } : {}), busy: paging, onMore: () => void loadMore() }} empty="No teams match this search." testID="group-list" />
+  return <View testID="console-groups">{renaming ? <TextAsk title="Rename team" label="Team name" action="Rename" initial={renaming.name} onClose={() => setRenaming(null)} onDone={(name) => { const r = renaming; setRenaming(null); void api.groupRename(r.id, name).then(refresh, (e) => setPageError(e instanceof Error ? e.message : "That did not work.")); }} /> : null}<Actions><Button label="New team" testID="group-create-open" onPress={() => setCreate(true)} /></Actions>
+    <ObjectList rows={rows.map((group) => ({ id: group.id, title: group.name, note: `${count(group.members.length, "member")} · ${count(group.managers.length, "manager")}`, filters: [group.builtIn ? "built-in" : "custom"], actions: groupRowActions(group, { api, can: data.can, open: () => open(group.id), done: refresh, fail: (e) => setPageError(e instanceof Error ? e.message : "That did not work."), rename: () => setRenaming({ id: group.id, name: group.name }) }), value: group }))} selectedId={null} onOpen={(row) => open(row.id)} search={{ value: search, onSearch: setSearch }} filters={[{ id: "built-in", label: "Built-in" }, { id: "custom", label: "Custom" }]} activeFilters={filters} onFilters={setFilters} picked={picked} onPicked={setPicked} bulkActions={[{ label: "Delete selected custom teams…", danger: true, onSelect: () => void prepareBulk() }]} pagination={{ ...(next ? { next } : {}), busy: paging, onMore: () => void loadMore() }} empty="No teams match this search." testID="group-list" />
     {bulk ? <Section title="Confirm team deletion"><Note>{bulk.map((item) => groupDeleteImpact(item.group, item.grants.length)).join(" ")}</Note><Actions><Button label="Cancel" onPress={() => setBulk(null)} /><Button label="Delete selected teams" danger disabled={action.busy} onPress={() => { void (async () => { for (const item of bulk) { const out = await action.run("access.groups.delete", {groupId: item.group.id}, "Team deleted"); if (!out) { setPageError("Deletion stopped. Earlier successful deletions remain; reload before retrying."); setBulk(null); return; } } setBulk(null); setPicked(new Set()); })(); }} /></Actions></Section> : null}{pageError ? <Note>{pageError}</Note> : null}{create ? <Section title="Create team"><Field label="Team name" value={name} onChange={setName} testID="group-name" /><Actions><Button label="Cancel" onPress={() => setCreate(false)} /><Button label="Create" testID="group-create" disabled={!name.trim() || action.busy} why={!name.trim()?"Name the team first":undefined} onPress={() => void action.run<{ group: GroupRow }>("access.groups.create", { name: name.trim(), idempotencyKey: attempt() }, "Team created").then((out) => { if (out) { setCreate(false); setName(""); open(out.group.id); } })} /></Actions></Section> : null}{action.note ? <Note>{action.note}</Note> : null}
   </View>;
 }

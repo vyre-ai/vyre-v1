@@ -4,7 +4,7 @@ import { askerOf, insertMessage, mintId } from "../projections.ts";
 import type { ChatCtx, MessageRec } from "../projections.ts";
 
 export interface CardData {
-  icon: string; lead: string; title: string; who?: string; by?: string; to?: string; target?: { type: string; id: string }; body?: string; actions?: { key: string; label: string }[];
+  icon: string; lead: string; title: string; style?: "noted" | "question"; sub?: string; who?: string; by?: string; to?: string; target?: { type: string; id: string }; body?: string; actions?: { key: string; label: string; cap?: string; input?: Record<string, unknown> }[];
 }
 
 /** Post the card into `threadId` as a system line (a card with a body or buttons, from an agent, is posted by the agent's own reply instead). */

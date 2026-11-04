@@ -1,5 +1,5 @@
 // Install from a link: the words and small decisions behind the held card, the update card and the Skills list, kept apart from the screen so a test can read them. No capability is called here.
-import type { CapMap } from "../../../../../../../generated/types.ts";
+import type { CapMap } from "../../../../../../generated/types.ts";
 
 export type Plan = CapMap["install.get"]["out"]["plan"];
 export type Scope = "me" | "agent" | "space";

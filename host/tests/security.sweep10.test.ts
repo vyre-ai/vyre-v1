@@ -125,7 +125,6 @@ test("every module trust of kind service is reviewed: the sites below are the wh
     "forms/handlers/submit.ts",           // a public form submits as its own svc_form_<id> and may not use another form's
     "engine/step-turn.ts",                // an AI step run by a service caller may use only the Space's shared accounts, never a person's own (a restriction, not a power)
     "git/handlers/ops.ts",                // a label in a log line, not a decision
-    "machines/handlers/index.ts",         // the machine alert line and the sampler report are host-only: kind service AND the host's own id
     "spaces/handlers/extra/core.ts",      // spaces.delete_due runs only for the host's minute job, so a person or agent cannot trigger a due deletion early
     "telephony/projections.ts",           // classifies who started a call for the log, not a decision
   ].sort());

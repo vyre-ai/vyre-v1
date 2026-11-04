@@ -49,6 +49,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "access.projection_health": async (ctx) => { throw new VyreErr(notImplemented("access.projection_health", ctx.trace)); },
   "access.propose_change": async (ctx) => { throw new VyreErr(notImplemented("access.propose_change", ctx.trace)); },
   "access.provider_check": async (ctx) => { throw new VyreErr(notImplemented("access.provider_check", ctx.trace)); },
+  "access.reach": async (ctx) => { throw new VyreErr(notImplemented("access.reach", ctx.trace)); },
   "access.record_marks": async (ctx) => { throw new VyreErr(notImplemented("access.record_marks", ctx.trace)); },
   "access.request": async (ctx) => { throw new VyreErr(notImplemented("access.request", ctx.trace)); },
   "access.requests.approve": async (ctx) => { throw new VyreErr(notImplemented("access.requests.approve", ctx.trace)); },
