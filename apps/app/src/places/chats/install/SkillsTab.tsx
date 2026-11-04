@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { Face, TextButton } from "../rightpane/parts.tsx";
 import type { PaneDeps } from "../rightpane/actions.ts";
@@ -66,16 +67,16 @@ export function SkillsTab({ deps, nameOf = SAME, highlight, renderShare }: { dep
   if (groups.length === 0) return <View testID="skills-empty" style={st.pad}><Text style={st.dim}>No skills yet. Give the Assistant a GitHub link and ask it to install it.</Text></View>;
   return (
     <ScrollView testID="skills-list" contentContainerStyle={st.pad}>
-      {/* ui-rows-lint: not a list (sections of skills, each with its own heading) */}
+      {/* ui-rows-lint: not a list (sections, each a heading over its skill rows) */}
       {groups.map((g) => (
         <View key={g.title} style={st.group}>
           <View style={st.gh}><Text accessibilityRole="header" style={st.gt}>{g.title}</Text><Text style={st.dim}>{g.rows.length}</Text></View>
+          {/* ui-rows-lint: not a list (one skill: its ui/Row and the controls under it) */}
           {g.rows.map((r) => (
-            <View key={r.skillId} testID={`skill-row-${r.skillId}`} style={[st.row, highlight !== undefined && (r.name === highlight) && st.hi]}>
-              <Face name={r.faceName} seedId={r.faceId} size={22} />
-              <View style={st.body}>
-                <Text style={st.name}>{r.name}</Text>
-                <Text style={st.dim}>{r.line}</Text>
+            <View key={r.skillId}>
+              <Row id={`skill-${r.skillId}`} title={r.name} note={r.line} selected={highlight !== undefined && r.name === highlight} leading={<View style={st.face}><Face name={r.faceName} seedId={r.faceId} size={22} /></View>} />
+              <View testID={`skill-row-${r.skillId}`} style={st.under}>
+                {/* ui-rows-lint: not a list (the controls under one skill's row) */}
                 {updates[r.skillId] ? <Text testID={`skill-update-${r.skillId}`} style={st.upd}>Update available</Text> : null}
                 {r.mine ? (
                   <View style={st.actions}>
@@ -85,8 +86,10 @@ export function SkillsTab({ deps, nameOf = SAME, highlight, renderShare }: { dep
                 ) : null}
                 {share === r.skillId && renderShare ? renderShare({ type: "skill", id: r.skillId, name: r.name }, () => setShare(null)) : null}
                 {hist[r.skillId] ? (
-                  // ui-rows-lint: not a list (a skill's history, as lines of text)
-                  <View testID={`skill-hist-${r.skillId}`} style={st.hist}>{hist[r.skillId]!.map((l, i) => <Text key={i} style={st.histLine}>{l}</Text>)}</View>
+                  <View testID={`skill-hist-${r.skillId}`} style={st.hist}>
+                    {/* ui-rows-lint: not a list (version lines of one skill) */}
+                    {hist[r.skillId]!.map((l, i) => <Text key={i} style={st.histLine}>{l}</Text>)}
+                  </View>
                 ) : null}
               </View>
             </View>
@@ -103,6 +106,8 @@ const st = StyleSheet.create({
   gh: { flexDirection: "row", gap: 8, alignItems: "center", paddingBottom: 2 },
   gt: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
   dim: { fontSize: 12.5, color: "var(--ink-3)" as string, lineHeight: 18 },
+  face: { marginRight: 10 },
+  under: { paddingLeft: 36, gap: 4, paddingBottom: 6 },
   row: { flexDirection: "row", gap: 10, paddingVertical: 6, paddingHorizontal: 4, borderRadius: 10 },
   hi: { backgroundColor: "var(--accent-wash)" as string },
   body: { flex: 1, minWidth: 0, gap: 2 },
