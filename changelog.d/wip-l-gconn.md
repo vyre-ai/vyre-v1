@@ -8,3 +8,4 @@
 - On a phone, a slim row with the notifications bell and its dot sits above the screen while something needs you, and takes no room otherwise. Work handed in for your approval says Review.
 - Fixed the shell failing to open ("Couldn't open Vyre") after the banner stack was removed; found by opening the real app, not a mount.
 - Opening Chats, a project page or Settings in a Team Space no longer makes the server refuse a call and print an error in the console: the list of imported local sessions answers empty, with a note that local history lives in the Personal Space. The Personal Space is unchanged.
+- A first-hour walk (scripts/shots/first-hour.mjs) drives a real booted install through the real app, step by step, one paper shot each, and fails on any refused call or console error; steps it cannot drive yet fail by name instead of passing.
