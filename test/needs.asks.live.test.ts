@@ -21,7 +21,7 @@ const script = (run: RunTool, input: any, heardFrom: (s: string) => void) => (as
   const last = String(input.trigger?.body ?? "");
   heardFrom(last);
   if (/^ask$/.test(last)) { yield* use("ask_question", { threadId: input.threadId, prompt: "Which date?\nThe file has two.", mode: "single", options: [{ key: "a", label: "5 May" }, { key: "b", label: "6 May" }] }); return; }
-  if (/^ask free$/.test(last)) { yield* use("ask_question", { threadId: input.threadId, prompt: "Who signed the lease for the first of May?", mode: "free" }); return; }
+  if (/^ask free$/.test(last)) { yield* use("ask_question", { threadId: input.threadId, prompt: "Who signed?", mode: "free" }); return; }
   if (/^plan$/.test(last)) { yield* use("plan_propose", { threadId: input.threadId, title: "Move the files", steps: [{ text: "List them" }, { text: "Move them" }] }); return; }
   yield { type: "text", text: `Heard: ${last}` };
 })();
