@@ -148,6 +148,7 @@ export default defineManifest({
       in: {
         type: id.recordType, title: t.str(), summary: t.opt(t.str()), goal: t.opt(t.str()), lead: t.opt(principal), start: t.opt(t.ts()), due: t.opt(t.ts()),
         stages: t.opt(t.arr(stageIn)), members: t.opt(t.arr(t.obj({ principal, role }))), template: t.opt(t.str({ description: 'Template (Kit) id to copy tasks and stages from' })),
+        overviewTemplate: t.opt(t.str({ description: 'Overview page template id (tpl_client_account, tpl_software_project, tpl_hiring, or one saved since): the project starts on that page', examples: ['tpl_software_project'] })),
       },
       out: createOut, make: ['record', '/type'], perm: 'records.create', emits: ['project.created', 'record.created'], tool: 'records', cli: 'vyre projects create',
     }),

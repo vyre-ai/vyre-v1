@@ -32,7 +32,7 @@ export const BUILTIN_TEMPLATES: readonly Builtin[] = [
     templateId: "tpl_client_account", title: "Client account", summary: "A client's work in one place: invoices, mail, tasks and who is on it.",
     blocks: [
       live("b_status", "status", { title: "Status" }), head("b_h_about", "About this client"), text("b_about", "Who they are, what we do for them, and what to watch."),
-      head("b_h_inv", "Invoices"), live("b_inv", "records", { title: "Invoices", type: "invoice" }, "table"), live("b_owed", "metric", { title: "Unpaid", type: "invoice", op: "sum", field: "amount", filter: { status: "sent" } }, "count"),
+      head("b_h_inv", "Invoices"), live("b_inv", "records", { title: "Invoices", type: "invoice" }, "table"), live("b_owed", "metric", { title: "Unpaid", type: "invoice", op: "sum", field: "amount", filter: { field: "status", op: "eq", value: "sent" } }, "count"),
       head("b_h_mail", "Mail"), live("b_mail", "links", { title: "Mail threads", kind: "mail_thread" }), head("b_h_tasks", "Work"), live("b_tasks", "tasks", { title: "Open tasks", status: "open" }),
       live("b_next", "milestones", { title: "Next milestones", limit: 3 }), head("b_h_people", "People and agents"), live("b_people", "people", { title: "People and agents" }),
     ],
@@ -63,6 +63,14 @@ export function seedTemplates(ctx: ProjectsCtx): void {
 /** A template's blocks for a page: new ids, authored by whoever applies it. */
 function fresh(ctx: ProjectsCtx, blocks: readonly PageBlock[]): PageBlock[] {
   return blocks.map((b) => ({ ...b, id: newId("blk", ctx.now()), by: me(ctx), at: ctx.now(), ...(b.live ? { live: { ...b.live, spec: { ...b.live.spec } } } : {}) }));
+}
+
+/** A new project's first page, from a template: its blocks as revision 1. The project is not yet a resource in access when its creating call runs, so this writes the page directly. */
+export function startPage(ctx: ProjectsCtx, projectId: string, templateId: string): void {
+  const tpl = templateBy(ctx.db, templateId);
+  if (!tpl) return;
+  const blocks = fresh(ctx, tpl.blocks);
+  saveDoc(ctx.db, projectId, { blocks, before: [], by: me(ctx), authorKind: ctx.principal.kind === "agent" ? "agent" : "person", summary: `started from the ${tpl.title} template`, at: ctx.now() });
 }
 
 // ---- reading the page ----
@@ -389,7 +397,11 @@ export async function evaluate(ctx: ProjectsCtx, p: Project, type: LiveType, spe
       }
       if (typeof spec["assigned"] === "string") all = all.filter((t) => t.assigned === spec["assigned"]);
       all.sort((a, b) => (a.due ?? Infinity) - (b.due ?? Infinity));
-      return done(all.map((t) => ({ id: t.taskId, title: t.title, state: t.status, detail: [day(t.due), t.due !== undefined && t.due < now && isOpenState(t.status) ? "late" : undefined].filter(Boolean).join(" · ") || undefined, url: `/tasks/${t.taskId}` })));
+      // Tasks can be private or restricted. `tasks.list` answers the ones the reader may open; the task records of this project counted without regard to access say how many exist, and the difference
+      // is what is hidden from them. (A count that cannot be read leaves hidden at 0 rather than guessing.)
+      const everyTask = await tolerant<{ count?: number }>(ctx, "records.counts", { type: "task", filter: { field: "project", op: "eq", value: p.recordId } }, {});
+      const hiddenTasks = everyTask.count === undefined ? 0 : Math.max(0, everyTask.count - tasks.length);
+      return done(all.map((t) => ({ id: t.taskId, title: t.title, state: t.status, detail: [day(t.due), t.due !== undefined && t.due < now && isOpenState(t.status) ? "late" : undefined].filter(Boolean).join(" · ") || undefined, url: `/tasks/${t.taskId}` })), hiddenTasks);
     }
     case "links": case "ci": {
       const kind = type === "ci" ? "ci.run" : typeof spec["kind"] === "string" ? spec["kind"] : undefined;
@@ -423,9 +435,14 @@ export async function evaluate(ctx: ProjectsCtx, p: Project, type: LiveType, spe
     case "goal": {
       const f = await readRecord(ctx, p).catch(() => ({} as Record<string, unknown>));
       const g = asText(f["goal"]);
-      return done(g ? [{ id: "goal", title: g }] : []);
+      const goals = await tolerant<{ goals?: Array<{ id: string; title: string; status: string }> }>(ctx, "goals.list", { scope: "project", projectId: p.projectId }, {});
+      // A goal can be private to its owner. The goals module answers "all I can see" and keeps no count that ignores access, so the goals the reader may not open cannot be counted from here: hidden stays 0
+      // for goals until that module offers such a count. The brief's goal text is a field of the project record, which the reader sees whole or not at all.
+      return done([...(g ? [{ id: "goal", title: g }] : []), ...(goals.goals ?? []).map((x) => ({ id: x.id, title: x.title, state: x.status, url: `/goals/${x.id}` }))]);
     }
+    // People and agents: every reader of the project reads its member list whole (a project role is a grant on the project), so nothing is hidden from a reader who can open the Overview.
     case "people": return done(membersOf(ctx.db, p.projectId).map((m) => ({ id: m.principal, title: m.principal, state: m.role, detail: m.kind })));
+    // Status: derived from counts the reader's own read of the record and tasks gives; it names no row, so nothing is hidden.
     case "status": {
       const [fields, tasks] = await Promise.all([readRecord(ctx, p).catch(() => ({} as Record<string, unknown>)), loadTasks(ctx, p).catch(() => [])]);
       const row = projectRow(ctx, p, fields, tasks);

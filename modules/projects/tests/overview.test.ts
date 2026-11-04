@@ -275,3 +275,54 @@ test("the editor's Markdown: every block is led by its id, a live block is one d
   await refused(run(h, "projects.overview_doc.save", { projectId: p.projectId, markdown: "<!--b:blk_z-->\n:::live {not json}" }), "validation.bad_input");
   await refused(run(h, "projects.overview_doc.save", { projectId: p.projectId, markdown: '<!--b:blk_z-->\n:::live {"type":"weather","spec":{}}' }), "validation.bad_input");
 });
+
+test("projects.create with overviewTemplate starts the project on that page in one call; an unknown template is refused before anything is made", async () => {
+  const h = harness();
+  const made = await run(h, "projects.create", { type: "project", title: "Acme site", overviewTemplate: "tpl_software_project" });
+  const spec = BUILTIN_TEMPLATES.find((t) => t.templateId === "tpl_software_project")!.blocks;
+  const page = await run(h, "projects.overview_doc.get", { projectId: made.projectId });
+  assert.equal(page.rev, 1);
+  assert.deepEqual(page.blocks.map((b: { kind: string; live?: { type: string } }) => [b.kind, b.live?.type]), spec.map((b) => [b.kind, b.live?.type]));
+  assert.equal(page.blocks.every((b: { by?: string }) => b.by === DANA), true);
+  assert.equal((await run(h, "projects.overview_doc.history", { projectId: made.projectId })).revisions[0].summary, "started from the Software project template");
+  assert.deepEqual(contractErrors("projects.create", "out", made), []);
+  const before = h.world.channels.size;
+  await refused(run(h, "projects.create", { type: "project", title: "Nope", overviewTemplate: "tpl_none" }), "validation.bad_input");
+  assert.equal(h.world.channels.size, before, "nothing was made");
+  // without one the project has the default page, unsaved
+  const plain = await run(h, "projects.create", { type: "project", title: "Plain" });
+  assert.equal((await run(h, "projects.overview_doc.get", { projectId: plain.projectId })).rev, 0);
+  // a template saved since works the same way
+  const saved = (await run(h, "projects.overview_doc.templates.save", { title: "Mine", projectId: made.projectId })).template;
+  const again = await run(h, "projects.create", { type: "project", title: "From mine", overviewTemplate: saved.templateId });
+  assert.equal((await run(h, "projects.overview_doc.get", { projectId: again.projectId })).blocks.length, spec.length);
+});
+
+test("tasks the reader may not open are counted: rows through the reader's access, the total from an unscoped count, and the difference is hidden", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  h.task(p, { title: "Open to all", due: NOW + DAY });
+  h.task(p, { title: "Also open", due: NOW + 2 * DAY });
+  let asked: unknown;
+  h.world.handlers["records.counts"] = (i) => { asked = i; return { count: i.type === "task" ? 5 : 0 }; };
+  const t = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "tasks", spec: {} });
+  assert.deepEqual([t.rows.length, t.hidden, t.total], [2, 3, 5]);
+  assert.deepEqual(asked, { type: "task", filter: { field: "project", op: "eq", value: p.recordId } });
+  const m = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "milestones", spec: {} });
+  assert.equal(m.hidden, 3);
+  // a count that cannot be read hides nothing rather than guessing
+  h.world.down.add("records.counts");
+  assert.equal((await run(h, "projects.live_block.query", { projectId: p.projectId, type: "tasks", spec: {} })).hidden, 0);
+  // the Client account template's unpaid sum filters in the records grammar
+  const filter = BUILTIN_TEMPLATES.find((x) => x.templateId === "tpl_client_account")!.blocks.find((b) => b.id === "b_owed")!.live!.spec["filter"];
+  assert.deepEqual(filter, { field: "status", op: "eq", value: "sent" });
+});
+
+test("the goal block reads the project's goal text and the goals of the project", async () => {
+  const h = harness();
+  const p = await mkProject(h, { goal: "Sign the letter" });
+  h.world.handlers["goals.list"] = (i) => ({ goals: i.scope === "project" && i.projectId === p.projectId ? [{ id: "gol_1", title: "300 registrations", status: "active" }] : [] });
+  const out = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "goal", spec: {} });
+  assert.deepEqual(out.rows.map((r: { title: string; state?: string }) => [r.title, r.state]), [["Sign the letter", undefined], ["300 registrations", "active"]]);
+  assert.deepEqual(contractErrors("projects.live_block.query", "out", out), []);
+});

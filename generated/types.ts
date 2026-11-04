@@ -27721,6 +27721,7 @@ export type ProjectsCreateIn = {
       role: "lead" | "member" | "reviewer" | "guest";
     }>;
   template?: string;
+  overviewTemplate?: string;
   idempotencyKey: string;
 };
 export type ProjectsCreateOut = {

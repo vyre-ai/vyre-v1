@@ -44794,6 +44794,13 @@
             },
             "type": "array"
           },
+          "overviewTemplate": {
+            "description": "Overview page template id (tpl_client_account, tpl_software_project, tpl_hiring, or one saved since): the project starts on that page",
+            "examples": [
+              "tpl_software_project"
+            ],
+            "type": "string"
+          },
           "stages": {
             "items": {
               "properties": {

@@ -720,6 +720,7 @@ if ("role" in o4744) lf(o4744["role"], p + "/members" + '/' + i4743 + "/role", e
 }
 }
 if ("template" in o4742) lf(o4742["template"], p + "/template", e, L1);
+if ("overviewTemplate" in o4742) lf(o4742["overviewTemplate"], p + "/overviewTemplate", e, L1);
 if ("idempotencyKey" in o4742) lf(o4742["idempotencyKey"], p + "/idempotencyKey", e, L44);
 }
 }
