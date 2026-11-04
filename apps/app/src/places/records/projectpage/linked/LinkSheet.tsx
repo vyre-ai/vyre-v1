@@ -8,6 +8,7 @@ import { TextField } from "../../../../../../../ui/src/TextField/index.tsx";
 import { useProjectPageData } from "../data.tsx";
 import { KIND_WORD, linkOfHit, parseAddress } from "./model.ts";
 import type { Link, LinkKind } from "./model.ts";
+import { Row } from "../../../../../../../ui/src/Row/index.tsx";
 
 type Hit = { kind: string; id: string; title: string; recordType?: string | undefined };
 interface Cand { key: string; kind: LinkKind; ref: string; label: string }
@@ -76,11 +77,12 @@ export function LinkSheet({ projectId, have, onClose, onLinked }: LinkSheetProps
       <TextField testID="link-search" accessibilityLabel="Search Vyre" autoFocus value={q} onChangeText={setQ} placeholder="Records, files, chats, tasks" placeholderTextColor="var(--ink-4)" style={st.input} />
       <View style={st.results} testID="link-results">
         {cands.length === 0 && hits !== null ? <Text testID="link-nothing" style={st.dim}>Nothing found in Vyre. Paste a link below instead.</Text> : null}
+        {/* ui-rows-lint: not a list (each match is a ui/Row inside its test-id wrapper) */}
         {cands.map((c) => (
-          <Pressable key={c.key} accessibilityRole="button" accessibilityLabel={`Link ${c.label}`} testID={`link-pick-${c.key}`} disabled={busy} onPress={() => void link(c.kind, c.ref, c.label)} style={({ hovered }: { hovered?: boolean }) => [st.res, hovered === true && st.hover]}>
-            <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={st.resTitle}>{c.label}</Text><Text style={st.dim}>{KIND_WORD[c.kind].replace(/^./, (x) => x.toUpperCase())}</Text></View>
-            <Text style={st.accent}>Link</Text>
-          </Pressable>
+          <View key={c.key} testID={`link-pick-${c.key}`} accessibilityLabel={`Link ${c.label}`}>
+            <Row id={`link-pick-${c.key}`} title={c.label} note={KIND_WORD[c.kind].replace(/^./, (x) => x.toUpperCase())} trailing={<Text style={st.accent}>Link</Text>}
+              {...(busy ? {} : { onPress: () => void link(c.kind, c.ref, c.label) })} />
+          </View>
         ))}
       </View>
       <Text style={st.label}>Paste a link</Text>

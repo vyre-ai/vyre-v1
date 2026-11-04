@@ -2,6 +2,7 @@
 // to ask the Assistant to fix the newest failure. Runs come from ci.runs.list (anyone who can see the project may read them).
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Row } from "../../../../../../../ui/src/Row/index.tsx";
 import { RUN_WORD, failedRun, fixAsk, runLine, runLook } from "./model.ts";
 import type { Run } from "./model.ts";
 
@@ -13,17 +14,14 @@ export function CiGroup({ repo, runs, now, projectTitle, askAssistant }: { repo:
   return (
     <View testID="ci-rows">
       <View style={st.head}><Text style={st.repo} testID="ci-repo">{repo}</Text>{live > 0 ? <Text style={st.run} testID="ci-live">{`${live} running`}</Text> : null}</View>
+      {/* ui-rows-lint: not a list (each run is a ui/Row inside its test-id wrapper) */}
       {runs.map((r) => {
         const look = runLook(r);
         return (
-          <View key={r.runId} testID={`ci-run-${r.runId}`} accessibilityLabel={`${r.jobName}, ${RUN_WORD[look]}`} style={st.row}>
-            <View style={st.mark}><Text style={[st.markText, look === "failed" && st.bad, look === "passed" && st.ok, look === "running" && st.accent]}>{MARK[look]}</Text></View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text numberOfLines={1} style={st.title}>{r.jobName}</Text>
-              <Text numberOfLines={1} style={st.sub}>{runLine(r, now)}</Text>
-              {look === "failed" && r.note ? <Text numberOfLines={2} testID={`ci-why-${r.runId}`} style={st.why}>{r.note}</Text> : null}
-            </View>
-            <Text style={[st.state, look === "failed" && st.bad, look === "passed" && st.ok]}>{RUN_WORD[look]}</Text>
+          <View key={r.runId} testID={`ci-run-${r.runId}`} accessibilityLabel={`${r.jobName}, ${RUN_WORD[look]}`}>
+            <Row id={`ci-run-${r.runId}`} inert tall title={r.jobName} note={look === "failed" && r.note ? `${runLine(r, now)} · ${r.note}` : runLine(r, now)}
+              leading={<View style={st.mark}><Text style={[st.markText, look === "failed" && st.bad, look === "passed" && st.ok, look === "running" && st.accent]}>{MARK[look]}</Text></View>}
+              trailing={<Text testID={look === "failed" && r.note ? `ci-why-${r.runId}` : undefined} style={[st.state, look === "failed" && st.bad, look === "passed" && st.ok]}>{RUN_WORD[look]}</Text>} />
           </View>
         );
       })}

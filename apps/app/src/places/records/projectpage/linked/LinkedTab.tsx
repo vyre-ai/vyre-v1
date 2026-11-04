@@ -246,14 +246,12 @@ export function LinkedTab({ projectId, projectTitle = "this project", canEdit, s
           {canEdit ? <Pressable accessibilityRole="button" testID="rule-new" onPress={() => setSheet("rule")} style={({ hovered }: { hovered?: boolean }) => [st.quiet, hovered === true && st.hover]}><Text style={st.askText}>Add a rule</Text></Pressable> : null}
         </View>
         {rules.length === 0 ? <Text testID="rules-empty" style={st.empty}>No rules. A rule links matching things from now on, for example everything from a repository or every invoice for a client.</Text> : null}
+        {/* ui-rows-lint: not a list (each rule is a ui/Row inside its test-id wrapper) */}
         {rules.map((r) => {
           const n = links.filter((l) => l.ruleId === r.ruleId).length;
           return (
-            <View key={r.ruleId} style={st.rule} testID={`rule-${r.ruleId}`}>
-              <Text numberOfLines={1} style={st.ruleText}>{ruleText(r)}</Text>
-              <Text style={st.sub}>{`${n} ${n === 1 ? "item" : "items"} linked`}</Text>
-              <View style={{ flex: 1 }} />
-              {canEdit ? <Pressable accessibilityRole="button" accessibilityLabel={`Remove the rule: ${ruleText(r)}`} testID={`rule-remove-${r.ruleId}`} onPress={() => void removeRule(r.ruleId)} style={({ hovered }: { hovered?: boolean }) => [st.quiet, hovered === true && st.hover]}><Text style={st.sub}>Remove</Text></Pressable> : null}
+            <View key={r.ruleId} testID={`rule-${r.ruleId}`}>
+              <Row id={`rule-${r.ruleId}`} inert title={ruleText(r)} note={`${n} ${n === 1 ? "item" : "items"} linked`} trailing={canEdit ? (<Pressable accessibilityRole="button" accessibilityLabel={`Remove the rule: ${ruleText(r)}`} testID={`rule-remove-${r.ruleId}`} onPress={() => void removeRule(r.ruleId)} style={({ hovered }: { hovered?: boolean }) => [st.quiet, hovered === true && st.hover]}><Text style={st.sub}>Remove</Text></Pressable>) : null} />
             </View>
           );
         })}
