@@ -5,8 +5,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Avatar, takenFaces } from "../../../../../../ui/src/Avatar/index.tsx";
-import { formatFace, isFace, suggestFace } from "../../../../../../ui/src/Avatar/agentface.ts";
+import { formatFace, isFace, parseFace, suggestFace } from "../../../../../../ui/src/Avatar/agentface.ts";
 import { FacePicker } from "../../../../../../ui/src/FacePicker/index.tsx";
+import { saveFaceFile } from "../agentpage/face-file.ts";
 import { each } from "../../../shell/sidebar/model.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConfigDirectory } from "../../automations/config/data.tsx";
@@ -118,6 +119,9 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
         // the AI account is not part of agents.create: set it on the new agent
         const work = { ...workPatch(d.workKey, ""), ...(mayManageAi ? chatKeyPatch(chatOn ? d.chatKey : "", "") : {}) };
         if (Object.keys(work).length > 0) await call("agents.update", { agentId: id, patch: work });
+        // a picture chosen before the agent existed goes into its new folder now, and the face names the file
+        const held = parseFace(d.face);
+        if (held?.fam === "img") { const face = await saveFaceFile(call, folder, held.url, newKey); if (face !== null) await call("agents.update", { agentId: id, patch: { face } }); }
       } else await call("agents.update", { agentId: id, patch: { ...updatePatch(d), ...workPatch(d.workKey, savedWork), ...(mayManageAi ? chatKeyPatch(chatOn ? d.chatKey : "", savedChat) : {}) } });
       if (folder) {
         const ls = (await call("files.list", { section: "space", folder, limit: 50 })) as CapMap["files.list"]["out"];
@@ -148,7 +152,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
           </View>
         </View>
         {was !== null ? <View style={st.undo}><Text style={st.undoText}>Face changed.</Text><Pressable role="button" aria-label="Undo the face change" testID="agent-face-undo" onPress={() => { set({ face: was }); setWas(null); }}><Text style={st.undoLink}>Undo</Text></Pressable></View> : null}
-        {facing ? <FacePicker name={d.name} value={d.face} onDone={(face) => { setFacing(false); if (face !== null) { setWas(d.face); set({ face }); } }} /> : null}
+        {facing ? <FacePicker name={d.name} value={d.face} {...(folderId ? { saveImage: (url: string) => saveFaceFile(call, folderId, url, newKey) } : {})} onDone={(face) => { setFacing(false); if (face !== null) { setWas(d.face); set({ face }); } }} /> : null}
 
         <Section title="Instructions" note="AGENT.md">
           <View style={st.md}><MarkdownEditor testID="agent-instructions" label="Instructions" value={shown} onChange={(instructions) => { setTouched(true); set({ instructions }); }} minHeight={260} /></View>

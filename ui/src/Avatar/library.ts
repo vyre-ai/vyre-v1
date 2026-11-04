@@ -130,7 +130,7 @@ function drawing(fam: Family, i: number, e: Expression): string {
  * A complete svg of a drawn face on its tint, as the caller's box shows it: a square, the face framed (Faces and Friends are cropped in to the head), the tint under it. `size` is the edge in px.
  * Throws for a face that is not in the library (parseFace never returns one).
  */
-export function faceSvg(spec: Exclude<FaceSpec, { fam: "img" } | { fam: "emoji" }>, expression: Expression, size: number): string {
+export function faceSvg(spec: Exclude<FaceSpec, { fam: "img" } | { fam: "emoji" } | { fam: "file" }>, expression: Expression, size: number): string {
   if (!Number.isInteger(spec.i) || spec.i < 0 || spec.i >= PER_FAMILY) throw new Error("not a face in the library");
   const inner = drawing(spec.fam, spec.i, expression);
   const head = /<svg[^>]*viewBox="0 0 (\d+) (\d+)"[^>]*>/.exec(inner);

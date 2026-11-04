@@ -16,6 +16,7 @@ import { MemoryTab } from "../rightpane/MemoryTab.tsx";
 import { Face, Notice, TextButton, Tool } from "../rightpane/parts.tsx";
 import { pause, removeOutside, resume, saveFace, saveRoleLine, startChat } from "./actions.ts";
 import { FacePicker } from "../../../../../../ui/src/FacePicker/index.tsx";
+import { saveFaceFile } from "./face-file.ts";
 import type { PageDeps } from "./actions.ts";
 import { AgentPageDataProvider, paneDataOf, useAgentPageData, useOnline, useOptionalAgentPageData, useScreenQuery } from "./data.tsx";
 import type { AgentPageData } from "./data.tsx";
@@ -181,7 +182,7 @@ function PageView({ tab: controlled, initialTab, onTab, window }: AgentPageProps
           </RightPaneDataProvider>
           {tab === "settings" ? <SettingsTab agent={agent} deps={deps} {...(window ? { window } : {})} /> : null}
         </View>
-        {facing ? <FacePicker name={name} value={agent.face} onDone={(face) => { setFacing(false); if (face !== null) void saveFace(deps, agentId, face, agent.face); }} /> : null}
+        {facing ? <FacePicker name={name} value={agent.face} saveImage={(url) => saveFaceFile(data.call, agent.folderId, url, () => `face-${agentId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)} onDone={(face) => { setFacing(false); if (face !== null) void saveFace(deps, agentId, face, agent.face); }} /> : null}
         {notice ? <Notice text={notice.text} onClose={() => setNotice(null)} {...(notice.undo ? { onUndo: () => { const u = notice.undo; setNotice(null); void u?.(); } } : {})} /> : null}
       </View>
       {menu.element}

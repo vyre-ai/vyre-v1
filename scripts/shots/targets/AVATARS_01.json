@@ -76,6 +76,55 @@
       "proto": "chat,{skin}",
       "waitFor": "[data-testid='state-faces-96-done']",
       "note": "Idle, working, asleep and finished at 20, 32 and 96 px in every drawn family."
+    },
+    {
+      "id": "AVATARS_01-console",
+      "route": "/m/AVATARS_01?part=console",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='console-agents']",
+      "note": "Console, Agents: the Space's agents with their faces and states."
+    },
+    {
+      "id": "AVATARS_01-mention",
+      "route": "/m/MENTION_01?who=owner&faces=1",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-avatar='agent']",
+      "note": "The @ menu: agents with their new faces."
+    },
+    {
+      "id": "AVATARS_01-tasks-list",
+      "route": "/m/TASKS_01?view=list&faces=1",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-avatar='agent']",
+      "note": "Task rows with agent faces."
+    },
+    {
+      "id": "AVATARS_01-goal",
+      "route": "/m/GOALS_01?part=page&state=active&faces=1",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-avatar='agent']",
+      "note": "A goal page with agent faces."
+    },
+    {
+      "id": "AVATARS_01-records-agents",
+      "route": "/m/P-REC_AGENTS?faces=1",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-avatar='agent']",
+      "note": "Agents in Records (the roster)."
+    },
+    {
+      "id": "AVATARS_01-busy",
+      "route": "/m/P-L9b_04?v=busy&faces=1",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-avatar='agent']",
+      "note": "A chat with two agents working: header faces, island and messages."
+    },
+    {
+      "id": "AVATARS_01-phone",
+      "route": "/m/P-L9_17?tab=chats&faces=1",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-avatar='agent']",
+      "note": "The phone shell: Chats list with agent faces."
     }
   ]
 }

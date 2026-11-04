@@ -8,6 +8,8 @@ export type Expression = "idle" | "working" | "asleep" | "done";
 export type FaceSpec =
   | { fam: Family; i: number; tint: number }
   | { fam: "emoji"; e: string; tint: number }
+  | { fam: "file"; id: string }
+  /** A picture not yet saved (a New agent's draft): the agent's folder does not exist until it is made. */
   | { fam: "img"; url: string };
 
 export const FAMILIES: readonly { key: Family | "emoji" | "upload"; label: string }[] = [
@@ -22,7 +24,7 @@ export const TINTS: readonly { name: string; hex: string }[] = [
   { name: "Sky", hex: "#D9E9FF" }, { name: "Rose", hex: "#FFDDEB" }, { name: "Stone", hex: "#E4E1EA" }, { name: "Teal", hex: "#D3EFEF" },
 ];
 export const EMOJI: readonly string[] = ["🦊", "🐙", "🦉", "🐝", "🐳", "🦄", "🐱", "🐼", "🦋", "🐸", "🌵", "🍄", "🐧", "🦔", "🐨", "🦁", "🐯", "🐰", "🌻", "🍋", "🪐", "⚡", "🔭", "🧭"];
-/** An uploaded picture is kept inline in `face`, so it is small: a square of at most 192 px, about 24 KB. */
+/** An uploaded picture is a square of 192 px, at most about 24 KB. It is kept as a file in the agent's folder (face stores av1:file:<fileId>); IMG_MAX_CHARS also bounds a draft held inline until the agent exists. */
 export const IMG_MAX_CHARS = 32_000;
 
 const PREFIX = "av1:";
@@ -31,6 +33,7 @@ const FAMS = new Set<string>(DRAWN);
 /** The stored text for a face. */
 export function formatFace(s: FaceSpec): string {
   if (s.fam === "img") return `${PREFIX}img:${s.url}`;
+  if (s.fam === "file") return `${PREFIX}file:${s.id}`;
   if (s.fam === "emoji") return `${PREFIX}emoji:${s.e}:${s.tint}`;
   return `${PREFIX}${s.fam}:${s.i}:${s.tint}`;
 }
@@ -39,6 +42,7 @@ export function formatFace(s: FaceSpec): string {
 export function parseFace(text: string | undefined | null): FaceSpec | null {
   if (typeof text !== "string" || !text.startsWith(PREFIX)) return null;
   const rest = text.slice(PREFIX.length);
+  if (rest.startsWith("file:")) { const id = rest.slice(5); return /^[A-Za-z0-9_-]{3,80}$/.test(id) ? { fam: "file", id } : null; }
   if (rest.startsWith("img:")) {
     const url = rest.slice(4);
     return /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(url) && url.length <= IMG_MAX_CHARS ? { fam: "img", url } : null;
@@ -57,7 +61,7 @@ export function parseFace(text: string | undefined | null): FaceSpec | null {
 export const isFace = (text: string | undefined | null): boolean => parseFace(text) !== null;
 
 /** The key a face is told apart by when looking for one nobody wears yet (the tint does not make a face different). */
-export const faceKeyOf = (s: FaceSpec): string => (s.fam === "img" ? "img" : s.fam === "emoji" ? `emoji:${s.e}` : `${s.fam}:${s.i}`);
+export const faceKeyOf = (s: FaceSpec): string => (s.fam === "img" || s.fam === "file" ? "upload" : s.fam === "emoji" ? `emoji:${s.e}` : `${s.fam}:${s.i}`);
 
 /** A face no one in the Space wears yet, from the drawn families first. `taken` is every stored face text in the Space. Same inputs and `random` give the same answer. */
 export function suggestFace(taken: Iterable<string | undefined>, random: () => number = Math.random): FaceSpec {
@@ -79,7 +83,7 @@ export function shuffleFace(fam: Family | "emoji", random: () => number = Math.r
 }
 
 /** The tint a face sits on, as a colour. */
-export const tintHex = (s: FaceSpec): string => (s.fam === "img" ? "transparent" : TINTS[s.tint]!.hex);
+export const tintHex = (s: FaceSpec): string => (s.fam === "img" || s.fam === "file" ? "transparent" : TINTS[s.tint]!.hex);
 
 /** What a face does for a state: an agent that works looks focused, one that finished smiles, one that sleeps has closed eyes (Faces, Friends and Blobs only; the others do not change). */
 export const hasExpressions = (s: FaceSpec): boolean => s.fam === "faces" || s.fam === "friends" || s.fam === "blobs";

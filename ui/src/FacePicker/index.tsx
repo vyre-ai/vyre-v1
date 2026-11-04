@@ -4,7 +4,7 @@
 import { createElement, useMemo, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { Avatar, takenFaces } from "../Avatar/index.tsx";
+import { Avatar, primeFaceImage, takenFaces } from "../Avatar/index.tsx";
 import { Dialog } from "../Dialog/index.tsx";
 import { DRAWN, EMOJI, FAMILIES, PER_FAMILY, TINTS, formatFace, hasExpressions, parseFace, shuffleFace, suggestFace } from "../Avatar/agentface.ts";
 import type { FaceSpec } from "../Avatar/agentface.ts";
@@ -18,6 +18,8 @@ export interface FacePickerProps {
   value: string;
   /** Faces already worn in the Space, so the first suggestion is one nobody has. Defaults to the shell's list. */
   taken?: readonly string[];
+  /** Keeps an uploaded picture in the agent's folder and answers the face that names the file (av1:file:<id>). Absent where the agent has no folder yet (a New agent): the picture is held in the draft until it is made. */
+  saveImage?(dataUrl: string): Promise<string | null>;
   /** Esc, Done or a press outside: the face as stored, or null when nothing changed. */
   onDone(face: string | null): void;
   testID?: string;
@@ -31,22 +33,30 @@ export function startFace(value: string, taken: readonly string[], random?: () =
   return parseFace(value) ?? suggestFace(taken, random);
 }
 
-export function FacePicker({ name, value, taken, onDone, testID = "face-picker" }: FacePickerProps): ReactElement {
+export function FacePicker({ name, value, taken, saveImage, onDone, testID = "face-picker" }: FacePickerProps): ReactElement {
   const used = taken ?? takenFaces();
   const first = useMemo(() => startFace(value, used), []);  // eslint-disable-line react-hooks/exhaustive-deps
   const [cur, setCur] = useState<FaceSpec>(first);
-  const [tab, setTab] = useState<(typeof FAMILIES)[number]["key"]>(first.fam === "img" ? "upload" : first.fam);
+  const [tab, setTab] = useState<(typeof FAMILIES)[number]["key"]>(first.fam === "img" || first.fam === "file" ? "upload" : first.fam);
   const [expr, setExpr] = useState<(typeof EXPRESSIONS)[number]["key"]>("idle");
   const [problem, setProblem] = useState<string | null>(null);
-  const tint = cur.fam === "img" ? 0 : cur.tint;
+  const tint = cur.fam === "img" || cur.fam === "file" ? 0 : cur.tint;
   const text = formatFace(cur);
   const finish = (): void => onDone(text === value ? null : text);
-  const withTint = (s: FaceSpec, t: number): FaceSpec => (s.fam === "img" ? s : { ...s, tint: t });
+  const withTint = (s: FaceSpec, t: number): FaceSpec => (s.fam === "img" || s.fam === "file" ? s : { ...s, tint: t });
   const set = (s: FaceSpec): void => { setCur(s); setProblem(null); };
 
   const upload = (file: Blob | undefined): void => {
     if (!file) return;
-    void squareDataUrl(file).then((url) => { if (url === null) setProblem("That picture could not be used. Try a square png, jpeg or webp."); else set({ fam: "img", url }); });
+    void squareDataUrl(file).then(async (url) => {
+      if (url === null) { setProblem("That picture could not be used. Try a square png, jpeg or webp."); return; }
+      if (saveImage === undefined) { set({ fam: "img", url }); return; }
+      const saved = await saveImage(url).catch(() => null);
+      const spec = parseFace(saved);
+      if (spec === null || spec.fam !== "file") { setProblem("The picture could not be saved. Try again."); return; }
+      primeFaceImage(spec.id, url);
+      set(spec);
+    });
   };
 
   const grid = (): ReactElement => {
@@ -59,13 +69,13 @@ export function FacePicker({ name, value, taken, onDone, testID = "face-picker" 
             <Text style={st.dropNote}>Square works best. It is cropped to the shape.</Text>
           </Pressable>
           {problem !== null ? <Text accessibilityRole="alert" testID={`${testID}-problem`} style={st.problem}>{problem}</Text> : null}
-          {cur.fam === "img" ? <Text style={st.dropNote}>Using your picture. Pick another tab to go back to a drawn face.</Text> : null}
+          {cur.fam === "img" || cur.fam === "file" ? <Text style={st.dropNote}>Using your picture. Pick another tab to go back to a drawn face.</Text> : null}
         </View>
       );
     }
     const cells: ReactElement[] = tab === "emoji"
       ? EMOJI.map((e) => { const s: FaceSpec = { fam: "emoji", e, tint }; const on = cur.fam === "emoji" && cur.e === e; return cell(s, on, `emoji-${e}`, e); })
-      : Array.from({ length: PER_FAMILY }, (_, i) => { const s: FaceSpec = { fam: tab as (typeof DRAWN)[number], i, tint }; const on = cur.fam === tab && cur.i === i; return cell(s, on, `${tab}-${i}`, `${tab} ${i + 1}`); });
+      : Array.from({ length: PER_FAMILY }, (_, i) => { const s: FaceSpec = { fam: tab as (typeof DRAWN)[number], i, tint }; const on = cur.fam === tab && "i" in cur && cur.i === i; return cell(s, on, `${tab}-${i}`, `${tab} ${i + 1}`); });
     return <View testID={`${testID}-grid`} style={st.grid}>{cells}</View>;
   };
   const cell = (s: FaceSpec, on: boolean, key: string, label: string): ReactElement => (
@@ -101,7 +111,7 @@ export function FacePicker({ name, value, taken, onDone, testID = "face-picker" 
       <View style={st.tints}>
         <View accessibilityRole="radiogroup" style={st.swatches}>
           {TINTS.map((t, i) => (
-            <Pressable key={t.name} accessibilityRole="radio" accessibilityLabel={t.name} accessibilityState={{ checked: cur.fam !== "img" && tint === i }} testID={`${testID}-tint-${i}`} onPress={() => set(withTint(cur.fam === "img" ? shuffleFace("faces") : cur, i))} style={[st.swatch, { backgroundColor: t.hex as string }, cur.fam !== "img" && tint === i && st.swatchOn]} />
+            <Pressable key={t.name} accessibilityRole="radio" accessibilityLabel={t.name} accessibilityState={{ checked: cur.fam !== "img" && cur.fam !== "file" && tint === i }} testID={`${testID}-tint-${i}`} onPress={() => set(withTint(cur.fam === "img" || cur.fam === "file" ? shuffleFace("faces") : cur, i))} style={[st.swatch, { backgroundColor: t.hex as string }, cur.fam !== "img" && cur.fam !== "file" && tint === i && st.swatchOn]} />
           ))}
         </View>
         <View style={st.grow} />
@@ -126,8 +136,8 @@ const st = StyleSheet.create({
   tabOn: { borderBottomColor: "var(--accent)" as string },
   tabText: { fontSize: 13, color: "var(--ink-3)" as string },
   tabTextOn: { color: "var(--ink)" as string, fontWeight: "500" },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8, paddingTop: 14 },
-  cell: { borderRadius: 18, padding: 2, borderWidth: 2, borderColor: "transparent" },
+  grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", rowGap: 8, paddingTop: 14 },
+  cell: { width: "15.5%", alignItems: "center", justifyContent: "center", paddingVertical: 3, borderRadius: 18, borderWidth: 2, borderColor: "transparent" },
   cellOn: { borderColor: "var(--accent)" as string },
   cellHover: { backgroundColor: "var(--hover)" },
   up: { paddingTop: 14, gap: 8 },

@@ -81,3 +81,46 @@ test("an agent that wears a chosen picture shows it; a stored face survives the 
   assert.match(renderToStaticMarkup(<Avatar name="Old" seedId="agt_3" kind="agent" size={32} />), /data-avatar="agent"/);
   resetAssistant();
 });
+
+test("an uploaded face is a file in the agent's folder: av1:file:<id> reads back, shows its picture once it has arrived, and is asked for once", async () => {
+  const { setFaceImageLoader, resetFaceImages, primeFaceImage, faceImageOf, requestFaceImage } = await import("./faceimages.ts");
+  resetFaceImages(); resetAssistant();
+  assert.deepEqual(parseFace("av1:file:fil_abc123"), { fam: "file", id: "fil_abc123" });
+  assert.equal(formatFace({ fam: "file", id: "fil_abc123" }), "av1:file:fil_abc123");
+  assert.equal(parseFace("av1:file:x"), null);
+  assert.equal(parseFace("av1:file:a b c"), null);
+  let reads = 0;
+  setFaceImageLoader(async () => { reads++; return "data:image/webp;base64,AAAA"; });
+  requestFaceImage("fil_abc123"); requestFaceImage("fil_abc123");
+  await new Promise((r) => setImmediate(r));
+  assert.equal(reads, 1, "one read, however many faces ask");
+  assert.equal(faceImageOf("fil_abc123"), "data:image/webp;base64,AAAA");
+  setAgentFaces([{ id: "agt_9", face: "av1:file:fil_abc123" }]);
+  assert.ok(renderToStaticMarkup(<Avatar name="Intake" seedId="agt_9" kind="agent" size={32} />).includes('data-face="upload"'));
+  setAgentFaces([{ id: "agt_9", face: "av1:file:fil_other1" }]);
+  assert.ok(!renderToStaticMarkup(<Avatar name="Intake" seedId="agt_9" kind="agent" size={32} />).includes('data-face="upload"'), "until its picture arrives it draws its tint");
+  primeFaceImage("fil_other1", "data:image/webp;base64,BBBB");
+  assert.ok(renderToStaticMarkup(<Avatar name="Intake" seedId="agt_9" kind="agent" size={32} />).includes('data-face="upload"'));
+  resetFaceImages(); resetAssistant();
+});
+
+test("what an agent is doing shows on every face of it, in every place, and a change reaches two places at once", async () => {
+  const { setAgentStatuses, lookOf, DONE_MS } = await import("./assistant.ts");
+  resetAssistant();
+  const t0 = 1_000_000;
+  setAgentStatuses([{ id: "agt_1", status: "awake" }, { id: "agt_2", status: "asleep" }, { id: "agt_3", status: "paused" }], t0);
+  assert.equal(lookOf("agt_1", t0), ""); assert.equal(lookOf("agt_2", t0), "asleep"); assert.equal(lookOf("agt_3", t0), "asleep");
+  setAgentStatuses([{ id: "agt_1", status: "working" }], t0 + 1);
+  assert.equal(lookOf("agt_1", t0 + 2), "working");
+  // it finishes: it smiles for a minute and a half, then looks plain
+  setAgentStatuses([{ id: "agt_1", status: "awake" }], t0 + 1000);
+  assert.equal(lookOf("agt_1", t0 + 1001), "done");
+  assert.equal(lookOf("agt_1", t0 + 1000 + DONE_MS + 1), "");
+  // the same agent in two places (the sidebar row and a message) draws the same expression: both read the one store
+  setAgentFaces([{ id: "agt_1", face: "av1:friends:3:1" }]);
+  setAgentStatuses([{ id: "agt_1", status: "asleep" }], Date.now());
+  const place = (): string => renderToStaticMarkup(<Avatar name="Intake" seedId="agt_1" kind="agent" size={32} />);
+  const sidebar = place(), message = place();
+  assert.equal(sidebar, message);
+  resetAssistant();
+});

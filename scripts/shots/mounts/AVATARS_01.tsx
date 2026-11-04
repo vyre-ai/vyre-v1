@@ -11,6 +11,9 @@ import type { PlaceContext } from "../../../apps/app/src/shell/spaces/Shell.tsx"
 import { createSampleShell, samplePlace } from "../../../apps/app/src/shell/spaces/sample.tsx";
 import { ChatsMounted } from "../../../apps/app/src/places/chats/mounts/ChatsMounted.tsx";
 import { createMountSample } from "../../../apps/app/src/places/chats/mounts/sample.ts";
+import { ConsoleDataProvider } from "../../../apps/app/src/console/shell/data.tsx";
+import { createSampleConsole } from "../../../apps/app/src/console/shell/sample.ts";
+import { AgentsRegister } from "../../../apps/app/src/console/pages/Agents.tsx";
 import { START, step } from "../../../apps/app/src/places/chats/mounts/route.ts";
 import type { Shown } from "../../../apps/app/src/places/chats/mounts/route.ts";
 import { FacePicker } from "../../../ui/src/FacePicker/index.tsx";
@@ -52,6 +55,12 @@ function Page({ search }: { search: string }): ReactNode {
     const fam = part.slice(7);
     const start = fam === "friends" ? "av1:friends:3:1" : fam === "faces" ? "av1:faces:10:4" : fam === "blobs" ? "av1:blobs:2:2" : fam === "glass" ? "av1:glass:5:0" : fam === "emoji" ? "av1:emoji:🦊:3" : "av1:faces:10:4";
     return <View style={{ height, backgroundColor: "var(--win)" as string }}><FacePicker key={fam} name="Intake" value={start} taken={[]} onDone={() => undefined} testID="face-picker" /></View>;
+  }
+  if (part === "console") {
+    const agents = ["Intake", "Docs", "Billing", "Research", "Scout", "Assistant"].map((name, i) => ({ agentId: i === 5 ? "agt_assistant" : `agt_${name.toLowerCase()}`, name, role: i === 5 ? "assistant" : "Does the work", kind: i === 5 ? "assistant" : "agent", status: i === 1 ? "working" : i === 3 ? "asleep" : "awake", ownerId: "usr_irfad", hasComputer: i % 2 === 0, face: i === 5 ? "assistant" : formatFace(Object.values(FACES)[i % 5]!), accountPolicy: "asker", accountFallback: [], toolsAllowed: [], toolsDenied: [], vaultKeys: [], limits: {}, captureMode: "auto", templateVersion: 1, createdAt: 0, folderId: "fld_a" }));
+    const base = createSampleConsole().data;
+    const data = { ...base, screens: { ...base.screens, capQuery: (cap: string) => { const value = { status: "ready", data: cap === "agents.list" ? { agents } : { people: [] } }; return { subscribe: () => () => undefined, getSnapshot: () => value }; } } as never };
+    return <View style={{ height, backgroundColor: "var(--win)" as string, padding: 24 }}><ConsoleDataProvider value={data}><AgentsRegister /></ConsoleDataProvider></View>;
   }
   if (part === "states") {
     const states = ["idle", "working", "asleep", "done"] as const;

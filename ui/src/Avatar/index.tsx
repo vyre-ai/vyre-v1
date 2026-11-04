@@ -14,12 +14,14 @@ import { emojiSvg, hasExpressions, parseFace } from "./agentface.ts";
 import type { Expression, FaceSpec } from "./agentface.ts";
 import { injectCss } from "../theme/css.ts";
 import type { AvatarKind, AvatarProps, FaceState } from "./props.ts";
-import { assistantLook, isAssistantId, pickedFace, standInOf, subscribeAssistant } from "./assistant.ts";
+import { assistantLook, isAssistantId, lookOf, pickedFace, standInOf, subscribeAssistant } from "./assistant.ts";
+import { faceImageOf, requestFaceImage, subscribeFaceImages } from "./faceimages.ts";
 
 export type { AvatarKind, AvatarProps, FaceState } from "./props.ts";
-export { assistantId, assistantLook, avatarOf, isAssistantId, pickedFace, resetAssistant, setAgentFaces, setAssistantId, setAssistantLook, setStandIns, standInOf, subscribeAssistant, takenFaces } from "./assistant.ts";
+export { assistantId, assistantLook, avatarOf, isAssistantId, pickedFace, resetAssistant, setAgentFaces, setAgentStatuses, setAssistantId, setShotFaces, setAssistantLook, setStandIns, standInOf, subscribeAssistant, takenFaces } from "./assistant.ts";
 export type { AvatarEntity } from "./assistant.ts";
 export { faceTint, hash, hueOf, initialsOf, marbleGradient, marbleInner, marbleSpec } from "./faces.ts";
+export { faceImageOf, primeFaceImage, requestFaceImage, resetFaceImages, setFaceImageLoader, subscribeFaceImages } from "./faceimages.ts";
 export { cachedFace, cachedFaceCount, clearFaceCache, currentSkin, faceKey, requestFace, wrapSvg } from "./cache.ts";
 
 export const AVATAR_DEFAULT_SIZE = 18;
@@ -93,7 +95,7 @@ function installBlink(): void {
     const text = img.dataset["faceBlink"] ?? "";
     const size = Number(img.dataset["faceSize"] ?? 0);
     const spec = parseFace(text);
-    if (spec === null || spec.fam === "img" || spec.fam === "emoji" || !hasExpressions(spec) || !(size > 0)) return;
+    if (spec === null || spec.fam === "img" || spec.fam === "file" || spec.fam === "emoji" || !hasExpressions(spec) || !(size > 0)) return;
     img.dataset["blinking"] = "1";
     const done = (): void => { delete img.dataset["blinking"]; };
     void loadLibrary().then(({ faceSvg }) => {
@@ -125,10 +127,15 @@ export const Avatar = memo(function Avatar({ name, seedId: ownId, kind: ownKind,
   const seed = looked ? look : chosen !== "" ? chosen : seedId !== undefined && seedId !== "" ? seedId : name;
   // a face chosen from the library (av1:...) is drawn from its own curated lists, in the expression the state asks for; any older seed keeps drawing as it did
   const spec: FaceSpec | null = kind === "agent" && !looked ? parseFace(chosen) : null;
-  const expression = expressionOf(state);
+  // what the agent is doing, wherever it is known, shows on every one of its faces: an explicit state first, else its status
+  const doing = useSyncExternalStore(subscribeAssistant, () => lookOf(seedId), () => lookOf(seedId));
+  const expression = expressionOf(state ?? (doing === "" ? undefined : doing));
+  const pictureId = spec?.fam === "file" ? spec.id : "";
+  const picture = useSyncExternalStore(subscribeFaceImages, () => (pictureId === "" ? undefined : faceImageOf(pictureId)), () => (pictureId === "" ? undefined : faceImageOf(pictureId)));
+  useEffect(() => { if (pictureId !== "") requestFaceImage(pictureId); }, [pictureId]);
   // A person's marble and an agent's face are drawn once to a cached bitmap per seed, kind, size and skin; rows reuse it as an <img>.
   const browser = web && typeof document !== "undefined";
-  const drawn = web && (kind === "agent" || looked) && spec?.fam !== "img";
+  const drawn = web && (kind === "agent" || looked) && spec?.fam !== "img" && spec?.fam !== "file";
   const key = spec !== null ? faceKey(seed, `spec:${expression}`, size, currentSkin()) : faceKey(seed, looked ? "agent" : kind, size, currentSkin());
   const [, bump] = useState(0);
   const [agentFace, setAgentFace] = useState<{ key: string; markup: string } | null>(null);
@@ -138,7 +145,7 @@ export const Avatar = memo(function Avatar({ name, seedId: ownId, kind: ownKind,
     let alive = true;
     const paint = (markup: string): void => { if (!alive) return; setAgentFace({ key, markup }); requestFace(key, markup, size, () => bump((n) => n + 1)); };
     if (spec !== null && spec.fam === "emoji") paint(emojiSvg(spec.e, spec.tint, size));
-    else if (spec !== null && spec.fam !== "img") { installBlink(); void loadLibrary().then(({ faceSvg }) => paint(faceSvg(spec, expression, size))); }
+    else if (spec !== null && spec.fam !== "img" && spec.fam !== "file") { installBlink(); void loadLibrary().then(({ faceSvg }) => paint(faceSvg(spec, expression, size))); }
     else void loadNotionists().then(({ notionistsSvg }) => paint(sized(notionistsSvg(seed), size)));
     return () => { alive = false; };
   }, [drawn, key, kind, seed, size, expression]);
@@ -151,10 +158,12 @@ export const Avatar = memo(function Avatar({ name, seedId: ownId, kind: ownKind,
 
   if (kind === "person" && photo) {
     face = web ? createElement("img", { src: photo, alt: "", width: size, height: size, draggable: false, style: { display: "block", objectFit: "cover", width: size, height: size } }) : <Image accessibilityIgnoresInvertColors source={{ uri: photo }} style={{ width: size, height: size }} />;
+  } else if (spec !== null && spec.fam === "file") {
+    face = picture !== undefined ? (web ? createElement("img", { src: picture, alt: "", width: size, height: size, draggable: false, style: { display: "block", objectFit: "cover", width: size, height: size }, "data-face": "upload" }) : <Image accessibilityIgnoresInvertColors source={{ uri: picture }} style={{ width: size, height: size }} />) : <AgentFallback name={name} seed={seed} size={size} />;
   } else if (spec !== null && spec.fam === "img") {
     face = web ? createElement("img", { src: spec.url, alt: "", width: size, height: size, draggable: false, style: { display: "block", objectFit: "cover", width: size, height: size }, "data-face": "upload" }) : <Image accessibilityIgnoresInvertColors source={{ uri: spec.url }} style={{ width: size, height: size }} />;
   } else if (bitmap !== undefined) {
-    face = createElement("img", { src: bitmap, alt: "", width: size, height: size, draggable: false, decoding: "async", style: { display: "block", width: size, height: size, ...(spec !== null && expression === "asleep" && !hasExpressions(spec) ? { opacity: 0.6 } : {}) }, "data-face": "cached", ...(spec !== null && spec.fam !== "emoji" && hasExpressions(spec) ? { "data-face-blink": chosen, "data-face-size": size } : {}) });
+    face = createElement("img", { src: bitmap, alt: "", width: size, height: size, draggable: false, decoding: "async", style: { display: "block", width: size, height: size, ...(spec !== null && expression === "asleep" && !hasExpressions(spec) ? { opacity: 0.6 } : {}) }, "data-face": "cached", ...(spec !== null && spec.fam !== "emoji" && spec.fam !== "file" && spec.fam !== "img" && hasExpressions(spec) ? { "data-face-blink": chosen, "data-face-size": size } : {}) });
   } else if (kind === "person" && browser) {
     face = createElement("span", { style: { display: "block", width: size, height: size, background: marbleGradient(seed) }, "data-face": "gradient" });
   } else if (kind === "person") {
