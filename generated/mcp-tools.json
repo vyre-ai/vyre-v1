@@ -4110,6 +4110,10 @@
             "minimum": 1,
             "type": "integer"
           },
+          "thumb": {
+            "description": "A small picture of the page taken at publish, as a png, jpeg or webp data URL (about 120 by 80)",
+            "type": "string"
+          },
           "title": {
             "type": "string"
           }

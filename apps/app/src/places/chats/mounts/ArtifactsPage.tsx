@@ -4,17 +4,17 @@ import type { ReactElement } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { ARTIFACT_FILTERS, ArtifactCard, emptyLine, filterArtifacts, linkOf } from "../../../../../../ui/src/ArtifactCard/index.tsx";
-import type { ArtifactFilter, ArtifactInfo } from "../../../../../../ui/src/ArtifactCard/index.tsx";
+import type { ArtifactFilter } from "../../../../../../ui/src/ArtifactCard/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { nameLookup } from "../../../shell/providers/records-live.ts";
+import { infoOf } from "./ArtifactView.tsx";
 import { LIST_PAGE } from "./RepliesPage.tsx";
 
 type Row = CapMap["sites.list"]["out"]["sites"][number];
 let seq = 0;
 
-const infoOf = (a: Row): ArtifactInfo => ({ id: a.siteId, name: a.name, owner: a.owner, access: a.access, updatedAt: a.updatedAt, thumb: undefined, from: undefined, sharedWith: undefined });
 
 export function ArtifactsPage({ rt }: { rt: ShellRuntime }): ReactElement {
   const [rows, setRows] = useState<readonly Row[] | null>(null);
@@ -28,7 +28,7 @@ export function ArtifactsPage({ rt }: { rt: ShellRuntime }): ReactElement {
     return () => { live = false; };
   }, [rt]);
   useEffect(() => load(), [load]);
-  const infos = useMemo(() => (rows ?? []).map(infoOf), [rows]);
+  const infos = useMemo(() => (rows ?? []).map((r) => infoOf(r, nameOf)), [rows, nameOf]);
   const shown = useMemo(() => filterArtifacts(infos, filter, q, rt.me.id), [infos, filter, q, rt.me.id]);
   const now = rt.clock().now;
   const open = (id: string, share = false): void => rt.open({ subject: { type: "artifact", id }, ...(share ? { args: { share: "1" } } : {}) });

@@ -22,7 +22,12 @@ const msg = (e: unknown): string => {
   return x?.error?.message ?? x?.message ?? "This page couldn’t load here.";
 };
 
-export const infoOf = (s: Site): ArtifactInfo => ({ id: s.siteId, name: s.name, owner: s.owner, access: s.access, updatedAt: s.updatedAt, thumb: undefined, from: undefined, sharedWith: undefined });
+/** An artifact row as the card reads it: its picture, the chat that made it, and the people it is shared with by name. */
+export const infoOf = (s: Site, nameOf: (id: string) => string = (id) => id): ArtifactInfo => ({
+  id: s.siteId, name: s.name, owner: s.owner, access: s.access, updatedAt: s.updatedAt, thumb: s.thumb,
+  from: s.chatId !== undefined && s.chatTitle !== undefined ? { id: s.chatId, title: s.chatTitle } : undefined,
+  sharedWith: s.sharedWith?.map(nameOf),
+});
 
 export function ArtifactView({ rt, artifactId, share, back, gone }: { rt: ShellRuntime; artifactId: string; share: boolean; back(): void; /** the artifact was deleted: leave this tab */ gone(): void }): ReactElement {
   const [site, setSite] = useState<Site | null>(null);
@@ -49,7 +54,7 @@ export function ArtifactView({ rt, artifactId, share, back, gone }: { rt: ShellR
     return () => { if (timer.current) clearTimeout(timer.current); };
   }, [src, loaded, failed]);
   const name = site?.name ?? "Artifact";
-  const line = site ? subline(infoOf(site), rt.me.id, rt.clock().now, nameOf) : "";
+  const line = site ? subline(infoOf(site, nameOf), rt.me.id, rt.clock().now, nameOf) : "";
   const browser = (): void => { void open(false).then((u) => rt.openUrl(u), (e: unknown) => setFailed(msg(e))); };
   const copy = (): void => { void open(false).then((u) => { void (globalThis as { navigator?: { clipboard?: { writeText?: (t: string) => Promise<void> } } }).navigator?.clipboard?.writeText?.(u); }, () => undefined); };
   const remove = (): void => { void Promise.resolve(rt.call("sites.delete", { siteId: artifactId })).then(gone, (e: unknown) => setFailed(msg(e))); };

@@ -31362,6 +31362,7 @@ export type SitesArtifactPublishIn = {
   port?: number;
   computerId?: string;
   artifactId?: string;
+  thumb?: string;
   idempotencyKey: string;
 };
 export type SitesArtifactPublishOut = {
@@ -31429,6 +31430,10 @@ export type SitesCreateOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -31630,6 +31635,10 @@ export type SitesGetOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -31708,6 +31717,10 @@ export type SitesListOut = {
       live?: boolean;
       blocked?: boolean;
       updatedAt?: number;
+      thumb?: string;
+      chatId?: string;
+      chatTitle?: string;
+      sharedWith?: Array<string>;
       deployed?: boolean;
       source?: {
         repo?: string;
@@ -31863,6 +31876,10 @@ export type SitesPromoteOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -31926,6 +31943,10 @@ export type SitesPublishOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -32047,6 +32068,10 @@ export type SitesStopOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -32160,6 +32185,10 @@ export type SitesUpdateOut = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
     deployed?: boolean;
     source?: {
       repo?: string;

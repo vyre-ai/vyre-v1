@@ -181,3 +181,36 @@ test("with an artifact host, artifact_open gives a one-time code for it: one use
     assert.equal(await exchangeArtifactCode(w.ctx, "0".repeat(48), now), null);
   } finally { configureRoutes(null); }
 });
+
+test("an artifact keeps its picture and the chat that made it, and reads back the chat's title and who it is shared with", async () => {
+  const w = harness();
+  configureRoutes(host({ artifacts: { folder: async () => "fld_a", put: async () => undefined } }) as never);
+  const thumb = "data:image/png;base64,iVBORw0KGgo=";
+  const calls: string[] = [];
+  const ctx = {
+    ...w.ctx, thread: "thr_1",
+    call: async (cap: string) => {
+      calls.push(cap);
+      if (cap === "threads.get") return { thread: { title: "Monthly numbers" } };
+      if (cap === "access.shares_of") return { shares: [{ through: "direct", grant: { subject: { kind: "person", id: "usr_sara" } } }, { through: "direct", grant: { subject: { kind: "link", id: "lnk_1" } } }, { through: "ancestor", grant: { subject: { kind: "person", id: "usr_omar" } } }] };
+      return {};
+    },
+  };
+  try {
+    await assert.rejects(() => h["sites.artifact_publish"]!(ctx, { title: "Bad", html: "<p>x</p>", thumb: "javascript:alert(1)" }), /small png, jpeg or webp/);
+    const pub = await h["sites.artifact_publish"]!(ctx, { title: "Numbers", html: "<p>42</p>", thumb });
+    const got = await h["sites.get"]!(ctx, { siteId: pub.artifactId });
+    assert.equal(got.site.thumb, thumb);
+    assert.equal(got.site.chatId, "thr_1");
+    assert.equal(got.site.chatTitle, "Monthly numbers");
+    assert.deepEqual(got.site.sharedWith, ["usr_sara"], "direct people only: not a link, not an inherited grant");
+    const list = await h["sites.list"]!(ctx, { kind: "artifact" });
+    assert.equal(list.sites[0].chatTitle, "Monthly numbers");
+    // a republish from another chat keeps the first chat as the source, and without a picture keeps the old one
+    const again = await h["sites.artifact_publish"]!({ ...ctx, thread: "thr_2" }, { title: "Numbers", html: "<p>43</p>" });
+    assert.equal(again.artifactId, pub.artifactId);
+    const kept = await h["sites.get"]!(ctx, { siteId: pub.artifactId });
+    assert.equal(kept.site.chatId, "thr_1");
+    assert.equal(kept.site.thumb, thumb);
+  } finally { configureRoutes(null); }
+});

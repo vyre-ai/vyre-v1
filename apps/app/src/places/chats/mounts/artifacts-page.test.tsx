@@ -28,3 +28,13 @@ test("an artifact's tab has one header row: back, Share and More, and a loading 
   assert.match(html, /artifact-loading/);
   assert.doesNotMatch(html, /Floating|Back to Chats/);
 });
+
+test("a row's picture, source chat and shared people reach the card, the people by name", async () => {
+  const { infoOf } = await import("./ArtifactView.tsx");
+  const row = { siteId: "sit_1", name: "Numbers", kind: "artifact", owner: "me", state: "ready", thumb: "data:image/png;base64,AA", chatId: "thr_1", chatTitle: "Monthly numbers", sharedWith: ["usr_sara"] } as never;
+  const i = infoOf(row, (id) => (id === "usr_sara" ? "Sara" : id));
+  assert.equal(i.thumb, "data:image/png;base64,AA");
+  assert.deepEqual(i.from, { id: "thr_1", title: "Monthly numbers" });
+  assert.deepEqual(i.sharedWith, ["Sara"]);
+  assert.equal(infoOf({ siteId: "s", name: "N", kind: "artifact", owner: "me", state: "ready" } as never).from, undefined);
+});

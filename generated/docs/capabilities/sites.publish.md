@@ -51,6 +51,10 @@ type Out = {
     live?: boolean;
     blocked?: boolean;
     updatedAt?: number;
+    thumb?: string;
+    chatId?: string;
+    chatTitle?: string;
+    sharedWith?: Array<string>;
     deployed?: boolean;
     source?: {
       repo?: string;
@@ -124,6 +128,8 @@ type Out = {
       ],
       "autoDeploy": true,
       "blocked": true,
+      "chatId": "example",
+      "chatTitle": "example",
       "computerId": "cmt_a1b2c3",
       "deployed": true,
       "folderId": "fld_a1b2c3",
@@ -156,6 +162,9 @@ type Out = {
       "port": 1,
       "productionUrl": "example",
       "repoFolderId": "fld_a1b2c3",
+      "sharedWith": [
+        "example"
+      ],
       "siteId": "sit_a1b2c3",
       "slug": "example",
       "source": {
@@ -169,6 +178,7 @@ type Out = {
       },
       "stagingUrl": "example",
       "state": "queued",
+      "thumb": "example",
       "updatedAt": 1760000000000,
       "url": "example"
     }

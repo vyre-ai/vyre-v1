@@ -17,10 +17,10 @@ export const title = "Artifacts";
 const ME = "usr_irfad";
 const NOW = Date.UTC(2026, 10, 4, 16, 0);
 const at = (d: number, h: number, m: number): number => Date.UTC(2026, 10, d, h, m);
-interface Row { siteId: string; name: string; kind: "artifact"; owner: string; state: "ready"; access: "private" | "space"; updatedAt: number }
+interface Row { chatId?: string; chatTitle?: string; sharedWith?: string[]; siteId: string; name: string; kind: "artifact"; owner: string; state: "ready"; access: "private" | "space"; updatedAt: number }
 const ROWS: Row[] = [
-  { siteId: "sit_pr", name: "Pricing comparison", kind: "artifact", owner: ME, state: "ready", access: "space", updatedAt: at(4, 15, 53) },
-  { siteId: "sit_q3", name: "Q3 revenue dashboard", kind: "artifact", owner: ME, state: "ready", access: "private", updatedAt: at(4, 10, 12) },
+  { chatId: "t_portal", chatTitle: "Client portal launch", sharedWith: ["usr_sara"], siteId: "sit_pr", name: "Pricing comparison", kind: "artifact", owner: ME, state: "ready", access: "space", updatedAt: at(4, 15, 53) },
+  { chatId: "t_nums", chatTitle: "Monthly numbers", siteId: "sit_q3", name: "Q3 revenue dashboard", kind: "artifact", owner: ME, state: "ready", access: "private", updatedAt: at(4, 10, 12) },
   { siteId: "sit_ob", name: "Onboarding checklist", kind: "artifact", owner: ME, state: "ready", access: "private", updatedAt: at(3, 14, 2) },
   { siteId: "sit_rn", name: "Renewal brief", kind: "artifact", owner: ME, state: "ready", access: "private", updatedAt: at(2, 9, 30) },
   { siteId: "sit_tl", name: "Launch timeline", kind: "artifact", owner: "usr_sara", state: "ready", access: "space", updatedAt: at(3, 11, 40) },

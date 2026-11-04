@@ -489,26 +489,29 @@ export function DeployBlock({ block, host }: BlockViewProps): ReactElement {
 
 /* ---------- mount ---------- */
 
+/** What sites.get says about an artifact that the card shows. */
+interface SiteBits { name?: string; owner?: string; access?: ArtifactInfo["access"]; updatedAt?: number; thumb?: string; chatId?: string; chatTitle?: string; sharedWith?: string[] }
+
 /** Something a model made to show: a card with its picture, one quiet line, and Open, Copy link and "...". The whole card opens it. */
 export function ArtifactBlock({ block, host }: BlockViewProps): ReactElement {
   const data = (block.data ?? {}) as { artifactId?: unknown; title?: unknown; thumb?: unknown };
   const id = typeof data.artifactId === "string" ? data.artifactId : "";
   const title = typeof data.title === "string" ? data.title : "Artifact";
-  const [site, setSite] = useState<{ name?: string; owner?: string; access?: ArtifactInfo["access"]; updatedAt?: number } | null>(null);
+  const [site, setSite] = useState<SiteBits | null>(null);
   const [gone, setGone] = useState(false);
   const { element, show } = useMenu();
   useEffect(() => {
     if (id === "") return undefined;
     let live = true;
     void Promise.resolve(host.invoke("sites.get", { siteId: id })).then(
-      (o) => { const s = (o as { site?: { name?: string; owner?: string; access?: ArtifactInfo["access"]; updatedAt?: number } } | null)?.site; if (live && s) setSite(s); },
+      (o) => { const s = (o as { site?: SiteBits } | null)?.site; if (live && s) setSite(s); },
       () => undefined,
     );
     return () => { live = false; };
   }, [host, id]);
   const trigger = useMemo(() => menuTrigger((x, y) => show([{ label: "Open", onSelect: () => void openTab(host, "artifact", block.data) }, { separator: true }, { label: "Copy trace id", onSelect: () => copyText(block.traceId) }], x, y, "context", { label: "artifact block" })), [host, block, show]);
   const me = host.meId ?? site?.owner ?? "";
-  const info: ArtifactInfo = { id, name: site?.name ?? title, owner: site?.owner ?? me, access: site?.access, updatedAt: site?.updatedAt, thumb: typeof data.thumb === "string" ? data.thumb : undefined };
+  const info: ArtifactInfo = { id, name: site?.name ?? title, owner: site?.owner ?? me, access: site?.access, updatedAt: site?.updatedAt, thumb: site?.thumb ?? (typeof data.thumb === "string" ? data.thumb : undefined), from: site?.chatId !== undefined && site.chatTitle !== undefined ? { id: site.chatId, title: site.chatTitle } : undefined, sharedWith: site?.sharedWith?.map((id) => host.nameOf?.(id) ?? id) };
   const address = useCallback(async (): Promise<string | null> => {
     try {
       const o = (await host.invoke("sites.artifact_open", { artifactId: id, idempotencyKey: `card-${id}-${Date.now()}` })) as { path: string; url?: string };
