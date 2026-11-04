@@ -517,6 +517,11 @@ export async function handoff(ctx: ChatCtx, input: { threadId: string; toAgentId
   const fromAgentId = ctx.principal.kind === "agent" ? ctx.principal.id : (list.find((a) => a.mode === "lead") ?? list[0])?.agentId;
   if (fromAgentId === undefined) raise(ctx, "validation.precondition_failed", "No agent in this chat has work to hand over.");
   if (fromAgentId === input.toAgentId) raise(ctx, "validation.bad_input", "An agent cannot hand work to itself.");
+  // one agent hands work to another only when the other allows calls from agents in the Space (access.agents_can_call, On unless a person turned it Off)
+  if (ctx.principal.kind === "agent" && ctx.call) {
+    const gate = (await ctx.call("access.agents_can_call.get", { agentId: input.toAgentId })) as { on?: boolean } | undefined;
+    if (gate?.on === false) raise(ctx, "permission.no_grant", "That agent does not take calls from other agents. A person can turn them on in its Share sheet.", { agentId: input.toAgentId });
+  }
 
   // A handoff is one more hop after whatever the chat holds now; past the hop limit a person has to speak first.
   const depth = (lastMessage(ctx.db, source.id)?.depth ?? 0) + 1;

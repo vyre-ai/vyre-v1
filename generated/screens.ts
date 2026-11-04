@@ -321,7 +321,7 @@ export const screens: ScreenIndexEntry[] = [
     "module": "access",
     "place": "shell",
     "slot": "sheet",
-    "builtin": "ui:ShareSheet",
+    "builtin": "ui:AccessSheet",
     "caller": "principal",
     "queries": {
       "shares": {

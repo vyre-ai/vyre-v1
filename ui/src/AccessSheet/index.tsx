@@ -15,6 +15,7 @@ import {
   NO_MATCH,
   NO_OUTSIDE,
   OUTSIDE_NOTE,
+  accessCount,
   accessSubtitle,
   actionLabel,
   addLines,
@@ -93,6 +94,7 @@ export type {
   ShareInput,
   ShareItemType,
   ShareLevel,
+  ShareResourceType,
   ShareRow,
   ShareSheetProps,
   ShareSubjectKind,
@@ -328,7 +330,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
   /* ---------- the views ---------- */
 
   const title = add ? "Add people and agents" : `Share “${share?.itemName ?? ""}”`;
-  const subtitle = add ? `to ${add.target.name}` : share ? (share.records?.subtitle ?? share.subtitle ?? accessSubtitle(share.itemType, share.shares.length + 1, share.itemLabel)) : "";
+  const subtitle = add ? `to ${add.target.name}` : share ? (share.records?.subtitle ?? share.subtitle ?? accessSubtitle(share.itemType, accessCount({ shares: share.shares, itemType: share.itemType, resourceId: share.resourceId, ownerId: share.ownerId, ownerName: share.ownerName, folderName: share.folderName }), share.itemLabel)) : "";
   const placeholder = picks.length > 0 ? "Add another" : add ? "Add people or agents" : type === "agent" ? "Add people or groups" : "Add people, groups or agents";
 
   const main = (

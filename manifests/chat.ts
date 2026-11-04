@@ -411,7 +411,7 @@ export default defineManifest({
     }),
     write('chat.handoff', 'Hand work to another agent: opens that agent thread linked from this one, counted against the hop limit', {
       in: { ...threadT, toAgentId: id.agent, note: t.str() }, out: { thread: threadRow, depth: t.int() }, on: ['thread', '/threadId'], level: 'use',
-      emits: ['agent.handoff', 'thread.started', 'message.received', 'thread.unarchived'], tool: 'chats', mcpName: 'handoff', errors: ['validation.precondition_failed'],
+      emits: ['agent.handoff', 'thread.started', 'message.received', 'thread.unarchived'], tool: 'chats', mcpName: 'handoff', errors: ['validation.precondition_failed', 'permission.no_grant'],
     }),
     write('chat.helper.start', 'Start a helper sub-task thread with its own model, provider and effort; helper chats are read-only', {
       in: {

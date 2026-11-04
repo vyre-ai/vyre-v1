@@ -10,13 +10,13 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConfigDirectory } from "../../automations/config/data.tsx";
 import { Overlay } from "../../automations/config/Overlay.tsx";
 import { Switch } from "../../automations/config/parts.tsx";
-import { shareRows } from "../../automations/config/SettingsTab.tsx";
-import { ShareSheet } from "../../../../../../ui/src/ShareSheet/index.tsx";
+import { shareRows, sheetDirectory } from "../../../share/rows.ts";
+import { AccessSheet, accessCount } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { aiMenu } from "../../vault/providers/aiMenu.ts";
 import { aiCaption, aiName, automaticLine } from "../../vault/providers/pick.ts";
 import { useSpaceAi } from "../../vault/providers/useSpaceAi.ts";
-import type { ShareInput, UnshareInput } from "../../../../../../ui/src/ShareSheet/index.tsx";
+import type { ShareInput, UnshareInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { Glyph as Mark } from "../conversation/parts.tsx";
 import { Glyph } from "../sidebar/parts.tsx";
 import { createInput, draftInstructions, faceChoices, faceSeed, grantsFor, reachOffers, updatePatch, workPatch, chatKeyPatch } from "./model.ts";
@@ -184,7 +184,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
         </Section>
 
         {sharing ? (
-          <Section title="Who can use it" note={agentId === null ? "Only you, until you share it" : `${shares?.shares.length ?? 1} with access`}>
+          <Section title="Who can use it" note={agentId === null ? "Only you, until you share it" : `${shares && sharing ? accessCount({ shares: shareRows(shares, sharing.nameOf, agentId), itemType: "agent", resourceId: agentId, ownerId: sharing.meId, ownerName: sharing.meName }) : 1} with access`}>
             <View style={st.row}><Btn label="Share" testID="agent-share" onPress={() => { if (agentId === null) say("Create it first, then share it from here."); else setSharingOpen(true); }} /></View>
           </Section>
         ) : null}
@@ -243,9 +243,12 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
       {aiPop.element}
       {sharing && sharingOpen && agentId !== null && shares ? (
         <Overlay label="Who can use it" onClose={() => setSharingOpen(false)} testID="agent-share-overlay">
-          <ShareSheet
-            resourceType="agent" resourceId={agentId} resourceName={d.name} target="item" ownerName={sharing.meName} ownerId={sharing.meId} levels={["use", "edit", "manage"]} shares={shareRows(shares, sharing.nameOf)} allowExternal={false} density="compact"
-            directory={{ people: sharing.directory.people, groups: sharing.directory.groups, roles: sharing.directory.roles, agents: sharing.directory.agents }}
+          <AccessSheet
+            mode="share" itemType="agent" resourceType="agent" resourceId={agentId} itemName={d.name} target="item" ownerName={sharing.meName} ownerId={sharing.meId} levels={["view", "use", "edit", "manage"]}
+            shares={shareRows(shares, sharing.nameOf, agentId)} allowExternal={false} density="compact" newKey={newKey}
+            {...(shares.agentsCanCall === undefined ? {} : { agentsOn: shares.agentsCanCall })}
+            onAgents={(on) => { void Promise.resolve(call("access.agents_can_call.set", { agentId, on, idempotencyKey: newKey() })).then(loadShares, () => say("Could not change who can call this agent.")); }}
+            directory={sheetDirectory(sharing.directory)}
             onShare={(i: ShareInput) => { void Promise.resolve(call("access.share", i)).then(loadShares, () => say("Could not change access.")); }}
             onUnshare={(i: UnshareInput) => { void Promise.resolve(call("access.unshare", i)).then(loadShares, () => say("Could not change access.")); }}
             onClose={() => setSharingOpen(false)}
@@ -255,6 +258,7 @@ export function AgentForm({ agentId, call, newKey, onDone, onCancel, say, sharin
     </ScrollView>
   );
 }
+
 
 function Section({ title, note, children }: { title: string; note?: string; children: ReactNode }): ReactElement {
   return <View style={st.sec}><View style={st.secHead}><Text accessibilityRole="header" style={st.secTitle}>{title}</Text>{note ? <Text style={st.secNote}>{note}</Text> : null}</View>{children}</View>;

@@ -15,7 +15,7 @@ Requires: nothing.
 - [settings.kit.set_space](../capabilities/settings.kit.set_space.md): Choose the Kit for the whole Space
 - [settings.list](../capabilities/settings.list.md): Rows of one page (or all) with the value that applies to me
 - [settings.pages](../capabilities/settings.pages.md): The settings pages a person has, with row counts
-- [settings.public_of](../capabilities/settings.public_of.md): A teammate's time zone, working hours and pronouns, only when they set them themselves
+- [settings.public_of](../capabilities/settings.public_of.md): A teammate's time zone, working hours, pronouns and title, only when they set them themselves
 - [settings.reset](../capabilities/settings.reset.md): Put one of my settings back to the Space default
 - [settings.reset_space](../capabilities/settings.reset_space.md): Put a Space-wide setting back to its shipped default
 - [settings.search](../capabilities/settings.search.md): Find settings rows by words (Cmd-F)

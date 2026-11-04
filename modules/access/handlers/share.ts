@@ -664,6 +664,14 @@ export async function deciders(ctx: ShareCtx, input: { resource: ResourceRef }):
   return { people };
 }
 
+/** Someone else's private agent: their Assistant or an outside agent they connected. Only its own person sees it listed. */
+function hiddenAgent(ctx: ShareCtx, store: AccessStore, agentId: string): boolean {
+  if (!isPrivateAgent(store, agentId)) return false;
+  const owner = store.principals.get(agentId)?.owner;
+  const me = actingId(ctx) ?? ctx.principal.id;
+  return owner !== me;
+}
+
 export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) {
   const store = storeOf(ctx);
   const res = resourceOf(ctx, store, input.resource);
@@ -686,13 +694,17 @@ export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) 
   all.sort((a, b) => (a.id < b.id ? -1 : 1));
   for (const g of all) {
     if (g.conditions.expiresAt !== undefined && g.conditions.expiresAt <= now) continue;
+    // an item never lists itself, and nobody sees another person's private agent (an Assistant, an outside agent) by name
+    if (g.subject.kind === "agent" && (g.subject.id === res.id || hiddenAgent(ctx, store, g.subject.id))) continue;
     const ancestor = g.resource.id !== "*" && g.resource.id !== res.id;
     const through = ancestor ? "folder" : g.subject.kind === "group" ? "group" : g.subject.kind === "role" ? "role" : "direct";
     shares.push({ grant: grantView(g), through });
   }
-  if (!RECORDS.has(res.type)) return { shares };
+  const mine = callerLevel(ctx, store, res) ?? undefined;
+  const agentsCanCall = res.type === "agent" ? res.row?.["agentsCanCall"] !== false : undefined;
+  if (!RECORDS.has(res.type)) return { shares, ...(mine ? { mine } : {}), ...(agentsCanCall === undefined ? {} : { agentsCanCall }) };
   const audience = audienceOf(res);
-  const out: { shares: typeof shares; audience: Audience; exporters: Exporters; inherits?: string; outside?: boolean; can: Rights } = { shares, audience, exporters: exportersOf(store, res), can: rightsOf(ctx, store, res) };
+  const out: { shares: typeof shares; mine?: Level; audience: Audience; exporters: Exporters; inherits?: string; outside?: boolean; can: Rights } = { shares, ...(mine ? { mine } : {}), audience, exporters: exportersOf(store, res), can: rightsOf(ctx, store, res) };
   if (res.type === "record_type") out.outside = res.row?.["outside"] === true;
   // a record follows its type until it is cut off from it
   if (res.type === "record" && audience === "space" && res.parentId !== null && store.resources.get(res.parentId)?.type === "record_type") out.inherits = res.parentId;
@@ -782,6 +794,32 @@ export async function audienceSet(ctx: ShareCtx, input: { resource: ResourceRef;
   changed(ctx, store, "assignment");
   commit(ctx, store, ss, wasFresh, [res.id], false);
   return { audience: audienceOf(res), exporters: exportersOf(store, res), outside: res.row?.["outside"] === true };
+}
+
+/** Whether other agents may hand work to this agent. On unless a person turned it Off. */
+export async function agentsCanCallGet(ctx: ShareCtx, input: { agentId: string }) {
+  const store = storeOf(ctx);
+  const res = store.resources.get(input.agentId);
+  if (!res || res.type !== "agent") raise(ctx.trace.traceId, "validation.not_found", "no such agent");
+  return { on: res.row?.["agentsCanCall"] !== false };
+}
+
+/** A person with Manage on the agent turns calls from other agents On or Off. An agent never does. */
+export async function agentsCanCallSet(ctx: ShareCtx, input: { agentId: string; on: boolean }) {
+  const store = storeOf(ctx);
+  const ss = shareOf(ctx);
+  const trace = ctx.trace.traceId;
+  if (ctx.principal.kind !== "person" || (actingId(ctx) !== undefined && actingId(ctx) !== ctx.principal.id)) raise(trace, "permission.no_grant", "Only a person changes who may call an agent.");
+  const res = store.resources.get(input.agentId);
+  if (!res || res.type !== "agent") raise(trace, "validation.not_found", "no such agent");
+  must(ctx, store, res, "manage", "changing who may call this agent");
+  const wasFresh = isFresh(ctx, store, ss);
+  const row: Record<string, unknown> = { ...(res.row ?? {}) };
+  if (input.on) delete row["agentsCanCall"]; else row["agentsCanCall"] = false;
+  if (Object.keys(row).length > 0) res.row = row; else delete res.row;
+  changed(ctx, store, "assignment");
+  commit(ctx, store, ss, wasFresh, [res.id], false);
+  return { on: input.on };
 }
 
 /** What differs from its type among the rows of one type, and whether the caller was given the type or a row by name (not just the role they hold). */

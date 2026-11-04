@@ -3,7 +3,7 @@
 import { createContext, useContext, useMemo, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
-import type { DirectoryEntry } from "../../../../../../ui/src/ShareSheet/index.tsx";
+import type { DirectoryEntry } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import type { ChatMemoryData } from "../memory/data.tsx";
 import type { Clock } from "./model.ts";
 import type { TerminalData } from "../terminal/data.ts";

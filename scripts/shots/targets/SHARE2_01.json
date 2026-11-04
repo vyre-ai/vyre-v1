@@ -1,0 +1,76 @@
+{
+  "targets": [
+    {
+      "id": "SHARE2_01-dex",
+      "route": "/m/SHARE2_01?part=dex",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='as-access']",
+      "note": "Share sheet: dex."
+    },
+    {
+      "id": "SHARE2_01-note",
+      "route": "/m/SHARE2_01?part=note",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='as-access']",
+      "note": "Share sheet: note."
+    },
+    {
+      "id": "SHARE2_01-vault",
+      "route": "/m/SHARE2_01?part=vault",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='as-access']",
+      "note": "Share sheet: vault."
+    },
+    {
+      "id": "SHARE2_01-vaultfolder",
+      "route": "/m/SHARE2_01?part=vaultfolder",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='as-access']",
+      "note": "Share sheet: vaultfolder."
+    },
+    {
+      "id": "SHARE2_01-rtype",
+      "route": "/m/SHARE2_01?part=rtype",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='as-access']",
+      "note": "Share sheet: rtype."
+    },
+    {
+      "id": "SHARE2_01-record",
+      "route": "/m/SHARE2_01?part=record",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='as-access']",
+      "note": "Share sheet: record."
+    },
+    {
+      "id": "SHARE2_01-folder",
+      "route": "/m/SHARE2_01?part=folder",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='as-access']",
+      "note": "Share sheet: folder."
+    },
+    {
+      "id": "SHARE2_01-artifact",
+      "route": "/m/SHARE2_01?part=artifact",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='as-access']",
+      "note": "Share sheet: artifact."
+    },
+    {
+      "id": "SHARE2_01-automation",
+      "route": "/m/SHARE2_01?part=automation",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='as-access']",
+      "note": "Share sheet: automation."
+    },
+    {
+      "id": "SHARE2_01-dexpath",
+      "route": "/m/SHARE2_01?part=dexpath",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='agent-share']",
+      "click": "[data-testid='agent-share']",
+      "note": "Click path: Dex's page, Who can use it, Share. The sheet opens over the page.",
+      "protoClick": "[data-a='newagent']"
+    }
+  ]
+}
