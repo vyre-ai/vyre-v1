@@ -350,6 +350,11 @@ export default defineManifest({
       in: { ...threadT, before: t.opt(t.int()), after: t.opt(t.int()), limit: t.opt(t.int({ minimum: 1, maximum: 200 })) },
       out: { messages: t.arr(messageRow), hasMore: t.bool() }, on: ['thread', '/threadId'], tool: 'chats', label: 'filter',
     }),
+    read('chat.pace_of', "How a teammate answers, for their profile: usual reply time over the last 30 days, and for one chat how they hear about it. Reads only chats you are in with them", {
+      in: { personId: id.user, threadId: t.opt(id.thread) },
+      out: { replies: t.enm('minutes', 'hour', 'day', 'slow', 'unknown'), samples: t.int({ minimum: 0 }), notifies: t.opt(t.enm('all', 'mentions', 'off')) },
+      tool: 'chats', label: 'check',
+    }),
     read('chat.catch_up', 'What you missed in a thread since you last read it: counts, who wrote, tasks and decisions that landed, and messages with an @ in them. A plain read, kept until something new arrives', {
       in: threadT,
       out: {

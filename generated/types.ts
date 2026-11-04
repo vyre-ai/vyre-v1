@@ -7385,6 +7385,15 @@ export type ChatOpenTabOut = {
   opened: boolean;
   reason?: "disabled_by_person" | "no_device";
 };
+export type ChatPaceOfIn = {
+  personId: string;
+  threadId?: string;
+};
+export type ChatPaceOfOut = {
+  replies: "minutes" | "hour" | "day" | "slow" | "unknown";
+  samples: number;
+  notifies?: "all" | "mentions" | "off";
+};
 export type ChatPeopleStatusIn = {
   personIds?: Array<string>;
   q?: string;
@@ -44603,6 +44612,7 @@ export interface CapMap {
   "chat.noted": { in: ChatNotedIn; out: ChatNotedOut };
   "chat.open_as_chat": { in: ChatOpenAsChatIn; out: ChatOpenAsChatOut };
   "chat.open_tab": { in: ChatOpenTabIn; out: ChatOpenTabOut };
+  "chat.pace_of": { in: ChatPaceOfIn; out: ChatPaceOfOut };
   "chat.people_status": { in: ChatPeopleStatusIn; out: ChatPeopleStatusOut };
   "chat.pin": { in: ChatPinIn; out: ChatPinOut };
   "chat.pins.list": { in: ChatPinsListIn; out: ChatPinsListOut };

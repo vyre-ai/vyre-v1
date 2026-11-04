@@ -58,6 +58,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "chat.noted": async (ctx) => { throw new VyreErr(notImplemented("chat.noted", ctx.trace)); },
   "chat.open_as_chat": async (ctx) => { throw new VyreErr(notImplemented("chat.open_as_chat", ctx.trace)); },
   "chat.open_tab": async (ctx) => { throw new VyreErr(notImplemented("chat.open_tab", ctx.trace)); },
+  "chat.pace_of": async (ctx) => { throw new VyreErr(notImplemented("chat.pace_of", ctx.trace)); },
   "chat.people_status": async (ctx) => { throw new VyreErr(notImplemented("chat.people_status", ctx.trace)); },
   "chat.pin": async (ctx) => { throw new VyreErr(notImplemented("chat.pin", ctx.trace)); },
   "chat.pins.list": async (ctx) => { throw new VyreErr(notImplemented("chat.pins.list", ctx.trace)); },

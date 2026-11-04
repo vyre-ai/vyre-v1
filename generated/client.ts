@@ -439,6 +439,7 @@ export function createClient(transport: Transport) {
       noted: call("chat.noted", 1),
       open_as_chat: call("chat.open_as_chat", 1),
       open_tab: call("chat.open_tab", 1),
+      pace_of: call("chat.pace_of", 1),
       people_status: call("chat.people_status", 1),
       pin: call("chat.pin", 1),
       pins: {
