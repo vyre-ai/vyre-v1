@@ -170,12 +170,14 @@ try {
       await shot(page, `main-approval-unfocused-${mode}`);
       await ctx.close(); }
   }
-  { const { page, ctx } = await open("usr_mia", { mode: "light", w: 390, hh: 844 });
+  for (const mode of ["light", "dark"] as const) {
+  { const { page, ctx } = await open("usr_mia", { mode, w: 390, hh: 844 });
     await page.getByText(/needs your OK/).first().waitFor({ timeout: 15000 }).catch(() => console.log("noquiet-phone"));
-    await shot(page, "phone-main-approval-light");
+    await shot(page, `phone-main-approval-${mode}`);
     await page.getByText("Open the thread", { exact: true }).first().click({ timeout: 8000 }).catch(() => console.log("noopen-phone"));
     await page.waitForTimeout(1500);
-    await shot(page, "phone-thread-approval-light"); await ctx.close(); }
+    await shot(page, `phone-thread-approval-${mode}`); await ctx.close(); }
+  }
 } catch (e) { console.log("WALK FAILED", e); }
 console.log("CHECKS\n" + checks.join("\n"));
 await browser.close(); web.close(); await eco.stop(d); process.exit(0);
