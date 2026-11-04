@@ -1395,6 +1395,7 @@ export function createClient(transport: Transport) {
       },
       remove: call("hooks.remove", 1),
       runs: {
+        latest: call("hooks.runs.latest", 1),
         list: call("hooks.runs.list", 1),
       },
       set: call("hooks.set", 1),

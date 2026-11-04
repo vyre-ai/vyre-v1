@@ -7146,6 +7146,11 @@ export type ChatHookLineIn = {
   reason?: string;
   tool?: string;
   subject?: string;
+  agentId?: string;
+  next?: Array<{
+      label: string;
+      ask: string;
+    }>;
 };
 export type ChatHookLineOut = {
   messageId: string;
@@ -19252,6 +19257,10 @@ export type HooksFireOut = {
     hookId: string;
     by: string;
     scope: string;
+    next?: Array<{
+        label: string;
+        ask: string;
+      }>;
   } | null;
   notes: Array<string>;
   ran: number;
@@ -19329,6 +19338,23 @@ export type HooksRemoveIn = {
 };
 export type HooksRemoveOut = {
   removed: boolean;
+};
+export type HooksRunsLatestIn = {
+  threadId: string;
+};
+export type HooksRunsLatestOut = {
+  runs: Array<{
+      id: number;
+      hookId: string;
+      event: string;
+      threadId?: string;
+      agentId?: string;
+      tool?: string;
+      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once";
+      detail?: string;
+      ms: number;
+      at: number;
+    }>;
 };
 export type HooksRunsListIn = {
   hookId?: string;
@@ -45313,6 +45339,7 @@ export interface CapMap {
   "hooks.policy.get": { in: HooksPolicyGetIn; out: HooksPolicyGetOut };
   "hooks.policy.set": { in: HooksPolicySetIn; out: HooksPolicySetOut };
   "hooks.remove": { in: HooksRemoveIn; out: HooksRemoveOut };
+  "hooks.runs.latest": { in: HooksRunsLatestIn; out: HooksRunsLatestOut };
   "hooks.runs.list": { in: HooksRunsListIn; out: HooksRunsListOut };
   "hooks.set": { in: HooksSetIn; out: HooksSetOut };
   "hubspot.health": { in: HubspotHealthIn; out: HubspotHealthOut };

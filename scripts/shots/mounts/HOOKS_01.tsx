@@ -33,7 +33,9 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
   const lines = useMemo(() => {
     const s = createSample("idle");
     const rows = (s.replica.rows("messages") as unknown as (Message & { id: string })[]).filter((m) => m.threadId === s.data.threadId).sort((a, b) => a.threadSeq - b.threadSeq);
-    let seq = rows[rows.length - 1]!.threadSeq, at = rows[rows.length - 1]!.createdAt;
+    // a short chat, so the hook lines and the reply fit above the composer
+    s.replica.remove("messages", rows.slice(2).map((r) => r.id));
+    let seq = rows[1]!.threadSeq, at = rows[1]!.createdAt;
     const quiet = (id: string, line: string, kind: string, extra: Record<string, unknown> = {}): Message => {
       seq += 1; at += 60_000;
       return { messageId: id, threadId: s.data.threadId, threadSeq: seq, author: { kind: "agent", id: "agt_intake" }, kind: "quiet", body: line, depth: 0, attachments: [], reactions: [], createdAt: at,
@@ -42,7 +44,8 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
     const made = [
       quiet("msg_hook1", "Intake added a hook in this chat: before any email, check the address is in Contacts", "added"),
       quiet("msg_hook2", "Intake set a hook for its helpers: before a helper opens a link, only open links from the quotes you were sent", "added", { hookId: "hok_run", scope: "run" }),
-      quiet("msg_hook3", "A hook stopped this: the address isn't in Contacts", "blocked", { reason: "the address isn't in Contacts" }),
+      quiet("msg_hook3", "A hook stopped this: the address isn't in Contacts", "blocked", { reason: "the address isn't in Contacts", agentId: "agt_intake", next: [{ label: "Add Harbor Supply to Contacts", ask: "Please add Harbor Supply to Contacts, then send the email" }, { label: "Send once without adding", ask: "Send it once without adding them, I will check it myself" }] }),
+      { messageId: "msg_hook4", threadId: s.data.threadId, threadSeq: seq + 1, author: { kind: "agent", id: "agt_intake" }, kind: "agent", body: "I did not send it. Harbor Supply's address is not in Contacts yet.", depth: 0, attachments: [], reactions: [], pinned: false, createdAt: at + 5_000, blocks: [] } as unknown as Message,
     ];
     s.replica.put("messages", made.map((m) => ({ id: m.messageId, ...m })));
     return { ...s.data, nav: { ...s.data.nav, openHooks: () => undefined } };
@@ -50,6 +53,6 @@ function Page({ view, skin }: { view: string; skin: string }): ReactNode {
   const pane = useMemo(() => createPaneSample("northwind", { hooks: true, admin: false }), []);
   const helper = useMemo(() => createHelperSample("done", { hooks: true }), []);
   if (view === "tab") return <View testID="hooks-mount" style={{ flex: 1, flexDirection: "row" }}><View style={{ flex: 1 }} /><ChatRightPane data={pane.data} open onToggle={() => undefined} tab="hooks" hookSel="hok_chat" window={{ start: 0, end: 500 }} /></View>;
-  if (view === "helper") return <View testID="hooks-mount" style={{ flex: 1, backgroundColor: "var(--win)" as string }}><HelperChat data={helper.data} /></View>;
+  if (view === "helper") return <View testID="hooks-mount" style={{ flex: 1, backgroundColor: "var(--win)" as string }}><HelperChat data={{ ...helper.data, nav: { ...helper.data.nav, openHooks: () => undefined } }} /></View>;
   return <View testID="hooks-mount" style={{ flex: 1, backgroundColor: "var(--win)" as string }}><Conversation data={lines} /></View>;
 }

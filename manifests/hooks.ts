@@ -20,8 +20,9 @@ const hookRow = t.obj({
   createdAt: t.ts(), updatedAt: t.ts(), spec: t.json(), mine: t.bool(), canChange: t.bool({ description: 'The reader may change, pause or remove it; false for a Space hook seen by a non-admin' }), endedAt: t.opt(t.ts()),
 });
 const runRow = t.obj({ id: t.int(), hookId: t.str(), event: t.str(), threadId: t.opt(t.str()), agentId: t.opt(t.str()), tool: t.opt(t.str()), outcome: t.enm('ok', 'blocked', 'note', 'error', 'timeout', 'skipped', 'allowed_once'), detail: t.opt(t.str()), ms: t.int(), at: t.ts() });
+const nextStep = t.obj({ label: t.str({ maxLength: 40 }), ask: t.str({ maxLength: 200 }) });
 const verdict = t.obj({
-  block: t.nullable(t.obj({ reason: t.str(), hookId: t.str(), by: t.str(), scope: t.str() })), notes: t.arr(t.str()), ran: t.int(),
+  block: t.nullable(t.obj({ reason: t.str(), hookId: t.str(), by: t.str(), scope: t.str(), next: t.opt(t.arr(nextStep, { maxItems: 2 })) })), notes: t.arr(t.str()), ran: t.int(),
 });
 const setIn = {
   id: t.opt(t.str({ description: 'Give the id of a hook you made to change it' })), scope, event, kind,
@@ -70,6 +71,9 @@ export default defineManifest({
       out: { runs: t.arr(runRow) }, level: 'member',
       tool: 'agents', mcpName: 'hooks_runs', agent: { planMode: 'allowed' },
     }),
+    read('hooks.runs.latest', 'The newest run of each hook in one chat, one row per hook: what "Last ran" on a hook card reads. Only for a chat you can use', {
+      in: { threadId: id.thread }, out: { runs: t.arr(runRow) }, level: 'member', tool: 'agents', mcpName: 'hooks_runs_latest', agent: { planMode: 'allowed' }, errors: ['permission.no_grant'],
+    }),
     read('hooks.policy.get', 'Whether agents may make hooks in this Space', { in: {}, out: { agentHooks: t.bool() }, level: 'member' }),
     write('hooks.policy.set', 'Space admins: allow or turn off hooks made by agents for the whole Space. Hooks agents already made stay but do not run while it is off', {
       in: { agentHooks: t.bool() }, out: { agentHooks: t.bool() }, level: 'member', emits: ['hook.changed'], audit: 'always', idem: 'natural', errors: ['permission.no_grant'],
@@ -98,7 +102,7 @@ export default defineManifest({
   ],
   blocks: [
     block('hook', {
-      threadId: id.thread, kind: t.enm('added', 'changed', 'removed', 'paused', 'resumed', 'blocked', 'failed', 'allowed', 'asked'), line: t.str(), hookId: t.opt(t.str()), scope: t.opt(t.str()), by: t.opt(t.str()), byKind: t.opt(madeByKind), reason: t.opt(t.str()), tool: t.opt(t.str()), subject: t.opt(t.str()),
+      threadId: id.thread, kind: t.enm('added', 'changed', 'removed', 'paused', 'resumed', 'blocked', 'failed', 'allowed', 'asked'), line: t.str(), hookId: t.opt(t.str()), scope: t.opt(t.str()), by: t.opt(t.str()), byKind: t.opt(madeByKind), reason: t.opt(t.str()), tool: t.opt(t.str()), subject: t.opt(t.str()), agentId: t.opt(id.agent), next: t.opt(t.arr(nextStep, { maxItems: 2 })),
     }, '{{line}}'),
   ],
 });

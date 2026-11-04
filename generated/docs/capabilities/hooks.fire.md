@@ -52,6 +52,10 @@ type Out = {
     hookId: string;
     by: string;
     scope: string;
+    next?: Array<{
+        label: string;
+        ask: string;
+      }>;
   } | null;
   notes: Array<string>;
   ran: number;
@@ -91,6 +95,12 @@ type Out = {
     "block": {
       "by": "example",
       "hookId": "example",
+      "next": [
+        {
+          "ask": "example",
+          "label": "example"
+        }
+      ],
       "reason": "example",
       "scope": "example"
     },

@@ -35,6 +35,11 @@ type In = {
   reason?: string;
   tool?: string;
   subject?: string;
+  agentId?: string;
+  next?: Array<{
+      label: string;
+      ask: string;
+    }>;
 };
 ```
 
@@ -60,11 +65,18 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "agentId": "agt_a1b2c3",
     "body": "example",
     "by": "example",
     "byKind": "admin",
     "hookId": "example",
     "kind": "added",
+    "next": [
+      {
+        "ask": "example",
+        "label": "example"
+      }
+    ],
     "reason": "example",
     "scope": "example",
     "subject": "example",
