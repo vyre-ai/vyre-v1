@@ -26,6 +26,17 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of [["wide", { w
   const ctx = await browser.newContext({ viewport: vp, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => console.log("pageerror", String(e).slice(0, 200)));
+  // the crash guard (apps/app/tests/crash-guard.ts), inline: an error page on screen or a React/script error fails the walk before any shot is taken
+  const crashes = [];
+  page.on("pageerror", (e) => crashes.push(String(e).slice(0, 300)));
+  page.on("console", (m) => { if (m.type() === "error" && /Minified React error|React error|Invalid hook call|Rendered (more|fewer) hooks|Cannot read properties|is not a function|Uncaught|ReferenceError|TypeError/i.test(m.text())) crashes.push(m.text().slice(0, 300)); });
+  const shoot = page.screenshot.bind(page);
+  page.screenshot = async (o) => {
+    const text = await page.locator("body").innerText({ timeout: 5000 }).catch(() => "");
+    for (const b of ["Couldn't draw this page", "Couldn't open Vyre", "Something went wrong here"]) if (text.includes(b)) throw new Error(`crash guard: an error page is on screen ("${b}") before ${o?.path}`);
+    if (crashes.length) throw new Error(`crash guard: ${crashes.join(" | ")}`);
+    return shoot(o);
+  };
   const go = async (q = "") => { await page.goto(routeUrl(real.origin, `/m/OVERVIEW_01${q}`, skin), { waitUntil: "load", timeout: 60000 }); await page.waitForSelector(T("project-overview"), { timeout: 20000 }); await page.waitForSelector(T("live-tasks"), { timeout: 15000 }); await page.waitForTimeout(500); };
   await go();
   check(`${tag}: the page shows properties, two live blocks and the editor`, (await page.locator(T("prop-contract")).count()) === 1 && (await page.locator(T("live-tasks")).count()) === 1 && (await page.locator(T("live-records")).count()) === 1 && (await page.locator(".ProseMirror").count()) === 1);

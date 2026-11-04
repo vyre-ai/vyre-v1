@@ -1,5 +1,6 @@
 // The project Overview in the real app against a real daemon (lane l-editor): the Client account page with its real data. Three unpaid invoices are made through the real create path, the page's
 // "Unpaid" block shows the server's own sum of their amounts, and changing one record and adding another changes the number the person sees. Shots (paper and graphite, wide and phone) go to VYRE_OVERVIEW_SHOTS.
+import { guardCrashes } from "./crash-guard.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -22,6 +23,7 @@ test("Overview, real data: an Unpaid block sums real invoices, and the number fo
   try {
     const owner = await browser.newContext({ viewport: { width: 1280, height: 900 } });
     const page = await owner.newPage();
+    const guard = guardCrashes(page);
     page.on("pageerror", (e) => errs.push(e.message)); page.on("console", (m) => { if (m.type() === "error") errs.push(m.text().slice(0, 2500)); });
     await page.goto(claimOnEdge(space.claim!, web.origin), { waitUntil: "load" });
     await page.getByTestId("claim-name").fill("Olivia Owner"); await page.getByTestId("claim-username").fill("olivia");
@@ -79,6 +81,7 @@ test("Overview, real data: an Unpaid block sums real invoices, and the number fo
       await page.getByTestId("project-overview").waitFor({ timeout: 20_000 });
       await page.locator("[data-testid=live-metric] [data-testid=live-number]").first().waitFor({ timeout: 20_000 });
       await page.waitForTimeout(800);
+      await guard.check(`the Overview, ${tag} ${size} ${skin}`);
       await page.screenshot({ path: path.join(shots, `overview-real-${tag}-${size}-${skin}.png`) });
       return (await page.locator("[data-testid=live-metric] [data-testid=live-number]").first().innerText()).trim();
     };
