@@ -2,6 +2,9 @@
 // pill, its hover and its list all say the same words, and the tests read it without a screen. Nothing here is invented: an agent is in the Island only because it has a turn in progress.
 import type { ActivitySnapshot, LiveTurn } from "../../../shell/session/turn-streams.ts";
 import { elapsedWords, stepLabel, stepWords } from "./activity.ts";
+import { questionOptions, terminalAskOf } from "./model.ts";
+import type { Message } from "./model.ts";
+import { mountOffers } from "./mountcard.ts";
 
 export type Ring = "working" | "waiting" | "done";
 export interface IslandAgent {
@@ -56,3 +59,52 @@ export function capFaces<T>(list: readonly T[], max: number): { shown: T[]; more
 
 /** Whether the Island shows at all: someone is writing, or a job is running in the background. A finished face alone does not keep it open. */
 export const islandOpen = (agents: readonly IslandAgent[], jobs: number): boolean => agents.some((a) => a.ring !== "done") || jobs > 0;
+
+export interface IslandChoice { id: string; label: string; detail: string; recommended: boolean }
+export interface IslandQuestion {
+  blockId: string;
+  agentId: string;
+  name: string;
+  prompt: string;
+  /** The choices to press. Empty for a free-text question: only the text field answers it. */
+  choices: IslandChoice[];
+  /** The text field ("Other") is offered. A free-text question always has it. */
+  other: boolean;
+}
+
+const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const text = (v: unknown): string => (typeof v === "string" ? v : "");
+
+/**
+ * The questions agents are waiting on, oldest first, for the Island to offer as a shortcut. Only a plain single-choice or free-text question is here: a multi-choice question, a terminal
+ * card and a folder-mount card need their own card, so they stay in the chat. The first option marked "Recommended" is the filled one (the option's detail says so); with none marked, none is.
+ */
+export function questionsOf(messages: readonly Pick<Message, "author" | "blocks">[], nameOf: (id: string) => string): IslandQuestion[] {
+  const out: IslandQuestion[] = [];
+  for (const m of messages) {
+    if (m.author.kind !== "agent") continue;
+    for (const b of m.blocks) {
+      if (b.type !== "question" || b.state !== "waiting" || !isRec(b.data)) continue;
+      const d = b.data;
+      const mode = text(d["mode"]);
+      if (mode === "multi" || terminalAskOf(d) !== null) continue;
+      const options = questionOptions(d);
+      if (mountOffers(options) !== null) continue;
+      const raw = Array.isArray(d["options"]) ? d["options"] : [];
+      let marked = false;
+      const choices = options.map((o, i): IslandChoice => {
+        const detail = isRec(raw[i]) ? text((raw[i] as Record<string, unknown>)["detail"]) : "";
+        const recommended = !marked && /^recommended/i.test(detail);
+        if (recommended) marked = true;
+        return { id: o.id, label: o.label, detail, recommended };
+      });
+      const prompt = text(d["prompt"]) || text(d["title"]);
+      if (prompt === "") continue;
+      out.push({ blockId: b.id, agentId: m.author.id, name: nameOf(m.author.id), prompt, choices, other: choices.length === 0 || d["allowOther"] === true });
+    }
+  }
+  return out;
+}
+
+/** A number key picks the choice with that number (1 is the first); anything else, or a number past the last choice, picks none. */
+export const choiceForKey = (key: string, count: number): number | null => (/^[1-9]$/.test(key) && Number(key) <= count ? Number(key) - 1 : null);

@@ -61,6 +61,7 @@ import { offlineLine } from "../agentpage/model.ts";
 import { CONNECT_YOURS, NO_AI_LINE, SET_SPACE_KEY, aiReady } from "./ai-ready.ts";
 import type { AiReady } from "./ai-ready.ts";
 import { Island } from "./Island.tsx";
+import { questionsOf } from "./island.ts";
 import { useOpenConnect } from "../../../shell/connect/context.ts";
 import {
   WINDOW, beforeCursor, byOrder, collect, faces, ghostMessages, findMatches, isClosed, lastMessages, leadOf, matchLine, mentionsIn, mergePages, modeTitle, modelLabel, pendingMessage, placeholderFor, queueNote, queuedCount, queuedIds, sendKind, stillPending, stopLabel,
@@ -721,7 +722,9 @@ function ConversationView(): ReactElement {
             jobs={helpers.map((h) => ({ threadId: h.threadId, title: h.title, startedAt: h.startedAt }))}
             onSteer={(agentId) => { setSeed((x) => ({ value: `@${nameOf(agentId)} `, n: x.n + 1 })); setJump((n) => n + 1); setAtEnd(true); }}
             onStopJob={(threadId) => void data.call("engine.stop", { threadId }).then(() => say("Stopped."), fail("Could not stop it."))}
-            onOpenComputer={(agentId) => data.nav.openBeside("computer", agentId)} />
+            onOpenComputer={(agentId) => data.nav.openBeside("computer", agentId)}
+            questions={questionsOf(all, nameOf)} people={thread.members.filter((m) => m.kind === "person").map((m) => nameOf(m.id))}
+            onAnswer={(blockId, answer) => act.answerBlock(data, blockId, answer)} />
           <Composer
             key={`composer-${seed.n}`} {...(seed.value !== "" ? { value: seed.value } : {})}
             testID="composer" whoWillAnswer={whoLine(thread, nameOf)} placeholder={data.placeholder ?? placeholderFor(thread, nameOf, isWorking, canSteer)} working={isWorking}

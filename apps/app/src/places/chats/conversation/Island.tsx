@@ -2,17 +2,21 @@
 // a divider, and one face per working agent in the one state language of every face (a moving ring: working, an amber ring: waiting, a green dot: finished; the one writing now is lifted). A press on
 // a face steers that agent; a press on the pill opens the list of everyone working with the background jobs and their Stop; a computer button opens Watch the computer while an agent uses its computer.
 // Everything comes from the live turns and their activity frames, never invented. Reduced motion stops the rings and the mark.
-import { useEffect, useReducer, useState } from "react";
+// When an agent asks you something (ask_question), the pill turns into the question: the asker's face with an amber ring, the question, its choices as buttons (the recommended one filled, a number
+// key picks one), Other for a few words of your own, and the people who can answer. "1 of 3" and arrows when several wait. Answering sends it and the pill goes back to Working. Escape puts the
+// pill away and leaves the question in the chat: the question card is always there too, the Island is a shortcut and never the only place.
+import { useEffect, useReducer, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
 import { WorkingMark } from "../../../../../../ui/src/WorkingMark/index.tsx";
 import type { ActivityStore, LiveTurn } from "../../../shell/session/turn-streams.ts";
 import { turnRowId } from "../../../shell/session/turn-streams.ts";
 import { elapsedWords } from "./activity.ts";
-import { agentOf, capFaces, hoverOf, islandOpen, wordOf } from "./island.ts";
-import type { IslandAgent } from "./island.ts";
+import { agentOf, capFaces, choiceForKey, hoverOf, islandOpen, wordOf } from "./island.ts";
+import type { IslandAgent, IslandQuestion } from "./island.ts";
+import { Glyph } from "./parts.tsx";
 
 export interface IslandJob { threadId: string; title: string; startedAt: number }
 export interface IslandProps {
@@ -24,7 +28,25 @@ export interface IslandProps {
   onSteer(agentId: string): void;
   onStopJob(threadId: string): void;
   onOpenComputer(agentId: string): void;
+  /** The questions agents wait on (island.ts questionsOf), oldest first. */
+  questions?: readonly IslandQuestion[] | undefined;
+  /** The names of the people who can answer here, for the people button. */
+  people?: readonly string[] | undefined;
+  /** Sends one answer: the choice's id, or the words typed in Other. A rejection puts the question back with a plain line. */
+  onAnswer?(blockId: string, answer: string): Promise<unknown> | void;
 }
+
+type KeyLike = { key: string; target?: unknown; defaultPrevented?: boolean; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean; preventDefault?: () => void };
+type Doc = { addEventListener(t: string, f: (e: KeyLike) => void): void; removeEventListener(t: string, f: (e: KeyLike) => void): void; querySelector(q: string): { focus?: () => void } | null };
+const doc = (): Doc | undefined => (globalThis as { document?: Doc }).document;
+/** A key typed in the composer or any field is that field's: the number keys and the arrows are the Island's only when nothing is being typed in. */
+const typing = (t: unknown): boolean => {
+  const e = t as { tagName?: string; isContentEditable?: boolean; closest?: (q: string) => unknown } | null | undefined;
+  if (!e) return false;
+  const tag = (e.tagName ?? "").toUpperCase();
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || e.isContentEditable === true || (typeof e.closest === "function" && !!e.closest('[contenteditable="true"],[data-testid="composer-field"]'));
+};
+const focusComposer = (): void => { doc()?.querySelector('[data-testid="composer-field"]')?.focus?.(); };
 
 /** The agents behind the live turns, one row each (an agent's newest turn), read from the stores now. A re-render comes with any store's change. */
 function useAgents(p: IslandProps): IslandAgent[] {
@@ -54,6 +76,90 @@ export function Island(p: IslandProps): ReactElement | null {
   const [open, setOpen] = useState(false);
   const width = useWindowDimensions().width;
   const phone = width > 0 && width < 640;
+  // the questions on offer: not the ones just answered, not the ones put away with Escape (they stay in the chat), and the one shown is the one the arrows are on
+  const [gone, setGone] = useState<ReadonlySet<string>>(new Set());
+  const [away, setAway] = useState<ReadonlySet<string>>(new Set());
+  const [at, setAt] = useState(0);
+  const [other, setOther] = useState(false);
+  const [words, setWords] = useState("");
+  const [people, setPeople] = useState(false);
+  const [problem, setProblem] = useState("");
+  const [busy, setBusy] = useState(false);
+  const asked = (p.questions ?? []).filter((q) => !gone.has(q.blockId) && !away.has(q.blockId));
+  const q: IslandQuestion | undefined = asked[Math.min(at, Math.max(0, asked.length - 1))];
+  const send = (answer: string): void => {
+    if (!q || busy || answer.trim() === "") return;
+    setBusy(true); setProblem("");
+    const id = q.blockId;
+    void Promise.resolve(p.onAnswer?.(id, answer)).then(
+      () => { setGone((g) => new Set(g).add(id)); setOther(false); setWords(""); setPeople(false); setBusy(false); },
+      () => { setBusy(false); setProblem("Could not send the answer. Try again."); },
+    );
+  };
+  const putAway = (): void => { if (!q) return; const id = q.blockId; setAway((a) => new Set(a).add(id)); setOther(false); setWords(""); setPeople(false); setProblem(""); focusComposer(); };
+  const keys = useRef({ q, other, send, putAway, asked: asked.length });
+  keys.current = { q, other, send, putAway, asked: asked.length };
+  useEffect(() => {
+    const d = doc();
+    if (!d) return undefined;
+    const on = (e: KeyLike): void => {
+      const k = keys.current;
+      if (!k.q || e.defaultPrevented) return;
+      if (e.key === "Escape") { if (k.other) { setOther(false); setWords(""); } else k.putAway(); return; }
+      if (e.metaKey || e.ctrlKey || e.altKey || typing(e.target)) return;
+      const i = choiceForKey(e.key, k.q.choices.length);
+      if (i !== null) { e.preventDefault?.(); k.send(k.q.choices[i]!.id); return; }
+      if (k.asked > 1 && e.key === "ArrowRight") setAt((n) => (n + 1) % k.asked);
+      if (k.asked > 1 && e.key === "ArrowLeft") setAt((n) => (n + k.asked - 1) % k.asked);
+    };
+    d.addEventListener("keydown", on);
+    return () => d.removeEventListener("keydown", on);
+  }, []);
+  if (q) {
+    const many = asked.length > 1;
+    const here = Math.min(at, asked.length - 1);
+    return (
+      <View testID="island" accessibilityLiveRegion="polite" style={[st.wrap, phone && st.wrapPhone]}>
+        {people ? (
+          <View testID="island-people" style={st.list}>
+            <Text style={st.group}>Anyone here can answer</Text>
+            {(p.people ?? []).map((n) => <Text key={n} style={[st.name, { paddingHorizontal: 8, paddingVertical: 5 }]}>{n}</Text>)}
+          </View>
+        ) : null}
+        <View testID="island-question" accessibilityRole="alert" style={[st.qpill, phone && st.qpillPhone]}>
+          <View style={st.qhead}>
+            <View testID="island-asker" accessible accessibilityLabel={`${q.name} is waiting for your answer`}><Avatar name={q.name} seedId={q.agentId} kind="agent" size={24} state="waiting" /></View>
+            <Text testID="island-question-text" numberOfLines={phone ? 3 : 2} style={st.qtext}>{q.prompt}</Text>
+            {many ? (
+              <View style={st.count}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Previous question" testID="island-prev" onPress={() => setAt((n) => (n + asked.length - 1) % asked.length)} style={st.arrow}><Text style={st.arrowText}>{"‹"}</Text></Pressable>
+                <Text testID="island-count" style={st.countText}>{`${here + 1} of ${asked.length}`}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Next question" testID="island-next" onPress={() => setAt((n) => (n + 1) % asked.length)} style={st.arrow}><Text style={st.arrowText}>{"›"}</Text></Pressable>
+              </View>
+            ) : null}
+          </View>
+          <View testID="island-choices" accessibilityRole="radiogroup" style={st.choices}>
+            {q.choices.map((c, i) => (
+              <Pressable key={c.id} accessibilityRole="button" accessibilityLabel={`${c.label}${c.detail ? `. ${c.detail}` : ""}. Key ${i + 1}`} testID={`island-choice-${c.id}`} disabled={busy} onPress={() => send(c.id)} style={[st.choice, c.recommended && st.choiceMain]}>
+                <Text style={[st.choiceText, c.recommended && st.choiceMainText]}>{c.label}</Text>
+              </Pressable>
+            ))}
+            {q.other && q.choices.length > 0 ? (
+              <Pressable accessibilityRole="button" accessibilityState={{ expanded: other }} testID="island-other" onPress={() => setOther((o) => !o)} style={st.choice}><Text style={st.choiceText}>Other</Text></Pressable>
+            ) : null}
+            <Pressable accessibilityRole="button" accessibilityLabel="Who can answer" testID="island-people-button" onPress={() => setPeople((v) => !v)} style={st.peopleBtn}><Glyph name="people" size={15} color="var(--ink-3)" /></Pressable>
+          </View>
+          {other || q.choices.length === 0 ? (
+            <View style={st.otherRow}>
+              <TextInput testID="island-other-field" autoFocus={other} accessibilityLabel="Your answer" placeholder="Your answer" value={words} onChangeText={setWords} onSubmitEditing={() => send(words)} editable={!busy} style={st.field} />
+              <Pressable accessibilityRole="button" testID="island-other-send" disabled={busy || words.trim() === ""} onPress={() => send(words)} style={[st.choice, st.choiceMain, (busy || words.trim() === "") && { opacity: 0.5 }]}><Text style={st.choiceMainText}>Send</Text></Pressable>
+            </View>
+          ) : null}
+          {problem !== "" ? <Text testID="island-problem" accessibilityRole="alert" style={st.problem}>{problem}</Text> : null}
+        </View>
+      </View>
+    );
+  }
   if (!islandOpen(agents, p.jobs.length)) return null;
   const word = wordOf(agents) || (p.jobs.length > 0 ? `${p.jobs.length} in the background` : "");
   const { shown, more } = capFaces(agents, phone ? 3 : 8);
@@ -109,6 +215,24 @@ export function Island(p: IslandProps): ReactElement | null {
 
 const st = StyleSheet.create({
   wrap: { alignItems: "center", paddingBottom: 8, gap: 6 },
+  wrapPhone: { width: "100%" },
+  qpill: { gap: 8, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 20, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--warn)" as string, maxWidth: "94%" },
+  qpillPhone: { width: "100%", maxWidth: "100%" },
+  qhead: { flexDirection: "row", alignItems: "center", gap: 10 },
+  qtext: { flexShrink: 1, color: "var(--ink)" as string, fontSize: 14 },
+  count: { flexDirection: "row", alignItems: "center", gap: 2, marginLeft: "auto" },
+  countText: { color: "var(--warn)" as string, fontSize: 12, fontWeight: "600" },
+  arrow: { width: 24, height: 24, alignItems: "center", justifyContent: "center", borderRadius: 12 },
+  arrowText: { color: "var(--ink-2)" as string, fontSize: 16 },
+  choices: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6 },
+  choice: { minHeight: 32, paddingHorizontal: 12, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string },
+  choiceMain: { backgroundColor: "var(--accent)" as string },
+  choiceText: { color: "var(--ink)" as string, fontSize: 13 },
+  choiceMainText: { color: "var(--accent-ink)" as string, fontSize: 13 },
+  peopleBtn: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center" },
+  otherRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  field: { flex: 1, minWidth: 0, height: 32, paddingHorizontal: 12, borderRadius: 16, backgroundColor: "var(--sunk)" as string, color: "var(--ink)" as string, fontSize: 13 },
+  problem: { color: "var(--warn)" as string, fontSize: 12.5 },
   pill: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 18, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string, maxWidth: "94%" },
   lead: { flexDirection: "row", alignItems: "center", gap: 8 },
   word: { color: "var(--ink-2)" as string, fontSize: 13 },
