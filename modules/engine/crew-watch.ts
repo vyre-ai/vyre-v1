@@ -1,6 +1,7 @@
 // The crew's lifecycle (DESIGN-crew.md, step 2): what a teammate's turns do to its job, and the one result card that reaches the lead's chat when a teammate finishes. The bridge reports every turn start, end and
 // the moment the reply is posted (StreamEvent); this reads those for the threads that are crew jobs and nothing else. A finished teammate has its leftovers committed, its branch summarised, and posts one
 // message in the lead's chat, as itself and mentioning the lead, with a `crew_result` block. That message is the wake: the lead's turn starts from it the ordinary way, so nobody polls and nothing new is routed.
+import { noteSteps } from "./helper-tests.ts";
 import type { Db } from "./projections.ts";
 import type { EngineHostSeam } from "../../host/src/seams/engine.ts";
 import { commitLeftovers, summarize } from "./crew-git.ts";
@@ -84,9 +85,12 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
 
   async function handle(e: StreamEvent): Promise<void> {
     ensure(o.db);
+    if (e.kind === "steps") { try { noteSteps(o.db, e.threadId, e.steps, o.now()); } catch { /* the test state is best effort */ } return; }
     if (e.kind === "start") askers.set(e.turnId, e.asker);
     const job = o.db.all("SELECT * FROM engine_crew_job WHERE thread_id = ?", e.threadId)[0] as Row | undefined;
     if (!job) {
+      // a helper's agent starts a turn: the notes waiting for it are read now
+      if (e.kind === "start") { try { await o.host.call("chat.helper.note_seen", { threadId: e.threadId }, e.asker); } catch { /* not a helper chat, or nothing waiting */ } }
       if (e.kind === "end") ended.set(e.turnId, e.code === "host_lost" ? "lost" : e.state);
       if (e.kind === "final") await helperResult(e);
       return;

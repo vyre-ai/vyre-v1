@@ -100,7 +100,7 @@ export const isErrorBlock = (b: MessageBlock): boolean => b.type === "error";
 /** Everything else is a native card: terminal, changeset, question, plan, deploy, file, and so on. */
 /** Blocks that are data for the page, not a card: the links of a message (drawn inside its text) and the line a fork starts with (drawn as a link). */
 // on_behalf, relay and agent_dm say who an agent's message to a teammate speaks for and carry a reply back (lane l-agentdm): they shape the header and the line, never a card of their own
-const QUIET_BLOCKS = new Set(["refs", "fork_origin", "on_behalf", "relay", "agent_dm", "poke", "poked"]);
+const QUIET_BLOCKS = new Set(["refs", "fork_origin", "on_behalf", "relay", "agent_dm", "poke", "poked", "hook"]);
 
 /** The quiet line a poke leaves in the chat: "Sara poked Docs", with the note after it. The block carries the ids, so the words follow each reader's names. */
 export function pokeLine(m: Pick<Message, "blocks">, nameOf: (id: string) => string): string | null {
@@ -109,6 +109,36 @@ export function pokeLine(m: Pick<Message, "blocks">, nameOf: (id: string) => str
   if (!d || typeof d.by !== "string" || typeof d.agentId !== "string") return null;
   return `${nameOf(d.by)} poked ${nameOf(d.agentId)}${typeof d.note === "string" && d.note !== "" ? `: ${d.note}` : ""}`;
 }
+
+/** The quiet line a hook leaves (lane l-hooks): its words, what happened to it, and the hook it is about, so the line can offer Details or Edit. */
+export interface HookLine { line: string; kind: string; hookId?: string; reason?: string; by?: string; subject?: string; scope?: string }
+export function hookLineOf(m: Pick<Message, "blocks">): HookLine | null {
+  const d = m.blocks.find((x) => x.type === "hook")?.data as { line?: unknown; kind?: unknown; hookId?: unknown; reason?: unknown } | null | undefined;
+  if (!d || typeof d.line !== "string" || typeof d.kind !== "string") return null;
+  return { line: d.line, kind: d.kind, ...(typeof d.hookId === "string" ? { hookId: d.hookId } : {}), ...(typeof d.reason === "string" ? { reason: d.reason } : {}), ...(typeof (d as { by?: unknown }).by === "string" ? { by: (d as { by: string }).by } : {}), ...(typeof (d as { subject?: unknown }).subject === "string" ? { subject: (d as { subject: string }).subject } : {}), ...(typeof (d as { scope?: unknown }).scope === "string" ? { scope: (d as { scope: string }).scope } : {}) };
+}
+/** The words of a line as this reader sees them: a line about a person names them as the reader does ("Maya Chen let a hook go by once: ..."), never "Someone". */
+export function hookLineText(h: HookLine, nameOf: (id: string) => string): string {
+  if (h.by && h.subject && h.kind === "allowed") return `${nameOf(h.by)} let a hook go by once: ${h.subject}`;
+  if (h.by && h.subject && h.kind === "asked") return `${nameOf(h.by)} asked an admin about a hook: ${h.subject}`;
+  return h.line;
+}
+/** The words that lead a hook line, in ink: "A hook stopped this:" or the name before "added a hook". The rest follows in the quieter colour. */
+export function hookLead(text: string): [string, string] {
+  if (text.startsWith("A hook stopped this:")) return ["A hook stopped this:", text.slice("A hook stopped this:".length)];
+  const m = /^(.+?)( (?:added|set|changed|removed|paused|turned|let|asked) )/.exec(text);
+  return m ? [m[1]!, text.slice(m[1]!.length)] : ["", text];
+}
+/** What a line offers beyond its words. A block shows Details (the hook, in the Hooks tab), Run once anyway and Ask an admin; a hook that is still there shows Edit. */
+export type HookLineAct = "details" | "edit" | "once" | "ask";
+export function hookLineActs(h: HookLine): HookLineAct[] {
+  if (h.hookId === undefined) return [];
+  if (h.kind === "blocked") return ["details", "once", "ask"];
+  if (h.kind === "failed") return ["details"];
+  return h.kind === "added" || h.kind === "changed" ? ["edit"] : [];
+}
+/** A line's side button: a block shows Details (it names the hook that stopped it), a hook that is still there shows Edit. */
+export const hookLineAction = (h: HookLine): { label: string } | null => (h.hookId === undefined || h.kind === "removed" ? null : { label: h.kind === "blocked" || h.kind === "failed" ? "Details" : "Edit" });
 
 /** "Poked by Sara": the quiet line under a reply an agent wrote because a person poked it. */
 export function pokedBy(m: Pick<Message, "blocks">, nameOf: (id: string) => string): string | null {
@@ -399,6 +429,8 @@ export interface Pending {
   files?: readonly PendingFile[];
   /** Links picked for [[ ]] or # chips, sent as the message's refs. */
   refs?: readonly PendingRef[];
+  /** From a thread: also post these words to the chat the thread hangs in. */
+  alsoToChat?: boolean;
 }
 
 export interface PendingFile { name: string; file?: unknown; size?: number; mime?: string; fileId?: string }
@@ -523,8 +555,9 @@ export const isClosed = (t: Thread): boolean => t.closedAt !== undefined;
 export function threadKindNote(t: Thread, nameOf: (id: string) => string): string {
   if (t.kind === "helper") return "Helper chat";
   if (t.kind === "ask") return "Ask pane";
-  const starter = t.starter ? nameOf(t.starter) : "";
-  return t.kind === "thread" && starter ? `Thread started by ${starter}` : "";
+  // a thread opens on the message it hangs off, drawn as a plain message row (ThreadParent): no "started by" line over it
+  void nameOf;
+  return "";
 }
 
 /* ---------- the chat-open budget ---------- */

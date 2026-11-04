@@ -4,7 +4,7 @@ Lane L5. Kind connector. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (42)
+## Capabilities (43)
 
 - [github.actions.secrets](../capabilities/github.actions.secrets.md): How many Actions secrets a repository holds; null when GitHub would not say
 - [github.app.complete](../capabilities/github.app.complete.md): Finish the manifest flow: exchange the code, store the app key in the Vault and return the install link
@@ -44,6 +44,7 @@ Requires: nothing.
 - [github.receive_webhook](../capabilities/github.receive_webhook.md): Record a verified GitHub delivery after dedupe; normalise push, pull request, issue, check and workflow events
 - [github.repo.get](../capabilities/github.repo.get.md): Read one repository
 - [github.repos.list](../capabilities/github.repos.list.md): List repositories the App can reach
+- [github.runner_release](../capabilities/github.runner_release.md): The files of a release of the Actions runner with the checksum GitHub lists for each (public); the CI module checks its pinned checksum against it before any machine starts
 - [github.runners.jit_config](../capabilities/github.runners.jit_config.md): Make a just-in-time runner for one job: GitHub answers a config the new machine runs with, once. Called by the CI module; the config is never stored
 - [github.runners.remove](../capabilities/github.runners.remove.md): Take back a runner that never ran a job (its machine failed to start)
 - [github.session_env](../capabilities/github.session_env.md): For one turn of Claude Code, Codex or Grok: GH_TOKEN and GITHUB_TOKEN as filler handles and a git credential helper, scoped to the owner's repositories the person lets run without asking

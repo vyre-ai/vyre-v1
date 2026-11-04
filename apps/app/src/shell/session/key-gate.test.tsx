@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { KeyGate, LockScreen, NoPasswordKey } from "./KeyGate.tsx";
+import { KeyGate, LockScreen, NOTICE_LINE, NoPasswordKey, SHEET_LINE } from "./KeyGate.tsx";
 import { lockName } from "./stored.ts";
 import { forgetKey, keepKey, keyIsKept, rehandKey } from "../../../../../client/src/gateway/key-keeper.ts";
 
@@ -104,4 +104,22 @@ test("the launch lock for a Space server: shown only when no one holds the key a
   const t = text(renderToStaticMarkup(<LockScreen name="Irfad" onUnlock={async () => undefined} onSkip={() => undefined} />));
   assert.match(t, /Not now/);
   assert.doesNotMatch(text(renderToStaticMarkup(<LockScreen name="Irfad" onUnlock={async () => undefined} />)), /Not now/, "the lock on this computer has no way round");
+});
+
+test("mid-session the app stays on screen: the lock is a quiet notice in the top bar with Unlock and no dismiss; the full-screen lock is for launch only", async () => {
+  const { noticeAfterBeat } = await import("./key-unlock.ts");
+  assert.equal(noticeAfterBeat("locked"), "show", "a restart that lost the key raises the notice, every time it is found");
+  assert.equal(noticeAfterBeat("open"), "clear", "another device unlocked: it clears");
+  assert.equal(NOTICE_LINE, "Sign-ins locked");
+  assert.match(SHEET_LINE, /unlocks your sign-ins on this server/);
+});
+
+test("an Unlock sheet asked for on a Space server carries its own words and the way out for a forgotten password", async () => {
+  const gate = await import("./vault-gate.ts");
+  let seen: unknown;
+  gate.registerVaultPrompt(async (_u, words) => { seen = words; return true; });
+  const forgot = (): void => undefined;
+  assert.equal(await gate.askVaultUnlock(async () => undefined, { title: "Unlock your sign-ins", sub: SHEET_LINE, forgot }), true);
+  assert.deepEqual(seen, { title: "Unlock your sign-ins", sub: SHEET_LINE, forgot });
+  gate.registerVaultPrompt(null);
 });

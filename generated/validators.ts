@@ -37,6 +37,7 @@ import { validators as m_google, eventValidators as m_google_ev } from './valida
 import { validators as m_governance, eventValidators as m_governance_ev } from './validators/governance.ts';
 import { validators as m_health, eventValidators as m_health_ev } from './validators/health.ts';
 import { validators as m_home, eventValidators as m_home_ev } from './validators/home.ts';
+import { validators as m_hooks, eventValidators as m_hooks_ev } from './validators/hooks.ts';
 import { validators as m_hubspot, eventValidators as m_hubspot_ev } from './validators/hubspot.ts';
 import { validators as m_identity, eventValidators as m_identity_ev } from './validators/identity.ts';
 import { validators as m_import, eventValidators as m_import_ev } from './validators/import.ts';
@@ -74,6 +75,7 @@ import { validators as m_spaces, eventValidators as m_spaces_ev } from './valida
 import { validators as m_steps_core, eventValidators as m_steps_core_ev } from './validators/steps-core.ts';
 import { validators as m_stripe, eventValidators as m_stripe_ev } from './validators/stripe.ts';
 import { validators as m_sync, eventValidators as m_sync_ev } from './validators/sync.ts';
+import { validators as m_talk, eventValidators as m_talk_ev } from './validators/talk.ts';
 import { validators as m_tasks, eventValidators as m_tasks_ev } from './validators/tasks.ts';
 import { validators as m_telephony, eventValidators as m_telephony_ev } from './validators/telephony.ts';
 import { validators as m_templates, eventValidators as m_templates_ev } from './validators/templates.ts';
@@ -122,6 +124,7 @@ export const validators: Record<string, { in: Check; out: Check }> = {
   ...m_governance,
   ...m_health,
   ...m_home,
+  ...m_hooks,
   ...m_hubspot,
   ...m_identity,
   ...m_import,
@@ -159,6 +162,7 @@ export const validators: Record<string, { in: Check; out: Check }> = {
   ...m_steps_core,
   ...m_stripe,
   ...m_sync,
+  ...m_talk,
   ...m_tasks,
   ...m_telephony,
   ...m_templates,
@@ -206,6 +210,7 @@ export const eventValidators: Record<string, Check> = {
   ...m_governance_ev,
   ...m_health_ev,
   ...m_home_ev,
+  ...m_hooks_ev,
   ...m_hubspot_ev,
   ...m_identity_ev,
   ...m_import_ev,
@@ -243,6 +248,7 @@ export const eventValidators: Record<string, Check> = {
   ...m_steps_core_ev,
   ...m_stripe_ev,
   ...m_sync_ev,
+  ...m_talk_ev,
   ...m_tasks_ev,
   ...m_telephony_ev,
   ...m_templates_ev,

@@ -15,7 +15,7 @@ const only = (args.find((a) => a.startsWith("--only=")) ?? "").slice(7).split(",
 const sizeOnly = (args.find((a) => a.startsWith("--size=")) ?? "").slice(7);
 if (!args.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync("/root/wt/base/node_modules/.bin/expo export --platform web --output-dir dist", { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync((await import(path.join(process.cwd(), "scripts/shots/expo-cmd.mjs"))).exportCmd(process.cwd()), { cwd: appDir, stdio: "inherit", env: exportEnv() });
 }
 fs.mkdirSync(out, { recursive: true });
 const SIZES = { wide: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
@@ -41,11 +41,10 @@ for (const skin of ["paper", "graphite"]) {
   await tid("goal-deadline-edit").click(); await shot("3-deadline-editing");
   await tid("goal-deadline-cancel").click();
   await tid("goal-add-helper").click(); await shot("4-helpers-dialog");
-  await page.keyboard.press("Escape");
+  await tid("goal-pick-helpers-cancel").click();
   await tid("goal-lead").click(); await shot("5-lead-dialog");
-  await page.keyboard.press("Escape");
+  await tid("goal-pick-lead-cancel").click();
   await tid("goal-step-title-rem-edit").click().catch(() => undefined); await shot("6-step-editing");
-  await page.keyboard.press("Escape");
   await page.getByText("Details", { exact: true }).first().click().catch(() => undefined); await shot("7-details");
   await tid("goal-set-checkins-change").click().catch(() => undefined); await shot("8-checkins-editing");
   await ctx.close();

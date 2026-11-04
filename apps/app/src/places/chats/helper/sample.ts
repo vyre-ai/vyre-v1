@@ -11,19 +11,20 @@ import type { Message, Thread } from "./model.ts";
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const at = (h: number, min: number, sec = 0): number => Date.UTC(2025, 9, 24, h, min, sec);
 
-export type Variant = "done" | "running";
+export type Variant = "done" | "running" | "notes";
 
 export const NAMES: Record<string, string> = namesFor("northwind", { usr_irfad: "You" });
 
 function build(variant: Variant): { thread: Thread; messages: Message[] } {
   const done = variant === "done";
+  const notes = variant === "notes";
   const parent = done ? { title: "Competitor pricing", threadId: "c2" } : { title: "County records search", threadId: "c6" };
   const agent = done ? "agt_research" : "agt_scout";
   const title = done ? "Firms 1–3" : "County mirrors";
   const started = done ? at(9, 20) : at(9, 56);
   const thread: Thread = {
     threadId: done ? "h1" : "h4", kind: "helper", title, parentThreadId: parent.threadId, listed: false, planMode: false, members: [{ kind: "agent", id: agent }],
-    agents: [{ agentId: agent, mode: "lead", model: "haiku" }], createdAt: started, path: [parent, { title, threadId: done ? "h1" : "h4" }],
+    agents: [{ agentId: agent, mode: "lead", model: "haiku" }], createdAt: started, ...(notes ? { starter: "usr_irfad" } : {}), path: [parent, { title, threadId: done ? "h1" : "h4" }],
     ...(done ? { closedAt: started + 31_000 } : {}),
   };
   const step = (n: number, t: string, sub: string, state: "live" | "done"): Message["blocks"][number] => ({ type: "step", v: 1, id: `s${n}`, data: { title: t, sub }, state, traceId: `tr_s${n}` });
@@ -36,6 +37,13 @@ function build(variant: Variant): { thread: Thread; messages: Message[] } {
       msg(2, 2, agent, "Harlow & Price $300 · Grant Legal free first 30 min · Meyer Law $250", started + 31_000, [
         step(1, "Opened harlowprice.example/pricing", "headless Chrome", "done"), step(2, "Opened grantlegal.example/fees", "headless Chrome", "done"), step(3, "Opened meyerlaw.example/consult", "headless Chrome", "done"),
       ]),
+    ]
+    : notes ? [
+      msg(1, 1, "agt_lead", "Look at the county site for parcel 104-22-009 and tell me the owner.", started),
+      msg(2, 2, agent, "Which county site: the main one or a mirror?", started + 5_000, [{ type: "helper_note", v: 1, id: "n1", data: { direction: "up", kind: "question", state: "answered", from: { kind: "agent", id: agent } }, state: "sent", traceId: "tr_n1" }]),
+      msg(3, 3, "agt_lead", "Use the mirror.", started + 9_000, [{ type: "helper_note", v: 1, id: "n2", data: { direction: "down", kind: "followup", state: "seen", seenAt: started + 10_000, from: { kind: "agent", id: "agt_lead" } }, state: "sent", traceId: "tr_n2" }]),
+      { ...msg(4, 4, "usr_irfad", "Also tell me the filing date.", started + 14_000), author: { kind: "person", id: "usr_irfad" }, kind: "text" } as Message,
+      msg(5, 5, agent, "Noted. I will include the filing date.", started + 16_000),
     ]
     : [
       msg(1, 1, agent, "While the main county site needs a login, check the three public mirror sites for the same parcel records and return what's there.", started),
@@ -54,7 +62,7 @@ export interface Sample {
   failNext(cap: string): void;
 }
 
-export function createSample(variant: Variant = "done", o: { online?: boolean } = {}): Sample {
+export function createSample(variant: Variant = "done", o: { online?: boolean; hooks?: boolean } = {}): Sample {
   const replica = createFakeReplica("northwind");
   const calls: { cap: string; input: unknown }[] = [];
   const opened: string[] = [];
@@ -64,6 +72,15 @@ export function createSample(variant: Variant = "done", o: { online?: boolean } 
   const { thread, messages } = build(variant);
   replica.put("threads", [{ id: thread.threadId, ...thread }]);
   replica.put("messages", messages.map((m) => ({ id: m.messageId, ...m })));
+  // the hooks this helper runs under (lane l-hooks): one its lead gave it for this helper, two it picked up from the run and the Space
+  const hk = (id: string, scope: string, threadId: string | undefined, line: string, kind: string, spec: Record<string, unknown>, by: string, byKind: string) =>
+    ({ id, scope, event: "tool.before", kind, matcher: "", line, paused: false, madeBy: by, madeByKind: byKind, ...(threadId ? { threadId } : {}), helpers: true, timeoutSec: 20, createdAt: SAMPLE_NOW, updatedAt: SAMPLE_NOW, spec, mine: false, canChange: false });
+  if (o.hooks) replica.put("hooks", [
+    hk("hok_own", "run", thread.threadId, "before a helper opens a link, only open links from the quotes you were sent", "check", { instruction: "Only open links from the quotes" }, "agt_lead", "agent"),
+    hk("hok_run", "run", "c2", "before any search, no client names", "check", { instruction: "No client names" }, "agt_lead", "agent"),
+    hk("hok_space", "space", undefined, "before any tool call, keep to the Space rules", "command", { command: "rules.sh" }, "usr_irfad", "admin"),
+  ]);
+  replica.resolve("hooks.list", () => ({ hooks: o.hooks ? (replica.rows("hooks") as unknown[]) : [], agentHooks: true }));
   replica.resolve("threads.get", (_t, input) => {
     const r = (replica.rows("threads") as unknown as (Thread & Row)[]).find((x) => x.threadId === input.threadId);
     if (!r) throw new Error("no such thread");
@@ -89,12 +106,14 @@ export function createSample(variant: Variant = "done", o: { online?: boolean } 
       calls.push({ cap, input });
       if (failing.delete(cap)) throw new Error(`${cap} failed`);
       const w = writes[cap];
+      if (!w && cap === "chat.helper.steer") return { messageId: "m_steer" };
       if (!w) throw new Error(`no write for ${cap}`);
       return w(input);
     },
     connection,
     threadId: thread.threadId,
     nameOf: (id) => NAMES[id] ?? nameOf("northwind", id),
+    me: { id: "usr_irfad" },
     nav,
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
   };

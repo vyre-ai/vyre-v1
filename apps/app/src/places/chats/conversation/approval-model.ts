@@ -2,6 +2,8 @@
 // without a renderer. The hold is a task of kind approve (tasks.get); its first block carries { act, cap, input }; the actions are approve and reject.
 import { appName, hubById } from "../../../../../../lib/mcp-hubs.ts";
 import type { Outward } from "../../../../../../lib/outward.ts";
+import { WANTS, capPhrase, verbPhrase, wantsFromInput } from "../../../../../../lib/hold-words.ts";
+export { verbPhrase };
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const text = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
@@ -32,28 +34,6 @@ export function askRows(blocks: readonly { type: string; data: unknown }[]): Arr
   return [{ label: "Runs as", text: "You, once, exactly as shown" }, ...inputs.map((r) => ({ label: label(r[0]!), text: r[1]! }))];
 }
 
-const WANTS: Record<string, string> = {
-  "chat.message_person": "send a message to a teammate",
-  "engine.mcp.call": "use an outside tool", "engine.mcp.read": "read from an outside tool",
-  "files.write": "edit", "files.create": "create", "files.delete": "delete", "files.move": "move", "files.rename": "rename", "files.folder.create": "create the folder",
-  "records.update": "change", "records.create": "add a record", "records.delete": "delete",
-  "mail.send": "send an email", "inbox.reply": "send a reply", "twilio.send": "send a text", "telephony.sms.send": "send a text",
-  "stripe.refund.create": "refund a payment", "calendar.create_event": "put an event on the calendar", "calendar.update_event": "change an event", "calendar.delete_event": "delete an event",
-  "git.push": "push your changes", "git.commit": "save your changes to the repository", "sites.promote": "put the site live", "engine.crew.merge": "merge a teammate's branch", "engine.crew.push": "push a teammate's branch",
-};
-
-/** A step with no entry of its own, in plain words: "tasks.create" is "create a task", "calendar.add_guest" is "add a guest on calendar", never the capability's own name. */
-function capPhrase(cap: string): string {
-  const parts = cap.split(".").filter(Boolean);
-  const action = (parts[parts.length - 1] ?? cap).replace(/[_-]+/g, " ");
-  const scope = parts.length > 1 ? parts[0]!.replace(/[_-]+/g, " ") : "";
-  const single = scope.replace(/ies$/, "y").replace(/s$/, "");
-  const [verb, ...rest] = action.split(" ");
-  if (verb && VERBS.has(verb) && rest.length === 0 && single) return verbPhrase(`${verb} ${single}`);
-  const phrase = verbPhrase(action);
-  return scope ? `${phrase} in ${scope}` : phrase;
-}
-
 /** The phrase after "<Agent> wants to": a known step reads in plain words, any other is its name spelled out. */
 export function wantsPhrase(cap: string, subject?: string, input?: Obj): string {
   const outside = cap === "engine.mcp.call" && input ? outsideTool(input) : null;
@@ -62,7 +42,7 @@ export function wantsPhrase(cap: string, subject?: string, input?: Obj): string 
   if (cap === "chat.message_person" && subject) return `send this to ${subject}`;
   // an install from a link: the held act carries the plan's card, so the card names what is being installed
   if (cap === "install.apply" && input) { const c = obj(input["card"]); if (text(c["name"])) return `install ${text(c["name"])}`; }
-  const base = WANTS[cap] ?? (cap === "" ? "do a step" : capPhrase(cap));
+  const base = wantsFromInput(cap, input) ?? WANTS[cap] ?? (cap === "" ? "do a step" : capPhrase(cap));
   const fileStep = cap.startsWith("files.") && cap !== "files.folder.create";
   return subject && (fileStep || cap === "records.update" || cap === "records.delete") ? `${base} ${subject}` : base;
 }
@@ -70,19 +50,6 @@ export function wantsPhrase(cap: string, subject?: string, input?: Obj): string 
 /** The first line of the card: who wants what. */
 export function wantsLine(agent: string, cap: string, subject?: string, input?: Obj): string {
   return `${agent} wants to ${wantsPhrase(cap, subject, input)}`;
-}
-
-const VERBS = new Set(["send", "create", "add", "update", "delete", "remove", "post", "archive", "edit", "change", "set", "invite", "share", "schedule", "book", "cancel", "close", "open", "reply", "forward", "upload", "move", "rename", "assign", "complete", "resolve", "mark", "merge", "publish", "write", "make", "start", "stop", "approve", "reject", "submit", "save", "log", "fill", "attach", "replace", "pause", "resume", "enable", "disable", "connect", "disconnect", "transfer", "refund", "charge", "tag", "label", "star", "pin", "unpin", "react", "comment", "sync"]);
-const aOrAn = (w: string): string => (/^[aeiou]/i.test(w) ? "an" : "a");
-
-/** Turns the words of a tool or capability name into a short verb phrase a person reads: "send message" becomes "send a message", "create contact" becomes "create a contact". A plural or a phrase that already has its own article is left as it is; a name that does not start with a verb is shown as its words. */
-export function verbPhrase(words: string): string {
-  const w = words.trim().replace(/\s+/g, " ").toLowerCase();
-  const [verb, ...rest] = w.split(" ");
-  if (!verb || rest.length === 0 || !VERBS.has(verb)) return w;
-  const noun = rest.join(" ");
-  if (/^(a|an|the|all|my|your|this|that|any|some)\b/.test(noun) || /s$/.test(rest[rest.length - 1]!) || /\b(to|in|on|for|from|with|of)\b/.test(noun)) return `${verb} ${noun}`;
-  return `${verb} ${aOrAn(noun)} ${noun}`;
 }
 
 /** A change made through an outside tool server: "send message in Slack" for a hub tool (the hub names the app in the tool), the tool's own words for any other server. */
@@ -97,6 +64,7 @@ function outsideTool(input: Obj): { phrase: string; hub?: string; fields: Obj } 
 const SKIP = new Set(["idempotencyKey", "reason", "baseVersion", "as"]);
 const cut = (s: string, n: number): string => (s.length <= n ? s : `${s.slice(0, n - 1).trimEnd()}…`);
 const label = (k: string): string => {
+  if (k === "url") return "Link";
   const w = k.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").trim().toLowerCase();
   return w.charAt(0).toUpperCase() + w.slice(1);
 };

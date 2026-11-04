@@ -32,7 +32,7 @@ export function formatHash(t: { screen?: string; subject?: { type: string; id: s
 const SUBJECT_PLACE: Readonly<Record<string, string>> = {
   record: "records", contact: "records", project: "records", view: "records",
   file: "files", folder: "files", doc: "files", document: "files",
-  chat: "chats", thread: "chats", channel: "chats", agent: "chats", message: "chats",
+  chat: "chats", person: "chats", thread: "chats", channel: "chats", agent: "chats", message: "chats",
   call: "inbox", conversation: "inbox", mail: "inbox", email: "inbox", meeting: "inbox", event: "inbox",
   run: "automations", automation: "automations", journey: "automations",
   task: "chats", goal: "chats", artifact: "chats",

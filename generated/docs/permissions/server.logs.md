@@ -1,6 +1,6 @@
 # server.logs
 
-Read server logs and traces
+Read server logs and error ids
 
 Area: server. Risk: medium. Applies to: space.
 

@@ -43,6 +43,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "github.receive_webhook": Handler<"github.receive_webhook", X>;
   "github.repo.get": Handler<"github.repo.get", X>;
   "github.repos.list": Handler<"github.repos.list", X>;
+  "github.runner_release": Handler<"github.runner_release", X>;
   "github.runners.jit_config": Handler<"github.runners.jit_config", X>;
   "github.runners.remove": Handler<"github.runners.remove", X>;
   "github.session_env": Handler<"github.session_env", X>;

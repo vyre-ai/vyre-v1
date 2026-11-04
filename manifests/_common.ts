@@ -70,7 +70,7 @@ export const purgeOut = { removed: t.int({ minimum: 0 }), more: t.bool(), skippe
 
 // A reply's Details (engine.turn.of_message, chat.reply_details). A count that is absent was not reported by the provider: never shown as 0.
 const turnCost = t.obj({
-  source: t.enm('subscription', 'reported', 'catalog', 'estimate', 'unknown'), micros: t.opt(t.int()),
+  source: t.enm('subscription', 'reported', 'catalog', 'estimate', 'unknown', 'flat'), micros: t.opt(t.int()),
   lines: t.opt(t.arr(t.obj({ kind: t.enm('input', 'output', 'cache_read', 'cache_write'), tokens: t.int(), perMillion: t.num(), micros: t.int() }))),
   priceAsOf: t.opt(t.str({ examples: ['2026-10-06'] })), missing: t.opt(t.arr(t.str())),
 });

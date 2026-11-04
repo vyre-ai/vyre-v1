@@ -6,26 +6,26 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { ConsoleDataProvider } from "../shell/data.tsx";
 import type { ConsoleData } from "../shell/data.tsx";
 import { createSampleConsole } from "../shell/sample.ts";
-import { People } from "../pages/Access.tsx";
+import { RequestsPage } from "../pages/Requests.tsx";
 import { EXPIRY_CHOICES, emailInvite, sentLine } from "../pages/Invites.tsx";
 
 function data(rows: Record<string, unknown>): ConsoleData {
   const sample = createSampleConsole().data;
   return { ...sample, screens: { ...sample.screens, capQuery: (cap: string) => { const value = { status: "ready", data: rows[cap] }; return { subscribe: () => () => undefined, getSnapshot: () => value }; } } as never };
 }
-const draw = (rows: Record<string, unknown>): string => renderToStaticMarkup(<ConsoleDataProvider value={data(rows)}><People /></ConsoleDataProvider>);
+const draw = (rows: Record<string, unknown>): string => renderToStaticMarkup(<ConsoleDataProvider value={data(rows)}><RequestsPage /></ConsoleDataProvider>);
 const roles = { roles: [{ id: "rol_member", name: "Member", builtIn: true, permissions: [], holders: 1 }, { id: "rol_admin", name: "Admin", builtIn: true, permissions: [], holders: 1 }] };
-const base = { "access.principals.list": { principals: [] }, "access.roles.list": roles, "access.groups.list": { groups: [] } };
+const base = { "access.principals.list": { principals: [] }, "access.roles.list": roles, "access.groups.list": { groups: [] }, "access.requests.list": { requests: [] } };
 const invite = (id: string, email?: string) => ({ id, role: "rol_admin", groups: [], agents: [], projects: [], channels: [], expiresAt: Date.UTC(2026, 10, 9), createdBy: "usr_owner", state: "open", createdAt: Date.UTC(2026, 10, 2), ...(email ? { email } : {}) });
 
-test("open invites are listed with who, role and end date, each with New link and Revoke; none open shows nothing", () => {
+test("open invites are listed with who, role and end date, each with New link and Revoke; none open says so", () => {
   const html = draw({ ...base, "members.invites.list": { invites: [invite("inv_a", "dana@example.com"), invite("inv_b")], total: 2 } });
   assert.match(html, /console-invites/);
   assert.match(html, /dana@example\.com/);
   assert.match(html, /Invite link/);
   assert.match(html, /Admin · Ends Nov/);
   for (const id of ["inv_a", "inv_b"]) { assert.match(html, new RegExp(`console-invite-again-${id}`)); assert.match(html, new RegExp(`console-invite-revoke-${id}`)); }
-  assert.doesNotMatch(draw({ ...base, "members.invites.list": { invites: [], total: 0 } }), /console-invites/);
+  assert.match(draw({ ...base, "members.invites.list": { invites: [], total: 0 } }), /No open invites/);
 });
 
 test("an invite lasts 1, 7 or 30 days", () => {

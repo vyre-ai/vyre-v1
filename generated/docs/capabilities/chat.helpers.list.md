@@ -39,6 +39,7 @@ type Out = {
       status: "running" | "done" | "failed" | "stopped";
       agentId: string;
       model?: string;
+      pick?: Record<string, unknown>;
       startedAt: number;
     }>;
 };
@@ -65,6 +66,7 @@ type Out = {
       {
         "agentId": "agt_a1b2c3",
         "model": "example",
+        "pick": {},
         "startedAt": 1760000000000,
         "status": "running",
         "threadId": "thr_a1b2c3",

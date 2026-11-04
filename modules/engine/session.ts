@@ -2,7 +2,7 @@
 // opener from them. A CLI engine (Claude Code, Codex, Grok) runs as a local process with the key filled into its environment and reaches Vyre over the loopback MCP endpoint, where the
 // agent's tools run through the invoke pipeline. An API-key driver gets the agent's role as its system prompt and no tools yet: running its tools needs the engine's tool runner (callTool),
 // which is a separate packet; until then a chat on an API key answers in words only.
-import { githubEnv, withGithub } from "./github-session.ts";
+import { githubEnv, redactTree, withGithub } from "./github-session.ts";
 import { LaunchError, createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
 import { ACCESS_ENV, RULE_ENV, SandboxError, WIN_SSH_AGENT_PIPE, accessFromEnv, engineAccess, ruleFromEnv } from "../../sandbox/src/index.ts";
 import type { AccessAsked, EgressEvent, EgressRule, EngineAccess } from "../../sandbox/src/index.ts";
@@ -103,6 +103,7 @@ export interface OpenerHost {
   };
 }
 
+import { PEOPLE_RULE, PROBE_RULE } from "../../lib/probe.ts";
 const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a message come with their source: say where you know a thing from. Quotes are the exact words people wrote in earlier chats and runs: quote them as written, never reword them, and use memory_quote with a ref to read a whole line or to look for words. Look up with memory_search, save what you learn with memory_remember and cite where it came from, and close a fact that is wrong or no longer true with memory_forget. Memory you cannot see is not yours to guess.";
 
 /**
@@ -113,7 +114,7 @@ const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a mes
  */
 export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec, input?: TurnInput) => Promise<SystemBlock[]> {
   return async (spec, input) => {
-    const memory: ContextSection[] = [{ id: "memory", stable: true, text: MEMORY_RULES }];
+    const memory: ContextSection[] = [{ id: "memory", stable: true, text: `${MEMORY_RULES} ${PROBE_RULE} ${PEOPLE_RULE}` }];
     try {
       const out = (await call("memory.map.get", { agentId: spec.agent.id }, spec.asker)) as { map?: { body?: string } };
       if (out.map?.body) memory.push({ id: "memory", stable: true, text: `Your memory map (MAP.md):\n${out.map.body}` });
@@ -421,7 +422,10 @@ export function buildOpener(h: OpenerHost): SessionOpener {
         if (h.access && who) ruled = withAccess(ruled, await h.access(who.person, "space").catch(() => ({ where: "server" as const, folders: [] })));
         // GitHub for the person whose turn this is, from the one broker (a chat of a project whose Files folder points at GitHub); set last
         if (h.githubFill && who) ruled = withGithub(ruled, await githubEnv({ call: h.call, fill: h.githubFill }, who.person, who.threadId));
-        return spawnCli(await plan(), ruled, swap ? [...swap, ...spec.argv.slice(1)] : ownedArgv(spec.argv, h.cliProbe), h.egress?.record ? { onEgress: h.egress.record } : {});
+        const proc = await spawnCli(await plan(), ruled, swap ? [...swap, ...spec.argv.slice(1)] : ownedArgv(spec.argv, h.cliProbe), h.egress?.record ? { onEgress: h.egress.record } : {});
+        // a process that was given a GitHub token leaves none in the files it wrote (a saved environment, a remote with the token in its address): cleaned when it ends
+        if (ruled.env["GH_TOKEN"] && spec.cwd) { const dir = spec.cwd; void proc.exited.then(() => redactTree(dir), () => undefined); }
+        return proc;
       },
     },
     // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61), a named pipe on Windows.

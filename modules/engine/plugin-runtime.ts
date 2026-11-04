@@ -243,6 +243,28 @@ export function createPluginRuntime(d: PluginRuntimeDeps) {
       const clean = (s: string): string => (secrets.length > 0 ? createScrubber(secrets).scrub(s) : s);
       return { code: exit.code, stdout: clean(out), stderr: clean(proc.stderrTail()), timedOut };
     },
+    /**
+     * Runs one hook command an agent or a person wrote (modules/hooks), in the agent's own sandbox and work folder, with the event as JSON on its standard input. Same wall, bounds and scrubbing as a
+     * plugin's hook; there are no plugin files to stage. Exit code 2 means "stop".
+     */
+    async runCommand(hook: { command: string; args?: string[]; timeoutSec: number }, who: Who, event: unknown): Promise<{ code: number | null; stdout: string; stderr: string; timedOut: boolean }> {
+      const cwd = workFolder(d.dataDir, who.asker, "hooks");
+      fs.mkdirSync(cwd, { recursive: true });
+      const args = hook.args ?? [];
+      const { values, secrets } = await fill([hook.command, ...args], who);
+      const argv = args.length > 0 ? [hook.command, ...args].map((a) => sub(a, values)) : ["/bin/sh", "-c", sub(hook.command, values)];
+      const proc = await launch(argv, { HOME: cwd, CLAUDE_PROJECT_DIR: cwd }, cwd);
+      let out = "";
+      const read = (async () => { for await (const c of proc.stdout) { out += typeof c === "string" ? c : Buffer.from(c).toString("utf8"); if (out.length > HOOK_OUT) out = out.slice(0, HOOK_OUT); } })();
+      proc.write(`${JSON.stringify(event)}\n`).then(() => proc.endInput(), () => undefined);
+      let timedOut = false;
+      const t = setTimeout(() => { timedOut = true; proc.kill("SIGKILL"); }, hook.timeoutSec * 1000);
+      const exit = await proc.exited;
+      clearTimeout(t);
+      await read.catch(() => undefined);
+      const clean = (x: string): string => (secrets.length > 0 ? createScrubber(secrets).scrub(x) : x);
+      return { code: exit.code, stdout: clean(out), stderr: clean(proc.stderrTail()), timedOut };
+    },
     /** Closes the connections of servers that are gone from `keys` (an uninstalled plugin) or all of them. */
     async closeAll(): Promise<void> {
       clearInterval(timer);

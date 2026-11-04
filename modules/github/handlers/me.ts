@@ -8,7 +8,7 @@
 //   own token shows they reach the repository. No personal access token is stored anywhere; the refresh token is a Vault (Mine) item of the person and GitHub rotates it on every refresh.
 // DECISION: an agent uses a person's GitHub only on that person's own turns: the caller is the person, or an agent acting for them (ctx.actingFor). Any other caller is refused.
 // DECISION: Ask me first is the Gate's: github.me.approve is an outward call, so the Gate holds it and makes the Approve task; once released, the approval is good for ten minutes for that repository and kind of use.
-import { createHash, randomBytes } from "node:crypto";
+import { sha256b64 } from "../../../kernel/src/seal/wire.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import { api, bad, codeOf, ensure, ensureMe, first, installationFor, intOrUndef, list, mintToken, needHost, obj, refuse, repoPath, rowsOf, strOrUndef, text } from "../projections.ts";
 import type { GithubCtx, UserHost } from "../projections.ts";
@@ -49,7 +49,8 @@ function userHost(ctx: GithubCtx): UserHost {
   if (!u) throw fail("internal.unavailable", ctx.trace.traceId, { message: "Connecting a personal GitHub is not set up on this server." });
   return u;
 }
-const b64url = (b: Buffer): string => b.toString("base64url");
+const b64url = (b: Uint8Array): string => Buffer.from(b).toString("base64url");
+const randomBytes = (n: number): Uint8Array => globalThis.crypto.getRandomValues(new Uint8Array(n));
 
 // ---- the person's access token
 
@@ -82,10 +83,10 @@ export async function meConnect(ctx: GithubCtx, input: { return?: string } = {})
   const person = personOf(ctx), u = userHost(ctx), app = await u.app(ctx);
   // "<random>.<where to go back to>": the route at /hooks/github/connect reads the return address from it and refuses one that is not this Space's or a loopback address
   const ret = typeof input.return === "string" && input.return.length > 0 && input.return.length <= 400 ? input.return : null;
-  const state = b64url(randomBytes(18)) + (ret ? `.${Buffer.from(ret, "utf8").toString("base64url")}` : `.${b64url(Buffer.from("/"))}`), verifier = b64url(randomBytes(32));
+  const state = b64url(randomBytes(18)) + (ret ? `.${Buffer.from(ret, "utf8").toString("base64url")}` : `.${b64url(new TextEncoder().encode("/"))}`), verifier = b64url(randomBytes(32));
   ctx.db.run(`DELETE FROM github_me_state WHERE "createdAt" < ?`, ctx.now() - STATE_TTL);
   ctx.db.run(`INSERT INTO github_me_state ("state", "person", "verifier", "createdAt") VALUES (?, ?, ?, ?)`, state, person, verifier, ctx.now());
-  const q = new URLSearchParams({ client_id: app.clientId, redirect_uri: await u.redirectUri(ctx), state, code_challenge: b64url(createHash("sha256").update(verifier).digest()), code_challenge_method: "S256" });
+  const q = new URLSearchParams({ client_id: app.clientId, redirect_uri: await u.redirectUri(ctx), state, code_challenge: sha256b64(verifier), code_challenge_method: "S256" });
   return { authUrl: `https://github.com/login/oauth/authorize?${q.toString()}`, state, source: app.source };
 }
 

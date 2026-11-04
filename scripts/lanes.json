@@ -39,6 +39,7 @@
         "modules/mcp/",
         "modules/notes/",
         "modules/machines/",
+        "modules/hooks/",
         "package-lock.json"
       ],
       "modules": [
@@ -50,7 +51,8 @@
         "terminal",
         "mcp",
         "notes",
-        "machines"
+        "machines",
+        "hooks"
       ]
     },
     {
@@ -180,6 +182,7 @@
         "modules/settings/",
         "modules/vault/",
         "modules/vault-requests/",
+        "modules/talk/",
         "modules/audit/",
         "modules/governance/",
         "package-lock.json"
@@ -193,6 +196,7 @@
         "settings",
         "vault",
         "vault-requests",
+        "talk",
         "audit",
         "governance"
       ]
@@ -453,6 +457,7 @@
     "mail": "L5",
     "mailgun": "L5",
     "machines": "L2",
+    "hooks": "L2",
     "mcp": "L2",
     "meetings": "L5",
     "members": "L7a",
@@ -489,6 +494,7 @@
     "updates": "L7b",
     "vault": "L7a",
     "vault-requests": "L7a",
+    "talk": "L7a",
     "zoom": "L5"
   }
 }

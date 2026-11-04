@@ -39,6 +39,7 @@
     "github.receive_webhook@1": "636c1ff752d693c098f63b102030638c0e44d94817a025122d2ae9783dd56a13",
     "github.repo.get@1": "8aa1f7d32d3aff47fbcb13a9e18008022e54fd65a267df6d5f57ebf4169ac767",
     "github.repos.list@1": "4ded109698c2977ab631493f4169519dcd567f65beb06dcae71438cd99260df7",
+    "github.runner_release@1": "9b92778496ebb28a958be1379c999f6a963ce75481f6f8a9c55b4554557f5d29",
     "github.runners.jit_config@1": "d610e0e049cfffc021acc6e656bccafa7c86426e2bc902b5cb85bd9be1e2dbc4",
     "github.runners.remove@1": "88ee7e63f232a8b46b4caa6a86f54d75cdc85728820b4c016529bf9f8c0c9047",
     "github.session_env@1": "2a27c1860ef7e282ed2670c09282c27ebf93765df5fa0315ab6d2407f6c4ddd1",

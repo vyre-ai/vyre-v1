@@ -38,6 +38,8 @@ export interface Installer {
   previous(): Promise<string[]>;
   /** Fetch the artifact, check its sha256 against the manifest's, switch to it and restart. Resolves once the process is up again. */
   install(release: ReleaseInfo, channel?: Channel): Promise<void>;
+  /** The version of the running process, for a server that has no vyre-server (run from source). Absent when the host does not know it. */
+  running?(): string | undefined;
   /** Does the running server answer its health probe? */
   healthy(): Promise<boolean>;
   /** Switch back to a kept version and restart. */
@@ -292,12 +294,15 @@ function waiting(state: Map<string, string>, current: string): { version: string
 
 export async function status(ctx: UpdateCtx, _input: Record<string, unknown>) {
   const d = need(ctx);
-  // a server run from source has no vyre-server: say so in words, not as an unexpected failure
-  const current = await d.installer.current().catch((e: unknown) => {
-    if ((e as { code?: unknown } | null)?.code === "ENOENT") return failWith(ctx.trace.traceId, "validation.precondition_failed", "This server was not installed with vyre-server, so it is updated outside Vyre.");
-    throw e;
-  });
+  // a server run from source has no vyre-server: it is updated outside Vyre, which is an answer, not a failure
+  let current: string | null;
+  try { current = await d.installer.current(); } catch (e) {
+    if ((e as { code?: unknown } | null)?.code !== "ENOENT") throw e;
+    current = null;
+  }
   const state = readState(ctx);
+  // it still knows the version it runs (l-consolidate): say it, with nothing waiting and nothing ran
+  if (current === null) { const running = d.installer.running?.(); return { ...(parseVersion(running) ? { current: running as string } : {}), managedElsewhere: true, channel: channelOf(state) }; }
   const w = waiting(state, current);
   const last = historyRows(ctx, 1)[0];
   return {

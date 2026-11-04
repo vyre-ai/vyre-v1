@@ -157,6 +157,9 @@ const capabilities = [
     risk: 'high', audit: 'always', idem: 'key', errors: ['provider.auth_failed', 'validation.not_found'],
   }),
   write('github.runners.remove', 'Take back a runner that never ran a job (its machine failed to start)', { in: { repo, runnerId: t.int({ minimum: 1 }) }, out: { removed: t.bool() }, audit: 'always', idem: 'natural' }),
+  read('github.runner_release', 'The files of a release of the Actions runner with the checksum GitHub lists for each (public); the CI module checks its pinned checksum against it before any machine starts', {
+    in: { version: t.str({ pattern: '^\\d+\\.\\d+\\.\\d+$', examples: ['2.338.2'] }) }, out: { assets: t.arr(t.obj({ name: t.str(), digest: t.nullable(t.str()) })) }, errors: ['validation.not_found', 'provider.unavailable'],
+  }),
   read('github.actions.secrets', 'How many Actions secrets a repository holds; null when GitHub would not say', { in: { repo }, out: { count: t.nullable(t.int({ minimum: 0 })) } }),
   // ---- webhook intake
   write('github.receive_webhook', 'Record a verified GitHub delivery after dedupe; normalise push, pull request, issue, check and workflow events', {
@@ -255,6 +258,11 @@ export default defineManifest({
     health('github.app', 'GitHub App', 'github.health', 'Check the GitHub App key in the Vault and that the App is still installed on the organisation.', { pauses: ['sync'] }),
   ],
   screens: [
+    // Console, Apps, GitHub (admins): the Space's own GitHub app, its Vault values, creating it and its installation
+    screen('console.github-app', 'console', 'ui:ConsoleGithubApp', {
+      a: { create: ['github.app.create_manifest', { org: '/draft/org' }], complete: ['github.app.complete', { code: '/state/code', state: '/state/state' }] },
+      needs: ['connectors.manage'], empty: 'Using the Vyre GitHub app', primary: 'Create one for us',
+    }),
     screen('github.pull-request', 'records', 'ui:PullRequestPage', {
       q: {
         pullRequest: ['github.pull_request.get', { repo: '/state/repo', number: '/state/number' }, true], files: ['github.pull_request.list_files', { repo: '/state/repo', number: '/state/number' }, true],

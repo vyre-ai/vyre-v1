@@ -61,7 +61,7 @@ export function world(f: Fakes = {}, file = ":memory:", fast = false) {
     "devices.mine": () => ({ devices: state.fakes.devices ?? [] }),
     "computers.list": () => ({ computers: state.fakes.computers ?? [] }),
     "updates.status": () => { if (!state.fakes.updates) throw new Error("no"); return state.fakes.updates; },
-    "engine.turns.running": () => ({ turns: (state.fakes.turns ?? []).map((t, i) => ({ turnId: `trn_${i}`, ...t })) }),
+    "engine.turns.running": () => { if (!state.fakes.turns) throw new Error("no engine"); return { turns: state.fakes.turns.map((t, i) => ({ turnId: `trn_${i}`, ...t })) }; },
     "sites.list": () => ({ sites: state.fakes.sites ?? [] }),
     "automations.list": () => ({ automations: state.fakes.automations ?? [] }),
     "backup.health": () => ({ state: state.fakes.backup?.state ?? "healthy", detail: "The last run failed." }),

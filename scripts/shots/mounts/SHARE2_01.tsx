@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import type { ShareSheetProps } from "../../../ui/src/AccessSheet/index.tsx";
+import { PeoplePopover } from "../../../ui/src/PeoplePopover/index.tsx";
 import { AgentForm } from "../../../apps/app/src/places/chats/agentform/AgentForm.tsx";
 import { createConfigSample, northwind } from "../../../apps/app/src/places/automations/config/sample.ts";
 import { AccessSheet } from "../../../ui/src/AccessSheet/index.tsx";
@@ -30,14 +31,14 @@ const DIRECTORY = {
 
 const P = (id: string, name: string, level: ShareRow["level"], via: ShareRow["via"] = "grant"): ShareRow => ({ subjectKind: "person", subjectId: id, name, level, via, fromFolderId: via === "folder" ? "fld_clients" : null });
 const PEOPLE = [{ id: "usr_sara", name: "Sara Malik", kind: "person" as const }, { id: "usr_omar", name: "Omar Reyes", kind: "person" as const }];
-const BASE = { mode: "share" as const, density: "regular" as const, ownerName: "Irfad", ownerId: "usr_irfad", spaceName: "Northwind", onClose: () => undefined, allowExternal: false, directory: { ...DIRECTORY, people: PEOPLE } };
+const BASE = { onCopyLink: () => undefined, notifyPeople: true, meId: "usr_irfad", mode: "share" as const, density: "regular" as const, ownerName: "Irfad", ownerId: "usr_irfad", spaceName: "Northwind", onClose: () => undefined, allowExternal: false, directory: { ...DIRECTORY, people: PEOPLE } };
 const EVERYONE: ShareRow = { subjectKind: "group", subjectId: "grp_everyone", name: "Everyone", level: "view", via: "grant", fromFolderId: null };
 
 const PARTS: Record<string, ShareSheetProps> = {
-  dex: { ...BASE, itemType: "agent", resourceType: "agent", resourceId: "agt_dex", itemName: "Dex", target: "item", levels: ["view", "use", "edit", "manage"], shares: ROWS, agentsOn: true, onAgents: () => undefined },
+  dex: { ...BASE, itemType: "agent", resourceType: "agent", resourceId: "agt_dex", itemName: "Dex", target: "item", levels: ["use", "edit", "manage"], shares: ROWS, agentsOn: true, onAgents: () => undefined, onCopyLink: () => undefined, notifyPeople: true, meId: "usr_irfad" },
   note: { ...BASE, itemType: "note", resourceType: "file", resourceId: "not_1", itemName: "Lab 8 run of show", target: "item", levels: ["view", "edit"], shares: [P("usr_omar", "Omar Reyes", "view"), { ...EVERYONE, level: "view" }] },
-  vault: { ...BASE, itemType: "vault", resourceType: "vault_item", resourceId: "vit_ghl", itemName: "GoHighLevel", target: "item", levels: ["use", "view", "edit"], shares: [P("usr_omar", "Omar Reyes", "view"), { subjectKind: "agent", subjectId: "agt_intake", name: "Intake", level: "use", via: "grant", fromFolderId: null }] },
-  vaultfolder: { ...BASE, itemType: "vault", itemLabel: "folder", resourceType: "vault_folder", resourceId: "vfd_mkt", itemName: "Marketing", target: "folder", levels: ["use", "view", "edit"], shares: [P("usr_sara", "Sara Malik", "edit")] },
+  vault: { ...BASE, itemType: "vault", resourceType: "vault_item", resourceId: "vit_ghl", itemName: "GoHighLevel", target: "item", levels: ["use", "view", "manage"], shares: [P("usr_omar", "Omar Reyes", "view"), { subjectKind: "agent", subjectId: "agt_intake", name: "Intake", level: "use", via: "grant", fromFolderId: null }] },
+  vaultfolder: { ...BASE, itemType: "vault", itemLabel: "folder", resourceType: "vault_folder", resourceId: "vfd_mkt", itemName: "Marketing", target: "folder", levels: ["use", "view", "manage"], shares: [P("usr_sara", "Sara Malik", "manage")] },
   rtype: { ...BASE, itemType: "rtype", resourceType: "record_type", resourceId: "deal", itemName: "Deals", target: "item", levels: ["view", "edit", "manage"], shares: [P("usr_omar", "Omar Reyes", "edit"), P("usr_sara", "Sara Malik", "view")] },
   record: { ...BASE, itemType: "record", resourceType: "record", resourceId: "rec_acme", itemName: "Acme renewal", target: "item", folderName: "Deals", levels: ["view", "edit", "manage"], shares: [P("usr_omar", "Omar Reyes", "edit", "folder"), P("usr_sara", "Sara Malik", "view")] },
   folder: { ...BASE, itemType: "file", itemLabel: "folder", resourceType: "folder", resourceId: "fld_clients", itemName: "Clients", target: "folder", levels: ["view", "edit", "manage"], shares: [P("usr_omar", "Omar Reyes", "edit"), { ...EVERYONE, via: "grant" }] },
@@ -77,10 +78,26 @@ function DexPath(): ReactNode {
   );
 }
 
+const noopX = (): void => undefined;
+
 export default function Mount(): ReactNode {
   const [part, setPart] = useState<string | null>(null);
   useEffect(() => setPart(new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "dex"), []);
   if (part === null) return <View />;
+  if (part === "people-chat" || part === "people-project") {
+    const rows = [
+      { id: "usr_irfad", name: "Irfad Imtiaz", kind: "person" as const, role: part === "people-chat" ? "Admin" : "Lead" },
+      { id: "usr_sara", name: "Sara Malik", kind: "person" as const, role: "Member" },
+      { id: "usr_omar", name: "Omar Reyes", kind: "person" as const, role: part === "people-chat" ? "Member" : "Reviewer" },
+      { id: "agt_ember", name: "Ember", kind: "agent" as const, role: "Can use" },
+      { id: "agt_docs", name: "Docs", kind: "agent" as const, role: "Can edit" },
+    ];
+    return (
+      <View style={{ flex: 1 }}>
+        <PeoplePopover where={part === "people-chat" ? "chat" : "project"} rows={rows} meId="usr_irfad" perms={{ message: true, changeRole: true, remove: true }} anchor={{ x: 700, y: 70 }} onOpen={noopX} onAction={noopX} onFooter={noopX} onClose={noopX} />
+      </View>
+    );
+  }
   if (part === "dexpath") return <DexPath />;
   const props = PARTS[part] ?? PARTS["dex"]!;
   return <AccessSheet {...props} />;

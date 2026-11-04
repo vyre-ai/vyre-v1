@@ -13,7 +13,7 @@ import { asPerson, codeOf, contractErrors, DAY, harness, NOW, seedFact } from ".
 const svc = { kind: "service", id: "svc_engine" } as const;
 const chat = (mode = "auto") => ({
   "agents.get": () => ({ agent: { folderId: "fld_intake", ownerId: "usr_boss", captureMode: mode } }),
-  "threads.get": () => ({ thread: { kind: "channel", title: "Brooks weekly update", createdAt: NOW - DAY, agents: [{ agentId: "agt_intake", mode: "lead" }], scopeType: "project", scopeId: "prj_brooks" } }),
+  "threads.get": (b: Record<string, unknown>) => ({ thread: { threadId: b["threadId"], kind: "channel", title: "Brooks weekly update", createdAt: NOW - DAY, agents: [{ agentId: "agt_intake", mode: "lead" }], scopeType: "project", scopeId: "prj_brooks" } }),
   "chat.messages.list": () => ({ messages: [{ messageId: "msg_7", author: { kind: "person", id: "usr_dana" }, body: "We decided to bill Brooks Logistics monthly.", createdAt: NOW - DAY }] }),
 });
 

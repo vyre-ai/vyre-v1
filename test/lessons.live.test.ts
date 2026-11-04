@@ -16,7 +16,9 @@ async function post(d: Daemon, threadId: string, agentId: string, body: string, 
   assert.equal(posted.status, 200, JSON.stringify(posted.data));
   return waitFor(async () => {
     await d.hooks?.pump?.();
-    const msgs = ((await call(d, "chat.messages.list", { threadId })).data.messages ?? []) as Msg[];
+    // in a channel the agent answers in the thread under the asking message: read the chat and the threads under it
+    const under = (((await call(d, "threads.list", { parentThreadId: threadId })).data.threads ?? []) as Array<{ threadId: string }>).map((t) => t.threadId);
+    const msgs = (await Promise.all([threadId, ...under].map(async (id) => ((await call(d, "chat.messages.list", { threadId: id })).data.messages ?? []) as Msg[]))).flat();
     const replies = msgs.filter((m) => m.author?.kind === "agent" && (m.body ?? "") !== "");
     return replies.length >= nth ? { reply: replies[nth - 1]!.body as string, messages: msgs } : null;
   }, 40_000, () => hostLog(d));

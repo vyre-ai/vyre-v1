@@ -15,8 +15,9 @@ Requires: nothing.
 - [ci.settings.set](../capabilities/ci.settings.set.md): Turn runners on or off and change their settings. Admin only, audited. Turning them on needs a key (a Vault item) and a monthly cap
 - [ci.sweep](../capabilities/ci.sweep.md): Host only: every 2 minutes, delete any machine tagged vyre-ci that is too old or has no live run, and start queued jobs that now fit
 
-## Events (7)
+## Events (8)
 
+- [ci.blocked](../events/ci.blocked.md): CI cannot start machines until something is fixed (for example the runner download cannot be verified); the admins' Inbox line, once a day
 - [ci.job_refused](../events/ci.job_refused.md): A job asked for a runner and was refused, with the reason in plain words
 - [ci.paused](../events/ci.paused.md): CI paused: this month's cap is reached (once a month; the admins' Inbox line)
 - [ci.run_failed](../events/ci.run_failed.md): A machine could not be made for a job, or it was lost before the job ran

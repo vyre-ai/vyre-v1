@@ -128,6 +128,7 @@ import { createComputeStream } from "../routes/compute-stream.ts";
 import { createReporter } from "../machines/reporter.ts";
 import type { Report } from "../machines/report.ts";
 import { isFix, runFix } from "./machine-fix.ts";
+import { relayVersionWatch, storeInfo } from "./relay-version.ts";
 import { runDoctor } from "./doctor.ts";
 import { createLocalWork, createLocalWorkRoute } from "../routes/local-work.ts";
 import { createChromeAgentsRoute } from "../routes/chrome-agents.ts";
@@ -336,6 +337,8 @@ export interface DaemonOptions {
   engineInstall?: boolean;
   /** Tests: a scripted session opener in place of the real one (the engine runtime's `openSession`), for proofs of what the engine puts in front of a model without running one. */
   engineOpenSession?: unknown;
+  /** Tests and measurements: told the engine's API tool set (the real tool list, preloads and runner of a turn) when the runtime builds it, so a real driver session can be given the very context the engine would give it. */
+  engineApiTools?: unknown;
   /** The fetch outside-tool (MCP) servers are reached with. Omitted: the network guard, which refuses a private address; a test that runs a server on this machine passes a guard that allows it. */
   mcpFetch?: unknown;
   /** replace the consumers and periodic jobs read from the live modules' exports (tests) */
@@ -416,7 +419,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const gitCredentials = new Map<string, string>();
   // a GitHub token for a CLI engine's process is delivered once into this slot and read back at once by the engine (modules/engine/github-session.ts); it is never kept
   const processEnv = new Map<string, string>();
-  const filler = o.seams?.filler ?? createFiller({ git_credential: (ref, value) => { gitCredentials.set(ref, value); }, process_env: (ref, value) => { processEnv.set(ref, value); }, git_clone: (ref, value) => { cloneTokens.set(ref, value); } }, now);
+  const filler = o.seams?.filler ?? createFiller({ git_credential: (ref, value) => { gitCredentials.set(ref, value); }, git_clone: (ref, value) => { cloneTokens.set(ref, value); }, process_env: (ref, value) => { processEnv.set(ref, value); } }, now);
   const githubFill = (handle: string): string | null => {
     const ref = `pe_${Math.random().toString(36).slice(2)}${now()}`;
     if (!filler.fill(handle, { kind: "process_env", ref }, now())) return null;
@@ -585,7 +588,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let computeStreamOpen: (ticket: string, computerId: string) => Promise<{ nodeId: string; personId: string; input: boolean } | null> = () => Promise.resolve(null);
   let computeStreamInput: (computerId: string, personId: string) => Promise<boolean> = () => Promise.resolve(false);
   // a person's own computer links with their signed-in session (lane l-runson); who it is comes from the same resolver as the gateway, once the Space is open
-  let closeIdleSessions: () => Promise<number> = () => Promise.resolve(0);
+  let closeIdleSessions: (person?: string) => Promise<number> = () => Promise.resolve(0);
+  let idleSessions: (person?: string) => number = () => 0;
   let machinesSync: () => void = () => undefined;
   let machinesIngest: (from: { nodeId: string; serverId?: string; owner?: string; device?: { deviceId: string; person: string; name?: string }; latencyMs?: number }, report: unknown) => void = () => undefined;
   let deviceReporter: ReturnType<typeof createReporter> | undefined;
@@ -701,8 +705,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // Space. Without a session (the local admin token) only the person's own node takes it.
   const sessionAlive = (id: string): boolean => (db ? sessionLive(db, id) : false);
   // after a restart or a deploy, a person still signed in through Google, Microsoft or GitHub gets their key back from the server's wrap with nothing to type (key-wraps.ts); bound once the wraps exist
-  let reopenWrap: (p: string) => { key: Uint8Array; sessions: string[] } | null = () => null;
-  const keyring = createKeyring({ allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)), live: sessionAlive, reopen: (p) => reopenWrap(p) });
+  let reopenWrap: (p: string, since?: number) => { key: Uint8Array; sessions: string[] } | null = () => null;
+  const keyring = createKeyring({ allowed: (p, sessionId) => ownNode(p) || (sessionId !== undefined && sessionAlive(sessionId)), live: sessionAlive, reopen: (p, since) => reopenWrap(p, since) });
   closers.push(() => keyring.clearAll());
   const fillRoute = createFillRoute();
   // GitHub sign-in: the server environment first, then the app an admin saved (members.sign_in_github.set; its secret is read from the Vault by handle and kept in memory only)
@@ -731,15 +735,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   };
   const keyWraps = cfg.roles.includes("device") ? null : createKeyWraps({ db: () => db, space: () => space ?? "-", secret: () => Buffer.from(sealKeyFile(path.join(paths.root, "person-wrap.key")), "hex"), enabled: wrapsOn });
   // a person's live sessions that a provider proved (SSO or GitHub sign-in): the ones the wrap may open for, as at a fresh provider sign-in (modules/identity/projections.ts)
-  const provenSessions = (p: string): string[] => {
+  const provenSessions = (p: string, since = 0): string[] => {
     try {
-      return (db?.all(`SELECT id FROM identity_sessions WHERE person_id = ? AND method IN ('sso', 'github') AND revoked_at IS NULL AND expires_at > ?`, p, Date.now()) as Array<{ id: string }> ?? []).map((r) => r.id).filter(sessionAlive);
+      return (db?.all(`SELECT id FROM identity_sessions WHERE person_id = ? AND method IN ('sso', 'github') AND revoked_at IS NULL AND expires_at > ? AND created_at > ?`, p, Date.now(), since) as Array<{ id: string }> ?? []).map((r) => r.id).filter(sessionAlive);
     } catch { return []; }
   };
   let auditReopen: (p: string, sessions: string[]) => void = () => undefined;
-  if (keyWraps) reopenWrap = (p) => {
+  if (keyWraps) reopenWrap = (p, since) => {
     if (ownNode(p)) return null;
-    const sessions = provenSessions(p);
+    const sessions = provenSessions(p, since);
     if (sessions.length === 0) return null;
     const key = keyWraps.open(p);
     if (!key) return null;
@@ -946,7 +950,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         return true;
       };
       computeStreamOpen = async (ticket, computerId) => (await hookRunner.call("computers.stream_open", { ticket, computerId })) as { nodeId: string; personId: string; input: boolean } | null;
-      closeIdleSessions = async () => (await (loaded.moduleExports.get("engine") as { openerOf?: () => { pool: { closeIdle?: () => Promise<number> } } | null } | undefined)?.openerOf?.()?.pool.closeIdle?.()) ?? 0;
+      const pool = (): { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number } | undefined => (loaded.moduleExports.get("engine") as { openerOf?: () => { pool: { closeIdle?: (p?: string) => Promise<number>; idleCount?: (p?: string) => number } } | null } | undefined)?.openerOf?.()?.pool;
+      closeIdleSessions = async (person) => (await pool()?.closeIdle?.(person)) ?? 0;
+      idleSessions = (person) => pool()?.idleCount?.(person) ?? 0;
       // Machines (lane l-machines): a machine's report goes to the module; the Space server reads itself every 30 s; the module asks the host how many turns a connected machine runs, for the Doctor and for the Fixes
       machinesSync = () => { void hookRunner.call("machines.sync", {}).catch(() => undefined); };
       machinesIngest = (from, r) => {
@@ -961,9 +967,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         (loaded.moduleExports.get("machines") as { bindMachines?: (h: unknown) => void } | undefined)?.bindMachines?.({
           turns: (id: string) => (id === "space" ? Math.max(0, engineTurns - computeStream.running()) : computeStream.connected(id) ? computeStream.running(id) : undefined),
           own: async () => ({ name: reporter.name(), report: (o.machineReport ?? ((r: Report) => r))(reporter.report()) }),
+          idle: (_id: string, person?: string) => idleSessions(person),
           findings: async () => (await runDoctor({ dataDir: paths.root, role: "space" })).findings,
-          fix: async (id: string, fix: string, service?: string) => {
+          fix: async (id: string, fix: string, service?: string, person?: string) => {
             if (!isFix(fix)) throw new Error(`unknown fix ${fix}`);
+            // a member's own computer or server: its idle sessions are the owner's, held by the Space's pool, and only theirs stop; nothing of anyone else's
+            if (fix === "stop_idle" && id !== "space" && person) return runFix(fix, service, { dataDir: paths.root, now, closeIdle: () => closeIdleSessions(person) });
             if (id === "space") return runFix(fix, service, { dataDir: paths.root, now, closeIdle: () => closeIdleSessions(), restart: async (svc) => { if (!supervisor.has(svc)) return false; await supervisor.restart(svc); return true; } });
             return String(await computeStream.ask(id, "fix", { fix, ...(service ? { service } : {}) }));
           },
@@ -1555,7 +1564,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           return outside.origin;
         }, owner: () => access.owner() ?? cfg.owner ?? null, warn: (msg, attrs) => sink.log({ space: spaceId, level: 40, msg, place: "portal", attrs }) }),
         // the updates module: the compiled-in release key, the GitHub Releases feed and the vyre-server installer (P-L7b_17)
-        configureUpdates: () => createUpdatesHost(),
+        configureUpdates: () => createUpdatesHost({ version: cfg.version }),
         // A Kit is a resource in the access projection (type "kit") so that the capabilities on it can be authorized. The module cannot create resources, so the host does: one
         // resource.created per Kit, with an id made from the Kit's own, so the same Kit is the same event after a reboot (the log refuses a duplicate id) and the fold is the same.
         setKitsHost: () => createKitsHost({
@@ -1772,7 +1781,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
         setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, putToSlot, githubFill,
           // each person on their own grants, never as anyone's agent: the answer check of a shared chat (gap 6)
-          mayAll: (people, action, resource) => people.every((p) => { try { return !staleFor(p) && authorize(access.snap, { principal: p, action, resource, now: now() }).effect === "allow"; } catch { return false; } }), publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, ...(cfg.roles.includes("device") ? {} : { keyHeld: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; } }), ours: (x: unknown) => { const r = rawDbOf(x); return r === null || r === db; }, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p), onDevice: (f) => computeStream.onDevice(f) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; }, turns: (n) => { engineTurns = n; machinesSync(); } })),
+          mayAll: (people, action, resource) => people.every((p) => { try { return !staleFor(p) && authorize(access.snap, { principal: p, action, resource, now: now() }).effect === "allow"; } catch { return false; } }), publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, ...(cfg.roles.includes("device") ? {} : { keyHeld: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; } }), ours: (x: unknown) => { const r = rawDbOf(x); return r === null || r === db; }, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p), onDevice: (f) => computeStream.onDevice(f) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineApiTools !== undefined ? { onApiTools: o.engineApiTools } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; }, turns: (n) => { engineTurns = n; machinesSync(); } })),
         // Report a problem: the bundle sources (the person's last actions from the log, the versions) and the reports.vyre.run client, signed with a key derived from this Space's seal key
         configureReports: () => createReportsHost({
           space: spaceId, now, fetch: o.reportsFetch ?? ((u, i) => globalThis.fetch(u, i as RequestInit) as never),
@@ -2184,6 +2193,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const d = db;
     // one commit for the three heartbeats, not three
     d.tx(() => {
+      storeInfo(d, "space_version", cfg.version, t);
       d.run(
         "INSERT INTO network_config (id, address, mode, domain, relay_address, public_ingress, ingress_detail, reported_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET reported_at = excluded.reported_at, relay_address = COALESCE(excluded.relay_address, network_config.relay_address)",
         address, cfg.relayUrl && !cfg.address ? "relay" : "own_domain", cfg.address, relayHost, cfg.address || cfg.relayUrl ? 1 : 0, cfg.address || cfg.relayUrl ? null : "Forms and webhooks need a public address.", t,
@@ -2417,12 +2427,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     if (hasSpace && db) {
       const relayDb = db;
       const relayAt = (url: string): RelayBox => {
+        // the relay says its version on /health; read it on the link, about every five minutes, beside this Space server's own
+        const watchRelay = relayVersionWatch({ relay: url, fetch: fetchFn, db: relayDb, now });
         const box = startRelayBox({
           relayUrl: url, dataDir: paths.root, localPort: () => boundPort, invites: openInvites,
           onSigninAsk: (loc, s) => peerService?.onAsk(loc, s),
           log: (m) => sink.log({ space: space ?? "-", level: 30, msg: "relay.link", place: "relay", attrs: { note: m } }),
           ...(o.seams?.relayWebSocket ? { WebSocket: o.seams.relayWebSocket } : {}),
           onState: (st) => {
+            if (st.state === "healthy") watchRelay();
             void box.ready.then((r) => {
               try {
                 relayDb.run(

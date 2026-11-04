@@ -59,6 +59,7 @@ Key github, module github. Mode api, owned by a space. Auth github_app.
 - github.me.usage
 - github.runners.jit_config
 - github.runners.remove
+- github.runner_release
 - github.actions.secrets
 - github.receive_webhook
 

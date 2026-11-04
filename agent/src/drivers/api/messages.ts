@@ -36,6 +36,8 @@ export function threadMessages(input: TurnInput): Msg[] {
     const body = typeof r.result.content === "string" ? r.result.content : JSON.stringify(r.result.content ?? null);
     pushMerged(out, { role: "user", text: `(tool ${r.toolName} ${r.approved ? "was approved" : "was declined"}; ${r.result.ok ? "result" : "error"}: ${cap(body)})` });
   }
+  // a note a hook left for the model (the hooks layer, lane l-hooks): read with the message it is about
+  if (input.notice) pushMerged(out, { role: "user", text: `(Vyre: ${input.notice})` });
   const last = out[out.length - 1];
   if (!last || last.role !== "user") pushMerged(out, { role: "user", text: "(continue)" });
   return out;

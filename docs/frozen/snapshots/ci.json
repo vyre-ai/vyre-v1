@@ -2,8 +2,8 @@
   "module": "ci",
   "capabilities": {
     "ci.cost.month@1": "afb6cf9eb415e65dde26035dc106e97df43ac5859e69a95e18b513f9ceb5dde9",
-    "ci.job.intake@1": "f4bf23969cc6b1a8898a7a69c564e45bfbb5c340d2f87bbac05b47d3c7c81817",
-    "ci.project.get@1": "9cf745e26139123cc6c2aed713dced9b3f2510df20044fea9a25364f0b949377",
+    "ci.job.intake@1": "f6377714ceba0119a54f407a691696c4cb9c1e01138ab56e4e508a8147d0c47b",
+    "ci.project.get@1": "a19d8df6b9a1fed38e3ebf3acae056af18615d2dd4f6588f825860155f09e27a",
     "ci.runs.get@1": "9cc58019ed39737a296a8cb176c25bae0a502e6fd130a1c91ab38d25ad67bb32",
     "ci.runs.list@1": "a5c21b167dc8986f9d7601edaf930116ac59b3004c566cabb1d4c60777a3f41f",
     "ci.settings.get@1": "b8b50df254b93266d6ba1a7df80f944f2b77691e416e388c8bbbaab43e4617df",
@@ -11,7 +11,8 @@
     "ci.sweep@1": "2370de416df2537677d5502ec5002d64a15a5005b78b907f7874651e29e2f7aa"
   },
   "events": {
-    "ci.job_refused": "1743cbd7d4596f1f6423ca16708fca9d01e04f1873b5e50eee8659d79dd415db",
+    "ci.blocked": "96aeeec88b148efcd4951ef0de0602172c22120bf5685f7859ff66b68a389927",
+    "ci.job_refused": "19c44f7d7ad608b8769cc2737b6c5cad783772fdf4fa00f5f61a01cf11109577",
     "ci.paused": "5485f29b55ab4af5b77ecba2105b84c22e98958368b04fafd45b5594304add59",
     "ci.run_failed": "a97aaa4a042b3c1f4e1cb428f6c5d7781445fd32b902fb5d6519f866ee318f91",
     "ci.run_finished": "65cdd9ecbee62d52c1400ea551d409853448e596a00a03fd973e43b5eb6eb940",

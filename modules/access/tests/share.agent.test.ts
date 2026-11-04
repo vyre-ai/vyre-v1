@@ -1,4 +1,4 @@
-// Sharing an agent at the four levels of the Share sheet (lane l-addsheet): Can chat with (view), Can use in their work (use), Can edit (edit), Can manage (manage). Sharing is the fourth level's;
+// Sharing an agent at the three levels of the Share sheet (owner, 4 Nov): Can use (an old Can chat with / view grant is Use), Can edit, Can manage. Sharing is the fourth level's;
 // a person cannot give more than they hold; a person's Assistant (and an outside agent they connected) is theirs alone and cannot be shared at all.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -49,12 +49,12 @@ const viaOf = (r: ReturnType<typeof rig>, person: string, id: string, type = "si
 const who = (id: string) => ({ kind: "person" as const, id });
 const agentRef = (id: string) => ({ type: "agent" as const, id });
 
-test("an agent is shared at Can chat with, Can use, Can edit and Can manage, and the person who owns it or manages it can share it", async () => {
+test("an agent is shared at Can use, Can edit and Can manage (Can chat with was merged into Can use; an old view grant reads as use), and the person who owns it or manages it can share it", async () => {
   const r = rig();
   r.item("agt_ember", "usr_a", "agent");
   for (const level of ["view", "use", "edit", "manage"] as const) {
     const { grant } = await share(r.as("usr_a"), { resource: agentRef("agt_ember"), subject: who("usr_b"), level });
-    assert.equal(grant.level, level);
+    assert.equal(grant.level, level === "view" ? "use" : level, "view is stored as use");
   }
   assert.equal([...r.store.grants.values()].filter((g) => g.resource.id === "agt_ember").length, 1, "one grant, raised level by level");
   // a manager shares on

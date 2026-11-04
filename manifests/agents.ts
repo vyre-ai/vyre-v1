@@ -24,7 +24,7 @@ const limits = t.obj({
 const agentRow = t.obj({
   agentId: id.agent, name: t.str(), kind: t.opt(t.enm('assistant', 'teammate', 'agent')), runtime: t.opt(t.enm('vyre', 'outside')), face: t.str({ description: 'DiceBear Notionists seed tinted per Space', examples: ['intake'] }), role: t.opt(t.str({ description: 'The "use me when" line' })),
   status: agentStatus, pausedReason: t.opt(t.str()), pausedBy: t.opt(t.str()), ownerId: id.user, folderId: id.folder,
-  model: t.opt(t.str()), fallbackModel: t.opt(t.str()), accountPolicy: t.enm('asker', 'key'), accountKey: t.opt(t.str({ description: 'Vault handle, never a value', examples: ['#Team_Anthropic_Key'] })),
+  model: t.opt(t.str()), fallbackModel: t.opt(t.str()), helperModels: t.opt(t.enm('same_provider', 'any', 'ask')), accountPolicy: t.enm('asker', 'key'), accountKey: t.opt(t.str({ description: 'Vault handle, never a value', examples: ['#Team_Anthropic_Key'] })),
   accountFallback: t.arr(t.str({ description: 'Vault handles, best first: tried in this order when the chat key fails, before the Space backups' })),
   memoryKey: t.opt(t.str({ description: 'Vault handle that pays for this agent memory upkeep; never a value', examples: ['#Team_Anthropic_Key'] })),
   workKey: t.opt(t.str({ description: 'Vault handle of the AI account that pays for this agent\'s own work (routines, watchers, helpers); absent is Automatic, the cheapest Space AI account kept for it; never a value', examples: ['#Team_Anthropic_Key'] })),

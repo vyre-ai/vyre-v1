@@ -177,6 +177,14 @@ export async function list(ctx: GoalsCtx, input: In) {
   return { goals: seen.map((g) => lineOut(g, taskCounts(ctx, g.id))) };
 }
 
+/** Every goal of a project, counted without regard to who may open it; a number only. A manager of the project or the system may ask, anyone else is told there is no such project. */
+export async function count(ctx: GoalsCtx, input: In) {
+  ensure(ctx.db);
+  const manager = ctx.authorize?.({ perm: null, level: "manage" }, { type: "project", id: input.projectId }).effect === "allow";
+  if (!isSystem(ctx) && !manager) raise(ctx, "validation.not_found", "That project does not exist.");
+  return { count: allGoals(ctx.db, "project_id = ?", input.projectId).length };
+}
+
 export async function activityList(ctx: GoalsCtx, input: In) {
   const g = visible(ctx, input.goalId);
   return { activity: await worded(ctx, g, activity(ctx.db, g.id, input.limit ?? 50, input.before)) };

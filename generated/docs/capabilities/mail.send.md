@@ -64,6 +64,7 @@ type Out = {
   status: "queued" | "sent" | "held" | "suppressed";
   taskId?: string;
   suppressed: Array<string>;
+  note?: string;
 };
 ```
 

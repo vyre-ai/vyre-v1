@@ -17,6 +17,7 @@ export interface Shortcut {
 export const KEYBOARD_MAP: readonly Shortcut[] = [
   { id: "cmdk.open", combo: "Cmd-K", title: "Search", scope: "shell" },
   { id: "tab.new", combo: "Cmd-T", title: "New tab", scope: "shell" },
+  { id: "vault.lock", combo: "Cmd-L", title: "Lock Vyre, or unlock it", scope: "shell" },
   { id: "agent.jump", combo: "Cmd-1", title: "Jump to a starred agent", scope: "chats", digits: [1, 9] },
   { id: "space.switch", combo: "Shift-Cmd-1", title: "Switch Space", scope: "shell", digits: [1, 3] },
   { id: "star.toggle", combo: "Cmd-D", title: "Star", scope: "shell" },
@@ -79,6 +80,7 @@ export function matchShortcut(e: KeyLike, platform: Platform, ctx: { inTerminal?
   }
   if (key === "k") return ctx.inTerminal ? null : { id: "cmdk.open" };
   if (key === "t") return { id: "tab.new" };
+  if (key === "l") return ctx.inTerminal ? null : { id: "vault.lock" };
   if (key === "d") return { id: "star.toggle" };
   if (key === "f") return { id: "settings.find" };
   return null;
