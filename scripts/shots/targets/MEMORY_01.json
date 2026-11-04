@@ -20,6 +20,20 @@
       "proto": "chats,{skin}",
       "waitFor": "[data-testid='memory-chip']",
       "note": "An agent's answer with its source chip."
+    },
+    {
+      "id": "MEMORY_01-reply",
+      "route": "/m/MEMORY_01?part=reply",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='memory-reply']",
+      "note": "An agent's reply with the Used N memories line under it (rule 7: what the answer rests on, with each source)."
+    },
+    {
+      "id": "MEMORY_01-cite",
+      "route": "/m/MEMORY_01?part=cite",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='memory-cite']",
+      "note": "An answer with its citation: Used 2 memories opened, each fact with its source chip and who said it (rule 7)."
     }
   ]
 }

@@ -26,8 +26,10 @@ export function ReplyMemory({ messageId, threadId, reply = "", startOpen = false
   // what an older reply recorded may include a greeting or an imported session's preamble matched as a quote: those say nothing and are not shown or counted
   // and a fact is shown only when the reply carries it (most replies match some memory a little and are not shaped by it); quotes are only recalled when the person asked to find words
   // a lesson is a rule the agent follows, not a fact its words repeat: it is shown whenever it was put in front of the agent, on a line of its own ("Used a lesson"), outside the fold of the work so it is seen
-  const lessons = read.data.facts.filter(isLesson);
-  const used = { ...read.data, quotes: read.data.quotes.filter((q) => recallable(q.text)), facts: read.data.facts.filter((f) => !isLesson(f) && (reply === "" || shapedReply(factLine(f), reply))) };
+  // memory.used rows say `learnedAt`; the rows here say `at`
+  const facts = read.data.facts.map((f) => ({ ...f, at: f.at ?? (f as { learnedAt?: number }).learnedAt ?? 0 }));
+  const lessons = facts.filter(isLesson);
+  const used = { ...read.data, quotes: read.data.quotes.filter((q) => recallable(q.text)), facts: facts.filter((f) => !isLesson(f) && (reply === "" || shapedReply(factLine(f), reply))) };
   if (usedCount(used) === 0 && lessons.length === 0) return null;
   return (
     <View testID={`used-${messageId}`} style={st.root}>
