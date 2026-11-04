@@ -568,7 +568,7 @@ export default defineManifest({
     screen('settings.models-usage', 'settings', 'ui:ModelsUsage', {
       q: {
         accounts: ['engine.accounts.list', {}, true], models: ['engine.models.list', { accountRef: '/state/accountRef' }, true], defaults: ['engine.defaults.get', {}, true],
-        usage: ['engine.usage.query', { by: '/state/by', from: '/state/from', to: '/state/to' }, true],
+        usage: ['engine.usage.query', { by: '/state/by', from: '/state/from', to: '/state/to', personId: '/state/personId' }, true],
       },
       // No "Let the Space continue my chats when my computer is off" toggle here (owner ruling, 3 Nov 2026): it is on by default and its screen comes back with sealed chats.
       // engine.runtime.opt_in stays a capability; only the Settings action is gone.

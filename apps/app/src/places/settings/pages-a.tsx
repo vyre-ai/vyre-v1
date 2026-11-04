@@ -219,6 +219,12 @@ export function olderLine(n: number): string | null {
   return n <= 0 ? null : `and ${n} older sign-in${n === 1 ? "" : "s"}`;
 }
 
+/** The start of this month in the person's own clock, as the milliseconds the usage read takes. */
+export function monthStart(now: number, offsetMin: number): number {
+  const local = new Date(now + offsetMin * 60_000);
+  return Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), 1) - offsetMin * 60_000;
+}
+
 export function AiPage({ rows, found }: PageProps): ReactElement {
   const data = useSettingsData();
   const openConnect = useOpenConnect();
@@ -230,7 +236,8 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   const personal = useIsPersonal();
   const noSpaceKey = !personal && accounts.status === "ready" && !accounts.data.accounts.some((a) => a.spaceKey === true);
   const spaceAi = useSpaceAi(data.call, { me: data.me.id, off: !noSpaceKey });
-  const usage = useScreenQuery<UsageOut>(MODELS, "usage", { by: "model" });
+  // "You and your agents this month": this person's own turns since the first of the month. Someone who manages AI spend would otherwise be handed the whole Space for all time; that view is Console > AI > Spend and limits.
+  const usage = useScreenQuery<UsageOut>(MODELS, "usage", { by: "model", personId: data.me.id, from: monthStart(data.clock().now, data.clock().offsetMin) });
   // older sign-ins: shown on request, removed one by one by the person (never by Vyre on its own)
   const [openOlder, setOpenOlder] = useState<string | null>(null);
   const [removed, setRemoved] = useState<ReadonlySet<string>>(new Set());
