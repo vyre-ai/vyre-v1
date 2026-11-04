@@ -212,7 +212,7 @@ test("an agent keeps at most 30 hooks", async () => {
   await assert.rejects(w.call("hooks.set", { scope: "agent", event: "turn.end", kind: "check", instruction: "one more" }, agent()), /at most 30/);
 });
 
-test("Run once anyway: a person lets a hook go by once, the pass is used up, an agent cannot, and a Space hook is an admin's to let go", async () => {
+test("Allow this once: a person lets a hook go by once, the pass is used up, an agent cannot, and a Space hook is an admin's to let go", async () => {
   const w = world();
   w.s.command = async () => stop;
   const mine = (await w.call("hooks.set", { scope: "chat", event: "tool.before", kind: "command", command: "guard", threadId: "thr_a" }, maya)).hook;

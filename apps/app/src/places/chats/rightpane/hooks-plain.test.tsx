@@ -4,6 +4,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ChatRightPane } from "./ChatRightPane.tsx";
+import { createRoot } from "test-renderer";
+import { find, installDom, mount, press, textOf } from "../../../../../../ui/src/testing/dom.ts";
+import { HookCard } from "./HooksTab.tsx";
 import { ranWhat, titleOf, whatOf } from "./hooks-model.ts";
 import type { Hook } from "./hooks-model.ts";
 import { createSample } from "./sample.ts";
@@ -56,4 +59,19 @@ test("a script is described by what it is for, not its file name; an event reads
   assert.equal(whatOf({ kind: "command", spec: { command: "rules.sh" }, line: "" } as never), "rules.sh", "no description, the file name is all there is");
   assert.equal(EVENT_WORDS["tool.before"], "Before any action");
   assert.equal(EVENT_WORDS["tool.after"], "After any action");
+});
+
+test("the Edit form shows the plain choice, never the capability or a tool name; the matcher and the capability stay internal", async () => {
+  const off = installDom();
+  try {
+    const mk = (over: Partial<Hook>): Hook => ({ id: "hok_a", scope: "chat", event: "outward.before", kind: "action", matcher: "mail\\.send|mail\\.send_as|resend\\.send_email|mailgun\\.send_email", line: "before any email, post a line", paused: false, madeBy: "agt_x", madeByKind: "agent", threadId: "thr_1", helpers: true, timeoutSec: 20, createdAt: 1, updatedAt: 1, spec: { cap: "chat.post", input: {} }, mine: true, canChange: true, ...over } as Hook);
+    for (const h of [mk({}), mk({ spec: { cap: "records.update", input: {} } }), mk({ kind: "check", spec: { instruction: "Ask first" } }), mk({ matcher: "files_tree" })]) {
+      const root = await mount(createRoot, <HookCard h={h} threadId="thr_1" deps={{ call: async () => ({}), note: () => undefined }} selected={false} nameOf={() => "Intake"} ran="Never ran" />);
+      await press(find(root, "hook-edit-hok_a"));
+      const text = textOf(find(root, "hook-form-hok_a"));
+      assert.ok(!SNAKE.test(text) && !/\b[a-z]+\.[a-z_]+\b/.test(text), `a name showed: ${text.slice(0, 200)}`);
+      if (h.kind === "action") assert.ok(find(root, "hook-do-hok_a") && find(root, "hook-what-hok_a") === null, "an action is picked in words, not typed");
+      assert.match(textOf(find(root, "hook-only-hok_a-value")), /^(Sending an email|Any action)$/, "Only for reads in plain words");
+    }
+  } finally { off(); }
 });

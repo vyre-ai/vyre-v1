@@ -11,7 +11,7 @@ import { hookPause, hookRemove, hookSave } from "./actions.ts";
 import { PANE_SCREEN } from "./ThreadsTab.tsx";
 import { agoLabel } from "./model.ts";
 import { usePaneData, useScreenQuery } from "./data.tsx";
-import { ACTION_CHOICES, ACTION_EVENTS, EVENT_ORDER, EVENT_WORDS, KIND_ORDER, KIND_WORDS, canRemoveNote, countLine, titleOf, draftOf, grouped, kindWord, lastRan, madeBy, restoreInput, setInput, whatOf } from "./hooks-model.ts";
+import { ACTION_CHOICES, ACTION_EVENTS, EVENT_ORDER, EVENT_WORDS, KIND_ORDER, KIND_WORDS, canRemoveNote, countLine, doOptions, titleOf, draftOf, grouped, kindWord, lastRan, madeBy, restoreInput, setInput, whatOf } from "./hooks-model.ts";
 import type { Draft, Hook, HookKind, HookRun } from "./hooks-model.ts";
 import { Icon, PaneList, TextButton } from "./parts.tsx";
 import type { Entry } from "./parts.tsx";
@@ -35,8 +35,9 @@ export function HookCard({ h, threadId, deps, selected, nameOf, ran, startEditin
         <View testID={`hook-form-${h.id}`} style={s.form}>
           <Pick label="When" id={`hook-event-${h.id}`} value={draft.event} options={EVENT_ORDER.map((e) => ({ key: e, title: EVENT_WORDS[e]! }))} onChange={(event) => setDraft({ ...draft, event })} />
           {ACTION_EVENTS.has(draft.event) ? <Pick label="Only for" id={`hook-only-${h.id}`} value={draft.only} options={ACTION_CHOICES.map((c) => ({ key: c.key, title: c.title }))} onChange={(only) => setDraft({ ...draft, only })} /> : null}
-          <Pick label="What it does" id={`hook-kind-${h.id}`} value={draft.kind} options={KIND_ORDER.map((k) => ({ key: k, title: KIND_WORDS[k] }))} onChange={(kind) => setDraft({ ...draft, kind: kind as HookKind })} />
-          <TextInput testID={`hook-what-${h.id}`} accessibilityLabel="What it does" value={draft.what} onChangeText={(what) => setDraft({ ...draft, what })} onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} style={[s.input, focus && s.inputFocus]} multiline />
+          <Pick label="What it does" id={`hook-kind-${h.id}`} value={draft.kind} options={KIND_ORDER.map((k) => ({ key: k, title: KIND_WORDS[k] }))} onChange={(kind) => setDraft({ ...draft, kind: kind as HookKind, ...(kind === "action" && !/^[a-z]+\.[a-z_.]+$/.test(draft.what) ? { what: "chat.post" } : {}), ...(kind !== "action" && /^[a-z]+\.[a-z_.]+$/.test(draft.what) ? { what: "" } : {}) })} />
+          {draft.kind === "action" ? <Pick label="Do this" id={`hook-do-${h.id}`} value={draft.what} options={doOptions(draft.what)} onChange={(what) => setDraft({ ...draft, what })} /> : null}
+          {draft.kind !== "action" ? <TextInput testID={`hook-what-${h.id}`} accessibilityLabel="What it does" value={draft.what} onChangeText={(what) => setDraft({ ...draft, what })} onFocus={() => setFocus(true)} onBlur={() => setFocus(false)} style={[s.input, focus && s.inputFocus]} multiline /> : null}
           <View style={s.formActs}>
             <TextButton label="Save" primary onPress={save} testID={`hook-save-${h.id}`} />
             <TextButton label="Cancel" onPress={() => { setDraft(draftOf(h)); setEdit(false); }} testID={`hook-cancel-${h.id}`} />

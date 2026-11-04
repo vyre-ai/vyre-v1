@@ -34,6 +34,16 @@ export function rawOf(h: Pick<Hook, "kind" | "spec">): string {
   const s = (h.spec ?? {}) as { command?: string; instruction?: string; cap?: string };
   return (h.kind === "check" ? s.instruction : h.kind === "action" ? s.cap : s.command) ?? "";
 }
+/** The things an action hook can do, in plain words, with the capability each one calls (kept internal: the form shows the words). */
+export const DO_CHOICES: ReadonlyArray<{ key: string; title: string }> = [
+  { key: "chat.post", title: "Post a quiet line in the chat" },
+];
+/** The choices for a hook's "Do this": the known ones, and the hook's own when it calls something else, in plain words. */
+export function doOptions(cap: string): Array<{ key: string; title: string }> {
+  const o = DO_CHOICES.map((c) => ({ ...c }));
+  if (cap !== "" && !o.some((c) => c.key === cap)) { const w = capWords(cap); o.push({ key: cap, title: w[0]!.toUpperCase() + w.slice(1) }); }
+  return o;
+}
 /** What a script does, in the plain words its maker gave the hook: the part of its line after the first comma ("keep to the Space rules"). The file name belongs to the edit form. */
 export function describedAs(h: Pick<Hook, "line">): string {
   const i = h.line.indexOf(",");

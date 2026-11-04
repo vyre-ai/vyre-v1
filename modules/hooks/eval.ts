@@ -102,7 +102,7 @@ export async function fire(ctx: HooksCtx, f: HookFire): Promise<HookVerdict> {
   const verdict: HookVerdict = { block: null, notes: [], ran: 0 };
   for (const h of order) {
     if (tooly && !names.some((n) => matches(h.matcher, n))) continue;
-    // a person pressed "Run once anyway" on this hook in this chat: it lets this one through, and the pass is used up
+    // a person pressed "Allow this once" on this hook in this chat: it lets this one through, and the pass is used up
     if (BLOCKING.has(f.event) && !h.id.startsWith("plugin:") && takePass(ctx, h.id, f.threadId)) {
       verdict.ran++;
       logRun(ctx, { hookId: h.id, event: f.event, threadId: f.threadId, agentId: f.agentId, ...(f.tool ? { tool: f.tool } : {}), outcome: "allowed_once", ms: 0 });
