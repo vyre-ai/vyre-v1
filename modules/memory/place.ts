@@ -106,3 +106,7 @@ export function diffValue(a: string, b: string): string {
   const v = d !== "" ? d : a.replace(/\s+/g, " ").trim().slice(0, 40);
   return `${v.charAt(0).toUpperCase()}${v.slice(1)}`;
 }
+
+/** Did the person say this is for them only? Such a fact is theirs, in their own layer, whatever place it was said in. */
+export const privateIntent = (text: string): boolean =>
+  /\b(?:private|for me only|only for me|just for me|for my eyes|keep (?:this|it) (?:private|to yourself|between us)|don'?t share|do not share|between us|off the record|confidential)\b/i.test(text);

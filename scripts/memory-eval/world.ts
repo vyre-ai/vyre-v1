@@ -75,9 +75,9 @@ const CONTENT: Op[] = [
   { op: "say", day: 13, place: "olivia_private", who: "olivia", label: "disc1", body: "We decided to offer Redwood a 20 percent discount." },
   // the agent keeps something for its own memory from the private chat, before anyone else is in it (rc.22 blocker: it must not reach the room once the chat gains a person)
   { op: "remember", day: 14, place: "olivia_private", who: "olivia", text: "The Redwood reserve price is 4,200,000 dollars." },
-  // the same in a channel that began with one person: what the agent kept before the second person was added stays with the starter
+  // the same in a channel that began with one person, with the exact words of l-engine21's walk: a note marked for the person only is theirs in any place, and what a one-person channel learned before a second person came stays with its starter
   { op: "say", day: 13, place: "plans", who: "olivia", body: "Good morning all." },
-  { op: "remember", day: 14, place: "plans", who: "olivia", text: "The Acme budget ceiling is 80000 dollars." },
+  { op: "say", day: 14, place: "plans", who: "olivia", body: "@Intake private note for me only: my budget ceiling for the Acme deal is 80000 dollars, remember it." },
   { op: "join", day: 15, place: "plans", who: "noah" },
   { op: "join", day: 15, place: "olivia_private", who: "mia" },
   { op: "say", day: 16, place: "olivia_private", who: "mia", label: "demo1", body: "We decided the Redwood demo is on Tuesday afternoon." },

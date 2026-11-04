@@ -64,7 +64,7 @@ const t0 = Date.now();
 const log = (s: string): void => console.log(scrub(s));
 try {
   // ---- the people
-  const ownerCall = async (cap: string, input: Record<string, unknown> = {}) => ({ status: 200, data: await api(cap, { idempotencyKey: `own-${cap}-${Math.random().toString(36).slice(2)}`, ...input }) });
+  const ownerCall = async (cap: string, input: Record<string, unknown> = {}) => { try { return { status: 200, data: await api(cap, { idempotencyKey: `own-${cap}-${Math.random().toString(36).slice(2)}`, ...input }) }; } catch (e) { if (/\b429\b/.test(String(e))) return { status: 429, data: {} }; throw e; } };   // the owner's calls report a rate limit like everyone's, so the seeding can wait
   const me: Record<Who, { id: string; call: (cap: string, input?: Record<string, unknown>) => Promise<{ status: number; data: any }> }> = {} as never;   // eslint-disable-line @typescript-eslint/no-explicit-any
   const ownerId = ((await api("identity.whoami", {})) as { principal: { id: string } }).principal.id;
   me.olivia = { id: ownerId, call: ownerCall };
@@ -76,6 +76,8 @@ try {
   await api("providers.add", { idempotencyKey: "eval-space-key", providerKey: "openrouter", connection: "api_key", apiKey: "sk-or-eval-FAKE0123456789abcdef", scope: "shared" }); // secret-scan: fake
   const agent = ((await api("agents.create", { idempotencyKey: "eval-agent", name: "Scout", role: "You are the team's helper. Answer from what Vyre remembers for the place you are in. Say where each thing you recall came from, and who said it. If memory has nothing, say you do not have it." })) as { agent: { agentId: string } }).agent.agentId;
   const ok = async (who: Who, cap: string, input: Record<string, unknown>) => {
+    // the owner's calls go through a path that throws on a rate limit: keep her under 120 posts a minute
+    if (who === "olivia" && cap === "chat.post") await new Promise((res) => setTimeout(res, 520));
     let r = await me[who].call(cap, { idempotencyKey: `${cap}-${Math.random().toString(36).slice(2)}`, ...input });
     // the platform allows a person 120 posts a minute: the seeding waits when it is told to
     for (let tries = 0; r.status === 429 && tries < 20; tries++) { await new Promise((res) => setTimeout(res, 3000)); r = await me[who].call(cap, { idempotencyKey: `${cap}-${Math.random().toString(36).slice(2)}`, ...input }); }
@@ -286,6 +288,6 @@ try {
   log(`recall time (memory.pointer as the asker): median ${med(ptrs)} ms, p95 ${ptrs[Math.floor(ptrs.length * 0.95)] ?? 0} ms, max ${ptrs.at(-1) ?? 0} ms;  whole answer median ${med(walls).toFixed(1)} s`);
   const misses = results.filter((r) => !r.pass || r.cited === false);
   log(`misses: ${misses.map((r) => `#${r.q.id}${r.pass ? "" : "(answer)"}${r.cited === false ? "(cite)" : ""}`).join(" ") || "none"}`);
-} catch (e) { log(`failed: ${e instanceof Error ? `${e.message}\n${e.stack ?? ""}` : String(e)}`.slice(0, 700)); }
+} catch (e) { log(`failed: ${e instanceof Error ? `${e.message}\n${(e.stack ?? "").split("\n").filter((l) => /memory-eval|eco-live|people/.test(l)).join("\n")}` : String(e)}`.slice(0, 1600)); }
 finally { await stop(d).catch(() => undefined); }
 process.exit(0);

@@ -11,7 +11,7 @@ import { LESSON } from "../lessons.ts";
 import { meaningScores } from "../meaning.ts";
 import { carryPlace } from "../profile.ts";
 import { postNoted, writeShared } from "../shared.ts";
-import { kindOf, placeOf } from "../place.ts";
+import { kindOf, placeOf, privateIntent } from "../place.ts";
 import { reviewRequired } from "../policy.ts";
 import { trail, whoIs } from "../trail.ts";
 import { learnTurn, readByTurns, shouldLearn } from "./learn.ts";
@@ -1075,6 +1075,10 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
     let status: FactStatus = auto || kinds.includes(c.kind) ? "current" : "proposed";
     let sourceKind: SourceKind = "chat";
     if (fromRun) { layer = "agent"; status = auto ? "current" : "proposed"; sourceKind = "run"; }
+    // when the person said it is for them only it is theirs, in their own layer, in any kind of place
+    const said = String(page.messages.find((m) => m.messageId === c.messageId)?.body ?? "");
+    const mine = privateIntent(said);
+    if (mine && !fromRun) { layer = "person"; status = auto || kinds.includes(c.kind) ? "current" : "proposed"; }
     else if (shared) { sourceKind = "channel"; if (projectId) { layer = "project"; status = "current"; } else { layer = agentId ? "agent" : "space"; status = auto ? "current" : "proposed"; } }
     // "Require review for shared memory": a Space or project fact waits in Proposed whatever the mode.
     if (status === "current" && (await reviewRequired(ctx, layer, projectId))) status = "proposed";

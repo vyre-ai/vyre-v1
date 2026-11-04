@@ -462,3 +462,28 @@ test("LEAK: a channel that began with one person keeps what the agent kept befor
     assert.doesNotMatch(await ask(as(who), "thr_plans", "what is the acme budget ceiling in dollars"), /eighty/, `${who} in the channel that gained a person`);
   }
 });
+
+test("a fact the person marks as for them only is kept in their own layer in any kind of place, by the agent's save tool and by capture", async () => {
+  const s = setup();
+  s.w.channelMembers = [DANA, MAYA, OMAR];
+  const said = "Note, private for me only: my budget ceiling for the Acme deal is 80000 dollars, remember it.";
+  // the agent's save tool: the model asks for the agent layer, the person's words decide
+  const agent = harness({ raw: s.raw, principal: { kind: "agent", id: AGENT }, actingFor: MAYA, respond: {
+    "threads.get": threadsFor(MAYA, s.w, []), "channels.get": () => ({ channel: { visibility: "invite", members: s.w.channelMembers.map(person) } }), "agents.get": () => ({ agent: { folderId: "fld_helper", captureMode: "auto", ownerId: DANA } }),
+    "chat.noted": (b) => { s.noted.push(b); return { posted: true }; }, "chat.messages.list": () => ({ messages: [{ messageId: "msg_p", author: person(MAYA), body: said }] }),
+  } });
+  (agent.ctx as { thread?: string }).thread = "thr_chan";
+  const out = await remember(agent.ctx, { text: "Maya's acme budget ceiling is 80000 dollars.", layer: "agent", agentId: AGENT, threadId: "thr_chan" });
+  assert.equal(out.fact.layer, "person");
+  // and capture: the same words said in the channel, read by the rules
+  s.w.said["thr_chan"] = [msg("msg_9", MAYA, said)];
+  await capture(s.svc().ctx, { threadId: "thr_chan", reason: "closed" });
+  assert.deepEqual(s.raw.all("SELECT DISTINCT layer, owner_ref FROM memory_facts").map((r) => `${(r as { layer: string }).layer}:${(r as { owner_ref: string }).owner_ref}`), [`person:${MAYA}`]);
+  assert.equal(s.noted.length, 0, "nothing was said in the room: it is not the room's memory");
+  // nobody else in the room reads it, through any read
+  for (const who of [OMAR, DANA]) {
+    const h = s.as(who, []);
+    assert.doesNotMatch(await ask(h, "thr_chan", "acme budget ceiling dollars"), /80000/, `${who} asking in the channel`);
+    assert.doesNotMatch(JSON.stringify([await search(h.ctx, { q: "acme budget", agentId: AGENT, mode: "keyword" }), await factsList(h.ctx, {})]), /80000/, `${who} reading`);
+  }
+});
