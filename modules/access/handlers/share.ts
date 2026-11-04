@@ -337,17 +337,6 @@ function commit(ctx: AccessCtx, store: AccessStore, ss: ShareStore, wasFresh: bo
 
 // ---- access.share, access.unshare, access.shares_of -------------------------------------------------------------------
 
-/**
- * The host writing a project's roles is not a person delegating (the people it names were vetted when the project was made). It is only that for the project's own things: the grant carries source
- * project:<id>, and the resource is project <id> itself, or one that already carries a grant of that same source (the project's folder and channel, shared by the person who made the project).
- * A host write labelled project:X on any other resource, or on another project's folder, goes through the delegation check like anyone's.
- */
-function hostWritesProjectGrant(ctx: ShareCtx, store: AccessStore, res: ResourceRec, source: string | undefined): boolean {
-  if (!isHostService(ctx.principal) || !source?.startsWith("project:")) return false;
-  if (res.type === "project") return res.id === source.slice("project:".length);
-  return [...store.grants.values()].some((g) => g.source === source && g.resource.type === res.type && g.resource.id === res.id);
-}
-
 function checkSubject(ctx: AccessCtx, store: AccessStore, subject: SubjectRef): void {
   const trace = ctx.trace.traceId;
   if (subject.kind === "link") return;
@@ -550,7 +539,7 @@ export async function share(ctx: ShareCtx, input: {
   assertFlags(ctx,store,res,cond,grant?.conditions);
   if (input.subject.kind === "group" && input.subject.id === EVERYONE) assertEveryone(ctx, store, res, input.level, grant);
   // the host writing a project's roles for its people (projects.initial_roles after project.created commits, projects.agent_member after an agent made for the project commits) is not a person delegating: the people it names were vetted when the project was made
-  if (!hostWritesProjectGrant(ctx, store, res, sameSource)) assertDelegation(ctx,store,res,input.subject,input.level,cond,grant?.id);
+  if (!(isHostService(ctx.principal) && sameSource?.startsWith("project:"))) assertDelegation(ctx,store,res,input.subject,input.level,cond,grant?.id);
   const created = !grant;
   if (grant) { grant.level = input.level; grant.conditions = cond; }
   else {
