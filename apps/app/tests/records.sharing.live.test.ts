@@ -129,23 +129,23 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
     await t.test("2 Ada's Share sheet: Who can see this, and nobody added yet", async () => {
       await A.getByTestId("records-share-btn").click();
       await A.getByTestId("records-share").waitFor();
-      await A.getByTestId("share-audience").waitFor();
-      assert.equal(await A.getByTestId("share-audience-pick-space").getAttribute("aria-selected"), "true");
+      await A.getByTestId("as-audience").waitFor();
+      assert.equal(await A.getByTestId("as-audience-pick-space").getAttribute("aria-selected"), "true");
       await snap(A, "ada-sheet-everyone");
     });
 
     await t.test("3 Only people added, then Bea as Can edit and Cal as Can view", async () => {
       await sheet(A);
-      await A.getByTestId("share-audience-pick-added").click();
-      await A.waitForFunction(() => document.querySelector('[data-testid="share-audience-pick-added"]')?.getAttribute("aria-selected") === "true");
+      await A.getByTestId("as-audience-pick-added").click();
+      await A.waitForFunction(() => document.querySelector('[data-testid="as-audience-pick-added"]')?.getAttribute("aria-selected") === "true");
       for (const [who, level] of [[bea, "Can edit"], [cal, "Can view"]] as const) {
-        await A.getByTestId("share-add").click();
-        await A.getByText(who.name, { exact: true }).last().click();
-        await A.getByRole("button", { name: new RegExp(`Level for ${who.name}`) }).waitFor();
+        await A.getByTestId("as-search").fill(who.name);
+        await A.getByTestId(`as-row-person:${who.id}`).click();
         if (level !== "Can view") {
-          await A.getByRole("button", { name: new RegExp(`Level for ${who.name}`) }).click();
+          await A.getByTestId(`as-role-person:${who.id}`).click();
           await A.getByText(level, { exact: true }).last().click();
         }
+        await A.getByTestId("as-add").click();
         await A.getByRole("button", { name: new RegExp(`Level for ${who.name}: ${level}`) }).waitFor();
       }
       await sheet(A);
@@ -153,7 +153,7 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
       const shares = (await api(ada, "access.shares_of", { resource: deal })).shares as Array<{ grant: { subject: { id: string }; level: string }; through: string }>;
       assert.deepEqual(shares.filter((s) => s.through === "direct").map((s) => [s.grant.subject.id, s.grant.level]).sort(), [[bea.id, "edit"], [cal.id, "view"]].sort());
       await sheet(A, "records-share-btn");
-      await A.getByTestId("share-done").click();
+      await A.getByTestId("as-cancel").click();
       await A.getByTestId("records-share").waitFor({ state: "detached" });
     });
 
@@ -202,13 +202,13 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
       // one deal is Only me already, so the export has a row Cal cannot see
       await api(ada, "access.audience_set", { resource: { type: "record", id: deals["Dune expansion"] }, audience: "me" });
       await A.getByTestId("records-share-btn").click();
-      await A.getByTestId(`share-export-${cal.id}`).waitFor({ timeout: 15_000 }).catch(async (e: Error) => { await A.screenshot({ path: path.join(OUT, "debug-step7.png") }); throw e; });
-      assert.equal(await A.getByTestId(`share-export-${cal.id}`).getAttribute("aria-checked"), "false");
-      await A.getByTestId(`share-export-${cal.id}`).click();
-      await A.waitForFunction((id: string) => document.querySelector(`[data-testid="share-export-${id}"]`)?.getAttribute("aria-checked") === "true", cal.id);
+      await A.getByTestId(`as-export-${cal.id}`).waitFor({ timeout: 15_000 }).catch(async (e: Error) => { await A.screenshot({ path: path.join(OUT, "debug-step7.png") }); throw e; });
+      assert.equal(await A.getByTestId(`as-export-${cal.id}`).getAttribute("aria-checked"), "false");
+      await A.getByTestId(`as-export-${cal.id}`).click();
+      await A.waitForFunction((id: string) => document.querySelector(`[data-testid="as-export-${id}"]`)?.getAttribute("aria-checked") === "true", cal.id);
       await snap(A, "ada-export-for-cal");
       await sheet(A, "records-share-btn");
-      await A.getByTestId("share-done").click();
+      await A.getByTestId("as-cancel").click();
       await C.getByTestId("records-export-btn").waitFor({ timeout: 20_000 });
       await snap(C, "cal-export-button-appears");
       const exported = C.waitForResponse((r: any) => r.url().includes("/v1/records/export"), { timeout: 20_000 });   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -235,12 +235,12 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
       await A.getByTestId("record-share-btn").waitFor({ timeout: 20_000 });
       await A.getByTestId("record-share-btn").click();
       await A.getByTestId("records-share").waitFor();
-      await A.getByTestId("share-override").waitFor();
+      await A.getByTestId("as-override").waitFor();
       await snap(A, "ada-record-follows-the-type");
       await sheet(A, "record-share-btn");
-      await A.getByTestId("share-override").click();
-      await A.getByTestId("share-audience-pick-me").click();
-      await A.waitForFunction(() => document.querySelector('[data-testid="share-audience-pick-me"]')?.getAttribute("aria-selected") === "true");
+      await A.getByTestId("as-override").click();
+      await A.getByTestId("as-audience-pick-me").click();
+      await A.waitForFunction(() => document.querySelector('[data-testid="as-audience-pick-me"]')?.getAttribute("aria-selected") === "true");
       await snap(A, "ada-record-only-me");
       await B.getByTestId(`rec-${deals["Cedar upsell"]}`).waitFor({ state: "detached", timeout: 20_000 });
       await C.getByTestId(`rec-${deals["Cedar upsell"]}`).waitFor({ state: "detached", timeout: 20_000 });
@@ -249,12 +249,12 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
       assert.equal((await post("records.get", { type: "rt_deal", recordId: deals["Cedar upsell"] }, bea.token)).status, 403);
       // back to following the type: the deal returns to both tables, still without a refresh
       await sheet(A, "record-share-btn");
-      await A.getByTestId("share-audience-pick-space").click();
+      await A.getByTestId("as-audience-pick-space").click();
       await B.getByTestId(`rec-${deals["Cedar upsell"]}`).waitFor({ timeout: 20_000 });
       await C.getByTestId(`rec-${deals["Cedar upsell"]}`).waitFor({ timeout: 20_000 });
       await snap(A, "ada-back-to-the-type");
       await sheet(A, "record-share-btn");
-      await A.getByTestId("share-done").click();
+      await A.getByTestId("as-cancel").click();
     });
 
     await t.test("9 the table marks the deals that differ from their type, and Ada's Deals open to everyone again", async () => {
@@ -263,11 +263,11 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
       assert.ok(await count(A, `mark-${deals["Dune expansion"]}`) > 0, "the lock on the deal set apart");
       await snap(A, "ada-marks");
       await A.getByTestId("records-share-btn").click();
-      await A.getByTestId("share-audience-pick-space").click();
-      await A.waitForFunction(() => document.querySelector('[data-testid="share-audience-pick-space"]')?.getAttribute("aria-selected") === "true");
+      await A.getByTestId("as-audience-pick-space").click();
+      await A.waitForFunction(() => document.querySelector('[data-testid="as-audience-pick-space"]')?.getAttribute("aria-selected") === "true");
       await snap(A, "ada-everyone-again");
       await sheet(A, "records-share-btn");
-      await A.getByTestId("share-done").click();
+      await A.getByTestId("as-cancel").click();
       await D.getByTestId("row-nav:type:rt_deal").waitFor({ timeout: 20_000 });
       await snap(D, "dee-has-deals-again");
     });
@@ -304,12 +304,12 @@ test("records sharing in the real app: Deals for Bea to edit and Cal to view, no
       await look(PA, "ada-more-menu");
       await PA.getByText("Share", { exact: true }).first().click();
       await PA.getByTestId("records-share").waitFor();
-      assert.equal(await PA.getByTestId("share-audience-pick-added").getAttribute("aria-selected"), "true");
+      assert.equal(await PA.getByTestId("as-audience-pick-added").getAttribute("aria-selected"), "true");
       await look(PA, "ada-sheet-people-added");
-      await PA.getByTestId(`share-export-${cal.id}`).click();
-      await PA.waitForFunction((id: string) => document.querySelector(`[data-testid="share-export-${id}"]`)?.getAttribute("aria-checked") === "true", cal.id);
+      await PA.getByTestId(`as-export-${cal.id}`).click();
+      await PA.waitForFunction((id: string) => document.querySelector(`[data-testid="as-export-${id}"]`)?.getAttribute("aria-checked") === "true", cal.id);
       await look(PA, "ada-export-on-for-cal");
-      await PA.getByTestId("share-more").click();
+      await PA.getByTestId("as-more").click();
       await look(PA, "ada-export-setting-menu");
       await PA.keyboard.press("Escape");
       // Cal: Export but no Share, and the deal reads only

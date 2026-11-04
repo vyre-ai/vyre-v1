@@ -8,7 +8,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { addMenu } from "../../../../../../ui/src/ShareSheet/index.tsx";
+import { addMenu } from "../../../../../../ui/src/AccessSheet/index.tsx";
 import { delegateRoutine, deleteRoutine, duplicateRoutine, renameRoutine, runNow, saveInstructions, setRoutine } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import { usePaneData, useScreenQuery } from "./data.tsx";
@@ -119,7 +119,7 @@ export function RoutinesTab({ deps, window, initial }: { deps: PaneDeps; window?
       });
     }
     if (mode === "delegate") {
-      // The shared people picker (ui/ShareSheet's Add menu): People, Groups, Roles, Agents. Only people can own a routine, so only people are offered, and not the owner.
+      // The shared people picker (ui/AccessSheet's Add menu): People, Groups, Roles, Agents. Only people can own a routine, so only people are offered, and not the owner.
       const others = (data.people ?? []).filter((p) => p.id !== r.ownerId);
       const picks = addMenu({ people: others }, [], (subject, name) => { void delegateRoutine(deps, r, subject.id, name).then((ok) => { if (ok) setMode("view"); }); });
       entries.push({ key: "l-delegate", type: "label", text: "Give this routine to" });

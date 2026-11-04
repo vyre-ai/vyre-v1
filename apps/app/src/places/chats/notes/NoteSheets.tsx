@@ -10,92 +10,34 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { Ico } from "./icons.tsx";
 import { Layer } from "./NoteDialog.tsx";
-import { agentWords, fillFromNote, noteName, recordFields } from "./model.ts";
-import type { DueChoice, Note, RecordType, Who } from "./model.ts";
+import { fillFromNote, noteName, noteShareRows, notePatchOf, recordFields } from "./model.ts";
+import type { DueChoice, Note, NoteSharePatch, RecordType, Who } from "./model.ts";
+import { AccessSheet } from "../../../../../../ui/src/AccessSheet/index.tsx";
+
+const EVERYONE_ID = "grp_everyone";
 import { Btn, TickBox, dom, pressPoint, web } from "./parts.tsx";
 
 export interface Person { id: string; name: string; kind: "person" | "agent"; username?: string }
 
 /* ---------- share ---------- */
 
-export function ShareSheet({ n, who, people, onShare, onCopyLink, onClose }: {
+export function ShareSheet({ n, who, people, onShare, onClose }: {
   n: Note; who: Who; people: readonly Person[];
-  onShare(patch: { people?: { personId: string; role: "edit" | "view" | "remove" }[]; space?: "off" | "view" | "edit" }): void;
-  onCopyLink(): void; onClose(): void;
+  onShare(patch: NoteSharePatch): void;
+  onClose(): void;
 }): ReactElement {
-  const menu = useMenu();
-  const [q, setQ] = useState("");
-  const inSpace = people.filter((p) => p.kind === "person");
-  const has = new Set(n.share.people.map((p) => p.personId));
-  const needle = q.trim().toLowerCase();
-  const found = needle === "" ? [] : inSpace.filter((p) => p.id !== n.owner && !has.has(p.id) && (p.name.toLowerCase().includes(needle) || (p.username ?? "").toLowerCase().includes(needle)));
-  const add = (p: Person): void => { onShare({ people: [{ personId: p.id, role: "edit" }] }); setQ(""); };
-  const roleMenu = (personId: string, role: "edit" | "view", x: number, y: number): void => menu.show([
-    { label: "Can edit", checked: role === "edit", onSelect: () => onShare({ people: [{ personId, role: "edit" }] }) },
-    { label: "Can view", checked: role === "view", onSelect: () => onShare({ people: [{ personId, role: "view" }] }) },
-    { separator: true },
-    { label: "Remove", danger: true, onSelect: () => onShare({ people: [{ personId, role: "remove" }] }) },
-  ], x, y, "other");
-  const spaceMenu = (x: number, y: number): void => menu.show([
-    { label: "Off", checked: n.share.space === "off", hint: "Private to the people above", onSelect: () => onShare({ space: "off" }) },
-    { label: "Can view", checked: n.share.space === "view", onSelect: () => onShare({ space: "view" }) },
-    { label: "Can edit", checked: n.share.space === "edit", onSelect: () => onShare({ space: "edit" }) },
-  ], x, y, "other");
-  const sub = n.share.people.length === 0 && n.share.space === "off" ? "Private until you add someone" : n.share.space !== "off" ? `Everyone in ${who.spaceName} can ${n.share.space === "edit" ? "edit" : "view"} it` : `Shared with ${n.share.people.length} ${n.share.people.length === 1 ? "person" : "people"}`;
-  const roleBtn = (label: string, open: (x: number, y: number) => void, testID: string): ReactElement => (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} onPress={(e) => { (e as unknown as { stopPropagation?: () => void }).stopPropagation?.(); const p = pressPoint(e); open(p.x, p.y); }} style={s.role} {...dom({ dataSet: { nbtn: "ghost" } })}>
-      <Text style={s.roleText}>{label}</Text>
-      <View style={{ transform: [{ rotate: "90deg" }] }}><Ico name="chev" size={10} color="var(--ink-4)" /></View>
-    </Pressable>
-  );
+  // the one Access sheet: a note is shared with people (Can view, Can edit) or with the Space; agents read what their person can see, so none are offered
+  const inSpace = people.filter((p) => p.kind === "person" && p.id !== n.owner);
+  const send = (patch: NoteSharePatch | null): void => { if (patch) onShare(patch); };
   return (
-    <Layer onClose={onClose} testID="share-layer" label="sharing">
-      <View role="dialog" aria-modal accessibilityLabel="Share" testID="share-sheet" style={s.sheet}>
-        <Text accessibilityRole="header" style={s.h2}>{`Share “${noteName(n)}”`}</Text>
-        <Text style={s.sub}>{sub}</Text>
-        <View style={s.fld} {...dom({ dataSet: { nfield: "true" } })}>
-          <Ico name="share" size={15} color="var(--ink-3)" />
-          <TextInput
-            value={q} onChangeText={setQ} placeholder="Add a person by name" placeholderTextColor="var(--ink-3)" accessibilityLabel="Add a person by name" testID="share-find" autoFocus
-            onKeyPress={(e) => { if ((e.nativeEvent as { key?: string }).key === "Enter" && found[0]) { (e as unknown as { preventDefault?: () => void }).preventDefault?.(); add(found[0]); } }}
-            style={s.fldInput}
-          />
-        </View>
-        {needle !== "" ? (
-          <View style={s.sug} testID="share-matches">
-            {found.length === 0 ? <Text style={[s.vs, { padding: 10 }]}>{`No one in ${who.spaceName} matches. Agents are not shared with: they read what their person can see.`}</Text> : null}
-            {found.slice(0, 6).map((p) => (
-              <Row key={p.id} id={`share-add-${p.id}`} title={p.name} {...(p.username ? { note: p.username } : {})} leading={<View style={s.face}><Avatar name={p.name} seedId={p.id} kind="person" size={26} /></View>} trailing={<Text style={s.vs}>Can edit</Text>} onPress={() => add(p)} />
-            ))}
-          </View>
-        ) : null}
-        <Text style={s.slab}>People</Text>
-        <Row id="share-owner" title={`${who.nameOf(n.owner)}${n.owner === who.meId ? " (you)" : ""}`} leading={<View style={s.face}><Avatar name={who.nameOf(n.owner)} seedId={n.owner} kind="person" size={26} /></View>} trailing={<Text style={[s.vs, { paddingRight: 8 }]}>Owner</Text>} />
-        {n.share.people.map((p) => (
-          <Row
-            key={p.personId} id={`share-person-${p.personId}`} title={`${who.nameOf(p.personId)}${p.personId === who.meId ? " (you)" : ""}`}
-            leading={<View style={s.face}><Avatar name={who.nameOf(p.personId)} seedId={p.personId} kind="person" size={26} /></View>}
-            trailing={roleBtn(p.role === "edit" ? "Can edit" : "Can view", (x, y) => roleMenu(p.personId, p.role, x, y), `share-role-${p.personId}`)}
-          />
-        ))}
-        <Text style={s.slab}>The Space</Text>
-        <Row
-          id="share-space" title={who.spaceName} note={`Everyone in the Space, ${inSpace.length} ${inSpace.length === 1 ? "person" : "people"}`}
-          leading={<View style={[s.face, s.tile]}><Text style={s.tileText}>{(who.spaceName.trim()[0] ?? "S").toUpperCase()}</Text></View>}
-          trailing={roleBtn({ off: "Off", view: "Can view", edit: "Can edit" }[n.share.space], spaceMenu, "share-space-role")}
-        />
-        <View style={s.why} testID="share-agents">
-          <Ico name="people" size={15} color="var(--ink-3)" />
-          <Text style={s.whyText}>{agentWords(n, who)}</Text>
-        </View>
-        <View style={s.foot}>
-          <Btn label="Copy link" kind="ghost" sm icon="link" onPress={() => onCopyLink()} testID="share-copy" />
-          <View style={{ flex: 1 }} />
-          <Btn label="Done" kind="primary" onPress={() => onClose()} testID="share-done" />
-        </View>
-      </View>
-      {menu.element}
-    </Layer>
+    <AccessSheet
+      mode="share" itemType="note" resourceType="file" resourceId={n.noteId} itemName={noteName(n)} target="item" ownerName={who.nameOf(n.owner)} ownerId={n.owner} spaceName={who.spaceName}
+      levels={["view", "edit"]} shares={noteShareRows(n, who.nameOf)} allowExternal={false} density="regular"
+      {...(n.owner === who.meId ? {} : { maxLevel: "view" as const })}
+      directory={{ people: inSpace.map((p) => ({ id: p.id, name: p.name, kind: "person" as const, ...(p.username ? { sub: p.username } : {}) })), space: { id: "space", name: `Everyone in ${who.spaceName}`, kind: "space", subject: { kind: "group", id: EVERYONE_ID } } }}
+      onShare={(i) => send(notePatchOf(i))} onUnshare={(i) => send(notePatchOf(i, true))}
+      onClose={onClose}
+    />
   );
 }
 
