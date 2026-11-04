@@ -222,3 +222,11 @@ export function titleParts(at: number, z: Zones): { date: string; space: string;
   }
   return out;
 }
+
+/** A real-looking deadline for a zone-change confirm: a week from now at 4:16 PM in the old zone, and how that same moment reads in the new one. Nothing moves; only the reading does. */
+export function deadlineExample(now: number, from: string, to: string): { before: string; after: string } {
+  const week = localInput(now + 7 * DAY, from).slice(0, 10);
+  const at = instantOf(`${week}T16:16`, from) ?? now + 7 * DAY;
+  const line = (zone: string): string => `${dateIn(at, zone)}, ${clockIn(at, zone)} ${zoneName(zone, at)}`;
+  return { before: line(from), after: line(to) };
+}
