@@ -43,8 +43,7 @@ import { teamActions } from "./team-actions.ts";
 import { ReportHost } from "../report/ReportHost.tsx";
 import { useNotificationNotices, useUpdateNotice } from "../noticeslot/bridge.ts";
 import type { NotificationNoticesProps, UpdateSource } from "../noticeslot/bridge.ts";
-import { desktopUpdates } from "../../startup/update/store.ts";
-import { localStore, setUpdateState, subscribeUpdates, updateState } from "../../startup/update/store.ts";
+import { desktopUpdates, localStore, setUpdateState } from "../../startup/update/store.ts";
 import { FROM_KEY, noteUpdateFrom } from "../../startup/update/model.ts";
 import { isMacShell, lockedIdentity, storeLock } from "./entry.ts";
 import { anyUnread } from "../../places/chats/sidebar/model.ts";
@@ -338,7 +337,7 @@ export function ShellHost({ stored, open, onSignedOut, onHub, hub: given, initia
     };
   }, []);
   useUpdateNotice(updateSource);
-  const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}><>{el}<VaultUnlockHost /><ReportHost call={session?.call ?? null} place={location.place} />{banners ? <NotificationsHost {...banners} /> : null}</></OnboardingHost>;
+  const wrap = (el: ReactElement): ReactElement => <OnboardingHost call={session?.call ?? null} space={{ kind: stored.def.kind === "personal" ? "personal" : "team", name: stored.def.name }} mac={isMacShell()} runtime={session?.runtime ?? null} person={session?.me.id ?? null} personName={session?.me.name ?? null} address={stored.baseUrl} personalCall={personalCall} onGo={(place, hash) => hub.go(place as PlaceId, hash ?? "")} {...(onAddSpace?{onAddSpace}:{})}><>{el}<VaultUnlockHost /><ReportHost call={session?.call ?? null} place={location.place} /></></OnboardingHost>;
   if (deadConsole) return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;
   // on a computer the Console is a place in the shell; at its own address nothing surrounds it. In the app on a phone it is not there (owner ruling, 3 Nov): PhoneHost draws the Chat-about-it line
   if (consoleDoor && location.place !== "console") return <View testID="console-redirect" style={{ flex: 1, backgroundColor: "var(--win)" as string }} />;

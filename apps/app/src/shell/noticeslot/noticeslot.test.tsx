@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createNoticeStore, PASSING_MS, PRIORITY, slotView } from "./model.ts";
 import { NoticeSlot } from "./NoticeSlot.tsx";
+import { PhoneNotices } from "./PhoneNotices.tsx";
 import { isLocked, lockAvailable, registerLockControl, toggleLock } from "./lock-control.ts";
 import { matchShortcut, keyboardRows } from "../keyboard/map.ts";
 import { shellKey, SHELL_KEYS } from "../spaces/keys.ts";
@@ -107,4 +108,20 @@ test("Cmd-K offers Lock Vyre while unlocked and Unlock while locked, and nothing
   assert.equal(gateActions(base).some((a) => a.key === "vault.lock"), false, "no key door here: no command");
   assert.deepEqual(gateActions({ ...base, lock: { available: true, locked: false } }).find((a) => a.key === "vault.lock")?.title, "Lock Vyre");
   assert.deepEqual(gateActions({ ...base, lock: { available: true, locked: true } }).find((a) => a.key === "vault.lock")?.title, "Unlock");
+});
+
+test("the phone has one slim row with the bell only while something needs the person", () => {
+  const c = clock();
+  const s = createNoticeStore(c.now);
+  assert.equal(renderToStaticMarkup(<PhoneNotices store={s} />), "", "nothing live: no row, no room taken");
+  s.raise({ id: "r", kind: "reply", text: "Dana Whitfield replied in #intake", action: act("Open") });
+  const h = renderToStaticMarkup(<PhoneNotices store={s} />);
+  assert.match(h, /mobile-notices/);
+  assert.match(h, /notice-bell/);
+  s.pass("Saved");
+  s.resolve("r");
+  assert.match(renderToStaticMarkup(<PhoneNotices store={s} />), /notice-bell/, "a passing notice shows on the bell too, briefly");
+  c.advance(PASSING_MS + 10);
+  s.tick();
+  assert.equal(renderToStaticMarkup(<PhoneNotices store={s} />), "", "and the row goes when it has passed");
 });

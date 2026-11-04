@@ -17,6 +17,7 @@ test("replies, mentions and messages say Open; approvals say Review; alerts abou
   assert.deepEqual(noticeKindOf({ kind: "dm" }), { kind: "reply", label: "Open" });
   assert.deepEqual(noticeKindOf({ kind: "approval.requested" }), { kind: "approval", label: "Review" });
   assert.deepEqual(noticeKindOf({ kind: "approval.backstop" }), { kind: "approval", label: "Review" });
+  assert.deepEqual(noticeKindOf({ kind: "task.turn" }), { kind: "approval", label: "Review" }, "work handed in for the person's turn");
   assert.deepEqual(noticeKindOf({ kind: "health.degraded" }), { kind: "machine", label: "Open" });
   assert.deepEqual(noticeKindOf({ kind: "incident.owned" }), { kind: "machine", label: "Open" });
   assert.equal(noticeText({ title: "Maya replied in #intake", count: 3 }), "Maya replied in #intake · 3 new");

@@ -14,7 +14,7 @@ type ListOut = CapMap["notifications.list"]["out"];
 /** Which kind of notice a notification is, and the one word on its action. */
 export function noticeKindOf(n: Pick<Notification, "kind">): { kind: Exclude<NoticeKind, "passing" | "locked" | "offline" | "update">; label: string } {
   switch (n.kind) {
-    case "approval.requested": case "approval.backstop": case "unblock.requested": case "answer.requested": case "access.requested": return { kind: "approval", label: "Review" };
+    case "task.turn": case "approval.requested": case "approval.backstop": case "unblock.requested": case "answer.requested": case "access.requested": return { kind: "approval", label: "Review" };
     case "health.degraded": case "incident.owned": case "sync.attention": case "agent.blocked": case "run.failed": case "limit.hit": return { kind: "machine", label: "Open" };
     default: return { kind: "reply", label: "Open" };
   }
