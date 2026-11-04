@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS "chat_thread_member" (
   "thread" TEXT,
   "principal" TEXT,
   "role" TEXT,
+  "fromAt" INTEGER,
   "version" INTEGER NOT NULL DEFAULT 0,
   "updated_at" INTEGER,
   "deleted_at" INTEGER

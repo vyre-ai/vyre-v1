@@ -113,8 +113,9 @@ test("list shows the agents the person is in or that are shared with them; the a
   assert.deepEqual(await ids({ section: "shared" }), [theirs.agentId]);
   assert.equal(await failure(() => call(hn, "agents.get", { agentId: secret.agentId })), "validation.not_found", "what exists is not leaked");
   assert.deepEqual(await call(hn, "agents.visibility.set", { all: true }), { all: true });
-  assert.equal((await ids()).length, 3, "All in the Space");
-  assert.equal((await call(hn, "agents.get", { agentId: secret.agentId })).agent.name, "Secret");
+  // owner ruling 4 Nov: All in the Space no longer reaches a person's own agents that nobody shared; what an admin has of them is the summary per person
+  assert.equal((await ids()).length, 2, "All in the Space shows the Space's agents, not Secret");
+  assert.equal(await failure(() => call(hn, "agents.get", { agentId: secret.agentId })), "validation.not_found", "Secret stays Leo's");
   hn.allowOnly(() => false);
   assert.equal((await ids()).length, 1, "the toggle stops counting when the admin permission goes: only her own are left");
   hn.allowOnly(() => true);

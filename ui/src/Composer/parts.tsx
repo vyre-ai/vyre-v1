@@ -184,6 +184,7 @@ export const I = {
   bolt: svg('<path d="M13 3 4 14h7l-1 7 9-11h-7z"/>'),
   project: svg('<path d="M4 6h16M4 12h10M4 18h7"/>'),
   channel: svg('<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>'),
+  people: svg('<circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0M16 5a3 3 0 0 1 0 6M18 20a5 5 0 0 0-2.4-4.3"/>'),
   at: svg('<circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>'),
   hash: svg('<path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16"/>'),
   slash: svg('<path d="m15 4-6 16"/>'),

@@ -18,7 +18,7 @@ export const owner: Caller = { id: OWNER, kind: "person", origin: "app" };
 export const lead: Caller = { id: LEAD, kind: "agent", actingFor: OWNER };
 export const host: Caller = { id: "svc_host", kind: "service" };
 
-export function world(o: { count?: number; failRead?: string; fakes?: Record<string, (i: Obj, who: Caller) => unknown> } = {}) {
+export function world(o: { count?: number; failRead?: string; failMembers?: string; fakes?: Record<string, (i: Obj, who: Caller) => unknown> } = {}) {
   const sqlite = new DatabaseSync(":memory:");
   const norm = (a: unknown): unknown => (a === undefined ? null : a);
   const raw: Db = {
@@ -42,7 +42,7 @@ export function world(o: { count?: number; failRead?: string; fakes?: Record<str
     "settings.get": () => ({ row: { value: "Asia/Karachi" } }),
     "chat.start": (i) => ({ thread: { threadId: `thr_${String(i.scopeId ?? next("x")).replace(/^gol_/, "g")}` } }),
     "chat.post": (i, who) => { state.posts.push({ threadId: i.threadId, body: i.body, blocks: i.blocks, by: who.id }); return { message: { messageId: next("msg") } }; },
-    "threads.members.add": (i) => { state.members.push({ threadId: i.threadId, id: i.personId }); return {}; },
+    "threads.members.add": (i) => { if (o.failMembers) throw new Error(o.failMembers); state.members.push({ threadId: i.threadId, id: i.personId }); return {}; },
     "threads.add_agent": (i) => { state.members.push({ threadId: i.threadId, id: i.agentId }); return {}; },
     "tasks.create": (i, who) => {
       const t: FakeTask = { id: next("tsk"), kind: i.kind ?? "work", title: i.title, state: i.kind === "approve" ? "awaiting_approval" : "todo", workingNotes: { ...(i.notes ?? {}) }, createdBy: who.id, summary: i.summary, ...(i.parentTaskId ? { parentTaskId: i.parentTaskId } : {}), assigned: i.assigned };
@@ -68,7 +68,7 @@ export function world(o: { count?: number; failRead?: string; fakes?: Record<str
     "files.folder.create": (i) => { const id = next("fld"); state.folders.set(id, { name: i.name, parent: i.parentId }); return { folder: { folderId: id, name: i.name } }; },
     "files.folder.rename": (i) => { const f = state.folders.get(i.folderId); if (f) f.name = i.name; return { folder: { folderId: i.folderId, name: i.name } }; },
     "files.copy": (i) => { state.files.push({ folderId: i.toFolderId, name: `copy of ${i.fileId}`, text: "" }); return { file: { fileId: next("fil") } }; },
-    "chat.message.get": (i) => ({ message: { messageId: i.messageId, attachments: i.messageId === "msg_drop" ? ["fil_brief", "fil_list"] : [] } }),
+    "chat.message.get": (i) => ({ message: { messageId: i.messageId, attachments: i.messageId === "msg_drop" ? ["fil_brief", "fil_list"] : [], ...(i.messageId === "msg_owner_start" ? { author: { kind: "person", id: OWNER }, createdAt: state.now - 60_000 } : i.messageId === "msg_owner_old" ? { author: { kind: "person", id: OWNER }, createdAt: state.now - 3_600_000 } : i.messageId === "msg_other" ? { author: { kind: "person", id: ALIZA }, createdAt: state.now - 1000 } : {}) } }),
     "files.create": (i) => { state.files.push({ folderId: i.folderId, name: i.name, text: i.content?.text ?? "" }); return { file: { fileId: next("fil") } }; },
     "access.share": (i) => { if (!state.shares.some((s) => s.resource.id === i.resource.id && s.subject.id === i.subject.id && s.source === i.source)) state.shares.push({ resource: i.resource, subject: i.subject, level: i.level, source: i.source }); return { grant: {} }; },
     "access.unshare": (i) => { const before = state.shares.length; state.shares = state.shares.filter((s) => !(s.resource.id === i.resource.id && s.source === i.source)); return { revoked: before - state.shares.length }; },

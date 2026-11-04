@@ -32,6 +32,12 @@ export interface EngineAgent {
   watching?: boolean;
   /** It runs outside Vyre: no turn runs for it here. A message for it goes to its queue instead (agent.outside_asked). */
   outside?: boolean;
+  /** Listening: never answers, not even tagged. Only a poke makes it speak. */
+  quiet?: boolean;
+  /** When it answers a message nobody tagged it in (lib/route.ts mayAnswerUntagged). */
+  when?: "always" | "topics" | "hours"; topics?: string; hoursFrom?: string; hoursTo?: string;
+  /** One line the turn is told about how long the reply is: "Keep replies short." or "Give full detail." Per agent, per chat. */
+  style?: "short" | "full";
 }
 
 export interface OpenThread {
@@ -62,6 +68,10 @@ export interface IncomingMessage {
   body?: string;
   /** The people in the chat as the host read them for this message, so a mention of anyone else is a reference. */
   people?: readonly string[];
+  /** A person poked this agent: it answers now, Listening or not, from the last 12 messages, and the reply says who poked it. */
+  poke?: { agentId: string; by: string } | undefined;
+  /** Minutes since midnight where the speaker is, for agents set to answer only inside hours. */
+  minutes?: number | undefined;
 }
 
 export interface StoredMessage {

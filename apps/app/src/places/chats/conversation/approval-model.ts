@@ -1,18 +1,20 @@
 // The approval card of a chat (rc.8): when a turn parks on a hold the person answers it in the chat, with what the agent wants to do, a short excerpt, and Allow or Deny. This file is the words,
 // without a renderer. The hold is a task of kind approve (tasks.get); its first block carries { act, cap, input }; the actions are approve and reject.
 import { appName, hubById } from "../../../../../../lib/mcp-hubs.ts";
+import type { Outward } from "../../../../../../lib/outward.ts";
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const text = (v: unknown): string => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
 
-export interface Held { cap: string; act: string; input: Obj; /** An outside agent asked the person (docs/ask-the-person.md): what happens, in the capability's own words. */ what?: string; /** a plain yes or no from an agent of a teammate (lane l-agentdm): nothing runs as the reader */ plain?: true; detail?: string }
+export interface Held { /** the held message in a person's words, when the Gate wrote it (lib/outward.ts) */ outward?: Outward; holdId?: string; cap: string; act: string; input: Obj; /** An outside agent asked the person (docs/ask-the-person.md): what happens, in the capability's own words. */ what?: string; /** a plain yes or no from an agent of a teammate (lane l-agentdm): nothing runs as the reader */ plain?: true; detail?: string }
 
 /** The capability and input a hold's task carries in its first block, or an empty hold when it carries none. */
 export function heldOf(blocks: readonly { type: string; data: unknown }[]): Held {
   const d = obj(blocks[0]?.data);
   const what = text(obj(d["ask"])["what"]);
   // an agent asking a teammate in their direct chat to approve something (lane l-agentdm): a plain yes or no, nothing runs as them
-  return { cap: text(d["cap"]), act: text(d["act"]), input: obj(d["input"]), ...(what ? { what } : {}), ...(d["plain"] === true ? { plain: true, detail: text(d["text"]) } : {}) };
+  const ow = obj(d["outward"]);
+  return { cap: text(d["cap"]), act: text(d["act"]), input: obj(d["input"]), ...(Object.keys(ow).length > 0 && Array.isArray(ow["to"]) ? { outward: ow as unknown as Outward } : {}), ...(text(d["holdId"]) ? { holdId: text(d["holdId"]) } : {}), ...(what ? { what } : {}), ...(d["plain"] === true ? { plain: true, detail: text(d["text"]) } : {}) };
 }
 
 /** The lines of a plain ask: its detail, when it has one. */

@@ -221,6 +221,16 @@ type Out = {
       title: string;
       recordId: string;
     }>;
+  seated: Array<{
+      kind: "person" | "agent";
+      id: string;
+      inChat: boolean;
+      error?: string;
+    }>;
+  plan: {
+    drafted: number;
+    attached: number;
+  };
 };
 ```
 
@@ -456,6 +466,18 @@ type Out = {
         "goalId": "gol_a1b2c3",
         "recordId": "rec_a1b2c3",
         "title": "example"
+      }
+    ],
+    "plan": {
+      "attached": 1,
+      "drafted": 1
+    },
+    "seated": [
+      {
+        "error": "example",
+        "id": "example",
+        "inChat": true,
+        "kind": "person"
       }
     ]
   }

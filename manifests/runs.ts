@@ -80,6 +80,9 @@ export default defineManifest({
     read('runs.count', 'Count Runs by status for badges (failed runs in Needs you, running now)', {
       in: { scope: t.enm('mine', 'all'), statuses: t.opt(t.arr(runStatus)) }, out: { count: t.int() }, tool: 'automations',
     }),
+    read('runs.people_counts', 'How many Runs each person\'s own agents have, counted and never listed: an admin sees the number, not the work', {
+      in: { statuses: t.opt(t.arr(runStatus)) }, out: { people: t.arr(t.obj({ person: t.str(), runs: t.int({ minimum: 0 }) })) }, level: 'manage', perm: 'runs.manage', tool: 'automations',
+    }),
     write('runs.stop', 'Stop a Run (owner or Manage holder); stoppable work halts at the next safe point', {
       in: { ...target, reason: t.opt(t.str()) }, out: { run: runRow }, on: ['run', '/runId'], level: 'manage', emits: ['run.stopped'], tool: 'automations', offline: 'online', cli: 'vyre runs stop',
     }),

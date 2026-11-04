@@ -11,6 +11,9 @@ import { AppRoot } from "./src/startup/AppRoot.tsx";
 import { webUiStateStore } from "./src/startup/persisted.ts";
 import { resolveLastPlace } from "./src/startup/places.ts";
 import { guardFileDrops } from "../../ui/src/FileDrop/index.tsx";
+// Mermaid diagrams and KaTeX math in chat replies: each library is loaded the first time a reply holds one (ui/src/stream/enable-diagrams.ts, enable-math.ts)
+import "../../ui/src/stream/enable-diagrams.ts";
+import "../../ui/src/stream/enable-math.ts";
 
 // Files dropped where no field takes them do nothing, rather than the window opening the file in place of the app (the Mac app's web view does that too).
 guardFileDrops();

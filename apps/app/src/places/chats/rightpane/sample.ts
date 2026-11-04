@@ -273,6 +273,13 @@ export function createSample(variant: Variant = "northwind", o: { online?: boole
       return { routine: strip(next, []) };
     },
     "agents.routine.delete": (i: { routineId: string }) => { replica.remove("routines", [i.routineId]); return { deleted: true }; },
+    // the Add people and agents sheet (lane l-addsheet): the open chat, the directory and the calls
+    "threads.get": (i: { threadId: string }) => ({ thread: { threadId: i.threadId, kind: "chat", title: "Rivera intake", listed: true, planMode: false, members: [{ kind: "person", id: "usr_irfad" }, { kind: "agent", id: agentId }], agents: [{ agentId, mode: "lead" }], createdAt: SAMPLE_NOW } }),
+    "access.principals.list": () => ({ principals: [
+      { id: "usr_irfad", kind: "person", name: "Irfad Imtiaz", status: "active", roles: [], groups: [], createdAt: SAMPLE_NOW },
+      { id: "usr_maya", kind: "person", name: "Maya Chen", status: "active", roles: [], groups: [], createdAt: SAMPLE_NOW },
+    ] }),
+    "threads.members.add": (i: { personId: string }) => ({ thread: { threadId: "c1", personId: i.personId } }),
   };
 
   const nav: RightPaneNav = {

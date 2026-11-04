@@ -387,7 +387,7 @@ function BriefEditor({ text, base, run, onDone }: { text: string; base: string; 
   const done = (): void => { void a.flush().then(onDone); };
   return (
     <View testID="task-brief-edit-wrap">
-      <MarkdownEditor testID="task-brief-edit" label="What this is" value={a.text} onChange={a.edit} placeholder="What this is" toggle={false} density="compact" minHeight={90} autoFocus onEscape={done} onSave={() => void a.flush()} />
+      <MarkdownEditor testID="task-brief-edit" label="What this is" value={a.text} onChange={a.edit} placeholder="What this is" density="compact" minHeight={90} autoFocus onEscape={done} onSave={() => void a.flush()} />
       <View style={st.briefRow}>
         <Text style={st.briefAdd} testID="task-brief-status">{a.status === "saving" || a.status === "dirty" ? "Saving\u2026" : a.status === "saved" ? "Saved" : a.status === "error" ? (a.error ?? "Not saved") : ""}</Text>
         <View style={{ flex: 1 }} />

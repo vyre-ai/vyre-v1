@@ -203,6 +203,15 @@ export type PlanBlockData = {
   state: "proposed" | "approved" | "rejected" | "done";
   docFileId?: string;
 };
+export type PokeBlockData = {
+  agentId: string;
+  by: string;
+  note?: string;
+};
+export type PokedBlockData = {
+  by: string;
+  agentId: string;
+};
 export type QuestionBlockData = {
   threadId: string;
   blockId: string;
@@ -309,6 +318,8 @@ export interface BlockDataMap {
   "mount": MountBlockData;
   "note_offer": NoteOfferBlockData;
   "plan": PlanBlockData;
+  "poke": PokeBlockData;
+  "poked": PokedBlockData;
   "question": QuestionBlockData;
   "record_card": RecordCardBlockData;
   "redact_request": RedactRequestBlockData;
@@ -738,6 +749,26 @@ export const blockRegistry = [
         "fileId": "/docFileId"
       }
     }
+  },
+  {
+    "type": "poke",
+    "v": 1,
+    "module": "chat",
+    "component": "ui:BlockPoke",
+    "fallback": "{{by}} poked an agent",
+    "waitsForAnswer": false,
+    "actions": [],
+    "opens": null
+  },
+  {
+    "type": "poked",
+    "v": 1,
+    "module": "chat",
+    "component": "ui:BlockPoked",
+    "fallback": "Poked by {{by}}",
+    "waitsForAnswer": false,
+    "actions": [],
+    "opens": null
   },
   {
     "type": "question",

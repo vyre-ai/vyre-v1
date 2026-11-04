@@ -4,7 +4,6 @@
 //   /p/u/<token>           an unsubscribe link from an email
 //   /p/share/project/<token>  a read-only project link for a client
 //   /p/<site>/...          a public site: forwarded, whole path, to a port on a computer, or served from a folder in Files
-//   /a/<id>/k/<token>/...  an artifact: the token is one person's short-lived address, and their access is checked on every request
 // It shares an origin with the app, so this route is the second wall behind the relay's (relay/worker/phone.js) and also the only wall on a direct connection: Cookie and Authorization are removed before
 // anything reads the request, Set-Cookie never leaves, every answer carries the sandbox policy with no allow-same-origin and noindex, and nothing under /p/ falls through to a signed-in route.
 import type http from "node:http";
@@ -17,7 +16,6 @@ const FORM = /^\/p\/forms\/(book\/)?([a-z0-9][a-z0-9-]{0,63})\/?$/;
 const UNSUBSCRIBE = /^\/p(\/u\/[A-Za-z0-9_-]+\/?)$/;
 const SHARE = /^\/p(\/share\/project\/[a-z0-9]+)$/;
 const SITE = /^\/p\/([a-z0-9][a-z0-9-]{0,62})(\/.*)?$/;
-const ARTIFACT = /^\/a\/(sit_[a-z0-9]{1,64})\/k\/([0-9a-f]{48})(\/.*)?$/;
 const BODY_MAX = 8 * 1024 * 1024;
 /** What goes to a site from a visitor: never who they are. */
 const TO_SITE = ["accept", "accept-language", "content-type", "if-modified-since", "if-none-match", "range", "user-agent", "x-file-name"];
@@ -39,8 +37,6 @@ export interface PublicPathDeps {
   origin(): string | null;
   /** The route behind /p/<slug>. */
   site?(slug: string): ServedSite | null;
-  /** The route behind an artifact address, if that token is good and its person may see it now. */
-  artifact?(siteId: string, token: string): Promise<ServedSite | null>;
   /** One request to the port a target names. */
   fetch?(target: ServedTarget, request: PortRequest, sink: PortSink): Promise<void>;
   /** One file of a folder target: `rel` is a path below the folder, never starting with a slash. */
@@ -142,15 +138,14 @@ export function createPublicPathRoute(deps: PublicPathDeps): Inner {
       const url = new URL(req.url ?? "/", "http://vyred");
       // an artifact's plain address: the app opens it for whoever is signed in. Only a token below it serves anything
       const plain = /^\/a\/(sit_[a-z0-9]{1,64})\/?$/.exec(url.pathname);
-      if (plain && (req.method ?? "GET").toUpperCase() === "GET") { res.writeHead(302, { location: `/#screen=apps.artifacts&selected=${plain[1] as string}`, "cache-control": "no-store", "content-length": "0" }); res.end(); return true; }
-      const artifact = ARTIFACT.exec(url.pathname);
-      if (url.pathname !== "/p" && !url.pathname.startsWith("/p/") && !artifact) return false;
+      if (plain && (req.method ?? "GET").toUpperCase() === "GET") { res.writeHead(302, { location: `/#subject=artifact:${plain[1] as string}`, "cache-control": "no-store", "content-length": "0" }); res.end(); return true; }
+      if (url.pathname !== "/p" && !url.pathname.startsWith("/p/")) return false;
       for (const h of DROP) delete req.headers[h];
       // the visitor the relay saw, for the per-visitor limits; on a direct connection the socket stands in
       const visitor = req.headers["x-vyre-visitor"];
       delete req.headers["x-vyre-visitor"];
       if (typeof visitor === "string" && visitor !== "") req.headers["x-forwarded-for"] = visitor;
-      guard(res, artifact ? APP_FRAME_ANCESTORS : undefined);   // an artifact is framed by the app's artifact viewer and by nothing else
+      guard(res);
       const method = (req.method ?? "GET").toUpperCase();
       const form = FORM.exec(url.pathname);
       if (form) {
@@ -178,17 +173,6 @@ export function createPublicPathRoute(deps: PublicPathDeps): Inner {
         return true;
       }
       const fail500 = (): void => { if (!res.headersSent) page(res, 502, "Not answering", "Try again soon."); else res.end(); };
-      if (artifact) {
-        const id = artifact[1] as string;
-        void (async () => {
-          const got = deps.artifact ? await deps.artifact(id, artifact[2] as string) : null;
-          if (!got || !got.live || got.blocked) { page(res, 404, "Not available", "This link has ended, or it is not shared with you. Open it from Vyre."); return; }
-          const prefix = `/a/${id}/k/${artifact[2] as string}`;
-          const rest = `${artifact[3] ?? "/"}${url.search}`;
-          await serve(deps, got, rest, rest, prefix, req, res);
-        })().catch(fail500);
-        return true;
-      }
       const m = SITE.exec(url.pathname);
       const site = m && deps.site ? deps.site(m[1] as string) : null;
       if (!m || !site) { page(res, 404, "Not found", "There is nothing at this address."); return true; }

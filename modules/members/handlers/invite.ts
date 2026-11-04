@@ -6,7 +6,7 @@ import { currentPolicy, enabledProviders } from "./policy.ts";
 import { companyConnected } from "./company.ts";
 import type { MembersCtx, InviteRow, SeamInvite } from "../projections.ts";
 import {
-  DAY_MS, DEFAULT_EXPIRY_DAYS, EVERYONE, OWNER_ROLE, hashCode, inviteById, inviteByCode, inviteView, invitesAll, listOf, mustInvite, newCode, nid, normCode, page, raise, stateOf,
+  DAY_MS, DEFAULT_EXPIRY_DAYS, EVERYONE, GUEST_ROLE, OWNER_ROLE, hashCode, inviteById, inviteByCode, inviteView, invitesAll, listOf, mustInvite, newCode, nid, normCode, page, raise, stateOf,
 } from "../projections.ts";
 
 const ok = { ok: true } as const;
@@ -101,6 +101,28 @@ export async function invitesCreate(ctx: MembersCtx, input: {
   return { invite: inviteView(row, now), link: await linkFor(ctx, host, info, code) };
 }
 
+/** The scope row of an invite made from inside a chat, or nothing for an ordinary invite. */
+export function guestOf(ctx: MembersCtx, inviteId: string): { level: "view" | "reply" } | undefined {
+  const row = ctx.db.all(`SELECT level FROM members_invite_scope WHERE invite_id = ?`, inviteId)[0] as { level?: string } | undefined;
+  return row ? { level: row.level === "reply" ? "reply" : "view" } : undefined;
+}
+
+/**
+ * members.invites.guest: an email invite as a guest of one chat (called by threads.invite_guest, as the person inviting). The role is guest and the only place is the channel; the level says whether the guest only
+ * reads or writes too. Who may invite into the chat is the chat's to say, so this takes no permission of its own; what the guest gets is checked again when they join, against what the inviter still holds.
+ */
+export async function invitesGuest(ctx: MembersCtx, input: { email: string; scope: { type: string; id: string }; level?: "view" | "reply"; idempotencyKey: string }) {
+  const tid = ctx.trace.traceId;
+  if (((ctx as { depth?: number }).depth ?? 0) < 1 || ctx.principal?.kind !== "person") raise(tid, "permission.no_grant", "A guest is invited from inside a chat.");
+  if (input.scope.type !== "channel" || !input.scope.id.startsWith("chn_")) raise(tid, "validation.bad_input", "A guest is invited to a channel's chat.");
+  const level = input.level ?? "view";
+  if (level !== "view" && level !== "reply") raise(tid, "validation.bad_input", "A guest can view or reply.");
+  if (!input.email?.trim()) raise(tid, "validation.bad_input", "A guest is invited by email.");
+  const made = await invitesCreate(ctx, { role: GUEST_ROLE, email: input.email, channels: [input.scope.id], expiresInDays: DEFAULT_EXPIRY_DAYS, idempotencyKey: input.idempotencyKey });
+  ctx.db.run(`INSERT OR REPLACE INTO members_invite_scope (invite_id, level) VALUES (?, ?)`, made.invite.id, level);
+  return made;
+}
+
 export async function invitesExtend(ctx: MembersCtx, input: { inviteId: string; expiresInDays: number }) {
   const tid = ctx.trace.traceId;
   const r = mustInvite(ctx, input.inviteId);
@@ -147,7 +169,9 @@ export async function invitesPreview(ctx: MembersCtx, input: { code: string }) {
 
 export interface JoinStep { k: string; state: "pending" | "done" | "failed"; error?: string; tries: number }
 
-function stepsFor(r: InviteRow): JoinStep[] {
+function stepsFor(r: InviteRow, guest?: { level: "view" | "reply" }): JoinStep[] {
+  // a guest of one chat: the guest role, that chat and what they may do in it, and nothing the Space gives everyone (no Everyone group, no home channel, no company mailbox)
+  if (guest) return [`role:${r.role}`, ...listOf(r.channels).flatMap((c) => [`channel:${c}`, `grant:channel:${c}:${guest.level}`]), "checklist"].map((k) => ({ k, state: "pending" as const, tries: 0 }));
   // Everyone carries what the Space shares with everyone (agents, records, files, skills, Vault items: owner D22); the Space's first channel (#vyre) is a step of its own
   const keys = [`role:${r.role}`, `group:${EVERYONE}`, "home"];
   for (const g of listOf(r.groups)) if (g !== EVERYONE) keys.push(`group:${g}`);
@@ -175,6 +199,13 @@ async function runStep(ctx: MembersCtx, personId: string, step: JoinStep, invite
     const inv = inviteId ? inviteById(ctx, inviteId) : undefined;
     if (!inv) throw new Error("the invite is gone");
     await ctx.call("access.join_share", { resource: { type: "agent", id: arg }, person: personId, level: "use", inviter: inv.created_by, source: `invite:${inv.id}` });
+  }
+  // the level a guest was invited at, given as the inviter's act while they could still give it (never more than they hold)
+  else if (kind === "grant") {
+    const [type, id, level] = arg.split(":");
+    const inv = inviteId ? inviteById(ctx, inviteId) : undefined;
+    if (!inv || !type || !id) throw new Error("the invite is gone");
+    await ctx.call("access.join_share", { resource: { type, id }, person: personId, level: level === "reply" ? "use" : "view", inviter: inv.created_by, source: `invite:${inv.id}` });
   }
   else if (kind === "home") await ctx.call("channels.home_join", { personId });
   else if (kind === "company") {
@@ -294,7 +325,7 @@ export function invitesSeam(ctx: MembersCtx): { peek(code: string): SeamInvite |
       if (r.expires_at <= ctx.now()) raise(ctx.trace.traceId, "auth.expired");
       const got = ctx.db.run(`UPDATE members_invites SET state = ?, accepted_by = ?, accepted_at = ? WHERE id = ? AND state = ?`, "accepted", personId, ctx.now(), r.id, "open");
       if (got.changes !== 1) raise(ctx.trace.traceId, "auth.invalid_code");
-      ctx.db.run(`INSERT OR REPLACE INTO members_joins (person_id, invite_id, steps, state, joined_at, applied_at) VALUES (?, ?, ?, ?, ?, ?)`, personId, r.id, JSON.stringify(stepsFor(r)), "pending", ctx.now(), null);
+      ctx.db.run(`INSERT OR REPLACE INTO members_joins (person_id, invite_id, steps, state, joined_at, applied_at) VALUES (?, ?, ?, ?, ?, ?)`, personId, r.id, JSON.stringify(stepsFor(r, guestOf(ctx, r.id))), "pending", ctx.now(), null);
     },
   };
 }

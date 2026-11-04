@@ -1,6 +1,6 @@
 # agents.outside.usable
 
-May the person asking give this agent work? An outside agent takes work from its owner only; every other agent says yes
+May the person asking give this agent work (a task, an automation step, a crew)? An outside agent takes work from its owner only; any other agent needs Can use on it (Can chat with is not enough); a person's Assistant is theirs alone
 
 | | |
 |---|---|

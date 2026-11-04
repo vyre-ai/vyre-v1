@@ -1,5 +1,5 @@
 // Calendar model: the pure part (spec 3.3, 2.18). Days and weeks in the person's day, the grid geometry (52 px an hour), snapping to 15 minutes for drag, move and resize, overlapping events laid
-// out in lanes, busy stripes from availability, the Find a time panel's lines, and the rules for what an event's menu offers. No React, no clock of its own.
+// out in equal columns per overlap group with long Block and Focus events as a quiet band behind them, busy stripes from availability, the Find a time panel's lines, and the rules for what an event's menu offers. No React, no clock of its own.
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { dayOf } from "../sidebar/model.ts";
 
@@ -14,8 +14,8 @@ export type Mode = "day" | "week" | "month";
 export const MIN = 60_000;
 export const HOUR = 60 * MIN;
 export const DAY = 24 * HOUR;
-/** Pixels an hour on the Day and Week grids; a 15 minute step is a quarter of it. */
-export const HH = 52;
+/** Pixels an hour on the Day and Week grids; a 15 minute step is a quarter of it (16 px). A 30 minute event is 31 px: two lines of title. */
+export const HH = 64;
 export const STEP_MIN = 15;
 export const STEP = STEP_MIN * MIN;
 
@@ -105,6 +105,12 @@ export function range(a: number, b: number, offsetMin: number): string {
   return sm === em ? `${s.slice(0, -3)} to ${e}` : `${s} to ${e}`;
 }
 
+/** 11:30 to 12:00 (a list's time column): AM or PM only when it changes, else 11:30 AM to 1:00 PM. */
+export function rangeShort(a: number, b: number, offsetMin: number): string {
+  const s = clock(a, offsetMin), e = clock(b, offsetMin);
+  return s.slice(-2) === e.slice(-2) ? `${s.slice(0, -3)} to ${e.slice(0, -3)}` : `${s} to ${e}`;
+}
+
 /** Mon, Oct 27 */
 export function dayText(at: number, offsetMin: number): string {
   const p = parts(startOfDay(at, offsetMin), offsetMin);
@@ -171,37 +177,102 @@ export const minutes = (s: Span): number => Math.round((s.endsAt - s.startsAt) /
 
 // ---------------------------------------------------------------- lanes
 
-export interface Laid { e: EventRow; lane: number; lanes: number }
+export interface Laid {
+  e: EventRow;
+  /** Side by side: events that start together (within 15 minutes) share the width; this is the place among them and `lanes` how many. */
+  lane: number;
+  lanes: number;
+  /** Cascade level: a later start is drawn on top of the card below, 12 px further in (0 to 3). */
+  level: number;
+  /** A long background block (Block, Focus): drawn as a tinted band behind the day, taking no column. */
+  band: boolean;
+  /** Stacking order within the overlap group by start time (0 first): a later start sits above every earlier card, side by side or not. */
+  rank?: number;
+  /** Pixels of this card left above the next card drawn over it (unset when nothing covers it): a title or time line that would sit under that card is not drawn. */
+  room?: number;
+  /** Past three events in a group the first two show and this tile lists the rest. */
+  more?: EventRow[];
+}
 
-/** Overlapping events side by side: each gets a lane and the number of lanes in its cluster. */
+/** Pixels each cascade level is drawn further in. */
+export const CASCADE = 12;
+const TOGETHER = 15 * MIN;
+
+/** A long "Block", "Focus", "Busy" or "Hold" (two hours or more), or any event of seven hours or more, is a background band, not a column. */
+export function isBand(e: EventRow): boolean {
+  if (e.allDay) return false;
+  const len = e.endsAt - e.startsAt;
+  return len >= 7 * HOUR || (len >= 2 * HOUR && /^(block|focus|busy|hold|do not book)\b/i.test(e.title));
+}
+
+/** Overlapping events like a good calendar: events that start together share the width; a later start sits on top of the card below, a little further in, so every title keeps most of the column. Bands come first, behind. */
 export function lanesOf(list: readonly EventRow[]): Laid[] {
-  const out: Laid[] = [];
-  const sorted = [...list].sort((a, b) => a.startsAt - b.startsAt || b.endsAt - a.endsAt);
-  let group: { e: EventRow; lane: number }[] = [];
+  const out: Laid[] = list.filter(isBand).map((e) => ({ e, lane: 0, lanes: 1, level: 0, band: true }));
+  const sorted = list.filter((e) => !isBand(e)).sort((a, b) => a.startsAt - b.startsAt || b.endsAt - a.endsAt);
+  let group: EventRow[] = [];
   let end = 0;
   const flush = (): void => {
-    const n = Math.max(1, ...group.map((g) => g.lane + 1));
-    for (const g of group) out.push({ e: g.e, lane: g.lane, lanes: n });
+    const from = out.length;
+    const keep = group.slice(0, group.length > 3 ? 2 : group.length), more = group.slice(keep.length);
+    const subs: { at: number; end: number; es: EventRow[] }[] = [];
+    for (const e of keep) {
+      let g = subs.find((x) => Math.abs(e.startsAt - x.at) < TOGETHER);
+      if (!g) { g = { at: e.startsAt, end: 0, es: [] }; subs.push(g); }
+      g.es.push(e);
+      g.end = Math.max(g.end, e.endsAt);
+    }
+    subs.forEach((g, i) => {
+      const level = Math.min(3, subs.slice(0, i).filter((x) => x.end > g.at).length);
+      g.es.forEach((e, k) => out.push({ e, lane: k, lanes: g.es.length, level, band: false }));
+    });
+    const mine = out.slice(from);
+    [...mine].sort((a, b) => a.e.startsAt - b.e.startsAt || a.lane - b.lane).forEach((a, i) => { a.rank = i; });
+    for (const a of mine) {
+      const over = mine.filter((b) => b !== a && b.e.startsAt > a.e.startsAt && b.e.startsAt < a.e.endsAt).map((b) => offsetToY(b.e.startsAt - a.e.startsAt));
+      if (over.length > 0) a.room = Math.min(...over);
+    }
+    if (more.length > 0) out.push({ e: more[0] as EventRow, lane: 0, lanes: 1, level: 0, band: false, more });
     group = [];
   };
   for (const e of sorted) {
     if (group.length > 0 && e.startsAt >= end) { flush(); end = 0; }
-    let lane = 0;
-    while (group.some((g) => g.lane === lane && g.e.endsAt > e.startsAt)) lane++;
-    group.push({ e, lane });
+    group.push(e);
     end = Math.max(end, e.endsAt);
   }
   if (group.length > 0) flush();
   return out;
 }
 
-export interface Block { top: number; height: number; left: string; width: string; one: boolean }
+/** Padding above a card's text and the height of one line of it. */
+export const TEXT_TOP = 1;
+export const LINE = 14;
 
-/** Where an event is drawn in its day's column. A block under 40 px is one line. */
+export interface Block {
+  top: number; height: number; left: string; width: string; z: number;
+  /** The height the text may take when a card is drawn over this one (clip there); unset when nothing covers it. */
+  clip: number | undefined;
+  /** Under 40 px. */
+  one: boolean;
+  /** How many lines the title may take before it is cut: one in a block under 30 px, else two. */
+  lines: 1 | 2;
+  /** The time line: none, the start only (a narrow column or a one-line block) or the whole range on its own line (45 minutes and up, alone in its width). */
+  time: "none" | "start" | "range";
+}
+
+/** Where an event is drawn in its day's column. Titles wrap to two lines before they are cut; the time gets its own line only when there is room. */
 export function blockOf(l: Laid, day: number): Block {
   const top = offsetToY(Math.max(0, l.e.startsAt - day));
   const height = Math.max(20, offsetToY(Math.min(l.e.endsAt, day + DAY) - Math.max(l.e.startsAt, day)) - 1);
-  return { top, height, left: `calc(${(l.lane * 100) / l.lanes}% + 2px)`, width: `calc(${100 / l.lanes}% - 4px)`, one: height < 40 };
+  // a narrow lane (events that start together) shows its title on one line with an ellipsis and no time line, so no word is ever split
+  const narrow = l.lanes > 1;
+  // a covered card shows only the text that fits above the top of the card over it: lines that would be cut are not drawn
+  const seen = Math.min(height, l.room ?? Infinity);
+  const fit = Math.max(1, Math.floor((seen - TEXT_TOP) / LINE));
+  const lines = narrow || height < 30 ? 1 : Math.min(2, fit);
+  const time = narrow ? "none" : seen >= 44 ? "range" : height < 30 && l.room === undefined ? "start" : "none";
+  const off = l.level * CASCADE;
+  const clip = l.room === undefined ? undefined : Math.max(TEXT_TOP + LINE, l.room);
+  return { top, height, clip, left: `calc(${off}px + ${l.lane} * (100% - ${off}px) / ${l.lanes} + 2px)`, width: `calc((100% - ${off}px) / ${l.lanes} - 4px)`, z: 2 + (l.rank ?? l.level), one: height < 40, lines, time };
 }
 
 /** The events of one day: timed ones in order, all-day ones apart. */
@@ -357,6 +428,43 @@ export function nameMap(team: readonly { email: string; name: string }[]): Map<s
 
 export function directoryOf(team: readonly { email: string; name: string }[]): { name: string; email: string; kind: "team"; sub: string }[] {
   return team.map((t) => ({ name: t.name, email: t.email, kind: "team" as const, sub: "Team" }));
+}
+
+export interface AllDaySeg { e: EventRow; /** First and last day index it covers in the view. */ a: number; b: number; /** Its row in the lane. */ row: number }
+export interface AllDayLane { segs: AllDaySeg[]; /** Per day index: how many are folded into the "+N". */ hidden: Record<number, number>; /** Rows to draw, the "+N" row included. */ rows: number }
+
+/** The all-day lane: one chip per event per day (a copy of the same title on the same days is one), a multi-day event is one bar across its days, and rows past `cap` fold into "+N" per day. */
+export function allDayLane(events: readonly EventRow[], days: readonly number[], cap = 2): AllDayLane {
+  const first = days[0] as number, last = (days[days.length - 1] as number) + DAY;
+  const seen = new Set<string>(), segs: AllDaySeg[] = [];
+  const list = events.filter((e) => e.status !== "canceled" && e.allDay && e.startsAt < last && e.endsAt > first).sort((x, y) => x.startsAt - y.startsAt || y.endsAt - x.endsAt);
+  for (const e of list) {
+    const ix: number[] = [];
+    days.forEach((d, i) => { if (e.startsAt < d + DAY && e.endsAt > d) ix.push(i); });
+    if (ix.length === 0) continue;
+    const a = ix[0] as number, b = ix[ix.length - 1] as number, key = `${e.calendarId}|${e.title}|${a}|${b}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    segs.push({ e, a, b, row: 0 });
+  }
+  const rows: AllDaySeg[][] = [];
+  for (const sg of segs) {
+    let r = 0;
+    while (rows[r]?.some((x) => x.a <= sg.b && x.b >= sg.a)) r++;
+    (rows[r] ??= []).push(sg);
+    sg.row = r;
+  }
+  const over = rows.length > cap, hidden: Record<number, number> = {};
+  if (over) for (const sg of segs) if (sg.row >= cap) for (let i = sg.a; i <= sg.b; i++) hidden[i] = (hidden[i] ?? 0) + 1;
+  return { segs: segs.filter((x) => x.row < cap || !over), hidden, rows: over ? cap + 1 : rows.length };
+}
+
+/** A month cell shows this many events and then "+N more". */
+export const MONTH_CAP = 3;
+
+/** The events one month cell lists: all-day ones first (one per title), then the timed ones in order; background bands are left out. */
+export function monthCell(events: readonly EventRow[], day: number): EventRow[] {
+  return [...allDayLane(events, [day], 99).segs.map((x) => x.e), ...eventsOn(events, day, false).filter((e) => !isBand(e))];
 }
 
 /** The all-day events of each day, in the order of the days. */
