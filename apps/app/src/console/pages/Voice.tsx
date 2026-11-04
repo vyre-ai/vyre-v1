@@ -82,7 +82,7 @@ export function VoiceSettings(): ReactElement {
         {form ? (
           <Group>
             <Field label={`${name} key`} value={key} onChange={setKey} secure testID="voice-key" />
-            <Note>{"Goes straight to this Space's Vault and is checked at once. It needs the Member role."}</Note>
+            <Note>{`Goes straight to this Space's Vault and is checked at once. ${provider?.key === "elevenlabs" ? "It needs Speech to Text access." : "It needs the Member role."}`}</Note>
             <Actions>
               <Button label={action.busy ? "Checking" : s.set ? "Replace key" : "Turn on for everyone"} disabled={key.trim() === "" || action.busy} why="Paste the key first" onPress={() => void save()} testID="voice-save" />
               {replacing || adding !== null ? <Button label="Cancel" onPress={() => { setReplacing(false); setAdding(null); setKey(""); }} testID="voice-cancel" /> : null}

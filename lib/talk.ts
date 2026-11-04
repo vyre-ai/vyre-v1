@@ -28,6 +28,8 @@ export interface TalkProvider {
   languages: readonly TalkChoice[];
   defaultModel: string;
   defaultLanguage: string;
+  /** What to tell a person whose key the provider accepts but will not let make a token. */
+  roleLine: string;
   grant(apiKey: string, ttlSeconds: number): { url: string; method: string; headers: Record<string, string>; body: string };
   readGrant(status: number, body: string): GrantResult;
   /** `terms` are words the provider should favour: the product, the Space, its people and agents. Each provider passes them its own way, or ignores them. */
@@ -55,6 +57,7 @@ const DEEPGRAM: TalkProvider = {
   ],
   defaultModel: "nova-3",
   defaultLanguage: "multi",
+  roleLine: "That key cannot make short-lived tokens. Make one with the Member role.",
   grant: (apiKey, ttlSeconds) => ({
     url: "https://api.deepgram.com/v1/auth/grant", method: "POST", headers: { authorization: `Token ${apiKey}`, "content-type": "application/json" }, body: JSON.stringify({ ttl_seconds: ttlSeconds }),
   }),
@@ -110,6 +113,7 @@ const ELEVENLABS: TalkProvider = {
   languages: DEEPGRAM.languages,
   defaultModel: "scribe_v2_realtime",
   defaultLanguage: "multi",
+  roleLine: "That key can't make speech-to-text tokens. Make one in ElevenLabs with Speech to Text access.",
   grant: (apiKey) => ({ url: "https://api.elevenlabs.io/v1/single-use-token/realtime_scribe", method: "POST", headers: { "xi-api-key": apiKey }, body: "" }),
   readGrant(status, body) {
     if (status === 401) return { ok: false, why: "key" };
