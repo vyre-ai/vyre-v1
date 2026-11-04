@@ -69,3 +69,35 @@ export function groupHelperStrips<M extends Msg & { author?: unknown }>(messages
   flush();
   return out;
 }
+
+/**
+ * The agent's intro, the crew strip and its final answer read as one message (prototype p-crew): the short intro first, then the strip, then the answer below it. The strip's start lines come first in the chat and the agent's
+ * words after them; this folds the plain agent text next to the strip into it. The intro is the text just after the strip's start (or just before it, when the agent spoke first). The answer is the plain agent text that follows,
+ * and only once every helper of the strip has ended. A person's message, a card or another author's line ends the run.
+ */
+export function mergeCrewAnswer<M extends Msg & { author?: unknown; body: string }>(messages: readonly M[]): M[] {
+  const author = (m: M): string => JSON.stringify((m as { author?: unknown }).author ?? "");
+  const plain = (m: M): boolean => m.body.trim() !== "" && m.blocks.length === 0 && (m as { author?: { kind?: string } }).author?.kind === "agent";
+  const out: M[] = [];
+  for (let i = 0; i < messages.length; i += 1) {
+    const m = messages[i]!;
+    const strip = m.blocks.find((b) => b.type === "crew_strip");
+    if (!strip || m.body.trim() !== "" || m.blocks.length !== 1) { out.push(m); continue; }
+    const who = author(m);
+    const done = (((strip.data as { blocks?: Block[] } | undefined)?.blocks) ?? []).every((b) => ["done", "failed"].includes(String(rec(b.data)["status"])));
+    let j = i + 1;
+    const next = messages[j];
+    // the intro: the plain line just before (already pushed) or just after the strip's start
+    let intro: M | undefined;
+    const prev = out[out.length - 1];
+    if (next && plain(next) && author(next) === who) { intro = next; j += 1; }
+    else if (prev && plain(prev) && author(prev) === who) { intro = prev; out.pop(); }
+    const answer: string[] = [];
+    if (done) { while (j < messages.length && plain(messages[j]!) && author(messages[j]!) === who) { answer.push(messages[j]!.body.trim()); j += 1; } }
+    if (!intro && answer.length === 0) { out.push(m); continue; }
+    const base = intro ?? m;
+    out.push({ ...base, body: intro ? intro.body : "", blocks: [{ ...strip, data: { ...(rec(strip.data)), ...(answer.length > 0 ? { after: answer.join("\n\n") } : {}) } }] });
+    i = j - 1;
+  }
+  return out;
+}

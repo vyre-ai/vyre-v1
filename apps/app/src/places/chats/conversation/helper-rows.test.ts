@@ -33,3 +33,25 @@ test("the row reads its name, status and found line from the folded block", () =
   assert.deepEqual(helperRowOf(folded as never), { title: "Crew test: subagent 2", threadId: "thr_h", status: "done", found: "The pricing page lists three plans.", startedAt: 1000 });
   assert.equal(helperRowOf(foldHelperRows([start])[0]!.blocks[0]! as never).status, "running");
 });
+
+import { mergeCrewAnswer } from "./helper-rows.ts";
+
+test("the agent's intro, the strip and its answer read as one message once the helpers have ended; the answer waits while one still works; a person's line ends the run", () => {
+  const agent = { kind: "agent", id: "agt_1" }, person = { kind: "person", id: "usr_1" };
+  const strip = (id: string, status: string) => ({ messageId: `s_${id}`, body: "", author: agent, blocks: [{ type: "crew_strip", id: `strip-${id}`, data: { blocks: [{ type: "helper", id: "b1", data: { helperThreadId: "thr_1", status } }] } }] });
+  const text = (id: string, body: string, who = agent) => ({ messageId: id, body, author: who, blocks: [] });
+  // start lines first, then the agent's words, then the answer
+  const done = mergeCrewAnswer([strip("1", "done"), text("i", "Two helpers are on it."), text("a", "Thursday works [1]."), text("b", "Say the word.")]);
+  assert.equal(done.length, 1);
+  assert.equal(done[0]!.messageId, "i"); assert.equal(done[0]!.body, "Two helpers are on it.");
+  assert.equal(((done[0]!.blocks[0]!.data as { after?: string }).after), "Thursday works [1].\n\nSay the word.");
+  // still working: the intro joins the strip and the answer stays where it is
+  const working = mergeCrewAnswer([strip("1", "running"), text("i", "Two helpers are on it."), text("a", "Not yet.")]);
+  assert.equal(working.length, 2); assert.equal(((working[0]!.blocks[0]!.data as { after?: string }).after), undefined);
+  // the agent spoke first
+  assert.equal(mergeCrewAnswer([text("i", "Let me get helpers."), strip("1", "done")]).length, 1);
+  // a person's line, another author or a card ends the run
+  const cut = mergeCrewAnswer([strip("1", "done"), text("p", "Thanks", person as never), text("a", "Later.")]);
+  assert.equal(cut.length, 3);
+  assert.equal(mergeCrewAnswer([strip("1", "done"), text("o", "Someone else", { kind: "agent", id: "agt_2" })]).length, 2);
+});

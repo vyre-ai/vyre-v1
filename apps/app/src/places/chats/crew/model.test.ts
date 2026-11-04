@@ -1,7 +1,7 @@
 // The crew model: every sentence a person reads about the crew, from the numbers engine.crew.status returns.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { withTeammates, middle, faceSeed, holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
+import { totalsParts, sortedBy, withTeammates, middle, faceSeed, holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
 import type { CrewMember, CrewTotals } from "./model.ts";
 
 const T = (o: Partial<CrewTotals> = {}): CrewTotals => ({ members: 3, working: 0, done: 3, needsYou: 0, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: 41_000, ...o });
@@ -101,4 +101,13 @@ test("the coders join the strip that holds the earliest helper, and no other", (
   assert.deepEqual(withTeammates([h1], live).map((r) => (r as { id: string }).id), ["h1", "t1"]);
   assert.deepEqual(withTeammates([h2], live).map((r) => (r as { id: string }).id), ["h2"], "a later strip has none");
   assert.deepEqual(withTeammates([h1], null).map((r) => (r as { id: string }).id), ["h1"], "no read, no coders");
+});
+
+test("each figure of the totals sorts the helpers by it", () => {
+  const rows = [M({ id: "a", elapsedMs: 5000, tokensIn: 100, tokensOut: 0, costMicros: 30_000 }), M({ id: "b", elapsedMs: 9000, tokensIn: 10, tokensOut: 0, costMicros: 90_000 }), M({ id: "c", elapsedMs: 1000, tokensIn: 900, tokensOut: 100, costMicros: 10_000 })];
+  assert.deepEqual(sortedBy(rows, "time").map((r) => r.id), ["b", "a", "c"]);
+  assert.deepEqual(sortedBy(rows, "tokens").map((r) => r.id), ["c", "a", "b"]);
+  assert.deepEqual(sortedBy(rows, "cost").map((r) => r.id), ["b", "a", "c"]);
+  assert.deepEqual(totalsParts(T({ done: 2, working: 0, needsYou: 0, members: 2, tokensIn: 60_000, tokensOut: 15_000, costMicros: 130_000 })).map((p) => [p.key, p.text]), [["state", "2 done"], ["time", "41 s"], ["tokens", "75k tokens"], ["cost", "$0.13"]]);
+  assert.deepEqual(totalsParts(T({ members: 0 })), []);
 });

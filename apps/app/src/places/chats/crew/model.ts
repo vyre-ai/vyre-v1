@@ -200,3 +200,22 @@ export function withTeammates<T extends Pick<CrewMember, "startedAt">>(rows: rea
   const here = Math.min(...rows.map((r) => r.startedAt));
   return here <= earliest ? [...rows, ...mates] : [...rows];
 }
+
+export type SortKey = "state" | "time" | "tokens" | "cost";
+
+/** The totals sentence as parts a person can press: each figure sorts the helpers by it (who is where, longest, most tokens, dearest). Only the figures that are known. */
+export function totalsParts(t: CrewTotals): Array<{ key: SortKey; text: string }> {
+  if (t.members === 0) return [];
+  const where = totalsLine({ ...t, elapsedMs: 0, tokensIn: 0, tokensOut: 0, costMicros: 0 }).split(" · ").slice(0, -1).join(" · ");
+  const parts: Array<{ key: SortKey; text: string }> = [{ key: "state", text: where }, { key: "time", text: span(t.elapsedMs) }];
+  if (t.tokensIn + t.tokensOut > 0) parts.push({ key: "tokens", text: `${tokens(t.tokensIn + t.tokensOut)} tokens` });
+  if (t.costMicros > 0) parts.push({ key: "cost", text: money(t.costMicros) });
+  return parts;
+}
+
+/** Helpers in the order a figure asks for: state is the default (needs you first), the others put the most first. */
+export function sortedBy<T extends Pick<CrewMember, "state" | "startedAt" | "elapsedMs" | "tokensIn" | "tokensOut" | "costMicros">>(members: readonly T[], key: SortKey): T[] {
+  if (key === "state") return sorted(members);
+  const by = (m: T): number => (key === "time" ? m.elapsedMs : key === "tokens" ? m.tokensIn + m.tokensOut : m.costMicros);
+  return [...members].sort((a, b) => by(b) - by(a) || a.startedAt - b.startedAt);
+}

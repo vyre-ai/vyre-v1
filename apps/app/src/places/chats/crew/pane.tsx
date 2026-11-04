@@ -9,8 +9,8 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { blockLine } from "../helper/model.ts";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { HelperChip, MemberRing, timeOf, useNow } from "./strip.tsx";
-import { clock, isCode, keyAction, testsWords, lineOf, modelTag, money, nameOf, ranTogether, roleOf, shows, sorted, span, stateWord, timeline, tokenSplit, tokens, totalsLine, faceSeed, middle } from "./model.ts";
-import type { CrewMember, CrewStatusOut, Show } from "./model.ts";
+import { clock, isCode, keyAction, testsWords, lineOf, modelTag, money, nameOf, ranTogether, roleOf, shows, sorted, span, stateWord, timeline, tokenSplit, tokens, totalsLine, faceSeed, middle, totalsParts, sortedBy } from "./model.ts";
+import type { CrewMember, CrewStatusOut, Show, SortKey } from "./model.ts";
 import type { Call } from "./status.ts";
 
 const web = Platform.OS === "web";
@@ -30,7 +30,8 @@ export function CrewOverview({ status, call, threadId, onPeek, onRefresh, initia
   const menu = useMenu();
   const live = status.totals.working + status.totals.needsYou > 0;
   const now = useNow(live);
-  const all = sorted(status.members);
+  const [sortKey, setSortKey] = useState<SortKey>("state");
+  const all = sortedBy(status.members, sortKey);
   const rows = all.filter((m) => shows(m, show));
   const tl = timeline(all, now);
   const together = ranTogether(all);
@@ -50,7 +51,11 @@ export function CrewOverview({ status, call, threadId, onPeek, onRefresh, initia
   return (
     <View testID="crew-overview" style={st.page}>
       <Text accessibilityRole="header" style={st.title}>Crew</Text>
-      <Text testID="crew-overview-totals" style={st.sub}>{totalsLine(status.totals)}</Text>
+      <Text testID="crew-overview-totals" style={st.sub}>
+        {totalsParts(status.totals).map((p, i) => (
+          <Text key={p.key}>{i > 0 ? " · " : ""}<Text accessibilityRole="button" testID={`crew-sort-${p.key}`} onPress={() => setSortKey(p.key)} style={sortKey === p.key && p.key !== "state" ? st.sortOn : undefined}>{p.text}</Text></Text>
+        ))}
+      </Text>
       <View style={st.bar}>
         <Pressable accessibilityRole="button" testID="crew-show" onPress={(e) => { const r = (e as unknown as { nativeEvent?: { pageX?: number; pageY?: number } }).nativeEvent; menu.show(showEntries(show, setShow), r?.pageX ?? 0, r?.pageY ?? 0, "context", { label: "Show" }); }} style={st.quiet}><Text style={st.quietText}>{`Show: ${SHOW.find((o) => o.key === show)!.label} ▾`}</Text></Pressable>
         {live ? <Pressable accessibilityRole="button" testID="crew-stop-all" onPress={stopAll} style={st.quiet}><Text style={st.quietText}>Stop all</Text></Pressable> : null}
@@ -219,6 +224,7 @@ const st = StyleSheet.create({
   pill: { height: 28, paddingHorizontal: 11, borderRadius: 9, justifyContent: "center", backgroundColor: "var(--hover)" as string },
   pillText: { fontSize: 12.5, color: "var(--ink)" as string },
   section: { fontSize: 12, color: "var(--ink-3)" as string, marginTop: 14, marginBottom: 2 },
+  sortOn: { color: "var(--ink)" as string, fontWeight: "600" },
   quiet: { height: 28, paddingHorizontal: 8, borderRadius: 8, justifyContent: "center" },
   quietText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   card: { marginTop: 8, borderRadius: 14, overflow: "hidden", backgroundColor: "var(--raised)" as string, boxShadow: "inset 0 0 0 1px var(--line)" } as object,

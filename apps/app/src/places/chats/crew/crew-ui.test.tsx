@@ -72,7 +72,7 @@ test("the overview: totals in one sentence, rows sorted needs you first, the tim
   const calls: Array<{ cap: string; input: unknown }> = [];
   const peeked: string[] = [];
   const root = await mount(createRoot, <CrewOverview status={status(three(), T({ failed: 1 }))} call={async (cap, input) => { calls.push({ cap, input }); return {}; }} threadId="thr_0" onPeek={(id) => peeked.push(id)} onRefresh={() => undefined} />);
-  assert.equal(textOf(find(root, "crew-overview-totals")), "1 working · 1 needs you · 1 done · 1 failed · 12 s · 1,200 tokens · $0.12");
+  assert.equal(textOf(find(root, "crew-overview-totals")).replace(/\s+/g, " "), "1 working · 1 needs you · 1 done · 1 failed · 12 s · 1,200 tokens · $0.12");
   const order = ["thr_a", "thr_c", "thr_b"].map((id) => find(root, `crew-chip-${id}`));
   assert.ok(order.every((n) => n !== null));
   assert.ok(find(root, "crew-tl-thr_b-bar"));
@@ -277,4 +277,13 @@ test("the helper chat of a done helper says so: no Working, no Stop; the helper'
   await flush(); await flush();
   assert.equal(find(root, "helper-stop"), null); assert.equal(find(root, "helper-live"), null);
   assert.match(textOf(find(root, "msg-m5")), /County mirrors/, "the helper's reply is under the helper's name, not the agent's");
+});
+
+test("pressing a figure of the totals puts the helpers in that order", async () => {
+  const rows = [M({ id: "thr_x", name: "Xi", elapsedMs: 1000, endedAt: 2000, state: "done", found: "a", costMicros: 10_000 }), M({ id: "thr_y", name: "Yo", elapsedMs: 9000, endedAt: 9000, state: "done", found: "b", agentId: "agt_y", costMicros: 90_000 })];
+  const root = await mount(createRoot, <CrewOverview status={status(rows, T({ members: 2, working: 0, needsYou: 0, done: 2, costMicros: 100_000, elapsedMs: 9000 }))} call={async () => ({})} threadId="thr_0" onPeek={() => undefined} onRefresh={() => undefined} />);
+  const order = (): string[] => (JSON.stringify(root, (_k, v) => (typeof v === "function" ? undefined : v)).match(/crew-chip-thr_[xy]"/g) ?? []).map((x) => x.replace(/crew-chip-|"/g, ""));
+  assert.deepEqual(order().slice(0, 2), ["thr_x", "thr_y"], "state order: started first");
+  await press(find(root, "crew-sort-cost"));
+  assert.deepEqual(order().slice(0, 2), ["thr_y", "thr_x"], "dearest first");
 });
