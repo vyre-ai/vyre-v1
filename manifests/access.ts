@@ -187,6 +187,11 @@ export default defineManifest({
       out: { rows: t.arr(listRow), counts: t.rec(t.int({ minimum: 0 })), ...pageOut }, tool: 'meta', label: 'filter',
     }),
 
+    // ---- Where a link may go (owner, 4 Nov): what level I hold on each of a list of things, so a link renders right before it is pressed
+    read('access.reach', 'What level the caller holds on each of up to 200 things, in one call: none, view, use, edit or manage. A thing that does not exist answers none, the same as one the caller cannot see', {
+      ...V, level: 'member', space: true, in: { items: t.arr(resourceRef, { maxItems: 200 }) }, out: { items: t.arr(t.obj({ type: resourceType, id: t.str(), level: t.enm('none', 'view', 'use', 'edit', 'manage'), title: t.opt(t.str()) })) }, tool: 'meta', team: true,
+    }),
+
     // ---- Ask for access (4.13)
     write('access.request', 'Ask the Manage holders of a resource (or the admins, for a permission) for access; one open request per person and resource', {
       // Any member may ask for any resource id (space: true binds the Space, not the thing asked for): a link to something you cannot see must still let you ask. The answer is the same whether or not

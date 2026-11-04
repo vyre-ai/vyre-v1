@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (73)
+## Capabilities (74)
 
 - [access.actors.create](../capabilities/access.actors.create.md): Register an outside actor and issue a one-time token (works once, within 10 minutes)
 - [access.actors.list](../capabilities/access.actors.list.md): List outside actors (registered external tools such as Claude Code or Codex)
@@ -49,6 +49,7 @@ Requires: files.
 - [access.projection_health](../capabilities/access.projection_health.md): Health probe: access projections are current and the epoch is advancing
 - [access.propose_change](../capabilities/access.propose_change.md): View-level Ask: store a drafted change for the editors of an object as a changeset or Review task; writes nothing to the object
 - [access.provider_check](../capabilities/access.provider_check.md): Which of these resources may not go to an AI provider, by the same label-against-provider rule a chat turn is held to
+- [access.reach](../capabilities/access.reach.md): What level the caller holds on each of up to 200 things, in one call: none, view, use, edit or manage. A thing that does not exist answers none, the same as one the caller cannot see
 - [access.record_marks](../capabilities/access.record_marks.md): For the rows of one record type: which differ from the type (their own audience or direct grants), and whether the caller was given the type or a row by name
 - [access.request](../capabilities/access.request.md): Ask the Manage holders of a resource (or the admins, for a permission) for access; one open request per person and resource
 - [access.requests.approve](../capabilities/access.requests.approve.md): Approve an access request: shares as the approver and tells the requester

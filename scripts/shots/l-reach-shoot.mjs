@@ -23,7 +23,7 @@ const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
-const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => t.id.startsWith("REACH_01") && (only.length === 0 || only.includes(t.id.replace("REACH_01-", ""))));
+const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => t.id.startsWith("REACH_0") && (only.length === 0 || only.some((o) => t.id.endsWith(`-${o}`) || t.id === o)));
 for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [size, vp] of Object.entries(SIZES)) {
   if (sizeOnly && size !== sizeOnly) continue;
   if (size === "wide" && t.id.includes("phone")) continue;
@@ -38,7 +38,7 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   let found = true;
   if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
   await page.waitForTimeout(900);
-  const file = path.join(out, `${t.id.replace("REACH_01-", "")}-${skin}-${size}.png`);
+  const file = path.join(out, `${t.id}-${skin}-${size}.png`);
   await page.screenshot({ path: file });
   console.log(`shot ${path.basename(file)} waitFor=${found}${errs.length ? " errors=" + errs.join(" | ").slice(0, 400) : ""}`);
   await ctx.close();

@@ -1,0 +1,6 @@
+{
+  "targets": [
+    { "id": "REACH_02-member", "route": "/m/REACH_02?part=member", "proto": "files,{skin}", "waitFor": "[data-testid='reach-files-member']", "note": "A member in Files, Sales: the Pricing sheet is plain text (no pointer, no hover); the other files are live rows. One access.reach call asked about all of them." },
+    { "id": "REACH_02-admin", "route": "/m/REACH_02?part=admin", "proto": "files,{skin}", "waitFor": "[data-testid='reach-files-admin']", "note": "An admin: every row is a live link." }
+  ]
+}

@@ -1,6 +1,7 @@
 import { NO_ACCESS, judge, needsJudging } from "../reach/target.ts";
 import type { Judge } from "../reach/target.ts";
 import { adminPages } from "../providers/settings-admin.ts";
+import { createLinkPolicy } from "../reach/policy.ts";
 import { isAssistantRow } from "../../../../../lib/agent-kind.ts";
 import {createRecordsPreview} from "../../../../../client/src/gateway/records-preview.ts";
 // A signed-in Space, open (ARCH 7.0): who you are, the Space's name and kind, the capability caller on its gateway, the screen hooks every place reads, the live link that keeps them fresh, and the
@@ -357,7 +358,9 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   };
 
   // every click that opens something goes through this one door, and reach decides: the Console page or the item must be one this person can open (shell/reach/target.ts)
+  const links = createLinkPolicy({ call: (cap, input) => reach(cap, input), ...(o.notice ? { flash: o.notice } : {}) });
   const judging: Judge = {
+    links,
     viewer: () => ({ id: me.id, spaceId: space.id, ...(livePerms ? { perms: livePerms } : {}) }),
     call: (cap, input) => reach(cap, input),
     consolePages: () => consolePagesOnce(),
@@ -378,7 +381,12 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     if (!place || !o.navigate) return;
     const go = (): void => { o.navigate?.(place, targetHash(t), t.background === true); };
     if (!needsJudging(t)) { go(); return; }
-    void judge(t, judging).then((r) => { if (r.to === "open") go(); else o.notice?.(NO_ACCESS); });
+    void judge(t, judging).then((r) => {
+      if (r.to === "open") { go(); return; }
+      // the last resort: a link should have drawn plain before it was pressed. Under test it is a failure, so the suite counts zero of these.
+      if (o.notice) o.notice(NO_ACCESS);
+      else if ((globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.["NODE_TEST_CONTEXT"] !== undefined) throw new Error("reach fallback fired: a link led somewhere the viewer cannot open");
+    });
   };
 
   // a Space that never learnt its name answers its id: it is called by its address instead (spaces/space-label.ts)
@@ -452,6 +460,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     deferredModules: deferred.deferredModules,
     isDeferred: deferred.isDeferred,
     open,
+    links,
     openUrl: (url) => {
       if (o.openUrl) o.openUrl(url);
       else (globalThis as { open?: (u: string, t: string, f: string) => unknown }).open?.(url, "_blank", "noopener");

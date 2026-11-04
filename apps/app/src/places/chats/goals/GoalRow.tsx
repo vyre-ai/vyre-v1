@@ -3,6 +3,7 @@
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { ReachRow } from "../../../../../../ui/src/Row/ReachRow.tsx";
 import { Avatar, avatarOf } from "../../../../../../ui/src/Avatar/index.tsx";
 import { fractionOf, rowNote } from "./model.ts";
 import type { GoalLine, Tone } from "./model.ts";
@@ -26,7 +27,7 @@ export function GoalRow({ goal, selected, hovered, now, offsetMin, me, leadName,
   const tone: Tone = goal.status === "done" ? "ok" : goal.status === "paused" || goal.status === "missed" || goal.status === "stopped" || goal.status === "draft" ? "dim" : "plain";
   return (
     <View testID={`goal-row-${goal.id}`} style={{ height: GOAL_ROW_H }}>
-      <Row
+      <ReachRow subject={{ type: "goal", id: goal.id }}
         id={`g:${goal.id}`} title={goal.title} note={note.text} {...(note.lead ? { noteLead: note.lead, noteLeadTone: note.tone === "stuck" || note.tone === "need" ? "warning" as const : "accent" as const } : {})}
         selected={selected} hovered={hovered} onPress={onPress}
         leading={<View style={st.face}><Avatar {...avatarOf({ id: goal.leadAgentId, name: leadName, kind: "agent" })} size={20} /></View>}

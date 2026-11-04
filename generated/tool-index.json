@@ -206,6 +206,12 @@
     },
     {
       "deferred": false,
+      "name": "access_reach",
+      "summary": "What level the caller holds on each of up to 200 things, in one call: none, view, use, edit or manage. A thing that does not exist answers none, the same as one the caller cannot see",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
       "name": "access_record_marks",
       "summary": "For the rows of one record type: which differ from the type (their own audience or direct grants), and whether the caller was given the type or a row by name",
       "toolset": "meta"

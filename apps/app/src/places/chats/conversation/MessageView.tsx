@@ -1,6 +1,7 @@
 // One entry of the conversation. Yours is a bubble on the right; anyone else's has a header (face, name, time) when the author changes; an agent's work folds into one line; native
 // cards (question, plan, terminal, changeset, file) sit under the text; an error is one inline row (what, why, next). Hover shows Copy and Edit and the rest; right-click opens the same
 // list; the keyboard reaches both. Every row is memoised on its item, so a streaming message re-renders alone.
+import { useLinkState } from "../../../../../../ui/src/reach/index.tsx";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
@@ -484,8 +485,10 @@ function LinkCardView({ id, data, actions, size, trusted }: { id: string; data: 
     void Promise.resolve(actions.host.invoke(a.cap, a.input ?? {})).then(() => setDone((d) => new Set(d).add(key)), () => undefined);
   };
   const seen = useCardState(data, actions);
+  // the Space's link policy (ui/reach): a card for a thing this person cannot open draws as plain words before anyone presses it
+  const link = useLinkState(data.target ? { type: data.target.type, id: data.target.id } : undefined);
   const open = (t: NonNullable<LinkCardData["target"]>): void => { if (t.type === "thread" && actions.openMessage) actions.openMessage(t.id, ""); else if (t.type === "fact" && memory?.memory.showKnows) memory.memory.showKnows(); else actions.openBeside(t.type, t.id); };
-  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={new Set([...done, ...doneByState(data, seen.state)])} state={seen.state} hidden={seen.hidden} />;
+  return <LinkCard id={id} data={data} nameOf={actions.nameOf ?? ((x) => x)} icon={<Glyph name={linkGlyph(data.icon)} size={size} color="var(--ink-3)" />} onOpen={open} onAction={act} done={new Set([...done, ...doneByState(data, seen.state)])} state={seen.state} hidden={seen.hidden || link.state === "plain"} />;
 }
 
 /** What a work card says now, read as this reader: its state while it is live (read again on every change in the Space), and whether they may open it at all. */

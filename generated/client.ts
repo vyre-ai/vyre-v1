@@ -73,6 +73,7 @@ export function createClient(transport: Transport) {
       projection_health: call("access.projection_health", 1),
       propose_change: call("access.propose_change", 1),
       provider_check: call("access.provider_check", 1),
+      reach: call("access.reach", 1),
       record_marks: call("access.record_marks", 1),
       request: call("access.request", 1),
       requests: {

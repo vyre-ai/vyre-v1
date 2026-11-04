@@ -3,6 +3,7 @@
 // server refuses with a permission or not-found error is "no access", so the click does nothing and says so; any other failure (a network blip) lets the click through, because the destination checks again.
 import { PAGES } from "../../console/shell/nav.ts";
 import { reach } from "./reach.ts";
+import type { Policy } from "./policy.ts";
 import type { Level, Reach, Viewer } from "./reach.ts";
 
 export interface OpenTarget {
@@ -64,6 +65,8 @@ export interface Judge {
   call(cap: string, input: unknown): Promise<unknown>;
   /** The Console page ids console.nav lists, read once. */
   consolePages(): Promise<ReadonlySet<string>>;
+  /** The Space's link policy: what the links on screen already asked, so a click reads the same answer the link was drawn from. */
+  links?: Policy;
   /** What was already read this session: an item the viewer opened once opens at once the next time. */
   memo?: Map<string, Level>;
 }
@@ -81,6 +84,12 @@ export async function judge(t: OpenTarget, j: Judge): Promise<Reach> {
   }
   const read = readOf(t);
   if (read === null) return { to: "open", where: "", target: { place: "chats" } };
+  // the answer the link was drawn from: a thing the policy learned about is not read a second time
+  const sub0 = t.subject;
+  if (sub0 && j.links) {
+    const lv = j.links.levelOf(sub0);
+    if (lv !== undefined) return reach({ kind: "item", type: sub0.type, id: sub0.id, title: "", level: lv }, j.viewer());
+  }
   const key = `${read.cap}:${JSON.stringify(read.input)}`;
   const known = j.memo?.get(key);
   let level: Level = known ?? "view";
