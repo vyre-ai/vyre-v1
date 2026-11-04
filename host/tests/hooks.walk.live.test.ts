@@ -134,6 +134,14 @@ test("walk: an assistant adds its own chat hook, cannot set a Space rule, the ho
     assert.match(v.requests.slice(mark).join("\n"), /A hook stopped this: the Space does not allow this/, "the Space block won");
     const all = (await call(d, token, "hooks.runs.list", { threadId })).data.runs as Array<{ hookId: string; outcome: string }>;
     assert.ok(all.filter((r) => r.outcome === "blocked").length >= 2);
+    // 4. a note: a person check on prompt.submit answers NOTE and the model's next request carries it as context
+    assert.equal((await call(d, token, "hooks.set", { scope: "person", event: "prompt.submit", kind: "check", instruction: "Always note the house word", summary: "before each message, note the house word" })).status, 200);
+    v.script.length = 0;
+    v.script.push({ text: "NOTE: The house word is PINEAPPLE" }, { text: "PINEAPPLE." });
+    const mark2 = v.requests.length;
+    await say("what is the house word?", "h-4");
+    await answered("PINEAPPLE.");
+    assert.match(v.requests.slice(mark2).join("\n"), /\(Vyre: The house word is PINEAPPLE\)/, "the note reached the model as context");
     // an agent-made hook can be switched off for the whole Space by an admin
     assert.equal((await call(d, token, "hooks.policy.set", { agentHooks: false })).status, 200);
     assert.equal((await call(d, token, "hooks.policy.get", {})).data.agentHooks, false);
