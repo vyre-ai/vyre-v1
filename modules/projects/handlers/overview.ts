@@ -426,9 +426,9 @@ const cap = (spec: Record<string, unknown>, dflt = 20): number => Math.min(100, 
 const asText = (v: unknown): string => (v === null || v === undefined ? "" : String(v));
 
 /** Evaluate a live block for the reader: the rows they may open, how many they may not, and for a metric its value. The block stores only its spec. */
-export async function evaluate(ctx: ProjectsCtx, p: Project, type: LiveType, spec: Record<string, unknown>): Promise<{ rows: LiveRow[]; hidden: number; total: number; value?: number; label?: string; unit?: string }> {
+export async function evaluate(ctx: ProjectsCtx, p: Project, type: LiveType, spec: Record<string, unknown>): Promise<{ rows: LiveRow[]; hidden: number; total: number; value?: number; label?: string; unit?: string; parts?: { unit?: string; value: number }[] }> {
   const now = ctx.now();
-  const done = (rows: LiveRow[], hidden = 0, extra: { value?: number; label?: string; unit?: string } = {}) => ({ rows: rows.slice(0, cap(spec)).map((r) => clean(r)), hidden, total: rows.length + hidden, ...extra });
+  const done = (rows: LiveRow[], hidden = 0, extra: { value?: number; label?: string; unit?: string; parts?: { unit?: string; value: number }[] } = {}) => ({ rows: rows.slice(0, cap(spec)).map((r) => clean(r)), hidden, total: rows.length + hidden, ...extra });
   switch (type) {
     case "tasks": case "milestones": {
       const tasks = await loadTasks(ctx, p);
@@ -475,9 +475,19 @@ export async function evaluate(ctx: ProjectsCtx, p: Project, type: LiveType, spe
         const field = String(spec["field"] ?? "");
         // a money field holds { amount, currency }; a number field holds the number
         const amountOf = (v: unknown): number => (typeof v === "number" ? v : v !== null && typeof v === "object" && typeof (v as { amount?: unknown }).amount === "number" ? (v as { amount: number }).amount : Number(v) || 0);
-        const unit = seen.map((r) => r.fields[field]).map((v) => (v !== null && typeof v === "object" ? (v as { currency?: unknown }).currency : undefined)).find((c): c is string => typeof c === "string");
-        const value = spec["op"] === "sum" ? seen.reduce((s, r) => s + amountOf(r.fields[field]), 0) : visibleN;
-        return { rows: [], hidden, total: visibleN + hidden, value, label: asText(spec["title"]) || (spec["op"] === "sum" ? `Sum of ${field}` : "Count"), ...(spec["op"] === "sum" && unit ? { unit } : {}) };
+        const sums = new Map<string, number>();
+        let plain = 0;
+        for (const r of seen) { const v = r.fields[field]; const cur = v !== null && typeof v === "object" ? (v as { currency?: unknown }).currency : undefined; if (typeof cur === "string") sums.set(cur, (sums.get(cur) ?? 0) + amountOf(v)); else plain += amountOf(v); }
+        const label = asText(spec["title"]) || (spec["op"] === "sum" ? `Sum of ${field}` : "Count");
+        if (spec["op"] !== "sum") return { rows: [], hidden, total: visibleN + hidden, value: visibleN, label };
+        // amounts in different currencies are never added together: one total per currency (a plain number joins the money's currency when there is only one)
+        if (sums.size > 1) {
+          const parts = [...sums].map(([unit, value]) => ({ unit, value })).sort((x, y) => y.value - x.value);
+          if (plain !== 0) parts.push({ value: plain } as { unit: string; value: number });
+          return { rows: [], hidden, total: visibleN + hidden, label, parts };
+        }
+        const [unit] = [...sums.keys()];
+        return { rows: [], hidden, total: visibleN + hidden, value: (unit ? sums.get(unit)! : 0) + plain, label, ...(unit ? { unit } : {}) };
       }
       const titleOf = (f: Record<string, unknown>, id: string): string => asText(f["title"] ?? f["name"] ?? f["number"] ?? id);
       return done(seen.map((r) => ({ id: r.id, title: titleOf(r.fields, r.id), state: asText(r.fields["status"] ?? r.fields["stage"]) || undefined, detail: spec["show"] && typeof spec["show"] === "string" ? asText(r.fields[spec["show"]]) || undefined : undefined, url: `/records/${recType}/${r.id}` })), hidden);

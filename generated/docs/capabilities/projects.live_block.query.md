@@ -51,6 +51,10 @@ type Out = {
   value?: number;
   label?: string;
   unit?: string;
+  parts?: Array<{
+      unit?: string;
+      value: number;
+    }>;
 };
 ```
 
@@ -76,6 +80,12 @@ type Out = {
   "output": {
     "hidden": 1,
     "label": "example",
+    "parts": [
+      {
+        "unit": "example",
+        "value": 1
+      }
+    ],
     "rows": [
       {
         "detail": "example",

@@ -302,7 +302,7 @@ export default defineManifest({
     }),
     read('projects.live_block.query', 'Evaluate a live block for the reader: the rows they may open, how many they may not (hidden), and for a metric its value. The block stores only its spec', {
       in: { projectId: id.project, blockId: t.opt(t.str()), type: t.opt(liveType), spec: t.opt(t.rec(t.json())) },
-      out: { type: liveType, rows: t.arr(liveRow), hidden: t.int({ minimum: 0 }), total: t.int({ minimum: 0 }), value: t.opt(t.num()), label: t.opt(t.str()), unit: t.opt(t.str({ description: 'The currency code of a sum of a money field (USD)' })) },
+      out: { type: liveType, rows: t.arr(liveRow), hidden: t.int({ minimum: 0 }), total: t.int({ minimum: 0 }), value: t.opt(t.num()), label: t.opt(t.str()), unit: t.opt(t.str({ description: 'The currency code of a sum of a money field (USD)' })), parts: t.opt(t.arr(t.obj({ unit: t.opt(t.str()), value: t.num() }), { description: 'A sum over more than one currency: one total per currency, never added together (value is then left out)' })) },
       on: ['project', '/projectId'], tool: 'records', label: 'check', errors: ['validation.bad_input', 'validation.not_found'],
     }),
     read('projects.overview_doc.templates.list', 'The Space\'s Overview page templates: Client account, Software project and Hiring, and any saved since', {

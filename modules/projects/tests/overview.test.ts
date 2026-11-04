@@ -417,3 +417,24 @@ test("a metric that sums a money field adds the amounts, whether the field holds
   assert.equal(count.value, 3);
   assert.equal(count.unit, undefined);
 });
+
+test("amounts in different currencies are never added together: the metric answers one total per currency", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  const mixed = [
+    { id: "x1", fields: { number: "A", status: "sent", amount: { amount: 3000, currency: "USD" } }, openTo: [DANA] },
+    { id: "x2", fields: { number: "B", status: "sent", amount: { amount: 1550, currency: "USD" } }, openTo: [DANA] },
+    { id: "x3", fields: { number: "C", status: "sent", amount: { amount: 900, currency: "EUR" } }, openTo: [DANA] },
+  ];
+  invoices(h, mixed);
+  const out = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "metric", spec: { title: "Unpaid", type: "invoice", op: "sum", field: "amount" } });
+  assert.equal(out.value, undefined, "no single number when there is more than one currency");
+  assert.equal(out.unit, undefined);
+  assert.deepEqual(out.parts, [{ unit: "USD", value: 4550 }, { unit: "EUR", value: 900 }]);
+  assert.equal(out.total, 3);
+  assert.deepEqual(contractErrors("projects.live_block.query", "out", out), []);
+  // one currency: one number, as before
+  invoices(h, mixed.slice(0, 2));
+  const one = await run(h, "projects.live_block.query", { projectId: p.projectId, type: "metric", spec: { title: "Unpaid", type: "invoice", op: "sum", field: "amount" } });
+  assert.deepEqual([one.value, one.unit, one.parts], [4550, "USD", undefined]);
+});

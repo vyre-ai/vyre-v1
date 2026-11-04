@@ -93,9 +93,12 @@ export function dueWords(due: number | undefined, state: string | undefined, now
   return { text: `Due ${shortDay(due)}`, late: false };
 }
 
-/** A sum or count as the page reads it: "$6,250 unpaid across 3 invoices". `unit` is the currency code of a currency field. */
-export function metricLine(o: { value: number; title: string; total: number; noun: string; unit?: string | undefined; sum: boolean }): { big: string; rest: string } {
-  const big = o.sum && o.unit ? new Intl.NumberFormat("en-US", { style: "currency", currency: o.unit, maximumFractionDigits: 0 }).format(o.value) : new Intl.NumberFormat("en-US").format(o.value);
+/** A sum or count as the page reads it: "$6,250 unpaid across 3 invoices". `unit` is the currency code of a money field. Amounts in more than one currency come as `parts` (one total each) and read
+ *  "$4,550 and €900 unpaid across 4 invoices": they are never added into one number. */
+export function metricLine(o: { value?: number | undefined; parts?: readonly { unit?: string | undefined; value: number }[] | undefined; title: string; total: number; noun: string; unit?: string | undefined; sum: boolean }): { big: string; rest: string } {
+  const money = (v: number, unit?: string): string => (unit ? new Intl.NumberFormat("en-US", { style: "currency", currency: unit, maximumFractionDigits: 0 }).format(v) : new Intl.NumberFormat("en-US").format(v));
+  const shown = o.parts && o.parts.length > 1 ? o.parts.map((p) => money(p.value, p.unit)) : [money(o.value ?? 0, o.sum ? o.unit : undefined)];
+  const big = shown.length === 1 ? shown[0]! : `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]!}`;
   const label = o.title.trim().toLowerCase();
   const across = o.sum ? ` across ${o.total} ${o.total === 1 ? o.noun.replace(/s$/, "") : o.noun.toLowerCase()}` : "";
   return { big, rest: `${label}${across}` };

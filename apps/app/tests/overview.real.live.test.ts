@@ -1,5 +1,5 @@
 // The project Overview in the real app against a real daemon (lane l-editor): the Client account page with its real data. Three unpaid invoices are made through the real create path, the page's
-// "Unpaid" block shows the server's own sum of their amounts, and changing one record and adding another changes the number the person sees. Shots (paper, wide and phone) go to VYRE_OVERVIEW_SHOTS.
+// "Unpaid" block shows the server's own sum of their amounts, and changing one record and adding another changes the number the person sees. Shots (paper and graphite, wide and phone) go to VYRE_OVERVIEW_SHOTS.
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -57,29 +57,38 @@ test("Overview, real data: an Unpaid block sums real invoices, and the number fo
     const pid = project.projectId as string;
     await call("projects.overview", { projectId: pid });
 
-    const open = async (size: "wide" | "phone", tag: string): Promise<string> => {
-      await page.goto(`${web.origin}/chat#subject=project:${pid}`, { waitUntil: "load" });
+    const open = async (size: "wide" | "phone", tag: string, skin: "paper" | "graphite" = "paper"): Promise<string> => {
+      await page.goto(`${web.origin}/chat?skin=${skin}#subject=project:${pid}`, { waitUntil: "load" });
       await page.getByTestId("project-page").waitFor({ timeout: 40_000 });
       await page.getByTestId("tab-overview").click();
       await page.getByTestId("project-overview").waitFor({ timeout: 20_000 });
       await page.locator("[data-testid=live-metric] [data-testid=live-number]").first().waitFor({ timeout: 20_000 });
       await page.waitForTimeout(800);
-      await page.screenshot({ path: path.join(shots, `overview-real-${tag}-${size}-paper.png`) });
+      await page.screenshot({ path: path.join(shots, `overview-real-${tag}-${size}-${skin}.png`) });
       return (await page.locator("[data-testid=live-metric] [data-testid=live-number]").first().innerText()).trim();
     };
     // 2400 + 1250 + 900 of the three that are sent; the paid one is not counted
     assert.equal(await open("wide", "1-three-unpaid"), "$4,550");
+    assert.equal(await open("wide", "1-three-unpaid", "graphite"), "$4,550");
     assert.match(await page.locator("[data-testid=live-metric] [data-testid=live-metric-line]").first().innerText(), /unpaid across 3 invoices/);
     // one record changes: the number follows it
     await call("records.update", { type: "invoice", recordId: made[2].record.id, patch: { amount: money(2900) } });
     assert.equal(await open("wide", "2-one-changed"), "$6,550");
+    assert.equal(await open("wide", "2-one-changed", "graphite"), "$6,550");
     // a fourth unpaid invoice is added
     await call("records.create", { type: "invoice", fields: { name: "INV-107", amount: money(450), status: "sent" } });
     assert.equal(await open("wide", "3-one-added"), "$7,000");
     assert.match(await page.locator("[data-testid=live-metric] [data-testid=live-metric-line]").first().innerText(), /unpaid across 4 invoices/);
+    assert.equal(await open("wide", "3-one-added", "graphite"), "$7,000");
+    // a euro invoice: the currencies are reported apart, never added into one number
+    await call("records.create", { type: "invoice", fields: { name: "INV-108", amount: { amount: 900, currency: "EUR" }, status: "sent" } });
+    assert.equal(await open("wide", "4-two-currencies"), "$7,000 and \u20AC900");
+    assert.match(await page.locator("[data-testid=live-metric] [data-testid=live-metric-line]").first().innerText(), /unpaid across 5 invoices/);
+    assert.equal(await open("wide", "4-two-currencies", "graphite"), "$7,000 and \u20AC900");
     // the same page on a phone
     await page.setViewportSize({ width: 390, height: 844 });
-    assert.equal(await open("phone", "4-phone"), "$7,000");
+    assert.equal(await open("phone", "5-phone"), "$7,000 and \u20AC900");
+    assert.equal(await open("phone", "5-phone", "graphite"), "$7,000 and \u20AC900");
     assert.deepEqual(errs, [], "no page errors");
   } finally { await browser.close(); web.close(); await space.stop(); }
 });

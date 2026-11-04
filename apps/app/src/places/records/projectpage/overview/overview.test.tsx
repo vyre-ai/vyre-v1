@@ -388,6 +388,8 @@ test("words for a live block: what it shows, a row's tone, a task's status mark,
   assert.deepEqual(dueWords(now - day, "done", now), { text: "Due Oct 23", late: false }, "a done task is never late");
   assert.equal(dueWords(undefined, "todo", now), null);
   assert.deepEqual(metricLine({ value: 6250, title: "Unpaid", total: 3, noun: "Invoices", unit: "USD", sum: true }), { big: "$6,250", rest: "unpaid across 3 invoices" });
+  assert.deepEqual(metricLine({ parts: [{ unit: "USD", value: 4550 }, { unit: "EUR", value: 900 }], title: "Unpaid", total: 4, noun: "Invoices", sum: true }), { big: "$4,550 and €900", rest: "unpaid across 4 invoices" }, "currencies are never added into one number");
+  assert.deepEqual(metricLine({ parts: [{ unit: "USD", value: 5 }, { unit: "EUR", value: 4 }, { unit: "GBP", value: 3 }], title: "Unpaid", total: 3, noun: "Invoices", sum: true }).big, "$5, €4 and £3");
   assert.deepEqual(metricLine({ value: 3, title: "Open invoices", total: 3, noun: "Invoices", sum: false }), { big: "3", rest: "open invoices" });
   assert.deepEqual(BASIC_BLOCKS.map((b) => b.label), ["Text", "Heading", "Checklist", "Table", "Callout", "Diagram", "Chart"]);
   for (const b of BASIC_BLOCKS) assert.equal(typeof (b.node() as { type: string }).type, "string");

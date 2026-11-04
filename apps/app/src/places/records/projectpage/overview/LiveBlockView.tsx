@@ -155,7 +155,7 @@ export function LiveBlockView({ projectId, attrs, readOnly, api, fresh = false, 
   else if (out === null) body = <View testID="live-loading" style={s.skel} />;
   else if (out === "error") body = <Text testID="live-error" style={s.dim}>This could not be read just now.</Text>;
   else if (attrs.type === "metric") {
-    const m = metricLine({ value: out.value ?? 0, title: out.label ?? title, total: out.total, noun, unit, sum: spec["op"] === "sum" });
+    const m = metricLine({ value: out.value, parts: out.parts, title: out.label ?? title, total: out.total, noun, unit, sum: spec["op"] === "sum" });
     body = <View style={s.metric}><Text testID="live-number" style={s.metricN}>{m.big}</Text><Text testID="live-metric-line" style={s.metricL}>{m.rest}</Text></View>;
   } else if (view === "count") {
     body = <View style={s.metric}><Text testID="live-number" style={s.metricN}>{new Intl.NumberFormat("en-US").format(out.total)}</Text><Text style={s.metricL}>{out.hidden > 0 ? hiddenLine(out.hidden) : ""}</Text></View>;
