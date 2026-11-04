@@ -217,7 +217,10 @@ export function SettingsPopover({ name, face, value, outside, anchor, onChange, 
   const phone = win.width > 0 && win.width < 640;
   const set = (patch: Partial<AgentSettings>): void => onChange({ ...value, ...patch });
   const left = Math.max(8, Math.min(anchor.x - 372, (win.width || 1024) - 392));
-  const top = Math.max(8, Math.min(anchor.y + 6, (win.height || 768) - 440));
+  const winH = win.height || 768;
+  // the popover keeps its footer (the Poke note, Poke and Done) on screen: it starts high enough for its lists, and the lists scroll in what is left
+  const top = Math.max(8, Math.min(anchor.y + 6, winH - 700));
+  const listMax = Math.max(160, winH - top - 150);
   const place = phone ? st.popPhone : ({ position: "fixed", left, top, width: 380 } as unknown as ViewStyle);
   return (
     <Overlay>
@@ -232,7 +235,7 @@ export function SettingsPopover({ name, face, value, outside, anchor, onChange, 
             </View>
             <IconButton icon="x" label="Close" onPress={onClose} testID="as-pop-x" />
           </View>
-          <ScrollView style={{ maxHeight: Math.max(220, (win.height || 768) - 230) }} contentContainerStyle={{ gap: 12 }} keyboardShouldPersistTaps="handled">
+          <ScrollView style={{ maxHeight: listMax }} contentContainerStyle={{ gap: 12 }} keyboardShouldPersistTaps="handled">
             <RadioList title="How" testID="as-how" value={value.how} options={howOptions(outside)} onChange={(how) => set({ how })} />
             <RadioList title="When" testID="as-when" value={value.when} options={WHEN_OPTIONS} onChange={(when) => set({ when })} />
             {value.when === "topics" ? (
