@@ -1,7 +1,7 @@
 // The crew model: every sentence a person reads about the crew, from the numbers engine.crew.status returns.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { totalsParts, sortedBy, withTeammates, middle, faceSeed, holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
+import { mergeStateOf, totalsParts, sortedBy, withTeammates, middle, faceSeed, holdsOf, keyAction, testsWords, clock, counts, isCode, lineOf, modelTag, money, ranTogether, roleOf, shows, sorted, span, stripTitle, stripTone, timeline, tokenSplit, totalsLine, tokens } from "./model.ts";
 import type { CrewMember, CrewTotals } from "./model.ts";
 
 const T = (o: Partial<CrewTotals> = {}): CrewTotals => ({ members: 3, working: 0, done: 3, needsYou: 0, failed: 0, stopped: 0, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: 41_000, ...o });
@@ -110,4 +110,15 @@ test("each figure of the totals sorts the helpers by it", () => {
   assert.deepEqual(sortedBy(rows, "cost").map((r) => r.id), ["b", "a", "c"]);
   assert.deepEqual(totalsParts(T({ done: 2, working: 0, needsYou: 0, members: 2, tokensIn: 60_000, tokensOut: 15_000, costMicros: 130_000 })).map((p) => [p.key, p.text]), [["state", "2 done"], ["time", "41 s"], ["tokens", "75k tokens"], ["cost", "$0.13"]]);
   assert.deepEqual(totalsParts(T({ members: 0 })), []);
+});
+
+test("Review all and Merge are not offered while any helper of the strip still works, and are offered once every helper is done; merged when every coder's branch has landed", () => {
+  const coder = (state: string, merged = false) => M({ kind: "teammate" as never, state: state as never, merged });
+  assert.equal(mergeStateOf([M({ state: "done" })]), "none", "no coder, no merge");
+  assert.equal(mergeStateOf([coder("done"), M({ state: "working" })]), "working", "a read-only helper still works: wait");
+  assert.equal(mergeStateOf([coder("working"), M({ state: "done" })]), "working");
+  assert.equal(mergeStateOf([coder("done"), M({ state: "needs_you" })]), "working", "one waits for a person: wait");
+  assert.equal(mergeStateOf([coder("done"), M({ state: "failed" })]), "working", "a failed helper is not done: look at it first");
+  assert.equal(mergeStateOf([coder("done"), M({ state: "done" })]), "ready");
+  assert.equal(mergeStateOf([coder("done", true), M({ state: "done" })]), "merged");
 });

@@ -234,3 +234,14 @@ export function islandText(status: CrewStatusOut): string {
   if (waiting.length > 1) return `${waiting.length} helpers need you`;
   return "Working";
 }
+
+/**
+ * Where the coders' Review all and Merge stand: "working" while any helper of the strip still works or waits (the buttons are not offered, the header says why: it is still working), "ready" once every helper is done and
+ * a coder has something to land, "merged" when every coder's branch has landed. A crew with no coder has none of it.
+ */
+export function mergeStateOf(members: ReadonlyArray<Pick<CrewMember, "state" | "kind"> & { merged?: boolean | undefined }>): "none" | "working" | "ready" | "merged" {
+  const coders = members.filter((m) => m.kind === "teammate");
+  if (coders.length === 0) return "none";
+  if (coders.every((m) => m.merged === true)) return "merged";
+  return members.every((m) => m.state === "done") ? "ready" : "working";
+}
