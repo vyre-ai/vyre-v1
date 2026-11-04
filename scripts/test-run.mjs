@@ -8,7 +8,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { TEST, imports, cacheKey } from "./lib/graph.mjs";
+import { TEST, imports, cacheKey, noCache } from "./lib/graph.mjs";
 import { splitPerf } from "./lib/perf-skip.mjs";
 import { withPatternSlow } from "./lib/slow-list.mjs";
 import { ensureDeps } from "./shots/ensure-deps.mjs";
@@ -60,7 +60,7 @@ const env = { node: process.version, runner: RUNNER_VERSION, tag: process.env.VY
 const needsTsx = (f) => f.endsWith(".tsx") || /^\s*\/\/\s*@tsx\b/m.test(read(f));
 const tsxArgs = ["--import", "tsx", "--import", path.join(REPO, "scripts/shots/rn-alias.mjs")];
 if (files.some(needsTsx)) await ensureDeps(REPO);
-const nocache = (f) => /^\s*\/\/\s*@nocache/m.test(read(f));
+const nocache = (f) => noCache(read(f));   // @nocache, or a test that lists a directory (scripts/lib/graph.mjs)
 
 const run = (f) => new Promise((resolve) => {
   const cap = (slowBy.get(f)?.capSec ?? 30) * 1000 /* ruling 52: 30 s fast cap, was 20 */, t0 = Date.now();
