@@ -410,11 +410,12 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
       </View>
     );
     const slot = (
+      <View key={`${row.subjectKind}:${row.subjectId}:${inheritedRow ? "i" : "d"}`} style={st.plain}>
       <SlotRow
-        key={`${row.subjectKind}:${row.subjectId}:${inheritedRow ? "i" : "d"}`}
         id={`as-acc-${row.subjectId}`} title={row.name} note={rec ? (inheritedRow ? `From ${p.folderName ?? "its type"}` : rowSub({ ...row, via: "grant" })) : rowSub(row, p.folderName)}
         leadWidth={36} lead={<SubjectFace row={row} />} trail={trail} onMenu={(x, y) => rowMenu(row, x, y)}
       />
+      </View>
     );
     if (!rec || inheritedRow || row.subjectKind === "link") return slot;
     const everyone = rec.exporters === "viewers";
@@ -467,7 +468,7 @@ export function AccessList({ p, offered, cleared, onCleared }: { p: ShareSheetPr
         </View>
       )}
       <View style={st.listHead}><Text style={st.listHeadText}>People</Text><Text style={st.listHeadText} testID="as-count">{v.count}</Text></View>
-      <SlotRow id="as-acc-owner" title={p.ownerName} leadWidth={36} lead={<Face kind="person" id={p.ownerId ?? p.ownerName} name={p.ownerName} size={28} />} trail={<Text style={st.ownerText}>Owner</Text>} />
+      <View style={st.plain}><SlotRow id="as-acc-owner" title={p.ownerName} leadWidth={36} lead={<Face kind="person" id={p.ownerId ?? p.ownerName} name={p.ownerName} size={28} />} trail={<Text style={st.ownerText}>Owner</Text>} /></View>
       {rec && rec.audience === "space" && rec.follows === undefined ? <SlotRow id="as-acc-space-rec" title="Everyone in the Space" note="As their role allows" leadWidth={36} lead={<Face kind="group" id="space" name="Everyone" size={28} />} trail={<Text style={st.ownerText}>Their role</Text>} /> : null}
       {rec && rec.audience === "added" ? <SlotRow id="as-acc-admins" title="Admins" note="Always" leadWidth={36} lead={<Face kind="group" id="admins" name="Admins" size={28} />} trail={<Text style={st.ownerText}>{lname("manage")}</Text>} /> : null}
       {v.people.map((r) => rowNode(r))}
@@ -544,6 +545,7 @@ export const pickHowLabel = (p: AccessPick): string => HOW_OPTIONS.find((h) => h
 /* ---------- styles ---------- */
 
 export const st = StyleSheet.create({
+  plain: { paddingVertical: 4 },
   hover: { backgroundColor: t("hover") },
   off: { opacity: 0.45 },
   veil: { position: (web ? "fixed" : "absolute") as unknown as "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 99998, backgroundColor: "rgba(8,8,10,0.5)", alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },

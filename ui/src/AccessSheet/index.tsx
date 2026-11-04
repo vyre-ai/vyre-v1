@@ -379,7 +379,7 @@ export function AccessSheet(props: AccessSheetProps): ReactElement {
         {section("People", secs.people)}
         {section("Groups and roles", secs.groups)}
         {section("Agents", secs.agents)}
-        {secs.outside.length > 0 ? section("Your outside agents", secs.outside, OUTSIDE_NOTE(props.ownerName)) : (type === "agent" || q.trim() !== "" || !noOutside ? null : (
+        {secs.outside.length > 0 ? section("Your outside agents", secs.outside, OUTSIDE_NOTE(props.ownerName)) : (share || type === "agent" || q.trim() !== "" || !noOutside ? null : (
           <View>
             <View style={st.sectRow}><Text style={st.sectText}>Your outside agents</Text></View>
             <Text style={st.empty} testID="as-no-outside">{NO_OUTSIDE}</Text>

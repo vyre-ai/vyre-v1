@@ -72,7 +72,7 @@ function DexPath(): ReactNode {
   }, []);
   return (
     <View style={{ height: 900, backgroundColor: "var(--win)" as string }}>
-      <AgentForm agentId="agt_dex" call={call} newKey={() => "k"} onDone={() => undefined} onCancel={() => undefined} say={() => undefined} openVault={() => undefined} sharing={{ directory: sample.extras.directory, meName: "Irfad", meId: "usr_irfad", nameOf: (id) => (id === "usr_irfad" ? "Irfad" : sample.data.name(id)) }} />
+      <AgentForm agentId="agt_dex" call={call} newKey={() => "k"} onDone={() => undefined} onCancel={() => undefined} say={() => undefined} openVault={() => undefined} sharing={{ directory: sample.extras.directory, meName: "Irfad", meId: "usr_irfad", spaceName: "Northwind", nameOf: (id) => (id === "usr_irfad" ? "Irfad" : sample.data.name(id)) }} />
     </View>
   );
 }
