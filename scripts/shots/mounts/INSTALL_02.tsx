@@ -46,7 +46,7 @@ export function scripted(kind: string): Call {
       case "vault.items.list": return { items: [{ name: "GitHub token (yours)" }, ...(kind === "mcpadded" ? [{ name: "DATABASE_URL" }] : [])] };
       case "install.list": return { installs: INSTALLS.map((x, n) => ({ ...x, at: NOV4 - n * 86_400_000, ...(x.kind === "skill" ? { version: "1.2.0" } : x.kind === "mcp_local" ? { version: "2.1.0" } : {}), installed: { for: n === 0 ? "space" : "me" } })) };
       case "access.principals.list": return { principals: Object.entries(NAMES).filter(([id]) => id.startsWith("usr_")).map(([id, name]) => ({ id, name })) };
-      case "install.check_update": return { changed: true, plan: { planId: "ins_5", commit: "7d03be8".padEnd(40, "0"), version: "1.3.0" } };
+      case "install.check_update": { const u = PLANS["update"] as Record<string, unknown>; return { changed: true, plan: { ...u, version: "1.3.0", diff: { ...(u["diff"] as object), fromVersion: "1.2.0", toVersion: "1.3.0", newAccess: ["cdn.example.com"] } } }; }
       case "skills.page": return {
         waiting: [], builtin: [], agents: [], policy: { scriptsAdminOnly: true }, admin: true, me: "usr_irfad", space: [],
         mine: [{ skillId: "sko_1", name: "pdf-tools", description: "", source: "github:acme/pdf-tools@a41f9c2", origin: "acme/pdf-tools", version: "1.2.0", agents: ["*"], enabled: true, needs: [], health: "ok" }, { skillId: "sko_2", name: "Weekly report format", description: "", source: "upload", origin: "", version: "2.0", agents: ["*"], enabled: true, needs: [], health: "ok" }],
