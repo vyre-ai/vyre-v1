@@ -19,7 +19,7 @@ Ask a helper that is working something, in its own chat: the person it works for
 | HTTP | POST /v1/chat/helper/steer |
 | MCP tool | chat_helper_steer (chats) |
 | CLI | none |
-| Emits | message.received, helper.note |
+| Emits | message.received, helper.note, message.direct, message.mentioned, thread.replied, thread.unarchived |
 
 ## Input
 

@@ -199,18 +199,22 @@ export async function set(ctx: MachinesCtx, input: { machineId: string; nickname
   const mayConfigure = r.kind === "computer" ? owner : v.admin || owner;
   const changes: string[] = [];
   const need = (ok: boolean, what: string): void => { if (!ok) raise(ctx, "permission.no_grant", `Only ${r.kind === "computer" ? "the person it belongs to" : "an admin"} can change ${what}.`); };
+  // every refusal comes before any write: a call refused for one field changes nothing
+  if (input.nickname !== undefined) need(mayConfigure, "its name");
+  if (input.maxTurns !== undefined) need(mayConfigure, "the most turns at once");
+  if (input.maxAgentComputers !== undefined) need(mayConfigure, "the most agent computers at once");
+  if (input.drain !== undefined) need(v.admin || owner, "draining");
+  if (input.pinAgent) need(mayConfigure, "which agents are pinned");
+  const n = input.nickname === undefined || input.nickname === null ? null : input.nickname.trim();
+  if (n !== null && n !== "" && !NICK.test(n)) raise(ctx, "validation.bad_input", "A name is up to 40 characters.");
   if (input.nickname !== undefined) {
-    need(mayConfigure, "its name");
-    const n = input.nickname === null ? null : input.nickname.trim();
-    if (n !== null && n !== "" && !NICK.test(n)) raise(ctx, "validation.bad_input", "A name is up to 40 characters.");
     ctx.db.run("UPDATE machines_machine SET nickname = ? WHERE machine_id = ?", n === "" ? null : n, r.machineId);
     changes.push("nickname");
   }
-  if (input.maxTurns !== undefined) { need(mayConfigure, "the most turns at once"); ctx.db.run("UPDATE machines_machine SET max_turns = ? WHERE machine_id = ?", input.maxTurns, r.machineId); if (input.maxTurns !== r.maxTurns) changes.push("limits"); }
-  if (input.maxAgentComputers !== undefined) { need(mayConfigure, "the most agent computers at once"); ctx.db.run("UPDATE machines_machine SET max_agent_computers = ? WHERE machine_id = ?", input.maxAgentComputers, r.machineId); if (input.maxAgentComputers !== r.maxAgentComputers) changes.push("limits"); }
-  if (input.drain !== undefined) { need(v.admin || owner, "draining"); ctx.db.run("UPDATE machines_machine SET drain = ? WHERE machine_id = ?", input.drain ? 1 : 0, r.machineId); if (input.drain !== r.drain) changes.push("drain"); }
+  if (input.maxTurns !== undefined) { ctx.db.run("UPDATE machines_machine SET max_turns = ? WHERE machine_id = ?", input.maxTurns, r.machineId); if (input.maxTurns !== r.maxTurns) changes.push("limits"); }
+  if (input.maxAgentComputers !== undefined) { ctx.db.run("UPDATE machines_machine SET max_agent_computers = ? WHERE machine_id = ?", input.maxAgentComputers, r.machineId); if (input.maxAgentComputers !== r.maxAgentComputers) changes.push("limits"); }
+  if (input.drain !== undefined) { ctx.db.run("UPDATE machines_machine SET drain = ? WHERE machine_id = ?", input.drain ? 1 : 0, r.machineId); if (input.drain !== r.drain) changes.push("drain"); }
   if (input.pinAgent) {
-    need(mayConfigure, "which agents are pinned");
     // an agent is pinned to one machine at a time: pinning it here lets go of the others
     if (input.pinAgent.pinned) { ctx.db.run("DELETE FROM machines_pin WHERE agent_id = ?", input.pinAgent.agentId); ctx.db.run("INSERT OR REPLACE INTO machines_pin (machine_id, agent_id, at) VALUES (?, ?, ?)", r.machineId, input.pinAgent.agentId, ctx.now()); }
     else ctx.db.run("DELETE FROM machines_pin WHERE machine_id = ? AND agent_id = ?", r.machineId, input.pinAgent.agentId);

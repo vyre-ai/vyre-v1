@@ -19,7 +19,7 @@ Change one of my settings; saves as made and returns the previous value so Undo 
 | HTTP | POST /v1/settings/set |
 | MCP tool | settings_set (meta) |
 | CLI | none |
-| Emits | settings.changed |
+| Emits | settings.changed, settings.contact_unverified |
 
 ## Input
 

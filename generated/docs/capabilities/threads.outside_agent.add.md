@@ -19,7 +19,7 @@ Bring an outside agent into this chat with exactly this chat, its project, files
 | HTTP | POST /v1/threads/outside_agent/add |
 | MCP tool | threads_outside_agent_add (chats) |
 | CLI | none |
-| Emits | agent.engaged |
+| Emits | agent.engaged, thread.updated |
 
 ## Input
 

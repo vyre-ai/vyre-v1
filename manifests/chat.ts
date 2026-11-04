@@ -232,7 +232,7 @@ export default defineManifest({
     }),
     write('threads.poke', 'Poke an agent: one turn for it now, even if it is listening. It reads the last 12 messages and tool calls, answers the poker, and its reply carries "Poked by <person>". An outside agent gets the poke in its queue', {
       in: { ...threadT, agentId: id.agent, note: t.opt(t.str({ description: 'A line for the agent, shown in the chat' })) },
-      out: { messageId: id.message, delivered: t.enm('engine', 'outside_queue') }, on: ['thread', '/threadId'], level: 'use', idem: 'none', risk: 'low', emits: ['message.received', 'agent.engaged'], tool: 'chats', offline: 'online',
+      out: { messageId: id.message, delivered: t.enm('engine', 'outside_queue') }, on: ['thread', '/threadId'], level: 'use', idem: 'none', risk: 'low', emits: ['message.received', 'agent.engaged', 'message.direct', 'message.mentioned', 'thread.replied', 'thread.unarchived', 'thread.updated'], tool: 'chats', offline: 'online',
       errors: ['validation.not_found', 'validation.bad_input', 'permission.no_grant', 'validation.precondition_failed'],
     }),
     read('chat.read_floor', 'Where the caller\'s reading of one chat starts: the time they were added without Include earlier messages, or nothing when they read all of it. The engine tells an agent so before it answers them', {
@@ -245,7 +245,7 @@ export default defineManifest({
     }),
     write('threads.outside_agent.add', 'Bring an outside agent into this chat with exactly this chat, its project, files folder and record, each tagged with the chat; it shows as "<person> (Agent)" and removing it ends access at once. You can only give what you hold', {
       in: { ...threadT, agentId: id.agent, mode: t.opt(agentSetMode) }, out: { thread: threadRow, granted: t.arr(t.obj({ type: t.str(), id: t.str(), level: t.str() })) },
-      on: ['thread', '/threadId'], level: 'use', perm: 'channels.agents', idem: 'natural', audit: 'always', emits: ['agent.engaged'], tool: 'chats', offline: 'online',
+      on: ['thread', '/threadId'], level: 'use', perm: 'channels.agents', idem: 'natural', audit: 'always', emits: ['agent.engaged', 'thread.updated'], tool: 'chats', offline: 'online',
       errors: ['validation.not_found', 'validation.bad_input', 'permission.not_contained', 'permission.no_grant', 'validation.precondition_failed'],
     }),
     write('threads.outside_agent.remove', 'Take an outside agent out of this chat and end every grant that bringing it in gave, at once', {
@@ -472,19 +472,19 @@ export default defineManifest({
       tool: 'chats', mcpName: 'sub_task_model', agent: { planMode: 'blocked', blocks: ['model_switch', 'helper'] },
     }),
     write('chat.helper.steer', 'Ask a helper that is working something, in its own chat: the person it works for only, while it runs', {
-      in: { ...threadT, body: t.str({ maxLength: 20000 }) }, out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', idem: 'key', emits: ['message.received', 'helper.note'], tool: 'chats', errors: ['validation.not_found', 'validation.precondition_failed'],
+      in: { ...threadT, body: t.str({ maxLength: 20000 }) }, out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', idem: 'key', emits: ['message.received', 'helper.note', 'message.direct', 'message.mentioned', 'thread.replied', 'thread.unarchived'], tool: 'chats', errors: ['validation.not_found', 'validation.precondition_failed'],
     }),
     write('chat.helper.note', 'Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer', {
       in: {
         ...threadT, body: t.str({ maxLength: 20000 }), kind: t.opt(t.enm('followup', 'progress', 'question', 'result')), needsPerson: t.opt(t.bool()),
         options: t.opt(t.arr(t.obj({ key: t.str(), label: t.str() }), { maxItems: 20 })),
       },
-      out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.note', 'message.received', 'block.waiting'], tool: 'chats', mcpName: 'helper_note', deferred: true, agent: { planMode: 'blocked' },
+      out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.note', 'message.received', 'block.waiting', 'message.direct', 'message.mentioned', 'thread.replied', 'thread.unarchived'], tool: 'chats', mcpName: 'helper_note', deferred: true, agent: { planMode: 'blocked' },
       errors: ['validation.not_found', 'validation.precondition_failed', 'validation.bad_input'],
     }),
     write('chat.helper.restart', 'Start a helper again on another model: the person it works for picks an account and a model, and it does its brief again from the start', {
       in: { ...threadT, model: t.opt(t.str()), account: t.opt(t.str({ description: 'An account from models_for_helpers: its ref, or its label' })), provider: t.opt(t.str()) },
-      out: { messageId: id.message, model: t.str(), account: t.str(), fellBackFrom: t.opt(t.str()) }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.note', 'message.received'], tool: 'chats',
+      out: { messageId: id.message, model: t.str(), account: t.str(), fellBackFrom: t.opt(t.str()) }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.note', 'message.received', 'message.direct', 'message.mentioned', 'thread.replied', 'thread.unarchived'], tool: 'chats',
       errors: ['validation.not_found', 'validation.precondition_failed', 'validation.bad_input', 'permission.no_grant', 'provider.unavailable'],
     }),
     write('chat.helper.note_seen', 'Mark the notes waiting for a helper as read', {
