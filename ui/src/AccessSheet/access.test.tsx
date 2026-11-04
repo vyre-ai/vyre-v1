@@ -503,3 +503,27 @@ test("an outside agent on Here now has an x that calls onRemoveHere; earlierMess
     assert.ok(find(shown, "as-earlier"), "on by default");
   });
 });
+
+test("closing the settings popover on Only on topics with the box still empty says Add a topic or pick another mode and stays; a second close leaves", async () => {
+  await withDom(async () => {
+    const root = await mount(createRoot, <AccessSheet {...add()} />);
+    await press(find(root, "as-row-agent:agt_docs"));
+    await press(find(root, "as-settings-agent:agt_docs"));
+    await press(find(root, "as-when-topics"));
+    assert.equal(find(root, "as-topics-empty"), null, "no error while typing or before closing");
+    await press(find(root, "as-pop-done"));
+    assert.match(textOf(find(root, "as-topics-empty")), /Add a topic or pick another mode/);
+    assert.ok(find(root, "as-pop"), "the popover stays");
+    await typeInto(find(root, "as-topics"), "invoices");
+    assert.equal(find(root, "as-topics-empty"), null, "writing a topic clears it");
+    await press(find(root, "as-pop-done"));
+    assert.equal(find(root, "as-pop"), null, "with a topic it closes at once");
+    await press(find(root, "as-settings-agent:agt_docs"));
+    await press(find(root, "as-when-always"));
+    await press(find(root, "as-when-topics"));
+    await typeInto(find(root, "as-topics"), "");
+    await press(find(root, "as-pop-done"));
+    await press(find(root, "as-pop-done"));
+    assert.equal(find(root, "as-pop"), null, "a second close leaves; the agent answers as Always until a topic is written");
+  });
+});

@@ -38582,6 +38582,7 @@ export type ThreadsMarkReadOut = {
 export type ThreadsMembersAddIn = {
   threadId: string;
   personId: string;
+  fromStart?: boolean;
 };
 export type ThreadsMembersAddOut = {
   thread: {

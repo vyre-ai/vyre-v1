@@ -244,14 +244,54 @@ test("a person who can only view cannot give Member: the option is grey and the 
   });
 });
 
-test("the earlier-messages switch stays hidden: no capability gives a new member the history yet", async () => {
+test("Include earlier messages shows for a chat and is off by default; on, the person is added with fromStart; a channel and a project never show it", async () => {
   await withDom(async () => {
     const s = createSample("idle");
     const root = await mount(createRoot, <Conversation data={s.data} />);
     await press(find(root, "add-agent"));
     await flush();
     await press(find(root, "as-row-person:usr_maya"));
-    assert.equal(find(root, "as-earlier"), null);
+    assert.ok(find(root, "as-earlier"), "shown for a chat");
+    assert.match(textOf(find(root, "as-line-std")), /from now on/);
+    await press(find(root, "as-add"));
+    await flush();
+    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").map((c) => c.input), [{ threadId: "c1", personId: "usr_maya" }], "off by default: no flag");
+    await press(find(root, "add-agent"));
+    await flush();
+    await press(find(root, "as-row-person:usr_omar"));
+    await press(find(root, "as-earlier"));
+    assert.match(textOf(find(root, "as-line-std")), /from the start/);
+    await press(find(root, "as-add"));
+    await flush();
+    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").at(-1)?.input, { threadId: "c1", personId: "usr_omar", fromStart: true });
+    const ch = createSample("channel");
+    const room = await mount(createRoot, <Conversation data={ch.data} />);
+    await press(find(room, "add-agent"));
+    await flush();
+    await press(find(room, "as-row-person:usr_omar"));
+    assert.equal(find(room, "as-earlier"), null, "a channel's people read everything it holds");
+  });
+});
+
+test("@mentioning someone who is not in the chat offers Add first and Start a channel instead second, and says what they will see", async () => {
+  await withDom(async () => {
+    const s = createSample("idle");
+    const root = await mount(createRoot, <Conversation data={s.data} />);
+    await typeInto(find(root, "composer-field"), "@Maya Chen can you look at this");
+    await flush();
+    const offer = find(root, "channel-offer");
+    assert.ok(offer, "the offer shows");
+    const text = textOf(offer);
+    assert.match(text, /Maya isn't in this chat\./);
+    assert.ok(text.indexOf("Add Maya") >= 0 && text.indexOf("Start a channel instead") > text.indexOf("Add Maya"), "Add first, the channel second");
+    assert.match(text, /They will read from now on\. Earlier messages stay hidden\./);
+    assert.ok(!/never gains people/i.test(text));
+    await press(find(root, "channel-earlier"));
+    assert.match(textOf(find(root, "channel-offer")), /They will read the whole chat\./);
+    await press(find(root, "channel-add"));
+    await flush();
+    assert.deepEqual(s.calls.filter((c) => c.cap === "threads.members.add").map((c) => c.input), [{ threadId: "c1", personId: "usr_maya", fromStart: true }]);
+    assert.ok(s.data.toast !== undefined);
   });
 });
 

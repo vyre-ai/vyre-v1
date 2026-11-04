@@ -231,6 +231,8 @@ function ConversationView(): ReactElement {
   const [modeOver, setModeOver] = useState<ChatMode | null>(null);
   const [picker, setPicker] = useState<{ id: string; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState(false);
+  /** The offer to add a @mentioned person: whether they will read the earlier messages (off by default in a private chat). */
+  const [offerEarlier, setOfferEarlier] = useState(false);
   const width = useWindowDimensions().width;
   const mobileBack = useMobileBack();
   const narrow = width > 0 && width < 640;
@@ -534,8 +536,9 @@ function ConversationView(): ReactElement {
   const contexts = new Map<string, { used: number; window: number } | null>();
   if (lead && leadUsage !== "loading") contexts.set(lead.agentId, leadUsage?.context ?? null);
   const composerAgents = stripAgents(thread, nameOf, accounts ?? [], contexts);
-  const personMention = thread.kind === "chat" && thread.members.filter((m) => m.kind === "person").length <= 1
-    ? mentionsIn(typed, data.directory.filter((c) => c.kind === "person" && c.id !== data.me.id))[0]
+  // a person @mentioned who is not in a private chat: Add them (the chat becomes a group chat), or start a channel instead
+  const personMention = thread.kind === "chat"
+    ? mentionsIn(typed, data.directory.filter((c) => c.kind === "person" && c.id !== data.me.id && !thread.members.some((m) => m.id === c.id)))[0]
     : undefined;
   const closed = isClosed(thread);
   const parked = !closed && parkedAtLimit(win.rows[win.rows.length - 1], hopLimit, isWorking);
@@ -674,8 +677,11 @@ function ConversationView(): ReactElement {
       {personMention ? (
         <View testID="channel-offer" style={st.offer}>
           <Face name={nameOf(personMention.id)} seedId={personMention.id} kind="person" size={18} />
-          <Text style={st.offerText}>{`${nameOf(personMention.id)} is not in this chat. A chat never gains people.`}</Text>
-          <TextButton label={`Start a channel with ${nameOf(personMention.id).split(" ")[0]}`} testID="channel-start" onPress={() => void act.startChannel(data, personMention.id, data.newKey()).then(() => say("Channel started, linked back to this chat."), fail("Could not start the channel."))} />
+          <Text style={st.offerText}>{`${nameOf(personMention.id).split(" ")[0]} isn't in this chat.`}</Text>
+          <TextButton label={`Add ${nameOf(personMention.id).split(" ")[0]}`} testID="channel-add" onPress={() => void act.addPerson(data, personMention.id, offerEarlier).then(() => { setOfferEarlier(false); say(`${nameOf(personMention.id).split(" ")[0]} was added. This is now a group chat.`); }, fail("Could not add them."))} />
+          <TextButton label="Start a channel instead" testID="channel-start" onPress={() => void act.startChannel(data, personMention.id, data.newKey()).then(() => say("Channel started, linked back to this chat."), fail("Could not start the channel."))} />
+          <Text testID="channel-offer-sees" style={st.offerText}>{offerEarlier ? "They will read the whole chat." : "They will read from now on. Earlier messages stay hidden."}</Text>
+          <TextButton link label={offerEarlier ? "Hide earlier messages" : "Include earlier messages"} testID="channel-earlier" onPress={() => setOfferEarlier((x) => !x)} />
         </View>
       ) : null}
       {outsideOffline && !closed ? <Text testID="outside-offline" style={st.outsideOffline}>{outsideOffline}</Text> : null}
@@ -797,7 +803,7 @@ const st = StyleSheet.create({
   queue: { fontSize: 12.5, color: "var(--ink-3)" as string, textAlign: "center" },
   lineBox: { paddingHorizontal: 24, paddingVertical: 4, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   lineText: { fontSize: 12.5, color: "var(--ink-2)" as string },
-  offer: { flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "center", maxWidth: 760, paddingHorizontal: 24, paddingVertical: 4 },
+  offer: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8, alignSelf: "center", maxWidth: 760, paddingHorizontal: 24, paddingVertical: 4 },
   offerText: { flexShrink: 1, fontSize: 12.5, color: "var(--ink-2)" as string },
   closed: { minHeight: 48, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderTopWidth: 1, borderTopColor: "var(--line)" as string, backgroundColor: "var(--side)" as string },
   composerBox: { alignSelf: "center", width: "100%", maxWidth: 708, paddingHorizontal: 24, paddingBottom: 16 },

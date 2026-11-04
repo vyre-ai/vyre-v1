@@ -474,3 +474,11 @@ test("no string shown to people holds an em dash or a section sign", async () =>
     assert.ok(!src.includes("§"), `${f} has a section sign`);
   }
 });
+
+test("addCalls sends fromStart only when Include earlier messages is on", () => {
+  const person = { key: "person:usr_sara", kind: "person", id: "usr_sara", name: "Sara", role: "member" } as never;
+  const off = addCalls({ kind: "chat", threadId: "thr_1" }, [person], () => "k");
+  assert.deepEqual(off.calls.map((c) => c.input), [{ threadId: "thr_1", personId: "usr_sara" }]);
+  const on = addCalls({ kind: "chat", threadId: "thr_1" }, [person], () => "k", { earlier: true });
+  assert.deepEqual(on.calls.map((c) => c.input), [{ threadId: "thr_1", personId: "usr_sara", fromStart: true }]);
+});

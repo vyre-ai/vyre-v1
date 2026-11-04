@@ -62703,10 +62703,13 @@
       "blocks": [],
       "cap": "threads.members.add",
       "deferred": false,
-      "description": "Add a person to a thread; a private chat never gains people, so this offers a channel instead",
+      "description": "Add a person to a thread. A private chat becomes a group chat: the newcomer reads from now on unless fromStart is true (Include earlier messages), a goal chat shows its history, and agents stop using the asker's private profile there. A chat's own agents become visible to the newcomer.",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "fromStart": {
+            "type": "boolean"
+          },
           "personId": {
             "examples": [
               "usr_a1b2c3"

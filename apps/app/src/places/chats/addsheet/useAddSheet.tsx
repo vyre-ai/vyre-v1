@@ -145,9 +145,9 @@ function nameOfCall(call: { cap: string; input: unknown }, picks: readonly Acces
 }
 
 /** Runs the sheet's picks: people first, then agents, then settings, new agents and guests, in the order addCalls plans. Says one line after. */
-export async function runAdd(deps: AddSheetDeps, r: Loaded, picks: readonly AccessPick[]): Promise<{ added: string[]; failed: string[] }> {
+export async function runAdd(deps: AddSheetDeps, r: Loaded, picks: readonly AccessPick[], earlier = false): Promise<{ added: string[]; failed: string[] }> {
   const key = (): string => deps.newKey();
-  const plan = addCalls(r.ctx, picks, key);
+  const plan = addCalls(r.ctx, picks, key, { earlier });
   const queue: { cap: string; input: unknown }[] = plan.calls.map((c) => ({ cap: c.cap, input: c.input }));
   if (r.ctx.kind === "project") {
     const extra = projectExtras(plan.unsupported, key);
@@ -239,8 +239,10 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
     const got = await tryCall<Out<"agents.list">>(d.current, "agents.list", {});
     return new Set((got?.agents ?? []).filter((a) => a.runtime === "outside").map((a) => a.agentId));
   }, []);
-  const showPeople = useCallback((p: { thread: ThreadRow; x: number; y: number; onOpenAgent(agentId: string): void }): void => { void outsideOf().then((outside) => setSurface({ k: "people", ...p, outside })); }, [outsideOf]);
-  const showSettings = useCallback((p: { thread: ThreadRow; agentId: string; x: number; y: number }): void => { void outsideOf().then((outside) => setSurface({ k: "settings", ...p, outside })); }, [outsideOf]);
+  /** The chat's agents as the server keeps them: the copy a screen holds may leave out how each answers (Listening, When, Style). */
+  const freshThread = useCallback(async (seen: ThreadRow): Promise<ThreadRow> => (await tryCall<Out<"threads.get">>(d.current, "threads.get", { threadId: seen.threadId }))?.thread ?? seen, []);
+  const showPeople = useCallback((p: { thread: ThreadRow; x: number; y: number; onOpenAgent(agentId: string): void }): void => { void Promise.all([outsideOf(), freshThread(p.thread)]).then(([outside, thread]) => setSurface({ k: "people", ...p, thread, outside })); }, [outsideOf, freshThread]);
+  const showSettings = useCallback((p: { thread: ThreadRow; agentId: string; x: number; y: number }): void => { void Promise.all([outsideOf(), freshThread(p.thread)]).then(([outside, thread]) => setSurface({ k: "settings", ...p, thread, outside })); }, [outsideOf, freshThread]);
 
   let element: ReactElement | null = null;
   if (surface?.k === "sheet") {
@@ -250,7 +252,7 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
     element = (
       <AccessSheet
         mode="add" density={phone ? "compact" : "regular"} ownerName={deps.me.name} target={r.target} directory={r.directory} here={r.here} agentSettings={r.agentSettings} models={MODELS}
-        earlierMessages={false} {...(r.maxLevel !== undefined ? { maxLevel: r.maxLevel } : {})} {...(r.link ? { link: r.link } : {})} testID="add-sheet" onClose={close}
+        earlierMessages={r.target.kind === "chat" || r.target.kind === "thread"} {...(r.maxLevel !== undefined ? { maxLevel: r.maxLevel } : {})} {...(r.link ? { link: r.link } : {})} testID="add-sheet" onClose={close}
         {...(sameThread !== null ? { onPoke: (id: string) => poke(sameThread, id, r.here), onAgentSettings: (id: string, s: AgentSettings) => save(sameThread, id, s, true) } : {})}
         {...(sameThread !== null ? { onRemoveHere: (e: AccessEntry) => {
           void Promise.resolve(d.current.call("threads.outside_agent.remove", outsideAgentRemoveInput(sameThread, e.id))).then(
@@ -258,8 +260,8 @@ export function useAddSheet(deps: AddSheetDeps, opts: { onDone?: () => void; cop
             () => d.current.toast(`Could not remove ${e.name}. Try again.`),
           );
         } } : {})}
-        onAdd={(picks) => {
-          void runAdd(d.current, r, picks).then(({ added, failed }) => {
+        onAdd={(picks, opts) => {
+          void runAdd(d.current, r, picks, opts.earlier).then(({ added, failed }) => {
             if (added.length > 0) d.current.toast(addedLine(added));
             if (failed.length > 0) d.current.toast(failedLine(failed));
             o.current.onDone?.();

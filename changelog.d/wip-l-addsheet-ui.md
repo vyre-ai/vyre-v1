@@ -14,3 +14,7 @@
 - The "Include earlier messages" switch stays hidden for now: nothing in the server gives a new member the earlier messages yet.
 - Whoever added an agent to a chat can change how and when it answers, and so can the chat's owner, anyone who manages the chat and the chat's lead agent. Anyone else is told who can: "Only Maya, the chat's owner or someone who manages this chat can change how Drafter answers."
 - Choosing "Only on topics" before any topic is typed no longer errors. It is kept as a draft, and the agent answers everything until the topics are written.
+- A private chat can now gain people. Adding someone turns it into a group chat. They read from the moment they were added unless "Include earlier messages" is on (off by default); a goal chat shows its history. The hidden history stays hidden in the message list, a single message, pins, reading further back, the catch-up, search, forks and the chat summary agents read.
+- Typing @name for someone who is not in the chat now offers "Aliza isn't in this chat" with Add Aliza first and Start a channel instead second, and says what they will see. Once someone joins, agents in that chat stop using the private part of your profile.
+- An agent a chat made for itself is now visible to everyone who can read the chat, whoever made it. A person who joins gets it, and a person who leaves loses it.
+- Closing the "Only on topics" settings with no topic written says "Add a topic or pick another mode". Until a topic is written the agent answers everything.

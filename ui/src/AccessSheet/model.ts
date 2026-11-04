@@ -521,8 +521,9 @@ export function inviteGuestInput(threadId: string, email: string, role: "gview" 
   return { threadId, email: email.trim(), level: role === "greply" ? "reply" : "view", idempotencyKey };
 }
 
-export function threadMemberInput(threadId: string, personId: string): In<"threads.members.add"> {
-  return { threadId, personId };
+/** "Include earlier messages" is fromStart: the newcomer reads the chat from the start. Left out, a private chat shows them messages from now on. */
+export function threadMemberInput(threadId: string, personId: string, fromStart = false): In<"threads.members.add"> {
+  return { threadId, personId, ...(fromStart ? { fromStart: true } : {}) };
 }
 
 /** Member is use; Can view is view. */
@@ -564,7 +565,7 @@ const isDefaultSettings = (s: AgentSettings): boolean =>
   s.how === DEFAULT_AGENT_SETTINGS.how && s.when === DEFAULT_AGENT_SETTINGS.when && s.style === DEFAULT_AGENT_SETTINGS.style;
 
 /** The capability calls for the picks, in order. People first (a channel's people in one call, grouped by role), then agents, outside agents, new agents, guests; settings follow any agent whose answers differ from the default. */
-export function addCalls(ctx: AddContext, picks: readonly AccessPick[], newKey: (p: AccessPick) => string): AddPlan {
+export function addCalls(ctx: AddContext, picks: readonly AccessPick[], newKey: (p: AccessPick) => string, opts: { earlier?: boolean } = {}): AddPlan {
   const calls: AddCall[] = [];
   const unsupported: AccessPick[] = [];
   const threadId = ctx.kind === "channel" ? ctx.mainThreadId : ctx.kind === "project" ? "" : ctx.threadId;
@@ -580,7 +581,7 @@ export function addCalls(ctx: AddContext, picks: readonly AccessPick[], newKey: 
   }
   for (const p of picks) {
     if (p.kind === "person") {
-      if (ctx.kind === "chat" || ctx.kind === "thread") calls.push({ cap: "threads.members.add", input: threadMemberInput(ctx.threadId, p.id) });
+      if (ctx.kind === "chat" || ctx.kind === "thread") calls.push({ cap: "threads.members.add", input: threadMemberInput(ctx.threadId, p.id, opts.earlier === true) });
       else if (ctx.kind === "project") calls.push({ cap: "projects.members.set", input: projectMemberInput(ctx.projectId, p.id, p.role, newKey(p)) });
     } else if (p.kind === "agent") {
       if (ctx.kind === "project") calls.push({ cap: "projects.members.set", input: projectMemberInput(ctx.projectId, p.id, "member", newKey(p)) });

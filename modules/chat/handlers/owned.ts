@@ -48,3 +48,35 @@ export async function revokeGrants(ctx: ChatCtx, threadId: string, agentId: stri
   }
   return revoked;
 }
+
+// ---- who sees an agent a chat made for itself (owner ruling, 4 Nov 2026) -----------------------------------------------------------------------------------
+// An agent follows grants, so the chat grants it: everyone who can read the chat can see it, chat with it and poke it, whoever made it. A person who joins gets the grant, a person who leaves loses it.
+// Each grant carries the source tag chat:<threadId>, so taking it back never touches a share someone made by hand. A grant that cannot be made is said in the log and the chat goes on.
+
+type Subject = { kind: "person" | "group"; id: string };
+
+async function grant(ctx: ChatCtx, threadId: string, agentId: string, subject: Subject): Promise<void> {
+  if (!ctx.call) return;
+  try {
+    await ctx.call("access.share", { resource: { type: "agent", id: agentId }, subject, level: "view", source: sourceOf(threadId), idempotencyKey: `own:${threadId}:${agentId}:${subject.id}` }, { idempotencyKey: `own:${threadId}:${agentId}:${subject.id}` });
+  } catch (e) { warn(ctx, "a chat's own agent could not be shown to a reader of the chat", e, { threadId, agentId, subject: subject.id }); }
+}
+
+/** A new chat agent: shown to each of these readers (a public channel's is the whole Space). */
+export async function shareOwnedWithReaders(ctx: ChatCtx, threadId: string, agentId: string, readers: readonly Subject[]): Promise<void> {
+  for (const s of readers) await grant(ctx, threadId, agentId, s);
+}
+
+/** A person joined the chat: every agent the chat made for itself is shown to them. */
+export async function shareOwnedWith(ctx: ChatCtx, threadId: string, person: string): Promise<void> {
+  for (const agentId of ownedIn(ctx, [threadId])) await grant(ctx, threadId, agentId, { kind: "person", id: person });
+}
+
+/** A person left the chat: the chat's own agents go out of their sight again. */
+export async function unshareOwnedFrom(ctx: ChatCtx, threadId: string, person: string): Promise<void> {
+  if (!ctx.call) return;
+  for (const agentId of ownedIn(ctx, [threadId])) {
+    try { await ctx.call("access.unshare", { resource: { type: "agent", id: agentId }, subject: { kind: "person", id: person }, source: sourceOf(threadId) }); }
+    catch (e) { warn(ctx, "a chat's own agent could not be taken out of a leaver's sight", e, { threadId, agentId, subject: person }); }
+  }
+}

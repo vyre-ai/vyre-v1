@@ -165,10 +165,17 @@ export function Notes({ lines }: { lines: readonly { id: string; tone: "plain" |
 
 /* ---------- the settings popover: how and when an agent answers in a chat ---------- */
 
-export function SettingsPopover({ name, face, value, outside, anchor, onChange, onPoke, onClose }: {
+/** The line under the topics box when the popover is closed while it is still empty. */
+export const TOPICS_EMPTY = "Add a topic or pick another mode";
+
+export function SettingsPopover({ name, face, value, outside, anchor, onChange, onPoke, onClose: close }: {
   name: string; face: ReactElement; value: AgentSettings; outside: boolean; anchor: { x: number; y: number };
   onChange(next: AgentSettings): void; onPoke?(): void; onClose(): void;
 }): ReactElement {
+  // "Only on topics" with the box empty is a draft while typing; closing the popover re-checks it. If it is still empty the line says so and the popover stays; a second close leaves anyway, the agent answers as Always until a topic is written.
+  const [asked, setAsked] = useState(false);
+  const empty = value.when === "topics" && value.topics.trim() === "";
+  const onClose = (): void => { if (empty && !asked) { setAsked(true); return; } close(); };
   const win = useWindowDimensions();
   const phone = win.width > 0 && win.width < 640;
   const set = (patch: Partial<AgentSettings>): void => onChange({ ...value, ...patch });
@@ -192,7 +199,8 @@ export function SettingsPopover({ name, face, value, outside, anchor, onChange, 
           <View style={st.fr}><Text style={st.frLabel}>When</Text><View style={st.frBody}><Segmented label="When it responds" testID="as-when" value={value.when} options={WHEN_OPTIONS.map((w) => ({ id: w.id, label: w.label }))} onChange={(when) => set({ when })} /></View></View>
           {value.when === "topics" ? (
             <View style={st.fr}><Text style={st.frLabel} /><View style={st.frBody}>
-              <TextField accessibilityLabel="Topics" testID="as-topics" placeholder={TOPICS_PLACEHOLDER} value={value.topics} onChangeText={(topics) => set({ topics })} />
+              <TextField accessibilityLabel="Topics" testID="as-topics" placeholder={TOPICS_PLACEHOLDER} value={value.topics} onChangeText={(topics) => { setAsked(false); set({ topics }); }} />
+              {empty && asked ? <Text style={[st.note, { color: t("danger") }]} accessibilityLiveRegion="polite" testID="as-topics-empty">{TOPICS_EMPTY}</Text> : null}
             </View></View>
           ) : null}
           {value.when === "hours" ? (

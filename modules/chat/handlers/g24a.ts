@@ -8,7 +8,7 @@ import type { ChatCtx, Mode, ThreadKind, ThreadRec } from "../projections.ts";
 import { canSpeak, mayGovernChannel, rootOf } from "./post.ts";
 import { applyMode } from "./modes.ts";
 import { followMode, placeOf } from "./follow.ts";
-import { grantsOf, revokeGrants, trashOwned } from "./owned.ts";
+import { grantsOf, revokeGrants, shareOwnedWith, unshareOwnedFrom, trashOwned } from "./owned.ts";
 
 type Row = Record<string, unknown>;
 const MAX_AGENTS = 20;
@@ -242,14 +242,23 @@ export async function removeAgent(ctx: ChatCtx, input: { threadId: string; agent
 
 // ---- members ----------------------------------------------------------------------------------------------------------------------------------------
 
-export async function membersAdd(ctx: ChatCtx, input: { threadId: string; personId: string }) {
+export async function membersAdd(ctx: ChatCtx, input: { threadId: string; personId: string; fromStart?: boolean }) {
   const t = load(ctx, input.threadId, { govern: true });
   if (!input.personId.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.", { personId: input.personId });
-  if (isPrivateRoot(rootOf(ctx, t))) {
-    raise(ctx, "validation.precondition_failed", "A private chat never gains people. Make it a channel to bring someone in.", { offer: "threads.make_channel", threadId: t.id });
+  const root = rootOf(ctx, t);
+  // Owner ruling (4 Nov 2026): a private chat gains people, and becomes a group chat. The newcomer reads from now on unless the adder says "Include earlier messages"; a goal chat shows its history.
+  // A channel's own people keep reading everything it holds.
+  const fromStart = input.fromStart ?? (!isPrivateRoot(root) || root.scopeType === "goal");
+  const known = isMember(ctx.db, t.id, input.personId);
+  if (known) {
+    // asked again with earlier messages on, the person's reading widens to the start
+    if (input.fromStart === true) ctx.db.run("UPDATE chat_thread_member SET fromAt = NULL, version = version + 1, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL", ctx.now(), t.id, input.personId);
+    return out(ctx, t.id);
   }
-  if (isMember(ctx.db, t.id, input.personId)) return out(ctx, t.id);
   addMember(ctx, t.id, input.personId);
+  if (!fromStart) ctx.db.run("UPDATE chat_thread_member SET fromAt = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL", ctx.now(), t.id, input.personId);
+  // the agents this chat made for itself are visible to everyone who reads the chat
+  await shareOwnedWith(ctx, t.id, input.personId);
   ctx.emit("channel.member_added", input.personId, { personId: input.personId, by: askerOf(ctx), threadId: t.id, ...(t.channelId !== undefined ? { channelId: t.channelId } : {}) });
   return out(ctx, t.id);
 }
@@ -266,6 +275,7 @@ export async function membersRemove(ctx: ChatCtx, input: { threadId: string; per
   }
   if (membersOf(ctx.db, t.id).filter((p) => p.startsWith("usr_")).length <= 1) raise(ctx, "validation.bad_input", "A thread keeps at least one person.");
   ctx.db.run("UPDATE chat_thread_member SET deleted_at = ?, version = version + 1, updated_at = ? WHERE thread = ? AND principal = ? AND deleted_at IS NULL", ctx.now(), ctx.now(), t.id, input.personId);
+  await unshareOwnedFrom(ctx, t.id, input.personId);
   ctx.emit("channel.member_removed", input.personId, { personId: input.personId, by: asker, threadId: t.id, ...(t.channelId !== undefined ? { channelId: t.channelId } : {}) });
   return out(ctx, t.id);
 }

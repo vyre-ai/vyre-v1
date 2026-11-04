@@ -83,6 +83,9 @@ const SCHEMA = readFileSync(new URL("./migrations/0001_chat.sql", import.meta.ur
 const SETTINGS_SCHEMA = readFileSync(new URL("./migrations/0005_agent_settings.sql", import.meta.url), "utf8")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
+const HISTORY_SCHEMA = readFileSync(new URL("./migrations/0006_history_from.sql", import.meta.url), "utf8")
+  .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
+  .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();
 
 /** Make sure the chat tables exist. One cheap probe per handle; the IF NOT EXISTS statements run only when it fails. The per-chat agent settings (0005) are added the same way when their columns are missing. */
@@ -90,6 +93,7 @@ export function ensure(db: Db): void {
   if (ready.has(db)) return;
   try { db.all("SELECT id FROM chat_plan WHERE id = ?", "probe"); } catch { for (const stmt of SCHEMA) db.run(stmt); }
   try { db.all("SELECT respond, owned, grants FROM chat_thread_agent WHERE id = ?", "probe"); } catch { for (const stmt of SETTINGS_SCHEMA) { try { db.run(stmt); } catch { /* the column is already there */ } } }
+  try { db.all("SELECT fromAt FROM chat_thread_member WHERE id = ?", "probe"); } catch { for (const stmt of HISTORY_SCHEMA) { try { db.run(stmt); } catch { /* the column is already there */ } } }
   ready.add(db);
 }
 

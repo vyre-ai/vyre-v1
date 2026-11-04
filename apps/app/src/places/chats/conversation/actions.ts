@@ -177,7 +177,12 @@ export async function hasWorkingAccount(data: ConversationData): Promise<boolean
   return out.accounts.some((a) => a.status === "ok");
 }
 
-/** A private chat never gains people: @mentioning a person offers "Start a channel with them", a new channel linked back. */
+/** @mentioning a person who is not in a private chat offers "Add <name>" first (this chat becomes a group chat; they read from now on), and "Start a channel instead" second, a new channel linked back. */
+export async function addPerson(data: ConversationData, personId: string, fromStart = false): Promise<void> {
+  await data.call("threads.members.add", { threadId: data.threadId, personId, ...(fromStart ? { fromStart: true } : {}) } satisfies CapMap["threads.members.add"]["in"]);
+}
+
+/** Starts a channel with the person: a new channel linked back to the chat. */
 export async function startChannel(data: ConversationData, personId: string, key: string): Promise<void> {
   await data.call("threads.make_channel", { threadId: data.threadId, personId, idempotencyKey: key } satisfies CapMap["threads.make_channel"]["in"]);
 }
