@@ -541,7 +541,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
                 </View>
               ) : null}
               {/* ui-rows-lint: not a list (the approval cards of helpers that wait for a yes, each the same card as anywhere else in the chat) */}
-              {actions.files ? holds.map((x) => <ApprovalCard key={`hold-${x.id}`} taskId={x.holdTaskId} agent={x.name ?? x.title} agentId={x.agentId} data={actions.files!} />) : null}
+              {actions.files ? holds.map((x) => <ApprovalCard key={`hold-${x.id}`} taskId={x.holdTaskId} agent={x.name ?? x.title} agentId={x.agentId} faceSeed={x.id} data={actions.files!} />) : null}
             </View>
           );
         }

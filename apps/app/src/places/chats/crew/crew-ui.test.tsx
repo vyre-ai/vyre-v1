@@ -380,3 +380,12 @@ test("the coders' Review all and Merge sit in the strip header: they appear once
   const merged = await mount(createRoot, <CrewStrip members={rows} totals={totals} merge={{ state: "merged", onReview: () => undefined, onMerge: () => undefined }} onPeek={() => undefined} />);
   assert.equal(textOf(find(merged, "crew-strip-merged")), "Merged"); assert.equal(find(merged, "crew-strip-merge"), null);
 });
+
+test("on a phone the muted 'Assistant's helper' is dropped so the name has the room; the helper's request card wears the helper's own face", async () => {
+  const { jobLine } = await import("./model.ts");
+  assert.equal(jobLine({ title: "Harbor quote", name: "Orin" }, "Assistant"), "Harbor quote · Assistant's helper");
+  assert.equal(jobLine({ title: "Harbor quote", name: "Orin" }, undefined), "Harbor quote");
+  const fs = await import("node:fs");
+  const src = fs.readFileSync(new URL("../conversation/approval.tsx", import.meta.url).pathname, "utf8");
+  assert.match(src, /seedId=\{face \?\? faceSeed \?\? agentId\}/, "the card's face is the helper's when it has one");
+});

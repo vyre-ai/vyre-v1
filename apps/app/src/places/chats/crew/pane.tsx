@@ -76,7 +76,7 @@ export function CrewOverview({ status, call, threadId, onPeek, onRefresh, initia
       <View testID="crew-timeline" style={{ gap: 3 }}>
         {all.map((m, i) => (
           <Row
-            key={m.id} id={`crew-tl-${m.id}`} title={middle(nameOf(m), 16)} onPress={() => onPeek(m.id)} leading={<View style={{ marginRight: 8 }}><Avatar name={nameOf(m)} seedId={faceSeed(m)} kind="agent" size={18} /></View>}
+            key={m.id} id={`crew-tl-${m.id}`} title={nameOf(m)} onPress={() => onPeek(m.id)} leading={<View style={{ marginRight: 8 }}><Avatar name={nameOf(m)} seedId={faceSeed(m)} kind="agent" size={18} /></View>}
             trailing={<View style={st.tlt}><View testID={`crew-tl-${m.id}-bar`} style={{ position: "absolute", top: 0, bottom: 0, left: `${(tl[i]?.left ?? 0) * 100}%`, width: `${(tl[i]?.width ?? 1) * 100}%`, borderRadius: 5, backgroundColor: BAR[m.state] as string, opacity: m.state === "failed" || m.state === "stopped" ? 0.5 : 1 } as object} /></View>}
           />
         ))}

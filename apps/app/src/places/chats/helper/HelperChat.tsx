@@ -181,7 +181,7 @@ function AskBox({ threadId, name, call, say }: { threadId: string; name: string;
   };
   return (
     <View style={st.ask}>
-      <TextInput testID="helper-ask" value={text} onChangeText={setText} onSubmitEditing={send} accessibilityLabel={`Ask ${name} something`} placeholder="Ask it something" placeholderTextColor="var(--ink-4)" style={st.askInput} />
+      <TextInput testID="helper-ask" value={text} onChangeText={setText} onSubmitEditing={send} accessibilityLabel={`Ask ${name} something`} placeholder="Message this helper" placeholderTextColor="var(--ink-4)" style={st.askInput} />
       <Pressable accessibilityRole="button" accessibilityLabel="Send" testID="helper-ask-send" onPress={send} style={st.askSend}><Text style={st.askSendT}>↑</Text></Pressable>
     </View>
   );

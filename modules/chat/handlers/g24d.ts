@@ -582,7 +582,7 @@ export async function helperSteer(ctx: ChatCtx, input: { threadId: string; body:
   deliver(ctx, t, m, [{ kind: "agent", id: lead.agentId }], { kind: "person", id: asker }, { notify: false });
   // the chat above sees it, as a line to be read and not answered, so the agent that started the helper knows what it was told
   if (root) {
-    const seen = insertMessage(ctx, root.id, { author: asker, kind: "text", body: `To "${t.title ?? "a helper"}": ${body}`, depth: 0 });
+    const seen = insertMessage(ctx, root.id, { author: asker, kind: "quiet", body: `To "${t.title ?? "a helper"}": ${body}`, depth: 0 });
     deliver(ctx, root, seen, [], { kind: "person", id: asker }, { notify: false, copy: true });
   }
   ctx.emit("helper.note", t.id, { helperThreadId: t.id, direction: "down", kind: "followup", messageId: m.id });

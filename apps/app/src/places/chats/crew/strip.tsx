@@ -2,7 +2,7 @@
 // works and closes when it is done, the name and what it was asked, one line of what it is on or found, a clock, and for code its branch and change. The whole row opens the peek; there is no Open button.
 import { createElement, useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Glyph } from "../conversation/parts.tsx";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
@@ -54,6 +54,9 @@ export function HelperChip({ m, now, selected = false, index = 0, last = false, 
   const id = `crew-chip-${m.id}`;
   const name = nameOf(m);
   const code = isCode(m);
+  // below the width of a phone the muted "Assistant's helper" goes first, so the name has the room
+  const winW = useWindowDimensions().width;
+  const compact = winW > 0 && winW < 640;
   const tag = m.why ? modelTag(m) : "";
   const canRetry = m.state === "failed" || m.state === "stopped";
   return (
@@ -68,7 +71,7 @@ export function HelperChip({ m, now, selected = false, index = 0, last = false, 
         {m.state === "done" || m.state === "failed" ? <View testID={`${id}-badge`} style={[st.badge, m.state === "failed" && st.badgeFail]}><Text style={st.badgeMark}>{m.state === "done" ? "✓" : "!"}</Text></View> : null}
       </View>
       <View style={st.main}>
-        <View style={st.l1}><Text numberOfLines={1} style={st.name}>{name}</Text>{jobLine(m, parentName) !== "" ? <Text numberOfLines={1} testID={`${id}-role`} style={st.role}>{jobLine(m, parentName)}</Text> : null}</View>
+        <View style={st.l1}><Text numberOfLines={1} style={st.name}>{name}</Text>{jobLine(m, compact ? undefined : parentName) !== "" ? <Text numberOfLines={1} testID={`${id}-role`} style={st.role}>{jobLine(m, compact ? undefined : parentName)}</Text> : null}</View>
         <Text numberOfLines={1} testID={`${id}-line`} style={[st.line, m.state === "failed" && st.lineFail, m.state === "needs_you" && st.lineWait]}>{lineOf(m)}</Text>
         {code || tag ? (
           <View style={st.l3}>
