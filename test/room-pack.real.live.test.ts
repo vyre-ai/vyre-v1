@@ -102,10 +102,13 @@ test("real model: time to first visible text in a seeded 300-message room, with 
       await new Promise<void>((res) => setTimeout(res, 800));
       return at - t0;
     };
+    const timing = process.env["ROOM_TIMING"] !== "off";
+    if (timing) {
     await firstText("off", 0);   // the first turn builds the runtime and warms the connection
     const on: number[] = [], off: number[] = [];
     for (let n = 1; n <= 5; n++) { off.push(await firstText("off", n * 2)); on.push(await firstText("on", n * 2 + 1)); }
     console.log(`OUT|REAL first visible text (ms), model ${model}: without the pack ${off.join(", ")}; with the pack ${on.join(", ")}`);
+    }
     const last = (await api(d, maya.token, "chat.messages.list", { threadId, limit: 4 })).data.messages as Array<{ author: { kind: string }; body: string }>;
     console.log(`OUT|last reply: ${last.filter((m) => m.author.kind === "agent").at(-1)?.body.slice(0, 300)}`);
     // the digest the 300 messages caused
@@ -158,7 +161,15 @@ test("real model: time to first visible text in a seeded 300-message room, with 
     await waitFor(async () => { await d.hooks?.pump?.(); return (await api(d, maya.token, "chat.messages.list", { threadId: pt }).then((r) => r)).status === 200 ? true : null; }, 20_000);
     await new Promise<void>((res) => setTimeout(res, 1_500));
     const tg = await api(d, maya.token, "threads.get", { threadId: pt });
+    const lastBefore = ((await api(d, maya.token, "chat.messages.list", { threadId: pt, limit: 3 })).data.messages as Array<{ threadSeq: number }>).reduce((n, m) => Math.max(n, m.threadSeq), 0);
     console.log(`OUT|joinedAt ${JSON.stringify(tg.data.thread?.joinedAt)} members ${(tg.data.thread?.members ?? []).length}`);
-    console.log(`OUT|WALK gained-a-person: ${(await ask(pt, maya.token, "@Intake what is the budget ceiling for the Acme deal that was discussed here earlier?", "rr-w3b")).slice(0, 400)}`);
+    const answer = await ask(pt, maya.token, "@Intake what is the budget ceiling for the Acme deal that was discussed here earlier?", "rr-w3b");
+    {
+      const tr = await api(d, maya.token, "chat.transcript.read", { threadId: pt });
+      const md = String((tr.data as { markdown?: string }).markdown ?? "");
+      const tail = md.slice(-3500).replaceAll("\n", " // ");
+      console.log(`OUT|TOOLS (transcript tail, ${md.length} chars): ${tail}`);
+    }
+    console.log(`OUT|WALK gained-a-person: ${answer.slice(0, 400)}`);
   } finally { delete process.env["VYRE_ROOM_PACK"]; await d.stop(); }
 });
