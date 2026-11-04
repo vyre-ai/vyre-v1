@@ -74,7 +74,7 @@ export const STAR_LABEL: Record<StarType, string> = {
   space: "Space", record_type: "Record type", record: "Record", project: "Project", folder: "Folder", file: "File", channel: "Channel", thread: "Chat",
   inbox: "Inbox", mailbox: "Mailbox", vault_folder: "Vault folder", vault_item: "Vault item", automation_group: "Automations", automation: "Automation",
   agent: "Agent", connector: "Connector", connection: "Connection", site: "Site", form: "Form", kit: "Kit", terminal: "Terminal",
-  computer: "Agent computer", task: "Task", run: "Run", number: "Number", domain: "Domain", calendar: "Calendar",
+  computer: "Agent computer", skill: "Skill", task: "Task", run: "Run", number: "Number", domain: "Domain", calendar: "Calendar",
 };
 
 export type StarIcon = "terminal" | "chat" | "file" | "record" | "run" | "calendar" | "person" | "star";

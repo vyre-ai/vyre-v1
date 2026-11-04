@@ -276,7 +276,7 @@ export function digestLimit(d: Digest | null): { show: boolean; headline: string
 }
 
 export const DIGEST_KIND_LABEL: Record<DigestItem["kind"], string> = {
-  decision: "Decided for you", finished: "Finished", record_change: "Changed", routine: "Routine", waiting: "Waiting on you",
+  decision: "Decided for you", finished: "Finished", record_change: "Changed", routine: "Routine", waiting: "Waiting on you", notice: "Notice",
 };
 
 // ---------------------------------------------------------------- Routines today

@@ -87,6 +87,7 @@ export const SECTIONS: Readonly<Record<YouPage, readonly SectionDef[]>> = {
   signin: [],
   computer: [],
   about: [],
+  github: [],
 };
 
 export interface Section { title: string; rows: SettingRow[] }

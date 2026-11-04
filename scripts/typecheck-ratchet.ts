@@ -1,6 +1,7 @@
 // Typecheck ratchet for apps/app and ui: tsc over tsconfig.typecheck.json, the errors counted and compared with the checked-in count (scripts/typecheck-baseline.json).
 // More errors than the baseline fail; fewer pass and say so, and `--update` writes the lower count (it refuses to raise it). So new errors cannot land and the count only falls.
-// Module-not-found errors (TS2307, TS7016) are not counted: they say what the machine has installed, not what the code says. Without react-native installed the check is skipped.
+// Module-not-found errors (TS2307, TS7016) are not counted: they say what the machine has installed, not what the code says. The dependencies are installed first (scripts/shots/ensure-deps.mjs);
+// a missing tsc or react-native after that is a failure, never a skip. TYPECHECK_NO_INSTALL=1 skips the install (a lane tree that shares a node_modules); TSC names a tsc to use.
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -24,12 +25,16 @@ export function judge(count: number, baseline: number): { ok: boolean; lower: bo
   return { ok: true, lower: false, words: `${count} typecheck errors, as allowed.` };
 }
 
-function main(): void {
+async function main(): Promise<void> {
   const root = process.cwd();
   const baselineFile = path.join(root, "scripts/typecheck-baseline.json");
-  if (!fs.existsSync(path.join(root, "node_modules/react-native/package.json"))) { console.log("typecheck ratchet skipped: react-native is not installed here"); return; }
+  if (process.env["TYPECHECK_NO_INSTALL"] !== "1") {
+    const { ensureDeps } = (await import("./shots/ensure-deps.mjs")) as { ensureDeps(repo: string): Promise<boolean> };
+    await ensureDeps(root);
+  }
+  if (!fs.existsSync(path.join(root, "node_modules/react-native/package.json"))) { console.error("typecheck ratchet cannot run: react-native is not installed, so the types are missing"); process.exit(2); }
   const tsc = [process.env["TSC"] ?? "", path.join(root, "node_modules/.bin/tsc"), path.join(root, "tools/gen/node_modules/.bin/tsc")].find((p) => p !== "" && fs.existsSync(p));
-  if (!tsc) { console.log("typecheck ratchet skipped: no tsc installed here"); return; }
+  if (!tsc) { console.error("typecheck ratchet cannot run: tsc is not installed"); process.exit(2); }
   const r = spawnSync(tsc, ["-p", "tsconfig.typecheck.json"], { cwd: root, encoding: "utf8", maxBuffer: 1 << 28 });
   const count = countErrors(`${r.stdout}\n${r.stderr}`);
   const baseline = (JSON.parse(fs.readFileSync(baselineFile, "utf8")) as { count: number }).count;
@@ -43,4 +48,4 @@ function main(): void {
   if (!v.ok) process.exit(1);
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) main();
+if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) await main();

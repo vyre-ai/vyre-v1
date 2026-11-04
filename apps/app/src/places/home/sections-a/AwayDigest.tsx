@@ -18,8 +18,8 @@ import { useAllClear, useSectionKind } from "./allclear.ts";
 export const AWAY_SCREEN = "home.away-digest";
 type Out = CapMap["home.digest"]["out"];
 
-const KINDS: readonly DigestItem["kind"][] = ["waiting", "decision", "finished", "record_change", "routine"];
-const ICON: Record<DigestItem["kind"], IconName> = { decision: "decision", finished: "done", record_change: "change", routine: "run", waiting: "waiting" };
+const KINDS: readonly DigestItem["kind"][] = ["waiting", "decision", "finished", "record_change", "routine", "notice"];
+export const ICON: Record<DigestItem["kind"], IconName> = { decision: "decision", finished: "done", record_change: "change", routine: "run", waiting: "waiting", notice: "check" };
 
 export function AwayDigest(): ReactElement {
   const data = useHomeData();

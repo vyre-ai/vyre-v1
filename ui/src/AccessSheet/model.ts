@@ -842,6 +842,7 @@ export function levelHint(type: ShareItemType, level: ShareLevel): string {
     artifact: { view: "Open it and read it.", edit: "Open it and change it.", manage: "Share it, move it and delete it." },
     project: { view: "Open the project and its work.", edit: "Change the plan, tasks and files.", manage: "Share it and delete it." },
     record: { view: "Open this record.", edit: "Open it and change it.", manage: "Share it and delete it." },
+    skill: { use: "Use it in their chats, tasks and automations.", edit: "Change its instructions and files.", manage: "Share it and delete it." },
     rtype: { view: "Open every record of this type.", edit: "Open and change every record of this type.", manage: "Change its fields and views, and share it." },
   };
   return by[type][level] ?? "";
