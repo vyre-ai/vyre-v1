@@ -6,3 +6,4 @@
 - The menus now do more where something exists to do it: an agent can be poked in your chat with it, added to a chat, shared and sent to its instructions; a person can be added to a chat, called when a phone is set up and copied as @name; a chat has Add People, Copy Link and Notifications (mute for an hour, eight hours, a day or until you turn it back on); a channel has Invite and Notifications; a message has Copy Link; a task row has Mark Done or Reopen and Snooze.
 - Files: the file menu shows its keys (Enter, Space, F2, Delete) and a file can be shared from its menu.
 - Records: a record has Open, Star, Share, Copy Link and Delete in its menu (S stars it), and a record type in the sidebar has Open, Star, Copy Name and Edit Type.
+- Artifacts: an artifact row has Open, Share, Copy Link, Rename and Delete (Delete asks first) in its menu.
