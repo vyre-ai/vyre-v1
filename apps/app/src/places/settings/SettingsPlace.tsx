@@ -218,6 +218,6 @@ const n = StyleSheet.create({
   ask: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 7 },
   askOver: { backgroundColor: "var(--hover)" as string },
   askText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
-  content: { paddingTop: 16, paddingBottom: 24, paddingHorizontal: 20, alignItems: "center" },
+  content: { paddingTop: 6, paddingBottom: 24, paddingHorizontal: 20, alignItems: "center" },
   column: { width: "100%", maxWidth: 684 },
 });

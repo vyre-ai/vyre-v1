@@ -241,6 +241,11 @@ export function Segmented({ value, options, onChange, label, testID }: { value: 
   return <View accessibilityRole="radiogroup" accessibilityLabel={label} testID={testID} style={s.seg}>{items}</View>;
 }
 
+/** A 30px rounded square holding a glyph: the prototype's mark at the left of a link or action row. */
+export function IconTile({ name, size = 16 }: { name: string; size?: number }): ReactElement {
+  return <View aria-hidden style={{ width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string }}><Glyph name={name} size={size} color="var(--ink-2)" /></View>;
+}
+
 /** A stepped slider with a small A at each end and the value after it; arrow keys move it by one step, a tap on the track picks the nearest step. */
 export function Slider({ value, min, max, step, onChange, label, format, testID }: { value: number; min: number; max: number; step: number; onChange(n: number): void; label: string; format?: (n: number) => string; testID?: string }): ReactElement {
   const hits: ReactElement[] = [];

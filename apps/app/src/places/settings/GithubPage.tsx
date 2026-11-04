@@ -3,6 +3,7 @@
 // connection was made through Vyre's, a banner asks for one reconnect.
 import { useCallback, useEffect, useState } from "react";
 import type { ReactElement } from "react";
+import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { useSettingsData } from "./data.tsx";
 import { useSaved } from "./saved.tsx";
@@ -71,10 +72,13 @@ export function GithubPage(): ReactElement {
   if (status === null) return <Section testID="github-loading">{null}</Section>;
   if (!status.connected) {
     return (
-      <Section testID="github-connect">
-        <SettingsRow id="github.connect" first lead={<Glyph name="link" size={18} />} label="Connect GitHub once" sub="Vyre uses it to sign you in, and agents use it for your repos."
-          control={<SmallButton label={busy ? "Connecting..." : "Connect GitHub"} primary disabled={busy} testID="gh-connect" onPress={connect} />} />
-      </Section>
+      <View testID="github-connect" style={{ alignItems: "center", gap: 10, paddingVertical: 36, paddingHorizontal: 20, borderRadius: 14, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string }}>
+        <Glyph name="github" size={44} color="var(--ink)" />
+        <Text accessibilityRole="header" style={{ fontSize: 16, fontWeight: "600", color: "var(--ink)" as string }}>Connect GitHub once</Text>
+        <Text style={{ fontSize: 13, lineHeight: 19, color: "var(--ink-3)" as string, textAlign: "center", maxWidth: 360 }}>Vyre uses it to sign you in, and agents use it for your repos.</Text>
+        <SmallButton label={busy ? "Connecting..." : "Connect GitHub"} primary disabled={busy} testID="gh-connect" onPress={connect} />
+        <Text testID="gh-app-line" style={{ fontSize: 12, color: "var(--ink-4)" as string }}>Uses the Vyre GitHub app</Text>
+      </View>
     );
   }
   const via = status.source === "space" ? `${data.space.name}'s GitHub app` : "the Vyre GitHub app";
