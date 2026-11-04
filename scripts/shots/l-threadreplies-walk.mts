@@ -7,6 +7,7 @@ import path from "node:path";
 const R = "/root/wt/l-threadreplies";
 const eco = await import(R + "/test/support/eco-live.ts");
 const h = await import(R + "/apps/app/tests/real-app-harness.test.ts");
+const { guardCrashes } = await import(R + "/apps/app/tests/crash-guard.ts");
 const { CORE_SPACE } = await import(R + "/fixtures/seed/core/index.ts");
 const require = createRequire(R + "/package.json");
 const { chromium } = require("playwright-core");
@@ -81,6 +82,7 @@ async function open(who: string, o: { mode?: "light" | "dark"; w?: number; hh?: 
   (s.def as any).name = "Northwind"; (s.def as any).role = "Member"; (s.def as any).console = false;
   await ctx.addInitScript((val: string) => { try { if (!localStorage.getItem("vyre.session.v1")) localStorage.setItem("vyre.session.v1", val); } catch {} }, JSON.stringify({ sessions: { [origin]: s } }));
   const page = await ctx.newPage();
+  guards.set(page, guardCrashes(page));
   page.on("pageerror", (e: Error) => { console.log("PAGEERROR", e.message.slice(0, 300)); });
   await page.goto(origin + "/chat", { waitUntil: "load" });
   for (let i = 0; i < 3; i++) {
@@ -95,7 +97,10 @@ async function open(who: string, o: { mode?: "light" | "dark"; w?: number; hh?: 
   await page.waitForTimeout(1500);
   return { ctx, page };
 }
-const shot = async (page: any, name: string) => { await page.waitForTimeout(700); await page.screenshot({ path: path.join(out, name + ".png") }); console.log("shot", name); };
+/** The crash guard of each page (apps/app/tests/crash-guard.ts): checked before every shot, so a shot of an error page or of a page that logged a React or script error is a failed walk, not a picture. */
+const guards = new Map<any, any>();
+let crashed = 0;
+const shot = async (page: any, name: string) => { await page.waitForTimeout(700); try { await guards.get(page)?.check(`before ${name}`); } catch (e) { crashed++; console.log("CRASH", String(e instanceof Error ? e.message : e).slice(0, 400)); } await page.screenshot({ path: path.join(out, name + ".png") }); console.log("shot", name); };
 const checks: string[] = [];
 try {
   // the chat holds the ask only; the reply is in the thread
@@ -180,4 +185,5 @@ try {
   }
 } catch (e) { console.log("WALK FAILED", e); }
 console.log("CHECKS\n" + checks.join("\n"));
-await browser.close(); web.close(); await eco.stop(d); process.exit(0);
+console.log(crashed === 0 ? "GUARD clean: no error page and no React or script error in any shot" : `GUARD FAILED: ${crashed} crash(es)`);
+await browser.close(); web.close(); await eco.stop(d); process.exit(crashed === 0 ? 0 : 1);
