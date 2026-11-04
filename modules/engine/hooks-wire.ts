@@ -2,7 +2,7 @@
 // a command hook, the plugin hooks, and an action through the normal invoke pipeline as the agent).
 import { bindHooksPort } from "../../agent/src/tools/hooks.ts";
 import type { HooksPort } from "../../agent/src/tools/hooks.ts";
-import { bindHooks } from "../hooks/seams.ts";
+import { bindHooks } from "../../lib/hooks-host.ts";
 import { hooksPortOf } from "./hooks-port.ts";
 import { pluginRuntime } from "./plugin-host.ts";
 import type { Invoke } from "../../host/src/invoke.ts";

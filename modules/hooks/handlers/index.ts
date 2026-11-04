@@ -4,7 +4,7 @@
 //   action through the normal pipeline as the agent. An admin can turn agent-made hooks off for the whole Space.
 import { HOOK_EVENTS, HOOK_KINDS, HOOK_SCOPES, plainLine, redact } from "../../../lib/hooks.ts";
 import { isHostService } from "../../../lib/trust.ts";
-import type { HookFire } from "../../../agent/src/tools/hooks.ts";
+import type { HookFire } from "../../../lib/hooks.ts";
 import { ACTION_DENIED, fire as fireHooks } from "../eval.ts";
 import { agentHooksOn, allHooks, ensure, helpersActive, hookById, link, nextSeq, parentOf, raise, setAgentHooks } from "../projections.ts";
 import type { HooksCtx, Rec, Spec } from "../projections.ts";

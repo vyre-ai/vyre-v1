@@ -68,3 +68,32 @@ export function plainLine(h: { event: string; kind: string; matcher?: string; in
   const what = h.kind === "check" ? `check: ${(h.instruction ?? "").trim()}` : h.kind === "action" ? `run ${h.cap ?? "an action"}` : `run ${(h.command ?? "a command").split(/\s+/)[0]}`;
   return `${when}, ${what}`.slice(0, 200);
 }
+
+// What one hook event carries and what the hooks said (the hooks port of agent/src/tools/hooks.ts, answered by modules/hooks).
+export interface HookFire {
+  event: HookEventName;
+  agentId: string;
+  asker: string;
+  threadId: string;
+  turnId?: string;
+  /** The thread is a helper's, or a chat's: helpers inherit the run hooks of the thread that started them. */
+  threadKind?: string;
+  /** Which kind of engine is running the turn: api, claude_code, codex, grok. */
+  engine?: string;
+  /** Where the event came from: the engine, Vyre's own tool session, or a CLI's own built-in tool (through the vyre-hook shim). */
+  source?: "engine" | "tools" | "cli";
+  tool?: string;
+  cap?: string;
+  input?: unknown;
+  output?: unknown;
+  ok?: boolean;
+  prompt?: string;
+  title?: string;
+}
+export interface HookVerdict {
+  /** The first block, if any: the reason a person reads, who made the hook, and which. */
+  block: { reason: string; hookId: string; by: string; scope: string } | null;
+  /** Lines to add to the model's context. */
+  notes: string[];
+  ran: number;
+}

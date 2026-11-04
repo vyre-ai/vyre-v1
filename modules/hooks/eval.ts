@@ -1,7 +1,7 @@
 // Running the hooks of one event (lane l-hooks). Order: Space, person, agent, chat, run; an admin's block ends it, so it wins. A hook only ever stops work or adds a note or runs its own action; there is no
 // answer here that approves, loosens or skips anything. A hook that errors or runs out of time is logged and shown, never a block.
 import { BLOCKING, matches, namesOf, parseCheck, redact, scopeRank } from "../../lib/hooks.ts";
-import type { HookFire, HookVerdict } from "../../agent/src/tools/hooks.ts";
+import type { HookFire, HookVerdict } from "../../lib/hooks.ts";
 import { applicable, logRun, helpersActive, link, lineage } from "./projections.ts";
 import type { HooksCtx, Rec } from "./projections.ts";
 import { hostSeams } from "./seams.ts";

@@ -30,8 +30,10 @@ export function HookCard({ h, threadId, deps, selected, nameOf, onSaved }: { h: 
       {edit ? (
         <View testID={`hook-form-${h.id}`} style={s.form}>
           <Text style={s.label}>When</Text>
+          {/* ui-rows-lint: not a list (a chip choice of when the hook runs) */}
           <View style={s.chips}>{EVENT_ORDER.map((e) => <Chip key={e} text={EVENT_WORDS[e]!} on={draft.event === e} id={`hook-event-${h.id}-${e}`} onPress={() => setDraft({ ...draft, event: e })} />)}</View>
           <Text style={s.label}>What it does</Text>
+          {/* ui-rows-lint: not a list (a chip choice of what the hook does) */}
           <View style={s.chips}>{KIND_ORDER.map((k) => <Chip key={k} text={KIND_WORDS[k]} on={draft.kind === k} id={`hook-kind-${h.id}-${k}`} onPress={() => setDraft({ ...draft, kind: k as HookKind })} />)}</View>
           <TextInput testID={`hook-what-${h.id}`} accessibilityLabel="What it does" value={draft.what} onChangeText={(what) => setDraft({ ...draft, what })} style={s.input} multiline />
           <View style={s.acts}>
