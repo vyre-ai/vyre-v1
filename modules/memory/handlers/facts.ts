@@ -142,7 +142,7 @@ export async function proposeFact(ctx: MemCtx, input: ProposeIn) {
   if (status === "current") emitAccepted(ctx, f, true);
   if (byAgent) emitLearned(ctx, f, status === "current");
   // rule 4: an agent's memory in a place other people share is said in it, with Undo. A person's own "remember this" already leaves its card (chat.remember).
-  if (heard && from !== undefined && byAgent && status === "current" && othersRead(heard, actor)) await postNoted(ctx, { threadId: from, factId: f.id, kind: kindOf(f.kind), text: f.text, ...(note.replaced ? { replaces: note.replaced.id } : {}), ...(note.disputedWith ? { disputed: true } : {}), ...(note.questionId && note.disputedWith ? { question: { questionId: note.questionId, a: note.disputedWith.text, b: f.text } } : {}) });
+  if (heard && from !== undefined && byAgent && status === "current" && othersRead(heard, actor)) await postNoted(ctx, { threadId: from, factId: f.id, kind: kindOf(f.kind), text: f.text, ...(note.replaced ? { replaces: note.replaced.id } : {}), ...(note.disputedWith ? { disputed: true } : {}), ...(note.questionId && note.disputedWith ? { question: { questionId: note.questionId, a: { text: note.disputedWith.text, by: note.disputedWith.sourcePerson, at: note.disputedWith.learnedAt }, b: { text: f.text, by: f.sourcePerson, at: f.learnedAt } } } : {}) });
   return { fact: factOut(f), merged: status === "current" };
 }
 
@@ -1096,7 +1096,7 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
     proposed++;
     if (status === "current") { emitAccepted(ctx, f, true); merged++; }
     // rule 4: nothing is remembered silently in a place other people share
-    if (layer !== "person" && status === "current" && (heard.space || heard.people.length > 1)) await postNoted(ctx, { threadId: input.threadId, factId: f.id, kind: kindOf(f.kind), text: f.text, ...(note.replaced ? { replaces: note.replaced.id } : {}), ...(note.disputedWith ? { disputed: true } : {}), ...(note.questionId && note.disputedWith ? { question: { questionId: note.questionId, a: note.disputedWith.text, b: f.text } } : {}) });
+    if (layer !== "person" && status === "current" && (heard.space || heard.people.length > 1)) await postNoted(ctx, { threadId: input.threadId, factId: f.id, kind: kindOf(f.kind), text: f.text, ...(note.replaced ? { replaces: note.replaced.id } : {}), ...(note.disputedWith ? { disputed: true } : {}), ...(note.questionId && note.disputedWith ? { question: { questionId: note.questionId, a: { text: note.disputedWith.text, by: note.disputedWith.sourcePerson, at: note.disputedWith.learnedAt }, b: { text: f.text, by: f.sourcePerson, at: f.learnedAt } } } : {}) });
   }
   ctx.emit("memory.captured", input.threadId, { threadId: input.threadId, proposed, merged });
   return { proposed, merged };

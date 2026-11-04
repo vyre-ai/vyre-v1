@@ -379,3 +379,23 @@ test("promoting a place's decision to the Space is a marker pointing back: no se
   await sourceRemoved(s.as(MAYA, ["thr_m"]).ctx, { threadId: "thr_chan", messageId: "msg_2" });
   assert.equal(((await factsList(dana.ctx, { layer: "space" })) as { facts: unknown[] }).facts.filter((f) => (f as { text: string }).text !== "").length, 0);
 });
+
+test("the Knows list comes with linked places and Space markers, each only where the reader may open them", async () => {
+  const s = setup();
+  const svc = s.svc();
+  s.w.said["thr_chan"] = [msg("msg_1", MAYA, "We decided to go with Harbor for freight shipping.")];
+  await capture(svc.ctx, { threadId: "thr_chan", reason: "closed" });
+  const src = (s.raw.all("SELECT id FROM memory_facts")[0] as { id: string }).id;
+  // a fact learned in a task under the same project, and a marker in Space memory pointing at the channel's fact
+  s.raw.run("UPDATE memory_facts SET parent_kind = 'project', parent_id = 'prj_x' WHERE id = ?", src);
+  s.raw.run("INSERT INTO memory_facts (id, layer, owner_ref, kind, text, enc, valid_from, learned_at, source_kind, source_ref, source_person, proposed_by, status, low_risk, place_kind, place_id, parent_kind, parent_id, agent_id) VALUES ('fct_task1', 'agent', 'agt_helper', 'decision', 'Waves of fifty', 0, 1, 2, 'chat', 'thr_t', ?, ?, 'current', 0, 'task', 'tsk_1', 'project', 'prj_x', 'agt_helper')", MAYA, MAYA);
+  const dana = s.as(DANA, ["thr_d"], { "access.shares_of": () => ({ shares: [{ grant: { subject: { kind: "person", id: DANA }, level: "manage" }, through: "direct" }] }) });
+  await promote(dana.ctx, { factId: src, toLayer: "space" });
+  const out = (await placeList(dana.ctx, { placeKind: "channel", placeId: "chn_deals" })).facts;
+  const by = (scope: string) => out.filter((f) => f["scope"] === scope);
+  assert.equal(by("here").length, 1);
+  assert.deepEqual(by("linked").map((f) => [f["text"], f["placeKind"], f["placeId"]]), [["Waves of fifty", "task", "tsk_1"]]);
+  assert.equal(by("space").length, 1);
+  assert.equal(by("space")[0]!["text"], "We decided to go with Harbor for freight shipping.");
+  assert.equal(by("linked")[0]!["canEdit"], false);
+});

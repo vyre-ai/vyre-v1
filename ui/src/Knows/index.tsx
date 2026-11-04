@@ -3,13 +3,14 @@
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { groupKnows, knowsMark, sourceChip } from "./model.ts";
+import { groupKnows, knowsMark, linkedItems, sourceChip, spaceItems } from "./model.ts";
 import type { KnowsItem } from "./model.ts";
 
 export interface KnowsProps {
   /** The place's name: "Rivera account". */
   place: string;
   items: readonly KnowsItem[];
+  /** Source: the host scrolls to the message (openMessage(item) gives its thread and message id). */
   onSource: (item: KnowsItem) => void;
   onEdit: (item: KnowsItem, text: string) => void;
   onRemove: (item: KnowsItem) => void;
@@ -19,7 +20,8 @@ export function Knows({ place, items, onSource, onEdit, onRemove }: KnowsProps):
   const [editing, setEditing] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const groups = groupKnows(items);
-  if (groups.length === 0) return <View testID="knows"><Text style={st.cap}>Nothing is remembered here yet.</Text></View>;
+  const linked = linkedItems(items), space = spaceItems(items);
+  if (groups.length === 0 && linked.length === 0 && space.length === 0) return <View testID="knows"><Text style={st.cap}>Nothing is remembered here yet.</Text></View>;
   return (
     <View testID="knows" style={st.root}>
       <Text style={st.head}>{`What Vyre remembers in ${place}`}</Text>
@@ -57,6 +59,29 @@ export function Knows({ place, items, onSource, onEdit, onRemove }: KnowsProps):
           })}
         </View>
       ))}
+      {linked.length > 0 ? (
+        <View testID="knows-linked">
+          <View style={st.label}><Text style={st.labelText}>From linked places</Text><Text style={st.labelText}>{linked.length}</Text></View>
+          {linked.map((i) => (
+            <View key={i.factId} testID={`knows-row-${i.factId}`} style={st.row}>
+              <Text style={st.text}>{i.text}</Text>
+              <Text style={st.mark}>{`${i.from ?? "a linked place"} \u00b7 ${i.by} \u00b7 ${i.at}`}</Text>
+              <View style={st.acts}><Pressable accessibilityRole="button" testID={`knows-source-${i.factId}`} onPress={() => onSource(i)}><Text style={st.btn}>Source</Text></Pressable></View>
+            </View>
+          ))}
+        </View>
+      ) : null}
+      {space.length > 0 ? (
+        <View testID="knows-space">
+          <View style={st.label}><Text style={st.labelText}>Space</Text><Text style={st.labelText}>{space.length}</Text></View>
+          {space.map((i) => (
+            <View key={i.factId} testID={`knows-row-${i.factId}`} style={st.row}>
+              <Text style={st.text}>{i.text}</Text>
+              <Text style={st.mark}>{`Marker in Space memory \u00b7 from ${i.from ?? "this place"} \u00b7 ${i.at}`}</Text>
+            </View>
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }

@@ -8,22 +8,37 @@ import { trail } from "../trail.ts";
 const placeRows = (ctx: MemCtx, kind: string, id: string): Fact[] =>
   rowsOf(ctx.db, "SELECT * FROM memory_facts WHERE place_kind = ? AND place_id = ? ORDER BY learned_at DESC, id", kind, id).map((r) => readFact(ctx, r));
 
-/** Knows tab: what Vyre remembers in one place that the caller may read, with where each came from. canEdit says whether Edit and Remove show. History adds replaced and removed ones. */
+/**
+ * Knows tab: what Vyre remembers in one place that the caller may read, with where each came from. canEdit says whether Edit and Remove show. History adds replaced and removed ones. Rows learned in places
+ * linked to this one (a project's tasks and goals, a task's project) come back with scope "linked" and the place they were learned in, and a marker in Space memory pointing at a fact of this place with scope "space"; both only
+ * when the caller may open them.
+ */
 export async function placeList(ctx: MemCtx, input: { placeKind: string; placeId: string; history?: boolean }) {
   ensure(ctx.db);
   if (!(PLACE_KINDS as readonly string[]).includes(input.placeKind)) raise(ctx, "validation.bad_input", "That is not a kind of place.", { placeKind: input.placeKind });
   const access = makeAccess(ctx);
   const rows: Array<Record<string, unknown>> = [];
-  for (const f of placeRows(ctx, input.placeKind, input.placeId)) {
+  const own = placeRows(ctx, input.placeKind, input.placeId).filter((f) => f.state !== "marker");   // a marker is Space memory pointing here: it is listed as one, not as the place's own
+  const parent = own.find((f) => f.parentKind && f.parentId);
+  const row = async (f: Fact, scope: "here" | "linked" | "space", from?: { kind: string; id: string }): Promise<void> => {
     const state = f.trashedAt !== null || f.status === "removed" ? "removed" : stateOf(ctx.db, f);
     const live = f.status === "current" || f.status === "proposed";
-    if (!live && !input.history) continue;
-    if (!(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view", f.audience))) continue;
+    if (!live && !input.history) return;
+    if (!(await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "view", f.audience))) return;
     rows.push({
-      factId: f.id, kind: kindOf(f.kind), text: f.text, state, said_by: f.sourcePerson, at: f.learnedAt, messageId: f.msgId, span: f.span, sourceLink: f.sourceLink, layer: f.layer,
-      replaces: f.replaces, canEdit: await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "edit"),
+      factId: f.id, kind: kindOf(f.kind), text: f.text, state, said_by: f.sourcePerson, at: f.learnedAt, messageId: f.msgId, threadId: f.sourceRef, span: f.span, sourceLink: f.sourceLink, layer: f.layer,
+      replaces: f.replaces, scope, ...(from ? { placeKind: from.kind, placeId: from.id } : {}), canEdit: scope === "here" && await access.can(f.layer, f.ownerRef, f.agentId, f.projectId, "edit"),
     });
-  }
+  };
+  for (const f of own) await row(f, "here");
+  // linked places: tasks and goals under this place, this place's own parent, and its siblings under the same parent
+  const linked = rowsOf(ctx.db,
+    "SELECT * FROM memory_facts WHERE place_id IS NOT NULL AND NOT (place_kind = ? AND place_id = ?) AND layer <> 'person' AND state IS NOT 'marker' AND (" +
+    "(parent_kind = ? AND parent_id = ?)" + (parent ? " OR (place_kind = ? AND place_id = ?) OR (parent_kind = ? AND parent_id = ?)" : "") + ") ORDER BY learned_at DESC, id",
+    input.placeKind, input.placeId, input.placeKind, input.placeId, ...(parent ? [parent.parentKind, parent.parentId, parent.parentKind, parent.parentId] : []));
+  for (const r of linked) { const f = readFact(ctx, r); await row(f, "linked", { kind: f.placeKind!, id: f.placeId! }); }
+  // markers in Space memory that point back at a fact of this place
+  for (const f of own) for (const m of rowsOf(ctx.db, "SELECT * FROM memory_facts WHERE promoted_from = ? AND state = 'marker' AND layer = 'space'", f.id)) await row(readFact(ctx, m), "space", { kind: input.placeKind, id: input.placeId });
   return { facts: rows };
 }
 

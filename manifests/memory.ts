@@ -129,7 +129,7 @@ export default defineManifest({
       },
       out: { quotes: t.arr(quoteRow) }, label: 'filter', tool: 'memory', mcpName: 'memory_quote', agent: { planMode: 'allowed' }, cli: 'vyre memory quote', rate: { n: 120, perSeconds: 60, scope: 'principal' },
     }),
-    read('memory.place.list', 'Knows tab: what Vyre remembers in one place (chat, channel, project, task, goal or record), each with its kind, state, who said it, the message and the words it came from; only what the caller may open. Edit and Remove show where canEdit is true', {
+    read('memory.place.list', 'Knows tab: what Vyre remembers in one place, each with kind, state, who said it, the message and words; with linked places (scope linked) and Space markers (scope space) the caller may open. canEdit says whether Edit and Remove show', {
       in: { placeKind: t.enm('chat', 'channel', 'project', 'task', 'goal', 'record'), placeId: t.str(), history: t.opt(t.bool({ description: 'Include replaced and removed ones' })) },
       out: { facts: t.arr(t.json()) }, label: 'filter', tool: 'memory', mcpName: 'memory_place_list', agent: { planMode: 'allowed' }, errors: ['validation.bad_input'],
     }),

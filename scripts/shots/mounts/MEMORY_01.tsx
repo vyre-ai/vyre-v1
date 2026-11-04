@@ -14,8 +14,10 @@ const ITEMS: KnowsItem[] = [
   { factId: "f2", kind: "decision", text: "The consult stays Tuesday at 2:00 with Maya", state: "current", by: "Maya Chen", at: "Yesterday 4:20 pm", canEdit: true },
   { factId: "f3", kind: "decision", text: "Consult on Monday at 11:00", state: "replaced", replacedBy: "The consult stays Tuesday at 2:00 with Maya", by: "Maya Chen", at: "Yesterday 4:12 pm", canEdit: true },
   { factId: "f4", kind: "fact", text: "Elena Rivera was referred by Maya Chen", state: "current", by: "Omar Haddad", at: "Yesterday 4:12 pm", canEdit: true },
-  { factId: "f5", kind: "commitment", text: "Intake chases the intake form on Monday at 5:00 pm if it is not back", state: "current", by: "Intake", at: "Yesterday 4:20 pm", owes: "Intake, Mon 5:00 pm", canEdit: true },
+  { factId: "f5", kind: "commitment", text: "Intake chases the intake form on Monday at 5:00 pm if it is not back", state: "current", by: "Intake", at: "Yesterday 4:20 pm", owes: "Mon 5:00 pm", canEdit: true },
   { factId: "f6", kind: "preference", text: "Short replies in this chat", state: "current", by: "Maya Chen", at: "Yesterday 4:20 pm", canEdit: true },
+  { factId: "l1", kind: "decision", text: "Beta invites go out in waves of fifty", state: "current", by: "Olivia", at: "Today 8:40 am", canEdit: false, scope: "linked", from: "Beta invites task" },
+  { factId: "s1", kind: "decision", text: "The consult stays Tuesday at 2:00 with Maya", state: "current", by: "Maya Chen", at: "Yesterday 4:20 pm", canEdit: false, scope: "space", from: "Rivera account" },
   { factId: "f7", kind: "decision", text: "Billing runs on the first", state: "disputed", by: "Omar Haddad", at: "Today 8:10 am", canEdit: true },
 ];
 const names = (id: string): string => ({ usr_maya: "Maya", usr_omar: "Omar" } as Record<string, string>)[id] ?? id;
@@ -29,8 +31,8 @@ export default function Mount(): ReactNode {
     return wrap(
       <View testID="memory-noted" style={{ gap: 12 }}>
         <LinkCard id="n1" data={{ icon: "fact", lead: "Noted: decision", title: "Waive the consult fee for referrals", target: { type: "fact", id: "f1" }, actions: [{ key: "undo", label: "Undo", cap: "memory.undo", input: { factId: "f1" } }] }} nameOf={names} />
-        <LinkCard id="n2" data={{ icon: "fact", lead: "Noted: commitment", title: "Intake chases the form on Monday at 5:00 pm" }} nameOf={names} />
-        <LinkCard id="q1" data={{ icon: "fact", lead: "Open question", title: "Two statements about one thing", body: "One said: The review is on Thursday morning\nAnother said: The review is on Friday morning\nWhich holds?", actions: [{ key: "a", label: "The review is on Thursday morning", cap: "memory.question.resolve", input: {} }, { key: "b", label: "The review is on Friday morning", cap: "memory.question.resolve", input: {} }] }} nameOf={names} />
+        <LinkCard id="n2" data={{ icon: "fact", lead: "Noted: commitment", title: "Intake chases the form on Monday at 5:00 pm", target: { type: "fact", id: "f5" }, actions: [{ key: "undo", label: "Undo", cap: "memory.undo", input: { factId: "f5" } }] }} nameOf={names} />
+        <LinkCard id="q1" data={{ icon: "fact", lead: "Open question", title: "Two statements about one thing", body: "Maya said on Monday: We decided the review is on Thursday morning.\nOmar said today: We decided the review is on Friday morning.\nWhich holds?", actions: [{ key: "a", label: "Maya: We decided the review is on Thursday morning.", cap: "memory.question.resolve", input: {} }, { key: "b", label: "Omar: We decided the review is on Friday morning.", cap: "memory.question.resolve", input: {} }] }} nameOf={names} />
       </View>,
     );
   }

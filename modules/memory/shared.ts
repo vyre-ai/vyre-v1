@@ -57,7 +57,9 @@ export async function writeShared(ctx: MemCtx, n: SharedIn): Promise<SharedOut> 
 }
 
 /** The line a room sees when something is remembered in it. Data only: kind, words, and the fact Undo acts on. The chat module draws it. */
-export interface NotedLine { threadId: string; factId: string; kind: string; text: string; replaces?: string; disputed?: boolean; question?: { questionId: string; a: string; b: string } }
+export interface NotedLine { threadId: string; factId: string; kind: string; text: string; replaces?: string; disputed?: boolean; question?: { questionId: string; a: Said; b: Said } }
+/** Who said it, and when. */
+export interface Said { text: string; by: string; at: number }
 
 /** Post the quiet "Noted: decision, go with Harbor . Undo" line through the chat module. Silent failure here would be remembering without telling the room, so a failure is logged, never swallowed quietly. */
 export async function postNoted(ctx: MemCtx, line: NotedLine): Promise<boolean> {
