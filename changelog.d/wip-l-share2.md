@@ -21,3 +21,4 @@
 - chat.pace_of: a teammate's usual reply time (median over 30 days, only chats you are in with them, three moments at least) and, for one chat, how they hear about it. The profile's "How <name> responds here" shows Replies and Notifies from it.
 - Profile: Notifies never reveals a private mute (a thread they left reads Off); a chat in Shared context takes the one chat name; no chats together reads "Not enough chats yet".
 - chat.pace_of matches mentions by person id (chat_mention, kept per message from the composer chips), not by a name in the words; two people with one first name are told apart.
+- chat_mention is migration 0007 of the chat module; deleting a message, erasing a chat, the retention purge and removing a person delete its rows.
