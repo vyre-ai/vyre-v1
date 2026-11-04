@@ -23,7 +23,7 @@ const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
 const { chromium } = createRequire(path.join(REPO, "package.json"))("playwright-core");
 const browser = await chromium.launch({ args: ["--no-sandbox"] });
-const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => (t.id.startsWith("TASKCONFLICT_01") || t.id.startsWith("MENTION_01") || t.id.startsWith("THREADS_01") || t.id.startsWith("NAME_01") || t.id.startsWith("COPY_01") || ["NOTES_01-open", "NOTES_01-from", "NOTES_01-single", "NOTES_01-single-open", "NOTES_01-grid", "NOTES_01-phone-note", "NOTES_01-phone-from"].includes(t.id) || t.id.startsWith("NOTEOFFER_01") || t.id === "LEARN_01-chat") && (only.length === 0 || only.includes(t.id)));
+const targets = loadTargets(path.join(REPO, "scripts/shots")).filter((t) => (t.id.startsWith("TASKCONFLICT_01") || t.id.startsWith("MENTION_01") || t.id.startsWith("THREADS_01") || t.id.startsWith("NAME_01") || t.id.startsWith("DRAFTS_01") || t.id.startsWith("COPY_01") || t.id.startsWith("EXPIRED_01") || ["NOTES_01-open", "NOTES_01-from", "NOTES_01-single", "NOTES_01-single-open", "NOTES_01-grid", "NOTES_01-phone-note", "NOTES_01-phone-from"].includes(t.id) || t.id.startsWith("NOTEOFFER_01") || t.id === "LEARN_01-chat") && (only.length === 0 || only.includes(t.id)));
 for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [size, vp] of Object.entries(SIZES)) {
   if (sizeOnly && size !== sizeOnly) continue;
   const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });

@@ -157,6 +157,7 @@ type Out = {
       next: string;
       fix: ("clear_caches" | "stop_idle" | "update") | null;
     }>;
+  idleSessions: number;
   privacy: "full" | "vyre_only";
   lastFix?: {
     fix: string;
@@ -204,6 +205,7 @@ type Out = {
         "state": "healthy"
       }
     ],
+    "idleSessions": 1,
     "lastFix": {
       "at": 1760000000000,
       "detail": "example",

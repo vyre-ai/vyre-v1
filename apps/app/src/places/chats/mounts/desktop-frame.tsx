@@ -31,12 +31,14 @@ export interface FrameProps {
   covered?: boolean;
   /** Called when the shell refuses or fails, with its words. */
   onError?(message: string): void;
+  /** Called once the shell has placed the page (it is loading or loaded there): the viewer's own loading state can end. */
+  onPlaced?(): void;
   invoke?: Invoke;
   style?: CSSProperties;
 }
 
 /** What the frame says to the shell: the page once, then only moves; a hide takes it away and the next place shows it again. */
-export function createPlacer(call: Invoke, url: string, onError?: (message: string) => void): { place(rect: Rect | null): void; hide(): void } {
+export function createPlacer(call: Invoke, url: string, onError?: (message: string) => void, onShown?: () => void): { place(rect: Rect | null): void; hide(): void } {
   let shown = false;
   let said: Rect | null = null;
   const fail = (e: unknown): void => onError?.(typeof e === "string" ? e : e instanceof Error ? e.message : "This page couldn't load here.");
@@ -46,7 +48,7 @@ export function createPlacer(call: Invoke, url: string, onError?: (message: stri
       said = rect;
       const first = !shown;
       shown = true;
-      void call(first ? "artifact_view_show" : "artifact_view_bounds", first ? { url, ...rect } : { ...rect }).catch((e) => { if (first) { shown = false; said = null; } fail(e); });
+      void call(first ? "artifact_view_show" : "artifact_view_bounds", first ? { url, ...rect } : { ...rect }).then(() => { if (first) onShown?.(); }, (e) => { if (first) { shown = false; said = null; } fail(e); });
     },
     hide() {
       shown = false;
@@ -57,14 +59,14 @@ export function createPlacer(call: Invoke, url: string, onError?: (message: stri
 }
 
 /** The placeholder the shell's child webview sits over. */
-export function DesktopArtifactFrame({ url, title, covered = false, onError, invoke, style }: FrameProps): ReactElement {
+export function DesktopArtifactFrame({ url, title, covered = false, onError, onPlaced, invoke, style }: FrameProps): ReactElement {
   const box = useRef<HTMLDivElement | null>(null);
   const call = invoke ?? shellInvoke();
 
   useEffect(() => {
     const el = box.current;
     if (!call) return undefined;
-    const placer = createPlacer(call, url, onError);
+    const placer = createPlacer(call, url, onError, onPlaced);
     if (covered) { placer.hide(); return undefined; }
     if (!el || typeof el.getBoundingClientRect !== "function") return undefined;
     const place = (): void => placer.place(rectOf(el.getBoundingClientRect()));

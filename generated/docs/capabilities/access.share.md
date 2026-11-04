@@ -19,7 +19,7 @@ Give a person, group, role, agent or automation a level on a resource (flows dow
 | HTTP | POST /v1/access/share |
 | MCP tool | access_share (meta) |
 | CLI | none |
-| Emits | grant.created, access.changed, folder.shared |
+| Emits | grant.created, access.changed, folder.shared, access.shared_with |
 
 ## Input
 
@@ -49,6 +49,9 @@ type In = {
   source?: string;
   export?: boolean;
   reshare?: boolean;
+  notify?: {
+    message?: string;
+  };
   idempotencyKey: string;
 };
 ```
@@ -120,6 +123,9 @@ type Out = {
     "export": true,
     "idempotencyKey": "idem_1",
     "level": "view",
+    "notify": {
+      "message": "example"
+    },
     "reshare": true,
     "resource": {
       "id": "rec_a1b2c3",

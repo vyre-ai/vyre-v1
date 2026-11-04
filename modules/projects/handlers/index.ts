@@ -1,9 +1,9 @@
-// Handler table of the projects module: all 24 capabilities of manifests/projects.ts. Making, reading, people and the Overview are in project.ts; the plan (stages, bars, arrows, task threads)
+// Handler table of the projects module: all 25 capabilities of manifests/projects.ts. Making, reading, people and the Overview are in project.ts; the plan (stages, bars, arrows, task threads)
 // is in plan.ts; the cascade proposed when something slips, and its Apply or Keep, is in cascade.ts.
 import { applyCascade, cascade } from "./cascade.ts";
 import { linkTasks, openTaskThread, plan, reschedule, stagesSet, unlinkTasks } from "./plan.ts";
 import {
-  create, fileChat, fromChannel, get, list, membersList, membersRemove, membersSet, overview, pinFile, postUpdate, shareOut, sharedView, unshareOut, templatesList, unpinFile,
+  create, fileChat, fromChannel, get, list, rolesOf, membersList, membersRemove, membersSet, overview, pinFile, postUpdate, shareOut, sharedView, unshareOut, templatesList, unpinFile,
 } from "./project.ts";
 import { recordFilesFolder } from "./folders.ts";
 import { teammatesCreate, teammatesList, teammatesRemove } from "./teammates.ts";
@@ -21,6 +21,7 @@ export const handlers = {
   "projects.get": get,
   "projects.link_tasks": linkTasks,
   "projects.list": list,
+  "projects.roles_of": rolesOf,
   "projects.members.list": membersList,
   "projects.members.remove": membersRemove,
   "projects.members.set": membersSet,

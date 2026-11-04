@@ -2,6 +2,7 @@
   "module": "tasks",
   "capabilities": {
     "tasks.act@1": "0fb8a797e883f818240c1be089c2ee9416aa054eb0094335f64213c2437d7d55",
+    "tasks.agent_on_it@1": "ff145c426f5d29480b11138713f1f91758374648a4c051a636204fdba4341aa5",
     "tasks.ask@1": "afe768af5889403c83b34a7afac75a5e00ad9fbcb779aae763d13bd56e560c57",
     "tasks.assign@1": "93cf9fc659cd8534a515b7063dbc083b3efea1a426e3563cf7c90006988ebb6b",
     "tasks.block@1": "dd14bf34df0f8ff596483d71ed6010c17b1db9dcd40a4043aed864e5a910f37e",

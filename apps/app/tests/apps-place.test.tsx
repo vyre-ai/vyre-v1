@@ -18,7 +18,6 @@ import { sampleRuntime } from "../src/shell/providers/misc-test-runtime.tsx";
 import { stepOf } from "../src/places/apps/shell/EmailDesigner.tsx";
 import type { SampleApps } from "../src/places/apps/shell/sample.ts";
 import { siteLine } from "../src/places/apps/shell/SiteDetail.tsx";
-import { artifactAddress } from "../src/places/apps/shell/Artifacts.tsx";
 
 const size = (width: number): void => Dimensions.set({ window: { width, height: 800, scale: 1, fontScale: 1 }, screen: { width, height: 800, scale: 1, fontScale: 1 } });
 size(1280);
@@ -58,13 +57,12 @@ test("Templates and Sites lists open; Templates offers Build a Kit", () => {
   assert.ok(has(s, "Booking widget") && has(s, "Northwind site") && has(s, "Not published") && has(s, 'data-testid="apps-new-site"'));
 });
 
-test("a site says in one line what is true of it, and an artifact opens from the Space's address or this app's gateway", () => {
+// how an artifact opens moved with the Artifacts grid into Chats (l-artifacts): apps/app/src/places/chats/mounts/artifact-address.test.tsx holds it
+test("a site says in one line what is true of it", () => {
   assert.equal(siteLine({ live: false, blocked: false }, null), "Not published. Nothing is served at its address.");
   assert.equal(siteLine({ live: true, blocked: false }, { answering: true }), "Live and answering.");
   assert.equal(siteLine({ live: true, blocked: false }, { answering: false, detail: "Nothing is listening on port 3000." }), "Nothing is listening on port 3000.");
   assert.equal(siteLine({ live: true, blocked: true }, { answering: true }), "Taken down by an admin of this server.");
-  assert.equal(artifactAddress({ path: "/a/x/k/t/", url: "https://harbor.vyre.run/a/x/k/t/" }, "http://127.0.0.1:8420"), "https://harbor.vyre.run/a/x/k/t/");
-  assert.equal(artifactAddress({ path: "/a/x/k/t/" }, "http://127.0.0.1:8420/"), "http://127.0.0.1:8420/a/x/k/t/");
 });
 
 test("the hash reaches Sites and Artifacts", () => {

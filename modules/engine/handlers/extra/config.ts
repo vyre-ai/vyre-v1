@@ -4,6 +4,7 @@
 // models.list, providers.list and turn.retry all read them through readPolicy(). The hop limit stays a settings row (engine.agent_hops).
 import { setSpaceUse } from "../../../../agent/src/accounts/index.ts";
 import { actorOf, raise } from "../../projections.ts";
+import { rememberPick } from "../../last-pick.ts";
 import type { EngineCtx } from "../../projections.ts";
 import { ensureExtra } from "./schema.ts";
 import { rows, str } from "./util.ts";
@@ -147,6 +148,8 @@ export async function defaultsSet(
     });
   }
   ctx.db.run("INSERT OR REPLACE INTO engine_defaults (person_id, value, updated_at) VALUES (?, ?, ?)", me, JSON.stringify(next), ctx.now());
+  // choosing the default model in Settings is a pick like any other: a new chat starts on it (last-pick.ts)
+  if (input.model !== undefined && ctx.principal.kind === "person") rememberPick(ctx.db, me, "*", { model: next.model ?? input.model, provider: next.provider ?? null, effort: next.effort ?? null }, ctx.now());
   return { ok: true };
 }
 

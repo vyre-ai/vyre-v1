@@ -10,7 +10,7 @@ export type KindKey =
   | "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed"
   | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided"
   | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread"
-  | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert";
+  | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared";
 export type Action = { label: string; cap: string };
 export interface KindDef {
   key: KindKey; level: Level; place: Place; title: string; pushTitle?: string; actions: Action[]; agentRateKey?: string; backstopEmailAfterHours?: number; respectHours: boolean;
@@ -43,6 +43,7 @@ export const KINDS: readonly KindDef[] = [
   kind("conflict.needs_you", "badge", "records", "Two edits conflict on {{title}}", { actions: [a("Resolve", "tasks.act")] }),
   kind("access.requested", "badge", "console", "{{from}} asks for {{level}} access to {{title}}", { actions: [a("Review", "tasks.act")] }),
   kind("access.decided", "badge", "home", "Your access request for {{title}} was {{decision}}"),
+  kind("item.shared", "badge", "inbox", "{{from}} shared {{title}} with you"),
   kind("sync.attention", "badge", "settings", "Sync needs attention on {{device}}"),
   kind("health.degraded", "badge", "console", "{{service}} is {{state}}"),
   kind("machine.alert", "badge", "inbox", "{{title}}", { actions: [a("Open", "machines.list")] }),

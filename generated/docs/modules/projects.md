@@ -4,7 +4,7 @@ Lane L3. Kind module. Version 0.1.0.
 
 Requires: agents, records, tasks.
 
-## Capabilities (28)
+## Capabilities (29)
 
 - [projects.apply_cascade](../capabilities/projects.apply_cascade.md): Apply a cascade proposal, or keep the dates
 - [projects.cascade](../capabilities/projects.cascade.md): Propose the cascade after something slips: which later tasks move and which dates still hold (an agent may call this too)
@@ -24,6 +24,7 @@ Requires: agents, records, tasks.
 - [projects.plan](../capabilities/projects.plan.md): The plan: stages, tasks, milestones, dependency links and a today marker; one payload for Timeline, Board, List and Calendar
 - [projects.post_update](../capabilities/projects.post_update.md): Post the status update (by the lead, or drafted weekly by an agent) to the project channel and keep it on the Overview
 - [projects.reschedule](../capabilities/projects.reschedule.md): Move a task bar or resize it on the timeline; if it slips, the response carries a cascade proposal
+- [projects.roles_of](../capabilities/projects.roles_of.md): The projects where one person holds a role, and which role, limited to the projects the asker can see
 - [projects.share_out](../capabilities/projects.share_out.md): Make a read-only link to the project Overview for a client; it expires in 30 days unless expiresAt or expiresInDays says otherwise
 - [projects.shared_view](../capabilities/projects.shared_view.md): System: what a shared link shows a client (title, status, goal, status update, next milestones; no people, threads or files). Only the host calls it, for /share/project/<token>
 - [projects.stages.set](../capabilities/projects.stages.set.md): Create, rename, reorder or remove the stages of a plan

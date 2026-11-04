@@ -3,6 +3,7 @@
 // static markup in this file, parsed once as SVG; names and avatars from the app go in as text or as an image address, never as markup.
 
 import { h } from "./dom.js";
+import { FACE_EMOJI, FACE_SVGS, FACE_TINTS } from "./faces.js";
 
 const SVG = "http://www.w3.org/2000/svg";
 
@@ -85,12 +86,33 @@ const IMG = /^data:image\/(svg\+xml|png|jpeg|webp);base64,[A-Za-z0-9+/=]+$|^data
 
 /**
  * A face: an agent's own avatar when the app sent one, the Assistant's mark, else a tile with the initial; a person gets a soft marble.
- * @param {{ name: string, kind?: string, avatar?: string | null, assistant?: boolean }} who @param {number} z
+ * @param {{ name: string, kind?: string, avatar?: string | null, assistant?: boolean, face?: string | null }} who @param {number} z
  */
+/**
+ * A face from the agent library, as the agent stores it (av1:<family>:<index>:<tint>, av1:emoji:<emoji>:<tint> or av1:img:<data url>). The drawings are this extension's own (faces.js), picked by index; nothing the app
+ * sends is ever markup. Null for anything else (an older seed), which then draws as before.
+ * @param {unknown} text @param {Record<string, string>} size
+ */
+function libraryFace(text, size) {
+  if (typeof text !== "string" || !text.startsWith("av1:")) return null;
+  const rest = text.slice(4);
+  if (rest.startsWith("img:")) { const url = rest.slice(4); return IMG.test(url) && url.length <= 32000 ? h("span.face.ag", { css: size }, h("img", { alt: "", src: url })) : null; }
+  const [fam, a, b] = rest.split(":");
+  const tint = Number(b);
+  if (!Number.isInteger(tint) || tint < 0 || tint >= FACE_TINTS.length) return null;
+  const bg = FACE_TINTS[tint];
+  if (fam === "emoji") return a && FACE_EMOJI.includes(a) ? h("span.face.ag", { css: { ...size, background: bg } }, a) : null;
+  const list = /** @type {Record<string, string[]>} */ (FACE_SVGS)[fam ?? ""];
+  const i = Number(a);
+  if (!list || !Number.isInteger(i) || i < 0 || i >= list.length) return null;
+  return h("span.face.ag", { css: { ...size, background: bg } }, h("img", { alt: "", src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(list[i] ?? "")}` }));
+}
+
 export function face(who, z = 22) {
   const name = String(who.name || "?");
   const size = { width: `${z}px`, height: `${z}px`, fontSize: `${Math.round(z * 0.45)}px` };
   if (who.assistant) return h("span.face.ag", { css: { ...size, background: "var(--sunk)", boxShadow: "inset 0 0 0 1px var(--line)" } }, mark(Math.round(z * 0.72)));
+  if (who.kind !== "person") { const lib = libraryFace(who.face, size); if (lib) return lib; }
   const hu = HUES[hash(name) % 8];
   const avatar = typeof who.avatar === "string" && IMG.test(who.avatar) ? who.avatar : null;
   if (who.kind !== "person") {

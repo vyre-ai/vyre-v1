@@ -1,7 +1,7 @@
 // One handler per access capability. Share and folders are handlers/share.ts (P-L7_02); requests, reviews and proposals are request.ts, review.ts and propose.ts.
 import { builderGrant, builderStatus } from "./connector-builder.ts";
 import {
-  foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, automationSenders, deciders, joinShare, lists, share, sharesOf, unshare, audienceSet, agentsCanCallGet, agentsCanCallSet, recordMarks,
+  foldersCreate, foldersDelete, foldersList, foldersMove, foldersPlace, foldersRename, foldersUnplace, automationSenders, deciders, joinShare, lists, share, sharesOf, unshare, audienceSet, makeOwner, agentsCanCallGet, agentsCanCallSet, recordMarks,
 } from "./share.ts";
 import {
   actorsCreate, actorsEngineer, actorsList, actorsRedeem, actorsRevoke, actorsUpdate, check, providerCheck,
@@ -79,6 +79,7 @@ export const handlers = {
   "access.join_share": joinShare,
   "access.shares_of": sharesOf,
   "access.audience_set": audienceSet,
+  "access.make_owner": makeOwner,
   "access.agents_can_call.set": agentsCanCallSet,
   "access.agents_can_call.get": agentsCanCallGet,
   "access.record_marks": recordMarks,

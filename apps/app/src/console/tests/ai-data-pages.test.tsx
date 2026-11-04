@@ -68,3 +68,12 @@ test("erase history pagination keeps the newest finding once", () => {
   const row = (findingId: string, tombstones: number) => ({ findingId, by: "usr_1", at: 1, kinds: ["records" as const], tombstones });
   assert.deepEqual(mergeEraseHistory([row("find_1", 1)], [row("find_1", 2), row("find_2", 3)]).map((item) => `${item.findingId}:${item.tombstones}`), ["find_1:2", "find_2:3"]);
 });
+
+test("Voice mounts a real Console page in the AI group, for those who run the Space", async () => {
+  assert.ok(aiDataPageFor("voice"));
+  const { PAGES } = await import("../shell/nav.ts");
+  const page = PAGES.find((p) => p.id === "voice");
+  assert.equal(page?.group, "AI");
+  assert.equal(page?.needs, "policy.manage");
+  assert.equal(PAGES[PAGES.findIndex((p) => p.id === "models") + 1]?.id, "voice", "beside the Space's other AI setup");
+});

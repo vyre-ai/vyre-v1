@@ -308,7 +308,7 @@ export async function recordUsage(
   const hit = firstHit(ctx, turn, at);
   if (!hit) return {};
   // Stop the turn that crossed the line, then tell the person who pays. The card is one per scope, limit and period.
-  await engine.stop(turn.threadId, { agentId: turn.agentId });
+  await engine.stop(turn.threadId, { agentId: turn.agentId, reason: "limit" });
   const taskId = await limitCard(ctx, hit, { agentId: turn.agentId, threadId: turn.threadId, asker: turn.asker }, at);
   ctx.emit("agent.limit_hit", turn.agentId, {
     agentId: turn.agentId, threadId: turn.threadId, turnId: turn.id, limit: hit.limit, used: hit.used, cap: hit.cap, ...(taskId === undefined ? {} : { taskId }),

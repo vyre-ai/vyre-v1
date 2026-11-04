@@ -22,6 +22,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "projects.plan": async () => ({"links":[{"from":"tsk_a1b2c3","to":"tsk_a1b2c3"}],"stages":[{"key":"draft","order":1,"title":"example"}],"tasks":[{"approver":"usr_a1b2c3","assigned":"usr_a1b2c3","due":1760000000000,"milestone":true,"order":1,"reviewer":"usr_a1b2c3","ring":"review","stage":"draft","start":1760000000000,"status":"todo","taskId":"tsk_a1b2c3","threadId":"thr_a1b2c3","title":"example"}],"today":1760000000000} as unknown) as never,
   "projects.post_update": async () => ({"postedAt":1760000000000} as unknown) as never,
   "projects.reschedule": async () => ({"due":1760000000000,"proposalId":"csc_a1b2c3","start":1760000000000,"taskId":"tsk_a1b2c3"} as unknown) as never,
+  "projects.roles_of": async () => ({"roles":[{"projectId":"prj_a1b2c3","role":"lead","title":"example"}]} as unknown) as never,
   "projects.share_out": async () => ({"expiresAt":1760000000000,"url":"example"} as unknown) as never,
   "projects.shared_view": async () => ({"expiresAt":1760000000000,"goal":"example","milestones":[{"due":1760000000000,"status":"example","title":"example"}],"status":"example","statusUpdate":{"at":1760000000000,"text":"example"},"title":"example"} as unknown) as never,
   "projects.stages.set": async () => ({"stages":[{"key":"draft","order":1,"title":"example"}]} as unknown) as never,

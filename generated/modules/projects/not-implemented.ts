@@ -23,6 +23,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "projects.plan": async (ctx) => { throw new VyreErr(notImplemented("projects.plan", ctx.trace)); },
   "projects.post_update": async (ctx) => { throw new VyreErr(notImplemented("projects.post_update", ctx.trace)); },
   "projects.reschedule": async (ctx) => { throw new VyreErr(notImplemented("projects.reschedule", ctx.trace)); },
+  "projects.roles_of": async (ctx) => { throw new VyreErr(notImplemented("projects.roles_of", ctx.trace)); },
   "projects.share_out": async (ctx) => { throw new VyreErr(notImplemented("projects.share_out", ctx.trace)); },
   "projects.shared_view": async (ctx) => { throw new VyreErr(notImplemented("projects.shared_view", ctx.trace)); },
   "projects.stages.set": async (ctx) => { throw new VyreErr(notImplemented("projects.stages.set", ctx.trace)); },
