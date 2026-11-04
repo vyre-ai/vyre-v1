@@ -12,7 +12,7 @@ const out = process.argv.slice(2).find((a) => !a.startsWith("--")) || "/root/wt/
 fs.mkdirSync(out, { recursive: true });
 if (!process.argv.includes("--skip-export")) {
   fs.rmSync(path.join(appDir, "dist"), { recursive: true, force: true });
-  execSync(`${fs.existsSync(path.join(REPO, "node_modules/.bin/expo")) ? path.join(REPO, "node_modules/.bin/expo") : "/root/wt/base/node_modules/.bin/expo"} export --platform web --output-dir dist`, { cwd: appDir, stdio: "inherit", env: exportEnv() });
+  execSync(`${"/root/wt/l-editor/node_modules/.bin/expo"} export --platform web --output-dir dist`, { cwd: appDir, stdio: "inherit", env: exportEnv() });
 }
 const real = await serve(path.join(appDir, "dist"), { spa: true });
 const { createRequire } = await import("node:module");
@@ -44,6 +44,9 @@ for (const skin of ["paper", "graphite"]) {
   await page.keyboard.type("/live");
   await page.waitForTimeout(300);
   check(`${skin}: the slash menu offers Live block`, (await page.locator("[data-testid=md-suggest-live]").count()) === 1);
+  const withSlash = (await page.textContent("[data-testid=md-out]")) ?? "";
+  const ids = [...withSlash.matchAll(/<!--b:(\w+)-->/g)].map((m) => m[1]);
+  check(`${skin}: Enter in a block does not copy its id onto the new one`, new Set(ids).size === ids.length, ids.join(","));
   await page.screenshot({ path: path.join(out, `live-slash-${skin}.png`) });
   await page.keyboard.press("Enter");
   await page.waitForTimeout(400);
