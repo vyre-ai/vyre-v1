@@ -122,10 +122,10 @@ export function pillChoices(q: IslandQuestion): { choices: IslandChoice[]; other
 }
 
 export interface BoxLike { top: number; bottom: number }
-/** The prototype's rule: a question card is "seen" when it sits whole inside the feed, clear of the composer's foot. Not found (not drawn yet, or no screen): not seen, so the Island asks. */
+/** A question card is "seen" when it sits whole inside the chat feed (a little under the top edge still counts). The feed ends where the composer begins, and the Island sits below the feed, so the card needs no margin from the foot (the prototype floats its Island over the feed, so it keeps 100px). Not found (not drawn yet, or no screen): not seen, so the Island asks. */
 export function cardSeen(card: BoxLike | null | undefined, feed: BoxLike | null | undefined): boolean {
   if (!card || !feed) return false;
-  return card.top >= feed.top - 40 && card.bottom < feed.bottom - 100;
+  return card.top >= feed.top - 40 && card.bottom <= feed.bottom;
 }
 
 /**

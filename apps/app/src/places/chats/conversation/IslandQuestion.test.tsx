@@ -198,12 +198,13 @@ test("the pill offers the recommended choice alone with Other; with no recommend
   assert.deepEqual([pillChoices(FREE).choices.length, pillChoices(FREE).other], [0, true]);
 });
 
-test("cardSeen is the prototype's rule: whole inside the feed and clear of the composer, and not found is not seen", () => {
+test("cardSeen: whole inside the feed (which ends at the composer), and not found is not seen", () => {
   const feed = { top: 100, bottom: 700 };
   assert.equal(cardSeen({ top: 200, bottom: 400 }, feed), true);
   assert.equal(cardSeen({ top: 60, bottom: 300 }, feed), true, "a little under the top edge still counts");
   assert.equal(cardSeen({ top: 20, bottom: 300 }, feed), false, "scrolled off the top");
-  assert.equal(cardSeen({ top: 300, bottom: 640 }, feed), false, "under the composer's foot");
+  assert.equal(cardSeen({ top: 300, bottom: 690 }, feed), true, "down to the foot of the feed, which ends where the composer begins");
+  assert.equal(cardSeen({ top: 300, bottom: 720 }, feed), false, "cut off by the composer");
   assert.equal(cardSeen(null, feed), false);
   assert.equal(cardSeen({ top: 200, bottom: 400 }, null), false);
 });
