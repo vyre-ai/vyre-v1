@@ -200,3 +200,27 @@ test("an engine that cannot run here says why in the connect card's own words, a
   const auth = data(statusView(block({ state: "failed", turnId: "t", code: "provider.auth_failed", account: "Claude_Code" })));
   assert.equal(auth.next?.[0]?.key, "sign_in:Claude_Code");
 });
+
+test("an engine that stopped for a server setup cause says so, says trying again will fail the same way, and offers no Retry; the owner is sent to Console, a member to an admin", () => {
+  type D = { message: string; cause?: string; retryable: boolean };
+  const data = (b: ReturnType<typeof statusView>): D => (b as { block: { data: D } }).block.data;
+  const member = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", why: "sandbox" })));
+  assert.match(member.cause ?? "", /will fail the same way until the server is fixed/);
+  assert.match(member.cause ?? "", /Space owner or an admin/);
+  assert.equal(member.retryable, false);
+  const owner = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", why: "image" }), { admin: true }));
+  assert.match(owner.cause ?? "", /image is not on the server/);
+  assert.match(owner.cause ?? "", /Console > Computers/);
+  assert.ok(!/admin\.|your admin/.test(owner.cause ?? ""));
+  assert.equal(owner.retryable, false);
+});
+
+test("a bare engine crash never tells the Space owner or an admin to send it to an admin", () => {
+  const cause = (opts?: { admin?: boolean }): string => ((statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", exit: "1" }), opts) as { block: { data: { cause: string } } }).block.data.cause);
+  assert.ok(!/admin/.test(cause({ admin: true })));
+  assert.match(cause({ admin: true }), /Report/);
+  assert.match(cause({ admin: false }), /Space owner or an admin/);
+  assert.ok(!/send them to your admin/.test(cause()));
+  const none = (statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error" }), { admin: true }) as { block: { data: { cause: string } } }).block.data.cause;
+  assert.match(none, /It gave no reason/);
+});

@@ -55,6 +55,9 @@ export const CORE_READ_TOOLS: readonly string[] = ["time_convert", "inbox_counts
 /** Reads that still run alone: they change what the agent can call, ask the person, park the turn, or hand the work on. */
 export const SEQUENTIAL_READS: ReadonlySet<string> = new Set(["tool_search", "ask_question", "plan_propose", "wait_for", "handoff", "switch_model", "load_skill", "vault_request"]);
 
+/** The tools that open or run a terminal. */
+export const TERMINAL_TOOLS: readonly string[] = ["terminal_run", "terminal_request"];
+
 export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
   if (!catalog || !defaults) {
     const reg = JSON.parse(read("generated/registry.json")) as { capabilities: RegistryCapRow[]; agentTools: AgentToolRow[] };
@@ -91,7 +94,7 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     primed.add(t.turnId);
     if (primed.size > 500) primed.delete(primed.values().next().value as string);
     const [agent, thread] = await Promise.all([
-      d.call("agents.get", { agentId: t.agentId }, t.asker).catch(() => undefined) as Promise<{ agent?: { toolsAllowed?: string[]; toolsDenied?: string[] } } | undefined>,
+      d.call("agents.get", { agentId: t.agentId }, t.asker).catch(() => undefined) as Promise<{ agent?: { toolsAllowed?: string[]; toolsDenied?: string[]; hasComputer?: boolean } } | undefined>,
       d.call("threads.get", { threadId: t.threadId }, t.asker).catch(() => undefined) as Promise<{ thread?: { kind?: ThreadFacts["kind"]; planMode?: boolean; mode?: ThreadFacts["mode"]; scopeType?: string; scopeId?: string } } | undefined>,
     ]);
     const [terminalMode, chromeMode] = await Promise.all(["security.terminal_mode", "security.chrome_mode"].map((key) => d.call!("settings.get", { key }, t.asker).catch(() => undefined) as Promise<{ row?: SettingRow } | undefined>));
@@ -99,7 +102,9 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     if (typeof tz?.row?.value === "string" && tz.row.value !== "") zones.set(t.asker, tz.row.value);
     modes.set(t.asker, { terminal: modePair(terminalMode?.row, d.space), chrome: modePair(chromeMode?.row, d.space) });
     const a = agent?.agent;
-    rules.set(t.agentId, { ...(a?.toolsAllowed?.length ? { allow: a.toolsAllowed } : {}), ...(a?.toolsDenied?.length ? { deny: a.toolsDenied } : {}) });
+    // A terminal on an agent computer is not built yet (the terminal host runs on a person's device only): an agent that has a computer is not offered the terminal tools, so it stops offering what cannot run.
+    const deny = [...(a?.toolsDenied ?? []), ...(a?.hasComputer === true ? TERMINAL_TOOLS.filter((n) => !a.toolsDenied?.includes(n)) : [])];
+    rules.set(t.agentId, { ...(a?.toolsAllowed?.length ? { allow: a.toolsAllowed } : {}), ...(deny.length ? { deny } : {}) });
     const th = thread?.thread;
     const scope = th?.scopeType && th.scopeId ? { type: th.scopeType, id: th.scopeId } : undefined;
     // who is in and a message to a teammate are listed in every chat, without a tool_search (owner ruling 3 Nov, lane l-agentdm)

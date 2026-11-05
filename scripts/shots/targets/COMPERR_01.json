@@ -1,0 +1,9 @@
+{
+  "targets": [
+    { "id": "COMPERR_01-setup-chrome", "route": "/m/COMPERR_01?part=setup-chrome", "proto": "chats,{skin}", "waitFor": "[data-testid='computer-setting-up']", "note": "Setup checklist: machine, start, Chrome. No sign-in step." },
+    { "id": "COMPERR_01-err-sandbox-admin", "route": "/m/COMPERR_01?part=err-sandbox-admin", "proto": "chats,{skin}", "waitFor": "[role='alert']", "note": "Sandbox cause as the Space owner: Console > Computers, no Retry." },
+    { "id": "COMPERR_01-err-sandbox-member", "route": "/m/COMPERR_01?part=err-sandbox-member", "proto": "chats,{skin}", "waitFor": "[role='alert']", "note": "Same as a member: tell the owner or an admin." },
+    { "id": "COMPERR_01-err-crash-admin", "route": "/m/COMPERR_01?part=err-crash-admin", "proto": "chats,{skin}", "waitFor": "[role='alert']", "note": "Bare crash as the Space owner: Report, not admin." },
+    { "id": "COMPERR_01-err-crash-member", "route": "/m/COMPERR_01?part=err-crash-member", "proto": "chats,{skin}", "waitFor": "[role='alert']", "note": "Bare crash as a member." }
+  ]
+}

@@ -52,3 +52,10 @@ test("when this is not a computer and they have only one other, it is used rathe
   assert.deepEqual(await openHere(r.d), { s: "opened", terminalId: "trm_new" });
   assert.equal(r.calls.find((c) => c.cap === "terminal.open")?.input["deviceId"], "dev_home");
 });
+
+test("Open terminal is not offered in a chat whose agent has a computer, since a terminal there is not built; it is for any other chat", async () => {
+  const { canOpenTerminal } = await import("./TerminalPaneTab.tsx");
+  assert.equal(canOpenTerminal({ agent: { agentId: "agt_1", name: "Desk", computerId: "cmt_1" } }), false);
+  assert.equal(canOpenTerminal({ agent: { agentId: "agt_1", name: "Desk" } }), true);
+  assert.equal(canOpenTerminal({}), true);
+});

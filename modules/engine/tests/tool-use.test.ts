@@ -34,3 +34,14 @@ test("a turn starts with the agent's learned tools listed, and counts what it us
   await tools.runner({ id: "c2", name: "tasks_list", input: {} } as never, { threadId: "thr_1", agentId: "agt_a", asker: "usr_1", turnId: "trn_1" } as never);
   assert.deepEqual(seen, ["agt_a:goals_get"], "a default-listed tool (tasks_list) is not counted");
 });
+
+test("an agent that has a computer is not offered the terminal tools (a terminal on an agent computer is not built); one without a computer still is", async () => {
+  const call = async (cap: string, input: { agentId?: string }): Promise<unknown> => (cap === "agents.get" ? { agent: { hasComputer: input.agentId === "agt_pc" } } : undefined);
+  const tools = createEngineApiTools({ invoke: (async () => ({ status: "ok", output: {}, traceId: "t" })) as never, space: "s", system: async () => [], call: call as never });
+  const mk = (agent: string, n: number) => ({ threadId: `thr_${n}`, turnId: `trn_${n}`, agent: { id: agent }, asker: "usr_1" }) as never;
+  const withPc = await tools.context({} as never, mk("agt_pc", 1));
+  const without = await tools.context({} as never, mk("agt_plain", 2));
+  const names = (c: { tools: Array<{ name: string }> }): string[] => c.tools.map((t) => t.name);
+  assert.ok(!names(withPc).includes("terminal_run"), "not listed for an agent with a computer");
+  assert.ok(names(without).includes("terminal_run"), "still listed for one without");
+});

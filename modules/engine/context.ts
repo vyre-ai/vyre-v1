@@ -551,6 +551,7 @@ export function createContextBuilder(d: ContextDeps) {
       if (agent["hasComputer"] === true) {
         const c = arr(computers?.["computers"]).find((x) => str(x["agentId"]) === agentId);
         can.push(c ? `Your computer is ${str(c["state"])}${typeof c["tabs"] === "number" ? `, ${c["tabs"]} tab${c["tabs"] === 1 ? "" : "s"} open` : ""}${str(c["caption"]) ? `: ${one(c["caption"], 100)}` : ""}${str(c["takeoverBy"]) ? ` (${who(String(c["takeoverBy"]))} is in control)` : ""}.` : "You have a computer; it is not listed for this person.");
+        can.push("A terminal on your computer is not built yet: you have no terminal tool, so do not offer to run commands there. Use the browser.");
       } else can.push("You have no agent computer of your own. You can still run commands on the computer this chat runs on with terminal_run. Ask for an agent computer with computers_provision only when a task needs a browser.");
     }
     add("can", true, can.join("\n"));
