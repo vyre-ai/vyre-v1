@@ -12,7 +12,7 @@ const level = t.enm('use', 'edit', 'manage');
 const insId = t.id('ins');
 const needs = t.obj({ domains: t.arr(t.str()), vaultKeys: t.arr(t.str()), files: t.arr(t.str()) });
 const diff = t.obj({
-  from: t.str(), to: t.str(), fromVersion: t.opt(t.str()), toVersion: t.opt(t.str()), newAccess: t.opt(t.arr(t.str())), added: t.arr(t.str()), removed: t.arr(t.str()),
+  from: t.str(), to: t.str(), fromVersion: t.opt(t.str()), toVersion: t.opt(t.str()), older: t.opt(t.bool({ description: 'The commit read now names a lower version than the one installed: it is an older version, and the card says so' })), newAccess: t.opt(t.arr(t.str())), added: t.arr(t.str()), removed: t.arr(t.str()),
   changed: t.arr(t.obj({ path: t.str(), plus: t.arr(t.str()), minus: t.arr(t.str()) })),
 });
 const plan = t.obj({
@@ -63,7 +63,7 @@ export const installCapabilities: CapabilityDef[] = [
     errors: ['validation.bad_input', 'validation.too_large', 'validation.not_found', 'permission.role_lacks_permission'],
   }),
   read('skills.history', 'The versions of a skill, newest first, each with who saved it and what changed', {
-    in: { skillId: skoId }, out: { revisions: t.arr(t.obj({ rev: t.int({ minimum: 1 }), by: t.str(), authorKind: t.enm('person', 'agent'), summary: t.str(), undoOf: t.opt(t.int()), at: t.ts() })) },
+    in: { skillId: skoId }, out: { revisions: t.arr(t.obj({ rev: t.int({ minimum: 1 }), by: t.str(), authorKind: t.enm('person', 'agent'), summary: t.str(), version: t.opt(t.str()), undoOf: t.opt(t.int()), at: t.ts() })) },
     perm: null, level: 'view', tool: 'agents', mcpName: 'skill_history', errors: ['validation.not_found'],
   }),
   write('skills.undo', 'Undo the latest version of a skill; the version before it comes back as a new version, and undoing again brings the undone one back', {

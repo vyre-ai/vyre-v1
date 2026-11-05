@@ -29,7 +29,8 @@ test("Automatic: the computer drops mid-turn, the chat says so, and the same tur
     const replies = (await messages(s, threadId)).slice(before).filter((m) => m.author?.kind === "agent" && (m.body ?? "") !== "");
     assert.equal(replies.length, 1, "one reply");
     assert.equal(mac.spawns.length, 1, "one engine process on her computer");
-    assert.equal(await hostSpawns(s), 1, "one on the server");
+    // two on the server: the finished half of the turn, and memory's learning pass for it (her computer is gone by then, so the pass runs where her turns now run)
+    assert.equal(await hostSpawns(s), 2, "the turn and its learning pass on the server");
     await new Promise((r) => setTimeout(r, 1500));
     assert.equal((await s.as(null, "engine.turns.list", { threadId })).data.turns.length, 1, "and nothing ran again afterwards");
   } finally { await mac.stop(); await s.stop(); }

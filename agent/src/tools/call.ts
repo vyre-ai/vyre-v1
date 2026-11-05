@@ -44,6 +44,8 @@ export interface CallHooks {
 }
 
 export interface CallDeps extends AccessDeps {
+  /** Which tools a chat has found, kept by the caller so they outlive a session: a CLI engine's process that is started again (another request took its warm slot) goes on with the tools the chat already found. */
+  loadedStore?: Map<string, Set<string>>;
   dynamic?: DynamicTools;
   hooks?: CallHooks;
   invoke: Invoke;
@@ -73,7 +75,7 @@ export interface ToolSession {
 const hex = (n: number): string => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 
 export function createToolSession(deps: CallDeps): ToolSession {
-  const loadedBy = new Map<string, Set<string>>();
+  const loadedBy = deps.loadedStore ?? new Map<string, Set<string>>();
   /** The searches each turn has made, so the same one is not run twice. */
   const searchedIn = new Map<string, Set<string>>();
   const newTrace = deps.traceId ?? ((): string => hex(16));

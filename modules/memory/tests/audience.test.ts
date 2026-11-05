@@ -209,7 +209,7 @@ test("D5: an agent learns from a private channel, and those facts stay with its 
   assert.ok((await capture(cap.ctx, { threadId: "thr_ch", reason: "idle" })).merged >= 1, "the agent learned it");
   const row = raw.all("SELECT layer, audience FROM memory_facts WHERE agent_id = ?", AGENT)[0] as { layer: string; audience: string };
   assert.equal(row.layer, "agent");
-  assert.deepEqual(JSON.parse(row.audience), { people: [DANA, MAYA], live: "thr_ch" }, "tagged with the channel's people and the place it is read against now");
+  assert.deepEqual({ ...JSON.parse(row.audience), at: undefined }, { people: [DANA, MAYA], live: "thr_ch", at: undefined }, "tagged with the channel's people, the place it is read against now, and when it was learned");
   // every memory read an agent can make, as Dana's agent in a chat Leo is also in: none returns it
   const mixed = harness({ raw, principal: { kind: "agent", id: AGENT }, actingFor: DANA, respond: { "threads.get": () => chatOf(DANA, "usr_leo"), "agents.get": () => ({ agent: { folderId: "fld_intake" } }) } });
   (mixed.ctx as MemCtx & { thread?: string }).thread = "thr_mix";

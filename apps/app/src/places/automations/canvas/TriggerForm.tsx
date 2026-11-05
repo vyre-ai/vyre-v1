@@ -17,6 +17,7 @@ import {
 import type { Every, ScheduleDraft } from "./schedule.ts";
 import { useRefPicks } from "./steps/useLists.ts";
 import type { OpenMenu } from "./steps/StepForms.tsx";
+import { useSpaceZone } from "../../../../../../ui/src/Time/index.tsx";
 
 /** The common zones, for the Change link. The person's own zone and this device's always head the list. */
 const ZONES: readonly string[] = [
@@ -24,20 +25,22 @@ const ZONES: readonly string[] = [
   "Asia/Dubai", "Asia/Karachi", "Asia/Kolkata", "Asia/Kuala_Lumpur", "Asia/Singapore", "Asia/Tokyo", "Australia/Sydney",
 ];
 
-/** The person's time zone from Settings (profile.timezone). Until it has answered, or if it cannot, this device's zone. */
+/** The zone a new schedule starts in. A Space automation is shared, so it starts in the Space's time zone (a schedule that already has a zone keeps it). Without one (a Space that has none yet), the person's zone from
+ * Settings (profile.timezone), until it has answered this device's. */
 export function usePersonZone(): string {
   const data = useOptionalAutomationsData();
+  const spaceZone = useSpaceZone();
   const [zone, setZone] = useState<string>(() => deviceTimeZone());
   useEffect(() => {
-    if (!data) return undefined;
+    if (!data || spaceZone) return undefined;
     let live = true;
     data.call("settings.get", { key: "profile.timezone" }).then((out) => {
       const row = out && typeof out === "object" ? (out as { row?: { value?: unknown } }).row : undefined;
       if (live && typeof row?.value === "string" && validTimeZone(row.value)) setZone(row.value);
     }, () => undefined);
     return () => { live = false; };
-  }, [data]);
-  return zone;
+  }, [data, spaceZone]);
+  return spaceZone && validTimeZone(spaceZone) ? spaceZone : zone;
 }
 
 const EVERY_LABEL: Record<Every, string> = {

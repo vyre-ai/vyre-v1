@@ -4,13 +4,13 @@
 import { HelperRow } from "./helper-row.tsx";
 import { CrewStrip } from "../crew/strip.tsx";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
-import { holdsOf } from "../crew/model.ts";
+import { holdsOf, mergeStateOf, withTeammates } from "../crew/model.ts";
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
 import { citable, citeBody, citeRender } from "../crew/cite.tsx";
-import type { CrewStatusOut } from "../crew/model.ts";
+import type { CrewMember, CrewStatusOut } from "../crew/model.ts";
 import { useLinkState } from "../../../../../../ui/src/reach/index.tsx";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { menuTrigger, reportProblem } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
@@ -74,6 +74,7 @@ import type { ReplySummary } from "./replies.ts";
 import { ThreadFooter } from "../thread-replies/ThreadFooter.tsx";
 import { AlsoSentMark } from "../thread-replies/AlsoSentMark.tsx";
 import type { Clock } from "../rightpane/model.ts";
+import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
 
 /** A principal id left in someone's words (an agent printed `usr_...`) shows as the name it stands for, when the Space knows it. */
 export function namedIds(body: string, nameOf?: (id: string) => string): string {
@@ -142,7 +143,7 @@ export interface MessageActions {
   /** Open another chat on a message (the line a fork starts with). */
   openMessage?(threadId: string, messageId: string): void;
   /** The crew strip: the live read, the open peek, and what its buttons do. Without it the strip draws from the helpers' own blocks and its rows do nothing. */
-  crew?: { status: CrewStatusOut | null; selected: string | null; peek(helperThreadId: string): void; stopAll(): void; openPane(): void; retry(helperThreadId: string): void };
+  crew?: { status: CrewStatusOut | null; selected: string | null; peek(helperThreadId: string): void; stopAll(): void; openPane(): void; retry(helperThreadId: string): void; merge(jobIds: readonly string[]): void };
   /** A hook line's Edit or Details: the Hooks tab of the right pane at that hook. */
   openHooks?(hookId: string | undefined): void;
   /** What files and links in a message need: lookups, opening beside the chat, copying. Left out in a place that cannot open them. */
@@ -196,7 +197,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
         <View testID={`event-${item.key}`} style={[st.event, (link.style === "noted" || link.style === "question") && st.eventCentre]}>
           {link.style === "noted" ? <LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} time={item.time} /> : <>
             <View style={st.eventCard}><LinkCardView id={String(b.id)} data={link} actions={props.actions} size={13} trusted={item.message.kind === "system"} /></View>
-            {link.style === "question" ? null : <Text style={st.eventTime}>{item.time}</Text>}
+            {link.style === "question" ? null : <TimeTip item={item}><Text style={st.eventTime}>{item.time}</Text></TimeTip>}
           </>}
         </View>
       );
@@ -212,7 +213,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
             {"Forked from "}
             <Text testID={`fork-origin-${item.key}`} accessibilityRole="link" onPress={() => go(origin.threadId, origin.messageId)} style={st.eventLink}>{origin.title}</Text>
           </Text>
-          <Text style={st.eventTime}>{item.time}</Text>
+          <TimeTip item={item}><Text style={st.eventTime}>{item.time}</Text></TimeTip>
         </View>
       );
     }
@@ -224,7 +225,7 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
       <View testID={`event-${item.key}`} accessibilityRole="text" style={st.event}>
         <View style={st.eventDot} />
         <Text style={st.eventText}>{pokeLine(item.message, props.actions.nameOf ?? unnamed) ?? item.text}</Text>
-        <Text style={st.eventTime}>{item.time}</Text>
+        <TimeTip item={item}><Text style={st.eventTime}>{item.time}</Text></TimeTip>
       </View>
     );
   }
@@ -234,6 +235,11 @@ export const MessageView = memo(function MessageView(props: MessageViewProps): R
 /* ---------- the hover bar and the menu: the same list in both ---------- */
 
 const firstName = (name: string): string => name.split(" ")[0] || name;
+
+/** A message's time with the hover card (full date, Space time, yours) in a shared place; plain in a private one. */
+function TimeTip({ item, children }: { item: { timeTitle?: string; message: { createdAt: number } }; children: ReactElement }): ReactElement {
+  return item.timeTitle ? <TimePop at={item.message.createdAt}>{children}</TimePop> : children;
+}
 
 export function menuFor(m: Message, mine: boolean, a: MessageActions, onEdit: () => void, at: { x: number; y: number } = { x: 0, y: 0 }): MenuEntry[] {
   // groups, split by a separator: read and write it, then turn it into something, then keep it, then how it was made, then remove it last
@@ -355,7 +361,7 @@ function Mine({ item, actions, sending, mark, replies }: MessageViewProps & { it
   return (
     <View testID={`msg-${m.messageId}`} accessibilityLabel={`You, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, true, actions, startEdit, { x, y }), x, y, "Message"))} style={[st.me, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
       {h.phone ? <ActionSheet open={sheet} entries={menuFor(m, true, actions, startEdit)} onClose={() => setSheet(false)} /> : <HoverBar m={m} mine a={actions} onEdit={startEdit} visible={h.over || h.focus} />}
-      <Text style={st.when}>{item.time}</Text>
+      <TimeTip item={item}><Text style={st.when}>{item.time}</Text></TimeTip>
       {editing ? (
         <View testID={`edit-${m.messageId}`} style={st.editBox}>
           <TextInput
@@ -465,7 +471,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
               </Pressable>
             </>,
           )}
-          <Text style={st.time}>{item.time}</Text>
+          <TimeTip item={item}><Text style={st.time}>{item.time}</Text></TimeTip>
           {work?.short ? <Pressable accessibilityRole="button" accessibilityLabel={work.summary} testID={`work-short-${m.messageId}`} onPress={() => setWorkOpen((o) => !o)} style={{ opacity: h.over || workOpen ? 1 : 0 }}><Text style={st.time}>{work.summary}</Text></Pressable> : null}
         </View>
       ) : <Text style={st.whenLeft}>{item.time}</Text>}
@@ -488,7 +494,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
       {stream && actions.activityOf?.(m.messageId) ? <ActivityLine store={actions.activityOf(m.messageId)!} stream={stream} {...(actions.faceInThread ? { face: <Face name={item.who.name} seedId={item.who.id} kind="agent" size={20} /> } : {})} /> : null}
           {item.hookSteps && actions.files ? <HookSteps id={m.messageId} steps={item.hookSteps.next} agentId={item.hookSteps.agentId} threadId={actions.files.threadId} call={actions.files.call} /> : null}
       {person || stream || m.body === "" ? null : <ReplyMemory messageId={m.messageId} threadId={m.threadId} reply={m.body} part={work ? "cards" : "all"} />}
-          {crewStart && actions.openMessage ? <CrewStartLine block={crewStart} name={actions.nameOf ? actions.nameOf(String((crewStart.data as { agentId?: unknown } | null)?.agentId ?? "")) : item.who.name} onOpen={(id) => actions.openMessage?.(id, "")} /> : null}
+          {crewStart && actions.openMessage && !(actions.crew?.status?.members.some((x) => x.kind === "teammate" && x.id === String((crewStart.data as { helperThreadId?: unknown } | null)?.helperThreadId)) ?? false) ? <CrewStartLine block={crewStart} name={actions.nameOf ? actions.nameOf(String((crewStart.data as { agentId?: unknown } | null)?.agentId ?? "")) : item.who.name} onOpen={(id) => actions.openMessage?.(id, "")} /> : null}
       {actions.files && refsOf(m).length > 0 ? <MountRefs refs={refsOf(m)} data={actions.files} /> : null}
       {actions.files && m.attachments.length > 0 ? <AttachmentChips ids={m.attachments} data={actions.files} menu={(items, x, y, label) => actions.showMenu(items, x, y, label)} /> : null}
       {collect(cards, (b) => {
@@ -522,18 +528,27 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
         if (b.type === "crew_strip") {
           const blocks = ((b.data as { blocks?: Array<{ data?: unknown; state?: string }> } | null)?.blocks ?? []);
           const live = actions.crew?.status ?? null;
-          const members = blocks.map((x) => { const own = memberFromBlock(x, m.threadId); return memberOf(live, own.id) ?? own; });
+          const members = withTeammates(blocks.map((x) => { const own = memberFromBlock(x, m.threadId); return memberOf(live, own.id) ?? own; }), live);
           const rows = members.length;
           const totals = live && members.every((x) => memberOf(live, x.id) !== undefined) && live.members.filter((x) => x.kind === "helper").length === rows ? live.totals
             : { members: rows, working: members.filter((x) => x.state === "working").length, done: members.filter((x) => x.state === "done").length, needsYou: members.filter((x) => x.state === "needs_you").length, failed: members.filter((x) => x.state === "failed").length, stopped: members.filter((x) => x.state === "stopped").length, tokensIn: 0, tokensOut: 0, costMicros: 0, filesChanged: 0, added: 0, deleted: 0, elapsedMs: Math.max(0, ...members.map((x) => x.elapsedMs)) };
           const c = actions.crew;
           // a helper that waits for a person's yes shows its held request here, in the chat the person reads: the same approval card as anywhere (Allow, Always allow, Deny)
+          // the coders on this strip: Review all and Merge sit in its header, and nothing is posted per coder
+          const coders = members.filter((x) => (x as { kind?: string }).kind === "teammate") as Array<CrewMember & { jobId?: string }>;
+          const mergeState = mergeStateOf(members);
+          const coderMerge = mergeState !== "none" && c?.merge ? { state: mergeState, onReview: () => c.openPane(), onMerge: () => c.merge(coders.flatMap((x) => (x.jobId ? [x.jobId] : []))) } : null;
           const holds = holdsOf(members);
           return (
             <View key={b.id}>
-              <CrewStrip members={members} totals={totals} selectedId={c?.selected ?? null} onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))} {...(c ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) } : {})} />
+              <CrewStrip members={members} totals={totals} parentName={item.who.name} {...(coderMerge ? { merge: coderMerge } : {})} selectedId={c?.selected ?? null} onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))} {...(c ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) } : {})} />
+              {typeof (b.data as { after?: unknown } | null)?.after === "string" ? (
+                <View testID={`crew-answer-${m.messageId}`} style={[st.body, { marginTop: 10 }]}>
+                  <MarkdownBlocks blocks={bodyBlocks(`${m.messageId}#answer`, citeBody(namedIds((b.data as { after: string }).after, actions.nameOf), crewRows.length))} {...(citeLink ? { renderLink: ((href: string, kids: ReactNode, key: number) => citeLink(href, kids, key) ?? null) as never } : {})} />
+                </View>
+              ) : null}
               {/* ui-rows-lint: not a list (the approval cards of helpers that wait for a yes, each the same card as anywhere else in the chat) */}
-              {actions.files ? holds.map((x) => <ApprovalCard key={`hold-${x.id}`} taskId={x.holdTaskId} agent={x.name ?? x.title} agentId={x.agentId} data={actions.files!} />) : null}
+              {actions.files ? holds.map((x) => <ApprovalCard key={`hold-${x.id}`} taskId={x.holdTaskId} agent={x.name ?? x.title} agentId={x.agentId} faceSeed={x.id} data={actions.files!} />) : null}
             </View>
           );
         }
@@ -695,7 +710,7 @@ function ErrorRowView({ block, actions }: { block: Message["blocks"][number]; ac
     return () => { live = false; clearInterval(timer); };
   }, [noAccount, asked, ready, resent, actions]);
   return (
-    <View testID={`error-${block.id}`} accessibilityRole="alert" {...menuTrigger((x, y) => actions.showMenu([{ label: "Copy Trace Id", onSelect: () => actions.copy(e.traceId) }, { label: "What Happened?", onSelect: () => setOpen((o) => !o) }], x, y, "Error"))} style={st.err}>
+    <View testID={`error-${block.id}`} accessibilityRole="alert" {...menuTrigger((x, y) => actions.showMenu([{ label: "Copy error details", onSelect: () => actions.copy(e.traceId) }, { label: "What Happened?", onSelect: () => setOpen((o) => !o) }], x, y, "Error"))} style={st.err}>
       <View style={st.errTop}><Glyph name="alert" size={15} color="var(--warn)" /><Text style={st.errMsg}>{e.message}</Text></View>
       {e.cause ? <Text style={st.errCause}>{e.cause}</Text> : null}
       <View style={st.errActions}>

@@ -10542,6 +10542,13 @@
             "description": "An account from models_for_helpers: its ref, or its label",
             "type": "string"
           },
+          "helperId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
           "model": {
             "type": "string"
           },
@@ -10557,7 +10564,8 @@
           }
         },
         "required": [
-          "threadId"
+          "threadId",
+          "helperId"
         ],
         "type": "object"
       },
@@ -48185,6 +48193,41 @@
     },
     {
       "blocks": [],
+      "cap": "projects.overview_doc.restore",
+      "deferred": false,
+      "description": "Bring an older version of the Overview back: its blocks become the page again, as a new revision (so the restore can be undone)",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "baseRev": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "projectId": {
+            "examples": [
+              "prj_a1b2c3"
+            ],
+            "pattern": "^prj_[a-z0-9]+$",
+            "type": "string"
+          },
+          "rev": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "projectId",
+          "rev"
+        ],
+        "type": "object"
+      },
+      "name": "projects_overview_doc_restore",
+      "planMode": "blocked",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "projects.overview_doc.save",
       "deferred": false,
       "description": "Save the whole Overview page from the editor, as Markdown (or blocks); baseRev is the revision it was opened at, and a page changed since says so instead of overwriting",
@@ -58291,6 +58334,31 @@
     },
     {
       "blocks": [],
+      "cap": "spaces.timezone.set",
+      "deferred": false,
+      "description": "Set the Space time zone (an IANA name). Shared places read times in it; each person sees their own beside it. Deadlines keep their moment. An agent needs an admin to approve",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "timezone": {
+            "examples": [
+              "America/Los_Angeles"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "timezone"
+        ],
+        "type": "object"
+      },
+      "name": "spaces_timezone_set",
+      "planMode": "blocked",
+      "toolset": "meta",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "spaces.transfer_ownership",
       "deferred": false,
       "description": "Owner only: hand the Space to another person",
@@ -63176,7 +63244,7 @@
                 },
                 "label": {
                   "examples": [
-                    "Approve"
+                    "Allow"
                   ],
                   "type": "string"
                 },

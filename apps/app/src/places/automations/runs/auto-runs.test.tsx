@@ -276,9 +276,9 @@ const labelsOf = (s: SampleRuns, r: Run, open: boolean, a: RunActions = quiet())
 
 test("the row menu: open, copy and retry for a failed run nobody retried; Stop only while a run works", () => {
   const s = createSampleRuns(northwind);
-  assert.deepEqual(labelsOf(s, runOf(s, "rl1"), true), ["Open to the Side", "Open in Main", "Copy Link", "Copy Trace Id", "Retry"]);
-  assert.deepEqual(labelsOf(s, runOf(s, "rl3"), false), ["Open to the Side", "Open in Main", "Copy Link", "Copy Trace Id"]);
-  assert.deepEqual(labelsOf(s, runOf(s, "ri1"), false), ["Open to the Side", "Open in Main", "Copy Link", "Copy Trace Id", "Stop"]);
+  assert.deepEqual(labelsOf(s, runOf(s, "rl1"), true), ["Open to the Side", "Open in Main", "Copy Link", "Copy error details", "Retry"]);
+  assert.deepEqual(labelsOf(s, runOf(s, "rl3"), false), ["Open to the Side", "Open in Main", "Copy Link", "Copy error details"]);
+  assert.deepEqual(labelsOf(s, runOf(s, "ri1"), false), ["Open to the Side", "Open in Main", "Copy Link", "Copy error details", "Stop"]);
 });
 
 test("the row menu does what it says: opens the run to the side or in Main, copies the link and the trace id", () => {
@@ -287,7 +287,7 @@ test("the row menu does what it says: opens the run to the side or in Main, copi
   const items = runMenu(runOf(s, "rl3"), quiet((_t, what) => void copied.push(what)), s.data.nav, () => undefined, { x: 0, y: 0 }, false);
   for (const e of items) if ("onSelect" in e) e.onSelect?.();
   assert.deepEqual(s.opened, ["side:rl3", "run:rl3"]);
-  assert.deepEqual(copied, ["the link to this run", "the trace id"]);
+  assert.deepEqual(copied, ["the link to this run", "the error details"]);
 });
 
 test("no copy in any run screen uses an em dash, and Harbor Studio draws the same screens over its own runs", () => {

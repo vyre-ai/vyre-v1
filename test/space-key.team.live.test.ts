@@ -18,7 +18,7 @@ const OWNER_KEY = "ocg-owner-FAKEkey-9876543210zyxwvuTSRQ"; // secret-scan: fake
 const MEMBERS = ["usr_mia", "usr_noah"];
 const WHO = ["usr_olivia", "usr_adam", ...MEMBERS];
 
-interface Seen { url: string; auth: string; model?: string }
+interface Seen { url: string; auth: string; model?: string; sys?: string }
 
 /** Chat Completions on loopback: lists one model for either key and answers "<who> on the space key" (who is the last user line), with usage, for the Space key only. */
 async function vendor(seen: Seen[], out: Set<string> = new Set()): Promise<{ base: string; close(): Promise<void> }> {
@@ -28,7 +28,7 @@ async function vendor(seen: Seen[], out: Set<string> = new Set()): Promise<{ bas
     req.on("end", () => {
       const auth = String(req.headers["authorization"] ?? "");
       const body = raw === "" ? {} : (JSON.parse(raw) as { model?: string; messages?: Array<{ role: string; content: unknown }> });
-      seen.push({ url: req.url ?? "", auth, ...(body.model ? { model: body.model } : {}) });
+      seen.push({ url: req.url ?? "", auth, ...(body.model ? { model: body.model } : {}), sys: String(typeof body.messages?.[0]?.content === "string" ? body.messages![0]!.content : "").slice(0, 60) });
       if (auth !== `Bearer ${SPACE_KEY}` && auth !== `Bearer ${OWNER_KEY}`) { res.writeHead(401, { "content-type": "application/json" }); res.end('{"error":"bad key"}'); return; }
       if (req.method === "GET" && req.url === "/v1/models") { res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ data: [{ id: "glm-test" }, { id: "kimi-test" }] })); return; }
       if (req.method === "POST" && req.url === "/v1/chat/completions") {
@@ -131,8 +131,11 @@ test("Team: the owner sets a Space AI key; members with no account each get a re
     }
 
     const completions = seen.filter((s) => s.url === "/v1/chat/completions");
-    assert.equal(completions.length, MEMBERS.length, JSON.stringify(seen));
-    assert.ok(completions.every((s) => s.auth === `Bearer ${SPACE_KEY}`), "every member turn went out on the Space key");
+    // three requests per member, all on the Space key because that is the only account these members have: the turn itself, memory's learning pass after it ("You keep one person's private memory") and the chat's
+    // title ("You name a chat"). The pass and the title are one-shots asked as the member, on the account that ran their turn; neither could run before the Vault answered them as the person.
+    const kinds = (sys: string | undefined): string => (sys?.startsWith("You keep one person") ? "memory" : sys?.startsWith("You name a chat") ? "title" : "turn");
+    assert.deepEqual(MEMBERS.flatMap(() => ["turn", "memory", "title"]).sort(), completions.map((s) => kinds(s.sys)).sort(), JSON.stringify(seen));
+    assert.ok(completions.every((s) => s.auth === `Bearer ${SPACE_KEY}`), "every member request went out on the Space key");
     assert.ok(completions.every((s) => s.model === "glm-test"), "a model the key serves");
 
     // usage is the member's, against the key's item (the owner, who manages AI spend, reads it by person)

@@ -4,7 +4,7 @@
 // send queues for its next step and Interrupt sends it now.
 import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
-import { foldHelperRows, groupHelperStrips } from "./helper-rows.ts";
+import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
 import { useCrew } from "../crew/context.tsx";
 import { crewChipOf } from "../crew/model.ts";
 import { CrewIsland } from "../crew/island.tsx";
@@ -76,6 +76,8 @@ import {
 import type { Face as FaceModel, Message, Pending, SendKind, Thread } from "./model.ts";
 import { LoadFailed, failureOf } from "../../../../../../ui/src/States/Loads.tsx";
 import { messageLink } from "../../../share/rows.ts";
+import { useZones } from "../../../../../../ui/src/Time/index.tsx";
+import { offsetMinAt, zoneName } from "../../../../../../lib/zones.ts";
 
 type ThreadOut = CapMap["threads.get"]["out"];
 type MessagesOut = CapMap["chat.messages.list"]["out"];
@@ -187,6 +189,7 @@ function ConversationView(): ReactElement {
   const frame = useFrameStore();
   const inFrame = frame !== null;
   const data = useConversationData();
+  const zones = useZones();
   const compact = useContext(CompactContext);
   const liveTurns = useLiveTurns(data);
   const online = useOnline();
@@ -393,9 +396,13 @@ function ConversationView(): ReactElement {
   const timelineMessages = byOrder([...win.rows, ...collect(liveView ? stillPending(pending, win.rows) : [], (p, i) => pendingMessage(p, data.me.id, thread.threadId, (win.rows[win.rows.length - 1]?.threadSeq ?? 0) + 1 + i)), ...ghosts]);
   const pendingState = new Map<string, "sending" | "failed">();
   for (const p of stillPending(pending, win.rows)) pendingState.set(`pending:${p.key}`, p.state);
-  const folded = groupHelperStrips(foldHelperRows(timelineMessages));
+  const coders = (crew?.status?.members ?? []).filter((x) => x.kind === "teammate");
+  const coderThreads = new Set(coders.map((x) => x.id));
+  const folded = mergeCrewAnswer(hideCrewPosts(stripFromCoders(groupHelperStrips(foldHelperRows(timelineMessages)), coderThreads), coderThreads, new Set(coders.flatMap((x) => (x.jobId ? [x.jobId] : [])))));
   const woven = data.activity ? weave(folded, data.activity.events).filter((m) => keepItem(m, data.activity!.show)) : folded;
-  const items = timeline(woven, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: data.clock(), shared: thread.members.filter((p) => p.kind === "person").length >= 2 }).filter((it) => !(thread.kind === "thread" && it.kind === "day"));   // a thread has no day dividers: its root row and "N replies" lead
+  // a channel, or a chat between people, is shared: its times read in the Space zone; a chat with only you and your agents reads in your own
+  const sharedChat = thread.kind === "channel" || thread.members.filter((p) => p.kind === "person").length >= 2;
+  const items = timeline(woven, { meId: data.me.id, nameOf, kindOf: data.kindOf, clock: { ...data.clock(), ...(sharedChat ? { zones } : {}) }, shared: sharedChat }).filter((it) => !(thread.kind === "thread" && it.kind === "day"));   // a thread has no day dividers: its root row and "N replies" lead
   const lastLive = [...timelineMessages].reverse().find((m) => data.streamOf(m.messageId) !== undefined);
   const lastStream = lastLive ? data.streamOf(lastLive.messageId) : undefined;
   const queued = queuedCount(timelineMessages, data.me.id, isWorking);
@@ -568,6 +575,7 @@ function ConversationView(): ReactElement {
       status: crew.status, selected: crew.selected, peek: (id: string) => crew.show(id), openPane: () => crew.show(null),
       stopAll: () => void act.stopHelpers(data).then(() => crew.refresh(), fail("Could not stop the helpers.")),
       retry: (id: string) => void act.retryHelper(data, id, data.newKey()).then(() => crew.refresh(), fail("Could not start it again.")),
+      merge: (jobIds: readonly string[]) => void Promise.all(jobIds.map((jobId) => data.call("engine.crew.merge", { jobId, idempotencyKey: data.newKey() }))).then(() => { crew.refresh(); say("Merged."); }, fail("Could not merge it.")),
     } } : {}),
     share: (id, x, y) => void act.shareTargets(data, thread.threadId).then((targets) => {
       const entries: MenuEntry[] = [];
@@ -666,7 +674,7 @@ function ConversationView(): ReactElement {
         {isWorking ? <View testID="conversation-live" accessibilityLabel="Working" style={st.live}><View style={st.liveDot} /></View> : null}
         <View style={{ flex: 1 }} />
         {online ? null : <Text testID="conversation-offline" style={st.meta}>Offline</Text>}
-        {crewChip ? <IconButton icon="helper" label={crewChip.label} badge={crewChip.active > 0 ? crewChip.active : crewChip.total} testID="helpers-button" onPress={() => crew!.show(null)} />
+        {crewChip ? (crewChip.text !== "" && !narrow ? <Pressable accessibilityRole="button" accessibilityLabel={crewChip.label} testID="helpers-button" onPress={() => crew!.show(null)} style={st.crewChip}><Text testID="helpers-chip-text" style={st.crewChipText}>{crewChip.text}</Text></Pressable> : <IconButton icon="helper" label={crewChip.label} badge={crewChip.active > 0 ? crewChip.active : crewChip.total} testID="helpers-button" onPress={() => crew!.show(null)} />)
           : helpers.length > 0 ? <IconButton icon="helper" label={`${helpers.length} ${helpers.length === 1 ? "helper" : "helpers"} running`} badge={helpers.length} testID="helpers-button" onPress={helpersMenu} /> : null}
         {isWorking ? <IconButton icon="stop" label={stopLabel(working, nameOf)} danger testID="stop-button" onPress={stopMenu} /> : null}
         <IconButton icon="people" label={`${thread.members.length} in this chat`} badge={thread.members.length} testID="participants-button" onPress={peopleMenu} />
@@ -696,6 +704,7 @@ function ConversationView(): ReactElement {
       ) : null}
       <CatchUpLine onJump={(id) => setFocusId(id)} newest={live[live.length - 1]?.messageId ?? ""} credit={(id) => { const m = all.find((x) => x.author.id === id && onBehalfOf(x)); const ob = m ? onBehalfOf(m) : null; return ob ? `${nameOf(ob.person)} (Agent)` : undefined; }} />
       {note ? <Text testID="conversation-note" style={st.noteLine}>{note}</Text> : null}
+      {sharedChat ? <Text testID="zone-note" accessibilityLabel={`Times in this chat use ${zoneName(zones.space)}`} style={{ fontSize: 11.5, color: "var(--ink-3)" as string, textAlign: "center", paddingTop: 6, paddingHorizontal: 12 }}>{`Times here use ${zoneName(zones.space)}, the Space's time zone${zones.viewer !== zones.space && offsetMinAt(Date.now(), zones.viewer) !== offsetMinAt(Date.now(), zones.space) ? `. Hover a time to see yours.` : "."}`}</Text> : null}
       {thread.kind === "thread" ? <ThreadParent threadId={thread.parentThreadId} messageId={thread.parentMessageId} call={data.call as never} nameOf={nameOf} kindOf={data.kindOf} clock={data.clock()} count={thread.replyCount ?? all.length} writing={writingName} onOpen={thread.parentThreadId && thread.parentMessageId ? () => data.nav.openThread(thread.parentThreadId!, thread.parentMessageId!) : undefined} /> : null}
 
       {liveView ? null : (
@@ -882,6 +891,8 @@ const st = StyleSheet.create({
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: "var(--ok)" as string },
   liveText: { fontSize: 12, color: "var(--ink-2)" as string },
   meta: { fontSize: 12, color: "var(--ink-3)" as string },
+  crewChip: { height: 26, paddingHorizontal: 10, borderRadius: 13, justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
+  crewChipText: { fontSize: 12.5, color: "var(--accent)" as string, fontWeight: "500" },
   earlierBar: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, minHeight: 34, backgroundColor: "var(--side)" as string, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   earlierText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   noteLine: { paddingHorizontal: 16, paddingTop: 6, fontSize: 12, color: "var(--ink-3)" as string },

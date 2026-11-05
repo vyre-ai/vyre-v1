@@ -51,7 +51,7 @@ export function citeRender(members: readonly CrewMember[], onOpen: (m: CrewMembe
 const st = StyleSheet.create({
   chip: { minWidth: 19, height: 19, paddingHorizontal: 5, marginHorizontal: 1, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
   n: { fontSize: 11.5, fontWeight: "600", color: "var(--accent)" as string },
-  pop: { position: "absolute", bottom: 24, left: -8, width: 262, padding: 10, borderRadius: 14, gap: 4, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)", zIndex: 70 } as object,
+  pop: { position: "absolute", top: 24, left: -8, width: 262, padding: 10, borderRadius: 14, gap: 4, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)", zIndex: 70 } as object,
   who: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   role: { fontSize: 12.5, fontWeight: "400", color: "var(--ink-3)" as string },
   line: { fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },

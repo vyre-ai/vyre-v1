@@ -5,6 +5,7 @@ import { createCapCaller } from "../../../client/src/gateway/index.ts";
 import { routes } from "../../../generated/routes.ts";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding} from "./real-app-harness.test.ts";
 import type { CapMap } from "../../../generated/types.ts";
+import { guardCrashes } from "./crash-guard.ts";
 
 test("a task opens in the Tasks place from a link, and its title, status, assignee, due date and comments change and persist; a second editor on an old version is told, not overwritten", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
@@ -13,6 +14,7 @@ test("a task opens in the Tasks place from a link, and its title, status, assign
   const space = await bootFreshSpace(), web = await edge(dist, space.url);
   const browser = await chromium.launch({ executablePath: process.env["CHROME_BIN"] || chromium.executablePath(), args: ["--no-sandbox"] });
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 } }), page = await context.newPage();
+  const guard = guardCrashes(page);
   const errors: string[] = [], refused: string[] = []; page.on("pageerror", (error) => errors.push(error.message));
   page.on("console", (message) => { if (message.type() === "error") console.error("Task page console", message.text()); });
   page.on("response", (response) => { if (response.url().includes("/v1/") && response.status() >= 400) void response.text().then((text) => refused.push(`${response.status()} ${new URL(response.url()).pathname}: ${text.slice(0, 300)}`)); });
@@ -67,9 +69,11 @@ test("a task opens in the Tasks place from a link, and its title, status, assign
       await route.continue();
     });
     await page.getByTestId("task-title").blur();
-    await page.getByTestId("task-line").waitFor({ timeout: 15_000 });
-    const said = await page.getByTestId("task-line").innerText();
-    assert.match(said, /changed while you were editing/); assert.match(said, /Someone else's title/); assert.match(said, /not saved/);
+    // the conflict card (task-conflict, since the Markdown editor change): who changed it, for the title their value beside the task's current one, and a plain line that nothing is lost
+    await page.getByTestId("task-conflict").waitFor({ timeout: 15_000 }).catch(async (e: unknown) => { await guard.check("waiting for the conflict card"); throw e; });
+    await guard.check("after the conflict card");
+    const said = await page.getByTestId("task-conflict").innerText();
+    assert.match(said, /changed this task while you were editing/); assert.match(said, /Someone else's title/); assert.match(said, /My edit on an old version/); assert.match(said, /not saved yet/);
     const after = await read();
     assert.equal(after.title, "Someone else's title", "the second save did not overwrite the first");
     assert.ok(after.version! > base);
@@ -82,6 +86,7 @@ test("a task opens in the Tasks place from a link, and its title, status, assign
     await page.setViewportSize({ width: 390, height: 844 }); await page.reload({ waitUntil: "load" }); await page.getByTestId("task-detail").waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "the task page fits phone width");
     if (captureDir) await page.screenshot({ path: `${captureDir}/task-phone.png`, fullPage: true });
+    await guard.check("at the end");
     assert.deepEqual(errors, []);
   } catch (failure) {
     const dir = process.env["VYRE_TEST_CAPTURE_DIR"] ?? "/tmp/vyre-task-page-failure"; fs.mkdirSync(dir, { recursive: true });

@@ -50,7 +50,8 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
         if (await page.$("[data-testid='add-agent']")) await page.click("[data-testid='add-agent']", { timeout: 8000 });
         else { await page.click("[data-testid='composer-attach']", { timeout: 8000 }); await page.click("[data-testid='row-plus-people']", { timeout: 8000 }); }
         await page.waitForSelector("[data-testid='add-sheet']", { timeout: 8000 });
-      } else if (op === "click") await page.click(await pick(page, a), { timeout: 8000 });
+      } else if (op === "rclick") await page.click(await pick(page, a), { button: "right", timeout: 8000 });
+      else if (op === "click") await page.click(await pick(page, a), { timeout: 8000 });
       else if (op === "fill") await page.fill(a, b, { timeout: 8000 });
       else if (op === "wait") await page.waitForSelector(a, { timeout: 8000 });
     } catch (e) { errs.push(`${op} ${a ?? ""}: ${String(e).slice(0, 120)}`); }

@@ -1,5 +1,6 @@
 // @reads /modules/agents/migrations/0001_agents.sql
 // @reads /modules/agents/migrations/0012_install.sql
+// @reads /modules/agents/migrations/0013_skill_rev_version.sql
 // Rows of the agents module (the agent, its routines, suggestions, snapshots and the template state), the agent.toml reader and writer, the checks a configuration must pass, the ports to Files
 // (every file of an agent is a file in Agents/<name>), and the small pure helpers the handlers share (status, cron, unified diffs).
 // Every statement names an agents_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
@@ -54,7 +55,7 @@ export const askerOf = (ctx: Pick<AgentsCtx, "principal" | "actingFor">): string
 
 // ---- schema -----------------------------------------------------------------------------------------------------------------------------------------
 
-const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql", "0008_skill_scopes.sql", "0009_connections_home.sql", "0010_routine_by.sql", "0011_chat_owned.sql", "0012_install.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
+const SCHEMA = ["0001_agents.sql", "0002_routine_watch.sql", "0003_skills.sql", "0004_plugins.sql", "0005_mcp_hub_auth.sql", "0006_agent_kind.sql", "0007_outside.sql", "0008_skill_scopes.sql", "0009_connections_home.sql", "0010_routine_by.sql", "0011_chat_owned.sql", "0012_install.sql", "0013_skill_rev_version.sql"].map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8")).join("\n")
   .split("\n").filter((l) => !l.trimStart().startsWith("--")).join("\n")
   .split(";").map((s) => s.trim()).filter((s) => s.length > 0);
 const ready = new WeakSet<object>();

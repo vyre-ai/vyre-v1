@@ -30,7 +30,7 @@ export function InstalledFromLinks({ call, nameOf = (id) => id }: { call: Call; 
   const [note, setNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   // a row has an update when a newer commit exists; looked at once, a few at a time, and only then does the row say so
-  const [ready, setReady] = useState<Record<string, { version: string }>>({});
+  const [ready, setReady] = useState<Record<string, { version: string; older: boolean }>>({});
   const load = useCallback(async (): Promise<void> => {
     try { setRows(((await call("install.list", { all: true })) as { installs: Install[] }).installs); } catch { setRows([]); }
   }, [call]);
@@ -40,7 +40,7 @@ export function InstalledFromLinks({ call, nameOf = (id) => id }: { call: Call; 
     void (async () => {
       for (const i of (rows ?? []).filter((x) => x.kind !== "mcp_remote").slice(0, 6)) {
         const out = (await call("install.check_update", { installId: i.installId }).catch(() => null)) as { changed: boolean; plan?: Plan } | null;
-        if (live && out?.changed && out.plan) setReady((r) => ({ ...r, [i.installId]: { version: out.plan?.version ?? shortOf(out.plan?.commit ?? "") } }));
+        if (live && out?.changed && out.plan) setReady((r) => ({ ...r, [i.installId]: { version: out.plan?.version ?? shortOf(out.plan?.commit ?? ""), older: out.plan?.diff?.older === true } }));
       }
     })();
     return () => { live = false; };
@@ -74,7 +74,7 @@ export function InstalledFromLinks({ call, nameOf = (id) => id }: { call: Call; 
     <Section title="Installed from links" testID="skills-installed-section" note="Each is pinned to the commit it was read at. Nothing updates by itself: See changes shows what a newer commit does first.">
       {rows.map((i) => (
         <Row key={i.installId} id={`install-row-${i.installId}`} tall title={i.name} titleSuffix={KIND_SHORT[i.kind]}
-          {...(ready[i.installId] ? { titleMarks: <Text testID={`install-ready-${i.installId}`} style={{ fontSize: 12, color: "var(--accent)" }}>{`v${ready[i.installId]!.version.replace(/^v/, "")} is ready`}</Text> } : {})}
+          {...(ready[i.installId] ? { titleMarks: <Text testID={`install-ready-${i.installId}`} style={{ fontSize: 12, color: "var(--accent)" }}>{`v${ready[i.installId]!.version.replace(/^v/, "")} ${ready[i.installId]!.older ? "is an older version" : "is ready"}`}</Text> } : {})}
           note={`${nameOf(i.by)} installed it ${dayOf(i.at)} · for ${FOR_WORDS[String(i.installed["for"] ?? "me")] ?? "you"} · ${i.commit ? `Commit ${shortOf(i.commit)}` : i.repo || i.url}${i.version ? ` · v${i.version.replace(/^v/, "")}` : ""}`}
           leading={tileOf(i)}
           trailing={<View style={{ flexDirection: "row", gap: 6 }}>

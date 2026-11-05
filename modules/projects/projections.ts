@@ -534,6 +534,11 @@ export function revsOf(db: Db, projectId: string, limit = 50): RevRow[] {
     before: parseJson<PageBlock[]>(r["before"], []), props: parseJson<Record<string, unknown> | undefined>(r["props"], undefined),
   }));
 }
+/** The blocks the page had as of one revision (what that revision saved), or undefined when it is gone (the oldest beyond 200 are dropped). */
+export function revBlocks(db: Db, projectId: string, rev: number): PageBlock[] | undefined {
+  const r = (db.all("SELECT blocks FROM projects_doc_rev WHERE projectId = ? AND rev = ?", projectId, rev) as Row[])[0];
+  return r === undefined ? undefined : parseJson<PageBlock[]>(r["blocks"], []);
+}
 /** Write the page as a new revision. The oldest revisions beyond 200 are dropped. */
 export function saveDoc(db: Db, projectId: string, o: { blocks: PageBlock[]; before: PageBlock[]; props?: Record<string, unknown> | undefined; by: string; authorKind: "person" | "agent"; summary: string; undoOf?: number | undefined; at: number }): number {
   const rev = (docOf(db, projectId)?.rev ?? 0) + 1;

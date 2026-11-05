@@ -12,7 +12,7 @@ const taskState = t.enm('todo', 'doing', 'in_review', 'awaiting_approval', 'done
 const taskKindKey = t.enm('work', 'approve', 'review', 'answer', 'unblock', 'signature');
 const blockIn = t.obj({ type: t.str({ examples: ['record_card'] }), v: t.opt(t.int({ minimum: 1 })), data: t.json() });
 const source = t.obj({ kind: t.enm('chat', 'run', 'gate', 'journey', 'meeting', 'goal', 'manual'), id: t.str({ examples: ['run_a1b2c3'] }) });
-const action = t.obj({ key: t.str({ examples: ['approve'] }), label: t.str({ examples: ['Approve'] }), note: t.opt(t.enm('required', 'optional')) });
+const action = t.obj({ key: t.str({ examples: ['approve'] }), label: t.str({ examples: ['Allow'] }), note: t.opt(t.enm('required', 'optional')) });
 
 const priority = t.enm('urgent', 'high', 'normal', 'low');
 const recur = t.obj({ every: t.enm('day', 'week', 'month'), n: t.opt(t.int({ minimum: 1, maximum: 365 })) });
@@ -262,8 +262,8 @@ export default defineManifest({
     taskKind('approve', 'Approve', {
       needsYou: true, initial: 'awaiting_approval', closeOn: 'act', slots: ['approver'],
       actions: [
-        { key: 'approve', label: 'Approve', to: 'done', note: 'optional' },
-        { key: 'reject', label: 'Send back', to: 'doing', note: 'required' },
+        { key: 'approve', label: 'Allow', to: 'done', note: 'optional' },
+        { key: 'reject', label: 'Deny', to: 'doing', note: 'required' },
         { key: 'delegate', label: 'Hand over', cap: 'tasks.delegate', note: 'optional' },
         { key: 'snooze', label: 'Snooze', cap: 'tasks.snooze' },
       ],

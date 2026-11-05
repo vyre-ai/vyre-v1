@@ -1,21 +1,24 @@
 {
   "module": "hooks",
   "capabilities": {
-    "hooks.allow_once@1": "c57ca65447a87a2c5bd63de791392c5d4a6834a3f69ca84879087e0fc096101a",
+    "hooks.allow_always@1": "e0ff439cfdde814f8dcfa185a07592ce233cb1b5f690a1d59e78484436dff913",
+    "hooks.allow_once@1": "13b6727b9d845e9ab6753281ea16d3bffe19d78d7322e74e9db8a2a09646326c",
+    "hooks.allow_remove@1": "ffb3e9f434d3d432a8b9efafe7c676ec6d243466a5e476e7197f4208c5ab617e",
     "hooks.ask_admin@1": "48311cdf6c127983a9dff91e29ec5f178bc3afaa2bddd47d041ea1f1e3f5aed4",
+    "hooks.deny@1": "3d1b63a350eb70b1a53a75a98fc360560d17beee96e42c1d55ad5ea7b3d7c081",
     "hooks.fire@1": "c17b6c155750dc24e9e8b32aeae0baa282d2353c873cd05881048878a3477cec",
-    "hooks.list@1": "025fd2bb395615596897e1bfd0d9329776a5c659da62b36ba6e4bafe4590569a",
-    "hooks.pause@1": "0a9914a398fd10c545af6fd0f19776376ead1e662b1ef0fd4d8c6af71da2961b",
+    "hooks.list@1": "3d65ca63f8fdd7d3de83ef2c544d1148ebb2d928e7091d8191e9e65fd3d789bc",
+    "hooks.pause@1": "3278661ac0b494630a48df1ecd8112920738ba296db5727135e9f3b126cdc515",
     "hooks.policy.get@1": "157740ee212569141a6e5e8c39c6b4818fe69cdfbe605ed681c2c3289ccc44c7",
     "hooks.policy.set@1": "b20e770b98cdb3169c4e0ee9d054ab7221c49629aa1178faeac9e8e526302804",
     "hooks.remove@1": "016d707bd3e9308da0e22efdd6c32eb8df15f0b9cc95adad0ce2caca2c1991e7",
-    "hooks.runs.latest@1": "933047bfa6cb2e30065364e6310364848bc1a964a4e64f47fb1bdb4582048f5d",
-    "hooks.runs.list@1": "f5814391b71ab3ba54a4f71afa526a9b3957519d8de8904b74beef436da70c3c",
-    "hooks.set@1": "2af44124a1fee84ac447d1b85a7a80956f76fc447e206524aa21657fce73fb85"
+    "hooks.runs.latest@1": "9f945373d790d94bd104dea35986d9dfb2da34a8915c3aa75328f8bbb1bb2e68",
+    "hooks.runs.list@1": "940dc6114721db7006dabf84c7965904561dcd6a3a15772b07b687c6c4f5c484",
+    "hooks.set@1": "07543072223b2afcfbe8eebf6d27c72a3a83c193b2662fa085e700227f96fbb3"
   },
   "events": {
     "hook.admin_asked": "f5d03c981358e6122f9b2851fd8536c68741a7211d8470871179ecd8ba1d1a8c",
     "hook.blocked": "e68b65fa3ea69622cf014d1a4450242029a3ead809c1a12450ea3c7116e0f0aa",
-    "hook.changed": "721e815aaf2d62c4562759fa1c8144e419131db3bc9256fcbcfcbc7c69700262"
+    "hook.changed": "81ddcdf8d5538ff9099f6bc2a61a2ee324d6c9a7730a2b4744badd8b490b9c46"
   }
 }

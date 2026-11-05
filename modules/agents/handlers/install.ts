@@ -71,6 +71,7 @@ export function saveFor(ctx: AgentsCtx, o: { owner: string; text: string; files:
   }
   const rev = Number((revsOf(ctx, id)[0] ?? {})["rev"] ?? 0) + 1;
   ctx.db.run("INSERT INTO agents_skill_rev (skill_id, rev, text, files_json, by_who, author_kind, summary, undo_of, at) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?)", id, rev, o.text, JSON.stringify(o.files), me(ctx), authorKind(ctx), o.summary ?? (was ? "changed" : "created"), now);
+  noteVersion(ctx, id, rev, o.version ?? was?.version);
   // a new skill is born with its owner named (the person, or the person who owns the agent that keeps it): the host registers it as an access resource in the same commit, so its owner holds manage with nothing shared by anyone
   const ownerPerson = o.owner.startsWith("agt_") ? agentBy(ctx.db, o.owner)?.ownerId : o.owner;
   ctx.emit("skill.mine_changed", id, { skillId: id, name: parsed.skill.name, op: was ? "updated" : "added", by: me(ctx), ...(!was && ownerPerson ? { ownerId: ownerPerson } : {}) });
@@ -114,9 +115,19 @@ export async function mineAddShared(ctx: AgentsCtx, input: Parameters<typeof min
   return out;
 }
 
+/** The version a revision carried, kept beside it (the revisions table itself is never altered). */
+function noteVersion(ctx: AgentsCtx, skillId: string, rev: number, version: string | undefined): void {
+  if (version) ctx.db.run("INSERT OR REPLACE INTO agents_skill_rev_version (skill_id, rev, version) VALUES (?, ?, ?)", skillId, rev, version);
+}
+
+function versionOf(ctx: AgentsCtx, skillId: string, rev: number): string | undefined {
+  const row = (ctx.db.all("SELECT version FROM agents_skill_rev_version WHERE skill_id = ? AND rev = ?", skillId, rev) as Row[])[0];
+  return row ? str(row["version"]) : undefined;
+}
+
 export async function skillsHistory(ctx: AgentsCtx, input: In) {
   const o = need(ctx, input.skillId, "use");
-  return { revisions: revsOf(ctx, o.id).slice(0, 50).map((r) => ({ rev: Number(r["rev"]), by: str(r["by_who"]), authorKind: str(r["author_kind"]) as "person" | "agent", summary: str(r["summary"]), ...(r["undo_of"] !== null && r["undo_of"] !== undefined ? { undoOf: Number(r["undo_of"]) } : {}), at: Number(r["at"]) })) };
+  return { revisions: revsOf(ctx, o.id).slice(0, 50).map((r) => ({ rev: Number(r["rev"]), by: str(r["by_who"]), authorKind: str(r["author_kind"]) as "person" | "agent", summary: str(r["summary"]), ...(versionOf(ctx, o.id, Number(r["rev"])) ? { version: versionOf(ctx, o.id, Number(r["rev"]))! } : {}), ...(r["undo_of"] !== null && r["undo_of"] !== undefined ? { undoOf: Number(r["undo_of"]) } : {}), at: Number(r["at"]) })) };
 }
 
 /** Undo the latest version: the text and files of the version before it come back as a new version; undoing an undo brings back what it undid. */
@@ -198,7 +209,7 @@ interface Plan {
   kind: Kind; name: string; summary: string; repo: string; commit: string; url: string; path: string; flavor?: "claude" | "codex"; version?: string;
   needs: Needs; runs?: { command: string; args: string[] }; skills: string[]; problems: string[]; diff?: Diff;
 }
-interface Diff { from: string; to: string; fromVersion?: string; toVersion?: string; newAccess?: string[]; added: string[]; removed: string[]; changed: Array<{ path: string; plus: string[]; minus: string[] }> }
+interface Diff { from: string; to: string; fromVersion?: string; toVersion?: string; older?: boolean; newAccess?: string[]; added: string[]; removed: string[]; changed: Array<{ path: string; plus: string[]; minus: string[] }> }
 
 const jsonAt = (files: Files, path: string): Record<string, any> | null => { try { const j = JSON.parse(files[path] ?? ""); return j && typeof j === "object" ? j : null; } catch { return null; } };   // eslint-disable-line @typescript-eslint/no-explicit-any
 const MCP_HINT = /modelcontextprotocol|\bmcp[-_ ]?server\b|\bFastMCP\b|\bmcp\b.{0,40}\b(stdio|server)\b/i;
@@ -387,6 +398,15 @@ function diffOf(from: string, to: string, before: Files, after: Files): Diff {
   return { from, to, added: Object.keys(after).filter((p) => before[p] === undefined).sort(), removed: Object.keys(before).filter((p) => after[p] === undefined).sort(), changed: changed.slice(0, 30) };
 }
 
+/** Is version `a` lower than `b`? Numeric parts compared in order ("1.10.0" is above "1.9.0"); null when either has no number to compare. */
+export function versionBelow(a: string | undefined, b: string | undefined): boolean | null {
+  const parts = (v: string | undefined): number[] | null => { const m = /^v?(\d+(?:\.\d+)*)/.exec((v ?? "").trim()); return m ? m[1]!.split(".").map(Number) : null; };
+  const x = parts(a), y = parts(b);
+  if (!x || !y) return null;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] ?? 0) - (y[i] ?? 0); if (d !== 0) return d < 0; }
+  return false;
+}
+
 export async function checkUpdate(ctx: AgentsCtx, input: In) {
   ensure(ctx.db);
   const r = load(ctx, input.installId);
@@ -401,7 +421,7 @@ export async function checkUpdate(ctx: AgentsCtx, input: In) {
   found.diff = diffOf(str(r["commit_sha"]), revision, parse<Files>(r["files_json"], {}), files);
   // what the new version reaches that the one installed did not: the card says it in a line of its own
   const fresh = [...found.needs.domains, ...found.needs.vaultKeys].filter((x) => ![...(was.needs?.domains ?? []), ...(was.needs?.vaultKeys ?? [])].includes(x));
-  found.diff = { ...found.diff, ...(was.version ? { fromVersion: was.version } : {}), ...(found.version ? { toVersion: found.version } : {}), newAccess: fresh };
+  found.diff = { ...found.diff, ...(was.version ? { fromVersion: was.version } : {}), ...(found.version ? { toVersion: found.version } : {}), ...(versionBelow(found.version, was.version) === true ? { older: true } : {}), newAccess: fresh };
   const id = save(ctx, { asker: me(ctx), agentId: str(r["agent_id"]), url: str(r["url"]), p: found, files, updateOf: str(r["id"]) });
   await card(ctx, id, found, true, str(r["id"]));
   return { changed: true, plan: planOut(ctx, id, found, "planned") };
@@ -422,12 +442,12 @@ function insertPlugin(ctx: AgentsCtx, o: { name: string; scope: "space" | "agent
 
 function contentsOf(p: Plan, files: Files): PluginContents {
   if (p.kind === "mcp_local") {
-    return { name: p.name, description: p.summary, version: short(p.commit), userConfig: [], skills: [], commands: [], agents: [], hooks: [], warnings: [],
+    return { name: p.name, description: p.summary, version: p.version ?? short(p.commit), userConfig: [], skills: [], commands: [], agents: [], hooks: [], warnings: [],
       mcpServers: [{ name: p.name, transport: "stdio", command: p.runs!.command, args: p.runs!.args, env: {}, headers: {} }] };
   }
   if (p.flavor === "codex") {
     const found = skillsInTree(files, p.name).skills;
-    return { name: p.name, description: p.summary, version: short(p.commit), userConfig: [], skills: found.map((s) => ({ name: s.name, description: s.description, text: s.text, files: s.files })), commands: [], agents: [], hooks: [], mcpServers: [], warnings: [] };
+    return { name: p.name, description: p.summary, version: p.version ?? short(p.commit), userConfig: [], skills: found.map((s) => ({ name: s.name, description: s.description, text: s.text, files: s.files })), commands: [], agents: [], hooks: [], mcpServers: [], warnings: [] };
   }
   const c = readPlugin(files);
   if (c.name === "") c.name = p.name;
@@ -461,12 +481,12 @@ export async function apply(ctx: AgentsCtx, input: In) {
     if (p.kind === "skill" && was["skillId"]) {
       const s = skillsInTree(files, p.name).skills[0]!;
       const o = ownById(ctx, String(was["skillId"]));
-      if (o) saveFor(ctx, { owner: o.owner, text: s.text, files: s.files, source: sourceOf(p), version: short(p.commit), skillId: o.id, summary: `updated to ${short(p.commit)}` });
+      if (o) saveFor(ctx, { owner: o.owner, text: s.text, files: s.files, source: sourceOf(p), version: p.version ?? short(p.commit), skillId: o.id, summary: `updated to ${short(p.commit)}` });
     } else if (was["siteId"]) {
       // a site, or a server run on the Space: the same site is built again from the new commit
       await call(ctx, "sites.deploy", { siteId: String(was["siteId"]), source: { repo: `https://github.com/${p.repo}`, branch: p.commit, ...(p.path ? { root: p.path } : {}) }, wait: false });
     } else if (was["pluginId"]) {
-      ctx.db.run("UPDATE agents_plugins SET version = ?, contents_json = ?, files_json = ? WHERE id = ?", short(p.commit), JSON.stringify(contentsOf(p, files)), JSON.stringify(files), String(was["pluginId"]));
+      ctx.db.run("UPDATE agents_plugins SET version = ?, contents_json = ?, files_json = ? WHERE id = ?", p.version ?? short(p.commit), JSON.stringify(contentsOf(p, files)), JSON.stringify(files), String(was["pluginId"]));
       ctx.emit("plugin.changed", String(was["pluginId"]), { pluginId: String(was["pluginId"]), name: p.name, by: me(ctx) });
     } else raise(ctx, "validation.precondition_failed", "That kind of install is updated by deploying it again on Sites.");
     ctx.db.run("UPDATE agents_install SET commit_sha = ?, plan_json = ?, files_json = ?, done_at = ? WHERE id = ?", p.commit, JSON.stringify(p), JSON.stringify(files), ctx.now(), str(old["id"]));
@@ -478,9 +498,16 @@ export async function apply(ctx: AgentsCtx, input: In) {
     case "skill": {
       const s = skillsInTree(files, p.name).skills[0];
       if (!s) raise(ctx, "validation.bad_input", "The skill could not be read again.");
-      if (forWho === "space") { await spaceInstall(ctx, { text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit) }); }
-      else if (forWho === "agent") { const o = saveFor(ctx, { owner: agentId, text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit), summary: `installed from ${p.repo}` }); done["skillId"] = o.id; }
-      else { const out = await mineAdd(ctx, { text: s!.text, files: s!.files, source: sourceOf(p), version: short(p.commit) }); done["skillId"] = out.skill.skillId; }
+      if (forWho === "space") { await spaceInstall(ctx, { text: s!.text, files: s!.files, source: sourceOf(p), version: p.version ?? short(p.commit) }); }
+      else if (forWho === "agent") { const o = saveFor(ctx, { owner: agentId, text: s!.text, files: s!.files, source: sourceOf(p), version: p.version ?? short(p.commit), summary: `Installed from a link · ${short(p.commit)}` }); done["skillId"] = o.id; }
+      else {
+        const out = await mineAdd(ctx, { text: s!.text, files: s!.files, source: sourceOf(p), version: p.version ?? short(p.commit) });
+        done["skillId"] = out.skill.skillId;
+        // the history of a skill installed from a link starts with where it came from and the exact commit
+        const mine = ownById(ctx, out.skill.skillId);
+        if (mine && revsOf(ctx, mine.id).length === 0) ctx.db.run("INSERT INTO agents_skill_rev (skill_id, rev, text, files_json, by_who, author_kind, summary, undo_of, at) VALUES (?, 1, ?, ?, ?, ?, ?, NULL, ?)", mine.id, mine.text, JSON.stringify(mine.files), me(ctx), authorKind(ctx), `Installed from a link · ${short(p.commit)}`, ctx.now());
+        if (mine) noteVersion(ctx, mine.id, 1, p.version ?? short(p.commit));
+      }
       break;
     }
     case "plugin": case "mcp_local": {
@@ -491,7 +518,7 @@ export async function apply(ctx: AgentsCtx, input: In) {
       const contents = contentsOf(p, files);
       // skills a plugin brings join the library the way a marketplace install adds them
       for (const sk of contents.skills) await (ctx.call?.("skills.add", { text: sk.text, name: `${p.name}:${sk.name}`, ...(owner ? { agentId: owner } : {}), source: `plugin:${p.name}`, files: sk.files, idempotencyKey: `${key}:skill:${sk.name}` }, { idempotencyKey: `${key}:skill:${sk.name}` }) ?? Promise.resolve()).catch(() => undefined);
-      done["pluginId"] = insertPlugin(ctx, { name: p.name, scope, agentId: owner, label: `github:${p.repo}`, contents, files, version: short(p.commit) });
+      done["pluginId"] = insertPlugin(ctx, { name: p.name, scope, agentId: owner, label: `github:${p.repo}`, contents, files, version: p.version ?? short(p.commit) });
       break;
     }
     case "mcp_remote": {

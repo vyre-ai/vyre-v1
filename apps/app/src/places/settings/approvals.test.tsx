@@ -39,5 +39,5 @@ test("with no rules the section says what goes here and how to make one", () => 
   const s = createSampleSettings(northwind);
   for (const r of s.replica.rows("allow")) s.replica.remove("allow", [String(r.id)]);
   const out = html(s, "signin");
-  assert.ok(out.includes("Nothing is always allowed") && out.includes("choose Always let"));
+  assert.ok(out.includes("Nothing is always allowed") && out.includes("choose Always allow"));
 });

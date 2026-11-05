@@ -3,6 +3,7 @@
 import { LinkPolicyProvider } from "../../../../../ui/src/reach/index.tsx";
 import { ConnectInlineHost } from "../connect/ConnectInline.tsx";
 import { TalkHost } from "../talk/TalkHost.tsx";
+import { ZonesHost } from "../zones/ZonesHost.tsx";
 import { Component, Suspense, lazy, useCallback, useEffect, useRef } from "react";
 import type { ComponentType, ErrorInfo, LazyExoticComponent, ReactElement, ReactNode } from "react";
 import { States } from "../../../../../ui/src/States/index.tsx";
@@ -97,5 +98,5 @@ export function PlaceHost({ place, runtime, hash = "", opened }: { place: PlaceI
       </PlaceBoundary>
     </PlaceHashProvider>
   );
-  return runtime ? <ShellRuntimeProvider value={runtime}><LinkPolicyProvider value={runtime.links ?? null}><ConnectInlineHost rt={runtime}><TalkHost rt={runtime}>{body}</TalkHost></ConnectInlineHost></LinkPolicyProvider></ShellRuntimeProvider> : body;
+  return runtime ? <ShellRuntimeProvider value={runtime}><LinkPolicyProvider value={runtime.links ?? null}><ConnectInlineHost rt={runtime}><ZonesHost rt={runtime}><TalkHost rt={runtime}>{body}</TalkHost></ZonesHost></ConnectInlineHost></LinkPolicyProvider></ShellRuntimeProvider> : body;
 }

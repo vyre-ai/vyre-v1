@@ -84,6 +84,7 @@ type Out = {
       to: string;
       fromVersion?: string;
       toVersion?: string;
+      older?: boolean;
       newAccess?: Array<string>;
       added: Array<string>;
       removed: Array<string>;
@@ -156,6 +157,7 @@ type Out = {
         "newAccess": [
           "example"
         ],
+        "older": true,
         "removed": [
           "example"
         ],
