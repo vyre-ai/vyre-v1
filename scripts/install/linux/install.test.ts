@@ -834,3 +834,97 @@ test("compose.server.yml: vyred may make the namespaces bubblewrap needs, and th
   assert.match(read(path.join(HERE, "vyre-server")), /printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\\n'/, "the updater writes the variable compose reads");
   assert.match(read(path.join(HERE, "install.sh")), /VYRE_AGENT_COMPUTER_IMAGE/, "the installer writes it too");
 });
+
+test("hand_off runs the current release's script when this one is not it, once, and never when it is", () => {
+  const dir = tmp();
+  try {
+    installFixture(dir);
+    fs.mkdirSync(path.join(dir, "releases/1.1.0/bin"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "releases/1.1.0/bin/vyre-server"), `#!/bin/sh\necho "current ran: $* handoff=$VYRE_HANDOFF dir=$VYRE_DIR"\n`, { mode: 0o755 });
+    // an old copy elsewhere: sourcing nothing, it is this script's real text with main run
+    const old = path.join(dir, "old-vyre-server");
+    fs.copyFileSync(SERVER, old);
+    const r = spawnSync("sh", [old, "doctor", "--quiet"], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_DIR: dir } });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /current ran: doctor --quiet handoff=1 dir=/, "same arguments, marked as the second hop");
+    // the current release's own script does not hand off to itself
+    assert.match(read(SERVER), /\[ "\$me" != "\$there" \] \|\| return 0/);
+    // a second hop never hands off again, even from a file that is not current
+    const r2 = spawnSync("sh", [old, "version"], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_DIR: dir, VYRE_HANDOFF: "1" } });
+    assert.equal(r2.stdout.trim(), "1.1.0");
+    // the release's own script (current) answers itself
+    fs.copyFileSync(SERVER, path.join(dir, "releases/1.1.0/bin/vyre-server"));
+    const r3 = spawnSync("sh", [path.join(dir, "current/bin/vyre-server"), "version"], { encoding: "utf8", env: { PATH: process.env.PATH ?? "", VYRE_DIR: dir } });
+    assert.equal(r3.stdout.trim(), "1.1.0");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("refresh_bin replaces an installed full copy with the wrapper, leaves a wrapper and a foreign file alone", () => {
+  const dir = tmp();
+  try {
+    installFixture(dir);
+    const bin = path.join(dir, "bin"); fs.mkdirSync(bin);
+    const f = path.join(bin, "vyre-server");
+    fs.copyFileSync(SERVER, f);
+    const r = sh(SERVER, "refresh_bin", { VYRE_DIR: dir, VYRE_BIN_DIR: bin });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(read(f), `#!/bin/sh\n# Vyre Server, installed by install.sh\nexec "${dir}/current/bin/vyre-server" "$@"\n`);
+    assert.equal(fs.statSync(f).mode & 0o111, 0o111);
+    const before = fs.statSync(f).mtimeMs;
+    sh(SERVER, "refresh_bin", { VYRE_DIR: dir, VYRE_BIN_DIR: bin });
+    assert.equal(fs.statSync(f).mtimeMs, before, "a wrapper is not rewritten");
+    fs.writeFileSync(f, "#!/bin/sh\necho someone else's\n");
+    sh(SERVER, "refresh_bin", { VYRE_DIR: dir, VYRE_BIN_DIR: bin });
+    assert.match(read(f), /someone else's/, "a file that is not ours stays");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("ensure_userns writes the sysctl file and applies it only where the kernel has the setting; doctor names it when it is 1", () => {
+  const dir = tmp();
+  try {
+    installFixture(dir);
+    const sd = path.join(dir, "sysctl.d");
+    const shim = path.join(dir, "shim"); fs.mkdirSync(shim);
+    fs.writeFileSync(path.join(shim, "sysctl"), `#!/bin/sh\necho "sysctl $*" >> "${dir}/sysctl.log"\n`, { mode: 0o755 });
+    const env = { VYRE_DIR: dir, VYRE_SYSCTL_DIR: sd, PATH: `${shim}:${process.env.PATH ?? ""}` };
+    // no such setting on this kernel: nothing is written
+    let r = sh(SERVER, "ensure_userns", { ...env, VYRE_TEST_USERNS_PROC: path.join(dir, "absent") });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(fs.existsSync(path.join(sd, "60-vyre-userns.conf")), false);
+    // the setting exists
+    const proc = path.join(dir, "userns"); fs.writeFileSync(proc, "1\n");
+    r = sh(SERVER, "ensure_userns", { ...env, VYRE_TEST_USERNS_PROC: proc });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(read(path.join(sd, "60-vyre-userns.conf")), /^kernel\.apparmor_restrict_unprivileged_userns = 0$/m);
+    assert.match(read(path.join(dir, "sysctl.log")), /^sysctl -p .*60-vyre-userns\.conf$/m, "applied now");
+    // doctor names it while it is 1, and not once it is 0
+    const finding = (v: string): string => { fs.writeFileSync(proc, v); return sh(SERVER, 'FINDINGS=""; DOWN=0; check_all >/dev/null 2>&1; printf "%s" "$FINDINGS"', { ...env, VYRE_TEST_USERNS_PROC: proc }).stdout; };
+    assert.match(finding("1\n"), /host\.userns[\s\S]*apparmor_restrict_unprivileged_userns is 1/);
+    assert.match(finding("0\n"), /host\.userns[\s\S]*allows the user namespaces/);
+    // the update and the rollback both call it, and the installer asks the release to
+    const text = read(SERVER);
+    assert.match(text, /refresh_bin\n  ensure_userns\n  reason=""/, "update");
+    assert.match(text, /refresh_bin\n  ensure_userns\n  up_stack \|\| die/, "rollback");
+    assert.match(read(path.join(HERE, "install.sh")), /userns_setting\n  pull_images/, "install");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("up_stack recreates Caddy when it is not on the vyred that runs now, and leaves it when it is", () => {
+  const dir = tmp();
+  try {
+    const run = (caddyMode: string): string => {
+      const log = path.join(dir, "dc.log"); fs.rmSync(log, { force: true });
+      const fake = `dc(){ echo "dc $*" >>"${log}"; case "$1 $2 $3" in "ps -q vyred") echo vy1 ;; "ps -q caddy") echo cd1 ;; esac; return 0; }; docker(){ case "$3" in "{{.Id}}") echo FULLVY ;; "{{.HostConfig.NetworkMode}}") echo "${caddyMode}" ;; esac; }`;
+      const r = sh(SERVER, `${fake}; up_stack`, { VYRE_DIR: dir });
+      assert.equal(r.status, 0, r.stderr);
+      return read(log);
+    };
+    const stale = run("container:OLDVY");
+    assert.match(stale, /^dc up -d --remove-orphans$/m);
+    assert.match(stale, /^dc up -d --force-recreate --no-deps caddy$/m, "Caddy on the old vyred is recreated");
+    const fresh = run("container:FULLVY");
+    assert.doesNotMatch(fresh, /force-recreate/, "Caddy on the running vyred is left alone");
+    const text = read(SERVER);
+    assert.doesNotMatch(text.slice(text.indexOf("cmd_update()")), /dc up -d --remove-orphans >\/dev\/null 2>&1; then reason/, "the update goes through up_stack");
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
