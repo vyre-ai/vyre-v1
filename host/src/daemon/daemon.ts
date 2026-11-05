@@ -1290,6 +1290,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         : runAsScheduled(call));
       invokeRef = invoke;
       gitProxy = createGitProxy({
+        spoolDir: path.join(paths.root, "git-spool"),
         space: spaceId, now, invoke: (cap, input, seed) => invokeRef(cap, input, seed), fill: githubFill,
         ...(o.gitUpstream ? { upstream: o.gitUpstream } : {}),
         ...(o.gitParkMs ? { parkMs: o.gitParkMs } : {}),

@@ -119,7 +119,7 @@ test("walk: connect, reach, a refused repository, Ask me first, the policy and a
     };
     const session = await githubEnv(port, PERSON, "thr_1", "agt_coder");
     assert.equal(session.env["VYRE_GIT_TOKEN"], "vgp_walk_session");
-    assert.deepEqual(made, [{ person: PERSON, agentId: "agt_coder", threadId: "thr_1", repos: ["vyre-ai/website"] }]);
+    assert.deepEqual(made, [{ person: PERSON, agentId: "agt_coder", threadId: "thr_1", repos: ["vyre-ai/website"], via: "address" }]);
     assert.equal(session.env["GH_TOKEN"], undefined);
     assert.equal(Object.values(session.env).some((v) => /gh[pousr]_/.test(v)), false, "no GitHub token under any name");
     assert.equal(g.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).length, mints, "no GitHub token was made for the session");

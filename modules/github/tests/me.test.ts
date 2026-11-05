@@ -197,7 +197,7 @@ test("one push: an approval covers exactly that push, once, and is not the repos
   await w.connect();
   policySet(w.h.ctx, { policy: { push_default: "ask" } });
   const ask = (consumer: string) => token(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer });
-  const A = "git.push:aaaaaaaaaaaaaaaa", B = "git.push:bbbbbbbbbbbbbbbb";
+  const A = `git.push:${"a".repeat(48)}`, B = `git.push:${"b".repeat(48)}`;
   await refused(ask(A), "permission.needs_approval");
   meApprove(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: A });
   await refused(ask(B), "permission.needs_approval");                              // another push is not covered
@@ -266,4 +266,17 @@ test("a return address rides in the state and a custom one is kept", async () =>
   const w = world();
   const c = await meConnect(w.h.ctx, { return: "https://space.vyre.test/settings" });
   assert.equal(Buffer.from(c.state.split(".")[1]!, "base64url").toString(), "https://space.vyre.test/settings");
+});
+
+test("a forced delete of the default branch needs its approval even under Always, and uses it up", async () => {
+  const w = world();
+  await w.connect();
+  policySet(w.h.ctx, { policy: { push_default: "always" } });
+  const D = `git.del:${"c".repeat(48)}`;
+  const ask = (consumer: string) => token(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer });
+  assert.ok((await ask(`git.push:${"c".repeat(48)}`)).handle, "an ordinary push under Always asks nothing");
+  await refused(ask(D), "permission.needs_approval");
+  meApprove(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: D });
+  assert.ok((await ask(D)).handle, "the approved delete goes");
+  await refused(ask(D), "permission.needs_approval");   // and only once
 });

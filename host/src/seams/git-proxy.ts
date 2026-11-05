@@ -15,9 +15,9 @@ import http from "node:http";
 import https from "node:https";
 import { sha256b64 } from "../../../kernel/src/seal/wire.ts";
 import fs from "node:fs";
+import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { once } from "node:events";
 import { defaultBranchOf, MAX_COMMAND_BYTES, needsOf, oneLine, PktError, readUpdate, refusedReport, remoteLine, repoOfPath } from "../../../lib/git-proxy.ts";
 import type { RefNeed, Update } from "../../../lib/git-proxy.ts";
 import type { CtxSeed, InvokeResult } from "../invoke.ts";
@@ -26,13 +26,19 @@ export const GIT_PATH = "/git/github/";
 export const PARK_MS = 10 * 60_000;
 const SESSION_MS = 6 * 3_600_000;
 const MAX_SESSIONS = 500;
+const MAX_SESSIONS_PERSON = 20;
+/** Pushes waiting for an answer: per person, and for the whole process. */
 const MAX_PARKED = 4;
+const MAX_PARKED_ALL = 32;
 /** What a parked push may put on disk while it waits (its pack, so the connection finishes its upload and the server's normal request timeout is never in the way). */
-const MAX_SPOOL = 2 * 1024 ** 3;
+const MAX_SPOOL = 1024 ** 3;
+/** Bytes spooled at once: per person, and for the whole process. */
+const MAX_SPOOL_PERSON = 2 * 1024 ** 3;
+const MAX_SPOOL_ALL = 4 * 1024 ** 3;
 
 export type GitInvoke = (cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>;
-export interface GitSessionIn { person: string; agentId?: string; threadId: string; repos: readonly string[] }
-export interface GitSession { person: string; agentId: string; threadId: string; repos: ReadonlySet<string>; expiresAt: number }
+export interface GitSessionIn { person: string; agentId?: string; threadId: string; repos: readonly string[]; /** "socket": the engine is behind a wall and reaches this only through the wall's own answer; its token is honoured nowhere else. */ via?: "address" | "socket" }
+export interface GitSession { person: string; agentId: string; threadId: string; repos: ReadonlySet<string>; expiresAt: number; local: boolean }
 
 /** What the engine is handed to point a session's git here (modules/engine/github-session.ts): a token, and the address of this proxy. */
 export interface GitProxyPort {
@@ -54,6 +60,8 @@ export interface GitProxyDeps {
   base: () => string;
   /** The Gate's answers, read from the event log: where it ends now, and the gate events after a point. */
   gate: { head(): Promise<number>; since(seq: number): Promise<Array<{ seq: number; name: string; payload: Record<string, unknown> }>> };
+  /** A private folder for what a parked push spools while it waits; emptied when the proxy starts. */
+  spoolDir?: string;
   /** How long a parked push waits for the person. */
   parkMs?: number;
   keepAliveMs?: number;
@@ -74,24 +82,40 @@ function messageOf(e: unknown): string {
   return typeof m === "string" && m !== "" ? oneLine(m) : "GitHub could not be reached through Vyre. Try again.";
 }
 
-export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(req: http.IncomingMessage, res: http.ServerResponse): boolean; live(): number } {
+export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; /** The public listener: honours only tokens made for an address. */ handle(req: http.IncomingMessage, res: http.ServerResponse): boolean; live(): number } {
   const now = d.now ?? Date.now;
   const upstream = new URL(d.upstream ?? "https://github.com");
   const parkMs = d.parkMs ?? PARK_MS, keepAliveMs = d.keepAliveMs ?? 8_000, pollMs = d.pollMs ?? 1_000;
   const sessions = new Map<string, GitSession>();
   const parked = new Map<string, number>();
+  let parkedAll = 0;
+  const spooled = new Map<string, number>();
+  let spooledAll = 0;
+  // what a parked push spools is kept in a private folder of this process, emptied now: a file left by a crash is never read again
+  const spoolDir = d.spoolDir ?? path.join(os.tmpdir(), `vyre-gitp-${typeof process.getuid === "function" ? process.getuid() : "u"}`);
+  try { fs.rmSync(spoolDir, { recursive: true, force: true }); fs.mkdirSync(spoolDir, { recursive: true, mode: 0o700 }); fs.chmodSync(spoolDir, 0o700); } catch { /* a push that cannot spool is refused when it tries */ }
 
   const port: GitProxyPort = {
     mint(s) {
       for (const [k, v] of sessions) if (v.expiresAt <= now()) sessions.delete(k);
-      if (sessions.size >= MAX_SESSIONS) { const oldest = [...sessions.entries()].sort((a, b) => a[1].expiresAt - b[1].expiresAt)[0]; if (oldest) sessions.delete(oldest[0]); }
+      // one person's sessions push out only their own oldest; a full table pushes out the oldest of whoever holds the most
+      const oldestOf = (who: (x: GitSession) => boolean): string | undefined => [...sessions.entries()].filter(([, v]) => who(v)).sort((a, b) => a[1].expiresAt - b[1].expiresAt)[0]?.[0];
+      const mine = [...sessions.values()].filter((v) => v.person === s.person).length;
+      if (mine >= MAX_SESSIONS_PERSON) { const k = oldestOf((v) => v.person === s.person); if (k) sessions.delete(k); }
+      if (sessions.size >= MAX_SESSIONS) {
+        const counts = new Map<string, number>();
+        for (const v of sessions.values()) counts.set(v.person, (counts.get(v.person) ?? 0) + 1);
+        const heavy = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+        const k = oldestOf((v) => v.person === heavy);
+        if (k) sessions.delete(k);
+      }
       const token = `vgp_${rand(32)}`, expiresAt = now() + SESSION_MS;
-      sessions.set(sha(token), { person: s.person, agentId: s.agentId ?? "", threadId: s.threadId, repos: new Set(s.repos.map((r) => r.toLowerCase())), expiresAt });
+      sessions.set(sha(token), { person: s.person, agentId: s.agentId ?? "", threadId: s.threadId, repos: new Set(s.repos.map((r) => r.toLowerCase())), expiresAt, local: s.via === "socket" });
       return { token, expiresAt };
     },
     revoke(token) { sessions.delete(sha(token)); },
     base: () => d.base().replace(/\/+$/, ""),
-    serve: (req, res) => handle(req, res),
+    serve: (req, res) => handleFrom(req, res, true),
   };
 
   /** The person, for the reads that are theirs to make (their name, their settings). */
@@ -154,9 +178,10 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     if ("ok" in a) return { until: "ok", token: a.ok };
     if ("refused" in a) return { until: "no", message: a.refused };
     const who = await first(s);
-    const key = `${s.person}|${repo}`;
-    if ((parked.get(key) ?? 0) >= MAX_PARKED) return { until: "no", message: "Too many pushes are already waiting for an answer. Answer them in Vyre, then try again." };
+    const key = s.person;
+    if ((parked.get(key) ?? 0) >= MAX_PARKED || parkedAll >= MAX_PARKED_ALL) return { until: "no", message: "Too many pushes are already waiting for an answer. Answer them in Vyre, then try again." };
     parked.set(key, (parked.get(key) ?? 0) + 1);
+    parkedAll++;
     try {
       void card(s, a.held, `${say.title} on ${repo}`);
       o.onWait?.(who);
@@ -177,6 +202,7 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
         await sleep(Math.min(pollMs, Math.max(1, deadline - now())));
       }
     } finally {
+      parkedAll--;
       const n = (parked.get(key) ?? 1) - 1;
       if (n <= 0) parked.delete(key); else parked.set(key, n);
     }
@@ -237,7 +263,7 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     res.end(`${text}\n`);
   };
 
-  function sessionOf(req: http.IncomingMessage): GitSession | null {
+  function sessionOf(req: http.IncomingMessage, local: boolean): GitSession | null {
     const h = String(req.headers.authorization ?? "");
     let token = "";
     if (/^basic /i.test(h)) { const raw = Buffer.from(h.slice(6).trim(), "base64").toString("utf8"); token = raw.slice(raw.indexOf(":") + 1); }
@@ -246,20 +272,17 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     const s = sessions.get(sha(token));
     if (!s) return null;
     if (s.expiresAt <= now()) { sessions.delete(sha(token)); return null; }
+    if (s.local !== local) return null;   // a token made for the wall's own answer is honoured only there, and an address token only at the address
     return s;
   }
 
   // ---- a fetch
 
   async function upload(s: GitSession, repo: string, tail: "info/refs" | "git-upload-pack", req: http.IncomingMessage, res: http.ServerResponse, query: string): Promise<void> {
-    const inScope = s.repos.has(repo.toLowerCase());
-    // a repository outside this chat is read without any credential: a public one works, a private one is GitHub's own refusal
-    let token: string | null = null;
-    if (inScope) {
-      const got = await obtain(s, repo, "read", { title: "Read", phrase: "the read" }, { gone: () => res.destroyed });
-      if (got.until === "no") return plain(res, 403, got.message);
-      token = got.token;
-    }
+    if (!s.repos.has(repo.toLowerCase())) return plain(res, 403, `This session can read only the repositories of its chat. ${repo} is not one of them.`);
+    const got = await obtain(s, repo, "read", { title: "Read", phrase: "the read" }, { gone: () => res.destroyed });
+    if (got.until === "no") return plain(res, 403, got.message);
+    const token = got.token;
     const { req: up, response } = open(req.method ?? "GET", upstreamUrl(repo, tail, query), passHeaders(req, token));
     up.once("error", () => { /* surfaced through response */ });
     if (req.method === "POST") req.pipe(up); else up.end();
@@ -301,31 +324,47 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     res.once("close", () => { if (!res.writableEnded) gone = true; });
     // While the push waits for the person, the rest of its body is taken off the connection onto disk, so the upload finishes at once and the server's ordinary request timeout never reaches a
     // parked push. It is replayed to GitHub after the yes and deleted either way. Nothing is read into memory beyond one chunk.
-    let spool: { file: string; done: Promise<boolean> } | null = null;
+    // The file is opened and its name removed at once: what is read back is the open file, never a path someone could swap, and a crash leaves nothing behind.
+    interface Spool { done: Promise<boolean>; fh: fsp.FileHandle | null; bytes: number }
+    let spool: Spool | null = null;
     let stopSpool = false;
     const startSpool = (): void => {
       if (spool) return;
-      const file = path.join(os.tmpdir(), `vyre-gitp-${globalThis.crypto.randomUUID()}`);
-      const ws = fs.createWriteStream(file, { mode: 0o600 });
-      ws.on("error", () => { stopSpool = true; });
-      spool = { file, done: (async (): Promise<boolean> => {
-        let bytes = 0, ok = true;
+      const sp: Spool = { done: Promise.resolve(false), fh: null, bytes: 0 };
+      spool = sp;
+      sp.done = (async (): Promise<boolean> => {
+        let ok = true, at = 0;
+        try {
+          const file = path.join(spoolDir, globalThis.crypto.randomUUID());
+          sp.fh = await fsp.open(file, "wx+", 0o600);
+          await fsp.unlink(file);
+        } catch { ok = false; }
         try {
           for (;;) {
             const n = await it.next();
             if (n.done) break;
-            bytes += (n.value as Buffer).length;
-            if (bytes > MAX_SPOOL) ok = false;
-            if (stopSpool || !ok) continue;   // dropped: the push is over or too big, what is left is read and discarded
-            if (!ws.write(n.value as Buffer)) await once(ws, "drain");
+            const c = n.value as Buffer;
+            if (!ok || stopSpool) continue;   // dropped: the push is over, too big or has nowhere to go; what is left is read and discarded
+            if (at + c.length > MAX_SPOOL || (spooled.get(s.person) ?? 0) + c.length > MAX_SPOOL_PERSON || spooledAll + c.length > MAX_SPOOL_ALL) { ok = false; continue; }
+            spooled.set(s.person, (spooled.get(s.person) ?? 0) + c.length); spooledAll += c.length; sp.bytes += c.length;
+            await sp.fh!.write(c, 0, c.length, at);
+            at += c.length;
           }
         } catch { ok = false; }
-        ws.end();
-        await once(ws, "close").catch(() => undefined);
         return ok && !stopSpool;
-      })() };
+      })();
     };
-    const dropSpool = (): void => { stopSpool = true; const sp = spool; if (sp) void sp.done.finally(() => fs.rm(sp.file, { force: true }, () => undefined)); };
+    /** Give the bytes back to the caps and close the file (which has no name, so closing it deletes it). */
+    const releaseSpool = (): void => {
+      const sp = spool;
+      if (!sp) return;
+      void sp.done.finally(() => {
+        spooled.set(s.person, Math.max(0, (spooled.get(s.person) ?? 0) - sp.bytes)); if ((spooled.get(s.person) ?? 0) === 0) spooled.delete(s.person);
+        spooledAll = Math.max(0, spooledAll - sp.bytes); sp.bytes = 0;
+        void sp.fh?.close().catch(() => undefined);
+      });
+    };
+    const dropSpool = (): void => { stopSpool = true; releaseSpool(); };
 
     let read: { update: Update; head: Buffer };
     const got = { bytes: 0 };
@@ -368,10 +407,10 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     const kinds: Array<"push_default" | "push_branch"> = (["push_default", "push_branch"] as const).filter((k) => needs.some((n) => n.need === k));
     for (const kind of kinds) {
       const mine = needs.filter((n) => n.need === kind), say = sayOf(mine);
-      const got = await obtain(s, repo, kind, say, {
+      const got = await obtain(s, repo, kind, kind === "push_default" ? { ...say, title: `${say.title} (${mine.map((n) => (n.kind === "delete" ? `was ${n.command.old.slice(0, 7)}` : `${n.command.old.slice(0, 7)} to ${n.command.new.slice(0, 7)}`)).join(", ")})` } : say, {
         force: mine.some((n) => n.always),
-        // a push to the default branch is approved for exactly that push, once: repo, ref, old and new object (modules/github/handlers/me.ts)
-        ...(kind === "push_default" ? { consumer: `git.push:${Buffer.from(sha256b64(`${repo}\n${mine.map((n) => `${n.command.ref} ${n.command.old} ${n.command.new}`).sort().join("\n")}`), "base64url").toString("hex").slice(0, 16)}` } : {}),
+        // a push to the default branch is approved for exactly that push, once: repo, ref, old and new object (modules/github/handlers/me.ts). A delete of it carries its own prefix, which needs that approval even under Always.
+        ...(kind === "push_default" ? { consumer: `${mine.some((n) => n.always) ? "git.del" : "git.push"}:${Buffer.from(sha256b64(`${repo}\n${mine.map((n) => `${n.command.ref} ${n.command.old} ${n.command.new}`).sort().join("\n")}`), "base64url").toString("hex").slice(0, 48)}` } : {}),
         gone: () => gone,
         onWait: (who) => { startSpool(); start(); if (begun.v) res.write(remoteLine(`Waiting for ${who} to approve ${say.phrase}. Approve it in Vyre.`)); },
         onTick: (who) => { if (begun.v) res.write(remoteLine(`Still waiting for ${who} to approve ${say.phrase}...`)); },
@@ -390,12 +429,14 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
       const send = async (c: Buffer): Promise<void> => { if (!up.write(c)) await new Promise<void>((ok) => up.once("drain", ok)); };
       try {
         await send(head);
-        const sp = spool as { file: string; done: Promise<boolean> } | null;
+        const sp = spool as Spool | null;
         if (sp) {
-          // the rest of the body is on disk: replayed in order, then deleted
-          if (!(await sp.done)) { up.destroy(); return; }
-          for await (const c of fs.createReadStream(sp.file)) await send(c as Buffer);
-          fs.rm(sp.file, { force: true }, () => undefined);
+          // the rest of the body is in the open file: replayed in order, and released either way
+          try {
+            if (!(await sp.done) || !sp.fh) { up.destroy(); return; }
+            const size = sp.bytes;
+            if (size > 0) for await (const c of sp.fh.createReadStream({ start: 0, end: size - 1, autoClose: false })) await send(c as Buffer);
+          } finally { releaseSpool(); }
         } else {
           for (;;) {
             const n = await it.next();
@@ -416,13 +457,14 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     await pump;
   }
 
-  function handle(req: http.IncomingMessage, res: http.ServerResponse): boolean {
+  const handle = (req: http.IncomingMessage, res: http.ServerResponse): boolean => handleFrom(req, res, false);
+  function handleFrom(req: http.IncomingMessage, res: http.ServerResponse, local: boolean): boolean {
     const url = new URL(req.url ?? "/", "http://localhost");
     if (!url.pathname.startsWith(GIT_PATH)) return false;
     void (async () => {
       const found = repoOfPath(decodeURIComponent(url.pathname.slice(GIT_PATH.length)));
       if (!found) return plain(res, 404, "Not a repository address.");
-      const s = sessionOf(req);
+      const s = sessionOf(req, local);
       if (!s) return plain(res, 401, "Vyre does not know this session. Start the work again from a Vyre chat.", { "www-authenticate": 'Basic realm="Vyre"' });
       const { repo, tail } = found;
       if (tail === "info/refs") {
@@ -447,15 +489,15 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
    */
   async function advertisePush(s: GitSession, repo: string, req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     if (!s.repos.has(repo.toLowerCase())) return plain(res, 403, `This session can push only to the repositories of its chat. ${repo} is not one of them.`);
-    const gone = (): boolean => res.destroyed;
+    // GitHub shows a push its advertisement only to a write token, and nobody is asked at this point (the push that follows is the person's question, ref by ref): a kind of use the person's settings let
+    // run without asking makes the token, and if neither does the push is refused here in plain words.
     let modes: Record<string, string> = {};
-    try { const r = await d.invoke("github.me.policy.get", {}, seed(s)); modes = ((r.status === "ok" ? (r.output as { policy?: Record<string, string> } | null)?.policy : undefined) ?? {}); } catch { /* the token call below says why */ }
-    const open1 = (["push_branch", "push_default"] as const).filter((k) => modes[k] !== "never");
-    // a push that settings let through without asking goes first; otherwise the first that is not Never, and its question is the person's once, up front
-    const pick = open1.find((k) => modes[k] === "always") ?? open1[0] ?? "push_branch";
-    const got = await obtain(s, repo, pick, pick === "push_default" ? { title: "Push to the default branch", phrase: "the push to the default branch" } : { title: "Push a branch", phrase: "the push of a branch" }, { gone });
-    if (got.until === "no") return plain(res, 403, got.message);
-    const { req: up, response } = open("GET", upstreamUrl(repo, "info/refs", "?service=git-receive-pack"), passHeaders(req, got.token));
+    try { const r = await d.invoke("github.me.policy.get", {}, seed(s)); modes = ((r.status === "ok" ? (r.output as { policy?: Record<string, string> } | null)?.policy : undefined) ?? {}); } catch { /* refused below */ }
+    const pick = (["push_branch", "push_default"] as const).find((k) => modes[k] === "always");
+    if (!pick) return plain(res, 403, "Your GitHub settings ask before a session pushes a branch, so a session cannot start a push. Set 'Push a branch' to Always in Settings, GitHub.");
+    const got = await ask(s, repo, pick, false);
+    if (!("ok" in got)) return plain(res, 403, "refused" in got ? got.refused : "Your GitHub settings ask before a session pushes. Change them in Settings, GitHub.");
+    const { req: up, response } = open("GET", upstreamUrl(repo, "info/refs", "?service=git-receive-pack"), passHeaders(req, got.ok));
     up.end();
     let r: http.IncomingMessage;
     try { r = await response; } catch { return plain(res, 502, "GitHub could not be reached."); }

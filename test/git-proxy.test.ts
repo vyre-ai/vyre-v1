@@ -43,10 +43,10 @@ async function world(o: { modes?: Partial<Record<string, Mode>>; branch?: string
     if (cap === "github.token") {
       const mode = modes[i["action"]!];
       if (mode === "never") throw { error: { code: "validation.precondition_failed", message: `You set GitHub to never let anything ${i["action"] === "push_default" ? "push to the default branch" : "push a branch"}. Change it in Settings, GitHub.` } };
-      const once = /^git\.push:[0-9a-f]{16}$/.test(i["consumer"]!), gkey = once ? `${i["repo"]}#${i["consumer"]}|${i["action"]}` : `${i["repo"]}|${i["action"]}`;
+      const once = /^git\.(push|del):[0-9a-f]{48}$/.test(i["consumer"]!), forced = String(i["consumer"]).startsWith("git.del:"), gkey = once ? `${i["repo"]}#${i["consumer"]}|${i["action"]}` : `${i["repo"]}|${i["action"]}`;
       const had = grants.has(gkey);
       if (once) grants.delete(gkey);
-      if (mode === "ask" && !had) { const taskId = `tsk_${++n}`; holds.set(taskId, { repo: i["repo"]!, action: i["action"]!, consumer: i["consumer"]! }); return { status: "held" as const, taskId, traceId: "t" }; }
+      if ((mode === "ask" || forced) && !had) { const taskId = `tsk_${++n}`; holds.set(taskId, { repo: i["repo"]!, action: i["action"]!, consumer: i["consumer"]! }); return { status: "held" as const, taskId, traceId: "t" }; }
       const handle = `#h${++n}`, token = `ghs_${i["action"] === "read" ? "read" : "write"}_${n}`;
       gh.tokens.set(token, i["action"] === "read" ? "read" : "write");
       fills.set(handle, token);
@@ -72,7 +72,7 @@ async function world(o: { modes?: Partial<Record<string, Mode>>; branch?: string
     throw new Error(`no ${cap}`);
   };
   // wall: the engine reaches the Space only through an egress proxy that answers the git name itself (sandbox/src/egress.ts), as a walled engine does through its unix socket; the Space has no public address
-  const wallProxy = o.wall ? createEgressProxy({ allow: [], rule: { egress: "list", allow: [] }, local: () => ({ host: GIT_LOCAL_HOST, handle: (q, r) => proxy.handle(q, r) }) }) : null;
+  const wallProxy = o.wall ? createEgressProxy({ allow: [], rule: { egress: "list", allow: [] }, local: () => ({ host: GIT_LOCAL_HOST, handle: (q, r) => proxy.port.serve(q, r) }) }) : null;
   const wallPort = wallProxy ? (await wallProxy.listen()).port : 0;
   const made = await githubEnv({ call, git: proxy.port }, PERSON, "thr_1", "agt_coder", o.wall ? "socket" : "address");
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-gitproxy-"));
@@ -87,7 +87,7 @@ async function world(o: { modes?: Partial<Record<string, Mode>>; branch?: string
   let seq = 0;
   const w: World = {
     gh, base, env, modes, posts, calls, holds, proxy, tmp, end: made.end, token: made.env["VYRE_GIT_TOKEN"]!, run,
-    approve(taskId) { const h = holds.get(taskId)!; grants.add(/^git\.push:/.test(h.consumer) ? `${h.repo}#${h.consumer}|${h.action}` : `${h.repo}|${h.action}`); events.push({ seq: ++seq, name: "gate.approved", payload: { taskId } }); },
+    approve(taskId) { const h = holds.get(taskId)!; grants.add(/^git\.(push|del):/.test(h.consumer) ? `${h.repo}#${h.consumer}|${h.action}` : `${h.repo}|${h.action}`); events.push({ seq: ++seq, name: "gate.approved", payload: { taskId } }); },
     deny(taskId) { events.push({ seq: ++seq, name: "gate.denied", payload: { taskId, mode: "drop" } }); },
     held: () => [...holds.keys()],
     async waitHeld(count = 1) {
@@ -158,7 +158,8 @@ test("a push to the default branch is held, never lands before the yes, and land
   assert.equal(landed(w), 0, "no push reached GitHub");
   assert.equal(w.posts.length, 1);
   const data = ((w.posts[0]!["blocks"] as Array<{ data: Record<string, unknown> }>)[0]!).data;
-  assert.deepEqual([data["icon"], data["lead"], data["title"], data["target"]], ["approval", "Approval", "Push to main on vyre-ai/website", { type: "task", id: taskId }]);
+  assert.match(String(data["title"]), /^Push to main \([0-9a-f]{7} to [0-9a-f]{7}\) on vyre-ai\/website$/, "the card names the push by its objects");
+  assert.deepEqual([data["icon"], data["lead"], data["title"], data["target"]], ["approval", "Approval", data["title"], { type: "task", id: taskId }]);
   w.approve(taskId);
   const r = await push;
   assert.equal(r.code, 0, r.out);
@@ -171,7 +172,7 @@ test("an approval is for that one push: the same push asks again, and another pu
   await w.commit(dir, "one.txt");
   const first = w.run(dir, "push", "origin", "HEAD:main");
   const t1 = await w.waitHeld();
-  assert.match(w.holds.get(t1)!.consumer, /^git\.push:[0-9a-f]{16}$/, "the question names the push");
+  assert.match(w.holds.get(t1)!.consumer, /^git\.(push|del):[0-9a-f]{48}$/, "the question names the push");
   w.approve(t1);
   assert.equal((await first).code, 0);
   // a second push to main, moments after the first was approved, asks on its own
@@ -204,6 +205,9 @@ test("behind a wall, on a Space with only a loopback address: clone, branch push
   assert.equal(done.code, 0, done.out);
   assert.match(done.out, /Waiting for Maya/);
   assert.equal(w.gh.ref(REPO, "refs/heads/main"), sha);
+  // a token made for the wall's own answer is not honoured at the public address, and an address token is not honoured through the wall
+  const pub = await fetch(`${w.base}/git/github/${REPO}.git/info/refs?service=git-upload-pack`, { headers: { authorization: `Basic ${Buffer.from(`vyre:${w.token}`).toString("base64")}` } });
+  assert.equal(pub.status, 401, "a wall token is refused on the public listener");
   // and a name that is not the git address is still the wall's to refuse
   assert.equal(w.proxy.live(), 1);
 }));
@@ -218,6 +222,32 @@ test("when the default branch cannot be learned the push is refused, never guess
   assert.match(r.out, /could not tell which branch is the default/);
   assert.equal(w.gh.ref(REPO, "refs/heads/main"), before);
   assert.equal(landed(w), 0);
+}));
+
+test("a repository outside the chat is neither fetched nor pushed, and a push is never started under Ask", T, () => withWorld({ modes: { push_branch: "ask" } }, async (w) => {
+  const other = await w.run(w.tmp, "clone", "https://github.com/other-org/secret.git", path.join(w.tmp, "o"));
+  assert.notEqual(other.code, 0);
+  assert.match(other.out, /only the repositories of its chat|403/);
+  assert.equal(w.gh.seen.some((s) => s.path.includes("other-org")), false, "nothing was sent upstream, with or without a credential");
+  const dir = await w.clone();
+  await w.run(dir, "checkout", "-b", "x");
+  await w.commit(dir, "x.txt");
+  const r = await w.run(dir, "push", "origin", "x");
+  assert.notEqual(r.code, 0);
+  assert.match(r.out, /Set 'Push a branch' to Always/);
+  assert.equal(w.held().length, 0, "nobody was asked at the setup of a push");
+  assert.equal(w.gh.writes().length, 0);
+}));
+
+test("sessions are capped per person first, and the waiting spool sits in a private folder", T, () => withWorld({}, async (w) => {
+  const mk = (person: string): string => w.proxy.port.mint({ person, threadId: "thr_1", repos: [REPO] }).token;
+  const mine = [mk("usr_a")];
+  for (let k = 0; k < 25; k++) mk("usr_flood");
+  assert.ok(w.proxy.live() <= 22, `one person's flood holds at most 20 (${w.proxy.live()})`);
+  const raw = await fetch(`${w.base}/git/github/${REPO}.git/info/refs?service=git-upload-pack`, { headers: { authorization: `Basic ${Buffer.from(`vyre:${mine[0]}`).toString("base64")}` } });
+  assert.notEqual(raw.status, 401, "the other person's session is still there");
+  const dir = path.join(os.tmpdir(), `vyre-gitp-${process.getuid?.() ?? "u"}`);
+  assert.equal((fs.statSync(dir).mode & 0o777).toString(8), "700");
 }));
 
 test("a no leaves GitHub untouched and git says so", T, () => withWorld({}, async (w) => {
@@ -292,7 +322,7 @@ test("deleting the default branch is held even when the settings say Always", T,
   const taskId = await w.waitHeld();
   assert.equal(w.holds.get(taskId)!.action, "push_default");
   assert.equal(w.posts.length, 1);
-  assert.equal(((w.posts[0]!["blocks"] as Array<{ data: Record<string, unknown> }>)[0]!).data["title"], "Delete main on vyre-ai/website");
+  assert.equal(((w.posts[0]!["blocks"] as Array<{ data: Record<string, unknown> }>)[0]!).data["title"]?.toString().replace(/ \(was [0-9a-f]{7}\)/, ""), "Delete main on vyre-ai/website");
   await new Promise((r) => setTimeout(r, 300));
   assert.equal(w.gh.ref(REPO, "refs/heads/main"), sha, "still there while it waits");
   w.deny(taskId);

@@ -226,18 +226,21 @@ async function installationOfRepo(ctx: GithubCtx, person: string, repo: string):
   throw fail("validation.not_found", ctx.trace.traceId, { message: "GitHub does not show you that repository through the Vyre app. Install the app on its owner, or ask the owner to." });
 }
 
-/** A push to the default branch asks for exactly that push (repo, ref, old and new object), once: the consumer carries a fingerprint of it (host/src/seams/git-proxy.ts). */
-const ONCE = /^git\.push:[0-9a-f]{16}$/;
+/**
+ * A push to the default branch asks for exactly that push (repo, ref, old and new object), once: the consumer carries a 192-bit fingerprint of it (host/src/seams/git-proxy.ts). A delete of the default
+ * branch carries its own prefix, git.del, and needs that approval whatever the person's settings say.
+ */
+const ONCE = /^git\.(push|del):[0-9a-f]{48}$/;
 
 /** Check the person's policy for the use; Always passes, Never refuses, Ask me first goes to the Gate and passes once approved. A consumer that names one push is approved for that push alone and the approval is used up by it. */
 async function allowed(ctx: GithubCtx, person: string, repo: string, action: Action, consumer: string): Promise<void> {
   const mode = policyOf(ctx, person)[action];
   if (mode === "never") refuse(ctx, `You set GitHub to never let anything ${WORDS[action]}. Change it in Settings, GitHub.`);
-  const once = ONCE.test(consumer);
-  const key = once ? `${repo}#${consumer.slice(9)}` : repo;
+  const once = ONCE.test(consumer), forced = consumer.startsWith("git.del:") && ONCE.test(consumer);
+  const key = once ? `${repo}#${consumer.slice(consumer.indexOf(":") + 1)}` : repo;
   const g = first(ctx.db.all(`SELECT "until" FROM github_grant WHERE "person" = ? AND "repo" = ? AND "action" = ?`, person, key, action));
   if (once && g) ctx.db.run(`DELETE FROM github_grant WHERE "person" = ? AND "repo" = ? AND "action" = ?`, person, key, action);   // used up, whether or not the settings needed it
-  if (mode === "ask" && (!g || Number(g.until) < ctx.now())) await ctx.call("github.me.approve", { repo, action, consumer, idempotencyKey: `gha-${ctx.now()}-${Math.random().toString(36).slice(2, 10)}` });   // a new question each time: the Gate's key is per ask, never a replay of an old answer   // the Gate holds this; it throws until the person approves, and the approval records the grant
+  if ((mode === "ask" || forced) && (!g || Number(g.until) < ctx.now())) await ctx.call("github.me.approve", { repo, action, consumer, idempotencyKey: `gha-${ctx.now()}-${Math.random().toString(36).slice(2, 10)}` });   // the Gate holds this; it throws until the person approves, and the approval records the grant
 }
 
 /**
@@ -274,7 +277,7 @@ export function meApprove(ctx: GithubCtx, input: { repo: string; action: Action;
   const person = ctx.principal.kind === "person" ? ctx.principal.id : ctx.actingFor;
   if (!person) throw fail("permission.no_grant", ctx.trace.traceId, { message: "An approval belongs to a person." });
   // one push: the grant is for that push alone (repo#fingerprint), is not the ten-minute window of the repository, and is used up by the push (allowed)
-  const key = ONCE.test(input.consumer) ? `${input.repo}#${input.consumer.slice(9)}` : input.repo;
+  const key = ONCE.test(input.consumer) ? `${input.repo}#${input.consumer.slice(input.consumer.indexOf(":") + 1)}` : input.repo;
   put(ctx, "github_grant", { person, repo: key, action: input.action }, { until: ctx.now() + (ONCE.test(input.consumer) ? ONCE_MS : GRANT_MS) });
   return { approved: true };
 }

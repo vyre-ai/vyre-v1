@@ -49,7 +49,7 @@ test("the environment points git at the Space with a proxy token, and holds no G
   assert.equal(env["GIT_CONFIG_KEY_1"], "credential.https://space.vyre.test/git/github/.helper");
   assert.equal(env["GIT_CONFIG_VALUE_1"], "", "the helpers git would try first are cleared for this address only");
   assert.match(env["GIT_CONFIG_VALUE_2"]!, /password=\$VYRE_GIT_TOKEN/);
-  assert.deepEqual(r.minted, [{ person: "usr_maya", agentId: "agt_coder", threadId: "thr_1", repos: ["northwind/site"] }]);
+  assert.deepEqual(r.minted, [{ person: "usr_maya", agentId: "agt_coder", threadId: "thr_1", repos: ["northwind/site"], via: "address" }]);
   assert.deepEqual(r.revoked, []);
   g.end();
   assert.deepEqual(r.revoked, ["vgp_session_one"], "the token ends with the process");

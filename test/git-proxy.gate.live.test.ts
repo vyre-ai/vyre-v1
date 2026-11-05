@@ -144,7 +144,8 @@ test("a real git push to main on a booted daemon: held, approved, landed; then a
     assert.equal(gh.ref(REPO, "refs/heads/main"), mainBefore, "not landed while it waits");
     assert.equal(landed(), 1, "only the branch push has reached GitHub with a write token");
     const card = await waitFor(d, async () => (await messages()).flatMap((m) => (m.blocks ?? []) as J[]).find((blk) => blk.type === "link_card" && blk.data?.target?.id === hold1.taskId) ?? null);
-    assert.deepEqual([card.data.lead, card.data.title], ["Approval", "Push to main on vyre-ai/website"]);
+    assert.equal(card.data.lead, "Approval");
+    assert.match(card.data.title, /^Push to main \([0-9a-f]{7} to [0-9a-f]{7}\) on vyre-ai\/website$/);
     const after1 = (await d.log!.read({ type: "gate.*", limit: 500 })).length;
     assert.equal((await call(d, token, "tasks.act", { taskId: hold1.taskId, action: "approve" })).status, 200);
     const r1 = await push1;

@@ -28,7 +28,7 @@ export async function reposOfThread(call: GithubSessionPort["call"], person: str
 
 /** What a session gets to push and fetch through the Space (host/src/seams/git-proxy.ts). */
 export interface GitProxyPort {
-  mint(s: { person: string; agentId?: string; threadId: string; repos: readonly string[] }): { token: string; expiresAt: number };
+  mint(s: { person: string; agentId?: string; threadId: string; repos: readonly string[]; via?: "address" | "socket" }): { token: string; expiresAt: number };
   revoke(token: string): void;
   /** The address the session reaches this Space at, no trailing slash. */
   base(): string;
@@ -55,7 +55,7 @@ export async function githubEnv(port: GithubSessionPort & { git?: GitProxyPort }
     if (!me.connected || me.needsReconnect) return none;
   } catch { return none; }
   let minted: { token: string; expiresAt: number };
-  try { minted = port.git.mint({ person, ...(agentId ? { agentId } : {}), threadId, repos }); }
+  try { minted = port.git.mint({ person, ...(agentId ? { agentId } : {}), threadId, repos, via }); }
   catch (e) { port.log?.("github: a session gets no git address", { error: e instanceof Error ? e.message : String(e) }); return none; }
   // whatever the process writes back is cleaned of this token, until the token ends (agent/src/drivers/cli/redact.ts)
   holdSecret(minted.token, minted.expiresAt + 5 * 60_000);
