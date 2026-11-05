@@ -1,0 +1,3 @@
+- Vyre for Chrome: the app now registers its native host for Arc, Dia, Comet, Brave, Edge, Vivaldi, Chromium and Opera as well as Chrome (and the matching Windows keys), at install and at every app start.
+- On every app start the app refreshes the extension folder when its version differs from the bundled one, re-registers every installed browser, and tells the person once to press reload on the extension card.
+- The side panel names the real cause: the browser can't find the app, the extension is older than the app (reload it), the extension is newer than the app (update the app), or the app is not running. The app's hello now carries its version.
