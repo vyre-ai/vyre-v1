@@ -23,7 +23,7 @@ import { SkillsPage } from "../../skills/SkillsView.tsx";
 import { openAskPane } from "../../shell/ask/pane.ts";
 import { SpacePageBody, useSpaceRows } from "./SpacePages.tsx";
 import { SavedBar, SavedProvider } from "./saved.tsx";
-import { Glyph, IconBox, Mark, pointer, webOnly } from "./ui.tsx";
+import { Glyph, GoToPage, IconBox, Mark, pointer, webOnly } from "./ui.tsx";
 import type { KeyEventLike } from "./ui.tsx";
 
 type ListOut = CapMap["settings.list"]["out"];
@@ -186,9 +186,11 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
     </View>
   );
   return (
+    <GoToPage.Provider value={(k) => open(k as PageKey)}>
     <View style={n.frame} testID="settings-place">
       {phone ? (view === "nav" || searching ? nav : main) : (<><ResizableColumn paneKey="place-sidebar" defaultWidth={244} grow="right" min={200} maxFraction={0.5} maxWidth={380} style={n.navCol as never} testID="settings-nav-col">{nav}</ResizableColumn>{main}</>)}
     </View>
+    </GoToPage.Provider>
   );
 }
 

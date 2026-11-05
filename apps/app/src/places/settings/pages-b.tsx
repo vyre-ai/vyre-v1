@@ -1,6 +1,6 @@
 // The rest of You: Sign-in and devices (with your Spaces), Appearance (skin and the keyboard list) and This computer.
 import { KEYBOARD_MAP, formatCombo } from "../../shell/keyboard/map.ts";
-import { useState, useSyncExternalStore } from "react";
+import { useContext, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
@@ -12,7 +12,7 @@ import type { SettingsData, SpaceSecurity, SpaceTile } from "./data.tsx";
 import type { SettingRow } from "./model.ts";
 import { useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
-import { Glyph, Mark, Section, SettingsRow, SmallButton, Value, pointer, webOnly } from "./ui.tsx";
+import { Glyph, GoToPage, Mark, Section, SettingsRow, SmallButton, Value, pointer, webOnly } from "./ui.tsx";
 import type { PageProps } from "./pages-a.tsx";
 
 const rowOf = (rows: readonly SettingRow[], key: string): SettingRow | undefined => rows.find((r) => r.key === key);
@@ -35,6 +35,7 @@ export function whenLabel(at: number | undefined, now: number): string {
 
 export function SignInPage(): ReactElement {
   const data = useSettingsData();
+  const goTo = useContext(GoToPage);
   const saved = useSaved();
   const q = useScreenQuery<DevicesOut>(DEVICES, "mine", {});
   const [sure, setSure] = useState<string | null>(null);
@@ -93,6 +94,7 @@ function AccountCard({ sec }: { sec: NonNullable<SettingsData["security"]> }): R
       {data.spaces.length > 1 ? <SettingsRow id="signin.link" label="Use one account everywhere" lead={<Glyph name="key" size={16} />} sub="Two Vyre accounts? Keep one; your work stays where it is" control={<SmallButton label="Choose..." testID="link-open" onPress={() => data.nav.manageSecurity?.("link", first)} />} /> : null}
       <SettingsRow
         id="signin.github" label="GitHub" lead={<Glyph name="github" size={16} />} sub={gh ? `Connected as @${gh}. Manage it in Settings, GitHub` : "Connect it in Settings, GitHub"}
+        control={<SmallButton label="Open GitHub" testID="gh-open" onPress={() => goTo("github")} />}
       />
     </Section>
   );

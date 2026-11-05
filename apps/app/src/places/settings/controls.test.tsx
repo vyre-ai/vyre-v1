@@ -131,6 +131,14 @@ test("Profile: the Space's time zone is a read-only row with where to change it"
     assert.match(textOf(root), /shared places show times in .*\. Your time follows beside them\./);
     assert.match(textOf(root), /Matches this computer\.|This computer is in /, "the line says what this computer is");
     assert.equal(find(root, "reset-profile.timezone"), null, "a time zone has no Reset");
-    assert.ok(find(root, "space-timezone-readonly"));
+    assert.ok(find(root, "row-space.timezone"));
+  } finally { restore(); }
+});
+
+test("Privacy and security: the GitHub line opens the GitHub page", async () => {
+  const { root, restore } = await open("signin");
+  try {
+    await press(find(root, "gh-open"));
+    assert.ok(find(root, "page-github"), "the GitHub page is open");
   } finally { restore(); }
 });

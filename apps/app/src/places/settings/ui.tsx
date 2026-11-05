@@ -3,7 +3,7 @@
 import { useOpenConnect } from "../../shell/connect/context.ts";
 import { connectEntries } from "../../shell/connect/model.ts";
 import type { Connected, ConnectNeed } from "../../shell/connect/model.ts";
-import { createElement, isValidElement, useState } from "react";
+import { createContext, createElement, isValidElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
@@ -252,6 +252,9 @@ export function Segmented({ value, options, onChange, label, testID }: { value: 
   }
   return <View accessibilityRole="radiogroup" accessibilityLabel={label} testID={testID} style={s.seg}>{items}</View>;
 }
+
+/** Opens another Settings page from inside one (the place provides it): "GitHub: manage it in Settings, GitHub". */
+export const GoToPage = createContext<(page: string) => void>(() => undefined);
 
 /** A 30px rounded square holding a glyph: the prototype's mark at the left of a link or action row. */
 export function IconTile({ name, size = 16 }: { name: string; size?: number }): ReactElement {

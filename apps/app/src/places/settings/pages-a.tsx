@@ -60,7 +60,7 @@ export function ProfilePage({ rows, found }: PageProps): ReactElement {
     const items: ReactElement[] = [];
     sec.rows.forEach((r, i) => items.push(<SettingRowFor key={r.key} row={r} first={i === 0} found={found === r.key} />));
     // the Space's own zone sits right under yours, plain text: where shared places read, and that yours follows beside it
-    if (sec.rows.some((r) => r.key === "profile.timezone") && here?.kind !== "personal") items.push(<SettingsRow key="space.timezone" id="space.timezone" label="Space time zone" sub={`${here?.name ?? "This Space"}'s shared places show times in ${zoneName(zones.space)}. Your time follows beside them.`} control={<Value text={`${zoneName(zones.space)}, ${zoneCity(zones.space)}`} testID="space-timezone-readonly" />} />);
+    if (sec.rows.some((r) => r.key === "profile.timezone") && here?.kind !== "personal") items.push(<SettingsRow key="space.timezone" id="space.timezone" label="Space time zone" sub={`${here?.name ?? "This Space"}'s shared places show times in ${zoneName(zones.space)}. Your time follows beside them.`} />);
     before.push(<Section key={sec.title} title={sec.title}>{items}</Section>);
   }
   const rowFor = (r: SettingRow | undefined, i: number, node: ReactElement, label: string, sub?: string): ReactElement | null =>
