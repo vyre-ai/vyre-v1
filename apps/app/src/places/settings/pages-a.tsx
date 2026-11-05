@@ -1,6 +1,6 @@
 // The pages of You that hold your own work: Profile (with Copy from another Space), Notifications, AI (models, how agents work with you, usage, memory) and Connected (Email and calendar is MailPage.tsx).
 import { useConnectionsSummary } from "../vault/connections/summary.ts";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
@@ -9,6 +9,10 @@ import { Bar, RegistrySections, useRead } from "./blocks.tsx";
 import { ContactVerify } from "./ContactVerify.tsx";
 import { CopyFromSpace } from "./CopyFromSpace.tsx";
 import { SignInApps } from "./SignInApps.tsx";
+import { SignInPanel } from "../../ai-signin/SignInPanel.tsx";
+import { startFlow } from "../../ai-signin/flow.ts";
+import type { Flow as SignInFlow } from "../../ai-signin/flow.ts";
+import { isAskedAccount, useAskedAccount } from "./asked-account.ts";
 import { OutsideAgents } from "./OutsideAgents.tsx";
 import { MODELS, NOTIFICATIONS, useIsPersonal, useSettingsData, useScreenQuery } from "./data.tsx";
 import { ROW_HELP, clock, labelOf, moneyLabel, rowHelp, sectionsFor } from "./model.ts";
@@ -288,6 +292,18 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   const defaults = useScreenQuery<DefaultsOut>(MODELS, "defaults", {});
   const models = useScreenQuery<ModelsOut>(MODELS, "models", {});
   const accounts = useScreenQuery<AccountsOut>(MODELS, "accounts", {});
+  // a link named one account (a failed turn's Sign in again): it is marked and its own sign-in starts here, once
+  const asked = useAskedAccount();
+  const target = accounts.status === "ready" ? accounts.data.accounts.find((a) => isAskedAccount(asked, a)) : undefined;
+  const [flow, setFlow] = useState<SignInFlow | null>(null);
+  const startedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!target || target.kind !== "subscription" || startedFor.current === target.ref) return;
+    startedFor.current = target.ref;
+    const doc = (globalThis as { document?: { querySelector(q: string): { scrollIntoView?: (o: unknown) => void } | null } }).document;
+    setTimeout(() => doc?.querySelector(`[data-sid="account.${target.ref}"]`)?.scrollIntoView?.({ block: "center" }), 80);
+    void startFlow(data.call as never, target.provider ?? target.driver, `again:${target.ref}:${data.clock().now}`).then(setFlow).catch((e: unknown) => saved.failed(e instanceof Error ? e.message : "That did not work."));
+  }, [target?.ref]);   // eslint-disable-line react-hooks/exhaustive-deps -- once per asked account
   // a Team Space with no Space AI key says so, with who can add one, so AI accounts is never an empty list with nowhere to go
   const personal = useIsPersonal();
   const noSpaceKey = !personal && accounts.status === "ready" && !accounts.data.accounts.some((a) => a.spaceKey === true);
@@ -341,10 +357,11 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
     accounts.data.accounts.filter((a) => a.spaceKey !== true).forEach((a, i) => {
       acc.push(
         <SettingsRow
-          key={a.ref} id={`account.${a.ref}`} label={a.name ?? a.title} first={i === 0 && !line && !noSpaceKey} sub={`${a.kind === "subscription" ? "Sign-in" : "API key"}, ${a.mine ? "yours" : "shared in the Space"}`}
+          key={a.ref} id={`account.${a.ref}`} label={a.name ?? a.title} first={i === 0 && !line && !noSpaceKey} found={target?.ref === a.ref || found === `account.${a.ref}`} sub={`${a.kind === "subscription" ? "Sign-in" : "API key"}, ${a.mine ? "yours" : "shared in the Space"}`}
           control={<Value text={a.status === "ok" ? "Working" : a.status === "expired" ? "Sign in again" : a.status === "failed" ? "Failed" : "Not tested"} accent={a.status !== "ok"} />}
         />,
       );
+      if (flow && target?.ref === a.ref) acc.push(<View key={`${a.ref}-signin`} testID="account-sign-in" style={{ paddingHorizontal: 16, paddingBottom: 12 }}><SignInPanel call={data.call as never} flow={flow} onCancel={() => setFlow(null)} onDone={() => { setFlow(null); saved.saved("Signed in again"); }} /></View>);
       const older = (a.older ?? []).filter((o) => !removed.has(o.providerId));
       const quiet = olderLine(older.length);
       if (!quiet) return;

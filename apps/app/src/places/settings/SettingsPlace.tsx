@@ -23,6 +23,7 @@ import { SkillsPage } from "../../skills/SkillsView.tsx";
 import { openAskPane } from "../../shell/ask/pane.ts";
 import { SpacePageBody, useSpaceRows } from "./SpacePages.tsx";
 import { SavedBar, SavedProvider } from "./saved.tsx";
+import { AskedAccount } from "./asked-account.ts";
 import { Glyph, GoToPage, IconBox, Mark, pointer, webOnly } from "./ui.tsx";
 import type { KeyEventLike } from "./ui.tsx";
 
@@ -30,6 +31,8 @@ type ListOut = CapMap["settings.list"]["out"];
 
 export interface SettingsProps {
   initialPage?: PageKey;
+  /** An AI account a link named: Your AI scrolls to it and starts its sign-in. */
+  initialAccount?: string;
   initialQuery?: string;
   /** Phone: start on the page list. */
   initialView?: "nav" | "page";
@@ -43,7 +46,7 @@ export function SettingsPlace(props: SettingsProps): ReactElement {
   return <SavedProvider><SettingsBody {...props} /></SavedProvider>;
 }
 
-function SettingsBody({ initialPage = "profile", initialQuery = "", initialView = "page", initialFound = null, width: given }: SettingsProps): ReactElement {
+function SettingsBody({ initialAccount, initialPage = "profile", initialQuery = "", initialView = "page", initialFound = null, width: given }: SettingsProps): ReactElement {
   const data = useSettingsData();
   const measured = useWindowDimensions().width;
   const phone = (given ?? measured) < 760;
@@ -151,11 +154,11 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
       case "notifications": return <NotificationsPage rows={rows} found={found} />;
       case "appearance": return <AppearancePage rows={rows} found={found} />;
       case "ai": return (
-        <>
+        <AskedAccount.Provider value={initialAccount ?? null}>
           <AiPage rows={rows} found={found} />
           <NotesSettingsPage rows={rows} found={found} />
           <SkillsPage call={data.call} mode="settings" ask={(first) => openAskPane({ thing: { kind: "settings", id: "skills", title: "Skills" }, first }, "settings")} />
-        </>
+        </AskedAccount.Provider>
       );
       case "github": return <GithubPage />;
       case "connected": return <MovedPage kind="vault" />;
