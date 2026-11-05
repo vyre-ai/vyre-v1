@@ -154,6 +154,9 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
         await page.getByTestId("crew-strip").first().locator('[data-testid^="crew-chip-"][role="button"]').first().click({ timeout: 15_000 });
         await page.getByTestId("crew-peek-failing").waitFor({ timeout: 20_000 });
         assert.match(await page.getByTestId("crew-peek-failing").innerText(), /toggle survives a reload/);
+        // a finished helper says what it did, in the short plain labels that were kept: the file's name and the test counts
+        assert.ok(await page.getByText("Edited dark-mode.txt").count() > 0, "Edited <file>");
+        assert.ok(await page.getByText("Ran the tests: 1 passing, 1 failing").count() > 0, "Ran the tests: counts");
         await shoot(page, `${mode}-2-code-peek`);
         // Merge in the strip header lands the branch, and the header then says Merged
         await page.getByTestId("crew-strip-merge").click({ timeout: 20_000 });

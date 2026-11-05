@@ -8,7 +8,7 @@
 // to chat with the id the engine gave it as clientId), written only by the engine's own store, so the two cannot drift (a later edit is copied by the same consumer).
 // No echo: a message.received for a message the engine already holds, or one the bridge posted itself (id prefix BRIDGE_PREFIX), is never fed back to engine.receive.
 import { askedIn, isGoAhead, proposedIn } from "../../../lib/asked.ts";
-import { stepWords } from "../../../lib/plain-words.ts";
+import { fileBase, stepWords, testCounts } from "../../../lib/plain-words.ts";
 import { handleOf } from "../../../lib/person-handle.ts";
 import { linksIn } from "../../../lib/grants.ts";
 import { redact } from "../../../agent/src/transcript/sanitize.ts";
@@ -310,6 +310,9 @@ export function createBridge(o: BridgeOptions): Bridge {
           // a subagent's own one-line description is saved on its call, so the trail names it ("Working with a helper: Check the pricing page") instead of a bare "Using agent"
           const call = typeof p.id === "string" && typeof p.detail === "string" && p.detail !== "" ? seg.blocks.find((x) => x.type === "tool_call" && (x.data as { id?: unknown }).id === p.id) : undefined;
           if (call && /^(Agent|Task)$/.test(String((call.data as { name?: unknown }).name))) call.data = { ...(call.data as Record<string, unknown>), detail: p.detail };
+          // only the file's name is kept with a file step, so a finished helper can say "Edited dark-mode.txt"; the path and the rest of the input stay on the live line
+          const nm = String((call?.data as { name?: unknown } | undefined)?.name ?? "");
+          if (call && /^(Read|Edit|Write|MultiEdit|NotebookEdit|files_read|files_create|files_write)/i.test(nm) && fileBase(String(p.detail)) !== "") call.data = { ...(call.data as Record<string, unknown>), label: fileBase(String(p.detail)) };
         }
         else if (ev.type === "block") {
           afterBlock = true;
@@ -332,6 +335,8 @@ export function createBridge(o: BridgeOptions): Bridge {
             emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "result", id, ...(call?.name ? { name: call.name } : {}), ...(typeof p.ok === "boolean" ? { ok: p.ok } : {}), ...(said !== "" ? { detail: said } : {}) });
             if (typeof (p as { detail?: unknown }).detail === "string") { const { detail: _drop, ...rest } = data as Record<string, unknown>; data = rest; }
             if (call) data = { ...data, name: call.name, secs: Math.max(0, Math.round((now - call.at) / 1000)) };
+            // a test run keeps its counts on its call ("1 passing, 1 failing"): the summary lines themselves are not saved
+            if (said !== "" && testCounts(said) !== "") { const blk = seg.blocks.find((x) => x.type === "tool_call" && (x.data as { id?: unknown }).id === id); if (blk) blk.data = { ...(blk.data as Record<string, unknown>), ran: testCounts(said) }; }
           }
           seg.blocks.push({ type: ev.kind, v: 1, data });
         }

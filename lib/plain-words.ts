@@ -28,6 +28,33 @@ export function stepWords(tool: string, detail?: string): string {
   return "Working";
 }
 
+/** The file name a call touched, without its folders: the only part of a tool's input that is ever kept with a step. */
+export function fileBase(detail: string): string {
+  const d = detail.trim().split(/[\\/]/).pop() ?? "";
+  return /^[\w.\- ]{1,60}$/.test(d) ? d : "";
+}
+
+/** The counts of a test run's summary lines in words ("1 passing, 1 failing"), or "" when they carry none. */
+export function testCounts(lines: string): string {
+  const pass = /ℹ\s+pass\s+(\d+)/i.exec(lines)?.[1] ?? /(\d+)\s+(?:passed|passing)\b/i.exec(lines)?.[1];
+  const fail = /ℹ\s+fail\s+(\d+)/i.exec(lines)?.[1] ?? /(\d+)\s+(?:failed|failing)\b/i.exec(lines)?.[1];
+  const parts = [pass !== undefined ? `${pass} passing` : "", fail !== undefined && Number(fail) > 0 ? `${fail} failing` : ""].filter((x) => x !== "");
+  return parts.join(", ");
+}
+
+/** A finished step in words a person reads, from what was kept: "Edited dark-mode.txt", "Ran the tests: 1 passing, 1 failing". */
+export function doneWords(tool: string, label?: string, ran?: string): string {
+  tool = tool.replace(/^mcp__.+?__/, "");
+  if (ran) return `Ran the tests: ${ran}`;
+  if (/^(Read|Glob|Grep|files_read|files_tree|files_list)/i.test(tool)) return label ? `Read ${label}` : "Read files";
+  if (/^(Write|Edit|MultiEdit|NotebookEdit|files_create|files_write)/i.test(tool)) return label ? `Edited ${label}` : "Edited a file";
+  if (/^(Bash|terminal_run|command)/i.test(tool)) return "Ran a command";
+  if (/^(WebSearch|web_search)/i.test(tool)) return "Searched the web";
+  if (/^(WebFetch|read_link)/i.test(tool)) return "Read a page";
+  if (/^(Agent|Task)$/.test(tool) || /^sub_task/.test(tool)) return "Worked with a helper";
+  return "Did a step";
+}
+
 /** One line of what a helper found: the first sentence of its last words, short. */
 export function oneLine(text: string, max = 140): string {
   const t = text.replace(/\s+/g, " ").trim();

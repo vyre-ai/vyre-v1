@@ -1,7 +1,7 @@
 // The Crew pane (owner, 4 Nov 2026, prototype p-crew). The overview: one sentence of totals, a Show menu, the helpers sorted needs you first, a token bar, the timeline of who ran when, "Ran together", Stop all and the
 // keys. A row opens that helper's peek: its brief, what it is on, its answer, the notes between it and the agent that started it, cost and time, Ask it something, Open chat and Stop. All of it from engine.crew.status
 // and the helper's own chat; nothing is estimated.
-import { stepWords } from "../../../../../../lib/plain-words.ts";
+import { doneWords, stepWords } from "../../../../../../lib/plain-words.ts";
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -57,6 +57,7 @@ export function CrewOverview({ status, call, threadId, onPeek, onRefresh, initia
     <View testID="crew-overview" style={st.page}>
       <Text accessibilityRole="header" style={st.title}>Crew</Text>
       <Text testID="crew-overview-totals" style={st.sub}>
+        {/* ui-rows-lint: not a list (the sentence of totals, each part a word you can press to sort by it) */}
         {totalsParts(status.totals).map((p, i) => (
           <Text key={p.key}>{i > 0 ? " · " : ""}<Text accessibilityRole="button" testID={`crew-sort-${p.key}`} onPress={() => setSortKey(p.key)} style={sortKey === p.key && p.key !== "state" ? st.sortOn : undefined}>{p.text}</Text></Text>
         ))}
@@ -159,7 +160,7 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
         const detail = new Map(blocks.filter((b) => b.type === "tool_input").map((b) => [String(dat(b)["id"] ?? ""), String(dat(b)["detail"] ?? "")] as const));
         // a tool's call, what it touched and its result are one step, said in plain words ("Reading next-week.ics")
         setSteps(blocks.filter((b) => b.type !== "tool_input" && b.type !== "tool_result").map((b) => {
-          if (b.type === "tool_call") { const id = String(dat(b)["id"] ?? ""); return { id: b.id, title: stepWords(String(dat(b)["name"] ?? ""), (typeof dat(b)["detail"] === "string" && dat(b)["detail"] !== "" ? String(dat(b)["detail"]) : undefined) ?? (detail.get(id) || undefined)), sub: "", state: ended.has(id) ? "done" : "live" }; }
+          if (b.type === "tool_call") { const id = String(dat(b)["id"] ?? ""); return { id: b.id, title: ended.has(id) ? doneWords(String(dat(b)["name"] ?? ""), typeof dat(b)["label"] === "string" ? String(dat(b)["label"]) : undefined, typeof dat(b)["ran"] === "string" ? String(dat(b)["ran"]) : undefined) : stepWords(String(dat(b)["name"] ?? ""), (typeof dat(b)["detail"] === "string" && dat(b)["detail"] !== "" ? String(dat(b)["detail"]) : undefined) ?? (detail.get(id) || undefined)), sub: "", state: ended.has(id) ? "done" : "live" }; }
           const l = blockLine(b as never);
           return { id: b.id, title: l.title, sub: l.sub, ...(b.state ? { state: b.state } : {}) };
         }));
