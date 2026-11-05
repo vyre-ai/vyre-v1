@@ -79,12 +79,3 @@ test("a 400 MissingSessionID reads in plain words", async () => {
   assert.equal(plainRefusal(400, "Request is missing x-opencode-session"), err!.message);
   assert.equal(plainRefusal(400, "model not found"), null);
 });
-
-test("a request never leaves without a model: an empty or Auto name stops the session before anything is sent, with words a person can act on", () => {
-  const f = fakeFetch(() => ({ text: fixture("openai-text") }));
-  for (const model of ["", "  ", "auto"]) {
-    const s = { ...spec("opencode_go/kimi-k2"), agent: { ...spec("opencode_go/kimi-k2").agent, model } } as SessionSpec;
-    assert.throws(() => createApiSession({ adapter: opencodeGo, account: { ref: "#Team_OpenCode", base: opencodeGo.defaultBase }, base: opencodeGo.defaultBase, fetch: f.fetch, authorize, clock: fakeClock(), context: () => ctx() }, s), (e: { code?: string; message?: string }) => e.code === "engine.no_model_picked" && /^Pick a model for /.test(e.message ?? ""));
-  }
-  assert.equal(f.requests.length, 0, "nothing was sent");
-});

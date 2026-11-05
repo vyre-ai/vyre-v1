@@ -30,7 +30,6 @@ import { withChatSettings } from "./chat-settings.ts";
 import { withSpaceKeyTurns } from "./space-key-turns.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
 import { createModelSwitch } from "./model-switch.ts";
-import { withConcreteModel } from "./auto-model.ts";
 import { markConfirmed } from "./model-health.ts";
 import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
 import { skipLocked } from "./locked-account.ts";
@@ -434,16 +433,12 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   const installer = engines();
   const dataDir0 = host.dataDir;
   const read0 = cliRead(host);
-  const checked = host.openSession ?? checkedOpen((opener as NonNullable<typeof opener>).openSession, {
+  const baseOpen = host.openSession ?? checkedOpen((opener as NonNullable<typeof opener>).openSession, {
     ...(host.cli?.command ? { command: host.cli.command } : {}), ...(cliProbeOf(host) ? { probe: cliProbeOf(host) as NodeCliProbe } : {}), ...(installer ? { engines: installer } : {}),
     ...(host.sandbox ? {} : { unsandboxed: () => cliSandboxGap(), unsandboxedCode: () => cliSandboxCode() }),
     // the Windows sandbox's first start after a restart (or its one-time set-up) is a live line, not a silent wait
     ...(process.platform === "win32" && windowsMode() === "contained" && !host.sandbox && dataDir0 ? { warm: () => warmWindowsSandbox(dataDir0, read0) } : {}),
     live: (e) => setupLine?.(e),
-  });
-  // a chat on Auto always runs on a concrete model of the account (modules/engine/auto-model.ts); a stand-in opener a test gives is left as it is
-  const baseOpen = host.openSession ? checked : withConcreteModel(checked, {
-    models: async (ref, payer) => (((await h.call("engine.models.list", { accountRef: ref, probe: false }, payer)) as { models?: Array<{ model: string; allowed?: boolean }> }).models ?? []).filter((m) => m.allowed !== false).map((m) => m.model),
   });
   // a turn the person pinned to one of their servers opens through that server's opener; everything else opens as before
   const nodeOpeners = new Map<string, ReturnType<typeof buildNodeOpener>>();

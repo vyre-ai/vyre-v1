@@ -1,4 +1,4 @@
-export { CLI_ADAPTERS, createCliDriver, createCliDrivers, cliModel } from "./driver.ts";
+export { CLI_ADAPTERS, createCliDriver, createCliDrivers } from "./driver.ts";
 export type { CliDriver, CliDriverDeps } from "./driver.ts";
 export { createCliSession } from "./session.ts";
 export type { CliSession, CliSessionDeps, CliSessionStats } from "./session.ts";

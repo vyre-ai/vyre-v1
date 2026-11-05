@@ -98,8 +98,6 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
   const rnd = deps.random ?? Math.random;
   const tracker = createPrefixTracker();
   const model = deps.adapter.modelName(spec.agent.model ?? "");
-  // the last guard: a request never leaves without a model name (a provider answers an empty one with a 400 a person cannot act on). The engine module resolves Auto before it gets here; this is for any other way in.
-  if (model.trim() === "" || model.trim().toLowerCase() === "auto") throw Object.assign(new Error(`Pick a model for ${spec.account?.name ?? spec.account?.ref ?? "this account"}.`), { code: "engine.no_model_picked" });
   const conversation = conversationId(spec);
   let calls = 0;
   let retries = 0;

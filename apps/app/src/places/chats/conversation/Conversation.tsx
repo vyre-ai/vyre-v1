@@ -530,7 +530,7 @@ function ConversationView(): ReactElement {
     markUnreadFrom: (seq) => void act.markUnreadFrom(data, seq).then(() => say("Marked unread from that message."), fail("Could not mark it unread.")),
     turnDetail: (turnId) => act.turnDetail(data, turnId),
     accountReady: () => act.hasWorkingAccount(data),
-    errorNext: (key, turnId) => void act.errorAction(data, key, turnId, say, { pickModel: () => { if (lead) modelMenu(8, 120); } }).catch(fail("Could not do that.")),
+    errorNext: (key, turnId) => void act.errorAction(data, key, turnId, say).catch(fail("Could not do that.")),
     retrySend: (id) => { const p = pending.find((x) => `pending:${x.key}` === id); if (p) { setPending((cur) => collect(cur, (x) => (x.key === p.key ? { ...x, state: "sending" as const } : x))); setLine(""); run(p); } },
     discardSend: (id) => { setPending((cur) => cur.filter((x) => `pending:${x.key}` !== id)); setLine(""); },
     showMenu: (entries, x, y, label) => menu.show(entries, x, y, "context", { label }),
