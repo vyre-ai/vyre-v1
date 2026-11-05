@@ -1,6 +1,6 @@
 # chat.crew_line
 
-The crew only: leave a quiet line in a chat when a teammate's branch has been merged ("Merged crew/ember-1 into main · +2 -0"). It wakes no agent
+The crew only: after Merge lands a teammate's branch, leave one quiet line in the chat. The text is built from the merge record ("Merged crew/ember-1 into main · +2 -0"); no words are passed in, only the job, and only the person who merged it can ask. It wakes no agent
 
 | | |
 |---|---|
@@ -26,11 +26,7 @@ The crew only: leave a quiet line in a chat when a teammate's branch has been me
 ```ts
 type In = {
   threadId: string;
-  body: string;
-  branch?: string;
-  base?: string;
-  added?: number;
-  deleted?: number;
+  jobId: string;
 };
 ```
 
@@ -49,6 +45,7 @@ type Out = {
 - permission.no_grant
 - validation.bad_input
 - validation.not_found
+- validation.precondition_failed
 
 ## Example
 
@@ -56,11 +53,7 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "added": 1,
-    "base": "example",
-    "body": "example",
-    "branch": "example",
-    "deleted": 1,
+    "jobId": "crw_01a1b2",
     "threadId": "thr_a1b2c3"
   },
   "output": {

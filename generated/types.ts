@@ -6741,11 +6741,7 @@ export type ChatComposerSuggestOut = {
 };
 export type ChatCrewLineIn = {
   threadId: string;
-  body: string;
-  branch?: string;
-  base?: string;
-  added?: number;
-  deleted?: number;
+  jobId: string;
 };
 export type ChatCrewLineOut = {
   messageId: string;

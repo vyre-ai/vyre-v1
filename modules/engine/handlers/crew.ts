@@ -360,9 +360,11 @@ export async function merge(ctx: EngineCtx, input: { jobId: string }) {
     if (landed.landed) {
       ctx.db.run("UPDATE engine_crew_job SET state = 'merged', ended_at = COALESCE(ended_at, ?) WHERE job_id = ?", ctx.now(), input.jobId);
       ctx.emit("crew.job_merged", str(r["lead_thread_id"]), { jobId: input.jobId, threadId: str(r["thread_id"]), leadThreadId: str(r["lead_thread_id"]), branch: str(r["branch"]), landed: true });
-      // one quiet line in the chat: which branch went into which base, and how much changed
+      // what landed is kept on the job, and the chat line is built from it by the chat module: nobody passes the words
+      const prior = jobOut(jobRow(ctx, input.jobId)).result ?? {};
+      ctx.db.run("UPDATE engine_crew_job SET result_json = ? WHERE job_id = ?", JSON.stringify({ ...prior, merged: { by: actorOf(ctx), added: plus, deleted: minus, at: ctx.now() } }), input.jobId);
       try {
-        await ctx.call("chat.crew_line", { threadId: str(r["lead_thread_id"]), body: `Merged ${str(r["branch"])} into ${str(r["base_branch"])} · +${plus} -${minus}`, branch: str(r["branch"]), base: str(r["base_branch"]), added: plus, deleted: minus });
+        await ctx.call("chat.crew_line", { threadId: str(r["lead_thread_id"]), jobId: input.jobId });
       } catch (e) { ctx.log.warn("the merge line could not be posted", { jobId: input.jobId, error: e instanceof Error ? e.message : String(e) }); }
     }
     return { job: jobOut(jobRow(ctx, input.jobId)), landed: landed.landed, ref: landed.ref, ...(landed.note ? { note: landed.note } : {}) };
