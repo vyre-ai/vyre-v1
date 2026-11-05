@@ -206,7 +206,7 @@ export interface TurnEngine {
   /** Turns parked because the person's Vault is locked on this computer: one per chat and agent, however many messages came since. A parked turn is not running. */
   parkedLocked(): Array<{ threadId: string; agentId: string; asker: string; messageId: string | null }>;
   /** The Vault is open: run the one waiting turn of each chat parked for this person (everyone's when no one is named). Returns how many were resumed. */
-  resumeLocked(asker?: string): number;
+  resumeLocked(asker?: string, code?: string): number;
   turns(threadId?: string): TurnRow[];
   spend(): SpendRow[];
   messages(threadId: string): StoredMessage[];
@@ -932,10 +932,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     events: (threadId) => (threadId === undefined ? journal.slice() : journal.filter((e) => e.threadId === threadId)),
     subscribe(fn) { listeners.add(fn); return () => { listeners.delete(fn); }; },
     parkedLocked: () => [...lockedPark.values()].filter((x) => x.code === "engine.vault_locked").map((x) => ({ threadId: x.threadId, agentId: x.agentId, asker: x.asker, messageId: x.messageId })),
-    resumeLocked(asker) {
+    resumeLocked(asker, code) {
       let n = 0;
       for (const [key, x] of [...lockedPark]) {
         if (asker !== undefined && x.asker !== asker) continue;
+        if (code !== undefined && x.code !== code) continue;
         lockedPark.delete(key);
         const st = threads.get(x.threadId);
         if (!st) continue;

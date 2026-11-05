@@ -16,7 +16,7 @@ import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.
 import { ALL_AGENTS, route as routeOf } from "../../../lib/route.ts";
 import { localClock, readPublicTime } from "../../../lib/presence.ts";
 import { hasReads } from "../../../host/src/seams/answer-reads.ts";
-import { sqlMessages, withMessageId, mintId } from "../projections.ts";
+import { engineIfBound, sqlMessages, withMessageId, mintId } from "../projections.ts";
 import { setUsing } from "../node-turns.ts";
 import type { EngineCtx } from "../projections.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
@@ -650,6 +650,11 @@ export const bridgeConsumers = {
       if (bound && threadId !== "") bound.rosterChanged(threadId);
       return {};
     },
+  },
+  // a person signed in again (a Vault item was saved or changed): the turns parked on a missing sign-in run once. Whose sign-in is not in the event, and a turn whose account is still missing parks again at once.
+  "engine.signin_resume": {
+    on: ["vault.item_updated", "vault.item_created"],
+    run: async (): Promise<{ skipped?: string; resumed?: number }> => { const e = engineIfBound(); return e ? { resumed: e.resumeLocked(undefined, "engine.signin_missing") } : { skipped: "engine_not_running" }; },
   },
   "engine.bridge": {
     on: ["message.received", "message.edited"],

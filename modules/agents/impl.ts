@@ -7,7 +7,8 @@ import { OWNER_LEFT, announcePrivacy, onFileVersion, onDisplayNameChanged, onPer
 import { ROUTINES_DUE_EVERY_MS, onMessageReceived, runDueRoutines } from "./handlers/routines.ts";
 import { memoryGuideConsumers } from "./memory-guide.ts";
 import type { FileVersionEvent, PersonLeftEvent, PrincipalEvent, SettingChangedEvent, TurnEvent } from "./handlers/crud.ts";
-import { agentOf, noteRoutineOutcome } from "./projections.ts";
+import { agentOf, nextRun, noteRoutineOutcome } from "./projections.ts";
+import { noteRun, resumeSelfPaused } from "./routine-guard.ts";
 import type { AgentsCtx } from "./projections.ts";
 import { setPluginsHost } from "./handlers/plugins.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
@@ -42,11 +43,28 @@ export const consumers = {
   /** A routine's run ended (the engine finishes it when the agent's turn ends): the routine's Last run says how it went. */
   "agents.routine_outcome": {
     on: ["run.succeeded", "run.failed", "run.stopped"],
-    run: (ctx: AgentsCtx, event: { name: string; payload: { runId?: string } }): string[] => {
+    run: async (ctx: AgentsCtx, event: { name: string; payload: { runId?: string; code?: string; message?: string } }): Promise<string[]> => {
       const runId = event.payload.runId;
       if (!runId) return [];
-      return noteRoutineOutcome(ctx.db, runId, event.name === "run.succeeded" ? "succeeded" : event.name === "run.failed" ? "failed" : "stopped", ctx.now());
+      const ids = noteRoutineOutcome(ctx.db, runId, event.name === "run.succeeded" ? "succeeded" : event.name === "run.failed" ? "failed" : "stopped", ctx.now());
+      if (event.name === "run.stopped") return ids;
+      for (const id of ids) {
+        // three failures in a row for one reason: the routine pauses itself and says so once in its chat
+        const paused = noteRun(ctx.db, id, event.name === "run.succeeded", String(event.payload.code ?? "run.failed"), String(event.payload.message ?? ""), ctx.now());
+        if (!paused) continue;
+        ctx.log.warn("a routine paused itself after repeated failed runs", { routineId: id, reason: paused.reason });
+        if (paused.threadId && ctx.call) {
+          try { await ctx.call("chat.post", { threadId: paused.threadId, body: `Paused "${paused.title}" after ${3} failed runs: ${paused.reason}`, mentions: [], idempotencyKey: `routine-paused:${id}:${ctx.now()}` }); }
+          catch (e) { ctx.log.warn("the routine's pause could not be said in its chat", { routineId: id, error: e instanceof Error ? e.message : String(e) }); }
+        }
+      }
+      return ids;
     },
+  },
+  /** The cause may be gone: a sign-in or key was saved again. Routines that paused themselves start again (a routine that fails again pauses again after three runs). */
+  "agents.routine_resume": {
+    on: ["vault.item_updated", "vault.item_created"],
+    run: (ctx: AgentsCtx): string[] => resumeSelfPaused(ctx.db, ctx.now(), nextRun),
   },
   /** A person's account exists (claim or join): they get their private assistant, with or without an AI account. */
   "agents.ensure_assistant": {

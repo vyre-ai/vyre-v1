@@ -107,3 +107,19 @@ test("a missing sign-in parks the chat once like a locked Vault: the failure is 
   for (let i = 0; i < 4; i++) { engine.receive({ threadId: "T", author: person, body: `more ${i}` }); await engine.idle("T"); }
   assert.equal(p.sessions.length, 1, "one attempt, then parked");
 });
+
+test("a person signs in again: the turn parked on a missing sign-in runs once, and a locked-Vault park is left for its own watcher", async () => {
+  let signedIn = false;
+  const p = scriptedProvider({ script: () => (signedIn ? say : [{ type: "error" as const, code: "engine.signin_missing", message: "Sign in again." }]) });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, resolveAccount: async () => account() });
+  engine.openThread(thread());
+  engine.receive({ threadId: "T", author: person, body: "one" }); await engine.idle("T");
+  engine.receive({ threadId: "T", author: person, body: "two" }); await engine.idle("T");
+  assert.equal(p.sessions.length, 1);
+  assert.equal(engine.resumeLocked(undefined, "engine.vault_locked"), 0, "not this one");
+  signedIn = true;
+  assert.equal(engine.resumeLocked(undefined, "engine.signin_missing"), 1);
+  await engine.idle("T");
+  assert.equal(engine.turns("T").at(-1)?.state, "completed");
+  assert.equal(p.sessions.length, 2, "one run answers the newest message");
+});
