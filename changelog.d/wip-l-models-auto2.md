@@ -1,1 +1,0 @@
-- Fixed: a one-shot (the room digest, memory upkeep) or an Auto turn on an API key whose model list cannot be read no longer stops with "Pick a model". It runs on the model the agent or chat last ran on, or the account's last-used model; only an account with none is asked.

@@ -35,18 +35,13 @@ export const NO_MODEL_PICKED = "engine.no_model_picked";
 export const pickWords = (account: string): string => `Pick a model for ${account}.`;
 
 /** The opener, wrapped: an API account on Auto gets its concrete model, or the turn ends with NO_MODEL_PICKED before anything is sent. */
-export function withConcreteModel(open: OpenSession, d: { models(ref: string, payer: string): Promise<string[]>; /** The model the last turn on this account ran on, when the list cannot name one. */ recall?(ref: string, payer: string): Promise<string | undefined>; /** Last resort: read the list from the vendor itself. */ ask?(ref: string, payer: string, provider: string): Promise<string[]> }): OpenSession {
+export function withConcreteModel(open: OpenSession, d: { models(ref: string, payer: string): Promise<string[]> }): OpenSession {
   return async (spec) => {
     const account = spec.account;
     if (!account || !API_DRIVERS.has(account.driver) || !isAuto(spec.agent.model)) return open(spec);
     let listed: string[] = [];
     try { listed = await d.models(account.ref, account.payer); } catch { listed = []; }   // a list that cannot be read is the pinned model, not a failed turn
-    const usable = listed.filter((m) => typeof m === "string" && m.trim() !== "" && m.trim().toLowerCase() !== "auto");
-    let model = pick(usable, "standard");
-    // a list that names nothing: the model this account last ran on, before the provider's pin and before giving up
-    if (model === undefined && d.recall) { try { const r = await d.recall(account.ref, account.payer); if (r !== undefined && !isAuto(r) && r !== "unknown") model = r; } catch { /* no memory of one */ } }
-    model ??= chooseAuto(account, []);
-    if (model === undefined && d.ask) { try { model = chooseAuto(account, await d.ask(account.ref, account.payer, account.provider)); } catch { /* the vendor would not say */ } }
+    const model = chooseAuto(account, listed);
     if (model === undefined) throw Object.assign(new Error(pickWords(account.name ?? account.ref)), { code: NO_MODEL_PICKED });
     return open({ ...spec, agent: { ...spec.agent, model } });
   };
