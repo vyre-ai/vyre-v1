@@ -49,3 +49,12 @@ test("the shell hands a Team Space session to the daemons over loopback with the
   assert.match(rs, /static LINKED/, "kept in the shell's memory only, never written to disk");
   assert.doesNotMatch(rs, /fs::write\([^)]*LINKED|LINKED[^;]*fs::write/);
 });
+
+test("the app start refreshes the extension folder and re-registers every installed browser, and the host list covers the Chromium browsers people use", () => {
+  const rs = fs.readFileSync(path.resolve(import.meta.dirname, "../src-tauri/src/chrome.rs"), "utf8");
+  const lib = fs.readFileSync(path.resolve(import.meta.dirname, "../src-tauri/src/lib.rs"), "utf8");
+  assert.match(lib, /chrome::sync_on_start\(&h\)/, "called from setup, off the main thread");
+  assert.match(rs, /pub fn sync_on_start\(app: &AppHandle\)/);
+  assert.match(rs, /needs_refresh\(&bundled_v, Some\(&installed_v\)\)/);
+  for (const b of ["Comet", "Arc/User Data", "Dia/User Data", "BraveSoftware/Brave-Browser", "Microsoft Edge", "Vivaldi", "com.operasoftware.Opera", "Chromium"]) assert.ok(rs.includes(`"${b}"`), b);
+});
