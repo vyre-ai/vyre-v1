@@ -573,7 +573,7 @@ const styles = StyleSheet.create({
     boxShadow: "var(--sh-pop)" as string,
   },
   // the lit row is the wash; the browser focus ring would draw a black box around it
-  item: { flexDirection: "row", alignItems: "center", height: 28, paddingHorizontal: 9, borderRadius: 6, gap: 9, width: "100%", ...({ outlineStyle: "none" } as ViewStyle) },
+  item: { flexDirection: "row", alignItems: "center", height: 28, paddingHorizontal: 9, borderRadius: 6, gap: 9, width: "100%", ...({ outlineStyle: "none" } as unknown as ViewStyle) },
   label: { flexShrink: 1, fontSize: 13, lineHeight: 18 },
   check: { marginLeft: "auto", fontSize: 12 },
   checkAfterCount: { marginLeft: 0 },
@@ -585,7 +585,7 @@ const styles = StyleSheet.create({
   // a mark that is the accent colour (a status ring) would vanish on the lit row: it sits on a light disc there
   leadingLit: { borderRadius: 10, backgroundColor: "var(--raised)" as string },
   search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, paddingHorizontal: 9, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
-  searchInput: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string, ...({ outlineStyle: "none" } as ViewStyle) },
+  searchInput: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string, ...({ outlineStyle: "none" } as unknown as ViewStyle) },
   none: { paddingVertical: 10, paddingHorizontal: 9, fontSize: 12.5, color: "var(--ink-3)" as string },
   head: { paddingTop: 6, paddingBottom: 4, paddingHorizontal: 9, fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   sep: { height: 1, backgroundColor: "var(--line)" as string, marginVertical: 4, marginHorizontal: 6 },
