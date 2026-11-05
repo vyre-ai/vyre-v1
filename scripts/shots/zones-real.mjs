@@ -228,6 +228,7 @@ try {
   };
   for (const skin of ["paper", "graphite"]) for (const size of ["wide", "phone"]) {
     const tag = `${skin}-${size}`;
+    try {
     // Console: the picker open with a search, then the confirm card for another zone
     const c = await seeded(skin, size, sess);
     let pg = await open2(c, `${web.origin}/console?skin=${skin}`);
@@ -240,8 +241,8 @@ try {
       await pg.getByTestId("zone-search").fill("Los");
       await pg.waitForTimeout(400);
       await pg.screenshot({ path: path.join(out, `${tag}-console-picker.png`) });
-      await pg.keyboard.press("Escape");
-      await pg.waitForTimeout(300);
+      await pg.getByTestId("row-zone-America/Los_Angeles").click().catch(() => undefined);   // the current zone: closes the sheet, changes nothing
+      await pg.waitForTimeout(400);
       await pick(pg, "infra-space-timezone", "Tokyo");
       await pg.screenshot({ path: path.join(out, `${tag}-console-confirm.png`) });
       await pg.getByTestId("infra-space-timezone-cancel").click().catch(() => undefined);
@@ -289,6 +290,7 @@ try {
     await hoverTime(mp, path.join(out, `${tag}-channel-member-la.png`));
     await mp.close();
     await mc.close();
+    } catch (e) { say(false, `${tag}: ${String(e).slice(0, 200)}`); }
   }
 } finally { await browser.close(); web.close(); await space.stop(); stand.close(); }
 say(errors.length === 0, `no page errors${errors.length ? `: ${errors.join(" | ").slice(0, 400)}` : ""}`);
