@@ -1,3 +1,4 @@
+// @tsx
 // Where the citation card opens (owner, 5 Nov 2026): above the chip with a gap when its real height fits, below when it does not, the side with more room when neither fits, and always inside the viewport.
 import test from "node:test";
 import assert from "node:assert/strict";
