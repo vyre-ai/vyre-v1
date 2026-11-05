@@ -34,6 +34,7 @@ import type { FieldMode } from "../typeedit/index.ts";
 import { recordMenu } from "../menus/record.ts";
 import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
 import type { Column, FieldDef, GroupItem, RowPick, RecordRow, TableViewState, TypeDef } from "./model.ts";
+import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
 
 type TypesOut = CapMap["schema.types.list"]["out"];
 type ViewsOut = CapMap["views.list"]["out"];
@@ -59,7 +60,10 @@ function Cell({ field, row, names }: { field: FieldDef; row: RecordRow; names: (
   if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
   if (field.type === "person") return <View style={styles.person}><Face name={names(String(v))} seedId={String(v)} size={18} /><Text numberOfLines={1} style={styles.cellText}>{names(String(v))}</Text></View>;
   if (field.type === "rating" && typeof v === "number") return <Text style={styles.stars} accessibilityLabel={`${v} of 5`}>{"★".repeat(Math.max(0, Math.min(5, v)))}</Text>;
-  return <Text numberOfLines={1} style={[styles.cellText, isNumeric(field) && styles.num, field.type === "sealed" && styles.sealed]}>{cellText(field, v, names)}</Text>;
+  const text = <Text numberOfLines={1} style={[styles.cellText, isNumeric(field) && styles.num, field.type === "sealed" && styles.sealed]}>{cellText(field, v, names)}</Text>;
+  // a moment (a date with a time) shows both zones on hover and focus; a plain calendar date has no second clock
+  const at = field.type === "datetime" ? (typeof v === "number" ? v : typeof v === "string" ? Date.parse(v) : NaN) : NaN;
+  return Number.isFinite(at) ? <TimePop at={at}>{text}</TimePop> : text;
 }
 
 interface RowProps {

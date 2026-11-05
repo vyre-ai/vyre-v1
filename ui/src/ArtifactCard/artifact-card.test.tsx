@@ -57,6 +57,7 @@ test("the card shows the title, the line, Open, Copy link and More, and is one l
   const html = renderToStaticMarkup(<ArtifactCard info={A} meId="me" now={NOW} onOpen={() => undefined} onCopyLink={() => undefined} onShare={() => undefined} onBrowser={() => undefined} onDelete={() => undefined} />);
   assert.match(html, /Pricing comparison/);
   assert.match(html, /Page · Private to you · updated 3:53 AM/);
+  assert.match(html, /data-testid="time-pop"/, "the time line has the hover card");
   assert.match(html, /aria-label="Open Pricing comparison"/);
   for (const w of ["Open", "Copy link", "More"]) assert.match(html, new RegExp(`aria-label="${w}"`));
   assert.match(html, /artifact-thumb-drawn/);

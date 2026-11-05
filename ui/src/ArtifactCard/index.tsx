@@ -9,6 +9,7 @@ import { menuTrigger, useMenu } from "../Menu/index.tsx";
 import type { MenuEntry } from "../Menu/index.tsx";
 import { standIn, subline } from "./model.ts";
 import type { ArtifactInfo } from "./model.ts";
+import { TimePop } from "../Time/index.tsx";
 
 export * from "./model.ts";
 
@@ -108,7 +109,7 @@ export function ArtifactCard(p: ArtifactCardProps): ReactElement {
       <Thumb info={info} />
       <View style={st.body}>
         <Text style={st.title} numberOfLines={1}>{info.name}</Text>
-        <Text testID={`${id}-line`} style={st.line} numberOfLines={2}>{line}</Text>
+        {info.updatedAt !== undefined ? <TimePop at={info.updatedAt}><Text testID={`${id}-line`} style={st.line} numberOfLines={2}>{line}</Text></TimePop> : <Text testID={`${id}-line`} style={st.line} numberOfLines={2}>{line}</Text>}
         {p.grid === true && p.onFrom !== undefined && info.from !== undefined
           ? <Pressable accessibilityRole="link" testID={`${id}-from`} onPress={(e: unknown) => { (e as { stopPropagation?: () => void } | undefined)?.stopPropagation?.(); p.onFrom?.(info.from!.id); }} style={st.from}><Text style={st.fromText} numberOfLines={1}>{`From ${info.from.title}`}</Text></Pressable>
           : null}

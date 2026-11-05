@@ -14,6 +14,7 @@ import { Row } from "../Row/index.tsx";
 import { HISTORY_ACTIONS } from "./props.ts";
 import type { Density, HistoryResourceType, HistoryTabProps, HistoryVersion } from "./props.ts";
 import { clockIn, currentZones, partsIn } from "../../../lib/zones.ts";
+import { TimePop } from "../Time/index.tsx";
 
 export type { Density, HistoryResourceType, HistoryTabProps, HistoryVersion } from "./props.ts";
 export { HISTORY_ACTIONS, HISTORY_RESOURCE_TYPES, frozenHistoryTabProps } from "./props.ts";
@@ -354,7 +355,7 @@ export function HistoryTab(props: HistoryTabViewProps): ReactElement {
             : (
               <View style={styles.meta}>
                 {isCurrent ? <Text style={styles.cur}>Current</Text> : null}
-                <Text style={styles.time}>{shortDate(version.at)}</Text>
+                <TimePop at={Date.parse(version.at)}><Text style={styles.time}>{shortDate(version.at)}</Text></TimePop>
               </View>
             )}
           onPress={() => select(version.id)}
