@@ -1,0 +1,6 @@
+{
+  "targets": [
+    { "id": "CONSOLIDATE_03-open", "route": "/m/CONSOLIDATE_03?part=open", "proto": "chats,{skin}", "waitFor": "[data-testid='cite-1-pop']", "note": "An agent reply with citation marks: the [1] card is open and the message's hover toolbar is not drawn." },
+    { "id": "CONSOLIDATE_03-closed", "route": "/m/CONSOLIDATE_03?part=closed", "proto": "chats,{skin}", "waitFor": "[data-testid^='act-']", "note": "The same reply with the card closed: the hover toolbar shows." }
+  ]
+}

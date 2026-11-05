@@ -102,3 +102,24 @@ test("the last check reads as a time", () => {
   assert.equal(checkedLabel(0, 5 * 60_000), "Checked 5 min ago");
   assert.equal(checkedLabel(0, 3 * 3_600_000), "Checked 3 hours ago");
 });
+
+test("the wait: the countdown clock, the chats it names, and the lines for waiting and stopping", async () => {
+  const { clock, chatsWords, progressLine } = await import("./model.ts");
+  assert.deepEqual([clock(522), clock(60), clock(59.2), clock(0), clock(-3)], ["8:42", "1:00", "1:00", "0:00", "0:00"]);
+  assert.equal(chatsWords(["Rivera intake"], 1), "the reply in \u201cRivera intake\u201d");
+  assert.equal(chatsWords(["A", "B"], 2), "the replies in \u201cA\u201d and \u201cB\u201d");
+  assert.equal(chatsWords(["A", "B", "C"], 3), "the replies in \u201cA\u201d and 2 other chats");
+  assert.equal(chatsWords([], 3), "3 replies");
+  assert.equal(chatsWords(undefined, 1), "a reply");
+  assert.equal(progressLine({ phase: "waiting", downloaded: 0, total: null, turns: 1, chats: ["Rivera intake"] }), "Waiting for the reply in \u201cRivera intake\u201d to finish");
+  assert.equal(progressLine({ phase: "waiting", downloaded: 0, total: null, turns: 1 }), "Waiting for a reply on this computer to finish");
+  assert.equal(progressLine({ phase: "stopping", downloaded: 0, total: null, turns: 2 }), "Stopped the replies cleanly. Getting ready to install");
+  assert.equal(progressLine({ phase: "stopping", downloaded: 0, total: null, turns: 1 }), "Stopped the reply cleanly. Getting ready to install");
+  const { fraction } = await import("./model.ts");
+  assert.equal(fraction({ phase: "waiting", downloaded: 0, total: null, left: 300, of: 600 }), 0.5, "the bar is the time left");
+  assert.equal(fraction({ phase: "waiting", downloaded: 0, total: null, left: 600, of: 600 }), 1, "at the start of the wait it is the whole cap, and it only drains");
+  assert.equal(fraction({ phase: "waiting", downloaded: 0, total: null, left: 0, of: 600 }), 0, "empty when the cap is up");
+  assert.equal(fraction({ phase: "waiting", downloaded: 0, total: null, turns: 1 }), null, "no cap known: the quiet indeterminate bar, never full");
+  assert.equal(fraction({ phase: "installing", downloaded: 0, total: null }), 1);
+  assert.equal(progressLine({ phase: "stopping", downloaded: 0, total: null }), "Getting ready to install");
+});

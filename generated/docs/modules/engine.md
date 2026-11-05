@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (92)
+## Capabilities (93)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: a pin (the chat's account, the agent's key, the step's key), the person's own, the Space AI accounts whose uses cover the turn (cheapest that fits, not capped), the backups, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not
@@ -67,6 +67,7 @@ Requires: nothing.
 - [engine.reviewer.get](../capabilities/engine.reviewer.get.md): The reviewer of a chat, if one is set
 - [engine.reviewer.set](../capabilities/engine.reviewer.set.md): Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn ("Asking Reviewer to check this"), a person gets a Review task
 - [engine.route.preview](../capabilities/engine.route.preview.md): Who will answer a draft message ("Intake will reply" or "No agent will reply, type @ to ask one"); same route() the client runs locally
+- [engine.running_here](../capabilities/engine.running_here.md): System: the turns running now with the chat each is in and who asked, for the desktop update screen to name the reply it waits for and to end it (host/src/daemon, GET /local/daemon/busy)
 - [engine.runtime.opt_in](../capabilities/engine.runtime.opt_in.md): Let the Space continue my chats when my computer is off, by wrapping my runtime key for the Space; revocable
 - [engine.set_mode](../capabilities/engine.set_mode.md): Set an agent to Leading or Listening in a thread; exactly one lead per thread
 - [engine.set_model](../capabilities/engine.set_model.md): Set the model, provider, effort and paying account of an agent in a thread

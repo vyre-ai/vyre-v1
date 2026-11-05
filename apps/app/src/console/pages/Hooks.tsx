@@ -71,7 +71,12 @@ type HookRowData = Hook & { allowed?: AllowRule[] };
 /** The words for one rule line. */
 export const ruleWords = (r: Pick<AllowRule, "what">): string => `Always allowed for ${r.what}`;
 
-interface Loaded { hooks: Hook[]; runs: Run[]; bad: Run[]; agentHooks: boolean }
+/** The runs read asks for this many, newest first. */
+export const RUNS_LIMIT = 200;
+/** What a hook with no run says. "Never ran" only when the read answered and was not cut off at its limit, so it covered every run the viewer may see; else "Not run lately" (an older run may be past the cut). */
+export const neverWords = (runs: readonly unknown[], read: boolean): string => (read && runs.length < RUNS_LIMIT ? "Never ran" : "Not run lately");
+
+interface Loaded { hooks: Hook[]; runs: Run[]; runsRead: boolean; bad: Run[]; agentHooks: boolean }
 
 /** Reads the policy, the Space's hooks, each Space agent's own hooks and the latest runs. A read that fails on its own leaves the rest standing. */
 function useHooks(): { data: Loaded | undefined; error: string | undefined; refresh: () => void } {
@@ -89,14 +94,14 @@ function useHooks(): { data: Loaded | undefined; error: string | undefined; refr
       if (!space) { if (alive) setError("Couldn’t load this page. Check access and try again."); return; }
       const [policy, runs, bad, agents] = await Promise.all([
         soft<CapMap["hooks.policy.get"]["out"]>("hooks.policy.get", {}),
-        soft<CapMap["hooks.runs.list"]["out"]>("hooks.runs.list", { limit: 200 }),
+        soft<CapMap["hooks.runs.list"]["out"]>("hooks.runs.list", { limit: RUNS_LIMIT }),
         soft<CapMap["hooks.runs.list"]["out"]>("hooks.runs.list", NEEDS_ASK(clockRef.current().now)),
         soft<CapMap["agents.list"]["out"]>("agents.list", { section: "space" }),
       ]);
       const mine = await Promise.all((agents?.agents ?? []).map((a) => soft<CapMap["hooks.list"]["out"]>("hooks.list", { scope: "agent", agentId: a.agentId })));
       const byId = new Map<string, Hook>();
       for (const h of [...space.hooks, ...mine.flatMap((m) => m?.hooks ?? [])]) if (!byId.has(h.id)) byId.set(h.id, h);
-      if (alive) { setError(undefined); setData({ hooks: [...byId.values()].sort((a, b) => a.createdAt - b.createdAt), runs: runs?.runs ?? [], bad: bad?.runs ?? [], agentHooks: policy?.agentHooks ?? space.agentHooks }); }
+      if (alive) { setError(undefined); setData({ hooks: [...byId.values()].sort((a, b) => a.createdAt - b.createdAt), runs: runs?.runs ?? [], runsRead: runs !== undefined, bad: bad?.runs ?? [], agentHooks: policy?.agentHooks ?? space.agentHooks }); }
     })();
     return () => { alive = false; };
   }, [call, rev]);
@@ -154,7 +159,7 @@ export function HooksPage(): ReactElement {
   const [removed, setRemoved] = useState<Hook | null>(null);
   const [adding, setAdding] = useState(false);
   if (!read.data) return <ReadState error={read.error} retry={read.refresh} />;
-  const { hooks, runs, bad, agentHooks } = read.data;
+  const { hooks, runs, runsRead, bad, agentHooks } = read.data;
   const now = cd.clock().now;
   const nameOf = (id: string): string => cd.name(id);
   const lastRun = (id: string): Run | undefined => runs.filter((r) => r.hookId === id).sort((a, b) => b.at - a.at)[0];
@@ -204,7 +209,7 @@ export function HooksPage(): ReactElement {
             {/* ui-rows-lint: not a list (each hook is its own row with a divider; the rows wrap in full, which ui/Row clamps) */}
             {hooks.map((h, n) => {
               const last = lastRun(h.id);
-              const how = h.paused ? "Paused" : last ? `Last ran ${ago(now, last.at)}, ${lastRunWords(last, h.kind)}` : "Not run lately";
+              const how = h.paused ? "Paused" : last ? `Last ran ${ago(now, last.at)}, ${lastRunWords(last, h.kind)}` : neverWords(runs, runsRead);
               const actions = (
                 <>
                   <QuietButton label={h.paused ? "Resume" : "Pause"} testID={`hook-pause-${h.id}`} disabled={action.busy || !h.canChange} {...(!h.canChange ? { why } : {})}

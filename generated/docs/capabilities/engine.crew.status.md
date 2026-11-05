@@ -69,6 +69,7 @@ type Out = {
         state: "running" | "passing" | "failing";
         passed?: number;
         failed?: number;
+        failing?: string;
       };
     }>;
   totals: {
@@ -139,6 +140,7 @@ type Out = {
         "step": "example",
         "tests": {
           "failed": 1,
+          "failing": "example",
           "passed": 1,
           "state": "running"
         },

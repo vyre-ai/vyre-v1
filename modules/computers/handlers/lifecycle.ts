@@ -165,6 +165,7 @@ export async function provision(ctx: CompCtx, input: { agentId: string; tabLimit
   if (input.nodeId !== undefined) await placeable(ctx, input.nodeId, input.agentId);
   const computerId = mintId("cmt", ctx.now());
   const tabLimit = input.tabLimit ?? DEFAULT_TAB_LIMIT;
+  ctx.log.info("computer: provisioning", { computerId, agentId: input.agentId, node: input.nodeId ?? null });
   ctx.db.run(
     "INSERT INTO computers_computers (computer_id, agent_id, state, tabs, tab_limit, idle_sleep_minutes, host, node_id, created_at) VALUES (?, ?, 'provisioning', 0, ?, ?, ?, ?, ?)",
     computerId, input.agentId, tabLimit, DEFAULT_IDLE_MINUTES, "server", input.nodeId ?? null, ctx.now(),
@@ -172,9 +173,11 @@ export async function provision(ctx: CompCtx, input: { agentId: string; tabLimit
   try {
     const made = await (host ?? hostOf(ctx, computerId)).create({ computerId, agentId: input.agentId, tabLimit, idleSleepMinutes: DEFAULT_IDLE_MINUTES });
     setComputer(ctx.db, computerId, { state: "asleep", ...(made.diskBytes !== undefined ? { disk_bytes: made.diskBytes } : {}) });
+    ctx.log.info("computer: created", { computerId });
   } catch (e) {
+    ctx.log.warn("computer: create failed", { computerId, reason: e instanceof Error ? e.message.slice(0, 200) : "unknown" });
     ctx.db.run("DELETE FROM computers_computers WHERE computer_id = ?", computerId);
-    const reason = e instanceof Error ? e.message.slice(0, 200) : "unknown";
+    const reason = e instanceof Error ? e.message.slice(0, 1000) : "unknown";   // long enough for the Details a host adds after its first line
     raise(ctx, "provider.unavailable", `The computer could not be created: ${reason}`, { reason });
   }
   ctx.emit("computer.provisioned", computerId, { computerId, agentId: input.agentId });
@@ -259,15 +262,18 @@ export async function awaken(ctx: CompCtx, c: ComputerRow, by: string): Promise<
   if (c.state === "waking") return c;
   const host = hostOf(ctx, c.computerId);
   setComputer(ctx.db, c.computerId, { state: "waking", error: null });
+  ctx.log.info("computer: starting", { computerId: c.computerId, by });
   try {
     await host.start({ computerId: c.computerId, tabLimit: c.tabLimit, agentId: c.agentId });
   } catch (e) {
-    const reason = e instanceof Error ? e.message.slice(0, 200) : "The computer did not start.";
+    const reason = e instanceof Error ? e.message.slice(0, 1000) : "The computer did not start.";
+    ctx.log.warn("computer: start failed", { computerId: c.computerId, reason });
     setComputer(ctx.db, c.computerId, { state: "error", error: reason });
     raise(ctx, "internal.unexpected", `The computer did not start: ${reason}`, { reason });
   }
   await connectFill(ctx, host, c);
   setComputer(ctx.db, c.computerId, { state: "working", last_active_at: ctx.now() });
+  ctx.log.info("computer: ready", { computerId: c.computerId });
   ctx.emit("computer.started", c.computerId, { computerId: c.computerId, agentId: c.agentId, by });
   return refresh(ctx, needComputer(ctx, c.computerId));
 }

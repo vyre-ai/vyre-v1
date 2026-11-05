@@ -31,6 +31,28 @@ test("claude: a streamed answer is passed on as its deltas, once, with the cache
   ]);
 });
 
+test("claude: a tool result that holds a test run's summary carries those lines, and no other output", () => {
+  const d = createClaudeDecoder();
+  const line = (content: string): string => JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: "t1", content }] } });
+  const run = d.push(line("lots of output\n▶ dates\n✔ adds (1ms)\n✖ date is Thursday (2ms)\nℹ pass 1\nℹ fail 1\nsecret-token-abc"));
+  assert.deepEqual(run, [{ type: "tool", phase: "result", id: "t1", ok: true, output: "✖ date is Thursday (2ms)\nℹ pass 1\nℹ fail 1" }]);
+  assert.deepEqual(d.push(line("just a file listing")), [{ type: "tool", phase: "result", id: "t1", ok: true }]);
+});
+
+test("codex: a command that ran tests carries its command and its summary lines, a plain command carries neither output nor secrets", () => {
+  const d = createCodexDecoder();
+  const started = { type: "item.started", item: { id: "item_3", type: "command_execution", command: "bash -lc 'node --test dates.test.js'", aggregated_output: "", exit_code: null, status: "in_progress" } };
+  const done = { type: "item.completed", item: { id: "item_3", type: "command_execution", command: "bash -lc 'node --test dates.test.js'", aggregated_output: "▶ dates\n✔ adds (1ms)\n✖ date is Thursday (2ms)\nℹ pass 1\nℹ fail 1\nAPI_KEY=abc", exit_code: 1, status: "failed" } };
+  assert.deepEqual(d.push(JSON.stringify(started)), [
+    { type: "tool", phase: "call", id: "item_3", name: "command" },
+    { type: "tool", phase: "input", id: "item_3", detail: "bash -lc 'node --test dates.test.js'" },
+  ]);
+  assert.deepEqual(d.push(JSON.stringify(done)), [{ type: "tool", phase: "result", id: "item_3", ok: false, output: "✖ date is Thursday (2ms)\nℹ pass 1\nℹ fail 1" }]);
+  const plain = { type: "item.completed", item: { id: "item_4", type: "command_execution", command: "ls", aggregated_output: "a.txt\nAPI_KEY=abc", exit_code: 0, status: "completed" } };
+  const out = createCodexDecoder().push(JSON.stringify(plain));
+  assert.ok(out.every((e) => !("output" in e)));
+});
+
 test("claude: a message that came without deltas is passed on whole, its thinking too, and the result line does not repeat it", () => {
   assert.deepEqual(decode("claude-nopartial", createClaudeDecoder()), [
     S1, MCP_OK, { type: "thinking", text: "Short answer." }, { type: "text", text: "Whole message, no deltas." }, usage(8, 5, { model: "claude-sonnet-5-5", contextTokens: 8 }), { type: "end" },

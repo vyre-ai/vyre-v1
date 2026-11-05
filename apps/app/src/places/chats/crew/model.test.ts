@@ -74,6 +74,7 @@ test("tests read as a person says them, and the keys do what the pane says", () 
   assert.equal(testsWords({ state: "passing", passed: 12 }), "12 tests passing");
   assert.equal(testsWords({ state: "failing", failed: 3 }), "3 failing");
   assert.equal(testsWords({ state: "failing" }), "Tests failing");
+  assert.equal(testsWords({ state: "failing", passed: 1, failed: 1 }), "1 passing, 1 failing");
   const rows = [{ id: "a" }, { id: "b" }, { id: "c" }];
   assert.deepEqual(keyAction({ key: ".", metaKey: true }, rows), { kind: "stop_all" });
   assert.deepEqual(keyAction({ key: ".", ctrlKey: true }, rows), { kind: "stop_all" });

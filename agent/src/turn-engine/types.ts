@@ -76,6 +76,8 @@ export interface IncomingMessage {
   poke?: { agentId: string; by: string } | undefined;
   /** Minutes since midnight where the speaker is, for agents set to answer only inside hours. */
   minutes?: number | undefined;
+  /** Keep the message in the chat's record but wake nobody: a helper's result while the others still work (the lead answers once, after the last one). */
+  hold?: boolean | undefined;
 }
 
 export interface StoredMessage {

@@ -53,3 +53,18 @@ test("a step line never carries the machinery: no browser, shell or tool id reac
     assert.doesNotMatch(`${out.title} ${out.sub}`, /chrome|bash|stdout|mcp|playwright/i, JSON.stringify(raw));
   }
 });
+
+test("what a finished step keeps: only a file's name and a test run's counts, said as what was done", async () => {
+  const { fileBase, testCounts, doneWords } = await import("../../../lib/plain-words.ts");
+  assert.equal(fileBase("/Users/maya/secret-client/dark-mode.txt"), "dark-mode.txt");
+  assert.equal(fileBase("C:\\work\\a.ts"), "a.ts");
+  assert.equal(fileBase("https://x.example/?token=abc"), "", "an address or a query is not a file name");
+  assert.equal(testCounts("✖ date (2ms)\nℹ pass 1\nℹ fail 1"), "1 passing, 1 failing");
+  assert.equal(testCounts("ℹ pass 4\nℹ fail 0"), "4 passing");
+  assert.equal(testCounts("nothing here"), "");
+  assert.equal(doneWords("Edit", "dark-mode.txt"), "Edited dark-mode.txt");
+  assert.equal(doneWords("Read"), "Read files");
+  assert.equal(doneWords("Bash", undefined, "1 passing, 1 failing"), "Ran the tests: 1 passing, 1 failing");
+  assert.equal(doneWords("Bash"), "Ran a command");
+  assert.deepEqual(internalNames(["Edited a file", "Ran a command", "Ran the tests: 2 passing"].join(" ")), []);
+});
