@@ -135,6 +135,8 @@ export function connectEntries(thread: Pick<Thread, "kind" | "channelId" | "thre
 }
 
 const NO_TURNS: readonly never[] = [];
+const NO_SUB = (): (() => void) => () => undefined;
+const ZERO = (): number => 0;
 const noSub = (): (() => void) => () => undefined;
 
 /** Replies being written in this chat, re-read whenever one starts, grows a state, or is saved. */
@@ -185,6 +187,7 @@ function NoAiLine({ data, threadId, agentId }: { data: Pick<ConversationData, "c
 
 function ConversationView(): ReactElement {
   const frame = useFrameStore();
+  useSyncExternalStore(frame?.subscribe ?? NO_SUB, frame?.version ?? ZERO, frame?.version ?? ZERO);   // the framing page may hand up its own empty state
   const inFrame = frame !== null;
   const data = useConversationData();
   const compact = useContext(CompactContext);
@@ -713,7 +716,7 @@ function ConversationView(): ReactElement {
                 <TextButton label="Show earlier messages" testID="earlier-button" onPress={() => { if (win.hiddenLocal > 0) setShown((n) => n + WINDOW); else { const c = beforeCursor(all); if (c !== null) setCursor(c); } }} />
               </View>
             ) : null}
-            {items.length === 0 && !data.head && thread.kind !== "thread" ? <States kind="empty" icon="chat" title="Say something to start" /> : null}
+            {items.length === 0 && !data.head && thread.kind !== "thread" ? (frame?.empty() ?? <States kind="empty" icon="chat" title="Say something to start" />) : null}
             {collect(items, (it) => {
               const key = it.key;
               const stream = it.kind === "other" ? data.streamOf(it.message.messageId) : undefined;

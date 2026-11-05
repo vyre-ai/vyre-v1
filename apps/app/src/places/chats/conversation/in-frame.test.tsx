@@ -26,3 +26,18 @@ test("in a project frame the conversation draws no header and hands its controls
   await flush();
   assert.ok(find(alone, "conversation-head") && find(alone, "conversation-title"));
 });
+
+test("a project's chat with no messages draws the intro its page handed up; without one it says Say something to start", async () => {
+  const { Text } = await import("react-native");
+  installDom();
+  Dimensions.set({ window: { width: 1280, height: 844, scale: 1, fontScale: 1 } });
+  const s = createSample("idle");
+  s.replica.remove("messages", (s.replica.rows("messages") as unknown as Array<{ id: string }>).map((r) => r.id));
+  const store = createFrameStore();
+  store.setEmpty(<Text testID="the-intro">The start of the project</Text>);
+  const framed = await mount(createRoot, <InProjectFrame value={store}><Conversation data={s.data} /></InProjectFrame>);
+  await flush(); await flush();
+  assert.ok(find(framed, "the-intro"), "the project's own empty state");
+  store.setEmpty(null); await flush();
+  assert.equal(find(framed, "the-intro"), null, "taking it away brings the plain one back");
+});

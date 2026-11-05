@@ -1,6 +1,7 @@
 // A conversation drawn inside another page's frame (a project's Chat tab): the page's own header is the only header, so the conversation draws none and hands its controls up (find, pane, helpers,
 // stop, and the entries of its More menu) through this store. The page draws them in its header and appends the entries to its own More menu; nothing is copied, the entries are the conversation's.
 import { createContext, useContext } from "react";
+import type { ReactElement } from "react";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 
 export interface FrameControls {
@@ -21,6 +22,9 @@ export interface FrameStore {
   /** The composer's words in a project: "Message <the project>", not the lead agent's name. */
   placeholder(): string | null;
   setPlaceholder(p: string | null): void;
+  /** What a chat with no messages shows in place of "Say something to start": the page that frames it knows what the chat is for (a project: its goal, its people and agents). */
+  empty(): ReactElement | null;
+  setEmpty(e: ReactElement | null): void;
 }
 
 export function createFrameStore(): FrameStore {
@@ -28,6 +32,7 @@ export function createFrameStore(): FrameStore {
   let sig = "";
   let v = 0;
   let ph: string | null = null;
+  let empty: ReactElement | null = null;
   const ls = new Set<() => void>();
   return {
     get: () => cur,
@@ -42,6 +47,8 @@ export function createFrameStore(): FrameStore {
     version: () => v,
     placeholder: () => ph,
     setPlaceholder(p) { ph = p; },
+    empty: () => empty,
+    setEmpty(e) { if (e === empty) return; empty = e; v += 1; for (const l of [...ls]) l(); },
   };
 }
 

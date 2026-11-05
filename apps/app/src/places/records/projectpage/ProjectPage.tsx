@@ -4,7 +4,7 @@
 // under the name; the channel and the folder are icon buttons. Each action is one capability call; a refusal shows as a quiet line.
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { DeferredPlan as Plan } from "../../../../../../ui/src/Plan/DeferredPlan.tsx";
 import type { PlanTask } from "../../../../../../ui/src/Plan/index.tsx";
@@ -23,6 +23,7 @@ import type { ProjectSpace, ProjectTabKey } from "./tabs.ts";
 import { ProjectOverview } from "./overview/index.tsx";
 import { ProjectLinked } from "./linked/index.tsx";
 import { KnowsTab } from "./KnowsTab.tsx";
+import { ProjectIntro, introPeople } from "./ProjectIntro.tsx";
 import { IconButton } from "../../chats/conversation/parts.tsx";
 import type { FrameStore } from "../../chats/conversation/frame.ts";
 import { ImportedHistory } from "./ImportedHistory.tsx";
@@ -57,6 +58,8 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
   const [note, setNote] = useState<string | null>(null);
   const [knowsOpen, setKnowsOpen] = useState(false);
   const menu = useMenu();
+  const width = useWindowDimensions().width;
+  const phone = width > 0 && width < 640;
   const noFrame = useMemo(() => ({ subscribe: () => () => undefined, version: () => 0, get: () => null }), []);
   const frameStore = chatControls ?? noFrame;
   useSyncExternalStore(frameStore.subscribe, frameStore.version, frameStore.version);
@@ -93,6 +96,13 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
   }, [note]);
 
   const tasks = useMemo(() => (load.status === "ready" ? planTasks(load.plan, d.nameOf) : []), [load, d]);
+  // the chat of this project, while it has no messages, opens on the channel intro: the goal, who is in it and its agents
+  useEffect(() => {
+    if (!chatControls || load.status !== "ready") return undefined;
+    const p = load.overview.project;
+    chatControls.setEmpty(<ProjectIntro title={p.title} goal={load.overview.goal} people={introPeople(load.overview.people, d.nameOf, ROLE_WORDS)} />);
+    return () => chatControls.setEmpty(null);
+  }, [chatControls, load, d]);
   if (load.status === "loading") return <View testID="project-loading" style={s.frame} accessibilityLabel="Loading the project"><View style={s.skHead} /><View style={s.skBody} /></View>;
   if (load.status === "gone") return <View testID="project-gone" style={s.frame}><View style={s.gone}><Text style={s.goneText}>That project is not here, or you may not open it.</Text></View></View>;
 
@@ -149,13 +159,13 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
             <Text style={s.pillText}>{health ? HEALTH_LABEL[health] : "No status"}</Text>
             {canEdit ? <Text style={s.chev}>{"\u2304"}</Text> : null}
           </Pressable>
-          {lead ? (
+          {lead && !phone ? (
             <Pressable accessibilityRole="button" accessibilityLabel={`Lead: ${d.nameOf(lead)}`} testID="project-lead" disabled={!canEdit} onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; right: number; bottom: number } } }) => { const r = e.currentTarget?.getBoundingClientRect?.(); setPeople(r ? { x: r.right, y: r.bottom, left: r.left } : { x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 }); }} style={({ hovered }: { hovered?: boolean }) => [s.pill, hovered === true && canEdit && s.hover]}><Avatar name={d.nameOf(lead)} size={18} /><Text style={s.pillText}>{d.nameOf(lead)}</Text>{canEdit ? <Text style={s.chev}>{"\u2304"}</Text> : null}</Pressable>
           ) : null}
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="People and agents" testID="project-members" aria-haspopup="dialog" onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; right: number; bottom: number } } }) => { const r = e.currentTarget?.getBoundingClientRect?.(); setPeople(r ? { x: r.right, y: r.bottom, left: r.left } : { x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 }); }} style={({ hovered }: { hovered?: boolean }) => [s.pill, hovered === true && s.hover]}>
           {/* ui-rows-lint: not a list (up to four stacked faces on the members button) */}
-          <View style={s.stack}>{mine.people.slice(0, 4).map((id) => <View key={id} style={s.stackFace}><Avatar name={d.nameOf(id)} size={20} /></View>)}</View>
+          <View style={s.stack}>{[...new Set(mine.people)].slice(0, 4).map((id, i) => <View key={id} style={[s.stackFace, i === 0 && s.stackFirst]}><Avatar name={d.nameOf(id)} seedId={id} size={20} /></View>)}</View>
           <Text style={s.pillText}>{String(p.memberCount)}</Text>
         </Pressable>
         {chat ? (
@@ -169,22 +179,26 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
         <Pressable accessibilityRole="button" accessibilityLabel="More" testID="project-more" onPress={(e: unknown) => { const q = at(e); menu.show(moreEntries(), q.x, q.y, "other", { label: p.title }); }} style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, hovered === true && s.hover]}><Text style={s.iconText}>{"\u2026"}</Text></Pressable>
       </View>
       <TabStrip noOptions noClose tabs={tabs} active={tab} onSelect={(k) => pick(k as ProjectTabKey)} />
-      {tab === "chat" && chatSlot ? <View style={s.chatSlot} testID="project-chat-main">{chatSlot}</View> : null}
-      {tab === "chat" && !chatSlot ? <ChatTab o={o} projectId={projectId} channelName={`#${p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`} now={now} /> : null}
-      {tab === "plan" ? (
-        <View style={s.planBody} testID="project-plan">
-          {d.nav.openGoal ? <GoalsOf scope="project" id={projectId} call={d.call} changes={d.changes} now={d.now()} offsetMin={0} nameOf={d.nameOf} openGoal={d.nav.openGoal} testID="project-goals" /> : null}
-          <Plan today={isoDay(plan.today)} view={planView} viewKey={`project-${projectId}`} stages={planStages(plan)} tasks={tasks} onChange={save} onOpenTask={(t) => { void d.call("projects.open_task_thread", { projectId, taskId: t.id }).then((out) => { const id = (out as { threadId?: string }).threadId; if (id) d.nav.openThread(id); }, say); }} />
+      <View style={s.bodyRow} testID="project-body">
+        <View style={s.bodyMain}>
+        {tab === "chat" && chatSlot ? <View style={s.chatSlot} testID="project-chat-main">{chatSlot}</View> : null}
+          {tab === "chat" && !chatSlot ? <ChatTab o={o} projectId={projectId} channelName={`#${p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`} now={now} /> : null}
+          {tab === "plan" ? (
+            <View style={s.planBody} testID="project-plan">
+              {d.nav.openGoal ? <GoalsOf scope="project" id={projectId} call={d.call} changes={d.changes} now={d.now()} offsetMin={0} nameOf={d.nameOf} openGoal={d.nav.openGoal} testID="project-goals" /> : null}
+              <Plan today={isoDay(plan.today)} view={planView} viewKey={`project-${projectId}`} stages={planStages(plan)} tasks={tasks} onChange={save} onOpenTask={(t) => { void d.call("projects.open_task_thread", { projectId, taskId: t.id }).then((out) => { const id = (out as { threadId?: string }).threadId; if (id) d.nav.openThread(id); }, say); }} />
+            </View>
+          ) : null}
+          {tab === "overview" ? <ProjectOverview projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
+          {tab === "linked" ? <ProjectLinked projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
         </View>
-      ) : null}
-      {tab === "overview" ? <ProjectOverview projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
-      {tab === "linked" ? <ProjectLinked projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
-      {knowsOpen ? (
-        <View style={s.knowsPane} testID="project-knows-pane" accessibilityLabel="What Vyre knows">
-          <View style={s.knowsHead}><Text accessibilityRole="header" style={s.knowsTitle}>What Vyre knows</Text><IconButton icon="x" label="Close" testID="project-knows-close" onPress={() => setKnowsOpen(false)} /></View>
-          <KnowsTab projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} />
-        </View>
-      ) : null}
+        {knowsOpen ? (
+          <View style={[s.knowsPane, !phone && s.knowsSide]} testID="project-knows-pane" accessibilityLabel="What Vyre knows">
+            <View style={s.knowsHead}><Text accessibilityRole="header" style={s.knowsTitle}>What Vyre knows</Text><IconButton icon="x" label="Close" testID="project-knows-close" onPress={() => setKnowsOpen(false)} /></View>
+            <KnowsTab projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} />
+          </View>
+        ) : null}
+      </View>
       {note ? <Text style={s.note} accessibilityLiveRegion="polite" testID="project-note">{note}</Text> : null}
       {add.element}
       {people ? <ProjectPeople o={o} projectId={projectId} at={people} onClose={() => setPeople(null)} toOverview={() => { setPeople(null); setTab("overview"); onTabChange?.("overview"); }} menu={menu} reload={() => { void read(); }} say={say} /> : null}
@@ -310,13 +324,17 @@ const s = StyleSheet.create({
   starOn: { color: "var(--warn)" as string },
   pill: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 8 },
   chev: { fontSize: 12, color: "var(--ink-3)" as string, marginLeft: 2 },
+  bodyRow: { flex: 1, minHeight: 0, flexDirection: "row" },
+  bodyMain: { flex: 1, minWidth: 0, minHeight: 0 },
+  knowsSide: { position: "relative", width: 400, maxWidth: "45%", flexShrink: 0 },
   knowsPane: { position: "absolute", top: 0, right: 0, bottom: 0, width: "100%", maxWidth: 400, zIndex: 20, backgroundColor: "var(--raised)" as string, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },
   knowsHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 24, paddingTop: 16 },
   knowsTitle: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
   pillText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   dot: { width: 8, height: 8, borderRadius: 4 },
   stack: { flexDirection: "row", marginRight: 2 },
-  stackFace: { marginLeft: -6 },
+  stackFace: { marginLeft: -6, borderRadius: 12, borderWidth: 2, borderColor: "var(--win)" as string },
+  stackFirst: { marginLeft: 0 },
   title: { fontSize: 20, fontWeight: "600", letterSpacing: -0.3, color: "var(--ink)" as string },
   facts: { flexDirection: "row", flexWrap: "wrap", columnGap: 24, rowGap: 6, marginTop: 8 },
   fact: { flexDirection: "row", alignItems: "baseline", gap: 6 },

@@ -59,6 +59,8 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
     // the page reads these two: ask the Space for them first, so a refusal shows here and not as a blank page
     await call("projects.overview", { projectId: pid }); await call("projects.plan", { projectId: pid });
     await call("projects.create", { type, title: "Q4 billing", idempotencyKey: "pj-q4" });
+    // more than three projects, so the Projects group shows its "N more" row
+    for (const [i, title] of ["Lab 8 launch", "Onboarding refresh", "Vendor review"].entries()) await call("projects.create", { type, title, idempotencyKey: `pj-extra-${i}` });
 
     // Maya joins through the real join screens, and is made a member of the first project
     const roles = (await call("access.roles.list", {})).roles as { id: string; name: string }[];
@@ -103,6 +105,11 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
         await p.getByTestId("head-projects").waitFor({ timeout: 20_000 });
         await ok("the sidebar");
         await both(p, `projects-1-sidebar-${who}-${size}`);
+        // the + on the Projects header shows on hover, and the group folds to three with an "N more" row
+        await p.getByTestId("head-projects").hover();
+        await p.getByTestId("new-project").waitFor({ timeout: 5000 });
+        assert.ok(await p.getByTestId("row-m:projects").count() > 0, "the group has an N more row with more than three projects");
+        await both(p, `projects-1b-plus-hover-and-more-${who}-${size}`, async () => { await p.getByTestId("head-projects").hover(); });
         await p.getByTestId(`row-pj:${pid}`).click();
       } else {
         await p.goto(`${web.origin}/chat#subject=project:${pid}`, { waitUntil: "load" });
@@ -120,6 +127,9 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
       // the Chat tab is the project channel's own thread for everyone on the project, never a fresh draft chat (the new-chat home) and never a silent blank
       assert.equal(await p.getByTestId("project-chat-main").getByText("What are we working on?").count(), 0, `${who}: the project chat opened the new-chat home instead of the project's channel (${await p.getByTestId("project-chat-main").innerText().then((t) => t.slice(0, 200))})`);
       assert.equal(await p.getByTestId("project-chat-unavailable").count(), 0, `${who}: the project chat is not available: ${await p.getByTestId("project-chat-unavailable").innerText().catch(() => "")}`);
+      // a project chat with no messages opens on the channel intro, not "Say something to start"; at phone width the header is one row without the lead chip
+      assert.ok(await p.getByTestId("project-intro").count() > 0, `${who} ${size}: the empty project chat shows the channel intro`);
+      if (size === "phone") assert.equal(await p.getByTestId("project-lead").count(), 0, "no lead chip on a phone");
       await both(p, `projects-2-project-${who}-${size}`);
       // the regression: pressing Plan opens the Plan
       await p.getByTestId("tab-plan").click();
@@ -141,6 +151,10 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
         await openKnows();
         await p.waitForTimeout(5000);   // the status toast clears first
         await ok("Knows and the status");
+        // the pane sits beside the chat: the composer is still whole and does not run under it
+        const box = async (id: string): Promise<{ x: number; y: number; width: number; height: number }> => (await p.getByTestId(id).first().boundingBox())!;
+        const pane = await box("project-knows-pane"), comp = await box("composer");
+        assert.ok(comp.x + comp.width <= pane.x + 1, `the composer (right edge ${comp.x + comp.width}) ends before the Knows pane (${pane.x})`);
         await both(p, `projects-4-knows-${who}-${size}`, openKnows);
       }
     };

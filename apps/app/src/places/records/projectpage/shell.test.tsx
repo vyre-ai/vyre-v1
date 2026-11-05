@@ -249,3 +249,46 @@ test("a Space owner or admin keeps role control when someone else is Lead; a pla
     }
   } finally { off(); }
 });
+
+test("a project's chat with no messages opens on the channel intro: the goal, who is in it and its agents (the page hands it up through the frame store)", async () => {
+  const { createFrameStore } = await import("../../chats/conversation/frame.ts");
+  const off = installDom(); widen(1280);
+  try {
+    const t = setup();
+    const store = createFrameStore();
+    assert.equal(store.empty(), null);
+    const root = await mount(createRoot, <ProjectPageDataProvider value={t.data}><ProjectPage projectId="pj_0" space={SPACE} chatSlot={<></>} chatControls={store} /></ProjectPageDataProvider>);
+    await flush(); await flush();
+    const intro = store.empty();
+    assert.ok(intro, "the page set the project's empty state");
+    const shown = await mount(createRoot, intro!);
+    assert.match(textOf(find(shown, "project-intro-goal")), /Sign the engagement letter/);
+    assert.ok(find(shown, "project-intro-people"), "who is in it");
+    assert.match(textOf(find(shown, "project-intro")), /This is the start of/);
+    void root;
+  } finally { off(); }
+});
+
+test("introPeople lists each member once, with the role in words, and splits out the agents", async () => {
+  const { introPeople } = await import("./ProjectIntro.tsx");
+  const list = introPeople([{ principal: "usr_a", role: "lead" }, { principal: "agt_x", role: "member", kind: "agent" }, { principal: "usr_a", role: "member" }], (id) => id.toUpperCase(), { lead: "Lead", member: "Member" });
+  assert.deepEqual(list.map((p) => [p.id, p.kind, p.role]), [["usr_a", "person", "Lead"], ["agt_x", "agent", "Member"]]);
+});
+
+test("on a phone the lead chip leaves the header (one row), and the Knows pane sits beside the chat on a wide window so the composer is not covered", async () => {
+  const off = installDom();
+  try {
+    widen(390);
+    const t = setup();
+    const phone = await mount(createRoot, <ProjectPageDataProvider value={t.data}><ProjectPage projectId="pj_0" space={SPACE} /></ProjectPageDataProvider>);
+    await flush(); await flush();
+    assert.equal(find(phone, "project-lead"), null, "no lead chip at phone width");
+    widen(1280);
+    const wide = await mount(createRoot, <ProjectPageDataProvider value={t.data}><ProjectPage projectId="pj_0" space={SPACE} /></ProjectPageDataProvider>);
+    await flush(); await flush();
+    assert.ok(find(wide, "project-lead"), "the lead chip shows on a wide window");
+    await press(find(wide, "project-more")); await flush();
+    const body = find(wide, "project-body");
+    assert.ok(body, "the tab bodies and the pane share one row");
+  } finally { off(); }
+});
