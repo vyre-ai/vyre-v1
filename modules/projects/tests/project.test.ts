@@ -253,8 +253,13 @@ test("a person sees only the projects they are in, or may open", async () => {
   assert.equal((await run(h, "projects.list", {}, h.person(LEO))).total, 0);
   h.allowOnly(() => true);
   await run(h, "projects.members.set", { projectId: p.projectId, principal: LEO, role: "guest" });
+  // listed only when get would open it: a role row without the grant behind it is not shown, and the id that list gives always resolves
   h.allowOnly(() => false);
-  assert.equal((await run(h, "projects.list", {}, h.person(LEO))).total, 1, "Leo is in it");
+  assert.equal((await run(h, "projects.list", {}, h.person(LEO))).total, 0, "no grant, so get would refuse it and list does not show it");
+  h.allowOnly(() => true);
+  const seen = (await run(h, "projects.list", {}, h.person(LEO))).projects as Array<{ projectId: string }>;
+  assert.deepEqual(seen.map((x) => x.projectId), [p.projectId], "Leo is in it");
+  assert.equal((await run(h, "projects.get", { projectId: seen[0]!.projectId }, h.person(LEO))).project.projectId, p.projectId);
 });
 
 // ---- Overview ----
@@ -338,9 +343,9 @@ test("an agent with a project role is a teammate there; a role or an automation 
 test("only someone who manages the project can change who is on it, and the same key answers the same", async () => {
   const h = harness();
   const p = await mkProject(h);
-  h.allowOnly((a) => a.level === "view" || a.level === "edit");
-  await refused(run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }), "validation.not_found");
-  await refused(run(h, "projects.members.remove", { projectId: p.projectId, principal: DANA }), "validation.not_found");
+  h.allowOnly((a) => a.perm !== "console.access" && (a.level === "view" || a.level === "edit"));   // no Manage, and not a Space admin
+  await refused(run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }), "permission.no_grant");
+  await refused(run(h, "projects.members.remove", { projectId: p.projectId, principal: DANA }), "permission.no_grant");
   h.allowOnly(() => true);
   const k = key();
   const one = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member", idempotencyKey: k });
@@ -415,7 +420,7 @@ test("share_out makes a read-only link that can expire, for someone who manages 
   assert.deepEqual(h.named("project.shared_out").map((e) => e.payload), [{ projectId: p.projectId, expiresAt: NOW + 7 * DAY }]);
   await refused(run(h, "projects.share_out", { projectId: p.projectId, expiresAt: NOW - DAY }), "validation.bad_input");
   h.allowOnly((a) => a.level !== "manage");
-  await refused(run(h, "projects.share_out", { projectId: p.projectId }), "validation.not_found");
+  await refused(run(h, "projects.share_out", { projectId: p.projectId }), "permission.no_grant");
 });
 
 const HOST = { kind: "service", id: "svc_host" } as const;
@@ -444,7 +449,7 @@ test("unshare_out revokes one link at once and the others stay", async () => {
   assert.deepEqual(await run(h, "projects.unshare_out", { projectId: p.projectId, url: a.url }), { revoked: false }, "twice is not an error");
   await refused(run(h, "projects.unshare_out", { projectId: p.projectId, url: "/elsewhere/x" }), "validation.bad_input");
   h.allowOnly((x) => x.level !== "manage");
-  await refused(run(h, "projects.unshare_out", { projectId: p.projectId, url: b.url }), "validation.not_found");
+  await refused(run(h, "projects.unshare_out", { projectId: p.projectId, url: b.url }), "permission.no_grant");
 });
 
 test("shared_view shows the client the title, status, goal, update and next milestones and nothing of people, threads or files; a stranger cannot call it", async () => {
@@ -499,7 +504,7 @@ test("teammates: one yes makes an agent for the project with a role, the lead co
   assert.deepEqual(await run(h, "projects.teammates.remove", { projectId: p.projectId, agentId: rev.agentId, idempotencyKey: key() }), { removed: false });
   await refused(run(h, "projects.teammates.create", { projectId: p.projectId, name: " ", role: "member", idempotencyKey: key() }), "validation.bad_input");
   h.allowOnly((a) => a.level === "view" || a.level === "edit");
-  await refused(run(h, "projects.teammates.create", { projectId: p.projectId, name: "No rights", role: "member", idempotencyKey: key() }), "validation.not_found");
+  await refused(run(h, "projects.teammates.create", { projectId: p.projectId, name: "No rights", role: "member", idempotencyKey: key() }), "permission.no_grant");
 });
 
 test("share_out fails closed: a link outside the Space is made only when the type positively says outside is on", async () => {
@@ -512,4 +517,97 @@ test("share_out fails closed: a link outside the Space is made only when the typ
   assert.equal(h.rows("SELECT projectId FROM projects_share").length, 0, "no link was made");
   h.world.outside.answer = true;
   assert.match((await run(h, "projects.share_out", { projectId: p.projectId })).url, /^\/share\/project\//);
+});
+
+// ---- roles_of ----
+
+test("roles_of says which role a person holds on which projects, and only the projects the asker can see", async () => {
+  const h = harness();
+  const p = await mkProject(h, { title: "Client portal launch" });
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: LEO, role: "reviewer" });
+  assert.deepEqual((await run(h, "projects.roles_of", { personId: LEO })).roles, [{ projectId: p.projectId, title: "Client portal launch", role: "reviewer" }], "the maker sees Leo's role");
+  h.allowOnly(() => false);
+  assert.deepEqual((await run(h, "projects.roles_of", { personId: LEO }, h.person(MAYA))).roles, [], "Maya is not in it and cannot view it: it is not named to her");
+  assert.equal((await run(h, "projects.roles_of", { personId: LEO }, h.person(LEO))).roles.length, 1, "Leo sees his own");
+  await refused(run(h, "projects.roles_of", { personId: "agt_helper" }), "validation.bad_input");
+});
+
+// ---- archive ----
+
+test("archive takes a project out of the lists and leaves it readable; unarchive brings it back; both are audited and a manager's", async () => {
+  const h = harness();
+  const a = await mkProject(h, { title: "Probate GTM" });
+  const b = await mkProject(h, { title: "Lease renewals" });
+  const ids = async (input: Record<string, unknown> = {}): Promise<string[]> => (await run(h, "projects.list", input)).projects.map((p: { projectId: string }) => p.projectId).sort();
+  assert.deepEqual(await ids(), [a.projectId, b.projectId].sort());
+  const r = await run(h, "projects.archive", { projectId: a.projectId });
+  assert.deepEqual(r, { archived: true, changed: true });
+  assert.deepEqual(await ids(), [b.projectId], "it left the lists");
+  assert.deepEqual(await ids({ archived: true }), [a.projectId], "and is listed when archived ones are asked for");
+  const got = await run(h, "projects.get", { projectId: a.projectId });
+  assert.equal(got.project.projectId, a.projectId, "it still opens");
+  assert.ok(typeof got.project.archivedAt === "number", "and says when it was archived");
+  assert.equal((await run(h, "projects.overview", { projectId: a.projectId })).project.archivedAt, got.project.archivedAt);
+  assert.deepEqual(await run(h, "projects.archive", { projectId: a.projectId }), { archived: true, changed: false }, "once more changes nothing");
+  assert.equal(h.named("project.archived").length, 1);
+  assert.deepEqual(h.named("project.archived")[0]?.payload, { projectId: a.projectId, by: DANA });
+  assert.deepEqual(await run(h, "projects.unarchive", { projectId: a.projectId }), { archived: false, changed: true });
+  assert.deepEqual(await ids(), [a.projectId, b.projectId].sort());
+  assert.equal((await run(h, "projects.get", { projectId: a.projectId })).project.archivedAt, undefined);
+  assert.equal(h.named("project.unarchived").length, 1);
+});
+
+test("archive and unarchive need Manage: a person with no grant on the project is refused as for a project that is not there", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  h.allowOnly((action) => action.level === "view");   // they may read it, not manage it
+  await refused(run(h, "projects.archive", { projectId: p.projectId }, h.person(LEO)), "permission.no_grant");
+  await refused(run(h, "projects.unarchive", { projectId: p.projectId }, h.person(LEO)), "permission.no_grant");
+  h.allowOnly(() => false);
+  await refused(run(h, "projects.archive", { projectId: p.projectId }, h.person(LEO)), "validation.not_found");
+  h.allowOnly(() => true);
+  assert.deepEqual((await run(h, "projects.list", {})).projects.length, 1, "nothing changed");
+});
+
+test("a person given a role on a project is added to its invite-only channel (so the Chat tab opens for them), and leaves it when removed", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" });
+  assert.ok(h.world.channelPeople.get(p.channelId)?.has(MAYA), "Maya is in the project's channel");
+  await run(h, "projects.members.remove", { projectId: p.projectId, principal: MAYA });
+  assert.ok(!h.world.channelPeople.get(p.channelId)?.has(MAYA), "and out of it when she leaves the project");
+});
+
+test("a Space owner or admin with no Manage on the project sets and removes roles whoever leads, the grants carry the project as source; a person with no Manage and no Console right is told in one plain line, and nothing changes", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: BOT, role: "lead" });
+  h.allowOnly((a) => a.perm === "console.access" || a.level === "view" || a.level === "edit");   // a Space admin: the Console right, no Manage on this project
+  const set = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" });
+  assert.equal(set.member.role, "member", "the admin names a member though an agent leads");
+  const mine = h.world.grants.filter((g) => g.subject.id === MAYA);
+  assert.deepEqual(mine.map((g) => [g.resource.type, g.level, g.source]).sort(), [["channel", "edit", `project:${p.projectId}`], ["folder", "edit", `project:${p.projectId}`], ["project", "edit", `project:${p.projectId}`]], "the grants landed on the project, its folder and its channel");
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "reviewer" });
+  assert.ok(h.world.grants.filter((g) => g.subject.id === MAYA).every((g) => g.level === "view"), "a role change replaces the grants");
+  assert.deepEqual(await run(h, "projects.members.remove", { projectId: p.projectId, principal: MAYA }), { removed: true });
+  assert.equal(h.world.grants.filter((g) => g.subject.id === MAYA).length, 0, "and removing takes them all back");
+  h.allowOnly((a) => a.perm === null && (a.level === "view" || a.level === "edit"));   // can open and edit, no Manage, no Console right
+  const before = h.world.grants.length;
+  const err = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }).then(() => null, (e: unknown) => e);
+  assert.equal(codeOf(err), "permission.no_grant");
+  assert.match(String((err as Error).message), /You need to manage this project to change roles\. Ask its Lead or the Space owner\./);
+  assert.equal(h.world.grants.length, before, "no grant was written");
+  assert.ok(!h.world.channelPeople.get(p.channelId)?.has(MAYA), "Maya is not in the channel");
+  const list = await run(h, "projects.members.list", { projectId: p.projectId });
+  assert.ok(!list.members.some((m: { principal: string }) => m.principal === MAYA), "and not on the list");
+});
+
+test("an agent given a project role joins the project's channel too (Lead answers, the rest listen), and leaves it when removed", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: BOT, role: "member" });
+  assert.ok(h.world.channelPeople.get(p.channelId)?.has(BOT), "the agent is in the project's channel");
+  assert.equal(h.world.calls.filter((c) => c.cap === "channels.agents.add").at(-1)?.input["mode"], "listen");
+  await run(h, "projects.members.remove", { projectId: p.projectId, principal: BOT });
+  assert.ok(!h.world.channelPeople.get(p.channelId)?.has(BOT), "and out of it when it leaves");
 });

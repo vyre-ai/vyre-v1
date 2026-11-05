@@ -28,6 +28,7 @@ export interface UpdatesDrivers {
     current(): Promise<string>;
     previous(): Promise<string[]>;
     install(release: ReleaseInfo, channel?: UpdateChannel): Promise<void>;
+    running?(): string | undefined;
     healthy(): Promise<boolean>;
     switchTo(version: string): Promise<void>;
   };
@@ -49,6 +50,8 @@ export interface UpdatesHostDeps {
   dir?: string;
   /** Read a small text file; null when it is not there. Default: the file system. */
   readText?: (file: string) => string | null;
+  /** The version of this process (the daemon's own), reported when vyre-server is not installed. */
+  version?: string;
 }
 
 /** `vyre-server`'s base address for a channel, as scripts/release/feed.ts (feedBase) writes it. */
@@ -96,6 +99,7 @@ export function createUpdatesHost(d: UpdatesHostDeps = {}): UpdatesDrivers {
       },
     },
     installer: {
+      running: () => d.version,
       async current() {
         const r = await server("version");
         if (r.code === 127) throw Object.assign(new Error("vyre-server is not installed on this server"), { code: "ENOENT" });

@@ -1,6 +1,7 @@
 // A booted daemon for the personal mail tests: a fresh Space (Personal or Team) whose owner has claimed it, any number of members who joined by invite, each with their own bearer token,
 // and fake Google and Microsoft under it (test/support/fake-mail-providers.ts). Nothing inside the daemon is faked: the Vault, the Space seal, the mail, google and microsoft modules, the
 // gateway and the host seams are the real ones. The live test calls the capabilities as each person; the browser journey puts the real app in front of the same daemon.
+import { makeBundle } from "../../client/src/crypto/keys.ts";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import fs from "node:fs";
@@ -16,8 +17,12 @@ import { fakeMailProviders } from "./fake-mail-providers.ts";
 import type { FakeMailProviders } from "./fake-mail-providers.ts";
 
 const caddyFetch: FetchFn = () => Promise.resolve({ ok: true, status: 200, headers: { get: () => null }, text: () => Promise.resolve('{"apps":{"http":{}}}') });
-const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
-const PASSWORD = "correct horse battery staple 9";
+/** A person's key bundle made the way the app makes it at sign-up, so the password really opens it (the launch lock asks for it in the browser). */
+async function realKeys(): Promise<Record<string, unknown>> {
+  const m = await makeBundle(PASSWORD, "fixture recovery code 1234", { spaceId: "spc_pmail" });
+  return { personKeyByPassword: m.personKeyByPassword, personKeyByRecovery: m.personKeyByRecovery, publicKey: m.publicKey, privateKeyWrapped: m.privateKeyWrapped, spaceKeys: m.spaceKeys };
+}
+export const PASSWORD = "correct horse battery staple 9";
 const DEVICE = { deviceName: "Test browser", deviceClass: "desktop" };
 
 export interface Reply { status: number; data: any; error?: { code?: string; message?: string } }   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -107,7 +112,7 @@ export async function bootMailWorld(o: WorldOptions): Promise<MailWorld> {
   };
   assert.ok(d.claim, "a fresh Space prints a claim link");
   const code = decodeURIComponent(new URL(d.claim.url).pathname.split("/").pop() ?? "");
-  const claimed = await post("identity.claim_owner", { code, spaceId: "spc_pmail", username: "olivia", displayName: "Olivia", password: PASSWORD, ...DEVICE, keys: KEYS });
+  const claimed = await post("identity.claim_owner", { code, spaceId: "spc_pmail", username: "olivia", displayName: "Olivia", password: PASSWORD, ...DEVICE, keys: await realKeys() });
   if (claimed.status !== 200) {
     d.sink.flush();
     const rows = new DatabaseSync(d.paths.logs, { readOnly: true }).prepare("SELECT level, cap, msg, attrs FROM logs WHERE level >= 40 ORDER BY id DESC LIMIT 5").all();
@@ -126,7 +131,7 @@ export async function bootMailWorld(o: WorldOptions): Promise<MailWorld> {
       const roles = (await owner.ok("access.roles.list")).roles as { id: string; name: string }[];
       const role = roles.find((r) => /member/i.test(r.name)) ?? roles[0]!;
       const invite = await owner.ok("members.invites.create", { role: role.id, idempotencyKey: `pmail-invite-${++invites}` });
-      const joined = await post("members.accept", { code: decodeURIComponent(new URL(invite.link).pathname.split("/").pop() ?? ""), username, displayName: username, password: PASSWORD, ...DEVICE, keys: KEYS });
+      const joined = await post("members.accept", { code: decodeURIComponent(new URL(invite.link).pathname.split("/").pop() ?? ""), username, displayName: username, password: PASSWORD, ...DEVICE, keys: await realKeys() });
       assert.equal(joined.status, 200, JSON.stringify(joined.body));
       return person(() => d, joined.body.data.personId as string, username, joined.body.data.token as string);
     },
@@ -136,8 +141,9 @@ export async function bootMailWorld(o: WorldOptions): Promise<MailWorld> {
 }
 
 /** The owner unlocks the Vault the way the app does once signed in, so Shared items can be filed and Mine items opened. */
+// the same stand-in key a browser seat hands the daemon (test/support/mail-browser.ts seat()): a vault filled here stays readable once a seat opens the app
 export async function unlockVault(w: MailWorld): Promise<void> {
-  const r = await fetch(`${w.d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${w.owner.token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
+  const r = await fetch(`${w.d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${w.owner.token}` }, body: JSON.stringify({ key: Buffer.from(new Uint8Array(32).fill(7)).toString("base64") }) });
   assert.equal(r.status, 204, `unlock: ${r.status}`);
 }
 export async function lockVault(w: MailWorld): Promise<void> {

@@ -4,8 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { defaultPrompt } from "../agent/src/drivers/cli/prompt.ts";
 import type { DriverEvent, EngineSession, OpenSession, TurnInput } from "../agent/src/turn-engine/types.ts";
-import { connectCodex, codexDeviceFetch } from "./support/codex-device.ts";
-import { boot, call, connect, hostLog, makeAgent, post, sayAuto, scriptedModel, seededDir, waitFor } from "./support/live.ts";
+import { boot, call, codexSeams, connect, connectCodex, hostLog, makeAgent, post, sayAuto, scriptedModel, seededDir, waitFor } from "./support/live.ts";
 
 const brief: OpenSession = async () => ({
   warm: true,
@@ -18,11 +17,11 @@ const brief: OpenSession = async () => ({
 } as EngineSession);
 
 test("long sessions: every turn is written to the transcript, older turns stand as a summary, the recent twenty stay word for word, and a model switch carries the summary", async () => {
-  const d = await boot(seededDir(), brief, { seamFetch: codexDeviceFetch() });
+  // a model switch to Codex needs a ChatGPT account: a picked model is never run on another one (the owner's rule), so the person has one
+  const d = await boot(seededDir(), brief, { seams: { fetch: codexSeams } });
   try {
     await connect(d);
-    // the switch below is to Codex, so the person has a ChatGPT sign-in as well: a chat is never switched to something no account of theirs can answer
-    await connectCodex(d, call);
+    await connectCodex(d);
     const id = await makeAgent(d, "Intake");
     const started = await call(d, "chat.start", { kind: "chat", agentIds: [id], idempotencyKey: "long-start" });
     const threadId = started.data.thread.threadId as string;

@@ -1,7 +1,7 @@
 // One handler per automations capability. Definitions, versions, Groups, alerts, followers, webhook and Promote live in defs.ts; Runs and triggers in triggers.ts. An OpenAPI draft lives in draft-connector.ts.
 import {
   alertsGet, alertsSet, create, followersAdd, followersRemove, get, groupsCreate, groupsDelete, groupsList, groupsRename, list, makePersonalCopy, move, previewPromote, promote, remove,
-  restoreVersion, senders, setEnabled, stepsList, triggersList, undelete, update, validate, versions, webhookGet, webhookRotate,
+  restoreVersion, senders, setEnabled, setOwner, stepsList, triggersList, undelete, update, validate, versions, webhookGet, webhookRotate,
 } from "./defs.ts";
 import { accountPicks } from "./accounts.ts";
 import { draftConnector } from "./draft-connector.ts";
@@ -24,9 +24,15 @@ import { migrateRuns, migrationPreview } from "./migrate.ts";
 import { exportPackage, importPackage, packagesList } from "./packages.ts";
 import { analytics, dependencies, templatesList, templatesUse } from "./studio.ts";
 import { scheduleChoose } from "./schedule.ts";
+import { check as watchCheck, list as watchesList, remove as watchRemove, report as watchReport, save as watchSave } from "./watches.ts";
 import { fire, replay, retry, run, stop, test } from "./triggers.ts";
 
 export const handlers = {
+  "automations.watches.check": watchCheck,
+  "automations.watches.list": watchesList,
+  "automations.watches.remove": watchRemove,
+  "automations.watches.report": watchReport,
+  "automations.watches.save": watchSave,
   "automations.account_picks": accountPicks,
   "automations.analytics": analytics,
   "automations.dependencies": dependencies,
@@ -36,6 +42,7 @@ export const handlers = {
   "automations.alerts.set": alertsSet,
   "automations.create": create,
   "automations.delete": remove,
+  "automations.set_owner": setOwner,
   "automations.draft_connector": draftConnector,
   "automations.http_read": httpRead,
   "automations.http_send": httpSend,

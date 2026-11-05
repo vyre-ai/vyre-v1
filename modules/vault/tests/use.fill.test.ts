@@ -111,9 +111,76 @@ test("inject_env names the keys and handles of a folder, never a value", async (
   const r = out(await u.injectEnv(h.ctx, { folderId: f, purpose: "vyre run --env" }));
   assert.deepEqual(contractErrors("vault.inject_env", "out", r), []);
   assert.deepEqual(r.handles, ["#Dana_Lawmatics.username", "#Dana_Lawmatics.api_key", "#Stripe_live.username", "#Stripe_live.api_key"]);
-  assert.deepEqual(r.keys, ["username", "api_key"]);
+  assert.deepEqual(r.keys, ["username", "api_key", "Stripe_live__username", "Stripe_live__api_key"], "a second item with the same field names gets its own name in front");
+  assert.equal(r.handles.length, r.keys.length);
   assert.equal(h.named("vault.used").length, 2);
   assert.ok(!h.everything().includes("sk-stripe-AAAA") && !h.everything().includes(SECRET));
+  h.cleanup();
+});
+
+test("inject_env refuses, naming both items, when the prefixed name is taken too", async () => {
+  const h = harness();
+  const f = await folder(h);
+  const mk = (name: string, fieldKey: string) => v.itemPut(h.ctx, { folderId: f, name, kind: "api_key", fields: [{ key: fieldKey, value: "value-" + name }], idempotencyKey: key() } as Parameters<typeof v.itemPut>[1]);
+  await mk("Aa", "k");
+  await mk("Bb", "Cc__k");
+  await mk("Cc", "k"); // Cc's second "k" would become Cc__k, which Bb already holds
+  await assert.rejects(u.injectEnv(h.ctx, { folderId: f }), (e) => (e as { error?: { code?: string; message?: string } }).error?.code === "validation.precondition_failed" && /#Cc/.test(String((e as { error: { message: string } }).error.message)) && /#Bb/.test(String((e as { error: { message: string } }).error.message)));
+  h.cleanup();
+});
+
+test("each value `vyre run --env` fetches (fill with returnValue) is a use in the item's history and a vault.used event, with the person as the actor, and no value is written anywhere", async () => {
+  const h = harness();
+  const f = await folder(h);
+  const id = await put(h, f, "Dana Lawmatics");
+  u.configureVault(null);
+  const inj = out(await u.injectEnv(h.ctx, { folderId: f, purpose: "vyre run --env" }));
+  for (const handle of inj.handles as string[]) await u.fill(h.ctx, { handle, target: { kind: "env", ref: "vyre-run" }, returnValue: true });
+  const hist = out(await v.itemHistory(h.ctx, { itemId: id })).entries as Json[];
+  const used = hist.filter((e) => e.action === "used");
+  assert.ok(used.length >= 3, "one for the injection and one per field fetched");
+  assert.deepEqual([...new Set(used.map((e) => JSON.stringify(e.actor)))], [JSON.stringify({ kind: "person", id: MAYA })], "the person is the actor");
+  assert.deepEqual(used.map((e) => e.field).filter(Boolean).sort(), ["api_key", "username"]);
+  assert.equal(h.named("vault.used").length, 3);
+  assert.ok(!h.everything().includes(SECRET), "no value in the database, events or logs");
+  h.cleanup();
+});
+
+test("a shared item at Use is usable by the person and not viewable: the sink gets it, reveal and a returned value are refused", async () => {
+  const h = harness();
+  const f = await folder(h);
+  const id = await put(h, f, "Dana Lawmatics");
+  const got = sinks();
+  h.grant(ROB, id, "use");
+  h.actAs("person", ROB);
+  assert.equal(out(await u.use(h.ctx, { item: "#Dana_Lawmatics" })).itemId, id, "usable by name");
+  const r = out(await u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" } }));
+  assert.equal(r.filled, true);
+  assert.equal(got[0]?.value, SECRET, "the place got the value");
+  assert.equal("value" in r, false, "and the answer holds none");
+  assert.equal(await refusedWith(u.fill(h.ctx, { handle: "#Dana_Lawmatics.api_key", target: { kind: "env", ref: "p" }, returnValue: true })), "permission.no_grant", "no value back below View");
+  assert.equal(await refusedWith(v.itemReveal(h.ctx, { itemId: id })), "permission.no_grant", "reveal needs View");
+  h.cleanup();
+});
+
+test("search finds an item by name, handle, kind, field name or folder across Mine, Shared with me and the Space, and never by a value", async () => {
+  const h = harness();
+  const shared = await folder(h);
+  const mine = await folder(h, "mine");
+  const a = await put(h, shared, "Dana Lawmatics");
+  const b = await put(h, mine, "Claude sign in");
+  h.grant(ROB, a, "use");
+  const find = async (q: string): Promise<string[]> => (out(await v.itemsList(h.ctx, { q })).items as Json[]).map((i) => String(i.id)).sort();
+  assert.deepEqual(await find("lawmatics"), [a]);
+  assert.deepEqual(await find("#Dana_Lawmatics"), [a], "by handle");
+  assert.deepEqual(await find("claude"), [b], "a Mine item is found with the others");
+  assert.deepEqual(await find("api_key"), [a, b].sort(), "by field name, across both");
+  assert.deepEqual(await find("api key"), [a, b].sort());
+  assert.deepEqual(await find("shared u-"), [a], "by folder name");
+  assert.deepEqual(await find(SECRET), [], "never by a value");
+  h.actAs("person", ROB);
+  assert.deepEqual(await find("lawmatics"), [a], "shared with me is found; another person's Mine is not");
+  assert.deepEqual(await find("claude"), []);
   h.cleanup();
 });
 

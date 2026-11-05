@@ -2,6 +2,8 @@
 // opener from them. A CLI engine (Claude Code, Codex, Grok) runs as a local process with the key filled into its environment and reaches Vyre over the loopback MCP endpoint, where the
 // agent's tools run through the invoke pipeline. An API-key driver gets the agent's role as its system prompt and no tools yet: running its tools needs the engine's tool runner (callTool),
 // which is a separate packet; until then a chat on an API key answers in words only.
+import { githubEnv, redactTree, withGithub } from "./github-session.ts";
+import type { GitProxyPort } from "./github-session.ts";
 import { LaunchError, createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
 import { ACCESS_ENV, RULE_ENV, SandboxError, WIN_SSH_AGENT_PIPE, accessFromEnv, engineAccess, ruleFromEnv } from "../../sandbox/src/index.ts";
 import type { AccessAsked, EgressEvent, EgressRule, EngineAccess } from "../../sandbox/src/index.ts";
@@ -58,6 +60,8 @@ export interface OpenerHost {
   session: EngineSessionPorts;
   /** Call a capability for a person; used for the agent's role. */
   call(cap: string, input: unknown, as?: string): Promise<unknown>;
+  /** The Space's git address (github-session.ts): with a token of its own for the session a CLI engine's process pushes and fetches through the Space, never holding a GitHub token. Absent: no process does. */
+  gitProxy?: GitProxyPort;
   /** Where and how a CLI engine is sandboxed (the host decides). Without it a CLI turn fails with sandbox.unavailable: the engine never runs unwrapped. */
   sandbox?: SandboxPlan;
   /** The Space data directory (work folders live under it) and a builder for the default plan, used when the host gave none. Both come from the daemon. */
@@ -100,6 +104,7 @@ export interface OpenerHost {
   };
 }
 
+import { PEOPLE_RULE, PROBE_RULE } from "../../lib/probe.ts";
 const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a message come with their source: say where you know a thing from. Quotes are the exact words people wrote in earlier chats and runs: quote them as written, never reword them, and use memory_quote with a ref to read a whole line or to look for words. Look up with memory_search, save what you learn with memory_remember and cite where it came from, and close a fact that is wrong or no longer true with memory_forget. Memory you cannot see is not yours to guess.";
 
 /**
@@ -108,9 +113,12 @@ const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a mes
  * as the nightly job last wrote it (agent layer only, never a person's memory); what memory recalled for this one message follows as a volatile block. A turn with no context (a failed build,
  * a test) gets the one-line role as before.
  */
+/** What a CLI session knows about GitHub: it holds no token, git goes through Vyre, and a held push is waiting for a person. */
+export const GIT_RULE = "You have no GitHub token. git push and git fetch work through Vyre; a push to the default branch waits for the person's OK in Vyre, so wait for it and do not retry in a loop. Open pull requests, comment and merge with Vyre's GitHub tool, not gh or the API.";
+
 export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec, input?: TurnInput) => Promise<SystemBlock[]> {
   return async (spec, input) => {
-    const memory: ContextSection[] = [{ id: "memory", stable: true, text: MEMORY_RULES }];
+    const memory: ContextSection[] = [{ id: "memory", stable: true, text: `${MEMORY_RULES} ${PROBE_RULE} ${PEOPLE_RULE} ${GIT_RULE}` }];
     try {
       const out = (await call("memory.map.get", { agentId: spec.agent.id }, spec.asker)) as { map?: { body?: string } };
       if (out.map?.body) memory.push({ id: "memory", stable: true, text: `Your memory map (MAP.md):\n${out.map.body}` });
@@ -309,9 +317,9 @@ export function withAccess(spec: LaunchSpec, asked: AccessAsked): LaunchSpec {
 export type EgressWatch = (where: { person: string; threadId: string }, e: EgressEvent) => void;
 
 /** The person and the thread of a work folder (sandbox.ts workParts: `<dataDir>/work/<person>/<thread>`, or the short Windows layout), or null for any other folder. */
-function workOf(dataDir: string, cwd: string | undefined): { person: string; threadId: string } | null {
+function workOf(dataDir: string, cwd: string | undefined): { person: string; threadId: string; agent?: string } | null {
   const w = workParts(dataDir, cwd);
-  return w ? { person: w.person, threadId: w.threadId } : null;
+  return w ? { person: w.person, threadId: w.threadId, ...(w.agent !== undefined ? { agent: w.agent } : {}) } : null;
 }
 
 /** One report per host, port and verdict for the life of a process, and at most 40 hosts reached and 40 refused: a turn that fetches a thousand files from one registry is one line. */
@@ -331,6 +339,21 @@ function egressSampler(where: { person: string; threadId: string }, watch: Egres
 /** The spawn as the opener hands it on: the Space's network rule set last, so nothing filled into the environment before it (a Vault item's fields) can name another. */
 export function withRule(spec: LaunchSpec, rule: EgressRule): LaunchSpec {
   return { ...spec, env: { ...spec.env, [RULE_ENV]: JSON.stringify(rule) } };
+}
+
+/**
+ * The Space's own address, where the session's git goes (github-session.ts), is let through a "only these hosts" wall, so a push is not stopped by the wall that keeps the engine to its providers. A
+ * loopback address is never added: the wall exists to keep the engine off this computer's own services.
+ */
+export function withGitHost(spec: LaunchSpec, base: string): LaunchSpec {
+  let host = "";
+  try { host = new URL(base).hostname; } catch { return spec; }
+  if (!host || host === "localhost" || /^(127\.|\[?::1\]?$|0\.0\.0\.0)/.test(host)) return spec;
+  try {
+    const rule = JSON.parse(spec.env[RULE_ENV] ?? "null") as { egress?: string; allow?: string[] } | null;
+    if (rule?.egress !== "list" || !Array.isArray(rule.allow) || rule.allow.includes(host)) return spec;
+    return { ...spec, env: { ...spec.env, [RULE_ENV]: JSON.stringify({ ...rule, allow: [...rule.allow, host] }) } };
+  } catch { return spec; }
 }
 
 /**
@@ -416,7 +439,23 @@ export function buildOpener(h: OpenerHost): SessionOpener {
         let ruled = h.egress ? withRule(spec, await ruleOf(h.egress)) : spec;
         const who = dataDir ? workOf(dataDir, spec.cwd) : null;
         if (h.access && who) ruled = withAccess(ruled, await h.access(who.person, "space").catch(() => ({ where: "server" as const, folders: [] })));
-        return spawnCli(await plan(), ruled, swap ? [...swap, ...spec.argv.slice(1)] : ownedArgv(spec.argv, h.cliProbe), h.egress?.record ? { onEgress: h.egress.record } : {});
+        // GitHub for the person whose turn this is: the Space's git address and a token for this process alone (a chat of a project whose Files folder points at GitHub); set last
+        let gitEnd: (() => void) | null = null;
+        if (h.gitProxy && who?.agent) {
+          // behind the wall (bubblewrap, Seatbelt) the engine reaches the Space only through the wall's proxy, which answers the git name itself, so a Space reachable on its own loopback works as any other; a
+          // Windows Personal Space engine has the loopback and uses the address (the ruling), and the Windows VM's wall cannot call into this process, so it uses the address too
+          const kind = (await plan()).sandbox.kind;
+          const via = kind === "bwrap" || kind === "seatbelt" ? "socket" : "address";
+          const g = await githubEnv({ call: h.call, git: h.gitProxy }, who.person, who.threadId, who.agent, via);
+          ruled = withGithub(via === "address" ? withGitHost(ruled, h.gitProxy.base()) : ruled, g.env);
+          gitEnd = g.end;
+        }
+        let proc;
+        try { proc = await spawnCli(await plan(), ruled, swap ? [...swap, ...spec.argv.slice(1)] : ownedArgv(spec.argv, h.cliProbe), h.egress?.record ? { onEgress: h.egress.record } : {}); }
+        catch (e) { gitEnd?.(); throw e; }
+        // a process that was given a git token leaves none in the files it wrote (a saved environment, a remote with the token in its address): cleaned when it ends, and the token ends with it
+        if (gitEnd) { const end = gitEnd; const dir = spec.cwd; void proc.exited.then(() => { end(); if (dir) redactTree(dir); }, () => { end(); }); }
+        return proc;
       },
     },
     // Behind the wall the engine cannot reach the daemon's loopback: its MCP config starts a stdio shim that talks to a unix socket in the person's scratch folder (ruling 61), a named pipe on Windows.

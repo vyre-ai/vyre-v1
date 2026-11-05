@@ -17,6 +17,9 @@ import { createImapSecretResolver } from "./imap.ts";
 import type { ImapSecretResolver } from "./imap.ts";
 import { createMailgunHost, createResendHost } from "./mail-providers.ts";
 import type { MailgunHostSeam, ResendHostSeam } from "./mail-providers.ts";
+import { createCiHost } from "./ci.ts";
+import type { GithubTickets } from "./github-tickets.ts";
+import type { CiHostSeam } from "./ci.ts";
 import { createGithubHost, createStripeHost, createTwilioHost, createZoomHost } from "./comms.ts";
 import type { GithubHostSeam, StripeHostSeam, TwilioHostSeam, ZoomHostSeam } from "./comms.ts";
 import type { FillerPort } from "./filler.ts";
@@ -25,6 +28,8 @@ import { createPluginsHost } from "./plugins.ts";
 import { createSourcesSecretResolver } from "./sources.ts";
 import type { SourcesSecretResolver } from "./sources.ts";
 import type { MsHostSeam, MsSeamDeps } from "./microsoft.ts";
+import { createTalkHost } from "./talk.ts";
+import type { TalkHostSeam } from "./talk.ts";
 import type { FetchedResponse, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort } from "./ports.ts";
 
 export { createGithubHost, createStripeHost, createTwilioHost, createZoomHost };
@@ -64,8 +69,12 @@ export interface SeamSetters {
   setTwilioHost?: ((h: TwilioHostSeam | null) => void) | undefined;
   setGithubHost?: ((h: GithubHostSeam | null) => void) | undefined;
   setZoomHost?: ((h: ZoomHostSeam | null) => void) | undefined;
+  /** the CI runners (l-ci-runners): the Space's cloud key from the Vault, used for one call to the provider's API */
+  setCiHost?: ((h: CiHostSeam | null) => void) | undefined;
   /** Dropbox as a file source (live folders L3): the app key and secret, sign-in and refresh, uploads and downloads */
   setDropboxHost?: ((h: DropboxHostSeam | null) => void) | undefined;
+  /** Talk: the provider's grant, with the key read from the Vault at the last moment */
+  setTalkHost?: ((h: TalkHostSeam | null) => void) | undefined;
   [name: string]: ((driver: never) => void) | undefined;
 }
 
@@ -81,6 +90,12 @@ export interface SeamDeps {
   publicUrl?: ((space: string) => Promise<string>) | undefined;
   /** drivers by setter name, added to (and overriding) the built-in registry: the daemon supplies the ones that need its own state */
   drivers?: Record<string, SeamDriver>;
+  /** the host's own calls into modules, as the host service (hooks.call); lets the GitHub seam save a person's Mine item */
+  hostCall?: ((name: string, input: unknown) => Promise<unknown>) | undefined;
+  /** what connecting GitHub and signing in with GitHub hand each other */
+  githubTickets?: GithubTickets | undefined;
+  /** the default Vyre GitHub app (VYRE_GH_OAUTH_CLIENT_ID and _SECRET in the server's environment), for a person's own GitHub when the Space has no app of its own */
+  defaultGithubApp?: (() => { clientId: string; clientSecret: string } | null) | undefined;
   /** holds a GitHub installation token behind a handle until the Vault filler delivers it to git; omitted: GitHub cannot hand git a token */
   filler?: FillerPort | undefined;
   /** which module exported each setter, for the report of what is missing */
@@ -121,10 +136,12 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.free
   setMailgunHost: (d: SeamDriverDeps) => createMailgunHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
   setStripeHost: (d: SeamDriverDeps) => createStripeHost({ vault: d.vault }),
   setTwilioHost: (d: SeamDriverDeps) => createTwilioHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, publicUrl: d.publicUrl }),
+  setCiHost: (d: SeamDriverDeps) => createCiHost({ vault: d.vault, fetch: d.fetch }),
   setZoomHost: (d: SeamDriverDeps) => createZoomHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs }),
   setDropboxHost: (d: SeamDriverDeps) => createDropboxHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
-  setPluginsHost: (d: SeamDriverDeps) => createPluginsHost({ fetch: d.fetch }),
-  setGithubHost: (d: SeamDriverDeps) => createGithubHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, filler: d.filler, publicUrl: d.publicUrl }),
+  setTalkHost: (d: SeamDriverDeps) => createTalkHost({ vault: d.vault, fetch: d.fetch }),
+  setPluginsHost: (d: SeamDriverDeps) => createPluginsHost({ fetch: d.fetch, ...(d.filler ? { fillToken: (h: string) => d.filler!.fill(h, { kind: "git_clone", ref: h }, Date.now()) } : {}) }),
+  setGithubHost: (d: SeamDriverDeps) => createGithubHost({ vault: d.vault, fetch: d.fetch, blobs: d.blobs, filler: d.filler, publicUrl: d.publicUrl, hostCall: d.hostCall, defaultApp: d.defaultGithubApp, tickets: d.githubTickets }),
 });
 
 const LEGACY: Readonly<Record<string, keyof WiredSeams["state"]>> = Object.freeze({
@@ -167,6 +184,9 @@ export function createPushPort(deps: PushTransportDeps = {}): PushPortSeam {
 /** Which daemon wired each module setter last. A module's seam is one value per process, so where two daemons share a process (the tests that boot two computers of one Personal Space)
  *  the one that stops first must not unwire what the other wired after it; a daemon only ever clears a seam it still holds. One daemon per process (every install) is unaffected. */
 const holders = new Map<string, symbol>();
+/** Every daemon still wired to a setter, oldest first, with the driver it gave. When the newest one stops, the one before it is handed its own driver back: the module's seam is one value per process,
+ *  and the later daemon's wiring replaced the earlier one's, so without this the earlier daemon was left with nothing (a records.create answering "no type" for a type schema.apply had just made). */
+const stacks = new Map<string, Array<{ me: symbol; driver: unknown }>>();
 
 export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
   const me = Symbol("daemon");
@@ -179,6 +199,7 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
   const missing: MissingDriver[] = [];
   const called: ((driver: unknown) => void)[] = [];
   const names: string[] = [];
+  const drivers: unknown[] = [];
   for (const [name, fn] of Object.entries(setters)) {
     if (typeof fn !== "function") continue;
     const module = deps.owners?.get(name);
@@ -186,11 +207,14 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
     const make = registry[name];
     if (!make) { missing.push({ setter: name, ...where, reason: "The host has no driver registered under this name." }); continue; }
     const set = fn as (driver: unknown) => void;
-    try { set(make(driverDeps)); } catch (e) { missing.push({ setter: name, ...where, reason: `The driver failed: ${e instanceof Error ? e.message : String(e)}` }); continue; }
+    let driver: unknown;
+    try { driver = make(driverDeps); set(driver); } catch (e) { missing.push({ setter: name, ...where, reason: `The driver failed: ${e instanceof Error ? e.message : String(e)}` }); continue; }
     wired.push(name);
     called.push(set);
     names.push(name);
     holders.set(name, me);
+    stacks.set(name, [...(stacks.get(name) ?? []), { me, driver }]);
+    drivers.push(driver);
     const legacy = LEGACY[name];
     if (legacy) state[legacy] = "wired";
   }
@@ -199,9 +223,19 @@ export function wireSeams(setters: SeamSetters, deps: SeamDeps): WiredSeams {
     unwire() {
       called.forEach((set, i) => {
         const name = names[i]!;
-        if (holders.get(name) !== me) return;
+        const rest = (stacks.get(name) ?? []).filter((x) => x.me !== me);
+        stacks.set(name, rest);
+        if (holders.get(name) !== me) {
+          // a later daemon holds the seam: this one's own leftovers (an engine opener the module retired when it was replaced) are closed now
+          const mine = drivers[i];
+          try { void (mine as { retire?: () => Promise<void> } | undefined)?.retire?.(); } catch { /* shutting down */ }
+          return;
+        }
         holders.delete(name);
         try { set(null); } catch { /* shutting down: one module's refusal must not keep the others wired */ }
+        // the daemon that wired before this one and is still running gets its seam back
+        const before = rest.at(-1);
+        if (before) { holders.set(name, before.me); try { set(before.driver); } catch { /* it keeps whatever it had */ } }
       });
     },
     owns: (setter) => holders.get(setter) === me,

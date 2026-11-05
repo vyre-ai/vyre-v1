@@ -2,9 +2,11 @@
 // to recover the threads a dead host left mid-turn. Everything it needs from outside arrives through `EngineHostSeam` (host/src/seams/engine.ts): a way to call capabilities as a
 // person, and the opener of real sessions. The turn engine itself stays in agent/src/turn-engine and knows nothing about modules.
 import path from "node:path";
+import { wireHooks } from "./hooks-wire.ts";
+import { callHooksOf } from "./hooks-port.ts";
 import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { TurnEngine } from "../../agent/src/turn-engine/engine.ts";
-import type { AccountQuery, EngineEvent, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
+import type { SessionSpec, AccountQuery, EngineEvent, OpenSession, ResolvedAccount, TurnRow } from "../../agent/src/turn-engine/types.ts";
 import { open } from "./handlers/control.ts";
 import { BRIDGE_PREFIX, bindBridge, createBridge } from "./handlers/bridge.ts";
 import { screenAnswer, settleAnswer } from "./answer-audience.ts";
@@ -14,6 +16,7 @@ import { createCrewWatcher } from "./crew-watch.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { createEngineApiTools } from "./api-tools.ts";
+import { recordToolUse, topTools } from "./tool-use.ts";
 import { buildNodeOpener, buildOpener, roleBlocks } from "./session.ts";
 import { remoteLauncher, routed, waitsForComputer } from "./node-turns.ts";
 import { bindRelay } from "./relay.ts";
@@ -25,15 +28,21 @@ import { withRecall } from "./recall.ts";
 import { withAudienceReset } from "./audience-reset.ts";
 import { withChatSettings } from "./chat-settings.ts";
 import { withSpaceKeyTurns } from "./space-key-turns.ts";
-import { noteModelFallback, noModelWords } from "./model-fallback.ts";
 import { createLimitSwitch } from "./switch-on-limit.ts";
+import { createModelSwitch } from "./model-switch.ts";
+import { markConfirmed } from "./model-health.ts";
 import { checkedOpen, createRunnableAccount } from "./runnable-account.ts";
 import { skipLocked } from "./locked-account.ts";
 import type { NodeCliProbe } from "./cli-programs.ts";
 import { configureEngines, engines, enginesRoot } from "./engine-install.ts";
-import { capabilitySkills, createContextBuilder, takeHandoff, withTurnContext } from "./context.ts";
+import { capabilitySkills, createContextBuilder, runningLine, takeHandoff, withTurnContext } from "./context.ts";
 import { withTranscript } from "./transcript.ts";
 import { withNativeSkills } from "./skills-native.ts";
+import { getDigest, maybeRefreshDigest } from "./room-digest.ts";
+import { withGoalFolder } from "./goal-folder.ts";
+import { createRoller } from "./rollover.ts";
+import { forgetPlacement, placementOf } from "./placement-cache.ts";
+import { noModelWords } from "./model-fallback.ts";
 import { linkReply } from "./handlers/extra/reply-info.ts";
 import { costOf } from "./turn-cost.ts";
 import { workFolder } from "./sandbox.ts";
@@ -41,13 +50,14 @@ import { createCompactor, withCompaction } from "./compact.ts";
 import type { Compactor } from "./compact.ts";
 import { keepEvery, keepsSession, resumeId, saveResumeId } from "./cli-sessions.ts";
 import { recordAccountLimits } from "./handlers/usage.ts";
-import { learnAfterTurn } from "./learn.ts";
+import { learnAfterTurn, titleAfterTurn } from "./learn.ts";
 import { reviewAfter, reviewerOf } from "./handlers/reviewer.ts";
 import { onTurnEnded, resumeTasks } from "./handlers/task-baton.ts";
 import { ensureExtra } from "./handlers/extra/schema.ts";
 import { createKeepAwake } from "./keep-awake.ts";
 import { coalesceLive } from "./live-coalesce.ts";
-import { cliSandboxCode, cliSandboxGap, defaultSandbox, egressPolicyOf, wallEgress, windowsMode } from "./sandbox-default.ts";
+import { cliSandboxCode, cliSandboxGap, defaultSandbox, egressPolicyOf, setGitLocal, wallEgress, windowsMode } from "./sandbox-default.ts";
+import { GIT_LOCAL_HOST } from "./github-session.ts";
 import { wslOn } from "../../sandbox/src/wsl/wsl.ts";
 import { EGRESS_SETTING, recordEgress } from "./egress-log.ts";
 import type { AccessAsked, EgressRule } from "../../sandbox/src/index.ts";
@@ -69,6 +79,8 @@ export interface EngineHostSeam {
   call(cap: string, input: unknown, as?: string): Promise<unknown>;
   /** The real session opener. A daemon passes the host's `session` ports instead and the module builds it; a test passes a scripted one here. */
   openSession?: OpenSession;
+  /** Told the API tool set when it is built (a measurement hands a real driver the engine's own tool context). */
+  onApiTools?: (t: ReturnType<typeof createEngineApiTools>) => void;
   /** The host's ports for the real opener (Vault lookup, loopback MCP, scrub-miss report). With these and no `openSession`, the module builds the opener itself. */
   session?: EngineSessionPorts;
   /** Where CLI engines run sandboxed (work folders, the wall). Absent: CLI turns fail closed. */
@@ -78,12 +90,17 @@ export interface EngineHostSeam {
   space?: string;
   /** The computers that joined the Space, for a turn pinned to one of them (node-turns.ts). Absent: no turn runs on a server. */
   nodes?: NodeRelay;
+  /** The Space's git address for a CLI engine's process (github-session.ts): it pushes and fetches through the Space and never holds a GitHub token. */
+  gitProxy?: import("./github-session.ts").GitProxyPort;
   /** True when the person is on their own computer (a local model on this machine is then reachable). */
   own?: (person: string) => boolean;
   /** A Space server only: does it hold this person's key now (locked-account.ts). Absent on a person's own computer. */
   keyHeld?: (person: string) => boolean;
+  keyOpen?: (person: string) => boolean;
   /** Is this module db handle this daemon's own? Two daemons in one process (the two-computer tests) share the engine module, and only the daemon whose host half it holds builds its runtime. */
   ours?: (db: unknown) => boolean;
+  /** Bytes into a Files upload slot, in process (the daemon's putToSlot): a goal's files over the inline limit go up this way. */
+  putToSlot?: (url: string, bytes: Uint8Array) => Promise<void>;
   /** CLI engines: swap a program for a command (a fake CLI in a test), and extra read-only folders the sandbox must expose for it. Default: the real CLI, nothing extra. */
   cli?: { command?: Readonly<Record<string, readonly string[]>>; programRead?: readonly string[]; /** Where programs are looked for (a test's own folders); default: this computer's PATH. */ probe?: NodeCliProbe; /** A test's stand-in for the providers the API drivers call. */ apiFetch?: typeof fetch };
   /** The Space data directory. With it and no `sandbox`, the module builds the default sandbox for this platform on the first CLI turn (sandbox-default.ts). */
@@ -109,6 +126,8 @@ export interface EngineHostSeam {
   extend?: (engine: TurnEngine) => void;
   /** Told at shutdown with the promise of the engine's close (CLI sessions ended, the sign-ins they refreshed saved), so the daemon waits for it before its databases close. */
   closing?: (done: Promise<void>) => void;
+  /** Set by the module when a later host half has replaced this one while its opener was still open: closes that opener. The seam wiring calls it when this daemon stops. */
+  retire?: () => Promise<void>;
   /** Told how many turns run here now, each time it changes (the desktop shell waits for 0 before it updates the app). */
   turns?: (running: number) => void;
 }
@@ -124,14 +143,21 @@ const awake = createKeepAwake();
 let host: EngineHostSeam | null = null;
 let building: Promise<TurnEngine | null> | null = null;
 let closeOpener: (() => Promise<void>) | null = null;
+let closeUnlockWatch: (() => void) | null = null;
 
 /** The module's seam: the daemon calls this at boot with the host half (null at shutdown). */
 export function setEngineHost(h: EngineHostSeam | null): void {
-  if (h === null) { void closePluginRuntime(); awake.stop(); }   // plugin servers end with the daemon, and so does holding the computer awake
+  if (h === null) { void closePluginRuntime(); awake.stop(); closeUnlockWatch?.(); closeUnlockWatch = null; }   // plugin servers end with the daemon, and so does holding the computer awake
   // At shutdown the engine processes end and MCP tokens are revoked, and then the default sandbox's wall (its egress proxy) stops: the proxy outlives nothing it served, and nothing keeps the daemon's process alive.
   if (h === null) {
     const done = (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve()).then(() => closeDefaultSandbox()).catch(() => undefined);
     host?.closing?.(done);
+  }
+  // Two daemons in one process: the next host half replaces the first while the first daemon may still be running (its turns go on through the opener it built), so its opener is NOT closed here.
+  // It is handed to the first host half as `retire`, which the seam wiring calls when that daemon stops without holding the seam any more; before, the opener was dropped here and never closed.
+  else if (closeOpener && host && h !== host) {
+    const old = host, close = closeOpener;
+    old.retire = () => { const done = close().catch(() => undefined); old.closing?.(done); return done; };
   }
   closeOpener = null;
   host = h;
@@ -172,14 +198,13 @@ export async function resolveOne(h: Pick<EngineHostSeam, "call" | "log">, q: Acc
   const list = (await h.call("engine.accounts.list", {}, res.payer)) as { accounts: AccountRow[] };
   const row = list.accounts.find((a) => a.ref === res.accountRef);
   if (!row) { h.log?.("the account the turn resolved is not in the payer's list", { threadId: q.threadId, accountRef: res.accountRef, payer: res.payer }); return null; }   // the key vanished between the two calls: treat as none, the next turn asks again
-  return { ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(row.mine ? {} : { shared: true }), ...(res.itemId ? { itemId: res.itemId } : {}), ...(res.fellBack ? { fellBack: true } : {}), ...(res.via ? { via: res.via } : {}), ...(res.cappedFrom ? { cappedFrom: res.cappedFrom } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}), ...(row.spaceKey ? { spaceKey: true } : {}), ...(res.modelFallback ? { modelFallback: res.modelFallback } : {}) };
+  return { ref: row.ref, ...((row as { name?: string; title?: string }).name ?? (row as { title?: string }).title ? { name: (row as { name?: string }).name ?? (row as { title?: string }).title } : {}), driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: res.payer, reason: res.reason, ...(row.mine ? {} : { shared: true }), ...(res.itemId ? { itemId: res.itemId } : {}), ...(res.fellBack ? { fellBack: true } : {}), ...(res.via ? { via: res.via } : {}), ...(res.cappedFrom ? { cappedFrom: res.cappedFrom } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}), ...(row.spaceKey ? { spaceKey: true } : {}), ...(res.modelFallback ? { modelFallback: res.modelFallback } : {}) };
 }
 
 /** An account whose engine can run on this computer: the pick, or another account of the person when the pick's program is not installed (runnable-account.ts). */
 function runnableAccount(h: EngineHostSeam): (q: AccountQuery) => Promise<ResolvedAccount | null> {
   // On a Space server a person's own account pays only while the server holds their key (locked-account.ts); the next account answers otherwise, said in the chat.
-  // a team chat whose model no Space account serves runs on the account's default, said in one line (model-fallback.ts)
-  const resolve = noteModelFallback({ resolve: skipLocked({ resolve: (q) => resolveOne(h, q), ...(h.keyHeld ? { held: h.keyHeld } : {}), ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) }), ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) });
+  const resolve = skipLocked({ resolve: (q) => resolveOne(h, q), ...(h.keyHeld ? { held: h.keyHeld } : {}), onDevice: async (q) => (await placementNow(q.threadId, q.agentId, q.askerId)) === "device", ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) });
   // A host that hands in its own opener (a test's scripted one) starts no program of ours: nothing to check, and one resolve per turn.
   if (h.openSession) return resolve;
   return createRunnableAccount({
@@ -259,12 +284,18 @@ export function costMicrosOf(turn: Readonly<TurnRow>, account: ResolvedAccount |
   }).micros ?? 0;
 }
 
-async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: ResolvedAccount | null): Promise<void> {
-  if (turn.tokensIn + turn.tokensOut === 0) return;
-  await h.call("engine.turn.record_usage", { turnId: turn.id, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut, costMicros: costMicrosOf(turn, account), ...(account?.itemId ? { itemId: account.itemId } : {}) }, turn.asker);
+/** What a turn whose model nothing named ran on: the engine's own default, said so, never "unknown". */
+function defaultModelLabel(a: ResolvedAccount | null): string {
+  const t: Record<string, string> = { claude_code: "Claude Code's default model", codex: "Codex's default model", grok: "Grok's default model" };
+  return a ? t[a.driver] ?? `${a.driver} default model` : "unknown";
 }
 
-export interface CompleteIn { account: ResolvedAccount; system?: string; prompt: string; model?: string }
+async function meter(h: EngineHostSeam, turn: Readonly<TurnRow>, account: ResolvedAccount | null): Promise<void> {
+  if (turn.tokensIn + turn.tokensOut === 0) return;
+  await h.call("engine.turn.record_usage", { turnId: turn.id, tokensIn: turn.tokensIn, tokensOut: turn.tokensOut, costMicros: costMicrosOf(turn, account), model: turn.model ?? defaultModelLabel(account), ...(account?.itemId ? { itemId: account.itemId } : {}) }, turn.asker);
+}
+
+export interface CompleteIn { /** The request runs on the person's own computer (their chats run there): the opener starts its engine process there. */ onDevice?: boolean; account: ResolvedAccount; system?: string; prompt: string; model?: string; /** Work as this agent (a hook's check runs as the agent whose event it reads); absent: the memory upkeep pseudo-agent. */ agentId?: string }
 export interface CompleteOut { text: string; tokensIn: number; tokensOut: number }
 let completer: ((i: CompleteIn) => Promise<CompleteOut>) | null = null;
 let compactor: Compactor | null = null;
@@ -272,14 +303,33 @@ let compactor: Compactor | null = null;
 export const compactorOf = (): Compactor | null => compactor;
 /** One request and one answer on an account, through the same opener the turn engine uses: for jobs that need a model but are not a chat (memory upkeep). Null before the runtime exists. */
 export const completerOf = (): typeof completer => completer;
+/** Tests: stand in for the runtime's one-request completer. */
+export const bindCompleter = (c: typeof completer): void => { completer = c; };
+
+/** The room digest's one request: the account is one the asker can run on, and the request runs as them (their key is taken from their Vault for it). */
+async function digestComplete(call: (cap: string, input: unknown, as?: string) => Promise<unknown>, i: { asker: string; accountRef: string; model?: string; system: string; prompt: string }): Promise<{ text: string }> {
+  const run = completer;
+  if (!run) throw new Error("The engine is not running on this host.");
+  const { turnsRunHere } = await import("./handlers/place.ts");
+  const list = (await call("engine.accounts.list", {}, i.asker)) as { accounts: Array<{ ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean; itemId?: string }> };
+  const row = list.accounts.find((a) => a.ref === i.accountRef);
+  if (!row) throw new Error("That account is not one the asker can run on.");
+  if (!(await turnsRunHere((cap, x) => call(cap, x, i.asker), i.asker, Date.now(), row.driver))) throw new Error("This person's chats run on their own computer, not here.");
+  const account = {
+    ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: i.asker, reason: "starter",
+    ...(row.itemId ? { itemId: row.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}),
+  } as ResolvedAccount;
+  const out = await run({ account, prompt: i.prompt, system: i.system, agentId: "room-digest", ...(i.model ? { model: i.model } : {}) });
+  return { text: out.text };
+}
 
 /** Run one turn of a pseudo-agent on the account and collect its text and token counts. */
 async function oneShot(openSession: OpenSession, i: CompleteIn, now: () => number): Promise<CompleteOut> {
   const n = now();
   const threadId = `oneshot_${n.toString(36)}`;
-  const agent = { id: "memory-upkeep", name: "Memory upkeep", mode: "lead" as const, ...(i.system ? { role: i.system } : {}), ...(i.model ? { model: i.model } : {}), accountRef: i.account.ref };
+  const agent = { id: i.agentId ?? "memory-upkeep", name: i.agentId ? "Hook check" : "Memory upkeep", mode: "lead" as const, ...(i.system ? { role: i.system } : {}), ...(i.model ? { model: i.model } : {}), accountRef: i.account.ref };
   // lean: the system prompt is the job's own, with no tools, MCP, settings, memory files or skills, so a learning pass on a CLI costs a few hundred tokens more than its prompt, not thousands
-  const session = await openSession({ threadId, agent, asker: i.account.payer, turnId: `trn_${n.toString(36)}`, traceId: "0".repeat(32), account: i.account, tools: "none", lean: true });
+  const session = await openSession({ threadId, agent, asker: i.account.payer, turnId: `trn_${n.toString(36)}`, traceId: "0".repeat(32), account: i.account, tools: "none", lean: true, ...(i.onDevice ? { onDevice: true } : {}) });
   let text = "";
   let tokensIn = 0;
   let tokensOut = 0;
@@ -360,7 +410,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   // for closeOpener, so Quit closed an empty pool and the engine process, its MCP socket and its egress proxy outlived the daemon.
   if (building) return building;
   const h = host;
-  const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, system: roleBlocks(h.call), call: h.call, plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;
+  const hooksPort = wireHooks(h);
+  const apiTools = host.invoke && host.space ? createEngineApiTools({ invoke: host.invoke, space: host.space, usage: { record: (agentId, tool) => recordToolUse(ctx.db, agentId, tool, (h.now ?? Date.now)()), top: (agentId) => topTools(ctx.db, agentId) }, system: roleBlocks(h.call), call: h.call, hooks: callHooksOf(hooksPort, "api"), plugins: createPluginTools({ call: h.call, runtime: pluginRuntime, ...(h.log ? { log: h.log } : {}) }) }) : undefined;
+  if (apiTools) host.onApiTools?.(apiTools);
   const now0 = h.now ?? Date.now;
   // a CLI engine's own session id, kept per chat, agent and person so a restart or an eviction resumes it; and the chat's "Keep this every time" for the CLI's own compaction
   const sessions = {
@@ -371,7 +423,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   // the Space's internet setting, read as each engine process starts, and where the process went (the turn's details, and the audit log for a refusal)
   const egress = { rule: () => spaceRule(h.call), record: (where: { person: string; threadId: string }, e: Parameters<typeof recordEgress>[3]) => recordEgress(ctx.db, h.call, where, e, now0, h.log) };
   const access = (asker: string) => engineAccessFor(h.call, asker);
-  const opener = host.openSession ? null : buildOpener({ sessions, egress, access, ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(cliProbeOf(host) ? { cliProbe: cliProbeOf(host) as NodeCliProbe } : {}), ...(host.cli?.apiFetch ? { apiFetch: host.cli.apiFetch } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
+  // the Space's git address, answered inside the egress proxy of a walled engine (sandbox-default.ts)
+  setGitLocal(h.gitProxy ? { host: GIT_LOCAL_HOST, handle: (req, res) => h.gitProxy!.serve(req, res) } : null);
+  const opener = host.openSession ? null : buildOpener({ sessions, egress, access, ...(h.gitProxy ? { gitProxy: h.gitProxy } : {}), ...(h.own ? { own: h.own } : {}), ...(apiTools ? { apiTools } : {}), session: host.session as EngineSessionPorts, call: h.call, ...(host.sandbox ? { sandbox: host.sandbox } : {}), ...(host.cli?.command ? { cliCommand: host.cli.command } : {}), ...(cliProbeOf(host) ? { cliProbe: cliProbeOf(host) as NodeCliProbe } : {}), ...(host.cli?.apiFetch ? { apiFetch: host.cli.apiFetch } : {}), ...(host.dataDir ? { dataDir: host.dataDir, defaultSandbox: defaultPlan(host.dataDir, cliRead(host)) } : {}) });
   // the composer's model menu asks each subscription engine for its own list, through this opener: the person's sandbox and sign-in, as a turn would run (live-models.ts)
   bindModelLister(opener ? (account, asker, o) => opener.models(account, asker, o) : null);
   // a turn whose engine Vyre is installing says so on its live line ("Setting up Codex"); the line is the bridge's, which exists once the runtime is built below
@@ -423,6 +477,30 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
   // a Claude Code or Codex chat gets the agent's skills in its own work folder (person/thread/agent) before every turn, so one added mid-chat reaches a running engine (the opener wrote them as it started)
   const skillsDir = host.sandbox?.dataDir ?? host.dataDir;
   const nativeSkills = (o: OpenSession): OpenSession => (!host.openSession && skillsDir ? withNativeSkills(o, { call: h.call, workOf: (spec) => workFolder(skillsDir, spec.asker, spec.threadId, spec.agent.id), ...(h.log ? { log: h.log } : {}) }) : o);
+  // where a turn runs, in words, for the turn's own context line (one placement read, only for a chat of a person)
+  const placementNow = (threadId: string, agentId: string, asker: string): Promise<string | undefined> =>
+    placementOf(async () => { try { return ((await h.call("engine.placement.decide", { threadId, agentId, kind: "message" }, asker)) as { placement?: string }).placement; } catch { return undefined; } }, { threadId, agentId, asker }, (h.now ?? Date.now)());
+  const placeWords = async (spec: SessionSpec): Promise<string | undefined> => {
+    const p = await placementNow(spec.threadId, spec.agent.id, spec.asker);
+    return p === "device" ? "on the asker's own computer" : p === "host" ? "on the Space's server" : undefined;
+  };
+  // a goal's Files folder as goal/ in a terminal engine's work folder (goal-folder.ts): read as the asker (the read gate holds), written as the agent acting for the asker
+  const goalFolder = (o: OpenSession): OpenSession => (skillsDir
+    ? withGoalFolder(o, {
+        workOf: (spec) => workFolder(skillsDir, spec.asker, spec.threadId, spec.agent.id),
+        terminal: (spec) => !!host.openSession || spec.account?.driver === "claude_code" || spec.account?.driver === "codex",
+        read: (cap, input, asker) => h.call(cap, input, asker),
+        ...(h.putToSlot ? { put: h.putToSlot } : {}),
+        say: (t, data) => noteLine(t.agentId, t.asker, t.threadId, data),
+        act: async (cap, input, who) => {
+          if (!h.invoke || !h.space) return h.call(cap, input, who.asker);
+          const r = await h.invoke(cap, input, { space: h.space, principal: { kind: "agent", id: who.agentId }, actingFor: who.asker, origin: "engine" });
+          if (r.status !== "ok") throw Object.assign(new Error(`${cap} was held for approval`), { code: "permission.on_hold", taskId: r.taskId });
+          return r.output;
+        },
+        ...(h.log ? { log: h.log } : {}),
+      })
+    : o);
   closeOpener = opener ? async () => { await opener.close(); await Promise.all([...nodeOpeners.values()].map((o) => o.close())); } : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
@@ -437,8 +515,11 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     const bridge = h.postAs ? createBridge({ postAs: h.postAs, now, stream: (e) => { if (e.kind === "final" && e.messageId) linkPosted(e); live?.(e); crewWatch?.(e); }, addressAsker: (threadId, agentId) => { const r = reviewerOf(ctx.db, threadId); return r?.kind === "agent" && r.id === agentId; }, ...(h.log ? { log: { warn: h.log } } : {}), callAs: (cap, input, person) => h.call(cap, input, person) }) : null;
     // The turn context is built as the asker before each turn (modules/engine/context.ts); what the agent waits on is read off the engine once it exists.
     let running: TurnEngine | null = null;
+    // a chat whose window is nearly full starts a fresh session at the end of a turn (rollover.ts); the account a turn ran on is told at its end (onTurnEnd below)
+    const roller = createRoller({ db: ctx.db, engine: () => running, compactor: () => compactor, ...(h.log ? { log: h.log } : {}) });
     const turnContext = createContextBuilder({
       call: h.call, skills: h.skills ?? capabilitySkills(h.call), now, handoff: takeHandoff,
+      digests: { get: (t, a) => getDigest(ctx.db, t, a), refresh: (o) => { if (process.env["VYRE_ROOM_DIGEST"] === "off") return; maybeRefreshDigest({ db: ctx.db, call: h.call, now, ...(h.log ? { log: h.log } : {}), complete: (i) => digestComplete(h.call, i) }, o); } },
       waiting: (threadId, agentId) => (running?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
     });
     const limitSwitch = createLimitSwitch({
@@ -452,19 +533,23 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         return row ? providerOfDriver(row.driver) : undefined;
       },
     });
+    const modelSwitch = createModelSwitch({ call: h.call, db: ctx.db, accountFor: runnableAccount(h), now, ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) });
     const engine = createTurnEngine({
-      holder: h.holder, openSession: withHeldNotes(withChatSettings(withSpaceKeyTurns(withTurnContext(nativeSkills(withCompaction(withTranscript(withRecall(withAudienceReset(bridge ? bridge.tap(openSession) : openSession, { db: ctx.db, call: h.call, now, ...(opener ? { drop: (threadId: string) => opener.pool.drop(threadId) } : {}), ...(h.log ? { log: h.log } : {}) }), h.call), h.call, now), ctx.db)), turnContext), { call: h.call, db: ctx.db, now }), h.call)), now,
+      hooks: hooksPort,
+      holder: h.holder, openSession: withHeldNotes(withChatSettings(withSpaceKeyTurns(withTurnContext(goalFolder(nativeSkills(withCompaction(withTranscript(withRecall(withAudienceReset(bridge ? bridge.tap(openSession) : openSession, { db: ctx.db, call: h.call, now, ...(opener ? { drop: (threadId: string) => opener.pool.drop(threadId) } : {}), ...(h.log ? { log: h.log } : {}) }), h.call), h.call, now), ctx.db))), turnContext, async (spec) => runningLine(spec, await placeWords(spec))), { call: h.call, db: ctx.db, now, ...(h.postAs ? { postAs: h.postAs } : {}), ...(h.log ? { log: h.log } : {}) }), h.call)), now,
       queue: sqlQueue(ctx.db), leases: sqlLeases(ctx.db), messages: sqlMessages(ctx.db, now), waits: sqlWaits(ctx.db), newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
       resolveAccount: (q) => limitSwitch.resolve(q),
       nextAccount: (q) => limitSwitch.next(q),
+      nextModel: async (q) => { try { return await modelSwitch(q); } catch (e) { if (typeof (e as { code?: unknown } | null)?.code !== "string") h.log?.("the model swap failed", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); throw e; } },
       onNoAccount: async (info) => {
         try { await unblock(h, ctx.db, info); }
         catch (e) { h.log?.("could not open the Unblock task for a turn with no account", { threadId: info.threadId, asker: info.asker, error: e instanceof Error ? e.message : String(e) }); throw e; }
       },
       // memory learns from the turn in the background (learn.ts): scheduled here, never awaited, so the reply is not held for it
-      onTurnEnd: (turn, account) => { learnAfterTurn(h, turn, account); return meter(h, turn, account); },
+      onQuestionsLeft: async (turn, blocks) => { for (const blockId of blocks) { try { await h.call("chat.question.withdraw", { threadId: turn.threadId, blockId }, turn.agentId); } catch { /* it stays in its chat */ } } },
+      onTurnEnd: (turn, account) => { if (turn.state === "completed" && account && turn.model) { try { markConfirmed(ctx.db, account.ref, turn.model, now()); } catch { /* a mark that stays only hides a model a little longer */ } } roller.ranOn(turn.id, account); learnAfterTurn(h, turn, account); titleAfterTurn(h, turn, account); return meter(h, turn, account); },
       onLimits: (account, reading) => recordAccountLimits(ctx.db, account.ref, reading, now()),
       // the answer check (gap 6): an answer built on something not everyone in the chat may open goes to the asker privately
       ...(h.mayAll ? {
@@ -476,18 +561,25 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           return s;
         },
       } : {}),
-      ...(apiTools ? { callTool: apiTools.runner } : {}),
+      ...(apiTools ? { callTool: apiTools.runner, ...(apiTools.toolClass ? { toolClass: apiTools.toolClass } : {}) } : {}),
       // a chat pinned to a computer that is not linked waits in the queue for it: the turn does not start (nothing reads "Working"), the chat says so once, and it starts when the computer links
       ...(h.nodes?.devices ? { place: (thread: { id: string }) => (waitsForComputer(ctx.db, h.nodes, thread.id) ? "device" as const : "host" as const) } : {}),
     });
     running = engine;
+    // A turn parked because the person's Vault is locked runs once when this host holds their key (the Unlock a person presses lands here): one look at the keys every few seconds, no turn is started to find out.
+    if (h.keyOpen ?? h.keyHeld) {
+      const held = (h.keyOpen ?? h.keyHeld)!;
+      const timer = setInterval(() => { for (const p of engine.parkedLocked()) if (held(p.asker)) engine.resumeLocked(p.asker); }, 5_000);
+      timer.unref?.();
+      closeUnlockWatch?.(); closeUnlockWatch = () => clearInterval(timer);
+    }
     // The reviewer seat: after a lead turn completes, the chat's reviewer is asked to check it.
     // Every turn this engine runs is reported to engine.turn.record under the engine's own id, in order per turn, so the turn list, review sampling and the agent's Working status see it.
     const recording = new Map<string, Promise<void>>();
-    const report = (turnId: string, ev: Extract<EngineEvent, { type: "turn.started" | "turn.completed" | "turn.failed" | "turn.cancelled" }>): void => {
+    const report = (turnId: string, ev: Extract<EngineEvent, { type: "turn.started" | "turn.completed" | "turn.failed" | "turn.cancelled" | "turn.waiting" | "turn.resumed" }>): void => {
       const turn = engine.turns().find((t) => t.id === turnId);
       if (!turn) return;
-      const phase = ev.type === "turn.started" ? "started" : ev.type === "turn.completed" ? "completed" : ev.type === "turn.failed" ? "failed" : "cancelled";
+      const phase = ev.type === "turn.started" ? "started" : ev.type === "turn.waiting" ? "waiting" : ev.type === "turn.completed" || ev.type === "turn.resumed" ? "completed" : ev.type === "turn.failed" ? "failed" : "cancelled";
       const input = {
         threadId: turn.threadId, turnId, agentId: turn.agentId, phase, qseq: turn.qseq, asker: turn.asker, ...(turn.model ? { model: turn.model } : {}),
         ...(phase === "started" ? {} : { tokensIn: turn.tokensIn, tokensOut: turn.tokensOut }),
@@ -503,6 +595,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     // the chats waiting for a computer, so the line is said once per wait and the right ones start when a computer links
     const waitingFor = new Set<string>();
     h.nodes?.onDevice?.((link, up) => {
+      forgetPlacement();   // a computer linked or dropped: where chats run may have changed
       if (!up || link.engines.length === 0) return;
       for (const threadId of [...waitingFor]) {
         if (waitsForComputer(ctx.db, h.nodes, threadId)) continue;
@@ -516,6 +609,16 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         waitingFor.add(ev.threadId);
         const row = engine.queue(ev.threadId).find((q) => q.state === "queued");
         if (row) noteLine(row.agentId, row.from.startsWith("usr_") ? row.from : (waitsForComputer(ctx.db, h.nodes, ev.threadId)?.person ?? row.from), ev.threadId, { state: "device_wait", text: DEVICE_WAIT_LINE, threadId: ev.threadId });
+        return;
+      }
+      if (ev.type === "routine.folded") {
+        // the run's row is written right after wake() returns, and the fold can be said before that: finish it on a later turn of the loop, and once more if the row was not there yet
+        const finish = (again: boolean): void => {
+          void finishRoutineRun(ctx, { call: h.call, ...(h.log ? { log: h.log } : {}) }, { type: "turn.failed", turnId: `fold:${ev.threadId}:${ev.qseq}`, threadId: ev.threadId, qseq: ev.qseq, code: ev.code, message: ev.message ?? `Not run: ${ev.code} (the chat is waiting for the person to put it right).` } as Parameters<typeof finishRoutineRun>[2], () => ev.qseq)
+            .then((done) => { if (done === null && again) setTimeout(() => finish(false), 500).unref?.(); })
+            .catch((err) => h.log?.("a routine run was not finished", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
+        };
+        setTimeout(() => finish(true), 0).unref?.();
         return;
       }
       if (ev.type === "turn.started") waitingFor.delete(ev.threadId);
@@ -532,7 +635,13 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         void h.call("engine.turn.record", { threadId: ev.threadId, turnId: ev.turnId, agentId: ev.agentId, phase: "failed", qseq: ev.qseq ?? 0, ...(ev.asker ? { asker: ev.asker } : {}), code: ev.code }, ev.asker)
           .catch((err: unknown) => h.log?.("a lost turn could not be recorded", { turnId: ev.turnId, error: err instanceof Error ? err.message : String(err) }));
       }
-      else if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") report(ev.turnId, ev);
+      else if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled" || ev.type === "turn.resumed" || (ev.type === "turn.waiting" && ev.reason === "approval")) report(ev.turnId, ev);
+      // a sign-in the turn found missing or refused: the account reads "Sign in again" in Settings (the person's own subscription account only; the Vault decides)
+      if (ev.type === "turn.failed" && (ev.code === "engine.signin_missing" || ev.code === "provider.auth_failed") && ev.account?.ref) {
+        const who = engine.turns().find((t) => t.id === ev.turnId)?.asker;
+        void h.call("providers.mark_signin_needed", { handle: ev.account.ref.startsWith("#") ? ev.account.ref : `#${ev.account.ref}` }, who)
+          .catch((err: unknown) => h.log?.("an account could not be marked as needing a sign-in", { turnId: ev.turnId, error: err instanceof Error ? err.message : String(err) }));
+      }
       if (ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") {
         // a routine's run ends with the turn it woke (handlers/routine-run.ts)
         void finishRoutineRun(ctx, { call: h.call, ...(h.log ? { log: h.log } : {}) }, ev as Parameters<typeof finishRoutineRun>[2], (id) => engine.turns().find((t) => t.id === id)?.qseq)
@@ -540,6 +649,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         void onTurnEnded(ctx, { call: h.call, now, ...(h.log ? { log: h.log } : {}) }, engine, ev).catch((err) => h.log?.("a task baton check failed", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
       }
       if (ev.type !== "turn.completed") return;
+      void roller.afterTurn(ev).catch((err) => h.log?.("the rollover check failed", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
       void reviewAfter({ call: h.call, ...(h.postAs ? { postAs: h.postAs } : {}) }, ctx.db, engine, ev, () => mintEngineId("msg", now())).catch((err) => h.log?.("the reviewer could not be asked", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
     });
     bridge?.attach(engine);

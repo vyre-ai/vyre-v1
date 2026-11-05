@@ -91,9 +91,9 @@ export interface ReplyTurn {
   paid?: string;
   /** The asker's and managers' only. */
   accountRef?: string;
-  state: string; ranOn: Array<{ kind: string; name: string }>;
+  state: string; ranOn: Array<{ kind: string; name: string; note?: string }>;
   timing: { queuedAt?: number; startedAt: number; firstTokenAt?: number; endedAt?: number };
-  tokens: { in: number; out: number; cacheRead?: number; cacheWrite?: number; reasoning?: number };
+  tokens: { in: number; out: number; context?: number; cacheRead?: number; cacheWrite?: number; reasoning?: number };
   cost?: TurnCost;
   tools: ReplyTool[];
   files: { read: string[]; written: string[] };
@@ -138,10 +138,10 @@ export function turnOfMessage(ctx: EngineCtx, input: { threadId: string; message
       turnId: str(t["turn_id"]), traceId: str(t["trace_id"]), agentId: str(t["agent_id"]), asker, model: str(t["model"]),
       ...(info?.effort ? { effort: info.effort } : {}), engine: info?.account?.driver ?? str(t["engine"]), ...(info?.account ? { provider: info.account.provider, accountKind: info.account.kind } : {}),
       ...(info?.account?.shared || info?.account?.spaceKey ? { shared: true } : {}), ...(full && accountRef ? { accountRef } : {}), ...(full && info?.paid ? { paid: info.paid } : {}),
-      state: str(t["state"]), ranOn: Array.isArray(t["ran_on"]) ? (t["ran_on"] as Array<{ kind: string; name: string }>) : [],
+      state: str(t["state"]), ranOn: Array.isArray(t["ran_on"]) ? (t["ran_on"] as Array<{ kind: string; name: string; note?: string }>) : [],
       timing: { ...(queuedAt !== undefined && queuedAt <= startedAt ? { queuedAt } : {}), startedAt, ...(info?.firstTokenAt ? { firstTokenAt: info.firstTokenAt } : {}), ...(endedAt === undefined ? {} : { endedAt }) },
       tokens: {
-        in: num(t["tokens_in"]), out: num(t["tokens_out"]), ...(info?.cacheReadTokens !== undefined ? { cacheRead: info.cacheReadTokens } : {}),
+        in: num(t["tokens_in"]), out: num(t["tokens_out"]), ...(info?.contextTokens !== undefined ? { context: info.contextTokens } : {}), ...(info?.cacheReadTokens !== undefined ? { cacheRead: info.cacheReadTokens } : {}),
         ...(info?.cacheWriteTokens !== undefined ? { cacheWrite: info.cacheWriteTokens } : {}), ...(info?.reasoningTokens !== undefined ? { reasoning: info.reasoningTokens } : {}),
       },
       ...(full && cost ? { cost } : {}),

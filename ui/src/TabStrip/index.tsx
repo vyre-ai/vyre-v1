@@ -150,6 +150,7 @@ const FADE_CSS = [
 export const TAB_STRIP_HEIGHT = 38;
 export const TAB_HEIGHT = 30;
 const TAB_MAX_WIDTH = 200;
+const TITLE_MAX_WIDTH = 150;
 const TAB_MIN_WIDTH = 112;
 const TAB_GAP = 2;
 /** The strip's padding and its two buttons, which stay beside the tabs. */
@@ -160,16 +161,22 @@ export interface TabStripViewProps extends TabStripProps {
   label?: string;
   /** Pinned tabs with 7 px padding instead of 10: a narrow side pane that has to fit four tabs (the prototype's agent pane). */
   tight?: boolean;
+  /** The open tab is marked by a line under it, not a filled pill: for the tabs of a page or a pane (the owner bans pill tabs there). The main tab strip keeps its file tabs. */
+  underline?: boolean;
   /** No bar of its own: no fill and no rule under the tabs, for a strip that sits inside a pane's body (the prototype's agent pane). */
   bare?: boolean;
   /** A lone tab has no Close button. Only the main tab strip sets it: closing its last tab just reopens the start place. A pane keeps its Close (that is how the pane closes). */
   hideLoneClose?: boolean;
   /** No options button at the end: the strip's menu is the right-click on a tab. */
   noOptions?: boolean;
+  /** A row of page sections, not documents: no tab has a close button, so none holds room for one. */
+  noClose?: boolean;
+  /** The whole menu of a tab, built by the host from its own state (Close, Pin, Reopen). It replaces the standard Close entries and `menu`'s extras. */
+  entries?: (key: string) => readonly MenuEntry[];
 }
 
 export function TabStrip(props: TabStripViewProps): ReactElement {
-  const { tabs, active, onSelect, onClose, onReorder, menu, onPlus, plusTitle } = props;
+  const { tabs, active, onSelect, onClose, onReorder, menu, onPlus, plusTitle, entries } = props;
   const { element, show } = useMenu();
   const nodes = useRef<Record<string, unknown>>({});
   const moreNode = useRef<unknown>(null);
@@ -193,8 +200,8 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
   }, [tabs, onClose]);
 
   const openFor = useCallback((key: string | undefined, x: number, y: number) => {
-    show(tabMenuEntries(tabs, key, extrasFor(key), run), x, y, "context", { label: key === undefined ? "Tabs" : (tabs.find((t) => t.key === key)?.title ?? key) });
-  }, [tabs, extrasFor, run, show]);
+    show(entries !== undefined && key !== undefined ? entries(key) : tabMenuEntries(tabs, key, extrasFor(key), run), x, y, "context", { label: key === undefined ? "Tabs" : (tabs.find((t) => t.key === key)?.title ?? key) });
+  }, [tabs, extrasFor, run, show, entries]);
 
   const select = useCallback((key: string) => {
     if (onSelect) onSelect(key);
@@ -260,10 +267,11 @@ export function TabStrip(props: TabStripViewProps): ReactElement {
         tab={tab}
         on={on}
         tight={props.tight === true}
+        underline={props.underline === true}
         widest={on ? TAB_MAX_WIDTH : cap}
         dropTarget={drag !== null && drag.over === tab.key && drag.from !== tab.key}
         canClose={onClose !== undefined}
-        only={props.hideLoneClose === true && tabs.length === 1}
+        only={(props.hideLoneClose === true && tabs.length === 1) || props.noClose === true}
         nodeRef={(node) => { nodes.current[tab.key] = node; }}
         onPress={() => select(tab.key)}
         onClose={() => {
@@ -344,10 +352,11 @@ function IconButton({ name, label, onPress: press, nodeRef }: { name: string; la
   );
 }
 
-function TabItem({ tab, on, tight, widest, dropTarget, canClose, only, nodeRef, onPress: press, onClose, trigger, onKeyDown, onDragStart, onDragOver, onDragEnd, onLayout }: {
+function TabItem({ tab, on, tight, underline, widest, dropTarget, canClose, only, nodeRef, onPress: press, onClose, trigger, onKeyDown, onDragStart, onDragOver, onDragEnd, onLayout }: {
   tab: TabSpec;
   on: boolean;
   tight: boolean;
+  underline: boolean;
   /** The most this tab may take. */
   widest: number;
   dropTarget: boolean;
@@ -382,7 +391,7 @@ function TabItem({ tab, on, tight, widest, dropTarget, canClose, only, nodeRef, 
       // (and the x hid itself) right as you reached for it; enter and leave do not fire for a move into a child
       {...(Platform.OS === "web" ? {} : { onHoverIn: () => setOver(true), onHoverOut: () => setOver(false) })}
       onLayout={(event) => onLayout(event.nativeEvent.layout.x, event.nativeEvent.layout.width)}
-      style={[styles.tab, { maxWidth: widest }, pinned ? styles.tabPinned : null, pinned && tight ? styles.tabTight : null, over && !on ? HOVER : null, on ? ACTIVE : null, dropTarget ? DROP : null]}
+      style={[styles.tab, { maxWidth: widest }, !on && !pinned ? styles.tabIdle : null, pinned ? styles.tabPinned : null, pinned && tight ? styles.tabTight : null, underline ? LINE_TAB : null, over && !on ? (underline ? HOVER_LINE : HOVER) : null, on ? (underline ? ACTIVE_LINE : ACTIVE) : null, dropTarget ? DROP : null]}
       {...trigger}
       {...webProps({
         title: name,
@@ -410,7 +419,8 @@ function TabItem({ tab, on, tight, widest, dropTarget, canClose, only, nodeRef, 
           focusable={false}
           testID={`tab-close-${tab.key}`}
           onPress={onClose}
-          style={[styles.close, showClose ? null : HIDDEN]}
+          // hidden, it takes no clicks: a press on the right edge of a short tab (Plan) selects the tab, it does not land on an invisible close
+          style={[styles.close, on ? null : styles.closeOver, showClose ? null : HIDDEN, showClose ? null : { pointerEvents: "none" } as object]}
           {...webProps({ title: "Close" })}
         >
           <MenuIcon icon="x" color={ink} size={12} />
@@ -423,6 +433,10 @@ function TabItem({ tab, on, tight, widest, dropTarget, canClose, only, nodeRef, 
 // Plain objects (not StyleSheet ids) so the painted token is visible in the element's inline style.
 const HOVER = { backgroundColor: "var(--hover)" };
 const ACTIVE = { backgroundColor: "var(--sel)" };
+/* the underline kind: no fill, the open tab has a 2 px line on the strip's own rule */
+const LINE_TAB = { borderRadius: 0, backgroundColor: "transparent" };
+const HOVER_LINE = { backgroundColor: "transparent" };
+const ACTIVE_LINE = { backgroundColor: "transparent", boxShadow: "inset 0 -2px 0 var(--ink)" };
 const DROP = { boxShadow: "inset 2px 0 0 var(--accent)" } as unknown as ViewStyle;
 const HIDDEN = { opacity: 0 };
 
@@ -435,8 +449,12 @@ const styles = StyleSheet.create({
   spacer: { flexGrow: 1 },
   tab: { height: TAB_HEIGHT, flexDirection: "row", alignItems: "center", gap: 7, paddingLeft: 10, paddingRight: 5, borderRadius: 10 },
   tabPinned: { paddingRight: 10 },
+  // a tab that is not selected holds no room for its Close: the button sits over the right padding when the pointer is on the tab, so every tab is the same distance from the next
+  tabIdle: { paddingRight: 10 },
   tabTight: { paddingLeft: 7, paddingRight: 7 },
-  title: { flexShrink: 1, fontSize: 12.5, lineHeight: 16 },
+  // one longest title for every tab: longer names are cut with an ellipsis
+  title: { flexShrink: 1, maxWidth: TITLE_MAX_WIDTH, fontSize: 12.5, lineHeight: 16 },
   close: { width: 20, height: 20, borderRadius: 6, alignItems: "center", justifyContent: "center" },
+  closeOver: { position: "absolute", right: 3, top: 5, backgroundColor: "var(--hover)" as string },
   iconButton: { width: 28, height: 28, borderRadius: 9, alignItems: "center", justifyContent: "center" },
 });

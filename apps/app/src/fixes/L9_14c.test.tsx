@@ -37,9 +37,9 @@ test("the sidebar, the open chat and the agent pane sit side by side, in that or
   assert.equal(WIDE, 640);
 });
 
-test("the sidebar runs Tasks, Threads, Recent, Channels, Agents in the prototype's order", () => {
+test("the sidebar runs Tasks, Recent, Channels, Agents in the prototype's order", () => {
   const out = side();
-  const ids = ["row-nav:tasks", "row-nav:threads", "head-recent", "head-channels", "head-faces"].map((id) => out.indexOf(`data-testid="${id}"`));
+  const ids = ["row-nav:tasks", "head-recent", "head-channels", "head-faces"].map((id) => out.indexOf(`data-testid="${id}"`));
   assert.ok(ids.every((i) => i >= 0));
   assert.deepEqual([...ids].sort((a, b) => a - b), ids);
 });
@@ -47,7 +47,7 @@ test("the sidebar runs Tasks, Threads, Recent, Channels, Agents in the prototype
 test("the open chat is Rivera intake with its composer, and the pane follows its agent on shared tabs", () => {
   const out = place();
   assert.ok(has(out, "Rivera intake") && has(out, 'data-testid="chats-right-pane"'));
-  for (const tab of [">Computer<", ">Threads<", ">Files<"]) assert.ok(has(out, tab), tab);
+  for (const tab of [">About<", ">Computer<", ">Chats<", ">Files<"]) assert.ok(has(out, tab), tab);
 });
 
 test("there is no Comment or Notes control: those are the prototype's review tools", () => {

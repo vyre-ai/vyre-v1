@@ -25,6 +25,7 @@ Area: space. Risk: medium. Applies to: space.
 - console.overview
 - console.speed
 - console.usage
+- engine.running_here
 - health.doctor
 - health.history
 - health.machine

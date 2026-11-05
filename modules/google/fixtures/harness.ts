@@ -38,6 +38,8 @@ export const fakeSeal = {
 export function harness(opts: HarnessOptions = {}) {
   const emitted: { name: string; subject: string; payload: Record<string, unknown> }[] = [];
   const called: Called[] = [];
+  /** The Space's Google connection as the connectors module keeps it (state and last use). */
+  const connection: { state: string; lastSyncAt: number | null } = { state: "pending", lastSyncAt: null };
   const scheduled: { at: number; cap: string; input: Record<string, unknown> }[] = [];
   const requests: Req[] = [];
   const routes: { method: string; match: string | RegExp; reply: Reply | ((r: Req) => Reply) }[] = [];
@@ -73,6 +75,14 @@ export function harness(opts: HarnessOptions = {}) {
       called.push({ cap, input: body });
       if (cap === "settings.get") return { row: { key: body.key, value: opts.autoConnect ?? true } };
       if (cap === "connections.create") return { connection: { connectionId: CONN } };
+      // the connectors module's answer, as it gives it: a pending connection becomes active, the last use is stamped at most once a minute, a paused one stays paused
+      if (cap === "connections.mark_working") {
+        const was = connection.state;
+        if (was === "pending" || was === "failing" || was === "needs_reconnect") connection.state = "active";
+        const stamped = was !== "paused" && (connection.lastSyncAt === null || clock - connection.lastSyncAt >= 60_000);
+        if (stamped) connection.lastSyncAt = clock;
+        return { state: connection.state, stamped };
+      }
       if (cap === "mail.auto_connect_members") {
         const n = (body.members as unknown[]).length;
         return { created: n, notified: n, skipped: 0 };
@@ -172,7 +182,7 @@ export function harness(opts: HarnessOptions = {}) {
   setGoogleHost(host);
 
   return {
-    ctx, emitted, called, scheduled, requests, minted, uploads, ingests, userApps, exchanges, refreshes, userState, mailState, spaceState, refuseScope: (s: string) => refusedScopes.add(s), ingestState,
+    ctx, connection, emitted, called, scheduled, requests, minted, uploads, ingests, userApps, exchanges, refreshes, userState, mailState, spaceState, refuseScope: (s: string) => refusedScopes.add(s), ingestState,
     on(method: string, match: string | RegExp, reply: Reply | ((r: Req) => Reply) = {}) { routes.push({ method, match, reply }); },
     advance(ms: number) { clock += ms; },
     rows(sql: string, ...args: unknown[]): Row[] { return ctx.db.all(sql, ...args) as Row[]; },

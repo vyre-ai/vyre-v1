@@ -38,6 +38,8 @@
         "modules/terminal/",
         "modules/mcp/",
         "modules/notes/",
+        "modules/machines/",
+        "modules/hooks/",
         "package-lock.json"
       ],
       "modules": [
@@ -48,7 +50,9 @@
         "computers",
         "terminal",
         "mcp",
-        "notes"
+        "notes",
+        "machines",
+        "hooks"
       ]
     },
     {
@@ -113,6 +117,7 @@
         "modules/twilio/",
         "modules/zoom/",
         "modules/github/",
+        "modules/ci/",
         "modules/stripe/",
         "package-lock.json"
       ],
@@ -130,6 +135,7 @@
         "twilio",
         "zoom",
         "github",
+        "ci",
         "stripe"
       ]
     },
@@ -176,6 +182,7 @@
         "modules/settings/",
         "modules/vault/",
         "modules/vault-requests/",
+        "modules/talk/",
         "modules/audit/",
         "modules/governance/",
         "package-lock.json"
@@ -189,6 +196,7 @@
         "settings",
         "vault",
         "vault-requests",
+        "talk",
         "audit",
         "governance"
       ]
@@ -278,10 +286,10 @@
       "id": "L9b",
       "name": "Home and Chats",
       "owns": [
-        "apps/app/src/places/home/",
         "apps/app/src/places/chats/",
         "apps/app/src/shell/places.test.tsx",
-        "apps/app/src/shell/providers/home.tsx",
+        "apps/app/src/shell/places-fixture/",
+        "apps/app/src/shell/session/runtime-data.ts",
         "scripts/shots/targets/",
         "scripts/shots/mounts/",
         "scripts/shots/prototype/",
@@ -434,6 +442,7 @@
     "forms": "L8",
     "gate": "L6",
     "git": "L4",
+    "ci": "L5",
     "github": "L5",
     "google": "L5",
     "governance": "L7a",
@@ -447,6 +456,8 @@
     "logs": "L7b",
     "mail": "L5",
     "mailgun": "L5",
+    "machines": "L2",
+    "hooks": "L2",
     "mcp": "L2",
     "meetings": "L5",
     "members": "L7a",
@@ -483,6 +494,7 @@
     "updates": "L7b",
     "vault": "L7a",
     "vault-requests": "L7a",
+    "talk": "L7a",
     "zoom": "L5"
   }
 }

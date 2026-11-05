@@ -1,0 +1,46 @@
+{
+  "targets": [
+    {
+      "id": "ARTIFACTS_01-card",
+      "route": "/m/ARTIFACTS_01?part=card",
+      "proto": "art-chat,{skin}",
+      "waitFor": "[data-testid='blk-artifact-blk1-card']",
+      "note": "The artifact card in a chat: picture, title, one quiet line, Open, Copy link and the more menu; the whole card opens it."
+    },
+    {
+      "id": "ARTIFACTS_01-list",
+      "route": "/m/ARTIFACTS_01?part=list",
+      "proto": "art-list,{skin}",
+      "waitFor": "[data-testid='artifacts-grid']",
+      "note": "Artifacts inside Chats with the sidebar kept: a grid of the same cards, a quiet search, the Mine menu."
+    },
+    {
+      "id": "ARTIFACTS_01-empty",
+      "route": "/m/ARTIFACTS_01?part=empty",
+      "proto": "art-empty,{skin}",
+      "waitFor": "[data-testid='artifacts-empty']",
+      "note": "Nothing published yet: one line and an example ask."
+    },
+    {
+      "id": "ARTIFACTS_01-view",
+      "route": "/m/ARTIFACTS_01?part=view",
+      "proto": "art-view,{skin}",
+      "waitFor": "[data-testid='artifact-frame']",
+      "note": "One artifact in its tab: one header row (back, name, quiet line, Share, more), the page fills the rest."
+    },
+    {
+      "id": "ARTIFACTS_01-loading",
+      "route": "/m/ARTIFACTS_01?part=loading",
+      "proto": "art-load,{skin}",
+      "waitFor": "[data-testid='artifact-loading']",
+      "note": "The page is still loading."
+    },
+    {
+      "id": "ARTIFACTS_01-error",
+      "route": "/m/ARTIFACTS_01?part=error",
+      "proto": "art-err,{skin}",
+      "waitFor": "[data-testid='artifact-error']",
+      "note": "The page could not load here: Open in browser and Try again."
+    }
+  ]
+}

@@ -6,8 +6,8 @@ import { StyleSheet, Text, View } from "react-native";
 import { menuTrigger } from "../../../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { VirtualList } from "../../../../../../ui/src/VirtualList/index.tsx";
-import { needsLook, secondLine, usedLabel } from "./model.ts";
-import type { Clock, Item, Provider } from "./model.ts";
+import { ORIGIN_TITLE, inSections, needsLook, secondLine, usedLabel } from "./model.ts";
+import type { Clock, Item, ListEntry, Provider } from "./model.ts";
 import { LogoTile } from "./parts.tsx";
 
 export const LIST_ROW_HEIGHT = 44;
@@ -22,9 +22,11 @@ export interface ItemListProps {
   onSelect: (id: string) => void;
   onOpen: (id: string) => void;
   onMenu: (item: Item, x: number, y: number) => void;
+  /** Mine, Shared with me and Space as three headed sections (the All view and a search); off: one flat list, as in a folder or a kind page. */
+  sections?: boolean;
 }
 
-export function ItemList({ items, selectedId, providerOf, healthIds, clock, onSelect, onOpen, onMenu }: ItemListProps): ReactElement {
+export function ItemList({ items, selectedId, providerOf, healthIds, clock, onSelect, onOpen, onMenu, sections = false }: ItemListProps): ReactElement {
   const last = useRef<{ id: string; at: number } | null>(null);
   const press = (id: string): void => {
     const now = Date.now();
@@ -49,13 +51,25 @@ export function ItemList({ items, selectedId, providerOf, healthIds, clock, onSe
       </View>
     );
   };
+  const entries: readonly ListEntry[] = sections ? inSections(items) : items.map((item) => ({ item }));
+  const keyOf = (e: ListEntry): string => ("header" in e ? `section-${e.header}` : e.item.id);
   return (
     <View style={s.list} testID="vault-list">
       <VirtualList
-        data={items}
+        data={entries}
         rowHeight={LIST_ROW_HEIGHT}
-        keyOf={(it) => it.id}
-        renderItem={(it) => line(it as Item)}
+        keyOf={(e) => keyOf(e as ListEntry)}
+        // ui-rows-lint: not a list (a section header is a label between the item Rows, not an item)
+        renderItem={(e) => {
+          const entry = e as ListEntry;
+          if ("item" in entry) return line(entry.item);
+          return (
+            <View style={s.head} testID={`vault-section-${entry.header}`} accessibilityRole="header">
+              <Text style={s.headText}>{ORIGIN_TITLE[entry.header]}</Text>
+              <Text style={s.headCount}>{entry.count}</Text>
+            </View>
+          );
+        }}
       />
     </View>
   );
@@ -64,6 +78,9 @@ export function ItemList({ items, selectedId, providerOf, healthIds, clock, onSe
 const s = StyleSheet.create({
   list: { flex: 1, paddingHorizontal: 8 },
   rowWrap: { width: "100%" },
+  head: { height: LIST_ROW_HEIGHT, flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 8, paddingBottom: 6 },
+  headText: { fontSize: 12, fontWeight: "600", letterSpacing: 0.4, color: "var(--ink-3)" as string },
+  headCount: { fontSize: 12, color: "var(--ink-3)" as string },
   logo: { marginRight: 10 },
   trail: { flexDirection: "row", alignItems: "center", gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 99, backgroundColor: "var(--warn)" as string },

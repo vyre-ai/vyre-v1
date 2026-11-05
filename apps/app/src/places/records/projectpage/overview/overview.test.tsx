@@ -1,0 +1,536 @@
+// The project Overview page: every control is pressed in a rendered tree against the in-memory stand-in (sample.ts). The page is the shared Markdown editor (a browser editor, drawn here as its
+// stand-in field), so the live blocks are tested through their own view, and the page's toolbar, properties, history, templates, an agent's edit and Undo through OverviewPage.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { act } from "react";
+import { createRoot } from "test-renderer";
+import { find, flush, installDom, mount, press, textOf, typeInto } from "../../../../../../../ui/src/testing/dom.ts";
+import type { Node } from "../../../../../../../ui/src/testing/dom.ts";
+import { ProjectPageDataProvider } from "../data.tsx";
+import { OverviewPage } from "./OverviewPage.tsx";
+import { LiveBlockView } from "./LiveBlockView.tsx";
+import { LiveSettings } from "./Sheets.tsx";
+import { createSampleOverview, NOW } from "./sample.ts";
+import type { SampleOverview } from "./sample.ts";
+import { agentNotice, countLine, hiddenLine, liveReady, liveTitle, pageLine, propertyText, propertyValue, revisionLine, saveFailure, when } from "./model.ts";
+
+const wait = async (until: () => boolean): Promise<void> => { for (let i = 0; i < 90 && !until(); i++) await flush(); };
+const page = (s: SampleOverview, canEdit = true) => <ProjectPageDataProvider value={s.data}><OverviewPage projectId="prj_rivera" canEdit={canEdit} /></ProjectPageDataProvider>;
+const open = async (s: SampleOverview, canEdit = true): Promise<Node> => { const root = await mount(createRoot, page(s, canEdit)); await wait(() => find(root, "project-overview") !== null); await flush(); return root; };
+const type = async (n: Node | null, _name: string, v: string): Promise<void> => { await typeInto(n, v); await flush(); };
+
+test("words: titles, counts, hidden rows, properties, versions, a stale save, an agent's edit", () => {
+  assert.equal(liveTitle("tasks", { title: "Late work" }), "Late work");
+  assert.equal(liveTitle("tasks", {}), "Tasks");
+  assert.equal(liveReady("records", { type: "" }), false);
+  assert.equal(liveReady("records", { type: "invoice" }), true);
+  assert.equal(liveReady("metric", { type: "invoice", op: "sum" }), false);
+  assert.equal(liveReady("metric", { type: "invoice", op: "sum", field: "amount" }), true);
+  assert.equal(countLine({ rows: [{ id: "a", title: "A" }], hidden: 2, total: 3 }, "row"), "1 row, 2 you can't open");
+  assert.equal(hiddenLine(2), "2 more you can't open");
+  assert.equal(propertyText({ type: "text", value: null }), "");
+  assert.equal(propertyText({ type: "boolean", value: true }), "Yes");
+  assert.equal(propertyValue("number", "$1,250"), 1250);
+  assert.equal(propertyValue("text", "  "), null);
+  assert.equal(pageLine(1), "1 version");
+  assert.equal(pageLine(4), "4 versions");
+  assert.equal(when(NOW - 30_000, NOW), "just now");
+  assert.equal(when(NOW - 5 * 60_000, NOW), "5 min ago");
+  assert.deepEqual(revisionLine({ rev: 3, by: "x", authorKind: "agent", summary: "added a live tasks block", at: NOW - 60_000, }, "Docs", NOW), { title: "Added a live tasks block", note: "Edited by Docs (Agent) · 1 min ago" });
+  assert.equal(revisionLine({ rev: 4, by: "x", authorKind: "person", summary: "undid: x", undoOf: 3, at: NOW }, "you", NOW).title, "Undid version 3");
+  const latest = { rev: 5, by: "agt_docs", authorKind: "agent" as const, summary: "added a section", at: NOW };
+  assert.deepEqual(agentNotice(latest, "usr_irfad", (id) => (id === "agt_docs" ? "Docs" : id)), { text: "Docs added a section", rev: 5 });
+  assert.equal(agentNotice({ ...latest, undoOf: 4 }, "usr_irfad", String), null, "an undo is not an agent's edit");
+  assert.equal(agentNotice({ ...latest, authorKind: "person" }, "usr_irfad", String), null);
+  assert.equal(saveFailure({ code: "validation.precondition_failed", details: { reason: "stale_revision" } }).stale, true);
+  assert.equal(saveFailure(new Error("boom")).text, "boom");
+});
+
+test("the page opens with its properties, version count and editor; a reader with no edit access gets no controls", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const root = await open(s);
+    assert.ok(find(root, "overview-editor"));
+    assert.match(textOf(find(root, "overview-line")), /1 version/);
+    assert.match(textOf(find(root, "prop-status")), /Active/);
+    assert.match(textOf(find(root, "prop-lead")), /Maya Chen/);
+    assert.match(textOf(find(root, "prop-health")), /At risk/);
+    assert.ok(find(root, "prop-contract") && find(root, "prop-add") && find(root, "overview-template-open") && find(root, "overview-history-open"));
+    const ro = await open(createSampleOverview(), false);
+    assert.equal(find(ro, "prop-add"), null);
+    assert.equal(find(ro, "overview-template-open"), null);
+    assert.ok(find(ro, "overview-history-open"), "history is readable by a reader");
+    assert.match(textOf(find(ro, "prop-contract")), /\$48,000/);
+  } finally { off(); }
+});
+
+test("a page the reader cannot open says so, and a loading page shows a placeholder first", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    s.failNext("projects.overview_doc.get", "permission.not_found", "no");
+    const root = await mount(createRoot, page(s));
+    await wait(() => find(root, "overview-gone") !== null);
+    assert.match(textOf(find(root, "overview-gone")), /could not be opened/);
+  } finally { off(); }
+});
+
+test("a property is edited in place and saved as an edit of the page; Add a property fills one that is empty", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const root = await open(s);
+    await type(find(root, "prop-contract"), "onChangeText", "$52,000");
+    await act(async () => { (find(root, "prop-contract")!.props["onBlur"] as (e: unknown) => void)({ nativeEvent: {}, target: {}, currentTarget: {} }); });
+    await wait(() => s.state().props["contract"] === "$52,000");
+    assert.equal(s.state().props["contract"], "$52,000");
+    const op = s.calls.find((c) => c.cap === "projects.overview_edit")!.input as { ops: { op: string; key: string; value: unknown }[]; baseRev: number };
+    assert.deepEqual(op.ops, [{ op: "set_property", key: "contract", value: "$52,000" }]);
+    assert.equal(op.baseRev, 1);
+    // Add a property: the one still empty is offered
+    await press(find(root, "prop-add"));
+    await wait(() => find(root, "overview-addprop") !== null);
+    assert.match(textOf(find(root, "addprop-key")), /Repo/);
+    assert.doesNotMatch(textOf(find(root, "addprop-key")), /Contract value/, "a property that has a value is not offered");
+    await type(find(root, "addprop-value"), "onChangeText", "vyre-ai/rivera");
+    await press(find(root, "addprop-add"));
+    await wait(() => s.state().props["repo"] === "vyre-ai/rivera");
+    assert.equal(s.state().props["repo"], "vyre-ai/rivera");
+    assert.equal(find(root, "overview-addprop"), null);
+    await press(find(root, "prop-add"));
+    await wait(() => find(root, "overview-addprop") !== null);
+    await press(find(root, "addprop-cancel"));
+    assert.equal(find(root, "overview-addprop"), null);
+  } finally { off(); }
+});
+
+test("History lists each version with who made it; Undo takes back the latest and is itself a version", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    s.agentEdits("added a live tasks block", `${s.state().markdown}\n\n<!--b:blk_x9-->\n:::live {"type":"people","spec":{},"view":"list"}`);
+    const root = await open(s);
+    await press(find(root, "overview-history-open"));
+    await wait(() => find(root, "overview-history") !== null);
+    await wait(() => find(root, "row-rev-2") !== null);
+    assert.match(textOf(find(root, "row-rev-2")), /Added a live tasks block/);
+    assert.match(textOf(find(root, "row-rev-2")), /Docs \(Agent\)/);
+    assert.match(textOf(find(root, "row-rev-1")), /Maya Chen/);
+    assert.ok(find(root, "rev-undo-2"), "only the latest has Undo");
+    assert.equal(find(root, "rev-undo-1"), null);
+    await press(find(root, "rev-undo-2"));
+    await wait(() => s.state().revisions.length === 3);
+    assert.equal(s.state().revisions.at(-1)!.undoOf, 2);
+    assert.equal(s.state().markdown.includes("blk_x9"), false);
+    await press(find(root, "overview-history-done"));
+    assert.equal(find(root, "overview-history"), null);
+  } finally { off(); }
+});
+
+test("an agent's edit leaves a quiet bar with who and what; Undo reverts it; Dismiss hides it", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    s.agentEdits("added a section: Open invoices", `${s.state().markdown}\n\n<!--b:blk_y1-->\nNew paragraph.`);
+    const root = await open(s);
+    assert.match(textOf(find(root, "overview-notice")), /Docs added a section: Open invoices/);
+    await press(find(root, "overview-notice-undo"));
+    await wait(() => s.state().revisions.at(-1)!.undoOf !== undefined);
+    assert.equal(s.state().markdown.includes("blk_y1"), false);
+    await wait(() => find(root, "overview-notice") === null);
+    assert.equal(find(root, "overview-notice"), null, "an undo is not an agent's edit, so the bar is gone");
+    const s2 = createSampleOverview();
+    s2.agentEdits("changed a paragraph", s2.state().markdown + "\n\n<!--b:blk_z2-->\nX");
+    const r2 = await open(s2);
+    await press(find(r2, "overview-notice-dismiss"));
+    assert.equal(find(r2, "overview-notice"), null);
+    const ro = await open((() => { const x = createSampleOverview(); x.agentEdits("added", x.state().markdown + "\n\n<!--b:blk_q\nQ"); return x; })(), false);
+    assert.ok(find(ro, "overview-notice") && !find(ro, "overview-notice-undo"), "a reader sees the bar but cannot undo");
+  } finally { off(); }
+});
+
+test("a template replaces the page after a choice; the page it had stays in the history; a Space template is saved from the page", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const root = await open(s);
+    await press(find(root, "overview-template-open"));
+    await wait(() => find(root, "row-tpl-tpl_hiring") !== null);
+    assert.ok(find(root, "row-tpl-tpl_client_account") && find(root, "row-tpl-tpl_software_project"), "the three built-in templates");
+    await press(find(root, "row-tpl-tpl_hiring"));
+    await wait(() => s.state().markdown.includes("# Hiring"));
+    const call = s.calls.find((c) => c.cap === "projects.overview_doc.apply_template")!.input as { templateId: string; baseRev: number };
+    assert.deepEqual([call.templateId, call.baseRev], ["tpl_hiring", 1]);
+    assert.equal(s.state().revisions.length, 2, "the old page is the version before");
+    await wait(() => find(root, "overview-template-open") !== null && find(root, "overview-templates") === null);
+    // save this page as a template
+    await press(find(root, "overview-template-open"));
+    await wait(() => find(root, "tpl-name") !== null);
+    await press(find(root, "tpl-save"));
+    await wait(() => find(root, "overview-templates-error") !== null);
+    assert.match(textOf(find(root, "overview-templates-error")), /Name the template/);
+    await type(find(root, "tpl-name"), "onChangeText", "Retainer matter");
+    await press(find(root, "tpl-save"));
+    await wait(() => s.calls.some((c) => c.cap === "projects.overview_doc.templates.save"));
+    assert.deepEqual((s.calls.find((c) => c.cap === "projects.overview_doc.templates.save")!.input as { title: string }).title, "Retainer matter");
+    await wait(() => find(root, "overview-templates") === null);
+    assert.match(textOf(find(root, "overview-note")), /Saved the template Retainer matter/);
+    await press(find(root, "overview-template-open"));
+    await wait(() => find(root, "overview-templates-cancel") !== null);
+    await press(find(root, "overview-templates-cancel"));
+    assert.equal(find(root, "overview-templates"), null);
+  } finally { off(); }
+});
+
+test("a page someone else changed is not overwritten: the person is told, and Reload brings it in", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const root = await open(s);
+    s.racing();
+    await press(find(root, "overview-template-open"));
+    await wait(() => find(root, "row-tpl-tpl_hiring") !== null);
+    await press(find(root, "row-tpl-tpl_hiring"));
+    await wait(() => find(root, "overview-stale") !== null);
+    assert.match(textOf(find(root, "overview-stale")), /Someone changed this page/);
+    assert.equal(s.state().markdown.includes("# Hiring"), false, "nothing was written");
+    await press(find(root, "overview-reload"));
+    await wait(() => find(root, "overview-stale") === null);
+    assert.equal(find(root, "overview-stale"), null);
+  } finally { off(); }
+});
+
+test("a live block draws the project's data as a list, a table, cards or a count, and counts what the reader may not open", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const api = { update: () => undefined, remove: () => undefined };
+    const draw = async (attrs: { type: string; spec: unknown; view: string }, readOnly = false): Promise<Node> => {
+      const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><LiveBlockView projectId="prj_rivera" attrs={{ blockId: "blk_c3", ...attrs }} readOnly={readOnly} api={api} onSettings={() => undefined} /></ProjectPageDataProvider>);
+      await wait(() => find(root, "live-loading") === null);
+      return root;
+    };
+    const list = await draw({ type: "tasks", spec: { title: "Open tasks", status: "open" }, view: "list" });
+    assert.ok(find(list, "live-list") && find(list, "row-live-t3"));
+    assert.match(textOf(find(list, "live-tag")), /Live · Tasks where status is open/);
+    assert.match(textOf(find(list, "live-hidden")), /2 more you can't open/);
+    const call = s.calls.filter((c) => c.cap === "projects.live_block.query").at(-1)!.input as { type: string; spec: { status: string } };
+    assert.deepEqual([call.type, call.spec.status], ["tasks", "open"]);
+    assert.ok(find(await draw({ type: "records", spec: { type: "invoice", title: "Invoices" }, view: "table" }), "live-table"));
+    assert.ok(find(await draw({ type: "tasks", spec: {}, view: "cards" }), "live-cards"));
+    const count = await draw({ type: "tasks", spec: {}, view: "count" });
+    assert.match(textOf(find(count, "live-number")), /6/);
+    const metric = await draw({ type: "metric", spec: { type: "invoice", op: "sum", field: "amount", title: "Unpaid" }, view: "count" });
+    assert.match(textOf(find(metric, "live-number")), /6,250/);
+    assert.match(textOf(metric), /Unpaid/);
+  } finally { off(); }
+});
+
+test("a live block with nothing chosen says what to do; an unknown kind is kept as written; a reader has no Edit or menu", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const api = { update: () => undefined, remove: () => undefined };
+    const draw = async (attrs: { type: string; spec: unknown; view: string }, readOnly = false): Promise<Node> => mount(createRoot, <ProjectPageDataProvider value={s.data}><LiveBlockView projectId="prj_rivera" attrs={{ blockId: null, ...attrs }} readOnly={readOnly} api={api} onSettings={() => undefined} /></ProjectPageDataProvider>);
+    const setup = await draw({ type: "records", spec: { type: "" }, view: "table" });
+    assert.match(textOf(find(setup, "live-setup")), /Choose what this shows\s*: press Edit/);
+    assert.equal(s.calls.some((c) => c.cap === "projects.live_block.query"), false, "nothing is asked until it can show something");
+    const unknown = await draw({ type: "hologram", spec: {}, view: "list" });
+    assert.match(textOf(find(unknown, "live-unknown")), /kept as written/);
+    assert.equal(find(unknown, "live-edit"), null, "an unknown kind has no settings");
+    const ro = await draw({ type: "tasks", spec: {}, view: "list" }, true);
+    assert.equal(find(ro, "live-edit"), null);
+    assert.equal(find(ro, "live-menu"), null);
+    s.failNext("projects.live_block.query");
+    const err = await draw({ type: "tasks", spec: { a: 1 }, view: "list" });
+    await wait(() => find(err, "live-error") !== null);
+    assert.match(textOf(find(err, "live-error")), /could not be read/);
+  } finally { off(); }
+});
+
+test("a row opens what it is: a task or a record, a goal's page; Edit and the menu act on the block", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const log: string[] = [];
+    const api = { update: (p: unknown) => log.push(`update ${JSON.stringify(p)}`), remove: () => log.push("remove") };
+    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><LiveBlockView projectId="prj_rivera" attrs={{ blockId: "b", type: "tasks", spec: { title: "Open tasks" }, view: "list" }} readOnly={false} api={api} onSettings={(a) => log.push(`settings ${a.type}`)} /></ProjectPageDataProvider>);
+    await wait(() => find(root, "row-live-t3") !== null);
+    await press(find(root, "row-live-t3"));
+    assert.deepEqual(s.opened, ["record:task:t3"]);
+    await press(find(root, "live-edit"));
+    assert.deepEqual(log, ["settings tasks"]);
+    assert.ok(find(root, "live-menu"));
+  } finally { off(); }
+});
+
+test("the settings sheet changes the title, what it filters on and how it is drawn; a records block needs a type first", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const saved: unknown[] = [];
+    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><LiveSettings attrs={{ blockId: "b", type: "tasks", spec: { title: "Open tasks", status: "open" }, view: "list" }} onSave={(n) => saved.push(n)} onClose={() => saved.push("closed")} /></ProjectPageDataProvider>);
+    await flush();
+    await type(find(root, "live-title"), "onChangeText", "Late work");
+    await typeInto(find(root, "live-spec-status"), "late");
+    await typeInto(find(root, "live-view"), "table");
+    await press(find(root, "live-settings-save"));
+    assert.deepEqual(saved, [{ spec: { title: "Late work", status: "late" }, view: "table" }]);
+    await press(find(root, "live-settings-cancel"));
+    assert.equal(saved.at(-1), "closed");
+    const rec = await mount(createRoot, <ProjectPageDataProvider value={s.data}><LiveSettings attrs={{ blockId: "b", type: "records", spec: { title: "Records", type: "" }, view: "table" }} onSave={(n) => saved.push(n)} onClose={() => undefined} /></ProjectPageDataProvider>);
+    await wait(() => find(rec, "live-type") !== null && /Invoices/.test(textOf(find(rec, "live-type"))));
+    assert.equal(find(rec, "live-settings-save")!.props["aria-disabled"] ?? find(rec, "live-settings-save")!.props["disabled"], true, "Save is off until a record type is chosen");
+    await typeInto(find(rec, "live-type"), "invoice");
+    const n = saved.length;
+    await press(find(rec, "live-settings-save"));
+    assert.equal(saved.length, n + 1);
+    assert.deepEqual((saved.at(-1) as { spec: { type: string } }).spec.type, "invoice");
+  } finally { off(); }
+});
+
+test("a metric that sums asks which field; its view is only a count", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><LiveSettings attrs={{ blockId: "b", type: "metric", spec: { title: "Unpaid", type: "invoice", op: "count" }, view: "count" }} onSave={() => undefined} onClose={() => undefined} /></ProjectPageDataProvider>);
+    await wait(() => find(root, "live-spec-op") !== null);
+    assert.equal(find(root, "live-field"), null);
+    await typeInto(find(root, "live-spec-op"), "sum");
+    assert.ok(find(root, "live-field"), "a sum names the field");
+    assert.equal(find(root, "live-view-table"), null, "a metric is drawn as a count");
+  } finally { off(); }
+});
+
+test("typing saves the page by itself a pause later, on the revision it was opened at; the status says Saving then Saved and the version count grows", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const root = await open(s);
+    await press(find(root, "md-view-raw"));
+    const next = `${s.state().markdown}\n\n<!--b:blk_n1-->\nA new paragraph.`;
+    await typeInto(find(root, "markdown-editor-raw-text"), next);
+    await wait(() => s.state().rev === 2);
+    const save = s.calls.find((c) => c.cap === "projects.overview_doc.save")!.input as { markdown: string; baseRev: number; projectId: string };
+    assert.deepEqual([save.baseRev, save.projectId, save.markdown], [1, "prj_rivera", next]);
+    await wait(() => /Saved/.test(textOf(find(root, "overview-status"))));
+    assert.match(textOf(find(root, "overview-status")), /Saved/);
+    await wait(() => /2 versions/.test(textOf(find(root, "overview-line"))));
+    assert.match(textOf(find(root, "overview-line")), /2 versions/);
+    // a second edit rides on the new revision
+    await typeInto(find(root, "markdown-editor-raw-text"), `${next} More.`);
+    await wait(() => s.state().rev === 3);
+    assert.equal((s.calls.filter((c) => c.cap === "projects.overview_doc.save").at(-1)!.input as { baseRev: number }).baseRev, 2);
+  } finally { off(); }
+});
+
+test("a failed save says so and keeps the text; a stale save asks for a reload and writes nothing", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const root = await open(s);
+    await press(find(root, "md-view-raw"));
+    s.failNext("projects.overview_doc.save", "internal.unexpected", "The page could not be saved.");
+    await typeInto(find(root, "markdown-editor-raw-text"), `${s.state().markdown}\n\nWords.`);
+    await wait(() => find(root, "overview-save-error") !== null);
+    assert.match(textOf(find(root, "overview-save-error")), /could not be saved/);
+    assert.equal(s.state().rev, 1);
+    const s2 = createSampleOverview();
+    const r2 = await open(s2);
+    await press(find(r2, "md-view-raw"));
+    s2.racing();
+    await typeInto(find(r2, "markdown-editor-raw-text"), `${s2.state().markdown}\n\nMine.`);
+    await wait(() => find(r2, "overview-stale") !== null);
+    assert.match(textOf(find(r2, "overview-stale")), /Someone changed this page/);
+    assert.equal(s2.state().markdown.includes("Mine."), false);
+  } finally { off(); }
+});
+
+test("when an agent changes the page, a quiet bar appears on its own (no reload of the tab)", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const root = await open(s);
+    assert.equal(find(root, "overview-notice"), null);
+    s.agentEdits("added a live goal block", `${s.state().markdown}\n\n<!--b:blk_g1-->\n:::live {"type":"goal","spec":{},"view":"list"}`);
+    s.changed();
+    await wait(() => find(root, "overview-notice") !== null);
+    assert.match(textOf(find(root, "overview-notice")), /Docs added a live goal block/);
+  } finally { off(); }
+});
+
+test("the shell's tab body, ProjectOverview, opens the page for its project with the person's edit access", async () => {
+  const off = installDom();
+  try {
+    const { ProjectOverview } = await import("./index.tsx");
+    const s = createSampleOverview();
+    const space = { id: "spc_1", kind: "team" as const, name: "Northwind" };
+    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><ProjectOverview projectId="prj_rivera" space={space} canEdit={false} /></ProjectPageDataProvider>);
+    await wait(() => find(root, "project-overview") !== null);
+    assert.equal((s.calls.find((c) => c.cap === "projects.overview_doc.get")!.input as { projectId: string }).projectId, "prj_rivera");
+    assert.equal(find(root, "prop-add"), null, "canEdit false: no controls");
+  } finally { off(); }
+});
+
+test("words for a live block: what it shows, a row's tone, a task's status mark, its due date, and a metric with its currency", async () => {
+  const { liveDescription, stateTone, planStatus, dueWords, metricLine, BASIC_BLOCKS, LIVE_KINDS } = await import("./model.ts");
+  assert.equal(liveDescription("tasks", { status: "open" }), "Tasks where status is open");
+  assert.equal(liveDescription("tasks", { status: "waiting", assigned: "me" }), "Tasks where status is waiting or blocked, assigned to me");
+  assert.equal(liveDescription("tasks", { status: "all" }), "Tasks");
+  assert.equal(liveDescription("records", { type: "invoice" }, [{ key: "invoice", title: "Invoice", plural: "Invoices" }]), "Invoices");
+  assert.equal(liveDescription("metric", { type: "invoice", op: "sum", field: "amount" }, [{ key: "invoice", title: "Invoice", plural: "Invoices" }]), "Sum of amount of invoices");
+  assert.deepEqual(["overdue", "late", "paid", "done", "open", undefined].map(stateTone), ["bad", "bad", "good", "good", "plain", "plain"]);
+  assert.deepEqual(["todo", "doing", "in_review", "awaiting_approval", "done", "canceled"].map(planStatus), ["todo", "doing", "review", "approval", "done", "done"]);
+  const day = 86_400_000, now = Date.UTC(2025, 9, 24, 10);
+  assert.deepEqual(dueWords(Date.UTC(2025, 9, 22), "todo", now), { text: "2 days late", late: true });
+  assert.deepEqual(dueWords(Date.UTC(2025, 9, 28), "todo", now), { text: "Due Oct 28", late: false });
+  assert.deepEqual(dueWords(now - day, "done", now), { text: "Due Oct 23", late: false }, "a done task is never late");
+  assert.equal(dueWords(undefined, "todo", now), null);
+  assert.deepEqual(metricLine({ value: 6250, title: "Unpaid", total: 3, noun: "Invoices", unit: "USD", sum: true }), { big: "$6,250", rest: "unpaid across 3 invoices" });
+  assert.deepEqual(metricLine({ parts: [{ unit: "USD", value: 4550 }, { unit: "EUR", value: 900 }], title: "Unpaid", total: 4, noun: "Invoices", sum: true }), { big: "$4,550 and €900", rest: "unpaid across 4 invoices" }, "currencies are never added into one number");
+  assert.deepEqual(metricLine({ parts: [{ unit: "USD", value: 5 }, { unit: "EUR", value: 4 }, { unit: "GBP", value: 3 }], title: "Unpaid", total: 3, noun: "Invoices", sum: true }).big, "$5, €4 and £3");
+  assert.deepEqual(metricLine({ value: 3, title: "Open invoices", total: 3, noun: "Invoices", sum: false }), { big: "3", rest: "open invoices" });
+  assert.deepEqual(BASIC_BLOCKS.map((b) => b.label), ["Text", "Heading", "Checklist", "Table", "Callout", "Diagram", "Chart"]);
+  for (const b of BASIC_BLOCKS) assert.equal(typeof (b.node() as { type: string }).type, "string");
+  assert.equal(LIVE_KINDS.length, 9);
+});
+
+test("a live block sits on the page with no card; its strip (what it shows, Edit, menu) is there for the person to reveal, and always on a phone", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><LiveBlockView projectId="prj_rivera" attrs={{ blockId: "b", type: "tasks", spec: { title: "Open tasks", status: "open" }, view: "list" }} readOnly={false} api={{ update: () => undefined, remove: () => undefined }} onSettings={() => undefined} /></ProjectPageDataProvider>);
+    await wait(() => find(root, "row-live-t3") !== null);
+    const box = find(root, "live-tasks")!;
+    const style = JSON.stringify(box.props["style"] ?? {});
+    assert.doesNotMatch(style, /borderWidth|backgroundColor/, "no card border or background");
+    assert.match(textOf(find(root, "live-tag")), /^Live · Tasks where status is open$/);
+    assert.ok(find(root, "live-edit") && find(root, "live-menu"));
+    assert.doesNotMatch(textOf(find(root, "live-tasks")), /you can't open.*you can't open/);
+    assert.match(textOf(find(root, "live-hidden")), /2 more you can't open/);
+    assert.ok(find(find(root, "live-hidden")!, "live-hidden") || find(root, "live-hidden")!.children!.length >= 2, "a lock icon comes before the words");
+  } finally { off(); }
+});
+
+test("task rows are one line: the Plan's status mark, the title, the due date or how late it is, and who has it", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><LiveBlockView projectId="prj_rivera" attrs={{ blockId: "b", type: "tasks", spec: { title: "Open tasks" }, view: "list" }} readOnly={true} api={{ update: () => undefined, remove: () => undefined }} onSettings={() => undefined} /></ProjectPageDataProvider>);
+    await wait(() => find(root, "row-live-t3") !== null);
+    assert.match(textOf(find(root, "row-live-t3")), /Draft the engagement letter/);
+    assert.match(textOf(find(root, "row-live-t3")), /Due Oct 28/);
+    assert.match(textOf(find(root, "row-live-t4")), /2 days late/, "an open task past its date says how late");
+    assert.doesNotMatch(textOf(find(root, "row-live-t3")), /doing/, "no grey second line of state words");
+    assert.ok(find(root, "row-live-t3-leading"), "the status mark leads the row");
+  } finally { off(); }
+});
+
+test("a record row is the Linked row: the title, the amount under it, the state at the right (overdue reads as overdue)", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><LiveBlockView projectId="prj_rivera" attrs={{ blockId: "b", type: "records", spec: { title: "Invoices", type: "invoice" }, view: "list" }} readOnly={true} api={{ update: () => undefined, remove: () => undefined }} onSettings={() => undefined} /></ProjectPageDataProvider>);
+    await wait(() => find(root, "row-live-inv106") !== null);
+    const r = find(root, "row-live-inv106")!;
+    assert.match(textOf(r), /INV-106/);
+    assert.match(textOf(r), /\$900/);
+    const state = (n: Node, word: string): Node | null => { for (const c of n.children ?? []) { if (typeof c === "object") { const f = state(c, word); if (f) return f; if (textOf(c).trim() === word && c.props?.style) return c; } } return null; };
+    const colour = (n: Node | null): string => JSON.stringify(n?.props?.["style"] ?? "");
+    assert.match(colour(state(r, "Overdue")), /danger/);
+    assert.match(colour(state(find(root, "row-live-inv105")!, "Paid")), /ok/);
+    assert.doesNotMatch(colour(state(find(root, "row-live-inv104")!, "Open")), /danger|warn|ok/);
+  } finally { off(); }
+});
+
+test("a metric reads as a sentence with its currency and no row count: $6,250 unpaid across 3 invoices", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const root = await mount(createRoot, <ProjectPageDataProvider value={s.data}><LiveBlockView projectId="prj_rivera" attrs={{ blockId: "b", type: "metric", spec: { title: "Unpaid", type: "invoice", op: "sum", field: "amount" }, view: "count" }} readOnly={true} types={[{ key: "invoice", title: "Invoice", plural: "Invoices" }]} api={{ update: () => undefined, remove: () => undefined }} onSettings={() => undefined} /></ProjectPageDataProvider>);
+    await wait(() => /\$6,250/.test(textOf(find(root, "live-number"))));
+    assert.match(textOf(find(root, "live-number")), /\$6,250/);
+    assert.match(textOf(find(root, "live-metric-line")), /unpaid across 3 invoices/);
+    assert.doesNotMatch(textOf(root), /\b0 rows\b/);
+  } finally { off(); }
+});
+
+test("History: each older version can be restored, an agent's edit reads Edited by Docs (Agent), and a restore is a version that can be undone", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    s.agentEdits('added a live metric block "Unpaid"', `${s.state().markdown}\n\n<!--b:blk_y1-->\n:::live {"type":"metric","spec":{"title":"Unpaid","type":"invoice","op":"sum","field":"amount"},"view":"count"}`);
+    const root = await open(s);
+    await press(find(root, "overview-history-open"));
+    await wait(() => find(root, "row-rev-2") !== null);
+    assert.match(textOf(find(root, "row-rev-2")), /Added a live metric block "Unpaid"/);
+    assert.match(textOf(find(root, "row-rev-2")), /Edited by Docs \(Agent\)/);
+    assert.ok(find(root, "rev-restore-1"), "an older version has Restore");
+    assert.equal(find(root, "rev-restore-2"), null, "the latest has Undo, not Restore");
+    await press(find(root, "rev-restore-1"));
+    await wait(() => s.state().revisions.at(-1)?.summary === "restored version 1");
+    assert.equal(s.state().markdown.includes("blk_y1"), false, "version 1's page is back");
+    assert.equal((s.calls.find((c) => c.cap === "projects.overview_doc.restore")!.input as { rev: number; baseRev: number }).baseRev, 2);
+    await wait(() => find(root, "overview-history-note") !== null);
+    assert.match(textOf(find(root, "overview-history-note")), /Version 1 is back/);
+  } finally { off(); }
+});
+
+test("read mode hides a property with no value; the editor shows it empty to fill in", async () => {
+  const off = installDom();
+  try {
+    const ro = await open(createSampleOverview(), false);
+    assert.ok(find(ro, "prop-contract"));
+    assert.equal(find(ro, "prop-repo"), null, "no value, nothing shown");
+    const ed = await open(createSampleOverview(), true);
+    assert.ok(find(ed, "prop-repo"));
+  } finally { off(); }
+});
+
+test("an agent's block is lit for a few seconds after its edit (its blockId is the one the page marks)", async () => {
+  const { freshIds } = await import("./model.ts");
+  const doc = { blocks: [{ id: "a", kind: "text", by: "usr_maya", at: 1 }, { id: "n", kind: "live", by: "agt_docs", at: 5000 }], latest: { rev: 2, by: "agt_docs", authorKind: "agent", summary: "x", at: 5000 } } as never;
+  assert.deepEqual([...freshIds(doc)], ["n"]);
+  assert.equal(freshIds({ blocks: [{ id: "n", kind: "live", by: "usr_maya", at: 5000 }], latest: { rev: 2, by: "usr_maya", authorKind: "person", summary: "x", at: 5000 } } as never).size, 0);
+});
+
+test("a metric waits for the record types before it speaks, so it never says 'rows' first and 'invoices' later (the same data gives the same words)", async () => {
+  const off = installDom();
+  try {
+    const s = createSampleOverview();
+    const attrs = { blockId: "b", type: "metric", spec: { title: "Unpaid", type: "invoice", op: "sum", field: "amount" }, view: "count" } as const;
+    const early = await mount(createRoot, <ProjectPageDataProvider value={s.data}><LiveBlockView projectId="prj_rivera" attrs={attrs} readOnly={true} types={null} onSettings={() => undefined} api={{ remove: () => undefined } as never} /></ProjectPageDataProvider>);
+    for (let i = 0; i < 20; i++) await flush();
+    assert.notEqual(find(early, "live-loading"), null, "no sentence before the types are known");
+    assert.doesNotMatch(textOf(early), /rows/);
+    const late = await mount(createRoot, <ProjectPageDataProvider value={s.data}><LiveBlockView projectId="prj_rivera" attrs={attrs} readOnly={true} types={[{ key: "invoice", title: "Invoice", plural: "Invoices" }]} onSettings={() => undefined} api={{ remove: () => undefined } as never} /></ProjectPageDataProvider>);
+    await wait(() => /\$6,250/.test(textOf(find(late, "live-number"))));
+    assert.match(textOf(find(late, "live-metric-line")), /unpaid across 3 invoices/);
+  } finally { off(); }
+});
+
+test("one function names a project's stage for the header, the Status property and the Status block", async () => {
+  const { stageWord } = await import("./model.ts");
+  assert.deepEqual(["planning", "active", "hold", "done", "on_track", ""].map(stageWord), ["Planning", "Active", "On hold", "Done", "On_track", ""]);
+});
+
+test("an overview task's due day is the Space's day: 10 PM Pacific on the 5th reads Nov 5, not the UTC 6th", async () => {
+  const { dueWords } = await import("./model.ts");
+  const due = Date.parse("2026-11-06T06:00:00Z");
+  const now = Date.parse("2026-11-04T15:00:00Z");
+  assert.deepEqual(dueWords(due, "todo", now, "America/Los_Angeles"), { text: "Due Nov 5", late: false });
+  assert.deepEqual(dueWords(due, "todo", now), { text: "Due Nov 6", late: false }, "no zone: the UTC day, as before");
+});
+
+test("the Dates property reads in the Space's zone", async () => {
+  const { setCurrentZones } = await import("../../../../../../../lib/zones.ts");
+  const { day } = await import("./Properties.tsx");
+  try {
+    setCurrentZones({ space: "America/Los_Angeles", viewer: "Asia/Karachi" });
+    assert.equal(day(Date.parse("2026-11-06T06:00:00Z")), "Nov 5", "10 PM Pacific on the 5th");
+    assert.equal(day(undefined), "");
+    setCurrentZones({ space: "UTC", viewer: "UTC" });
+    assert.equal(day(Date.parse("2026-11-06T06:00:00Z")), "Nov 6");
+  } finally { setCurrentZones(null); }
+});

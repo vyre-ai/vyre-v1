@@ -18,7 +18,7 @@ import type { NeedsDeps } from "./actions.ts";
 import { NeedsYouDataProvider, useNeedsData, useOnline, useOptionalNeedsData, useScreenQuery } from "./data.tsx";
 import type { NeedsYouData } from "./data.tsx";
 import {
-  FILTERS, SNOOZES, arrivedLabel, assignedName, accessRequestOf, connectionFixOf, fixOf, footerHint, keyRequestOf, fromName, hasComputer, originOf, blockView, holder, kindWord, matchesFilter, needsLine, needsNote, needsTake, nextSelection, notePrompt, questionOf, roleWord, rowNote, sortItems,
+  FILTERS, SNOOZES, arrivedLabel, assignedName, accessRequestOf, connectionFixOf, fixOf, footerHint, keyRequestOf, fromName, hasComputer, originOf, blockView, holder, kindWord, matchesFilter, needsLine, needsNote, needsTake, nextSelection, notePrompt, questionOf, roleWord, rowNote, sortItems, splitOlder,
   isWithdrawn, peopleCount, participants, sourceWord, splitActions, splitWithdrawn, stateWord, stepSelection,
 } from "./model.ts";
 import type { Action, BlockView, Item, KindFilter, Task } from "./model.ts";
@@ -72,7 +72,9 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
   if (failed) return <LoadFailed what="what needs you" failure={failed} testID="needs-failed" />;
   if (itemsQ.status === "loading") return <NeedsYouLoading />;
   const all = itemsQ.data.items;
-  const list = sortItems(splitWithdrawn(all).live).filter((i) => matchesFilter(i.task, filter));
+  const live = sortItems(splitWithdrawn(all).live).filter((i) => matchesFilter(i.task, filter));
+  const split = splitOlder(live, data.clock().now);
+  const list = [...split.fresh, ...split.older];
   // Withdrawn requests sit in their own section below the list, only while every kind is showing.
   const withdrawn = filter === "all" ? splitWithdrawn(all).withdrawn : [];
   const pool = [...list, ...withdrawn];
@@ -154,7 +156,7 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
           <States kind="empty" icon="done" title={filter === "all" ? `All caught up. Nothing in ${data.space.name} is waiting on you.` : "Nothing here. Try another filter."} />
         </View>
       ) : (
-        <NeedList items={list} withdrawn={withdrawn} render={renderRow} {...(window ? { window } : {})} />
+        <NeedList items={list} older={split.fresh.length > 0 ? split.older : []} withdrawn={withdrawn} render={renderRow} {...(window ? { window } : {})} />
       )}
       {line ? <View testID="needs-line" style={st.note}><Text numberOfLines={2} style={st.noteText}>{line}</Text></View> : null}
       <View style={st.foot}><Text testID="needs-foot" style={st.footText}>{footerHint(current?.task)}</Text></View>
@@ -256,7 +258,7 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
         </Pressable>) : null}
         <Tool icon="more" label="More" onPress={(x, y) => showMenu(menuItems, x, y)} testID="needs-more" />
       </View>
-      {gone ? <Text testID="needs-withdrawn" style={st.why}>{`Withdrawn by ${data.nameOf(t.createdBy)}, nothing to do.`}</Text> : null}
+      {gone ? <Text testID="needs-withdrawn" style={st.why}>{t.workingNotes["withdrawn"] ?? `Withdrawn by ${data.nameOf(t.createdBy)}, nothing to do.`}</Text> : null}
       {t.why ? <Text testID="needs-why" style={st.why}>{t.why}</Text> : null}
       {blockNodes}
       <View style={st.src}>
@@ -289,14 +291,14 @@ function Detail({ item, narrow, compose, draft, onDraft, onBack, onAct, onCancel
             if (url) (globalThis as { open?: (u: string) => void }).open?.(url); else setFixNote("Replace the key in the Vault, then press Check again.");
           }, () => setFixNote("That did not start. Try again."))} testID="needs-reconnect" /> : null}
           {connFix ? <Button label="Check again" onPress={() => void Promise.resolve(data.call("connections.test", { connectionId: connFix.connectionId })).then(() => setFixNote("Checked. It clears here when the connection works."), () => setFixNote("It still does not work."))} testID="needs-check-again" /> : null}
-          {accessReq ? <Button label="Approve" primary disabled={deciding} onPress={() => { setDeciding(true); void Promise.resolve(data.call("access.requests.approve", { requestId: accessReq.requestId, ...(accessReq.level ? { level: accessReq.level } : {}) })).finally(() => setDeciding(false)); }} testID="needs-access-approve" /> : null}
-          {accessReq ? <Button label="Decline" disabled={deciding} onPress={() => { setDeciding(true); void Promise.resolve(data.call("access.requests.decline", { requestId: accessReq.requestId })).finally(() => setDeciding(false)); }} testID="needs-access-decline" /> : null}
+          {accessReq ? <Button label="Allow" primary disabled={deciding} onPress={() => { setDeciding(true); void Promise.resolve(data.call("access.requests.approve", { requestId: accessReq.requestId, ...(accessReq.level ? { level: accessReq.level } : {}) })).finally(() => setDeciding(false)); }} testID="needs-access-approve" /> : null}
+          {accessReq ? <Button label="Deny" disabled={deciding} onPress={() => { setDeciding(true); void Promise.resolve(data.call("access.requests.decline", { requestId: accessReq.requestId })).finally(() => setDeciding(false)); }} testID="needs-access-decline" /> : null}
           {keyReq && !providing ? <Button label="Provide the key" primary onPress={() => setProviding(true)} testID="needs-provide-key" /> : null}
           {fix === "replace_key" ? <Button label="Replace key" primary onPress={() => setReplacing(true)} testID="needs-replace-key" /> : null}
           {!mustTake && noAccount ? <Button label="Sign in" primary onPress={() => data.nav.openSignIn()} testID="needs-signin" /> : null}
           {!mustTake && mailSignIn ? <Button label="Sign in again" primary onPress={() => void openConnect?.({ kind: "mailbox", provider: mailSignIn })} testID="needs-mailfix" /> : null}
           {!mustTake && !noAccount && fix === null && keyReq === null && accessReq === null && connFix === null && !mailSignIn && primary && (question === null || question.words) ? <Button label={labelOf(mail, primary)} primary hint="A" onPress={() => onAct(primary)} testID="needs-primary" /> : null}
-          {!mustTake && fix === null && keyReq === null && accessReq === null && connFix === null && sendBack ? <Button label={mail ? labelOf(mail, sendBack) : "Send back"} hint="B" onPress={() => onAct(sendBack)} testID="needs-sendback" /> : null}
+          {!mustTake && fix === null && keyReq === null && accessReq === null && connFix === null && sendBack ? <Button label={labelOf(mail, sendBack)} hint="B" onPress={() => onAct(sendBack)} testID="needs-sendback" /> : null}
           {!mustTake && fix === null && keyReq === null && accessReq === null && connFix === null ? moreButtons : null}
           {hasComputer(t) && !noAccount ? <Button label="Open its computer" onPress={() => data.nav.openComputer(t.createdBy)} testID="needs-computer" /> : null}
         </View>
@@ -427,9 +429,13 @@ function keyOfItem(i: Item): string {
 
 /** The list of requests: ui/VirtualList over ui/Row, 44 high because every row has its second line. Withdrawn requests follow under their own label (same 44 px). */
 type Entry = { key: string; item: Item } | { key: string; label: string };
-function NeedList({ items, withdrawn, render, window }: { items: readonly Item[]; withdrawn: readonly Item[]; render: (i: Item) => ReactElement; window?: VirtualWindow }): ReactElement {
+function NeedList({ items, older, withdrawn, render, window }: { items: readonly Item[]; older: readonly Item[]; withdrawn: readonly Item[]; render: (i: Item) => ReactElement; window?: VirtualWindow }): ReactElement {
   const entries: Entry[] = [];
-  for (const item of items) entries.push({ key: keyOfItem(item), item });
+  for (const item of items) {
+    // what has waited days gets its own heading, only when something newer is above it
+    if (older.length > 0 && item === older[0]) entries.push({ key: "label:older", label: "Older" });
+    entries.push({ key: keyOfItem(item), item });
+  }
   if (withdrawn.length > 0) {
     entries.push({ key: "label:withdrawn", label: "Withdrawn" });
     for (const item of withdrawn) entries.push({ key: keyOfItem(item), item });

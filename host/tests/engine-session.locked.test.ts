@@ -49,3 +49,11 @@ test("a field that is not in the item, or an item that is gone, is said in plain
   assert.deepEqual([logs[0]![1]!["field"], logs[0]![1]!["handle"]], ["setup_token", "Claude_Code"]);
   assert.equal(JSON.stringify(logs).includes("x\""), false);
 });
+
+test("the turn's own account whose item has no credentials field is a missing sign-in, said once as itself, never as a locked Vault", async () => {
+  const h = createEngineSessionHost({
+    invoke: (async () => { throw Object.assign(new Error("This item has no field credentials."), { code: "validation.bad_input" }); }) as never,
+    vault: { secret: async () => "x" } as never, space: "spc_1",
+  });
+  await assert.rejects(h.source.lookup("#Claude_Code.credentials", { ...who, account: true }), (e: { code?: string; message?: string }) => e.code === "engine.signin_missing" && /no credentials field\. Sign in to it again/.test(String(e.message)));
+});

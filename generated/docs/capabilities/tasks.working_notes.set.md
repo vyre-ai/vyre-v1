@@ -1,6 +1,6 @@
 # tasks.working_notes.set
 
-Write a working note (key and value) that any person or agent on the task can read
+Write a working note (key and value) that any person or agent on the task can read; send expectedFrom, the note as you last read it
 
 | | |
 |---|---|
@@ -28,6 +28,7 @@ type In = {
   taskId: string;
   key: string;
   value: string;
+  expectedFrom?: string;
 };
 ```
 
@@ -114,6 +115,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "expectedFrom": "example",
     "key": "example",
     "taskId": "tsk_a1b2c3",
     "value": "example"
@@ -123,7 +125,7 @@ type Out = {
       "actions": [
         {
           "key": "approve",
-          "label": "Approve",
+          "label": "Allow",
           "note": "required"
         }
       ],

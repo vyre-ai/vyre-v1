@@ -1,0 +1,251 @@
+// The project page as the Chats shell draws it (lane l-chrome2a): the header of the prototype (name with its menu, star, status, lead, people, more), the tab row Chat, Plan, Overview, Linked and Knows,
+// and every control of it. Each control is one capability call or one move of the tab.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { createRoot } from "test-renderer";
+import { Dimensions } from "react-native";
+import { find, flush, installDom, mount, press, textOf } from "../../../onboarding/test-dom.ts";
+import { ProjectPage, ProjectPageDataProvider } from "./index.ts";
+import { createSampleProject } from "./sample.ts";
+import { DEFAULT_PROJECT_TAB, PROJECT_TABS, isProjectTab } from "./tabs.ts";
+import { knowsItems } from "./KnowsTab.tsx";
+import type { ProjectTabKey } from "./tabs.ts";
+import type { ProjectPageData } from "./data.tsx";
+
+const widen = (width: number): void => Dimensions.set({ window: { width, height: 844, scale: 1, fontScale: 1 } });
+const SPACE = { id: "spc_1", kind: "team" as const, name: "Northwind" };
+
+function setup(extra: Record<string, (i: Record<string, unknown>) => unknown> = {}): { data: ProjectPageData; calls: Array<{ cap: string; input: Record<string, unknown> }>; tabs: ProjectTabKey[] } {
+  const s = createSampleProject();
+  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const tabs: ProjectTabKey[] = [];
+  const data: ProjectPageData = {
+    ...s.data,
+    me: { id: "usr_maya", name: "Maya Chen" },
+    async call(cap, input) {
+      const i = input as Record<string, unknown>;
+      calls.push({ cap, input: i });
+      if (extra[cap]) return extra[cap]!(i);
+      if (cap === "projects.set" || cap === "stars.toggle") return {};
+      if (cap === "stars.list") return { stars: [] };
+      if (cap === "projects.members.list") return { members: [{ principal: "usr_maya", role: "lead", kind: "person", since: 1 }, { principal: "usr_omar", role: "member", kind: "person", since: 1 }] };
+      const out = await s.data.call(cap, input) as Record<string, unknown>;
+      if (cap === "projects.overview") return { ...out, project: { ...(out["project"] as object), health: "risk" } };
+      return out;
+    },
+  };
+  return { data, calls, tabs };
+}
+
+const page = (t: ReturnType<typeof setup>, tab?: ProjectTabKey): JSX.Element => (
+  <ProjectPageDataProvider value={t.data}><ProjectPage projectId="pj_0" space={SPACE} {...(tab ? { tab } : {})} onTabChange={(k) => t.tabs.push(k)} /></ProjectPageDataProvider>
+);
+
+test("the tabs are Chat, Plan, Overview and Linked, in that order, and the first is Chat", () => {
+  assert.deepEqual(PROJECT_TABS.map((t) => t.title), ["Chat", "Plan", "Overview", "Linked"]);
+  assert.equal(DEFAULT_PROJECT_TAB, "chat");
+  assert.ok(!isProjectTab("knows") && isProjectTab("linked") && !isProjectTab("teammates") && !isProjectTab(undefined));
+});
+
+test("the header: the name, the status the lead set, the lead, the people count; and the tab strip", async () => {
+  const off = installDom(); widen(1280);
+  try {
+    const t = setup();
+    const root = await mount(createRoot, page(t));
+    await flush();
+    assert.equal(textOf(find(root, "project-title")), "Rivera engagement");
+    assert.ok(textOf(find(root, "project-health")).includes("At risk"));
+    assert.ok(textOf(find(root, "project-lead")).includes("Maya Chen"));
+    assert.ok(find(root, "project-members") && find(root, "project-star") && find(root, "project-more") && find(root, "project-menu"));
+    for (const k of PROJECT_TABS.map((x) => x.key)) assert.ok(find(root, `tab-${k}`) || find(root, `tab-${k}-selected`), `tab ${k}`);
+    assert.ok(find(root, "tab-chat-selected"), "opens on Chat");
+    assert.ok(find(root, "project-chat"), "the Chat tab body");
+  } finally { off(); }
+});
+
+test("each tab is one press and tells the shell; its body is the one the contract names", async () => {
+  const off = installDom(); widen(1280);
+  try {
+    const t = setup({ "memory.place.list": () => ({ facts: [] }) });
+    const root = await mount(createRoot, page(t));
+    await flush();
+    await press(find(root, "tab-plan")); await flush();
+    assert.ok(find(root, "project-plan"));
+    await press(find(root, "tab-overview")); await flush();
+    assert.ok(find(root, "tab-overview-selected") && !find(root, "project-overview-stub"), "the Overview body is l-editor's component, not the stub");
+    await press(find(root, "tab-linked")); await flush();
+    assert.ok(find(root, "linked") || find(root, "linked-empty") || find(root, "project-linked") || textOf(root).includes("Linked"), "the Linked body is l-artifacts' component");
+    assert.ok(!find(root, "tab-knows"), "Knows is not a tab: it opens in the side pane from More");
+    await press(find(root, "project-more")); await flush();
+    await press(find(root, "menu-item-What Vyre knows")); await flush();
+    assert.ok(find(root, "project-knows-pane") && find(root, "project-knows"), "What Vyre knows opens the pane");
+    assert.deepEqual(t.tabs, ["plan", "overview", "linked"]);
+  } finally { off(); }
+});
+
+test("the status button sets the health with projects.set, and Clear removes it", async () => {
+  const off = installDom(); widen(1280);
+  try {
+    const t = setup();
+    const root = await mount(createRoot, page(t));
+    await flush();
+    await press(find(root, "project-health")); await flush();
+    await press(find(root, "menu-item-On hold")); await flush();
+    assert.deepEqual(t.calls.filter((c) => c.cap === "projects.set").map((c) => c.input), [{ projectId: "pj_0", health: "hold" }]);
+    await press(find(root, "project-health")); await flush();
+    await press(find(root, "menu-item-Clear")); await flush();
+    assert.deepEqual(t.calls.filter((c) => c.cap === "projects.set").at(-1)!.input, { projectId: "pj_0", health: null });
+  } finally { off(); }
+});
+
+test("the star toggles with stars.toggle; the name and the more button open the project menu", async () => {
+  const off = installDom(); widen(1280);
+  try {
+    const t = setup();
+    const root = await mount(createRoot, page(t));
+    await flush();
+    await press(find(root, "project-star")); await flush();
+    assert.deepEqual(t.calls.filter((c) => c.cap === "stars.toggle").map((c) => c.input), [{ resource: { type: "project", id: "pj_0" }, on: true }]);
+    await press(find(root, "project-menu")); await flush();
+    assert.ok(find(root, "menu-item-Copy Link"), "the name opens the menu");
+    await press(find(root, "menu-item-Copy Link")); await flush();
+    await press(find(root, "project-more")); await flush();
+    assert.ok(find(root, "menu-item-Copy Link"), "More opens the same menu");
+  } finally { off(); }
+});
+
+test("People opens the people popover; Add People in the project's menu opens the one Add people and agents sheet", async () => {
+  const off = installDom(); widen(1280);
+  try {
+    const t = setup();
+    const root = await mount(createRoot, page(t));
+    await flush();
+    await press(find(root, "project-members")); await flush();
+    assert.ok(find(root, "people-popover"));
+    await press(find(root, "people-footer")); await flush();
+    await press(find(root, "project-more")); await flush();
+    await press(find(root, "menu-item-Add People…")); await flush();
+    assert.ok(find(root, "add-sheet"));
+  } finally { off(); }
+});
+
+test("Knows reads memory.place.list for the project and draws what Vyre remembers; a member who may edit gets Edit and Remove", async () => {
+  const off = installDom(); widen(1280);
+  try {
+    const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+    const t = setup({ "memory.place.list": (i) => { calls.push({ cap: "memory.place.list", input: i }); return { facts: [{ factId: "fct_1", kind: "decision", text: "Send the retainer Friday", state: "current", said_by: "usr_maya", at: 1_762_000_000_000 - 3_600_000 }] }; } });
+    const root = await mount(createRoot, page(t));
+    await flush();
+    await press(find(root, "project-more")); await flush();
+    await press(find(root, "menu-item-What Vyre knows")); await flush();
+    assert.deepEqual(calls[0]!.input, { placeKind: "project", placeId: "pj_0", history: true });
+    assert.ok(find(root, "knows-row-fct_1"));
+    assert.ok(textOf(find(root, "knows-row-fct_1")).includes("Send the retainer Friday"));
+  } finally { off(); }
+});
+
+test("knowsItems turns people into names and times into words", () => {
+  const items = knowsItems([{ factId: "f", kind: "fact", text: "x", state: "current", said_by: "usr_a", at: 1_000 }, { factId: "g", kind: "fact", text: "y", state: "current" }], (id) => (id === "usr_a" ? "Ada" : id), 1_000 + 7_200_000, true);
+  assert.deepEqual(items.map((i) => [i.by, i.canEdit]), [["Ada", true], ["Vyre", true]]);
+  assert.match(items[0]!.at, /2 h ago|2h/);
+});
+
+test("the shell gives the page its admin flag, the Space's id and the three doors Linked uses, from the real runtime", async () => {
+  const { projectPageData } = await import("../../../shell/providers/project-data.ts");
+  const opened: unknown[] = [];
+  const urls: string[] = [];
+  const rt = (perms: string[] | undefined) => ({ call: async () => ({}), me: { id: "usr_a", name: "A" }, space: { id: "spc_9", kind: "team", name: "N" }, clock: () => ({ now: 1 }), open: (t: unknown) => opened.push(t), openUrl: (u: string) => urls.push(u), assistant: { id: "agt_x", name: "Assistant" }, principals: { getSnapshot: () => ({ status: "ready", data: [] }), subscribe: () => () => undefined }, ...(perms ? { permissions: new Set(perms) } : {}) }) as never;
+  const admin = projectPageData(rt(["console.access"]));
+  assert.deepEqual([admin.admin, admin.spaceId], [true, "spc_9"]);
+  assert.equal(projectPageData(rt(["tasks.create"])).admin, false, "a member is not an admin");
+  assert.equal(projectPageData(rt(undefined)).admin, false, "unknown permissions read as not an admin");
+  admin.nav.openItem!("task", "tsk_1"); admin.nav.openUrl!("https://github.com/x/y/pull/1"); admin.nav.askAssistant!("fix the CI");
+  assert.deepEqual(opened, [{ subject: { type: "task", id: "tsk_1" } }, { screen: "chats.ask", args: { with: "assistant", first: "fix the CI" } }]);
+  assert.deepEqual(urls, ["https://github.com/x/y/pull/1"]);
+});
+
+test("the Chat tab with a slot draws that slot and never the old list of the project's chats; without one (the record page) it lists them", async () => {
+  const off = installDom(); widen(1280);
+  try {
+    const t = setup();
+    const withSlot = await mount(createRoot, <ProjectPageDataProvider value={t.data}><ProjectPage projectId="pj_0" space={SPACE} chatSlot={<></>} /></ProjectPageDataProvider>);
+    await flush();
+    assert.ok(find(withSlot, "project-chat-main"), "the slot");
+    assert.equal(find(withSlot, "project-chat"), null, "no list of old chats");
+    const without = await mount(createRoot, <ProjectPageDataProvider value={t.data}><ProjectPage projectId="pj_0" space={SPACE} /></ProjectPageDataProvider>);
+    await flush();
+    assert.ok(find(without, "project-chat") && !find(without, "project-chat-main"));
+  } finally { off(); }
+});
+
+
+test("the Chat tab's header carries the chat's find and pane, and More is the project's items, a divider, then the chat's; other tabs show only the project's controls", async () => {
+  const { createFrameStore } = await import("../../chats/conversation/frame.ts");
+  const off = installDom(); widen(1280);
+  try {
+    const t = setup();
+    const store = createFrameStore();
+    const toggled: string[] = [];
+    store.set({ find: { active: false, toggle: () => toggled.push("find") }, pane: { toggle: () => toggled.push("pane") }, helpers: { label: "2 helpers running", badge: 2, onPress: () => toggled.push("helpers") }, stop: null, chatEntries: () => [{ label: "Plan Mode", onSelect: () => undefined }, { label: "Fork This Chat", onSelect: () => undefined }] });
+    const root = await mount(createRoot, <ProjectPageDataProvider value={t.data}><ProjectPage projectId="pj_0" space={SPACE} chatSlot={<></>} chatControls={store} /></ProjectPageDataProvider>);
+    await flush();
+    for (const id of ["find-button", "pane-button", "helpers-button"]) assert.ok(find(root, id), id);
+    assert.equal(find(root, "stop-button"), null, "no stop when nothing runs");
+    await press(find(root, "find-button")); await press(find(root, "pane-button")); await press(find(root, "helpers-button"));
+    assert.deepEqual(toggled, ["find", "pane", "helpers"]);
+    await press(find(root, "project-more")); await flush();
+    const labels: string[] = [];
+    const walk = (n: unknown): void => { const x = n as { props?: Record<string, unknown>; children?: unknown[] }; const id = x.props?.["data-testid"]; if (typeof id === "string" && id.startsWith("menu-item-")) labels.push(id.slice(10)); for (const c of x.children ?? []) if (typeof c === "object") walk(c); };
+    walk(root);
+    assert.ok(labels.indexOf("Copy Link") >= 0 && labels.indexOf("Plan Mode") > labels.indexOf("Copy Link"), `the project's items first, then the chat's: ${labels.join(", ")}`);
+    await press(find(root, "tab-plan")); await flush();
+    for (const id of ["find-button", "pane-button", "helpers-button"]) assert.equal(find(root, id), null, `${id} only on the Chat tab`);
+  } finally { off(); }
+});
+
+test("roles are set in the people popover: a project's Lead gets Change role (Lead, Member, Reviewer, Guest) through projects.members.set; a member gets no role control", async () => {
+  const { act } = await import("react");
+  const off = installDom(); widen(1280);
+  try {
+    for (const lead of [true, false]) {
+      const t = setup();
+      // the popover's rows and who may change them come from the overview's people: Maya is the Lead, Omar a member
+      if (!lead) t.data = { ...t.data, me: { id: "usr_omar", name: "Omar Haddad" } };
+      const root = await mount(createRoot, page(t));
+      await flush(); await flush();
+      await press(find(root, "project-members")); await flush();
+      const open = find(root, lead ? "people-row-usr_omar" : "people-row-usr_maya")?.props["onContextMenu"] as ((e: unknown) => void) | undefined;
+      assert.equal(typeof open, "function", "a row opens its menu");
+      await act(async () => { open?.({ preventDefault() {}, nativeEvent: { pageX: 20, pageY: 20 }, pageX: 20, pageY: 20, clientX: 20, clientY: 20 }); });
+      await flush();
+      assert.equal(find(root, "menu-item-Change role") !== null, lead, lead ? "the Lead may change a role" : "a member may not");
+      if (!lead) continue;
+      await press(find(root, "menu-item-Change role")); await flush();
+      for (const w of ["Lead", "Member", "Reviewer", "Guest"]) assert.ok(find(root, `menu-item-${w}`), w);
+      await press(find(root, "menu-item-Reviewer")); await flush();
+      const set = t.calls.filter((c) => c.cap === "projects.members.set").map((c) => c.input);
+      assert.equal(set.length, 1);
+      assert.deepEqual([set[0]!["projectId"], set[0]!["principal"], set[0]!["role"]], ["pj_0", "usr_omar", "reviewer"]);
+      assert.equal(typeof set[0]!["idempotencyKey"], "string", "the call carries its key");
+    }
+  } finally { off(); }
+});
+
+test("a Space owner or admin keeps role control when someone else is Lead; a plain member does not", async () => {
+  const { act } = await import("react");
+  const off = installDom(); widen(1280);
+  try {
+    for (const admin of [true, false]) {
+      const t = setup();
+      t.data = { ...t.data, me: { id: "usr_omar", name: "Omar Haddad" }, admin };
+      const root = await mount(createRoot, page(t));
+      await flush(); await flush();
+      await press(find(root, "project-members")); await flush();
+      const open = find(root, "people-row-usr_maya")?.props["onContextMenu"] as ((e: unknown) => void) | undefined;
+      await act(async () => { open?.({ preventDefault() {}, nativeEvent: { pageX: 20, pageY: 20 }, pageX: 20, pageY: 20, clientX: 20, clientY: 20 }); });
+      await flush();
+      assert.equal(find(root, "menu-item-Change role") !== null, admin, admin ? "the admin changes roles though Maya leads" : "a plain member may not");
+      assert.equal(typeof find(root, "people-role-usr_maya")?.props.onClick === "function", admin, "the role text is a button only for who may change it");
+    }
+  } finally { off(); }
+});

@@ -117,6 +117,12 @@ jobs:
         run: node scripts/lint/no-silent-calls.ts --enforce
       - name: no-noop-opt-out (enforced); the no-dead-buttons gate has no opt-out attribute
         run: node scripts/lint/no-noop-opt-out.ts
+      - name: shared-time ratchet (scripts/lint/shared-time.test.ts); a time drawn in a shared place uses ui/Time and the Space's time zone, and the known list may only shrink
+        run: node --test --test-reporter=spec scripts/lint/shared-time.test.ts
+      - name: rules-of-hooks (enforced); React's rules of hooks over apps/ and ui/ on the syntax tree, no allow comment (a hook after an early return crashed every chat on 3464fa6b6)
+        run: |
+          [ -d tools/gen/node_modules/typescript ] || bash tools/gen/check.sh   # TypeScript comes from tools/gen, installed by the contracts gate script, as the typecheck step below does
+          node scripts/lint/rules-of-hooks.ts
       - name: Typecheck every package that has a tsconfig.json above a changed file
         run: |
           git fetch -q origin main
@@ -132,6 +138,21 @@ jobs:
           tsc=tools/gen/node_modules/.bin/tsc
           [ -x "$tsc" ] || bash tools/gen/check.sh
           for d in $dirs; do echo "tsc -p $d"; "$tsc" -p "$d/tsconfig.json" --noEmit; done
+  typecheck:
+    # The typecheck ratchet for apps/app and ui (scripts/typecheck-ratchet.ts), in a job of its own: it needs the workspace dependencies (react-native's types) and tools/gen's tsc,
+    # and tsc over the app takes about a minute, which the gates job's 5 minute cap does not leave room for. Until 5 Nov it ran in gates with no dependencies and read "skipped"
+    # on every push; now a ratchet that cannot count fails on CI. The error count in scripts/typecheck-baseline.json may only fall.
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - uses: ./.github/actions/deps
+      - name: tools/gen's TypeScript (installed by the contracts gate script)
+        run: '[ -x tools/gen/node_modules/.bin/tsc ] || bash tools/gen/check.sh'
+      - name: Typecheck ratchet (the count may only fall)
+        run: node scripts/typecheck-ratchet.ts
   images-docker:
     # Ruling 31 and P-L8_HEAVY: when images/ or a heavy test changes, run the tests the 20 s shard cannot: the vyred image boots in Docker, the site builders
     # build and serve samples on real Docker, and a pinned Documenso container takes an envelope from create to completed. VYRE_HEAVY_DOCKER=1 turns the
@@ -240,7 +261,7 @@ jobs:
           docker version --format 'docker server {{.Server.Version}}' || true
           cat /proc/sys/kernel/unprivileged_userns_clone 2>/dev/null || true
           sysctl kernel.apparmor_restrict_unprivileged_userns user.max_user_namespaces 2>/dev/null || true
-          if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
+          if bwrap --unshare-all --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib --symlink usr/lib64 /lib64 --proc /proc --dev /dev /usr/bin/true; then echo "bwrap namespaces: ok"; else echo "bwrap namespaces: FAILED"; fi
       - name: Remove sandboxes and networks that earlier heavy runs left behind (the Docker address pools are finite)
         if: steps.scope.outputs.changed == 'true'
         run: |
@@ -375,7 +396,7 @@ jobs:
           node scripts/test-run.ts --no-cache --files scripts/shots/owner-model.test.ts 2>&1 | tee owner-model.out
           grep -q '^ok .*scripts/shots/owner-model.test.ts' owner-model.out
   check:
-    needs: [select, shards, gates, chrome-real, computer-lifecycle]
+    needs: [select, shards, gates, typecheck, chrome-real, computer-lifecycle]
     if: always()
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
@@ -385,22 +406,57 @@ jobs:
           SELECT: ${{ needs.select.result }}
           SHARDS: ${{ needs.shards.result }}
           GATES: ${{ needs.gates.result }}
+          TYPECHECK: ${{ needs.typecheck.result }}
           CHROME: ${{ needs.chrome-real.result }}
           COMPUTER: ${{ needs.computer-lifecycle.result }}
         run: |
-          [ "$GATES" = "success" ] || { echo "gates (ownership, boundaries, lint, typecheck): $GATES"; exit 1; }
+          [ "$GATES" = "success" ] || { echo "gates (ownership, boundaries, lint, package typecheck): $GATES"; exit 1; }
+          [ "$TYPECHECK" = "success" ] || { echo "typecheck (the apps/app and ui ratchet): $TYPECHECK"; exit 1; }
           [ "$SELECT" = "success" ] || { echo "select: $SELECT"; exit 1; }
           [ "$CHROME" = "success" ] || { echo "chrome-real (the extension against a real Chromium): $CHROME"; exit 1; }
           [ "$COMPUTER" = "success" ] || { echo "computer-lifecycle (the agent Computer on real Docker): $COMPUTER"; exit 1; }
           case "$SHARDS" in success|skipped) ;; *) echo "shards: $SHARDS"; exit 1;; esac
-  golden:
+  # The golden flows run in three shards (scripts/golden.ts --shard i/n) so each job has real headroom under its 5 minute cap. The `golden` job below is the required check: it passes only when all three shards passed.
+  golden-1:
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/deps
-      - name: Golden flows (needs/pending mode lands with scripts/golden.ts, P-PR_63)
-        run: npm run golden
+      - name: Golden flows, shard 1 of 3 (also prints the report of flows still blocked by stub modules)
+        run: node scripts/golden.ts --shard 1/3
+  golden-2:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
+      - name: Golden flows, shard 2 of 3
+        run: node scripts/golden.ts --shard 2/3
+  golden-3:
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
+      - name: Golden flows, shard 3 of 3
+        run: node scripts/golden.ts --shard 3/3
+  golden:
+    needs: [golden-1, golden-2, golden-3]
+    if: always()
+    runs-on: [self-hosted, linux, v1]
+    timeout-minutes: 5
+    steps:
+      - name: All three golden shards passed
+        env:
+          S1: ${{ needs.golden-1.result }}
+          S2: ${{ needs.golden-2.result }}
+          S3: ${{ needs.golden-3.result }}
+        run: |
+          [ "$S1" = "success" ] || { echo "golden shard 1: $S1"; exit 1; }
+          [ "$S2" = "success" ] || { echo "golden shard 2: $S2"; exit 1; }
+          [ "$S3" = "success" ] || { echo "golden shard 3: $S3"; exit 1; }
+          echo "golden: all three shards passed"
   contracts:
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5

@@ -4,6 +4,8 @@
 // DECISION: the age purge deletes canonical transcript rows and messages (with their blocks) older than the cutoff, in threads not listed in skipThreadIds (governance passes held threads), oldest first. The thread row and its title stay.
 import { ensure } from "../projections.ts";
 import { deletedBefore, forgetDeleted } from "./archive-state.ts";
+import { ownedIn, trashOwned } from "./owned.ts";
+import { forgetMentions } from "./pace.ts";
 import type { ChatCtx } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -26,6 +28,7 @@ function family(ctx: ChatCtx, root: string): string[] {
 }
 
 function dropThread(ctx: ChatCtx, id: string): void {
+  forgetMentions(ctx, { thread: id });
   for (const m of ctx.db.all(`SELECT id FROM chat_message WHERE thread = ?`, id) as Row[]) ctx.db.run(`DELETE FROM chat_message__fm WHERE id = ?`, String(m["id"]));
   ctx.db.run(`DELETE FROM chat_message WHERE thread = ?`, id);
   ctx.db.run(`DELETE FROM chat_block WHERE thread = ?`, id);
@@ -64,8 +67,10 @@ export async function threadErase(ctx: ChatCtx, input: { threadId: string; idemp
   ensure(ctx.db);
   if ((ctx.db.all(`SELECT id FROM chat_thread WHERE id = ?`, input.threadId) as Row[]).length === 0) return { erased: false };
   const ids = family(ctx, input.threadId);
+  const made = ownedIn(ctx, ids);   // agents the chat made for itself: gone with it
   for (const id of ids) await dropTranscriptFile(ctx, id);
   for (const id of ids) dropThread(ctx, id);
+  await trashOwned(ctx, made);
   ctx.emit("thread.erased", `entity/${input.threadId}`, { threadId: input.threadId });
   return { erased: true };
 }
@@ -79,8 +84,10 @@ export async function channelErase(ctx: ChatCtx, input: { channelId: string; ide
   for (const t of ctx.db.all(`SELECT id FROM chat_thread WHERE "channelId" = ?`, input.channelId) as Row[]) roots.add(String(t["id"]));
   const seen = new Set<string>();
   for (const r of roots) for (const id of family(ctx, r)) seen.add(id);
+  const made = ownedIn(ctx, [...seen]);   // agents the channel made for itself: gone with it
   for (const id of seen) await dropTranscriptFile(ctx, id);
   for (const id of seen) dropThread(ctx, id);
+  await trashOwned(ctx, made);
   ctx.db.run(`DELETE FROM chat_channel WHERE id = ?`, input.channelId);
   ctx.emit("channel.erased", `entity/${input.channelId}`, { channelId: input.channelId });
   return { erased: true };
@@ -113,6 +120,7 @@ export async function transcriptPurge(ctx: ChatCtx, input: { before: number; lim
   const batch = due.slice(0, room);
   for (const m of batch) {
     const id = String(m["id"]);
+    forgetMentions(ctx, { message: id });
     ctx.db.run(`DELETE FROM chat_block WHERE message = ?`, id);
     ctx.db.run(`DELETE FROM chat_message__fm WHERE id = ?`, id);
     ctx.db.run(`DELETE FROM chat_message WHERE id = ?`, id);

@@ -24,11 +24,13 @@
    */
   function prepare(want) {
     const found = ns.finder.findLoginFields(g.document);
+    /** @type {any} */
+    let card = null;
     /** @type {{ ref: string, role: string }[]} */
     const fields = [];
     refs.clear();
     for (const role of want.roles) {
-      const el = role === "username" ? found.username : role === "password" ? found.password : role === "otp" ? found.otp : null;
+      const el = role === "username" ? found.username : role === "password" ? found.password : role === "otp" ? found.otp : role.startsWith("cc-") ? (card || (card = ns.finder.findCardFields(g.document)))[role.slice(3)] ?? null : null;
       if (!el) continue;
       const ref = makeRef(++counter);
       refs.set(ref, el);

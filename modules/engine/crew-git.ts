@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createLocalLauncher } from "../../agent/src/drivers/cli/launcher.ts";
 import type { CliProcess } from "../../agent/src/drivers/cli/types.ts";
+import { redactTree } from "./github-session.ts";
 
 export class GitError extends Error {
   readonly code: "engine.git_failed" | "validation.bad_input";
@@ -54,6 +55,28 @@ export async function repoHead(repo: string): Promise<{ branch: string; sha: str
   const branch = (await must(["rev-parse", "--abbrev-ref", "HEAD"], repo, "reading the branch")).trim();
   const sha = (await must(["rev-parse", "HEAD"], repo, "reading the commit")).trim();
   return { branch, sha };
+}
+
+/**
+ * Makes `dir` a git repository on this computer with `main` as its start, when it is not one yet, and answers its branch. A folder with files in it has them committed as the first commit; an empty one
+ * gets an empty first commit, so teammates have a commit to start their branches from. A folder that is already a repository is left exactly as it is. Nothing here talks to a remote.
+ */
+export async function initLocalRepo(dir: string, ident: CrewIdentity = { name: "Vyre", email: "vyre@vyre.invalid" }): Promise<{ branch: string; created: boolean }> {
+  fs.mkdirSync(dir, { recursive: true });
+  if (fs.existsSync(path.join(dir, ".git"))) {
+    const head = await git(["rev-parse", "--abbrev-ref", "HEAD"], dir);
+    const hasCommit = (await git(["rev-parse", "--verify", "--quiet", "HEAD"], dir)).code === 0;
+    if (hasCommit) return { branch: head.out.trim() || "main", created: false };
+    // a repository with no commit yet (git init was run, nothing saved): it gets the first one below
+  } else {
+    await must(["init", "--quiet"], dir, "starting the repository");
+    await must(["symbolic-ref", "HEAD", "refs/heads/main"], dir, "naming the first branch main");
+  }
+  const who = ["-c", `user.name=${ident.name}`, "-c", `user.email=${ident.email}`];
+  await must(["add", "-A"], dir, "saving what is in the folder");
+  await must([...who, "commit", "--quiet", "--allow-empty", "-m", "Start of the project"], dir, "making the first commit");
+  const branch = (await must(["rev-parse", "--abbrev-ref", "HEAD"], dir, "reading the branch")).trim();
+  return { branch, created: true };
 }
 
 export interface CrewIdentity { name: string; email: string }
@@ -116,6 +139,7 @@ export async function summarize(dest: string, base: string): Promise<CrewSummary
 
 /** Commits whatever the teammate left uncommitted, so a finished turn never loses work. Answers true when it made a commit. */
 export async function commitLeftovers(dest: string, message: string): Promise<boolean> {
+  redactTree(dest);   // a GitHub token a session held is never committed
   if ((await must(["status", "--porcelain"], dest, "reading the state")).trim() === "") return false;
   await must(["add", "-A"], dest, "staging the changes");
   await must(["commit", "--quiet", "-m", message], dest, "saving the changes");

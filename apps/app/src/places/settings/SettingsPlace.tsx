@@ -8,24 +8,31 @@ import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDime
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { PAGE, useIsPersonal, useScreenQuery, useSettingsData } from "./data.tsx";
-import { PAGES, pageByKey, searchRows, spacePagesFor } from "./model.ts";
+import { PAGES, PAGE_SUB, homeOf, pageByKey, searchRows, spacePagesFor } from "./model.ts";
 import type { Hit, PageKey, SettingRow, SpacePage } from "./model.ts";
-import { AppearancePage, ComputerPage, SignInPage } from "./pages-b.tsx";
+import { ComputerPage, SignInPage } from "./pages-b.tsx";
+import { AppearancePage } from "./Appearance.tsx";
 import { AboutVyre } from "./DesktopUpdate.tsx";
-import { AiPage, ConnectedPage, NotificationsPage, ProfilePage } from "./pages-a.tsx";
-import { MailPage } from "./MailPage.tsx";
+import { SignInApps } from "./SignInApps.tsx";
+import { OutsideAgents } from "./OutsideAgents.tsx";
+import { AiPage, ConnectedPage, NotesSettingsPage, NotificationsPage, ProfilePage } from "./pages-a.tsx";
+import { GithubPage } from "./GithubPage.tsx";
+import { MovedPage } from "./MovedPage.tsx";
 import { MemoryPage } from "./AboutYou.tsx";
 import { SkillsPage } from "../../skills/SkillsView.tsx";
 import { openAskPane } from "../../shell/ask/pane.ts";
 import { SpacePageBody, useSpaceRows } from "./SpacePages.tsx";
 import { SavedBar, SavedProvider } from "./saved.tsx";
-import { Glyph, IconBox, Mark, pointer, webOnly } from "./ui.tsx";
+import { AskedAccount } from "./asked-account.ts";
+import { Glyph, GoToPage, IconBox, Mark, pointer, webOnly } from "./ui.tsx";
 import type { KeyEventLike } from "./ui.tsx";
 
 type ListOut = CapMap["settings.list"]["out"];
 
 export interface SettingsProps {
   initialPage?: PageKey;
+  /** An AI account a link named: Your AI scrolls to it and starts its sign-in. */
+  initialAccount?: string;
   initialQuery?: string;
   /** Phone: start on the page list. */
   initialView?: "nav" | "page";
@@ -39,11 +46,12 @@ export function SettingsPlace(props: SettingsProps): ReactElement {
   return <SavedProvider><SettingsBody {...props} /></SavedProvider>;
 }
 
-function SettingsBody({ initialPage = "profile", initialQuery = "", initialView = "page", initialFound = null, width: given }: SettingsProps): ReactElement {
+function SettingsBody({ initialAccount, initialPage = "profile", initialQuery = "", initialView = "page", initialFound = null, width: given }: SettingsProps): ReactElement {
   const data = useSettingsData();
   const measured = useWindowDimensions().width;
   const phone = (given ?? measured) < 760;
-  const [page, setPage] = useState<PageKey>(initialPage);
+  const [page, setPageRaw] = useState<PageKey>(homeOf(initialPage));
+  const setPage = (k: PageKey): void => setPageRaw(homeOf(k));
   const [view, setView] = useState<"nav" | "page">(initialView);
   const [q, setQ] = useState(initialQuery);
   const [found, setFound] = useState<string | null>(initialFound);
@@ -88,7 +96,7 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
   const pageRows: ReactElement[] = [];
   const spaceTitle = data.space.name;
   pageRows.push(<View key="g-you" style={n.groupHead}><Text accessibilityRole="header" style={n.groupTitle}>You</Text></View>);
-  for (const p of PAGES) if (p.group === "you") pageRows.push(<Row key={p.key} id={`page-${p.key}`} title={p.title} {...(p.key === "about" && update ? { note: "Update available" } : {})} selected={!q.trim() && page === p.key} leading={<IconBox name={p.icon} />} onPress={() => open(p.key)} />);
+  for (const p of PAGES) if (p.group === "you" && p.hidden !== true) pageRows.push(<Row key={p.key} id={`page-${p.key}`} title={p.title} {...(p.key === "computer" && update ? { note: "Update available" } : {})} selected={!q.trim() && page === p.key} leading={<IconBox name={p.icon} />} onPress={() => open(p.key)} />);
   if (spacePages.length > 0) {
     pageRows.push(<View key="g-space" style={n.groupHead} testID="space-group"><Mark name={spaceTitle} size={16} /><Text accessibilityRole="header" style={n.groupTitle}>{spaceTitle}</Text></View>);
     for (const key of spacePages) { const p = pageByKey(key); pageRows.push(<Row key={p.key} id={`page-${p.key}`} title={p.title} selected={!q.trim() && page === p.key} leading={<IconBox name={p.icon} />} onPress={() => open(p.key)} />); }
@@ -142,18 +150,21 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
 
   const body = ((): ReactElement => {
     switch (page) {
-      case "profile": return <ProfilePage rows={rows} found={found} />;
+      case "profile": return <><ProfilePage rows={rows} found={found} /><MemoryPage found={found} /></>;
       case "notifications": return <NotificationsPage rows={rows} found={found} />;
       case "appearance": return <AppearancePage rows={rows} found={found} />;
-      case "ai": return <AiPage rows={rows} found={found} />;
-      case "memory": return <MemoryPage found={found} />;
-      case "connected": return <ConnectedPage rows={rows} found={found} />;
-      case "mail": return <MailPage />;
-      // Skills is the same page in every Space; Ask the Assistant opens the Ask pane beside Settings with the install already asked
-      case "skills": return <SkillsPage call={data.call} mode="settings" ask={(first) => openAskPane({ thing: { kind: "settings", id: "skills", title: "Skills" }, first }, "settings")} />;
-      case "signin": return <SignInPage />;
-      case "computer": return <ComputerPage />;
-      case "about": return <AboutVyre />;
+      case "ai": return (
+        <AskedAccount.Provider value={initialAccount ?? null}>
+          <AiPage rows={rows} found={found} />
+          <NotesSettingsPage rows={rows} found={found} />
+          <SkillsPage call={data.call} mode="settings" ask={(first) => openAskPane({ thing: { kind: "settings", id: "skills", title: "Skills" }, first }, "settings")} />
+        </AskedAccount.Provider>
+      );
+      case "github": return <GithubPage />;
+      case "connected": return <MovedPage kind="vault" />;
+      case "mail": return <MovedPage kind="inbox" />;
+      case "signin": return <><SignInPage /><SignInApps /><OutsideAgents /></>;
+      case "computer": return <><ComputerPage /><AboutVyre /></>;
       default:
         return <SpacePageBody page={page as SpacePage} rows={spaceRows.rows} reload={spaceRows.reload} found={found} personal />;
     }
@@ -164,11 +175,13 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
       <View style={n.head}>
         {phone ? <Pressable accessibilityRole="button" accessibilityLabel="Settings" testID="back" onPress={() => setView("nav")} style={[n.back, pointer]}><View style={{ transform: [{ rotate: "90deg" }] }}><Glyph name="chevD" size={14} color="var(--ink-2)" /></View></Pressable> : null}
         <Text accessibilityRole="header" aria-level={1} style={n.title}>{searching ? "Search" : def.title}</Text>
+        {!searching && !phone && PAGE_SUB[page] ? <Text numberOfLines={1} testID="page-sub" style={n.sub}>{PAGE_SUB[page]}</Text> : null}
         <View style={{ flex: 1 }} />
         {data.ask && !searching ? <Pressable accessibilityRole="button" accessibilityLabel={`Ask Vyre about ${def.title}`} testID="settings-ask" onPress={() => data.ask?.({ key: page, title: def.title })} style={({ hovered }: { hovered?: boolean }) => [n.ask, pointer, hovered === true && n.askOver]}><Glyph name="spark" size={14} color="var(--ink-2)" /><Text style={n.askText}>Ask</Text></Pressable> : null}
       </View>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={n.content}>
         <View style={n.column}>
+          {!searching && phone && PAGE_SUB[page] ? <Text testID="page-sub" style={n.subPhone}>{PAGE_SUB[page]}</Text> : null}
           <SavedBar />
           {searching ? searchPage : list.status === "ready" ? body : <Text style={n.none} accessibilityRole="progressbar">Loading</Text>}
         </View>
@@ -176,9 +189,11 @@ function SettingsBody({ initialPage = "profile", initialQuery = "", initialView 
     </View>
   );
   return (
+    <GoToPage.Provider value={(k) => open(k as PageKey)}>
     <View style={n.frame} testID="settings-place">
       {phone ? (view === "nav" || searching ? nav : main) : (<><ResizableColumn paneKey="place-sidebar" defaultWidth={244} grow="right" min={200} maxFraction={0.5} maxWidth={380} style={n.navCol as never} testID="settings-nav-col">{nav}</ResizableColumn>{main}</>)}
     </View>
+    </GoToPage.Provider>
   );
 }
 
@@ -205,9 +220,11 @@ const n = StyleSheet.create({
   head: { height: 48, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
   back: { width: 28, height: 28, alignItems: "center", justifyContent: "center", borderRadius: 7 },
   title: { fontSize: 14.5, fontWeight: "600", color: "var(--ink)" as string },
+  sub: { flexShrink: 1, fontSize: 12, color: "var(--ink-3)" as string },
+  subPhone: { fontSize: 12.5, lineHeight: 17, color: "var(--ink-3)" as string, marginBottom: 10 },
   ask: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 7 },
   askOver: { backgroundColor: "var(--hover)" as string },
   askText: { fontSize: 12.5, fontWeight: "500", color: "var(--ink-2)" as string },
-  content: { paddingTop: 16, paddingBottom: 24, paddingHorizontal: 20, alignItems: "center" },
+  content: { paddingTop: 6, paddingBottom: 24, paddingHorizontal: 20, alignItems: "center" },
   column: { width: "100%", maxWidth: 684 },
 });

@@ -969,8 +969,8 @@ export function EmailBuilder(props: EmailBuilderViewProps): ReactElement {
             {each(diffs, (d) => (
               <View key={d.id} testID={`em-diff-${d.id}`} {...webProps({ "data-accepted": accepted.has(d.id) ? "true" : "false" })}>
                 <Row id={d.id} title={d.summary}
-                  trailing={accepted.has(d.id) ? <Text style={s.done}>Accepted</Text> : rejected.has(d.id) ? <Text style={s.note} testID={`em-rejected-${d.id}`}>Rejected</Text>
-                    : <View style={{ flexDirection: "row", gap: 6 }}><Btn label="Reject" onPress={() => reject(d)} testID={`em-reject-${d.id}`} /><Btn label="Accept" strong onPress={() => accept(d)} testID={`em-accept-${d.id}`} /></View>} />
+                  trailing={accepted.has(d.id) ? <Text style={s.done}>Allowed</Text> : rejected.has(d.id) ? <Text style={s.note} testID={`em-rejected-${d.id}`}>Denied</Text>
+                    : <View style={{ flexDirection: "row", gap: 6 }}><Btn label="Deny" onPress={() => reject(d)} testID={`em-reject-${d.id}`} /><Btn label="Allow" strong onPress={() => accept(d)} testID={`em-accept-${d.id}`} /></View>} />
               </View>
             ))}
             <View style={s.composer} testID="em-composer">

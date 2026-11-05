@@ -87,11 +87,11 @@ export type CliEvent =
   | { type: "thinking"; text: string }
   /** A tool the CLI ran itself (through MCP or one of its own). Vyre's tools were already run by the MCP server; this only shows the activity. */
   | { type: "tool"; phase: "call"; id: string; name: string }
-  | { type: "tool"; phase: "result"; id: string; ok: boolean }
+  | { type: "tool"; phase: "result"; id: string; ok: boolean; /** The end of what the tool printed, short: a test run says how many passed in its last lines. */ output?: string }
   /** What a call touches, in safe words (a file name, a search query): only for the live line, never saved. */
   | { type: "tool"; phase: "input"; id: string; detail: string }
   /** inputTokens counts cache reads and writes too. The split, reasoning and the engine's own dollar figure come only when the engine reported them (absent = not reported, never 0 in their place). */
-  | { type: "usage"; inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number; costUsd?: number }
+  | { type: "usage"; inputTokens: number; outputTokens: number; model?: string; contextTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number; costUsd?: number }
   /** What the engine reported about a subscription limit window: how much of it is used (0 to 100) and when it resets (epoch ms), as the engine said it. Never estimated. */
   | { type: "limits"; window: "session" | "week"; pct: number; resetsAt?: number }
   /** The engine took up a user message we wrote (its replay line): from here it is part of the turn it was read in, or the start of the next one. Only engines that replay report it. */

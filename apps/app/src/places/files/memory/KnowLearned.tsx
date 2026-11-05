@@ -141,9 +141,9 @@ export function KnowLearned(): ReactElement {
   const waiting: ReactElement[] = each(proposed, (f) => (
     <FactRow
       key={f.factId} fact={f} testID={`proposed-${f.factId}`} always onOpen={() => openPage(f)}
-      menu={() => [{ label: "Accept", onSelect: () => accept(f) }, { label: "Reject", onSelect: () => reject(f) }, { separator: true }, ...(f.subject ? [{ label: "Open page", onSelect: () => openPage(f) }] : []), { label: "Open source", onSelect: () => openSourceOf(nav, f) }, { label: "Copy fact", onSelect: () => copyText(f.text) }]}
+      menu={() => [{ label: "Allow", onSelect: () => accept(f) }, { label: "Deny", onSelect: () => reject(f) }, { separator: true }, ...(f.subject ? [{ label: "Open page", onSelect: () => openPage(f) }] : []), { label: "Open source", onSelect: () => openSourceOf(nav, f) }, { label: "Copy fact", onSelect: () => copyText(f.text) }]}
       meta={[`${capital(f.by ? who(f.by) : "An agent")} proposed it for ${lands(f)}`, stampText(f.learnedAt, now)]}
-      actions={<><TextButton accent label="Accept" testID={`accept-${f.factId}`} a11y={`Accept: ${f.text}`} onPress={() => accept(f)} /><TextButton label="Reject" testID={`reject-${f.factId}`} a11y={`Reject: ${f.text}`} onPress={() => reject(f)} /></>}
+      actions={<><TextButton accent label="Allow" testID={`accept-${f.factId}`} a11y={`Allow: ${f.text}`} onPress={() => accept(f)} /><TextButton label="Deny" testID={`reject-${f.factId}`} a11y={`Deny: ${f.text}`} onPress={() => reject(f)} /></>}
     />
   ));
 

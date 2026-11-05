@@ -11,6 +11,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "access.actors.revoke": Handler<"access.actors.revoke", X>;
   "access.actors.set_engineer_mcp": Handler<"access.actors.set_engineer_mcp", X>;
   "access.actors.update": Handler<"access.actors.update", X>;
+  "access.agents_can_call.get": Handler<"access.agents_can_call.get", X>;
+  "access.agents_can_call.set": Handler<"access.agents_can_call.set", X>;
   "access.audience_set": Handler<"access.audience_set", X>;
   "access.automation_senders": Handler<"access.automation_senders", X>;
   "access.check": Handler<"access.check", X>;
@@ -37,6 +39,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "access.labels.list": Handler<"access.labels.list", X>;
   "access.labels.set": Handler<"access.labels.set", X>;
   "access.lists": Handler<"access.lists", X>;
+  "access.make_owner": Handler<"access.make_owner", X>;
   "access.policies.list": Handler<"access.policies.list", X>;
   "access.policies.reset": Handler<"access.policies.reset", X>;
   "access.policies.set": Handler<"access.policies.set", X>;
@@ -46,6 +49,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "access.projection_health": Handler<"access.projection_health", X>;
   "access.propose_change": Handler<"access.propose_change", X>;
   "access.provider_check": Handler<"access.provider_check", X>;
+  "access.reach": Handler<"access.reach", X>;
   "access.record_marks": Handler<"access.record_marks", X>;
   "access.request": Handler<"access.request", X>;
   "access.requests.approve": Handler<"access.requests.approve", X>;

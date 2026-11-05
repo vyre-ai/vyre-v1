@@ -29,7 +29,7 @@ export function seededDir(): string {
 }
 
 /** `standIn` null with `engineCli` boots the real driver around a CLI process (the fake claude of host/tests/fixtures/fake-cli-driver). */
-export async function boot(dir: string, standIn: OpenSession | null, extra: { engineCli?: unknown; now?: () => number; seamFetch?: SeamFetch } = {}): Promise<Daemon> {
+export async function boot(dir: string, standIn: OpenSession | null, extra: { engineCli?: unknown; now?: () => number; seams?: unknown; realVault?: boolean } = {}): Promise<Daemon> {
   return startDaemon({
     ...(extra.now ? { now: extra.now } : {}),
     config: loadConfig(["--data-dir", dir, "--port", "0"], {}, "1.2.3"),
@@ -44,10 +44,11 @@ export async function boot(dir: string, standIn: OpenSession | null, extra: { en
     }),
     fetch: caddyFetch,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
-    vault: { secret: async () => KEY, signRs256: async () => "" },
+    ...(extra.realVault ? {} : { vault: { secret: async () => process.env["VYRE_TEST_VAULT_SECRET"] ?? KEY, signRs256: async () => "" } }),   // a live test pointed at a real vendor sets VYRE_TEST_VAULT_SECRET to its key: the stand-in Vault then fills that key, not the fake one
     ...(extra.seamFetch ? { seams: { fetch: extra.seamFetch } } : {}),
     ...(standIn ? { engineOpenSession: standIn } : {}),
     ...(extra.engineCli !== undefined ? { engineCli: extra.engineCli as never } : {}),
+    ...(extra.seams !== undefined ? { seams: extra.seams as never } : {}),
   });
 }
 
@@ -160,7 +161,14 @@ export type RunTool = (name: string, input: unknown) => AsyncGenerator<DriverEve
 export const isOneShot = (input: TurnInput): boolean => String(input.threadId ?? "").startsWith("oneshot_") || input.agent?.id === "memory-upkeep";
 
 /** What `scriptedModel` does with memory's learning one-shots: "answer" (the default) answers them itself with nothing to learn; "pass" hands them to `plan` like a turn. */
-export interface ScriptedModelOptions { oneShots?: "answer" | "pass" }
+export interface ScriptedModelOptions {
+  oneShots?: "answer" | "pass";
+  /**
+   * Hold a turn before it starts: the promise this returns (when it returns one) must settle before the plan runs. A test releases it when it has looked at what a person sees in the gap between a
+   * turn that was stopped and the turn that replaces it. A cancel while the turn is held ends it at once.
+   */
+  gate?: (input: TurnInput) => Promise<void> | undefined;
+}
 
 /**
  * A model vendor stand-in that decides like a model would: `plan` reads the turn input and yields text and tool calls. `yield* run(name, input)` makes a tool call and returns its result.
@@ -180,15 +188,53 @@ export function scriptedModel(plan: (input: TurnInput, run: RunTool) => AsyncGen
       yield { type: "tool_call", id, name, input };
       return answer;
     };
+    // like the real engine, a cancel stops the turn that is running: the plan's pending await is left behind and the turn ends without a word more
+    const live = new Set<() => void>();
     return {
       warm: true,
       async *send(input: TurnInput): AsyncGenerator<DriverEvent> {
         if (o.oneShots !== "pass" && isOneShot(input)) { yield { type: "text", text: '{"ops":[]}' }; yield { type: "done" }; return; }
-        yield* plan(input, run);
-        yield { type: "done" };
+        let stop!: () => void;
+        const stopped = new Promise<"stopped">((resolve) => { stop = () => resolve("stopped"); });
+        live.add(stop);
+        try {
+          const held = o.gate?.(input);
+          if (held && (await Promise.race([held.then(() => "go" as const), stopped])) === "stopped") return;
+          const it = plan(input, run)[Symbol.asyncIterator]();
+          for (;;) {
+            const next = await Promise.race([it.next(), stopped]);
+            if (next === "stopped") { void it.return?.(undefined as never).catch(() => undefined); return; }
+            if (next.done) break;
+            yield next.value;
+          }
+          yield { type: "done" };
+        } finally { live.delete(stop); }
       },
       sendToolResult(id: string, r: ToolResult) { waiting.get(id)?.(r); waiting.delete(id); },
-      inject() {}, async cancel() {}, async close() {},
+      inject() {}, async cancel() { if (process.env["SCRIPTED_DEBUG"]) console.log("CANCEL", live.size); for (const f of [...live]) f(); }, async close() { for (const f of [...live]) f(); },
     } as EngineSession;
   };
+}
+
+/** The provider endpoints a ChatGPT (Codex) device sign-in talks to, approved at once: boot with `seams: { fetch: codexSeams }`, then connectCodex(d). */
+export const codexSeams = async (url: string): Promise<{ status: number; text(): Promise<string>; arrayBuffer(): Promise<ArrayBuffer> }> => {
+  const reply = (status: number, json: unknown) => ({ status, text: async () => JSON.stringify(json), arrayBuffer: async () => new ArrayBuffer(0) });
+  if (url === "https://auth.openai.com/api/accounts/deviceauth/usercode") return reply(200, { device_auth_id: "dev_live", user_code: "LIVE-1234", interval: "2" });
+  if (url === "https://auth.openai.com/api/accounts/deviceauth/token") return reply(200, { authorization_code: "AC-live", code_challenge: "c", code_verifier: "V-live" });
+  if (url === "https://auth.openai.com/oauth/token") return reply(200, { id_token: "a.b.c", access_token: "codex-access-LIVE-0123456789", refresh_token: "rt-live" });   // secret-scan: fake
+  return reply(404, {});
+};
+
+/** The person's ChatGPT account, signed in the way a person does it (after connect(d) has unlocked the Vault). */
+export async function connectCodex(d: Daemon): Promise<void> {
+  const flow = await call(d, "providers.subscription_start", { idempotencyKey: "cb-codex-flow", providerKey: "codex" });
+  assert.equal(flow.status, 200, JSON.stringify(flow.data));
+  // the first answer is "waiting" until the device flow's interval has passed
+  let done = await call(d, "providers.subscription_complete", { flowId: flow.data.flowId });
+  for (let i = 0; i < 5 && done.data.waiting === true; i++) {
+    await new Promise<void>((r) => setTimeout(r, 2_200));
+    done = await call(d, "providers.subscription_complete", { flowId: flow.data.flowId });
+  }
+  assert.equal(done.status, 200, JSON.stringify(done.data));
+  assert.equal(done.data.provider?.providerKey, "codex", JSON.stringify(done.data));
 }

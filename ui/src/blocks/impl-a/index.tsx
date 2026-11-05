@@ -11,6 +11,8 @@ import type { TextStyle, ViewStyle } from "react-native";
 import type { Block } from "../../kit/types.ts";
 import { menuTrigger, useMenu } from "../../Menu/index.tsx";
 import { Row } from "../../Row/index.tsx";
+import { ArtifactCard, linkOf } from "../../ArtifactCard/index.tsx";
+import type { ArtifactInfo } from "../../ArtifactCard/index.tsx";
 import type { MenuEntry } from "../../Menu/index.tsx";
 import {
   BLOCK_SPECS_A,
@@ -245,7 +247,7 @@ export function ChangesetBlock({ block, host }: BlockViewProps): ReactElement {
     [host, block],
   );
   const menu = useCallback(
-    () => baseMenu(host, "changeset", block, open ? [{ key: "approve", label: "Approve and commit" }, { key: "request_changes", label: "Request changes" }, { key: "discard", label: "Discard", danger: true }] : [], run),
+    () => baseMenu(host, "changeset", block, open ? [{ key: "approve", label: "Allow and commit" }, { key: "request_changes", label: "Request changes" }, { key: "discard", label: "Discard", danger: true }] : [], run),
     [host, block, open, run],
   );
   const closedWord = done === "approved" ? "Approved and committed" : done === "discarded" ? "Discarded" : done === "changes" ? "Changes requested" : d.state.charAt(0).toUpperCase() + d.state.slice(1);
@@ -263,7 +265,7 @@ export function ChangesetBlock({ block, host }: BlockViewProps): ReactElement {
       </View>
       {open ? (
         <View style={styles.acts}>
-          <Btn id={`blk-changeset-${block.id}-approve`} label="Approve and commit" onPress={() => run("approve")} />
+          <Btn id={`blk-changeset-${block.id}-approve`} label="Allow and commit" onPress={() => run("approve")} />
           <Btn id={`blk-changeset-${block.id}-request_changes`} label="Request changes" onPress={() => run("request_changes")} />
           <Btn id={`blk-changeset-${block.id}-discard`} label="Discard" quiet danger onPress={() => run("discard")} />
         </View>
@@ -312,7 +314,8 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
   }
   return (
     <Card type="question" block={block} testID={`blk-question-${block.id}`} menu={menu}>
-      <Head testID={`blk-question-${block.id}`} title={d.prompt} />
+      <Head testID={`blk-question-${block.id}`} title={d.prompt.split("\n")[0] ?? d.prompt} />
+      {d.prompt.includes("\n") ? <Text testID={`blk-question-${block.id}-why`} style={styles.why}>{d.prompt.slice(d.prompt.indexOf("\n") + 1).trim()}</Text> : null}
       {answered ? (
         <StatusLine tone="ok" testID={`blk-question-${block.id}-answered`} text={`${d.answeredBy !== "" ? `${d.answeredBy} answered` : "You answered"}: ${answerLine(d.options, sent)}`} />
       ) : (
@@ -371,7 +374,7 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
   }, [host, block]);
   const run = useCallback((key: string) => (key === "approve" ? approve() : reject()), [approve, reject]);
   const menu = useCallback(
-    () => baseMenu(host, "plan", block, waiting ? [{ key: "approve", label: "Approve" }, { key: "reject", label: "Reject", danger: true }] : [], run),
+    () => baseMenu(host, "plan", block, waiting ? [{ key: "approve", label: "Allow" }, { key: "reject", label: "Deny", danger: true }] : [], run),
     [host, block, waiting, run],
   );
   const toggleRemoved = (id: string): void =>
@@ -416,9 +419,9 @@ export function PlanBlock({ block, host }: BlockViewProps): ReactElement {
       </View>
       {waiting ? (
         <View style={styles.acts}>
-          <Btn id={`blk-plan-${block.id}-approve`} label={editing ? "Approve with edits" : "Approve"} primary onPress={approve} />
+          <Btn id={`blk-plan-${block.id}-approve`} label={editing ? "Allow with edits" : "Allow"} primary onPress={approve} />
           <Btn id={`blk-plan-${block.id}-edit`} label={editing ? "Cancel" : "Edit"} onPress={() => { setEditing((e) => !e); setTexts({}); setRemoved(new Set()); }} />
-          <Btn id={`blk-plan-${block.id}-reject`} label="Reject" quiet danger onPress={reject} />
+          <Btn id={`blk-plan-${block.id}-reject`} label="Deny" quiet danger onPress={reject} />
         </View>
       ) : state === "approved" ? (
         <StatusLine tone="ok" testID={`blk-plan-${block.id}-state`} text={`Approved · plan mode is off · ${planProgress(steps)}`} />
@@ -487,14 +490,48 @@ export function DeployBlock({ block, host }: BlockViewProps): ReactElement {
 
 /* ---------- mount ---------- */
 
-/** Something a model made to show: one line that opens it. */
+/** What sites.get says about an artifact that the card shows. */
+interface SiteBits { name?: string; owner?: string; access?: ArtifactInfo["access"]; updatedAt?: number; thumb?: string; chatId?: string; chatTitle?: string; sharedWith?: string[]; sharedAudience?: ("link" | "space")[] }
+
+/** Something a model made to show: a card with its picture, one quiet line, and Open, Copy link and "...". The whole card opens it. */
 export function ArtifactBlock({ block, host }: BlockViewProps): ReactElement {
-  const title = typeof (block.data as { title?: unknown } | null)?.title === "string" ? (block.data as { title: string }).title : "Artifact";
-  const menu = useCallback(() => baseMenu(host, "artifact", block, [], () => undefined), [host, block]);
+  const data = (block.data ?? {}) as { artifactId?: unknown; title?: unknown; thumb?: unknown };
+  const id = typeof data.artifactId === "string" ? data.artifactId : "";
+  const title = typeof data.title === "string" ? data.title : "Artifact";
+  const [site, setSite] = useState<SiteBits | null>(null);
+  const [gone, setGone] = useState(false);
+  const { element, show } = useMenu();
+  useEffect(() => {
+    if (id === "") return undefined;
+    let live = true;
+    void Promise.resolve(host.invoke("sites.get", { siteId: id })).then(
+      (o) => { const s = (o as { site?: SiteBits } | null)?.site; if (live && s) setSite(s); },
+      () => undefined,
+    );
+    return () => { live = false; };
+  }, [host, id]);
+  const trigger = useMemo(() => menuTrigger((x, y) => show([{ label: "Open", onSelect: () => void openTab(host, "artifact", block.data) }, { separator: true }, { label: "Copy trace id", onSelect: () => copyText(block.traceId) }], x, y, "context", { label: "artifact block" })), [host, block, show]);
+  const me = host.meId ?? site?.owner ?? "";
+  const info: ArtifactInfo = { id, name: site?.name ?? title, owner: site?.owner ?? me, access: site?.access, updatedAt: site?.updatedAt, thumb: site?.thumb ?? (typeof data.thumb === "string" ? data.thumb : undefined), from: site?.chatId !== undefined && site.chatTitle !== undefined ? { id: site.chatId, title: site.chatTitle } : undefined, sharedWith: site?.sharedWith?.map((id) => host.nameOf?.(id) ?? id), audience: site?.sharedAudience };
+  const address = useCallback(async (): Promise<string | null> => {
+    try {
+      const o = (await host.invoke("sites.artifact_open", { artifactId: id, idempotencyKey: `card-${id}-${Date.now()}` })) as { path: string; url?: string };
+      return linkOf(o, (globalThis as { location?: { origin?: string } }).location?.origin);
+    } catch { return null; }
+  }, [host, id]);
+  if (gone) return <View testID={`blk-artifact-${block.id}`}><Text style={styles.sub}>{`${info.name} was deleted`}</Text></View>;
   return (
-    <Card type="artifact" block={block} testID={`blk-artifact-${block.id}`} menu={menu}>
-      <Head testID={`blk-artifact-${block.id}`} title={title} onPress={() => void openTab(host, "artifact", block.data)} />
-    </Card>
+    <View testID={`blk-artifact-${block.id}`} accessibilityLabel="artifact block" {...webProps({ dataSet: { blockType: "artifact", blockV: String(block.v), traceId: block.traceId } })} {...trigger}>
+      <ArtifactCard
+        info={info} meId={me} now={Date.now()} {...(host.nameOf ? { nameOf: host.nameOf } : {})} testID={`blk-artifact-${block.id}-card`}
+        onOpen={() => void openTab(host, "artifact", block.data)}
+        onCopyLink={() => copyText(`${((globalThis as { location?: { origin?: string } }).location?.origin ?? "").replace(/\/+$/, "")}/a/${id}`)}
+        onShare={() => host.open("artifact-share", { artifactId: id })}
+        onBrowser={() => void address().then((u) => { if (u) host.openUrl?.(u); })}
+        onDelete={info.owner === me ? () => void Promise.resolve(host.invoke("sites.delete", { siteId: id })).then(() => setGone(true), () => undefined) : undefined}
+      />
+      {element}
+    </View>
   );
 }
 
@@ -629,6 +666,7 @@ const styles = StyleSheet.create({
   opts: { marginHorizontal: -6, gap: 2 },
   opt: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 8 },
   optMark: { color: "var(--ink-3)" as string, fontSize: 13, lineHeight: 19, width: 16 },
+  why: { fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string, paddingHorizontal: 12, paddingBottom: 6 },
   optLabel: { ...textBase },
   free: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
   input: { flex: 1, minWidth: 0, height: 28, borderRadius: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 13 },

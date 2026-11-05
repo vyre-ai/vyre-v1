@@ -146,7 +146,10 @@ test("goals live: research, plan as tasks, the baton does them, one ask, a resta
     assert.match(flat.statusReason, /^No progress in 2 check-ins; 0 of 3 registrations/);
     const needs = (await ok(w.d, "tasks.needs_you", {})).items as Array<{ task: { title: string } }>;
     assert.equal(needs.filter((x) => x.task.title === "Stuck: 3 registrations for Lab 8").length, 1);
-    assert.ok(m.turns.filter((t) => t.reason.includes("check-in")).every((t) => /0 now\./.test(JSON.stringify(m.results)) || t.tools.includes("goals_checkin_post")));
+    // a check-in turn starts when it is woken and posts a moment later: wait for what it posts, not only for it to start (on a loaded runner the second one was still on its way here)
+    const posted = (): boolean => m.turns.filter((t) => t.reason.includes("check-in")).every((t) => /0 now\./.test(JSON.stringify(m.results)) || t.tools.includes("goals_checkin_post"));
+    await waitFor(async () => (posted() ? true : null), 20_000, () => `${hostLog(w.d)} ${JSON.stringify(m.turns.slice(before).map((t) => [t.kind, t.reason, t.tools]))}`);
+    assert.ok(posted());
 
     // the number rises past the line: done, an honest summary, and the retrospective lands in Reports
     await contacts(w.d, 3, "a");

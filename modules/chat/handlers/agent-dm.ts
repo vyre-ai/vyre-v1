@@ -14,11 +14,12 @@
 //                    goes in unless that person said it themselves in the chat they asked in).
 import { readFileSync } from "node:fs";
 import { askedIn } from "../../../lib/asked.ts";
+import { handleOf } from "../../../lib/person-handle.ts";
 import { othersRead } from "../../../lib/audience.ts";
 import type { Audience } from "../../../lib/audience.ts";
 import { dueAt, dueWords, endOfDay, inHours, localTime, readPresence, readPublicTime } from "../../../lib/presence.ts";
 import type { Due, Presence, PublicTime, Timing } from "../../../lib/presence.ts";
-import { addMember, askerOf, ensure, insertMessage, insertThread, messageBy, mintId, raise, threadBy } from "../projections.ts";
+import { addAgent, addMember, askerOf, ensure, insertMessage, insertThread, messageBy, mintId, raise, threadBy } from "../projections.ts";
 import type { ChatCtx, Db, MessageRec, ThreadRec } from "../projections.ts";
 import { deliver, isDirect } from "./post.ts";
 
@@ -33,6 +34,8 @@ export function ensureAgentDm(db: Db): void {
   ensure(db);
   if (ready.has(db)) return;
   try { db.all("SELECT id FROM chat_agent_dm WHERE id = ?", "probe"); db.all("SELECT teammate FROM chat_agent_dm_mute WHERE teammate = ?", "probe"); } catch { for (const s of SCHEMA) db.run(s); }
+  // how a message was sent: for the person (their direct chat, "<Person> (Agent)") or as the agent itself (its own chat with the teammate)
+  try { db.all("SELECT mode FROM chat_agent_dm WHERE id = ?", "probe"); } catch { db.run("ALTER TABLE chat_agent_dm ADD COLUMN mode TEXT NOT NULL DEFAULT 'person'"); }
   ready.add(db);
 }
 
@@ -43,6 +46,8 @@ const HOUR = 3_600_000;
 /** How long after the agent's message a teammate's words in the direct chat still go back to it. */
 export const REPLY_WINDOW = 24 * HOUR;
 const MAX_RELAY = 2000;
+/** How much of a teammate's reply to an agent's own chat is quoted back to the chat it was asked in. */
+const REPORT_MAX = 160;
 /** A second identical message to the same teammate within this window is the first one. */
 const TWIN_MS = 10 * 60_000;
 
@@ -50,7 +55,7 @@ type Row = Record<string, unknown>;
 export interface DmRow {
   id: string; person: string; agent: string; teammate: string; origin: string | null; dm: string; body: string; blocks: Array<Record<string, unknown>>; timing: Timing; urgent: boolean;
   state: "scheduled" | "sent" | "canceled"; dueAt: number | null; reason: string | null; message: string | null; task: string | null; request: string | null; card: { kind: string; title: string } | null;
-  idem: string | null; createdAt: number; sentAt: number | null; repliedAt: number | null; answeredAt: number | null; wantedAt: number | null;
+  idem: string | null; createdAt: number; sentAt: number | null; repliedAt: number | null; answeredAt: number | null; wantedAt: number | null; mode: "person" | "self";
 }
 const s = (v: unknown): string | null => (v === null || v === undefined ? null : String(v));
 const n = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
@@ -60,7 +65,7 @@ function rowOf(r: Row): DmRow {
     id: String(r["id"]), person: String(r["person"]), agent: String(r["agent"]), teammate: String(r["teammate"]), origin: s(r["origin"]), dm: String(r["dm"]), body: String(r["body"] ?? ""),
     blocks: json(r["blocks"], []), timing: (s(r["timing"]) ?? "now") as Timing, urgent: Number(r["urgent"]) === 1, state: String(r["state"]) as DmRow["state"], dueAt: n(r["due_at"]), reason: s(r["reason"]),
     message: s(r["message"]), task: s(r["task"]), request: s(r["request"]), card: json(r["card"], null), idem: s(r["idem"]), createdAt: Number(r["created_at"]), sentAt: n(r["sent_at"]),
-    repliedAt: n(r["replied_at"]), answeredAt: n(r["answered_at"]), wantedAt: n(r["wanted_at"]),
+    repliedAt: n(r["replied_at"]), answeredAt: n(r["answered_at"]), wantedAt: n(r["wanted_at"]), mode: s(r["mode"]) === "self" ? "self" : "person",
   };
 }
 const rows = (db: Db, sql: string, ...a: unknown[]): DmRow[] => (db.all(sql, ...a) as Row[]).map(rowOf);
@@ -73,18 +78,21 @@ export function mutedUntil(db: Db, teammate: string, person: string, now: number
 }
 
 /** When the next message from one person's agents to one teammate may go under the hourly limit; `now` when it is free. */
-export function limitFree(db: Db, person: string, teammate: string, now: number): number {
-  const sent = (db.all("SELECT sent_at FROM chat_agent_dm WHERE person = ? AND teammate = ? AND state = 'sent' AND sent_at > ? ORDER BY sent_at DESC", person, teammate, now - HOUR) as Row[]).map((r) => Number(r["sent_at"]));
+export function limitFree(db: Db, person: string, teammate: string, now: number, agent?: string): number {
+  // a Space agent writing as itself is limited per agent and teammate; an Assistant writing for its person, per person and teammate
+  const sent = ((agent
+    ? db.all("SELECT sent_at FROM chat_agent_dm WHERE agent = ? AND teammate = ? AND mode = 'self' AND state = 'sent' AND sent_at > ? ORDER BY sent_at DESC", agent, teammate, now - HOUR)
+    : db.all("SELECT sent_at FROM chat_agent_dm WHERE person = ? AND teammate = ? AND mode = 'person' AND state = 'sent' AND sent_at > ? ORDER BY sent_at DESC", person, teammate, now - HOUR)) as Row[]).map((r) => Number(r["sent_at"]));
   if (sent.length < PER_HOUR) return now;
   return sent[PER_HOUR - 1]! + HOUR;
 }
 
 /** When a message goes, all rules together: the teammate's presence and hours (lib/presence.ts), then a mute, then the hourly limit. The latest wins. */
-export function decide(db: Db, o: { person: string; teammate: string; timing: Timing; wantedAt?: number | null; urgent: boolean; presence: Presence; time: PublicTime; now: number }): Due {
+export function decide(db: Db, o: { person: string; teammate: string; timing: Timing; wantedAt?: number | null; urgent: boolean; presence: Presence; time: PublicTime; now: number; agent?: string }): Due {
   let d = dueAt({ timing: o.timing, ...(o.wantedAt ? { at: o.wantedAt } : {}), urgent: o.urgent, presence: o.presence, time: o.time, now: o.now });
   const mute = mutedUntil(db, o.teammate, o.person, o.now);
   if (mute !== null && (d.at === null || d.at < mute)) d = { at: mute, reason: "muted" };
-  const free = limitFree(db, o.person, o.teammate, o.now);
+  const free = limitFree(db, o.person, o.teammate, o.now, o.agent);
   if (free > o.now && d.at !== null && d.at < free) d = { at: free, reason: "limit" };
   return d;
 }
@@ -101,6 +109,31 @@ async function person(call: Call, id: string): Promise<{ name: string; status: s
   } catch { return null; }
 }
 const first = (name: string): string => name.split(" ")[0] || name;
+
+/**
+ * Is this agent private to a person (their own Assistant, or an outside agent they connected)? It writes for the person, in the person's own direct chat, as "<Person> (Agent)". Any other agent, one the Space
+ * shares, writes as itself in its own chat with the teammate (owner ruling 4 Nov 2026). An agent that cannot be read is not taken for the person's.
+ */
+async function writesForPerson(call: Call, agentId: string): Promise<boolean> {
+  try {
+    const a = ((await call("agents.get", { agentId })) as { agent?: { kind?: string; runtime?: string } } | null)?.agent;
+    return a?.kind === "assistant" || a?.runtime === "outside";
+  } catch { return false; }
+}
+
+export { handleOf };
+
+/** Who a `to` names: an id (older callers), a handle from people_status, or a name that is one person's alone. */
+async function resolveTo(call: Call, to: string, me: string): Promise<string | null> {
+  if (to.startsWith("usr_")) return to;
+  const r = (await call("access.principals.list", { kind: "person", status: "active", limit: 200 })) as { principals?: Array<{ id: string; name: string }> } | null;
+  const people = (r?.principals ?? []).filter((p) => p.id !== me);
+  const q = to.trim().toLowerCase();
+  const byHandle = people.filter((p) => handleOf(p.name, p.id) === q);
+  if (byHandle.length === 1) return byHandle[0]!.id;
+  const byName = people.filter((p) => p.name.toLowerCase() === q || first(p.name).toLowerCase() === q);
+  return byName.length === 1 ? byName[0]!.id : null;
+}
 const clip = (t: string, max: number): string => (t.length > max ? `${t.slice(0, max - 1)}…` : t);
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 function hoursText(t: PublicTime): string | undefined {
@@ -173,7 +206,7 @@ function directBetween(db: Db, a: string, b: string): ThreadRec | null {
   const ids = (db.all(
     `SELECT t.id AS id FROM chat_thread t WHERE t.kind = 'chat' AND t.channelId IS NULL AND t.scopeType IS NULL AND t.deleted_at IS NULL
        AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL)
-       AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL) ORDER BY t.createdAt LIMIT 20`, a, b,
+       AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL) AND NOT EXISTS (SELECT 1 FROM chat_thread_agent x WHERE x.thread = t.id AND x.deleted_at IS NULL) ORDER BY t.createdAt LIMIT 20`, a, b,
   ) as Row[]).map((r) => String(r["id"]));
   for (const id of ids) { const t = threadBy(db, id); if (t && isDirect({ db }, t)) return t; }
   return null;
@@ -187,6 +220,21 @@ function directChat(ctx: ChatCtx, a: string, b: string): ThreadRec {
   addMember(ctx, t.id, a, "owner");
   addMember(ctx, t.id, b);
   ctx.emit("thread.started", t.id, { threadId: t.id, kind: t.kind, starter: a });
+  return t;
+}
+
+/**
+ * The agent's own chat with a teammate, when it writes as itself: the teammate and the agent are in it and nobody else (the person who asked is not, unless the teammate adds them). Made the first time,
+ * found after. The teammate's replies land here and the agent answers them under its own response rules.
+ */
+function agentChat(ctx: ChatCtx, agent: string, teammate: string, agentName: string): ThreadRec {
+  const had = (ctx.db.all("SELECT dm FROM chat_agent_dm WHERE agent = ? AND teammate = ? AND mode = 'self' ORDER BY created_at DESC LIMIT 5", agent, teammate) as Row[]).map((r) => threadBy(ctx.db, String(r["dm"]))).find((t) => t !== null && t !== undefined);
+  if (had) return had;
+  // named after the agent, like any direct chat with an agent
+  const t = insertThread(ctx, { kind: "chat", title: agentName, starter: teammate, listed: true });
+  addMember(ctx, t.id, teammate, "owner");
+  addAgent(ctx, t.id, { agentId: agent, mode: "lead", addedBy: agent });
+  ctx.emit("thread.started", t.id, { threadId: t.id, kind: t.kind, starter: teammate });
   return t;
 }
 
@@ -212,8 +260,9 @@ export function sendNow(ctx: ChatCtx, row: DmRow): MessageRec {
   const dm = threadBy(ctx.db, row.dm);
   if (!dm) raise(ctx, "validation.not_found", "That direct chat is gone.");
   const now = ctx.now();
+  // for a person: signed as them ("<Person> (Agent)"). As itself: the agent's own words, no block naming anyone
   const onBehalf = { type: "on_behalf", v: 1, id: mintId("blk", now), state: "done", data: { person: row.person, agentId: row.agent, teammate: row.teammate } };
-  const m = insertMessage(ctx, dm.id, { author: row.agent, kind: "agent", body: row.body, blocks: [onBehalf, ...row.blocks] });
+  const m = insertMessage(ctx, dm.id, { author: row.agent, kind: "agent", body: row.body, blocks: row.mode === "self" ? [...row.blocks] : [onBehalf, ...row.blocks] });
   deliver(ctx, dm, m, [], { kind: "agent", id: row.agent }, { notify: false });
   ctx.emit("message.direct", dm.id, { messageId: m.id, threadId: dm.id, personId: row.teammate, author: { kind: "agent", id: row.agent } });
   ctx.db.run("UPDATE chat_agent_dm SET state = 'sent', sent_at = ?, message = ?, due_at = NULL, reason = NULL WHERE id = ?", now, m.id, row.id);
@@ -227,6 +276,9 @@ export async function peopleStatus(ctx: ChatCtx, input: { personIds?: string[]; 
   const me = askerOf(ctx);
   if (!me.startsWith("usr_")) raise(ctx, "validation.precondition_failed", "Only an agent working for a person, or the person, can see who is in.");
   const call = callOf(ctx);
+  const agent = ctx.principal.kind === "agent" ? ctx.principal.id : undefined;
+  const self = agent !== undefined && !(await writesForPerson(call, agent));
+  const mine = (await person(call, me))?.name ?? "the person you work for";
   let people: Array<{ id: string; name: string }> = [];
   if (input.personIds && input.personIds.length > 0) {
     for (const id of [...new Set(input.personIds)]) { const p = id === me ? null : await person(call, id); if (p && p.status === "active") people.push({ id, name: p.name }); }
@@ -242,14 +294,18 @@ export async function peopleStatus(ctx: ChatCtx, input: { personIds?: string[]; 
     const pr = presence.get(p.id) ?? { personId: p.id, state: "unknown" as const };
     const time = await readPublicTime(call, p.id);
     const mute = mutedUntil(ctx.db, p.id, me, now);
-    const d = decide(ctx.db, { person: me, teammate: p.id, timing: "now", urgent: false, presence: pr, time, now });
+    const d = decide(ctx.db, { person: me, teammate: p.id, timing: "now", urgent: false, presence: pr, time, now, ...(self ? { agent } : {}) });
     out.push({
-      personId: p.id, name: p.name, state: pr.state, ...(pr.lastSeenAt !== undefined ? { lastSeenAt: pr.lastSeenAt } : {}), ...(pr.awayUntil !== undefined ? { awayUntil: pr.awayUntil } : {}),
+      handle: handleOf(p.name, p.id), name: p.name, state: pr.state, ...(pr.lastSeenAt !== undefined ? { lastSeenAt: pr.lastSeenAt } : {}), ...(pr.awayUntil !== undefined ? { awayUntil: pr.awayUntil } : {}),
       ...(time.timezone ? { timezone: time.timezone, localTime: localTime(now, time.timezone) } : {}), ...(hoursText(time) ? { hours: hoursText(time)! } : {}), inHours: inHours(time, now),
       ...(mute !== null ? { mutedUntil: mute } : {}), wouldGo: dueWords(d, p.name, time.timezone, now),
     });
   }
-  return { people: out };
+  // which way a message goes, so the agent never claims the other: the model reads names and handles, never ids
+  const how = self
+    ? "You message people as yourself, with your own name, in your own chat with each of them. They reply there and you answer there. The person you work for cannot read that chat unless the teammate adds them; you tell them in one line what came back."
+    : `You message people for ${mine}, in their own chat with the teammate, signed as ${mine} (Agent). The reply comes back to the chat you were asked in.`;
+  return { people: out, how };
 }
 
 // ---- message_person ---------------------------------------------------------------------------------------------------------------------------------
@@ -280,15 +336,19 @@ async function makeCard(ctx: ChatCtx, card: NonNullable<MessageIn["card"]>, o: {
   })) as { task?: { id?: string } } | null;
   const taskId = String(r?.task?.id ?? "");
   if (!taskId) raise(ctx, "internal.unexpected", "The card was not made.");
-  return { task: taskId, block: { type: "link_card", v: 1, id, state: "done", data: { icon: approval ? "approval" : "task", lead: approval ? "Approve" : "Review", title: clip(card.title.trim(), 80), target: { type: "task", id: taskId } } } };
+  return { task: taskId, block: { type: "link_card", v: 1, id, state: "done", data: { icon: approval ? "approval" : "task", lead: approval ? "Allow" : "Review", title: clip(card.title.trim(), 80), target: { type: "task", id: taskId } } } };
 }
 
-export async function messagePerson(ctx: ChatCtx, input: MessageIn) {
+export async function messagePerson(ctx: ChatCtx, rawInput: MessageIn) {
+  let input = rawInput;
   ensureAgentDm(ctx.db);
   if (ctx.principal.kind !== "agent" || !ctx.actingFor?.startsWith("usr_")) raise(ctx, "validation.precondition_failed", "An agent sends this for the person it works for. To write to someone yourself, open your chat with them.");
   const me = ctx.actingFor;
   const agent = ctx.principal.id;
-  if (typeof input.to !== "string" || !input.to.startsWith("usr_")) raise(ctx, "validation.bad_input", "Name the teammate by their person id (people_status lists them).");
+  if (typeof input.to !== "string" || input.to.trim() === "") raise(ctx, "validation.bad_input", "Name the teammate: the handle people_status gives, or their name.");
+  const resolved = await resolveTo(callOf(ctx), input.to, me);
+  if (resolved === null) raise(ctx, "validation.bad_input", "I could not tell who that is. Use the handle people_status gives.");
+  input = { ...input, to: resolved };
   if (input.to === me) raise(ctx, "validation.bad_input", "That is the person you work for. Answer them here.");
   const body = (input.body ?? "").trim();
   if (body === "" && !input.card) raise(ctx, "validation.bad_input", "Write the message.");
@@ -318,9 +378,11 @@ export async function messagePerson(ctx: ChatCtx, input: MessageIn) {
   const now = ctx.now();
   const presence = (await readPresence(call, [input.to])).get(input.to)!;
   const time = await readPublicTime(call, input.to);
-  const d = decide(ctx.db, { person: me, teammate: input.to, timing, wantedAt: input.at ?? null, urgent: input.urgent === true, presence, time, now });
+  const self = !(await writesForPerson(call, agent));
+  const d = decide(ctx.db, { person: me, teammate: input.to, timing, wantedAt: input.at ?? null, urgent: input.urgent === true, presence, time, now, ...(self ? { agent } : {}) });
 
-  const dm = directChat(ctx, me, input.to);
+  const agentName = self ? ((await call("agents.get", { agentId: agent }).catch(() => null)) as { agent?: { name?: string } } | null)?.agent?.name ?? "Agent" : "";
+  const dm = self ? agentChat(ctx, agent, input.to, agentName) : directChat(ctx, me, input.to);
   const id = mintId("adm", now);
   const key = input.idempotencyKey ?? id;
   // a card says it all: its title is the ask, its detail the reason (the agent's words when it gave none), so the message carries the card alone and nothing is said twice
@@ -329,14 +391,16 @@ export async function messagePerson(ctx: ChatCtx, input: MessageIn) {
   const said = card ? "" : body;
   const words = input.urgent === true && d.at !== null && d.at <= now ? "now (urgent)" : dueWords(d, them.name, time.timezone, now);
   ctx.db.run(
-    `INSERT INTO chat_agent_dm (id, person, agent, teammate, origin, dm, body, blocks, timing, urgent, state, due_at, reason, task, request, card, idem, created_at, wanted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO chat_agent_dm (id, person, agent, teammate, origin, dm, body, blocks, timing, urgent, state, due_at, reason, task, request, card, idem, created_at, wanted_at, mode)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     id, me, agent, input.to, origin, dm.id, said, JSON.stringify(card ? [card.block] : []), timing, input.urgent === true ? 1 : 0, d.at, d.reason ?? null,
-    card?.task ?? null, card?.request ?? null, input.card ? JSON.stringify({ kind: input.card.kind, title: input.card.title.trim() }) : null, input.idempotencyKey ?? null, now, input.at ?? null,
+    card?.task ?? null, card?.request ?? null, input.card ? JSON.stringify({ kind: input.card.kind, title: input.card.title.trim() }) : null, input.idempotencyKey ?? null, now, input.at ?? null, self ? "self" : "person",
   );
   const row = rows(ctx.db, "SELECT * FROM chat_agent_dm WHERE id = ?", id)[0]!;
   if (d.at !== null && d.at <= now) {
     const m = sendNow(ctx, row);
+    // as itself, the agent says where it went, in the chat it was asked in, and that the chat is theirs
+    if (self) quietLine(ctx, origin, agent, `Sent to ${first(them.name)} in ${agentName}'s chat with them (private to them).`, { dmId: id, state: "sent", teammate: input.to, threadId: dm.id });
     return answer(ctx, { ...row, state: "sent", message: m.id, sentAt: now }, them.name, words);
   }
   quietLine(ctx, origin, agent, `Scheduled for ${them.name}: ${words}.`, { dmId: id, state: "scheduled", teammate: input.to, threadId: dm.id, ...(d.at !== null ? { dueAt: d.at } : {}), ...(d.reason ? { reason: d.reason } : {}) });
@@ -347,7 +411,10 @@ function answer(ctx: ChatCtx, row: DmRow, name: string, words: string | null) {
   const sent = row.state === "sent";
   return {
     state: sent ? ("sent" as const) : ("scheduled" as const), threadId: row.dm, ...(row.message ? { messageId: row.message } : {}), ...(!sent && row.dueAt !== null ? { dueAt: row.dueAt } : {}),
-    when: sent ? `Sent to ${name}. Their reply comes back to this chat.` : `Scheduled for ${name}: ${words ?? (row.dueAt === null ? "when they are next online" : new Date(row.dueAt).toISOString())}. Their reply comes back to this chat.`,
+    when: `${sent ? `Sent to ${name}` : `Scheduled for ${name}: ${words ?? (row.dueAt === null ? "when they are next online" : new Date(row.dueAt).toISOString())}`}${row.mode === "self"
+      ? ", as yourself, in your own chat with them. Their reply lands there and you answer it there; one line tells the person you work for what came back."
+      : ". Their reply comes back to this chat."}`,
+    as: row.mode,
     ...(row.task ? { taskId: row.task } : {}), ...(row.request ? { requestId: row.request } : {}),
   };
 }
@@ -391,7 +458,7 @@ export async function sendDue(ctx: ChatCtx): Promise<string[]> {
   for (const row of due) {
     if (!threadBy(ctx.db, row.dm)) { ctx.db.run("UPDATE chat_agent_dm SET state = 'canceled' WHERE id = ?", row.id); continue; }
     const time = await readPublicTime(call, row.teammate);
-    const d = decide(ctx.db, { person: row.person, teammate: row.teammate, timing: row.timing, wantedAt: row.wantedAt, urgent: row.urgent, presence: presence.get(row.teammate) ?? { personId: row.teammate, state: "unknown" }, time, now });
+    const d = decide(ctx.db, { person: row.person, teammate: row.teammate, timing: row.timing, wantedAt: row.wantedAt, urgent: row.urgent, presence: presence.get(row.teammate) ?? { personId: row.teammate, state: "unknown" }, time, now, ...(row.mode === "self" ? { agent: row.agent } : {}) });
     if (d.at === null || d.at > now) { ctx.db.run("UPDATE chat_agent_dm SET due_at = ?, reason = ? WHERE id = ?", d.at, d.reason ?? null, row.id); continue; }
     sendNow(ctx, row);
     sent.push(row.id);
@@ -415,11 +482,17 @@ export async function onDirectReply(ctx: ChatCtx, event: { payload: { messageId?
   const agentMsg = messageBy(ctx.db, row.message);
   if (!m || !agentMsg || m.thread !== row.dm || m.seq <= agentMsg.seq) return [];
   // the person picked the conversation up themselves: it is theirs now, not the agent's
-  const spoke = ctx.db.all("SELECT 1 AS x FROM chat_message WHERE thread = ? AND author = ? AND threadSeq > ? AND threadSeq < ? AND deleted_at IS NULL LIMIT 1", row.dm, row.person, agentMsg.seq, m.seq).length > 0;
+  const spoke = row.mode !== "self" && ctx.db.all("SELECT 1 AS x FROM chat_message WHERE thread = ? AND author = ? AND threadSeq > ? AND threadSeq < ? AND deleted_at IS NULL LIMIT 1", row.dm, row.person, agentMsg.seq, m.seq).length > 0;
   if (spoke) return [];
   const name = (await person(callOf(ctx), row.teammate))?.name ?? "Your teammate";
   const said = m.body.trim() || (m.attachments.length > 0 ? "(sent a file)" : "");
   if (said === "") return [];
+  if (row.mode === "self") {
+    // the conversation is the agent's with the teammate now: the chat it was asked in gets one short line, never the teammate's words whole
+    quietLine(ctx, row.origin, row.agent, `${first(name)} replied: ${clip(said.replace(/\s+/g, " "), REPORT_MAX)}`, { dmId: row.id, state: "replied", teammate: row.teammate, threadId: row.dm, messageId: m.id });
+    ctx.db.run("UPDATE chat_agent_dm SET replied_at = ? WHERE id = ?", now, row.id);
+    return [m.id];
+  }
   const id = relay(ctx, row, `${first(name)} replied: ${clip(said, MAX_RELAY)}`, { kind: "reply", from: row.teammate, messageId: m.id });
   if (id) ctx.db.run("UPDATE chat_agent_dm SET replied_at = ? WHERE id = ?", now, row.id);
   return id ? [id] : [];

@@ -3,6 +3,8 @@
 // that site's containers and the ingress (the vyred and Caddy service, labelled vyre.ingress); create a container that carries vyre.site=<site>, sits on its site's network only, runs with
 // every capability dropped, no new privileges, a CPU, memory and process cap, rotated logs, and no host path, device, port or namespace; start, stop, read, remove and log only containers
 // that carry vyre.site; exec only into those, as their own user; remove only vyre-site images, volumes and networks. So one site cannot reach another site or its database.
+import { COMPUTER_NAME, COMPUTER_NET, HELPER_NAME_RE, PROFILE_VOLUME, archiveOk, isComputerImage } from "./computers-policy.ts";
+
 /** A site's own network: its app, its Postgres and Redis, and the ingress. */
 export const networkOf = (siteId: string): string => `vyre-site-${siteId.replace(/^sit_/, "").slice(-16)}`;
 const NET_NAME = /^vyre-site-[a-z0-9]{1,16}$/;
@@ -102,7 +104,8 @@ export function networkBody(body: unknown): { body: Record<string, unknown> } | 
 /** An exec into a site container: a command, its env, its output; never another user, privileged or a TTY. */
 export function execBody(body: unknown): { body: Record<string, unknown> } | { why: string } {
   if (!isObj(body)) return { why: "the exec config is not an object" };
-  for (const k of Object.keys(body)) if (!["Cmd", "Env", "AttachStdout", "AttachStderr", "AttachStdin", "WorkingDir"].includes(k)) return { why: `an exec may not set ${k}` };
+  for (const k of Object.keys(body)) if (!["Cmd", "Env", "AttachStdout", "AttachStderr", "AttachStdin", "WorkingDir", "Tty"].includes(k)) return { why: `an exec may not set ${k}` };
+  if (body["Tty"] === true) return { why: "an exec may not set Tty" };
   if (!Array.isArray(body["Cmd"]) || !(body["Cmd"] as unknown[]).every((c) => typeof c === "string")) return { why: "an exec runs a list of words" };
   return { body: { ...body, Privileged: false, Tty: false } };
 }
@@ -114,29 +117,32 @@ export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: 
   if ((m === "GET" || m === "HEAD") && (p === "/_ping" || p === "/version")) return { ok: true, kind: "plain" };
   if (m === "POST" && p === "/build") return { ok: true, kind: "build" };
   if (m === "POST" && p === "/images/create") {
-    const ref = `${r.query.get("fromImage") ?? ""}:${r.query.get("tag") ?? "latest"}`;
+    const from = r.query.get("fromImage") ?? "";
+    // a digest pull names the whole reference in fromImage and sets no tag; any other pull is repo and tag
+    const ref = from.includes("@") ? (r.query.has("tag") ? `${from}:${r.query.get("tag")}` : from) : `${from}:${r.query.get("tag") ?? "latest"}`;
     for (const k of r.query.keys()) if (k !== "fromImage" && k !== "tag") return no(`a pull may not set ${k}`);
-    return Object.values(ADDON_IMAGES).includes(ref) ? { ok: true, kind: "plain" } : no(`only ${Object.values(ADDON_IMAGES).join(" and ")} may be fetched`);
+    return Object.values(ADDON_IMAGES).includes(ref) || isComputerImage(ref) ? { ok: true, kind: "plain" } : no(`only ${Object.values(ADDON_IMAGES).join(" and ")} and the agent computer image may be fetched`);
   }
   const img = /^\/images\/(.+?)(\/json)?$/.exec(p);
   if (img) {
     const name = decodeURIComponent(img[1] as string);
     const site = /^vyre-site\/[a-z0-9]{1,64}:[a-z0-9]{1,64}$/.test(name);
-    if (m === "GET" && img[2] && (site || Object.values(ADDON_IMAGES).includes(name))) return { ok: true, kind: "plain" };
+    if (m === "GET" && img[2] && (site || Object.values(ADDON_IMAGES).includes(name) || isComputerImage(name))) return { ok: true, kind: "plain" };
     if (m === "DELETE" && !img[2] && site) return { ok: true, kind: "plain" };
     return no("only a site's own images may be read or removed");
   }
   if (m === "POST" && p === "/containers/create") {
     const name = r.query.get("name") ?? "";
     for (const k of r.query.keys()) if (k !== "name") return no(`a create may not set ${k}`);
-    return /^vyre-site-[a-z0-9-]{1,100}$/.test(name) ? { ok: true, kind: "body", path: name } : no("a site container is named vyre-site-...");
+    return /^vyre-site-[a-z0-9-]{1,100}$/.test(name) || COMPUTER_NAME.test(name) || HELPER_NAME_RE.test(name) ? { ok: true, kind: "body", path: name } : no("a site container is named vyre-site-... and a computer's vyre-comp-...");
   }
-  const c = /^\/containers\/([A-Za-z0-9_.-]{1,128})(?:\/(json|logs|start|stop|restart|archive|exec))?$/.exec(p);
+  const c = /^\/containers\/([A-Za-z0-9_.-]{1,128})(?:\/(json|logs|start|stop|restart|archive|exec|wait))?$/.exec(p);
   if (c) {
     const action = c[2] ?? (m === "DELETE" ? "remove" : "");
-    const ok = (action === "json" && m === "GET") || (action === "logs" && m === "GET") || (["start", "stop", "restart"].includes(action) && m === "POST") || (action === "remove" && m === "DELETE")
-      || (action === "archive" && m === "PUT" && r.query.get("path") === "/tmp") || (action === "exec" && m === "POST");
-    if (!ok) return no("that is not something a site container may be asked");
+    // the first look is for the methods; which of them a container may be asked is decided once its labels say whether it is a site's or a computer's (siteAllows, computerAllows)
+    const ok = (action === "json" && m === "GET") || (action === "logs" && m === "GET") || (["start", "stop", "restart", "wait"].includes(action) && m === "POST") || (action === "remove" && m === "DELETE")
+      || (action === "archive" && ["PUT", "GET", "HEAD"].includes(m)) || (action === "exec" && m === "POST");
+    if (!ok) return no("that is not something a container of Vyre's may be asked");
     if (action === "logs") for (const k of r.query.keys()) if (!["stdout", "stderr", "tail", "timestamps", "since"].includes(k)) return no(`logs may not set ${k}`);
     return { ok: true, kind: "container", id: c[1] as string, action };
   }
@@ -144,12 +150,27 @@ export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: 
   if (e) return m === "POST" && e[2] === "start" ? { ok: true, kind: "exec-start", id: e[1] as string } : m === "GET" && e[2] === "json" ? { ok: true, kind: "exec-inspect", id: e[1] as string } : no("that exec call is refused");
   if (m === "POST" && p === "/networks/create") return { ok: true, kind: "network-create" };
   const net = /^\/networks\/([a-z0-9-]{1,40})(?:\/(connect))?$/.exec(p);
-  if (net && NET_NAME.test(net[1] as string)) {
+  if (net && (NET_NAME.test(net[1] as string) || COMPUTER_NET.test(net[1] as string))) {
     if (m === "GET" && !net[2]) return { ok: true, kind: "plain" };
     if (m === "DELETE" && !net[2]) return { ok: true, kind: "plain" };
     if (m === "POST" && net[2] === "connect") return { ok: true, kind: "network-connect", network: net[1] as string };
   }
-  if (net) return no("only a site's own network may be read, made, joined or removed");
+  if (net) return no("only a site's or a computer's own network may be read, made, joined or removed");
   if (m === "DELETE" && /^\/volumes\/vyre-site-[a-z0-9]{1,12}-(postgres|redis)-data$/.test(p)) return { ok: true, kind: "plain" };
+  if (m === "DELETE" && PROFILE_VOLUME.test(p.replace(/^\/volumes\//, ""))) return { ok: true, kind: "plain" };
   return no("the sites runner does not do that");
+}
+
+/** What a site's container may be asked, by method and query. */
+export function siteAllows(action: string, method: string, query: URLSearchParams): boolean {
+  if (action === "archive") return method === "PUT" && query.get("path") === "/tmp";
+  return action !== "wait";
+}
+
+/** What a computer's container may be asked: everything a site's may, and read and write inside its own home. The removal helper is the one container that is waited for. */
+export function computerAllows(action: string, method: string, query: URLSearchParams, helper: boolean): boolean {
+  if (helper) return action === "start" || action === "wait" || action === "remove" || action === "json";
+  if (action === "wait") return false;
+  if (action === "archive") return archiveOk(method, query);
+  return true;
 }

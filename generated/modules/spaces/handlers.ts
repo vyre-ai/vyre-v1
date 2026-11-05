@@ -8,7 +8,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "follows.list": Handler<"follows.list", X>;
   "follows.toggle": Handler<"follows.toggle", X>;
   "spaces.delete": Handler<"spaces.delete", X>;
+  "spaces.delete_cancel": Handler<"spaces.delete_cancel", X>;
+  "spaces.delete_due": Handler<"spaces.delete_due", X>;
   "spaces.export": Handler<"spaces.export", X>;
+  "spaces.export_latest": Handler<"spaces.export_latest", X>;
   "spaces.get": Handler<"spaces.get", X>;
   "spaces.image": Handler<"spaces.image", X>;
   "spaces.leave": Handler<"spaces.leave", X>;
@@ -21,6 +24,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "spaces.onboarding.seen": Handler<"spaces.onboarding.seen", X>;
   "spaces.switch_address": Handler<"spaces.switch_address", X>;
   "spaces.switcher": Handler<"spaces.switcher", X>;
+  "spaces.timezone.set": Handler<"spaces.timezone.set", X>;
   "spaces.transfer_ownership": Handler<"spaces.transfer_ownership", X>;
   "spaces.update": Handler<"spaces.update", X>;
   "stars.list": Handler<"stars.list", X>;

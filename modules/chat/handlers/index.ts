@@ -3,22 +3,28 @@
 import { archiveHandlers } from "./archive.ts";
 import { messagePerson, mute as agentDmMute, peopleStatus } from "./agent-dm.ts";
 import { catchUp } from "./catch-up.ts";
+import { paceOfPerson } from "./pace.ts";
 import { replyDetails } from "./reply-details.ts";
 import { aside, asideKeep } from "./aside.ts";
 import { share } from "./share.ts";
 import { makeTask } from "./make-task.ts";
 import { flowCard } from "./flow-card.ts";
 import { remember } from "./remember.ts";
+import { noted } from "./noted.ts";
 import { askLevel, askSuggest, asksOf, openAsChat } from "./ask.ts";
 import { g24aHandlers } from "./g24a.ts";
 import { g24bHandlers } from "./g24b.ts";
 import { g24cHandlers } from "./g24c.ts";
 import { g24dHandlers } from "./g24d.ts";
+import { noteOfferHandlers } from "./note-offer.ts";
+import { crewLineHandlers, hookLineHandlers } from "./hook-line.ts";
+import { titleMake } from "./title.ts";
 import { g26Handlers } from "./g26.ts";
 import { historySearch } from "./history.ts";
 import { g27Handlers } from "./g27.ts";
 import { followHandlers } from "./follow.ts";
 import { modesHandlers } from "./modes.ts";
+import { addsheetHandlers } from "./addsheet.ts";
 import { post } from "./post.ts";
 import { screenHandlers } from "./screen.ts";
 import { guardPrivate } from "./private.ts";
@@ -44,7 +50,9 @@ export const handlers = {
   "chat.aside_keep": asideKeep,
   "chat.flow_card": flowCard,
   "chat.catch_up": catchUp,
+  "chat.pace_of": paceOfPerson,
   "chat.remember": remember,
+  "chat.noted": noted,
   "chat.thread": thread,
   "chat.answer_block": answerBlock,
   "chat.approve_plan": approvePlan,
@@ -65,9 +73,14 @@ export const handlers = {
   ...screenHandlers,
   ...g24aHandlers,
   ...modesHandlers,
+  ...addsheetHandlers,
   ...g24bHandlers,
   ...g24cHandlers,
   ...g24dHandlers,
+  "chat.title_make": titleMake,
+  ...noteOfferHandlers,
+  ...hookLineHandlers,
+  ...crewLineHandlers,
   // P-L2_26 replaces the group entries that had reported limits
   ...g26Handlers,
   ...g27Handlers,

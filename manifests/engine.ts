@@ -9,7 +9,7 @@
 // DECISION: the three hop and loop limits (agent_hops, review_loops, ci_fix_loops) are declared here; route() reads agent_hops and
 //   tasks.transition reads the other two.
 import { create, defineManifest, ev, health, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { id, label, pageIn, pageOut, replyTurn } from './_common.ts';
+import { id, label, pageIn, pageOut, replyTurn, spaceUses } from './_common.ts';
 
 const effort = t.enm('low', 'medium', 'high', 'max');
 // Outside tools (CHAT-DESIGN ruling 6): the MCP servers of plugins and connections, run in the sandbox. A call is one capability, so access, the Gate and the audit trail apply to it like any other.
@@ -22,43 +22,55 @@ const agentMode = t.enm('lead', 'listen');
 // A Job is running (working, waiting on a hold), paused (its agent was paused), lost (the server stopped under it and only a person may run it again), stopped, or ended (done, failed, merged).
 const crewState = t.enm('working', 'waiting', 'paused', 'lost', 'done', 'failed', 'stopped', 'merged');
 const crewJob = t.obj({
-  jobId: t.str({ examples: ['crw_01a1b2'] }), threadId: id.thread, leadThreadId: id.thread, projectId: id.project, agentId: id.agent, name: t.opt(t.str()), title: t.str(), branch: t.str({ examples: ['crew/ember-1'] }),
+  jobId: t.str({ examples: ['crw_01a1b2'] }), threadId: id.thread, leadThreadId: id.thread, projectId: t.opt(id.project), agentId: id.agent, name: t.opt(t.str()), title: t.str(), branch: t.str({ examples: ['crew/ember-1'] }),
   base: t.str({ examples: ['main'] }), state: crewState, startedAt: t.ts(), endedAt: t.opt(t.ts()), result: t.opt(t.rec()),
 });
 const crewWait = t.obj({ waitId: t.str(), kind: t.enm('checks'), label: t.str({ examples: ['acme/site#12'] }), state: t.enm('pending', 'passing', 'failing', 'none'), done: t.int(), total: t.int(), startedAt: t.ts() });
-const crewRepo = t.obj({ projectId: id.project, path: t.str(), baseBranch: t.str(), branch: t.str({ description: 'The branch the repository is on now' }) });
+const crewRepo = t.obj({ projectId: t.opt(id.project), threadId: t.opt(id.thread), path: t.str(), baseBranch: t.str(), branch: t.str({ description: 'The branch the repository is on now' }) });
 const turnState = t.enm('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled');
 const driverId = t.enm('anthropic', 'openai', 'openrouter', 'google', 'xai', 'opencode_go', 'local', 'custom', 'claude_code', 'codex', 'grok');
 const accountRef = t.str({ description: 'Vault handle or subscription account reference; never a secret value', examples: ['#Team_Anthropic_Key'] });
 const errShape = t.obj({ code: t.str(), message: t.str(), next: t.arr(t.obj({ kind: t.str(), label: t.str() })), traceId: id.trace });
 const modelInfo = t.obj({
   provider: t.str({ examples: ['anthropic'] }), model: t.str({ examples: ['claude-sonnet-5-5'] }), title: t.str(), driver: driverId, contextTokens: t.opt(t.int()),
-  allowed: t.bool(), reason: t.opt(t.enm('label_provider', 'policy_model', 'not_connected', 'usage_limit')),
+  allowed: t.bool(), reason: t.opt(t.enm('label_provider', 'policy_model', 'not_connected', 'usage_limit', 'checking')),
   resetsAt: t.opt(t.ts()),
   alias: t.opt(t.str({ description: "The engine's own name that resolves to this model today (Claude Code's opus); a pick saved as the alias is this model", examples: ['opus'] })),
   isDefault: t.opt(t.bool()),
   efforts: t.opt(t.arr(t.str({ description: 'A reasoning-effort level the vendor offers for this model, in its words', examples: ['high'] }))),
   defaultEffort: t.opt(t.str({ examples: ['medium'] })),
 });
+const myUse = t.obj({ turns: t.int(), input: t.int({ description: 'New input tokens: what the provider did not serve from its cache' }), cachedInput: t.int(), output: t.int(), costMicros: t.int() });
 const accountRow = t.obj({
   ref: accountRef, driver: driverId, kind: t.enm('api_key', 'subscription'), title: t.str(), name: t.opt(t.str({ description: 'The name the person gave this account in the Vault; title is the provider', examples: ['Dana Claude Max'] })), mine: t.bool(), ownerId: t.opt(id.user),
   status: t.enm('ok', 'expired', 'failed', 'untested'), lastProbeAt: t.opt(t.ts()),
   base: t.opt(t.str({ description: 'The address of a local or custom OpenAI-compatible endpoint' })), keyless: t.opt(t.bool()),
   spaceKey: t.opt(t.bool()),
+  keepsNothing: t.opt({ ...t.bool(), description: 'An owner or admin said this account keeps nothing of what it is sent; a local model always does. Left out when not' }),
   aliases: t.opt(t.arr(accountRef, { description: 'Other refs that show as this account: handles folded into it and its older sign-ins. A chat or agent pinned to one of them shows this account' })),
   older: t.opt(t.arr(t.obj({ ref: accountRef, providerId: t.id('prv'), name: t.str() }), { description: 'Older sign-ins of the same provider whose account cannot be read, listed under this one so a person can remove them' })),
+  providerId: t.opt(t.id('prv')),
+  provider: t.opt(t.str({ examples: ['anthropic'] })),
+  itemId: t.opt(id.vaultItem),
+  uses: t.opt({ ...spaceUses, description: 'A Space account: what it may pay for. Left out on a Mine account' }),
+  models: t.opt(t.arr(t.str(), { description: 'The models the account\'s provider lists, when known' })),
+  usable: t.opt(t.bool()),
+  code: t.opt(t.str({ description: 'With a place, when usable is false: the reason as a word (expired, failed, space_may_not_use, capped, no_model, not_used_for...)' })),
+  capped: t.opt(t.bool()),
+  capCents: t.opt(t.nullable(t.int())),
+  why: t.opt(t.str({ description: 'With a place, when usable is false: the reason, in plain words' })),
 });
 const turnRow = t.obj({
   turnId: id.turn, threadId: id.thread, agentId: id.agent, asker: t.str(), accountRef: t.opt(accountRef), engine: t.str(), model: t.str(), state: turnState,
   traceId: id.trace, runId: t.opt(id.run), startedAt: t.ts(), endedAt: t.opt(t.ts()), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), error: t.opt(errShape), nodeId: t.opt(t.str({ description: 'The server of the asker\'s the turn ran on, when the chat was pinned to one' })),
-  ranOn: t.opt(t.arr(t.obj({ kind: t.enm('computer', 'server', 'space'), name: t.str({ examples: ['Dana\'s MacBook', 'the Northwind server'] }) }), { description: 'Where the turn ran, in order: two places when its computer went to sleep and it went on elsewhere' })),
+  ranOn: t.opt(t.arr(t.obj({ kind: t.enm('computer', 'server', 'space'), name: t.str({ examples: ['Dana\'s MacBook', 'the Northwind server'] }), note: t.opt(t.str({ examples: ['Moved from Dana\'s MacBook because it was busy, 4 of 4 turns running'] })) }), { description: 'Where the turn ran, in order: two places when its computer went to sleep and it went on elsewhere' })),
 });
 // A reply's Details (chat.reply_details, reply-info.ts). A count that is absent was not reported by the provider: never shown as 0.
 const toolTrace = t.obj({ id: t.str(), name: t.str(), detail: t.opt(t.str()), startedAt: t.ts(), endedAt: t.opt(t.ts()), ok: t.opt(t.bool()), held: t.opt(id.task) });
 const turnInfoIn = t.obj({
   effort: t.opt(t.str({ examples: ['high'] })),
   account: t.opt(t.obj({ ref: accountRef, driver: t.str(), provider: t.str(), kind: t.enm('api_key', 'subscription'), shared: t.opt(t.bool()), spaceKey: t.opt(t.bool()) })),
-  firstTokenAt: t.opt(t.ts()), cacheReadTokens: t.opt(t.int()), cacheWriteTokens: t.opt(t.int()), reasoningTokens: t.opt(t.int()),
+  firstTokenAt: t.opt(t.ts()), cacheReadTokens: t.opt(t.int()), cacheWriteTokens: t.opt(t.int()), reasoningTokens: t.opt(t.int()), contextTokens: t.opt(t.int()),
   costUsd: t.opt(t.num({ description: 'The provider\'s own price for the turn, when every call reported one' })),
   paid: t.opt(t.str({ description: 'Who paid and why, in a plain line' })),
   tools: t.arr(toolTrace), switches: t.arr(t.obj({ at: t.ts(), from: t.str(), to: t.str(), why: t.str() })),
@@ -75,7 +87,7 @@ const incidentRow = t.obj({
 });
 const scope = t.enm('space', 'person', 'agent');
 const caps = t.obj({ run: t.opt(t.int()), dayMicros: t.opt(t.int()), monthMicros: t.opt(t.int()), turnsPerDay: t.opt(t.int()), timeMinutesPerRun: t.opt(t.int()) });
-const usageTotals = t.obj({ turns: t.int(), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int() });
+const usageTotals = t.obj({ turns: t.int(), tokensIn: t.int({ description: 'Every input token the turns sent, cached ones included' }), tokensOut: t.int(), costMicros: t.int(), cachedIn: t.opt(t.int({ description: 'The part of tokensIn the provider served from its cache: a turn of many requests sends the chat again with each one' })) });
 const threadT = { threadId: id.thread };
 
 export default defineManifest({
@@ -88,8 +100,9 @@ export default defineManifest({
       on: ['project', '/projectId'], level: 'manage', idem: 'natural', audit: 'always', tool: 'chats', errors: ['validation.bad_input'],
     }),
     read('engine.crew.repo.get', 'The project\'s repository for the crew, or nothing when none is set', { in: { projectId: id.project }, out: { repo: t.nullable(crewRepo) }, on: ['project', '/projectId'], tool: 'chats' }),
-    write('engine.crew.start', 'Start a teammate on a brief: it gets its own thread under this chat and its own copy of the project repository on its own branch, and works until it is done', {
-      in: { ...threadT, projectId: id.project, teammateId: id.agent, title: t.str(), brief: t.str(), model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort), taskId: t.opt(id.task) }, out: { job: crewJob },
+    read('engine.crew.chat_repo', 'The repository of a chat that has its own work folder for the crew, or nothing yet', { in: { ...threadT }, out: { repo: t.nullable(crewRepo) }, on: ['thread', '/threadId'], tool: 'chats' }),
+    write('engine.crew.start', 'Start a teammate on a brief in any chat. It works on its own branch in its own copy of the repository: the chat\'s project\'s, else the chat\'s own work folder on this computer (made on first use). Nothing to set up first', {
+      in: { ...threadT, projectId: t.opt(id.project), teammateId: t.opt(id.agent), name: t.opt(t.str({ description: 'A name for the new teammate; one is chosen when left out' })), title: t.str(), brief: t.str(), model: t.opt(t.str()), provider: t.opt(t.str()), effort: t.opt(effort), taskId: t.opt(id.task) }, out: { job: crewJob },
       on: ['thread', '/threadId'], level: 'use', idem: 'key', audit: 'always', emits: ['crew.job_started'], tool: 'chats', mcpName: 'crew_start', agent: { planMode: 'blocked', blocks: ['helper'] },
       errors: ['validation.bad_input', 'validation.precondition_failed'],
     }),
@@ -190,10 +203,13 @@ export default defineManifest({
       in: { ...threadT, agentId: t.opt(id.agent) }, out: { warm: t.bool() }, on: ['thread', '/threadId'], level: 'view', offline: 'online', idem: 'none', risk: 'low',
     }),
     read('engine.route.preview', 'Who will answer a draft message ("Intake will reply" or "No agent will reply, type @ to ask one"); same route() the client runs locally', {
-      in: { ...threadT, mentions: t.opt(t.arr(t.obj({ kind: t.enm('person', 'agent'), id: t.str() }))) },
+      in: { ...threadT, mentions: t.opt(t.arr(t.obj({ kind: t.enm('person', 'agent'), id: t.str() }))), text: t.opt(t.str({ description: 'The draft, so a message that names the lead in words is answered by it' })) },
       out: { responders: t.arr(id.agent), line: t.str({ examples: ['Intake will reply'] }) }, on: ['thread', '/threadId'], tool: 'chats',
     }),
     // ---- turns
+    read('engine.turns.running', 'Engine only: the turns running now with the machine each runs on (agent, asker, start, place; no message or title), for the Machines page', {
+      in: {}, out: { turns: t.arr(t.obj({ turnId: id.turn, agentId: id.agent, asker: t.str(), startedAt: t.ts(), where: t.obj({ kind: t.enm('computer', 'server', 'space'), name: t.str(), nodeId: t.opt(t.str()) }) })) }, perm: null, tool: 'chats',
+    }),
     read('engine.turn.get', 'What happened: steps, durations, machine, model, key used and denials of one turn', {
       in: { turnId: id.turn }, out: { what: whatHappened }, label: 'check', tool: 'chats', errors: ['validation.not_found'],
     }),
@@ -230,7 +246,7 @@ export default defineManifest({
     }),
     write('engine.turn.record', 'Record a turn the in-process engine ran for a chat (started, then completed, failed or cancelled) under the engine\'s own turn id, so the turn list, review sampling and the agent\'s Working status see it; a repeat answers with what is already recorded', {
       in: {
-        ...threadT, turnId: id.turn, agentId: id.agent, phase: t.enm('started', 'completed', 'failed', 'cancelled'), qseq: t.int(), asker: t.opt(t.str()), engine: t.opt(t.str()), model: t.opt(t.str()), accountRef: t.opt(accountRef),
+        ...threadT, turnId: id.turn, agentId: id.agent, phase: t.enm('started', 'waiting', 'completed', 'failed', 'cancelled'), qseq: t.int(), asker: t.opt(t.str()), engine: t.opt(t.str()), model: t.opt(t.str()), accountRef: t.opt(accountRef),
         tokensIn: t.opt(t.int()), tokensOut: t.opt(t.int()), costMicros: t.opt(t.int()), code: t.opt(t.str()), message: t.opt(t.str()),
         info: t.opt(turnInfoIn),
       },
@@ -241,7 +257,7 @@ export default defineManifest({
       out: { turn: turnRow }, emits: ['turn.completed', 'turn.failed', 'turn.cancelled', 'agent.task_finished', 'agent.blocked'], idem: 'natural', risk: 'low',
     }),
     write('engine.turn.record_usage', 'Meter usage during a turn; over an agent.toml or Space limit it stops the turn and raises agent.limit_hit', {
-      in: { turnId: id.turn, tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), itemId: t.opt(id.vaultItem) },
+      in: { turnId: id.turn, tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), model: t.opt(t.str({ description: 'The model the turn ran when its record names none: the engine\'s own default, said so' })), itemId: t.opt(id.vaultItem) },
       out: { overLimit: t.opt(t.enm('run', 'day', 'month', 'turns', 'time')) }, emits: ['agent.limit_hit'], idem: 'none', risk: 'low',
     }),
     write('engine.turn.fallback', 'Record a fallback during a turn error: another model or the backup key', {
@@ -261,7 +277,7 @@ export default defineManifest({
     }),
     read('engine.placement.decide', 'Decide where a turn runs: host or the asker device (private chat rules, computers, routines, phone and web askers)', {
       in: { ...threadT, agentId: id.agent, kind: t.enm('message', 'interrupt', 'wake', 'handoff') },
-      out: { placement: t.enm('host', 'device', 'wait'), reason: t.str(), wakeLine: t.opt(t.str({ examples: ['Your computer is off'] })), nodeId: t.opt(t.str()), deviceId: t.opt(t.str({ description: 'The computer of the asker\'s the turn runs on, or the pinned one it waits for' })) }, on: ['thread', '/threadId'],
+      out: { placement: t.enm('host', 'device', 'wait'), reason: t.str(), wakeLine: t.opt(t.str({ examples: ['Your computer is off'] })), nodeId: t.opt(t.str()), deviceId: t.opt(t.str({ description: 'The computer of the asker\'s the turn runs on, or the pinned one it waits for' })), moved: t.opt(t.obj({ from: t.str(), why: t.str() }, { description: 'Automatic passed over a busy machine for this one: where it would have gone and why not' })) }, on: ['thread', '/threadId'],
     }),
     write('engine.placement.set', 'Choose where a private chat runs: one of your computers, the Space, one of your own servers, or auto. Never a teammate\'s machine. once with space runs the next turn on the Space once', {
       in: { ...threadT, target: t.enm('auto', 'device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()), once: t.opt(t.bool()) }, out: { target: t.enm('auto', 'device', 'space', 'server'), serverId: t.opt(t.str()), deviceId: t.opt(t.str()) },
@@ -287,7 +303,7 @@ export default defineManifest({
         pin: t.opt(t.obj({ ref: accountRef, used: t.bool(), why: t.opt(t.enm('unknown', 'expired', 'failed', 'policy_company', 'not_yours', 'space_may_not_use', 'failed_this_turn', 'capped', 'no_model', 'not_used_for')) }, { description: 'The account the chat, agent or step is pinned to; when it did not pay, why' })),
         cappedFrom: t.opt(accountRef),
         via: t.opt({ ...t.enm('thread', 'chat_key', 'work', 'step', 'space', 'backup'), description: 'Which rule chose the account when it was not the asker\'s own: the chat\'s pick, the agent\'s Chat key, its own-work account, a step\'s account, a Space account kept for the work, or a backup' }),
-        why: t.opt({ ...t.enm('no_account', 'expired', 'failed', 'policy', 'no_model'), description: 'When no account can pay: why. expired and failed name the person\'s own account; no_model means the model picked for the chat is served by no account that can pay, and servedModels lists what those accounts serve' }),
+        why: t.opt({ ...t.enm('no_account', 'expired', 'failed', 'policy', 'no_model'), description: 'When no account can pay: why. expired and failed name the person\'s own account; no_model means the model picked in the composer is served by no account that can pay, and servedModels lists what those accounts serve' }),
         model: t.opt(t.str({ description: 'With why no_model: the model that was picked' })),
         servedModels: t.opt(t.arr(t.str(), { description: 'With why no_model: the models the accounts that could pay do serve' })),
         modelFallback: t.opt(t.obj({ from: t.str({ description: 'The model the chat asked for' }), to: t.opt(t.str({ description: 'The account\'s default model the turn runs on instead; absent: the engine\'s own default for that account' })) }, { description: 'No account that serves the chat\'s model could pay: a team chat or agent work runs on this account\'s default model, and the chat says so' })),
@@ -302,20 +318,57 @@ export default defineManifest({
       errors: ['provider.auth_failed', 'provider.rate_limited', 'provider.unavailable', 'provider.overloaded', 'permission.limit', 'permission.provider_label', 'timeout.deadline', 'internal.unavailable'],
     }),
     // ---- accounts and models
-    read('engine.accounts.list', 'Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status', {
+    read('engine.accounts.list', 'Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not', {
+      in: { place: t.opt(t.enm('chat', 'automation', 'agent', 'space')), model: t.opt(t.str()), agentId: t.opt(id.agent), explicit: t.opt(t.bool()), runsAs: t.opt(t.enm('person', 'space')) },
       out: { accounts: t.arr(accountRow) }, tool: 'meta',
     }),
     read('engine.usage.get', 'For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated', {
       in: { ...threadT, agentId: id.agent, accountRef: t.opt(accountRef) },
       out: {
         account: t.nullable(t.obj({ ref: accountRef, name: t.str({ description: 'The name the person gave the account in the Vault', examples: ['Dana Claude Max'] }), provider: t.str({ examples: ['anthropic'] }), plan: t.opt(t.str()) })),
-        context: t.nullable(t.obj({ used: t.int({ minimum: 0 }), window: t.int({ minimum: 1 }) })),
+        context: t.nullable(t.obj({ used: t.int({ minimum: 0 }), window: t.int({ minimum: 1 }), approximate: t.opt(t.bool({ description: 'The engine reported only a turn\'s total, so used is estimated from the number of requests the turn made' })) })),
         session: t.nullable(t.obj({ pct: t.num({ minimum: 0, maximum: 100 }), resetsAt: t.opt(t.ts()) })),
         week: t.nullable(t.obj({ pct: t.num({ minimum: 0, maximum: 100 }), resetsAt: t.opt(t.ts()) })),
         source: t.enm('provider', 'estimate', 'none'),
         keepEvery: t.opt(t.str({ description: 'What every compaction of this chat keeps ("Keep this every time"), when set' })),
+        model: t.opt(t.str({ description: 'The model this chat\'s agent is set to answer with now: the chat\'s own pick (a new chat starts on the person\'s last pick), else the agent\'s' })),
+        lastTurn: t.opt(t.obj({
+          model: t.opt(t.str({ description: 'The model the latest turn really ran on, as its engine said' })),
+          account: t.opt(t.obj({ ref: accountRef, name: t.opt(t.str()), provider: t.str(), shared: t.opt(t.bool()) })),
+          paid: t.opt(t.str({ description: 'Who paid and why, for the asker only' })),
+        }, { description: 'What the latest turn of this chat ran on, which can differ from the account shown above when the account that would pay now is not the one that paid then' })),
       },
       on: ['thread', '/threadId'], tool: 'meta', errors: ['validation.not_found'],
+    }),
+    read('engine.time_convert', 'Convert a time between time zones, or turn "tomorrow 2pm" into a time. Use it for any time not already in the person\'s zone; never work out zones, dates or epoch numbers yourself', {
+      in: { when: t.str({ minLength: 1, maxLength: 120, description: 'The time as said: "Thursday 5 Nov 2pm", "tomorrow 14:00", "2026-11-05 14:00", "in 3 hours"' }), from: t.opt(t.str({ maxLength: 60, description: 'The zone it was said in: PT, ET, PKT, UTC or America/Los_Angeles. Default: the person\'s' })), to: t.opt(t.arr(t.str({ maxLength: 60 }), { description: 'The zones to show it in' })), zone: t.opt(t.str({ maxLength: 60, description: 'The person\'s zone, when it is known; the profile\'s is used otherwise' })) },
+      out: { instant: t.str(), given: t.str(), zones: t.opt(t.arr(t.obj({ zone: t.str(), text: t.str() }))), inYourZone: t.str(), personZone: t.str(), note: t.opt(t.str()) },
+      tool: 'meta', mcpName: 'time_convert', errors: ['validation.bad_input'],
+    }),
+    read('engine.my_ai', 'What AI this chat runs on and what else the person may use now: model, account and who paid, each usable account with models and limits (or not readable), and use today and this month. Ask it for what model, what else, what is left, /usage', {
+      in: { threadId: t.opt(id.thread), agentId: t.opt(id.agent) },
+      out: {
+        running: t.opt(t.rec()),
+        accounts: t.arr(t.obj({
+          ref: accountRef, name: t.str(), provider: t.str(), kind: t.enm('api_key', 'subscription'), usable: t.bool(), why: t.opt(t.str()), models: t.arr(t.str()),
+          limits: t.obj({ state: t.enm('read', 'not_readable'), session: t.opt(t.obj({ pct: t.num(), resetsAt: t.opt(t.ts()) })), week: t.opt(t.obj({ pct: t.num(), resetsAt: t.opt(t.ts()) })), note: t.opt(t.str()) }),
+        })),
+        use: t.obj({ today: myUse, month: myUse }),
+      },
+      tool: 'meta', mcpName: 'my_ai',
+    }),
+    read('engine.models_catalog', 'Every AI account the asker can use with its models, what each can do (tools, images, context), a cost tier (cheap, standard or strong) and whether the probe found it available; for helpers that pick a model across accounts. Reads saved lists and the probe\'s marks only', {
+      in: { accountRef: t.opt(accountRef) },
+      out: {
+        accounts: t.arr(t.obj({
+          ref: accountRef, label: t.str(), provider: t.str(), kind: t.enm('api_key', 'subscription', 'local'), usable: t.bool(), why: t.opt(t.str()),
+          models: t.arr(t.obj({
+            id: t.str(), title: t.str(), tools: t.bool(), vision: t.bool(), context: t.int({ minimum: 1 }), tier: t.enm('cheap', 'standard', 'strong'),
+            allowed: t.bool({ description: 'The Space policy lets this model run' }), available: t.enm('ok', 'checking', 'unavailable', 'unverified'),
+          })),
+        })),
+      },
+      tool: 'meta', mcpName: 'models_catalog',
     }),
     read('engine.probe_account', 'Test an account: reachable, signed in, models it can use', {
       in: { accountRef }, out: { ok: t.bool(), models: t.opt(t.int()), error: t.opt(errShape) }, tool: 'meta', errors: ['provider.auth_failed', 'provider.unavailable', 'provider.network'],
@@ -343,6 +396,9 @@ export default defineManifest({
     }),
     read('engine.defaults.get', 'The caller default model, provider, effort and fallback order in this Space', {
       out: { provider: t.opt(t.str()), model: t.opt(t.str()), effort: t.opt(effort), fallback: t.arr(t.obj({ provider: t.str(), model: t.str(), accountRef: t.opt(accountRef) })) }, tool: 'meta',
+    }),
+    read('engine.last_pick.get', 'The model the caller last picked in a chat (any agent): a new chat starts on it. Empty when they have not picked one yet', {
+      out: { provider: t.opt(t.str()), model: t.opt(t.str()), effort: t.opt(effort) }, tool: 'meta',
     }),
     write('engine.defaults.set', 'Set the caller default model, provider, effort and fallback order (the chat default)', {
       in: { provider: t.opt(t.str()), model: t.opt(t.str()), effort: t.opt(effort), fallback: t.opt(t.arr(t.obj({ provider: t.str(), model: t.str(), accountRef: t.opt(accountRef) }))) },
@@ -388,7 +444,7 @@ export default defineManifest({
       out: { raised: t.bool() }, perm: 'ai.spend', level: 'manage', emits: ['spend.raised'], gate: { act: 'spend_raise', when: "actor.kind != 'person'" }, tool: 'meta', audit: 'always', risk: 'high',
     }),
     read('engine.usage.query', 'Usage by day, person, agent or model; people see their own, managers their agents, admins all', {
-      in: { by: t.enm('day', 'person', 'agent', 'model'), from: t.opt(t.ts()), to: t.opt(t.ts()), personId: t.opt(id.user), agentId: t.opt(id.agent), itemId: t.opt(id.vaultItem) },
+      in: { by: t.enm('day', 'person', 'agent', 'model', 'account'), from: t.opt(t.ts()), to: t.opt(t.ts()), personId: t.opt(id.user), agentId: t.opt(id.agent), itemId: t.opt(id.vaultItem) },
       out: { rows: t.arr(t.obj({ key: t.str(), title: t.str(), face: t.opt(t.str()), totals: usageTotals })), totals: usageTotals }, label: 'filter', tool: 'meta',
     }),
     read('engine.incidents.list', 'AI incidents for review', {
@@ -434,7 +490,45 @@ export default defineManifest({
       perm: null, tool: 'chats', team: true,
     }),
     read('engine.live_turns', 'The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream', {
-      in: { threadId: id.thread }, out: { turns: t.arr(t.obj({ turnId: t.str(), agentId: id.agent, text: t.str() })) }, on: ['thread', '/threadId'], perm: null, tool: 'chats',
+      in: { threadId: id.thread }, out: { turns: t.arr(t.obj({ turnId: t.str(), agentId: id.agent, text: t.str(), step: t.opt(t.str({ description: 'What it is doing now, in plain words' })) })) }, on: ['thread', '/threadId'], perm: null, tool: 'chats',
+    }),
+    read('engine.helper_models', 'The catalogue before you start helpers: every AI account the person may use with its provider, label and models (tools, vision, context, a cost tier cheap, standard or strong, whether it is available now), and where a helper goes by default', {
+      in: { threadId: t.opt(id.thread), agentId: t.opt(id.agent) },
+      out: {
+        accounts: t.arr(t.obj({ ref: accountRef, provider: t.str(), label: t.str({ examples: ['OpenAI · irfad@mylegalacademy.com'] }), mine: t.bool(), shared: t.bool(), spaceKey: t.bool(), models: t.arr(t.obj({ model: t.str(), title: t.opt(t.str()), tier: t.enm('cheap', 'standard', 'strong'), tools: t.bool(), vision: t.bool(), contextTokens: t.opt(t.int()), available: t.bool(), why: t.opt(t.str()) })) })),
+        parent: t.obj({ provider: t.opt(t.str()), accountRef: t.opt(accountRef), model: t.opt(t.str()) }), policy: t.enm('same_provider', 'any', 'ask'),
+        suggest: t.obj({ read: t.nullable(t.obj({ account: accountRef, accountLabel: t.str(), model: t.str(), why: t.str() })), think: t.nullable(t.obj({ account: accountRef, accountLabel: t.str(), model: t.str(), why: t.str() })) }), rule: t.str(),
+      },
+      tool: 'chats', mcpName: 'models_for_helpers', agent: { planMode: 'allowed' }, label: 'check',
+    }),
+    read('engine.crew.status', 'Everything that works for a chat, in one read for the Island, the header chip and the Crew pane: each helper and teammate with its state, the step it is on, model, account, branch, files changed, tokens and cost, and the totals for the crew. Only what is known; nothing is estimated', {
+      in: { ...threadT }, out: {
+        members: t.arr(t.obj({
+          kind: t.enm('helper', 'teammate'), id: id.thread, jobId: t.opt(t.str()), parentThreadId: id.thread, title: t.str(), name: t.opt(t.str()), agentId: id.agent, state: t.enm('working', 'done', 'needs_you', 'failed', 'stopped'), holdTaskId: t.opt(id.task), step: t.opt(t.str()), found: t.opt(t.str()),
+          startedAt: t.ts(), endedAt: t.opt(t.ts()), elapsedMs: t.int({ minimum: 0 }), model: t.opt(t.str()), provider: t.opt(t.str()), accountLabel: t.opt(t.str()), why: t.opt(t.str()), fellBackFrom: t.opt(t.str()),
+          branch: t.opt(t.str()), files: t.opt(t.arr(t.obj({ path: t.str(), added: t.int(), deleted: t.int() }))), added: t.opt(t.int()), deleted: t.opt(t.int()), merged: t.opt(t.bool()),
+          tokensIn: t.int({ minimum: 0 }), tokensOut: t.int({ minimum: 0 }), costMicros: t.int({ minimum: 0 }),
+          tests: t.opt(t.obj({ state: t.enm('running', 'passing', 'failing'), passed: t.opt(t.int({ minimum: 0 })), failed: t.opt(t.int({ minimum: 0 })), failing: t.opt(t.str({ maxLength: 200 })) })),
+        })),
+        totals: t.obj({ members: t.int(), working: t.int(), done: t.int(), needsYou: t.int(), failed: t.int(), stopped: t.int(), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), filesChanged: t.int(), added: t.int(), deleted: t.int(), elapsedMs: t.int() }),
+      }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
+    }),
+    write('engine.helpers.change_model', 'Change the model of one helper of a chat: it stops, then starts again on the account and model the person picked, doing its brief from the start', {
+      in: { ...threadT, helperId: id.thread, account: t.opt(t.str({ description: 'An account from models_for_helpers: its ref, or its label' })), model: t.opt(t.str()) },
+      out: { restarted: t.bool(), model: t.str(), account: t.str(), fellBackFrom: t.opt(t.str()), spentMicros: t.int({ minimum: 0 }) }, on: ['thread', '/threadId'], level: 'use', tool: 'chats',
+      errors: ['validation.not_found', 'validation.precondition_failed', 'validation.bad_input', 'permission.no_grant', 'provider.unavailable'],
+    }),
+    read('engine.helpers.status', 'The helpers of a chat, live: each one working, done, needing a person or failed, the step it is on, one line of what it found, how long it took and what it cost', {
+      in: { ...threadT }, out: { helpers: t.arr(t.obj({
+        threadId: id.thread, title: t.str(), agentId: id.agent, provider: t.opt(t.str()), accountLabel: t.opt(t.str()), model: t.opt(t.str()), why: t.opt(t.str()), fellBackFrom: t.opt(t.str()), state: t.enm('working', 'done', 'needs_you', 'failed', 'stopped'), holdTaskId: t.opt(id.task), step: t.opt(t.str()), found: t.opt(t.str()), startedAt: t.ts(), endedAt: t.opt(t.ts()),
+        elapsedMs: t.int({ minimum: 0 }), tokensIn: t.int({ minimum: 0 }), tokensOut: t.int({ minimum: 0 }), costMicros: t.int({ minimum: 0 }),
+      })) }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
+    }),
+    write('engine.helpers.stop_all', 'Stop every helper still working under a chat; what they did so far is kept', {
+      in: { ...threadT }, out: { stopped: t.int({ minimum: 0 }) }, on: ['thread', '/threadId'], level: 'use', idem: 'natural', tool: 'chats', emits: ['turn.cancelled'],
+    }),
+    read('engine.running_here', 'System: the turns running now with the chat each is in and who asked, for the desktop update screen to name the reply it waits for and to end it (host/src/daemon, GET /local/daemon/busy)', {
+      in: {}, out: { turns: t.arr(t.obj({ threadId: id.thread, agentId: id.agent, asker: t.str(), turnId: t.opt(id.turn) })) }, perm: 'console.access', tool: 'chats',
     }),
     read('engine.health', 'Engine health: queue age, lease holders, provider reachability', {
       out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()), oldestQueuedMs: t.int() },
@@ -448,7 +542,7 @@ export default defineManifest({
       p: { jobId: t.str(), threadId: id.thread, leadThreadId: id.thread, branch: t.str() }, subject: ['thread', '/leadThreadId'], vis: 'participants', label: 'subject',
     }),
     ev('crew.job_started', 'A teammate started on a brief in its own thread and its own branch', {
-      p: { jobId: t.str(), threadId: id.thread, leadThreadId: id.thread, projectId: id.project, agentId: id.agent, branch: t.str() }, subject: ['thread', '/leadThreadId'], vis: 'participants', label: 'subject',
+      p: { jobId: t.str(), threadId: id.thread, leadThreadId: id.thread, projectId: t.opt(id.project), agentId: id.agent, branch: t.str() }, subject: ['thread', '/leadThreadId'], vis: 'participants', label: 'subject',
     }),
     ev('turn.queued', 'A turn was queued for an agent in a thread', {
       p: { threadId: id.thread, agentId: id.agent, kind: t.str(), qseq: t.int(), messageId: t.opt(id.message) }, subject: ['thread', '/threadId'], vis: 'participants', label: 'subject',
@@ -534,7 +628,7 @@ export default defineManifest({
     screen('settings.models-usage', 'settings', 'ui:ModelsUsage', {
       q: {
         accounts: ['engine.accounts.list', {}, true], models: ['engine.models.list', { accountRef: '/state/accountRef' }, true], defaults: ['engine.defaults.get', {}, true],
-        usage: ['engine.usage.query', { by: '/state/by', from: '/state/from', to: '/state/to' }, true],
+        usage: ['engine.usage.query', { by: '/state/by', from: '/state/from', to: '/state/to', personId: '/state/personId' }, true],
       },
       // No "Let the Space continue my chats when my computer is off" toggle here (owner ruling, 3 Nov 2026): it is on by default and its screen comes back with sealed chats.
       // engine.runtime.opt_in stays a capability; only the Settings action is gone.

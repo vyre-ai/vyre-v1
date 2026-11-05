@@ -24,5 +24,6 @@ type Payload = {
     id: string;
   };
   reason: "timeout" | "manual" | "away";
+  by?: string;
 };
 ```

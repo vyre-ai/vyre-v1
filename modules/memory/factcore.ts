@@ -3,7 +3,7 @@ import { trail, whoIs } from "./trail.ts";
 import type { TrailAction, Who } from "./trail.ts";
 import { loadFact, mintId, raise, rowsOf, sealText, sourceLinkOf } from "./projections.ts";
 import type { Fact, FactStatus, Layer, MemCtx, SourceKind } from "./projections.ts";
-import { audienceText } from "../../lib/audience.ts";
+import { audienceText, placeAudienceText } from "../../lib/audience.ts";
 import type { Audience } from "../../lib/audience.ts";
 
 export const normal = (s: string): string => s.toLowerCase().replace(/\s+/g, " ").trim();
@@ -18,6 +18,8 @@ export interface NewFact {
   audience?: Audience | null;
   /** A link to the exact line the fact came from (a chat message), instead of the one the source kind and ref give. */
   sourceLink?: string;
+  /** Rule 1 and 3: the place it was learned in, the chat that is its place now (read against who may open it), the message it came from, the words as written there. */
+  place?: { kind: string; id: string; parent?: { kind: string; id: string } }; placeThread?: string; msgId?: string; span?: string; state?: string;
 }
 
 /** Insert one fact row (sealed when it is a person-layer fact) and its source links. */
@@ -36,6 +38,13 @@ export function insertFact(ctx: MemCtx, n: NewFact): Fact {
   const from = n.replaces ?? n.promotedFrom ?? null;
   const kept = n.audience !== undefined ? (n.audience === null ? null : audienceText(n.audience)) : from ? (rowsOf(ctx.db, "SELECT audience FROM memory_facts WHERE id = ?", from)[0]?.["audience"] ?? null) : null;
   if (kept !== null) ctx.db.run("UPDATE memory_facts SET audience = ? WHERE id = ?", kept, id);
+  if (n.placeThread) ctx.db.run("UPDATE memory_facts SET audience = ? WHERE id = ?", placeAudienceText(n.audience ?? { space: false, people: [] }, n.placeThread, ctx.now()), id);
+  if (n.place || n.msgId || n.span || n.state) {
+    ctx.db.run("UPDATE memory_facts SET place_kind = ?, place_id = ?, parent_kind = ?, parent_id = ?, msg_id = ?, span = ?, state = ? WHERE id = ?",
+      n.place?.kind ?? null, n.place?.id ?? null, n.place?.parent?.kind ?? null, n.place?.parent?.id ?? null, n.msgId ?? null,
+      // the words as written are kept only for shared memory: a person-layer fact is sealed and its text must not sit in the clear in a second column
+      sealed ? null : n.span ?? null, n.state ?? null, id);
+  }
   ctx.db.run("INSERT OR IGNORE INTO memory_fact_links (fact_id, kind, ref) VALUES (?, 'came_from', ?)", id, n.sourceRef);
   for (const [k, ref] of n.links ?? []) ctx.db.run("INSERT OR IGNORE INTO memory_fact_links (fact_id, kind, ref) VALUES (?, ?, ?)", id, k, ref);
   const f = loadFact(ctx, id);

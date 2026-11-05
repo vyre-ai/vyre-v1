@@ -14,6 +14,13 @@ export interface Audience {
   space: boolean;
   /** The people in it now. For a Space-wide audience, those who are present. */
   people: readonly string[];
+  /** A fact kept for a place (rule 1): the chat it was learned in. Who may read it is whoever may open that chat NOW, not who could when it was written. */
+  live?: string;
+  /** For memory kept for a place: when it was learned there; and, read live from the place, its kind, who started it and when it first had a second person. */
+  at?: number;
+  kind?: string;
+  starter?: string;
+  sharedAt?: number;
 }
 
 /** The widest audience: a chat nobody could read is treated as the Space's. */
@@ -34,10 +41,16 @@ export function audienceText(a: Audience): string | null {
   return a.space ? null : JSON.stringify({ people: [...new Set(a.people)].sort() });
 }
 
+/** The stored form of memory kept for a place: it always names the place's chat, and never reads as open to the Space, so a place that narrows later narrows its memory with it. */
+export function placeAudienceText(a: Audience, threadId: string, at?: number): string {
+  return JSON.stringify({ people: [...new Set(a.people)].sort(), live: threadId, ...(at !== undefined ? { at } : {}) });
+}
+
 export function audienceFrom(text: unknown): Audience | null {
   if (typeof text !== "string" || text === "") return null;
   try {
-    const v = JSON.parse(text) as { people?: unknown };
+    const v = JSON.parse(text) as { people?: unknown; live?: unknown; at?: unknown };
+    if (typeof v.live === "string" && v.live !== "") return { space: false, people: Array.isArray(v.people) ? v.people.filter((p): p is string => typeof p === "string") : [], live: v.live, ...(typeof v.at === "number" ? { at: v.at } : {}) };
     return Array.isArray(v.people) ? { space: false, people: v.people.filter((p): p is string => typeof p === "string") } : null;
   } catch { return { space: false, people: [] } }   // a row that cannot be read is kept for nobody
 }
@@ -77,4 +90,19 @@ export async function chatAudience(call: Call, threadId: string): Promise<Audien
     }
     return { space: false, people: [...seen] };
   } catch { return SPACE_WIDE; }
+}
+
+/**
+ * Who may open a place's chat right now, for reading memory kept in it. Unlike chatAudience this fails closed: a chat the caller cannot open (or that is gone) answers null, so nobody reads
+ * its memory through it. A person who may not open the place is the common case, not an error.
+ */
+export async function placeAudience(call: Call, threadId: string): Promise<Audience | null> {
+  let t: (ThreadOut & { threadId?: string; kind?: string; sharedAt?: number }) | undefined;
+  try {
+    t = ((await call("threads.get", { threadId })) as { thread?: ThreadOut & { threadId?: string; kind?: string; sharedAt?: number } }).thread;
+    // the answer must be about the place asked for: a lookup that came back as some other chat is no proof the caller may open this one
+    if (!t || t.threadId !== threadId) return null;
+  } catch { return null; }
+  const a = await chatAudience(call, threadId);
+  return { ...a, ...(t.kind ? { kind: t.kind } : {}), ...(t.starter ? { starter: t.starter } : {}), ...(typeof t.sharedAt === "number" ? { sharedAt: t.sharedAt } : {}) };
 }

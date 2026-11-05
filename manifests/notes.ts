@@ -8,7 +8,7 @@
 // DECISION: a link is read through automations.read_link (the one public fetch path): title, site name, description, and its picture (page image, else site icon) fetched on the
 // server, size-capped and image types only, kept as a notes blob and served by notes.image. A browser never loads another site's image for a card.
 // DECISION: delete is a soft delete; notes.restore is Undo. to_task and to_record call tasks.create and records.create and keep the new id on the note, so the two link both ways.
-import { create, defineManifest, ev, read, write, t } from '../packages/contracts/src/index.ts';
+import { create, defineManifest, ev, read, setting, write, t } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut } from './_common.ts';
 
 const M = { level: 'member' } as const;
@@ -20,10 +20,13 @@ const spaceShare = t.enm('off', 'view', 'edit');
 const imageIn = t.obj({ data: t.str({ description: 'The image bytes, base64', maxLength: 14_000_000 }), contentType: t.enm('image/png', 'image/jpeg', 'image/gif', 'image/webp') });
 const linkOut = t.obj({ url: t.str(), title: t.opt(t.str()), siteName: t.opt(t.str()), description: t.opt(t.str()), preview: t.opt(t.enm('image', 'icon')) }, { description: 'A read link. With preview, the card has a picture (the page image or the site icon), fetched on the server and read with notes.image part link; no other site\'s address is ever handed to a browser' });
 const clipOut = t.obj({ url: t.str(), title: t.opt(t.str()), selection: t.opt(t.str()), hasShot: t.bool(), at: t.ts() });
+const from = t.obj({
+  threadId: t.opt(id.thread), messageId: t.opt(id.message), title: t.opt(t.str()), at: t.ts(), readable: t.bool(),
+}, { description: 'The chat message a note was saved from. Only its owner gets the chat and message ids and the chat title, and only while they may still read the chat; with readable false there is no link' });
 const linked = t.obj({ kind: t.enm('task', 'record'), id: t.str({ examples: ['tsk_a1b2c3'] }), title: t.str(), at: t.ts() });
 const noteRow = t.obj({
   noteId, owner: id.user, title: t.str(), body: t.str(), color, pinned: t.bool(), labels: t.arr(label),
-  hasImage: t.bool(), link: t.opt(linkOut), clip: t.opt(clipOut), linked: t.arr(linked),
+  hasImage: t.bool(), link: t.opt(linkOut), clip: t.opt(clipOut), from: t.opt(from), linked: t.arr(linked),
   share: t.obj({ people: t.arr(t.obj({ personId: id.user, role })), space: spaceShare }),
   mine: t.bool(), canEdit: t.bool(), createdAt: t.ts(), updatedAt: t.ts(),
 });
@@ -48,8 +51,9 @@ export default defineManifest({
 
   capabilities: [
     create('notes.create', 'Take a note: text, an image, or a link that becomes a card. Private to the person until shared', {
-      ...M, in: { title: t.opt(t.str({ maxLength: 500 })), body: t.opt(t.str({ maxLength: 100_000 })), color: t.opt(color), pinned: t.opt(t.bool()), labels: t.opt(t.arr(label)), image: t.opt(imageIn), link: t.opt(t.str({ maxLength: 2000 })) },
-      out: { note: noteRow }, emits: ['notes.created'], offline: 'queue', agent: { planMode: 'blocked' }, errors: ['validation.precondition_failed'],
+      ...M, in: { title: t.opt(t.str({ maxLength: 500 })), body: t.opt(t.str({ maxLength: 100_000 })), color: t.opt(color), pinned: t.opt(t.bool()), labels: t.opt(t.arr(label)), image: t.opt(imageIn), link: t.opt(t.str({ maxLength: 2000 })),
+        source: t.opt(t.obj({ threadId: id.thread, messageId: id.message }, { description: 'The chat message this note is saved from. The caller must read that chat; the note stays private to them and links back to the message' })) },
+      out: { note: noteRow }, emits: ['notes.created'], offline: 'queue', tool: 'memory', mcpName: 'notes_create', agent: { planMode: 'blocked' }, errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     read('notes.get', 'Read one note the asker may read. An agent reads a note only when everyone in its chat may read it', {
       ...M, in: target, out: { note: noteRow }, tool: 'memory', mcpName: 'notes_get', agent: { planMode: 'allowed' }, errors: ['validation.not_found'],
@@ -73,8 +77,11 @@ export default defineManifest({
       ...M, in: { ...target, add: t.opt(t.arr(label)), remove: t.opt(t.arr(label)) }, out: { note: noteRow }, emits: ['notes.updated'], offline: 'patch', errors: ['validation.not_found'],
     }),
     write('notes.share', 'Share a note with people or the Space, change a role, or take it back. Only the owner shares', {
-      ...M, in: { ...target, people: t.opt(t.arr(t.obj({ personId: id.user, role: t.enm('edit', 'view', 'remove') }))), space: t.opt(spaceShare) },
+      ...M, in: { ...target, people: t.opt(t.arr(t.obj({ personId: id.user, role: t.enm('edit', 'view', 'remove') }))), space: t.opt(spaceShare), notify: t.opt(t.obj({ message: t.opt(t.str()) })) },
       out: { note: noteRow }, emits: ['notes.shared'], audit: 'sensitive', offline: 'online', agent: false, errors: ['validation.not_found', 'permission.no_grant'],
+    }),
+    write('notes.set_owner', 'Hand a note to someone it is shared with: they become the owner and the previous owner keeps Edit. Only the owner does this', {
+      ...M, in: { ...target, personId: id.user }, out: { note: noteRow }, emits: ['notes.shared'], audit: 'sensitive', offline: 'online', agent: false, gate: { act: 'transfer', when: "actor.kind != 'person'" }, errors: ['validation.not_found', 'permission.no_grant', 'validation.bad_input'],
     }),
     write('notes.delete', 'Delete a note. It can come back with notes.restore (Undo). Someone it was shared with only removes it from their own notes', {
       ...M, in: target, out: { deleted: t.bool(), undo: t.obj({ noteId }) }, emits: ['notes.deleted'], offline: 'patch', agent: false, errors: ['validation.not_found'],
@@ -92,5 +99,9 @@ export default defineManifest({
       ...M, in: { url: t.str({ minLength: 1, maxLength: 2000 }), title: t.opt(t.str({ maxLength: 500 })), selection: t.opt(t.str({ maxLength: 20_000 })), note: t.opt(t.str({ maxLength: 20_000 })), screenshot: t.opt(imageIn), labels: t.opt(t.arr(label)) },
       out: { note: noteRow }, emits: ['notes.clipped'], offline: 'online', agent: false,
     }),
+  ],
+
+  settings: [
+    setting('notes.offers', 'person', 'Notes', 'Offer to save useful things from chats as notes', t.bool(), true),
   ],
 });

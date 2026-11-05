@@ -1,6 +1,11 @@
 // Goals, as the screens draw them: the words of a status, the note under a row, the steady bar, the chart, the budget line and the activity by day. Pure, so the sidebar, the goal page,
 // the card in a chat and the phone read one source, and the tests read it without a screen.
 
+import { dateIn, dayIn, dueText, instantOf, localInput, whenText } from "../../../../../../lib/zones.ts";
+import type { Zones } from "../../../../../../lib/zones.ts";
+/** A dash (hyphen, en or em) left at the end of a line once the deadline is cut off. Built from code points so no dash character sits in the source (no-em-dash lint). */
+const TRAILING_DASH = new RegExp(`\\s*[${String.fromCharCode(0x2014, 0x2013)}-]+\\s*$`);
+
 export type Status = "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
 export type Tone = "plain" | "need" | "stuck" | "ok" | "dim";
 export interface Who { kind: string; id: string }
@@ -19,9 +24,11 @@ export interface Goal extends GoalLine {
 }
 export interface TaskLine { taskId: string; key?: string; title: string; state: string; assigned?: Who; blocked: boolean }
 export interface WaitLine { taskId: string; kind: string; title: string; assigned?: Who; since: number }
-export interface ActivityLine { at: number; kind: string; text: string; by?: string; ref?: string }
+export interface ActivityLine { at: number; kind: string; text: string; tpl?: string; by?: string; ref?: string }
 export interface Reading { at: number; value?: number; ok: boolean; error?: string }
-export interface GoalPageData { goal: Goal; tasks: TaskLine[]; waiting: WaitLine[]; activity: ActivityLine[]; readings: Reading[] }
+/** One step of a drafted plan: what it is, why it should move the number, and who does it. */
+export interface PlanStep { key: string; title: string; why: string; impact?: string; brief?: string; doneMeans?: string[]; assigned: Who; reviewer?: Who; approver?: Who; dependsOn?: string[]; due?: number }
+export interface GoalPageData { goal: Goal; draftPlan?: PlanStep[]; tasks: TaskLine[]; waiting: WaitLine[]; activity: ActivityLine[]; readings: Reading[] }
 
 export const LIVE: ReadonlySet<Status> = new Set<Status>(["planning", "active", "waiting", "stuck"]);
 export const ENDED: ReadonlySet<Status> = new Set<Status>(["done", "missed", "stopped"]);
@@ -57,27 +64,17 @@ export function numberOf(p: Progress): string {
 }
 export const fmt = (n: number): string => (Number.isInteger(n) ? n.toLocaleString("en-US") : n.toLocaleString("en-US", { maximumFractionDigits: 1 }));
 
-/** A time as people say it, from now: "9:00", "Tomorrow 9:00", "Thu 9:00", "7 Nov". `offsetMin` is the person's zone against UTC. */
-export function whenWords(at: number, now: number, offsetMin = 0): string {
-  const local = (t: number): Date => new Date(t + offsetMin * MIN);
-  const a = local(at), n = local(now);
-  const hm = `${a.getUTCHours()}:${String(a.getUTCMinutes()).padStart(2, "0")}`;
-  const dayA = Math.floor((at + offsetMin * MIN) / DAY), dayN = Math.floor((now + offsetMin * MIN) / DAY);
-  if (dayA === dayN) return hm;
-  if (dayA === dayN + 1) return `Tomorrow ${hm}`;
-  if (dayA === dayN - 1) return `Yesterday ${hm}`;
-  if (Math.abs(dayA - dayN) < 7) return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][a.getUTCDay()]} ${hm}`;
-  return `${a.getUTCDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][a.getUTCMonth()]}`;
+/** A time as people say it, from now, in the Space's zone with the viewer's beside it when it differs: "9:00 AM (10:00 PM your time)", "Tomorrow 9:00 AM", "Thu 9:00 AM", "7 Nov". */
+export function whenWords(at: number, now: number, z: Zones): string {
+  return whenText(at, now, z);
 }
-/** The deadline as a date: "Fri 7 Nov, 18:00", in the person's zone. The finish line's subtitle and the Due chip both say it from the one deadline. */
-export function dueWords(at: number, offsetMin = 0): string {
-  const a = new Date(at + offsetMin * MIN);
-  return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][a.getUTCDay()]} ${a.getUTCDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][a.getUTCMonth()]}, ${a.getUTCHours()}:${String(a.getUTCMinutes()).padStart(2, "0")}`;
+/** The deadline as a date: "Fri 7 Nov, 6:00 PM", in the Space's zone with the viewer's time in brackets. The finish line's subtitle and the Due chip both say it from the one deadline. */
+export function dueWords(at: number, z: Zones): string {
+  return dueText(at, z);
 }
-/** The finish line in words, ending with the real deadline: a date the words carry ("by Friday") is replaced, so the line and the chip never disagree. */
-export function lineWithDue(line: string, deadline: number, offsetMin = 0): string {
-  const bare = line.replace(/\s+by\s+[^,.]*(,\s*\d{1,2}:\d{2})?\.?\s*$/i, "").replace(/\.\s*$/, "");
-  return `${bare} by ${dueWords(deadline, offsetMin)}`;
+/** The finish line in words, ending with the real deadline: a date the words carry ("by Friday") is replaced, so the line and the chip never disagree. A dash the agent left before its own date goes with it. */
+export function lineWithDue(line: string, deadline: number, z: Zones): string {
+  return `${stripDue(line)} by ${dueWords(deadline, z)}`;
 }
 /** "4 days left", "18 hours left", "Due now". */
 export function leftWords(deadline: number, now: number): string {
@@ -90,12 +87,12 @@ export function leftWords(deadline: number, now: number): string {
 }
 
 /** The second line of a goal's row: what changes what you do first, else when it next checks in. */
-export function rowNote(g: GoalLine, now: number, offsetMin = 0, me?: string): { lead?: string; tone?: Tone; text: string } {
+export function rowNote(g: GoalLine, now: number, z: Zones, me?: string): { lead?: string; tone?: Tone; text: string } {
   const s = statusOf(g, me);
   const num = numberOf(g.progress);
   if (g.status === "waiting" || g.status === "stuck") return { lead: s.word, tone: s.tone, text: num };
   if (ENDED.has(g.status) || g.status === "paused" || g.status === "draft") return { lead: s.word, tone: s.tone, text: num };
-  return { text: g.nextCheckinAt ? `${num} · Check-in ${whenWords(g.nextCheckinAt, now, offsetMin)}` : num };
+  return { text: g.nextCheckinAt ? `${num} · Check-in ${whenWords(g.nextCheckinAt, now, z)}` : num };
 }
 
 /** The Goals group: what needs you first, then live goals by their next check-in, then the rest, newest first. Ended goals leave after a week. */
@@ -104,7 +101,8 @@ export function sidebarGoals(goals: readonly GoalLine[], now: number): GoalLine[
   return goals
     .filter((g) => !ENDED.has(g.status) || now - g.updatedAt < 7 * DAY)
     .slice()
-    .sort((a, b) => rank(a) - rank(b) || (a.nextCheckinAt ?? Infinity) - (b.nextCheckinAt ?? Infinity) || b.updatedAt - a.updatedAt);
+    // ties end on the deadline, the title and the id, so two loads of the same goals draw the same list (lane l-polish L5)
+    .sort((a, b) => rank(a) - rank(b) || (a.nextCheckinAt ?? Infinity) - (b.nextCheckinAt ?? Infinity) || b.updatedAt - a.updatedAt || a.deadline - b.deadline || a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
 }
 
 /** "$4.10 of $25 · 38 of 200 turns", and how much is used (0 to 1). */
@@ -176,13 +174,12 @@ export function niceStep(raw: number): number {
   return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
 }
 
-/** The activity, newest first, grouped by day: "Today", "Yesterday", "Mon 3 Nov". */
-export function byDay(items: readonly ActivityLine[], now: number, offsetMin = 0): Array<{ day: string; items: ActivityLine[] }> {
+/** The activity, newest first, grouped by day in the Space's zone: "Today", "Yesterday", "Mon 3 Nov". */
+export function byDay(items: readonly ActivityLine[], now: number, z: Zones): Array<{ day: string; items: ActivityLine[] }> {
   const out: Array<{ day: string; items: ActivityLine[] }> = [];
-  const dayOf = (t: number): number => Math.floor((t + offsetMin * MIN) / DAY);
   for (const it of items) {
-    const d = dayOf(it.at), n = dayOf(now);
-    const label = d === n ? "Today" : d === n - 1 ? "Yesterday" : (() => { const a = new Date(it.at + offsetMin * MIN); return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][a.getUTCDay()]} ${a.getUTCDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][a.getUTCMonth()]}`; })();
+    const d = dayIn(it.at, z.space), n = dayIn(now, z.space);
+    const label = d === n ? "Today" : d === n - 1 ? "Yesterday" : dateIn(it.at, z.space);
     const last = out[out.length - 1];
     if (last && last.day === label) last.items.push(it); else out.push({ day: label, items: [it] });
   }
@@ -211,3 +208,34 @@ export function delta(b: Pick<GoalBlock, "value" | "prev">): string | null {
   const d = b.value - b.prev;
   return d === 0 ? "no change" : `${d > 0 ? "+" : ""}${fmt(d)}`;
 }
+
+/** The agent's own closing date taken off a finish line ("... by Friday", "... by Wed 11 Nov, 4:16 PM PKT", "... - by Friday."), with the dash that led into it, so the one real deadline is the only date shown. */
+export function stripDue(line: string): string {
+  return line.replace(/\s+by\s+[^,.]*(,?\s*\d{1,2}:\d{2}(\s*[ap]m)?(\s+[A-Z]{2,5}\b)?)?\.?\s*$/i, "").replace(/\.\s*$/, "").replace(TRAILING_DASH, "").trim();
+}
+/** The finish line without a closing "by <date>": the deadline has its own place on the page, so the line never says it a second time. */
+export function bareLine(line: string): string {
+  return stripDue(line);
+}
+/** A time as a date-and-time field holds it ("2026-11-07T18:00"), in the Space's zone. */
+export function toLocalInput(at: number, z: Zones): string {
+  return localInput(at, z.space);
+}
+/** The time a date-and-time field holds, back to a moment in the Space's zone; null when the field is not a full date and time. */
+export function fromLocalInput(v: string, z: Zones): number | null {
+  return instantOf(v.trim(), z.space);
+}
+/** The list with the item at `from` moved to `to` (drag to reorder). */
+export function moved<T>(list: readonly T[], from: number, to: number): T[] {
+  if (from === to || from < 0 || to < 0 || from >= list.length || to >= list.length) return [...list];
+  const out = [...list];
+  const [item] = out.splice(from, 1);
+  out.splice(to, 0, item as T);
+  return out;
+}
+/** "Aliza", "Aliza and Rubab", "Aliza, Rubab and Content". */
+export function nameList(names: readonly string[]): string {
+  return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+/** Whether this person may edit the goal in place: its owner, until it ends. */
+export const canEdit = (g: Pick<Goal, "owner" | "status">, me: string): boolean => g.owner === me && !ENDED.has(g.status);

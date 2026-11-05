@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access.
 
-## Capabilities (52)
+## Capabilities (55)
 
 - [providers.add](../capabilities/providers.add.md): Connect a provider with a pasted API key (stored once, used by handle) or a local model address
 - [providers.catalog](../capabilities/providers.catalog.md): The provider gallery from the definition files: name, logo, connection kinds, model list source, engine
@@ -12,7 +12,10 @@ Requires: access.
 - [providers.custom_list](../capabilities/providers.custom_list.md): The custom OpenAI-compatible endpoints this Space registered
 - [providers.custom_remove](../capabilities/providers.custom_remove.md): Remove a custom endpoint I registered, and my connections to it
 - [providers.list](../capabilities/providers.list.md): My connected AI providers: logo, how connected, Mine or Shared, agents using it, this month's usage
+- [providers.mark_signin_needed](../capabilities/providers.mark_signin_needed.md): System: the engine found a sign-in missing or refused when a turn ran on this account; the account reads "Sign in again" in Settings until it is signed in (a person's own account only; an API key is never marked here)
+- [providers.own_people](../capabilities/providers.own_people.md): Who runs on their own AI sign-ins: the people with a Mine provider and how many each, for the AI accounts switch (never an account name or a value)
 - [providers.remove](../capabilities/providers.remove.md): Remove a provider and its key or sign-in
+- [providers.set_keeps_nothing](../capabilities/providers.set_keeps_nothing.md): An owner or admin says an AI account shared with the Space keeps nothing of what it is sent. Restricted data may only go to accounts that do. A local model always does
 - [providers.set_space_use](../capabilities/providers.set_space_use.md): Let the Space run work on my subscription, or stop it (stopping ends my sandbox)
 - [providers.space_key.get](../capabilities/providers.space_key.get.md): The Space AI key for the Space: whether one is set, its provider and the models it unlocks (read live from the provider and kept for a while). Never the key
 - [providers.space_key.remove](../capabilities/providers.space_key.remove.md): Remove the Space AI key; people with their own accounts keep working
@@ -59,9 +62,10 @@ Requires: access.
 - [vault.unshare](../capabilities/vault.unshare.md): Stop sharing an item or folder with someone
 - [vault.use](../capabilities/vault.use.md): Ask for an item by name: returns a handle like #Dana_Lawmatics and the field names, never values
 
-## Events (20)
+## Events (21)
 
 - [provider.added](../events/provider.added.md): An AI provider was connected (subscription, key or local model)
+- [provider.keeps_nothing_changed](../events/provider.keeps_nothing_changed.md): An owner or admin marked an AI account as keeping nothing, or took the mark off
 - [provider.removed](../events/provider.removed.md): An AI provider was removed
 - [provider.updated](../events/provider.updated.md): A provider changed (Space may use it, sign-in state)
 - [vault.export_revoked](../events/vault.export_revoked.md): An export pull link was revoked before it expired

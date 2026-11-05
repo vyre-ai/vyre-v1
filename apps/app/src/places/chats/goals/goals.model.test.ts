@@ -6,7 +6,7 @@ import type { Goal, GoalLine } from "./model.ts";
 import { buildEntries } from "../sidebar/model.ts";
 
 const NOW = Date.UTC(2026, 10, 3, 5, 0);   // Tue 3 Nov, 10:00 in Karachi
-const PKT = 300;
+const PKT = { space: "Asia/Karachi", viewer: "Asia/Karachi" };   // one clock: the Space and the viewer are both in Karachi
 const HOUR = 3_600_000, DAY = 24 * HOUR;
 const line = (over: Partial<GoalLine> = {}): GoalLine => ({
   id: "gol_lab8", title: "300 registrations for Lab 8", status: "active", owner: "usr_irfad", leadAgentId: "agt_desk", threadId: "thr_g", deadline: NOW + 4 * DAY, nextCheckinAt: NOW + 23 * HOUR,
@@ -14,7 +14,7 @@ const line = (over: Partial<GoalLine> = {}): GoalLine => ({
 });
 
 test("a goal's row says what changes what you do first, else the number and the next check-in", () => {
-  assert.deepEqual(rowNote(line(), NOW, PKT, "usr_irfad"), { text: "212 / 300 · Check-in Tomorrow 9:00" });
+  assert.deepEqual(rowNote(line(), NOW, PKT, "usr_irfad"), { text: "212 / 300 · Check-in Tomorrow 9:00 AM" });
   assert.deepEqual(rowNote(line({ status: "waiting" }), NOW, PKT, "usr_irfad"), { lead: "Waiting on you", tone: "need", text: "212 / 300" });
   assert.deepEqual(rowNote(line({ status: "waiting" }), NOW, PKT, "usr_aliza"), { lead: "Waiting", tone: "need", text: "212 / 300" });
   assert.deepEqual(rowNote(line({ status: "stuck" }), NOW, PKT), { lead: "Stuck", tone: "stuck", text: "212 / 300" });
@@ -32,10 +32,10 @@ test("the bar is steady: the share from the start to the target, else of the che
 });
 
 test("times as people say them, in the person's zone", () => {
-  assert.equal(whenWords(NOW + HOUR, NOW, PKT), "11:00");
-  assert.equal(whenWords(NOW + 23 * HOUR, NOW, PKT), "Tomorrow 9:00");
-  assert.equal(whenWords(NOW + 3 * DAY, NOW, PKT), "Fri 10:00");
-  assert.equal(whenWords(NOW + 20 * DAY, NOW, PKT), "23 Nov");
+  assert.equal(whenWords(NOW + HOUR, NOW, PKT), "11:00 AM");
+  assert.equal(whenWords(NOW + 23 * HOUR, NOW, PKT), "Tomorrow 9:00 AM");
+  assert.equal(whenWords(NOW + 3 * DAY, NOW, PKT), "Fri 10:00 AM");
+  assert.equal(whenWords(NOW + 20 * DAY, NOW, PKT), "Mon 23 Nov");
   assert.equal(leftWords(NOW + 4 * DAY, NOW), "4 days left");
   assert.equal(leftWords(NOW + 5 * HOUR, NOW), "5 hours left");
   assert.equal(leftWords(NOW - 1, NOW), "Past the deadline");
@@ -49,13 +49,13 @@ test("the Goals group: what needs you first, then by the next check-in; ended go
   assert.deepEqual(out.map((g) => g.id), ["b", "c", "a", "f", "e"]);
 });
 
-test("the Chats sidebar shows Goals under Tasks and Threads, five then N more, none when there are none", () => {
+test("the Chats sidebar shows Goals under Tasks, five then N more, none when there are none", () => {
   const base = { faces: [], workingAgents: new Set<string>(), groups: [], channels: [], filter: "all" as const, closed: new Set<never>() };
   const none = buildEntries(base);
   assert.equal(none.some((e) => e.key === "h:goals"), false);
   const goals = Array.from({ length: 7 }, (_, i) => line({ id: `g${i}` }));
   const keys = buildEntries({ ...base, goals }).map((e) => e.key);
-  assert.deepEqual(keys.slice(0, 9), ["nav:tasks", "nav:threads", "h:goals", "g:g0", "g:g1", "g:g2", "g:g3", "g:g4", "m:goals"]);
+  assert.deepEqual(keys.slice(0, 8), ["nav:tasks", "h:goals", "g:g0", "g:g1", "g:g2", "g:g3", "g:g4", "m:goals"]);
   assert.equal(buildEntries({ ...base, goals, moreGoals: true }).filter((e) => e.type === "goal").length, 7);
   assert.equal(buildEntries({ ...base, goals, closed: new Set(["goals" as const]) }).filter((e) => e.type === "goal").length, 0, "the group folds");
 });
@@ -91,9 +91,62 @@ test("a goal card from a message block, the check-in's change, and Part of on a 
 test("the finish line's date and the Due chip come from the one deadline; the chart's axis has round ticks", async () => {
   const { dueWords, lineWithDue, niceStep } = await import("./model.ts");
   const fri = Date.UTC(2026, 10, 7, 13, 0);   // 7 Nov 2026, 18:00 in Karachi (a Saturday)
-  assert.equal(dueWords(fri, PKT), "Sat 7 Nov, 18:00");
+  assert.equal(dueWords(fri, PKT), "Sat 7 Nov, 6:00 PM");
   assert.equal(lineWithDue("Luma registrations for Lab 8 reach 300 by Friday", fri, PKT), `Luma registrations for Lab 8 reach 300 by ${dueWords(fri, PKT)}`);
-  assert.equal(lineWithDue("Luma registrations reach 300 by Mon 10 Nov, 18:00", fri, PKT), `Luma registrations reach 300 by ${dueWords(fri, PKT)}`, "an old date in the words gives way to the real deadline");
+  assert.equal(lineWithDue("Luma registrations reach 300 by Mon 10 Nov, 6:00 PM", fri, PKT), `Luma registrations reach 300 by ${dueWords(fri, PKT)}`, "an old date in the words gives way to the real deadline");
+  assert.equal(lineWithDue("Luma registrations reach 300 by Wed 11 Nov 2026, 04:16 PKT", fri, PKT), `Luma registrations reach 300 by ${dueWords(fri, PKT)}`, "a date with a year and a zone name is not left behind");
   assert.equal(lineWithDue("Every onboarding task closed", fri, PKT), `Every onboarding task closed by ${dueWords(fri, PKT)}`);
   assert.deepEqual([niceStep(100), niceStep(120), niceStep(7), niceStep(0)], [100, 200, 10, 1]);
+});
+
+test("editing helpers: the finish line loses a closing date, the date field round trips in the person's zone, a list moves one item", async () => {
+  const { bareLine, fromLocalInput, moved, nameList, toLocalInput, canEdit } = await import("./model.ts");
+  assert.equal(bareLine("Luma registrations for Lab 8 reach 300 by Friday"), "Luma registrations for Lab 8 reach 300");
+  assert.equal(bareLine("Luma registrations reach 300 by Fri 7 Nov, 18:00."), "Luma registrations reach 300");
+  assert.equal(bareLine("Every onboarding task closed"), "Every onboarding task closed");
+  const fri = Date.UTC(2026, 10, 7, 13, 0);
+  assert.equal(toLocalInput(fri, PKT), "2026-11-07T18:00");
+  assert.equal(fromLocalInput("2026-11-07T18:00", PKT), fri);
+  assert.equal(fromLocalInput("2026-11-07", PKT), null);
+  assert.deepEqual(moved(["a", "b", "c"], 0, 2), ["b", "c", "a"]);
+  assert.deepEqual(moved(["a", "b", "c"], 2, 0), ["c", "a", "b"]);
+  assert.deepEqual(moved(["a", "b"], 0, 5), ["a", "b"]);
+  assert.equal(nameList(["Aliza", "Rubab"]), "Aliza and Rubab");
+  assert.equal(nameList(["Aliza", "Rubab", "Content"]), "Aliza, Rubab and Content");
+  assert.equal(canEdit({ owner: "usr_a", status: "draft" }, "usr_a"), true);
+  assert.equal(canEdit({ owner: "usr_a", status: "done" }, "usr_a"), false);
+  assert.equal(canEdit({ owner: "usr_a", status: "active" }, "usr_b"), false);
+});
+
+test("the Space zone and the viewer's: a check-in reads 9:00 AM Pacific with 10:00 PM your time beside it, and the finish line has one due date and no stray dash", async () => {
+  const { dueWords, lineWithDue, whenWords: when } = await import("./model.ts");
+  const z = { space: "America/Los_Angeles", viewer: "Asia/Karachi" };
+  const now = Date.parse("2026-11-05T15:00:00Z");     // 7:00 AM Pacific
+  assert.equal(when(Date.parse("2026-11-06T17:00:00Z"), now, z), "Tomorrow 9:00 AM (10:00 PM your time)");
+  const due = Date.parse("2026-11-07T21:00:00Z");
+  assert.equal(dueWords(due, z), "Sat 7 Nov, 1:00 PM (Sun 2:00 AM your time)");
+  // the agent's own date goes and so does the dash that led into it: one due date, in the Space zone, with yours beside it
+  assert.equal(lineWithDue("Luma registrations for Lab 8 reach 300 \u2014 by Friday", due, z), `Luma registrations for Lab 8 reach 300 by ${dueWords(due, z)}`);
+  assert.equal(lineWithDue("Reach 300 - by Wed 11 Nov 2026, 04:16 PKT", due, z), `Reach 300 by ${dueWords(due, z)}`);
+  assert.doesNotMatch(lineWithDue("Reach 300 \u2014 by Friday", due, z), /\u2014/);
+  const one = { space: "America/Los_Angeles", viewer: "America/Los_Angeles" };
+  assert.equal(lineWithDue("Reach 300 by Friday", due, one), "Reach 300 by Sat 7 Nov, 1:00 PM");
+});
+
+test("no date prints twice: the finish line on the page and on the card drops the agent's own closing date, in every form it writes it", async () => {
+  const { bareLine, lineWithDue, dueWords } = await import("./model.ts");
+  const z = { space: "America/Los_Angeles", viewer: "Asia/Karachi" };
+  const due = Date.parse("2026-11-07T21:00:00Z");
+  for (const written of [
+    "Reach 300 registrations by Friday",
+    "Reach 300 registrations by Fri 7 Nov, 18:00.",
+    "Reach 300 registrations by Wed 11 Nov 2026, 4:16 PM PKT",
+    "Reach 300 registrations by Wed 11 Nov, 4:16 PM",
+    "Reach 300 registrations — by Friday",
+    "Reach 300 registrations - by Wed 11 Nov 2026, 04:16 PKT.",
+  ]) {
+    assert.equal(bareLine(written), "Reach 300 registrations", written);
+    assert.equal(lineWithDue(written, due, z), `Reach 300 registrations by ${dueWords(due, z)}`, written);
+    assert.equal((lineWithDue(written, due, z).match(/\bby\b/g) ?? []).length, 1, "one 'by', so one date");
+  }
 });

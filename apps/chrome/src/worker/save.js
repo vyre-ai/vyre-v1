@@ -10,6 +10,29 @@ import { fillablePage, pageOf } from "./match.js";
 import { showPromptInPage } from "./pagecalls.js";
 
 const SETTLE_MS = 1500;
+
+/** May the person add items to this folder? @param {any} f */
+const canAdd = (f) => f && (f.yourLevel === "edit" || f.yourLevel === "manage");
+
+/** The key every call of one card shares, so a retry is the same request. @param {unknown} id */
+function cardKey(id) {
+  const clean = typeof id === "string" ? id.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40) : "";
+  return `chr_card_${clean || randomHex()}`;
+}
+function randomHex() {
+  const b = new Uint8Array(9);
+  globalThis.crypto.getRandomValues(b);
+  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+/** Try a call, and once more with the same key if the answer was lost. @template T @param {() => Promise<T>} f @returns {Promise<T>} */
+async function again(f) {
+  try { return await f(); } catch (e) {
+    const code = e instanceof BridgeFailure ? e.code : "";
+    if (code === "offline" || code === "timeout" || code === "no_host") return f();
+    throw e;
+  }
+}
 const PENDING_MS = 60_000;
 
 /**
@@ -104,8 +127,28 @@ export function createSave({ bridge, scripting, rules, now = Date.now, setTimer 
     tabClosed(tabId) { drop(tabId); offers.delete(tabId); },
 
     /**
-     * The card's Save. @param {{ tabId: number, origin: string }} sender
-     * @param {{ name: string, username: string, password: string, share: boolean, mode: "save"|"update" }} msg
+     * What the card may choose from when the person picks Shared: the Space's shared folders they may add to, and the agents that can be allowed. Names and ids only.
+     * @param {{ tabId: number, origin: string }} sender
+     * @returns {Promise<{ folders: { id: string, name: string }[], agents: { id: string, name: string, suggested: boolean }[] }>}
+     */
+    async choices(sender) {
+      const page = pageOf(sender.origin);
+      if (!page || !fillablePage(page)) throw new BridgeFailure("insecure", "not secure");
+      const [f, a] = await Promise.all([
+        bridge.invoke("vault.folders.list", { scope: "shared" }).catch(() => ({ folders: [] })),
+        bridge.op("agents.list", {}).catch(() => ({ agents: [], suggested: null })),
+      ]);
+      const folders = (Array.isArray(f && f.folders) ? f.folders : []).filter(canAdd).map((/** @type {any} */ x) => ({ id: String(x.id), name: String(x.name || "Shared folder").slice(0, 80) }));
+      const suggested = a && a.suggested ? String(a.suggested.id) : "";
+      const agents = (Array.isArray(a && a.agents) ? a.agents : []).map((/** @type {any} */ x) => ({ id: String(x.id), name: String(x.name || "Agent").slice(0, 60), suggested: String(x.id) === suggested }));
+      return { folders, agents };
+    },
+
+    /**
+     * The card's Save. Mine is the default and is private: a Mine item cannot be shared, so allowing agents needs a Shared folder (folderId, one the Space lists for this person).
+     * Every call carries a key made from the card's id, so a retry after a dropped answer does not make a second item or a second grant.
+     * @param {{ tabId: number, origin: string }} sender
+     * @param {{ name: string, username: string, password: string, scope?: "mine"|"shared", folderId?: string, agentIds?: string[], cardId?: string, mode: "save"|"update" }} msg
      */
     async save(sender, msg) {
       const page = pageOf(sender.origin);
@@ -113,29 +156,44 @@ export function createSave({ bridge, scripting, rules, now = Date.now, setTimer 
       const name = String(msg.name || page.host).slice(0, 120);
       const offer = offers.get(sender.tabId) ?? { itemId: null, agentId: null };
       offers.delete(sender.tabId);
+      const card = cardKey(msg.cardId);
+      const shared = msg.scope === "shared";
       /** @type {any} */
       let item;
       if (msg.mode === "update" && offer.itemId) {
-        const out = await bridge.invoke("vault.item.update", { itemId: offer.itemId, fieldsSet: [{ key: "password", value: msg.password, secret: true }] });
+        const out = await again(() => bridge.invoke("vault.item.update", { itemId: offer.itemId, fieldsSet: [{ key: "password", value: msg.password, secret: true }] }));
         item = out && out.item;
       } else {
-        const folders = await bridge.invoke("vault.folders.list", { scope: "mine" });
-        const mine = (Array.isArray(folders && folders.folders) ? folders.folders : []).find((/** @type {any} */ f) => f.yourLevel === "edit" || f.yourLevel === "manage");
-        if (!mine) throw new BridgeFailure("no_folder", "There is no folder of yours to save into.");
-        const out = await bridge.invoke("vault.item.put", {
-          folderId: mine.id, name, kind: "login",
+        const folders = await bridge.invoke("vault.folders.list", { scope: shared ? "shared" : "mine" });
+        const list = (Array.isArray(folders && folders.folders) ? folders.folders : []).filter(canAdd);
+        // A Shared save names its folder, and only a folder the Space just listed for this person is accepted: the page's word is never enough.
+        const target = shared ? list.find((/** @type {any} */ f) => String(f.id) === String(msg.folderId)) : list[0];
+        if (!target) throw new BridgeFailure("no_folder", shared ? "That shared folder is not one you can add to." : "There is no folder of yours to save into.");
+        const out = await again(() => bridge.invoke("vault.item.put", {
+          idempotencyKey: `${card}_put`, folderId: target.id, name, kind: "login",
           fields: [
             { key: "url", value: page.origin },
             { key: "username", value: msg.username },
             { key: "password", value: msg.password, secret: true },
           ],
-        });
+        }));
         item = out && out.item;
       }
-      if (msg.share && offer.agentId && item && item.id) {
-        await bridge.invoke("vault.share", { resource: { type: "vault_item", id: item.id }, subject: { kind: "agent", id: offer.agentId }, level: "use" });
+      /** @type {string[]} */
+      const allowed = [];
+      /** @type {string[]} */
+      const refused = [];
+      if (shared && item && item.id) {
+        const known = new Set((await bridge.op("agents.list", {}).catch(() => ({ agents: [] }))).agents?.map((/** @type {any} */ a) => String(a.id)) ?? []);
+        for (const agentId of [...new Set((Array.isArray(msg.agentIds) ? msg.agentIds : []).map(String))].slice(0, 20)) {
+          if (!known.has(agentId)) { refused.push(agentId); continue; }
+          try {
+            await again(() => bridge.invoke("vault.share", { idempotencyKey: `${card}_use_${agentId}`, resource: { type: "vault_item", id: item.id }, subject: { kind: "agent", id: agentId }, level: "use" }));
+            allowed.push(agentId);
+          } catch { refused.push(agentId); }
+        }
       }
-      return { saved: true, itemId: item ? String(item.id) : null };
+      return { saved: true, itemId: item ? String(item.id) : null, scope: shared ? "shared" : "mine", allowed, refused };
     },
 
     /** The card's Not now or Never. @param {{ tabId: number, origin: string }} sender @param {{ never: boolean }} msg */

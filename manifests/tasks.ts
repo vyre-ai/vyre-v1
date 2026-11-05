@@ -12,7 +12,7 @@ const taskState = t.enm('todo', 'doing', 'in_review', 'awaiting_approval', 'done
 const taskKindKey = t.enm('work', 'approve', 'review', 'answer', 'unblock', 'signature');
 const blockIn = t.obj({ type: t.str({ examples: ['record_card'] }), v: t.opt(t.int({ minimum: 1 })), data: t.json() });
 const source = t.obj({ kind: t.enm('chat', 'run', 'gate', 'journey', 'meeting', 'goal', 'manual'), id: t.str({ examples: ['run_a1b2c3'] }) });
-const action = t.obj({ key: t.str({ examples: ['approve'] }), label: t.str({ examples: ['Approve'] }), note: t.opt(t.enm('required', 'optional')) });
+const action = t.obj({ key: t.str({ examples: ['approve'] }), label: t.str({ examples: ['Allow'] }), note: t.opt(t.enm('required', 'optional')) });
 
 const priority = t.enm('urgent', 'high', 'normal', 'low');
 const recur = t.obj({ every: t.enm('day', 'week', 'month'), n: t.opt(t.int({ minimum: 1, maximum: 365 })) });
@@ -69,7 +69,7 @@ export default defineManifest({
     ev('task.sent_back', 'A reviewer or approver sent work back with a note', { p: { taskId: id.task, by: t.str(), note: t.str(), reviewLoops: t.int() }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject' }),
     ev('task.approved', 'A review or approval was granted', { p: { taskId: id.task, kind: taskKindKey, by: t.str(), forPerson: t.opt(t.str({ description: 'Set when a delegate acted for someone away' })) }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject' }),
     ev('task.rejected', 'An approver rejected the work with a note', { p: { taskId: id.task, by: t.str(), note: t.str() }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject' }),
-    ev('task.escalated', 'A task passed to a delegate or role after its timeout', { p: { taskId: id.task, to: assignee, reason: t.enm('timeout', 'manual', 'away') }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject' }),
+    ev('task.escalated', 'A task passed to a delegate or role after its timeout', { p: { taskId: id.task, to: assignee, reason: t.enm('timeout', 'manual', 'away'), by: t.opt(t.str()) }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject' }),
     ev('task.delegated', 'A task was handed over with a note', { p: { taskId: id.task, from: t.str(), to: assignee, passedTo: assignee }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject' }),
     ev('task.taken', 'A person took a group or role task; it is locked to them', { p: { taskId: id.task, by: t.str() }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject' }),
     ev('task.released', 'A taken task went back to the group or role', { p: { taskId: id.task, by: t.str() }, subject: ['task', '/taskId'], vis: 'participants', label: 'subject' }),
@@ -139,6 +139,10 @@ export default defineManifest({
       },
       out: { task: taskRow }, on: ['task', '/taskId'], emits: ['task.updated'], tool: 'tasks', offline: 'patch',
     }),
+    // Only the Gate calls this, from gate.holds.revise: a held act's card and the hash its approval is bound to change together, because the person edited the words that will be sent.
+    write('tasks.held_revise', 'Rewrite the card of a held act and the hash its approval is bound to (the Gate\'s edit of a held message; not for a person or an agent to call)', {
+      in: { ...target, blocks: t.arr(blockIn), payloadHash: t.str() }, out: { ok: t.bool() }, on: ['task', '/taskId'], level: 'use', emits: ['task.updated'], audit: 'always', errors: ['validation.precondition_failed'],
+    }),
     write('tasks.transition', 'Move a task to a new status (the only writer of status); checks the 4.7 state table and the reviewer/approver rules', {
       in: { ...target, to: taskState, note: t.opt(t.str()), expectedFrom: t.opt(taskState) },
       out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.transitioned', 'task.completed', 'task.sent_back', 'task.approved', 'task.rejected', 'task.updated', 'task.ready', 'task.children_settled', 'task.requested'],
@@ -192,6 +196,9 @@ export default defineManifest({
     write('tasks.take', 'Take a group or role task; the first Take locks it and others see taken by', {
       in: target, out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.taken'], tool: 'tasks', offline: 'online', errors: ['validation.precondition_failed'],
     }),
+    write('tasks.agent_on_it', 'Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads "<Agent> is on it for you". Only that person, or the host, may say so', {
+      in: { ...target, agentId: id.agent }, out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.transitioned', 'task.updated', 'task.requested'], tool: 'tasks', errors: ['validation.precondition_failed'],
+    }),
     write('tasks.release', 'Give a taken task back to its group or role', { in: target, out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.released'], tool: 'tasks' }),
     create('tasks.plan', 'Break work into tasks in one step: a parent (new, or one that exists) and its children, each with its brief, what done means, who does it and which others it waits on. A child starts by itself when what it waits on is done; the parent hears only when all are done, or one is blocked or asks', {
       in: {
@@ -215,8 +222,8 @@ export default defineManifest({
     write('tasks.followers.remove', 'Remove a follower', {
       in: { ...target, follower: t.str({ examples: ['usr_a1b2c3'] }) }, out: { task: taskRow }, on: ['task', '/taskId'], emits: ['task.follower_removed'], tool: 'tasks', offline: 'patch',
     }),
-    write('tasks.working_notes.set', 'Write a working note (key and value) that any person or agent on the task can read', {
-      in: { ...target, key: t.str({ minLength: 1 }), value: t.str() }, out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.note_set'], tool: 'tasks', offline: 'patch',
+    write('tasks.working_notes.set', 'Write a working note (key and value) that any person or agent on the task can read; send expectedFrom, the note as you last read it', {
+      in: { ...target, key: t.str({ minLength: 1 }), value: t.str(), expectedFrom: t.opt(t.str({ description: 'The note as you last read it, empty when it had none. If someone changed the note since, nothing is written and the refusal gives the current note: make your change again on top of it (a list note, Done means or its ticks, is merged for an agent). Without it an agent may only append to the note' })) }, out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.note_set'], tool: 'tasks', offline: 'patch',
     }),
     write('tasks.working_notes.delete', 'Delete a working note', { in: { ...target, key: t.str() }, out: { task: taskRow }, on: ['task', '/taskId'], level: 'use', emits: ['task.note_set'], tool: 'tasks', offline: 'patch' }),
     write('tasks.links.add', 'Link a record or a file to a task', {
@@ -255,8 +262,8 @@ export default defineManifest({
     taskKind('approve', 'Approve', {
       needsYou: true, initial: 'awaiting_approval', closeOn: 'act', slots: ['approver'],
       actions: [
-        { key: 'approve', label: 'Approve', to: 'done', note: 'optional' },
-        { key: 'reject', label: 'Send back', to: 'doing', note: 'required' },
+        { key: 'approve', label: 'Allow', to: 'done', note: 'optional' },
+        { key: 'reject', label: 'Deny', to: 'doing', note: 'required' },
         { key: 'delegate', label: 'Hand over', cap: 'tasks.delegate', note: 'optional' },
         { key: 'snooze', label: 'Snooze', cap: 'tasks.snooze' },
       ],

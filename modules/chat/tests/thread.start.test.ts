@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { handlers } from "../impl.ts";
 import { lastMessages, threadBy, threadOut } from "../projections.ts";
+import { isDirect } from "../handlers/post.ts";
 import { DANA, DRAFTER, INTAKE, LEO, MAYA, REVIEWER, assertEventsConform, failure, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -48,6 +49,41 @@ test("a direct message is one conversation per pair of people", async () => {
   // a chat with an agent in it, or about an object, is its own thing
   const withAgent = (await start(hn.ctx, { personId: MAYA, agentIds: [INTAKE] })).thread;
   assert.notEqual(withAgent.threadId, first.threadId);
+});
+
+test("a chat of two people with an agent in it is not their direct message (lane l-polish L0: pressing Dev opened Billing review)", async () => {
+  const hn = harness();
+  // Billing review: Dana starts a chat with an agent, then adds Maya. It is older than any direct message between them.
+  const billing = (await start(hn.ctx, { agentIds: [INTAKE, DRAFTER], title: "Billing review" })).thread;
+  await h["threads.members.add"]!(hn.ctx, { threadId: billing.threadId, personId: MAYA });
+  // and one started with Maya and an agent at once
+  const withAgent = (await start(hn.ctx, { personId: MAYA, agentIds: [REVIEWER] })).thread;
+  assert.ok(!isDirect(hn.ctx, threadBy(hn.db, billing.threadId)!), "two people and agents: a group chat");
+  assert.ok(!isDirect(hn.ctx, threadBy(hn.db, withAgent.threadId)!));
+  const dm = (await start(hn.ctx, { personId: MAYA })).thread;
+  assert.notEqual(dm.threadId, billing.threadId, "the person's row opens a direct message, never the older group chat");
+  assert.notEqual(dm.threadId, withAgent.threadId);
+  assert.deepEqual(dm.members.map((m: any) => m.id), [DANA, MAYA]);
+  assert.deepEqual(dm.agents, []);
+  assert.ok(isDirect(hn.ctx, threadBy(hn.db, dm.threadId)!));
+  // found again from either side
+  assert.equal((await start(hn.ctx, { personId: MAYA })).thread.threadId, dm.threadId);
+  assert.equal((await start(hn.person(MAYA), { personId: DANA })).thread.threadId, dm.threadId);
+  // a direct message that gains an agent stops being one: the next press makes a new direct message
+  await h["threads.add_agent"]!(hn.ctx, { threadId: dm.threadId, agentId: INTAKE });
+  assert.ok(!isDirect(hn.ctx, threadBy(hn.db, dm.threadId)!));
+  assert.notEqual((await start(hn.ctx, { personId: MAYA })).thread.threadId, dm.threadId);
+});
+
+test("twenty group chats with the same person cannot hide the direct message", async () => {
+  const hn = harness();
+  for (let i = 0; i < 22; i++) {
+    const g = (await start(hn.ctx, { agentIds: [INTAKE], title: `group ${i}` })).thread;
+    await h["threads.members.add"]!(hn.ctx, { threadId: g.threadId, personId: MAYA });
+  }
+  const dm = (await start(hn.ctx, { personId: MAYA })).thread;
+  assert.deepEqual(dm.agents, []);
+  assert.equal((await start(hn.person(MAYA), { personId: DANA })).thread.threadId, dm.threadId, "found past the first twenty chats the two share");
 });
 
 test("an Ask pane is private, scoped to an object and out of Recent until it is opened as a chat", async () => {
@@ -104,7 +140,7 @@ test("the thread under a message is made once and reopened after that", async ()
   assert.equal(thread.parentThreadId, c.mainThreadId);
   assert.equal(thread.parentMessageId, msg.messageId);
   assert.equal(thread.listed, false);
-  assert.deepEqual(thread.agents, [], "people's threads leave agents listening in the channel, not in the thread");
+  assert.deepEqual(thread.agents.map((a: any) => [a.agentId, a.mode]), [[INTAKE, "listen"]], "agents reply in a channel's threads (the default), so the channel's agents are in the thread, listening, and answer when asked there");
   assert.deepEqual(hn.names(), ["thread.started"]);
   assert.deepEqual(assertEventsConform(hn), []);
   hn.clear();
@@ -122,7 +158,7 @@ test("the thread under an agent's message is worked by that agent, who leads it"
   // an agent that opens a thread under a person's message leads it too
   const ask = (await h["chat.post"]!(hn.person(MAYA), { threadId: c.mainThreadId, body: "Draft a reply", idempotencyKey: "p2" })).message;
   const mine = await h["chat.thread"]!(hn.agent(DRAFTER), { threadId: c.mainThreadId, messageId: ask.messageId });
-  assert.deepEqual(mine.thread.agents.map((a: any) => [a.agentId, a.mode]), [[DRAFTER, "lead"]]);
+  assert.deepEqual(mine.thread.agents.map((a: any) => [a.agentId, a.mode]), [[DRAFTER, "lead"], [INTAKE, "listen"]]);
 });
 
 test("a thread needs a message of that thread, and a private chat's messages are private", async () => {

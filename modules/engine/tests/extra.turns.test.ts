@@ -213,3 +213,14 @@ test("health is healthy with an empty queue, degraded when a turn waits a minute
   assert.match(H["engine.health"](h2.ctx, {}).detail ?? "", /no worker/);
 });
 
+
+test("a turn that was stopped (for an update, or by a person) can be run again with Continue: same message, same agent, one queued turn however often it is pressed", async () => {
+  const h = harness();
+  const { turn } = await startTurn(h);
+  await H["engine.turn.finish"](h.ctx, { turnId: turn.turnId, outcome: "cancelled" });
+  const again = await H["engine.turn.retry"](h.ctx, { turnId: turn.turnId });
+  assert.equal(again.turn.state, "queued");
+  assert.equal(again.turn.agentId, turn.agentId);
+  assert.equal((await H["engine.turn.retry"](h.ctx, { turnId: turn.turnId })).turn.turnId, again.turn.turnId, "pressed twice: the same retry");
+  await assert.rejects(H["engine.turn.retry"](h.ctx, { turnId: again.turn.turnId }), (e) => codeOf(e) === "validation.precondition_failed", "a turn that is queued is not retried");
+});

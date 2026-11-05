@@ -2,7 +2,7 @@
 // may hear; this only renders it, and says plainly that the private part never leaves a chat nobody else reads.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createContextBuilder, profileSection } from "../context.ts";
+import { createContextBuilder, joinedLine, profileSection } from "../context.ts";
 import type { ProfileContext } from "../context.ts";
 import type { TurnInput } from "../../../agent/src/turn-engine/types.ts";
 
@@ -58,4 +58,28 @@ test("memory that is off or slow leaves the section out and the turn goes on", a
   const input = { threadId: "thr_1", turnId: "trn_1", agent: { id: "agt_intake", mode: "lead" }, trigger: null, history: [], listeners: [], asker: "usr_dana" } as unknown as TurnInput;
   const ctx = await createContextBuilder({ call, now: () => 0 }).build(input);
   assert.equal(ctx.sections.some((s) => s.id === "person"), false);
+});
+
+const JOINED = Date.UTC(2026, 10, 4, 10, 40);
+const buildFor = async (floor: unknown) => {
+  const call = async (cap: string): Promise<unknown> => {
+    if (cap === "chat.read_floor") return floor;
+    if (cap === "access.principals.list") return { principals: [{ id: "usr_maya", kind: "person", name: "Maya Chen" }] };
+    if (cap === "threads.get") return { thread: { kind: "chat", members: [{ kind: "person", id: "usr_dana" }, { kind: "person", id: "usr_maya" }], agents: [] } };
+    throw new Error(`no such capability ${cap}`);
+  };
+  const input = { threadId: "thr_1", turnId: "trn_1", agent: { id: "agt_intake", mode: "lead" }, trigger: null, history: [], listeners: [], asker: "usr_maya" } as unknown as TurnInput;
+  return createContextBuilder({ call, now: () => 0 }).build(input);
+};
+
+test("when a newcomer who joined without earlier messages asks, the agent's context says so and not to quote them", async () => {
+  const ctx = await buildFor({ fromAt: JOINED });
+  const where = ctx.sections.find((s) => s.id === "where")!;
+  assert.ok(where.text.includes("Maya joined at 10:40 UTC and can't see earlier messages; don't quote them to Maya."), where.text);
+  assert.equal(joinedLine("Maya Chen", JOINED), "Maya joined at 10:40 UTC and can't see earlier messages; don't quote them to Maya.");
+});
+
+test("a person who reads the whole chat gets no such line", async () => {
+  const ctx = await buildFor({});
+  assert.ok(!ctx.sections.find((s) => s.id === "where")!.text.includes("can't see earlier messages"));
 });

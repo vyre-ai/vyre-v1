@@ -7,6 +7,7 @@ import type { BuildIn, NeedItem, TaskRow } from "./model.ts";
 import { activityOf } from "./activity.ts";
 import { parseQuick } from "./quick.ts";
 import { createTaskStore } from "./store.ts";
+const UTC = { space: "UTC", viewer: "UTC" };
 
 const NOW = Date.UTC(2026, 10, 2, 10);   // a Monday
 const me = "usr_me";
@@ -57,12 +58,13 @@ test("group, sort and filter", () => {
   assert.deepEqual(filterRows(rows, { ...NO_FILTER, query: "om" }).map((r) => r.id), ["c"]);
 });
 
+const pick = (d: { text: string; late: boolean }): { text: string; late: boolean } => ({ text: d.text, late: d.late });
 test("a due date reads as a person says it", () => {
-  assert.deepEqual(dueLabel(NOW, NOW, 0), { text: "Today", late: false });
-  assert.deepEqual(dueLabel(NOW + DAY, NOW, 0), { text: "Tomorrow", late: false });
-  assert.deepEqual(dueLabel(NOW - DAY, NOW, 0), { text: "Yesterday", late: true });
-  assert.equal(dueLabel(NOW + 4 * DAY, NOW, 0).text, "Friday");
-  assert.equal(dueLabel(NOW + 40 * DAY, NOW, 0).text, "12 Dec");
+  assert.deepEqual(pick(dueLabel(NOW, NOW, UTC)), { text: "Today", late: false });
+  assert.deepEqual(pick(dueLabel(NOW + DAY, NOW, UTC)), { text: "Tomorrow", late: false });
+  assert.deepEqual(pick(dueLabel(NOW - DAY, NOW, UTC)), { text: "Yesterday", late: true });
+  assert.equal(dueLabel(NOW + 4 * DAY, NOW, UTC).text, "Friday");
+  assert.equal(dueLabel(NOW + 40 * DAY, NOW, UTC).text, "12 Dec");
 });
 
 test("quick add reads plain words", () => {
@@ -72,11 +74,11 @@ test("quick add reads plain words", () => {
   assert.equal(q.assignee?.id, "usr_sara");
   assert.deepEqual(q.labels, ["portal"]);
   assert.equal(q.priority, "high");
-  assert.equal(dueLabel(q.due, NOW, 0).text, "Friday");
+  assert.equal(dueLabel(q.due, NOW, UTC).text, "Friday");
   assert.equal(parseQuick("Send it to @nobody", people, NOW, 0).title, "Send it to @nobody");
-  assert.equal(dueLabel(parseQuick("Ship tomorrow", people, NOW, 0).due, NOW, 0).text, "Tomorrow");
+  assert.equal(dueLabel(parseQuick("Ship tomorrow", people, NOW, 0).due, NOW, UTC).text, "Tomorrow");
   assert.equal(parseQuick("Fix #VY-12", people, NOW, 0).title, "Fix #VY-12");
-  assert.equal(dueLabel(parseQuick("In 3 days do it", [], NOW, 0).due, NOW, 0).text, "Thursday");
+  assert.equal(dueLabel(parseQuick("In 3 days do it", [], NOW, 0).due, NOW, UTC).text, "Thursday");
 });
 
 test("a bar sits between its start and its due date, and a month lays out Monday first", () => {
@@ -156,4 +158,15 @@ test("a team task I took, or one offered to me, is mine, not Waiting on others (
   const s = sectionsOf([taken, offered, theirs], me, NOW, 0, new Set());
   assert.deepEqual(s.waiting.map((r) => r.id), ["x"]);
   assert.deepEqual([...s.now, ...s.next].map((r) => r.id).sort(), ["o", "t"]);
+});
+
+test("a due chip in a Space's zone: the day is the Space's day, hover names both zones, a plain offset still works", () => {
+  const z = { space: "America/Los_Angeles", viewer: "Asia/Karachi" };
+  const now = Date.parse("2026-11-05T15:00:00Z");     // Thu 7:00 AM Pacific, Thu 8:00 PM Karachi
+  const tonight = Date.parse("2026-11-06T06:00:00Z");  // Thu 10:00 PM Pacific, Fri 11:00 AM Karachi
+  const chip = dueLabel(tonight, now, z);
+  assert.deepEqual([chip.text, chip.late], ["Today", false], "it is still Thursday in the Space");
+  assert.match(chip.title ?? "", /^Thu 5 Nov 2026, 10:00 PM Pacific Time\. Your time: Fri 6 Nov, 11:00 AM Pakistan/);
+  assert.equal(dueLabel(Date.parse("2026-11-05T05:00:00Z"), now, z).late, true, "last night in the Space");
+  assert.equal(dueLabel(Date.parse("2026-12-12T20:00:00Z"), now, z).text, "12 Dec");
 });

@@ -10,6 +10,9 @@ import { useVaultData, usePrincipals } from "../layout/data.tsx";
 import type { Provider } from "../layout/model.ts";
 import { Btn, Glyph } from "../layout/parts.tsx";
 import { Info } from "../../../../../../ui/src/Tip/index.tsx";
+import { SignInPanel } from "../../../ai-signin/SignInPanel.tsx";
+import { startFlow } from "../../../ai-signin/flow.ts";
+import type { Flow } from "../../../ai-signin/flow.ts";
 import { canShare, cliDriverOf, countWords, howConnected, needsWords, scopeWords, stateWords, testWords, usageWords, userKind } from "./model.ts";
 
 export interface ProviderPanelProps {
@@ -28,11 +31,24 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
+  // a subscription that needs signing in again: Sign in again starts that provider's own sign-in right here and, once it is in, tests the account so the state follows
+  const [flow, setFlow] = useState<Flow | null>(null);
+  const signAgain = async (): Promise<void> => {
+    try { setFlow(await startFlow(data.call as never, provider.providerKey, `again:${provider.id}:${Date.now()}`)); } catch (e) { fail(e); }
+  };
   const [spaceMay, setSpaceMay] = useState(provider.spaceMayUse);
   const fail = (e: unknown): void => onNote(e instanceof Error ? e.message : "That did not work.");
   // A CLI sign-in this computer cannot run (no sandbox for it here) says what it needs instead of "Working".
   const [needs, setNeeds] = useState<string | null>(null);
   const cli = cliDriverOf(provider) !== null;
+  // "Working" is the key answering a test; a chat may still not be able to use it (locked on the server, off for this kind of work): the same list the chat's resolver reads says why
+  const [chatWhy, setChatWhy] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    void (data.call("engine.accounts.list", { place: "chat" }) as Promise<{ accounts: Array<{ providerId?: string; usable?: boolean; why?: string }> }>)
+      .then((o) => { const row = o.accounts.find((a) => a.providerId === provider.id); if (live) setChatWhy(row && row.usable === false ? row.why ?? "A chat cannot use it here." : null); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [provider.id]);
   useEffect(() => {
     if (!cli) { setNeeds(null); return; }
     let live = true;
@@ -61,7 +77,7 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
         <View style={s.facts}>
           <View style={s.fact}><Text style={s.k}>Connects with</Text><Text style={s.v} testID="provider-how">{howConnected(provider)}</Text></View>
           <View style={s.fact}><Text style={s.k}>Belongs to</Text><Text style={s.v} testID="provider-scope">{scopeWords(provider)}</Text></View>
-          <View style={s.fact}><Text style={s.k}>Right now</Text><View style={s.state}><View style={[s.dot, { backgroundColor: (needs !== null ? STATE_COLOR.needs_sign_in : STATE_COLOR[provider.state]) as string }]} /><Text style={s.v} testID="provider-state">{needs ?? stateWords(provider.state)}</Text></View></View>
+          <View style={s.fact}><Text style={s.k}>Right now</Text><View style={s.state}><View style={[s.dot, { backgroundColor: (needs !== null || chatWhy !== null ? STATE_COLOR.needs_sign_in : STATE_COLOR[provider.state]) as string }]} /><Text style={s.v} testID="provider-state">{needs ?? (chatWhy !== null ? `Works, but not in chats: ${chatWhy}` : stateWords(provider.state))}</Text></View></View>
           <View style={s.fact}><Text style={s.k}>This month</Text><Text style={s.v} testID="provider-usage">{usageWords(provider)}</Text></View>
         </View>
 
@@ -72,12 +88,14 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
         ))}
 
         <View style={s.acts}>
+          {provider.connection === "subscription" && (provider.state === "needs_sign_in" || needs !== null) ? <Btn label="Sign in again" icon="check" onPress={() => void signAgain()} testID="provider-sign-in-again" /> : null}
           <Btn label={testing ? "Testing" : "Test connection"} icon="check" onPress={() => void test()} disabled={testing} testID="provider-test" />
           {canShare(provider) ? <Btn label="Share" icon="share" onPress={() => data.nav.openShare(provider.itemId)} testID="provider-share" /> : null}
           {asking ? (
             <View style={s.ask}><Text style={s.askText}>{`Remove ${provider.name}?`}</Text><Btn label="Remove" danger onPress={() => void remove()} testID="provider-remove-yes" /><Btn label="Keep" onPress={() => setAsking(false)} testID="provider-remove-no" /></View>
           ) : <Btn label="Remove" danger onPress={() => setAsking(true)} testID="provider-remove" />}
         </View>
+        {flow ? <SignInPanel call={data.call as never} flow={flow} onCancel={() => setFlow(null)} onDone={() => { setFlow(null); onNote("Signed in again"); void test(); }} /> : null}
         {result ? <Text style={s.result} accessibilityLiveRegion="polite" testID="provider-result">{result}</Text> : null}
 
         {canShare(provider) ? (

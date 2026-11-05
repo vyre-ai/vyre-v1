@@ -1,7 +1,7 @@
 // What the conversation writes: one capability per action, each through `call` as the signed-in person. Nothing here touches the screen; the components decide what to show while
 // a write is out (the message is already on the page before chat.post answers) and what to say when it fails.
 import { isAssistantRow } from "../../../../../../lib/agent-kind.ts";
-import { installProgram, ranOnText } from "./status.ts";
+import { KNOWN_CODES, installProgram, ranOnText, wordsFor } from "./status.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
 import { exportAs } from "./export.ts";
@@ -35,8 +35,9 @@ export const REFS_BLOCK = "refs";
  * A send. chat.post goes first, with a key that makes a retry safe. An interrupt then asks the engine to take the new message now (engine.interrupt with its id); a plain send
  * is left in the queue for the agent's next step.
  */
-export async function sendMessage(data: ConversationData, input: { text: string; mentions: readonly Mention[]; key: string; kind: SendKind; working: boolean; replyTo?: string; refs?: readonly Ref[]; attachments?: readonly string[] }): Promise<SendResult> {
+export async function sendMessage(data: ConversationData, input: { text: string; mentions: readonly Mention[]; key: string; kind: SendKind; working: boolean; replyTo?: string; refs?: readonly Ref[]; attachments?: readonly string[]; alsoToChat?: boolean }): Promise<SendResult> {
   const post = postInput(data.threadId, input.text, input.mentions, input.key, input.replyTo);
+  if (input.alsoToChat === true) (post as { alsoToChat?: boolean }).alsoToChat = true;
   if (input.attachments && input.attachments.length > 0) post.attachments = [...input.attachments];
   if (input.refs && input.refs.length > 0) post.blocks = [{ type: REFS_BLOCK, v: 1, data: { refs: input.refs.map((r) => ({ kind: r.kind, id: r.id, title: r.title })) } }];
   // An Ask pane is about a place: its messages carry where the person is, so "this" means the object on screen.
@@ -72,15 +73,6 @@ export async function stopAgent(data: ConversationData, agentId?: string): Promi
 
 export async function stopAll(data: ConversationData): Promise<void> {
   await data.call("engine.stop_all", { threadId: data.threadId } satisfies CapMap["engine.stop_all"]["in"]);
-}
-
-/** Leads or Listening for one agent. The engine keeps one lead per thread: making another agent lead turns the old lead into a listener and says which. */
-export async function setMode(data: ConversationData, agentId: string, mode: AgentMode): Promise<CapMap["engine.set_mode"]["out"]> {
-  return (await data.call("engine.set_mode", { threadId: data.threadId, agentId, mode } satisfies CapMap["engine.set_mode"]["in"])) as CapMap["engine.set_mode"]["out"];
-}
-
-export async function addAgent(data: ConversationData, agentId: string): Promise<void> {
-  await data.call("threads.add_agent", { threadId: data.threadId, agentId, mode: "listen" } satisfies CapMap["threads.add_agent"]["in"]);
 }
 
 export async function removeAgent(data: ConversationData, agentId: string): Promise<void> {
@@ -127,13 +119,27 @@ export async function setPlanMode(data: ConversationData, planMode: boolean): Pr
   await data.call("threads.set_plan_mode", { threadId: data.threadId, planMode } satisfies CapMap["threads.set_plan_mode"]["in"]);
 }
 
+/** The one sentence a code reads as (the same words the error card says), "" when the code has none. */
+function plainReason(code: string): string {
+  if (!KNOWN_CODES.includes(code)) return "";
+  const w = wordsFor(code);
+  return `${w.message}${w.cause ? ` ${w.cause}` : ""}`.trim();
+}
+/** Text a person cannot read as a sentence: JSON, a stack of braces or a very long body. */
+const looksRaw = (m: string): boolean => /^\s*[{\[]/.test(m) || m.length > 240;
+
 /** What Details shows on a failed turn: what the engine said and where it ran, from the turn itself (engine.turn.get). */
 export async function turnDetail(data: ConversationData, turnId: string): Promise<[string, string][]> {
   const { what } = (await data.call("engine.turn.get", { turnId } satisfies CapMap["engine.turn.get"]["in"])) as CapMap["engine.turn.get"]["out"];
   const t = what.turn;
   const secs = t.endedAt === undefined ? null : Math.max(0, Math.round((t.endedAt - t.startedAt) / 1000));
   const rows: Array<[string, string]> = [];
-  if (t.error?.message) rows.push(["Reason", t.error.message]);
+  // Reason is one plain sentence in Vyre's words; what the provider itself said (often raw JSON) sits in its own row, in Details only
+  if (t.error?.message) {
+    const plain = t.error.code ? plainReason(t.error.code) : "";
+    rows.push(["Reason", plain !== "" ? plain : looksRaw(t.error.message) ? "The provider's answer is under Provider said." : t.error.message]);
+    if (plain !== "" && t.error.message !== plain) rows.push(["Provider said", t.error.message]);
+  }
   if (t.model !== "") rows.push(["Model", t.model]);
   // where it ran, in order: her computer, then the server it went on to when the computer slept
   const ran = t.ranOn ?? [];
@@ -149,6 +155,19 @@ export async function turnDetail(data: ConversationData, turnId: string): Promis
   return rows;
 }
 
+/** Ask again: the turn that made this reply runs once more (engine.turn.of_message finds it, engine.turn.retry runs it). Rejects when the message was not made by a turn. */
+export async function regenerate(data: ConversationData, messageId: string): Promise<void> {
+  const out = (await data.call("engine.turn.of_message", { threadId: data.threadId, messageId } satisfies CapMap["engine.turn.of_message"]["in"])) as CapMap["engine.turn.of_message"]["out"] | null;
+  const turnId = out?.turn?.turnId;
+  if (!turnId) throw new Error("no turn made this reply");
+  await retryTurn(data, turnId);
+}
+
+/** Mark this chat unread from one message on: the read point goes back to just before it. */
+export async function markUnreadFrom(data: ConversationData, seq: number): Promise<void> {
+  await data.call("threads.mark_unread_from", { threadId: data.threadId, seq } satisfies CapMap["threads.mark_unread_from"]["in"]);
+}
+
 export async function retryTurn(data: ConversationData, turnId: string): Promise<void> {
   await data.call("engine.turn.retry", { turnId } satisfies CapMap["engine.turn.retry"]["in"]);
 }
@@ -161,7 +180,7 @@ export async function retryTurn(data: ConversationData, turnId: string): Promise
 /** How to turn WSL on, as the chat says it: the same steps as sandbox/src/wsl/wsl.ts TURN_ON_WSL_STEPS (status.test.ts keeps them equal). */
 export const TURN_ON_WSL_TEXT = "To turn on WSL: open the Start menu, type PowerShell, and choose Run as administrator. Run: wsl --install --no-distribution. Then restart the computer. Vyre sets up its sandbox by itself on the next Claude Code, Codex or Grok reply.";
 
-export async function errorAction(data: ConversationData, key: string, turnId: string | undefined, say: (text: string) => void): Promise<void> {
+export async function errorAction(data: ConversationData, key: string, turnId: string | undefined, say: (text: string) => void, open?: { pickModel?: () => void }): Promise<void> {
   // "Run it on the server instead": the next turn of this chat runs on the Space, once; the chat stays where the person chose. A turn that failed for it runs again.
   if (key === "run_on_server") {
     await data.call("engine.placement.set", { threadId: data.threadId, target: "space", once: true } satisfies CapMap["engine.placement.set"]["in"]);
@@ -174,7 +193,18 @@ export async function errorAction(data: ConversationData, key: string, turnId: s
     if (turnId) await retryTurn(data, turnId);
     return;
   }
-  if (key === "pick_model") { say("Choose another model in the composer."); return; }
+  // Continue on "Stopped for an update": that turn runs again, same message and account (engine.turn.retry takes a stopped turn as it takes a failed one)
+  if (key.startsWith("continue_turn:")) { await retryTurn(data, key.slice("continue_turn:".length)); return; }
+  // the Model menu opens (a turn that had no model to run on says "Pick a model for <account>"); without a menu to open it says where it is
+  if (key === "pick_model") { if (open?.pickModel) open.pickModel(); else say("Choose a model in the composer."); return; }
+  // Undo on "Moved ... to Vyre's Trash": each file comes back where it was
+  if (key.startsWith("undo_trash:")) {
+    let back = 0;
+    for (const fileId of key.slice(11).split(",").filter((x) => x !== "")) { try { await data.call("files.restore", { fileId, idempotencyKey: `undo-${fileId}` }); back++; } catch { /* already back, or gone for good */ } }
+    say(back > 0 ? `Brought back ${back === 1 ? "the file" : `${back} files`} from Trash.` : "Those files are not in Trash any more.");
+    return;
+  }
+  if (key.startsWith("sign_in:")) { const ref = key.slice(8); if (data.nav.openAiAccount) data.nav.openAiAccount(ref); else if (data.nav.openAiSetup) data.nav.openAiSetup(); else say("Open Settings > Your AI and sign in again."); return; }
   if (key === "connect_ai" || key === "open_vault") { if (data.nav.openAiSetup) data.nav.openAiSetup(); else say("Open the Vault and add an AI account."); return; }
   if (installProgram(key) !== undefined) { if (turnId) await retryTurn(data, turnId); else say("Send your message again to set it up."); return; }
   // Windows: WSL needs admin and a restart, which only the person can do; the steps, word for word (sandbox/src/wsl/wsl.ts TURN_ON_WSL_STEPS)
@@ -193,7 +223,12 @@ export async function hasWorkingAccount(data: ConversationData): Promise<boolean
   return out.accounts.some((a) => a.status === "ok");
 }
 
-/** A private chat never gains people: @mentioning a person offers "Start a channel with them", a new channel linked back. */
+/** @mentioning a person who is not in a private chat offers "Add <name>" first (this chat becomes a group chat; they read from now on), and "Start a channel instead" second, a new channel linked back. */
+export async function addPerson(data: ConversationData, personId: string, fromStart = false): Promise<void> {
+  await data.call("threads.members.add", { threadId: data.threadId, personId, ...(fromStart ? { fromStart: true } : {}) } satisfies CapMap["threads.members.add"]["in"]);
+}
+
+/** Starts a channel with the person: a new channel linked back to the chat. */
 export async function startChannel(data: ConversationData, personId: string, key: string): Promise<void> {
   await data.call("threads.make_channel", { threadId: data.threadId, personId, idempotencyKey: key } satisfies CapMap["threads.make_channel"]["in"]);
 }
@@ -460,4 +495,18 @@ export async function takeBackQueued(data: ConversationData, threadId: string, m
   if (!out.dropped) return false;
   await data.call("chat.delete_message", { threadId, messageId } as CapMap["chat.delete_message"]["in"]).catch(() => undefined);
   return true;
+}
+
+/** Stop every helper of this chat that is still working. */
+export async function stopHelpers(data: ConversationData): Promise<void> {
+  await data.call("engine.helpers.stop_all", { threadId: data.threadId });
+}
+
+/** Start a helper again from the brief its failed or stopped sibling was given: the same title and words, on a fresh helper. */
+export async function retryHelper(data: ConversationData, helperThreadId: string, key: string): Promise<void> {
+  const th = (await data.call("threads.get", { threadId: helperThreadId })) as { thread?: { title?: string } };
+  const msgs = (await data.call("chat.messages.list", { threadId: helperThreadId })) as { messages: Array<{ body: string }> };
+  const brief = msgs.messages[0]?.body ?? "";
+  if (brief === "") throw new Error("This helper has no brief to start again from.");
+  await data.call("chat.helper.start", { threadId: data.threadId, title: th.thread?.title ?? "Helper", instruction: brief, idempotencyKey: key });
 }

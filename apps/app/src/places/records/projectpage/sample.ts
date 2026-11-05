@@ -23,7 +23,7 @@ export interface SampleProject {
   failNext(cap: string, message?: string): void;
 }
 
-export function createSampleProject(): SampleProject {
+export function createSampleProject(o: { linked?: boolean } = {}): SampleProject {
   let rows: Row[] = [
     task("t1", "Collect the intake form", "intake", -9, -6, { status: "done", assigned: "agt_intake" }),
     task("t2", "Run the conflict check", "intake", -6, -3, { status: "done", assigned: "usr_omar" }),
@@ -56,7 +56,7 @@ export function createSampleProject(): SampleProject {
           milestones: rows.filter((r) => r.milestone && r.status !== "done"), late: rows.filter((r) => r.status !== "done" && (r.due ?? Infinity) < SAMPLE_NOW), waiting: rows.filter((r) => r.ring !== undefined),
           decisions: [{ decisionId: "d1", summary: "Quote $250 for the first consult", at: SAMPLE_NOW - 3 * DAY }],
           people: [{ principal: "usr_maya", role: "lead", kind: "person", since: at(-9) }, { principal: "usr_omar", role: "member", kind: "person", since: at(-9) }, { principal: "agt_docs", role: "member", kind: "agent", since: at(-8) }, { principal: "agt_intake", role: "reviewer", kind: "agent", since: at(-8) }],
-          linked: [{ type: "clients", recordId: "cl_0", title: "Elena Rivera" }], pinnedFiles: ["f_note", "f_offer"],
+          linked: o.linked === false ? [] : [{ type: "clients", recordId: "cl_0", title: "Elena Rivera" }], pinnedFiles: ["f_note", "f_offer"],
           recentThreads: [{ threadId: "thr_letter", title: "Engagement letter wording", at: SAMPLE_NOW - 2 * 3_600_000 }, { threadId: "thr_billing", title: "Retainer amount", at: SAMPLE_NOW - DAY }],
         } satisfies Overview;
         case "projects.plan": return { stages: STAGES, tasks: rows, links, today: SAMPLE_NOW } satisfies PlanOut;
@@ -82,6 +82,21 @@ export function createSampleProject(): SampleProject {
           return { moved };
         }
         case "projects.open_task_thread": return { threadId: `thr_${String(i["taskId"])}` };
+        // the Add people and agents sheet (lane l-addsheet)
+        case "projects.members.list": return { members: [{ principal: "usr_maya", role: "lead", kind: "person", since: at(-9) }, { principal: "usr_omar", role: "member", kind: "person", since: at(-9) }, { principal: "agt_docs", role: "member", kind: "agent", since: at(-8) }] };
+        case "projects.members.set": return { member: { principal: i["principal"], role: i["role"], kind: String(i["principal"]).startsWith("agt_") ? "agent" : "person", since: SAMPLE_NOW } };
+        case "projects.teammates.list": return { teammates: [{ agentId: "agt_docs", name: "Docs", role: "member", roleLine: "Drafts the letters", status: "awake", madeForProject: false }] };
+        case "agents.create": return { agent: { agentId: "agt_new", name: i["name"], status: "awake" } };
+        case "access.principals.list": return { principals: [
+          { id: "usr_maya", kind: "person", name: "Maya Chen", status: "active", roles: [], groups: [], createdAt: SAMPLE_NOW },
+          { id: "usr_omar", kind: "person", name: "Omar Haddad", status: "active", roles: [], groups: [], createdAt: SAMPLE_NOW },
+          { id: "usr_sara", kind: "person", name: "Sara Malik", status: "active", roles: [], groups: [], title: "Associate", createdAt: SAMPLE_NOW },
+        ] };
+        case "files.folder.get": return { folder: { folderId: i["folderId"], name: "Rivera project files", path: "/Rivera project files", fileCount: 2, folderCount: 0, scope: "space", label: 0 } };
+        case "projects.links.list": return { links: o.linked === false ? [] : [{ linkId: "lnk_1", projectId: "pj_0", kind: "record", ref: "cl_0", source: "manual", addedBy: "usr_maya", addedAt: SAMPLE_NOW }], rules: [] };
+        case "agents.list": return { agents: [["agt_docs", "Docs"], ["agt_intake", "Intake"], ["agt_billing", "Billing"]].map(([id, name]) => ({ agentId: id, name, kind: "agent", face: id, status: "awake", ownerId: "usr_maya", folderId: "fld", accountPolicy: "asker", accountFallback: [], toolsAllowed: [], toolsDenied: [], vaultKeys: [], limits: {}, captureMode: "auto", hasComputer: false, templateVersion: 1, createdAt: SAMPLE_NOW })) };
+        case "access.check": return { decision: { effect: "allow", reason: "", steps: [], decisionId: "dec_1" } };
+        case "channels.get": return { channel: { channelId: "chn_rivera", mainThreadId: "thr_main", name: "rivera", visibility: "invite", archived: false, members: [], agents: [] } };
         default: throw new Error(`no handler for ${cap}`);
       }
     },

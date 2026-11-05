@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright-core";
+import { openConsolePage } from "./console-nav.ts";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding} from "./real-app-harness.test.ts";
 
 const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVibGljLWtleQ==", privateKeyWrapped: "cHJpdmF0ZS13cmFwcGVk", spaceKeys: [{ epoch: 1, wrapped: "c3BhY2Uta2V5LTE=" }] };
@@ -14,7 +15,8 @@ async function pickerReads(page: Page, label: string, text: string): Promise<voi
   await page.getByRole("button", { name: label, exact: true }).waitFor();
   assert.match(await page.getByRole("button", { name: label, exact: true }).innerText(), new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `${label} shows ${text}`);
 }
-const MATRIX = [["paper", "desktop", 1280, 900], ["graphite", "desktop", 1280, 900], ["paper", "phone", 390, 844], ["graphite", "phone", 390, 844]] as const;
+// the Console opens on a computer (owner ruling, 3 Nov 2026): a phone draws no Console page, so the screenshots are desktop only, in light and graphite
+const MATRIX = [["paper", "desktop", 1280, 900], ["graphite", "desktop", 1280, 900]] as const;
 
 test("production Console Access: People directory, person object, groups, devices and bulk actions", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
@@ -57,39 +59,38 @@ test("production Console Access: People directory, person object, groups, device
     const groupOf = async (id: string): Promise<string[]> => ((await api("access.groups.get", { groupId: id })).group.members as { id: string }[]).map((m) => m.id);
     const rolesOf = async (personId: string): Promise<string[]> => (await api("access.principals.get", { principal: { kind: "person", id: personId } })).principal.roles as string[];
 
+    /** Reach a Console page through the real navigation: the place in the side list, then its tab, then the view under the tab's text switch. A phone has no Console (it opens on a computer), so every flow here runs at desktop width. */
+    const goPage = async (p: Page, pageId: string): Promise<void> => { await openConsolePage(p, pageId); };
     const goPeople = async (p: Page = page): Promise<void> => {
       await p.goto(`${web.origin}/console`, { waitUntil: "load" }); await p.getByTestId("console").waitFor({ timeout: 30_000 });
-      const group = p.getByTestId("navgroup-Access"); if ((await group.getAttribute("aria-expanded")) !== "true") await group.click();
-      await p.getByTestId("row-nav-people").click(); await p.getByTestId("console-people").waitFor();
+      await goPage(p, "people"); await p.getByTestId("console-people").waitFor();
     };
     const rowOf = (id: string) => page.getByTestId(`row-object-row-console-person-${id}`);
     const pickRow = async (id: string): Promise<void> => { await rowOf(id).click({ button: "right" }); await page.getByRole("menuitem", { name: /^Select$/ }).click(); };
     const matrix = async (name: string, navigate: (p: Page) => Promise<void>): Promise<void> => {
       for (const [skin, size, w, h] of MATRIX) {
         const view = await context.newPage(); await view.setViewportSize({ width: w, height: h });
-        await view.goto(`${web.origin}/console?skin=${skin}`, { waitUntil: "load" }); await view.getByTestId("console").waitFor({ timeout: 30_000 });
-        await navigate(view); await view.waitForTimeout(250);
+        await view.goto(`${web.origin}/console?skin=${skin}`, { waitUntil: "load" });
+        // the Console opens on a computer: a phone shows that line and a way to chat about it (mobile-map.ts desktopLine), so a phone has no Console page to navigate
+        if (w < 720) await view.getByText(/The Console opens on a computer/).waitFor({ timeout: 30_000 });
+        else { await view.getByTestId("console").waitFor({ timeout: 30_000 }); await navigate(view); }
+        await view.waitForTimeout(250);
         await view.screenshot({ path: path.join(shots, `${name}-${size}-${skin === "paper" ? "light" : "graphite"}.png`), animations: "disabled" }); await view.close();
       }
     };
-    /** Phone width has no side navigation: the search button opens the "Go to" list. */
-    const goTo = async (p: Page, testId: string, title: string, group: string): Promise<void> => {
-      if (p.viewportSize()!.width < 720) { await p.getByTestId("console-search").click(); await p.getByRole("menuitem", { name: title, exact: true }).click(); }
-      else { const g = p.getByTestId(`navgroup-${group}`); if ((await g.getAttribute("aria-expanded")) !== "true") await g.click(); await p.getByTestId(`row-nav-${testId}`).click(); }
-    };
-    const toPeople = async (p: Page): Promise<void> => { await goTo(p, "people", "People", "Access"); await p.getByTestId("console-people").waitFor(); };
+    const toPeople = async (p: Page): Promise<void> => { await goPage(p, "people"); await p.getByTestId("console-people").waitFor(); };
 
     await t.test("the directory lists everyone and narrows by search and by status, role and group together", async () => {
       await goPeople();
       for (const id of [maya.personId, noah.personId, priya.personId]) await rowOf(id).waitFor();
-      assert.match(await rowOf(maya.personId).innerText(), /Maya Lin[\s\S]*Active · Member · \d+ groups?/);
+      assert.match(await rowOf(maya.personId).innerText(), /Maya Lin[\s\S]*Active · Member · \d+ teams?/);
       await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("Role: Member", { exact: true }).click();
       await rowOf(noah.personId).waitFor({ state: "detached" });
       assert.equal(await rowOf(maya.personId).count() + await rowOf(priya.personId).count(), 2);
-      await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("Group: Sales", { exact: true }).click();
+      await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("Team: Sales", { exact: true }).click();
       await rowOf(priya.personId).waitFor({ state: "detached" });
       assert.equal(await rowOf(maya.personId).count(), 1, "role and group filters narrow together");
-      await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("Group: Sales", { exact: true }).click();
+      await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("Team: Sales", { exact: true }).click();
       await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("Role: Member", { exact: true }).click();
       await page.getByTestId("object-list-search").fill("pri"); await rowOf(maya.personId).waitFor({ state: "detached" }); assert.equal(await rowOf(priya.personId).count(), 1);
       await page.getByTestId("object-list-search").fill("");
@@ -98,7 +99,7 @@ test("production Console Access: People directory, person object, groups, device
 
     await t.test("the invite form names the Role, defaults to Member, and Create invite makes a real one-time link", async () => {
       await goPeople();
-      // the invite form is a sheet behind Invite a person
+      // the invite form is a sheet behind Invite people
       await page.getByTestId("console-invite-open").click(); await page.getByTestId("invite-sheet").waitFor();
       assert.equal(await page.getByRole("button", { name: "Role", exact: true }).innerText(), "Member");
       await page.getByRole("button", { name: "Role", exact: true }).click();
@@ -112,8 +113,8 @@ test("production Console Access: People directory, person object, groups, device
     await t.test("bulk: add several people to a group and assign a role, each applied and read back", async () => {
       await goPeople();
       await pickRow(maya.personId); await pickRow(priya.personId);
-      await page.getByRole("button", { name: "Add to group…", exact: true }).click();
-      await page.getByTestId("people-bulk").getByRole("button", { name: "Group", exact: true }).click(); await page.getByRole("menuitem", { name: "Support", exact: true }).click();
+      await page.getByRole("button", { name: "Add to team…", exact: true }).click();
+      await page.getByTestId("people-bulk").getByRole("button", { name: "Team", exact: true }).click(); await page.getByRole("menuitem", { name: "Support", exact: true }).click();
       await page.getByTestId("people-bulk-confirm").click();
       await page.getByText(/2 changed/).waitFor();
       assert.deepEqual((await groupOf(support)).sort(), [maya.personId, priya.personId].sort());
@@ -148,17 +149,23 @@ test("production Console Access: People directory, person object, groups, device
       await page.getByTestId("person-overview").waitFor();
       await page.getByRole("tab", { name: /^Access/ }).click();
       await page.getByTestId("person-effective").waitFor();
+      await page.getByTestId("person-effective").getByText("Roles", { exact: true }).waitFor();   // the effective access fills in after the tab opens
       const effective = await page.getByTestId("person-effective").innerText();
-      assert.match(effective, /Roles[\s\S]*Member/); assert.match(effective, /Permissions/);
-      await page.getByRole("tab", { name: /^Groups/ }).click(); await page.getByTestId("person-groups").waitFor();
+      assert.match(effective, /Roles[\s\S]*Member/);
+      // what the role gives is listed in plain words in What they can do (the permission keys are not shown), and the effective section counts them
+      assert.match(effective, /Effective access\s+\d+/);
+      await page.getByTestId("person-what").getByText("Create records", { exact: true }).waitFor();
+      assert.match(await page.getByTestId("person-what").innerText(), /Create records\s+Allowed/);
+      assert.match(await page.getByTestId("person-what").innerText(), /What they can do/);
+      await page.getByTestId("object-tab-groups").click(); await page.getByTestId("person-groups").waitFor();
       await page.getByTestId("row-person-group-" + sales).waitFor();
       await page.getByTestId("row-person-group-" + sales).getByRole("button", { name: "Remove" }).click();
-      await page.getByText("Removed from group").waitFor();
+      await page.getByText("Removed from team").waitFor();
       assert.ok(!(await groupOf(sales)).includes(maya.personId));
-      await page.getByRole("button", { name: "Add to a group", exact: true }).click(); await page.getByRole("menuitem", { name: "Sales", exact: true }).click();
-      await page.getByTestId("person-group-add").click(); await page.getByText("Added to group").waitFor();
+      await page.getByRole("button", { name: "Add to a team", exact: true }).click(); await page.getByRole("menuitem", { name: "Sales", exact: true }).click();
+      await page.getByTestId("person-group-add").click(); await page.getByText("Added to team").waitFor();
       assert.ok((await groupOf(sales)).includes(maya.personId));
-      await page.getByRole("tab", { name: /^Devices/ }).click(); await page.getByTestId("person-devices").waitFor();
+      await page.getByTestId("object-tab-devices").click(); await page.getByTestId("person-devices").waitFor();
       assert.match(await page.getByTestId("person-devices").innerText(), /Maya's laptop/);
       assert.equal((await call("identity.whoami", {}, maya.token)).status, 200);
       const device = (await api("devices.list", { person: maya.personId })).devices[0].id as string;
@@ -175,7 +182,7 @@ test("production Console Access: People directory, person object, groups, device
       { const got = await api("search.resolve", { kind: "record", itemId: rec }); assert.equal(got.hit?.recordType, "contact", JSON.stringify(got)); }
       assert.equal((await call("records.get", { type: "contact", recordId: rec }, guest.token)).status, 403, "before the grant the guest cannot read it");
       await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
-      await goTo(page, "grants", "Grants", "Access"); await page.getByTestId("console-grants").waitFor();
+      await goPage(page, "grants"); await page.getByTestId("console-grants").waitFor();
       await page.getByTestId("grant-create-open").click();
       await page.getByRole("button", { name: "Choose resource", exact: true }).click();
       await page.getByTestId("grant-resource-picker").getByRole("button", { name: "Resource kind", exact: true }).click(); await page.getByRole("menuitem", { name: "Records", exact: true }).click();
@@ -196,12 +203,12 @@ test("production Console Access: People directory, person object, groups, device
       const grantRow = /Gus Hale[\s\S]*view · Zephyr Quill · Phone hidden/;
       await page.waitForFunction((src) => new RegExp(src).test(document.querySelector('[data-testid="console-grants"]')?.textContent ?? ""), grantRow.source, { timeout: 15_000 }).catch(() => undefined);
       assert.match(await page.getByTestId("console-grants").innerText(), grantRow, "the grant row names the record and what is hidden");
-      await matrix("grant-on-record", async (p) => { await goTo(p, "grants", "Grants", "Access"); await p.getByTestId("console-grants").waitFor(); });
+      await matrix("grant-on-record", async (p) => { await goPage(p, "grants"); await p.getByTestId("console-grants").waitFor(); });
     });
-    await t.test("an outside actor: create with a role, redeem the one-time token, edit its roles, revoke, and the credential stops working", async () => {
+    await t.test("an outside agent: create with a role, redeem the one-time token, edit its roles, revoke, and the credential stops working", async () => {
       await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
-      await goTo(page, "actors", "Outside actors", "Agents and actors"); await page.getByTestId("console-outside-actors").waitFor();
-      // Connect a tool opens a sheet: name, provider and role, then Issue token makes the one-time token
+      await goPage(page, "actors"); await page.getByTestId("console-outside-actors").waitFor();
+      // Connect a tool (Agents, Outside agents) opens a sheet: name, provider and role, then Issue token makes the one-time token
       await page.getByTestId("actor-new").click(); const sheet = page.getByRole("dialog");
       await sheet.getByLabel("Name", { exact: true }).fill("Claude Code");
       await page.getByRole("button", { name: "Provider", exact: true }).click(); await page.getByRole("menuitem", { name: "Anthropic", exact: true }).click();
@@ -219,24 +226,24 @@ test("production Console Access: People directory, person object, groups, device
       let worked = 0; for (let i = 0; i < 25 && worked !== 200; i++) { worked = (await call("schema.types.list", {}, credential)).status; if (worked !== 200) await new Promise((r) => setTimeout(r, 200)); }
       assert.equal(worked, 200, "the credential signs the tool in as its actor, with the role it was issued");
       assert.equal((await context.request.post(`${web.origin}/v1/access/actors/redeem`, { data: { token: oneTime } })).status() >= 400, true, "the token works once");
-      await page.reload({ waitUntil: "load" }); await goTo(page, "actors", "Outside actors", "Agents and actors");
+      await page.reload({ waitUntil: "load" }); await goPage(page, "actors");
       await page.getByTestId(`row-object-row-${actor.id}`).click();
-      await page.getByRole("button", { name: "Edit actor", exact: true }).click();
+      await page.getByRole("button", { name: "Edit outside agent", exact: true }).click();
       await page.getByTestId(`row-actor-role-choice-${roleId("Developer")}`).getByRole("button", { name: "Deselect" }).click();
       await page.getByTestId(`row-actor-role-choice-${roleId("Member")}`).getByRole("button", { name: "Select" }).click();
-      await page.getByRole("button", { name: "Save actor", exact: true }).click(); await page.getByText("Actor updated").first().waitFor();
+      await page.getByRole("button", { name: "Save outside agent", exact: true }).click(); await page.getByText("Outside agent updated").first().waitFor();
       assert.deepEqual(((await api("access.actors.list", {})).actors as { id: string; roles: string[] }[]).find((a) => a.id === actor.id)!.roles, [roleId("Member")]);
       await page.getByRole("tab", { name: /^Access/ }).click(); await page.getByText("Effective access").first().waitFor();
-      await matrix("outside-actor", async (p) => { await goTo(p, "actors", "Outside actors", "Agents and actors"); await p.getByTestId("console-outside-actors").waitFor(); });
+      await matrix("outside-actor", async (p) => { await goPage(p, "actors"); await p.getByTestId("console-outside-actors").waitFor(); });
       await page.getByTestId("object-more").click(); await page.getByRole("menuitem", { name: "Revoke", exact: true }).click();
       await page.getByTestId("object-confirm-go").click();
-      await page.getByText("Actor revoked").first().waitFor();
+      await page.getByText("Outside agent revoked").first().waitFor();
       assert.equal(((await api("access.actors.list", {})).actors as { id: string; status: string }[]).find((a) => a.id === actor.id)!.status, "revoked");
       assert.equal((await call("schema.types.list", {}, credential)).status, 401, "the revoked credential stops working");
     });
     await t.test("an agent's lifecycle: create, edit model, account and tools, pause and resume, hand over, delete and undo", async () => {
       await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
-      await goTo(page, "agents", "Agents register", "Agents and actors"); await page.getByTestId("console-agents").waitFor();
+      await goPage(page, "agents"); await page.getByTestId("console-agents").waitFor();
       // New agent opens a sheet
       await page.getByTestId("agent-new").click(); await page.getByTestId("agent-new-sheet").waitFor();
       await page.getByTestId("agent-name").fill("Intake Bot"); await page.getByLabel("Role line", { exact: true }).fill("Use me when a new inquiry arrives.");
@@ -248,7 +255,7 @@ test("production Console Access: People directory, person object, groups, device
       assert.ok(!(await read()).model, "Default is saved as no model"); assert.equal((await read()).ownerId, (await api("identity.whoami", {})).principal.id);
       const openAgent = async (p: Page = page): Promise<void> => { await p.getByTestId(`row-object-row-${agent.agentId}`).click(); await p.getByTestId("object-page-" + agent.agentId).waitFor(); };
       await api("agents.update", { agentId: agent.agentId, patch: { model: "model-b", fallbackModel: "model-c" } });
-      await page.reload({ waitUntil: "load" }); await goTo(page, "agents", "Agents register", "Agents and actors"); await page.getByTestId("console-agents").waitFor();
+      await page.reload({ waitUntil: "load" }); await goPage(page, "agents"); await page.getByTestId("console-agents").waitFor();
       await openAgent();
       await page.getByTestId("object-action-edit").click(); await page.getByTestId("agent-edit-sheet").waitFor();
       // models set through the capability still show in the picker, listed or not
@@ -263,7 +270,7 @@ test("production Console Access: People directory, person object, groups, device
       await page.getByRole("tab", { name: /^Configuration/ }).click(); await page.getByTestId("agent-configuration").waitFor();
       const config = await page.getByTestId("agent-configuration").innerText();
       assert.ok(config.includes(saved.model)); assert.match(config, /#Team_Anthropic_Key/); assert.match(config, /records\.read, files\.read/); assert.match(config, /terminal/);
-      await matrix("agent-configuration", async (p) => { await goTo(p, "agents", "Agents register", "Agents and actors"); await p.getByTestId("console-agents").waitFor(); await openAgent(p); await p.getByRole("tab", { name: /^Configuration/ }).click(); await p.getByTestId("agent-configuration").waitFor(); });
+      await matrix("agent-configuration", async (p) => { await goPage(p, "agents"); await p.getByTestId("console-agents").waitFor(); await openAgent(p); await p.getByRole("tab", { name: /^Configuration/ }).click(); await p.getByTestId("agent-configuration").waitFor(); });
       await page.getByRole("tab", { name: /^Overview/ }).click(); await page.getByTestId("agent-pause-reason").fill("Cost review");
       await page.getByTestId("object-action-pause").click(); await page.getByText("Agent paused").first().waitFor();
       assert.equal((await read()).status, "paused"); assert.equal((await read()).pausedReason, "Cost review");

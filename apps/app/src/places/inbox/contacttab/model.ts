@@ -253,6 +253,13 @@ export function whenLabel(at: number, now: number, offsetMin: number): string {
 }
 
 /** Which threads open by default: any with something new, and the newest. A person's own toggle wins. */
+/** How long the thread a link asked for stays marked. */
+export const MARK_MS = 2200;
+/** The thread a link asked for, when this conversation holds it; otherwise nothing, and the conversation opens as it always does. */
+export const askedThread = (asked: string | undefined, all: readonly MailThread[]): string | undefined => (asked !== undefined && all.some((t) => t.threadId === asked) ? asked : undefined);
+/** Which thread the feed scrolls to: the asked one when there is one, else the first with something new. */
+export const landsOn = (asked: string | undefined, threadId: string, firstFresh: boolean): boolean => (asked !== undefined ? asked === threadId : firstFresh);
+
 export function threadOpen(t: MailThread, all: readonly MailThread[], fresh: ReadonlySet<string>, toggled: Readonly<Record<string, boolean>>): boolean {
   const own = toggled[t.threadId];
   if (own !== undefined) return own;
@@ -443,6 +450,11 @@ export function lastInboundEmail(items: readonly ThreadItem[]): ThreadItem | und
 export interface DraftCard {
   id: string;
   agent: string;
+  /** The agent that wrote it, for a lesson from Don't send. */
+  agentId?: string;
+  /** Who it goes to and who is copied, with the names the directory has: the card shows them before Send. */
+  toParties: Party[];
+  ccParties: Party[];
   channel: Chan;
   subject: string;
   body: string;
@@ -450,25 +462,30 @@ export interface DraftCard {
   mailboxId: string;
   contactId?: string;
   to: string[];
+  /** The address or number it sends from, for the plain line under the draft. */
+  from: string;
+  /** When the agent last wrote it, and the draft it replaced: "Updated 5:45 AM" with the earlier text one click away. */
+  updatedAt: number;
+  earlier?: { at: number; text: string; subject: string };
 }
 
 /** An agent's draft for this contact, as the card shows it. A draft with no agent name is the person's own saved draft and is not a card. */
-export function draftCards(drafts: readonly DraftRow[], titles: ReadonlyMap<string, string>, agentNames: ReadonlyMap<string, string>): DraftCard[] {
+export function draftCards(drafts: readonly DraftRow[], titles: ReadonlyMap<string, string>, agentNames: ReadonlyMap<string, string>, addresses: ReadonlyMap<string, string> = new Map()): DraftCard[] {
   const out: DraftCard[] = [];
   for (const d of drafts) {
     if (d.status !== "draft" || !d.draftedByAgent) continue;
     // a draft addressed to a phone number (no @) is a text: it has no subject and sends from a number
     const text = d.to.length > 0 && d.to.every((t) => !t.address.includes("@"));
     out.push({
-      id: d.id, agent: agentNames.get(d.draftedByAgent) ?? d.draftedByAgent, channel: text ? "sms" : "email", subject: text ? "" : d.subject, body: d.snippet, via: titles.get(d.mailboxId) ?? d.mailboxId, mailboxId: d.mailboxId, ...(d.contactId ? { contactId: d.contactId } : {}), to: d.to.map((t) => t.address),
+      id: d.id, agent: agentNames.get(d.draftedByAgent) ?? "An agent", agentId: d.draftedByAgent, toParties: d.to.map((p) => ({ address: p.address, ...(p.name ? { name: p.name } : {}) })), ccParties: (d.cc ?? []).map((p) => ({ address: p.address, ...(p.name ? { name: p.name } : {}) })), channel: text ? "sms" : "email", subject: text ? "" : d.subject, body: d.snippet, via: titles.get(d.mailboxId) ?? d.mailboxId, mailboxId: d.mailboxId, from: addresses.get(d.mailboxId) ?? titles.get(d.mailboxId) ?? (/^\+?[\d\s()-]{7,}$/.test(d.mailboxId) ? d.mailboxId : ""), updatedAt: d.sentAt, ...(d.earlier ? { earlier: d.earlier } : {}), ...(d.contactId ? { contactId: d.contactId } : {}), to: d.to.map((t) => t.address),
     });
   }
   return out;
 }
 
-/** The line under an agent's draft: who sends, from where, and that a person approves first (spec 2.14: every agent send passes the Gate). */
-export function gateLine(agent: string, via: string): string {
-  return `Gate: ${agent} sends from ${via} after you approve`;
+/** The plain line under an agent's draft: where it sends from and that nothing goes until the person presses Send. No system words and no ids. */
+export function sendsLine(from: string): string {
+  return from ? `Sends from ${from} when you press Allow` : "Sends when you press Allow";
 }
 
 /** After Send on a draft the capability may answer `held`: the send waits for approval in Needs you. */

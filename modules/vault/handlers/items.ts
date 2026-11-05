@@ -31,7 +31,7 @@ export function filler(ctx: VaultCtx) {
 }
 
 /** The words of a Mine item that cannot open because its owner's key is not on this node: they open when the owner is signed in, and nothing else needs doing. */
-export const MINE_CLOSED = "Your Mine items open while you are signed in to Vyre. Sign in on this Space, in the app or the browser, and this goes on by itself.";
+export const MINE_CLOSED = "Your sign-ins are locked on this server. Unlock Vyre to use them.";
 
 /** The wrap key of the signed-in owner, or a refusal. */
 async function ownerWrap(ctx: VaultCtx, owner: string): Promise<Buffer> {
@@ -61,7 +61,7 @@ export async function maySealMine(owner: string): Promise<boolean> {
   return Boolean(await port?.publicKey?.(owner).catch(() => null));
 }
 
-function sealedOf(ctx: VaultCtx, itemId: string): SealedFields {
+export function sealedOf(ctx: VaultCtx, itemId: string): SealedFields {
   const r = first(ctx.db.all(`SELECT * FROM vault_secret WHERE "itemId" = ?`, itemId));
   if (!r) throw fail("internal.unexpected", ctx.trace.traceId, { message: "This item has no stored value." });
   return {
@@ -70,7 +70,7 @@ function sealedOf(ctx: VaultCtx, itemId: string): SealedFields {
   };
 }
 
-function storeSealed(ctx: VaultCtx, itemId: string, s: SealedFields): void {
+export function storeSealed(ctx: VaultCtx, itemId: string, s: SealedFields): void {
   const have = first(ctx.db.all(`SELECT * FROM vault_secret WHERE "itemId" = ?`, itemId));
   if (have) ctx.db.run(`UPDATE vault_secret SET "enc" = ?, "keyId" = ?, "wrapped" = ?, "box" = ?, "rev" = ? WHERE "itemId" = ?`, s.enc, s.keyId, s.wrapped ? JSON.stringify(s.wrapped) : null, JSON.stringify(s.box), s.rev, itemId);
   else ctx.db.run(`INSERT INTO vault_secret ("itemId", "enc", "keyId", "wrapped", "box", "rev") VALUES (?, ?, ?, ?, ?, ?)`, itemId, s.enc, s.keyId, s.wrapped ? JSON.stringify(s.wrapped) : null, JSON.stringify(s.box), s.rev);
@@ -158,6 +158,15 @@ export function reachable(ctx: VaultCtx, id: string, need: "use" | "view" | "edi
 
 // ---- reads
 
+/** Search finds an item by its name, handle, kind, field names or folder name (never a value), across every section: Mine, Shared with me and the Space's. */
+function matchesText(ctx: VaultCtx, r: Row, q: string): boolean {
+  const needle = q.trim().toLowerCase();
+  if (needle === "") return true;
+  const folder = first(ctx.db.all(`SELECT * FROM vault_folder WHERE id = ?`, str(r, "folderId")));
+  const hay = [str(r, "name"), str(r, "handle"), str(r, "kind"), ...parseJson<string[]>(r["fieldKeys"], []), folder ? str(folder, "name") : ""];
+  return hay.some((h) => h.toLowerCase().includes(needle)) || needle.replace(/^#/, "").split(/\s+/).every((w) => hay.some((h) => h.toLowerCase().replace(/[_\s]+/g, " ").includes(w)));
+}
+
 export async function itemsList(ctx: VaultCtx, input: { section?: string; folder?: string; kind?: string; q?: string; cursor?: string; limit?: number }) {
   ensure(ctx);
   const { cursor, limit } = paging(ctx, obj(input));
@@ -179,7 +188,7 @@ export async function itemsList(ctx: VaultCtx, input: { section?: string; folder
     if (s === "starred" || s === "following") return false;
     if (input.folder !== undefined && str(r, "folderId") !== input.folder) return false;
     if (input.kind !== undefined && str(r, "kind") !== input.kind) return false;
-    if (input.q && !str(r, "name").toLowerCase().includes(input.q.toLowerCase())) return false;
+    if (input.q && !matchesText(ctx, r, input.q)) return false;
     return true;
   });
   wanted.sort((a, b) => str(a, "name").toLowerCase().localeCompare(str(b, "name").toLowerCase(), "en") || str(a, "id").localeCompare(str(b, "id")));
@@ -379,6 +388,8 @@ export async function itemUpdate(ctx: VaultCtx, input: {
   if (!fieldsChanged.length && !settings.length) return { item: metaOut(ctx, r) };
   patchMeta(ctx, str(r, "id"), changed);
   if (settings.length) record(ctx, str(r, "id"), "edited", { detail: settings.join(", ") });
+  // a sign-in saved again on an account that read "Sign in again" puts it back to working; the next turn proves it
+  if (fieldsChanged.some((k) => k === "setup_token" || k === "credentials" || k === "api_key")) { try { ctx.db.run(`UPDATE vault_provider SET "state" = 'ok' WHERE "itemId" = ? AND "state" = 'needs_sign_in'`, str(r, "id")); } catch { /* no provider table yet: nothing to put back */ } }
   ctx.emit("vault.item_updated", `vault_item/${str(r, "id")}`, { itemId: str(r, "id"), fieldsChanged, settingsChanged: settings }, { vis: "participants" });
   return { item: metaOut(ctx, liveItem(ctx, str(r, "id"))) };
 }
@@ -461,7 +472,7 @@ function shareTarget(ctx: VaultCtx, resource: ResourceIn, need: "view" | "manage
   return bad(ctx, "Share an item or a folder.");
 }
 
-export async function share(ctx: VaultCtx, input: { resource: ResourceIn; subject: Json; level: string; idempotencyKey: string }) {
+export async function share(ctx: VaultCtx, input: { resource: ResourceIn; subject: Json; level: string; idempotencyKey: string; notify?: { message?: string } }) {
   ensure(ctx);
   const key = keyOf(ctx, input);
   const t = shareTarget(ctx, input.resource, "manage");
@@ -473,7 +484,7 @@ export async function share(ctx: VaultCtx, input: { resource: ResourceIn; subjec
     if (str(t.row, "scope") === "mine") refuse(ctx, "A Mine folder is private. Make a Shared folder to share items.");
     if (!atLeast(levelOn(ctx, "vault_folder", str(t.row, "id")), "manage") && str(t.row, "owner") !== ctx.principal.id) return denied(ctx, "Sharing a folder needs manage access.");
   }
-  await ctx.call("access.share", { resource: { type: t.kind, id: str(t.row, "id") }, subject: input.subject, level: input.level, idempotencyKey: key });
+  await ctx.call("access.share", { resource: { type: t.kind, id: str(t.row, "id") }, subject: input.subject, level: input.level, idempotencyKey: key, ...(input.notify ? { notify: input.notify } : {}) });
   if (t.kind === "vault_item") record(ctx, str(t.row, "id"), "shared", { detail: `${String(obj(input.subject)["kind"])} ${String(obj(input.subject)["id"])} at ${input.level}` });
   return { granted: true };
 }

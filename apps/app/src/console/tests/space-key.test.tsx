@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { find, installDom, mount, press, textOf, typeInto } from "../../../../../ui/src/testing/dom.ts";
 import { ConsoleDataProvider } from "../shell/data.tsx";
 import { SpaceKey, keyHeadline, keyProviders, modelsLine } from "../pages/SpaceKey.tsx";
-import { useLine } from "../pages/Spend.tsx";
+import { usageLine } from "../pages/Spend.tsx";
 import { dataWith } from "./sheet-helper.tsx";
 
 const KEY = "ocg-live-7a1f-NEVER-ON-A-PAGE-0123456789"; // secret-scan: fake
@@ -32,7 +32,7 @@ test("the providers a Space AI key can be: API-key ones, OpenCode Go first, no s
   assert.equal(keyHeadline(SET as never), "OpenCode Go covers everyone");
   assert.equal(keyHeadline({ ...SET, state: "failing" } as never), "The OpenCode Go key stopped working");
   assert.equal(modelsLine(SET.models), "glm-5.3, kimi-k3, deepseek-v4-pro and 1 more");
-  assert.equal(useLine({ turns: 1, tokensIn: 900, tokensOut: 1600, costMicros: 0 }), "1 turn · 3k tokens");
+  assert.equal(usageLine({ turns: 1, tokensIn: 900, tokensOut: 1600, costMicros: 0 }), "1 turn · 3k tokens");
 });
 
 test("one step: choose OpenCode Go, paste the key, Vyre checks it and the page shows what it unlocks; the key is never shown back", async () => {

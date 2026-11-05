@@ -16,3 +16,4 @@ Area: agents. Risk: medium. Applies to: space.
 
 - agents.create
 - agents.outside.connect
+- threads.agent.create

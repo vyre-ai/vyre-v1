@@ -6,13 +6,14 @@ import { StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import type { CardKind, Progress } from "./flow.ts";
 import { foldersVersion, watchFolders } from "./folders-model.ts";
-import { previewFor } from "./preview.ts";
+import { previewFor, previewVersion, watchPreview } from "./preview.ts";
 import type { Preview } from "./preview.ts";
 
 export function PreviewPane({ call, card, progress, fallback }: { call: CapCall | null; card: CardKind; progress: Progress; fallback: string }): ReactElement | null {
   const [p, setP] = useState<Preview | null>(null);
   const folders = useSyncExternalStore(watchFolders, foldersVersion, foldersVersion);
-  const key = `${JSON.stringify(progress)}:${card === "local_folders" ? folders : 0}`;
+  const pinged = useSyncExternalStore(watchPreview, previewVersion, previewVersion);
+  const key = `${JSON.stringify(progress)}:${card === "local_folders" ? folders : 0}:${pinged}`;
   useEffect(() => {
     if (!call) { setP(null); return undefined; }
     let off = false;

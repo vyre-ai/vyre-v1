@@ -13,12 +13,12 @@ let n = 0;
 const key = (): string => `adm-${++n}`;
 const NAMES: Record<string, string> = { [DANA]: "Dana Reyes", [MAYA]: "Maya Chen" };
 
-interface World { presence?: Record<string, unknown>; hours?: Record<string, unknown>; facts?: string[]; vault?: (text: string) => string[]; tasks?: Record<string, unknown>[] }
+interface World { kind?: string; presence?: Record<string, unknown>; hours?: Record<string, unknown>; facts?: string[]; vault?: (text: string) => string[]; tasks?: Record<string, unknown>[] }
 function world(w: World = {}) {
   const tasks = w.tasks ?? [];
   const hn = harness({
     calls: {
-      "agents.get": () => ({ agent: {} }),
+      "agents.get": () => ({ agent: { kind: w.kind ?? "assistant", name: "Intake" } }),
       "access.principals.get": (i) => { const id = (i["principal"] as { id: string }).id; return NAMES[id] ? { principal: { id, kind: "person", name: NAMES[id], status: "active" } } : (() => { throw Object.assign(new Error("nope"), { code: "validation.not_found" }); })(); },
       "access.principals.list": () => ({ principals: Object.entries(NAMES).map(([id, name]) => ({ id, name })) }),
       "devices.presence": (i) => ({ people: (i["people"] as string[]).map((p) => ({ personId: p, state: "online", lastSeenAt: NOW - 60_000, ...(w.presence?.[p] as object ?? {}) })) }),
@@ -38,6 +38,19 @@ async function asked(hn: ReturnType<typeof harness>, body = "tell Maya the River
   return { origin, agent: { ...hn.agent(INTAKE, DANA), thread: origin } };
 }
 const msgs = (hn: ReturnType<typeof harness>, thread: string) => hn.rows("SELECT id, author, kind, body, blocks FROM chat_message WHERE thread = ? ORDER BY threadSeq", thread).map((r) => ({ ...r, blocks: JSON.parse(String(r["blocks"])) as Array<{ type: string; data: Record<string, unknown> }> }));
+
+test("an older chat of Dana and Maya with an agent in it is not the direct chat: the message makes the real one (lane l-polish L0)", async () => {
+  const { hn } = world();
+  const group = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread.threadId as string;
+  await h["threads.members.add"]!(hn.ctx, { threadId: group, personId: MAYA });
+  const { agent } = await asked(hn);
+  const out = await h["chat.message_person"]!(agent, { to: MAYA, body: "The Rivera draft is ready for you.", idempotencyKey: key() });
+  assert.notEqual(out.threadId, group, "never into the group chat");
+  const members = hn.rows("SELECT principal FROM chat_thread_member WHERE thread = ?", out.threadId).map((r) => r["principal"]).sort();
+  assert.deepEqual(members, [DANA, MAYA].sort());
+  assert.equal(hn.rows("SELECT 1 FROM chat_thread_agent WHERE thread = ? AND deleted_at IS NULL", out.threadId).length, 0);
+  assert.equal((await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() })).thread.threadId, out.threadId, "chat.start finds the same direct chat");
+});
 
 test("asked this turn: the message goes now, in Dana's own direct chat with Maya, written by the agent and signed for Dana; Maya is told", async () => {
   const { hn } = world();
@@ -159,7 +172,7 @@ test("an approval card: an Approve task for Maya, shown in the message; her answ
   assert.equal(msgs(hn, out.threadId)[0]!["body"], "", "the card alone: its title is the ask, its detail the reason, nothing said twice");
   assert.equal((tasks[0] as { summary?: string }).summary, "Their retainer renews Monday.");
   const card = msgs(hn, out.threadId)[0]!.blocks.find((b) => b.type === "link_card")!;
-  assert.deepEqual(card.data, { icon: "approval", lead: "Approve", title: "the 10% Rivera discount", target: { type: "task", id: "tsk_card1" } });
+  assert.deepEqual(card.data, { icon: "approval", lead: "Allow", title: "the 10% Rivera discount", target: { type: "task", id: "tsk_card1" } });
   assert.equal((await onCardAnswered(hn.ctx, { name: "task.approved", payload: { taskId: "tsk_card1", by: MAYA } })).length, 1);
   assert.equal(msgs(hn, origin).at(-1)!["body"], "Maya approved: the 10% Rivera discount.");
   assert.deepEqual(await onCardAnswered(hn.ctx, { name: "task.sent_back", payload: { taskId: "tsk_card1", by: MAYA, note: "x" } }), [], "once");
@@ -189,7 +202,9 @@ test("who is in: presence, local time, hours, a mute and when a message would go
   assert.deepEqual(contractErrors("chat.people_status", "out", out), []);
   assert.equal(out.people.length, 1);
   const maya = out.people[0];
-  assert.equal(maya.personId, MAYA);
+  assert.match(maya.handle, /^maya-/);
+  assert.doesNotMatch(JSON.stringify(out), /usr_/, "no id in what the model reads");
+  assert.match(out.how, /signed as Dana Reyes \(Agent\)/);
   assert.equal(maya.state, "away");
   assert.equal(maya.localTime, "1:53 PM");
   assert.equal(maya.hours, "Mon to Fri, 09:00 to 18:00");
@@ -222,4 +237,47 @@ test("a plain yes in Dana's own words presses the Send this to Maya card: noted 
   assert.deepEqual(await approveInChat(h2.ctx, origin, "yes, send it"), ["tsk_held"]);
   assert.deepEqual(acted, [["note", { taskId: "tsk_held", key: "approved_in", value: "chat" }], ["act", { taskId: "tsk_held", action: "approve", note: "Approved in chat" }]]);
   assert.deepEqual(await approveInChat(h2.ctx, origin, "tell Maya yes"), ["tsk_held"], "a send that names her covers it too");
+});
+
+// ---- a Space agent writes as itself (owner ruling 4 Nov 2026) ----
+
+test("a Space agent messages a teammate as itself in its own chat with them; the asker's chat gets one short line; the reply goes to the agent; the asker cannot read it", async () => {
+  const { hn } = world({ kind: "agent" });
+  const { origin, agent } = await asked(hn);
+  hn.clear();
+  const status = await h["chat.people_status"]!(agent, {});
+  assert.match(status.how, /as yourself/);
+  assert.doesNotMatch(JSON.stringify(status), /usr_/, "no id in what the model reads");
+  const out = await h["chat.message_person"]!(agent, { to: status.people[0].handle, body: "Dana asked me to let you know the Rivera draft is ready.", idempotencyKey: key() });
+  assert.equal(out.state, "sent");
+  assert.equal(out.as, "self");
+  assert.match(out.when, /as yourself, in your own chat with them/);
+  const dm = msgs(hn, out.threadId);
+  assert.equal(dm.length, 1);
+  assert.equal(dm[0]!["author"], INTAKE, "written by the agent");
+  assert.equal(dm[0]!.blocks.some((b) => b.type === "on_behalf"), false, "signed by nobody else");
+  const members = hn.rows("SELECT principal FROM chat_thread_member WHERE thread = ?", out.threadId).map((r) => r["principal"]);
+  assert.deepEqual(members, [MAYA], "the teammate is in it, the person who asked is not");
+  assert.deepEqual(hn.rows("SELECT agentId FROM chat_thread_agent WHERE thread = ?", out.threadId).map((r) => r["agentId"]), [INTAKE], "the agent leads its own chat");
+  assert.equal((await h["chat.message_person"]!(agent, { to: MAYA, body: "A second note.", idempotencyKey: key() })).threadId, out.threadId, "the same chat the next time");
+  assert.equal(hn.rows("SELECT title FROM chat_thread WHERE id = ?", out.threadId)[0]!["title"], "Intake", "named after the agent");
+  assert.match(String(msgs(hn, origin).find((m) => m["kind"] === "quiet" && /^Sent to Maya in Intake's chat with them/.test(String(m["body"])))?.["body"]), /\(private to them\)\.$/, "Dana's chat says where it went");
+
+  // Maya replies there: one short line goes to the chat the agent was asked in, with the words clipped and no turn started by it
+  const long = "Friday works. ".repeat(40);
+  const reply = (await h["chat.post"]!(hn.person(MAYA), { threadId: out.threadId, body: long, idempotencyKey: key() })).message;
+  const event = hn.named("message.received").find((e) => e.payload["messageId"] === reply.messageId)!;
+  assert.equal((await onDirectReply(hn.ctx, event as never)).length, 1);
+  const line = msgs(hn, origin).at(-1)!;
+  assert.equal(line["author"], INTAKE, "the agent's own line, not Dana's");
+  assert.equal(line["kind"], "quiet");
+  assert.match(String(line["body"]), /^Maya replied: Friday works\./);
+  assert.ok(String(line["body"]).length < 200, "never her words whole");
+});
+
+test("a Space agent's hourly limit is its own, per teammate; an Assistant's stays per person", async () => {
+  const { hn } = world({ kind: "agent" });
+  const { agent } = await asked(hn);
+  for (let i = 0; i < 3; i++) assert.equal((await h["chat.message_person"]!(agent, { to: MAYA, body: `Note ${i}`, idempotencyKey: key() })).state, "sent");
+  assert.equal((await h["chat.message_person"]!(agent, { to: MAYA, body: "Note 4", idempotencyKey: key() })).state, "scheduled", "the fourth in an hour waits");
 });

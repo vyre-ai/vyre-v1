@@ -2,6 +2,7 @@
 // the place itself; opening an item (a chat, a record, a file) puts it on top and Back returns to where you came from. The places are the same modules the desktop draws; the ones that
 // have a list and a detail (Chats) draw one at a time under their compact width. Automations and the Console are not on the phone (owner ruling, 3 Nov): a link to either draws the
 // Chat-about-it line, whose action opens an Ask with the assistant about that item.
+import { PhoneNotices } from "../noticeslot/PhoneNotices.tsx";
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { View } from "react-native";
@@ -14,7 +15,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import type { PlaceHash } from "../hash/context.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
-import { chatAboutOf, desktopLine, desktopOnly, entryFor, headerBack, isAskEntry, phoneStart, placeOf, subjectEntry } from "./mobile-map.ts";
+import { chatAboutOf, desktopLine, desktopOnly, entryFor, headerBack, isAskEntry, ownsHeaderScreen, phoneStart, placeOf, subjectEntry } from "./mobile-map.ts";
 import { openAsk } from "../providers/ask.ts";
 import { othersNeedingYou } from "../spaces/model.ts";
 import { threadsNote } from "../../places/chats/mounts/threads-model.ts";
@@ -30,14 +31,14 @@ function You({ session, nav, onSignOut, onAddSpace, onLock, onSwitchSpace }: { s
   const work = useLive(session.hooks.capQuery<CapMap["tasks.my_work"]["out"]>("tasks.my_work", {}));
   const stars = useLive(session.hooks.capQuery<CapMap["stars.list"]["out"]>("stars.list", {}));
   const resume = useResume();
-  // the threads I am in: how many replies in them are new (the Threads row of Chats, on the phone)
+  // the replies I follow: how many are new (the Replies row, on the phone)
   const recent = useLive(session.hooks.capQuery<CapMap["chat.recent"]["out"]>("chat.recent", { filter: "all" }));
   const threadsNew = recent.status === "ready" ? recent.data.threadsUnread ?? 0 : 0;
   return (
     <View style={{ flex: 1 }}>
       <YouScreen nav={nav} data={{ name: session.me.name, space: session.def.name, workOpen: work.status === "ready" ? work.data.tasks.length : 0, starred: stars.status === "ready" ? stars.data.stars.length : 0 }} />
       <InstallRow />
-      <Row id="you-threads" title="Threads" note={threadsNote(threadsNew)} emphasis={threadsNew > 0} onPress={() => nav.open(entryFor("chats", "screen=chats.threads"))} />
+      <Row id="you-replies" title="Replies" note={threadsNote(threadsNew)} emphasis={threadsNew > 0} onPress={() => nav.open(entryFor("inbox", "screen=inbox.replies"))} />
       {resume ? <Row id="you-finish-setup" title="Finish setup" note={`${resume.done} of ${resume.total} done`} onPress={resume.open} /> : null}
       <Row id="you-vault" title="Vault" note="Keys, logins and cards" onPress={() => nav.open(entryFor("vault", ""))} />
       {session.runtime.space.kind === "team" ? <Row id="you-apps" title="Apps" note="Sites, forms and templates" onPress={() => nav.open(entryFor("apps", ""))} /> : null}
@@ -106,5 +107,5 @@ export function PhoneHost({ session, location, needsYou, registerGo, onSignOut, 
   };
   // another Space needing you is a dot on the You tab, where the Space switcher is
   const youDot = session ? othersNeedingYou(session.runtime.knownSpaces ?? [], session.def.spaceId).length > 0 : false;
-  return <MobileShell {...(start.current.initialEntry ? { initialEntry: start.current.initialEntry } : {})} renderScreen={render} needsYou={needsYou} initialTab={start.current.initialTab} ownsHeader={(entry) => entry.screen.startsWith("apps:") && placeOf(entry)?.hash !== ""} headerBack={headerBack} youDot={youDot} />;
+  return <MobileShell {...(start.current.initialEntry ? { initialEntry: start.current.initialEntry } : {})} renderScreen={render} needsYou={needsYou} initialTab={start.current.initialTab} ownsHeader={(entry) => ownsHeaderScreen(entry.screen, placeOf(entry)?.hash)} headerBack={headerBack} youDot={youDot} notices={<PhoneNotices />} />;
 }

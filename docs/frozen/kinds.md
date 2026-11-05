@@ -110,6 +110,7 @@ Example: `send`.
 | spend_raise | Raise a spend cap | medium | no | table |
 | signin_change | Change how people sign in to the Space | high | no | record_card |
 | approve | Allow this step | medium | no | doc_excerpt |
+| github_approval | Let a session use my GitHub | high | no | table |
 | transfer | Hand over ownership | high | no | record_card |
 
 ## Task kinds

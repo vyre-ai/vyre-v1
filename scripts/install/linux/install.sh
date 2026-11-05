@@ -439,6 +439,8 @@ write_config() {
   # compose.env: what the compose file reads. Rewritten each install from the release and the choices made here.
   {
     printf 'VYRE_IMAGE=%s\n' "$(lock_get VYRE_IMAGE)"
+    # the agent computer image of this release, by digest: vyred asks for exactly this one
+    [ -z "$(lock_get VYRE_AGENT_IMAGE)" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$(lock_get VYRE_AGENT_IMAGE)"
     printf 'VYRE_PORT=8420\n'
     printf 'VYRE_SPACE=%s\n' "$(space_id)"
     [ -z "$DOMAIN" ] || printf 'VYRE_ADDRESS=%s\n' "$DOMAIN"
@@ -548,6 +550,7 @@ finish() {
   else
     say "Vyre Server $REL_VERSION is running."
     if [ -n "$DOMAIN" ]; then say "Your Space will answer at https://$DOMAIN once its certificate is issued (ports 80 and 443 must reach this machine)."
+         say "Artifacts open on their own address, https://a.$DOMAIN. Add a DNS record for it that points where $DOMAIN points (an A or CNAME record named a.$DOMAIN); Caddy issues its certificate the same way."
     elif [ -n "$RELAY" ]; then say "It connects outward to $RELAY; no public port is open on this machine."
     else say "Choose how people reach it: run the installer again with --domain NAME or --relay."
     fi

@@ -5,10 +5,11 @@
 // DECISION: a read-only link is a token the host serves at /share/project/<token>; it lives in projects_share until it expires or is revoked.
 import {
   LEVEL_OF, addFiled, addLink, addPin, allProjects, allows, buildStages, call, clean, codeOf, dropMember, dropPin, emitP, ensure, isMember, keyed, kindOfPrincipal, linksOf, loadTasks,
-  me, membersOf, memberOf, newId, page, pinsOf, planTask, plansOf, projectBy, projectByChannel, projectRow, raise, readRecord, remember, replaceStages, saveMember, savePlan, saveProject, saveUpdate,
-  stagesOf, tolerant, updateOf, visible, writeRecord,
+  archivedIds, clearArchived, setArchived, me, membersOf, memberOf, newId, page, pinsOf, planTask, plansOf, projectBy, projectByChannel, projectRow, raise, readRecord, remember, replaceStages, saveMember, savePlan, saveProject, saveUpdate,
+  isSpaceAdmin, stagesOf, tolerant, updateOf, visible, writeRecord, draftOf, saveDraft, attachesOf, templateBy,
 } from "../projections.ts";
 import { isHostService } from "../../../lib/trust.ts";
+import { seedTemplates, startPage } from "./overview.ts";
 import type { In, Member, Project, ProjectsCtx, Role, Source, TaskView } from "../projections.ts";
 
 export interface Made { projectId: string; recordId: string; channelId: string; folderId: string }
@@ -24,7 +25,7 @@ function resourcesOf(p: Project): Array<{ type: string; id: string }> {
 
 /**
  * The grants on the project itself for the people it started with. A new project becomes a resource in access only when the call that made it commits, so projects.create grants on its folder
- * and channel (which exist already) and the host runs this for `project.created` right after the commit. Same keys as applyRole's, so a replay writes nothing twice.
+ * and channel (which exist already) and the host runs this for `project.created` right after the commit. The project resource itself is only ever shared here (applyRole skips it while a project is being made).
  */
 export async function grantOnProject(ctx: ProjectsCtx, projectId: string): Promise<void> {
   const p = projectBy(ctx.db, projectId);
@@ -58,13 +59,37 @@ export async function applyRole(ctx: ProjectsCtx, p: Project, principal: string,
     // a project that is being made is not a resource yet: it becomes one when this call commits, so the grants on it follow (grantOnProject)
     if (deferProject && r.type === "project") continue;
     if (before) await call(ctx, "access.unshare", { resource: r, subject: subjectOf(member), source: sourceTag(p.projectId) });
-    await call(ctx, "access.share", { resource: r, subject: subjectOf(member), level: LEVEL_OF[role], source: sourceTag(p.projectId) }, { idempotencyKey: `prj-share:${p.projectId}:${principal}:${role}:${r.type}` });
+    await shareRole(ctx, p, r, member, role);
   }
+  // the project's channel is invite-only: a grant lets a person read it, but they are only IN it (and the Chat tab opens it, channels.get answers) once they are added
+  if (kind === "person" && p.channelId && !ownPersonal) await tolerant(ctx, "channels.members.add", { channelId: p.channelId, personIds: [principal] }, null);
+  if (kind === "agent" && p.channelId) await tolerant(ctx, "channels.agents.add", { channelId: p.channelId, agentId: principal, mode: role === "lead" ? "lead" : "listen" }, null);
   saveMember(ctx.db, p.projectId, member);
   if (role === "lead") await writeRecord(ctx, p, { lead: principal });
   // projects.create and projects.from_channel declare project.created, not project.member_set: the first people on a project are part of its creation
   if (announce) emitP(ctx, "project.member_set", p.projectId, { principal, role, previous: before?.role });
   return { member, ...(before ? { previous: before.role } : {}) };
+}
+
+/**
+ * One role grant. A person's own assistant holds at most Edit on what it makes, so it cannot hand out Manage, but the person who made the project already owns its folder and its channel and
+ * holds Manage through that. A grant the owner does not need is skipped for the owner, never an error: making a project is all or nothing, and the maker is not the one to be refused.
+ */
+async function shareRole(ctx: ProjectsCtx, p: Project, r: { type: string; id: string }, member: Member, role: Role): Promise<void> {
+  try {
+    await call(ctx, "access.share", { resource: r, subject: subjectOf(member), level: LEVEL_OF[role], source: sourceTag(p.projectId) }, { idempotencyKey: `prj-share:${p.projectId}:${member.principal}:${role}:${r.type}:${ctx.now()}` });
+  } catch (e) {
+    const code = codeOf(e);
+    if (code !== "permission.not_contained" && code !== "permission.no_grant") throw e;
+    if (member.kind === "person" && await ownsResource(ctx, r, member.principal)) return;
+    throw e;
+  }
+}
+
+/** Does this person own the resource (and so hold Manage on it whatever is granted)? */
+async function ownsResource(ctx: ProjectsCtx, r: { type: string; id: string }, person: string): Promise<boolean> {
+  const got = await tolerant<{ shares?: Array<{ through?: string; grant?: { subject?: { id?: string } } }> }>(ctx, "access.shares_of", { resource: r }, {});
+  return (got.shares ?? []).some((s) => s.through === "owner" && s.grant?.subject?.id === person);
 }
 
 export async function membersList(ctx: ProjectsCtx, input: In): Promise<unknown> {
@@ -73,9 +98,23 @@ export async function membersList(ctx: ProjectsCtx, input: In): Promise<unknown>
   return { members: membersOf(ctx.db, p.projectId) };
 }
 
+/**
+ * Roles change for someone who manages the project (its Lead, its owner) and for a Space owner or admin (the Console's own right), whoever leads it. A Space admin holds no grant on the project's
+ * things, so the host writes the grants for them: the daemon runs the access.share and access.unshare of these two calls as the host, and only for a grant with source project:<id> on the
+ * project's own things. Anyone else is told so in one plain line, before anything is written.
+ */
+function manageToChangeRoles(ctx: ProjectsCtx, projectId: string): Project {
+  const known = isSpaceAdmin(ctx) ? projectBy(ctx.db, projectId) : undefined;
+  if (known) return known;
+  try { return visible(ctx, projectId, "manage"); } catch (e) {
+    if (codeOf(e) === "permission.no_grant") raise(ctx, "permission.no_grant", "You need to manage this project to change roles. Ask its Lead or the Space owner.", { reason: "needs_level", level: "manage" });
+    throw e;
+  }
+}
+
 export async function membersSet(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
-  const p = visible(ctx, input.projectId, "manage");
+  const p = manageToChangeRoles(ctx, input.projectId);
   const again = keyed<{ member: Member }>(ctx.db, input.idempotencyKey, "projects.members.set");
   if (again) return again;
   const { member } = await applyRole(ctx, p, input.principal, input.role);
@@ -87,6 +126,8 @@ export async function membersSet(ctx: ProjectsCtx, input: In): Promise<unknown> 
 /** Take a principal off a project: its grants of this project go, the lead field is cleared if it was the lead, and the project says so. */
 export async function removeMember(ctx: ProjectsCtx, p: Project, m: Member): Promise<void> {
   for (const r of resourcesOf(p)) await call(ctx, "access.unshare", { resource: r, subject: subjectOf(m), source: sourceTag(p.projectId) });
+  if (m.kind === "person" && p.channelId) await tolerant(ctx, "channels.members.remove", { channelId: p.channelId, personId: m.principal }, null);
+  if (m.kind === "agent" && p.channelId) await tolerant(ctx, "channels.agents.remove", { channelId: p.channelId, agentId: m.principal }, null);
   dropMember(ctx.db, p.projectId, m.principal);
   if (m.role === "lead") {
     const fields = await readRecord(ctx, p);
@@ -97,7 +138,7 @@ export async function removeMember(ctx: ProjectsCtx, p: Project, m: Member): Pro
 
 export async function membersRemove(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
-  const p = visible(ctx, input.projectId, "manage");
+  const p = manageToChangeRoles(ctx, input.projectId);
   const m = memberOf(ctx.db, p.projectId, input.principal);
   if (!m) return { removed: false };
   await removeMember(ctx, p, m);
@@ -194,8 +235,15 @@ export async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
   let threadId = o.channel?.threadId;
   if (!channelId) {
     const ids = [...members.keys()];
+    // a project's chat starts with someone to answer: the project's lead teammate, else its maker's own Assistant (a chat with only people in it answers nobody)
+    if (!ids.some((i) => i.startsWith("agt_")) && maker.startsWith("usr_")) {
+      const mine = await tolerant<{ agentId?: string }>(ctx, "agents.assistant_of", { personId: maker }, {});
+      if (mine.agentId) ids.push(mine.agentId);
+    }
     const ch = await call<{ channel?: { channelId?: string; mainThreadId?: string } }>(ctx, "channels.create", {
       name: o.title, visibility: "invite", recordId, folderId, memberIds: ids.filter((i) => i.startsWith("usr_")), agentIds: ids.filter((i) => i.startsWith("agt_")),
+      // the first agent leads, so a plain message in the project's chat is answered (a channel's listeners wait to be named)
+      ...(ids.some((i) => i.startsWith("agt_")) ? { leadAgentId: ids.find((i) => i.startsWith("agt_")) } : {}),
     }, { idempotencyKey: `prj-channel:${o.key}` });
     channelId = ch.channel?.channelId;
     threadId = ch.channel?.mainThreadId;
@@ -204,12 +252,20 @@ export async function makeProject(ctx: ProjectsCtx, o: Plan): Promise<Made> {
 
   const p: Project = { projectId, recordId, type: o.type, channelId, folderId, threadId, source: o.source, createdBy: maker, createdAt: now };
   saveProject(ctx.db, p);
-  replaceStages(ctx.db, projectId, o.stages.map((s, order) => ({ key: s.key, title: s.title, order })));
-  await writeRecord(ctx, p, { channel: channelId, folder: folderId });
-  // the project's folder follows its record: a project record set apart takes its files with it (the roles on the folder still add their people)
-  await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId }, {});
-  emitP(ctx, "project.created", projectId, { recordId, type: o.type, channelId, folderId, source: o.source });
-  for (const [principal, role] of members) await applyRole(ctx, p, principal, role, false, true);
+  try {
+    replaceStages(ctx.db, projectId, o.stages.map((s, order) => ({ key: s.key, title: s.title, order })));
+    await writeRecord(ctx, p, { channel: channelId, folder: folderId });
+    // the project's folder follows its record: a project record set apart takes its files with it (the roles on the folder still add their people)
+    await tolerant(ctx, "access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId }, {});
+    emitP(ctx, "project.created", projectId, { recordId, type: o.type, channelId, folderId, source: o.source });
+    for (const [principal, role] of members) await applyRole(ctx, p, principal, role, false, true);
+  } catch (e) {
+    // all or nothing: a project that failed half way must not be listed, found or counted. What this call made in other modules goes to Trash where it can; the project's own rows go.
+    for (const t of ["projects_member", "projects_stage", "projects_project"]) { try { ctx.db.run(`DELETE FROM ${t} WHERE projectId = ?`, projectId); } catch { /* the rows are gone or were never made */ } }
+    // (an agent deleting a record is held at the Gate for a person; a half-made project is not worth a card, so only a person's own call tidies the record)
+    if (!o.existing && ctx.principal.kind === "person") await tolerant(ctx, "records.delete", { type: o.type, recordId }, {});
+    throw e;
+  }
   return { projectId, recordId, channelId, folderId };
 }
 
@@ -251,6 +307,8 @@ export async function create(ctx: ProjectsCtx, input: In): Promise<unknown> {
   if (!title) raise(ctx, "validation.bad_input", "A project needs a name.");
   if (input.start !== undefined && input.due !== undefined && input.start > input.due) raise(ctx, "validation.bad_input", "A project cannot start after it is due.");
   await requireProjectType(ctx, input.type);
+  const pageTemplate = typeof input.overviewTemplate === "string" ? input.overviewTemplate : undefined;
+  if (pageTemplate !== undefined) { seedTemplates(ctx); if (!templateBy(ctx.db, pageTemplate)) raise(ctx, "validation.bad_input", `There is no page template called ${pageTemplate}.`, { overviewTemplate: pageTemplate }); }
   const template = typeof input.template === "string" ? input.template : undefined;
   const from = template?.startsWith("prj_") ? projectBy(ctx.db, template) : undefined;
   if (template !== undefined && !from) raise(ctx, "validation.bad_input", `There is no project template called ${template}.`, { template });
@@ -260,6 +318,8 @@ export async function create(ctx: ProjectsCtx, input: In): Promise<unknown> {
     members: (input.members ?? []) as Array<{ principal: string; role: Role }>, source: from ? "template" : "new", key: String(input.idempotencyKey),
   });
   if (from) await copyTemplate(ctx, from.projectId, made, input.start);
+  // the project starts on the page template: its blocks, made now, authored by whoever made the project
+  if (pageTemplate !== undefined) startPage(ctx, made.projectId, pageTemplate);
   remember(ctx.db, input.idempotencyKey, "projects.create", made);
   return made;
 }
@@ -297,9 +357,14 @@ export async function list(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const who = me(ctx);
   const mine = input.mine === true;
+  // an archived project leaves the lists (it stays readable by its id); `archived: true` lists those instead
+  const gone = archivedIds(ctx.db);
+  // a project is listed only when projects.get would open it: the same test, so an id that list gives always resolves (a member row without the grant behind it is not a project the caller can see)
   const rows = allProjects(ctx.db).filter((p) =>
     (input.type === undefined || p.type === input.type)
-    && (mine ? isMember(ctx.db, p.projectId, who) || p.createdBy === who : isMember(ctx.db, p.projectId, who) || p.createdBy === who || allows(ctx, "view", p.projectId)));
+    && allows(ctx, "view", p.projectId)
+    && (input.archived === true ? gone.has(p.projectId) : !gone.has(p.projectId))
+    && (mine ? isMember(ctx.db, p.projectId, who) || p.createdBy === who : true));
   // a status lives on the record, so a status filter reads the records first; without one only the page is read
   const out = async (ps: Project[]) => Promise.all(ps.map(async (p) => projectRow(ctx, p, await readRecord(ctx, p), await tasksOrNone(ctx, p))));
   if (input.status !== undefined) {
@@ -309,6 +374,20 @@ export async function list(ctx: ProjectsCtx, input: In): Promise<unknown> {
   }
   const pg = page(rows, input.cursor, input.limit);
   return clean({ projects: await out(pg.rows), next: pg.next, total: pg.total });
+}
+
+/** The projects where one person holds a role, and which role, limited to the projects the asker can see: a profile says "Lead on Client portal launch" and never names a project the viewer has no way into. */
+export async function rolesOf(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const who = me(ctx);
+  const person = input.personId;
+  if (typeof person !== "string" || !person.startsWith("usr_")) raise(ctx, "validation.bad_input", "That is not a person.");
+  const shown = allProjects(ctx.db).filter((p) => memberOf(ctx.db, p.projectId, person) !== undefined && (isMember(ctx.db, p.projectId, who) || p.createdBy === who || allows(ctx, "view", p.projectId)));
+  const roles = await Promise.all(shown.map(async (p) => {
+    const row = projectRow(ctx, p, await readRecord(ctx, p), []);
+    return { projectId: p.projectId, title: row.title, role: memberOf(ctx.db, p.projectId, person)!.role };
+  }));
+  return { roles };
 }
 
 export async function overview(ctx: ProjectsCtx, input: In): Promise<unknown> {
@@ -330,9 +409,23 @@ export async function overview(ctx: ProjectsCtx, input: In): Promise<unknown> {
   return clean({
     project: projectRow(ctx, p, fields, tasks), goal: typeof fields["goal"] === "string" && fields["goal"] ? fields["goal"] : undefined,
     statusUpdate: u ? { text: u.text, at: u.at, by: u.by, drafted: u.drafted } : undefined,
-    milestones, late, waiting, decisions: [], people: membersOf(ctx.db, p.projectId), linked: [], pinnedFiles: pinsOf(ctx.db, p.projectId),
+    milestones, late, waiting, decisions: [], people: membersOf(ctx.db, p.projectId), linked: await linkedRecords(ctx, p.projectId), pinnedFiles: pinsOf(ctx.db, p.projectId),
+    updateDraft: ((d) => (d ? { text: d.text, at: d.at, by: d.by } : undefined))(draftOf(ctx.db, p.projectId)),
     recentThreads: (threads.threads ?? []).map((t) => ({ threadId: t.threadId, title: t.title ?? "", at: t.createdAt ?? 0 })),
   });
+}
+
+/** The records linked to the project, as the Overview lists them: the type, the id and a title read from the record. */
+async function linkedRecords(ctx: ProjectsCtx, projectId: string): Promise<Array<{ type: string; recordId: string; title: string }>> {
+  const out: Array<{ type: string; recordId: string; title: string }> = [];
+  for (const a of attachesOf(ctx.db, projectId, "record").slice(0, 20)) {
+    const [type, recordId] = a.ref.includes("/") ? [a.ref.slice(0, a.ref.indexOf("/")), a.ref.slice(a.ref.indexOf("/") + 1)] : ["", a.ref];
+    const got = await tolerant<{ record?: { id: string; type: string; fields: Record<string, unknown> } }>(ctx, "records.get", { ...(type ? { type } : {}), recordId }, {});
+    if (!got.record) continue;
+    const f = got.record.fields;
+    out.push({ type: got.record.type, recordId: got.record.id, title: String(f["title"] ?? f["name"] ?? got.record.id) });
+  }
+  return out;
 }
 
 export async function templatesList(ctx: ProjectsCtx, _input: In): Promise<unknown> {
@@ -351,19 +444,39 @@ export async function templatesList(ctx: ProjectsCtx, _input: In): Promise<unkno
 export async function postUpdate(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const p = visible(ctx, input.projectId, "edit");
-  const text = typeof input.text === "string" ? input.text.trim() : "";
+  // Post with no text sends the draft the person has been editing; text sends that
+  const given = typeof input.text === "string" ? input.text.trim() : "";
+  const text = given || (draftOf(ctx.db, p.projectId)?.text ?? "").trim();
   if (!text) raise(ctx, "validation.bad_input", "Write the update first.");
   const at = ctx.now();
   const drafted = ctx.principal.kind === "agent";
   saveUpdate(ctx.db, p.projectId, { text, at, by: me(ctx), drafted });
+  saveDraft(ctx.db, p.projectId, null);
   await writeRecord(ctx, p, clean({ status_update: text, status_update_at: at, status: input.status }));
   if (p.threadId) {
+    // the update goes into the channel as the person who posted it, never as an agent speaking for them
     try { await call(ctx, "chat.post", { threadId: p.threadId, body: text }, { idempotencyKey: `prj-update:${p.projectId}:${at}:${text.length}` }); } catch (e) {
       ctx.log.warn("projects: the update was kept but not posted to the channel", { project: p.projectId, error: codeOf(e) });
     }
   }
   emitP(ctx, "project.update_posted", p.projectId, { by: me(ctx), drafted });
   return { postedAt: at };
+}
+
+/** Archive or unarchive: a manager's call, audited. The project, its record, channel, folder and plan stay where they are and stay readable; it only leaves the lists. */
+export async function archive(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const p = visible(ctx, input.projectId, "manage");
+  const changed = setArchived(ctx.db, p.projectId, ctx.now(), ctx.principal.id);
+  if (changed) emitP(ctx, "project.archived", p.projectId, { by: ctx.principal.id });
+  return { archived: true, changed };
+}
+export async function unarchive(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const p = visible(ctx, input.projectId, "manage");
+  const changed = clearArchived(ctx.db, p.projectId);
+  if (changed) emitP(ctx, "project.unarchived", p.projectId, { by: ctx.principal.id });
+  return { archived: false, changed };
 }
 
 export async function pinFile(ctx: ProjectsCtx, input: In): Promise<unknown> {

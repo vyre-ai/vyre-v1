@@ -2,7 +2,7 @@
 // the screen comes from the message that caused the turn, and nothing in the context is a secret value.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SKILL_INDEX_MAX, capabilitySkills, createContextBuilder, diskSkills, routineLine, timeLine, withTurnContext } from "../context.ts";
+import { SKILL_INDEX_MAX, capabilitySkills, createContextBuilder, diskSkills, routineLine, sharedTimeLine, timeLine, withTurnContext } from "../context.ts";
 import type { SkillsPort } from "../context.ts";
 import type { StoredMessage, TurnInput } from "../../../agent/src/turn-engine/types.ts";
 import type { EngineSession, OpenSession } from "../../../agent/src/turn-engine/types.ts";
@@ -62,7 +62,7 @@ test("the context holds identity, where, skills, what the agent can do and the t
   assert.match(text("where"), /threadId thr_1\. This is a chat called "Intake desk"\./);
   assert.match(text("where"), /talking with Maya Chen \(usr_maya; /);
   assert.match(text("where"), /Also here: Omar Haddad\./);
-  assert.match(text("where"), /Agents here: Docs \(listen\)\./);
+  assert.match(text("where"), /Agents here: Docs \(answers when mentioned[^)]*\)\. To hand something to one, @mention it by name/);
   assert.match(text("skills"), /^Working in Vyre \(always loaded\):\n# Working in Vyre\nThe manual\./);
   assert.match(text("skills"), /load it with load_skill \{name\}[^\n]*:\n- focus-records: Work in Records\./, "the index names the tool that loads every tier");
   assert.doesNotMatch(text("skills"), /agents_builtin_skill_get/);
@@ -73,7 +73,7 @@ test("the context holds identity, where, skills, what the agent can do and the t
   assert.match(text("can"), /- schedule "Overdue invoices" cron "0 4 \* \* 1", next 2026-11-02 04:00 UTC \(rtn_1\)/);
   assert.match(text("can"), /- watcher "Triage" on each new message in chn_9, paused \(rtn_2\)/);
   assert.match(text("can"), /Your computer is asleep, 0 tabs open\./);
-  assert.match(text("now"), /^It is Thursday, 29 October 2026, 22:07 \(Asia\/Karachi\)\.$|^It is Friday, 30 October 2026, 03:07 \(Asia\/Karachi\)\.$/);
+  assert.match(text("now"), /^It is (Thursday, 29 October 2026, 22:07|Friday, 30 October 2026, 03:07) \(Asia\/Karachi\)\. That is UTC\+5\..*time_convert/);
   assert.equal(ctx.names["usr_omar"], "Omar Haddad");
   for (const c of f.log) assert.equal(c.as, "usr_maya", `${c.cap} is read as the asker`);
 });
@@ -168,9 +168,12 @@ test("no secret value is read: the Vault appears by item name only, and no vault
 });
 
 test("timeLine says the weekday, the date and the zone, and falls back to UTC for a zone it does not know", () => {
-  assert.equal(timeLine(Date.UTC(2026, 9, 29, 22, 7), "UTC"), "It is Thursday, 29 October 2026, 22:07 (UTC).");
-  assert.equal(timeLine(Date.UTC(2026, 9, 29, 22, 7), "Not/AZone"), "It is Thursday, 29 October 2026, 22:07 (UTC).");
-  assert.match(timeLine(Date.UTC(2026, 9, 29, 22, 7), "Asia/Karachi"), /Friday, 30 October 2026, 03:07 \(Asia\/Karachi\)/);
+  assert.match(timeLine(Date.UTC(2026, 9, 29, 22, 7), "UTC"), /^It is Thursday, 29 October 2026, 22:07 \(UTC\)\. That is UTC\+0\. The person's time zone is UTC: say times in it\./);
+  assert.match(timeLine(Date.UTC(2026, 9, 29, 22, 7), "Not/AZone"), /^It is Thursday, 29 October 2026, 22:07 \(UTC\)\./);
+  const pkt = timeLine(Date.UTC(2026, 9, 29, 22, 7), "Asia/Karachi");
+  assert.match(pkt, /^It is Friday, 30 October 2026, 03:07 \(Asia\/Karachi\)\. That is UTC\+5\. The person's time zone is Asia\/Karachi/);
+  assert.match(pkt, /call time_convert; never work out zones, dates or epoch numbers yourself/);
+  assert.match(timeLine(Date.UTC(2026, 9, 29, 22, 7), "Asia/Kolkata"), /That is UTC\+5:30\./);
 });
 
 test("a routine line says its kind, when it runs and whether it is paused", () => {
@@ -312,4 +315,35 @@ test("a long index is cut, nearest first, and says how many more there are; a lo
   const t2 = ctx2.sections.find((s) => s.id === "skills")?.text ?? "";
   assert.match(t2, /^Working in Vyre \(always loaded\):/, "the manual comes from disk");
   assert.match(t2, /- focus-records: /);
+});
+
+test("group guidance is in the context of a group chat and a channel, and absent in a 1:1", async () => {
+  const { GROUP_STYLE } = await import("../context.ts");
+  const where = async (over: Record<string, unknown>): Promise<string> => {
+    const f = fake(over as never);
+    const ctx = await createContextBuilder({ call: f.call, skills, now: () => at }).build(input());
+    return ctx.sections.find((s) => s.id === "where")?.text ?? "";
+  };
+  assert.match(await where(FULL), new RegExp(GROUP_STYLE.slice(0, 40)), "Docs and Omar are also here: a group");
+  assert.doesNotMatch(await where({ ...FULL, "threads.get": { thread: { threadId: "thr_1", kind: "chat", title: "Intake desk", members: [{ kind: "person", id: "usr_maya" }], agents: [{ agentId: "agt_intake", mode: "lead" }] } } }), /group conversation/, "a 1:1 keeps the agent's own style");
+  assert.match(await where({ ...FULL, "threads.get": { thread: { threadId: "thr_1", kind: "channel", title: "general", members: [{ kind: "person", id: "usr_maya" }], agents: [{ agentId: "agt_intake", mode: "lead" }] } } }), /group conversation/, "a channel is a group even with one other");
+});
+
+test("a shared place gives the Space's zone and now in it, so agents write dates there; a private chat keeps the person's own zone", async () => {
+  const withZone = { ...FULL, "spaces.get": { space: { name: "Northwind", kind: "team", timezone: "America/Los_Angeles" } } };
+  const room = await createContextBuilder({ call: fake(withZone).call, skills, now: () => at }).build(input());
+  const now = room.sections.find((x) => x.id === "now")?.text ?? "";
+  assert.match(now, /^It is Thursday, 29 October 2026, 15:07 \(America\/Los_Angeles\)\./, "the Space's clock, not Karachi's");
+  assert.match(now, /That is the Space's time zone \(Pacific Time\), and this place is shared: write every date and time in it/);
+  assert.match(now, /Check-ins, due times and anything else the team will see are scheduled in it\. When a card already shows[^.]*\. Something only for one person[^.]*is in that person's own zone/);
+  assert.match(now, /When a card already shows a due date, don't repeat it in the title or summary\./);
+  assert.doesNotMatch(now, /Asia\/Karachi/, "no one's own zone in a shared place");
+  const solo = { ...withZone, "threads.get": { thread: { kind: "chat", title: "Me", members: [{ kind: "person", id: "usr_maya" }], agents: [{ agentId: "agt_intake", mode: "lead" }] } } };
+  const priv = await createContextBuilder({ call: fake(solo).call, skills, now: () => at }).build(input());
+  const mine = priv.sections.find((x) => x.id === "now")?.text ?? "";
+  assert.match(mine, /^It is Friday, 30 October 2026, 03:07 \(Asia\/Karachi\)\./);
+  assert.match(mine, /The person's time zone is Asia\/Karachi/);
+  const noZone = await createContextBuilder({ call: fake(FULL).call, skills, now: () => at }).build(input());
+  assert.match(noZone.sections.find((x) => x.id === "now")?.text ?? "", /Asia\/Karachi/, "a Space with no zone yet falls back to the person's");
+  assert.match(sharedTimeLine(at, "Not/AZone"), /^It is Thursday, 29 October 2026, 22:07 \(UTC\)\./);
 });

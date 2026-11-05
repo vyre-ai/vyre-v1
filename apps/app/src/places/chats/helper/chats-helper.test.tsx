@@ -39,14 +39,15 @@ test("a helper chat is read-only: no composer, a note that says why, and a way t
   assert.ok(!has(out, 'data-testid="composer"') && !has(out, "contenteditable"));
   assert.ok(has(out, 'data-testid="helper-readonly"') && has(out, READ_ONLY_NOTE));
   assert.ok(has(out, 'data-testid="helper-reply"') && has(out, "Reply in “Competitor pricing”"));
-  assert.equal(READ_ONLY_NOTE, "Helpers work from their brief and can't take messages.");
+  assert.equal(READ_ONLY_NOTE, "What you write here goes to the helper, and the agent that started it sees it.");
 });
 
 test("a finished helper: the brief, the steps in order, the result, and model and time on the right", () => {
   const out = html(createSample("done"));
   assert.ok(has(out, "Helper of Research · from “Competitor pricing”"));
   inOrder(out, ["Read the pricing pages of Harlow & Price", "Worked for 31s, 3 steps", "Opened harlowprice.example/pricing", "Opened grantlegal.example/fees", "Opened meyerlaw.example/consult", "Harlow & Price $300 · Grant Legal free first 30 min"]);
-  assert.ok(has(out, "headless Chrome") && has(out, "haiku · 31s"));
+  assert.ok(!has(out, "headless Chrome"), "no engine name in a step line");
+  assert.ok(has(out, "haiku · 31s"));
   assert.ok(!has(out, 'data-testid="helper-stop"') && !has(out, 'data-testid="helper-live"'));
 });
 
@@ -120,11 +121,18 @@ test("meta, seconds, step count and the work summary", () => {
 
 test("a block line reads from the registry's template for a known type and from its own title for any other", () => {
   assert.deepEqual(blockLine({ type: "terminal", v: 1, id: "a", data: { host: "Intake computer" }, traceId: "t" }), { title: "Ran commands on Intake computer", sub: "", state: undefined });
-  assert.deepEqual(blockLine({ type: "step", v: 1, id: "b", data: { title: "Opened a page", sub: "headless Chrome" }, state: "done", traceId: "t" }), { title: "Opened a page", sub: "headless Chrome", state: "done" });
+  assert.deepEqual(blockLine({ type: "step", v: 1, id: "b", data: { title: "Opened a page", sub: "headless Chrome" }, state: "done", traceId: "t" }), { title: "Opened a page", sub: "", state: "done" });
   assert.equal(blockLine({ type: "comet_trail", v: 1, id: "c", data: null, traceId: "t" }).title, "comet trail");
 });
 
 test("variants exist for the screenshots", () => {
   const variants: Variant[] = ["done", "running"];
   for (const v of variants) assert.ok(createSample(v).data.threadId.length > 0, v);
+});
+
+test("the brief is a labelled block at the top, not the helper talking to itself, and the header says who started it and where", () => {
+  const out = html(createSample("done"));
+  assert.ok(has(out, 'data-testid="helper-brief"') && has(out, "Brief from "), "the brief is its own block");
+  assert.ok(has(out, 'data-testid="helper-started-by"') && has(out, "Helper chat · started by ") && has(out, "Competitor pricing"));
+  inOrder(out, ["Helper chat · started by", "Brief from", "Read the pricing pages of Harlow & Price"]);
 });

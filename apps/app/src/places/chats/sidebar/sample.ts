@@ -5,11 +5,19 @@ import { createFakeReplica, createScreenHooks } from "../../../../../../client/s
 import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import { validateInput } from "../../../../../../generated/validators.ts";
+// only the modules whose capabilities this sample checks (chat, agents, tasks, import), not the whole validators.ts: loading that took 2.2 s of a cold test run
+import { checkIn } from "../../../../../../generated/validators/core.ts";
+import { validators as chatChecks } from "../../../../../../generated/validators/chat.ts";
+import { validators as agentsChecks } from "../../../../../../generated/validators/agents.ts";
+import { validators as tasksChecks } from "../../../../../../generated/validators/tasks.ts";
+import { validators as importChecks } from "../../../../../../generated/validators/import.ts";
 import { fixtureFor } from "../../../fixtures/index.ts";
 import type { FixtureChannel } from "../../../fixtures/index.ts";
 import type { Agent, Channel, NeedsItem, RecentItem, RecentOut } from "./model.ts";
 import type { ChatsNav, ChatsSidebarData, Connection } from "./data.tsx";
+
+const CHECKS = { ...chatChecks, ...agentsChecks, ...tasksChecks, ...importChecks };
+const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(CHECKS, "in", cap, v, input);
 
 /** Friday 24 October 2025, 10:00 (UTC, so every machine prints the same times). */
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
@@ -18,7 +26,7 @@ const DAY = 86_400_000;
 /** You, in every sample Space. */
 export const ME = "usr_irfad";
 
-export interface SampleThread { threadId: string; title: string; agents: string[]; unread: number; working: boolean; starred: boolean; lastAt: number; preview?: string; /** in my Archived section */ archived?: boolean; /** deleted, waiting for Undo */ deleted?: boolean; /** left */ left?: boolean }
+export interface SampleThread { /** unread replies, from threads I follow, under this chat */ repliesUnread?: number; threadId: string; title: string; agents: string[]; unread: number; working: boolean; starred: boolean; lastAt: number; preview?: string; /** in my Archived section */ archived?: boolean; /** deleted, waiting for Undo */ deleted?: boolean; /** left */ left?: boolean }
 export interface SampleSpace {
   id: "northwind" | "harbor" | "personal";
   name: string;
@@ -125,6 +133,8 @@ export interface SampleSidebar {
   replica: FakeReplica;
   /** inputs a read was sent that the generated validators refuse, as "cap: reason" (the sample answers such a read with nothing, as the real handler answers 422) */
   rejected: string[];
+  /** What the row menus read (who is muted, each agent's computer), the sample's own copy: a test sets it, the writes change it. */
+  menus: { mutes: Set<string>; computers: Map<string, { computerId: string; state: string }> };
   /** every capability the sidebar called, in order */
   calls: { cap: string; input: unknown }[];
   /** what the nav handlers were asked to open */
@@ -139,7 +149,8 @@ export interface SampleSidebar {
 /** An imported coding session as sessions.list answers it (the sample's own copy, so rename, archive and delete change it). */
 export interface SampleImported { conversationId: string; provider: "claude_code" | "codex"; title: string; startedAt: number; importedAt: number; continuedThreadId?: string; archived?: boolean }
 
-export function createSampleSidebar(space: SampleSpace = northwind, o: { online?: boolean; startDelayMs?: number; imported?: readonly SampleImported[] } = {}): SampleSidebar {
+export function createSampleSidebar(space: SampleSpace = northwind, o: { online?: boolean; startDelayMs?: number; imported?: readonly SampleImported[]; /** goals the person has, as goals.list answers them */ goals?: readonly Record<string, unknown>[] } = {}): SampleSidebar {
+  const starredProjects = new Set<string>();
   const replica = createFakeReplica(space.id);
   const calls: { cap: string; input: unknown }[] = [];
   const opened: string[] = [];
@@ -151,6 +162,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     return errs.length === 0;
   };
   const refuse = (cap: string, input: unknown): void => { if (!accepts(cap, input)) throw new Error(`${cap}: bad_input`); };
+  const menus: SampleSidebar["menus"] = { mutes: new Set(), computers: new Map() };
   const failing = new Set<string>();
   const listeners = new Set<() => void>();
   let online = o.online ?? true;
@@ -163,7 +175,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
 
   const threads = (): SampleThread[] => replica.rows("threads") as unknown as SampleThread[];
   const dayOf = (ts: number): number => Math.floor(ts / DAY);
-  const item = (x: SampleThread): RecentItem => ({ threadId: x.threadId, kind: "chat", title: x.title, agents: x.agents, unread: x.unread, working: x.working, starred: x.starred, lastAt: x.lastAt });
+  const item = (x: SampleThread): RecentItem => ({ threadId: x.threadId, kind: "chat", title: x.title, agents: x.agents, unread: x.unread, working: x.working, starred: x.starred, lastAt: x.lastAt, ...(x.repliesUnread ? { repliesUnread: x.repliesUnread } : {}) });
 
   replica.resolve("chat.recent", (_t, input) => {
     refuse("chat.recent", input);
@@ -198,7 +210,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
       task: {
         id: n.taskId, kind: n.kind, title: n.title, state: "todo", blocked: n.kind === "unblock", blocks: [], assigned: { kind: "person", id: "usr_irfad" }, fileIds: [], dependsOn: [], followers: [], workingNotes: {},
         reviewLoops: 0, createdBy: n.by, createdAt: at(10, 24, 8), updatedAt: at(10, 24, 9),
-        actions: n.kind === "approve" ? [{ key: "approve", label: "Approve" }] : n.kind === "review" ? [{ key: "review", label: "Looks good" }] : [],
+        actions: n.kind === "approve" ? [{ key: "approve", label: "Allow" }] : n.kind === "review" ? [{ key: "review", label: "Looks good" }] : [],
       } as NeedsItem["task"],
     }));
     return { items: items.slice(0, input.limit ?? 50), total: Math.max(space.needsTotal, items.length) } as CapMap["tasks.needs_you"]["out"];
@@ -230,6 +242,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
       return { thread: { threadId: id, kind: "chat", title: "New chat", listed: true, planMode: false } };
     },
     "stars.toggle": (i: { resource: { type: string; id: string }; on: boolean }) => {
+      if (i.resource.type === "project") { if (i.on) starredProjects.add(i.resource.id); else starredProjects.delete(i.resource.id); }
       if (i.resource.type === "thread") patch(i.resource.id, { starred: i.on });
       if (i.resource.type === "agent") { const a = replica.rows("agents").find((r) => r.id === i.resource.id); if (a) replica.put("agents", [{ ...a, starred: i.on }]); }
       return { starred: i.on, following: false };
@@ -248,6 +261,34 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     "threads.delete": (i: { threadId: string }) => { patch(i.threadId, { deleted: true }); return { deleted: true }; },
     "threads.restore": (i: { threadId: string }) => { patch(i.threadId, { deleted: false }); return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
     "threads.leave": (i: { threadId: string }) => { patch(i.threadId, { left: true }); return { ok: true }; },
+    "notifications.mute.list": () => ({ mutes: [...menus.mutes].map((k) => { const [kind, ...id] = k.split(":"); return { target: { kind, id: id.join(":") }, until: 0 }; }) }),
+    "notifications.mute.set": (i: { target: { kind: string; id: string } }) => { refuse("notifications.mute.set", i); menus.mutes.add(`${i.target.kind}:${i.target.id}`); return { until: 0 }; },
+    "notifications.mute.clear": (i: { target: { kind: string; id: string } }) => { refuse("notifications.mute.clear", i); menus.mutes.delete(`${i.target.kind}:${i.target.id}`); return { cleared: true }; },
+    // every star the person holds, as the server lists them: projects, agents and chats
+    "stars.list": () => ({ stars: [
+      ...[...starredProjects].map((id) => ({ resource: { type: "project", id } })),
+      ...(replica.rows("agents") as unknown as { id: string; starred?: boolean }[]).filter((a) => a.starred === true).map((a) => ({ resource: { type: "agent", id: a.id } })),
+      ...threads().filter((x) => x.starred).map((x) => ({ resource: { type: "thread", id: x.threadId } })),
+    ] }),
+    "threads.poke": (i: { threadId: string; agentId: string }) => { refuse("threads.poke", i); return { poked: true }; },
+    "threads.move": (i: { threadId: string; projectId: string }) => { return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
+    "goals.list": (i: { scope?: string }) => ({ goals: i.scope === "mine" ? [...(o.goals ?? [])] : [] }),
+    "goals.pause": () => ({}),
+    "threads.add_agent": (i: { threadId: string; agentId: string }) => { return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
+    "threads.members.add": (i: { threadId: string; personId: string }) => { return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
+    "access.shares_of": () => ({ shares: [], agentsCanCall: true }),
+    "access.groups.list": () => ({ groups: [] }),
+    "access.roles.list": () => ({ roles: [] }),
+    "computers.list": () => ({ computers: [...menus.computers].map(([agentId, c]) => ({ computerId: c.computerId, agentId, state: c.state, tabs: 0, tabLimit: 5, host: "server", recording: false })) }),
+    "computers.wake": (i: { computerId: string }) => { for (const c of menus.computers.values()) if (c.computerId === i.computerId) c.state = "working"; return { computer: {} }; },
+    "computers.sleep": (i: { computerId: string }) => { for (const c of menus.computers.values()) if (c.computerId === i.computerId) c.state = "asleep"; return { computer: {} }; },
+    "computers.provision": (i: { agentId: string }) => { menus.computers.set(i.agentId, { computerId: `cmp_${i.agentId}`, state: "asleep" }); return { computer: {} }; },
+    "agents.pause": (i: { agentId: string }) => { refuse("agents.pause", i); return { agent: { agentId: i.agentId, status: "paused" } }; },
+    "agents.resume": (i: { agentId: string }) => { refuse("agents.resume", i); return { agent: { agentId: i.agentId, status: "awake" } }; },
+    "agents.delete": (i: { agentId: string }) => { refuse("agents.delete", i); replica.remove("agents", [i.agentId]); return { deleted: true }; },
+    "threads.update": (i: { threadId: string; title: string }) => { patch(i.threadId, { title: i.title }); return { thread: { threadId: i.threadId, title: i.title, kind: "chat", listed: true, planMode: false } }; },
+    "channels.leave": (i: { channelId: string }) => { const c = (replica.rows("channels") as unknown as SampleSpace["channels"]).find((x) => x.channelId === i.channelId); if (c) replica.put("channels", [{ id: c.channelId, ...c, joined: false }]); return { left: true }; },
+    "channels.archive": (i: { channelId: string }) => { replica.remove("channels", [i.channelId]); return { channel: {} }; },
     "tasks.act": (i: { taskId: string }) => { replica.remove("needs", [i.taskId]); return { task: {} }; },
     "sessions.list": (i: unknown) => { refuse("sessions.list", i); return { sessions: imported.map(archiveRow) }; },
     "sessions.rename": (i: { conversationId: string; title: string }) => { refuse("sessions.rename", i); const x = session(i.conversationId); x.title = i.title; return { session: archiveRow(x) }; },
@@ -256,7 +297,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     "access.principals.list": () => ({
       principals: (space.people ?? []).map((p) => ({ id: p.id, kind: "person", name: p.name, status: "active", roles: [], groups: [], createdAt: at(10, 1, 9), ...(p.title ? { title: p.title } : {}) })),
     }),
-    "projects.list": () => ({ projects: (space.projects ?? []).map((p) => ({ projectId: `prj_${p.recordId}`, recordId: p.recordId, type: "matter", title: p.title, status: "active" })) }),
+    "projects.list": () => ({ projects: (space.projects ?? []).map((p) => ({ projectId: `prj_${p.recordId}`, recordId: p.recordId, type: "matter", title: p.title, status: "active", ...(p.recordId === "rec_atp" ? { health: "risk" } : p.recordId === "rec_rivera" ? { health: "on" } : {}) })) }),
     "channels.create": (i: { name: string; visibility: "public" | "invite"; topic?: string; recordId?: string }) => {
       const rows = replica.rows("channels") as unknown as SampleSpace["channels"];
       if (rows.some((c) => c.name === i.name)) throw Object.assign(new Error("A channel with that name already exists."), { code: "validation.bad_input" });
@@ -275,6 +316,7 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     openChat: (id) => void opened.push(`chat:${id}`), openAgentChat: (id) => void opened.push(`agent:${id}`), openChannel: (id) => void opened.push(`channel:${id}`),
     openNeedsYou: (id) => void opened.push(id ? `needs:${id}` : "needs"), openAllAgents: () => void opened.push("all-agents"), openSearch: () => void opened.push("search"),
     openSpaceSwitcher: () => void opened.push("spaces"), openNewChannel: () => void opened.push("new-channel"),
+    openAgent: (id) => void opened.push(`profile:${id}`), openChatTab: (id) => void opened.push(`tab:${id}`), openGoal: (id) => void opened.push(`goal:${id}`), openProject: (id) => void opened.push(`project:${id}`), openNewProject: () => void opened.push("new-project"),
   };
   const connection: Connection = { get: () => (online ? "online" : "offline"), subscribe: (l) => { listeners.add(l); return () => void listeners.delete(l); } };
 
@@ -288,12 +330,12 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
       return w(input);
     },
     connection,
-    space: { name: space.name, otherNeedsYou: space.otherNeedsYou, ...(space.id === "personal" ? { personal: true } : {}), assistant: space.assistant },
+    space: { name: space.name, otherNeedsYou: space.otherNeedsYou, ...(space.id === "personal" || (o.imported?.length ?? 0) > 0 ? { personal: true } : {}), assistant: space.assistant },
     nav, me: { id: ME },
     clock: () => ({ now: SAMPLE_NOW, offsetMin: 0 }),
   };
   return {
-    data, replica, calls, opened, rejected,
+    data, replica, calls, opened, rejected, menus,
     setOnline(v) { online = v; for (const l of [...listeners]) l(); },
     failNext(cap) { failing.add(cap); },
     get startDelayMs() { return startDelayMs; },

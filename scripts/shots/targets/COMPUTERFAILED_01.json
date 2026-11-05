@@ -1,0 +1,32 @@
+{
+  "targets": [
+    {
+      "id": "COMPUTERFAILED_01-wake-admin",
+      "route": "/m/COMPUTERFAILED_01?part=wake-admin",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='computer-failed']",
+      "note": "Wake refused, this server has no agent computers: an admin is told where to update it."
+    },
+    {
+      "id": "COMPUTERFAILED_01-wake-member",
+      "route": "/m/COMPUTERFAILED_01?part=wake-member",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='computer-failed']",
+      "note": "The same, as a member: ask your admin."
+    },
+    {
+      "id": "COMPUTERFAILED_01-wake-refused",
+      "route": "/m/COMPUTERFAILED_01?part=wake-refused",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='computer-failed']",
+      "note": "Any other refusal shows the server's own words."
+    },
+    {
+      "id": "COMPUTERFAILED_01-provision-unavailable",
+      "route": "/m/COMPUTERFAILED_01?part=provision-unavailable",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='computer-refused']",
+      "note": "computers.provision answered provider.unavailable: the server's words and Copy details above the Set up button."
+    }
+  ]
+}

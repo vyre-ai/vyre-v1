@@ -24,6 +24,17 @@ test("the catalog names every engine driver and each connection it takes", async
   h.cleanup();
 });
 
+test("Codex takes an OpenAI API key as well as the ChatGPT sign-in; the key is sealed and the account runs on the codex engine", async () => {
+  const h = harness();
+  const c = out(await p.catalog(h.ctx, {})).providers as Json[];
+  assert.deepEqual((c.find((x) => x.key === "codex") as Json).connections, ["subscription", "api_key"]);
+  const row = out(out(await p.add(h.ctx, { providerKey: "codex", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: key() })).provider);
+  assert.deepEqual(contractErrors("providers.add", "out", { provider: row }), []);
+  assert.deepEqual([row.providerKey, row.connection, row.engine, row.state], ["codex", "api_key", "codex", "ok"]);
+  assert.ok(!h.everything().includes(SECRET), "the key is sealed in the item, nowhere else");
+  h.cleanup();
+});
+
 test("a Shared API key is added, listed with its handle, visible to people with Use, and the key is in no row", async () => {
   const h = harness();
   const folder = await sharedFolder(h);
@@ -330,5 +341,36 @@ test("signing in again to an account the person already has refreshes that item 
     assert.equal(h.rows(`SELECT * FROM vault_meta`).filter((r) => r["kind"] === "ai_subscription" && r["deleted_at"] == null).length, 1, "one item, not two");
     assert.equal(h.rows(`SELECT * FROM vault_provider`).length, 1);
     assert.equal(h.everything().includes(NEW) || h.everything().includes(OLD), false, "no token in a row, event or answer");
+  } finally { u.configureVault(null); h.cleanup(); }
+});
+
+test("providers.own_people counts the people on their own sign-ins and carries no account name or value", async () => {
+  const h = harness();
+  await p.add(h.ctx, { providerKey: "openai", connection: "api_key", scope: "mine", apiKey: SECRET, idempotencyKey: key() });
+  await p.add(h.ctx, { providerKey: "anthropic", connection: "api_key", scope: "mine", apiKey: `${SECRET}-2`, idempotencyKey: key() });
+  h.actAs("person", ROB);
+  await p.add(h.ctx, { providerKey: "openai", connection: "api_key", scope: "mine", apiKey: `${SECRET}-3`, idempotencyKey: key() });
+  const got = out(await p.ownPeople(h.ctx, {}));
+  assert.deepEqual(contractErrors("providers.own_people", "out", got), []);
+  const people = got.people as { personId: string; accounts: number }[];
+  assert.deepEqual(people.map((x) => x.accounts), [2, 1]);
+  assert.equal(people[1]!.personId, ROB);
+  assert.ok(!JSON.stringify(got).includes(SECRET) && !JSON.stringify(got).includes("openai"), "no value, no provider name");
+  h.cleanup();
+});
+
+test("a subscription account whose item holds neither credentials nor setup_token reads needs sign in, so Settings offers Sign in again; one that holds either reads ok", async () => {
+  const h = harness();
+  const { port } = fakeSignin([{ state: "done", fields: [{ key: "setup_token", value: "sk-ant-oat01-x-0123456789", secret: true }] }]); // secret-scan: fake
+  u.configureVault({ sinks: {}, signin: port });
+  try {
+    const started = out(await p.subscriptionStart(h.ctx, { providerKey: "claude-code", idempotencyKey: key() }));
+    const row = out(out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId) })).provider);
+    assert.equal(row.state, "ok");
+    assert.equal(out((out(await p.list(h.ctx, {})).providers as unknown[])[0]).state, "ok", "setup_token is enough");
+    h.ctx.db.run(`UPDATE vault_meta SET "fieldKeys" = ? WHERE id = ?`, '["note"]', String(row.itemId));
+    assert.equal(out((out(await p.list(h.ctx, {})).providers as unknown[])[0]).state, "needs_sign_in", "nothing to sign in with");
+    h.ctx.db.run(`UPDATE vault_meta SET "fieldKeys" = ? WHERE id = ?`, '["credentials"]', String(row.itemId));
+    assert.equal(out((out(await p.list(h.ctx, {})).providers as unknown[])[0]).state, "ok", "credentials is enough");
   } finally { u.configureVault(null); h.cleanup(); }
 });

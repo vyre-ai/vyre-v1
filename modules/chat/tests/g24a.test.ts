@@ -35,8 +35,8 @@ async function refused(cap: string, ctx: Harness["ctx"], input: Record<string, u
 const chatOf = async (hn: Harness, extra: Record<string, unknown> = {}) => (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key(), ...extra })).thread.threadId as string;
 const channelOf = async (hn: Harness, name = "intake") => (await h["channels.create"]!(hn.ctx, { name, visibility: "public", memberIds: [MAYA], agentIds: [INTAKE], idempotencyKey: key() })).channel;
 
-test("the table holds the twelve capabilities of this group, all frozen chat capabilities, and every example input is valid", () => {
-  assert.equal(OURS.length, 12);
+test("the table holds the fourteen capabilities of this group, all frozen chat capabilities, and every example input is valid", () => {
+  assert.equal(OURS.length, 14);
   for (const name of OURS) {
     const cap = registry.capabilities.find((c) => c.module === "chat" && c.name === name);
     assert.ok(cap, name);
@@ -170,10 +170,11 @@ test("threads.add_agent and remove_agent: modes, one lead, events, and who may c
   assert.deepEqual(assertEventsConform(hn), []);
 });
 
-test("threads.members.add and remove: a private chat offers a channel; a channel adds, removes, keeps its last person", async () => {
+test("threads.members.add and remove: a private chat gains a person (a group chat); a channel adds, removes, keeps its last person", async () => {
   const hn = harness();
   const chat = await chatOf(hn);
-  await refused("threads.members.add", hn.ctx, { threadId: chat, personId: LEO }, "validation.precondition_failed");
+  const grown = (await ok("threads.members.add", hn.ctx, { threadId: chat, personId: LEO })).thread;
+  assert.ok(grown.members.some((m: any) => m.id === LEO), "a private chat gains people now (owner ruling, 4 Nov 2026)");
   const ch = await channelOf(hn);
   hn.clear();
   const t = (await ok("threads.members.add", hn.ctx, { threadId: ch.mainThreadId, personId: LEO })).thread;
@@ -193,13 +194,15 @@ test("threads.members.add and remove: a private chat offers a channel; a channel
   assert.deepEqual(assertEventsConform(hn), []);
 });
 
-test("threads.members.add: a goal's own chat gains people, an ordinary private chat still does not", async () => {
+test("threads.members.add: a goal's own chat gains people, and so does an ordinary private chat (owner ruling 4 Nov 2026)", async () => {
   const hn = harness();
   const goalChat = await chatOf(hn, { scopeType: "goal", scopeId: "gol_x" });
   const t = (await ok("threads.members.add", hn.ctx, { threadId: goalChat, personId: LEO })).thread;
   assert.ok(t.members.some((m: any) => m.id === LEO), "the goal's helper is in its chat");
+  // a private chat gains people and becomes a group chat; the newcomer reads from now on (l-addsheet, Include earlier messages widens it)
   const plain = await chatOf(hn);
-  await refused("threads.members.add", hn.ctx, { threadId: plain, personId: LEO }, "validation.precondition_failed");
+  const p = (await ok("threads.members.add", hn.ctx, { threadId: plain, personId: LEO })).thread;
+  assert.ok(p.members.some((m: any) => m.id === LEO), "the private chat gained Leo");
 });
 
 test("threads.mark_read keeps a cursor per person in chat_thread_read; unreadOf counts what is after it", async () => {

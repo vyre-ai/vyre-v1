@@ -7,20 +7,27 @@ import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { useFollow } from "../conversation/use-follow.ts";
 import type { Changes } from "../conversation/use-follow.ts";
 import { Bar, TONE } from "./GoalRow.tsx";
+import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
+import { askedCall, goalMenuEntries } from "./goal-menu.ts";
+import { TextAsk } from "../menus/TextAsk.tsx";
 import { Btn, Icon } from "./GoalPage.tsx";
 import { delta, fmt, lineWithDue, statusOf } from "./model.ts";
+import { useZones } from "../../../../../../ui/src/Time/index.tsx";
 import type { GoalBlock, Progress, Status } from "./model.ts";
 
 export { goalBlockOf } from "./model.ts";
 
-interface Live { status: Status; progress: Progress; deadline: number }
+interface Live { status: Status; progress: Progress; deadline: number; owner?: string }
 
 export function GoalCard({ block, call, changes, openGoal, me }: { block: GoalBlock; call(cap: string, input: unknown): Promise<unknown>; changes: Changes | undefined; openGoal?: (goalId: string) => void; me?: string }): ReactElement {
+  const zones = useZones();
   const [live, setLive] = useState<Live | null>(null);
   const [said, setSaid] = useState("");
+  const menu = useMenu();
+  const [asking, setAsking] = useState<"stuck" | "report" | null>(null);
   const load = useCallback(async (): Promise<void> => {
     const o = (await call("goals.get", { goalId: block.goalId })) as { goal?: Live & { owner?: string } };
-    if (o.goal) setLive({ status: o.goal.status, progress: o.goal.progress, deadline: o.goal.deadline });
+    if (o.goal) setLive({ status: o.goal.status, progress: o.goal.progress, deadline: o.goal.deadline, ...(o.goal.owner ? { owner: o.goal.owner } : {}) });
   }, [call, block.goalId]);
   useEffect(() => { void load().catch(() => undefined); }, [load]);
   // a draft or an end card follows the goal; a check-in is what it said at the time
@@ -37,7 +44,9 @@ export function GoalCard({ block, call, changes, openGoal, me }: { block: GoalBl
   const title = block.kind === "draft" ? "Goal drafted" : block.kind === "update" ? "Check-in" : block.kind === "stuck" ? "Stuck" : block.outcome === "done" ? "Goal reached" : block.outcome === "missed" ? "Goal missed" : "Goal stopped";
   const icon = block.kind === "stuck" ? "warn" : block.outcome === "done" ? "check" : "target";
   return (
-    <View testID={`goal-card-${block.kind}-${block.goalId}`} style={st.card}>
+    <View testID={`goal-card-${block.kind}-${block.goalId}`} style={st.card} {...menuTrigger((x, y) => { if (block.kind === "draft" || live?.owner === undefined) return; menu.show(goalMenuEntries({ id: block.goalId, title: block.title, status, owner: live.owner }, me, { run: async (cap, input, done) => { press(cap, input, done ?? ""); return true; }, open: openGoal ? () => openGoal(block.goalId) : undefined, ask: setAsking }), x, y, "context", { label: block.title }); })}>
+      {menu.element}
+      {asking ? <TextAsk title={asking === "stuck" ? "Why is this goal stuck?" : "Report progress"} label={asking === "stuck" ? "What is in the way" : "What changed and what is next"} action={asking === "stuck" ? "Mark stuck" : "Report"} multiline onClose={() => setAsking(null)} onDone={(text) => { const c = askedCall(asking, text); setAsking(null); press(c.cap, c.input, c.done); }} /> : null}
       <View style={st.head}>
         <Icon name={icon} size={14} color={block.kind === "stuck" ? TONE.stuck : block.outcome === "done" ? TONE.ok : "var(--ink-3)"} />
         <Text style={st.kind}>{title}</Text>
@@ -47,7 +56,7 @@ export function GoalCard({ block, call, changes, openGoal, me }: { block: GoalBl
       <Pressable accessibilityRole="link" accessibilityLabel={`Open the goal ${block.title}`} onPress={() => openGoal?.(block.goalId)} testID={`goal-card-open-${block.goalId}`}>
         <Text style={st.title}>{block.title}</Text>
       </Pressable>
-      <Text style={st.small}>{lineWithDue(block.line, live?.deadline ?? block.deadline, -new Date().getTimezoneOffset())}</Text>
+      <Text style={st.small}>{lineWithDue(block.line, live?.deadline ?? block.deadline, zones)}</Text>
       {value !== undefined && target !== undefined ? (
         <View style={st.num}>
           <Text style={st.big}>{fmt(value)}</Text><Text style={st.of}>{`/ ${fmt(target)}${block.unit ? ` ${block.unit}` : ""}`}</Text>

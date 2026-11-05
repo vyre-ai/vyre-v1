@@ -2,13 +2,15 @@
 // player, summary and transcript, an agent's draft with its Gate line. Colours are skin tokens, so a skin switch repaints with no re-render.
 import { createElement, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { each } from "./each.ts";
 import { Icon } from "./icons.tsx";
 import type { IconName } from "./icons.tsx";
 import { Face } from "../sidebar/parts.tsx";
-import { callLabel, clockTime, deliveryNote, duration, firstName, gateLine, isMine, isMissed, msgPreview, partyName, recipientLine, roleLine, senderName, sizeLabel, whenLabel, withLine } from "./model.ts";
+import { callLabel, clockTime, deliveryNote, duration, firstName, sendsLine, isMine, isMissed, msgPreview, partyName, recipientLine, roleLine, senderName, sizeLabel, whenLabel, withLine } from "./model.ts";
 import type { DraftCard, FeedEntry, ThreadMsg } from "./model.ts";
+import { HeldCard } from "../../chats/conversation/held-card.tsx";
+import type { HeldEditor } from "../../chats/conversation/held-card.tsx";
 
 type EmailEntry = Extract<FeedEntry, { kind: "email" }>;
 type TextsEntry = Extract<FeedEntry, { kind: "texts" }>;
@@ -193,59 +195,49 @@ export function QuietLine({ text, testID }: { text: string; testID: string }): R
   );
 }
 
-/** An agent's draft: what it would send, from which inbox, the Gate line, and Send, Edit and Discard. */
-export interface DraftEditing { text: string; subject: string; loading?: boolean }
-export function DraftBlock({ d, note, busy, editing = null, onChange, onSave, onCancel, onSend, onEdit, onDiscard }: {
-  d: DraftCard; note?: string | undefined; busy: boolean; editing?: DraftEditing | null;
-  onChange?(next: { text: string; subject: string }): void; onSave?(): void; onCancel?(): void; onSend(): void; onEdit(): void; onDiscard(): void;
+/**
+ * An agent's draft: the one held card (chats/conversation/held-card.tsx), with the words it had: who drafted it, "Updated 5:45 AM" and the earlier draft one click away, the Gate line, and Send, Edit and
+ * Don't send. Edit is in the card, on the draft's own full stored text and for this draft only, never in the thread's composer, so what is sent is what the card shows. Send goes with the edited words.
+ */
+export function DraftBlock({ d, offsetMin = 0, nameOf, onSend, onDrop, loadText, onSave, editor }: {
+  d: DraftCard; offsetMin?: number;
+  /** The name the threads give an address, so To reads as a person and not an address. */
+  nameOf?(address: string): string | undefined;
+  /** Send, with the words the card holds: answers the line the card ends on ("Sent from ...", "Waits for approval"); a refusal is the card's own error. */
+  onSend(text: string, subject: string): Promise<string>;
+  /** Don't send, with the person's reason (empty when none). */
+  onDrop(reason: string): Promise<void>;
+  /** The draft's full stored text: the list holds only a preview. */
+  loadText(): Promise<string>;
+  /** Keep an edit on the draft itself. A refusal (a cut-off body, a draft that is gone) is the card's own error, and the edit stays open. */
+  onSave(text: string, subject: string): Promise<void>;
+  editor?: HeldEditor;
 }): ReactElement {
+  const [text, setText] = useState(d.body);
+  const [subject, setSubject] = useState(d.subject);
+  const [edited, setEdited] = useState(false);
+  const [done, setDone] = useState<string | undefined>(undefined);
+  useEffect(() => { let live = true; void loadText().then((t) => { if (live && t) setText((cur) => (cur === d.body ? t : cur)); }, () => undefined); return () => { live = false; }; }, [d.id]);   // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <View style={s.dr} testID={`draft:${d.id}`}>
-      <View style={s.dh}>
-        <Face name={d.agent} size={20} round={false} />
-        <Text style={s.dhText}><Text style={s.dhName}>{d.agent}</Text> drafted a {d.channel === "sms" ? "text" : "reply"}</Text>
-        <View style={s.grow} />
-        <Via name={d.via} />
-      </View>
-      {editing ? (
-        <View testID={`draft-editor:${d.id}`} style={s.dEdit}>
-          {d.channel === "email" ? <TextInput accessibilityLabel="Subject" testID={`draft-edit-subject:${d.id}`} value={editing.subject} onChangeText={(subject) => onChange?.({ text: editing.text, subject })} style={s.dEditSj} /> : null}
-          <TextInput accessibilityLabel="Draft" testID={`draft-edit-body:${d.id}`} multiline value={editing.loading ? "Loading the draft..." : editing.text} editable={!editing.loading} onChangeText={(text) => onChange?.({ text, subject: editing.subject })} style={s.dEditBody} />
-          <View style={s.acts}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Save" testID={`draft-save:${d.id}`} disabled={busy || editing.loading === true} onPress={onSave} style={(st: { hovered?: boolean }) => [s.btn, s.btnP, hover(st) && s.btnPOver]}><Text style={s.btnPText}>Save</Text></Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Cancel" testID={`draft-cancel:${d.id}`} onPress={onCancel} style={(st: { hovered?: boolean }) => [s.btn, hover(st) && s.btnOver]}><Text style={s.btnText}>Cancel</Text></Pressable>
-          </View>
-        </View>
-      ) : (<>
-        {d.subject ? <Text style={s.drSj}>{d.subject}</Text> : null}
-        <Text style={s.drBd}>{d.body}</Text>
-      </>)}
-      <View style={s.gate} testID={`gate:${d.id}`}>
-        <Icon name="shield" size={13} />
-        <Text style={s.gateText}>{gateLine(d.agent, d.via)}</Text>
-      </View>
-      {note ? <Text style={s.note} accessibilityRole="alert" testID={`draft-note:${d.id}`}>{note}</Text> : null}
-      {editing ? null : <View style={s.acts}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Send" accessibilityState={{ disabled: busy }} testID={`draft-send:${d.id}`} disabled={busy} onPress={onSend} style={(st: { hovered?: boolean }) => [s.btn, s.btnP, hover(st) && s.btnPOver, busy && s.dim]}>
-          <Icon name="up" size={14} color="var(--accent-ink)" /><Text style={s.btnPText}>Send</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Edit" testID={`draft-edit:${d.id}`} onPress={onEdit} style={(st: { hovered?: boolean }) => [s.btn, hover(st) && s.btnOver]}>
-          <Icon name="edit" size={14} color="var(--ink)" /><Text style={s.btnText}>Edit</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Discard" testID={`draft-discard:${d.id}`} onPress={onDiscard} style={(st: { hovered?: boolean }) => [s.btn, hover(st) && s.btnOver]}>
-          <Icon name="x" size={14} color="var(--ink)" /><Text style={s.btnText}>Discard</Text>
-        </Pressable>
-      </View>}
+    <View testID={`draft:${d.id}`} style={s.drWrap}>
+      <HeldCard
+        testID={`draft:${d.id}`} agent={d.agent} title={`${d.agent} drafted a ${d.channel === "sms" ? "text" : "reply"}`} to={[]} verb="" headFace={{ name: d.agent, seed: d.agentId ?? d.agent, kind: "agent" }}
+        peopleRows={[{ label: "To", people: d.toParties.map((p) => { const name = p.name || nameOf?.(p.address) || p.address; return { name, seed: p.address, ...(name !== p.address ? { sub: p.address } : {}) }; }) }, { label: "Cc", people: d.ccParties.map((p) => { const name = p.name || nameOf?.(p.address) || p.address; return { name, seed: p.address, ...(name !== p.address ? { sub: p.address } : {}) }; }) }]}
+        schedule={d.earlier ? `Updated ${clockTime(d.updatedAt, offsetMin)}` : null} subject={d.channel === "sms" ? undefined : subject} body={text} edited={edited}
+        fields={d.via ? [["From", d.via]] : []} state="waiting" doneLine={done ?? "Sent"} editable editSubject={d.channel !== "sms"}
+        {...(d.earlier ? { earlier: { text: d.earlier.text } } : {})} {...(editor ? { editor } : {})} stoppedNote={sendsLine(d.from)}
+        onSave={async ({ body, subject: sj }) => { const nextSubject = sj ?? subject; await onSave(body, nextSubject); setText(body); setSubject(nextSubject); setEdited(true); }}
+        onSend={async () => { setDone(await onSend(text, subject)); }}
+        onDrop={onDrop}
+      />
     </View>
   );
 }
 
 const ink = (v: string): string => `var(${v})`;
 const s = StyleSheet.create({
+  drWrap: { marginVertical: 8 },
   grow: { flex: 1 },
-  dEdit: { gap: 8, paddingVertical: 6 },
-  dEditSj: { fontSize: 14, fontWeight: "600", color: ink("--ink"), borderWidth: 1, borderColor: ink("--line"), borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-  dEditBody: { minHeight: 140, fontSize: 13.5, lineHeight: 20, color: ink("--ink"), borderWidth: 1, borderColor: ink("--line"), borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   daysep: { flexDirection: "row", alignItems: "center", gap: 12, marginTop: 12, marginBottom: 10 },
   rule: { flex: 1, height: 1, backgroundColor: ink("--line") },
   dayText: { fontSize: 11.5, fontWeight: "500", color: ink("--ink-3") },
@@ -306,22 +298,9 @@ const s = StyleSheet.create({
   ev: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginVertical: 10 },
   evdot: { width: 5, height: 5, borderRadius: 5, backgroundColor: ink("--accent"), opacity: 0.7 },
   evText: { fontSize: 12.5, color: ink("--ink-3") },
-  dr: { marginTop: 10, marginBottom: 8, marginLeft: 23, paddingVertical: 12, paddingHorizontal: 14, borderRadius: 12, borderWidth: 1, borderColor: ink("--accent-line"), backgroundColor: ink("--accent-wash") },
-  dh: { flexDirection: "row", alignItems: "center", gap: 8 },
-  dhText: { fontSize: 12.5, color: ink("--ink-2") },
-  dhName: { fontWeight: "600", color: ink("--ink") },
-  drSj: { marginTop: 8, fontSize: 14, fontWeight: "600", color: ink("--ink") },
-  drBd: { marginTop: 8, fontSize: 14, lineHeight: 21, color: ink("--ink") },
-  gate: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 10 },
-  gateText: { fontSize: 12, color: ink("--ink-3") },
-  note: { marginTop: 8, fontSize: 12.5, fontWeight: "500", color: ink("--ink-2") },
-  acts: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
   btn: { height: 30, paddingHorizontal: 12, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: ink("--hover") },
   btnOver: { backgroundColor: ink("--press") },
-  btnP: { backgroundColor: ink("--accent") },
-  btnPOver: { opacity: 0.92 },
   btnText: { fontSize: 12.5, fontWeight: "600", color: ink("--ink") },
-  btnPText: { fontSize: 12.5, fontWeight: "600", color: ink("--accent-ink") },
   dim: { opacity: 0.5 },
 });
 
@@ -350,6 +329,8 @@ export interface ThreadView {
   onMessage(id: string, open: boolean): void;
   onQuote(id: string): void;
   onSig(id: string): void;
+  /** A link asked for this thread: it is marked for a moment. */
+  marked?: boolean;
   onImages(): void;
   onReply(mode: "one" | "all"): void;
   onAttachment?(name: string): void;
@@ -388,7 +369,7 @@ export function ThreadCard({ e, v }: { e: ThreadEntry; v: ThreadView }): ReactEl
   }
   const many = last ? last.to.length + last.cc.length > 1 : false;
   return (
-    <View style={[th.th, fresh > 0 && th.thNew]} testID={`thread:${t.threadId}`} onLayout={v.onLayoutY ? (ev) => v.onLayoutY?.(ev.nativeEvent.layout.y) : undefined}>
+    <View style={[th.th, fresh > 0 && th.thNew, v.marked === true && th.thMark]} testID={`thread:${t.threadId}`} {...(v.marked === true ? ({ dataSet: { marked: "1" } } as object) : {})} onLayout={v.onLayoutY ? (ev) => v.onLayoutY?.(ev.nativeEvent.layout.y) : undefined}>
       <Pressable
         accessibilityRole="button" accessibilityLabel={`${t.subject}, ${t.messageCount} messages${fresh ? `, ${fresh} new` : ""}`} accessibilityState={{ expanded: v.open }} testID={`thread-toggle:${t.threadId}`}
         onPress={v.onToggle} style={(st: { hovered?: boolean }) => [th.thh, v.open && th.thhOpen, hover(st) && th.thhOver]}
@@ -523,6 +504,7 @@ export function MailHtmlStyle(): ReactElement | null {
 const th = StyleSheet.create({
   th: { marginVertical: 8, borderRadius: 12, backgroundColor: "var(--raised)", borderWidth: 1, borderColor: "var(--line)" },
   thNew: { borderColor: "var(--line-2)" },
+  thMark: { borderColor: "var(--accent)" as string, backgroundColor: "var(--accent-wash)" as string },
   thh: { paddingTop: 11, paddingBottom: 10, paddingHorizontal: 14, borderRadius: 11 },
   thhOpen: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0 },
   thhOver: { backgroundColor: "var(--hover)" },

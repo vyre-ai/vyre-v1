@@ -20,6 +20,10 @@ export function stubs(ctx: CallCtx) {
         set_engineer_mcp: call("access.actors.set_engineer_mcp"),
         update: call("access.actors.update"),
       },
+      agents_can_call: {
+        get: call("access.agents_can_call.get"),
+        set: call("access.agents_can_call.set"),
+      },
       audience_set: call("access.audience_set"),
       automation_senders: call("access.automation_senders"),
       check: call("access.check"),
@@ -56,6 +60,7 @@ export function stubs(ctx: CallCtx) {
         set: call("access.labels.set"),
       },
       lists: call("access.lists"),
+      make_owner: call("access.make_owner"),
       policies: {
         list: call("access.policies.list"),
         reset: call("access.policies.reset"),
@@ -69,6 +74,7 @@ export function stubs(ctx: CallCtx) {
       projection_health: call("access.projection_health"),
       propose_change: call("access.propose_change"),
       provider_check: call("access.provider_check"),
+      reach: call("access.reach"),
       record_marks: call("access.record_marks"),
       request: call("access.request"),
       requests: {
@@ -136,6 +142,8 @@ export function stubs(ctx: CallCtx) {
         usable: call("agents.outside.usable"),
       },
       pause: call("agents.pause"),
+      pause_person: call("agents.pause_person"),
+      people_summary: call("agents.people_summary"),
       restore: call("agents.restore"),
       restore_version: call("agents.restore_version"),
       resume: call("agents.resume"),
@@ -250,6 +258,7 @@ export function stubs(ctx: CallCtx) {
       schedule_choose: call("automations.schedule_choose"),
       senders: call("automations.senders"),
       set_enabled: call("automations.set_enabled"),
+      set_owner: call("automations.set_owner"),
       steps: {
         list: call("automations.steps.list"),
       },
@@ -268,6 +277,13 @@ export function stubs(ctx: CallCtx) {
       validate: call("automations.validate"),
       vault_usage: call("automations.vault_usage"),
       versions: call("automations.versions"),
+      watches: {
+        check: call("automations.watches.check"),
+        list: call("automations.watches.list"),
+        remove: call("automations.watches.remove"),
+        report: call("automations.watches.report"),
+        save: call("automations.watches.save"),
+      },
       webhook_url: {
         get: call("automations.webhook_url.get"),
         rotate: call("automations.webhook_url.rotate"),
@@ -292,6 +308,19 @@ export function stubs(ctx: CallCtx) {
       cancel: call("bookings.cancel"),
       list: call("bookings.list"),
       page_create: call("bookings.page_create"),
+    },
+    browser: {
+      cards: {
+        post: call("browser.cards.post"),
+      },
+      chrome: {
+        act: call("browser.chrome.act"),
+      },
+      sites: {
+        list: call("browser.sites.list"),
+        remove: call("browser.sites.remove"),
+        set: call("browser.sites.set"),
+      },
     },
     calendar: {
       availability: call("calendar.availability"),
@@ -374,20 +403,29 @@ export function stubs(ctx: CallCtx) {
       composer: {
         suggest: call("chat.composer.suggest"),
       },
+      crew_line: call("chat.crew_line"),
       delete_message: call("chat.delete_message"),
       edit: call("chat.edit"),
       flow_card: call("chat.flow_card"),
       fork: call("chat.fork"),
       handoff: call("chat.handoff"),
       helper: {
+        note: call("chat.helper.note"),
+        note_seen: call("chat.helper.note_seen"),
+        notes: call("chat.helper.notes"),
+        restart: call("chat.helper.restart"),
         start: call("chat.helper.start"),
+        steer: call("chat.helper.steer"),
       },
       helpers: {
         list: call("chat.helpers.list"),
       },
       history: {
+        page: call("chat.history.page"),
         search: call("chat.history.search"),
       },
+      hook_line: call("chat.hook_line"),
+      hook_resolve: call("chat.hook_resolve"),
       make_task: call("chat.make_task"),
       message: {
         get: call("chat.message.get"),
@@ -396,8 +434,14 @@ export function stubs(ctx: CallCtx) {
       messages: {
         list: call("chat.messages.list"),
       },
+      note_offer: {
+        answer: call("chat.note_offer.answer"),
+        make: call("chat.note_offer.make"),
+      },
+      noted: call("chat.noted"),
       open_as_chat: call("chat.open_as_chat"),
       open_tab: call("chat.open_tab"),
+      pace_of: call("chat.pace_of"),
       people_status: call("chat.people_status"),
       pin: call("chat.pin"),
       pins: {
@@ -411,8 +455,10 @@ export function stubs(ctx: CallCtx) {
       post: call("chat.post"),
       question: {
         ask: call("chat.question.ask"),
+        withdraw: call("chat.question.withdraw"),
       },
       react: call("chat.react"),
+      read_floor: call("chat.read_floor"),
       recent: call("chat.recent"),
       remember: call("chat.remember"),
       reply_details: call("chat.reply_details"),
@@ -423,6 +469,7 @@ export function stubs(ctx: CallCtx) {
       share: call("chat.share"),
       start: call("chat.start"),
       thread: call("chat.thread"),
+      title_make: call("chat.title_make"),
       transcript: {
         append: call("chat.transcript.append"),
         get: call("chat.transcript.get"),
@@ -433,6 +480,26 @@ export function stubs(ctx: CallCtx) {
         summary: call("chat.transcript.summary"),
       },
       unpin: call("chat.unpin"),
+    },
+    ci: {
+      cost: {
+        month: call("ci.cost.month"),
+      },
+      job: {
+        intake: call("ci.job.intake"),
+      },
+      project: {
+        get: call("ci.project.get"),
+      },
+      runs: {
+        get: call("ci.runs.get"),
+        list: call("ci.runs.list"),
+      },
+      settings: {
+        get: call("ci.settings.get"),
+        set: call("ci.settings.set"),
+      },
+      sweep: call("ci.sweep"),
     },
     comms: {
       senders: {
@@ -547,6 +614,7 @@ export function stubs(ctx: CallCtx) {
       delete: call("connections.delete"),
       get: call("connections.get"),
       list: call("connections.list"),
+      mark_working: call("connections.mark_working"),
       pause: call("connections.pause"),
       reconnect: call("connections.reconnect"),
       resume: call("connections.resume"),
@@ -733,6 +801,7 @@ export function stubs(ctx: CallCtx) {
       compact: call("engine.compact"),
       complete: call("engine.complete"),
       crew: {
+        chat_repo: call("engine.crew.chat_repo"),
         list: call("engine.crew.list"),
         merge: call("engine.crew.merge"),
         message: call("engine.crew.message"),
@@ -742,6 +811,7 @@ export function stubs(ctx: CallCtx) {
           set: call("engine.crew.repo.set"),
         },
         start: call("engine.crew.start"),
+        status: call("engine.crew.status"),
         stop: call("engine.crew.stop"),
         wait: call("engine.crew.wait"),
         workspace: call("engine.crew.workspace"),
@@ -752,6 +822,12 @@ export function stubs(ctx: CallCtx) {
       },
       drop_queued: call("engine.drop_queued"),
       health: call("engine.health"),
+      helper_models: call("engine.helper_models"),
+      helpers: {
+        change_model: call("engine.helpers.change_model"),
+        status: call("engine.helpers.status"),
+        stop_all: call("engine.helpers.stop_all"),
+      },
       incident: {
         assign: call("engine.incident.assign"),
         get: call("engine.incident.get"),
@@ -763,6 +839,9 @@ export function stubs(ctx: CallCtx) {
         list: call("engine.incidents.list"),
       },
       interrupt: call("engine.interrupt"),
+      last_pick: {
+        get: call("engine.last_pick.get"),
+      },
       lease: {
         acquire: call("engine.lease.acquire"),
         heartbeat: call("engine.lease.heartbeat"),
@@ -780,6 +859,8 @@ export function stubs(ctx: CallCtx) {
       models: {
         list: call("engine.models.list"),
       },
+      models_catalog: call("engine.models_catalog"),
+      my_ai: call("engine.my_ai"),
       now: call("engine.now"),
       placement: {
         decide: call("engine.placement.decide"),
@@ -812,6 +893,7 @@ export function stubs(ctx: CallCtx) {
       route: {
         preview: call("engine.route.preview"),
       },
+      running_here: call("engine.running_here"),
       runtime: {
         opt_in: call("engine.runtime.opt_in"),
       },
@@ -833,6 +915,7 @@ export function stubs(ctx: CallCtx) {
         set: call("engine.subscription_share.set"),
       },
       switch: call("engine.switch"),
+      time_convert: call("engine.time_convert"),
       turn: {
         append: call("engine.turn.append"),
         enqueue: call("engine.turn.enqueue"),
@@ -848,6 +931,7 @@ export function stubs(ctx: CallCtx) {
       },
       turns: {
         list: call("engine.turns.list"),
+        running: call("engine.turns.running"),
       },
       usage: {
         get: call("engine.usage.get"),
@@ -1008,6 +1092,7 @@ export function stubs(ctx: CallCtx) {
       holds: {
         get: call("gate.holds.get"),
         list: call("gate.holds.list"),
+        revise: call("gate.holds.revise"),
       },
       links: {
         known: call("gate.links.known"),
@@ -1043,6 +1128,9 @@ export function stubs(ctx: CallCtx) {
       sync: call("git.sync"),
     },
     github: {
+      actions: {
+        secrets: call("github.actions.secrets"),
+      },
       app: {
         complete: call("github.app.complete"),
         create_manifest: call("github.app.create_manifest"),
@@ -1063,6 +1151,19 @@ export function stubs(ctx: CallCtx) {
         create: call("github.issue.create"),
         get: call("github.issue.get"),
         update: call("github.issue.update"),
+      },
+      me: {
+        approve: call("github.me.approve"),
+        complete: call("github.me.complete"),
+        connect: call("github.me.connect"),
+        disconnect: call("github.me.disconnect"),
+        policy: {
+          get: call("github.me.policy.get"),
+          set: call("github.me.policy.set"),
+        },
+        reach: call("github.me.reach"),
+        status: call("github.me.status"),
+        usage: call("github.me.usage"),
       },
       pull_request: {
         ask_author_fix: call("github.pull_request.ask_author_fix"),
@@ -1085,6 +1186,13 @@ export function stubs(ctx: CallCtx) {
       repos: {
         list: call("github.repos.list"),
       },
+      runner_release: call("github.runner_release"),
+      runners: {
+        jit_config: call("github.runners.jit_config"),
+        remove: call("github.runners.remove"),
+      },
+      session_env: call("github.session_env"),
+      token: call("github.token"),
     },
     goals: {
       activity: call("goals.activity"),
@@ -1095,6 +1203,7 @@ export function stubs(ctx: CallCtx) {
       },
       complete: call("goals.complete"),
       confirm: call("goals.confirm"),
+      count: call("goals.count"),
       create: call("goals.create"),
       extend: call("goals.extend"),
       finish: call("goals.finish"),
@@ -1179,6 +1288,7 @@ export function stubs(ctx: CallCtx) {
       },
       gmail: {
         create_draft: call("google.gmail.create_draft"),
+        delete_draft: call("google.gmail.delete_draft"),
         get_attachment: call("google.gmail.get_attachment"),
         get_message: call("google.gmail.get_message"),
         get_profile: call("google.gmail.get_profile"),
@@ -1276,6 +1386,26 @@ export function stubs(ctx: CallCtx) {
       routines_today: call("home.routines_today"),
       write_digest: call("home.write_digest"),
     },
+    hooks: {
+      allow_always: call("hooks.allow_always"),
+      allow_once: call("hooks.allow_once"),
+      allow_remove: call("hooks.allow_remove"),
+      ask_admin: call("hooks.ask_admin"),
+      deny: call("hooks.deny"),
+      fire: call("hooks.fire"),
+      list: call("hooks.list"),
+      pause: call("hooks.pause"),
+      policy: {
+        get: call("hooks.policy.get"),
+        set: call("hooks.policy.set"),
+      },
+      remove: call("hooks.remove"),
+      runs: {
+        latest: call("hooks.runs.latest"),
+        list: call("hooks.runs.list"),
+      },
+      set: call("hooks.set"),
+    },
     hubspot: {
       health: call("hubspot.health"),
       list_objects: call("hubspot.list_objects"),
@@ -1349,9 +1479,18 @@ export function stubs(ctx: CallCtx) {
       recipients_search: call("inbox.recipients_search"),
       send_options: call("inbox.send_options"),
       thread: call("inbox.thread"),
+      thread_conversation: call("inbox.thread_conversation"),
       threads: call("inbox.threads"),
       unmatch: call("inbox.unmatch"),
       unmatched: call("inbox.unmatched"),
+    },
+    install: {
+      apply: call("install.apply"),
+      check_update: call("install.check_update"),
+      from_link: call("install.from_link"),
+      get: call("install.get"),
+      list: call("install.list"),
+      remove: call("install.remove"),
     },
     invites: {
       accept_create_account: call("invites.accept_create_account"),
@@ -1405,6 +1544,17 @@ export function stubs(ctx: CallCtx) {
       spans: call("logs.spans"),
       tail: call("logs.tail"),
       trace: call("logs.trace"),
+    },
+    machines: {
+      alerts: call("machines.alerts"),
+      alerts_notify: call("machines.alerts_notify"),
+      fix: call("machines.fix"),
+      get: call("machines.get"),
+      list: call("machines.list"),
+      move_record: call("machines.move_record"),
+      moves: call("machines.moves"),
+      rooms: call("machines.rooms"),
+      set: call("machines.set"),
     },
     mail: {
       attachment: {
@@ -1557,9 +1707,23 @@ export function stubs(ctx: CallCtx) {
       invites: {
         create: call("members.invites.create"),
         extend: call("members.invites.extend"),
+        guest: call("members.invites.guest"),
         list: call("members.invites.list"),
         preview: call("members.invites.preview"),
         revoke: call("members.invites.revoke"),
+      },
+      join_link: {
+        create: call("members.join_link.create"),
+        disable: call("members.join_link.disable"),
+        get: call("members.join_link.get"),
+        preview: call("members.join_link.preview"),
+        request: call("members.join_link.request"),
+        rotate: call("members.join_link.rotate"),
+      },
+      join_requests: {
+        approve: call("members.join_requests.approve"),
+        decline: call("members.join_requests.decline"),
+        list: call("members.join_requests.list"),
       },
       joins: {
         list: call("members.joins.list"),
@@ -1658,6 +1822,10 @@ export function stubs(ctx: CallCtx) {
         set_visibility: call("memory.page.set_visibility"),
         versions: call("memory.page.versions"),
       },
+      place: {
+        archive: call("memory.place.archive"),
+        list: call("memory.place.list"),
+      },
       pointer: call("memory.pointer"),
       profile: {
         add: call("memory.profile.add"),
@@ -1688,6 +1856,7 @@ export function stubs(ctx: CallCtx) {
       restore: call("memory.restore"),
       restore_version: call("memory.restore_version"),
       search: call("memory.search"),
+      source_removed: call("memory.source_removed"),
       trail: call("memory.trail"),
       trash: {
         search: call("memory.trash.search"),
@@ -1865,6 +2034,7 @@ export function stubs(ctx: CallCtx) {
       pin: call("notes.pin"),
       restore: call("notes.restore"),
       search: call("notes.search"),
+      set_owner: call("notes.set_owner"),
       share: call("notes.share"),
       to_record: call("notes.to_record"),
       to_task: call("notes.to_task"),
@@ -1988,14 +2158,28 @@ export function stubs(ctx: CallCtx) {
     },
     projects: {
       apply_cascade: call("projects.apply_cascade"),
+      archive: call("projects.archive"),
       cascade: call("projects.cascade"),
       create: call("projects.create"),
+      crew: call("projects.crew"),
       file_chat: call("projects.file_chat"),
       files_folder: call("projects.files_folder"),
+      for_channel: call("projects.for_channel"),
       from_channel: call("projects.from_channel"),
       get: call("projects.get"),
       link_tasks: call("projects.link_tasks"),
+      links: {
+        link: call("projects.links.link"),
+        list: call("projects.links.list"),
+        rules: {
+          set: call("projects.links.rules.set"),
+        },
+        unlink: call("projects.links.unlink"),
+      },
       list: call("projects.list"),
+      live_block: {
+        query: call("projects.live_block.query"),
+      },
       members: {
         list: call("projects.members.list"),
         remove: call("projects.members.remove"),
@@ -2003,10 +2187,26 @@ export function stubs(ctx: CallCtx) {
       },
       open_task_thread: call("projects.open_task_thread"),
       overview: call("projects.overview"),
+      overview_doc: {
+        apply_template: call("projects.overview_doc.apply_template"),
+        get: call("projects.overview_doc.get"),
+        history: call("projects.overview_doc.history"),
+        restore: call("projects.overview_doc.restore"),
+        save: call("projects.overview_doc.save"),
+        templates: {
+          list: call("projects.overview_doc.templates.list"),
+          save: call("projects.overview_doc.templates.save"),
+        },
+        undo: call("projects.overview_doc.undo"),
+      },
+      overview_edit: call("projects.overview_edit"),
+      overview_get: call("projects.overview_get"),
       pin_file: call("projects.pin_file"),
       plan: call("projects.plan"),
       post_update: call("projects.post_update"),
       reschedule: call("projects.reschedule"),
+      roles_of: call("projects.roles_of"),
+      set: call("projects.set"),
       share_out: call("projects.share_out"),
       shared_view: call("projects.shared_view"),
       stages: {
@@ -2020,9 +2220,14 @@ export function stubs(ctx: CallCtx) {
       templates: {
         list: call("projects.templates.list"),
       },
+      unarchive: call("projects.unarchive"),
       unlink_tasks: call("projects.unlink_tasks"),
       unpin_file: call("projects.unpin_file"),
       unshare_out: call("projects.unshare_out"),
+      update: {
+        draft: call("projects.update.draft"),
+        edit: call("projects.update.edit"),
+      },
     },
     providers: {
       add: call("providers.add"),
@@ -2031,7 +2236,10 @@ export function stubs(ctx: CallCtx) {
       custom_list: call("providers.custom_list"),
       custom_remove: call("providers.custom_remove"),
       list: call("providers.list"),
+      mark_signin_needed: call("providers.mark_signin_needed"),
+      own_people: call("providers.own_people"),
       remove: call("providers.remove"),
+      set_keeps_nothing: call("providers.set_keeps_nothing"),
       set_space_use: call("providers.set_space_use"),
       space_key: {
         get: call("providers.space_key.get"),
@@ -2137,6 +2345,7 @@ export function stubs(ctx: CallCtx) {
       get: call("runs.get"),
       list: call("runs.list"),
       mark_waiting: call("runs.mark_waiting"),
+      people_counts: call("runs.people_counts"),
       pin_version: call("runs.pin_version"),
       preview_undo: call("runs.preview_undo"),
       purge: call("runs.purge"),
@@ -2239,6 +2448,11 @@ export function stubs(ctx: CallCtx) {
       rename: call("sessions.rename"),
     },
     settings: {
+      contact: {
+        status: call("settings.contact.status"),
+        verify_confirm: call("settings.contact.verify_confirm"),
+        verify_start: call("settings.contact.verify_start"),
+      },
       copy_profile: call("settings.copy_profile"),
       copy_source: call("settings.copy_source"),
       floor_set: call("settings.floor_set"),
@@ -2272,7 +2486,9 @@ export function stubs(ctx: CallCtx) {
       addon_remove: call("sites.addon_remove"),
       artifact_open: call("sites.artifact_open"),
       artifact_publish: call("sites.artifact_publish"),
+      artifact_thumb_set: call("sites.artifact_thumb_set"),
       build: call("sites.build"),
+      chat_viewing: call("sites.chat_viewing"),
       create: call("sites.create"),
       db_import: call("sites.db_import"),
       delete: call("sites.delete"),
@@ -2308,6 +2524,9 @@ export function stubs(ctx: CallCtx) {
     },
     skills: {
       add: call("skills.add"),
+      grant: call("skills.grant"),
+      grants: call("skills.grants"),
+      history: call("skills.history"),
       list: call("skills.list"),
       load: call("skills.load"),
       members: call("skills.members"),
@@ -2317,12 +2536,14 @@ export function stubs(ctx: CallCtx) {
         set: call("skills.mine.set"),
         update: call("skills.mine.update"),
       },
+      of_agents: call("skills.of_agents"),
       page: call("skills.page"),
       policy: {
         set: call("skills.policy.set"),
       },
       preview: call("skills.preview"),
       remove: call("skills.remove"),
+      save: call("skills.save"),
       set_enabled: call("skills.set_enabled"),
       share: call("skills.share"),
       shared: {
@@ -2334,6 +2555,7 @@ export function stubs(ctx: CallCtx) {
         setup: call("skills.space.setup"),
         update: call("skills.space.update"),
       },
+      undo: call("skills.undo"),
       view: call("skills.view"),
     },
     source_rules: {
@@ -2365,7 +2587,10 @@ export function stubs(ctx: CallCtx) {
     },
     spaces: {
       delete: call("spaces.delete"),
+      delete_cancel: call("spaces.delete_cancel"),
+      delete_due: call("spaces.delete_due"),
       export: call("spaces.export"),
+      export_latest: call("spaces.export_latest"),
       get: call("spaces.get"),
       image: call("spaces.image"),
       leave: call("spaces.leave"),
@@ -2380,6 +2605,9 @@ export function stubs(ctx: CallCtx) {
       },
       switch_address: call("spaces.switch_address"),
       switcher: call("spaces.switcher"),
+      timezone: {
+        set: call("spaces.timezone.set"),
+      },
       transfer_ownership: call("spaces.transfer_ownership"),
       update: call("spaces.update"),
     },
@@ -2492,8 +2720,24 @@ export function stubs(ctx: CallCtx) {
       undo_push: call("sync_types.undo_push"),
       update: call("sync_types.update"),
     },
+    talk: {
+      ask_key: call("talk.ask_key"),
+      configure: call("talk.configure"),
+      connect: call("talk.connect"),
+      disconnect: call("talk.disconnect"),
+      session: call("talk.session"),
+      space: {
+        check: call("talk.space.check"),
+        configure: call("talk.space.configure"),
+        connect: call("talk.space.connect"),
+        disconnect: call("talk.space.disconnect"),
+        status: call("talk.space.status"),
+      },
+      status: call("talk.status"),
+    },
     tasks: {
       act: call("tasks.act"),
+      agent_on_it: call("tasks.agent_on_it"),
       ask: call("tasks.ask"),
       assign: call("tasks.assign"),
       block: call("tasks.block"),
@@ -2515,6 +2759,7 @@ export function stubs(ctx: CallCtx) {
         remove: call("tasks.followers.remove"),
       },
       get: call("tasks.get"),
+      held_revise: call("tasks.held_revise"),
       history: call("tasks.history"),
       index: call("tasks.index"),
       links: {
@@ -2617,6 +2862,10 @@ export function stubs(ctx: CallCtx) {
       add_agent: call("threads.add_agent"),
       agent: {
         configure: call("threads.agent.configure"),
+        create: call("threads.agent.create"),
+      },
+      agent_settings: {
+        set: call("threads.agent_settings.set"),
       },
       archive: call("threads.archive"),
       close: call("threads.close"),
@@ -2624,17 +2873,26 @@ export function stubs(ctx: CallCtx) {
       erase: call("threads.erase"),
       follow: call("threads.follow"),
       get: call("threads.get"),
+      invite_guest: call("threads.invite_guest"),
       leave: call("threads.leave"),
       list: call("threads.list"),
       make_channel: call("threads.make_channel"),
       mark_read: call("threads.mark_read"),
+      mark_unread_from: call("threads.mark_unread_from"),
       members: {
         add: call("threads.members.add"),
         remove: call("threads.members.remove"),
       },
+      move: call("threads.move"),
+      outside_agent: {
+        add: call("threads.outside_agent.add"),
+        remove: call("threads.outside_agent.remove"),
+      },
+      poke: call("threads.poke"),
       remove_agent: call("threads.remove_agent"),
       reopen: call("threads.reopen"),
       restore: call("threads.restore"),
+      set_agent_replies: call("threads.set_agent_replies"),
       set_folder: call("threads.set_folder"),
       set_mode: call("threads.set_mode"),
       set_plan_mode: call("threads.set_plan_mode"),

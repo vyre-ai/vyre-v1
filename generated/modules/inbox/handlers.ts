@@ -22,6 +22,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "inbox.recipients_search": Handler<"inbox.recipients_search", X>;
   "inbox.send_options": Handler<"inbox.send_options", X>;
   "inbox.thread": Handler<"inbox.thread", X>;
+  "inbox.thread_conversation": Handler<"inbox.thread_conversation", X>;
   "inbox.threads": Handler<"inbox.threads", X>;
   "inbox.unmatch": Handler<"inbox.unmatch", X>;
   "inbox.unmatched": Handler<"inbox.unmatched", X>;

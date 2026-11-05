@@ -2,13 +2,13 @@
 // engine.warm, engine.placement.decide and engine.pool.status wrap the logic of P-L2_04 (agent/src/pool, agent/src/placement); they live in ../place.ts.
 import { placementOptions, placementSet } from "../place-pref.ts";
 import { defaultsGet, defaultsSet, policyGet, policySet, runtimeOptIn, subscriptionShareSet, usePolicyExport } from "./config.ts";
-import { modelsList, providersList } from "./models.ts";
+import { modelsCatalog, modelsList, providersList } from "./models.ts";
 import { placementDecide, poolStatus, warm } from "../place.ts";
 import { reviewList, reviewMark } from "./review.ts";
 import { reviewerGet, reviewerSet } from "../reviewer.ts";
 import { engineHealth, leaseAcquire, leaseHeartbeat, leaseRelease, queueList, queuePeek, routePreview } from "./threads.ts";
 import { turnOfMessage } from "./reply-info.ts";
-import { turnAppend, turnEnqueue, turnFallback, turnFinish, turnGet, turnRecord, turnRetry, turnStart, turnWait, turnsList } from "./turns.ts";
+import { turnAppend, turnEnqueue, turnFallback, turnFinish, turnGet, turnRecord, turnRetry, turnStart, turnWait, turnsList, turnsRunning } from "./turns.ts";
 
 export const extraHandlers = {
   "engine.placement.decide": placementDecide,
@@ -17,6 +17,7 @@ export const extraHandlers = {
   "engine.pool.status": poolStatus,
   "engine.warm": warm,
   "engine.models.list": modelsList,
+  "engine.models_catalog": modelsCatalog,
   "engine.providers.list": providersList,
   "engine.defaults.get": defaultsGet,
   "engine.defaults.set": defaultsSet,
@@ -39,6 +40,8 @@ export const extraHandlers = {
   "engine.turn.get": turnGet,
   "engine.turn.of_message": turnOfMessage,
   "engine.turns.list": turnsList,
+  "engine.turns.running": turnsRunning,
+  "engine.turns.running": turnsRunning,
   "engine.turn.retry": turnRetry,
   "engine.lease.acquire": leaseAcquire,
   "engine.lease.heartbeat": leaseHeartbeat,

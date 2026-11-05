@@ -1,6 +1,7 @@
 // Records table model: the pure part. The columns of a type with their widths, the window of rows and columns to draw, the view (filter, sort, group, hidden fields, colour) and the
 // query it compiles to, the text of a cell, and the groups. No React and no clock; every rule here is tested without a renderer.
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { clockIn, currentZones, partsIn } from "../../../../../../lib/zones.ts";
 import { hash, marbleGradient, marbleSpec } from "../../../../../../ui/src/Avatar/faces.ts";
 
 export type TypeDef = CapMap["schema.describe"]["out"]["types"][number];
@@ -234,14 +235,16 @@ export function hueOf(key: string): number {
 
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
-export function dateText(v: unknown, withTime = false, now: number = Date.now()): string {
+export function dateText(v: unknown, withTime = false, now: number = Date.now(), zone: string = currentZones().space): string {
   const d = typeof v === "number" ? new Date(v) : typeof v === "string" ? new Date(v) : null;
   if (!d || Number.isNaN(d.getTime())) return "";
+  // a date is a calendar day (the same on every device: UTC); a date with a time is a moment, read in the Space's zone
+  const z = withTime ? zone : "UTC";
+  const p = partsIn(d.getTime(), z), nowYear = partsIn(now, z).year;
   // this year's dates are short, as the prototype writes them ("23 Oct"); another year's keep the year ("Oct 24, 2025")
-  const base = d.getUTCFullYear() === new Date(now).getUTCFullYear() ? `${d.getUTCDate()} ${MONTH[d.getUTCMonth()]}` : `${MONTH[d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`;
+  const base = p.year === nowYear ? `${p.day} ${MONTH[p.month - 1]}` : `${MONTH[p.month - 1]} ${p.day}, ${p.year}`;
   if (!withTime) return base;
-  const h = d.getUTCHours(), m = d.getUTCMinutes();
-  return `${base}, ${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+  return `${base}, ${clockIn(d.getTime(), z)}`;
 }
 
 export function moneyText(v: unknown): string {

@@ -147,6 +147,7 @@ const ICON_PATHS: Readonly<Record<string, string>> = {
   edit: '<path d="M3 13h3l7-7-3-3-7 7zM9 4l3 3"/>',
   open: '<path d="M6.500 3.500H3.500v9h9v-3M9 3.500h3.500V7M12.500 3.500L7 9"/>',
   link: '<path d="M6.500 9.500l3-3M7 4.500l.8-.8a2.500 2.500 0 013.500 3.500l-.8.800M9 11.500l-.8.800a2.500 2.500 0 01-3.500-3.500l.8-.8"/>',
+  lock: '<path d="M5 7V5a3 3 0 016 0v2"/><path d="M4 7h8a1 1 0 011 1v5a1 1 0 01-1 1H4a1 1 0 01-1-1V8a1 1 0 011-1z"/>',
   clock: '<circle cx="8" cy="8" r="5.500"/><path d="M8 5v3.200l2 1.300"/>',
   terminal: '<rect x="2" y="3" width="12" height="10" rx="1.800"/><path d="M5 6.500l2 1.500-2 1.500M8.500 10H11"/>',
   eye: '<path d="M1.500 8S4 3.500 8 3.500 14.500 8 14.500 8 12 12.500 8 12.500 1.500 8 1.500 8z"/><circle cx="8" cy="8" r="2"/>',
@@ -244,7 +245,7 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   const entries = useMemo(() => (searching ? filterMenuEntries(all, query) : all), [all, searching, query]);
   const window = useWindowDimensions();
   const [gone, setGone] = useState(false);
-  const [active, setActive] = useState(() => moveActive(entries, -1, "Home"));
+  const [active, setActive] = useState(-1);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: MENU_W, h: MENU_H });
   const nodes = useRef<Record<number, unknown>>({});
   const typed = useRef<{ text: string; at: number }>({ text: "", at: 0 });
@@ -266,6 +267,8 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   useEffect(() => {
     const at = activeRef.current;
     const still = at >= 0 && entries[at] !== undefined && isItem(entries[at]!) && entries[at]!.disabled !== true;
+    // a menu opens with nothing lit (the first arrow key or the pointer lights a row); a searchable one lights its first match as the person types
+    if (!still && at < 0 && !searching) return;
     land(still ? at : moveActive(entries, -1, "Home"));
   }, [entries, land]);
 
@@ -430,6 +433,9 @@ export interface OpenMenu {
 interface PointerLike {
   clientX?: number;
   clientY?: number;
+  pointerType?: string;
+  button?: number;
+  stopPropagation?: () => void;
   nativeEvent?: { pageX?: number; pageY?: number };
   preventDefault?: () => void;
 }
@@ -441,14 +447,39 @@ function pointOf(event: PointerLike): { x: number; y: number } {
   };
 }
 
-/** Handlers that open a menu from a surface: right-click on web, long press on a phone, Shift-F10 and the menu key. */
+/** How long a finger rests on a surface before its menu opens (a phone's browser, which has no right-click). */
+export const LONG_PRESS_MS = 450;
+const LONG_PRESS_SLOP = 8;
+
+/** Handlers that open a menu from a surface: right-click on web, a long press with a finger on a phone's browser, Shift-F10 and the menu key. */
 export function menuTrigger(open: (x: number, y: number) => void): Record<string, unknown> {
   const onLongPress = (event: PointerLike): void => {
     const { x, y } = pointOf(event);
     open(x, y);
   };
   if (Platform.OS !== "web") return { onLongPress };
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let at = { x: 0, y: 0 };
+  let firedAt = 0;
+  const clear = (): void => { if (timer !== null) { clearTimeout(timer); timer = null; } };
   return {
+    // a finger held still opens the menu; moving, lifting or a second touch cancels; the click the lift makes is not a press on the row
+    onPointerDown: (event: PointerLike): void => {
+      if (event.pointerType !== "touch") return;
+      clear();
+      at = pointOf(event);
+      timer = setTimeout(() => { timer = null; firedAt = Date.now(); open(at.x, at.y); }, LONG_PRESS_MS);
+    },
+    onPointerMove: (event: PointerLike): void => {
+      if (timer === null) return;
+      const p = pointOf(event);
+      if (Math.abs(p.x - at.x) > LONG_PRESS_SLOP || Math.abs(p.y - at.y) > LONG_PRESS_SLOP) clear();
+    },
+    onPointerUp: clear,
+    onPointerCancel: clear,
+    onClickCapture: (event: PointerLike): void => {
+      if (firedAt !== 0 && Date.now() - firedAt < 700) { firedAt = 0; event.stopPropagation?.(); event.preventDefault?.(); }
+    },
     onContextMenu: (event: PointerLike): void => {
       event.preventDefault?.();
       const { x, y } = pointOf(event);
@@ -542,7 +573,7 @@ const styles = StyleSheet.create({
     boxShadow: "var(--sh-pop)" as string,
   },
   // the lit row is the wash; the browser focus ring would draw a black box around it
-  item: { flexDirection: "row", alignItems: "center", height: 28, paddingHorizontal: 9, borderRadius: 6, gap: 9, width: "100%", ...({ outlineStyle: "none" } as ViewStyle) },
+  item: { flexDirection: "row", alignItems: "center", height: 28, paddingHorizontal: 9, borderRadius: 6, gap: 9, width: "100%", ...({ outlineStyle: "none" } as unknown as ViewStyle) },
   label: { flexShrink: 1, fontSize: 13, lineHeight: 18 },
   check: { marginLeft: "auto", fontSize: 12 },
   checkAfterCount: { marginLeft: 0 },
@@ -554,7 +585,7 @@ const styles = StyleSheet.create({
   // a mark that is the accent colour (a status ring) would vanish on the lit row: it sits on a light disc there
   leadingLit: { borderRadius: 10, backgroundColor: "var(--raised)" as string },
   search: { flexDirection: "row", alignItems: "center", gap: 8, height: 32, paddingHorizontal: 9, marginBottom: 4, borderBottomWidth: 1, borderBottomColor: "var(--line)" as string },
-  searchInput: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string, ...({ outlineStyle: "none" } as ViewStyle) },
+  searchInput: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string, ...({ outlineStyle: "none" } as unknown as ViewStyle) },
   none: { paddingVertical: 10, paddingHorizontal: 9, fontSize: 12.5, color: "var(--ink-3)" as string },
   head: { paddingTop: 6, paddingBottom: 4, paddingHorizontal: 9, fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   sep: { height: 1, backgroundColor: "var(--line)" as string, marginVertical: 4, marginHorizontal: 6 },

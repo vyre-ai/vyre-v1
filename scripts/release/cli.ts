@@ -150,10 +150,10 @@ export async function publishMain(argv: string[]): Promise<number> {
     if (cmd === "publish" && a) {
       const channel = process.env["CHANNEL"] ?? "stable";
       const r = await publishRelease({ repo, token, tag, dir: a, prerelease: channel !== "stable", notes: `Release ${tag}. Signed manifests: ${channel}.json and ${channel}.json.sig.` });
-      console.log(`release: attached ${r.attached.join(", ")} to ${tag}`);
+      console.log(`release: attached ${r.attached.join(", ")} to ${tag}${r.skipped.length ? ` (already there with the right size and checksum, not sent again: ${r.skipped.join(", ")})` : ""}`);
       return 0;
     }
-    if (cmd === "rolling" && a && b) { const r = await updateRolling({ repo, token, dir: a, channel: b }); console.log(`release: channel-${b} now has ${r.attached.join(", ")}`); return 0; }
+    if (cmd === "rolling" && a && b) { const r = await updateRolling({ repo, token, dir: a, channel: b }); console.log(`release: channel-${b} now has ${r.attached.join(", ")}${r.skipped.length ? ` (unchanged, not sent again: ${r.skipped.join(", ")})` : ""}`); return 0; }
     if (cmd === "unpublish" && a) { console.log((await new GithubReleases(repo, token).remove(a)) ? `release: deleted the release of ${a}` : `release: no release of ${a}`); return 0; }
     console.error("usage: publish <dir> | rolling <dir> <channel> | unpublish <tag>"); return 2;
   } catch (e) { console.error(`release: ${e instanceof Error ? e.message : "failed"}`); return 1; }

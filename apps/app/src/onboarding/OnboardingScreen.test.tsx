@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
+import { useEffect, useState } from "react";
+import type { ReactElement } from "react";
+import { Text } from "react-native";
 import { OnboardingScreen } from "./OnboardingScreen.tsx";
 import { stepsOf } from "./flow.ts";
 
@@ -188,4 +191,35 @@ test("Team AI offers a key for everyone first and your own account as a separate
   assert.ok(first.includes('data-testid="space-ai-key"') && first.includes("A key for everyone") && first.includes("Your own account") && !first.includes("Open it") && !first.includes("Console"));
   const mine = renderToStaticMarkup(<SpaceAiCard team={call} personal={null} onConnected={noop} initial="mine" />);
   assert.ok(mine.includes('data-testid="ai-tiles"') && mine.includes("Claude, ChatGPT or Grok subscription"), "no Personal key to copy: the sign-ins are the choice");
+});
+
+function GatedCard({ card, gate, ran }: { card: string; gate(save: (() => Promise<boolean>) | null, label?: string): void; ran: string[] }): ReactElement {
+  useEffect(() => { gate(async () => { ran.push(card); return true; }, "Save"); return () => gate(null); }, [gate, card, ran]);
+  return <Text testID={`card-${card}`}>{card}</Text>;
+}
+
+test("with every step done, any step in the rail reopens and shows its card; Continue on a reopened step runs the card's own action first", async () => {
+  const { act } = await import("react");
+  const { createRoot } = await import("test-renderer");
+  const { find, flush, installDom, press } = await import("./test-dom.ts");
+  installDom();
+  const done = Object.fromEntries(stepsOf("personal").map((x) => [x.key, "done" as const]));
+  const ran: string[] = [];
+  const opened: string[] = [];
+  const r = createRoot();
+  const Host = (): ReactElement => {
+    const [step, setStep] = useState("ai");
+    return <OnboardingScreen flow="personal" spaceName="Maya" progress={done} stepKey={step} device="mac" onStep={() => undefined} onOpenStep={(k) => { opened.push(k); setStep(k); }} onClose={() => undefined} renderCard={(card, ctx) => <GatedCard card={card} gate={ctx.gate} ran={ran} />} />;
+  };
+  await act(async () => { r.render(<Host />); });
+  await flush();
+  const root = r.container as never;
+  assert.ok(find(root, "card-connect_ai"), "the first step opens with its card though it is done");
+  await press(find(root, "row-step-interview")); await flush();
+  assert.ok(find(root, "card-interview"), "clicking any step in the rail opens it");
+  await press(find(root, "step-back")); await flush();
+  assert.ok(find(root, "card-connect_ai"), "Back goes to the step before, whatever its state");
+  await press(find(root, "step-next")); await flush();
+  assert.deepEqual(ran, ["connect_ai"], "Continue on a done step ran the card's action before moving on");
+  assert.ok(find(root, "card-interview"), "then it moved on");
 });

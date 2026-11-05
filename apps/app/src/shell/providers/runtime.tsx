@@ -6,8 +6,9 @@ import type {RecordsPreviewTicket,RecordsPreviewReader} from "../../../../../cli
 // The shell builds one runtime per Space and keeps it stable while that Space is open, so the providers below memoise on its identity.
 import { createContext, useContext } from "react";
 import type { ReactElement, ReactNode } from "react";
-import type { HomeData } from "../../places/home/sections-a/data.tsx";
+import type { RuntimeBase } from "../session/runtime-data.ts";
 import { setAssistantId } from "../../../../../ui/src/Avatar/assistant.ts";
+import type { LinkPolicy } from "../../../../../ui/src/reach/index.tsx";
 import type { TurnStreams } from "../session/turn-streams.ts";
 
 /** Where a click goes. The shell resolves a screen id (generated/screens.ts) or a subject to a place and a tab. */
@@ -15,13 +16,15 @@ export interface ShellTarget {
   screen?: string;
   subject?: { type: string; id: string };
   args?: Record<string, unknown>;
+  /** A move inside the place and item already open (a tab of the page the person is on, a view, a filter): it was reached through the door once, so it is not asked again. */
+  local?: boolean;
   /** Open it in a tab behind the one the person is in (Cmd-click, middle click). */
   background?: boolean;
 }
 
 export type SpaceKind = "team" | "personal";
 
-export interface ShellRuntime extends Omit<HomeData, "nav"> {
+export interface ShellRuntime extends RuntimeBase {
   createRecordsPreview?(ticket:RecordsPreviewTicket):RecordsPreviewReader;
   space: { id: string; kind: SpaceKind; name: string };
   /** The Space changed: what a card that reads by capability follows, on the same tick that re-reads the live queries. */
@@ -49,6 +52,8 @@ export interface ShellRuntime extends Omit<HomeData, "nav"> {
   /** True when the server defers this capability (it answers "Not in this version yet"). */
   isDeferred(cap: string): boolean;
   open(target: ShellTarget): void;
+  /** How a link to a thing renders for this person (ui/reach): live, a peek or plain text. Absent: every link is live. */
+  links?: LinkPolicy;
   openUrl(url: string): void;
   /** Agent replies as they are written, from the live socket. Absent where there is no live link (tests, a replica-only shell). */
   turns?: TurnStreams;

@@ -1,8 +1,9 @@
 # Server role: vyred with the Space, Caddy in front of it (spec 3.13, 5 b12), and the sites runner beside it. Written next to .env by the installer; run with
 #   docker compose -f compose.server.yml up -d
 # Caddy shares vyred's network namespace, so its admin API stays on loopback and the ports below are published once, on vyred.
-# The sites runner (owner, 3 Nov) is the only service that holds the Docker socket. It has no network; vyred reaches it over a Unix socket in the vyre-sites-run volume with a token
-# it writes there at each start, and it builds and runs only site containers, each site on a network of its own, inside fixed limits (host/src/sites-runner/policy.ts). vyred (labelled
+# The sites runner (owner, 3 Nov) is the only service that holds the Docker socket. It also makes agent computers (3 Nov, rc.21): each on a network of its own with only its profile volume, so a Team Space
+# server runs them with no setup beyond this file, and one agent's computer cannot reach another's. It has no network; vyred reaches it over a Unix socket in the vyre-sites-run volume with a token
+# it writes there at each start, and it builds and runs only site containers and agent computers, each on a network of its own, inside fixed limits (host/src/sites-runner/policy.ts, computers-policy.ts). vyred (labelled
 # vyre.ingress, with Caddy in its network namespace) is the one other container that joins a site's network, so Caddy can proxy to the site; vyred closes any connection that arrives on a
 # site network's address, so sites never reach it, and sites never reach each other.
 name: vyre-server
@@ -22,6 +23,8 @@ services:
       VYRE_ADDRESS: ${VYRE_ADDRESS:-}
       VYRE_RELAY_URL: ${VYRE_RELAY_URL:-}
       VYRE_SITES_RUNNER: /run/vyre-sites/runner.sock
+      # the agent computer image of this release, by digest (compose.env: the installer and vyre-server update write it from images.lock); the default is for a run without them
+      VYRE_AGENT_COMPUTER_IMAGE: ${VYRE_AGENT_COMPUTER_IMAGE:-vyre/agent-computer:1}
     env_file:
       - path: ./vyre.env
         required: false

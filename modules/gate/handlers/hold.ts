@@ -2,6 +2,10 @@
 // the hold lists, and the two things the module does on its own: recover() after a crash and rejectAllOf() when a person leaves.
 // gate.park is called by the invoke pipeline with the payload hash it computed; the Gate stores it with the decision id, writes both onto the task as reserved working notes
 // (tasks.working_notes.set decision_id and payload_hash, once each) and sets two timers: gate.expire at the timeout and one approval.backstop notification at the backstop hour.
+import { holdSentence, holdTitle } from "../../../lib/hold-words.ts";
+import type { HoldNames } from "../../../lib/hold-words.ts";
+import { outwardOf } from "../../../lib/outward.ts";
+import { handleOf } from "../../../lib/person-handle.ts";
 import {
   ACTS, APPROVER_RANK, RISK_RANK, actOf, allRules, approverFor, askBlocks, clean, cut, effectiveRule, getHold, holdOut, holdsWhere, insertHold, mayHandle, newHoldId, previewBlocks, putRule,
   raise, rawSecretIn, readPolicy, saveHold, sha, summaryLine,
@@ -42,6 +46,26 @@ async function nameOf(ctx: GateCtx, p: PrincipalRef, fallback = "An agent"): Pro
   return fallback;
 }
 
+/** The names the hold's sentence needs, read as the Space: the person a message goes to (by id or by the handle the agent was given) and the file a share names. A name that cannot be read leaves a plain word. */
+export async function holdNamesOf(ctx: GateCtx, cap: string, input: unknown): Promise<HoldNames> {
+  const out: HoldNames = {};
+  const o = outwardOf(cap, input);
+  for (const r of o?.to ?? []) {
+    if (r.kind !== "person" || !r.id) continue;
+    if (r.id.startsWith("usr_")) { const n = await nameOf(ctx, { kind: "person", id: r.id }, ""); if (n) (out.people ??= {})[r.id] = n; continue; }
+    try {
+      const l = (await ctx.call?.("access.principals.list", { kind: "person", status: "active", limit: 50 })) as { principals?: Array<{ id?: string; name?: string }> } | null;
+      const hit = (l?.principals ?? []).find((p) => typeof p.id === "string" && typeof p.name === "string" && (handleOf(p.name, p.id) === r.id || p.name.split(" ")[0]?.toLowerCase() === r.id!.toLowerCase()));
+      if (hit?.name) (out.people ??= {})[r.id] = hit.name;
+    } catch { /* the plain word stands */ }
+  }
+  const fileId = typeof (input as { fileId?: unknown } | null)?.fileId === "string" ? (input as { fileId: string }).fileId : "";
+  if (cap.startsWith("files.") && fileId) {
+    try { const f = (await ctx.call?.("files.get", { fileId })) as { file?: { name?: string } } | null; if (f?.file?.name) out.file = cut(f.file.name, 60); } catch { /* the plain word stands */ }
+  }
+  return out;
+}
+
 export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   // Only the pipeline parks a call: the Gate hook calls with origin "gate" (as the Space's owner, for the Space itself), the host with svc_host, and only at the top of the call: a capability the Gate hook ran that calls gate.park nested has depth above zero and is refused. The hold names the principal, the capability and the input
   // that gate.release later runs as that principal, so a hold a caller wrote themselves would run anything as anyone (P-SEC_10).
@@ -77,7 +101,11 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   const backstopAt = now + rule.emailBackstopHours * HOUR;
   const id = newHoldId();
   const agentName = ask ? await nameOf(ctx, ask.by) : "";
-  const summary = ask ? cut(`${agentName} asks you to: ${ask.what}`, 120) : summaryLine(a, input.capName, input.input);
+  // an agent's own hold says who wants what, from the real input; an automation's keeps the act's own words
+  const agentSays = !ask && principal.kind === "agent" ? await nameOf(ctx, principal, "") : "";
+  const names = agentSays ? await holdNamesOf(ctx, input.capName, input.input) : {};
+  const sentence = agentSays ? cut(holdSentence(agentSays, input.capName, input.input, names), 120) : "";
+  const summary = ask ? cut(`${agentName} asks you to: ${ask.what}`, 120) : sentence || summaryLine(a, input.capName, input.input);
 
   const hold: Hold = {
     id, act: a.key, capName: input.capName, capVersion: input.capVersion, input: input.input ?? null, inputHash: await sha(input.input ?? null), payloadHash: input.payloadHash,
@@ -94,13 +122,15 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   let taskId: string;
   try {
     const r = (await ctx.call("tasks.create", clean({
-      kind: "approve", title: ask ? cut(`${agentName} asks: ${ask.what}`, 120) : `Approve: ${a.title}`, summary, why: ask ? "Only you can do this here. Approve runs it as you, once, exactly as shown." : rule.reason, assigned: approver,
-      blocks: ask ? askBlocks({ act: a.key, what: ask.what, agentName, capName: input.capName, input: input.input }) : previewBlocks(a, input.capName, input.input),
+      kind: "approve", title: ask ? cut(`${agentName} asks: ${ask.what}`, 120) : sentence || `Approve: ${holdTitle(input.capName, input.input, a.title)}`, summary, why: ask ? "Only you can do this here. Approve runs it as you, once, exactly as shown." : rule.reason, assigned: approver,
+      blocks: ask ? askBlocks({ act: a.key, what: ask.what, agentName, capName: input.capName, input: input.input }) : previewBlocks(a, input.capName, input.input, undefined, id, names),
       source: { kind: "gate", id }, expiresAt, idempotencyKey: `gate:${id}`,
     }))) as { task: { id: string } };
     taskId = r.task.id;
     await ctx.call("tasks.working_notes.set", { taskId, key: "decision_id", value: input.decisionId });
     await ctx.call("tasks.working_notes.set", { taskId, key: "payload_hash", value: input.payloadHash });
+    // the task layer reads this to refuse any reassigning of the approval (tasks.assign, delegate, escalate)
+    if (a.personOnly) await ctx.call("tasks.working_notes.set", { taskId, key: "gate.person_only", value: "1" });
   } catch (e) {
     ctx.db.run("DELETE FROM gate_holds WHERE id = ?", id);
     throw e;
@@ -208,6 +238,7 @@ export async function rulesSet(ctx: GateCtx, input: In): Promise<unknown> {
   if (scope === "floor" && input.mode === "allow") raise(ctx, "validation.precondition_failed", "The owner floor only asks. To let something through, change the Space rule.", { reason: "floor_holds_only" });
   if (input.approvers !== undefined && !APPROVERS.test(input.approvers)) raise(ctx, "validation.precondition_failed", "Approvers are owner, asker or role:<name>.", { reason: "bad_approvers" });
   if (a.alwaysStops && (input.mode === "allow" || input.agentOkFor !== undefined || input.approvers === "asker")) raise(ctx, "validation.precondition_failed", "A company connection or a sign-in change always waits for a person with the right role.", { reason: "always_stops" });
+  if (a.personOnly && (input.approvers !== undefined || input.escalateTo !== undefined || input.onTimeout !== undefined)) raise(ctx, "validation.precondition_failed", "This is decided by the person it is asked of, and by nobody else. Who approves and what happens on a timeout are not changeable.", { reason: "person_only" });
 
   // a rule can never loosen the strictest level: below the Space, it can only tighten what the Space says
   if (scope !== "space") {

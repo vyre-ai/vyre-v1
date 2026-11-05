@@ -9,7 +9,7 @@ import {
   actionableByMe, actionableSlot, allTasks, clean, emitTask, getTask, isOpen, isRequest, openIndex, out, raise, readPolicy, sameAssignee, touch, visibleTo, whoIs,
 } from "../projections.ts";
 import type { Assignee, Task, TasksCtx } from "../projections.ts";
-import { KIND_ACTIONS, afterReview, checkMove, commitMove, submitTarget, checkOutside } from "./state.ts";
+import { KIND_ACTIONS, afterReview, checkMove, commitMove, guardGateSlots, submitTarget, checkOutside } from "./state.ts";
 import type { Policy } from "../projections.ts";
 import { syncThread } from "./thread.ts";
 import { markResumed } from "./resume.ts";
@@ -211,6 +211,7 @@ async function nextHolder(ctx: TasksCtx, t: Task, person: string): Promise<Assig
 
 export async function delegate(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
+  guardGateSlots(ctx, t);
   if (!isOpen(t.state)) raise(ctx, "validation.precondition_failed", "A finished task cannot be handed over.", { reason: "closed" });
   if (!isRequest(t.kind)) raise(ctx, "validation.precondition_failed", "Only a request is handed over. Use tasks.assign for work.", { reason: "not_a_request" });
   const slot = actionableSlot(t.state);
@@ -240,6 +241,7 @@ export async function delegate(ctx: TasksCtx, input: In): Promise<unknown> {
 
 export async function escalate(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
+  guardGateSlots(ctx, t);
   const slot = isOpen(t.state) ? actionableSlot(t.state) : null;
   if (!slot) raise(ctx, "validation.precondition_failed", "A finished task is not escalated.", { reason: "closed" });
   const holder = t[slot];
@@ -251,7 +253,7 @@ export async function escalate(ctx: TasksCtx, input: In): Promise<unknown> {
   t[slot] = target;
   delete t.takenBy; delete t.takenAt; delete t.snoozedUntil;
   touch(ctx, ctx.db, t);
-  emitTask(ctx, ctx.db, "task.escalated", t, { to: target, reason: input.reason }, { type: "escalated", by: ctx.principal.id });
+  emitTask(ctx, ctx.db, "task.escalated", t, { to: target, reason: input.reason, by: ctx.principal.id }, { type: "escalated", by: ctx.principal.id });
   await syncThread(ctx, t);
   return { task: out(ctx, t) };
 }

@@ -203,6 +203,9 @@ export type Sev = "ok" | "warn" | "err" | "info";
 export interface LintPlace { line: number; msg: string }
 export interface LintItem { k: string; sev: Sev; label: string; tip: string; line: number; list: readonly LintPlace[] }
 
+/** The words the Space's check accepts as "this agent follows VYRE.md" (modules/files/handlers/lint.ts INHERITS; the app does not import modules, so the same words are here). */
+export const INHERITS_LINE = /\b(?:inherits?|follows?|extends?|builds?\s+on|based\s+on)\b[\s:,-]*(?:the\s+)?(?:space['\u2019]s\s+)?VYRE\.md/i;
+
 export const LINE_LIMITS: Readonly<Record<LintOut["file"], number | null>> = { vyre_md: 120, agent_md: 150, agent_toml: null, routine_prompt: 150, other: null };
 
 /** What the bar shows: lines against the limit, Inherits VYRE.md, Override: lines, a secret scan, and any other problem the check found. */
@@ -215,7 +218,9 @@ export function lintItems(out: LintOut, text?: string): LintItem[] {
     items.push({ k: "len", sev, label: `${out.lines} / ${limit} lines`, line: Math.min(out.lines, limit + 1), list: [], tip: out.lines > 200 ? "Over 200 lines is an error" : out.lines > limit ? `Over ${limit} lines: move steps into a skill or knowledge/` : `Limit ${limit} lines` });
   } else items.push({ k: "len", sev: "ok", label: plural(out.lines, "line", "lines"), line: 1, list: [], tip: "" });
   if (out.file === "agent_md") {
-    items.push({ k: "inherits", sev: out.inherits ? "ok" : "warn", label: out.inherits ? "Inherits VYRE.md" : "Does not say it inherits VYRE.md", line: 1, list: [], tip: "Say 'Inherits VYRE.md' near the top" });
+    // the chip jumps to the line that says it (the check answers yes or no; the line is found here, with the same words the check accepts)
+    const at = text === undefined ? -1 : text.split("\n").findIndex((l) => INHERITS_LINE.test(l));
+    items.push({ k: "inherits", sev: out.inherits ? "ok" : "warn", label: out.inherits ? "Inherits VYRE.md" : "Does not say it inherits VYRE.md", line: out.inherits ? (at >= 0 ? at + 1 : 1) : 3, list: [], tip: "Say 'Follows VYRE.md' or 'Inherits: VYRE.md' near the top" });
   }
   if (out.file === "agent_md" || out.file === "vyre_md") {
     const list = out.overrides.map((o): LintPlace => ({ line: o.line, msg: o.text }));
@@ -383,37 +388,97 @@ export function setTomlValue(text: string, entry: TomlEntry, raw: string): strin
 
 /* ---------- the diff before a save ---------- */
 
-const MAX_CELLS = 400_000;
 const CONTEXT = 2;
 
-/** The hunks between the saved text and the draft, by line, with two unchanged lines of context on each side. */
+export type DiffOp = { op: "ctx" | "del" | "add"; text: string };
+
+/** The longest edit script Myers' search follows before it gives up on a minimal one and says the whole changed middle was replaced. At 2000 edits the trace is about 4 million numbers. */
+const MAX_EDITS = 2000;
+
+/**
+ * A real line diff, Myers' O(ND) algorithm, over the two texts' lines: what is the same, what was removed and what was added, in order. Equal lines at the start and the end are set aside first, so a long file
+ * with a few changes costs next to nothing. Nothing here knows what the lines mean; it is the two texts and nothing else, never a model's summary of them.
+ */
+export function diffLines(a: readonly string[], b: readonly string[]): DiffOp[] {
+  let s = 0;
+  while (s < a.length && s < b.length && a[s] === b[s]) s++;
+  let ea = a.length;
+  let eb = b.length;
+  while (ea > s && eb > s && a[ea - 1] === b[eb - 1]) { ea--; eb--; }
+  const head: DiffOp[] = a.slice(0, s).map((text) => ({ op: "ctx", text }));
+  const tail: DiffOp[] = a.slice(ea).map((text) => ({ op: "ctx", text }));
+  const A = a.slice(s, ea);
+  const B = b.slice(s, eb);
+  const n = A.length;
+  const m = B.length;
+  const replaced = (): DiffOp[] => [...A.map((text): DiffOp => ({ op: "del", text })), ...B.map((text): DiffOp => ({ op: "add", text }))];
+  if (n === 0 || m === 0) return [...head, ...replaced(), ...tail];
+  const cap = Math.min(n + m, MAX_EDITS);
+  const off = cap + 1;
+  const v = new Int32Array(2 * cap + 3);
+  const trace: Int32Array[] = [];
+  let found = -1;
+  for (let d = 0; d <= cap && found < 0; d++) {
+    for (let k = -d; k <= d; k += 2) {
+      let x = k === -d || (k !== d && (v[k - 1 + off] ?? 0) < (v[k + 1 + off] ?? 0)) ? (v[k + 1 + off] ?? 0) : (v[k - 1 + off] ?? 0) + 1;
+      let y = x - k;
+      while (x < n && y < m && A[x] === B[y]) { x++; y++; }
+      v[k + off] = x;
+      if (x >= n && y >= m) { found = d; break; }
+    }
+    trace.push(v.slice(off - d - 1, off + d + 2));
+  }
+  if (found < 0) return [...head, ...replaced(), ...tail];
+  const rev: DiffOp[] = [];
+  let x = n;
+  let y = m;
+  for (let d = found; d > 0; d--) {
+    const prev = trace[d - 1] as Int32Array;
+    const get = (k: number): number => prev[k + d] ?? 0;
+    const k = x - y;
+    const down = k === -d || (k !== d && get(k - 1) < get(k + 1));
+    const pk = down ? k + 1 : k - 1;
+    const px = get(pk);
+    const py = px - pk;
+    const sx = down ? px : px + 1;
+    const sy = down ? py + 1 : py;
+    while (x > sx && y > sy) { rev.push({ op: "ctx", text: A[x - 1] ?? "" }); x--; y--; }
+    if (down) { rev.push({ op: "add", text: B[y - 1] ?? "" }); y--; } else { rev.push({ op: "del", text: A[x - 1] ?? "" }); x--; }
+  }
+  while (x > 0 && y > 0) { rev.push({ op: "ctx", text: A[x - 1] ?? "" }); x--; y--; }
+  return [...head, ...rev.reverse(), ...tail];
+}
+
+/** Line endings are not content: CRLF and LF texts are compared on their lines, and the note says when only the endings differ. */
+const lf = (t: string): string => t.replace(/\r\n?/g, "\n");
+const eolOf = (t: string): "CRLF" | "LF" | "mixed" | "none" => {
+  const crlf = (t.match(/\r\n/g) ?? []).length;
+  const lone = (t.match(/(^|[^\r])\n/g) ?? []).length;
+  return crlf === 0 && lone === 0 ? "none" : crlf > 0 && lone > 0 ? "mixed" : crlf > 0 ? "CRLF" : "LF";
+};
+
+/** A sentence about what a line diff cannot show: the line endings changed (CRLF against LF), or the last newline was added or dropped. Null when there is nothing to say. */
+export function diffNote(saved: string, draft: string): string | null {
+  const x = eolOf(saved);
+  const y = eolOf(draft);
+  const notes: string[] = [];
+  if (x !== y && x !== "none" && y !== "none") notes.push(`Line endings changed from ${x} to ${y}. The lines below are compared without them.`);
+  const endA = lf(saved).endsWith("\n");
+  const endB = lf(draft).endsWith("\n");
+  if (saved !== "" && draft !== "" && endA !== endB) notes.push(endB ? "A final newline was added." : "The final newline was removed.");
+  return notes.length > 0 ? notes.join(" ") : null;
+}
+
+/** The hunks between the saved text and the draft, by line, with two unchanged lines of context on each side. Empty when the two texts have the same lines. */
 export function lineHunks(saved: string, draft: string): DiffHunk[] {
   if (saved === draft) return [];
-  const a = saved.split("\n");
-  const b = draft.split("\n");
-  type Op = { op: "ctx" | "del" | "add"; text: string };
-  let ops: Op[];
-  if ((a.length + 1) * (b.length + 1) > MAX_CELLS) {
-    ops = [...a.map((text): Op => ({ op: "del", text })), ...b.map((text): Op => ({ op: "add", text }))];
-  } else {
-    const w = b.length + 1;
-    const t = new Uint32Array((a.length + 1) * w);
-    for (let i = a.length - 1; i >= 0; i--) {
-      for (let j = b.length - 1; j >= 0; j--) {
-        t[i * w + j] = a[i] === b[j] ? (t[(i + 1) * w + j + 1] ?? 0) + 1 : Math.max(t[(i + 1) * w + j] ?? 0, t[i * w + j + 1] ?? 0);
-      }
-    }
-    ops = [];
-    let i = 0;
-    let j = 0;
-    while (i < a.length && j < b.length) {
-      if (a[i] === b[j]) { ops.push({ op: "ctx", text: a[i] ?? "" }); i++; j++; }
-      else if ((t[(i + 1) * w + j] ?? 0) >= (t[i * w + j + 1] ?? 0)) { ops.push({ op: "del", text: a[i] ?? "" }); i++; }
-      else { ops.push({ op: "add", text: b[j] ?? "" }); j++; }
-    }
-    while (i < a.length) ops.push({ op: "del", text: a[i++] ?? "" });
-    while (j < b.length) ops.push({ op: "add", text: b[j++] ?? "" });
-  }
+  const a = lf(saved).split("\n");
+  const b = lf(draft).split("\n");
+  // a final newline is a note, not a changed line
+  if (a[a.length - 1] === "") a.pop();
+  if (b[b.length - 1] === "") b.pop();
+  type Op = DiffOp;
+  const ops: Op[] = diffLines(a, b);
   const hunks: DiffHunk[] = [];
   let at = 0;
   let newLine = 1;
@@ -497,6 +562,20 @@ export function latestVersion(rows: readonly VersionRow[]): VersionRow | null {
 
 /** Put a suggestion's diff into the text: each hunk's unchanged lines above, the removed lines and the unchanged lines below must be found together; they are replaced by the unchanged lines and the added ones. A hunk that no longer matches is left out. */
 export function applySuggestion(text: string, diff: string): string {
+  return applySuggestionStrict(text, diff) ?? applyAvailable(text, diff);
+}
+
+/** The text with every hunk of the suggestion applied; null when any hunk does not fit the text as it is now (the file moved on, or the diff was never about this text). */
+export function applySuggestionStrict(text: string, diff: string): string | null {
+  return applyHunks(text, diff, true);
+}
+
+/** The hunks that fit, applied; the rest are left out. */
+function applyAvailable(text: string, diff: string): string {
+  return applyHunks(text, diff, false) ?? text;
+}
+
+function applyHunks(text: string, diff: string, strict: boolean): string | null {
   let lines = text.split("\n");
   for (const h of suggestionHunks(diff)) {
     const split = (t: string | undefined): string[] => (t ? t.split("\n") : []);
@@ -506,7 +585,7 @@ export function applySuggestion(text: string, diff: string): string {
     const old = [...before, ...removed, ...after];
     let at = -1;
     for (let i = 0; i + old.length <= lines.length && at < 0; i++) if (old.every((l, k) => lines[i + k] === l)) at = i;
-    if (at < 0) continue;
+    if (at < 0) { if (strict) return null; continue; }
     lines = [...lines.slice(0, at), ...before, ...split(h.added), ...after, ...lines.slice(at + old.length)];
   }
   return lines.join("\n");

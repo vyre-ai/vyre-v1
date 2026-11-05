@@ -30,12 +30,13 @@ test("Preview as agent: [REDACTED] chips and ==highlight== tints, nothing else",
 test("the Activity reads who did what, and an agent's work carries the (Agent) credit", () => {
   const name = (id: string): string => ({ usr_irfad: "Irfad Imtiaz", usr_maya: "Maya Chen", agt_intake: "Intake" })[id] ?? id;
   assert.equal(activityOf({ id: "1", type: "file.agent_read", actor: "svc_host", at: 1, payload: { agentId: "agt_intake", redacted: true } }, name)?.who, "Intake (Agent)");
-  assert.equal(activityOf({ id: "1", type: "file.agent_read", actor: "svc_host", at: 1, payload: { agentId: "agt_intake", redacted: true } }, name)?.text, "read the redacted version");
+  assert.equal(activityOf({ id: "1", type: "file.agent_read", actor: "svc_host", at: 1, payload: { agentId: "agt_intake", redacted: true } }, name)?.text, "read the redacted version of this file");
   const byAgent = activityOf({ id: "2", type: "file.redacted", actor: "usr_irfad", at: 1, payload: { by: "usr_irfad", byAgent: "assistant", label: "Phone" } }, name)!;
   assert.deepEqual([byAgent.who, byAgent.text], ["Irfad Imtiaz (Agent)", "redacted a phone"]);
   assert.equal(activityOf({ id: "3", type: "file.unredacted", actor: "usr_maya", at: 1, payload: { by: "usr_maya", label: "Date" } }, name)?.text, "un-redacted a date");
-  assert.equal(activityOf({ id: "4", type: "file.reviewed", actor: "usr_irfad", at: 1, payload: { by: "usr_irfad" } }, name)?.who, "Irfad");
-  assert.equal(activityOf({ id: "5", type: "file.moved", actor: "usr_irfad", at: 1, payload: {} }, name), null);
+  assert.equal(activityOf({ id: "4", type: "file.reviewed", actor: "usr_irfad", at: 1, payload: { by: "usr_irfad" } }, name)?.who, "Irfad Imtiaz");
+  assert.equal(activityOf({ id: "5", type: "file.moved", actor: "usr_irfad", at: 1, payload: {} }, name)?.text, "moved this file");
+  assert.equal(activityOf({ id: "6", type: "file.starred", actor: "usr_irfad", at: 1, payload: {} }, name), null);
   assert.equal(creditOf({ by: "usr_irfad", byAgent: "assistant" }, name), "Irfad Imtiaz (Agent)");
   const vm = viewerMarks({ state: "reviewed", version: 1, access: { value: "redact", own: false, inherited: "redact" }, marks: [{ markId: "m1", kind: "redact", shape: "name", text: "Rivera", by: "usr_irfad", at: 1, unplaced: false }, { markId: "m2", kind: "redact", shape: "span", text: "512-44-8391", label: "SSN", by: "usr_irfad", at: 1, unplaced: false }], unplaced: [], names: [], requests: [] }, name, 2);
   assert.deepEqual(vm.map((x) => x.id), ["m2"], "a name piece is not drawn in the body");

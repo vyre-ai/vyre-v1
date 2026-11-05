@@ -16,6 +16,7 @@ import type { OpenTask } from "../../places/inbox/callpane/index.ts";
 import { getAsk } from "../../places/inbox/contacttab/ask.ts";
 import { InboxUnmatched } from "../../places/inbox/unmatched/index.ts";
 import { MeetingsTab } from "../../places/inbox/meetings/index.ts";
+import { RepliesPage } from "../../places/chats/mounts/RepliesPage.tsx";
 import { ConnectChannel } from "../../places/inbox/connect/index.ts";
 import { InboxDataProvider, useCanSend } from "../../places/inbox/sidebar/data.tsx";
 import type { InboxData } from "../../places/inbox/sidebar/data.tsx";
@@ -80,6 +81,9 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
   // a link to a meeting (subject meeting, or the Meetings screen) opens the Meetings tab, with that meeting's close-out when it names one
   const meetingHash = target.subject?.type === "meeting" ? target.subject.id : target.screen === "meetings.closeout" ? (target.args["meetingId"] ?? "") : null;
   useEffect(() => { if (meetingHash !== null && state.main !== "meetings") dispatch({ type: "meetings" }); }, [meetingHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the tab
+  // a link to the Replies list (the old Threads page redirects here) opens it
+  const repliesHash = target.screen === "inbox.replies";
+  useEffect(() => { if (repliesHash && state.main !== "replies") dispatch({ type: "replies" }); }, [repliesHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
   // a link to an event (vyre://event/<id>, Copy Link in the event pane) opens the Calendar with that event in its pane
   const eventHash = target.subject?.type === "event" ? target.subject.id : null;
   useEffect(() => { if (eventHash !== null && state.main !== "calendar") dispatch({ type: "calendar" }); }, [eventHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
@@ -106,6 +110,13 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
         onAsk={(e) => { openAskPane({ thing: { kind: "event", id: e.id, title: e.title }, context: { actions: ["who is coming and what they want", "what was agreed last time", "draft an agenda", "move or reschedule it"] } }, "inbox"); }}
       />
     );
+  }
+  if (state.main === "replies") {
+    return <RepliesPage rt={rt} nameOf={(id) => (id === rt.me.id ? rt.me.name : (people.status === "ready" ? people.data.find((p) => p.id === id)?.name : undefined) ?? "Someone")} openChat={(t, how) => {
+      const chat = t.parentThreadId ?? t.threadId;
+      if (how === "chat") rt.open({ screen: "chats.conversation", args: { threadId: chat } });
+      else rt.open({ screen: "chats.conversation", args: { threadId: chat, side: t.threadId, ...(t.parentMessageId ? { m: t.parentMessageId } : {}) } });
+    }} />;
   }
   if (state.main === "meetings") {
     const persons = people.status === "ready" ? people.data.filter((p) => p.kind === "person").map((p) => ({ id: p.id, name: p.name })) : [];
@@ -135,7 +146,7 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
   if (askContact) return <CallConversation key={`ask:${target.args["ask"] ?? askContact}`} conversationId="" contactId={askContact} {...(getAsk(target.args["ask"]) ? { ask: getAsk(target.args["ask"])! } : {})} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={askInbox} />;
   if (openId && missing) return <NotFound what="conversation" />;
   // the conversation with the call bar and, after a call, the ended strip when the phone is on this contact
-  if (openId) return <CallConversation key={openId} conversationId={openId} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={askInbox} />;
+  if (openId) return <CallConversation key={openId} conversationId={openId} {...(target.args["threadId"] ? { threadId: target.args["threadId"] } : {})} tasks={tasks} onOpenRecord={(contactId, recordId) => rt.open({ subject: { type: "record", id: recordId ?? contactId } })} onAsk={askInbox} />;
   return <ContactList />;
 }
 

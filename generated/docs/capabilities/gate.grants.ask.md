@@ -28,10 +28,11 @@ type In = {
   threadId: string;
   messageId: string;
   asked: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "approve";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
       target: string;
     }>;
   links?: Array<string>;
+  since?: number;
 };
 ```
 
@@ -66,6 +67,7 @@ type Out = {
       "example"
     ],
     "messageId": "msg_a1b2c3",
+    "since": 1760000000000,
     "threadId": "thr_a1b2c3"
   },
   "output": {

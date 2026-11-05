@@ -1,6 +1,6 @@
 # goals.confirm
 
-Start a drafted goal: the owner presses Start on its card. The standing permissions it names hold from this press
+Start a drafted goal: the owner presses Start on its card, or an agent acting for the owner starts it with messageId, the message in which the owner asked for it, in the goal chat and under 15 minutes old. An agent start grants no permission. The standing permissions it names hold from this press
 
 | | |
 |---|---|
@@ -27,6 +27,7 @@ Start a drafted goal: the owner presses Start on its card. The standing permissi
 type In = {
   goalId: string;
   permissions?: Array<string>;
+  messageId?: string;
 };
 ```
 
@@ -45,7 +46,7 @@ type Out = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -56,6 +57,7 @@ type Out = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -150,6 +152,7 @@ type Out = {
   "name": "example",
   "input": {
     "goalId": "gol_a1b2c3",
+    "messageId": "msg_a1b2c3",
     "permissions": [
       "example"
     ]
@@ -190,7 +193,8 @@ type Out = {
           "path": "meta.total",
           "server": "example",
           "tool": "example",
-          "type": "contact"
+          "type": "contact",
+          "watchId": "wch_a1b2c3"
         },
         "target": 1,
         "unit": "registrations"

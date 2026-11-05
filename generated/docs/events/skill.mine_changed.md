@@ -6,7 +6,7 @@ A person added, changed or removed one of their own skills
 |---|---|
 | Module | agents |
 | Schema version | 1 |
-| Subject | entity at /skillId |
+| Subject | skill at /skillId |
 | Visibility | owner |
 | Label | none |
 | Replay | pure |
@@ -22,5 +22,6 @@ type Payload = {
   name: string;
   op: "added" | "changed" | "removed" | "updated";
   by: string;
+  ownerId?: string;
 };
 ```

@@ -105,8 +105,8 @@ export function RunLines({ run, lines, name, me, actions, canRetry, openThoughts
             </View>
             {run.status === "waiting" && l.taskId ? (
               <View style={c.waitb}>
-                <QuietButton label="Approve" icon="check" tone="filled" testID="approve" onPress={() => actions.decide(l.taskId!, "approve")} />
-                <QuietButton label="Decline" testID="decline" onPress={() => actions.decide(l.taskId!, "reject")} />
+                <QuietButton label="Allow" icon="check" tone="filled" testID="approve" onPress={() => actions.decide(l.taskId!, "approve")} />
+                <QuietButton label="Deny" testID="decline" onPress={() => actions.decide(l.taskId!, "reject")} />
               </View>
             ) : null}
           </View>
@@ -139,7 +139,7 @@ export function RunLines({ run, lines, name, me, actions, canRetry, openThoughts
         return <Text key={l.id} testID={`line-${l.id}`} style={c.statl}>{l.text}</Text>;
       case "branch":
         return (
-          <View key={l.id} testID={`branch-${l.id}`} accessibilityLabel={`Side thread, ${l.label}`} style={c.branch}>
+          <View key={l.id} testID={`branch-${l.id}`} accessibilityLabel={`Side chat, ${l.label}`} style={c.branch}>
             <Text style={c.branchHead}>{l.label}</Text>
             {each(l.lines, render)}
           </View>

@@ -1,0 +1,182 @@
+// Console > Apps > Connected apps: one list. Each app is a row with its name, what it does, and either Connect or Connected with Manage. The rows come from what the Connectors and Connections pages
+// read (connectors.list, connections.list) and from the two company sign-in setups (Google Workspace, Microsoft 365), whose Manage opens their own setup page. Connect starts the sign-in for an app;
+// Manage lists the people who signed in to it and Disconnect stops it for the Space. A sign-in that matches no app sits under Other sign-ins.
+import { useEffect, useState } from "react";
+import type { ReactElement } from "react";
+import { Text, View } from "react-native";
+import type { CapMap } from "../../../../../generated/types.ts";
+import { Row } from "../../../../../ui/src/Row/index.tsx";
+import { Group, Lead, Section, StatusLabel } from "../shell/ui.tsx";
+import { useConsoleData } from "../shell/data.tsx";
+import { Actions, Button, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { useIntegrationRows } from "./integration-data.ts";
+import { ConnectionObject, NewConnection } from "./Connections.tsx";
+import { ConnectorObject, NewConnector } from "./Connectors.tsx";
+
+type Connector = CapMap["connectors.get"]["out"]["connector"];
+type Connection = CapMap["connections.get"]["out"]["connection"];
+type AppView = { kind: "list" } | { kind: "app"; key: string } | { kind: "connect"; key: string } | { kind: "connection"; id: string; from: string } | { kind: "settings"; key: string } | { kind: "newapp" };
+
+const HOW: Readonly<Record<string, string>> = { api: "an API key", mcp: "an MCP server", dwd: "domain-wide delegation", oauth_app: "an OAuth sign-in", webhook_only: "incoming webhooks" };
+/** What an app does, in a few plain words: the record types it syncs, else how it connects. */
+export function whatItDoes(c: Pick<Connector, "mode" | "syncedTypes">): string {
+  if (c.syncedTypes.length) return `Syncs ${c.syncedTypes.slice(0, 3).join(", ")}${c.syncedTypes.length > 3 ? " and more" : ""}`;
+  return HOW[c.mode] ? `Connects with ${HOW[c.mode]}` : "Connects to your Space";
+}
+
+/** Goes back to the list once: the page an app stood on is gone (a custom app was removed). */
+function GoBack({ to }: { to: () => void }): null { useEffect(() => { to(); }, []); return null; } // eslint-disable-line react-hooks/exhaustive-deps
+
+export interface GithubAppState { ready: boolean; installed: boolean; missing?: unknown; acceptUrl?: string | null; orgAcceptUrl?: string | null }
+/** The one GitHub row: which app is in use, whether it is set up (Manage, else Set up) and whether it needs the admin to accept new permissions. */
+export function githubRow(sign: { source: "env" | "space" | "none"; secretSet: boolean; clientId?: string } | undefined, app: GithubAppState | undefined): { note: string; set: boolean; needsYou: boolean } {
+  const own = sign?.source === "space", ownComplete = own && sign.secretSet && !!sign.clientId;
+  return { note: own ? "Uses your own GitHub app" : "Uses the Vyre GitHub app", set: ownComplete || app?.installed === true, needsYou: app?.installed === true && !app.ready };
+}
+
+/** The quiet line under an app: what it does, or for a custom app still being built that it is a draft and not connected yet. */
+export function appNote(c: Pick<Connector, "mode" | "syncedTypes" | "state" | "connections">): string {
+  return c.state !== "live" && c.connections === 0 ? "Draft. Not connected yet." : whatItDoes(c);
+}
+
+/** The connections that belong to no app on the list. */
+export function otherSignIns<C extends { connector: string }>(connections: readonly C[], apps: readonly { key: string }[]): C[] {
+  const keys = new Set(apps.map((a) => a.key));
+  return connections.filter((c) => !keys.has(c.connector));
+}
+
+function Logo({ name }: { name: string }): ReactElement {
+  return (
+    <Lead>
+      <View style={{ width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string, borderWidth: 1, borderColor: "var(--line)" as string }}>
+        <Text style={{ fontSize: 13, fontWeight: "600", color: "var(--ink-2)" as string }}>{name.slice(0, 1).toUpperCase()}</Text>
+      </View>
+    </Lead>
+  );
+}
+
+export function AppsPage(): ReactElement {
+  const data = useConsoleData();
+  const connectors = useIntegrationRows<Connector>("connectors.list", "connectors");
+  const connections = useIntegrationRows<Connection>("connections.list", "connections", { whose: "all" });
+  const google = useRead<CapMap["google.dwd.status"]["out"]>("google.dwd.status", {});
+  const microsoft = useRead<CapMap["ms.consent.status"]["out"]>("ms.consent.status", {});
+  // the one GitHub connection: which app the Space uses and whether it needs new permissions (the same reads the GitHub tab makes)
+  const ghSign = useRead<CapMap["members.sign_in_github.get"]["out"]>("members.sign_in_github.get", {});
+  const ghCi = useRead<{ githubApp: GithubAppState }>("ci.settings.get", {});
+  const [view, setView] = useState<AppView>({ kind: "list" });
+  const [confirm, setConfirm] = useState("");
+  const refresh = (): void => { connectors.refresh(); connections.refresh(); google.refresh(); microsoft.refresh(); ghSign.refresh(); ghCi.refresh(); };
+  const action = useAction(refresh);
+  const home = (): void => { setView({ kind: "list" }); setConfirm(""); refresh(); };
+
+  if (view.kind === "newapp") return <NewConnector onBack={home} onCreated={(key) => setView({ kind: "settings", key })} />;
+  if (view.kind === "settings") return <ConnectorObject key={view.key} id={view.key} onBack={() => { refresh(); setView({ kind: "app", key: view.key }); }} />;
+  if (view.kind === "connect") return <NewConnection initialKey={view.key} onBack={() => { setView({ kind: "app", key: view.key }); refresh(); }} onCreated={(id) => setView({ kind: "connection", id, from: view.key })} />;
+  if (view.kind === "connection") return <ConnectionObject key={view.id} id={view.id} onBack={() => { refresh(); setView(view.from ? { kind: "app", key: view.from } : { kind: "list" }); }} />;
+
+  if (!connectors.ready || !connections.ready) return <ReadState error={connectors.error ?? connections.error} retry={refresh} />;
+
+  // a custom app stays on the list while it is a draft, so a person can come back to finish and publish it
+  const COMPANY_KEYS = ["google", "microsoft"], GITHUB_KEYS = ["github", "github_signin"];
+  const apps = connectors.rows.filter((c) => (c.state === "live" || c.connections > 0 || !c.builtin) && !COMPANY_KEYS.includes(c.key) && !GITHUB_KEYS.includes(c.key));
+  // the order: the company sign-ins, then GitHub and the other apps A to Z, then the drafts (custom apps that are not live and have no sign-ins)
+  const isDraft = (c: Connector): boolean => c.state !== "live" && c.connections === 0;
+  const others = apps.filter((c) => !isDraft(c)).sort((x, y) => x.title.localeCompare(y.title)), drafts = apps.filter(isDraft).sort((x, y) => x.title.localeCompare(y.title));
+  const signIns = (key: string): Connection[] => connections.rows.filter((c) => c.connector === key);
+
+  if (view.kind === "app") {
+    const app = connectors.rows.find((c) => c.key === view.key);
+    const people = signIns(view.key);
+    if (!app) return <GoBack to={home} />;
+    const disconnect = async (): Promise<void> => {
+      for (const c of people) { const out = await action.run("connections.delete", { connectionId: c.connectionId }, "Disconnected"); if (out === undefined) return; }
+      home();
+    };
+    return (
+      <View testID="console-app-detail">
+        <Section title={app.title} right={<Button label="All apps" testID="app-back" onPress={home} />}>
+          <Group>
+            <Row title={app.title} note={whatItDoes(app)} leading={<Logo name={app.title} />} trailing={<StatusLabel status={people.length ? "active" : "disabled"} />} />
+          </Group>
+        </Section>
+        <Section title="People signed in" count={people.length} right={<Button label="Add a sign-in" testID="app-add-signin" onPress={() => setView({ kind: "connect", key: app.key })} />}>
+          <Group>
+            {people.map((c) => <Row key={c.connectionId} id={`app-signin-${c.connectionId}`} title={c.owner.kind === "space" ? data.space.name : data.name(c.owner.id)} note={`${c.title} · ${c.state.replaceAll("_", " ")}`} onPress={() => setView({ kind: "connection", id: c.connectionId, from: app.key })} />)}
+            {!people.length ? <Row title="Nobody has signed in yet" /> : null}
+          </Group>
+        </Section>
+        <Section title="Stop using this app">
+          <Group>
+            <Row title="Stop using this app in the Space" note="Everyone's sign-ins to it end" trailing={<Button label="Disconnect" testID="app-disconnect" danger disabled={!people.length || action.busy} why={!people.length ? "Nobody is signed in" : undefined} onPress={() => setConfirm(app.key)} />} />
+          </Group>
+          {confirm === app.key ? (
+            <>
+              <Note>Disconnect {app.title}? {people.length === 1 ? "One sign-in ends." : `${people.length} sign-ins end.`} Automations and syncs that use it stop until someone connects it again.</Note>
+              <Actions>
+                <Button label="Cancel" testID="app-disconnect-cancel" onPress={() => setConfirm("")} />
+                <Button label="Disconnect" testID="app-disconnect-confirm" danger disabled={action.busy} onPress={() => void disconnect()} />
+              </Actions>
+            </>
+          ) : null}
+        </Section>
+        {!app.builtin ? <Section title="Settings"><Group><Row title="Connection settings" note="Who may use it, versions and tests" trailing={<Button label="Open settings" testID="app-settings" onPress={() => setView({ kind: "settings", key: app.key })} />} /></Group></Section> : null}
+        {action.note ? <Note>{action.note}</Note> : null}
+      </View>
+    );
+  }
+
+  const loose = otherSignIns(connections.rows, connectors.rows);
+  const googleOn = google.data?.configured === true, microsoftOn = microsoft.data?.consentGiven === true;
+  const registryOf = (key: string): Connector | undefined => connectors.rows.find((c) => c.key === key);
+  const signIns2 = (key: string): number => registryOf(key)?.connections ?? 0;
+  const ghRegistry = connectors.rows.find((c) => c.key === "github");
+  const gh = githubRow(ghSign.data?.github, ghCi.data?.githubApp);
+  const company = [
+    { key: "google", title: "Google Workspace", page: "google", connect: "Connect", on: googleOn || signIns2("google") > 0, note: googleOn ? `Connected${google.data?.domain ? ` for ${google.data.domain}` : ""}` : `${signIns2("google")} sign-in${signIns2("google") === 1 ? "" : "s"}`, registry: registryOf("google") },
+    { key: "microsoft", title: "Microsoft 365", page: "microsoft", connect: "Connect with admin consent", on: microsoftOn || signIns2("microsoft") > 0, note: microsoftOn ? "Connected" : `${signIns2("microsoft")} sign-in${signIns2("microsoft") === 1 ? "" : "s"}`, registry: registryOf("microsoft") },
+  ];
+  const count = apps.length + company.length + 1;
+  return (
+    <View testID="console-apps">
+      <Section title="Connected apps" count={count} right={<Button label="Add a custom app" testID="apps-new" onPress={() => setView({ kind: "newapp" })} />}>
+        <Group testID="apps-list">
+          {/* One Google Workspace row and one Microsoft 365 row: the company sign-ins. The registry holds a connector of the same name for each (keys google, microsoft); those are not drawn as rows of their own.
+              What each one offered, and where it is now: the company row opens the setup page (Connect, or Manage once configured); the registry connector offered Connect (a Space account, NewConnection) and, once it had
+              sign-ins, Manage (who signed in, Add a sign-in, Disconnect). The kept row carries both: Manage/Connect for the setup page, and Accounts for the registry connector's page, which keeps Add a sign-in and Disconnect. */}
+          {company.map((c) => (
+            <Row key={c.key} id={`app-${c.key}`} title={c.title} note={c.on ? c.note : "Sign-in, mail, calendar and files for the whole company"} leading={<Logo name={c.title} />}
+              trailing={<Actions>
+                {c.on ? <StatusLabel status="active" /> : null}
+                {c.on ? <Button label="Manage" testID={`app-manage-${c.key}`} onPress={() => data.nav.openPage(c.page)} /> : <Button label={c.connect} testID={`app-connect-${c.key}`} onPress={() => data.nav.openPage(c.page)} />}
+                {c.registry && (c.registry.state === "live" || c.registry.connections > 0) ? <Button label="Accounts" testID={`app-accounts-${c.key}`} onPress={() => setView({ kind: "app", key: c.registry!.key })} /> : null}
+              </Actions>} />
+          ))}
+          {/* One GitHub row: the registry's GitHub (the App connection) and GitHub sign-in (the same App's login) are not drawn as rows of their own, the GitHub tab holds the one connection. Its Accounts button keeps the registry connector's sign-ins reachable. */}
+          <Row id="app-github" title="GitHub" note={gh.note} {...(gh.needsYou ? { noteLead: "Needs you to accept new permissions", noteLeadTone: "warning" as const } : {})} leading={<Logo name="GitHub" />}
+            trailing={<Actions>{gh.set ? <StatusLabel status="active" /> : null}<Button label={gh.set ? "Manage" : "Set up"} testID="app-github-open" onPress={() => data.nav.openPage("ghapp")} />{ghRegistry && ghRegistry.connections > 0 ? <Button label="Accounts" testID="app-accounts-github" onPress={() => setView({ kind: "app", key: ghRegistry.key })} /> : null}</Actions>} />
+          {others.map((c) => (
+            <Row key={c.key} id={`app-${c.key}`} title={c.title} note={appNote(c)} leading={<Logo name={c.title} />}
+              trailing={c.connections > 0
+                ? <Actions><StatusLabel status="active" /><Button label="Manage" testID={`app-manage-${c.key}`} onPress={() => setView({ kind: "app", key: c.key })} />{!c.builtin ? <Button label="Settings" testID={`app-settings-${c.key}`} onPress={() => setView({ kind: "settings", key: c.key })} /> : null}</Actions>
+                : <Actions>{c.state === "live" ? <Button label="Connect" testID={`app-connect-${c.key}`} onPress={() => setView({ kind: "connect", key: c.key })} /> : null}{!c.builtin ? <Button label="Settings" testID={`app-settings-${c.key}`} onPress={() => setView({ kind: "settings", key: c.key })} /> : null}</Actions>} />
+          ))}
+          {drafts.map((c) => (
+            <Row key={c.key} id={`app-${c.key}`} title={c.title} note={appNote(c)} leading={<Logo name={c.title} />}
+              trailing={c.connections > 0
+                ? <Actions><StatusLabel status="active" /><Button label="Manage" testID={`app-manage-${c.key}`} onPress={() => setView({ kind: "app", key: c.key })} />{!c.builtin ? <Button label="Settings" testID={`app-settings-${c.key}`} onPress={() => setView({ kind: "settings", key: c.key })} /> : null}</Actions>
+                : <Actions>{c.state === "live" ? <Button label="Connect" testID={`app-connect-${c.key}`} onPress={() => setView({ kind: "connect", key: c.key })} /> : null}{!c.builtin ? <Button label="Settings" testID={`app-settings-${c.key}`} onPress={() => setView({ kind: "settings", key: c.key })} /> : null}</Actions>} />
+          ))}
+        </Group>
+      </Section>
+      {loose.length ? (
+        <Section title="Other sign-ins" count={loose.length}>
+          <Group testID="apps-other">
+            {loose.map((c) => <Row key={c.connectionId} id={`app-other-${c.connectionId}`} title={c.title} note={`Signed in by ${c.owner.kind === "space" ? data.space.name : data.name(c.owner.id)}`} leading={<Logo name={c.title} />} onPress={() => setView({ kind: "connection", id: c.connectionId, from: "" })} />)}
+          </Group>
+        </Section>
+      ) : null}
+      {action.note ? <Note>{action.note}</Note> : null}
+    </View>
+  );
+}

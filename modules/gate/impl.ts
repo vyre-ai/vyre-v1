@@ -3,11 +3,21 @@
 import { handlers } from "./handlers/index.ts";
 import { rejectAllOf, recover } from "./handlers/hold.ts";
 import { sweep } from "./handlers/approve.ts";
+import { dropPlaceholderHolds } from "./handlers/placeholders.ts";
+import { expireStaleHolds } from "./handlers/stale.ts";
 import { syncPolicy } from "./projections.ts";
 import type { GateCtx } from "./projections.ts";
 
 export { handlers, recover, rejectAllOf, sweep };
+import { syncApprover } from "./handlers/approve.ts";
 export { ACTS, effectiveRule, summaryLine } from "./projections.ts";
+
+/** Once, on update: holds raised for a placeholder call (example.com, "test", __probe_none__) are dropped and their tasks leave Needs you. */
+export const periodic = {
+  /** A held act nobody answered in 7 days, or whose chat or task closed, expires as "Not sent"; at start it also clears what earlier releases left. */
+  "gate.stale_holds": { everyMs: 3_600_000, immediate: true, run: async (ctx: GateCtx) => { await expireStaleHolds(ctx); } },
+  "gate.placeholder_cleanup": { everyMs: 86_400_000, immediate: true, run: async (ctx: GateCtx) => { await dropPlaceholderHolds(ctx); } },
+};
 
 /** Async consumers by name: the events each one reads and what it does with one. */
 export const consumers = {
@@ -15,6 +25,14 @@ export const consumers = {
   "gate.settings_sync": {
     on: ["settings.changed"],
     async run(ctx: GateCtx, event: { payload: Record<string, unknown> }): Promise<string[]> { return syncPolicy(ctx.db, event.payload) ? [String(event.payload["key"])] : []; },
+  },
+  /**
+   * The Gate is the one source of truth for who decides a hold. When its task is assigned, delegated or escalated to someone else, the hold's approver follows, and the move is on the log: who moved it, from whom,
+   * to whom (gate.approver_moved). gate.release then asks the releaser to be the current approver. A person-only act is never moved (the task layer refuses it).
+   */
+  "gate.approver_sync": {
+    on: ["task.assigned", "task.delegated", "task.escalated"],
+    async run(ctx: GateCtx, event: { name: string; payload: Record<string, unknown> }): Promise<string[]> { return syncApprover(ctx, event); },
   },
   /** An agent was deleted: what it had held at the Gate is dropped, so nobody can approve an act of an agent that is gone (hole 10). */
   "gate.agent_deleted": {

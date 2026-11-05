@@ -30,6 +30,7 @@ type In = {
       kind: "person" | "agent";
       id: string;
     }>;
+  text?: string;
 };
 ```
 
@@ -62,6 +63,7 @@ type Out = {
         "kind": "person"
       }
     ],
+    "text": "example",
     "threadId": "thr_a1b2c3"
   },
   "output": {

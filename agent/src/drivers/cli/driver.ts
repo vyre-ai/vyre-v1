@@ -36,6 +36,8 @@ export interface CliDriverDeps {
   /** Models an account can reach, when the host knows better than the built-in list (a subscription's plan). */
   modelsFor?(acct: AccountRef): Promise<ModelInfo[]> | ModelInfo[];
   idleMs?: number;
+  firstTokenMs?: number;
+  onNoFirstToken?: CliSessionDeps["onNoFirstToken"];
   graceMs?: number;
   /** Start a persistent engine's process when the session opens, before anyone waits for it. Default true. */
   prewarm?: boolean;
@@ -51,6 +53,14 @@ export interface CliDriver {
 }
 
 const PREFIX = /^(claude_code|codex|grok)\//;
+/**
+ * The model a CLI is told to use: the name without its engine prefix, or nothing at all. Auto (unset, empty, "auto", or an engine prefix with nothing after it) passes NO model flag, so the engine
+ * uses its own default; an empty `-m ""` or `--model ""` is an invalid request the vendor refuses (`model` must be a non-empty string, 5 Nov 2026), and "auto" is not a name any engine knows.
+ */
+export function cliModel(model: string | undefined | null): string | null {
+  const m = (model ?? "").replace(PREFIX, "").trim();
+  return m === "" || m.toLowerCase() === "auto" ? null : m;
+}
 
 export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDriver {
   const graceMs = deps.graceMs ?? 1_500;
@@ -84,7 +94,7 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
       const endpoint = noTools ? { url: "", token: "" } : await deps.mcp(spec);
       const session = createCliSession({
         adapter, launcher: deps.launcher, endpoint,
-        model: spec.agent.model ? spec.agent.model.replace(PREFIX, "") : null,
+        model: cliModel(spec.agent.model),
         // a lean call starts fresh, says only its own system prompt and saves nothing to resume
         resume: lean ? null : deps.resume?.(spec) ?? null,
         system: lean ? spec.agent.role ?? null : deps.system?.(spec) ?? null,
@@ -98,6 +108,9 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
         ...(deps.planMode ? { planMode: () => deps.planMode?.(spec) ?? false } : {}),
         ...(deps.prompt ? { prompt: deps.prompt } : {}),
         ...(deps.idleMs !== undefined ? { idleMs: deps.idleMs } : {}),
+        ...(deps.firstTokenMs !== undefined ? { firstTokenMs: deps.firstTokenMs } : {}),
+        ...(deps.onNoFirstToken ? { onNoFirstToken: deps.onNoFirstToken } : {}),
+        account: spec.agent.accountRef ?? "",
         ...(deps.graceMs !== undefined ? { graceMs: deps.graceMs } : {}),
         onClose: async () => { if (!noTools) await deps.mcpClose?.(spec, endpoint); },
         ...(deps.checkpoint && !lean ? { checkpoint: (id: string | null) => deps.checkpoint?.(spec, id) } : {}),

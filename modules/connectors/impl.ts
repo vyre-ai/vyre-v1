@@ -6,8 +6,10 @@ import { readFileSync } from "node:fs";
 import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
+import { perSpaceStore } from "../../host/src/daemon/store.ts";
 import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { hostOnly } from "../../host/src/ctx/host-only.ts";
+import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { writeConnectorFolder, writeSourceFolder } from "./handlers/files.ts";
 import { readSource } from "./handlers/source.ts";
@@ -46,25 +48,25 @@ type HostCtx = Omit<ConnectorsCtx, "actor"> & { authorize(action:{perm:string|nu
 interface ConnectorsHost { publicBase():string; fill(ctx:HostCtx,binding:{connector:string;connectionId:string;slot:string;handle:string}):Promise<string>;http(ctx:HostCtx,domains:readonly string[],url:string,init?:{method?:string;headers?:Record<string,string>;body?:string}):ReturnType<ConnectorsCtx['http']> }
 let connectorHost:ConnectorsHost|null=null;
 export function setConnectorsHost(host:ConnectorsHost|null):void{connectorHost=host;}
-let shared: ConnectorsHandle | null = null;
-let spaceSeam: SpaceStoreSeam | null = null;
 let engine: SyncEngine | null = null;
+const handles = new Set<ConnectorsHandle>();
+// One handle per Space store (two daemons in one process each have their own); a call is served from the one its ctx.db belongs to.
+const stores = perSpaceStore<ConnectorsHandle>((seam) => {
+  const h = openConnectors(seam ? { tx: seam.open().tx } : {});
+  if (engine) h.deps.engine = engine;
+  handles.add(h);
+  return h;
+});
 /** The host hands the Space store (P-H_08, ruling 31). */
-export function setConnectorsSpaceStore(seam: SpaceStoreSeam | null): void { spaceSeam = seam; shared = null; }
+export function setConnectorsSpaceStore(seam: SpaceStoreSeam | null): void { stores.set(seam); }
 export const hostSeams: SeamSetters = { setConnectorsSpaceStore, setSyncEngine, setConnectorsHost };
-const live = (): ConnectorsHandle => {
-  if (!shared) {
-    shared = openConnectors(spaceSeam ? { tx: spaceSeam.open().tx } : {});
-    if (engine) shared.deps.engine = engine;
-  }
-  return shared;
-};
+const live = (ctx?: { db?: unknown }): ConnectorsHandle => stores.get(ctx);
 /** The host hands the sync engine (modules/sources) to the live handlers: preview, undo, conflict settling, replay, confirm deletes and push need it (boundary B1 keeps this module from importing it). */
-export function setSyncEngine(e: SyncEngine | null): void { engine = e; if (shared) { if (e) shared.deps.engine = e; else delete shared.deps.engine; } }
+export function setSyncEngine(e: SyncEngine | null): void { engine = e; for (const h of handles) { if (e) h.deps.engine = e; else delete h.deps.engine; } }
 
 function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => Promise<unknown> {
   return (ctx, input) => {
-    const handle = live(), port=connectorHost, args=input as Record<string,unknown>;
+    const handle = live(ctx as { db?: unknown }), port=connectorHost, args=input as Record<string,unknown>;
     const connectionId=typeof args['connectionId']==='string'?args['connectionId']:typeof args['state']==='string'?handle.tx.get<{connection_id:string}>('SELECT connection_id FROM cn_oauth WHERE state = ?',args['state'])?.connection_id:undefined;
     const connection=connectionId?handle.tx.get<ConnectionDb>('SELECT * FROM cn_connections WHERE connection_id = ?',connectionId):undefined;
     const key=typeof args['key']==='string'?args['key']:typeof args['connector']==='string'?args['connector']:connection?.connector;
@@ -89,6 +91,7 @@ function adapt(name: keyof ConnectorsHandlers): (ctx: HostCtx, input: never) => 
       trace: ctx.trace, emit: (n, s, p, o) => ctx.emit(n, s, p, o), call: (c, i) => ctx.call(c, i),
       http: (url,init) => port&&definition&&stored?.state==='live'?port.http(execution,definition.domains,url,init):ctx.http(url,init),
       ...(ctx.log ? { log: ctx.log } : {}), ...(ctx.schedule ? { schedule: (at, cap, input) => ctx.schedule!(at, cap, input) } : {}), ...((ctx.actingFor??ctx.principal?.id)?{actor:ctx.actingFor??ctx.principal!.id}:{}),
+      trusted: isTrustedService(ctx.principal),
       canManageSpace: () => ctx.authorize({ perm: 'connectors.manage', level: 'edit' }, { type: 'space', id: ctx.space }).effect === 'allow',
       canViewSpace: () => ctx.authorize({ perm: null, level: 'view' }, { type: 'space', id: ctx.space }).effect === 'allow',
     };
@@ -129,7 +132,7 @@ const NAMES = [
   "connectors.list", "connectors.get", "connectors.init", "connectors.define", "connectors.build", "connectors.test", "connectors.run", "connectors.read", "connectors.diff", "connectors.publish", "connectors.versions",
   "connectors.rollback", "connectors.export", "connectors.remove", "connectors.health",
   "connections.list", "connections.get", "connections.create", "connections.update", "connections.set_secret", "connections.pause", "connections.resume", "connections.reconnect", "connections.complete_auth",
-  "connections.test", "connections.delete",
+  "connections.test", "connections.mark_working", "connections.delete",
   "sync_types.list", "sync_types.get", "sync_types.discover", "sync_types.create", "sync_types.update", "sync_types.preview", "sync_types.pause", "sync_types.resume", "sync_types.log",
   "sync_types.schema_changes", "sync_types.review_schema", "sync_types.confirm_deletes", "sync_types.make_native", "sync_types.resolve_conflict", "sync_types.replay_conflict", "sync_types.undo_push",
   "connectors.sync_now", "connectors.outbox.list", "connectors.outbox.retry", "connectors.outbox.cancel", "connectors.push",
@@ -155,5 +158,5 @@ export async function acceptWebhook(tx: Tx, ctx: { origin: string; depth: number
 }
 
 export const hostCalls = {
-  "connectors.accept_webhook": (ctx: HostCtx & { origin: string; depth: number }, a: { kind?: string; headers: Record<string, string | undefined>; body: string; url: string }): Promise<unknown> => acceptWebhook(live().tx, ctx, a),
+  "connectors.accept_webhook": (ctx: HostCtx & { origin: string; depth: number }, a: { kind?: string; headers: Record<string, string | undefined>; body: string; url: string }): Promise<unknown> => acceptWebhook(live(ctx as { db?: unknown }).tx, ctx, a),
 };

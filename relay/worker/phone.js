@@ -8,7 +8,7 @@
 //   hostControl   what a box's control socket may say about its name: host.claim, host.release, host.status. Called from RouteRelay.onTicket.
 //   onHost        the gateway: the shell for a claimed name, "is asleep" when its box is offline, the old redirect for a name nobody claimed here.
 //   onDoor        `/mcp` and the OAuth addresses of a claimed name: the door for outside agents, the one path that carries a credential.
-//   onPublic      `/p/*` and an artifact's `/a/<id>/k/<token>/` of a claimed name, the one thing that is not the shell: visitors with no session reach the Space's forms and sites through the box's control socket, in an opaque origin.
+//   onPublic      `/p/*` of a claimed name, the one thing that is not the shell: visitors with no session reach the Space's forms and sites through the box's control socket, in an opaque origin.
 // No dependencies; WebCrypto and the runtime only.
 
 export const PHONE = Object.freeze({
@@ -56,8 +56,14 @@ export const DOOR = /^\/(?:mcp|oauth\/(?:authorize|register|token|wait)|\.well-k
 const DOOR_KEEP = new Set([...REQUEST_KEEP, "mcp-session-id", "mcp-protocol-version", "origin", "last-event-id"]);
 const DOOR_BACK = new Set([...RESPONSE_KEEP, "www-authenticate", "mcp-session-id", "location", "allow", "x-frame-options", "x-content-type-options", "x-robots-tag", "referrer-policy", "cross-origin-opener-policy", "access-control-allow-origin", "access-control-allow-methods", "access-control-allow-headers", "access-control-max-age"]);
 
-/** An artifact's address for one person: `/a/<id>/k/<token>/...`. The box checks the token and their access on every request. `/a/<id>` alone is the app, which opens it for whoever is signed in. */
-export const ARTIFACT = /^\/a\/[a-z0-9_]{1,80}\/k\/[0-9a-f]{48}(\/|$)/;
+
+/**
+ * The artifact host, `<name>-a.vyre.run`: its own origin, apart from the app's. It serves two kinds of path and nothing else: the one-time code `/x/<code>` (which sets the artifact session) and an artifact's own address `/sit_.../`.
+ * It is the one place a Cookie goes to the box and a Set-Cookie comes back, and the cookie is host-only, HttpOnly, Secure and SameSite=Lax, so the app's origin never sees it. The page stays sandboxed (no allow-same-origin).
+ */
+export const ARTIFACT_HOST = /^\/(?:x\/[0-9a-f]{48}\/?|sit_[a-z0-9]{1,64}(?:\/|$))/;
+/** A name that ends in `-a` would collide with another name's artifact host, so none is claimed. */
+export const ARTIFACT_SUFFIX = "-a";
 
 /** Hosts that are infrastructure, never a person's phone address. The names directory refuses most of these too; this is the gateway's own fence. */
 /** The labels the deploy fenced from the zone's own records (edge.mjs writes them to the FENCE_HOSTS secret): every host that exists, whatever the static list says. @param {any} env */
@@ -100,6 +106,10 @@ export function gatewayOf(url, env) {
   const zone = String(env.HOST_ZONE || PHONE.zone).toLowerCase();
   if (!host.endsWith(`.${zone}`) || host === String(env.RELAY_HOST || `relay.${zone}`).toLowerCase()) return null;
   const label = host.slice(0, -(zone.length + 1));
+  if (label.endsWith(ARTIFACT_SUFFIX)) {
+    const base = label.slice(0, -ARTIFACT_SUFFIX.length);
+    return PHONE.nameRe.test(base) && !INFRA.has(base) && !fenceOf(env).has(base) ? { name: base, artifact: true } : { pass: true };
+  }
   return PHONE.nameRe.test(label) && !INFRA.has(label) && !fenceOf(env).has(label) ? { name: label } : { pass: true };
 }
 
@@ -220,7 +230,7 @@ export async function hostControl(relay, ws, m) {
   }
   if (op !== "claim") return;
   const name = String(m.name || "").toLowerCase();
-  if (!PHONE.nameRe.test(name) || INFRA.has(name)) return reply(op, "invalid", { name });
+  if (!PHONE.nameRe.test(name) || INFRA.has(name) || name.endsWith(ARTIFACT_SUFFIX)) return reply(op, "invalid", { name });
   if (fenceOf(env).has(name)) return reply(op, "reserved", { name });
   if (mine && mine.name !== name) return reply(op, "has_name", { name: mine.name });
   const label = cleanLabel(m.label);
@@ -282,22 +292,40 @@ function shellPage(label, name) {
 }
 
 /** The request as the box may see it: what the visitor asked and the few headers a page needs. @param {Request} request @param {URL} url */
-export function publicHead(request, url) {
+export function publicHead(request, url, artifact = false) {
   /** @type {Record<string, string>} */
   const headers = {};
   for (const [k, v] of request.headers) if (REQUEST_KEEP.has(k.toLowerCase())) headers[k.toLowerCase()] = v;
-  return { method: request.method, path: `${url.pathname}${url.search}`, ip: request.headers.get("cf-connecting-ip") || "", headers };
+  const head = { method: request.method, path: `${url.pathname}${url.search}`, ip: request.headers.get("cf-connecting-ip") || "", headers };
+  if (!artifact) return head;
+  // the artifact host's own cookie goes to the box, and the host it was asked on, so the box checks the person against this origin only
+  const cookie = request.headers.get("cookie");
+  if (cookie) headers["cookie"] = cookie.slice(0, 2048);
+  return { ...head, a: true, host: url.hostname.toLowerCase() };
+}
+
+/** The one Set-Cookie the artifact host may send: host-only (no Domain), HttpOnly, Secure, SameSite=Lax, for the artifact paths. Anything looser is dropped. @param {string | null} v */
+export function artifactCookie(v) {
+  if (!v || v.length > 1024) return null;
+  const parts = v.split(";").map(x => x.trim().toLowerCase());
+  const has = (/** @type {string} */ a) => parts.includes(a);
+  if (parts.some(x => x.startsWith("domain="))) return null;
+  if (!has("httponly") || !has("secure") || !has("samesite=lax")) return null;
+  const path = parts.find(x => x.startsWith("path="));
+  if (path && path !== "path=/") return null;
+  return v;
 }
 
 /** The headers a `/p/` answer leaves the relay with, whatever the box said. A redirect stays under `/p/` or leaves the host; it never lands on the app. @param {Headers} from @param {URL} url */
-export function publicHeaders(from, url) {
+export function publicHeaders(from, url, artifact = false) {
   const h = new Headers();
   for (const [k, v] of from) if (RESPONSE_KEEP.has(k.toLowerCase())) h.append(k, v);
+  if (artifact) { const c = artifactCookie(from.get("set-cookie")); if (c) h.append("set-cookie", c); }
   const location = from.get("location");
   if (location) {
     let to = null;
     try { to = new URL(location, url); } catch { /* not an address */ }
-    if (to && (to.origin !== url.origin || to.pathname.startsWith("/p/") || ARTIFACT.test(to.pathname))) h.set("location", to.href);
+    if (to && (to.origin !== url.origin || to.pathname.startsWith("/p/") || (artifact && ARTIFACT_HOST.test(to.pathname)))) h.set("location", to.href);
   }
   // a second policy only narrows: whatever the page sent, this one still applies
   h.append("content-security-policy", PUBLIC.sandbox);
@@ -325,31 +353,31 @@ export function publicBlocked(env, name, site) {
  * `<name>.vyre.run/p/*`: GET, HEAD and POST go to the Space over its control socket, OPTIONS is answered here. The hostname and status are logged; no path below the site, no query, no body.
  * @param {Request} request @param {any} env @param {string} name @param {{ route: string, label?: string }} info @param {() => Promise<boolean>} online
  */
-async function onPublic(request, env, name, info, online) {
+async function onPublic(request, env, name, info, online, artifact = false) {
   const url = new URL(request.url);
   // a token never reaches a log
   const site = url.pathname.split("/")[2] || "";
   const done = (/** @type {Response} */ res) => { console.log(JSON.stringify({ p: url.hostname, site, status: res.status })); return res; };
   if (publicBlocked(env, name, site)) return done(publicPage(451, "This page is not available", "It was taken down.", url));
   if (request.method === "OPTIONS") {
-    const h = publicHeaders(new Headers({ "cache-control": "no-store" }), url);
+    const h = publicHeaders(new Headers({ "cache-control": "no-store" }), url, artifact);
     h.set("access-control-allow-methods", "GET, HEAD, POST, OPTIONS");
     h.set("access-control-allow-headers", "content-type, x-file-name");
     h.set("access-control-max-age", "600");
     return new Response(null, { status: 204, headers: h });
   }
-  if (!["GET", "HEAD", "POST"].includes(request.method)) return done(new Response(null, { status: 405, headers: publicHeaders(new Headers({ allow: "GET, HEAD, POST, OPTIONS" }), url) }));
-  if (Number(request.headers.get("content-length") || 0) > PUBLIC.maxBody) return done(new Response(null, { status: 413, headers: publicHeaders(new Headers(), url) }));
+  if (!["GET", "HEAD", "POST"].includes(request.method)) return done(new Response(null, { status: 405, headers: publicHeaders(new Headers({ allow: "GET, HEAD, POST, OPTIONS" }), url, artifact) }));
+  if (Number(request.headers.get("content-length") || 0) > PUBLIC.maxBody) return done(new Response(null, { status: 413, headers: publicHeaders(new Headers(), url, artifact) }));
   const body = request.method === "POST" ? new Uint8Array(await request.arrayBuffer()) : new Uint8Array(0);
-  if (body.length > PUBLIC.maxBody) return done(new Response(null, { status: 413, headers: publicHeaders(new Headers(), url) }));
+  if (body.length > PUBLIC.maxBody) return done(new Response(null, { status: 413, headers: publicHeaders(new Headers(), url, artifact) }));
   const asleep = () => publicPage(503, `${info.label || name} is offline`, "This page lives on a computer that is off or not connected. Try again soon.", url, { "retry-after": "20" });
   if (!(await online())) return done(asleep());
   let res;
   try {
-    res = await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/p", { method: "POST", headers: { "x-vyre-p": JSON.stringify(publicHead(request, url)) }, body });
+    res = await env.ROUTES.get(env.ROUTES.idFromName(info.route)).fetch("https://route/p", { method: "POST", headers: { "x-vyre-p": JSON.stringify(publicHead(request, url, artifact)) }, body });
   } catch { return done(asleep()); }
   if (res.status === 599) return done(asleep());
-  return done(new Response(request.method === "HEAD" ? null : res.body, { status: res.status, headers: publicHeaders(res.headers, url) }));
+  return done(new Response(request.method === "HEAD" ? null : res.body, { status: res.status, headers: publicHeaders(res.headers, url, artifact) }));
 }
 
 /** What the box may see of a request on the door. @param {Request} request @param {URL} url */
@@ -425,7 +453,7 @@ export async function passthrough(request, env) {
  *  - any other GET: the shell page, or "<nickname> is asleep" (503) when the box is offline. After the first visit the service worker answers navigations itself.
  * @param {Request} request @param {any} env @param {string} name
  */
-export async function onHost(request, env, name) {
+export async function onHost(request, env, name, artifact = false) {
   const url = new URL(request.url);
   // Not ours unless a route holds this name: anything else under the wildcard (a download bucket, a site, a tunnel) goes to its own origin untouched, and an error anywhere here does the same.
   let info = /** @type {any} */ ({});
@@ -454,11 +482,13 @@ export async function onHost(request, env, name) {
     if (awake >= 0) info = { ...info, route: routes[awake].route };
   }
   const online = async () => (await all()).some(x => x.online);
-  if (url.pathname === "/p" || url.pathname.startsWith("/p/") || ARTIFACT.test(url.pathname)) return onPublic(request, env, name, info, online);
+  // the artifact host answers its own two kinds of path and nothing else: never the app, the door or /p/
+  if (artifact) return ARTIFACT_HOST.test(url.pathname) ? onPublic(request, env, name, info, online, true) : new Response(null, { status: 404, headers: { "cache-control": "no-store", "x-robots-tag": "noindex" } });
+  if (url.pathname === "/p" || url.pathname.startsWith("/p/")) return onPublic(request, env, name, info, online);
   if (DOOR.test(url.pathname)) return onDoor(request, env, name, info, online);
   // an artifact's plain address: the app opens it for whoever is signed in
   const plain = /^\/a\/([a-z0-9_]{1,80})\/?$/.exec(url.pathname);
-  if (plain && request.method === "GET") return new Response(null, { status: 302, headers: { location: `/#screen=apps.artifacts&selected=${plain[1]}`, "cache-control": "no-store" } });
+  if (plain && request.method === "GET") return new Response(null, { status: 302, headers: { location: `/#subject=artifact:${plain[1]}`, "cache-control": "no-store" } });
   if (url.pathname === "/__vyre/info.json") {
     const s = await all();
     return json(200, { name, label: info.label || "", route: info.route, relay: relayWss, online: await online(), ...(members.length ? { computers: routes.map((r, i) => ({ label: r.label, online: Boolean(s[i]?.online), seenAt: s[i]?.seenAt ?? null })) } : {}) });

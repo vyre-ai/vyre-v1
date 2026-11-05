@@ -11,7 +11,10 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "providers.custom_list": Handler<"providers.custom_list", X>;
   "providers.custom_remove": Handler<"providers.custom_remove", X>;
   "providers.list": Handler<"providers.list", X>;
+  "providers.mark_signin_needed": Handler<"providers.mark_signin_needed", X>;
+  "providers.own_people": Handler<"providers.own_people", X>;
   "providers.remove": Handler<"providers.remove", X>;
+  "providers.set_keeps_nothing": Handler<"providers.set_keeps_nothing", X>;
   "providers.set_space_use": Handler<"providers.set_space_use", X>;
   "providers.space_key.get": Handler<"providers.space_key.get", X>;
   "providers.space_key.remove": Handler<"providers.space_key.remove", X>;

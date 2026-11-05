@@ -6,7 +6,7 @@
 //   channels.create              a named room, public to the Team Space or invite-only; a record's channel is a Project or Journey channel
 //   chat.answer_block / chat.approve_plan   answers to the blocks that park a turn; the engine reads block.answered and queues the wake
 import {
-  MAX_NAME, addAgent, addMember, agentsOf, askerOf, blockBy, channelBy, channelByName, channelOfRecord, channelOut, ensure, insertChannel, insertMessage, insertThread, membersOf, messageBy,
+  MAX_NAME, addAgent, agentsReplyInThreads, addMember, agentsOf, askerOf, blockBy, channelBy, channelByName, channelOfRecord, channelOut, ensure, insertChannel, insertMessage, insertThread, membersOf, messageBy,
   mintId, patchBlockInMessage, planBy, raise, refuseUnseenAgents, threadBy, threadOut,
 } from "../projections.ts";
 import type { ChatCtx, Mode, PlanStep, ThreadRec } from "../projections.ts";
@@ -48,12 +48,13 @@ function emitStarted(ctx: ChatCtx, t: ThreadRec): void {
 }
 
 /** A direct message between the same two people is one conversation: starting it again opens it. */
+/** The direct message of two people: no agent in it (the query skips agent chats, so twenty group chats with the same person cannot hide it), then isDirect for the exact rule. */
 function directBetween(ctx: ChatCtx, a: string, b: string): ThreadRec | null {
   const rows = ctx.db.all(
     `SELECT t.id AS id FROM chat_thread t
       WHERE t.kind = 'chat' AND t.channelId IS NULL AND t.scopeType IS NULL AND t.deleted_at IS NULL
         AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL)
-        AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL)
+        AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL) AND NOT EXISTS (SELECT 1 FROM chat_thread_agent x WHERE x.thread = t.id AND x.deleted_at IS NULL)
       ORDER BY t.createdAt LIMIT 20`, a, b,
   ) as Row[];
   for (const r of rows) {
@@ -91,7 +92,7 @@ export async function start(ctx: ChatCtx, input: StartInput) {
 
   if (input.kind === "ask") {
     if (isRun) raise(ctx, "validation.bad_input", "A Run has a chat, not an Ask pane.");
-    if (isTask) raise(ctx, "validation.bad_input", "A task has a thread, not an Ask pane.");
+    if (isTask) raise(ctx, "validation.bad_input", "A task has a chat, not an Ask pane.");
     if (input.scopeType === undefined) raise(ctx, "validation.bad_input", "An Ask pane is about something: say which record, file, event or page.");
     if (personId !== undefined) raise(ctx, "validation.bad_input", "An Ask pane is private. Start a chat to talk to a person.");
     if (agentIds.length === 0) raise(ctx, "validation.bad_input", "Pick the agent to ask.");
@@ -99,12 +100,12 @@ export async function start(ctx: ChatCtx, input: StartInput) {
     raise(ctx, "validation.bad_input", "Pick an agent or a person to talk to.");
   }
   if (isRun) {
-    if (!input.scopeId!.startsWith("run_")) raise(ctx, "validation.bad_input", "A Run thread is named by its Run id.", { scopeId: input.scopeId });
+    if (!input.scopeId!.startsWith("run_")) raise(ctx, "validation.bad_input", "A Run chat is named by its Run id.", { scopeId: input.scopeId });
     if (personId !== undefined) raise(ctx, "validation.bad_input", "A Run chat belongs to the Run, not to a pair of people.");
   }
   if (isTask) {
-    if (!input.scopeId!.startsWith("tsk_")) raise(ctx, "validation.bad_input", "A task thread is named by its task id.", { scopeId: input.scopeId });
-    if (personId !== undefined) raise(ctx, "validation.bad_input", "A task thread belongs to the task, not to a pair of people.");
+    if (!input.scopeId!.startsWith("tsk_")) raise(ctx, "validation.bad_input", "A task chat is named by its task id.", { scopeId: input.scopeId });
+    if (personId !== undefined) raise(ctx, "validation.bad_input", "A task chat belongs to the task, not to a pair of people.");
   }
 
   // One chat per Run: starting it again opens the one that exists.
@@ -174,6 +175,12 @@ export async function thread(ctx: ChatCtx, input: { threadId: string; messageId:
   // An agent works inside the thread under its own message, and the agent that opens a thread leads it (spec 2.5); people's threads otherwise leave agents listening.
   const leads = [msg.author, ctx.principal.id].filter((id, i, all) => id.startsWith("agt_") && all.indexOf(id) === i);
   if (leads.length > 0) addAgent(ctx, t.id, { agentId: leads[0]!, mode: "lead", addedBy: asker });
+  // Where agents reply in threads, the agents of the chat are in its threads as they are in the chat: the thread is where they answer, so a question asked inside it is answered there.
+  if (agentsReplyInThreads(parent)) {
+    for (const a of agentsOf(ctx.db, parent.id)) {
+      addAgent(ctx, t.id, { agentId: a.agentId, mode: a.mode === "lead" && leads.length > 0 ? "listen" : a.mode, ...(a.model !== undefined ? { model: a.model } : {}), ...(a.provider !== undefined ? { provider: a.provider } : {}), ...(a.effort !== undefined ? { effort: a.effort } : {}), ...(a.accountRef !== undefined ? { accountRef: a.accountRef } : {}), ...(a.quiet === true ? { quiet: true } : {}), addedBy: asker });
+    }
+  }
   emitStarted(ctx, t);
   return { thread: threadOut(ctx.db, t) };
 }
@@ -211,7 +218,7 @@ export async function makeChannel(ctx: ChatCtx, input: { threadId: string; perso
   return { channel: channelOut(ctx.db, channel) };
 }
 
-export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibility: "public" | "invite"; topic?: string; memberIds?: string[]; agentIds?: string[]; folderId?: string; recordId?: string; idempotencyKey?: string }) {
+export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibility: "public" | "invite"; topic?: string; memberIds?: string[]; agentIds?: string[]; leadAgentId?: string; folderId?: string; recordId?: string; idempotencyKey?: string }) {
   ensure(ctx.db);
   const name = cleanName(ctx, input.name);
   if (channelByName(ctx.db, name)) raise(ctx, "validation.bad_input", "A channel with that name already exists.", { name });
@@ -227,7 +234,7 @@ export async function channelsCreate(ctx: ChatCtx, input: { name: string; visibi
   if (asker.startsWith("usr_")) addMember(ctx, main.id, asker, "owner");
   for (const p of memberIds) addMember(ctx, main.id, p);
   // Agents are invited as listeners: in a channel they answer when asked, and act unmentioned only where "watches this channel" is on.
-  for (const agentId of agentIds) addAgent(ctx, main.id, { agentId, mode: "listen", addedBy: asker });
+  for (const agentId of agentIds) addAgent(ctx, main.id, { agentId, mode: agentId === input.leadAgentId ? "lead" : "listen", addedBy: asker });
   const channel = insertChannel(ctx, { id: channelId, mainThread: main.id, name, topic, visibility: input.visibility, folderId: input.folderId, recordId: input.recordId, createdBy: asker });
   ctx.emit("channel.created", channel.id, { channelId: channel.id, name, visibility: input.visibility, ...(input.recordId !== undefined ? { recordId: input.recordId } : {}) });
   emitStarted(ctx, main);

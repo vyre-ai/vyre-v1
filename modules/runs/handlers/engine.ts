@@ -7,7 +7,7 @@
 // DECISION: the Run thread (kind `run`) is minted here as thread_id; the chat module renders it from the Run and its step log.
 // DECISION: step cap lives in the engine (opts.maxSteps, default 500); runs.record_step has no cap field and only refuses a runaway log (HARD_STEP_ROWS).
 import {
-  DEFAULT_WAIT_MS, HARD_STEP_ROWS, allSteps, allWaits, clean, clearWait, countRuns, countStepRows, emitRun, engineHealth, findRun, findStep, idemKeyFor, isActive,
+  DEFAULT_WAIT_MS, HARD_STEP_ROWS, allSteps, allWaits, clean, clearWait, countRuns, countStepRows, emitRun, engineHealth, foldedCounts, findRun, findStep, idemKeyFor, isActive,
   isTerminalStep, keyedRunIds, latestSteps, listRuns, manageRun, mayManage, newRunId, newSpanId, newThreadId, page, patchExtra, raise, readExtra, readTrigger, readWait, runOut, saveRun, saveStep, saveWait, seeRun, stepOut, touch,
 } from "../projections.ts";
 import { isSystemCall, isTrustedService } from "../../../lib/trust.ts";
@@ -293,6 +293,9 @@ export async function steps(ctx: RunsCtx, input: In): Promise<unknown> {
   seeRun(ctx, input.runId);
   const p = page(allSteps(ctx.db, input.runId), input.cursor, input.limit);
   return clean({ steps: p.rows.map(stepOut), next: p.next, total: p.total });
+}
+export async function peopleCounts(ctx: RunsCtx, input: In): Promise<unknown> {
+  return { people: foldedCounts(ctx, input.statuses) };
 }
 export async function count(ctx: RunsCtx, input: In): Promise<unknown> {
   return { count: countRuns(ctx, input.scope, input.statuses) };

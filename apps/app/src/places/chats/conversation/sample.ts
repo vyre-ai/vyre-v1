@@ -37,7 +37,7 @@ function build(variant: Variant): { thread: Thread; messages: Message[]; helpers
   const agents: Thread["agents"] = variant === "nolead" || variant === "channel"
     ? [{ agentId: "agt_intake", mode: "listen", model: "opus" }, { agentId: "agt_docs", mode: "listen", model: "sonnet" }]
     : [{ agentId: "agt_intake", mode: "lead", model: "opus" }, { agentId: "agt_docs", mode: "listen", model: "sonnet" }];
-  const thread: Thread = { ...base, agents, ...(variant === "closed" ? { closedAt: at(9, 50) } : {}), ...(variant === "channel" ? { kind: "channel" as Thread["kind"], title: "intake" } : {}) };
+  const thread: Thread = { ...base, agents, ...(variant === "closed" ? { closedAt: at(9, 50) } : {}), ...(variant === "channel" ? { kind: "channel" as Thread["kind"], title: "intake", channelId: "ch_intake" } : {}) };
   let seq = 0;
   const m = (id: string, author: { kind: "person" | "agent"; id: string }, body: string, createdAt: number, o: Partial<Message> = {}): Message => ({
     messageId: id, threadId: "c1", threadSeq: ++seq, author, kind: author.kind === "agent" ? "agent" : "text", body, blocks: [], depth: 0, attachments: [], reactions: [], pinned: false, createdAt, ...o,
@@ -168,7 +168,7 @@ export interface Sample {
   push(delta: string): void;
 }
 
-export interface SampleOptions { online?: boolean; streamText?: string }
+export interface SampleOptions { online?: boolean; streamText?: string; /** the chat's stored title (the sample has "Rivera intake"; "" is a chat with none yet) */ title?: string; /** the chat's members, in place of the sample's (a group chat for the header faces) */ members?: Thread["members"]; /** The signed-in person can only view this chat: they may add viewers, not members. */ viewOnly?: boolean; /** What the chat really has for a newcomer: both a files folder and a record (default), a folder only, or neither. */ scope?: "both" | "folder" | "none" }
 
 const HELD_TEXT = "I read the standard engagement letter and filled in the **consult fee** from the fee schedule. Two things need your eye:\n\n1. The retainer is `$2,500`, which Maya has not confirmed\n2. Elena's address is the old one from the web form";
 
@@ -183,7 +183,12 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
   let online = o.online ?? true;
   let held: (() => void)[] | null = null;
   let counter = 0;
-  const { thread, messages, helpers } = build(variant);
+  const built = build(variant);
+  const { messages, helpers } = built;
+  // the files folder and record this chat is about, with names that are not the chat's own, so a shot shows which name is which
+  const scope = o.scope ?? "both";
+  const about = scope === "none" ? {} : { folderId: "fld_intake_uploads", ...(scope === "both" ? { recordId: "rec_elena_rivera" } : {}) };
+  const thread: Thread = { ...built.thread, ...about, ...(o.title === undefined ? {} : { title: o.title }), ...(o.members === undefined ? {} : { members: o.members }) };
 
   replica.put("threads", [{ id: thread.threadId, ...thread }]);
   replica.put("messages", messages.map((m) => ({ id: m.messageId, ...m })));
@@ -193,10 +198,15 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
   const msgRows = (): Message[] => (replica.rows("messages") as unknown as (Message & Row)[]).filter((m) => m.threadId === thread.threadId).map(({ id: _id, ...rest }) => rest as Message).sort((a, b) => a.threadSeq - b.threadSeq);
   const putMsg = (msg: Message): void => replica.put("messages", [{ id: msg.messageId, ...msg }]);
 
-  replica.resolve("threads.get", () => { const { id: _id, ...rest } = threadRow(); return { thread: rest as Thread }; });
+  // a thread under a message (agents reply in threads): its own row and its own messages, by id
+  const rowOf = (id: string): (Thread & Row) | undefined => (replica.rows("threads") as unknown as (Thread & Row)[]).find((x) => x.threadId === id);
+  replica.resolve("threads.get", (_t, input) => { const { id: _id, ...rest } = rowOf(input.threadId) ?? threadRow(); return { thread: rest as Thread }; });
+  replica.resolve("threads.list", (_t, input) => ({ threads: (replica.rows("threads") as unknown as (Thread & Row)[]).filter((x) => input.parentThreadId !== undefined && x.parentThreadId === input.parentThreadId).map(({ id: _id, ...rest }) => rest as Thread), hasMore: false }));
   replica.resolve("chat.messages.list", (_t, input) => {
     const limit = input.limit ?? 50;
-    const all = msgRows().filter((m) => input.before === undefined || m.threadSeq < input.before);
+    const mine = input.threadId !== undefined && input.threadId !== thread.threadId;
+    const rows = mine ? (replica.rows("messages") as unknown as (Message & Row)[]).filter((m) => m.threadId === input.threadId).map(({ id: _id, ...rest }) => rest as Message).sort((a, b) => a.threadSeq - b.threadSeq) : msgRows();
+    const all = rows.filter((m) => input.before === undefined || m.threadSeq < input.before);
     return { messages: all.slice(Math.max(0, all.length - limit)), hasMore: all.length > limit };
   });
   replica.resolve("chat.helpers.list", () => ({ helpers: (replica.rows("helpers") as unknown as (Helper & Row)[]).map(({ id: _id, ...rest }) => rest as Helper) }));
@@ -237,6 +247,45 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
       for (const m of msgRows()) if (m.blocks.some((b) => b.type === "plan" && b.state === "waiting")) putMsg({ ...m, blocks: m.blocks.map((b) => (b.type === "plan" ? { ...b, state: "live" as const } : b)) });
       return { ok: true };
     },
+    // the Add people and agents sheet (lane l-addsheet): the directory it reads and the calls it makes
+    "threads.get": () => { const { id: _id, ...rest } = threadRow(); return { thread: rest as Thread }; },
+    "files.folder.get": (i: { folderId: string }) => ({ folder: { folderId: i.folderId, name: "Client intake uploads", path: "/Client intake uploads", fileCount: 3, folderCount: 0, scope: "space", label: 0 } }),
+    "search.resolve": (i: { itemId: string }) => ({ hit: { kind: "record", id: i.itemId, title: "Elena Rivera", link: `vyre://record/${i.itemId}`, score: 1 } }),
+    "access.principals.list": () => ({ principals: [
+      { id: "usr_irfad", kind: "person", name: "You", status: "active", roles: ["rol_owner"], groups: [], createdAt: SAMPLE_NOW },
+      { id: "usr_maya", kind: "person", name: "Maya Chen", status: "active", roles: [], groups: [], title: "Partner", createdAt: SAMPLE_NOW },
+      { id: "usr_omar", kind: "person", name: "Omar Haddad", status: "active", roles: [], groups: [], title: "Operations", createdAt: SAMPLE_NOW },
+    ] }),
+    "agents.list": () => ({ agents: ["agt_intake", "agt_docs", "agt_research", "agt_scout", "agt_billing", "out_cc"].map((id, n) => ({ agentId: id, name: id === "out_cc" ? "Claude Code" : NAMES[id] ?? id, kind: "agent", ...(id === "out_cc" ? { runtime: "outside" } : {}), face: id, status: "awake", ownerId: "usr_irfad", folderId: "fld", accountPolicy: "asker", accountFallback: [], toolsAllowed: [], toolsDenied: [], vaultKeys: [], limits: {}, captureMode: "auto", hasComputer: false, templateVersion: 1, createdAt: SAMPLE_NOW, lastActiveAt: SAMPLE_NOW - n })) }),
+    "mcp.connected.list": () => ({ agents: [{ agentId: "out_cc", clientName: "Claude Code", connectedAt: SAMPLE_NOW, calls: 0 }] }),
+    "mcp.connected.link": () => ({ url: "https://northwind.vyre.run/mcp", claudeCode: "claude mcp add --transport http vyre https://northwind.vyre.run/mcp" }),
+    "access.check": (i: { action: { level: string } }) => ({ decision: { effect: o.viewOnly === true && i.action.level !== "view" ? "deny" : "allow", reason: "", steps: [], decisionId: "dec_1" } }),
+    "channels.get": () => ({ channel: { channelId: "ch_intake", mainThreadId: thread.threadId, name: "intake", visibility: "invite", archived: false, members: threadRow().members, agents: threadRow().agents } }),
+    "channels.members.add": () => ({ ok: true }),
+    "threads.members.add": (i: { personId: string }) => { const cur = threadRow(); setThread({ members: [...cur.members, { kind: "person", id: i.personId }] }); return { thread: threadRow() }; },
+    "threads.agent_settings.set": (i: { agentId: string; mode?: "lead" | "listen" | "quiet"; when?: "always" | "topics" | "hours"; topics?: string | null; style?: "short" | "full" }) => {
+      const cur = threadRow();
+      setThread({ agents: cur.agents.map((a) => (a.agentId !== i.agentId ? (i.mode === "lead" && a.mode === "lead" ? { ...a, mode: "listen" as const } : a) : { ...a, ...(i.mode !== undefined ? { mode: i.mode === "lead" ? ("lead" as const) : ("listen" as const), quiet: i.mode === "quiet" } : {}), ...(i.when !== undefined ? { when: i.when } : {}), ...(i.style !== undefined ? { style: i.style } : {}) })) });
+      return { thread: threadRow() };
+    },
+    "threads.agent.create": (i: { name: string; mode?: "lead" | "listen" | "quiet" }) => {
+      const cur = threadRow();
+      const id = `agt_new${++counter}`;
+      NAMES[id] = i.name;
+      KINDS[id] = "agent";
+      setThread({ agents: [...cur.agents, { agentId: id, mode: "listen", quiet: i.mode === "quiet", owned: true }], members: [...cur.members, { kind: "agent", id }] });
+      return { thread: threadRow(), agentId: id };
+    },
+    "threads.outside_agent.add": (i: { agentId: string }) => { const cur = threadRow(); NAMES[i.agentId] = "Claude Code"; setThread({ agents: [...cur.agents, { agentId: i.agentId, mode: "listen" }], members: [...cur.members, { kind: "agent", id: i.agentId }] }); return { thread: threadRow() }; },
+    "threads.outside_agent.remove": (i: { agentId: string }) => { const cur = threadRow(); setThread({ agents: cur.agents.filter((a) => a.agentId !== i.agentId), members: cur.members.filter((m) => m.id !== i.agentId) }); return { thread: threadRow() }; },
+    "threads.invite_guest": () => ({ inviteId: "inv_1", link: "https://northwind.vyre.run/join/inv_1" }),
+    "threads.poke": (i: { agentId: string; note?: string }) => {
+      const prev = msgRows();
+      const seq = (prev[prev.length - 1]?.threadSeq ?? 0) + 1;
+      putMsg({ messageId: `poke_${++counter}`, threadId: thread.threadId, threadSeq: seq, author: { kind: "person", id: "usr_irfad" }, kind: "quiet", body: `You poked ${NAMES[i.agentId] ?? i.agentId}`, blocks: [{ type: "poke", v: 1, id: `bp_${counter}`, data: { agentId: i.agentId, by: "usr_irfad" }, state: "done", traceId: "tr_poke" }], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: SAMPLE_NOW } as Message);
+      putMsg({ messageId: `pokeR_${counter}`, threadId: thread.threadId, threadSeq: seq + 1, author: { kind: "agent", id: i.agentId }, kind: "agent", body: "Here is where it stands: the letter is drafted and waiting on Maya.", blocks: [{ type: "poked", v: 1, id: `bq_${counter}`, data: { agentId: i.agentId, by: "usr_irfad" }, state: "done", traceId: "tr_poke" }], depth: 0, attachments: [], reactions: [], pinned: false, createdAt: SAMPLE_NOW + 1000 } as Message);
+      return { messageId: `poke_${counter}`, delivered: "engine" };
+    },
     "engine.interrupt": () => ({ ok: true }),
     "engine.models.list": () => ({ models: [
       { provider: "anthropic", model: "opus", title: "Opus", driver: "claude_code", allowed: true },
@@ -263,6 +312,8 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     },
     "threads.add_agent": (i: { agentId: string; mode?: "lead" | "listen" }) => { const cur = threadRow(); setThread({ agents: [...cur.agents, { agentId: i.agentId, mode: i.mode ?? "listen" }], members: [...cur.members, { kind: "agent", id: i.agentId }] }); return { ok: true }; },
     "threads.remove_agent": (i: { agentId: string }) => { const cur = threadRow(); setThread({ agents: cur.agents.filter((a) => a.agentId !== i.agentId), members: cur.members.filter((m) => m.id !== i.agentId) }); return { ok: true }; },
+    // where agents reply (lane l-threadreplies): the chat's own row carries the choice
+    "threads.set_agent_replies": (i: { threadId: string; inThreads: boolean }) => { setThread({ agentRepliesInThreads: i.inThreads }); return { thread: threadRow() }; },
     "threads.set_plan_mode": (i: { planMode: boolean }) => { setThread({ planMode: i.planMode }); return { planMode: i.planMode }; },
     "threads.make_channel": () => ({ channelId: "ch_new" }),
     "threads.reopen": () => { const { closedAt: _c, ...rest } = threadRow(); replica.put("threads", [rest]); return { ok: true }; },
@@ -310,7 +361,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     },
     connection,
     threadId: thread.threadId,
-    me: { id: "usr_irfad", name: "You" },
+    me: { id: "usr_irfad", name: "Irfad Imtiaz" },
     nameOf: (id) => NAMES[id] ?? id,
     kindOf: (id) => KINDS[id] ?? "person",
     nav,

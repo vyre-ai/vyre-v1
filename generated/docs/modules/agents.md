@@ -2,9 +2,9 @@
 
 Lane L2. Kind module. Version 0.1.0.
 
-Requires: chat, engine, mcp, memory, runs, terminal.
+Requires: chat, engine, mcp, memory, notes, runs, terminal.
 
-## Capabilities (94)
+## Capabilities (108)
 
 - [agents.assistant_of](../capabilities/agents.assistant_of.md): A person's own Assistant, for the server's modules that work for them; only the server and the person themself are answered
 - [agents.builtin_skill.get](../capabilities/agents.builtin_skill.get.md): Read one built-in skill by name, the full SKILL.md: Working in Vyre, the focus skill of a place (focus-records, focus-files, focus-automations, focus-vault, focus-inbox, focus-apps, focus-console), agent-loops, agent-computer
@@ -24,8 +24,10 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agents.outside.connect](../capabilities/agents.outside.connect.md): System: make the agent an app becomes when a person allows it. Called by mcp.oauth.allow, never by a client
 - [agents.outside.enqueue](../capabilities/agents.outside.enqueue.md): System: a mention or a task for an outside agent waits in its queue until it asks
 - [agents.outside.seen](../capabilities/agents.outside.seen.md): System: an outside agent called a tool: its status follows
-- [agents.outside.usable](../capabilities/agents.outside.usable.md): May the person asking give this agent work? An outside agent takes work from its owner only; every other agent says yes
+- [agents.outside.usable](../capabilities/agents.outside.usable.md): May the person asking give this agent work (a task, an automation step, a crew)? An outside agent takes work from its owner only; any other agent needs Can use on it (Can chat with is not enough); a person's Assistant is theirs alone
 - [agents.pause](../capabilities/agents.pause.md): Pause an agent with a reason; the status shows who paused it
+- [agents.pause_person](../capabilities/agents.pause_person.md): Pause every agent of one person, or let them run again. Audited, and the person is told. Answers how many changed, never which
+- [agents.people_summary](../capabilities/agents.people_summary.md): For each person whose agents you cannot see (their Assistant, the agents they keep private): how many, what they spent this month against their cap, and whether they are paused. Never names or content
 - [agents.restore](../capabilities/agents.restore.md): Restore an agent from Trash
 - [agents.restore_version](../capabilities/agents.restore_version.md): Restore AGENT.md or agent.toml to an earlier version
 - [agents.resume](../capabilities/agents.resume.md): Resume a paused agent
@@ -49,6 +51,12 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [agents.update](../capabilities/agents.update.md): Change an agent: name, model, fallback, account, tools, vault key names, limits, memory capture, handoffs; a broken agent.toml keeps the last good version running
 - [agents.versions](../capabilities/agents.versions.md): List versions of an agent definition (AGENT.md, agent.toml) for rollback
 - [agents.visibility.set](../capabilities/agents.visibility.set.md): Admin toggle "All in the Space" for agent lists (logged)
+- [install.apply](../capabilities/install.apply.md): Install what a plan says, for the person, for one agent, or for everyone in the Space (admin only). An agent asking is held at the Gate as a card with the plan; the person presses Install
+- [install.check_update](../capabilities/install.check_update.md): Read an install's repository again. A newer commit gives an update plan with the diff; nothing changes until the plan is applied
+- [install.from_link](../capabilities/install.from_link.md): Read a GitHub link (pinned to a commit) or an MCP server address and say what it is: a skill, a plugin, a local MCP server, a remote MCP server or a site, what it does, what it needs (network, Vault keys, files) and who can get it. Nothing is installed
+- [install.get](../capabilities/install.get.md): One plan, as its card draws it: what it is, what it needs, the commit, who can get it, and for an update the diff
+- [install.list](../capabilities/install.list.md): What was installed from links, by the person asking (an admin may ask for the whole Space)
+- [install.remove](../capabilities/install.remove.md): Take back an install: its skill, plugin or connection is removed
 - [plugins.agent_template.use](../capabilities/plugins.agent_template.use.md): Make an agent from a sub-agent a plugin brought (its description becomes the role line and its prompt the start of AGENT.md)
 - [plugins.agent_templates.list](../capabilities/plugins.agent_templates.list.md): Sub-agents that installed plugins bring, as templates a new agent can start from
 - [plugins.allow.list](../capabilities/plugins.allow.list.md): The marketplaces and plugins the admin allows
@@ -81,6 +89,9 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [plugins.set_enabled](../capabilities/plugins.set_enabled.md): Turn an installed plugin off or on without removing it
 - [plugins.uninstall](../capabilities/plugins.uninstall.md): Remove an installed plugin and what it brought
 - [skills.add](../capabilities/skills.add.md): Add or replace a skill in the Space library, or in one agent (SKILL.md text with name and description in its front matter, plus optional supporting files)
+- [skills.grant](../capabilities/skills.grant.md): Give an agent use, edit or manage of a skill, or take it back (level null). Use puts it in the agent's list; edit lets it save versions; manage lets it share the skill on
+- [skills.grants](../capabilities/skills.grants.md): Who owns a skill and which agents hold it, at what level
+- [skills.history](../capabilities/skills.history.md): The versions of a skill, newest first, each with who saved it and what changed
 - [skills.list](../capabilities/skills.list.md): Skills a chat with this agent can load: Vyre built-in, the Space library and the agent own skills/ folder, one line each. Two with one name are both listed, the one not used marked shadowedBy; a broken one is marked broken. With no agentId, the Space library and built-in ones
 - [skills.load](../capabilities/skills.load.md): Load the full text of one skill by name (SKILL.md body and its supporting files); agent skills win over Space ones, Space ones over built-in
 - [skills.members](../capabilities/skills.members.md): Console: the skills each member keeps for themselves, by name only; contents only of the ones they shared
@@ -88,10 +99,12 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [skills.mine.remove](../capabilities/skills.mine.remove.md): Remove one of your skills (and its shares), or take a shared one off your list
 - [skills.mine.set](../capabilities/skills.mine.set.md): Switch one of your skills (or one shared with you) on or off, pick the agents that use it, or give its tool servers their Vault keys
 - [skills.mine.update](../capabilities/skills.mine.update.md): Fetch one of your skills again from its link or repo; whoever it is shared with approves again if it can now touch more
+- [skills.of_agents](../capabilities/skills.of_agents.md): The skills the agents a person owns keep for themselves, one row each
 - [skills.page](../capabilities/skills.page.md): Settings > Skills for the person asking: cards for skills shared with them, their own skills (Mine), the Space skills an admin set, the built-in ones, and their agents to assign them to
 - [skills.policy.set](../capabilities/skills.policy.set.md): Console: who may add skills that run scripts or start tool servers (everyone, the default, or only admins)
 - [skills.preview](../capabilities/skills.preview.md): Read the skills in a link (a SKILL.md, a GitHub repo or folder, a zip), a dropped folder or a zip, with what each can touch. Nothing is saved
 - [skills.remove](../capabilities/skills.remove.md): Remove a skill from the Space library, or from one agent
+- [skills.save](../capabilities/skills.save.md): Write a skill as its owner (the person, or an agent they own; an agent writes its own) or as an agent given edit: a new skill, or a new version of one. Every save is a version
 - [skills.set_enabled](../capabilities/skills.set_enabled.md): Turn a Space or agent skill off or on without removing it
 - [skills.share](../capabilities/skills.share.md): Share one of your skills with chosen people in this Space, or with everyone here. Each of them gets a card and decides
 - [skills.shared.decide](../capabilities/skills.shared.decide.md): Add a skill shared with you, so it applies to you and your agents, or say Not now
@@ -99,6 +112,7 @@ Requires: chat, engine, mcp, memory, runs, terminal.
 - [skills.space.install](../capabilities/skills.space.install.md): Console: set a skill for everyone in the Space. It applies to every member and their agents at once, with no card
 - [skills.space.setup](../capabilities/skills.space.setup.md): Console: give the tool servers of a Space skill their Vault keys
 - [skills.space.update](../capabilities/skills.space.update.md): Console: fetch a Space skill again from its link or repo
+- [skills.undo](../capabilities/skills.undo.md): Undo the latest version of a skill; the version before it comes back as a new version, and undoing again brings the undone one back
 - [skills.view](../capabilities/skills.view.md): The full text and files of one skill: your own, one shared with you (before you add it, too), a Space one or a built-in one
 
 ## Events (37)

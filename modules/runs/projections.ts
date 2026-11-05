@@ -291,7 +291,8 @@ export function mayManage(ctx: RunsCtx, r: Pick<Run, "id" | "owner">): boolean {
   return !!ctx.authorize && ctx.authorize({ perm: "runs.manage", level: "manage" }, { type: "run", id: r.id }).effect === "allow";
 }
 /** The owner, the starter, a Manage holder, or anyone the kernel lets view the Run (a Run follows the access of its subject). */
-export function canSee(ctx: RunsCtx, r: Pick<Run, "id" | "owner" | "startedBy">): boolean {
+export function canSee(ctx: RunsCtx, r: Pick<Run, "id" | "owner" | "startedBy"> & Partial<Pick<Run, "kind" | "subject">>): boolean {
+  if (foldedFor(ctx, r as Pick<Run, "id" | "owner" | "startedBy" | "kind" | "subject">)) return false;
   if (mayManage(ctx, r) || r.startedBy === ctx.principal.id) return true;
   return !!ctx.authorize && ctx.authorize({ perm: null, level: "view" }, { type: "run", id: r.id }).effect === "allow";
 }
@@ -335,6 +336,21 @@ function sqlFilter(f: Pick<ListFilter, "kinds" | "statuses" | "since">): { where
 }
 
 /** Runs the caller may see, newest first. mine = owned by me; owner = one person's (Manage holders); subject = on one object; all = Manage holders and the Console. */
+/** A person's own agent work (a routine, or a run of an agent) is private to them: an admin who manages runs is told how many, never which. Shared with the caller on purpose, it shows. */
+export function foldedFor(ctx: RunsCtx, r: Pick<Run, "id" | "owner" | "startedBy"> & Partial<Pick<Run, "kind" | "subject">>): boolean {
+  if (isService(ctx) || r.owner === ctx.principal.id || r.owner === ctx.actingFor || r.startedBy === ctx.principal.id) return false;
+  if (r.kind !== "routine" && r.subject?.type !== "agent") return false;
+  return !(!!ctx.authorize && ctx.authorize({ perm: null, level: "view" }, { type: "run", id: r.id }).effect === "allow");
+}
+/** How many runs of each person's own agents are folded out of the caller's lists. */
+export function foldedCounts(ctx: RunsCtx, statuses?: readonly string[]): { person: string; runs: number }[] {
+  if (!isService(ctx) && !holdsAll(ctx)) raise(ctx, "permission.role_lacks_permission", "Only people who manage runs can see this.", { reason: "manage_required" });
+  const { where, args } = sqlFilter({ scope: "all", statuses } as ListFilter);
+  const rows = (ctx.db.all(`SELECT * FROM runs_items WHERE ${where} ORDER BY started_at DESC, id DESC`, ...args) as Raw[]).map(rowToRun);
+  const by = new Map<string, number>();
+  for (const r of rows) if (foldedFor(ctx, r)) by.set(r.owner, (by.get(r.owner) ?? 0) + 1);
+  return [...by].map(([person, runs]) => ({ person, runs })).sort((a, b) => b.runs - a.runs);
+}
 export function listRuns(ctx: RunsCtx, f: ListFilter): Run[] {
   const { where, args } = sqlFilter(f);
   const rows = (ctx.db.all(`SELECT * FROM runs_items WHERE ${where} ORDER BY started_at DESC, id DESC`, ...args) as Raw[]).map(rowToRun);
@@ -343,7 +359,7 @@ export function listRuns(ctx: RunsCtx, f: ListFilter): Run[] {
     case "mine": return rows.filter((r) => me(r.owner));
     case "owner": {
       const target = f.ownerId ?? ctx.principal.id;
-      return rows.filter((r) => r.owner === target && (me(target) || mayManage(ctx, r)));
+      return rows.filter((r) => r.owner === target && (me(target) || (mayManage(ctx, r) && !foldedFor(ctx, r))));
     }
     case "subject": {
       const s = f.subject;
@@ -352,7 +368,7 @@ export function listRuns(ctx: RunsCtx, f: ListFilter): Run[] {
     }
     default: {
       if (!isService(ctx) && !holdsAll(ctx)) raise(ctx, "permission.role_lacks_permission", "Only people who manage runs can list every run.", { reason: "manage_required" });
-      return rows;
+      return isService(ctx) ? rows : rows.filter((r) => !foldedFor(ctx, r));
     }
   }
 }

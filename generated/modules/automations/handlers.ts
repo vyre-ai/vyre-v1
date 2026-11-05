@@ -52,6 +52,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.schedule_choose": Handler<"automations.schedule_choose", X>;
   "automations.senders": Handler<"automations.senders", X>;
   "automations.set_enabled": Handler<"automations.set_enabled", X>;
+  "automations.set_owner": Handler<"automations.set_owner", X>;
   "automations.steps.list": Handler<"automations.steps.list", X>;
   "automations.stop": Handler<"automations.stop", X>;
   "automations.templates.list": Handler<"automations.templates.list", X>;
@@ -64,6 +65,11 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.validate": Handler<"automations.validate", X>;
   "automations.vault_usage": Handler<"automations.vault_usage", X>;
   "automations.versions": Handler<"automations.versions", X>;
+  "automations.watches.check": Handler<"automations.watches.check", X>;
+  "automations.watches.list": Handler<"automations.watches.list", X>;
+  "automations.watches.remove": Handler<"automations.watches.remove", X>;
+  "automations.watches.report": Handler<"automations.watches.report", X>;
+  "automations.watches.save": Handler<"automations.watches.save", X>;
   "automations.webhook_url.get": Handler<"automations.webhook_url.get", X>;
   "automations.webhook_url.rotate": Handler<"automations.webhook_url.rotate", X>;
 }

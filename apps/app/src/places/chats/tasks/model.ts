@@ -1,6 +1,8 @@
 // The Tasks page as plain data (no React): which section a task sits in, the flat list the virtual list draws, grouping, sorting, the quiet filters, and the words of a due date. Every function is pure and fast at
 // 5,000 rows: one pass over the rows, no lookup that walks them again.
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { dateIn, dayIn, partsIn, titleOf } from "../../../../../../lib/zones.ts";
+import type { Zones } from "../../../../../../lib/zones.ts";
 import type { TaskState } from "../../../../../../ui/src/TaskPage/model.ts";
 
 export type IndexOut = CapMap["tasks.index"]["out"];
@@ -228,14 +230,12 @@ export function buildEntries(b: BuildIn): Entry[] {
 const WEEKDAY = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** A due date in the words a person uses, and whether it has passed. */
-export function dueLabel(due: number | undefined, now: number, offsetMin: number): { text: string; late: boolean } {
+/** A due date in the words a person uses, and whether it has passed: the day is the Space's day, `title` carries both zones for hover. */
+export function dueLabel(due: number | undefined, now: number, z: Zones): { text: string; late: boolean; title: string } | { text: ""; late: false; title?: undefined } {
   if (due === undefined) return { text: "", late: false };
-  const start = dayStart(now, offsetMin);
-  const days = Math.floor((dayStart(due, offsetMin) - start) / DAY);
-  const d = new Date(due + offsetMin * 60_000);
-  const text = days === 0 ? "Today" : days === 1 ? "Tomorrow" : days === -1 ? "Yesterday" : days > 1 && days < 7 ? WEEKDAY[d.getUTCDay()]! : `${d.getUTCDate()} ${MONTH[d.getUTCMonth()]}`;
-  return { text, late: due < start };
+  const days = dayIn(due, z.space) - dayIn(now, z.space);
+  const text = days === 0 ? "Today" : days === 1 ? "Tomorrow" : days === -1 ? "Yesterday" : days > 1 && days < 7 ? WEEKDAY[partsIn(due, z.space).dow]! : dateIn(due, z.space).replace(/^\w+ /, "");
+  return { text, late: days < 0, title: titleOf(due, z) };
 }
 
 export const KIND_TITLE: Record<string, string> = { work: "Work", approve: "Approve", review: "Review", answer: "Answer", unblock: "Unblock", signature: "Signature" };

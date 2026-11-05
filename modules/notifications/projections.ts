@@ -9,8 +9,8 @@ export type Place = "home" | "chats" | "inbox" | "records" | "files" | "apps" | 
 export type KindKey =
   | "approval.requested" | "answer.requested" | "unblock.requested" | "approval.backstop" | "dm" | "mention" | "call.incoming" | "agent.blocked" | "incident.owned" | "task.assigned" | "reply.followed"
   | "agent.task_finished" | "digest.away" | "mention.thread" | "run.failed" | "conflict.needs_you" | "access.requested" | "access.decided"
-  | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "limit.hit" | "vault.rotation_due" | "reply.thread"
-  | "task.turn" | "task.returned" | "task.finished" | "task.due";
+  | "sync.attention" | "health.degraded" | "problem.report" | "member.joined" | "member.join_requested" | "limit.hit" | "vault.rotation_due" | "reply.thread"
+  | "task.turn" | "task.returned" | "task.finished" | "task.due" | "machine.alert" | "item.shared" | "space.deletion_scheduled" | "space.deletion_cancelled" | "ci.paused" | "hook.asked";
 export type Action = { label: string; cap: string };
 export interface KindDef {
   key: KindKey; level: Level; place: Place; title: string; pushTitle?: string; actions: Action[]; agentRateKey?: string; backstopEmailAfterHours?: number; respectHours: boolean;
@@ -21,7 +21,7 @@ const a = (label: string, cap: string): Action => ({ label, cap });
 const needsYou = (agent = true): Partial<KindDef> => ({ pushTitle: "{{space}} needs you", ...(agent ? { agentRateKey: "agent_interrupt" } : {}) });
 
 export const KINDS: readonly KindDef[] = [
-  kind("approval.requested", "interrupt", "chats", "Approval needed: {{title}}", { ...needsYou(), actions: [a("Approve", "tasks.act"), a("Send back", "tasks.act")], backstopEmailAfterHours: 4 }),
+  kind("approval.requested", "interrupt", "chats", "Approval needed: {{title}}", { ...needsYou(), actions: [a("Allow", "tasks.act"), a("Deny", "tasks.act")], backstopEmailAfterHours: 4 }),
   kind("answer.requested", "interrupt", "chats", "Needs your answer: {{title}}", { ...needsYou(), actions: [a("Answer", "tasks.act")], backstopEmailAfterHours: 4 }),
   kind("unblock.requested", "interrupt", "chats", "Needs you: {{title}}", { ...needsYou(), actions: [a("Open", "tasks.act")], backstopEmailAfterHours: 4 }),
   kind("approval.backstop", "interrupt", "chats", "Still waiting on you: {{title}}", { pushTitle: "{{space}} needs you", actions: [a("Open", "tasks.act")], respectHours: false }),
@@ -43,10 +43,17 @@ export const KINDS: readonly KindDef[] = [
   kind("conflict.needs_you", "badge", "records", "Two edits conflict on {{title}}", { actions: [a("Resolve", "tasks.act")] }),
   kind("access.requested", "badge", "console", "{{from}} asks for {{level}} access to {{title}}", { actions: [a("Review", "tasks.act")] }),
   kind("access.decided", "badge", "home", "Your access request for {{title}} was {{decision}}"),
+  kind("item.shared", "badge", "inbox", "{{from}} shared {{title}} with you"),
   kind("sync.attention", "badge", "settings", "Sync needs attention on {{device}}"),
   kind("health.degraded", "badge", "console", "{{service}} is {{state}}"),
+  kind("machine.alert", "badge", "inbox", "{{title}}", { actions: [a("Open", "machines.list")] }),
+  kind("space.deletion_scheduled", "badge", "inbox", "{{title}}", { actions: [a("Cancel deletion", "spaces.delete_cancel")] }),
+  kind("space.deletion_cancelled", "badge", "inbox", "{{title}}"),
+  kind("ci.paused", "badge", "console", "{{title}}", { actions: [a("Open", "ci.cost.month")] }),
+  kind("hook.asked", "badge", "inbox", "{{title}}", { actions: [a("Open", "hooks.list")] }),
   kind("problem.report", "badge", "console", "Problem report from {{from}}", { actions: [a("Review", "tasks.act")] }),
   kind("member.joined", "digest", "home", "{{name}} joined {{space}}"),
+  kind("member.join_requested", "badge", "console", "{{name}} asked to join {{space}}", { actions: [a("Review", "members.join_requests.list")] }),
   kind("limit.hit", "badge", "chats", "{{title}} hit its limit", { actions: [a("Raise once", "tasks.act"), a("Stop", "tasks.act")] }),
   kind("vault.rotation_due", "badge", "vault", "Time to rotate {{title}}", { actions: [a("Mark rotated", "vault.item.mark_rotated")] }),
   kind("reply.thread", "interrupt", "chats", "{{from}} replied in {{where}}", { ...needsYou(), actions: [a("Reply", "chat.post")] }),
@@ -109,7 +116,8 @@ const parse = <T>(s: unknown, fallback: T): T => { try { return JSON.parse(Strin
 
 /** {{name}} filled from the data; an unknown name becomes empty and the line is tidied ("Message from " is never shown with a hole). */
 export function render(tpl: string, vars: Record<string, unknown>): string {
-  const s = tpl.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => (vars[k] === undefined || vars[k] === null ? "" : String(vars[k])));
+  const s = tpl.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => (vars[k] === undefined || vars[k] === null ? "" : String(vars[k])))
+    .replace(/^Approval needed: (?=\S.* wants to )/, "");   // an agent's request already says who wants what: no label in front of it
   return s.replace(/\s+/g, " ").replace(/\s+([:,.])/g, "$1").replace(/[:,]\s*$/, "").trim();
 }
 

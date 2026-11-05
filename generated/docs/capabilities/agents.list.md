@@ -30,6 +30,7 @@ type In = {
   status?: Array<"awake" | "working" | "asleep" | "paused">;
   teammates?: "hide" | "include" | "only";
   projectId?: string;
+  threadId?: string;
   cursor?: string;
   limit?: number;
 };
@@ -53,6 +54,7 @@ type Out = {
       folderId: string;
       model?: string;
       fallbackModel?: string;
+      helperModels?: "same_provider" | "any" | "ask";
       accountPolicy: "asker" | "key";
       accountKey?: string;
       accountFallback: Array<string>;
@@ -76,6 +78,7 @@ type Out = {
       createdAt: number;
       lastActiveAt?: number;
       teammateOf?: string;
+      chatOf?: string;
     }>;
   next?: string;
   total?: number;
@@ -98,12 +101,13 @@ type Out = {
     "cursor": "example",
     "folderId": "fld_a1b2c3",
     "limit": 1,
-    "projectId": "prj_a1b2c3",
+    "projectId": "example",
     "section": "personal",
     "status": [
       "awake"
     ],
-    "teammates": "hide"
+    "teammates": "hide",
+    "threadId": "thr_a1b2c3"
   },
   "output": {
     "agents": [
@@ -115,11 +119,13 @@ type Out = {
         "accountPolicy": "asker",
         "agentId": "agt_a1b2c3",
         "captureMode": "auto",
+        "chatOf": "thr_a1b2c3",
         "createdAt": 1760000000000,
         "face": "intake",
         "fallbackModel": "example",
         "folderId": "fld_a1b2c3",
         "hasComputer": true,
+        "helperModels": "same_provider",
         "kind": "assistant",
         "lastActiveAt": 1760000000000,
         "limits": {
@@ -140,7 +146,7 @@ type Out = {
         "runtime": "vyre",
         "status": "awake",
         "switchOnLimit": true,
-        "teammateOf": "prj_a1b2c3",
+        "teammateOf": "example",
         "templateVersion": 1,
         "toolsAllowed": [
           "example"

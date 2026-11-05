@@ -5,6 +5,9 @@
 //   retries    429 with a short Retry-After, 5xx and network errors before the first byte, with backoff; after the first byte an error is surfaced, never replayed
 //   cancel     aborts the request in flight and releases any wait for a tool result; the generator ends without an error event
 //   caching    the stable system blocks and the sorted tool list are hashed and marked (prefix.ts); each call notes whether the prefix matched the one before
+import { slimTool } from "./slim.ts";
+import { FIRST_TOKEN_API_MS, NO_FIRST_TOKEN_CODE, NO_FIRST_TOKEN_LINE, logNoFirstToken } from "../first-token.ts";
+import type { NoFirstTokenLog } from "../first-token.ts";
 import { windowFor } from "../../transcript/windows.ts";
 import type { DriverEvent, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
 import { classify, plainRefusal, retryAfterMs, scrub } from "./errors.ts";
@@ -23,6 +26,8 @@ export interface SessionContext {
   system: SystemBlock[];
   tools: ApiTool[];
   maxOutputTokens?: number;
+  /** The tool set as it stands now. Read again after a step that ran tool_search: what the search loaded is callable in the next step of the same turn. */
+  reload?(): Promise<readonly ApiTool[]>;
 }
 
 export interface RetryPolicy {
@@ -47,6 +52,10 @@ export interface SessionDeps {
   retry?: Partial<RetryPolicy>;
   /** No bytes for this long ends the call. Default 60 s. */
   idleMs?: number;
+  /** How long a call may go without a first text, thinking or tool event (headers or not) before the turn ends with a plain line. Default FIRST_TOKEN_API_MS. */
+  firstTokenMs?: number;
+  /** Told when a call hit the first-token deadline. Default: one line on stderr. */
+  onNoFirstToken?: NoFirstTokenLog;
   /** Provider calls in one send. Default 40. */
   maxSteps?: number;
   random?: () => number;
@@ -129,8 +138,28 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
       const relay = (): void => att.abort();
       signal.addEventListener("abort", relay, { once: true });
       let res: FetchResponse;
+      const waitMs = deps.firstTokenMs ?? FIRST_TOKEN_API_MS;
+      const startedAt = Date.now();
+      const deadline = startedAt + waitMs;
+      const noFirstToken = (): Decoded => {
+        (deps.onNoFirstToken ?? logNoFirstToken)({ provider: deps.adapter.id, model, account: deps.account.ref, waitedMs: Date.now() - startedAt });
+        return { type: "error", status: 0, code: NO_FIRST_TOKEN_CODE, message: NO_FIRST_TOKEN_LINE };
+      };
       try {
-        res = await deps.fetch(url, { method: "POST", headers: { ...wire.headers, ...opencodeHeaders(deps.base, req.conversation ?? req.prefixHash), ...auth }, body: JSON.stringify(wire.body), signal: att.signal });
+        let waited: ReturnType<typeof setTimeout> | undefined;
+        const silent = new Promise<"silent">((resolve) => { waited = setTimeout(() => resolve("silent"), Math.max(0, deadline - Date.now())); });
+        const got = deps.fetch(url, { method: "POST", headers: { ...wire.headers, ...opencodeHeaders(deps.base, req.conversation ?? req.prefixHash), ...auth }, body: JSON.stringify(wire.body), signal: att.signal });
+        got.catch(() => undefined);   // a request cut below must not surface as an unhandled rejection
+        const first = await Promise.race([got, silent]).finally(() => { if (waited !== undefined) clearTimeout(waited); });
+        if (first === "silent") {
+          // the provider took the request and never answered: the connection is released and the turn says so, plainly (no retry)
+          att.abort();
+          signal.removeEventListener("abort", relay);
+          if (signal.aborted) return;
+          yield noFirstToken();
+          return;
+        }
+        res = first;
       } catch (e) {
         signal.removeEventListener("abort", relay);
         if (signal.aborted) return;
@@ -156,7 +185,10 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
       let failed: Decoded | null = null;
       try {
         for (;;) {
-          const step = await nextWithin(it, deps.idleMs ?? IDLE_MS, () => att.abort());
+          // Until the first text, thinking or tool event the deadline runs from the request: pings and usage lines do not keep a silent call alive.
+          const left = got ? Infinity : deadline - Date.now();
+          const step = await nextWithin(it, Math.min(deps.idleMs ?? IDLE_MS, Math.max(0, left)), () => att.abort());
+          if (step === "idle" && !got && Date.now() >= deadline) { yield noFirstToken(); return; }
           if (step === "idle") { failed = { type: "error", status: 0, code: "provider.unavailable", message: "The provider stopped answering." }; break; }
           if (step.done) break;
           for (const d of dec.push(step.value)) {
@@ -201,10 +233,11 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
     abort = ac;
     results.clear();
     try {
-      const ctx = await deps.context(spec, input);
+      const asked = await deps.context(spec, input);
+      const ctx = { ...asked, tools: asked.tools.map(slimTool) };   // the copy the model reads is trimmed (slim.ts); calls are still validated against the full schema
       const system = orderSystem(ctx.system);
-      const hash = prefixHash(system, ctx.tools, model);
-      const fixed = fixedTokens(system, ctx.tools);
+      let hash = prefixHash(system, ctx.tools, model);
+      let fixed = fixedTokens(system, ctx.tools);
       const window = windowFor(model, deps.adapter.id);
       let messages: Msg[] = threadMessages(input);
       const maxSteps = deps.maxSteps ?? MAX_STEPS;
@@ -234,7 +267,7 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         tracker.settle(u.cacheReadTokens, u.cacheWriteTokens);
         if (inTokens > 0 || u.outputTokens > 0) {
           yield {
-            type: "usage", inputTokens: inTokens, outputTokens: u.outputTokens,
+            type: "usage", inputTokens: inTokens, outputTokens: u.outputTokens, contextTokens: inTokens,
             ...(told.has("cacheReadTokens") ? { cacheReadTokens: u.cacheReadTokens } : {}), ...(told.has("cacheWriteTokens") ? { cacheWriteTokens: u.cacheWriteTokens } : {}),
             ...(u.reasoningTokens !== undefined ? { reasoningTokens: u.reasoningTokens } : {}), ...(u.costUsd !== undefined ? { costUsd: u.costUsd } : {}),
           };
@@ -242,11 +275,23 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
         if (stop === "filtered" && text === "" && pending.length === 0) { yield { type: "error", code: "provider.filtered", message: "The provider declined to answer." }; return; }
 
         if (pending.length > 0) {
+          // the step is complete: these calls are the whole batch, and results may come back in any order
+          yield { type: "tool_wait" };
           messages.push({ role: "assistant", text, calls: pending });
           for (const p of pending) {
             const r = await waitFor(p.id, ac.signal);
             if (r === null) return;
             messages.push({ role: "tool", callId: p.id, name: p.name, ok: r.ok, content: cap(typeof r.content === "string" ? r.content : JSON.stringify(r.content ?? null)) });
+          }
+          // A tool the search just found is callable in the very next step. The new ones go at the end, so the tools already sent keep their place and the cached prefix up to them stays valid.
+          if (ctx.reload && pending.some((p) => p.name === "tool_search")) {
+            const known = new Set(ctx.tools.map((t) => t.name));
+            const fresh = (await ctx.reload().catch(() => [] as readonly ApiTool[])).filter((t) => !known.has(t.name)).map(slimTool);
+            if (fresh.length > 0) {
+              ctx.tools = [...ctx.tools, ...fresh];
+              hash = prefixHash(system, ctx.tools, model);
+              fixed = fixedTokens(system, ctx.tools);
+            }
           }
         } else if (text !== "") {
           messages.push({ role: "assistant", text, calls: [] });
@@ -275,6 +320,7 @@ export function createApiSession(deps: SessionDeps, spec: SessionSpec): ApiSessi
 
   return {
     get warm() { return sends > 0; },
+    parallelTools: true,
     send: (input) => send(input),
     sendToolResult(callId, result) { results.set(callId, result); poke(); },
     inject(msg) { injected.push(msg); },

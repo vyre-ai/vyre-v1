@@ -4,7 +4,7 @@
 import { deferredHandlers } from "../../host/src/routes/deferred.ts";
 
 export { inline } from "./projections.ts";
-export { routeById, routeBySlug, routeByTicket, routeByHost, deployedHosts, containerAddress } from "./handlers/route.ts";
+export { exchangeArtifactCode, routeByArtifactSession, routeById, routeBySlug, routeByTicket, routeByHost, deployedHosts, containerAddress } from "./handlers/route.ts";
 export { autoDeploySites, checkPassword, newTicket, servingContainers, siteSubnets, SESSION_MS } from "./handlers/release.ts";
 import { registry } from "../../generated/registry.ts";
 import { configureDomainEdge, configureRoutes, routeHandlers } from "./handlers/route.ts";

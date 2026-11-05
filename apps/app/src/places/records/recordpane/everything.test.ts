@@ -54,3 +54,26 @@ test("a record lists its meetings with where their close-out stands, and a tap o
   const out = await loadEverything({ call: async (cap, input) => { if (cap === "meetings.closeout.list") { assert.deepEqual(input, { recordId: "rec_1", limit: 50 }); return { meetings: [{ meetingId: "rec_m1", title: "Renewal call", startsAt: 20, attendees: [], state: "nothing", proposed: 0, done: 0 }], ready: 0 }; } throw new Error("no"); }, type: "contact", recordId: "rec_1", names, folderOf: async () => null });
   assert.deepEqual(out.map((x) => [x.kind, x.note]), [["meeting", "Nothing to do"]]);
 });
+
+test("the feed is drawn once, final: a row for a thing the person cannot open loses its name and its link before the first draw, from one access.reach call", async () => {
+  const { withReach } = await import("./everything.ts");
+  const calls: Array<{ cap: string; input: { items: Array<{ type: string; id: string }> } }> = [];
+  const call = async (cap: string, input: unknown): Promise<unknown> => { const i = input as { items: Array<{ type: string; id: string }> }; calls.push({ cap, input: i }); return { items: i.items.map((x) => ({ ...x, level: x.id === "fil_private" ? "none" : "view" })) }; };
+  const feed = [
+    { id: "file:fil_ok", kind: "file", at: 3, title: "Send the retainer", note: "Ana updated it", subject: { type: "file", id: "fil_ok" } },
+    { id: "file:fil_private", kind: "file", at: 2, title: "Settlement offer", note: "Ana updated it", subject: { type: "file", id: "fil_private" } },
+    { id: "comment:c1", kind: "comment", at: 1, title: "A comment" },
+  ] as never[];
+  const out = await withReach(call as never, feed);
+  assert.equal(calls.length, 1, "one call for the whole feed");
+  assert.deepEqual(out.map((x: { title: string; subject?: unknown }) => [x.title, x.subject !== undefined]), [["Send the retainer", true], ["A file you don't have access to", false], ["A comment", false]]);
+  // a task in the feed came from tasks.list, which already answers for this person (an assignee included): reach is not asked about it and it is never hidden
+  const withTask = [...feed, { id: "task:tsk_mine", kind: "task", at: 4, title: "Call Dana back", note: "To do", subject: { type: "task", id: "tsk_mine" } }] as never[];
+  const asked: string[] = [];
+  const hideAll = async (_cap: string, input: unknown): Promise<unknown> => { const i = input as { items: Array<{ type: string; id: string }> }; asked.push(...i.items.map((x) => x.type)); return { items: i.items.map((x) => ({ ...x, level: "none" })) }; };
+  const kept = await withReach(hideAll as never, withTask);
+  assert.ok(!asked.includes("task"), "reach is not asked about tasks");
+  assert.equal((kept.find((x: { id: string }) => x.id === "task:tsk_mine") as { title: string }).title, "Call Dana back");
+  const broken = await withReach((async () => { throw new Error("down"); }) as never, feed);
+  assert.deepEqual(broken, feed, "a Space that does not answer leaves the rows as they are");
+});

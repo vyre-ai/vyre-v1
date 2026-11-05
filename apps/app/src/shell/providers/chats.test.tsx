@@ -10,7 +10,7 @@ import { ChatsSidebarSlot } from "../../places/chats/sidebar/ChatsSidebar.tsx";
 import { createSampleSidebar } from "../../places/chats/sidebar/sample.ts";
 import { SidebarContent } from "../sidebar/index.ts";
 import type { SidebarSlotApi } from "../sidebar/index.ts";
-import type { Principal } from "../../places/home/sections-a/data.tsx";
+import type { Principal } from "../session/runtime-data.ts";
 import ChatsPlace, { newestThread } from "./chats.tsx";
 import { conversationData, sidebarData } from "./chats-data.ts";
 import { createComposerFill } from "../../places/chats/conversation/data.tsx";
@@ -128,4 +128,13 @@ test("chats: the sidebar's dot says another Space needs you, from the Spaces the
   assert.equal(sidebarData({ ...rt, knownSpaces: [space("northwind", true)] }, actions).space.otherNeedsYou, false, "this Space needing you is not another Space");
   assert.equal(sidebarData({ ...rt, knownSpaces: [space("northwind", false), space("harbor", false)] }, actions).space.otherNeedsYou, false);
   assert.equal(sidebarData({ ...rt, knownSpaces: [space("northwind", false), space("harbor", true)] }, actions).space.otherNeedsYou, true);
+});
+
+test("chats: the sidebar's nav opens a project by subject through rt.open (the wiring a real-browser walk found missing)", () => {
+  const { rt } = runtime();
+  const opened: ShellTarget[] = [];
+  const data = sidebarData({ ...rt, open: (t: ShellTarget) => { opened.push(t); } }, chatsActions(GO));
+  assert.equal(typeof data.nav.openProject, "function", "the sidebar can open a project");
+  data.nav.openProject!("prj_1");
+  assert.deepEqual(opened, [{ subject: { type: "project", id: "prj_1" } }]);
 });

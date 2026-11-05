@@ -49,7 +49,7 @@ test("Schema and sensitivity pages expose record-type objects and live label con
   if (!pages) return;
   const type = { key: "matter", title: "Matter", plural: "Matters", icon: "record", label: "confidential", system: false, titleField: "title", fields: [{ key: "title", type: "text", title: "Title", required: true }], version: 3 };
   const schema = draw(<pages.SchemaPage />, { "schema.describe": { types: [type] }, "schema.changes.list": { changes: [] }, "schema.trash.list": { items: [] }, "schema.field_types": { fieldTypes: [{ key: "text", title: "Text", filterOps: [], sortable: true, groupable: true, sealed: false }] } });
-  assert.match(schema, /Matter|Version 3|Add field|Create record type|Preview schema change|Field type|Text/);
+  assert.match(schema, /Matter|Version 3|Add field|Create record type|Preview change|Field type|Text/);
   assert.doesNotMatch(schema, /Operations \(JSON array\)|Field type \(text\)/);
   const labels = { labels: [{ label: "public", rank: 0, providers: "any", syncToLaptop: true }, { label: "restricted", rank: 3, providers: "none", syncToLaptop: false }] };
   const labelsPage = draw(<pages.LabelsPage />, { "access.labels.list": labels, "schema.describe": { types: [type] }, "access.lists": { rows: [] } });
@@ -97,7 +97,7 @@ test("Integrations pages expose connector, connection, webhook and one-time API 
 
 test("Console provider dispatches every owned page to a real surface", async () => {
   const provider = await import("../../shell/providers/console.tsx");
-  const owned = ["agents", "actors", "computers", "template", "schema", "labels", "domains", "numbers", "inboxes", "texting", "connectors", "connections", "webhooks", "keys"];
+  const owned = ["agents", "actors", "machines", "template", "schema", "labels", "domains", "numbers", "inboxes", "texting", "apps", "servers", "agentcomputers", "ci", "ghapp", "spacedel", "export", "sendrules", "dnc", "webhooks", "keys"];
   for (const id of owned) {
     const page = provider.consolePageFor?.(id, {});
     assert.ok(page, `${id} has a page component`);

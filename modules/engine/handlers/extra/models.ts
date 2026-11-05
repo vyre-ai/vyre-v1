@@ -3,21 +3,25 @@
 // the policy or the open label forbids is still listed, greyed, with the reason, so the picker can say why. Nothing here holds a secret value.
 // A subscription engine (Codex, Claude Code, Grok) lists what the vendor's own CLI offers that account, saved per account and refreshed when the menu opens (live-models.ts); an API key's
 // models are the provider's own list (providers.test). Every row is named the way the vendor names it.
+import { readFileSync } from "node:fs";
 import { windowFor } from "../../../../agent/src/transcript/windows.ts";
 import { actorOf, raise } from "../../projections.ts";
-import { ensureRuntime } from "../../runtime.ts";
+import { completerOf, ensureRuntime } from "../../runtime.ts";
+import { CLI_PROBE_PARALLEL, CLI_PROBE_TIMEOUT_MS, PROBE_CAP, PROBE_PROMPT, noteAccount, confirmedFor, probeModels, probeRunning, probing, unavailableFor } from "../../model-health.ts";
 import { LIVE_DRIVERS, modelsFor, savedTested, saveTested } from "../../live-models.ts";
 import type { LiveModel, ModelsState } from "../../live-models.ts";
 import type { EngineCtx } from "../../projections.ts";
 import { blockedBy, readPolicy } from "./config.ts";
 import { modelLimits } from "../usage.ts";
 import { cliSandboxGap } from "../../sandbox-default.ts";
+import { CLI_NAME, findProgram } from "../../cli-programs.ts";
+import type { NodeCliProbe } from "../../cli-programs.ts";
 import { engineHost } from "../../runtime.ts";
 import type { Label, Policy } from "./config.ts";
 
 interface ProviderRow {
   id: string; providerKey: string; name: string; connection: "subscription" | "api_key" | "local_model"; scope: "mine" | "shared"; handle?: string; itemId: string;
-  engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; spaceKey?: boolean;
+  engine: string; spaceMayUse: boolean; state: "ok" | "needs_sign_in" | "failing"; spaceKey?: boolean; keepsNothing?: boolean;
   /** Handles of sign-ins of the same account folded into this row. */
   aliases?: string[];
 }
@@ -39,6 +43,9 @@ export function driverOf(p: Pick<ProviderRow, "engine" | "connection" | "provide
   if (p.connection === "local_model") return "local";
   return DRIVER_SET.has(p.providerKey) ? (p.providerKey as Driver) : "openrouter";
 }
+
+/** Does this account keep nothing of what it is sent: a local model always, any other only when an owner or admin said so. */
+const keeps = (p: Pick<ProviderRow, "connection" | "keepsNothing">): boolean => p.connection === "local_model" || p.keepsNothing === true;
 
 async function myProviders(ctx: EngineCtx): Promise<ProviderRow[]> {
   const out = (await ctx.call("providers.list", {})) as { providers: ProviderRow[] };
@@ -63,7 +70,7 @@ function prettyModel(model: string): string {
 }
 
 interface ModelInfo {
-  provider: string; model: string; title: string; driver: Driver; contextTokens?: number; allowed: boolean; reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit"; resetsAt?: number;
+  provider: string; model: string; title: string; driver: Driver; contextTokens?: number; allowed: boolean; reason?: "label_provider" | "policy_model" | "not_connected" | "usage_limit" | "checking"; resetsAt?: number;
   /** The CLI's own name that resolves to this model today (Claude Code's opus): a pick saved as the alias is this row. */
   alias?: string; isDefault?: boolean; efforts?: string[]; defaultEffort?: string;
 }
@@ -125,15 +132,29 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
   for (const { p, models } of found) {
     // a model this account ran out of is listed greyed, with when it comes back when the provider said (engine.usage.get shows its meter full)
     const out = modelLimits(ctx.db, p.handle ?? p.itemId, ctx.now());
+    // a model this account just refused is not offered until it works again (model-health.ts)
+    const ref = p.handle ?? p.itemId;
+    const refused = unavailableFor(ctx.db, ref, ctx.now());
+    // an API key's models are checked once, in the background, with one tiny request each (capped): until a model is confirmed it is shown greyed as "Checking..."
+    const checking = new Set<string>();
+    const isCli = subs.includes(p);
+    noteAccount(ctx.db, p.id, ref);
+    if (!passive && p.spaceKey !== true && completerOf() !== null) {
+      const known = confirmedFor(ctx.db, ref, ctx.now());
+      const unsure = models.filter((m) => !refused.has(m) && !known.has(m)).slice(0, PROBE_CAP);
+      for (const m of unsure) checking.add(m);
+      if (unsure.length > 0) probeModels(ctx.db, ref, unsure, async (r, m) => { await ctx.call("engine.complete", { accountRef: r, prompt: PROBE_PROMPT, model: m }); }, ctx.now, isCli ? { parallel: CLI_PROBE_PARALLEL, timeoutMs: CLI_PROBE_TIMEOUT_MS } : {});
+    }
     for (const model of models) {
-      const why = blockedBy(policy, { provider: p.providerKey, model, ...(label === undefined ? {} : { label }) });
+      if (refused.has(model)) continue;
+      const why = blockedBy(policy, { provider: p.providerKey, model, ...(label === undefined ? {} : { label }), keepsNothing: keeps(p) });
       const spent = why === null ? out.get(model) : undefined;
       const lm = live.get(`${p.providerKey}/${model}`);
       // a pick saved as the alias (sonnet) ran out under that name: the row it resolves to is greyed too
       const spentAs = spent ?? (why === null && lm?.alias ? out.get(lm.alias) : undefined);
       const row: ModelInfo = {
-        provider: p.providerKey, model, title: lm?.title ?? prettyModel(model), driver: driverOf(p), contextTokens: windowFor(model, p.providerKey), allowed: why === null && spentAs === undefined,
-        ...(why !== null ? { reason: why } : spentAs ? { reason: "usage_limit" as const, ...(spentAs.resetsAt !== undefined ? { resetsAt: spentAs.resetsAt } : {}) } : {}),
+        provider: p.providerKey, model, title: lm?.title ?? prettyModel(model), driver: driverOf(p), contextTokens: windowFor(model, p.providerKey), allowed: why === null && spentAs === undefined && !checking.has(model),
+        ...(why !== null ? { reason: why } : checking.has(model) && spentAs === undefined ? { reason: "checking" as const } : spentAs ? { reason: "usage_limit" as const, ...(spentAs.resetsAt !== undefined ? { resetsAt: spentAs.resetsAt } : {}) } : {}),
         ...(lm?.alias ? { alias: lm.alias } : {}), ...(lm?.isDefault ? { isDefault: true } : {}), ...(lm?.efforts ? { efforts: lm.efforts } : {}), ...(lm?.defaultEffort ? { defaultEffort: lm.defaultEffort } : {}),
       };
       const key = `${row.provider}/${row.model}`;
@@ -151,7 +172,17 @@ export async function modelsList(ctx: EngineCtx, input: { accountRef?: string; t
   const order = new Map([...live.keys()].map((k, i) => [k, i]));
   const rank = (m: ModelInfo): number => order.get(`${m.provider}/${m.model}`) ?? Number.MAX_SAFE_INTEGER;
   const out = [...byKey.values()].sort((a, b) => Number(b.allowed) - Number(a.allowed) || a.provider.localeCompare(b.provider) || rank(a) - rank(b) || a.model.localeCompare(b.model));
-  const listed = listState(states, ctx.now());
+  const refs = chosen.map((p) => p.handle ?? p.itemId);
+  // the menu's second call waits a moment for the checks it started and answers with their result
+  if (!passive && input.wait === true && probing(refs).length > 0) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([Promise.all(probing(refs)), new Promise<void>((r) => { timer = setTimeout(r, WAIT_MS); })]);
+    if (timer !== undefined) clearTimeout(timer);
+    return modelsList(ctx, { ...input, wait: false, refresh: false });
+  }
+  const checkingNow = !passive && refs.some(probeRunning);
+  const base = listState(states, ctx.now());
+  const listed = checkingNow ? { ...(base ?? { source: "live" as const }), refreshing: true, failed: base?.failed ?? false } : base;
   return { models: out, ...(listed ? { listed } : {}) };
 }
 
@@ -164,7 +195,25 @@ function reasonText(why: "label_provider" | "policy_model", label: Label | undef
 export async function providersList(ctx: EngineCtx, input: { threadId?: string }): Promise<{ providers: ProviderOut[] }> {
   const [all, policy, label] = await Promise.all([myProviders(ctx), readPolicy(ctx), threadLabel(ctx, input.threadId)]);
   const gap = sandboxGap();
-  return { providers: DRIVERS.map((driver) => providerState(driver, all, policy, label, gap)) };
+  const probe = engineHost()?.cli?.probe as NodeCliProbe | undefined;
+  return { providers: DRIVERS.map((driver) => cliTrouble(providerState(driver, all, policy, label, gap), all, probe)) };
+}
+
+const PROGRAM_OF_DRIVER: Readonly<Record<string, string>> = { claude_code: "claude", codex: "codex", grok: "grok" };
+
+/**
+ * A connected subscription engine that cannot run turns here says why in one plain sentence with the fix, so setup can tell the person before the first message fails:
+ * the program is not installed on this computer, or its sign-in needs doing again. An engine with nothing connected is left as it was.
+ */
+export function cliTrouble(row: ProviderOut, all: readonly ProviderRow[], probe?: NodeCliProbe): ProviderOut {
+  const program = PROGRAM_OF_DRIVER[row.driver];
+  if (program === undefined || !row.allowed) return row;
+  const mine = all.filter((p) => driverOf(p) === row.driver);
+  if (mine.length === 0) return row;
+  const name = CLI_NAME[program] ?? row.title;
+  if (findProgram(program, probe) === null) return { ...row, allowed: false, reason: `${name} is not installed on this computer. Install it, or pick another AI.` };
+  if (!row.connected) return { ...row, allowed: false, reason: `Sign in to ${name} again.` };
+  return row;
 }
 
 /** What a CLI account needs before it can run turns here, in one line with what to do, or null. The host's own sandbox plan, when it gave one, decides; otherwise this computer's (sandbox-default.ts). */
@@ -185,7 +234,8 @@ export function providerState(driver: Driver, all: readonly ProviderRow[], polic
   const keys = [driver, ...mine.map((p) => p.providerKey)];
   let why: "label_provider" | "policy_model" | null = null;
   for (const k of keys) {
-    const w = blockedBy(policy, { provider: k, ...(label === undefined ? {} : { label }) });
+    // Restricted records need an account that keeps nothing: a driver is open to them when any of its accounts does
+    const w = blockedBy(policy, { provider: k, ...(label === undefined ? {} : { label }), keepsNothing: driver === "local" || mine.some(keeps) });
     if (w === null) { why = null; break; }
     why = w;
   }
@@ -195,4 +245,90 @@ export function providerState(driver: Driver, all: readonly ProviderRow[], polic
     driver, kind: CLI.has(driver) ? "cli" : "api", title: DRIVER_TITLE[driver], connected, allowed: why === null,
     ...(why === null ? {} : { reason: reasonText(why, label) }),
   };
+}
+
+/**
+ * A model was just picked: check it on every account that lists it, now, whether or not it is within the background check's cap. Reads only saved or shipped lists (no vendor call of its own), starts nothing
+ * when the model is already confirmed or known bad, and never throws.
+ */
+export async function probePick(ctx: EngineCtx, model: string): Promise<void> {
+  try {
+    if (completerOf() === null || model === "auto") return;
+    const all = await myProviders(ctx);
+    for (const p of all) {
+      if (p.state !== "ok" || p.spaceKey === true) continue;
+      const ref = p.handle ?? p.itemId;
+      const isCli = p.connection === "subscription" && LIVE_DRIVERS.has(driverOf(p));
+      const listed = isCli ? (await modelsFor(ctx.db, { ref, driver: driverOf(p) }, actorOf(ctx), { now: ctx.now, passive: true })).models.map((m) => m.id) : savedTested(ctx.db, ref);
+      if (!listed.includes(model)) continue;
+      if (confirmedFor(ctx.db, ref, ctx.now()).has(model) || unavailableFor(ctx.db, ref, ctx.now()).has(model)) continue;
+      probeModels(ctx.db, ref, [model], async (r, m) => { await ctx.call("engine.complete", { accountRef: r, prompt: PROBE_PROMPT, model: m }); }, ctx.now, isCli ? { parallel: CLI_PROBE_PARALLEL, timeoutMs: CLI_PROBE_TIMEOUT_MS } : {});
+    }
+  } catch (e) { ctx.log.warn("a picked model was not checked", { error: e instanceof Error ? e.message : "unknown" }); }
+}
+
+
+// ---- the catalog for helpers (owner, 4 Nov 2026) ----
+// Helpers pick models across the accounts a person can use. This is the one read they need: every account with its models, what each model can do, what it costs as a tier, and whether the
+// probe found it available. It reads saved lists and the probe's marks only (no vendor call), so it is cheap to ask on every pick.
+
+export type CostTier = "cheap" | "standard" | "strong";
+export type Availability = "ok" | "checking" | "unavailable" | "unverified";
+export interface CatalogModel { id: string; title: string; tools: boolean; vision: boolean; context: number; tier: CostTier; allowed: boolean; available: Availability }
+export interface CatalogAccount { ref: string; label: string; provider: string; kind: "api_key" | "subscription" | "local"; usable: boolean; why?: string; models: CatalogModel[] }
+
+const PRICES = JSON.parse(readFileSync(new URL("../../prices.json", import.meta.url), "utf8")) as { providers: Record<string, Record<string, { in: number; out: number }>> };
+
+/**
+ * The cost tier of a model: from the list price when Vyre has one (input dollars per million tokens: up to 1 cheap, up to 6 standard, above strong), else from the model's name. A name Vyre does
+ * not know is standard, never guessed cheaper.
+ */
+export function costTier(model: string, provider: string): CostTier {
+  const price = PRICES.providers[provider === "claude-code" ? "anthropic" : provider]?.[model];
+  if (price) return price.in <= 1 ? "cheap" : price.in <= 6 ? "standard" : "strong";
+  const m = model.toLowerCase();
+  if (/(^|[-_/.])(haiku|mini|nano|flash|lite|small|tiny|free|instant)([-_.]|$)/.test(m)) return "cheap";
+  if (/(^|[-_/.])(opus|fable|ultra|max|pro|large|reasoner|thinking)([-_.]|$)/.test(m)) return "strong";
+  return "standard";
+}
+
+/** What a model can do, by its family: every current hosted family calls tools; the ones that read images are named. A local or custom model is taken to call tools and not to read images. */
+export function abilities(model: string, provider: string): { tools: boolean; vision: boolean } {
+  const m = model.toLowerCase();
+  const hosted = /claude|gpt|^o\d|gemini|grok/.test(m) || ["anthropic", "openai", "google", "xai", "claude-code", "codex", "grok"].includes(provider);
+  return { tools: !/embed|whisper|tts|image-gen|dall-e/.test(m), vision: hosted && !/embed|whisper|tts|instruct-text|coder-only|haiku-3(\b|-)/.test(m) };
+}
+
+export async function modelsCatalog(ctx: EngineCtx, input: { accountRef?: string }): Promise<{ accounts: CatalogAccount[] }> {
+  const [all, policy] = await Promise.all([myProviders(ctx), readPolicy(ctx)]);
+  const chosen = input.accountRef === undefined ? all : all.filter((p) => (p.handle ?? p.itemId) === input.accountRef || (p.aliases ?? []).includes(input.accountRef as string));
+  const watching = completerOf() !== null;
+  const out: CatalogAccount[] = [];
+  for (const p of chosen) {
+    const ref = p.handle ?? p.itemId;
+    const driver = driverOf(p);
+    const cli = p.connection === "subscription" && LIVE_DRIVERS.has(driver);
+    const kind = p.connection === "subscription" ? "subscription" : p.connection === "local_model" ? "local" : "api_key";
+    const base = { ref, label: p.name, provider: p.providerKey, kind } as const;
+    if (p.state !== "ok") { out.push({ ...base, usable: false, why: p.state === "needs_sign_in" ? "Sign in again" : "Not working just now", models: [] }); continue; }
+    let ids: string[] = [];
+    let titles = new Map<string, string>();
+    if (cli) {
+      const got = await modelsFor(ctx.db, { ref, driver }, actorOf(ctx), { now: ctx.now, passive: true });
+      ids = got.models.map((m) => m.id);
+      titles = new Map(got.models.map((m) => [m.id, m.title ?? m.id]));
+    } else if (p.spaceKey === true) {
+      try { ids = ((await ctx.call("providers.space_key.get", {})) as { models?: string[] }).models ?? []; } catch { ids = []; }
+    } else ids = savedTested(ctx.db, ref);
+    const bad = unavailableFor(ctx.db, ref, ctx.now());
+    const good = confirmedFor(ctx.db, ref, ctx.now());
+    const models: CatalogModel[] = ids.map((id) => {
+      const blocked = blockedBy(policy, { provider: p.providerKey, model: id }) !== null;
+      // a CLI's own list is what the vendor offers that sign-in; an API key's models are confirmed by the probe, or still being checked
+      const available: Availability = bad.has(id) ? "unavailable" : good.has(id) ? "ok" : cli && !watching ? "ok" : watching ? "checking" : "unverified";
+      return { id, title: titles.get(id) ?? prettyModel(id), ...abilities(id, p.providerKey), context: windowFor(id, p.providerKey), tier: costTier(id, p.providerKey), allowed: !blocked, available };
+    });
+    out.push({ ...base, usable: models.some((m) => m.allowed && m.available !== "unavailable"), models });
+  }
+  return { accounts: out };
 }

@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { validateInput } from "../../../generated/validators.ts";
+import { validateInput } from "./validators.support.ts";
 import { Terminal, TerminalFeed, hostMenu, keyToData } from "../../../ui/src/Terminal/index.tsx";
 import type { TerminalFrame } from "../../../ui/src/Terminal/index.tsx";
 import { PEOPLE, CHANNEL, COMPUTER, HELPER, RECORDING, SERVER_TERMINAL, TERMINAL, createMountSample } from "../src/places/chats/mounts/sample.ts";
@@ -455,7 +455,7 @@ test("the whole place with a runtime draws the sidebar and the open chat, and ev
   const side = inSlot(s);
   assert.ok(has(side.out, 'data-testid="chats-sidebar"'), "the sidebar is drawn in the shell's slot");
   for (const own of ["sidebar-head", "sidebar-toggle", "sidebar-collapsed", "sidebar-show", "chats-back", "chats-sidebar"]) assert.ok(!has(out, `data-testid="${own}"`), `${own}: the place draws no sidebar frame of its own`);
-  for (const id of ["helpers-button", "participants-button", "pane-button", "more-button"]) assert.ok(has(out, `data-testid="${id}"`), id);
+  for (const id of ["helpers-button", "participants-button", "pane-button", "more-button", "add-agent"]) assert.ok(has(out, `data-testid="${id}"`), id);
   assert.ok(!has(out, "-loading"), "no loading frame once the Space is open");
 });
 
@@ -478,7 +478,7 @@ test("a click on an agent opens its chat with the agent's pane beside it; the pa
   assert.equal(shown().pane, true);
   const out = html(s, shown());
   assert.ok(has(out, 'data-testid="chats-right-pane"') && has(out, 'data-testid="conversation"'), "the shared side pane beside the chat");
-  for (const tab of ["Computer", "Threads"]) assert.ok(has(out, tab), `${tab}: the pane fits its other tabs behind a menu when it is narrow`);
+  for (const tab of ["Computer", "Chats"]) assert.ok(has(out, tab), `${tab}: the pane fits its other tabs behind a menu when it is narrow (the Threads tab is called Chats: no chat is called a thread)`);
   const side = inSlot(s);
   assert.ok(side.title === "Chats" && has(side.out, 'data-testid="sidebar-head"') && !has(side.out, "switch Space"), "the sidebar header reads Chats (the slot's title)");
   assert.ok(has(side.out, 'data-testid="new-menu"') && !has(side.out, 'data-testid="sidebar-toggle"'), "New stays; the panel toggle is the slot's hide button");

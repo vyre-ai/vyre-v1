@@ -452,3 +452,21 @@ test("a turn's account says when it is a key of the Space and not the person's o
   assert.equal((await resolveOne(on(true), q))?.shared, undefined);
 });
 
+
+test("two daemons in one process: a second host half wired over the first does not close the first's opener (its daemon may still be running); the first is handed a retire that does", async () => {
+  bindEngine(null);
+  const h = harness({ threads: THREADS });
+  const f: Fake = { calls: [], haveKey: true, accountsDown: false };
+  const closing: Array<Promise<void>> = [];
+  // no scripted opener: the module builds the real one from the session ports, which is the one that holds processes and must be closed
+  const first: EngineHostSeam = { ...hostFor(scriptedProvider({ script: say }), f), session: { source: {} as never, reportMiss: () => undefined, mcp: {} as never }, closing: (d) => { closing.push(d); } };
+  delete (first as { openSession?: unknown }).openSession;
+  hostSeams.setEngineHost(first);
+  assert.ok(await ensureRuntime(h.ctx), "the first daemon's runtime and opener are built");
+  hostSeams.setEngineHost(hostFor(scriptedProvider({ script: say }), f));   // the second daemon wires the seam
+  assert.equal(closing.length, 0, "the first daemon is still running: nothing is closed under it");
+  assert.equal(typeof first.retire, "function", "the first host half can close its own opener when its daemon stops");
+  await first.retire!();
+  assert.equal(closing.length, 1, "retire closed the opener and told the host half");
+  hostSeams.setEngineHost(null);
+});

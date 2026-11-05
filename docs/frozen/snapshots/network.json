@@ -32,7 +32,7 @@
     "network.server_reconnect@1": "f7b9ddfd6e4fef7af1dfbac9dad76b5a8bfbb725f7d783538193b8dbde27b1b0",
     "network.server_remove@1": "1b570da2cfa26c3884c023475577b277277d7ed87457a9709116b88e1268ef55",
     "network.servers@1": "674c20928c7fd4bd4fb9c00c460dfb1b26dbf44b0311ffc32669d386259d9a87",
-    "network.status@1": "ea653ec0f704ab0c748bd2120e93446110ad8ecd8cbbdf9d7369b0c852e99a28"
+    "network.status@1": "c878b13f0d9f37269e91c05c0f330764271e73b44b449d874c05dc8e4dd9049f"
   },
   "events": {
     "network.certificate_failed": "167bc518c77e825be5e0ac8034490952c537bf6b1d6418b6dff5913fefd51720",

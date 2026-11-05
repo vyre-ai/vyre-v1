@@ -149,6 +149,8 @@ in: {}, out: { email: t.opt(email), connectionId: t.opt(id.connection), files: t
     { gate: quiet("Changes labels in the member's own Gmail; nothing is sent to anyone"), tool: 'inbox', deferred: true }),
   gw('google.gmail.create_draft', 'Create a draft in the member mailbox', { to: t.arr(email), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), threadId: t.opt(t.str()) }, { draftId: t.str() },
     { gate: quiet('The draft stays in the member Gmail; nothing is sent'), tool: 'inbox', deferred: true }),
+  gw('google.gmail.delete_draft', 'Delete a draft from the member mailbox (the draft an agent made and its person decided not to send)', { draftId: t.str() }, { deleted: t.bool() },
+    { gate: quiet('Removes a draft from the member Gmail; nothing is sent'), tool: 'inbox', deferred: true }),
   gw('google.gmail.send_message', 'Send a message from the member mailbox', { to: t.arr(email), cc: t.opt(t.arr(email)), bcc: t.opt(t.arr(email)), subject: t.str(), text: t.opt(t.str()), html: t.opt(t.str()), threadId: t.opt(t.str()), inReplyTo: t.opt(t.str({ description: 'The Message-ID this answers, so the reply threads for everyone on it', examples: ['<c3@example.com>'] })), references: t.opt(t.str({ description: 'The thread\'s Message-IDs, oldest first, space separated' })), attachments: t.opt(t.arr(id.file)) },
     { id: t.str(), threadId: t.str() }, { gate: 'send', errors: ['provider.rate_limited', 'provider.auth_failed'] }),
   gw('google.gmail.trash_message', 'Move a Gmail message to Trash', { messageId: t.str() }, { trashed: t.bool() }, { gate: 'delete', tool: 'inbox', deferred: true }),

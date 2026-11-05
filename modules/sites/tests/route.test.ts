@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { registry } from "../../../generated/registry.ts";
-import { configureRoutes, routeBySlug, routeByTicket } from "../handlers/route.ts";
+import { EXCHANGE_MS, ARTIFACT_SESSION_MS, configureRoutes, exchangeArtifactCode, routeByArtifactSession, routeBySlug, routeByTicket } from "../handlers/route.ts";
 import { configureDomainEdge } from "../handlers/route.ts";
 import { handlers } from "../impl.ts";
 import { DatabaseSync } from "node:sqlite";
@@ -110,20 +110,19 @@ test("custom domains: the records are exact, an apex takes an A, the three state
   } finally { configureRoutes(null); configureDomainEdge(null); }
 });
 
-test("a ticket opens one artifact, for its person, until it ends", async () => {
+test("without an artifact host there is no address to open: nothing with a token in it is ever made", async () => {
   const w = harness();
   configureRoutes(host() as never);
   try {
     const made = await h["sites.create"]!(w.ctx, { name: "Numbers", kind: "artifact", port: 3000 });
     await h["sites.publish"]!(w.ctx, { siteId: made.site.siteId });
-    const open = await h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId });
-    const token = /\/k\/([0-9a-f]{48})\//.exec(open.path)?.[1] as string;
-    const now = w.ctx.now();
-    assert.equal((await routeByTicket(w.ctx, made.site.siteId, token, now))?.principal, w.ctx.principal.id);
-    assert.equal(await routeByTicket(w.ctx, "sit_other", token, now), null, "for this artifact only");
-    assert.equal(await routeByTicket(w.ctx, made.site.siteId, "0".repeat(48), now), null);
-    assert.equal(await routeByTicket(w.ctx, made.site.siteId, token, open.expiresAt + 1), null, "until it ends");
+    await assert.rejects(() => h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId }), /no address for artifacts/);
+    assert.equal((w.ctx.db.all("SELECT COUNT(*) AS n FROM sites_ticket") as { n: number }[])[0]!.n, 0, "no ticket was made");
+    configureRoutes(host({ artifactHost: () => "mla-a.vyre.run" }) as never);
     await assert.rejects(() => h["sites.artifact_open"]!({ ...w.ctx, principal: { kind: "agent", id: "agt_x" } }, { artifactId: made.site.siteId }), /Only a person/);
+    configureRoutes(host({ artifactHost: () => "a.localhost:4100" }) as never);
+    const open = await h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId });
+    assert.match(open.url, /^http:\/\/a\.localhost:4100\/x\/[0-9a-f]{48}$/, "a Space on this computer: plain http on a.localhost");
   } finally { configureRoutes(null); }
 });
 
@@ -137,5 +136,102 @@ test("a site cannot point at what its maker could not use: the server reads for 
     await assert.rejects(() => h["sites.artifact_publish"]!(ctx, { title: "Leak", folderId: "fld_private" }), /cannot read that folder/);
     const made = await h["sites.create"]!(w.ctx, { name: "Mine", port: 3000 });
     await assert.rejects(() => h["sites.update"]!(ctx, { siteId: made.site.siteId, folderId: "fld_private" }), /cannot read that folder/);
+  } finally { configureRoutes(null); }
+});
+
+test("artifact_publish's result says whether it was opened for the person (required), and the agent's words follow it", async () => {
+  const { readFileSync } = await import("node:fs");
+  const out = (registry.capabilities.find((c) => c.name === "sites.artifact_publish") as unknown as { output: { properties: Record<string, unknown>; required: string[] } }).output;
+  assert.ok("opened" in out.properties && out.required.includes("opened"));
+  const words = [readFileSync(new URL("../../../agent/skills/working-in-vyre/SKILL.md", import.meta.url), "utf8"), readFileSync(new URL("../../../agent/skills/artifacts/SKILL.md", import.meta.url), "utf8"), readFileSync(new URL("../../engine/context.ts", import.meta.url), "utf8")].join("\n");
+  assert.ok(!/opens in a tab/.test(words), "no text promises a tab that nothing opens");
+  assert.match(words, /only when the result says `opened: true`/);
+  assert.match(words, /Report only what a tool result confirms/);
+});
+
+
+test("with an artifact host, artifact_open gives a one-time code for it: one use, a minute, and the session it starts is for that artifact only", async () => {
+  const w = harness();
+  configureRoutes(host({ artifactHost: () => "mla-a.vyre.run" }) as never);
+  try {
+    const made = await h["sites.create"]!(w.ctx, { name: "Numbers", kind: "artifact", port: 3000 });
+    await h["sites.publish"]!(w.ctx, { siteId: made.site.siteId });
+    const open = await h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId });
+    const code = /^\/x\/([0-9a-f]{48})$/.exec(open.path)?.[1] as string;
+    assert.ok(code, open.path);
+    assert.equal(open.url, `https://mla-a.vyre.run/x/${code}`, "the artifact host, never the app's origin");
+    assert.equal(open.expiresAt - w.ctx.now(), EXCHANGE_MS);
+    // the code is not a session: the app origin's old keyed route cannot use it
+    assert.equal(await routeByTicket(w.ctx, made.site.siteId, code, w.ctx.now()), null);
+    assert.equal(await routeByArtifactSession(w.ctx, made.site.siteId, code, w.ctx.now()), null);
+    const now = w.ctx.now();
+    const got = await exchangeArtifactCode(w.ctx, code, now);
+    assert.equal(got?.siteId, made.site.siteId);
+    assert.equal(got?.maxAgeSeconds, ARTIFACT_SESSION_MS / 1000);
+    assert.equal(await exchangeArtifactCode(w.ctx, code, now), null, "a second use is refused");
+    const session = await routeByArtifactSession(w.ctx, made.site.siteId, got!.token, now + 1000);
+    assert.equal(session?.principal, w.ctx.principal.id);
+    assert.equal(await routeByArtifactSession(w.ctx, "sit_other", got!.token, now), null, "for this artifact only");
+    assert.equal(await routeByArtifactSession(w.ctx, made.site.siteId, got!.token, now + ARTIFACT_SESSION_MS + 1), null, "twelve hours");
+    // a code unused for a minute ends
+    const again = await h["sites.artifact_open"]!(w.ctx, { artifactId: made.site.siteId });
+    const code2 = /^\/x\/([0-9a-f]{48})$/.exec(again.path)?.[1] as string;
+    assert.equal(await exchangeArtifactCode(w.ctx, code2, again.expiresAt + 1), null);
+    assert.equal(await exchangeArtifactCode(w.ctx, "0".repeat(48), now), null);
+  } finally { configureRoutes(null); }
+});
+
+test("an artifact keeps its picture and the chat that made it, and reads back the chat's title and who it is shared with", async () => {
+  const w = harness();
+  configureRoutes(host({ artifacts: { folder: async () => "fld_a", put: async () => undefined } }) as never);
+  const thumb = "data:image/png;base64,iVBORw0KGgo=";
+  const calls: string[] = [];
+  const ctx = {
+    ...w.ctx, thread: "thr_1",
+    call: async (cap: string) => {
+      calls.push(cap);
+      if (cap === "threads.get") return { thread: { title: "Monthly numbers" } };
+      if (cap === "access.shares_of") return { shares: [{ through: "direct", grant: { subject: { kind: "person", id: "usr_sara" } } }, { through: "direct", grant: { subject: { kind: "link", id: "lnk_1" } } }, { through: "folder", grant: { subject: { kind: "person", id: "usr_omar" } } }, { through: "group", grant: { subject: { kind: "group", id: "grp_everyone" } } }, { through: "owner", grant: { subject: { kind: "person", id: w.ctx.principal.id } } }] };
+      return {};
+    },
+  };
+  try {
+    await assert.rejects(() => h["sites.artifact_publish"]!(ctx, { title: "Bad", html: "<p>x</p>", thumb: "javascript:alert(1)" }), /small png, jpeg or webp/);
+    const pub = await h["sites.artifact_publish"]!(ctx, { title: "Numbers", html: "<p>42</p>", thumb });
+    const got = await h["sites.get"]!(ctx, { siteId: pub.artifactId });
+    assert.equal(got.site.thumb, thumb);
+    assert.equal(got.site.chatId, "thr_1");
+    assert.equal(got.site.chatTitle, "Monthly numbers");
+    assert.deepEqual(got.site.sharedWith, ["usr_sara", "usr_omar"], "people with a grant, direct or from a folder; never the owner");
+    assert.deepEqual(got.site.sharedAudience, ["link", "space"], "a link and the whole Space say so");
+    const list = await h["sites.list"]!(ctx, { kind: "artifact" });
+    assert.equal(list.sites[0].chatTitle, "Monthly numbers");
+    // a republish from another chat keeps the first chat as the source, and without a picture keeps the old one
+    const again = await h["sites.artifact_publish"]!({ ...ctx, thread: "thr_2" }, { title: "Numbers", html: "<p>43</p>" });
+    assert.equal(again.artifactId, pub.artifactId);
+    const kept = await h["sites.get"]!(ctx, { siteId: pub.artifactId });
+    assert.equal(kept.site.chatId, "thr_1");
+    assert.equal(kept.site.thumb, thumb);
+  } finally { configureRoutes(null); }
+});
+
+test("a picture taken on open is kept once, and again only after the artifact changes", async () => {
+  const w = harness();
+  let t0 = 1_000;
+  const ctx = { ...w.ctx, now: () => t0, thread: undefined };
+  configureRoutes(host({ artifacts: { folder: async () => "fld_a", put: async () => undefined } }) as never);
+  const a = "data:image/webp;base64,AAAA", b = "data:image/webp;base64,BBBB";
+  try {
+    const pub = await h["sites.artifact_publish"]!(ctx, { title: "Numbers", html: "<p>1</p>" });
+    assert.equal((await h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: a })).set, true, "the first open sets it");
+    t0 += 10;
+    assert.equal((await h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: b })).set, false, "the same version keeps the first");
+    assert.equal((await h["sites.get"]!(ctx, { siteId: pub.artifactId })).site.thumb, a);
+    t0 += 10;
+    await h["sites.artifact_publish"]!(ctx, { title: "Numbers", html: "<p>2</p>" });
+    t0 += 10;
+    assert.equal((await h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: b })).set, true, "a republish takes a new one on its next open");
+    assert.equal((await h["sites.get"]!(ctx, { siteId: pub.artifactId })).site.thumb, b);
+    await assert.rejects(() => h["sites.artifact_thumb_set"]!(ctx, { artifactId: pub.artifactId, thumb: "javascript:1" }), /small png, jpeg or webp/);
   } finally { configureRoutes(null); }
 });

@@ -9,7 +9,7 @@ import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import { ChatsSidebar, ChatsSidebarSlot } from "./ChatsSidebar.tsx";
 import { SectionHead, Tool } from "./parts.tsx";
 import { createSidebarApi } from "./actions.ts";
-import { validateInput } from "../../../../../../generated/validators.ts";
+import { validateInput } from "../../../../tests/validators.support.ts";
 import { FACES_SHOWN, NEW_CHAT_MS, buildEntries, groupRecent, matchesQuery, refetch, rowOf } from "./model.ts";
 import type { ChatRow, RecentOut } from "./model.ts";
 import { createSampleSidebar, harbor, northwind, personal } from "./sample.ts";
@@ -30,9 +30,10 @@ const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms)
 
 test("the sections render from the Northwind sample, in the prototype's order", () => {
   const out = html(createSampleSidebar());
-  const heads = ["row-nav:tasks", "row-nav:threads", "head-recent", "head-channels", "head-faces"].map((id) => at(out, `data-testid="${id}"`));
-  assert.deepEqual([...heads].sort((a, b) => a - b), heads, "Tasks, Threads, Recent, Channels, Agents");
-  for (const text of ["Tasks", "Threads", "Recent", "Agents", "Channels", "Northwind"]) assert.ok(out.includes(text), text);
+  const heads = ["row-nav:tasks", "head-recent", "head-channels", "head-faces"].map((id) => at(out, `data-testid="${id}"`));
+  assert.deepEqual([...heads].sort((a, b) => a - b), heads, "Tasks, Recent, Channels, Agents");
+  for (const text of ["Tasks", "Recent", "Agents", "Channels", "Northwind"]) assert.ok(out.includes(text), text);
+  assert.ok(!out.includes("row-nav:threads"), "no Threads row");
   // The title, the hide button are the shared slot's; there is one search, Cmd-K, so the content draws neither.
   assert.ok(!out.includes("sidebar-toggle") && !out.includes("Hide the sidebar") && !out.includes("Search"), "no frame of its own");
   assert.ok(!out.includes(String.fromCharCode(0x2014)), "no em dash in any copy");
@@ -51,9 +52,11 @@ test("Starred agent faces come first, each a row with its face; the working one 
   assert.ok(out.includes('data-testid="pulse"'), "Intake is working");
 });
 
-test("Recent shows three, then N more; pressing it shows the rest", () => {
+test("Recent shows eight before N more (lane l-polish), with no date groups", () => {
   const out = html(createSampleSidebar());
-  assert.ok(out.includes('data-testid="row-m:recent"'));
+  const rows = (out.match(/data-testid="row-c:[^"]+"/g) ?? []).length;
+  assert.ok(rows > 3, `more than the old three: ${rows} chat rows`);
+  if (out.includes('data-testid="row-m:recent"')) assert.ok(rows >= 8, "N more only after eight");
   assert.ok(!out.includes('data-testid="group-Starred"'), "no date groups");
 });
 
@@ -133,7 +136,7 @@ const registered = (s: SampleSidebar, query: string, slot: SidebarSlotApi = slot
 test("the sidebar registers in the shared slot as Chats with no search of its own, and draws all its rows inside it", () => {
   const { entry, out } = registered(createSampleSidebar(), "");
   assert.deepEqual(entry, { title: "Chats" });
-  for (const text of ["Tasks", "Threads", "Intake", "rivera-matter"]) assert.ok(out.includes(text), text);
+  for (const text of ["Tasks", "Intake", "rivera-matter"]) assert.ok(out.includes(text), text);
   assert.ok(out.includes('data-testid="new-menu"') && out.includes('data-testid="filter-chats"'), "filter and New keep their place");
 });
 
@@ -205,4 +208,18 @@ test("a section head's tools are always under the pointer: drawn on hover or foc
   const out = renderToStaticMarkup(<SectionHead id="faces" label="Agents" open onToggle={() => undefined}><Tool icon="arrow" label="All agents" onPress={() => undefined} testID="all-agents" /></SectionHead>);
   assert.ok(out.includes('data-testid="all-agents"'), "the tool is in the head");
   assert.ok(!out.includes("r-pointerEvents"), "a tool hidden until hover must still take the pointer, or the head sits over it and it cannot be pressed");
+});
+
+test("only the open page's row is drawn selected: none on the new-chat page (with a filter on too), Tasks on Tasks, one chat on that chat (lane l-polish)", () => {
+  const draw = (open: string | null, startFilter?: "unread"): string[] => {
+    const s = createSampleSidebar();
+    const out = renderToStaticMarkup(<ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} open={open} {...(startFilter ? { startFilter } : {})} />);
+    return [...out.matchAll(/aria-selected="true"[^>]*data-testid="([^"]+)"|data-testid="([^"]+)"[^>]*aria-selected="true"/g)].map((m) => m[1] ?? m[2]!);
+  };
+  assert.deepEqual(draw(null), [], "the new-chat page has no row");
+  assert.deepEqual(draw(null, "unread"), [], "and the Unread filter selects nothing either");
+  assert.deepEqual(draw("tasks"), ["row-nav:tasks"]);
+  const s = createSampleSidebar();
+  const first = /data-testid="row-c:([^"]+)"/.exec(renderToStaticMarkup(<ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} open={null} />))![1]!;
+  assert.deepEqual(draw(`t:${first}`), [`row-c:${first}`]);
 });

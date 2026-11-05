@@ -14,7 +14,7 @@
 //   POST /v1/pair                           resolve a Wink pairing ticket's or a setup offer's locator (ADR 0045)
 //   POST /v1/setup/mbx                      append a line to a setup progress mailbox (the install script)
 //   GET /v1/setup/mbx                       read it, long poll, signed by the setup page's key (tailnet plan 3.6b)
-//   GET /health
+//   GET /health                             { ok: true, version }  the version is stamped at deploy (RELAY_VERSION, from package.json), "dev" where none was set
 //
 // Hibernation: the DO holds no timers and no alarms, and keeps no state in instance fields. Every
 // socket carries its role in a serialized attachment, frames buffered for a waiting device live in
@@ -202,8 +202,8 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     const gateway = gatewayOf(url, env);
-    if (gateway) return "name" in gateway ? onHost(request, env, gateway.name) : passthrough(request, env);
-    if (url.pathname === "/health") return new Response('{"ok":true}', { headers: { "content-type": "application/json" } });
+    if (gateway) return "name" in gateway ? onHost(request, env, gateway.name, gateway.artifact === true) : passthrough(request, env);
+    if (url.pathname === "/health") return new Response(JSON.stringify({ ok: true, version: String(env.RELAY_VERSION || "dev") }), { headers: { "content-type": "application/json" } });
     if (!url.pathname.startsWith("/v1/")) return new Response(null, { status: 404 });
     if (url.pathname === "/v1/pair" && request.method === "OPTIONS") return new Response(null, { status: 204, headers: PAIR_PREFLIGHT });
     if (url.pathname === "/v1/pair" && request.method === "POST") return withPairCors(await onPairResolve(request, env));

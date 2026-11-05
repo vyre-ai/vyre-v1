@@ -1,9 +1,11 @@
 // Records > sidebar (spec 3.4), drawn in the shell's shared place sidebar slot (P-L9d_22: the slot gives the title, the collapse button, the search field and the phone list): record types in their groups with row counts (Records first, a Sites group for site tables), the saved views of the open type, and Manage
 // (Record types, Schema map). Every row is a ui/Row with a leading glyph and a trailing count; click opens; folded sections stay folded.
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { useContextMenu } from "../../../../../../ui/src/Menu/context.tsx";
+import { typeMenu } from "../menus/type.ts";
 import { SidebarContent, matchRows } from "../../../shell/sidebar/index.ts";
 import type { SidebarSlotApi } from "../../../shell/sidebar/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -90,6 +92,12 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
   const saved = allSaved.filter((v) => hit(v.title));
   const canEdit = data.canEditSchema === true;
   const [making, setMaking] = useState(false);
+  // the menu of a type: Open, Star (stars.toggle on the record_type), Copy Name and Edit Type; the stars are read live, a runtime without them shows every type unstarred
+  const typeMenus = useContextMenu();
+  const typeStars = useMemo(() => (data.live as unknown as (cap: string, input: Record<string, unknown>) => LiveQuery<StarsOut>)("stars.list", { type: "record_type" }), [data]);
+  const typeStarState = useSyncExternalStore(typeStars.subscribe, typeStars.getSnapshot, typeStars.getSnapshot);
+  const starredTypes = new Set(typeStarState.status === "ready" ? typeStarState.data.stars.map((x) => x.resource.id) : []);
+  const copyText = (text: string): void => { const c = (globalThis as { navigator?: { clipboard?: { writeText(x: string): unknown } } }).navigator?.clipboard; if (c) void c.writeText(text); };
   const visible = groups.reduce((n, g) => n + g.items.length, 0);
   // A Space that holds only Contacts: the start is an invitation, not a bare list.
   const inviting = canEdit && types.status === "ready" && visible <= 1 && q === "";
@@ -104,12 +112,23 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
     sections.push(<SectionHead key={`h-${g.key}`} id={g.key} label={g.label} closed={closed(g.key)} onToggle={fold(g.key)} onAdd={sections.length === 0 ? addType : undefined} />);
     if (closed(g.key)) continue;
     for (const t of items) {
+      const menuOf = (): ReturnType<typeof typeMenu> => typeMenu(
+        { starred: starredTypes.has(t.key), canEdit },
+        {
+          open: () => { dispatch({ type: "open", key: t.key }); choose(); },
+          star: (on) => { void Promise.resolve(data.call("stars.toggle", { resource: { type: "record_type", id: t.key }, on })).catch(() => undefined); },
+          copyName: () => copyText(t.label),
+          editType: () => { data.nav.openRecordTypes(); choose(); },
+        },
+      );
       sections.push(
+        <View key={t.key} {...typeMenus.on(() => menuOf(), { label: `type:${t.key}` })}>
         <SideRow
           key={t.key} id={`type:${t.key}`} title={t.label} glyph={typeIcon(t.icon)} tile={syncs.get(t.key) ? <SyncLogo app={syncs.get(t.key)!.app} connector={syncs.get(t.key)!.connector} /> : <TypeTile icon={typeIcon(t.icon)} hue={typeHue(t.key)} syncedFrom={t.syncedFrom} />} selected={open === t.key && state.viewId === null}
           trailing={<>{syncs.get(t.key) ? <SyncDot row={syncs.get(t.key)!} app={syncs.get(t.key)!.app?.title ?? "the app"} onPress={data.nav.openSync ? () => { data.nav.openSync!(t.key); choose(); } : undefined} /> : t.synced ? <Glyph name="sync" size={12} /> : null}<Text style={styles.count} testID={`count-${t.key}`}>{compact(t.count)}</Text></>}
           onPress={() => { dispatch({ type: "open", key: t.key }); choose(); }}
-        />,
+        />
+        </View>,
       );
     }
   }
@@ -144,6 +163,7 @@ function Sidebar({ starred, query, slot }: { starred: ReactNode | undefined; que
         {manage.length > 0 ? <SectionHead id="manage" label="Manage" closed={closed("manage")} onToggle={fold("manage")} /> : null}
         {closed("manage") ? null : manage}
       </ScrollView>
+      {typeMenus.element}
       {making ? <TypeSheet call={data.call} takenKeys={types.status === "ready" ? types.data.types.map((t) => t.key) : []} connectTo={connectTo} {...(data.askVyre ? { onAsk: (a: { name: string }) => data.askVyre?.({ making: a.name }) } : {})} onClose={() => setMaking(false)} onDone={(key) => { dispatch({ type: "open", key }); choose(); }} /> : null}
     </View>
   );

@@ -1,5 +1,6 @@
 // The small entry that lingers in the app while setup is unfinished: a progress ring and "Finish setup, 3 of 8". It sits in the title bar (never over the rail, a sidebar or the page), It reopens onboarding at the first step not yet done or skipped,
 // and disappears once every step is done or put off. The count is what is really done: a skipped step moves the entry on, never the number. Hide puts it away for good on this device (the Home checklist still reopens setup).
+// A Space nobody has started setting up has no entry in the bar (no "0 of 9" on day one): setup opens by itself on the first visit, the Chats landing carries it, and the Console has its Setup guide. The entry appears once a step is done or put off.
 import { useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
@@ -11,6 +12,12 @@ import type { FlowKind, Progress } from "./flow.ts";
 const KEY = "vyre.setup.hidden";
 const read = (flow: FlowKind): boolean => { try { return (globalThis as { localStorage?: Storage }).localStorage?.getItem(`${KEY}.${flow}`) === "1"; } catch { return false; } };
 const write = (flow: FlowKind): void => { try { (globalThis as { localStorage?: Storage }).localStorage?.setItem(`${KEY}.${flow}`, "1"); } catch { /* hidden for this visit only */ } };
+
+/** Has the person done or put off at least one step of this device's list? Before that the Space is brand new and the bar says nothing. */
+export function startedSetup(flow: FlowKind, progress: Progress, device: Device): boolean {
+  const c = countsOn(flow, progress, device);
+  return c.done + c.later > 0;
+}
 
 /** Steps really done of all, and the first step still open; null when none is open. */
 export function resumeInfo(flow: FlowKind, progress: Progress, device: Device): { done: number; total: number; step: string } | null {
@@ -27,7 +34,7 @@ export function ResumeChip({ flow, progress, device, onOpen, compact }: { flow: 
   const width = useWindowDimensions().width;
   const overBar = compact ?? (width > 0 && width < COMPACT_BELOW);
   const info = resumeInfo(flow, progress, device);
-  if (!info || hidden) return null;
+  if (!info || hidden || !startedSetup(flow, progress, device)) return null;
   const R = 9, C = 2 * Math.PI * R, off = C * (1 - info.done / Math.max(info.total, 1));
   // On the phone there is no title bar to hold it: the You page carries a Finish setup row instead (ResumeContext).
   if (overBar) return null;

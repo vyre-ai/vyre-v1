@@ -1,10 +1,11 @@
 // "Updating Vyre": the one full-window screen while the app updates itself on start, before the lock screen. The Vyre mark, the version it is going to, one thin bar with the real bytes and
 // percent, and calm words. If the install fails it says so in one line and offers "Open Vyre anyway"; the next start tries again.
+import { useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Text, View } from "react-native";
 import { Button, ErrorLine, JoinFrame, Mark, useJoin } from "../../join/kit.tsx";
 import { FONT } from "../../join/palette.ts";
-import { fraction, progressLine } from "./model.ts";
+import { clock, fraction, progressLine } from "./model.ts";
 import type { Progress } from "./model.ts";
 
 const web = Platform.OS === "web";
@@ -15,6 +16,8 @@ export interface UpdatingProps {
   /** The one line when the install failed; empty while it goes well. */
   failure: string;
   onOpenAnyway(): void;
+  /** "Stop and update now": end the replies still running here, cleanly, and install. Shown while the wait is on. */
+  onStopNow?(): void;
 }
 
 export function UpdatingScreen(props: UpdatingProps): ReactElement {
@@ -36,7 +39,8 @@ function Bar({ value }: { value: number | null }): ReactElement {
   );
 }
 
-function UpdatingBody({ version, progress, failure, onOpenAnyway }: UpdatingProps): ReactElement {
+function UpdatingBody({ version, progress, failure, onOpenAnyway, onStopNow }: UpdatingProps): ReactElement {
+  const [pressed, setPressed] = useState(false);
   const { p, phone } = useJoin();
   const text = { fontFamily: FONT, color: p.ink };
   return (
@@ -53,6 +57,12 @@ function UpdatingBody({ version, progress, failure, onOpenAnyway }: UpdatingProp
       ) : (
         <>
           <Text testID="updating-line" accessibilityLiveRegion="polite" style={[text, { marginTop: 10, fontSize: 12.5, lineHeight: 18, color: p.ink3, textAlign: "center", ...(web ? ({ fontVariantNumeric: "tabular-nums" } as object) : {}) }]}>{progressLine(progress)}</Text>
+          {progress?.phase === "waiting" && progress.left !== undefined ? (
+            <Text testID="updating-left" accessibilityLiveRegion="off" style={[text, { marginTop: 4, fontSize: 12.5, lineHeight: 18, color: p.ink3, textAlign: "center", ...(web ? ({ fontVariantNumeric: "tabular-nums" } as object) : {}) }]}>{`${clock(progress.left)} left, then Vyre updates on its own`}</Text>
+          ) : null}
+          {progress?.phase === "waiting" && onStopNow ? (
+            <View style={{ marginTop: 18 }}><Button label={pressed ? "Stopping" : "Stop and update now"} testID="updating-stop-now" quiet disabled={pressed} onPress={() => { setPressed(true); onStopNow(); }} /></View>
+          ) : null}
           <Text testID="updating-calm" style={[text, { marginTop: 28, fontSize: 13, lineHeight: 19, color: p.ink3, textAlign: "center" }]}>Your chats and files stay just as they are. Vyre opens by itself when it is done.</Text>
         </>
       )}

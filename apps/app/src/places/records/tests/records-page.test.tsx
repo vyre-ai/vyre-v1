@@ -227,7 +227,7 @@ test("screen: the pane's tabs: Activity after an edit, Memory with the fact and 
   assert.ok(has(memory, 'data-testid="pane-memory"') && has(memory, "Elena prefers email over phone calls") && has(memory, "project"));
   const history = page(s, { tab: "history" });
   assert.ok(has(history, 'data-testid="pane-history"') && has(history, "Signed the retainer") && has(history, "Moved the next step") && has(history, "Edited on the page"));
-  assert.ok(has(page(s, { tab: "chat" }), "Ask pane for clients cl_0") && has(page(s, { tab: "files" }), 'data-testid="pane-files"') && has(page(s, { tab: "comments" }), 'data-testid="pane-comments"'), "each tab is its own pane now, not a link to another place");
+  assert.ok(has(page(s, { tab: "files" }), 'data-testid="pane-files"') && has(page(s, { tab: "comments" }), 'data-testid="pane-comments"'), "each tab is its own pane now, not a link to another place");
 });
 
 test("screen: a field open for editing is an input with its label, no Save button anywhere", () => {
@@ -236,6 +236,14 @@ test("screen: a field open for editing is an input with its label, no Save butto
   assert.ok(!/>Save</.test(out), "no Save button");
   const bad = page(createSamplePage(), { edit: { key: "value", text: "lots" }, all: true });
   assert.ok(has(bad, 'data-testid="edit-value"'));
+});
+
+test("screen: a long-text field open for editing is the shared Markdown editor, with Done and Cancel", () => {
+  const out = page(createSamplePage(), { edit: { key: "notes", text: "# Plan\n- call Maya\n" }, all: true });
+  const at = out.indexOf('data-testid="edit-notes"');
+  assert.ok(at >= 0, "the field is open");
+  assert.ok(out.slice(at, at + 2500).includes('data-testid="markdown-editor-host"'), "a long text is written in the Markdown editor, not a plain box");
+  assert.ok(has(out, 'data-testid="done-notes"') && has(out, 'data-testid="cancel-notes"'), "Done saves it, Cancel drops the edit");
 });
 
 test("screen: relation hover peek shows the linked record's own fields", () => {

@@ -9,7 +9,7 @@ import { act, snooze, take } from "./actions.ts";
 import type { NeedsDeps } from "./actions.ts";
 import {
   FILTERS, SEND_BACK, agoLabel, arrivedLabel, blockView, doneLine, dueLabel, filterCounts, holder, isSendBack, matchesFilter, needsNote, needsTake, nextSelection, notePrompt, rowNote, snoozeUntil,
-  sortItems, splitActions, stepSelection, footerHint,
+  sortItems, splitOlder, splitActions, stepSelection, footerHint,
 } from "./model.ts";
 import type { Item } from "./model.ts";
 import { NO_ACCOUNT_TITLE, isNoAccount, mailFix } from "./account.ts";
@@ -67,7 +67,7 @@ test("a request: what it is, why, who made it, where it came from, with one prim
   assert.ok(has(out, "The monthly run, same as September. Two clients have new rates since last month; both are marked."));
   assert.ok(has(out, 'data-testid="block-table"') && has(out, "Harlow & Price") && has(out, "$2,400") && has(out, "7 more in the chat"));
   assert.ok(has(out, "From ") && has(out, 'data-testid="needs-source"') && has(out, "October invoices"));
-  assert.ok(has(out, 'data-testid="needs-primary"') && has(out, ">Approve<") && has(out, 'data-testid="needs-sendback"') && has(out, ">Send back<"));
+  assert.ok(has(out, 'data-testid="needs-primary"') && has(out, ">Allow<") && has(out, 'data-testid="needs-sendback"') && has(out, ">Deny<"));   // an approval: Allow and Deny
   inOrder(out, ['data-testid="needs-primary"', 'data-testid="needs-sendback"']);
   assert.ok(has(out, ">A<") && has(out, ">B<"), "the keys that do the same");
 });
@@ -405,4 +405,15 @@ test("a connection that stopped working offers Reconnect and Check again; no bar
   const out = html(s);
   assert.ok(has(out, 'data-testid="needs-reconnect"') && has(out, 'data-testid="needs-check-again"'));
   assert.ok(!has(out, 'data-testid="needs-primary"') && !has(out, ">Fix<") && !has(out, "connection fix"));
+});
+
+test("what has waited days is grouped under Older, after what just arrived; with nothing newer there is no heading", () => {
+  const s = createSample();
+  const base = item(s, "n4");
+  const mk = (id: string, age: number): Item => ({ reason: "ready", task: { ...base.task, id, createdAt: SAMPLE_NOW - age, blocked: false } });
+  const DAY = 86_400_000;
+  const given = [mk("old1", 9 * DAY), mk("new1", 2 * 3_600_000), mk("old2", 4 * DAY), mk("new2", DAY)];
+  const split = splitOlder(given, SAMPLE_NOW);
+  assert.deepEqual([split.fresh.map((i) => i.task.id), split.older.map((i) => i.task.id)], [["new1", "new2"], ["old1", "old2"]], "each keeps the queue's order");
+  assert.deepEqual(splitOlder([mk("a", 5 * DAY)], SAMPLE_NOW).fresh, []);
 });

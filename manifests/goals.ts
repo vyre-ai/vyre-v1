@@ -1,7 +1,7 @@
 // goals (lane L6): an agent owns an outcome. A Goal has a finish line read from a real source, a lead agent, helpers, a plan made of tasks, a budget, a check-in rhythm and a status.
 // The plan is tasks (the one task object, its slots and its baton): the goal's root task is the parent of every task in the plan. Wake-ups are goal.woken events the engine turns into a turn of the
 // lead agent in the goal's own chat, for the goal's owner, on the owner's account and placement. Outward acts follow the Gate: the standing permissions the owner pressed for are grants of kind goal.
-// DECISION: progress is read from the source by this module (records count, a connection read, an outside MCP read, an automation's output, a number the owner sets, a checklist, or the owner saying done),
+// DECISION: progress is read from the source by this module (records count, a connection read, an outside MCP read, an automation's output, a watched page, a number the owner sets, a checklist, or the owner saying done),
 //           never from what an agent reports. A source that cannot be read says so on the goal and counts toward stuck.
 // DECISION: a goal is not a kernel resource type yet. Capabilities bind to the Space at level member and the handlers decide who sees and changes a goal: its owner, its lead and helpers, people who can
 //           see its project, and Space admins. Events go to the participants of the goal's chat.
@@ -14,7 +14,7 @@ const goalId = id.goal;
 const who = t.obj({ kind: t.enm('person', 'agent', 'group', 'role'), id: t.str({ examples: ['agt_a1b2c3'] }) });
 const status = t.enm('draft', 'planning', 'active', 'waiting', 'stuck', 'paused', 'done', 'missed', 'stopped');
 const outcome = t.enm('done', 'missed', 'stopped');
-const sourceKind = t.enm('records', 'connection', 'mcp', 'automation', 'manual');
+const sourceKind = t.enm('records', 'connection', 'mcp', 'automation', 'watch', 'manual');
 const source = t.obj({
   kind: sourceKind,
   label: t.opt(t.str({ examples: ['Luma, Lab 8 registrations'] })),
@@ -26,6 +26,8 @@ const source = t.obj({
   server: t.opt(t.str()), tool: t.opt(t.str()),
   // automation: a field of the newest successful run's output
   automationId: t.opt(id.automation),
+  // watch: a page watched with Vyre for Chrome: the number it last read (a price, a count), or with path "changes" how many times it has changed
+  watchId: t.opt(t.id('wch')),
   // where the number is in what a connection, MCP tool or automation answers: a dotted path ("total", "data.count"), or "length" of a list at that path
   path: t.opt(t.str({ examples: ['meta.total'] })),
 });
@@ -76,7 +78,7 @@ const goalLine = t.obj({
 });
 const taskLine = t.obj({ taskId: id.task, key: t.opt(t.str()), title: t.str(), state: t.str(), assigned: t.opt(who), blocked: t.bool() });
 const waitLine = t.obj({ taskId: id.task, kind: t.str(), title: t.str(), assigned: t.opt(who), since: t.ts() });
-const activity = t.obj({ at: t.ts(), kind: t.str({ examples: ['reading'] }), text: t.str(), by: t.opt(t.str()), ref: t.opt(t.str()) });
+const activity = t.obj({ at: t.ts(), kind: t.str({ examples: ['reading'] }), text: t.str(), by: t.opt(t.str()), ref: t.opt(t.str()), tpl: t.opt(t.str({ description: 'The sentence before its names and times were filled in, so an app can fill them in for its own reader' })) });
 const wakeReason = t.str({ examples: ['checkin'] });
 // every change to a goal can move its status, read its source, send a wake-up or end it, so every write declares the goal's events
 const EMITS: EventName[] = ['goal.created', 'goal.started', 'goal.updated', 'goal.status_changed', 'goal.progress', 'goal.woken', 'goal.resumed', 'goal.reported', 'goal.step_done', 'goal.budget_warned', 'goal.ended', 'goal.extended'];
@@ -115,26 +117,30 @@ export default defineManifest({
       emits: EMITS, tool: 'tasks', mcpName: 'goals_create', cli: 'vyre goals create',
       errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
-    write('goals.confirm', 'Start a drafted goal: the owner presses Start on its card. The standing permissions it names hold from this press', {
-      in: { ...target, permissions: t.opt(t.arr(t.str(), { description: 'The labels of the permissions to grant; all when omitted' })) }, out: { goal: goalRow }, level: 'member',
+    write('goals.confirm', 'Start a drafted goal: the owner presses Start on its card, or an agent acting for the owner starts it with messageId, the message in which the owner asked for it, in the goal chat and under 15 minutes old. An agent start grants no permission. The standing permissions it names hold from this press', {
+      in: { ...target, permissions: t.opt(t.arr(t.str(), { description: 'The labels of the permissions to grant; all when omitted' })), messageId: t.opt(id.message) }, out: { goal: goalRow }, level: 'member',
       emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),
     read('goals.get', 'One goal: its finish line and progress, the plan as tasks, who is helping, what waits on whom, budget used and the latest activity', {
-      in: target, out: { goal: goalRow, tasks: t.arr(taskLine), waiting: t.arr(waitLine), activity: t.arr(activity), readings: t.arr(reading) }, level: 'member', tool: 'tasks', mcpName: 'goals_get', label: 'check',
+      in: target, out: { goal: goalRow, draftPlan: t.opt(t.arr(planChild)), tasks: t.arr(taskLine), waiting: t.arr(waitLine), activity: t.arr(activity), readings: t.arr(reading) }, level: 'member', tool: 'tasks', mcpName: 'goals_get', label: 'check',
       errors: ['validation.not_found'],
     }),
     read('goals.list', 'Goals by scope: mine, the ones I help with, a project, a record, a task, or all I can see', {
       in: { scope: t.enm('mine', 'helping', 'project', 'record', 'task', 'all'), projectId: t.opt(id.project), recordId: t.opt(id.record), taskId: t.opt(id.task), open: t.opt(t.bool()) },
       out: { goals: t.arr(goalLine) }, level: 'member', tool: 'tasks', mcpName: 'goals_list', label: 'filter', cli: 'vyre goals list',
     }),
+    read('goals.count', 'How many goals a project has, whoever may open them: a number and nothing else (never a title). Only a manager of the project or the system may ask; the Overview uses it to say how many goals a reader may not open', {
+      in: { projectId: id.project }, out: { count: t.int({ minimum: 0 }) }, level: 'member', tool: 'tasks',
+    }),
     read('goals.activity', 'The activity of a goal, newest first: every reading, wake-up, step, task and status change, and why', {
       in: { ...target, before: t.opt(t.ts()), limit: t.opt(t.int({ minimum: 1, maximum: 200 })) }, out: { activity: t.arr(activity) }, level: 'member', tool: 'tasks', errors: ['validation.not_found'],
     }),
-    write('goals.update', 'Change a goal: its finish line, deadline, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)', {
+    write('goals.update', 'Change a goal: its title, finish line, deadline, lead, owner, drafted plan, budget, check-in rhythm, quiet hours, helpers, links or standing permissions (only the owner)', {
       in: {
         ...target, title: t.opt(t.str({ minLength: 1, maxLength: 140 })), outcome: t.opt(t.str()), finish: t.opt(finish), deadline: t.opt(t.ts()), budget: t.opt(budget), rhythm: t.opt(rhythm),
         quiet: t.opt(t.nullable(quiet)), zone: t.opt(t.str()), helpers: t.opt(t.arr(who, { maxItems: 20 })), projectId: t.opt(t.nullable(id.project)), recordIds: t.opt(t.arr(id.record, { maxItems: 50 })),
         permissions: t.opt(t.arr(permission, { maxItems: 10 })), stuckAfter: t.opt(t.int({ minimum: 1, maximum: 20 })),
+        leadAgentId: t.opt(id.agent), owner: t.opt(id.user), plan: t.opt(t.arr(planChild, { maxItems: 50, description: 'A draft goal only: the drafted plan, replaced whole' })),
       },
       out: { goal: goalRow, seated: t.opt(t.arr(seat)) }, level: 'member', emits: EMITS, tool: 'tasks', errors: ['validation.precondition_failed', 'validation.not_found'],
     }),

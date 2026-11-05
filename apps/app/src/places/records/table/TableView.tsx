@@ -31,8 +31,10 @@ import type { RowMark } from "../sharing/model.ts";
 import { Tooltip } from "../../../../../../ui/src/Tooltip/index.tsx";
 import { FieldsPanel, fieldMenuEntries } from "../typeedit/index.ts";
 import type { FieldMode } from "../typeedit/index.ts";
+import { recordMenu } from "../menus/record.ts";
 import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
 import type { Column, FieldDef, GroupItem, RowPick, RecordRow, TableViewState, TypeDef } from "./model.ts";
+import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
 
 type TypesOut = CapMap["schema.types.list"]["out"];
 type ViewsOut = CapMap["views.list"]["out"];
@@ -58,7 +60,10 @@ function Cell({ field, row, names }: { field: FieldDef; row: RecordRow; names: (
   if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
   if (field.type === "person") return <View style={styles.person}><Face name={names(String(v))} seedId={String(v)} size={18} /><Text numberOfLines={1} style={styles.cellText}>{names(String(v))}</Text></View>;
   if (field.type === "rating" && typeof v === "number") return <Text style={styles.stars} accessibilityLabel={`${v} of 5`}>{"★".repeat(Math.max(0, Math.min(5, v)))}</Text>;
-  return <Text numberOfLines={1} style={[styles.cellText, isNumeric(field) && styles.num, field.type === "sealed" && styles.sealed]}>{cellText(field, v, names)}</Text>;
+  const text = <Text numberOfLines={1} style={[styles.cellText, isNumeric(field) && styles.num, field.type === "sealed" && styles.sealed]}>{cellText(field, v, names)}</Text>;
+  // a moment (a date with a time) shows both zones on hover and focus; a plain calendar date has no second clock
+  const at = field.type === "datetime" ? (typeof v === "number" ? v : typeof v === "string" ? Date.parse(v) : NaN) : NaN;
+  return Number.isFinite(at) ? <TimePop at={at}>{text}</TimePop> : text;
 }
 
 interface RowProps {
@@ -325,7 +330,10 @@ function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string,
   }
   if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
   if (field.type === "person") return createElement("span", { className: "vrt-p" }, dot(String(v), names(String(v))), fit(names(String(v)), width - 25));
-  return createElement("span", { className: isNumeric(field) ? "vrt-c vrt-n" : "vrt-c" }, fit(cellText(field, v, names), width));
+  const cell = createElement("span", { className: isNumeric(field) ? "vrt-c vrt-n" : "vrt-c" }, fit(cellText(field, v, names), width));
+  // a moment (a date with a time) opens the hover card with both zones; a plain calendar date has no second clock
+  const at = field.type === "datetime" ? (typeof v === "number" ? v : typeof v === "string" ? Date.parse(v) : NaN) : NaN;
+  return Number.isFinite(at) ? createElement(TimePop, { at }, cell) : cell;
 }
 
 const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: number; cols: readonly Column[]; from: number; to: number; pad: number }): ReactElement {
@@ -510,6 +518,13 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   const kept = useRef<{ offset: number; rows: RecordRow[] } | null>(null);
   if (q.status === "ready" && (kept.current?.rows !== q.data.rows || kept.current.offset !== (v.group ? 0 : offset))) kept.current = { offset: v.group ? 0 : offset, rows: q.data.rows };
   const loaded = kept.current;
+  // the starred records, for the menu's Star / Remove Star and the S key; a runtime that cannot read stars leaves them all unstarred
+  const stars = useLive("stars.list", { type: "record" });
+  const starredIds = useMemo(() => new Set(stars.status === "ready" ? stars.data.stars.map((x) => x.resource.id) : []), [stars]);
+  const toggleStar = (id: string, on: boolean): void => { void Promise.resolve(data.call("stars.toggle", { resource: { type: "record", id }, on })).catch(() => undefined); };
+  const titleOf = (id: string): string => { const r = loaded?.rows.find((x) => x.id === id); const t = r ? r.fields[def.titleField] : undefined; return typeof t === "string" && t !== "" ? t : "Untitled"; };
+  const linkTo = (id: string): string => { const l = (globalThis as { location?: { origin?: string; pathname?: string } }).location; return `${l?.origin ?? ""}${l?.pathname ?? ""}#subject=record:${id}`; };
+  const copyText = (t: string): void => { const c = (globalThis as { navigator?: { clipboard?: { writeText(x: string): unknown } } }).navigator?.clipboard; if (c) void c.writeText(t); };
 
   const items = useMemo(() => (groupField && loaded ? groupItems(loaded.rows, groupField, folded, data.nameOf) : null), [groupField, loaded, folded, data]);
   const total = items ? items.length : count ?? loaded?.rows.length ?? 0;
@@ -613,19 +628,20 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
   /** What the right-click menu and the selection bar both offer. `ids` are the picked rows; `every` means the whole table. */
   const actionEntries = (ids: readonly string[], every: boolean): MenuEntry[] => {
     const n = every ? (count ?? 0) : ids.length;
-    const out: MenuEntry[] = [];
-    if (!every && ids.length === 1) out.push({ label: "Open", onSelect: () => data.nav.openRecord(ids[0] as string) });
+    const id = ids.length === 1 && !every ? (ids[0] as string) : null;
     // records.query and records.export take a filter that is opaque JSON over the type's own fields: there is no "id in [...]" form in manifests/records.ts, so a hand-picked set cannot be
     // exported yet (contract request to the lead). Everything else exports the view's rows: Select all N, and a menu opened with nothing picked.
-    if ((every || ids.length === 0) && (!access.on || access.can.export)) {
-      out.push({
-        label: "Export as CSV",
-        onSelect: exportView,
-      });
-    }
-    out.push({ separator: true });
-    out.push({ label: n === 1 ? "Delete" : `Delete ${n.toLocaleString("en-US")} records`, danger: true, onSelect: () => setWork({ kind: "confirm", ids, every, n }) });
-    return out;
+    return recordMenu(
+      { n, every, single: id !== null, starred: id !== null && starredIds.has(id), canExport: !access.on || access.can.export, nothingPicked: ids.length === 0 },
+      {
+        open: () => { if (id) data.nav.openRecord(id); },
+        ...(id ? { star: (on: boolean) => toggleStar(id, on) } : {}),
+        ...(id && data.share && access.on && access.can.share ? { share: () => data.share?.open({ type: "record", id, name: titleOf(id), typeName: def.plural }) } : {}),
+        ...(id ? { copyLink: () => copyText(linkTo(id)) } : {}),
+        exportCsv: exportView,
+        remove: () => setWork({ kind: "confirm", ids, every, n }),
+      },
+    );
   };
   const rowMenu = (r: RecordRow, x: number, y: number): void => {
     const inPick = isPicked(r.id) && nPicked > 1;
@@ -658,6 +674,7 @@ function Grid({ type, def, views, base, saved, headerExtra }: { type: string; de
     else if (ev.key === "ArrowDown") { ev.preventDefault?.(); move(1); }
     else if (ev.key === "ArrowUp") { ev.preventDefault?.(); move(-1); }
     else if ((ev.key === "Enter" || ev.key === " ") && selected) { ev.preventDefault?.(); data.nav.openRecord(selected); }
+    else if (!cmd && (ev.key === "s" || ev.key === "S") && selected) { ev.preventDefault?.(); toggleStar(selected, !starredIds.has(selected)); }
   };
 
   const onTap = useCallback((id: string, meta?: boolean): void => {

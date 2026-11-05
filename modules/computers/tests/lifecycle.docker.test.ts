@@ -81,8 +81,23 @@ test("create makes a stopped container, and an image that is not on the host is 
   assert.deepEqual(f.calls, [`imageExists ${DEFAULT_COMPUTER_IMAGE}`, "create vyre-comp-abc"]);
   assert.equal(f.running.size, 0);
   f.setImage(false);
-  await assert.rejects(() => host.create({ computerId: "cmt_two", agentId: "agt_two", tabLimit: 8, idleSleepMinutes: 10 }), /not on this host/);
+  await assert.rejects(() => host.create({ computerId: "cmt_two", agentId: "agt_two", tabLimit: 8, idleSleepMinutes: 10 }), (e: Error) => e.message.startsWith("This server can't start agent computers yet.\nDetails: "));
   assert.equal(f.created.has("vyre-comp-two"), false);
+});
+
+test("an image named by digest is fetched whole (fromImage carries the digest, no tag), and a missing one says so plainly with how to fix it", async () => {
+  const digest = `ghcr.io/vyre-ai/agent-computer@sha256:${"f".repeat(64)}`;
+  const f = fakeApi();
+  f.setImage(false);
+  const pulls: Array<Record<string, string>> = [];
+  const http = async (r: { path: string; query?: Record<string, string> }) => { pulls.push({ path: r.path, ...(r.query ?? {}) }); f.setImage(true); return { status: 200, body: new TextEncoder().encode('{"status":"Pull complete"}') }; };
+  const host = createDockerComputerHost({ api: f.api, image: digest, http } as never);
+  await host.create({ computerId: "cmt_dig", agentId: INTAKE, tabLimit: 8, idleSleepMinutes: 10 });
+  assert.deepEqual(pulls, [{ path: "/images/create", fromImage: digest }], "the whole reference in fromImage, and no tag");
+  const g = fakeApi();
+  g.setImage(false);
+  const none = createDockerComputerHost({ api: g.api, image: digest, http: async () => ({ status: 404, body: new TextEncoder().encode('{"message":"manifest unknown"}') }) } as never);
+  await assert.rejects(() => none.create({ computerId: "cmt_none", agentId: INTAKE, tabLimit: 8, idleSleepMinutes: 10 }), (e: Error) => { const [plain, details] = e.message.split("\nDetails: "); return plain === "This server can't start agent computers yet." && !/docker|image|sha256|ghcr|digest|pull/i.test(plain) && (details ?? "").includes(`docker pull ${digest}`); });
 });
 
 test("start unseals the profile, starts the container and waits for agentd to answer", async () => {

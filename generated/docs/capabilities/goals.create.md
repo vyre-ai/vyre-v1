@@ -34,7 +34,7 @@ type In = {
     direction?: "up" | "down";
     unit?: string;
     source?: {
-      kind: "records" | "connection" | "mcp" | "automation" | "manual";
+      kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
       label?: string;
       type?: string;
       filter?: unknown;
@@ -45,6 +45,7 @@ type In = {
       server?: string;
       tool?: string;
       automationId?: string;
+      watchId?: string;
       path?: string;
     };
     items?: Array<{
@@ -128,7 +129,7 @@ type Out = {
       direction?: "up" | "down";
       unit?: string;
       source?: {
-        kind: "records" | "connection" | "mcp" | "automation" | "manual";
+        kind: "records" | "connection" | "mcp" | "automation" | "watch" | "manual";
         label?: string;
         type?: string;
         filter?: unknown;
@@ -139,6 +140,7 @@ type Out = {
         server?: string;
         tool?: string;
         automationId?: string;
+        watchId?: string;
         path?: string;
       };
       items?: Array<{
@@ -276,7 +278,8 @@ type Out = {
         "path": "meta.total",
         "server": "example",
         "tool": "example",
-        "type": "contact"
+        "type": "contact",
+        "watchId": "wch_a1b2c3"
       },
       "target": 1,
       "unit": "registrations"
@@ -383,7 +386,8 @@ type Out = {
           "path": "meta.total",
           "server": "example",
           "tool": "example",
-          "type": "contact"
+          "type": "contact",
+          "watchId": "wch_a1b2c3"
         },
         "target": 1,
         "unit": "registrations"

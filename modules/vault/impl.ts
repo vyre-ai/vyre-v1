@@ -4,6 +4,7 @@ import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
 import * as u from "./handlers/use.ts";
 import * as pr from "./handlers/providers.ts";
+import * as mh from "./handlers/mine-host.ts";
 import * as g from "./handlers/g20.ts";
 import * as sk from "./handlers/space-key.ts";
 import { textCheck } from "./handlers/text-check.ts";
@@ -50,10 +51,12 @@ export const handlers: Record<string, Handler> = {
   "vault.text_check": (ctx, i) => textCheck(ctx, i),
   "providers.catalog": (ctx, i) => pr.catalog(ctx, i),
   "providers.list": (ctx, i) => pr.list(ctx, i),
+  "providers.own_people": (ctx, i) => pr.ownPeople(ctx, i),
   "providers.add": (ctx, i) => pr.add(ctx, i),
   "providers.remove": (ctx, i) => pr.remove(ctx, i),
   "providers.set_space_use": (ctx, i) => pr.setSpaceUse(ctx, i),
   "providers.uses.set": (ctx, i) => pr.usesSet(ctx, i),
+  "providers.set_keeps_nothing": (ctx, i) => pr.setKeepsNothingFor(ctx, i),
   "providers.subscription_start": (ctx, i) => pr.subscriptionStart(ctx, i),
   "providers.subscription_complete": (ctx, i) => pr.subscriptionComplete(ctx, i),
   "providers.test": (ctx, i) => pr.test(ctx, i),
@@ -64,6 +67,7 @@ export const handlers: Record<string, Handler> = {
   "providers.space_key.set": (ctx, i) => sk.set(ctx, i),
   "providers.space_key.remove": (ctx, i) => sk.remove(ctx, i),
   "providers.space_key.use": (ctx, i) => sk.use(ctx, i),
+  "providers.mark_signin_needed": (ctx, i) => pr.markSigninNeeded(ctx, i),
   "vault.folders.update": (ctx, i) => g.foldersUpdate(ctx, i),
   "vault.folders.delete": (ctx, i) => g.foldersDelete(ctx, i),
   "vault.generate": (ctx, i) => g.generate(ctx, i),
@@ -105,6 +109,9 @@ export const hostCalls = {
   /** Mine items are exportable by their owner for 30 days after removal and stay sealed under the owner's own key meanwhile (export keeps them); delete puts them in the trash. */
   /** Sign-in files a CLI refreshed during a turn, saved back to their item (providers.ts signinRefreshed). The host's own call only: consumers.ts refuses every other caller. */
   "vault.signin_refreshed": (ctx: Ctx, i: { ticket: string; itemId: string; asker: string }) => pr.signinRefreshed(ctx as unknown as Parameters<typeof pr.signinRefreshed>[0], i),
+  /** The host's own saves of a person's Mine item (the GitHub refresh token GitHub rotates): sealed under the owner's key like any Mine item. The host service only (consumers.ts). */
+  "vault.mine_set": (ctx: Ctx, i: { owner: string; name: string; fields: Record<string, string> }) => mh.mineSet(ctx as unknown as Parameters<typeof mh.mineSet>[0], i),
+  "vault.mine_remove": (ctx: Ctx, i: { owner: string; name: string }) => mh.mineRemove(ctx as unknown as Parameters<typeof mh.mineRemove>[0], i),
   "vault.reassign_owned": (ctx: Ctx, i: { person: string; kind: string; action: string }): number => {
     if (i.kind !== "vault_mine" || i.action !== "delete") return 0;
     try { return ctx.db.run(`UPDATE vault_meta SET "deleted_at" = ?, "updated_at" = ? WHERE "owner" = ? AND "scope" = 'mine' AND "deleted_at" IS NULL`, ctx.now(), ctx.now(), i.person).changes; } catch { return 0; }

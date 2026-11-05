@@ -26,6 +26,7 @@ import {
   FLASH, KNOWS_SCOPE, NO_SUBJECTS, USED_FOOT, appendLine, asOfFilter, groupKnows, hasSubject, knowRowKey, linkSubjects, quoteDate, rememberText, splitSubjects, subjectIndex, subjectKey, subjectOfHref, usedCount, usedLabel,
 } from "./model.ts";
 import type { ChatFact, LearnedRow } from "./model.ts";
+import { LAYER_SCOPE, learnedExact, learnedWhen } from "./model.ts";
 import { ASSISTANT, MESSAGE_IDS, createChatMemorySample } from "./sample.ts";
 import type { ChatMemorySample } from "./sample.ts";
 import { ChatMemoryProvider } from "./thread.tsx";
@@ -175,6 +176,25 @@ test("the message that taught something has 'Learned: <fact> · Undo · Edit'", 
   assert.equal(count(out, 'data-testid="learned-line-'), 1, "only the message it was learned from");
 });
 
+test("the Learned line says when, in the words used elsewhere (the exact time is its hover title, drawn on the web only)", async () => {
+  const s = await withWarm();
+  const out = html(s);
+  const id = await taughtFact(s);
+  const when = new RegExp(`data-testid="learned-when-${id}"[^>]*>([^<]*)<`).exec(out);
+  assert.ok(when, "a time on the line");
+  assert.match(when[1]!, /^(just now|\d+ min ago|\d+ h ago|today|yesterday|\d+ days ago|1 month ago|\d+ months ago)$/);
+});
+
+test("learnedWhen counts minutes and hours, then falls back to days", () => {
+  const NOW = Date.UTC(2026, 10, 3, 12, 0);
+  assert.equal(learnedWhen(NOW - 20_000, NOW), "just now");
+  assert.equal(learnedWhen(NOW - 12 * 60_000, NOW), "12 min ago");
+  assert.equal(learnedWhen(NOW - 3 * 3_600_000, NOW), "3 h ago");
+  assert.equal(learnedWhen(NOW - 30 * 3_600_000, NOW), "yesterday");
+  assert.equal(learnedWhen(NOW - 4 * 86_400_000, NOW), "4 days ago");
+  assert.equal(learnedExact(Date.UTC(2026, 10, 3, 9, 5)), "Nov 3, 2026 9:05");
+});
+
 test("Undo moves the fact to Trash and the line becomes 'Moved to Trash. Restore'; Restore brings it back", async () => {
   const s = await withWarm();
   const id = await taughtFact(s);
@@ -259,12 +279,13 @@ test("the message menu keeps every item it had and adds Remember This, Add to a 
   const actions = { copy: () => undefined, openThread: () => undefined, setPinned: () => undefined, react: () => undefined, remove: () => undefined, showMenu: (items) => void shown.push(labels(items as never)), memoryEntries: (m, x, y, show) => memoryEntries(thread, m, { x, y }, show) } as unknown as MessageActions;
   const withMemory = labels(menuFor(msg("m1", "hello"), false, actions, () => undefined, { x: 5, y: 6 }));
   const plain = labels(menuFor(msg("m1", "hello"), false, { ...actions, memoryEntries: undefined } as MessageActions, () => undefined));
-  assert.deepEqual(plain, ["Copy", "Reply in Thread", "Pin Message", "Add Reaction"]);
-  assert.deepEqual(withMemory, ["Copy", "Reply in Thread", "Pin Message", "Add Reaction", "-", "Remember This", "Add to a Page…", "Forget This"]);
+  // the message menu is grouped (Copy; Reply in Thread; Pin and React), and the memory items are a group of their own
+  assert.deepEqual(plain, ["Copy", "-", "Reply in Thread", "-", "Pin Message", "Add Reaction"]);
+  assert.deepEqual(withMemory, ["Copy", "-", "Reply in Thread", "-", "Pin Message", "Add Reaction", "-", "Remember This", "Add to a Page…", "Forget This"]);
   const mine = labels(menuFor(msg("m1", "hello", "text"), true, actions, () => undefined));
-  assert.deepEqual(mine.slice(0, 3), ["Copy", "Edit", "Reply in Thread"]);
+  assert.deepEqual(mine.filter((x) => x !== "-").slice(0, 3), ["Copy", "Edit", "Reply in Thread"]);
   assert.deepEqual(mine.slice(-4), ["Add to a Page…", "Forget This", "-", "Delete"]);
-  assert.deepEqual(labels(menuFor(msg("q1", "", "quiet"), false, actions, () => undefined)), ["Copy", "Reply in Thread", "Pin Message", "Add Reaction"], "a quiet event line has no memory items");
+  assert.deepEqual(labels(menuFor(msg("q1", "", "quiet"), false, actions, () => undefined)), ["Copy", "-", "Reply in Thread", "-", "Pin Message", "Add Reaction"], "a quiet event line has no memory items");
   const entries = memoryEntries(thread, { messageId: "m1", body: "hi", createdAt: 1 }, { x: 5, y: 6 }, (items, x, y) => void shown.push([...labels(items as never), `@${x},${y}`]));
   const add = entries.find((e) => "label" in e && e.label.startsWith("Add to a Page"))!;
   (add as { onSelect: () => void }).onSelect();
@@ -353,7 +374,7 @@ const KNOWS_READS = (s: ChatMemorySample): Array<[string, unknown]> => [
 const pane = async (s: ChatMemorySample): Promise<string> => { await s.warm(KNOWS_READS(s)); return clean(renderToStaticMarkup(<ChatRightPane data={s.pane} open onToggle={() => undefined} tab="memory" paneWidth={340} window={{ start: 0, end: 500 }} />)); };
 
 test("the right pane tab is named Knows and reads the facts in scope for this chat, grouped Space, Project, Agent and You", async () => {
-  assert.deepEqual(TABS.map((t) => t.title), ["Computer", "Threads", "Files", "Knows", "Routines"]);
+  assert.deepEqual(TABS.map((t) => t.title), ["About", "Computer", "Chats", "Files", "Knows", "Routines"]);
   const out = await pane(await withWarm());
   assert.ok(has(out, ">Knows<") && has(out, 'data-testid="pane-body-memory"') && has(out, 'data-testid="knows-list"'));
   inOrder(out, ["What Assistant knows here", "for you · 17", KNOWS_SCOPE, ">Space<", ">Project<"]);
@@ -467,4 +488,10 @@ test("the context carries no state of its own: a provider without memory draws i
   const out = renderToStaticMarkup(<ChatMemoryProvider memory={undefined} threadId="c1"><span>plain</span></ChatMemoryProvider>);
   assert.equal(out, "<span>plain</span>");
   assert.ok(typeof ChatMemoryContext === "function");
+});
+
+test("every Learned line says who can read it: a lesson its scope, any other fact its layer", () => {
+  assert.equal(LAYER_SCOPE.person, "Only you");
+  assert.equal(LAYER_SCOPE.space, "The Space");
+  assert.deepEqual(Object.keys(LAYER_SCOPE).sort(), ["agent", "person", "project", "space"]);
 });

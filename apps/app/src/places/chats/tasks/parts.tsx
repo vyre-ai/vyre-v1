@@ -13,6 +13,7 @@ import { Glyph } from "../conversation/parts.tsx";
 import { batonMarks, dueLabel, holderOf, isOpenState, KIND_TITLE, ago } from "./model.ts";
 import { canTake } from "./moves.ts";
 import type { NeedItem, TaskRow, Who } from "./model.ts";
+import { TimePop, useZones } from "../../../../../../ui/src/Time/index.tsx";
 
 export interface RowEnv {
   now: number; offsetMin: number; me: string; turns?: TurnStreams | undefined;
@@ -45,10 +46,11 @@ function useActivity(store: ActivityStore | undefined): string {
 }
 
 /** The agent's words while it works: what it is doing right now. */
-export function LiveWords({ turn, turns, name }: { turn: LiveTurn; turns: TurnStreams | undefined; name: string }): ReactElement {
+export function LiveWords({ turn, turns, name, forWho }: { turn: LiveTurn; turns: TurnStreams | undefined; name: string; /** the person it works for when the task is theirs: "you" or their name */ forWho?: string }): ReactElement {
   const store = useMemo(() => turns?.activityOf(`turn:${turn.turnId}`), [turns, turn.turnId]);
   const label = useActivity(store);
-  return <Text numberOfLines={1} testID="task-live" style={s.live}>{`${name}: ${label || "Working"}`}</Text>;
+  // a task assigned to a person that an agent is doing for them says so, not just "Working"
+  return <Text numberOfLines={1} testID="task-live" style={s.live}>{forWho ? `${name} is on it for ${forWho}${label ? ` · ${label}` : ""}` : `${name}: ${label || "Working"}`}</Text>;
 }
 
 export const BatonMarks = memo(function BatonMarks({ row, title }: { row: Pick<TaskRow, "state" | "reviewer" | "approver">; title?: string }): ReactElement | null {
@@ -88,7 +90,8 @@ function WebLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv; s
   const turn = useLiveTurn(env.turns, row.workerThread ?? row.threadId);
   const holder = holderOf(row);
   const other = holder && holder.id !== env.me ? holder : undefined;
-  const due = dueLabel(row.due, env.now, env.offsetMin);
+  const zones = useZones();
+  const due = dueLabel(row.due, env.now, zones);
   const closed = !isOpenState(row.state);
   const project = row.recordId ? env.project(row.recordId) : undefined;
   const waits = row.blocked ? row.dependsOn.map(env.keyOf).filter((k): k is string => k !== undefined) : [];
@@ -108,19 +111,27 @@ function WebLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv; s
         h("span", { className: `vt-title${closed ? " dn" : ""}` }, row.title),
         row.priority === "urgent" || row.priority === "high" ? h("span", { className: `vt-pri${row.priority === "urgent" ? " u" : ""}` }, row.priority === "urgent" ? "Urgent" : "High") : null,
       ),
-      turn ? <LiveWords turn={turn} turns={env.turns} name={env.nameOf(turn.agentId)} /> : sub ? h("div", { className: "vt-sub" }, sub) : null,
+      turn ? <LiveWords turn={turn} turns={env.turns} name={env.nameOf(turn.agentId)} {...forWhoOf(row, env, turn.agentId)} /> : sub ? h("div", { className: "vt-sub" }, sub) : null,
     ),
     row.labels.length > 0 ? h("span", { className: "vt-lab" }, `#${row.labels[0]}`) : null,
     h("span", { className: "vt-bat", style: { flex: "none" } }, <BatonMarks row={row} {...(other ? { title: `With ${env.nameOf(other.id)}` } : {})} />),
     other ? h("span", { style: { flex: "none", display: "inline-flex" }, role: "button", "aria-label": `Open ${env.nameOf(other.id)}`, onClick: (e: Press) => { e.stopPropagation(); env.openProfile(other); } }, <Avatar name={env.nameOf(other.id)} seedId={other.id} kind={faceKind(other)} size={22} />) : null,
-    due.text ? h("span", { className: `vt-due${due.late && !closed ? " late" : ""}` }, due.text) : null,
+    due.text ? h("span", { className: `vt-due${due.late && !closed ? " late" : ""}`, ...(due.title ? { title: due.title } : {}) }, due.text) : null,
   );
+}
+
+/** A task assigned to a person that an agent is doing for them: who it is for, as "you" or their name. */
+function forWhoOf(row: TaskRow, env: RowEnv, agentId: string): { forWho?: string } {
+  return row.assigned.kind === "person" && row.assigned.id !== agentId ? { forWho: row.assigned.id === env.me ? "you" : env.nameOf(row.assigned.id) } : {};
 }
 
 /** The second line of a row: what it waits on, else who took a team task (or that it waits for someone to take it), its project and its breakdown. */
 function subOf(row: TaskRow, env: RowEnv, waits: readonly string[], project: string | undefined): string {
   if (waits.length > 0) return `Waits on ${waits.slice(0, 3).join(", ")}`;
   const team = row.assigned.kind === "group" || row.assigned.kind === "role";
+  // an agent that was asked to do a person's own task: "Assistant is on it for you", whether or not it is writing right now
+  const onIt = row.assigned.kind === "person" && row.state === "doing" ? (row.workingNotes as Record<string, string> | undefined)?.["baton.on_it"] : undefined;
+  if (onIt) return `${env.nameOf(onIt)} is on it for ${row.assigned.id === env.me ? "you" : env.nameOf(row.assigned.id)}`;
   const taken = team && isOpenState(row.state) ? (row.takenBy ? `Taken by ${row.takenBy === env.me ? "you" : env.nameOf(row.takenBy)}` : `${env.nameOf(row.assigned.id)}: nobody took it yet`) : "";
   return [taken, project, row.children ? `${row.children.done} of ${row.children.total}` : ""].filter(Boolean).join(" · ");
 }
@@ -136,7 +147,8 @@ function NativeLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv
   const turn = useLiveTurn(env.turns, row.workerThread ?? row.threadId);
   const holder = holderOf(row);
   const other = holder && holder.id !== env.me ? holder : undefined;
-  const due = dueLabel(row.due, env.now, env.offsetMin);
+  const zones = useZones();
+  const due = dueLabel(row.due, env.now, zones);
   const closed = !isOpenState(row.state);
   const project = row.recordId ? env.project(row.recordId) : undefined;
   const waits = row.blocked ? row.dependsOn.map(env.keyOf).filter((k): k is string => k !== undefined) : [];
@@ -153,12 +165,12 @@ function NativeLine({ row, env, selected, current }: { row: TaskRow; env: RowEnv
             <Text numberOfLines={1} style={[s.title, closed && s.titleDone]}>{row.title}</Text>
             {row.priority === "urgent" || row.priority === "high" ? <Text style={[s.pri, row.priority === "urgent" && s.priUrgent]}>{row.priority === "urgent" ? "Urgent" : "High"}</Text> : null}
           </View>
-          {turn ? <LiveWords turn={turn} turns={env.turns} name={env.nameOf(turn.agentId)} /> : sub ? <Text numberOfLines={1} style={s.sub}>{sub}</Text> : null}
+          {turn ? <LiveWords turn={turn} turns={env.turns} name={env.nameOf(turn.agentId)} {...forWhoOf(row, env, turn.agentId)} /> : sub ? <Text numberOfLines={1} style={s.sub}>{sub}</Text> : null}
         </View>
         {row.labels.length > 0 && roomy ? <Text numberOfLines={1} style={s.labels}>{`#${row.labels[0]}`}</Text> : null}
         {roomy ? <BatonMarks row={row} {...(other ? { title: `With ${env.nameOf(other.id)}` } : {})} /> : null}
         {other ? <FaceButton who={other} name={env.nameOf(other.id)} size={22} onPress={() => env.openProfile(other)} /> : null}
-        {due.text ? <Text style={[s.due, due.late && !closed && s.late]}>{due.text}</Text> : <View style={s.dueGap} />}
+        {due.text ? <TimePop at={row.due as number}><Text style={[s.due, due.late && !closed && s.late]}>{due.text}</Text></TimePop> : <View style={s.dueGap} />}
       </>}
     </Pressable>
   </View>;
@@ -172,7 +184,7 @@ export const NeedLine = memo(function NeedLine({ item, env }: { item: NeedItem; 
   const by = t.kind === "work" && (t.state === "in_review" || t.state === "awaiting_approval") ? t.assigned.id : sentBack ? (t.reviewer ?? t.approver)?.id ?? t.createdBy : t.createdBy;
   const who: Who = { kind: by.startsWith("agt_") ? "agent" : "person", id: by };
   // a team task is taken first; a held act is approved here; anything else opens, where its move is
-  const primary = canTake(t) ? { key: "take", label: "Take" } : t.kind === "approve" ? { key: "approve", label: "Approve" } : { key: "open", label: "Open" };
+  const primary = canTake(t) ? { key: "take", label: "Take" } : t.kind === "approve" ? { key: "approve", label: "Allow" } : { key: "open", label: "Open" };
   const step = t.kind !== "work" ? KIND_TITLE[t.kind] : t.state === "in_review" ? "Your review" : t.state === "awaiting_approval" ? "Your approval" : t.workingNotes["fixes"] !== undefined ? "Sent back to you" : canTake(t) ? `For ${env.nameOf(t.assigned.id)}` : "Given to you";
   const sub = [step, env.nameOf(by), t.recordId ? env.project(t.recordId) : undefined, ago(env.now - t.updatedAt)].filter(Boolean).join(" · ");
   const trigger = env.needMenu ? menuTrigger((x, y) => env.needMenu?.(item, { x, y })) : {};

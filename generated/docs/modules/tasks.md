@@ -4,9 +4,10 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (38)
+## Capabilities (40)
 
 - [tasks.act](../capabilities/tasks.act.md): Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once
+- [tasks.agent_on_it](../capabilities/tasks.agent_on_it.md): Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads "<Agent> is on it for you". Only that person, or the host, may say so
 - [tasks.ask](../capabilities/tasks.ask.md): Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you
 - [tasks.assign](../capabilities/tasks.assign.md): Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)
 - [tasks.block](../capabilities/tasks.block.md): Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits
@@ -24,6 +25,7 @@ Requires: nothing.
 - [tasks.followers.add](../capabilities/tasks.followers.add.md): Add a follower; plain @mentions become followers, never tasks
 - [tasks.followers.remove](../capabilities/tasks.followers.remove.md): Remove a follower
 - [tasks.get](../capabilities/tasks.get.md): Read one task with its blocks, slots, links, notes and followers
+- [tasks.held_revise](../capabilities/tasks.held_revise.md): Rewrite the card of a held act and the hash its approval is bound to (the Gate's edit of a held message; not for a person or an agent to call)
 - [tasks.history](../capabilities/tasks.history.md): Activity of a task: transitions, hand-overs, notes and sends back, newest first
 - [tasks.index](../capabilities/tasks.index.md): The long list of a scope in one read: a light row per task with its rollup, ordered newest first; pass the last rev and an unchanged list answers nothing
 - [tasks.links.add](../capabilities/tasks.links.add.md): Link a record or a file to a task
@@ -43,7 +45,7 @@ Requires: nothing.
 - [tasks.update](../capabilities/tasks.update.md): Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)
 - [tasks.withdraw](../capabilities/tasks.withdraw.md): Withdraw open requests whose source chat or run stopped or whose item changed, or let one task go, with a note
 - [tasks.working_notes.delete](../capabilities/tasks.working_notes.delete.md): Delete a working note
-- [tasks.working_notes.set](../capabilities/tasks.working_notes.set.md): Write a working note (key and value) that any person or agent on the task can read
+- [tasks.working_notes.set](../capabilities/tasks.working_notes.set.md): Write a working note (key and value) that any person or agent on the task can read; send expectedFrom, the note as you last read it
 
 ## Events (26)
 

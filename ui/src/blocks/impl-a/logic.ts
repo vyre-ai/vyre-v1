@@ -14,6 +14,10 @@ export interface BlockHost {
   open: (tab: string, input: Record<string, unknown>) => void;
   /** Opens a link outside the app (a preview URL). */
   openUrl?: (url: string) => void;
+  /** Who is looking, so a card can say "Private to you" and not "Shared by". */
+  meId?: string;
+  /** A person's name for an id. */
+  nameOf?: (id: string) => string;
 }
 
 export interface BlockActionSpec {
@@ -51,7 +55,7 @@ export const BLOCK_SPECS_A: Readonly<Record<PartOneType, BlockSpecA>> = {
   changeset: {
     type: "changeset",
     actions: [
-      { key: "approve", label: "Approve and commit", cap: "changesets.approve", input: { changesetId: "/changesetId" } },
+      { key: "approve", label: "Allow and commit", cap: "changesets.approve", input: { changesetId: "/changesetId" } },
       { key: "request_changes", label: "Request changes", cap: "changesets.request_changes", input: { changesetId: "/changesetId" } },
       { key: "discard", label: "Discard", cap: "changesets.discard", input: { changesetId: "/changesetId" } },
     ],
@@ -64,8 +68,8 @@ export const BLOCK_SPECS_A: Readonly<Record<PartOneType, BlockSpecA>> = {
   plan: {
     type: "plan",
     actions: [
-      { key: "approve", label: "Approve", cap: "chat.approve_plan", input: { threadId: "/threadId", planId: "/planId" } },
-      { key: "reject", label: "Reject", cap: "chat.plan.reject", input: { threadId: "/threadId", planId: "/planId" } },
+      { key: "approve", label: "Allow", cap: "chat.approve_plan", input: { threadId: "/threadId", planId: "/planId" } },
+      { key: "reject", label: "Deny", cap: "chat.plan.reject", input: { threadId: "/threadId", planId: "/planId" } },
     ],
     opens: { tab: "file", input: { fileId: "/docFileId" } },
   },

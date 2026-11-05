@@ -1,6 +1,7 @@
 // The crew's lifecycle (DESIGN-crew.md, step 2): what a teammate's turns do to its job, and the one result card that reaches the lead's chat when a teammate finishes. The bridge reports every turn start, end and
 // the moment the reply is posted (StreamEvent); this reads those for the threads that are crew jobs and nothing else. A finished teammate has its leftovers committed, its branch summarised, and posts one
 // message in the lead's chat, as itself and mentioning the lead, with a `crew_result` block. That message is the wake: the lead's turn starts from it the ordinary way, so nobody polls and nothing new is routed.
+import { noteSteps } from "./helper-tests.ts";
 import type { Db } from "./projections.ts";
 import type { EngineHostSeam } from "../../host/src/seams/engine.ts";
 import { commitLeftovers, summarize } from "./crew-git.ts";
@@ -26,13 +27,18 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
   const ended = new Map<string, "done" | "failed" | "cancelled" | "waiting" | "lost">();
   const askers = new Map<string, string>();   // turnId -> the person it ran for, kept from its start for the result of a helper
   const warn = (msg: string, attrs: Record<string, unknown>): void => o.host.log?.(msg, attrs);
+  /** The person a turn ran for, from its record. */
+  const askerOfTurn = (turnId: string): string | undefined => {
+    try { return str((o.db.all("SELECT asker FROM engine_turns WHERE turn_id = ?", turnId)[0] as Row | undefined)?.["asker"]) || undefined; } catch { return undefined; }
+  };
 
   /**
    * A helper's turn ended. Its answer goes to the chat that started it as the helper's own line, carrying a `helper` block that names the thread and how it ended. chat.post checks that block, and the engine then
    * wakes the lead, even when the lead is the helper's own agent, and bills the person the helper works for. Stopped or waiting on a person, it has nothing to report yet.
    */
   async function helperResult(e: Extract<StreamEvent, { kind: "final" }>): Promise<void> {
-    const asker = askers.get(e.turnId);
+    // who the turn ran for: kept from its start, or, when the server restarted in the middle of it, read from the turn's record (the recovered turn has no start here)
+    const asker = askers.get(e.turnId) ?? askerOfTurn(e.turnId);
     const state = ended.get(e.turnId) ?? "done";
     askers.delete(e.turnId);
     ended.delete(e.turnId);
@@ -42,10 +48,12 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
     let text = "";
     if (e.messageId) { try { text = str(((await o.host.call("chat.message.get", { threadId: e.threadId, messageId: e.messageId }, asker)) as { message?: { body?: string } }).message?.body).trim(); } catch { /* the line goes without the words */ } }
     const title = str(th.title);
-    const body = state === "failed" ? `Helper "${title}" could not finish.${text ? `\n\n${cut(text, 600)}` : ""}` : `Helper "${title}" found:\n\n${text ? cut(text, 1500) : "(it ended with no words)"}`;
+    // the server stopped under it: it may have done part of the work, so the lead hears that and decides, and the result is not "found"
+    const body = state === "lost" ? `Helper "${title}" was stopped when the server restarted. It may have done part of its work, so look at what is done before you start it again.`
+      : state === "failed" ? `Helper "${title}" could not finish.${text ? `\n\n${cut(text, 600)}` : ""}` : `Helper "${title}" found:\n\n${text ? cut(text, 1500) : "(it ended with no words)"}`;
     await o.host.postAs(e.agentId, {
       actingFor: asker, threadId: th.parentThreadId, body, mentions: [], clientId: `msg_hlp${e.turnId.replace(/^trn_/, "")}`.replace(/[^a-z0-9_]/g, ""),
-      blocks: [{ type: "helper", v: 1, data: { threadId: e.threadId, parentThreadId: th.parentThreadId, title, status: state, agentId: e.agentId, path: [] } }],
+      blocks: [{ type: "helper", v: 1, data: { threadId: e.threadId, parentThreadId: th.parentThreadId, title, status: state === "done" ? "done" : "failed", agentId: e.agentId, path: [] } }],
     });
   }
 
@@ -77,10 +85,15 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
 
   async function handle(e: StreamEvent): Promise<void> {
     ensure(o.db);
+    // each step as it happens (the watcher is fed the raw stream, not the coalesced live line): a test run is read from its call, its command and its result
+    if (e.kind === "step") { try { noteSteps(o.db, e.threadId, [e], o.now()); } catch { /* the test state is best effort */ } return; }
+    if (e.kind === "steps") { try { noteSteps(o.db, e.threadId, e.steps, o.now()); } catch { /* the test state is best effort */ } return; }
     if (e.kind === "start") askers.set(e.turnId, e.asker);
     const job = o.db.all("SELECT * FROM engine_crew_job WHERE thread_id = ?", e.threadId)[0] as Row | undefined;
     if (!job) {
-      if (e.kind === "end") ended.set(e.turnId, e.state);
+      // a helper's agent starts a turn: the notes waiting for it are read now
+      if (e.kind === "start") { try { await o.host.call("chat.helper.note_seen", { threadId: e.threadId }, e.asker); } catch { /* not a helper chat, or nothing waiting */ } }
+      if (e.kind === "end") ended.set(e.turnId, e.code === "host_lost" ? "lost" : e.state);
       if (e.kind === "final") await helperResult(e);
       return;
     }

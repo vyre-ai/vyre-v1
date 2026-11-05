@@ -2,24 +2,37 @@
 // agent's folder is walked. The pane follows the agent of the open chat (spec 3.2); nothing here reads the replica, so the tests drive every rule directly.
 import type { CapMap } from "../../../../../../generated/types.ts";
 
-export type TabKey = "computer" | "threads" | "files" | "terminal" | "memory" | "routines" | "crew";
+export type TabKey = "about" | "computer" | "threads" | "files" | "terminal" | "memory" | "routines" | "crew" | "skills" | "hooks";
 export const TABS: readonly { key: TabKey; title: string }[] = [
+  { key: "about", title: "About" },
   { key: "computer", title: "Computer" },
-  { key: "threads", title: "Threads" },
+  { key: "threads", title: "Chats" },
   { key: "files", title: "Files" },
   { key: "memory", title: "Knows" },
   { key: "routines", title: "Routines" },
 ];
-/** The sixth tab, shown only where the shell has a terminal; it sits after Files. */
+/** Terminal sits after Files, for every agent, where the shell has one. It opens where the chat runs: the agent's computer when it has one, else this computer; the host chip lists only machines the person may use. */
 export const TERMINAL_TAB: { key: TabKey; title: string } = { key: "terminal", title: "Terminal" };
-/** The tabs of a pane: the five, with Terminal after Files when the shell has one. */
-export const tabsOf = (terminal: boolean, crew = false): readonly { key: TabKey; title: string }[] => {
-  const base = terminal ? [...TABS.slice(0, 3), TERMINAL_TAB, ...TABS.slice(3)] : TABS;
-  return crew ? [...base.slice(0, 2), CREW_TAB, ...base.slice(2)] : base;
-};
-/** The Crew tab: shown only in a chat that has teammates working for it, right after Threads. */
+/** The Crew tab: shown only in a chat that has teammates working for it, right after Chats. */
 export const CREW_TAB: { key: TabKey; title: string } = { key: "crew", title: "Crew" };
-export const DEFAULT_TAB: TabKey = "computer";
+/** The tabs of a pane, shown only when useful: Computer once the agent has one, Terminal for every agent where the shell has a terminal, Crew when teammates work for the chat. */
+export const tabsOf = (terminal: boolean, crew = false, computer = true, skills = false, hooks = false): readonly { key: TabKey; title: string }[] => {
+  const out: { key: TabKey; title: string }[] = [];
+  for (const t of TABS) {
+    if (t.key === "computer" && !computer) continue;
+    out.push(t);
+    if (t.key === "threads" && crew) out.push(CREW_TAB);
+    if (t.key === "files" && terminal) out.push(TERMINAL_TAB);   // every agent has a Terminal (owner, 31 Oct: reaching every machine, safe); its host chip picks the machine
+  }
+  if (hooks) out.push(HOOKS_TAB);   // once the chat has hooks (l-hooks)
+  if (skills) out.push(SKILLS_TAB);   // once the person has skills (l-install)
+  return out;
+};
+/** The Hooks tab: the hooks that run in this chat, shown once there are some or when a hook line opened it. */
+export const HOOKS_TAB: { key: TabKey; title: string } = { key: "hooks", title: "Hooks" };
+/** The Skills tab: the person's skills and an agent's, last, once there are any. */
+export const SKILLS_TAB: { key: TabKey; title: string } = { key: "skills", title: "Skills" };
+export const DEFAULT_TAB: TabKey = "about";
 
 /* ---------- the tab strip at a narrow width ---------- */
 
@@ -416,6 +429,7 @@ export function nextDay(ts: number, c: Clock): string {
 
 export function routineNote(r: Routine, c: Clock): string {
   const cron = r.cron ?? "";
+  if (!r.enabled && r.pausedReason) return r.pausedReason;   // paused by itself after failed runs: the row says why
   if (!r.enabled) return `Paused · ${isWatcher(r) ? "on new messages" : cronWords(cron, c)}`;
   if (isWatcher(r)) return "on new messages";
   return r.nextRunAt !== undefined ? `${shortSchedule(cron, c)} · next ${nextDay(r.nextRunAt, c)}` : shortSchedule(cron, c);

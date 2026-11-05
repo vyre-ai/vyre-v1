@@ -350,3 +350,26 @@ test("minting without a seal is refused instead of issuing an unsigned token", a
   assert.throws(() => mintApprovalToken(ctx, task), (e) => codeOf(e) === "internal.unavailable");
 });
 // P-H_02 final run: this file shows its own ok line in the run on the last commit.
+
+test("a held approval cannot be handed on by an agent, and a person-only one by nobody but the server", async () => {
+  const h = harness();
+  const plain = await gateTask(h);
+  const agent = { id: bot.id, kind: "agent" as const };
+  await refused(h.call("tasks.assign", { taskId: plain, slot: "approver", to: { kind: "person", id: cara.id } }, agent), "validation.precondition_failed", "agent_cannot_reassign");
+  await refused(h.call("tasks.delegate", { taskId: plain, to: { kind: "person", id: cara.id } }, agent), "validation.precondition_failed", "agent_cannot_reassign");
+
+  const mine = await gateTask(h);
+  await h.call("tasks.working_notes.set", { taskId: mine, key: "gate.person_only", value: "1" }, svc);
+  const admin = { id: owner.id };
+  for (const who of [agent, admin, asAlice]) {
+    await refused(h.call("tasks.assign", { taskId: mine, slot: "approver", to: { kind: "role", id: "rol_admin" } }, who), "validation.precondition_failed", "person_only");
+    await refused(h.call("tasks.delegate", { taskId: mine, to: { kind: "person", id: cara.id } }, who), "validation.precondition_failed", "person_only");
+    await refused(h.call("tasks.escalate", { taskId: mine, reason: "timeout" }, who), "validation.precondition_failed", "person_only");
+  }
+  // the marker can only be added, to a held act, and never cleared or changed
+  await refused(h.call("tasks.working_notes.delete", { taskId: mine, key: "gate.person_only" }, admin), "validation.field_locked");
+  const notGate = await create(h, { kind: "work", title: "Plain" });
+  await refused(h.call("tasks.working_notes.set", { taskId: notGate, key: "gate.person_only", value: "1" }, agent), "validation.field_locked");   // only a held act takes the mark
+  await refused(h.call("tasks.working_notes.set", { taskId: mine, key: "gate.person_only", value: "0" }, agent), "validation.field_locked");   // never changed
+  assert.equal(findTask(h.db, mine)!.workingNotes["gate.person_only"], "1");
+});

@@ -9,6 +9,8 @@ import type { PortRequest, PortSink } from "./port-fetch.ts";
 export interface SiteTarget { computerId?: string; port?: number; folderId?: string; container?: string }
 export interface SitesHostDeps {
   origin(): { origin: string; relay: boolean } | null;
+  /** The host artifacts are served from, apart from the app's origin, or null where none is set up. */
+  artifactHost?(): string | null;
   /** the node a computer lives on, or null for this machine */
   nodeOf(computerId: string): string | null;
   /** the container address of a computer on this machine */
@@ -114,6 +116,7 @@ export function createSitesHost(d: SitesHostDeps) {
     fetchTarget,
     host: {
       origin: d.origin,
+      ...(d.artifactHost ? { artifactHost: d.artifactHost } : {}),
       ...(d.artifacts ? { artifacts: d.artifacts } : {}),
       ...(d.deploy ? { ...d.deploy, contained: d.contained } : {}),
       probe: (t: SiteTarget, at = "/"): Promise<{ answering: boolean; detail?: string }> => new Promise((resolve) => {

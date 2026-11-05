@@ -3,6 +3,9 @@
 //
 // Also here: the runtime that wires the turn engine to this module's SQL (queue, lease, messages, parked tool calls), so a second host that takes a thread over
 // with recover() replays the same message bodies, and a tool call held at the Gate parks the turn on its task (turn.waiting) until resume().
+import { forgetPlacement } from "./placement-cache.ts";
+import { recallPick } from "./last-pick.ts";
+import { forgetProvider } from "./model-health.ts";
 import { createTurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import type { EngineOptions, TurnEngine } from "../../agent/src/turn-engine/engine.ts";
 import { handlers as table } from "./handlers/index.ts";
@@ -35,6 +38,8 @@ export { nodeCliLauncher, nodeCliReport } from "./node-cli.ts";
 
 /** The host half arrives here at boot (ruling 31 and 32): the runtime opens real sessions through it. */
 export const hostSeams = { setEngineHost };
+/** The warm pool the Machines page can empty (host/src/daemon/machine-fix.ts). */
+export { openerOf } from "./projections.ts";
 
 /** The runtime is built at boot, not at the first message, and recovers threads a dead host left mid-turn. */
 export const periodic = {
@@ -87,6 +92,27 @@ export const consumers = {
       return resumeAgent(ctx, engine, id, async (threadId, asker) => { await openAs(ctx, threadId, asker); });
     },
   },
+  /** A machine was drained, its limits changed, or it ran out of room or has room again: where a chat runs may differ now, so the per-chat placement words are read again (placement-cache.ts). */
+  "engine.placement_cache": {
+    on: ["machine.changed"],
+    run: async (): Promise<void> => { forgetPlacement(); },
+  },
+  /** A new chat starts on the model its person last picked, so the composer shows it before the first message (last-pick.ts). */
+  "engine.remembered_pick": {
+    on: ["thread.started"],
+    run: async (ctx: EngineCtx, event: { payload: { threadId: string; kind?: string; starter?: string } }): Promise<void> => {
+      const p = event.payload;
+      const h = engineHost();
+      if (!h || p.kind !== "chat" || !p.starter?.startsWith("usr_")) return;
+      await ensureRuntime(ctx);
+      const t = (await h.call("threads.get", { threadId: p.threadId }, p.starter).catch(() => null)) as { thread?: { agents?: Array<{ agentId: string; mode?: string; model?: string }> } } | null;
+      // as the person: a private chat answers only to them
+      for (const a of t?.thread?.agents ?? []) {
+        const pick = a.model ? null : recallPick(ctx.db, p.starter, a.agentId);
+        if (pick) await h.call("engine.set_model", { threadId: p.threadId, agentId: a.agentId, model: pick.model, ...(pick.provider ? { provider: pick.provider } : {}), ...(pick.effort ? { effort: pick.effort } : {}) }, p.starter).catch(() => undefined);
+      }
+    },
+  },
   /** A person left: nothing goes on running on their word or their account. */
   "engine.person_left": {
     on: ["member.removed"],
@@ -111,6 +137,11 @@ export const consumers = {
   "engine.no_account_sweep": {
     on: ["provider.added"],
     run: async (ctx: EngineCtx): Promise<string[]> => closeNoAccountTasks(ctx.db),
+  },
+  /** A sign-in changed (an AI account connected, removed, re-authorized or its key changed): what was learned about which models that account serves is forgotten, and the next read checks them again (model-health.ts). */
+  "engine.model_health_reset": {
+    on: ["provider.added", "provider.removed", "provider.updated"],
+    run: async (ctx: EngineCtx, event: { payload: { providerId?: string } }): Promise<string[]> => { if (event.payload.providerId) forgetProvider(ctx.db, event.payload.providerId); return []; },
   },
   /** A Claude, Codex or Grok sign-in was connected: Vyre installs that engine on this computer in the background when it is not here, so the first chat does not wait for it (engine-setup.ts). */
   "engine.install_on_connect": {

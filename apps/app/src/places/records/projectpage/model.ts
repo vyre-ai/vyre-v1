@@ -1,6 +1,7 @@
 // ProjectPage (spec 3.4, 2.12): the pure mapping between the Projects capabilities and the shared Plan, and the words the page uses. A project's tasks come as epoch times and the Plan reads ISO
 // days; statuses and people are renamed here once. Nothing in this file calls a capability.
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { dayIn } from "../../../../../../lib/zones.ts";
 import type { PlanStage, PlanStatus, PlanTask, PlanWho } from "../../../../../../ui/src/Plan/index.tsx";
 
 export type Overview = CapMap["projects.overview"]["out"];
@@ -11,6 +12,10 @@ export type Member = CapMap["projects.members.list"]["out"]["members"][number];
 export const TABS = [{ key: "overview", title: "Overview" }, { key: "plan", title: "Plan" }, { key: "files", title: "Files" }, { key: "chat", title: "Chat" }, { key: "teammates", title: "Teammates" }] as const;
 export type TabKey = (typeof TABS)[number]["key"];
 export const TAB_SPECS: readonly { key: string; title: string }[] = [{ key: "overview", title: "Overview" }, { key: "plan", title: "Plan" }, { key: "files", title: "Files" }, { key: "chat", title: "Chat" }, { key: "teammates", title: "Teammates" }];
+
+/** The health a lead sets, in the words the prototype uses. */
+export const HEALTH_LABEL: Readonly<Record<"on" | "risk" | "off" | "hold" | "done", string>> = { on: "On track", risk: "At risk", off: "Off track", hold: "On hold", done: "Done" };
+export const HEALTH_ORDER: readonly ("on" | "risk" | "off" | "hold" | "done")[] = ["on", "risk", "off", "hold", "done"];
 
 const DAY = 86_400_000;
 /** An epoch time as the ISO day the Plan draws (UTC, so every machine agrees). */
@@ -63,13 +68,14 @@ export function editsBetween(before: readonly PlanTask[], after: readonly PlanTa
 export const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
 /** "Due in 5 days", "Due today", "3 days late". */
-export function dueWords(due: number | undefined, now: number): string {
+export function dueWords(due: number | undefined, now: number, zone?: string): string {
   if (due === undefined) return "No due date";
-  const d = Math.round((Date.parse(`${isoDay(due)}T00:00:00Z`) - Date.parse(`${isoDay(now)}T00:00:00Z`)) / DAY);
+  // in the Space's zone the day is the Space's day; without one, the UTC day as before
+  const d = zone ? dayIn(due, zone) - dayIn(now, zone) : Math.round((Date.parse(`${isoDay(due)}T00:00:00Z`) - Date.parse(`${isoDay(now)}T00:00:00Z`)) / DAY);
   return d === 0 ? "Due today" : d > 0 ? `Due in ${plural(d, "day")}` : `${plural(-d, "day")} late`;
 }
 
-export const dateWords = (ms: number | undefined): string => (ms === undefined ? "" : new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }));
+export const dateWords = (ms: number | undefined, zone?: string): string => (ms === undefined ? "" : new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: zone ?? "UTC" }));
 
 export function ago(at: number, now: number): string {
   const min = Math.max(0, Math.floor((now - at) / 60_000));

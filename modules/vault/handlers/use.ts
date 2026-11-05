@@ -94,11 +94,11 @@ export function secretPort(db: VaultDb): SecretPort {
     if (str(meta, "scope") === "mine") {
       const key = await currentKeyPort()?.personKey(str(meta, "owner"));
       // the words the engine and the app read as a locked key (vault_locked): the owner's Mine items open while they are signed in
-      if (!key) throw new Error("Your vault key is locked: your Mine items open while you are signed in to Vyre.");
+      if (!key) throw new Error("Your sign-ins are locked on this server. Unlock Vyre to use them.");
       const sealed = { keyId: str(row, "keyId"), box, rev: num(row, "rev"), wrapped: parseJson(row["wrapped"], { iv: "", ct: "", tag: "" }) };
       if (num(row, "enc") === ENC_MINE_SEALED) {
         const priv = await currentKeyPort()?.privateKey?.(str(meta, "owner"));
-        if (!priv) throw new Error("Your vault key is locked: your Mine items open while you are signed in to Vyre.");
+        if (!priv) throw new Error("Your sign-ins are locked on this server. Unlock Vyre to use them.");
         fields = openMineSealed(str(meta, "id"), { enc: ENC_MINE_SEALED, ...sealed }, priv);
       } else fields = openMine(str(meta, "id"), { enc: ENC_MINE, ...sealed }, wrapKeyFromPersonKey(key));
     } else {
@@ -236,9 +236,18 @@ export async function injectEnv(ctx: VaultCtx, input: { folderId: string; purpos
   if (input.purpose !== undefined && typeof input.purpose !== "string") bad(ctx, "The purpose is text.");
   const f = folderAt(ctx, input.folderId, "use");
   const items = folderItems(ctx, str(f, "id")).filter((r) => ctx.principal.kind === "person" || !isCompanyKey(str(r, "handle")));
-  const handles: string[] = [], keys: string[] = [];
+  const handles: string[] = [], keys: string[] = [], owner = new Map<string, string>();
+  // Two items in the folder with the same field name: the first keeps the plain name, a later one gets its own item's name in front (API_KEY, then Dana_Lawmatics__API_KEY),
+  // the same rule an exported .env uses. If that name is taken too, nothing is injected and the answer names both items.
   for (const r of items) {
-    for (const k of keysOf(r)) { handles.push(`${str(r, "handle")}.${k}`); if (!keys.includes(k)) keys.push(k); }
+    for (const k of keysOf(r)) {
+      const item = str(r, "handle");
+      let name = k;
+      if (owner.has(name)) name = `${item.replace(/^#/, "")}__${k}`;
+      if (owner.has(name)) throw fail("validation.precondition_failed", ctx.trace.traceId, { message: `${item} and ${owner.get(name)} both end up as ${name} in the environment. Rename one of the two fields.` });
+      owner.set(name, item);
+      handles.push(`${item}.${k}`); keys.push(name);
+    }
     touch(ctx, r, input.purpose ? { purpose: input.purpose } : {});
   }
   return { handles, keys };

@@ -8,7 +8,7 @@ import type { Node } from "../../../../../../ui/src/testing/dom.ts";
 import type { LiveQuery, ScreenHooks } from "../../../../../../client/src/index.ts";
 import { createSample } from "../conversation/sample.ts";
 import { createSampleSidebar } from "../sidebar/sample.ts";
-import type { Principal } from "../../home/sections-a/data.tsx";
+import type { Principal } from "../../../shell/session/runtime-data.ts";
 import { INBOX_SOURCE_QUERIES } from "../../../shell/rail/inbox-sources.ts";
 import { ResumeContext } from "../../../onboarding/resume-context.ts";
 import { publishProgress } from "../../../onboarding/store.ts";
@@ -43,7 +43,7 @@ function runtime(mailboxes: unknown[]): { rt: ShellRuntime; opened: ShellTarget[
 const noop = (): void => undefined;
 const screen = (rt: ShellRuntime) => (
   <ResumeContext.Provider value={{ done: 3, total: 8, open: noop, pill: null }}>
-    <Landing rt={rt} nameOf={(id) => id} kindOf={() => "agent"} agents={[]} people={[]} openChat={noop} openTasks={noop} openNeed={noop} openProfile={noop} fill={noop} newKey={() => "k"} say={noop} />
+    <Landing rt={rt} nameOf={(id) => id} kindOf={() => "agent"} openChat={noop} openTasks={noop} openNeed={noop} openProfile={noop} fill={noop} newKey={() => "k"} say={noop} />
   </ResumeContext.Provider>
 );
 const FIRST_DAY = { flow: "personal" as const, progress: { ai: "done" as const, interview: "done" as const, sessions: "done" as const } };

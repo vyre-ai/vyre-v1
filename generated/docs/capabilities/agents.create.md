@@ -45,6 +45,7 @@ type In = {
     tokensPerDay?: number;
   };
   projectId?: string;
+  threadId?: string;
   idempotencyKey: string;
 };
 ```
@@ -67,6 +68,7 @@ type Out = {
     folderId: string;
     model?: string;
     fallbackModel?: string;
+    helperModels?: "same_provider" | "any" | "ask";
     accountPolicy: "asker" | "key";
     accountKey?: string;
     accountFallback: Array<string>;
@@ -90,6 +92,7 @@ type Out = {
     createdAt: number;
     lastActiveAt?: number;
     teammateOf?: string;
+    chatOf?: string;
   };
 };
 ```
@@ -123,9 +126,10 @@ type Out = {
     "model": "example",
     "name": "Intake",
     "ownerId": "usr_a1b2c3",
-    "projectId": "prj_a1b2c3",
+    "projectId": "example",
     "role": "example",
     "templateKey": "example",
+    "threadId": "thr_a1b2c3",
     "tools": {
       "allowed": [
         "example"
@@ -144,11 +148,13 @@ type Out = {
       "accountPolicy": "asker",
       "agentId": "agt_a1b2c3",
       "captureMode": "auto",
+      "chatOf": "thr_a1b2c3",
       "createdAt": 1760000000000,
       "face": "intake",
       "fallbackModel": "example",
       "folderId": "fld_a1b2c3",
       "hasComputer": true,
+      "helperModels": "same_provider",
       "kind": "assistant",
       "lastActiveAt": 1760000000000,
       "limits": {
@@ -169,7 +175,7 @@ type Out = {
       "runtime": "vyre",
       "status": "awake",
       "switchOnLimit": true,
-      "teammateOf": "prj_a1b2c3",
+      "teammateOf": "example",
       "templateVersion": 1,
       "toolsAllowed": [
         "example"

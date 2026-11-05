@@ -46,6 +46,8 @@ type Out = {
     hostedOn?: string;
     defaults: Record<string, unknown>;
     createdAt: number;
+    timezone?: string;
+    deletionAt?: number;
   };
 };
 ```
@@ -71,6 +73,7 @@ type Out = {
       },
       "createdAt": 1760000000000,
       "defaults": {},
+      "deletionAt": 1760000000000,
       "fingerprint": "ab12 cd34 ef56 7890",
       "hostedOn": "example",
       "id": "spc_a1b2c3",
@@ -78,7 +81,8 @@ type Out = {
       "legalName": "example",
       "logoFileId": "fil_a1b2c3",
       "name": "example",
-      "owner": "usr_a1b2c3"
+      "owner": "usr_a1b2c3",
+      "timezone": "America/Los_Angeles"
     }
   }
 }

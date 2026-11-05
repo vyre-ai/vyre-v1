@@ -25,8 +25,8 @@ export interface CardActions {
   sheet(id: string): void;
 }
 
-export const NoteCard = memo(function NoteCard({ n, image, who, selected, tabbable, phone = false, a }: {
-  n: Note; image: string | null; who: Who; selected: boolean; tabbable: boolean; phone?: boolean; a: CardActions;
+export const NoteCard = memo(function NoteCard({ n, image, who, selected, tabbable, phone = false, covered = false, a }: {
+  n: Note; image: string | null; who: Who; selected: boolean; tabbable: boolean; phone?: boolean; /** Its note is open over the grid: the card stays out of sight, so it never shows half hidden beside the note. */ covered?: boolean; a: CardActions;
 }): ReactElement {
   const words = shareWords(n, who);
   const tint = n.color !== "";
@@ -49,7 +49,7 @@ export const NoteCard = memo(function NoteCard({ n, image, who, selected, tabbab
         <View style={[s.body, phone ? s.bodyPhone : null]}>
           {n.title ? <Text style={[s.title, n.hasImage || phone ? null : s.titlePinRoom]}>{n.title}</Text> : null}
           {n.body ? <Text numberOfLines={phone ? 6 : 9} style={s.text}>{n.body}</Text> : null}
-          {n.clip?.selection ? <Quote text={n.clip.selection} /> : null}
+          {n.clip?.selection?.trim() ? <Quote text={n.clip.selection.trim()} /> : null}
           {n.clip ? <Source icon="clip" url={n.clip.url} /> : null}
           {n.link ? <LinkCard link={n.link} noteId={n.noteId} compact /> : null}
           {/* ui-rows-lint: not a list (what the note was turned into, one line each inside the card) */}
@@ -59,14 +59,14 @@ export const NoteCard = memo(function NoteCard({ n, image, who, selected, tabbab
               <Text numberOfLines={1} style={s.linkedText}>{l.title}</Text>
             </View>
           ))}
-          <View style={[s.metaRow, phone ? { marginTop: 7 } : null]}>
+          {n.labels.length || shared ? <View style={[s.metaRow, phone ? { marginTop: 7 } : null]}>
             {n.labels.length ? <View style={s.lb}><Ico name="tag" size={12} color="var(--ink-4)" /><Text numberOfLines={1} style={s.meta}>{n.labels.join(", ")}</Text></View> : null}
             <View style={s.grow} />
             {shared}
-          </View>
+          </View> : null}
         </View>
         {phone ? null : (
-          <View style={s.tools} {...dom({ dataSet: { nfade: "off" } })}>
+          <View style={[s.tools, { backgroundColor: ring }]} {...dom({ dataSet: { nfade: "off" } })}>
             <IconBtn icon="palette" label="Colour" size={30} iconSize={15} tabbable={false} onPress={(x, y) => a.colour(n.noteId, x, y)} testID={`note-colour-${n.noteId}`} />
             <IconBtn icon="tag" label="Labels (L)" size={30} iconSize={15} tabbable={false} onPress={(x, y) => a.labels(n.noteId, x, y)} testID={`note-labels-${n.noteId}`} />
             {n.mine ? <IconBtn icon="share" label="Share (S)" size={30} iconSize={15} tabbable={false} onPress={() => a.share(n.noteId)} testID={`note-share-${n.noteId}`} /> : null}
@@ -79,7 +79,7 @@ export const NoteCard = memo(function NoteCard({ n, image, who, selected, tabbab
           <View style={s.pin} {...dom({ dataSet: { nfade: n.pinned ? "on" : "off" } })}>
             <IconBtn
               icon={n.pinned ? "pinf" : "pin"} label={`${n.pinned ? "Unpin" : "Pin"} (P)`} iconSize={15} on={false} tabbable={false} color={n.pinned ? "var(--ink)" : "var(--ink-3)"}
-              onPress={() => a.pin(n.noteId)} testID={`note-pin-${n.noteId}`} over={n.hasImage}
+              onPress={() => a.pin(n.noteId)} testID={`note-pin-${n.noteId}`} over={n.hasImage || n.clip !== undefined}
             />
           </View>
         )}
@@ -87,7 +87,7 @@ export const NoteCard = memo(function NoteCard({ n, image, who, selected, tabbab
   );
   // a card never splits across two columns of the grid
   return web
-    ? createElement("div", { style: { breakInside: "avoid", width: "100%", marginBottom: phone ? 10 : 14 }, "data-testid": `note-wrap-${n.noteId}`, ...trigger }, card)
+    ? createElement("div", { style: { breakInside: "avoid", width: "100%", marginBottom: phone ? 10 : 14, ...(covered ? { visibility: "hidden" } : {}) }, "data-testid": `note-wrap-${n.noteId}`, ...trigger }, card)
     : <View style={[s.wrap, phone ? s.wrapPhone : null]} {...trigger}>{card}</View>;
 });
 
@@ -108,6 +108,7 @@ const s = StyleSheet.create({
   meta: { fontSize: 11.5, color: "var(--ink-3)" as string },
   shr: { flexDirection: "row", alignItems: "center", gap: 4, flexShrink: 0 },
   grow: { flex: 1, minWidth: 0 },
-  tools: { flexDirection: "row", alignItems: "center", paddingHorizontal: 6, paddingBottom: 6, marginTop: -4 },
+  // the tools sit over the card's foot on hover and take no room of their own, so a card is as tall as its words
+  tools: { position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", alignItems: "center", paddingHorizontal: 6, paddingTop: 4, paddingBottom: 4 },
   pin: { position: "absolute", top: 8, right: 8 },
 });

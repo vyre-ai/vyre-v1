@@ -10,6 +10,7 @@ import {
   iconsAllOrNone,
   kitMenuEntries,
   menuEntries,
+  LONG_PRESS_MS,
   menuTrigger,
   moveActive,
   reportProblem,
@@ -19,6 +20,7 @@ import {
 } from "./index.tsx";
 import type { KitMenuItem, MenuEntry } from "./index.tsx";
 import { isItem, isReportItem, isSeparator } from "./props.ts";
+import { useContextMenu } from "./context.tsx";
 import { tabMenuEntries } from "../TabStrip/index.tsx";
 
 // KitScreenDef.menus entries, shaped as the generated screens carry them.
@@ -138,9 +140,9 @@ test("a rendered menu lists the items in order and Report a problem last, with a
   assert.ok(html.lastIndexOf('data-separator="true"') < html.indexOf('data-report="true"'));
 });
 
-test("the first item is lit on open (hover and focus paint the whole row)", () => {
+test("nothing is lit on open: hover or an arrow key lights a row, and the lit row is filled with the accent", () => {
   const html = renderToStaticMarkup(<Menu items={[{ label: "Open" }, { label: "Copy" }]} x={0} y={0} />);
-  assert.equal(html.match(/background-color:var\(--accent\)/g)?.length, 1, "exactly one lit row, filled with the accent");
+  assert.equal(html.match(/background-color:var\(--accent\)/g)?.length ?? 0, 0, "no row is filled when the menu opens");
   assert.match(html, /r-width-/, "rows carry a full width style");
 });
 
@@ -190,12 +192,51 @@ test("a right-click opens the menu at the pointer and stops the browser's own me
   assert.deepEqual(opened, ["120,80", "10,50", "10,50"]);
 });
 
+test("a finger held on a surface opens its menu on a phone's browser; moving, lifting early or a mouse does not; the click the lift makes is swallowed", async () => {
+  const opened: string[] = [];
+  const t = menuTrigger((x, y) => opened.push(`${x},${y}`));
+  const down = t["onPointerDown"] as (e: { pointerType: string; clientX: number; clientY: number }) => void;
+  const move = t["onPointerMove"] as (e: { clientX: number; clientY: number }) => void;
+  const up = t["onPointerUp"] as () => void;
+  const click = t["onClickCapture"] as (e: { stopPropagation: () => void; preventDefault: () => void }) => void;
+  const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+  down({ pointerType: "touch", clientX: 30, clientY: 40 }); await wait(LONG_PRESS_MS + 60);
+  assert.deepEqual(opened, ["30,40"], "held still: it opens at the finger");
+  let swallowed = 0;
+  click({ stopPropagation: () => { swallowed += 1; }, preventDefault: () => { swallowed += 1; } });
+  assert.equal(swallowed, 2, "the click after the lift does not press the row");
+  let late = 0;
+  click({ stopPropagation: () => { late += 1; }, preventDefault: () => undefined });
+  assert.equal(late, 0, "only that one click");
+  down({ pointerType: "touch", clientX: 5, clientY: 5 }); move({ clientX: 40, clientY: 5 }); await wait(LONG_PRESS_MS + 60);
+  down({ pointerType: "touch", clientX: 5, clientY: 5 }); await wait(100); up(); await wait(LONG_PRESS_MS);
+  down({ pointerType: "mouse", clientX: 5, clientY: 5 }); await wait(LONG_PRESS_MS + 60);
+  assert.deepEqual(opened, ["30,40"], "a moved finger, an early lift and a mouse open nothing");
+});
+
+test("useContextMenu: one set of props opens the menu by right-click and the Menu key, and a hint key runs its item on the row, but never inside a field", () => {
+  const ran: string[] = [];
+  const entries = (): MenuEntry[] => [{ label: "Open", hint: "Enter", onSelect: () => ran.push("open") }, { separator: true }, { label: "Star", hint: "S", onSelect: () => ran.push("star") }, { label: "Delete", danger: true, hint: "\u2318\u232b", onSelect: () => ran.push("delete") }];
+  let ctx: ReturnType<typeof useContextMenu> | null = null;
+  const Probe = (): null => { ctx = useContextMenu(); return null; };
+  renderToStaticMarkup(<Probe />);
+  const props = ctx!.on(entries, { label: "Rivera intake" }) as Record<string, (e: unknown) => void>;
+  assert.equal(typeof props["onContextMenu"], "function");
+  assert.equal(typeof props["onPointerDown"], "function", "long press is there too");
+  const key = (k: string, o: object = {}): void => props["onKeyDown"]!({ key: k, preventDefault: () => undefined, stopPropagation: () => undefined, currentTarget: { getBoundingClientRect: () => ({ left: 0, bottom: 0 }) }, ...o });
+  key("s"); key("S"); key("Backspace", { metaKey: true });
+  assert.deepEqual(ran, ["star", "star", "delete"]);
+  key("s", { target: { tagName: "INPUT" } }); key("s", { target: { isContentEditable: true } });
+  key("x"); key("Enter");
+  assert.deepEqual(ran, ["star", "star", "delete"], "typing in a field, an unknown key and plain Enter run nothing");
+});
+
 test("a count sits in its own quiet right-aligned column, never in the label", () => {
   const html = renderToStaticMarkup(<Menu items={[{ label: "Email", count: 8, checked: true }, { label: "Text", count: 4 }]} x={0} y={0} />);
   assert.match(html, /data-testid="menu-count-Email"[^>]*>8</, "the count renders as its own element");
   assert.ok(!html.includes("Email (8)"), "the label stays plain");
   assert.ok(html.indexOf(">8<") < html.indexOf("✓"), "the count comes before the check");
-  assert.ok(html.includes("background-color:var(--accent)"), "the lit row is filled with the prototype accent");
+  assert.ok(!html.includes("background-color:var(--accent)"), "no row is lit on open");
 });
 
 test("the checked item (the current Space, a chosen filter) says it is current for assistive tech and for a click gate", () => {

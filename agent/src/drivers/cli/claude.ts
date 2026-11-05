@@ -13,8 +13,10 @@
 // instructions>", so `/compact <what to keep>` sent as a user message on stdin compacts with those instructions; `--resume <id>` of a session that is not there says "No conversation found with session ID: <id>".
 // With partial messages on, the text of a message arrives twice: as deltas and again in its `assistant` line. The deltas are the ones passed on; the whole message only fills in when no delta
 // was seen for it (an older CLI, or partial messages off).
+import { testLines } from "./test-lines.ts";
 import { arr, num, obj, parseLine, str } from "./json.ts";
 import { toolDetail } from "./detail.ts";
+import { claudeSettings } from "./hooks-config.ts";
 import type { Json } from "./json.ts";
 import type { Effort } from "../../turn-engine/types.ts";
 import type { CliAdapter, CliDecoder, CliEvent, CommandOptions, NativePlugins } from "./types.ts";
@@ -67,6 +69,11 @@ export function createClaudeDecoder(): CliDecoder {
   let current = "";
   let sawText = false;
   let sid = "";
+  /** The model the engine says it ran on (the init line, then each message): a chat that picked none runs on the engine's own default, and this is the only place its name is. */
+  let model = "";
+  /** What the latest request of the turn sent (fresh and cached): the size of the context as the model last saw it. The result line's totals add every request of the turn together. */
+  let lastContext = 0;
+  const sawModel = (m: string): void => { if (m !== "" && !m.startsWith("<")) model = m; };
   /** The session id, once per change: the init line and the result line both carry it. */
   const session = (id: string): CliEvent[] => (id !== "" && id !== sid ? ((sid = id), [{ type: "session", id }]) : []);
 
@@ -102,7 +109,10 @@ export function createClaudeDecoder(): CliDecoder {
     const m = obj(j["message"]);
     if (!m) return [];
     const id = str(m["id"]);
-    perMessage.set(id, tallyOf(obj(m["usage"])));
+    sawModel(str(m["model"]));
+    const tally = tallyOf(obj(m["usage"]));
+    if (tally.input > 0) lastContext = tally.input;
+    perMessage.set(id, tally);
     const out: CliEvent[] = [];
     for (const raw of arr(m["content"])) {
       const b = obj(raw);
@@ -120,6 +130,11 @@ export function createClaudeDecoder(): CliDecoder {
     return out;
   }
 
+  /** A tool result's test-run summary lines (a string, or a list of text parts). */
+  function tail(content: unknown): string {
+    return testLines(typeof content === "string" ? content : arr(content).map((p) => str(obj(p)?.["text"])).join("\n"));
+  }
+
   function onUser(j: Json): CliEvent[] {
     const m = obj(j["message"]);
     const out: CliEvent[] = [];
@@ -127,7 +142,7 @@ export function createClaudeDecoder(): CliDecoder {
     if (j["isReplay"] === true) out.push({ type: "read" });
     for (const raw of arr(m?.["content"])) {
       const b = obj(raw);
-      if (b && str(b["type"]) === "tool_result" && str(b["tool_use_id"]) !== "") out.push({ type: "tool", phase: "result", id: str(b["tool_use_id"]), ok: b["is_error"] !== true });
+      if (b && str(b["type"]) === "tool_result" && str(b["tool_use_id"]) !== "") out.push({ type: "tool", phase: "result", id: str(b["tool_use_id"]), ok: b["is_error"] !== true, ...(tail(b["content"]) !== "" ? { output: tail(b["content"]) } : {}) });
     }
     return out;
   }
@@ -143,13 +158,16 @@ export function createClaudeDecoder(): CliDecoder {
     if (!u) { total = { input: 0, output: 0 }; for (const t of perMessage.values()) { total.input += t.input; total.output += t.output; } }
     // the result line's own split and the dollar figure Claude Code priced the turn at (for a sign-in it is what the API would have charged, which the turn record does not bill)
     const cacheRead = given(u, "cache_read_input_tokens"), cacheWrite = given(u, "cache_creation_input_tokens"), costUsd = given(j, "total_cost_usd");
+    // the result line names every model the turn used; a turn that used one is that model
+    const used = Object.keys(obj(j["modelUsage"]) ?? {}).filter((k) => !k.startsWith("<"));
+    if (used.length === 1) model = used[0]!;
     if (total.input > 0 || total.output > 0) {
       out.push({
-        type: "usage", inputTokens: total.input, outputTokens: total.output,
+        type: "usage", inputTokens: total.input, outputTokens: total.output, ...(model !== "" ? { model } : {}), ...(lastContext > 0 ? { contextTokens: lastContext } : {}),
         ...(cacheRead !== undefined ? { cacheReadTokens: cacheRead } : {}), ...(cacheWrite !== undefined ? { cacheWriteTokens: cacheWrite } : {}), ...(costUsd !== undefined ? { costUsd } : {}),
       });
     }
-    streamed.clear(); called.clear(); perMessage.clear(); current = ""; sawText = false;
+    streamed.clear(); called.clear(); perMessage.clear(); current = ""; sawText = false; lastContext = 0;
     if (!failed) { out.push({ type: "end" }); return out; }
     const subtype = str(j["subtype"]);
     const code = subtype === "error_max_turns" ? "engine.step_limit" : undefined;
@@ -170,6 +188,7 @@ export function createClaudeDecoder(): CliDecoder {
             return [{ type: "compacted", ...(pre > 0 ? { before: pre } : {}), ...(post > 0 ? { after: post } : {}) }];
           }
           if (str(j["subtype"]) !== "init") return [];
+          sawModel(str(j["model"]));
           const out: CliEvent[] = session(str(j["session_id"]));
           for (const raw of arr(j["mcp_servers"])) {
             const s = obj(raw);
@@ -249,6 +268,8 @@ export const claudeCode: CliAdapter = {
     return [
       "claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--replay-user-messages",
       ...(tools ? ["--mcp-config", mcpConfigJson(o.mcpUrl, o.mcpStdio, o.plugins)] : []), "--strict-mcp-config",
+      // the hooks layer reaches the CLI's own built-in tools and subagents (hooks-config.ts)
+      ...(tools && o.mcpStdio ? ["--settings", claudeSettings(o.mcpStdio)] : []),
       // installed plugins load natively: their commands, skills and agents come from the plugin folder in the work folder
       ...(tools ? (o.plugins?.dirs ?? []).flatMap((d) => ["--plugin-dir", d]) : []),
       "--permission-mode", claudePermission(o),

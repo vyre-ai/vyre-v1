@@ -1,7 +1,8 @@
+// @tsx  (the Details test renders the block view, a .tsx module)
 // A turn that ended without a reply is a plain sentence with one action, never a card named after its internal status.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { installProgram, isTurnStatus, statusView, withoutAnswered } from "./status.ts";
+import { installProgram, isTurnStatus, statusView, withoutAnswered, wordsFor } from "./status.ts";
 
 const block = (data: Record<string, unknown>) => ({ id: "b1", type: "turn_status", v: 1, state: "done", data, traceId: "t" }) as never;
 
@@ -31,7 +32,9 @@ test("an unknown failure is a plain sentence with Retry on its turn; a timeout s
 });
 
 test("stopped and parked turns are quiet lines", () => {
-  assert.deepEqual(statusView(block({ state: "cancelled", turnId: "x" })), { kind: "note", id: "b1", text: "Stopped." });
+  // never a bare "Stopped." (owner, 4 Nov 2026): the line says why, and says so when no reason was kept (l-crews stoppedWords)
+  assert.deepEqual(statusView(block({ state: "cancelled", turnId: "x" })), { kind: "note", id: "b1", text: "Stopped, and no reason was recorded. Send it again." });
+  assert.deepEqual(statusView(block({ state: "cancelled", turnId: "x", reason: "stop" })), { kind: "note", id: "b1", text: "Stopped because Stop was pressed." });
   assert.deepEqual(statusView(block({ state: "waiting", turnId: "x" })), { kind: "note", id: "b1", text: "Waiting for your approval." });
   assert.deepEqual(statusView(block({ state: "waiting", turnId: "x", taskId: "tsk_1" })), { kind: "approval", id: "b1", taskId: "tsk_1" }, "a hold with its task is answered in the chat");
 });
@@ -70,7 +73,7 @@ test("an install that did not finish says why in a plain line and keeps the Inst
 
 test("a locked Vault is an Unlock card, not a failed reply; an unreadable one gives the reason the Vault gave", () => {
   const locked = errorOf({ state: "failed", turnId: "t", code: "engine.vault_locked" });
-  assert.equal(locked.message, "Your Vault is locked.");
+  assert.equal(locked.message, "Your sign-ins are locked on this server.");
   assert.deepEqual(locked.next, [{ key: "unlock_vault", label: "Unlock" }]);
   const unreadable = errorOf({ state: "failed", turnId: "t", code: "engine.vault_unreadable", reason: "provider.unavailable" });
   assert.equal(unreadable.message, "Your Vault could not be read just now.");
@@ -134,4 +137,66 @@ test("sandbox.unavailable says the engine cannot run safely here and offers an A
   assert.match(d.cause ?? "", /sandbox/);
   assert.deepEqual(d.next, [{ key: "connect_ai", label: "Use an API key" }]);
   assert.equal(d.retryable, false);
+});
+
+test("the chat line for a locked sign-in carries Unlock: it opens the same sheet as the banner", async () => {
+  const { statusView } = await import("./status.ts");
+  const v = statusView({ id: "b1", type: "turn_status", v: 1, data: { state: "key_locked", text: "Your sign-ins are locked on this server, so the Space AI key answered." } } as never);
+  assert.deepEqual(v, { kind: "wait", id: "b1", text: "Your sign-ins are locked on this server, so the Space AI key answered.", action: { key: "unlock_vault", label: "Unlock" } });
+});
+
+test("no model works: one plain card that says what to do, with Open AI accounts and no code in the words", () => {
+  const w = wordsFor("engine.no_model_works");
+  assert.equal(w.message, "None of your AI accounts can answer right now.");
+  assert.deepEqual(w.next, [{ key: "connect_ai", label: "Open AI accounts" }]);
+  assert.doesNotMatch(`${w.message} ${w.cause ?? ""}`, /engine\.|--/);
+});
+
+test("Details: Reason is one plain sentence and the provider's raw words sit in their own row, never as the Reason", async () => {
+  const { turnDetail } = await import("./actions.ts");
+  const raw = '{"message":"`model` must be a non-empty string","type":"invalid_request_error","param":"model"}';
+  const data = { call: async () => ({ what: { turn: { startedAt: 1, endedAt: 3001, model: "", error: { code: "provider.bad_request", message: raw }, traceId: "t".repeat(32), ranOn: [] }, machine: "device", denials: [], paid: "My OpenAI" } }) } as never;
+  const rows = await turnDetail(data, "trn_1");
+  assert.deepEqual(rows.find((r) => r[0] === "Reason"), ["Reason", "Your AI provider refused this request."]);
+  assert.deepEqual(rows.find((r) => r[0] === "Provider said"), ["Provider said", raw]);
+  const odd = await turnDetail({ call: async () => ({ what: { turn: { startedAt: 1, model: "", error: { code: "x.unknown", message: '{"a":1}' }, traceId: "t".repeat(32) }, machine: "device", denials: [] } }) } as never, "trn_2");
+  assert.ok(!/^\s*\{/.test(String(odd.find((r) => r[0] === "Reason")?.[1])), "a code with no words of its own never shows raw JSON as the Reason");
+});
+
+test("the line for a reply ended for an update carries Continue, for the turn that was stopped; without a turn it is a quiet note", async () => {
+  const { statusView } = await import("./status.ts");
+  const text = "Stopped for an update. Your message is kept.";
+  assert.deepEqual(statusView({ id: "b1", type: "turn_status", v: 1, data: { state: "stopped_for_update", text, turnId: "trn_9" } } as never), { kind: "wait", id: "b1", text, action: { key: "continue_turn:trn_9", label: "Continue" } });
+  assert.deepEqual(statusView({ id: "b2", type: "turn_status", v: 1, data: { state: "stopped_for_update", text } } as never), { kind: "note", id: "b2", text });
+});
+
+test("an engine failure never stands alone: a missing sign-in, an engine that cannot run here, a crash with its exit code", () => {
+  const data = (b: ReturnType<typeof statusView>): { message: string; cause?: string; next?: Array<{ label: string }> } => (b as { block: { data: never } }).block.data;
+  const miss = data(statusView(block({ state: "failed", turnId: "t", code: "engine.signin_missing" })));
+  assert.match(miss.message, /sign-in/);
+  assert.equal(miss.next?.[0]?.label, "Sign in again");
+  const unusable = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_unusable" })));
+  assert.match(unusable.cause ?? "", /not installed here|not signed in here|not connected/);
+  const crash = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", exit: "137" })));
+  assert.match(crash.cause ?? "", /exited with code 137/);
+  const bare = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error" })));
+  assert.ok((bare.cause ?? "").length > 0, "no reason: still says what to do, and Details holds the code");
+  assert.ok(!/^The engine stopped with an error before it replied\.$/.test(crash.message));
+});
+
+test("a missing sign-in's button names the account it opens", () => {
+  const v = statusView(block({ state: "failed", turnId: "t", code: "engine.signin_missing", account: "Claude_Code" })) as { block: { data: { next: Array<{ key: string; label: string }> } } };
+  assert.deepEqual(v.block.data.next, [{ key: "sign_in:Claude_Code", label: "Sign in again" }]);
+});
+
+test("an engine that cannot run here says why in the connect card's own words, and a sign-in names its account", () => {
+  const data = (b: ReturnType<typeof statusView>): { message: string; next?: Array<{ key: string; label: string }> } => (b as { block: { data: never } }).block.data;
+  const missing = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_unusable", cli: "codex", cliMissing: true })));
+  assert.equal(missing.message, "Codex is not installed on this computer. Install it, or pick another AI.");
+  assert.deepEqual(missing.next?.map((n) => n.key), ["install:codex", "connect_ai"]);
+  const signin = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_unusable", cli: "codex", cliMissing: false, account: "Codex" })));
+  assert.equal(signin.message, "Sign in to Codex again.");
+  assert.equal(signin.next?.[0]?.key, "sign_in:Codex");
+  const auth = data(statusView(block({ state: "failed", turnId: "t", code: "provider.auth_failed", account: "Claude_Code" })));
+  assert.equal(auth.next?.[0]?.key, "sign_in:Claude_Code");
 });

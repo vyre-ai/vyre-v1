@@ -1,4 +1,4 @@
-// Where Notes sits in the app: its row under Tasks and Threads in the Chats sidebar, its route and tab, and a note found in the top search (vyre://note/<id>) opening in Notes.
+// Where Notes sits in the app: its row under Tasks in the Chats sidebar, its route and tab, and a note found in the top search (vyre://note/<id>) opening in Notes.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { START, fromHash, openKeyOf, step } from "../mounts/route.ts";
@@ -9,9 +9,9 @@ import { screenTitle, tabKey } from "../../../shell/tabs/store.ts";
 
 const input: SidebarInput = { faces: [], workingAgents: new Set(), groups: [], channels: [], filter: "all", closed: new Set() };
 
-test("the Notes row sits under Tasks and Threads where the shell has Notes, and is the open row on the Notes page", () => {
-  assert.deepEqual(buildEntries({ ...input, notes: true }).filter((e) => e.type === "nav").map((e) => e.key), ["nav:tasks", "nav:threads", "nav:notes"]);
-  assert.deepEqual(buildEntries(input).filter((e) => e.type === "nav").map((e) => e.key), ["nav:tasks", "nav:threads"], "no Notes page, no row");
+test("the Notes row sits under Tasks where the shell has Notes, and is the open row on the Notes page", () => {
+  assert.deepEqual(buildEntries({ ...input, notes: true }).filter((e) => e.type === "nav").map((e) => e.key), ["nav:tasks", "nav:notes"]);
+  assert.deepEqual(buildEntries(input).filter((e) => e.type === "nav").map((e) => e.key), ["nav:tasks"], "no Notes page, no row");
   assert.equal(buildEntries({ ...input, notes: true, searching: true }).some((e) => e.key === "nav:notes"), false, "searching the sidebar hides the top rows");
   assert.equal(openEntry(buildEntries({ ...input, notes: true }), "notes"), "nav:notes");
 });

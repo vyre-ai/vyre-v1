@@ -11,6 +11,7 @@ import type { BlobMeta, Db, NotesCtx } from "../projections.ts";
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 const migration = readFileSync(new URL("../migrations/0001_notes.sql", import.meta.url), "utf8");
 const picture = readFileSync(new URL("../migrations/0002_link_picture.sql", import.meta.url), "utf8");
+const source = readFileSync(new URL("../migrations/0003_note_source.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 export const NOW = 1_762_160_000_000;
 export const ME = "usr_irfad", ALIZA = "usr_aliza", ANDREY = "usr_andrey";
@@ -20,13 +21,14 @@ export interface Who { id: string; kind?: "person" | "agent"; actingFor?: string
 type Callee = (input: any, who: Who) => unknown;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
 /** A chat: its starter and person members, or the channel it is in. */
-export interface ThreadDef { starter?: string; members?: string[]; channelId?: string; kind?: string; parentThreadId?: string }
+export interface ThreadDef { starter?: string; members?: string[]; channelId?: string; kind?: string; parentThreadId?: string; title?: string }
 export interface ChannelDef { visibility: "public" | "invite"; members: string[] }
 
-export function harness(o: { threads?: Record<string, ThreadDef>; channels?: Record<string, ChannelDef>; pages?: Record<string, string> } = {}) {
+export function harness(o: { threads?: Record<string, ThreadDef>; channels?: Record<string, ChannelDef>; pages?: Record<string, string>; messages?: Record<string, { messageId: string; createdAt?: number }[]> } = {}) {
   const sqlite = new DatabaseSync(":memory:");
   sqlite.exec(migration);
   sqlite.exec(picture);
+  sqlite.exec(source);
   const norm = (a: unknown): unknown => (a === undefined ? null : a);
   const raw: Db = {
     all: (sql, ...args) => sqlite.prepare(sql).all(...(args.map(norm) as never[])),
@@ -41,12 +43,26 @@ export function harness(o: { threads?: Record<string, ThreadDef>; channels?: Rec
   const threads = o.threads ?? {};
   const channels = o.channels ?? {};
   const pages = o.pages ?? {};
+  const messages = o.messages ?? {};
   const taskKeys: Record<string, string> = {};
   const callees: Record<string, Callee> = {
-    "threads.get": (i: { threadId: string }) => {
+    "access.principals.get": () => ({ principal: { name: "Irfad" } }),
+    "notifications.send": () => ({ outcome: "badge" }),
+    // reading a chat is for its starter, its members, and (a channel) the channel's members or everyone when it is public: anyone else is told it does not exist, as the chat module does
+    "threads.get": (i: { threadId: string }, who: Who) => {
       const t = threads[i.threadId];
       if (!t) throw new Error("no such thread");
-      return { thread: { kind: t.kind ?? (t.channelId ? "channel" : "chat"), ...(t.starter ? { starter: t.starter } : {}), ...(t.channelId ? { channelId: t.channelId } : {}), ...(t.parentThreadId ? { parentThreadId: t.parentThreadId } : {}), members: (t.members ?? []).map((id) => ({ kind: "person", id })) } };
+      const reader = who.kind === "agent" ? who.actingFor : who.id;
+      const ch = t.channelId ? channels[t.channelId] : undefined;
+      const mayRead = ch ? ch.visibility === "public" || ch.members.includes(reader ?? "") : (t.starter === undefined && t.members === undefined) || t.starter === reader || (t.members ?? []).includes(reader ?? "");
+      if (!mayRead) throw Object.assign(new Error("not found"), { error: { code: "permission.not_found" } });
+      return { thread: { kind: t.kind ?? (t.channelId ? "channel" : "chat"), title: t.title ?? "A chat", ...(t.starter ? { starter: t.starter } : {}), ...(t.channelId ? { channelId: t.channelId } : {}), ...(t.parentThreadId ? { parentThreadId: t.parentThreadId } : {}), members: (t.members ?? []).map((id) => ({ kind: "person", id })) } };
+    },
+    "chat.messages.list": (i: { threadId: string }) => ({ messages: (messages[i.threadId] ?? []).slice(-1), hasMore: false }),
+    "chat.message.get": (i: { threadId: string; messageId: string }) => {
+      const m = (messages[i.threadId] ?? []).find((x) => x.messageId === i.messageId);
+      if (!m) throw Object.assign(new Error("not found"), { error: { code: "validation.not_found" } });
+      return { message: { messageId: m.messageId, createdAt: m.createdAt ?? NOW } };
     },
     "channels.get": (i: { channelId: string }) => {
       const c = channels[i.channelId];
@@ -78,7 +94,7 @@ export function harness(o: { threads?: Record<string, ThreadDef>; channels?: Rec
         return {};
       },
       async call(c, input) {
-        if (c !== "threads.get" && c !== "channels.get") calls.push({ cap: c, input: input as Record<string, unknown> });
+        if (c !== "threads.get" && c !== "channels.get" && c !== "chat.message.get" && c !== "chat.messages.list") calls.push({ cap: c, input: input as Record<string, unknown> });
         const f = callees[c];
         if (!f) throw new Error(`unexpected call to ${c}`);
         return f(input, who);

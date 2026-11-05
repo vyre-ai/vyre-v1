@@ -21,8 +21,10 @@ const deps = (s: Sample): { d: PaneDeps; notes: string[] } => {
 };
 
 test("the Crew tab sits after Threads, and only when teammates work for the chat", () => {
-  assert.deepEqual(tabsOf(false).map((t) => t.title), ["Computer", "Threads", "Files", "Knows", "Routines"]);
-  assert.deepEqual(tabsOf(false, true).map((t) => t.title), ["Computer", "Threads", "Crew", "Files", "Knows", "Routines"]);
+  assert.deepEqual(tabsOf(false).map((t) => t.title), ["About", "Computer", "Chats", "Files", "Knows", "Routines"]);
+  assert.deepEqual(tabsOf(true, false, false).map((t) => t.title), ["About", "Chats", "Files", "Terminal", "Knows", "Routines"], "no computer: no Computer tab, but every agent has a Terminal (it opens on this computer)");
+  assert.deepEqual(tabsOf(true).map((t) => t.title), ["About", "Computer", "Chats", "Files", "Terminal", "Knows", "Routines"]);
+  assert.deepEqual(tabsOf(false, true).map((t) => t.title), ["About", "Computer", "Chats", "Crew", "Files", "Knows", "Routines"]);
   assert.ok(!html(createSample(), "threads").includes(">Crew<"), "no crew, no tab");
   assert.ok(html(createSample("northwind", { crew: true }), "threads").includes(">Crew<"));
 });
@@ -66,7 +68,7 @@ test("Merge and Stop write through one capability each, change what the next ren
   assert.equal(notes.at(-1), "Stopped Ember");
   s.failNext("engine.crew.merge");
   assert.equal(await crewMerge(d, "crw_3", "Quill", "crew/quill-1"), false);
-  assert.equal(notes.at(-1), "Could not merge Quill's work. Try again.");
+  assert.equal(notes.at(-1), "Could not merge Quill's work: engine.crew.merge failed");
   assert.ok(s.calls.some((c) => c.cap === "engine.crew.merge" && (c.input as { idempotencyKey?: string }).idempotencyKey?.startsWith("rp-merge-")));
 });
 

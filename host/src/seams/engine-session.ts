@@ -46,6 +46,8 @@ export interface EngineSessionHostDeps {
 
 /** The agent id of an automation AI step that runs as no agent in particular (the same word as modules/engine/step-turn.ts STEP_AGENT; host never imports a module). */
 const STEP_AGENT = "step";
+/** Work that has no agent of its own and asks as the person it is for: an AI step, and a one-shot request (the room digest: modules/engine/runtime.ts oneShot, agentId "room-digest"). A pseudo-agent id is no member of the Space, so the Vault would refuse it. */
+const NOT_AN_AGENT: ReadonlySet<string> = new Set([STEP_AGENT, "room-digest", "memory-upkeep"]);
 const SYSTEM = { kind: "service", id: "svc_host" } as const;
 const TRACE_ID = /^[0-9a-f]{32}$/;
 
@@ -61,7 +63,7 @@ function vaultLocked(e: unknown): boolean {
   const x = e as { message?: unknown; details?: { reason?: unknown }; error?: { message?: unknown; details?: { reason?: unknown } } } | null;
   const reason = x?.error?.details?.reason ?? x?.details?.reason;
   const message = x?.error?.message ?? x?.message;
-  return reason === "vault_locked" || (typeof message === "string" && /vault key is locked/i.test(message));
+  return reason === "vault_locked" || (typeof message === "string" && /vault key is locked|sign-ins are locked/i.test(message));
 }
 
 /** Plain words for a Vault refusal that is not about access: what is wrong with the item or the field the turn asked for. */
@@ -85,7 +87,7 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
   type Who = { agentId: string; asker: string; where: "host" | "device" | "computer"; account?: boolean };
   /** Who asks the Vault: the agent acting for the person in a chat; the person, or a Space automation's own service, for an AI step that names no agent. */
   const seedOf = (who: Who) => {
-    const agentic = who.agentId !== STEP_AGENT;
+    const agentic = !NOT_AN_AGENT.has(who.agentId);
     const service = !agentic && who.asker.startsWith("svc_");
     return agentic
       ? { space: d.space, principal: { kind: "agent" as const, id: who.agentId }, actingFor: who.asker, origin: "engine" }
@@ -119,7 +121,7 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
         try {
           // A chat turn is an agent acting for a person. An automation's AI step that names no agent has none in the chat sense: it is the person's own Run, or a Space automation's own service,
           // so the key is asked for as that principal (the step's marker is "step", as in modules/engine/step-turn.ts). A service reads Shared items only.
-          const agentic = who.agentId !== STEP_AGENT;
+          const agentic = !NOT_AN_AGENT.has(who.agentId);
           const service = !agentic && who.asker.startsWith("svc_");
           const r = await d.invoke(
             "vault.use",
@@ -141,10 +143,12 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
           if (code === "validation.not_found" || code === "validation.bad_input") {
             // the plain words go to the log with the field NAME, never to the caller: a refusal looks the same to the one asking, so nothing is leaked and nothing changes for them
             d.log?.("the vault could not give the account its key", { code, handle: item, field: field ?? null, why: whyUnusable(e, code) });
+            // the turn's own account has no usable sign-in in the Vault (the item is gone, or has no such field): the person signs in again. Said once, as itself: never "locked", never tried again for every message.
+            if (who.account === true) throw coded("engine.signin_missing", `${whyUnusable(e, code)} [account ${item}]`);
             return { kind: "unknown" };
           }
           // Never the original text: it may carry request text. A locked key and every other refusal carry a code of their own, so the chat shows an Unlock card or a precise reason, not "did not finish".
-          if (vaultLocked(e)) throw coded("engine.vault_locked", "Your Vault is locked on this computer.");
+          if (vaultLocked(e)) throw coded("engine.vault_locked", "Your sign-ins are locked on this server. Unlock Vyre to use them.");
           throw coded("engine.vault_unreadable", code !== null ? `The Vault could not be read (${code}).` : "The Vault could not be read.");
         }
   };

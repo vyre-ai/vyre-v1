@@ -1,12 +1,12 @@
 // Records sharing (DESIGN-records-sharing): the shares of a record type or a record as the Share sheet's rows, and the calls its choices make. Pure: no runtime, no React.
 import type { CapMap } from "../../../../../../generated/types.ts";
-import type { Audience, Exporters, RowFlag, ShareLevel, ShareRow, ShareSubject } from "../../../../../../ui/src/ShareSheet/index.tsx";
+import type { Audience, Exporters, RowFlag, ShareLevel, ShareRow } from "../../../../../../ui/src/AccessSheet/index.tsx";
 
 export type SharesOut = CapMap["access.shares_of"]["out"];
 export type MarksOut = CapMap["access.record_marks"]["out"];
 export type Rights = { manage: boolean; edit?: boolean; share: boolean; export: boolean };
 
-/** The levels a record offers: Can view, Can edit, Full access. */
+/** The levels a record offers: Can view, Can edit, Can manage. */
 export const RECORD_LEVELS: readonly ShareLevel[] = ["view", "edit", "manage"];
 
 export const NO_RIGHTS: Rights = { manage: false, share: false, export: false };
@@ -51,7 +51,7 @@ export function sheetModel(out: SharesOut, name: (id: string) => string): SheetM
 export const resourceOf = (t: { type: "record_type" | "record"; id: string }): { type: string; id: string } => ({ type: t.type, id: t.id });
 
 /** access.share for a level change or a new person: the grant keeps its switches because none are sent. */
-export function shareCall(t: { type: "record_type" | "record"; id: string }, subject: ShareSubject, level: ShareLevel): CapMap["access.share"]["in"] {
+export function shareCall(t: { type: "record_type" | "record"; id: string }, subject: { kind: string; id: string }, level: ShareLevel): CapMap["access.share"]["in"] {
   return { resource: resourceOf(t), subject: { kind: subject.kind, id: subject.id }, level } as CapMap["access.share"]["in"];
 }
 

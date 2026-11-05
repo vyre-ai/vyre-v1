@@ -4,6 +4,13 @@ import type { CapCall } from "../shell/session/caps.ts";
 import type { CardKind } from "./flow.ts";
 import { folderPathOf, tildePath } from "./folders-model.ts";
 
+// A card that changes what a preview reads without moving the step's progress (a switch of AI account: the new one is in, the old one is out) pings this, and the pane reads again.
+let version = 0;
+const listeners = new Set<() => void>();
+export const previewVersion = (): number => version;
+export const watchPreview = (fn: () => void): (() => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; };
+export const refreshPreview = (): void => { version += 1; for (const fn of [...listeners]) fn(); };
+
 export interface PreviewItem { id: string; label: string; note?: string }
 export interface Preview { heading: string; items: PreviewItem[]; /** shown when there are no items; empty hides the preview until there is something to show */ hint: string }
 
@@ -11,19 +18,21 @@ const SOURCE: Record<string, string> = { google_drive: "Google Drive", sharepoin
 
 const safe = async <T>(f: () => Promise<T>, empty: T): Promise<T> => { try { return await f(); } catch { return empty; } };
 
-const providerLine = (p: { name: string; connection: string; scope: string }): string => `${p.name} · ${p.connection === "subscription" ? "subscription" : p.connection === "local_model" ? "local model" : "API key"} · in your Vault`;
+interface AccountOut { ref: string; providerId?: string; name?: string; title: string; kind: string; mine: boolean; base?: string; keyless?: boolean }
+const accountLine = (a: AccountOut): string => `${a.name ?? a.title} · ${a.kind === "subscription" ? "subscription" : a.base !== undefined || a.keyless === true ? "local model" : "API key"} · in your Vault`;
+const accountsOf = (call: CapCall) => safe(async () => (await call("engine.accounts.list", {})) as { accounts: AccountOut[] }, { accounts: [] as AccountOut[] });
 
 export async function previewFor(call: CapCall, card: CardKind): Promise<Preview> {
   switch (card) {
     case "space_ai": {
       // the Space's key for everyone first, then the owner's own accounts here; never an id
       const k = await safe(async () => (await call("providers.space_key.get", {})) as { set: boolean; name?: string }, { set: false });
-      const r = await safe(async () => (await call("providers.list", {})) as { providers: { id: string; name: string; connection: string; scope: string }[] }, { providers: [] });
-      return { heading: "AI for the Space", items: [...(k.set ? [{ id: "space-key", label: `${k.name ?? "A key"} for everyone`, note: "Space AI key" }] : []), ...r.providers.map((p) => ({ id: p.id, label: providerLine(p), note: "Yours" }))], hint: "Not yet. A key for everyone, or your own account, shows here." };
+      const r = await accountsOf(call);
+      return { heading: "AI for the Space", items: [...(k.set ? [{ id: "space-key", label: `${k.name ?? "A key"} for everyone`, note: "Space AI key" }] : []), ...r.accounts.map((a) => ({ id: a.providerId ?? a.ref, label: accountLine(a), note: "Yours" }))], hint: "Not yet. A key for everyone, or your own account, shows here." };
     }
     case "connect_ai": {
-      const r = await safe(async () => (await call("providers.list", {})) as { providers: { id: string; name: string; connection: string; scope: string }[] }, { providers: [] });
-      return { heading: "Your AI account", items: r.providers.map((p) => ({ id: p.id, label: providerLine(p) })), hint: "Not yet. Connect an account and it shows here, kept in your Vault." };
+      const r = await accountsOf(call);
+      return { heading: "Your AI account", items: r.accounts.map((a) => ({ id: a.providerId ?? a.ref, label: accountLine(a) })), hint: "Not yet. Connect an account and it shows here, kept in your Vault." };
     }
     case "interview": {
       const r = await safe(async () => (await call("memory.facts.list", { layer: "person" })) as { facts: { factId: string; text: string; sourceRef?: string; status?: string }[] }, { facts: [] });

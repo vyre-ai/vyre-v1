@@ -55,6 +55,10 @@ test("an agent drafts, the owner presses Start: no grant before the press, the d
   assert.equal(card.blocks![0]!.data.kind, "draft");
   assert.deepEqual(card.blocks![0]!.data.plan, ["Ask Aliza for two reels (Ask Aliza for two reels worked for Lab 7)"]);
   await assert.rejects(w.call("goals.confirm", { goalId: goal.id }, lead), /Only the owner starts a goal/);
+  const feed = (await w.call("goals.activity", { goalId: goal.id }, owner)).activity as Array<{ kind: string; text: string; tpl?: string }>;
+  const made = feed.find((a) => a.kind === "created")!;
+  assert.match(made.tpl!, /^\{who:agt_[^}]+\} drafted this goal for \{who:usr_[^}]+\}\.$/, "stored with names to fill in, not with 'an agent' or 'the owner'");
+  assert.doesNotMatch(made.text, /\{who:|an agent|the owner/);
   const started = (await w.call("goals.confirm", { goalId: goal.id }, owner)).goal;
   assert.equal(started.status, "active");
   assert.equal(started.permissions[0].granted, true);
@@ -337,7 +341,7 @@ test("the brief tells the lead why it was woken, the pace, the plan, what waits 
   assert.match(text, /- VY-\d+ Remind Lab 7 \[todo\]/);
   assert.match(text, /Standing permissions \(these acts go without asking, in this goal's chats only\): Send email from the Lab template\./);
   assert.match(text, /The goal's folder in Files/);
-  assert.match(text, /The owner's time now: Wed 4 Nov, 10:00 \(Asia\/Karachi\)\. Write every time in check-ins, summaries and the retrospective in this zone/, "times are the owner's, from their profile");
+  assert.match(text, /The time now: Wed 4 Nov, 10:00 \(Asia\/Karachi\)\. Write every time in check-ins, summaries and the retrospective in this zone/, "times are the owner's, from their profile");
 });
 
 test("the goal's folder keeps what its tasks hand in and what people drop in its chat, once each", async () => {
@@ -371,6 +375,21 @@ test("a lead whose turn ends without a check-in is asked again at once, then the
   assert.equal(g.statusReason, "The lead agent did not check in after two wake-ups: the turn ended without a check-in.");
 });
 
+test("a watched page is a source: the number it last read, or how many times it changed; a watch that is gone or has read nothing says so", async () => {
+  const w = world();
+  const watched = (path?: string, id = "wch_lab8") => labGoal({ idempotencyKey: `k${path ?? "n"}${id}${w.state.watch.error ?? ""}`, finish: { kind: "number", line: "Luma shows 300 registrations", target: 300, unit: "registrations", source: { kind: "watch", watchId: id, ...(path ? { path } : {}) } } });
+  const { goal } = await w.call("goals.create", watched());
+  assert.equal(goal.progress.value, 212, "the number written on the watched page");
+  assert.deepEqual(w.state.calls.filter((c) => c.cap === "automations.watches.list").map((c) => c.input), [{ watchId: "wch_lab8", person: OWNER }], "asked for the owner's watch");
+  const changes = (await w.call("goals.create", watched("changes"))).goal;
+  assert.equal(changes.progress.value, 3);
+  w.state.watch = { changes: 0, error: "timed out" };
+  const none = (await w.call("goals.create", watched(undefined, "wch_lab8"))).goal;
+  assert.match(none.progress.error, /watch could not read the page: timed out/);
+  const gone = (await w.call("goals.create", watched(undefined, "wch_other"))).goal;
+  assert.match(gone.progress.error, /watch is gone/);
+});
+
 test("a goal drafted by an agent takes plan steps before Start, and they become tasks when the owner presses Start", async () => {
   const w = world({ count: 10 });
   const { goal } = await w.call("goals.create", labGoal({ plan: [step("a", "First step")] }), lead);
@@ -401,10 +420,75 @@ test("goals.create reports what happened to each helper: seated when the chat to
   assert.deepEqual(upd.seated.map((s: { id: string; inChat: boolean }) => [s.id, s.inChat]), [[ALIZA, true]]);
 });
 
+test("the owner edits a draft in place: title, finish line, deadline, lead, owner, helpers and the drafted plan, each through goals.update", async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal({ plan: [step("a", "First step"), step("b", "Second step")] }), lead);
+  const got = await w.call("goals.get", { goalId: goal.id }, owner);
+  assert.deepEqual(got.draftPlan.map((c: { key: string }) => c.key), ["a", "b"], "a draft shows its drafted plan");
+  const edit = await w.call("goals.update", {
+    goalId: goal.id, title: "Lab 8: 320 sign-ups", finish: { ...goal.finish, line: "Luma registrations reach 320" }, deadline: T0 + 6 * DAY, leadAgentId: HELPER,
+    helpers: [{ kind: "person", id: ALIZA }], plan: [step("b", "Second step first"), step("c", "A new step")],
+  }, owner);
+  assert.equal(edit.goal.title, "Lab 8: 320 sign-ups");
+  assert.equal(edit.goal.finish.line, "Luma registrations reach 320");
+  assert.equal(edit.goal.deadline, T0 + 6 * DAY);
+  assert.equal(edit.goal.leadAgentId, HELPER);
+  assert.deepEqual(edit.seated.map((s: { id: string; inChat: boolean }) => [s.id, s.inChat]), [[ALIZA, true]]);
+  assert.ok(w.state.calls.some((c) => c.cap === "threads.add_agent" && c.input.agentId === HELPER && c.input.mode === "lead"), "the new lead takes the chat");
+  const again = await w.call("goals.get", { goalId: goal.id }, owner);
+  assert.deepEqual(again.draftPlan.map((c: { key: string }) => c.key), ["b", "c"]);
+  const acts = (await w.call("goals.activity", { goalId: goal.id }, owner)).activity;
+  assert.ok(acts.some((a: { kind: string; text: string }) => a.kind === "edit" && /title/.test(a.text) && /plan/.test(a.text)), "the edit is in the activity");
+  // the owner can hand the goal to someone else; what the old owner allowed does not carry over
+  const handed = await w.call("goals.update", { goalId: goal.id, owner: ALIZA }, owner);
+  assert.equal(handed.goal.owner, ALIZA);
+  assert.ok(handed.goal.permissions.every((p: { granted: boolean }) => p.granted === false));
+  // a stranger cannot, and a running goal's plan is its tasks
+  await assert.rejects(w.call("goals.update", { goalId: goal.id, title: "x" }, { id: STRANGER, kind: "person", origin: "app" }));
+  const live = await w.call("goals.create", labGoal({ idempotencyKey: "k2" }));
+  await assert.rejects(w.call("goals.update", { goalId: live.goal.id, plan: [step("z", "Nope")] }, owner), /Only a draft/);
+});
+
 test("the agent that drafted a goal may add to its plan before Start; another agent may not", async () => {
   const w = world({ count: 10 });
   const { goal } = await w.call("goals.create", labGoal(), { id: "agt_drafter", kind: "agent", actingFor: OWNER });
   const added = await w.call("goals.plan", { goalId: goal.id, children: [step("x", "A step")] }, { id: "agt_drafter", kind: "agent", actingFor: OWNER });
   assert.equal(added.drafted, 1);
   await assert.rejects(w.call("goals.plan", { goalId: goal.id, children: [step("y", "Another")] }, { id: "agt_other", kind: "agent", actingFor: OWNER }), /lead agent or the owner/);
+});
+
+test("an agent starts a draft only when the owner just asked in their own message; otherwise the draft stays and the card waits", async () => {
+  const w = world({ count: 10 });
+  const agent = { id: LEAD, kind: "agent" as const, actingFor: OWNER };
+  const { goal } = await w.call("goals.create", labGoal({ sourceThreadId: "thr_chat" }), agent);
+  assert.equal(goal.status, "draft");
+  assert.ok(w.state.posts.some((p) => p.threadId === "thr_chat" && p.blocks?.[0]?.data.kind === "draft"), "the card with Start is in the chat");
+  for (const messageId of [undefined, "msg_other", "msg_owner_old"]) {
+    await assert.rejects(w.call("goals.confirm", { goalId: goal.id, ...(messageId ? { messageId } : {}) }, agent), /Only the owner starts a goal/);
+  }
+  const started = (await w.call("goals.confirm", { goalId: goal.id, messageId: "msg_owner_start" }, agent)).goal;
+  assert.equal(started.status, "planning");
+  assert.ok(started.permissions.every((p: { granted: boolean }) => p.granted === false), "an agent's start grants no permission");
+});
+
+test("goals.count says how many goals a project has and nothing else; only the system may ask when the caller manages nothing", async () => {
+  const w = world({ count: 120 });
+  await w.call("goals.create", labGoal({ projectId: "prj_lab8", idempotencyKey: "c1" }));
+  await w.call("goals.create", labGoal({ projectId: "prj_lab8", idempotencyKey: "c2", title: "Second" }));
+  await w.call("goals.create", labGoal({ projectId: "prj_other", idempotencyKey: "c3", title: "Elsewhere" }));
+  const out = await w.call("goals.count", { projectId: "prj_lab8" }, host);
+  assert.deepEqual(out, { count: 2 });
+  assert.equal(JSON.stringify(out).includes("Second"), false);
+  assert.equal((await w.call("goals.count", { projectId: "prj_none" }, host)).count, 0);
+  await assert.rejects(() => w.call("goals.count", { projectId: "prj_lab8" }, { id: STRANGER, kind: "person" }), (e: { error?: { code?: string } }) => e.error?.code === "validation.not_found");
+});
+
+test("a new goal starts in the Space's time zone, not its creator's; a Space with none gives the creator's own", async () => {
+  const space = world({ fakes: { "spaces.get": () => ({ space: { timezone: "America/Los_Angeles" } }) } });
+  const made = await space.call("goals.create", labGoal({ plan: [step("reminder", "Remind Lab 7 attendees")] }));
+  assert.equal(made.goal.zone, "America/Los_Angeles", "the Space's zone, though the owner's profile says Karachi");
+  const bad = world({ fakes: { "spaces.get": () => ({ space: { timezone: "Mars/Olympus" } }) } });
+  assert.equal((await bad.call("goals.create", labGoal({ plan: [step("reminder", "Remind Lab 7 attendees")] }))).goal.zone, "Asia/Karachi", "a zone no runtime knows is not taken");
+  const none = world();
+  assert.equal((await none.call("goals.create", labGoal({ plan: [step("reminder", "Remind Lab 7 attendees")] }))).goal.zone, "Asia/Karachi");
 });

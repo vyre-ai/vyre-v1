@@ -23,7 +23,14 @@ test("an unlocked sign-in answers, and with nothing picked the Space's account a
   const posts: string[] = [];
   const open = skipLocked({ resolve: async () => CLAUDE, held: () => true });
   assert.equal((await open(q))?.ref, "#Claude_Code");
-  const wrapped = skipLocked({ resolve: async (x) => (x.unavailable?.includes("#Claude_Code") ? TEAM : CLAUDE), held: () => false, postAs: async (_a, post) => { posts.push(String(((post as { blocks: Array<{ data: { text: string } }> }).blocks)[0]!.data.text)); return {}; } });
+  const wrapped = skipLocked({ resolve: async (x) => (x.unavailable?.includes("#Claude_Code") ? TEAM : CLAUDE), held: () => false, postAs: async (_a, post) => { { const d = ((post as { blocks: Array<{ data: { text: string; state: string } }> }).blocks)[0]!.data; assert.equal(d.state, "key_locked", "the line carries Unlock in the chat"); posts.push(String(d.text)); } return {}; } });
   assert.equal((await wrapped(q))?.ref, "#Team");
-  assert.deepEqual(posts, ["Your own AI account opens when you sign in to this Space, so the Space AI key answered."]);
+  assert.deepEqual(posts, ["Your sign-ins are locked on this server, so the Space AI key answered."]);
+});
+
+test("a turn that runs on the person's own computer keeps their sign-in even though the server does not hold the key", async () => {
+  const wrapped = skipLocked({ resolve: async (x) => (x.unavailable?.includes("#Claude_Code") ? TEAM : CLAUDE), held: () => false, onDevice: async () => true });
+  assert.equal((await wrapped(q))?.ref, "#Claude_Code", "their Mac holds the sign-in: the turn goes there, not to the Space's key");
+  const server = skipLocked({ resolve: async (x) => (x.unavailable?.includes("#Claude_Code") ? TEAM : CLAUDE), held: () => false, onDevice: async () => false });
+  assert.equal((await server(q))?.ref, "#Team", "on the server the key is not there, so the next account answers");
 });

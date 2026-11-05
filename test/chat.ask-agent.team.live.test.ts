@@ -5,7 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CORE_SPACE } from "../fixtures/seed/core/index.ts";
-import { KEY, boot, connect, hostLog, seededDir, stop, waitFor } from "./support/eco-live.ts";
+import { KEY, boot, connect, hostLog, seededDir, stop, waitFor, listAll } from "./support/eco-live.ts";
 import { addedAgentMentions, askPost } from "../apps/app/src/places/chats/conversation/askagent.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 import type { DriverEvent, EngineSession, OpenSession, TurnInput } from "../agent/src/turn-engine/types.ts";
@@ -45,7 +45,7 @@ test("Team: Mia asks an agent about a sent message, and about her own message af
   const pump = async (): Promise<void> => { await d.hooks?.pump?.(); };
   const settle = async (ms = 700): Promise<void> => { for (let i = 0; i < 4; i++) { await pump(); await new Promise((r) => setTimeout(r, ms / 4)); } };
   type Msg = { messageId: string; author?: { id?: string }; body?: string; replyTo?: string };
-  const list = async (threadId: string): Promise<Msg[]> => (await api("usr_mia", "chat.messages.list", { threadId })).data.messages as Msg[];
+  const list = async (threadId: string): Promise<Msg[]> => (await listAll<Msg>(api, "usr_mia", threadId));
   try {
     await connect(d);   // Olivia's own Claude account, hers alone
     const intake = (await api("usr_olivia", "agents.create", { name: "Intake", role: "You check things.", idempotencyKey: "ask-agent" })).data.agent.agentId as string;

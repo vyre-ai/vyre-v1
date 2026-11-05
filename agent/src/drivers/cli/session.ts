@@ -14,12 +14,18 @@
 //   cancel     the process is stopped (TERM, then KILL after the grace time). A cancelled session is dirty: the pool closes it instead of reusing it, and the next one resumes by id.
 import type { ChatMode, DriverEvent, Effort, EngineSession, SessionSpec, StoredMessage, ToolResult, TurnInput } from "../../turn-engine/types.ts";
 import { scrub } from "../api/errors.ts";
-import { classifyCli, missingProgram, sessionGone } from "./errors.ts";
+import { redact } from "./redact.ts";
+import { classifyCli, missingProgram, modelGone, plainCli, sessionGone } from "./errors.ts";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { hookFiles } from "./hooks-config.ts";
 import { channel, lines } from "./lines.ts";
 import type { Channel } from "./lines.ts";
 import { defaultPrompt } from "./prompt.ts";
 import type { CliAdapter, CliCheckpoint, CliDecoder, CliEvent, CliProcess, Launcher, McpEndpoint, NativePlugins } from "./types.ts";
 import { TOKEN_ENV } from "./types.ts";
+import { FIRST_TOKEN_CLI_MS, NO_FIRST_TOKEN_CODE, NO_FIRST_TOKEN_LINE, logNoFirstToken } from "../first-token.ts";
+import type { NoFirstTokenLog } from "../first-token.ts";
 
 export interface CliSessionDeps {
   adapter: CliAdapter;
@@ -47,6 +53,12 @@ export interface CliSessionDeps {
   prompt?: (input: TurnInput, ctx: { fresh: boolean }) => string;
   /** No output for this long ends the turn. Default 10 minutes. */
   idleMs?: number;
+  /** No text, thinking or tool event for this long after the prompt is written ends the turn with a plain line. Default FIRST_TOKEN_CLI_MS. */
+  firstTokenMs?: number;
+  /** Told when a turn hit the first-token deadline. Default: one line on stderr. */
+  onNoFirstToken?: NoFirstTokenLog;
+  /** The account the session runs on, for the log line only. */
+  account?: string;
   /** Time a stopped process gets to leave before it is killed. Default 1500 ms. */
   graceMs?: number;
   /** Runs once when the session closes: releases the MCP session token. */
@@ -88,6 +100,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
   const a = deps.adapter;
   const graceMs = deps.graceMs ?? GRACE_MS;
   const idleMs = deps.idleMs ?? IDLE_MS;
+  const firstTokenMs = deps.firstTokenMs ?? FIRST_TOKEN_CLI_MS;
   let sessionId = deps.resume;
   /** The id the host holds, so a checkpoint is only written when it changes. */
   let saved = deps.resume;
@@ -114,11 +127,11 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     saved = id;
     try { void Promise.resolve(deps.checkpoint?.(id)).catch(() => undefined); } catch { /* as above */ }
   }
-  const clean = (text: string): string => scrub(text, secrets());
+  const clean = (text: string): string => redact(scrub(text, secrets()));
 
   async function pump(r: Run): Promise<void> {
     try {
-      for await (const line of lines(r.proc.stdout)) for (const ev of r.decoder.push(line)) r.chan.push(ev);
+      for await (const line of lines(r.proc.stdout)) for (const ev of r.decoder.push(redact(line))) r.chan.push(ev);   // a held secret never reaches a decoded text, tool detail or error
     } catch { /* a broken pipe or an over-long line ends the run like an exit */ }
     for (const ev of r.decoder.finish()) r.chan.push(ev);
     r.alive = false;
@@ -130,6 +143,12 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
       model: deps.model, resume: sessionId, mcpUrl: deps.endpoint.url, ...(deps.endpoint.stdio ? { mcpStdio: deps.endpoint.stdio } : {}), ...(deps.plugins ? { plugins: deps.plugins } : {}), planMode: deps.mode !== undefined ? deps.mode === "plan" : deps.planMode?.() ?? false, ...(deps.mode !== undefined ? { mode: deps.mode } : {}), ...(deps.effort !== undefined ? { effort: deps.effort } : {}), ...(deps.noTools ? { noTools: true } : {}),
       workFolder: deps.workFolder, system: a.systemFlag || deps.lean === true ? deps.system : null, ...(deps.lean ? { lean: true } : {}),
     });
+    // the hooks config of an engine that reads it from files (Grok, Codex): written before it starts, never a reason a turn does not run
+    if (deps.endpoint.stdio && deps.workFolder !== null && !deps.lean && !deps.noTools) {
+      try {
+        for (const [file, text] of Object.entries(hookFiles(a.id, { workFolder: deps.workFolder, stdio: deps.endpoint.stdio, ...(deps.env["HOME"] ? { home: deps.env["HOME"] } : {}) }))) { mkdirSync(dirname(file), { recursive: true }); writeFileSync(file, text); }
+      } catch { /* the hooks of the engine's own tools are missing; Vyre's own tools are still covered */ }
+    }
     const proc = await deps.launcher.spawn({
       argv, ...(deps.workFolder !== null ? { cwd: deps.workFolder } : {}),
       env: { ...a.env(), ...deps.env, [TOKEN_ENV]: deps.endpoint.token },
@@ -186,9 +205,18 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
         try { await r.proc.write(a.encode(text)); } catch { /* read below */ }
       }
       if (!a.persistent) r.proc.endInput();
+      const wroteAt = Date.now();
       for (;;) {
-        const item = await r.chan.next(idleMs, signal);
+        // Until the first text, thinking or tool event the deadline runs from the prompt: session, usage and limit lines do not keep a silent engine alive. A compact has its own pace.
+        const left = said || compacting ? Infinity : firstTokenMs - (Date.now() - wroteAt);
+        const item = await r.chan.next(Math.min(idleMs, Math.max(1, left)), signal);
         if (item === null) return "stop";
+        if (item === "idle" && !said && !compacting && Date.now() - wroteAt >= firstTokenMs) {
+          (deps.onNoFirstToken ?? logNoFirstToken)({ provider: a.id, model: deps.model ?? "", account: deps.account ?? "", waitedMs: Date.now() - wroteAt });
+          yield { type: "error", code: NO_FIRST_TOKEN_CODE, message: NO_FIRST_TOKEN_LINE };
+          await stop(r, false);
+          return "stop";
+        }
         if (item === "idle") {
           yield { type: "error", code: "engine.timeout", message: "The engine stopped answering." };
           await stop(r, false);
@@ -204,7 +232,10 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
               return "stop";
             }
             break;
-          case "text": said = true; yield { type: "text", text: item.text }; break;
+          case "text":
+            // the engine's own "issue with the selected model" line is an error told as an answer: it is not shown, and the error that follows moves the turn to another model
+            if (item.text.length < 600 && modelGone(item.text)) break;
+            said = true; yield { type: "text", text: item.text }; break;
           case "thinking": said = true; yield { type: "thinking", text: item.text }; break;
           case "tool":
             said = true;
@@ -212,11 +243,11 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
               ? { type: "block", kind: "tool_call", payload: { id: item.id, name: item.name } }
               : item.phase === "input"
                 ? { type: "block", kind: "tool_input", payload: { id: item.id, detail: item.detail } }
-                : { type: "block", kind: "tool_result", payload: { id: item.id, ok: item.ok } };
+                : { type: "block", kind: "tool_result", payload: { id: item.id, ok: item.ok, ...(item.output ? { detail: item.output } : {}) } };
             break;
           case "usage":
             yield {
-              type: "usage", inputTokens: item.inputTokens, outputTokens: item.outputTokens,
+              type: "usage", inputTokens: item.inputTokens, outputTokens: item.outputTokens, ...(item.model ? { model: item.model } : {}), ...(item.contextTokens !== undefined ? { contextTokens: item.contextTokens } : {}),
               ...(item.cacheReadTokens !== undefined ? { cacheReadTokens: item.cacheReadTokens } : {}), ...(item.cacheWriteTokens !== undefined ? { cacheWriteTokens: item.cacheWriteTokens } : {}),
               ...(item.reasoningTokens !== undefined ? { reasoningTokens: item.reasoningTokens } : {}), ...(item.costUsd !== undefined ? { costUsd: item.costUsd } : {}),
             };
@@ -227,7 +258,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
             outstanding -= 1;
             if (item.error) {
               if (gone(item.error.message)) { await stop(r, false); return "gone"; }
-              yield { type: "error", code: item.error.code ?? classifyCli(item.error.message), message: clean(item.error.message) };
+              yield { type: "error", code: item.error.code ?? classifyCli(item.error.message), message: plainCli(clean(item.error.message)) };
               return "stop";
             }
             // A steering engine's result ends the turn every message it has read belongs to. A message it has not read yet is the start of its next turn, which ends with a result of its own: wait for that
@@ -238,11 +269,11 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
             // stderr may still be arriving when stdout closes: the process is gone once both are.
             const t = pause(graceMs);
             try { await Promise.race([r.proc.exited, t.done]); } finally { t.stop(); }
-            const tail = clean(r.proc.stderrTail()).trim();
+            const tail = clean(r.proc.stderrTail()).trim();   // stderr is cleaned here, so a secret in it is gone before it is classified or shown
             if (gone(tail)) return "gone";
             const absent = missingProgram(tail);
             if (absent !== null) { yield { type: "error", code: "engine.cli_missing", message: `${absent} is not installed here.` }; return "stop"; }
-            yield { type: "error", code: classifyCli(tail), message: tail !== "" ? tail : "The engine ended before it answered." };
+            yield { type: "error", code: classifyCli(tail), message: tail !== "" ? plainCli(tail) : "The engine ended before it answered." };
             return "stop";
           }
         }

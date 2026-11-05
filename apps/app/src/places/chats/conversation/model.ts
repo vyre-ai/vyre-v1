@@ -3,12 +3,15 @@
 // interrupt), and the optimistic message that shows in the same frame as the send.
 import { stepLabel } from "./activity.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { dayIn, partsIn, titleOf as zoneTitle } from "../../../../../../lib/zones.ts";
+import type { Zones } from "../../../../../../lib/zones.ts";
 import { BLOCK_FALLBACKS, isNativeBlockType } from "../../../../../../ui/src/blocks/registry.ts";
 import { applyFallback } from "../../../../../../ui/src/blocks/GenericBlock.tsx";
 import { createIncrementalMarkdown } from "../../../../../../ui/src/stream/markdown.ts";
 import type { Block as MdBlock } from "../../../../../../ui/src/stream/markdown.ts";
 import { isTurnStatus } from "./status.ts";
 import { route } from "../../../../../../lib/route.ts";
+import { chatName } from "../../../../../../lib/chat-name.ts";
 
 export type Thread = CapMap["threads.get"]["out"]["thread"];
 export type Message = CapMap["chat.messages.list"]["out"]["messages"][number];
@@ -17,7 +20,7 @@ export type ThreadAgent = Thread["agents"][number];
 export type Helper = CapMap["chat.helpers.list"]["out"]["helpers"][number];
 export type AgentMode = ThreadAgent["mode"];
 
-export interface Clock { now: number; offsetMin: number }
+export interface Clock { now: number; offsetMin: number; /** the Space's zone and the viewer's, for a shared place; left out for a private one (the device's offset is the clock) */ zones?: Zones }
 
 /** Resume any chat: the last 50 messages paint first, older ones stream in as the person scrolls up (V1-SPEC speed budgets). */
 export const WINDOW = 50;
@@ -62,9 +65,15 @@ const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
 const local = (ts: number, c: Clock): number => ts + c.offsetMin * 60_000;
-const dayNumber = (ts: number, c: Clock): number => Math.floor(local(ts, c) / DAY);
+const dayNumber = (ts: number, c: Clock): number => (c.zones ? dayIn(ts, c.zones.space) : Math.floor(local(ts, c) / DAY));
+
+/** What hover says about a message's time: both zones and the full date. Only where there are zones (a shared place). */
+export function timeTitle(ts: number, c: Clock): string | undefined {
+  return c.zones ? zoneTitle(ts, c.zones) : undefined;
+}
 
 export function timeLabel(ts: number, c: Clock): string {
+  if (c.zones) { const p = partsIn(ts, c.zones.space); return `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`; }
   const d = new Date(local(ts, c));
   const two = (n: number): string => String(n).padStart(2, "0");
   return `${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`;
@@ -74,6 +83,10 @@ export function dayLabel(ts: number, c: Clock): string {
   const diff = dayNumber(c.now, c) - dayNumber(ts, c);
   if (diff <= 0) return "Today";
   if (diff === 1) return "Yesterday";
+  if (c.zones) {
+    const p = partsIn(ts, c.zones.space);
+    return diff < 7 ? WEEKDAYS[p.dow] ?? "" : `${p.day} ${MONTHS[p.month - 1] ?? ""}`;
+  }
   const d = new Date(local(ts, c));
   if (diff < 7) return WEEKDAYS[d.getUTCDay()] ?? "";
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()] ?? ""}`;
@@ -99,9 +112,63 @@ export const isErrorBlock = (b: MessageBlock): boolean => b.type === "error";
 /** Everything else is a native card: terminal, changeset, question, plan, deploy, file, and so on. */
 /** Blocks that are data for the page, not a card: the links of a message (drawn inside its text) and the line a fork starts with (drawn as a link). */
 // on_behalf, relay and agent_dm say who an agent's message to a teammate speaks for and carry a reply back (lane l-agentdm): they shape the header and the line, never a card of their own
-const QUIET_BLOCKS = new Set(["refs", "fork_origin", "on_behalf", "relay", "agent_dm"]);
+const QUIET_BLOCKS = new Set(["refs", "fork_origin", "on_behalf", "relay", "agent_dm", "poke", "poked", "hook"]);
+
+/** The quiet line a poke leaves in the chat: "Sara poked Docs", with the note after it. The block carries the ids, so the words follow each reader's names. */
+export function pokeLine(m: Pick<Message, "blocks">, nameOf: (id: string) => string): string | null {
+  const b = m.blocks.find((x) => x.type === "poke");
+  const d = b?.data as { by?: unknown; agentId?: unknown; note?: unknown } | null | undefined;
+  if (!d || typeof d.by !== "string" || typeof d.agentId !== "string") return null;
+  return `${nameOf(d.by)} poked ${nameOf(d.agentId)}${typeof d.note === "string" && d.note !== "" ? `: ${d.note}` : ""}`;
+}
+
+/** The quiet line a hook leaves (lane l-hooks): its words, what happened to it, and the hook it is about, so the line can offer Details or Edit. */
+export interface HookLine { line: string; kind: string; hookId?: string; reason?: string; by?: string; subject?: string; scope?: string; tool?: string; /** The stop was answered, for everyone in the chat: Allow (this time), Always allow or Deny */ resolved?: "allowed" | "always" | "denied"; /** For Always allow: the act and its target in plain words */ resolvedWhat?: string; agentId?: string; /** Up to two steps a check wrote: a button label and what pressing it says to the assistant */ next?: Array<{ label: string; ask: string }> }
+export function hookLineOf(m: Pick<Message, "blocks">): HookLine | null {
+  const d = m.blocks.find((x) => x.type === "hook")?.data as { line?: unknown; kind?: unknown; hookId?: unknown; reason?: unknown } | null | undefined;
+  if (!d || typeof d.line !== "string" || typeof d.kind !== "string") return null;
+  return { line: d.line, kind: d.kind, ...(typeof d.hookId === "string" ? { hookId: d.hookId } : {}), ...(typeof d.reason === "string" ? { reason: d.reason } : {}), ...(typeof (d as { by?: unknown }).by === "string" ? { by: (d as { by: string }).by } : {}), ...(typeof (d as { subject?: unknown }).subject === "string" ? { subject: (d as { subject: string }).subject } : {}), ...(typeof (d as { scope?: unknown }).scope === "string" ? { scope: (d as { scope: string }).scope } : {}), ...(typeof (d as { agentId?: unknown }).agentId === "string" ? { agentId: (d as { agentId: string }).agentId } : {}), ...(typeof (d as { tool?: unknown }).tool === "string" ? { tool: (d as { tool: string }).tool } : {}), ...(typeof (d as { resolvedWhat?: unknown }).resolvedWhat === "string" ? { resolvedWhat: (d as { resolvedWhat: string }).resolvedWhat } : {}), ...(["allowed", "always", "denied"].includes(String((d as { resolved?: unknown }).resolved)) ? { resolved: (d as { resolved: "allowed" | "always" | "denied" }).resolved } : {}), ...nextOf((d as { next?: unknown }).next) };
+}
+/** The steps a check offered, read from the block: at most two, each a short label and a plain sentence; anything else is dropped. */
+function nextOf(v: unknown): { next?: Array<{ label: string; ask: string }> } {
+  if (!Array.isArray(v)) return {};
+  const next = v.filter((x): x is { label: string; ask: string } => !!x && typeof (x as { label?: unknown }).label === "string" && typeof (x as { ask?: unknown }).ask === "string" && (x as { label: string }).label.length <= 40 && (x as { ask: string }).ask.length <= 200).slice(0, 2);
+  return next.length > 0 ? { next } : {};
+}
+/** The words of a line as this reader sees them: a line about a person names them as the reader does ("Maya Chen let a hook go by once: ..."), never "Someone". */
+export function hookLineText(h: HookLine, nameOf: (id: string) => string): string {
+  if (h.by && h.subject && h.kind === "allowed") return `${nameOf(h.by)} let a hook go by once: ${h.subject}`;
+  if (h.by && h.subject && h.kind === "asked") return `${nameOf(h.by)} asked an admin about a hook: ${h.subject}`;
+  return h.line;
+}
+/** The words that lead a hook line, in ink: "A hook stopped this:" or the name before "added a hook". The rest follows in the quieter colour. */
+export function hookLead(text: string): [string, string] {
+  if (text.startsWith("A hook stopped this:")) return ["A hook stopped this:", text.slice("A hook stopped this:".length)];
+  const m = /^(.+?)( (?:added|set|changed|removed|paused|turned|let|asked) )/.exec(text);
+  return m ? [m[1]!, text.slice(m[1]!.length)] : ["", text];
+}
+/** What a line offers beyond its words. A block shows Details (the hook, in the Hooks tab), Allow this once and Ask an admin; a hook that is still there shows Edit. */
+/** The one approval vocabulary: Allow (this time only), Always allow (saves the rule through the hooks layer, for that hook's scope) and Deny (closes the line, the stop stands). A person who cannot decide is offered Ask an admin instead. */
+export type HookLineAct = "details" | "edit" | "allow" | "always" | "deny" | "ask";
+export function hookLineActs(h: HookLine, canDecide?: boolean): HookLineAct[] {
+  if (h.hookId === undefined) return [];
+  // an answered stop shows how it was answered and Details; nothing more to decide
+  if (h.kind === "blocked" && h.resolved !== undefined) return ["details"];
+  // until it is known whether this person may decide, only Details is shown, so the line never changes under the pointer
+  if (h.kind === "blocked") return canDecide === undefined ? ["details"] : canDecide ? ["details", "allow", "always", "deny"] : ["details", "ask"];
+  if (h.kind === "failed") return ["details"];
+  return h.kind === "added" || h.kind === "changed" ? ["edit"] : [];
+}
+/** A line's side button: a block shows Details (it names the hook that stopped it), a hook that is still there shows Edit. */
+export const hookLineAction = (h: HookLine): { label: string } | null => (h.hookId === undefined || h.kind === "removed" ? null : { label: h.kind === "blocked" || h.kind === "failed" ? "Details" : "Edit" });
+
+/** "Poked by Sara": the quiet line under a reply an agent wrote because a person poked it. */
+export function pokedBy(m: Pick<Message, "blocks">, nameOf: (id: string) => string): string | null {
+  const d = m.blocks.find((x) => x.type === "poked")?.data as { by?: unknown } | null | undefined;
+  return d && typeof d.by === "string" ? `Poked by ${nameOf(d.by)}` : null;
+}
 export const isCard = (b: MessageBlock): boolean => !isStep(b) && !isToolStep(b) && !isErrorBlock(b) && !isTurnStatus(b) && !QUIET_BLOCKS.has(b.type);
-export { isTurnStatus, statusView, withoutAnswered } from "./status.ts";
+export { isSystemLine, isTurnStatus, statusView, withoutAnswered } from "./status.ts";
 export type { StatusView } from "./status.ts";
 
 export interface StepLine { id: string; title: string; sub: string; state: MessageBlock["state"] }
@@ -250,9 +317,9 @@ export interface TimelineCtx {
 
 export type Item =
   | { kind: "day"; key: string; label: string }
-  | { kind: "event"; key: string; message: Message; text: string; time: string }
-  | { kind: "me"; key: string; message: Message; time: string; newgroup: boolean }
-  | { kind: "other"; key: string; message: Message; who: Who; time: string; newgroup: boolean; /** "On Sara's account": set only where more than one person shares the chat. */ paidLine?: string };
+  | { kind: "event"; key: string; message: Message; text: string; time: string; timeTitle?: string; /** The check's steps ride on the agent's reply below, not on this line */ stepsBelow?: boolean }
+  | { kind: "me"; key: string; message: Message; time: string; timeTitle?: string; newgroup: boolean }
+  | { kind: "other"; key: string; message: Message; who: Who; time: string; timeTitle?: string; newgroup: boolean; /** "On Sara's account": set only where more than one person shares the chat. */ paidLine?: string; /** The steps a hook check wrote for the stop just above this reply: small buttons inside it */ hookSteps?: { key: string; agentId: string; next: Array<{ label: string; ask: string }> } };
 
 /** System and quiet messages are one-line events ("Switched to Codex, picked up from the summary and the last 20 turns"). */
 export const isEvent = (m: Message): boolean => m.kind === "system" || m.kind === "quiet";
@@ -268,6 +335,15 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
   const out: Item[] = [];
   let lastDay = "";
   let prev: Message | null = null;
+  // a stop that carries steps: the agent's next reply (the first message after the stop that is not an event) is where they sit
+  const stepsFor = new Map<string, { key: string; agentId: string; next: Array<{ label: string; ask: string }>; line: number }>();
+  messages.forEach((m, i) => {
+    const h = isEvent(m) ? hookLineOf(m) : null;
+    if (!h || h.kind !== "blocked" || !h.next || !h.agentId) return;
+    const reply = messages.slice(i + 1).find((x) => !isEvent(x));
+    if (reply && reply.author.kind === "agent" && reply.author.id === h.agentId) stepsFor.set(reply.messageId, { key: m.messageId, agentId: h.agentId, next: h.next, line: i });
+  });
+  const carried = new Set([...stepsFor.values()].map((v) => v.key));
   for (const m of messages) {
     const dk = dayKey(m.createdAt, ctx.clock);
     if (dk !== lastDay) {
@@ -276,14 +352,16 @@ export function timeline(messages: readonly Message[], ctx: TimelineCtx): Item[]
       prev = null;
     }
     const time = timeLabel(m.createdAt, ctx.clock);
+    const tt = timeTitle(m.createdAt, ctx.clock);
+    const titled = tt ? { timeTitle: tt } : {};
     if (isEvent(m)) {
-      out.push({ kind: "event", key: m.messageId, message: m, text: m.body, time });
+      out.push({ kind: "event", key: m.messageId, message: m, text: m.body, time, ...titled, ...(carried.has(m.messageId) ? { stepsBelow: true } : {}) });
       prev = null;
       continue;
     }
     const newgroup = prev === null || prev.author.id !== m.author.id || prev.author.kind !== m.author.kind;
-    if (m.author.id === ctx.meId && m.author.kind === "person") out.push({ kind: "me", key: m.messageId, message: m, time, newgroup });
-    else out.push({ kind: "other", key: m.messageId, message: m, who: whoOf(m, ctx), time, newgroup, ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}) });
+    if (m.author.id === ctx.meId && m.author.kind === "person") out.push({ kind: "me", key: m.messageId, message: m, time, ...titled, newgroup });
+    else out.push({ kind: "other", key: m.messageId, message: m, who: whoOf(m, ctx), time, ...titled, newgroup, ...(ctx.shared && m.paidBy ? { paidLine: paidLine(m.paidBy, ctx) } : {}), ...(stepsFor.has(m.messageId) ? { hookSteps: { key: stepsFor.get(m.messageId)!.key, agentId: stepsFor.get(m.messageId)!.agentId, next: stepsFor.get(m.messageId)!.next } } : {}) });
     prev = m;
   }
   return out;
@@ -330,12 +408,17 @@ export function directWith(t: Thread, meId: string | undefined): string | null {
   return others.length === 1 && t.members.some((m) => m.id === meId) ? others[0]!.id : null;
 }
 
+/** The other people in a chat (never the viewer): their faces sit in the header of a chat that is not a direct message. */
+export function otherPeople(t: Pick<Thread, "members">, meId: string | undefined): string[] {
+  return [...new Set(t.members.filter((m) => m.kind === "person" && m.id !== meId).map((m) => m.id))];
+}
+
+/** The one name of a chat (lib/chat-name.ts), the same as the list shows: a direct message is the person, any other chat its title, else who is in it. */
 export function titleOf(t: Thread, nameOf: (id: string) => string, meId?: string): string {
-  if (t.title) return t.title;
-  const first = t.agents[0];
-  if (first) return nameOf(first.agentId);
-  const other = directWith(t, meId);
-  return other ? nameOf(other) : "Chat";
+  return chatName({
+    title: t.title, kind: t.kind, agents: t.agents.map((a) => a.agentId),
+    people: [...new Set(t.members.filter((m) => m.kind === "person" && m.id !== meId).map((m) => m.id))],
+  }, nameOf);
 }
 
 /** The label of the stop control: one agent working, its name; more than one, Stop all. */
@@ -379,6 +462,8 @@ export interface Pending {
   files?: readonly PendingFile[];
   /** Links picked for [[ ]] or # chips, sent as the message's refs. */
   refs?: readonly PendingRef[];
+  /** From a thread: also post these words to the chat the thread hangs in. */
+  alsoToChat?: boolean;
 }
 
 export interface PendingFile { name: string; file?: unknown; size?: number; mime?: string; fileId?: string }
@@ -494,17 +579,7 @@ export function matchLine(n: number, at: number, query: string): string {
   return n === 0 ? "No matches" : `${at + 1} of ${n}`;
 }
 
-export interface Participant { id: string; name: string; kind: "person" | "agent"; role: string }
 
-/** Everyone in the thread for the participants menu: people first, then agents with their mode. */
-export function participants(t: Thread, nameOf: (id: string) => string): Participant[] {
-  const out: Participant[] = [];
-  for (const m of t.members) {
-    if (m.kind === "person") out.push({ id: m.id, name: nameOf(m.id), kind: "person", role: "Person" });
-  }
-  for (const a of t.agents) out.push({ id: a.agentId, name: nameOf(a.agentId), kind: "agent", role: t.agents.length === 1 ? "Agent" : a.mode === "lead" ? "Replies to everything" : "Only when @mentioned" });
-  return out;
-}
 
 /** A thread that has closed takes no messages until it is reopened. */
 export const isClosed = (t: Thread): boolean => t.closedAt !== undefined;
@@ -513,8 +588,9 @@ export const isClosed = (t: Thread): boolean => t.closedAt !== undefined;
 export function threadKindNote(t: Thread, nameOf: (id: string) => string): string {
   if (t.kind === "helper") return "Helper chat";
   if (t.kind === "ask") return "Ask pane";
-  const starter = t.starter ? nameOf(t.starter) : "";
-  return t.kind === "thread" && starter ? `Thread started by ${starter}` : "";
+  // a thread opens on the message it hangs off, drawn as a plain message row (ThreadParent): no "started by" line over it
+  void nameOf;
+  return "";
 }
 
 /* ---------- the chat-open budget ---------- */
@@ -546,4 +622,9 @@ export function collect<T, U>(list: readonly T[], fn: (item: T, index: number) =
   const out: U[] = [];
   for (const [i, x] of list.entries()) out.push(fn(x, i));
   return out;
+}
+
+/** May the @ menu offer this agent? Everyone sees every agent offered to them; a guest only the agents this chat allows (the ones in it). */
+export function mentionable(item: string | { t: string; ref?: string | undefined }, guest: boolean, inThread: ReadonlyMap<string, unknown>): boolean {
+  return !guest || (typeof item !== "string" && item.ref !== undefined && inThread.has(item.ref));
 }

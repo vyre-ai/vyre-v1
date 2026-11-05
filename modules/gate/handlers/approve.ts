@@ -4,6 +4,7 @@
 // Held -> sending is one guarded UPDATE, so two taps send once. A failed send goes back to held with its error: the person approved it and may try again.
 import { actOf, cut, getHold, holdsWhere, raise, saveHold, sha } from "../projections.ts";
 import type { Assignee, GateCtx, Hold } from "../projections.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 import { addStepTargets } from "./grants.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -59,6 +60,72 @@ const emitGate = (ctx: GateCtx, name: string, h: Hold, extra: Record<string, unk
   ctx.emit(name, `task/${h.taskId}`, clean, { vis: "participants" });
 };
 
+// ---- who decides ----
+
+const asAssignee = (v: unknown): Assignee | null => (v && typeof v === "object" && typeof (v as Assignee).id === "string" && typeof (v as Assignee).kind === "string" ? { kind: (v as Assignee).kind, id: (v as Assignee).id } : null);
+
+/** A task slot moved: the hold follows it, and the move is written down. Only a hold still waiting, and never a person-only one. */
+export async function syncApprover(ctx: GateCtx, event: { name: string; payload: Record<string, unknown> }): Promise<string[]> {
+  const p = event.payload, taskId = typeof p["taskId"] === "string" ? p["taskId"] : "";
+  if (!taskId) return [];
+  const how = event.name === "task.assigned" ? "assigned" : event.name === "task.delegated" ? "delegated" : "escalated";
+  if (how === "assigned" && p["slot"] !== "approver") return [];
+  const to = asAssignee(how === "delegated" ? p["passedTo"] : p["to"]);
+  if (!to) return [];
+  const h = holdsWhere(ctx.db, "task_id = ? AND state = 'held'", taskId)[0];
+  if (!h || actOf(h.act).personOnly || (h.approver.kind === to.kind && h.approver.id === to.id)) return [];
+  const by = typeof p["by"] === "string" ? p["by"] : typeof p["from"] === "string" ? p["from"] : undefined;
+  // only a move made by someone who may decide the hold is followed (a member with Edit on the task can write the slot, but that does not hand them the approval); a move onto the mover needs the same
+  if (!(await mayMove(ctx, h, by))) {
+    ctx.log?.warn("gate.approver_move_refused", { holdId: h.id, taskId, by: by ?? null, to, how });
+    return [];
+  }
+  const from = h.approver;
+  h.approver = to;
+  saveHold(ctx.db, h);
+  ctx.emit("gate.approver_moved", `task/${taskId}`, { holdId: h.id, act: h.act, taskId, from, to, ...(by ? { by } : {}), how }, { vis: "participants" });
+  return [h.id];
+}
+
+/** May this person move the hold's approval on? The current approver, a member of its role or group, someone holding Manage on its task, or a trusted service (the timeout sweep). Nobody else, and an agent never. */
+async function mayMove(ctx: GateCtx, h: Hold, by: string | undefined): Promise<boolean> {
+  if (!by) return false;
+  if (by.startsWith("svc_") && isTrustedService({ kind: "service", id: by })) return true;
+  const a = h.approver;
+  if ((a.kind === "person" || a.kind === "agent" || a.kind === "automation") && a.id === by) return a.kind === "person";
+  if (!ctx.call) return false;
+  try {
+    if (a.kind === "role") {
+      const r = (await ctx.call("access.roles.get", { roleId: a.id })) as { holders?: Array<{ id?: string }> } | null;
+      if (r?.holders?.some((x) => x.id === by)) return true;
+    } else if (a.kind === "group") {
+      const g = (await ctx.call("access.groups.get", { groupId: a.id })) as { members?: Array<{ id?: string }> } | null;
+      if (g?.members?.some((x) => x.id === by)) return true;
+    }
+    const d = (await ctx.call("access.check", { principal: { kind: "person", id: by }, action: { perm: null, level: "manage" }, resource: { type: "task", id: h.taskId } })) as { decision?: { effect?: string } } | null;
+    return d?.decision?.effect === "allow";
+  } catch { return false; }
+}
+
+/**
+ * May this releaser decide the hold? The one it waits on now (a person, or a member of its role or group, read from their own roles); or someone the Space's own grants let act on its task (the owner approves a
+ * member's agent's send: that is how the product works and tests hold it); or, where the Space names agents for a low-risk act, an agent. Moving the task's slot changes who it waits on (gate.approver_moved),
+ * so an approval handed on by anyone is followed by the hold. A person-only act never reaches here: it is judged before, by identity alone.
+ */
+async function decides(ctx: GateCtx, h: Hold, claims: Claims): Promise<boolean> {
+  const a = h.approver;
+  if (ctx.principal.kind === "agent" && !h.rule.peopleOnly) return true;
+  if ((a.kind === "person" || a.kind === "agent" || a.kind === "automation") && (ctx.principal.id === a.id || claims.forPerson === a.id)) return true;
+  if ((a.kind === "role" || a.kind === "group") && ctx.call) {
+    try {
+      const me = (await ctx.call("identity.whoami", {})) as { roles?: unknown; groups?: unknown } | null;
+      const have = a.kind === "role" ? me?.roles : me?.groups;
+      if (Array.isArray(have) && have.includes(a.id)) return true;
+    } catch { /* falls to the grants */ }
+  }
+  return !!ctx.authorize && !!h.taskId && ctx.authorize({ perm: null, level: "manage" }, { type: "task", id: h.taskId }).effect === "allow";
+}
+
 // ---- gate.release ----
 
 export async function release(ctx: GateCtx, input: In): Promise<unknown> {
@@ -75,6 +142,10 @@ export async function release(ctx: GateCtx, input: In): Promise<unknown> {
   }
   if (claims.by !== ctx.principal.id) raise(ctx, "validation.precondition_failed", "That approval was given by someone else.", { reason: "token_mismatch" });
   if (claims.device !== null && claims.device !== ctx.device) raise(ctx, "validation.precondition_failed", "Approve from the device you started on.", { reason: "device_mismatch" });
+  // an act that is the person's alone (a session using their GitHub): only the person it was asked of, from their own session, and never as someone acting for them. Whatever the task's slots say now.
+  if (actOf(h.act).personOnly && (ctx.principal.kind !== "person" || h.approver.kind !== "person" || claims.by !== h.approver.id || claims.forPerson !== null)) {
+    raise(ctx, "validation.precondition_failed", "Only the person this was asked of can approve it.", { reason: "not_the_person" });
+  }
   if (ctx.principal.kind !== "person" && h.rule.peopleOnly) raise(ctx, "validation.precondition_failed", "Only a person can approve this.", { reason: "people_only" });
   // Ask the person: it runs as them, so only their own press, from their own session, releases it. An agent acting for them, a delegate or an admin cannot.
   if (h.askedBy && (claims.by !== h.principal.id || claims.forPerson !== null || ctx.principal.kind !== "person")) {
@@ -84,12 +155,14 @@ export async function release(ctx: GateCtx, input: In): Promise<unknown> {
   if (!h.askedBy && h.principal.kind === "person" && h.principal.id === claims.by && h.rule.approvers !== "asker" && !h.step) {
     raise(ctx, "validation.precondition_failed", "Someone else has to approve what you asked for.", { reason: "self_approval" });
   }
+  // the Gate is the one source of truth for who decides: whatever a task slot says, the releaser is the hold's current approver, or in its role (the slot moves it through gate.approver_moved)
+  if (!(await decides(ctx, h, claims))) raise(ctx, "validation.precondition_failed", "This is waiting on someone else.", { reason: "not_the_approver" });
   if ((await sha(h.input)) !== h.inputHash) raise(ctx, "internal.unexpected", "The held act changed after it was parked.", { reason: "tampered" });
   if (!ctx.call) raise(ctx, "internal.unavailable", "Approvals are not available right now.", { service: "call" });
 
   // held -> sending, once
   const at = ctx.now();
-  const won = ctx.db.run("UPDATE gate_holds SET sending_at = ?, error = NULL WHERE id = ? AND state = 'held' AND sending_at IS NULL", at, h.id).changes === 1;
+  const won = ctx.db.run("UPDATE gate_holds SET sending_at = ?, error = NULL WHERE id = ? AND state = 'held' AND sending_at IS NULL AND json_extract(approver, '$.kind') = ? AND json_extract(approver, '$.id') = ?", at, h.id, h.approver.kind, h.approver.id).changes === 1;
   if (!won) raise(ctx, "validation.precondition_failed", "This is being sent right now.", { reason: "sending" });
   let result: unknown;
   try {

@@ -31,6 +31,9 @@ type In = {
       role: "edit" | "view" | "remove";
     }>;
   space?: "off" | "view" | "edit";
+  notify?: {
+    message?: string;
+  };
 };
 ```
 
@@ -60,6 +63,13 @@ type Out = {
       selection?: string;
       hasShot: boolean;
       at: number;
+    };
+    from?: {
+      threadId?: string;
+      messageId?: string;
+      title?: string;
+      at: number;
+      readable: boolean;
     };
     linked: Array<{
         kind: "task" | "record";
@@ -97,6 +107,9 @@ type Out = {
   "name": "example",
   "input": {
     "noteId": "nte_a1b2c3",
+    "notify": {
+      "message": "example"
+    },
     "people": [
       {
         "personId": "usr_a1b2c3",
@@ -118,6 +131,13 @@ type Out = {
       },
       "color": "",
       "createdAt": 1760000000000,
+      "from": {
+        "at": 1760000000000,
+        "messageId": "msg_a1b2c3",
+        "readable": true,
+        "threadId": "thr_a1b2c3",
+        "title": "example"
+      },
       "hasImage": true,
       "labels": [
         "Lab 8"

@@ -87,7 +87,15 @@ export async function health(ctx: CompCtx, _input: Record<string, never>) {
 
 // ---- where agent computers can run
 
-export interface HostRow { hostId: string; kind: "this" | "space" | "server"; name: string; online: boolean; canRun: boolean; runs: number; reason?: string }
+export interface HostRow { hostId: string; kind: "this" | "space" | "server"; name: string; online: boolean; canRun: boolean; runs: number; reason?: string; detail?: string; room?: { fits: number; freeMb: number; totalMb: number } }
+
+const COMPUTER_MB = 4096;
+const OS_WORDS: Record<string, string> = { linux: "Linux", darwin: "macOS", win32: "Windows" };
+const gb = (mb: number): string => `${(mb / 1024).toFixed(mb >= 10240 ? 0 : 1)} GB`;
+/** The machine in a line and how many more computers its free memory holds. */
+export function roomOf(c: { totalMb: number; freeMb: number; cpus: number; os: string }): { detail: string; room: { fits: number; freeMb: number; totalMb: number } } {
+  return { detail: `${OS_WORDS[c.os] ?? c.os}, ${gb(c.totalMb)}, ${gb(c.freeMb)} free`, room: { fits: Math.max(0, Math.floor(c.freeMb / COMPUTER_MB)), freeMb: c.freeMb, totalMb: c.totalMb } };
+}
 
 /**
  * The machines an agent computer can live on, for the person asking: this computer (a Personal Space) or the Space server (a Team Space) when the container runtime answers, and every server they
@@ -102,15 +110,19 @@ export async function hosts(ctx: CompCtx, _input: Record<string, never>) {
   const out: HostRow[] = [];
   const bound = boundHost();
   let ready = false;
-  if (bound) { try { ready = (await bound.health()).ok; } catch { ready = false; } }
-  out.push({ hostId: team ? "space" : "this", kind: team ? "space" : "this", name: team ? "The Space" : "This computer", online: true, canRun: ready, runs: placed.filter((n) => n === null).length, ...(ready ? {} : { reason: "No Docker" }) });
+  let why = "";
+  if (!bound) why = team ? "This Space's server has no container runner, so it cannot run agent computers. Run the server from its compose file (it starts the runner), or add a server that has Docker." : "Agent computers are not set up on this computer. Install Docker, or add a server that has it.";
+  else { try { const h = await bound.health(); ready = h.ok; if (!ready) why = h.detail ?? "The container runtime did not answer."; } catch (e) { why = e instanceof Error ? `The container runtime failed: ${e.message.slice(0, 160)}` : "The container runtime did not answer."; } }
+  let cap: ReturnType<typeof roomOf> | null = null;
+  if (bound?.capacity && ready) { try { cap = roomOf(await bound.capacity()); } catch { cap = null; } }
+  out.push({ hostId: team ? "space" : "this", kind: team ? "space" : "this", name: team ? "The Space" : "This computer", online: true, canRun: ready, runs: placed.filter((n) => n === null).length, ...(ready ? {} : { reason: why }), ...(cap ?? {}) });
   let mine: Array<{ serverId: string; name: string; state: string; enrollment: string; facts?: { docker?: boolean } }> = [];
   try { mine = ((await ctx.call("network.my_computers", {})) as { computers?: typeof mine }).computers ?? []; } catch { /* the network module is not running: no servers */ }
   for (const m of mine) {
     if (m.enrollment !== "approved") continue;
     const online = m.state !== "down";
     const docker = m.facts?.docker === true;
-    out.push({ hostId: m.serverId, kind: "server", name: m.name, online, canRun: online && docker, runs: placed.filter((n) => n === m.serverId).length, ...(!docker ? { reason: "No Docker" } : !online ? { reason: "Offline" } : {}) });
+    out.push({ hostId: m.serverId, kind: "server", name: m.name, online, canRun: online && docker, runs: placed.filter((n) => n === m.serverId).length, ...(!docker ? { reason: `${m.name} has no Docker. Install and start Docker on it.` } : !online ? { reason: `${m.name} is offline. Start it and let it reconnect.` } : {}) });
   }
   return { available: out.some((h) => h.canRun), hosts: out };
 }
@@ -138,6 +150,12 @@ export async function provision(ctx: CompCtx, input: { agentId: string; tabLimit
   ensure(ctx.db);
   needTeam(ctx);
   const host = input.nodeId === undefined ? hostOf(ctx) : null;
+  // say why before anything is made: a host that cannot run containers refuses with its own reason, in words, not a row that is made and unmade
+  if (host) {
+    let h: { ok: boolean; detail?: string } = { ok: true };
+    try { h = await host.health(); } catch (e) { h = { ok: false, detail: e instanceof Error ? e.message.slice(0, 160) : "The container runtime did not answer." }; }
+    if (!h.ok) raise(ctx, "provider.unavailable", h.detail ?? "The container runtime did not answer.", { reason: h.detail ?? "no runtime" });
+  }
   try {
     await ctx.call("agents.get", { agentId: input.agentId });
   } catch {
@@ -147,6 +165,7 @@ export async function provision(ctx: CompCtx, input: { agentId: string; tabLimit
   if (input.nodeId !== undefined) await placeable(ctx, input.nodeId, input.agentId);
   const computerId = mintId("cmt", ctx.now());
   const tabLimit = input.tabLimit ?? DEFAULT_TAB_LIMIT;
+  ctx.log.info("computer: provisioning", { computerId, agentId: input.agentId, node: input.nodeId ?? null });
   ctx.db.run(
     "INSERT INTO computers_computers (computer_id, agent_id, state, tabs, tab_limit, idle_sleep_minutes, host, node_id, created_at) VALUES (?, ?, 'provisioning', 0, ?, ?, ?, ?, ?)",
     computerId, input.agentId, tabLimit, DEFAULT_IDLE_MINUTES, "server", input.nodeId ?? null, ctx.now(),
@@ -154,9 +173,12 @@ export async function provision(ctx: CompCtx, input: { agentId: string; tabLimit
   try {
     const made = await (host ?? hostOf(ctx, computerId)).create({ computerId, agentId: input.agentId, tabLimit, idleSleepMinutes: DEFAULT_IDLE_MINUTES });
     setComputer(ctx.db, computerId, { state: "asleep", ...(made.diskBytes !== undefined ? { disk_bytes: made.diskBytes } : {}) });
+    ctx.log.info("computer: created", { computerId });
   } catch (e) {
+    ctx.log.warn("computer: create failed", { computerId, reason: e instanceof Error ? e.message.slice(0, 200) : "unknown" });
     ctx.db.run("DELETE FROM computers_computers WHERE computer_id = ?", computerId);
-    raise(ctx, "provider.unavailable", "The computer could not be created on this host.", { reason: e instanceof Error ? e.message.slice(0, 200) : "unknown" });
+    const reason = e instanceof Error ? e.message.slice(0, 1000) : "unknown";   // long enough for the Details a host adds after its first line
+    raise(ctx, "provider.unavailable", `The computer could not be created: ${reason}`, { reason });
   }
   ctx.emit("computer.provisioned", computerId, { computerId, agentId: input.agentId });
   return { computer: computerOut(needComputer(ctx, computerId)) };
@@ -240,14 +262,18 @@ export async function awaken(ctx: CompCtx, c: ComputerRow, by: string): Promise<
   if (c.state === "waking") return c;
   const host = hostOf(ctx, c.computerId);
   setComputer(ctx.db, c.computerId, { state: "waking", error: null });
+  ctx.log.info("computer: starting", { computerId: c.computerId, by });
   try {
     await host.start({ computerId: c.computerId, tabLimit: c.tabLimit, agentId: c.agentId });
   } catch (e) {
-    setComputer(ctx.db, c.computerId, { state: "error", error: e instanceof Error ? e.message.slice(0, 200) : "The computer did not start." });
-    raise(ctx, "internal.unexpected", "The computer did not start. Try again.");
+    const reason = e instanceof Error ? e.message.slice(0, 1000) : "The computer did not start.";
+    ctx.log.warn("computer: start failed", { computerId: c.computerId, reason });
+    setComputer(ctx.db, c.computerId, { state: "error", error: reason });
+    raise(ctx, "internal.unexpected", `The computer did not start: ${reason}`, { reason });
   }
   await connectFill(ctx, host, c);
   setComputer(ctx.db, c.computerId, { state: "working", last_active_at: ctx.now() });
+  ctx.log.info("computer: ready", { computerId: c.computerId });
   ctx.emit("computer.started", c.computerId, { computerId: c.computerId, agentId: c.agentId, by });
   return refresh(ctx, needComputer(ctx, c.computerId));
 }
@@ -266,7 +292,7 @@ async function putToSleep(ctx: CompCtx, c: ComputerRow, reason: "idle" | "reques
     out = await host.stop({ computerId: c.computerId, reason, agentId: c.agentId });
   } catch (e) {
     setComputer(ctx.db, c.computerId, { state: "error", error: e instanceof Error ? e.message.slice(0, 200) : "The computer did not stop." });
-    raise(ctx, "internal.unexpected", "The computer did not go to sleep. Try again.");
+    raise(ctx, "internal.unexpected", `The computer did not go to sleep: ${e instanceof Error ? e.message.slice(0, 200) : "no reason given"}`);
   }
   dropFill(c.computerId);
   if (out.sessions) storeSessions(ctx, c.computerId, out.sessions);
@@ -332,8 +358,9 @@ export async function takeOver(ctx: CompCtx, input: { computerId: string }) {
   const host = hostOf(ctx, c.computerId);
   try {
     await host.takeover({ computerId: c.computerId, personId: person });
-  } catch {
-    raise(ctx, "internal.unexpected", "The computer did not hand over the controls. Try again.");
+  } catch (e) {
+    const reason = e instanceof Error ? e.message.slice(0, 200) : "no reason given";
+    raise(ctx, "internal.unexpected", `The computer did not hand over the controls: ${reason}`, { reason });
   }
   const step = addStep(ctx.db, c.computerId, ctx.now(), { by: "person", caption: "You took over", tool: "take_over" });
   setComputer(ctx.db, c.computerId, { state: "takeover", takeover_by: person, takeover_at: ctx.now(), takeover_step: step.stepId, last_active_at: ctx.now(), caption: null });
@@ -355,8 +382,9 @@ export async function giveBack(ctx: CompCtx, input: { computerId: string }) {
   if (c.recordingId) await finishRecording(ctx, c);
   try {
     await hostOf(ctx, c.computerId).giveBack(c.computerId);
-  } catch {
-    raise(ctx, "internal.unexpected", "The computer did not take the controls back. Try again.");
+  } catch (e) {
+    const reason = e instanceof Error ? e.message.slice(0, 200) : "no reason given";
+    raise(ctx, "internal.unexpected", `The computer did not take the controls back: ${reason}`, { reason });
   }
   if (c.takeoverStep) setStepCaption(ctx.db, c.takeoverStep, `You took over for ${minutesOf(ctx.now() - (c.takeoverAt ?? ctx.now()))}`);
   setComputer(ctx.db, c.computerId, { state: "working", takeover_by: null, takeover_at: null, takeover_step: null, last_active_at: ctx.now() });
@@ -389,7 +417,7 @@ export async function sessionSignOut(ctx: CompCtx, input: { computerId: string; 
   if (site === "") raise(ctx, "validation.bad_input", "Name the site to sign out of.");
   const c = await awaken(ctx, needComputer(ctx, input.computerId), actorOf(ctx));
   let ok: boolean;
-  try { ok = await hostOf(ctx, c.computerId).signOut({ computerId: c.computerId, site }); } catch { raise(ctx, "internal.unexpected", "The computer did not sign out. Try again."); }
+  try { ok = await hostOf(ctx, c.computerId).signOut({ computerId: c.computerId, site }); } catch (e) { raise(ctx, "internal.unexpected", `The computer did not sign out: ${e instanceof Error ? e.message.slice(0, 200) : "no reason given"}`); }
   if (!ok) return { ok: false };
   ctx.db.run("DELETE FROM computers_sessions WHERE computer_id = ? AND site = ?", c.computerId, site);
   ctx.emit("computer.session_signed_out", c.computerId, { computerId: c.computerId, site, by: actorOf(ctx) });

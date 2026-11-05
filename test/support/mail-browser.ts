@@ -4,9 +4,10 @@ import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { createCapCaller } from "../../client/src/gateway/index.ts";
+import { holdKeyOnOwnNode } from "../../client/src/gateway/local-key.ts";
 import { edge } from "../../apps/app/tests/real-app-harness.test.ts";
 import type { Edge } from "../../apps/app/tests/real-app-harness.test.ts";
-import { bootMailWorld } from "./mail-world.ts";
+import { PASSWORD, bootMailWorld } from "./mail-world.ts";
 import type { MailWorld, Person, WorldOptions } from "./mail-world.ts";
 
 export const SIZES = { desktop: { width: 1280, height: 800 }, phone: { width: 390, height: 844 } } as const;
@@ -67,9 +68,13 @@ export interface Seat { ctx: BrowserContext; page: Page; who: Person; errors: st
  * A browser for one person. Opening a provider's sign-in page is answered the way the provider does after the person approves: a redirect back to the app with a code for the
  * account `setEmail` named last. The app's own popup then finishes the sign-in as that person.
  */
-export async function seat(s: Screens, who: Person, role: string): Promise<Seat> {
+export async function seat(s: Screens, who: Person, role: string, o: { touch?: { width: number; height: number } } = {}): Promise<Seat> {
   const saved = await sessionFor(s, who, role);
-  const ctx = await s.browser.newContext({ viewport: SIZES.desktop });
+  // The app on this computer shows its launch lock until the daemon holds the person's key (KeyGate). A person types their password once; the world's passwords are stand-ins that open nothing,
+  // so the seat hands the daemon a key the way that entry would. The lock screen itself is walked by test/vault.lock-screen.live.test.ts.
+  await holdKeyOnOwnNode(s.web.origin, who.token, new Uint8Array(32).fill(7)).catch(() => false);
+  // a touch seat is a tablet: a finger for a pointer (no hover), whatever the width
+  const ctx = await s.browser.newContext(o.touch ? { viewport: o.touch, hasTouch: true, isMobile: false } : { viewport: SIZES.desktop });
   await ctx.addInitScript((v: string) => { try { if (!localStorage.getItem("vyre.session.v1")) localStorage.setItem("vyre.session.v1", v); } catch { /* blocked storage */ } }, saved);
   let email = "";
   await ctx.route(/^https:\/\/(accounts\.google\.com|login\.microsoftonline\.com)\//, async (route) => {
@@ -92,7 +97,15 @@ export async function seat(s: Screens, who: Person, role: string): Promise<Seat>
 
 export async function open(seatOf: Seat, s: Screens, route: string): Promise<void> {
   await seatOf.page.goto(`${s.web.origin}${route}`, { waitUntil: "load" });
-  await seatOf.page.getByTestId("shell").or(seatOf.page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30_000 });
+  // The app asks for the password at launch while nobody holds the person's key (owner, 4 Nov): the person types it, as they would
+  const lock = seatOf.page.getByTestId("lock-password");
+  if (await lock.waitFor({ timeout: 6_000 }).then(() => true, () => false)) { await lock.fill(PASSWORD); await lock.press("Enter"); }
+  try { await seatOf.page.getByTestId("shell").or(seatOf.page.getByTestId("mobile-shell")).first().waitFor({ timeout: 30_000 }); }
+  catch (e) {
+    // say what is on the screen instead: the picture and the refused calls are the evidence
+    await seatOf.page.screenshot({ path: "shots-evidence/open-failed.png" }).catch(() => undefined);
+    throw new Error(`${route}: the shell did not appear. Page says: ${(await seatOf.page.locator("body").innerText().catch(() => "")).slice(0, 300).replace(/\s+/g, " ")} | refused: ${seatOf.logs.slice(-6).join("; ")} | ${(e as Error).message.split("\n")[0]}`);
+  }
   const onboarding = seatOf.page.getByTestId("onboarding");
   if (await onboarding.waitFor({ timeout: 4_000 }).then(() => true, () => false)) {
     // a person leaves onboarding with Finish later; when this Space's screen has no such button the picture says what is there instead

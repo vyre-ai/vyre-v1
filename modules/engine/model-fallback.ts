@@ -1,6 +1,5 @@
 // A team chat, a wake of one, or agent work whose model no Space AI account serves (owner ruling 9, 3 Nov): the resolver picks the cheapest Space account that covers the turn anyway, and the turn
 // runs on that account's default model (space-key-turns.ts opens it so). The chat says so in one quiet line, once per chat, agent and swap: "Ran on GLM 5.3; Claude isn't on the team key."
-import type { AccountQuery, ResolvedAccount } from "../../agent/src/turn-engine/types.ts";
 import { providerOfModel } from "../../agent/src/accounts/provider.ts";
 import { BRIDGE_PREFIX } from "./handlers/bridge.ts";
 import type { PostAs } from "./handlers/bridge.ts";
@@ -31,23 +30,18 @@ export function noModelWords(model: string | null, served: readonly string[]): s
 
 /** The chat's line for a swap. */
 export function fallbackLine(f: { from: string; to?: string }): string {
-  const asked = MAKER[providerOfModel(f.from) ?? ""] ?? modelWords(f.from);
-  return f.to ? `Ran on ${modelWords(f.to)}; ${asked} isn't on the team key.` : `Ran on the team key's own model; ${asked} isn't on it.`;
+  const asked = modelName(f.from);
+  return f.to ? `${asked} isn't available here, ran ${modelName(f.to)}.` : `${asked} isn't available here, ran the key's own model.`;
 }
 
-export function noteModelFallback(d: { resolve(q: AccountQuery): Promise<ResolvedAccount | null>; postAs?: PostAs; log?: (msg: string, attrs?: Record<string, unknown>) => void }): (q: AccountQuery) => Promise<ResolvedAccount | null> {
+export function noteModelFallback(d: { postAs?: PostAs; log?: (msg: string, attrs?: Record<string, unknown>) => void }): (q: { threadId: string; agentId: string; askerId: string }, f: { from: string; to?: string }) => Promise<void> {
   const said = new Set<string>();
-  return async (q) => {
-    const got = await d.resolve(q);
-    const f = got?.modelFallback;
-    if (!got || !f) return got;
+  return async (q, f) => {
     const key = `${q.threadId}|${q.agentId}|${f.from}|${f.to ?? ""}`;
-    if (d.postAs && !said.has(key)) {
-      said.add(key);
-      try {
-        await d.postAs(q.agentId, { actingFor: q.askerId, threadId: q.threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintId("b").slice(2), blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: fallbackLine(f) } }] });
-      } catch (e) { d.log?.("the model swap could not be shown in the chat", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); }
-    }
-    return got;
+    if (!d.postAs || said.has(key)) return;
+    said.add(key);
+    try {
+      await d.postAs(q.agentId, { actingFor: q.askerId, threadId: q.threadId, body: "", mentions: [], clientId: BRIDGE_PREFIX + mintId("b").slice(2), blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: fallbackLine(f) } }] });
+    } catch (e) { d.log?.("the model swap could not be shown in the chat", { threadId: q.threadId, error: e instanceof Error ? e.message : String(e) }); }
   };
 }

@@ -10,7 +10,8 @@ export function parseHash(hash: string): HashTarget {
   const out: HashTarget = { args: {} };
   const p = new URLSearchParams(hash.replace(/^#/, ""));
   for (const [k, v] of p) {
-    if (k === "screen") out.screen = v;
+    // Threads is gone as a page: a link to it opens the Replies list in the Inbox
+    if (k === "screen") out.screen = v === "chats.threads" ? "inbox.replies" : v;
     else if (k === "subject") {
       const i = v.indexOf(":");
       if (i > 0 && i < v.length - 1) out.subject = { type: v.slice(0, i), id: v.slice(i + 1) };
@@ -21,7 +22,7 @@ export function parseHash(hash: string): HashTarget {
 
 export function formatHash(t: { screen?: string; subject?: { type: string; id: string }; args?: Record<string, unknown> }): string {
   const p = new URLSearchParams();
-  if (t.screen) p.set("screen", t.screen);
+  if (t.screen) p.set("screen", t.screen === "chats.threads" ? "inbox.replies" : t.screen);
   if (t.subject) p.set("subject", `${t.subject.type}:${t.subject.id}`);
   for (const [k, v] of Object.entries(t.args ?? {})) if (v !== undefined && v !== null) p.set(k, typeof v === "string" ? v : JSON.stringify(v));
   return p.toString();
@@ -29,12 +30,12 @@ export function formatHash(t: { screen?: string; subject?: { type: string; id: s
 
 /** The rail place that shows a thing of this type. A type no place shows has none (the click then does nothing, never a wrong place). */
 const SUBJECT_PLACE: Readonly<Record<string, string>> = {
-  record: "records", contact: "records", project: "records", view: "records",
+  record: "records", contact: "records", project: "chats", view: "records",
   file: "files", folder: "files", doc: "files", document: "files",
-  chat: "chats", thread: "chats", channel: "chats", agent: "chats", message: "chats",
+  chat: "chats", person: "chats", thread: "chats", channel: "chats", agent: "chats", message: "chats",
   call: "inbox", conversation: "inbox", mail: "inbox", email: "inbox", meeting: "inbox", event: "inbox",
   run: "automations", automation: "automations", journey: "automations",
-  task: "chats", goal: "chats",
+  task: "chats", goal: "chats", artifact: "chats",
   vault: "vault", item: "vault",
 };
 export function placeForSubject(type: string): string | null {

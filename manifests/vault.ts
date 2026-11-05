@@ -10,7 +10,7 @@
 // DECISION: every vault write that carries a value is offline 'online': values are never placed in the pending_ops queue on a device.
 // DECISION: import files are deleted right after the commit. A subscription provider item is Mine and never shareable.
 import { block, defineManifest, entity, ev, health, importSource, list, outward, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
-import { id, level, ok, pageIn, pageOut, principalRef, subjectRef, url } from './_common.ts';
+import { id, level, ok, pageIn, pageOut, principalRef, spaceUses, subjectRef, url } from './_common.ts';
 
 const V = { level: 'view' } as const;
 const itemKind = t.enm('login', 'api_key', 'env', 'card', 'note', 'totp', 'ssh_key', 'ai_subscription', 'other');
@@ -29,19 +29,13 @@ const folderRow = t.obj({
   whoCanExport: t.arr(subjectRef), yourLevel: level,
 });
 const handleField = t.str({ pattern: '^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$', description: 'A handle, with a field after the dot to name one field', examples: ['#Dana_Lawmatics.api_key'] });
-/** What a Space AI account may pay for (owner ruling 9). Each use is off unless named. */
-const spaceUses = t.obj({
-  teamChats: t.opt(t.obj({ who: t.union(t.lit('everyone'), t.arr(id.group, { minItems: 1 })) }, { description: 'A member\'s own chat, only when they have no account of their own that can pay: everyone, or the people in these groups' })),
-  automations: t.opt({ ...t.lit(true), description: 'Automation steps' }),
-  goals: t.opt({ ...t.lit(true), description: 'Goal turns and wake-ups' }),
-  agentWork: t.opt(t.obj({ which: t.union(t.lit('all'), t.arr(id.agent, { minItems: 1 })) }, { description: 'Work an agent does with no asker (routines, watchers, helpers): every agent, or these' })),
-}, { description: 'What a Space AI account may pay for' });
 const providerRow = t.obj({
   id: t.id('prv'), providerKey: t.str({ examples: ['anthropic'] }), name: t.str(), logo: t.opt(t.str()),
   connection: t.enm('subscription', 'api_key', 'local_model'), via: t.str({ examples: ['Subscription, yours'] }), scope: t.enm('mine', 'shared'),
   itemId: id.vaultItem, itemName: t.opt(t.str({ description: 'The name the person gave this account in the Vault, so two accounts of one provider read differently', examples: ['Dana Claude Max'] })), handle: t.opt(id.handle), agentsUsing: t.arr(id.agent),
   usage: t.obj({ tokens: t.int({ minimum: 0 }), costCents: t.int({ minimum: 0 }), periodStart: t.ts() }),
   engine: t.str({ examples: ['claude-code'] }), spaceMayUse: t.bool(), state: t.enm('ok', 'needs_sign_in', 'failing'),
+  keepsNothing: t.opt({ ...t.bool(), description: 'An owner or admin said this account keeps nothing of what it is sent. A local model always does; every other account starts as no' }),
   address: t.opt(t.str({ description: 'The address a local model or custom endpoint is reached at' })), keyless: t.opt(t.bool()),
   spaceKey: t.opt(t.bool()),
   identity: t.opt(t.str({ description: 'The account a subscription sign-in belongs to, as the provider named it at sign-in (an email, else the organization)', examples: ['dana@example.com'] })),
@@ -90,6 +84,7 @@ export default defineManifest({
     ev('vault.folder_updated', 'A vault folder was renamed or its Who can export rule changed', { p: { folderId: id.vaultFolder, exportRuleChanged: t.bool() }, subject: ['vault_folder', '/folderId'], vis: 'participants', retention: 'audit' }),
     ev('vault.folder_deleted', 'A vault folder was deleted', { p: { folderId: id.vaultFolder }, subject: ['vault_folder', '/folderId'], vis: 'participants' }),
     ev('provider.added', 'An AI provider was connected (subscription, key or local model)', { p: { providerId: t.id('prv'), providerKey: t.str(), connection: t.enm('subscription', 'api_key', 'local_model'), scope: t.enm('mine', 'shared') }, subject: ['entity', '/providerId'], vis: 'participants' }),
+    ev('provider.keeps_nothing_changed', 'An owner or admin marked an AI account as keeping nothing, or took the mark off', { p: { providerId: t.id('prv'), keepsNothing: t.bool() }, subject: ['entity', '/providerId'], vis: 'participants' }),
     ev('provider.updated', 'A provider changed (Space may use it, sign-in state)', { p: { providerId: t.id('prv'), spaceMayUse: t.opt(t.bool()), state: t.opt(t.enm('ok', 'needs_sign_in', 'failing')) }, subject: ['entity', '/providerId'], vis: 'participants' }),
     ev('provider.removed', 'An AI provider was removed', { p: { providerId: t.id('prv') }, subject: ['entity', '/providerId'], vis: 'participants' }),
     ev('vault.site_rule_changed', 'A person set or cleared the never-fill or never-save rule for one site (host only)', { p: { personId: id.user, host: t.str(), neverFill: t.bool(), neverSave: t.bool() }, subject: ['entity', '/personId'], vis: 'owner' }),
@@ -102,7 +97,7 @@ export default defineManifest({
       level: 'member', in: { section: t.opt(section), folder: t.opt(id.vaultFolder), kind: t.opt(itemKind), q: t.opt(t.str()), ...pageIn },
       out: { items: t.arr(itemMeta), counts: t.rec(t.int({ minimum: 0 })), ...pageOut }, tool: 'vault', label: 'filter', cli: 'vyre vault list',
     }),
-    read('vault.items.match', 'Items that fit a website address (the Chrome extension offers them to fill)', { ...V, in: { url }, out: { items: t.arr(t.obj({ item: itemMeta, usernameField: t.opt(fieldKey) })) }, tool: 'vault', label: 'filter' }),
+    read('vault.items.match', 'Items that fit a website address (the Chrome extension offers them to fill)', { ...V, in: { url }, out: { items: t.arr(t.obj({ item: itemMeta, usernameField: t.opt(fieldKey), username: t.opt(t.str()) })) }, tool: 'vault', label: 'filter' }),
     read('vault.item.get', 'One item: metadata and field keys, never values', {
       in: { itemId: id.vaultItem }, out: { item: itemMeta, fields: t.arr(t.obj({ key: fieldKey, secret: t.bool(), hasValue: t.bool() })) }, on: ['vault_item', '/itemId'], level: 'use', tool: 'vault', label: 'check', cli: 'vyre vault get',
     }),
@@ -136,7 +131,7 @@ export default defineManifest({
 
     // ---- sharing (a thin front over access.share with the vault levels)
     write('vault.share', 'Share an item or folder with a person, group, agent or automation at Use, View, Edit or Manage; subscription sign-ins are never shareable', {
-      ...V, idem: 'key', in: { resource: t.obj({ type: t.enm('vault_item', 'vault_folder'), id: t.str({ examples: ['vit_a1b2c3'] }) }), subject: subjectRef, level },
+      ...V, idem: 'key', in: { resource: t.obj({ type: t.enm('vault_item', 'vault_folder'), id: t.str({ examples: ['vit_a1b2c3'] }) }), subject: subjectRef, level, notify: t.opt(t.obj({ message: t.opt(t.str()) })) },
       out: { granted: t.bool() }, emits: ['grant.created', 'access.changed', 'folder.shared'], audit: 'always', tool: 'vault', offline: 'online', team: true, errors: ['validation.precondition_failed', 'permission.not_contained'],
     }),
     write('vault.unshare', 'Stop sharing an item or folder with someone', {
@@ -210,6 +205,7 @@ export default defineManifest({
       ...V, in: {}, out: { providers: t.arr(t.obj({ key: t.str(), name: t.str(), logo: t.opt(t.str()), connections: t.arr(t.enm('subscription', 'api_key', 'local_model')), modelsSource: t.str(), engine: t.str(), custom: t.opt(t.bool()), base: t.opt(t.str()) })) }, tool: 'vault',
     }),
     read('providers.list', 'My connected AI providers: logo, how connected, Mine or Shared, agents using it, this month\'s usage', { ...V, in: {}, out: { providers: t.arr(providerRow) }, tool: 'vault' }),
+    read('providers.own_people', 'Who runs on their own AI sign-ins: the people with a Mine provider and how many each, for the AI accounts switch (never an account name or a value)', { level: 'view', perm: 'ai.models', in: {}, out: { people: t.arr(t.obj({ personId: t.str(), accounts: t.int({ minimum: 1 }) })) }, tool: 'vault' }),
     write('providers.add', 'Connect a provider with a pasted API key (stored once, used by handle) or a local model address', {
       ...V, idem: 'key', in: { providerKey: t.str({ examples: ['anthropic'] }), connection: t.enm('api_key', 'local_model'), name: t.opt(t.str()), apiKey: t.opt(t.str()), address: t.opt(url), scope: t.enm('mine', 'shared'), folderId: t.opt(id.vaultFolder) },
       out: { provider: providerRow }, emits: ['provider.added', 'vault.item_created', 'vault.folder_created'], audit: 'sensitive', tool: 'vault', offline: 'online', errors: ['validation.duplicate', 'provider.auth_failed'],
@@ -224,6 +220,9 @@ export default defineManifest({
     write('providers.uses.set', 'An owner or admin makes a shared provider a Space AI account: what it may pay for (team chats, automations, goals, agent work) and an optional monthly spend cap. The engine picks the cheapest Space account that fits a turn and is not capped', {
       in: { providerId: t.id('prv'), uses: spaceUses, capCents: t.opt(t.nullable(t.int({ minimum: 0, description: 'The monthly spend cap in cents; null removes it; left out keeps it' }))) },
       out: { provider: providerRow }, perm: 'policy.manage', emits: ['provider.updated'], audit: 'always', tool: 'vault', offline: 'online',
+    }),
+    write('providers.set_keeps_nothing', 'An owner or admin says an AI account shared with the Space keeps nothing of what it is sent. Restricted data may only go to accounts that do. A local model always does', {
+      in: { providerId: t.id('prv'), keepsNothing: t.bool() }, out: { provider: providerRow }, perm: 'policy.manage', emits: ['provider.keeps_nothing_changed'], audit: 'always', tool: 'vault', offline: 'online',
     }),
     write('providers.set_space_use', 'Let the Space run work on my subscription, or stop it (stopping ends my sandbox)', {
       ...V, in: { providerId: t.id('prv'), allow: t.bool() }, out: { provider: providerRow }, emits: ['provider.updated'], audit: 'always', tool: 'vault', offline: 'online',
@@ -247,6 +246,9 @@ export default defineManifest({
     }),
     write('providers.space_key.remove', 'Remove the Space AI key; people with their own accounts keep working', {
       in: {}, out: spaceKeyRow, perm: 'policy.manage', gate: { act: 'delete', when: "actor.kind != 'person'" }, audit: 'always', offline: 'online', emits: ['provider.removed', 'vault.item_deleted'],
+    }),
+    write('providers.mark_signin_needed', 'System: the engine found a sign-in missing or refused when a turn ran on this account; the account reads "Sign in again" in Settings until it is signed in (a person\'s own account only; an API key is never marked here)', {
+      in: { handle: handleField }, out: { marked: t.bool() }, level: 'member', audit: 'sensitive', offline: 'online', emits: ['provider.updated'],
     }),
     write('providers.space_key.use', 'System: the engine asks to run one turn on the Space AI key for the person it acts for. Answers the handle, never the value; each use is an audit row', {
       in: { handle: handleField }, out: { handle: id.handle, itemId: id.vaultItem }, level: 'member', audit: 'sensitive', offline: 'online', emits: ['vault.used'], errors: ['validation.not_found'],

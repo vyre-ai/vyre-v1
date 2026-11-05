@@ -19,6 +19,8 @@ export interface Author { kind: "person" | "agent"; id: string }
 
 export interface EngineAgent {
   id: string;
+  /** The agent that works a task, in the thread of that task with several agents: it answers what a person writes there without an @. An agent's own line (a reviewer's hand-off) never wakes it. */
+  taskLead?: boolean;
   /** Display name for the "will reply" line. Falls back to the id. */
   name?: string;
   mode: AgentMode;
@@ -32,10 +34,18 @@ export interface EngineAgent {
   watching?: boolean;
   /** It runs outside Vyre: no turn runs for it here. A message for it goes to its queue instead (agent.outside_asked). */
   outside?: boolean;
+  /** Listening: never answers, not even tagged. Only a poke makes it speak. */
+  quiet?: boolean;
+  /** When it answers a message nobody tagged it in (lib/route.ts mayAnswerUntagged). */
+  when?: "always" | "topics" | "hours"; topics?: string; hoursFrom?: string; hoursTo?: string;
+  /** One line the turn is told about how long the reply is: "Keep replies short." or "Give full detail." Per agent, per chat. */
+  style?: "short" | "full";
 }
 
 export interface OpenThread {
   id: string;
+  /** A thread on the person's own task, note or goal (not a reply thread in a channel). */
+  personal?: boolean;
   /** The people in the chat, when the host knows them: a person mentioned who is not among them is only talked about. */
   people?: string[];
   kind: ThreadKind;
@@ -62,6 +72,12 @@ export interface IncomingMessage {
   body?: string;
   /** The people in the chat as the host read them for this message, so a mention of anyone else is a reference. */
   people?: readonly string[];
+  /** A person poked this agent: it answers now, Listening or not, from the last 12 messages, and the reply says who poked it. */
+  poke?: { agentId: string; by: string } | undefined;
+  /** Minutes since midnight where the speaker is, for agents set to answer only inside hours. */
+  minutes?: number | undefined;
+  /** Keep the message in the chat's record but wake nobody: a helper's result while the others still work (the lead answers once, after the last one). */
+  hold?: boolean | undefined;
 }
 
 export interface StoredMessage {
@@ -133,6 +149,8 @@ export interface TurnInfo {
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
   reasoningTokens?: number;
+  /** What the turn's last request sent, fresh and cached: the size of the chat as the model last saw it (the turn's token total adds every request of the turn together). */
+  contextTokens?: number;
   /** The provider's own dollar figure, summed over the turn's calls, when every call reported one. */
   costUsd?: number;
   tools: ToolTrace[];
@@ -145,15 +163,19 @@ export type EngineEvent =
   | { type: "message.received"; threadId: string; messageId: string; threadSeq: number; authorId: string }
   /** A message is for an outside agent. Nothing runs here; it picks the message up when it next asks. */
   | { type: "agent.outside_asked"; threadId: string; messageId: string; agentId: string; asker: string; body: string }
+  /** a routine's turn was folded into a parked turn: it did not run, and its run ends the way the parked turn failed (the routine counts it, so one that cannot run ever pauses itself) */
+  | { type: "routine.folded"; threadId: string; agentId: string; qseq: number; code: string; asker: string; message?: string }
   | { type: "turn.queued"; threadId: string; qseq: number; agentId: string; kind: QueueKind; priority: number; routine: boolean; steer: boolean }
   | { type: "turn.started"; threadId: string; turnId: string; agentId: string; qseq: number; asker: string }
   | { type: "turn.block"; threadId: string; turnId: string; idx: number; kind: string }
-  | { type: "turn.waiting"; threadId: string; reason: "hop_limit"; messageId: string }
+  | { type: "turn.waiting"; threadId: string; reason: "hop_limit"; messageId: string; depth?: number }
   /** A tool call was held at the Gate (ARCH 6.7): the turn parks on the approval task and a wake continues it once the task is answered. */
   | { type: "turn.waiting"; threadId: string; reason: "approval"; turnId: string; agentId: string; taskId: string; runId?: string }
+  /** A parked turn is over: its wake started as a turn of its own. */
+  | { type: "turn.resumed"; threadId: string; turnId: string; agentId: string }
   | { type: "turn.completed"; threadId: string; turnId: string; agentId: string }
-  | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** a turn a dead host left (code host_lost): its queue row and whom it ran for */ qseq?: number; asker?: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string }
-  | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string }
+  | { type: "turn.failed"; threadId: string; turnId: string; agentId: string; code: string; /** the account the turn ran on (its reference and engine), so the chat can say which sign-in needs doing */ account?: { ref: string; driver: string }; /** a turn a dead host left (code host_lost): its queue row and whom it ran for */ qseq?: number; asker?: string; /** what the engine knows of the failure, for the log only: never stored in an event, never shown to the person, scrubbed by the bridge before it is written */ message?: string }
+  | { type: "turn.cancelled"; threadId: string; turnId: string; agentId: string; /** why it was stopped: interrupt, stop, limit, left, moved, lease */ reason?: string }
   | { type: "agent.handoff"; threadId: string; to: Placement }
   | { type: "queue.consumed"; threadId: string; qseq: number; messageId: string | null };
 
@@ -162,12 +184,14 @@ export type DriverEvent =
   | { type: "text"; text: string }
   | { type: "thinking"; text: string }
   | { type: "tool_call"; id: string; name: string; input: unknown }
+  /** The model finished a step that asked for tools and now waits for their results: the calls yielded since the last step are the whole batch. Only a driver with parallelTools says it. */
+  | { type: "tool_wait" }
   | { type: "block"; kind: string; payload?: unknown }
   /**
    * inputTokens counts every input token, cache reads and writes included. The optional fields are present only when the provider reported them: cache reads and writes, reasoning tokens
    * (already inside outputTokens), and the provider's own price for the call in dollars (Claude Code's total_cost_usd, OpenRouter's usage.cost). Absent means not reported, never zero.
    */
-  | { type: "usage"; inputTokens: number; outputTokens: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number; costUsd?: number }
+  | { type: "usage"; inputTokens: number; outputTokens: number; model?: string; contextTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number; costUsd?: number }
   /** A subscription limit window as the engine reported it (percent used 0 to 100, reset time in epoch ms). Kept per account; shown only when reported. */
   | { type: "limits"; window: "session" | "week"; pct: number; resetsAt?: number }
   | { type: "done"; mentions?: readonly RouteMention[] }
@@ -232,6 +256,8 @@ export interface EngineSession {
   cancel(): Promise<void>;
   close(): Promise<void>;
   readonly warm: boolean;
+  /** The session yields every tool call of a step, then tool_wait, and takes each result by id in any order: the engine may run independent calls together. */
+  readonly parallelTools?: boolean;
   /** Latency the provider itself injected before the first event (fake providers); real drivers omit it. */
   readonly providerLatencyMs?: number;
 }
@@ -240,9 +266,13 @@ export interface EngineSession {
  * The account a turn runs on, as engine.account.resolve answered it. `ref` is the Vault handle (never a value); the opener fetches the secret itself through Vault fill.
  * `itemId` is the Vault item behind the handle, so usage can be metered against it. `payer` is the person who pays.
  */
+/** What a session can say about itself beyond running turns. */
+export interface SessionModel { /** The model that really runs. */ readonly model?: string }
 export interface ResolvedAccount { ref: string; driver: string; provider: string; kind: AccountKind; payer: string; reason: ResolveReason; itemId?: string;
+  /** The account's name as its owner sees it (Details: Paid by). */
+  name?: string;
   /** Which rule chose it (the Chat key, the chat's pick, an own-work account, a step's account, a Space account, a backup); absent for the asker's own. */
-  via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup";
+  via?: "thread" | "chat_key" | "work" | "step" | "space" | "backup" | "own";
   /** The account ahead of this one that had hit its monthly cap. */
   cappedFrom?: string;
   /** An account ahead of this one could not pay (signed out, failing, out of its limit): this is a fallback, not the person's first choice. */
@@ -262,6 +292,8 @@ export interface AccountQuery {
   /** Why the last account was left: "overloaded" is the vendor being busy, not a limit, so it is not set aside to rest and the chat says it was busy. */
   why?: "overloaded";
 }
+/** A turn whose model the engine said is not available: who asked, on which account, and the engine's own words (Details only). */
+export interface ModelQuery { threadId: string; agentId: string; askerId: string; account: ResolvedAccount; message: string }
 export interface SessionSpec {
   threadId: string; agent: EngineAgent; asker: string; turnId: string; traceId: string; account?: ResolvedAccount;
   /** The chat's mode for this turn. Absent: the driver's older behaviour (a session of a step or a one-shot job has no chat mode). */
@@ -273,8 +305,14 @@ export interface SessionSpec {
    * no skills, no saved session. A CLI engine runs its leanest command (CommandOptions.lean); an API driver sends the role alone. Implies tools "none".
    */
   lean?: boolean;
+  /** A one-shot for a person whose chats run on their own computer: its CLI engine process starts there, through the computer's link, never on the Space's server (modules/engine/node-turns.ts). */
+  onDevice?: boolean;
 }
 export type OpenSession = (spec: SessionSpec) => Promise<EngineSession>;
 
-export interface ReceiveResult { responders: string[]; reason: RouteReason; qseqs: number[]; messageId: string }
+export interface ReceiveResult {
+  responders: string[]; reason: RouteReason; qseqs: number[]; messageId: string;
+  /** An agent handed the chat to others with an @mention: who asked whom, for the chat's one-line chain ("Intake asked Docs"). */
+  chain?: { from: string; to: string[] };
+}
 export interface PreviewResult { responders: string[]; reason: RouteReason; listeners: string[]; line: string }

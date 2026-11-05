@@ -328,8 +328,12 @@ export interface World {
   host: string[];
   members: Set<string>;
   owner: { id: string };
+  /** what the owner's own profile says for their time zone */
+  zones: { owner: string | undefined };
   setNow(n: number): void;
   asPerson(id: string): void;
+  /** the host's own identity: what the minute jobs run as */
+  asService(): void;
 }
 
 /** A Space spc_test: profile "Northwind" of the given kind, owner usr_owner, members usr_owner, usr_ines and usr_a1b2c3. The caller is the owner. */
@@ -346,10 +350,13 @@ export function world(o: { kind?: "personal" | "team"; name?: string; principal?
   const host: string[] = [];
   const members = new Set(["usr_owner", "usr_ines", "usr_a1b2c3"]);
   const owner = { id: "usr_owner" };
+  const zones: { owner: string | undefined } = { owner: "Asia/Karachi" };
   let clock = NOW;
   let who = o.principal ?? "usr_owner";
+  let service = false;
   const drivers: SpaceAdminDrivers = {
     async owner() { return owner.id; },
+    async ownerTimezone() { return zones.owner; },
     async fingerprint() { return "ab12 cd34 ef56 7890"; },
     async isMember(id) { return members.has(id); },
     async transferOwner(from, to) { host.push(`transfer ${from} ${to}`); owner.id = to; return { epoch: 7 }; },
@@ -359,7 +366,7 @@ export function world(o: { kind?: "personal" | "team"; name?: string; principal?
   };
   const ctx = {
     space: SPACE,
-    get principal() { return { kind: "person" as const, id: who }; },
+    get principal() { return service ? { kind: "service" as const, id: "host" } : { kind: "person" as const, id: who }; },
     trace: { traceId: TRACE, spanId: "abcdef0123456789" },
     now: () => clock,
     db: scopedDb("spaces", raw, TRACE),
@@ -375,5 +382,5 @@ export function world(o: { kind?: "personal" | "team"; name?: string; principal?
       throw new Error(`unexpected call ${cap}`);
     }) as unknown as Ctx["call"],
   } as unknown as ExtraCtx;
-  return { raw, ctx, drivers, events, calls, host, members, owner, setNow(n) { clock = n; }, asPerson(id) { who = id; } };
+  return { raw, ctx, drivers, events, calls, host, members, owner, zones, setNow(n) { clock = n; }, asPerson(id) { who = id; service = false; }, asService() { service = true; } };
 }

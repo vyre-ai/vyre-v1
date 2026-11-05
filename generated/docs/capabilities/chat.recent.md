@@ -39,11 +39,13 @@ type Out = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
       preview?: string;
       people?: Array<string>;
+      goalId?: string;
     }>;
   today: Array<{
       threadId: string;
@@ -51,11 +53,13 @@ type Out = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
       preview?: string;
       people?: Array<string>;
+      goalId?: string;
     }>;
   yesterday: Array<{
       threadId: string;
@@ -63,11 +67,13 @@ type Out = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
       preview?: string;
       people?: Array<string>;
+      goalId?: string;
     }>;
   earlier: Array<{
       threadId: string;
@@ -75,11 +81,13 @@ type Out = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
       preview?: string;
       people?: Array<string>;
+      goalId?: string;
     }>;
   archived: Array<{
       threadId: string;
@@ -87,11 +95,13 @@ type Out = {
       title: string;
       agents: Array<string>;
       unread: number;
+      repliesUnread?: number;
       working: boolean;
       starred: boolean;
       lastAt: number;
       preview?: string;
       people?: Array<string>;
+      goalId?: string;
     }>;
   nextUnread: string | null;
   threadsUnread?: number;
@@ -119,12 +129,14 @@ type Out = {
         "agents": [
           "agt_a1b2c3"
         ],
+        "goalId": "gol_a1b2c3",
         "kind": "chat",
         "lastAt": 1760000000000,
         "people": [
           "usr_a1b2c3"
         ],
         "preview": "example",
+        "repliesUnread": 1,
         "starred": true,
         "threadId": "thr_a1b2c3",
         "title": "example",
@@ -137,12 +149,14 @@ type Out = {
         "agents": [
           "agt_a1b2c3"
         ],
+        "goalId": "gol_a1b2c3",
         "kind": "chat",
         "lastAt": 1760000000000,
         "people": [
           "usr_a1b2c3"
         ],
         "preview": "example",
+        "repliesUnread": 1,
         "starred": true,
         "threadId": "thr_a1b2c3",
         "title": "example",
@@ -156,12 +170,14 @@ type Out = {
         "agents": [
           "agt_a1b2c3"
         ],
+        "goalId": "gol_a1b2c3",
         "kind": "chat",
         "lastAt": 1760000000000,
         "people": [
           "usr_a1b2c3"
         ],
         "preview": "example",
+        "repliesUnread": 1,
         "starred": true,
         "threadId": "thr_a1b2c3",
         "title": "example",
@@ -175,12 +191,14 @@ type Out = {
         "agents": [
           "agt_a1b2c3"
         ],
+        "goalId": "gol_a1b2c3",
         "kind": "chat",
         "lastAt": 1760000000000,
         "people": [
           "usr_a1b2c3"
         ],
         "preview": "example",
+        "repliesUnread": 1,
         "starred": true,
         "threadId": "thr_a1b2c3",
         "title": "example",
@@ -193,12 +211,14 @@ type Out = {
         "agents": [
           "agt_a1b2c3"
         ],
+        "goalId": "gol_a1b2c3",
         "kind": "chat",
         "lastAt": 1760000000000,
         "people": [
           "usr_a1b2c3"
         ],
         "preview": "example",
+        "repliesUnread": 1,
         "starred": true,
         "threadId": "thr_a1b2c3",
         "title": "example",

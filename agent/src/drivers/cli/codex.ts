@@ -13,7 +13,9 @@
 // STILL NEEDS A REAL ACCOUNT to prove: that `-c mcp_servers.vyre.*` overrides on the command line (the docs show only config.toml), the exact item field names (server, tool, exit_code), flag order before `resume`,
 // and a ChatGPT sign-in (auth.json) through the sandbox. The docs give no complete schema for every event.
 // Codex does not stream deltas: a message arrives whole when it is done.
+import { testLines } from "./test-lines.ts";
 import { num, obj, parseLine, str } from "./json.ts";
+import { codexTrust } from "./hooks-config.ts";
 import type { Json } from "./json.ts";
 import type { Effort } from "../../turn-engine/types.ts";
 import type { CliAdapter, CliDecoder, CliEvent, CommandOptions } from "./types.ts";
@@ -56,7 +58,8 @@ export function createCodexDecoder(): CliDecoder {
           const name = item ? nameOf(item) : "";
           if (!item || name === "" || str(item["id"]) === "" || called.has(str(item["id"]))) return [];
           called.add(str(item["id"]));
-          return [{ type: "tool", phase: "call", id: str(item["id"]), name }];
+          // a command's own words are the step's input: they say whether it is a test run
+          return [{ type: "tool", phase: "call", id: str(item["id"]), name }, ...(str(item["type"]) === "command_execution" && str(item["command"]) !== "" ? [{ type: "tool" as const, phase: "input" as const, id: str(item["id"]), detail: str(item["command"]).slice(0, 160) }] : [])];
         }
         case "item.completed": {
           const item = obj(j["item"]);
@@ -68,7 +71,8 @@ export function createCodexDecoder(): CliDecoder {
           if (name === "" || str(item["id"]) === "") return [];
           const out: CliEvent[] = [];
           if (!called.has(str(item["id"]))) { called.add(str(item["id"])); out.push({ type: "tool", phase: "call", id: str(item["id"]), name }); }
-          out.push({ type: "tool", phase: "result", id: str(item["id"]), ok: okOf(item) });
+          const said = str(item["type"]) === "command_execution" ? testLines(str(item["aggregated_output"])) : "";
+          out.push({ type: "tool", phase: "result", id: str(item["id"]), ok: okOf(item), ...(said !== "" ? { output: said } : {}) });
           return out;
         }
         case "turn.completed": {
@@ -248,6 +252,7 @@ export const codex: CliAdapter = {
           ...(m.envVars.length ? ["-c", `mcp_servers.plugin_${n}.env_vars=[${m.envVars.map(toml).join(", ")}]`] : []),
         ];
       }),
+      ...(o.noTools !== true && o.mcpStdio && o.workFolder !== null ? codexTrust(o.workFolder, o.mcpStdio) : []),
       ...(o.model !== null ? ["-m", o.model] : []),
       ...(o.resume !== null ? ["resume", o.resume] : []),
       // The prompt comes on stdin.

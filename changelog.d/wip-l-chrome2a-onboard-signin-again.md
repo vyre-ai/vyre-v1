@@ -1,0 +1,1 @@
+- Settings > Your AI: an account of yours whose sign-in ran out shows a Sign in again button that starts its sign-in right there.
