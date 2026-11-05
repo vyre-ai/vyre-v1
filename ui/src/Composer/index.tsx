@@ -621,6 +621,12 @@ const CTRL = 32;
 const CTRL_GAP = 8;
 /** Below this width (the composer's own, not the window's) the field takes a row to itself and the controls sit under it. */
 const STACK_BELOW = 560;
+/** In the one-line pill the field keeps at least this width; the model chip truncates its account name instead of taking the row. */
+export const FIELD_MIN_LINE = 200;
+/** Under this composer width the model menu fills the composer's width and its lists open inline: a side list would run out of a narrow pane (the Thread pane). */
+export const PANEL_SIDE_MIN = 540;
+/** True when a composer this wide (its own width, 0 while unmeasured) shows the model menu's lists inline instead of beside it. */
+export const panelFitsInline = (boxWidth: number): boolean => boxWidth > 0 && boxWidth < PANEL_SIDE_MIN;
 /** True when a composer this wide (its own width, 0 while unmeasured) lays its controls under the field. */
 export const isStacked = (boxWidth: number): boolean => boxWidth > 0 && boxWidth < STACK_BELOW;
 
@@ -768,10 +774,14 @@ export function Composer(props: ComposerProps): ReactElement {
   const panelNode = useRef<unknown>(null);
   const stripNode = useRef<unknown>(null);
   const menu = useMenu();
-  const width = useWindowDimensions().width;
+  const win = useWindowDimensions();
+  const width = win.width;
+  const winH = win.height;
   const narrow = width > 0 && width < 520;
   // the composer's own width (not the window's): a chat column beside a task pane is narrow in a wide window
   const [boxW, setBoxW] = useState(0);
+  // the model menu is anchored to its composer: in a composer too narrow for a side list (the Thread pane) it fills the composer's width and its lists open inline
+  const panelNarrow = narrow || panelFitsInline(boxW);
   // a composer opened with words in it (Ask about this file, New message) is ready to type after them
   useEffect(() => { if ((props.value ?? "") !== "") input.current?.focus?.(); }, []);
 
@@ -1276,8 +1286,8 @@ export function Composer(props: ComposerProps): ReactElement {
         </Pop>
       ) : null}
       {panelOpen && ai && props.renderPanel ? (
-        <Pop testID="composer-panel" label="Model" style={[narrow ? styles.panelNarrow : styles.panelPop, props.panelBelow ? styles.panelBelow : null] as ViewStyle[]} nodeRef={(n) => { panelNode.current = n; }}>
-          {props.renderPanel(answerers[0] as ComposerAgent, () => setPanelOpen(false), narrow)}
+        <Pop testID="composer-panel" label="Model" style={[panelNarrow ? styles.panelNarrow : styles.panelPop, panelNarrow ? { maxHeight: Math.max(240, Math.min(520, winH - 180)) } : null, props.panelBelow ? styles.panelBelow : null] as ViewStyle[]} nodeRef={(n) => { panelNode.current = n; }}>
+          {props.renderPanel(answerers[0] as ComposerAgent, () => setPanelOpen(false), panelNarrow)}
         </Pop>
       ) : null}
       {hashPop}
@@ -1338,7 +1348,8 @@ const styles = StyleSheet.create({
   padStack: { paddingTop: 10, paddingBottom: 2, paddingHorizontal: 15 },
   barStack: { flexDirection: "row", alignItems: "center", gap: CTRL_GAP, paddingTop: 2, paddingHorizontal: 8, paddingBottom: 8 },
   extraBox: { minWidth: CTRL, height: CTRL, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  fieldLine: { flex: 1, minWidth: 0 },
+  // the field never gives its room to the model chip: past this width the chip is the one that shortens
+  fieldLine: { flex: 1, minWidth: FIELD_MIN_LINE },
   field: { width: "100%", color: "var(--ink)" as string, padding: 0, margin: 0, borderWidth: 0 },
   fieldRegular: { fontSize: 15, lineHeight: 22 },
   fieldCompact: { fontSize: 14, lineHeight: 22 },

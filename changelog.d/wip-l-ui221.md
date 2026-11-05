@@ -1,0 +1,4 @@
+- Composer: the text field keeps at least 200 px in the one-line pill; the model chip shortens its account name instead of squeezing the field.
+- Model menu: in a composer narrower than 540 px (the Thread pane) the menu fills the composer's width and its lists open inline, so it stays inside the pane.
+- Model menu: choosing the account already in use writes and says nothing; the notice never prints an email address.
+- Tabs: the strip rests at its start when everything fits, and reveals a tab near the start from the true left edge, so the first tab is not left cut.
