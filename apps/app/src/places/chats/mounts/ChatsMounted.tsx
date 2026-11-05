@@ -14,7 +14,7 @@ import { PhoneProfile } from "./PhoneProfile.tsx";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import type { Principal } from "../../home/sections-a/data.tsx";
+import type { Principal } from "../../../shell/session/runtime-data.ts";
 import { conversationData } from "../../../shell/providers/chats-data.ts";
 import type { ChatsActions } from "../../../shell/providers/chats-data.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";

@@ -10,7 +10,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { conversationData, paneData, sidebarData } from "../../../shell/providers/chats-data.ts";
 import type { ChatsActions } from "../../../shell/providers/chats-data.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
-import type { Principal } from "../../home/sections-a/data.tsx";
+import type { Principal } from "../../../shell/session/runtime-data.ts";
 import type { ChatsSidebarData } from "../sidebar/data.tsx";
 import type { ComposerFill, ConversationData } from "../conversation/data.tsx";
 import type { ChatRightPaneData } from "../rightpane/data.tsx";

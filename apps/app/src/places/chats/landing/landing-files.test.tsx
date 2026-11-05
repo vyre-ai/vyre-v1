@@ -11,7 +11,7 @@ import { Composer } from "../../../../../../ui/src/Composer/index.tsx";
 import { installComposerForTests } from "../../../../../../ui/src/Composer/Deferred.tsx";
 import { createSample } from "../conversation/sample.ts";
 import { createSampleSidebar } from "../sidebar/sample.ts";
-import type { Principal } from "../../home/sections-a/data.tsx";
+import type { Principal } from "../../../shell/session/runtime-data.ts";
 import { ResumeContext } from "../../../onboarding/resume-context.ts";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { Landing } from "./Landing.tsx";

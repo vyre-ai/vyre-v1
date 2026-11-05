@@ -1,12 +1,13 @@
 // The sample Spaces behind the Home screen tests and the screenshots: Northwind (the default Space) and Harbor Studio, filled from the prototype's Home so a side by side
 // reads the same. A fake replica holds the rows; each capability the sections read is registered with a resolver over those rows, and the writes the sections make
 // (act, transition, assign, create, mark seen, undo) change the rows, so every control in a mount really works. The real replica is SQLite behind the same surface.
-import { createFakeReplica, createScreenHooks } from "../../../../../../client/src/index.ts";
-import type { FakeReplica, LiveQuery, QueryState, Row } from "../../../../../../client/src/index.ts";
-import { screensById } from "../../../../../../generated/screens.ts";
-import type { CapMap } from "../../../../../../generated/types.ts";
-import type { Connection, HomeData, HomeNav, Principal } from "./data.tsx";
-import type { Digest, NeedsItem, Ref, RiskProject, Routine, Task } from "./model.ts";
+import { createFakeReplica, createScreenHooks } from "../../../../../client/src/index.ts";
+import type { FakeReplica, LiveQuery, QueryState, Row } from "../../../../../client/src/index.ts";
+import { screensById } from "../../../../../generated/screens.ts";
+import type { CapMap } from "../../../../../generated/types.ts";
+import type { Connection, Principal } from "../session/runtime-data.ts";
+import type { HomeData, HomeNav } from "./types.ts";
+import type { Digest, NeedsItem, Ref, RiskProject, Routine, Task } from "./types.ts";
 
 export const SAMPLE_RULE = "A project is at risk when it is overdue, has a blocked task, or its plan has slipped past a milestone.";
 /** Friday 24 October 2025, 10:00 in the person's day (UTC for the samples, so every machine prints the same dates). */
@@ -52,7 +53,7 @@ const people: Principal[] = [
 ];
 
 const approve = [{ key: "approve", label: "Allow" }, { key: "send_back", label: "Deny", note: "required" as const }];
-const review = [{ key: "review", label: "Review" }, { key: "send_back", label: "Send back", note: "required" as const }];
+const review = [{ key: "review", label: "Looks good" }, { key: "send_back", label: "Send back", note: "required" as const }];
 const unblock = [{ key: "unblock", label: "Unblock" }];
 
 export const northwind: SampleSpace = {

@@ -2,7 +2,7 @@
 // alone: agents.list answers each person with only the agents they may use, so any other agent principal with an owner is someone else's private one. Owner ruling (3 Nov): to everyone else,
 // whatever it did is credited to its person, "Irfad Imtiaz (Agent)", with the person's face; its own name never shows. It is never offered: not to @mention, not in Cmd-K, not as a chat.
 // The person themselves sees their agents by name. Logs (Console audit) add which agent it was in a details line, from `agentName`.
-import type { Principal } from "../../places/home/sections-a/data.tsx";
+import type { Principal } from "./runtime-data.ts";
 
 export interface PrincipalIn { id: string; name: string; kind: string; owner?: string; private?: boolean; agentName?: string; roles?: readonly string[] }
 

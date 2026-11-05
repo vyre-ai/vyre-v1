@@ -1,7 +1,7 @@
 // What Records and Files share when they are built over the Space's runtime: a live query of any capability (the session's screen hooks answer one: capQuery), and a name lookup from the
 // Space's people. A runtime whose hooks cannot answer a capability query (a replica without per-capability readers) gives a query that stays loading, so a place draws its loading frame.
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
-import type { Principal } from "../../places/home/sections-a/data.tsx";
+import type { Principal } from "../session/runtime-data.ts";
 import { unnamed } from "../../places/chats/names.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 

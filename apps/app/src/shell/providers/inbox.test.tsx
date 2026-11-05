@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { LiveQuery } from "../../../../../client/src/index.ts";
 import { createSampleInbox } from "../../places/inbox/contactlist/sample.ts";
-import type { Principal } from "../../places/home/sections-a/data.tsx";
+import type { Principal } from "../session/runtime-data.ts";
 import InboxPlace, { calendarTeam, inboxData } from "./inbox.tsx";
 import { PlaceHashProvider } from "../hash/context.tsx";
 import { ShellRuntimeProvider } from "./runtime.tsx";

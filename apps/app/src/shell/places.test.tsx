@@ -5,11 +5,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ComponentType } from "react";
-import { createSampleHomeB } from "../places/home/sections-b/sample.ts";
-import type { SampleHomeB, Variant } from "../places/home/sections-b/sample.ts";
+import { createSampleHomeB } from "./places-fixture/sample-b.ts";
+import type { SampleHomeB, Variant } from "./places-fixture/sample-b.ts";
 import { PLACES, loaderFor } from "../startup/places.ts";
 import { FIRST_LISTS, listItems } from "./providers/first-list.tsx";
-import { GO_TARGETS } from "./providers/home.tsx";
 import { ShellRuntimeProvider } from "./providers/runtime.tsx";
 import type { ShellRuntime, ShellTarget } from "./providers/runtime.tsx";
 import { SHELL_PLACES, registerShellPlaces, shellPlace } from "./places.ts";
@@ -131,15 +130,6 @@ test("list items take a key, a title and a quiet second line from whatever the c
     { key: "a", title: "Active", note: "table" }, { key: "b", title: "Marcus" },
   ]);
   assert.deepEqual(listItems(null), []);
-});
-
-test("every button of the checklist leads somewhere through the shell's one door", () => {
-  const { rt, opened } = runtimeFor("northwind", false);
-  for (const [name, target] of Object.entries(GO_TARGETS)) {
-    rt.open(target);
-    assert.ok(target.screen, `${name} opens a screen`);
-  }
-  assert.equal(opened.length, Object.keys(GO_TARGETS).length);
 });
 
 test("a first-list read that fails ends the loading frame: not in this version is a calm line, any other failure the shared error state", async () => {

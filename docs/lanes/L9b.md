@@ -10,7 +10,6 @@ From your packets: 2.1, 2.5, 2.6, 2.7, 2.8, 2.23, 3.1, 3.2, 4.2, 4.13.
 Read these in `V1-SPEC.md` (spec numbers) and `ARCHITECTURE-V1.md` (b-numbers and ARCH sections) before your first packet. Lane table: ARCH 12.3.
 
 ## Files you may edit
-- `apps/app/src/places/home/`
 - `apps/app/src/places/chats/`
 
 `node scripts/lanes-check.ts L9b origin/main` fails the push on any file outside this list. If the layout on main differs, comment the mapping on the packet and use the real paths. Never edit `changelog.md` (ruling 7).

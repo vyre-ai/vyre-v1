@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { LiveQuery, ScreenHooks } from "../../../../../client/src/index.ts";
 import { createSample } from "../../places/chats/conversation/sample.ts";
 import { createSampleSidebar } from "../../places/chats/sidebar/sample.ts";
-import type { Principal } from "../../places/home/sections-a/data.tsx";
+import type { Principal } from "../session/runtime-data.ts";
 import { COMPUTER_UNREACHED, computerLine, createGo } from "../../places/chats/mounts/data.ts";
 import type { LineAction } from "../../places/chats/mounts/data.ts";
 import type { Act } from "../../places/chats/mounts/route.ts";

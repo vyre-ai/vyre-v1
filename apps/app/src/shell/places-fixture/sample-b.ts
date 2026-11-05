@@ -1,16 +1,16 @@
 // The sample Spaces behind the Home sections B tests and screenshots. They extend the sections A sample (same replica, same clock, Friday 24 October 2025, 10:00) with the calendar
 // day, the starred things with their terminal status, the first-run checklist and the writes those sections make (unstar, hide the checklist, start a chat from the Ask box).
 // Variants: northwind (default), harbor, personal (a Personal Space, nothing connected yet), firstrun (a new member of Northwind).
-import { createScreenHooks } from "../../../../../../client/src/index.ts";
-import type { Row } from "../../../../../../client/src/index.ts";
-import type { ScreenIndexEntry } from "../../../../../../generated/screens.ts";
-import { screensById } from "../../../../../../generated/screens.ts";
-import type { CapMap } from "../../../../../../generated/types.ts";
-import { SAMPLE_NOW, createSampleHome, harbor, northwind } from "../sections-a/sample.ts";
-import type { SampleHome, SampleSpace } from "../sections-a/sample.ts";
-import type { HomeBExtras, GoTarget } from "./data.tsx";
-import { TODAY_SCREEN } from "./model.ts";
-import type { CalEvent, Star, TerminalRow } from "./model.ts";
+import { createScreenHooks } from "../../../../../client/src/index.ts";
+import type { Row } from "../../../../../client/src/index.ts";
+import type { ScreenIndexEntry } from "../../../../../generated/screens.ts";
+import { screensById } from "../../../../../generated/screens.ts";
+import type { CapMap } from "../../../../../generated/types.ts";
+import { SAMPLE_NOW, createSampleHome, harbor, northwind } from "./sample-a.ts";
+import type { SampleHome, SampleSpace } from "./sample-a.ts";
+import type { HomeBExtras, GoTarget } from "./types.ts";
+import { TODAY_SCREEN } from "./types.ts";
+import type { CalEvent, Star, TerminalRow } from "./types.ts";
 
 /** The screen the contract steward registers for the lower sections (packet comment). The samples register the same shape so the sections read it the way they will in the app. */
 export const TODAY_SCREEN_ENTRY: ScreenIndexEntry = {

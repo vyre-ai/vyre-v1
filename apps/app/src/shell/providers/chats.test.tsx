@@ -10,7 +10,7 @@ import { ChatsSidebarSlot } from "../../places/chats/sidebar/ChatsSidebar.tsx";
 import { createSampleSidebar } from "../../places/chats/sidebar/sample.ts";
 import { SidebarContent } from "../sidebar/index.ts";
 import type { SidebarSlotApi } from "../sidebar/index.ts";
-import type { Principal } from "../../places/home/sections-a/data.tsx";
+import type { Principal } from "../session/runtime-data.ts";
 import ChatsPlace, { newestThread } from "./chats.tsx";
 import { conversationData, sidebarData } from "./chats-data.ts";
 import { createComposerFill } from "../../places/chats/conversation/data.tsx";

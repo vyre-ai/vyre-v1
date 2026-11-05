@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 const BASELINE = fileURLToPath(new URL("./shared-time.baseline.json", import.meta.url));
 // where people work together: chats, tasks, goals, records and projects, automations, home, the inbox, the shell's shared bars, and the shared UI pieces
-const SCOPE = ["apps/app/src/places/chats", "apps/app/src/places/records", "apps/app/src/places/automations", "apps/app/src/places/home", "apps/app/src/places/inbox", "apps/app/src/places/files", "ui/src"];
+const SCOPE = ["apps/app/src/places/chats", "apps/app/src/places/records", "apps/app/src/places/automations", "apps/app/src/places/inbox", "apps/app/src/places/files", "ui/src"];
 const EXEMPT = /(\.test\.|\.support\.|\/sample|\/samples\/|\/fixtures\/|\/testing\/|^ui\/src\/Time\/|^ui\/src\/ZonePicker\/|^ui\/src\/tokens\/)/;
 const RAW = /\bgetUTCHours\b|\btoLocale(?:Time|Date)String\b|\bIntl\.DateTimeFormat\b|\bgetTimezoneOffset\b|offsetMin\s*\*/g;
 
