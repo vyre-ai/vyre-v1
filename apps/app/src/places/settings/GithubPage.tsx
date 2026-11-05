@@ -33,6 +33,9 @@ export function installWords(o: { install: "all" | "selected" | "none" }, repoCo
 /** Where a use came from, in words ("pull_request.get" is a consumer id; the page shows what the person knows). */
 export const consumerWords = (c: string): string => ({ crews: "Crews", ci: "CI", sessions: "Claude Code and Codex sessions", linked: "The Linked tab", "linked-tab": "The Linked tab" } as Record<string, string>)[c] ?? c;
 
+/** The line above Connect: which GitHub app this Space signs people in with. */
+export const appLine = (source: "space" | "vyre"): string => source === "space" ? "Your Space uses its own GitHub app." : "Your Space uses the Vyre GitHub app.";
+
 export function GithubPage(): ReactElement {
   const data = useSettingsData();
   const saved = useSaved();
@@ -72,7 +75,9 @@ export function GithubPage(): ReactElement {
   if (!status.connected) {
     return (
       <Section testID="github-connect">
-        <SettingsRow id="github.connect" first lead={<Glyph name="link" size={18} />} label="Connect GitHub once" sub="Vyre uses it to sign you in, and agents use it for your repos."
+        {/* which app the permission screen will name, before the member presses Connect (github.me.status says it for a member who is not connected yet) */}
+        {status.source ? <SettingsRow id="github.app" first lead={<Glyph name="link" size={18} />} label={appLine(status.source)} sub="GitHub shows this app's name on the screen you are about to see." /> : null}
+        <SettingsRow id="github.connect" first={!status.source} lead={<Glyph name="link" size={18} />} label="Connect GitHub once" sub="Vyre uses it to sign you in, and agents use it for your repos."
           control={<SmallButton label={busy ? "Connecting..." : "Connect GitHub"} primary disabled={busy} testID="gh-connect" onPress={connect} />} />
       </Section>
     );

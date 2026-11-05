@@ -77,7 +77,7 @@ test("walk: connect, reach, a refused repository, Ask me first, the policy and a
     const done = await me.meComplete(g.ctx, { code: frag.get("github_connect_code")!, state: frag.get("github_connect_state")! });
     assert.deepEqual(done, { login: "maya-codes", source: "vyre" });
     await assert.rejects(me.meComplete(g.ctx, { code: "gh-code-1", state: c.state }), (e: any) => e.error.code === "validation.bad_input");   // eslint-disable-line @typescript-eslint/no-explicit-any
-    assert.equal(me.meStatus(g.ctx).connected, true);
+    assert.equal((await me.meStatus(g.ctx)).connected, true);
     assert.equal(gate.linked.length, 1, "connecting also linked the sign-in");
     assert.match(gate.linked[0]!, /^vyre-gh-link\./);
     assert.equal(tickets.takeLink(gate.linked[0]!)?.login, "maya-codes", "the ticket the host minted stands for who GitHub said");
@@ -129,7 +129,7 @@ test("walk: connect, reach, a refused repository, Ask me first, the policy and a
     g.on("DELETE /applications/Iv1.vyre/grant", { status: 204, body: {} });
     assert.deepEqual(await me.meDisconnect(g.ctx), { disconnected: true });
     assert.equal(v.rows(`SELECT * FROM vault_meta WHERE "owner" = ? AND "deleted_at" IS NULL`, PERSON).length, 0);
-    assert.equal(me.meStatus(g.ctx).connected, false);
+    assert.equal((await me.meStatus(g.ctx)).connected, false);
     assert.ok(sent.some((s) => s.startsWith("DELETE https://api.github.com/applications/Iv1.vyre/grant")), "the grant was revoked at GitHub");
   } finally { v.cleanup(); }
 });
@@ -157,9 +157,9 @@ test("walk: signing in with GitHub through the default Vyre app connects it too,
     // Settings, GitHub, "Sign in with GitHub": the identity module calls resolve(code) and then signedIn(id, person) once the session exists
     const sign = createGithub({ clientId: "Iv1.vyre", clientSecret: "vyre_secret", fetch: f }, tickets, (githubId, person) => me.adoptSignIn(g.ctx, { githubId, person }));
     assert.deepEqual(await sign.resolve("sign-in-code"), { id: "4242", login: "maya-codes" });
-    assert.equal(me.meStatus(g.ctx).connected, false, "not connected until the sign-in finishes");
+    assert.equal((await me.meStatus(g.ctx)).connected, false, "not connected until the sign-in finishes");
     await sign.signedIn!("4242", PERSON);
-    const st = me.meStatus(g.ctx);
+    const st = await me.meStatus(g.ctx);
     assert.equal(st.connected, true);
     assert.equal(st.login, "maya-codes");
     assert.equal(st.source, "vyre", "the default Vyre app");

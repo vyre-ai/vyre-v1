@@ -61,7 +61,7 @@ function world() {
 
 test("connect: PKCE through the default Vyre app, the refresh token goes to the person's Vault, the same state works once", async () => {
   const w = world();
-  assert.deepEqual(meStatus(w.h.ctx), { connected: false, needsReconnect: false });
+  assert.deepEqual(await meStatus(w.h.ctx), { connected: false, source: "vyre", needsReconnect: false });
   const c = await meConnect(w.h.ctx);
   const url = new URL(c.authUrl);
   assert.equal(url.origin + url.pathname, "https://github.com/login/oauth/authorize");
@@ -72,7 +72,7 @@ test("connect: PKCE through the default Vyre app, the refresh token goes to the 
   assert.equal(url.searchParams.get("code_challenge"), createHash("sha256").update(w.exchanges[0]!.verifier).digest("base64url"), "the challenge is the hash of the verifier the exchange proves");
   assert.equal(w.exchanges[0]!.redirectUri, "https://space.vyre.test/hooks/github/connect");
   assert.equal(w.kept.get(MAYA), "ghr_1");
-  const st = meStatus(w.h.ctx);
+  const st = await meStatus(w.h.ctx);
   assert.equal(st.connected, true);
   assert.equal(st.login, "maya-codes");
   assert.equal(w.h.named("github.me_connected").length, 1);
@@ -105,7 +105,7 @@ test("refresh: the access token is renewed from the Vault's refresh token before
   w.kept.set(MAYA, "revoked");
   w.h.advance(9 * HOUR);
   await refused(token(w.h.ctx, { repo: "vyre-ai/website", action: "read", consumer: "crew" }), "provider.auth_failed");
-  assert.equal(meStatus(w.h.ctx).needsReconnect, true);
+  assert.equal((await meStatus(w.h.ctx)).needsReconnect, true);
 });
 
 test("reach: organisations with their install state and the address to install or ask, and the repositories reached", async () => {
@@ -206,7 +206,7 @@ test("disconnect: the grant is revoked, the Vault item and approvals are gone, a
   assert.deepEqual(w.revoked, ["ghu_1"]);
   assert.deepEqual(w.forgotten, [MAYA]);
   assert.equal(w.kept.has(MAYA), false);
-  assert.equal(meStatus(w.h.ctx).connected, false);
+  assert.equal((await meStatus(w.h.ctx)).connected, false);
   assert.equal(w.h.rows("SELECT * FROM github_grant").length, 0);
   assert.equal(w.h.named("github.me_disconnected").length, 1);
   assert.deepEqual(await meDisconnect(w.h.ctx), { disconnected: false });
@@ -242,7 +242,7 @@ test("one flow: connecting also links the sign-in with the host's ticket (never 
   w2.pending.add("4242");
   assert.deepEqual(await adoptSignIn(other, { githubId: "4242", person: "usr_new0001" }), { adopted: true });
   assert.equal(w2.kept.get("usr_new0001"), "ghr_sign");
-  assert.equal(meStatus(other).login, "maya-codes");
+  assert.equal((await meStatus(other)).login, "maya-codes");
   assert.equal(policyGet(other).policy.read, "always");
   assert.deepEqual(await adoptSignIn(other, { githubId: "4242", person: "usr_new0001" }), { adopted: false }, "already connected: left as is");
   assert.deepEqual(await adoptSignIn(w2.as({}), { githubId: "9", person: "usr_none0001" }), { adopted: false }, "a sign-in that left no tokens connects nothing");
@@ -252,4 +252,18 @@ test("a return address rides in the state and a custom one is kept", async () =>
   const w = world();
   const c = await meConnect(w.h.ctx, { return: "https://space.vyre.test/settings" });
   assert.equal(Buffer.from(c.state.split(".")[1]!, "base64url").toString(), "https://space.vyre.test/settings");
+});
+
+test("a member who is not connected is told which app the sign-in will use, and nothing else new: the exact keys, no client id, app id, token, secret or installation", async () => {
+  const w = world();
+  const vyre = await meStatus(w.h.ctx);
+  assert.deepEqual(Object.keys(vyre).sort(), ["connected", "needsReconnect", "source"]);
+  assert.equal(vyre.source, "vyre");
+  w.h.host.user = { ...w.user, app: async () => ({ clientId: "Iv1.own-secret-client", source: "space" as const }) } as typeof w.user;
+  const own = await meStatus(w.h.ctx);
+  assert.deepEqual(own, { connected: false, source: "space", needsReconnect: false });
+  const text = JSON.stringify(own);
+  for (const leak of ["Iv1", "client", "secret", "ghu_", "ghr_", "installation", "appId", "slug"]) assert.equal(text.includes(leak), false, `the answer does not carry ${leak}`);
+  w.h.host.user = { ...w.user, app: async () => { throw new Error("no app"); } } as typeof w.user;
+  assert.deepEqual(await meStatus(w.h.ctx), { connected: false, needsReconnect: false }, "an app that cannot be read leaves the source out");
 });
