@@ -104,6 +104,7 @@ test("an agent in a channel thread starts helpers: the strip is in the thread, t
     const shoot = async (page: import("playwright-core").Page, name: string): Promise<void> => { await page.screenshot({ path: path.join(shots, `${name}.png`) }); };
     const phone = process.env["VYRE_CREW_PHONE"] === "1";
 
+    await api("threads.agent_settings.set", { threadId: channel, agentId: lead, mode: "lead", idempotencyKey: "t-lead" });
     await api("chat.post", { threadId: channel, body: "Get a helper to compare the quotes, and one to read northwind.com.", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "t-ask" });
     const thread = await waitFor(async () => { const m = ((await api("chat.messages.list", { threadId: channel })).messages as Array<{ messageId: string }>)[0]; if (!m) return null; const t = (await api("chat.thread", { threadId: channel, messageId: m.messageId }).catch(() => null)); return t?.thread?.threadId ?? null; }, 40_000, () => hostLog(d)) as string;
     for (const [skin, mode] of [["paper", "light"], ["graphite", "dark"]] as const) {
@@ -122,6 +123,7 @@ test("an agent in a channel thread starts helpers: the strip is in the thread, t
       // the main chat keeps the ask and the thread's own footer: no strip here
       await page.waitForTimeout(3000);
       assert.equal(await page.getByTestId("crew-strip").count(), 0, "the main chat holds no crew strip");
+      await page.getByText(/Working · 2 helpers/).first().waitFor({ timeout: 20_000 });   // the thread's footer says the helpers are at work, not that the agent is done
       await shot(`crewthread-main-${mode}-${size}`);
       // the thread holds the strip
       await page.getByRole("button", { name: /^Open the thread/ }).first().click({ timeout: 20_000 }).catch(async (e) => { await guard.check("FAILED-open-thread"); await shoot(page, `FAILED-open-thread-${mode}`); throw e; });

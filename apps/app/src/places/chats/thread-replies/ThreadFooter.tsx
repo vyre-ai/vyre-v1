@@ -73,6 +73,24 @@ function useWaiting(threadId: string, lastByAgent: boolean): Waiting | undefined
   return w;
 }
 
+/** The helpers working under a thread, read while an agent wrote last in it (engine.crew.status): how many work and how many wait for a person. The footer says so, because the agent's own turn ended when it started them. */
+function useThreadCrew(threadId: string, agentLast: boolean): { working: number; needsYou: number } | null {
+  const data = useConversationData();
+  const [n, setN] = useState<{ working: number; needsYou: number } | null>(null);
+  useEffect(() => {
+    if (!agentLast) { setN(null); return undefined; }
+    let gone = false;
+    const read = (): void => {
+      try { void Promise.resolve(data.call("engine.crew.status", { threadId })).then((r) => { const t = (r as { totals?: { working: number; needsYou: number } }).totals; if (!gone) setN(t && t.working + t.needsYou > 0 ? { working: t.working, needsYou: t.needsYou } : null); }, () => undefined); } catch { /* no crew read here: the footer says what it always said */ }
+    };
+    read();
+    const t = setInterval(read, 2500);
+    (t as { unref?: () => void }).unref?.();
+    return () => { gone = true; clearInterval(t); };
+  }, [data, threadId, agentLast]);
+  return n;
+}
+
 export function ThreadFooter({ s, clock, nameOf, onOpen, mine = false, testID, threadId }: { s: ReplySummary | undefined; clock: Clock; nameOf(id: string): string; onOpen(): void; mine?: boolean; testID: string; threadId: string }): ReactElement | null {
   const turns = useThreadTurns(threadId);
   const writing = turns.some((t) => t.state === "writing");
@@ -85,7 +103,19 @@ export function ThreadFooter({ s, clock, nameOf, onOpen, mine = false, testID, t
     return () => clearInterval(t);
   }, [writing]);
   const waiting = useWaiting(threadId, s?.lastBy?.kind === "agent" && !writing);
+  const crew = useThreadCrew(threadId, s?.lastBy?.kind === "agent");
   const f = footerOf(s, turns, now, clock, waiting);
+  if (crew !== null && s) {
+    const total = crew.working + crew.needsYou;
+    const text = `${total} ${total === 1 ? "helper" : "helpers"}`;
+    return (
+      <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={`Open the thread: ${text}`} onPress={onOpen} style={({ hovered }: { hovered?: boolean }) => [st.line, mine && st.mine, hovered === true && st.over]}>
+        <View style={st.face}><Face name={nameOf(s.lastBy?.id ?? "")} seedId={s.lastBy?.id} kind="agent" size={18} /></View>
+        <Text testID={`${testID}-crew`} numberOfLines={1} style={st.doneText}><Text style={crew.needsYou > 0 ? st.warn : st.head}>{crew.needsYou > 0 ? "Needs you" : "Working"}</Text>{` \u00b7 ${text}`}</Text>
+        <Text testID={`${testID}-count`} numberOfLines={1} style={st.muted}>{`\u00b7 ${f?.count ?? ""}`}</Text>
+      </Pressable>
+    );
+  }
   if (!showsFooter(f, s) || f === null) return null;
   if (f.waiting) {
     return (
