@@ -14,6 +14,8 @@ import type { EngineCtx } from "../../projections.ts";
 import { blockedBy, readPolicy } from "./config.ts";
 import { modelLimits } from "../usage.ts";
 import { cliSandboxGap } from "../../sandbox-default.ts";
+import { CLI_NAME, findProgram } from "../../cli-programs.ts";
+import type { NodeCliProbe } from "../../cli-programs.ts";
 import { engineHost } from "../../runtime.ts";
 import type { Label, Policy } from "./config.ts";
 
@@ -193,7 +195,25 @@ function reasonText(why: "label_provider" | "policy_model", label: Label | undef
 export async function providersList(ctx: EngineCtx, input: { threadId?: string }): Promise<{ providers: ProviderOut[] }> {
   const [all, policy, label] = await Promise.all([myProviders(ctx), readPolicy(ctx), threadLabel(ctx, input.threadId)]);
   const gap = sandboxGap();
-  return { providers: DRIVERS.map((driver) => providerState(driver, all, policy, label, gap)) };
+  const probe = engineHost()?.cli?.probe as NodeCliProbe | undefined;
+  return { providers: DRIVERS.map((driver) => cliTrouble(providerState(driver, all, policy, label, gap), all, probe)) };
+}
+
+const PROGRAM_OF_DRIVER: Readonly<Record<string, string>> = { claude_code: "claude", codex: "codex", grok: "grok" };
+
+/**
+ * A connected subscription engine that cannot run turns here says why in one plain sentence with the fix, so setup can tell the person before the first message fails:
+ * the program is not installed on this computer, or its sign-in needs doing again. An engine with nothing connected is left as it was.
+ */
+export function cliTrouble(row: ProviderOut, all: readonly ProviderRow[], probe?: NodeCliProbe): ProviderOut {
+  const program = PROGRAM_OF_DRIVER[row.driver];
+  if (program === undefined || !row.allowed) return row;
+  const mine = all.filter((p) => driverOf(p) === row.driver);
+  if (mine.length === 0) return row;
+  const name = CLI_NAME[program] ?? row.title;
+  if (findProgram(program, probe) === null) return { ...row, allowed: false, reason: `${name} is not installed on this computer. Install it, or pick another AI.` };
+  if (!row.connected) return { ...row, allowed: false, reason: `Sign in to ${name} again.` };
+  return row;
 }
 
 /** What a CLI account needs before it can run turns here, in one line with what to do, or null. The host's own sandbox plan, when it gave one, decides; otherwise this computer's (sandbox-default.ts). */

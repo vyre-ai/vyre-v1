@@ -89,3 +89,28 @@ test("Disconnect removes the account, says so, and with none left tells the step
     assert.ok(textOf(find(root, "ai-note")).includes("Disconnected ChatGPT (Codex)."));
   } finally { restore(); }
 });
+
+test("picking Codex on a computer without the Codex program says so in the card, with the fix, before moving on; Pick another AI goes back to the choices, Keep it anyway moves on", async () => {
+  const restore = installDom();
+  try {
+    const calls: string[] = [];
+    const call = (async (cap: string, input: unknown) => {
+      calls.push(cap);
+      if (cap === "providers.subscription_start") return { flowId: "f1", instruction: "Using the Codex sign-in on this computer.", needsCode: false };
+      if (cap === "providers.subscription_complete") return { provider: { id: "prv_x" } };
+      if (cap === "providers.list") return { providers: [{ id: "prv_x", providerKey: "codex", name: "OpenAI", scope: "mine" }] };
+      if (cap === "engine.providers.list") return { providers: [{ driver: "codex", allowed: false, reason: "Codex is not installed on this computer. Install it, or pick another AI." }] };
+      throw new Error(`no ${cap} ${JSON.stringify(input)}`);
+    }) as unknown as CapCall;
+    const got: string[] = [];
+    const root = await mount(createRoot, <ConnectAiCard call={call} local onConnected={(id) => got.push(id)} />);
+    await press(find(root, "ai-local-codex")); await flush(); await flush();
+    assert.deepEqual(got, [], "the step does not move on while the program is missing");
+    assert.match(textOf(find(root, "ai-problem")), /Codex is not installed on this computer\. Install it, or pick another AI\./);
+    await press(find(root, "ai-pick-another")); await flush();
+    assert.ok(find(root, "ai-tiles"), "back to the choices");
+    await press(find(root, "ai-local-codex")); await flush(); await flush();
+    await press(find(root, "ai-continue-anyway")); await flush();
+    assert.deepEqual(got, ["prv_x"]);
+  } finally { restore(); }
+});

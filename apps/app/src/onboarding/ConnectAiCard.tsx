@@ -36,9 +36,23 @@ export function ConnectAiCard({ call, connected, onConnected, onDisconnected, in
     return () => { off = true; };
   }, [call, connected, changing]);
   // a new account is in: the one it replaces goes, so nothing is left half-connected; if that removal fails the new one stays and the card says so
+  // the account is in, but can the engine run here? A sign-in whose program is missing or whose login needs doing again says so now, with the fix, before the first message fails
+  const [held, setHeld] = useState<{ id: string; text: string; old: AccountRow | null } | null>(null);
+  const problemOf = async (id: string): Promise<string> => {
+    try {
+      const mine = ((await call("providers.list", {})) as { providers?: AccountRow[] }).providers ?? [];
+      const key = mine.find((x) => x.id === id)?.providerKey ?? "";
+      const driver = key === "claude-code" ? "claude_code" : key;
+      const eng = ((await call("engine.providers.list", {})) as { providers?: Array<{ driver: string; allowed: boolean; reason?: string }> }).providers ?? [];
+      const row = eng.find((r) => r.driver === driver);
+      return row && !row.allowed && row.reason ? row.reason : "";
+    } catch { return ""; }
+  };
   const connectedNew = async (id: string): Promise<void> => {
     const old = replacing;
     setReplacing(null); setChanging(false); setNote("");
+    const trouble = await problemOf(id);
+    if (trouble !== "") { setHeld({ id, text: trouble, old }); return; }
     onConnected(id);
     if (old && old.id !== id) {
       try { await call("providers.remove", { providerId: old.id }); setNote(`Switched from ${accountLine(old)}.`); }
@@ -56,6 +70,17 @@ export function ConnectAiCard({ call, connected, onConnected, onDisconnected, in
     setBusy(true); setError("");
     try { await work(); } catch (e) { setError(e instanceof Error ? e.message : "Something went wrong."); } finally { setBusy(false); }
   };
+  if (held) {
+    return (
+      <View testID="ai-problem" style={s.col}>
+        <Text accessibilityRole="alert" style={s.warn}>{held.text}</Text>
+        <View style={s.row}>
+          <Pressable testID="ai-pick-another" accessibilityRole="button" onPress={() => { setHeld(null); setChanging(true); }} style={s.ghost}><Text style={s.tileText}>Pick another AI</Text></Pressable>
+          <Pressable testID="ai-continue-anyway" accessibilityRole="button" onPress={() => { const h = held; setHeld(null); onConnected(h.id); }} style={s.ghost}><Text style={s.tileText}>Keep it anyway</Text></Pressable>
+        </View>
+      </View>
+    );
+  }
   if (connected && !changing) {
     const rows: ReactElement[] = [];
     for (const a of accounts ?? []) {

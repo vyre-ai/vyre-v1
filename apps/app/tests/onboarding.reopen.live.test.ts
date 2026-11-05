@@ -69,7 +69,6 @@ test("a fresh install: pick Codex, go back, switch to Claude, keep an answer, im
       assert.equal(r.status(), 200, `${cap}: ${JSON.stringify(body).slice(0, 400)}`);
       return body.data;
     };
-    await first.close();
 
     const run = async (size: "wide" | "phone"): Promise<void> => {
       const ctx = await browser.newContext({ viewport: size === "wide" ? { width: 1440, height: 900 } : { width: 390, height: 844 }, storageState: state });
@@ -92,6 +91,11 @@ test("a fresh install: pick Codex, go back, switch to Claude, keep an answer, im
       await p.getByTestId("ai-tiles").waitFor({ timeout: 20_000 });
       await shot("1-connect-ai");
       await p.getByTestId("ai-local-codex").click();
+      // this computer has the Codex sign-in but not the Codex program: the card says so, right there, before moving on
+      await p.getByTestId("ai-problem").waitFor({ timeout: 30_000 });
+      assert.match(await p.getByTestId("ai-problem").innerText(), /Codex is not installed on this computer\. Install it, or pick another AI\./);
+      await shot("1b-codex-not-installed");
+      await p.getByTestId("ai-continue-anyway").click();
       await p.getByTestId("interview-card").waitFor({ timeout: 30_000 });
       const afterCodex = (await call("providers.list", {})).providers as Array<{ providerKey: string; id: string }>;
       assert.deepEqual(afterCodex.map((x) => x.providerKey), ["codex"], "Codex is connected, and only Codex");
