@@ -337,7 +337,7 @@ export function Plan(props: PlanProps): ReactElement {
             (props.people?.length ?? 0) > 0 ? h("button", { type: "button", "data-testid": "plan-selwho", onClick: (e: EventLike) => { const r = e.currentTarget.getBoundingClientRect(); selWhoMenu(r.left, r.bottom + 4); }, style: BTN }, "Reassign") : null,
             canDelete ? h("button", { type: "button", "data-testid": "plan-seldel", onClick: () => removeSel([...sel]), style: { ...BTN, color: "var(--danger)" } }, "Delete") : null) : null,
           h("span", { style: { flex: 1 } }),
-          view === "timeline" ? h("span", { title: "A ring on a face means a review or approval is waiting", style: { display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--ink-3)" } }, h("i", { style: { width: 10, height: 10, borderRadius: 99, boxShadow: "0 0 0 2px var(--accent)", display: "inline-block" } }), "Waiting on review") : null,
+          view === "timeline" ? h("span", { title: "A ring on a face means a review or approval is waiting", style: { order: 3, display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11.5, color: "var(--ink-3)" } }, h("i", { style: { width: 10, height: 10, borderRadius: 99, boxShadow: "0 0 0 2px var(--accent)", display: "inline-block" } }), "Waiting on review") : null,
           view === "timeline" || view === "calendar" ? h("button", { type: "button", "data-testid": "plan-today", onClick: scrollToday, style: BTN }, "Today") : null,
           canAdd ? h("button", { type: "button", "data-testid": "plan-add", onClick: () => add(null), style: { ...BTN, display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600 } }, icon(ICON.plus), "New task") : null),
         ...slipCards,

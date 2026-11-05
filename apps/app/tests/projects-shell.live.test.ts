@@ -58,7 +58,7 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
     const pid = made.projectId as string;
     // the page reads these two: ask the Space for them first, so a refusal shows here and not as a blank page
     await call("projects.overview", { projectId: pid }); await call("projects.plan", { projectId: pid });
-    await call("projects.create", { type, title: "Q4 billing", idempotencyKey: "pj-q4" });
+    const q4 = (await call("projects.create", { type, title: "Q4 billing", idempotencyKey: "pj-q4" })).projectId as string;
     // more than three projects, so the Projects group shows its "N more" row
     for (const [i, title] of ["Lab 8 launch", "Onboarding refresh", "Vendor review"].entries()) await call("projects.create", { type, title, idempotencyKey: `pj-extra-${i}` });
 
@@ -77,6 +77,14 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
     await dismissOnboarding(jp);
     const mayaId = await jp.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].personId as string);
     await call("projects.members.set", { projectId: pid, principal: mayaId, role: "member", idempotencyKey: "pj-maya" });
+
+    // Maya writes in Q4 billing, so the owner's sidebar shows an unread pip on that row (a different thing from the health dot at the right of every row)
+    await call("projects.members.set", { projectId: q4, principal: mayaId, role: "member", idempotencyKey: "pj-maya-q4" });
+    const mayaToken = await jp.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string);
+    const q4chan = (await call("projects.get", { projectId: q4 })).project.channelId as string;
+    const q4thread = (await call("channels.get", { channelId: q4chan })).channel.mainThreadId as string;
+    const post = await joinCtx.request.post(`${web.origin}/v1/chat/post`, { headers: { authorization: `Bearer ${mayaToken}` }, data: { threadId: q4thread, body: "Invoices go out Friday.", idempotencyKey: "maya-q4-1" } });
+    assert.equal(post.status(), 200, `Maya's post in Q4 billing: ${(await post.text()).slice(0, 200)}`);
 
     const walk = async (who: "admin" | "member", p: typeof page, size: "wide" | "phone"): Promise<void> => {
       if (!guards.has(p)) guards.set(p, guardCrashes(p));
@@ -108,6 +116,7 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
         // the + on the Projects header shows on hover, and the group folds to three with an "N more" row
         await p.getByTestId("head-projects").hover();
         await p.getByTestId("new-project").waitFor({ timeout: 5000 });
+        if (who === "admin") assert.ok(await p.getByTestId(`row-pj:${q4}`).getByTestId("unread-dot").count() > 0, "Q4 billing shows an unread pip");
         assert.ok(await p.getByTestId("row-m:projects").count() > 0, "the group has an N more row with more than three projects");
         await both(p, `projects-1b-plus-hover-and-more-${who}-${size}`, async () => { await p.getByTestId("head-projects").hover(); });
         await p.getByTestId(`row-pj:${pid}`).click();
@@ -140,7 +149,7 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
       });
       await p.waitForTimeout(500);
       await ok("Plan");
-      await both(p, `projects-3-plan-${who}-${size}`);
+      await both(p, `projects-3-plan-${who}-${size}`, async () => { await p.getByTestId("tab-plan").click(); await p.getByTestId("project-plan").waitFor({ timeout: 15_000 }); await p.waitForTimeout(500); });
       for (const k of ["overview", "linked", "chat"]) { await p.getByTestId(`tab-${k}`).click(); await p.waitForTimeout(500); await ok(`the ${k} tab`); }
       await p.getByTestId("project-chat-main").waitFor({ timeout: 15_000 });
       if (who === "admin" && size === "wide") {
