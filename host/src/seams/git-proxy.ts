@@ -14,6 +14,10 @@
 import http from "node:http";
 import https from "node:https";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { once } from "node:events";
 import { defaultBranchOf, MAX_COMMAND_BYTES, needsOf, oneLine, PktError, readUpdate, refusedReport, remoteLine, repoOfPath } from "../../../lib/git-proxy.ts";
 import type { RefNeed, Update } from "../../../lib/git-proxy.ts";
 import type { CtxSeed, InvokeResult } from "../invoke.ts";
@@ -23,6 +27,8 @@ export const PARK_MS = 10 * 60_000;
 const SESSION_MS = 6 * 3_600_000;
 const MAX_SESSIONS = 500;
 const MAX_PARKED = 4;
+/** What a parked push may put on disk while it waits (its pack, so the connection finishes its upload and the server's normal request timeout is never in the way). */
+const MAX_SPOOL = 2 * 1024 ** 3;
 
 export type GitInvoke = (cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>;
 export interface GitSessionIn { person: string; agentId?: string; threadId: string; repos: readonly string[] }
@@ -103,14 +109,14 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
   }
 
   /** One use of GitHub under the person's settings: a token (Always, or an approval still good), a hold (Ask me first), or the person's own words for why not (Never). `force` asks for a fresh yes first. */
-  async function ask(s: GitSession, repo: string, action: "read" | "push_branch" | "push_default", force: boolean): Promise<Asked> {
+  async function ask(s: GitSession, repo: string, action: "read" | "push_branch" | "push_default", force: boolean, consumer = "git.proxy"): Promise<Asked> {
     if (!s.agentId) return { refused: "This session has no agent to ask for, so GitHub is not available to it." };
     try {
       if (force) {
-        const a = await d.invoke("github.me.approve", { repo, action, consumer: "git.proxy" }, agentSeed(s));
+        const a = await d.invoke("github.me.approve", { repo, action, consumer }, agentSeed(s));
         if (a.status === "held") return { held: a.taskId };
       }
-      const r = await d.invoke("github.token", { repo, action, consumer: "git.proxy" }, agentSeed(s));
+      const r = await d.invoke("github.token", { repo, action, consumer }, agentSeed(s));
       if (r.status === "held") return { held: r.taskId };
       const handle = (r.output as { handle?: unknown } | null)?.handle;
       const token = typeof handle === "string" ? d.fill(handle) : null;
@@ -139,8 +145,8 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
    * Get one token, waiting for the person when their settings say to ask. `onWait` is told once a push is parked (to start the progress lines), `onTick` now and then while it waits, and `gone()` says the
    * client left. `say` names the use: "Push to main" for the card, "the push to main" inside a sentence.
    */
-  async function obtain(s: GitSession, repo: string, action: "read" | "push_branch" | "push_default", say: Say, o: { force?: boolean; onWait?: (who: string) => void; onTick?: (who: string) => void; gone: () => boolean }): Promise<Wait> {
-    let a = await ask(s, repo, action, o.force === true);
+  async function obtain(s: GitSession, repo: string, action: "read" | "push_branch" | "push_default", say: Say, o: { force?: boolean; consumer?: string; onWait?: (who: string) => void; onTick?: (who: string) => void; gone: () => boolean }): Promise<Wait> {
+    let a = await ask(s, repo, action, o.force === true, o.consumer);
     if ("ok" in a) return { until: "ok", token: a.ok };
     if ("refused" in a) return { until: "no", message: a.refused };
     const who = await first(s);
@@ -158,7 +164,7 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
         for (const e of await d.gate.since(cursor).catch(() => [])) {
           cursor = Math.max(cursor, e.seq);
           if (e.payload["taskId"] !== a.held) continue;
-          if (e.name === "gate.approved") { a = await ask(s, repo, action, false); return "ok" in a ? { until: "ok", token: a.ok } : { until: "no", message: "refused" in a ? a.refused : `${Cap} was approved, but GitHub still wants an answer. Try again.` }; }
+          if (e.name === "gate.approved") { a = await ask(s, repo, action, false, o.consumer); return "ok" in a ? { until: "ok", token: a.ok } : { until: "no", message: "refused" in a ? a.refused : `${Cap} was approved, but GitHub still wants an answer. Try again.` }; }
           if (e.name === "gate.denied") return { until: "no", message: `${Cap} was not approved.` };
           if (e.name === "gate.expired" && e.payload["outcome"] !== "escalated") return { until: "no", message: `Nobody answered, so ${say.phrase} did not happen.` };
         }
@@ -285,6 +291,33 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     const it = req[Symbol.asyncIterator]() as AsyncIterator<Buffer>;
     let gone = false;
     res.once("close", () => { if (!res.writableEnded) gone = true; });
+    // While the push waits for the person, the rest of its body is taken off the connection onto disk, so the upload finishes at once and the server's ordinary request timeout never reaches a
+    // parked push. It is replayed to GitHub after the yes and deleted either way. Nothing is read into memory beyond one chunk.
+    let spool: { file: string; done: Promise<boolean> } | null = null;
+    let stopSpool = false;
+    const startSpool = (): void => {
+      if (spool) return;
+      const file = path.join(os.tmpdir(), `vyre-gitp-${crypto.randomUUID()}`);
+      const ws = fs.createWriteStream(file, { mode: 0o600 });
+      ws.on("error", () => { stopSpool = true; });
+      spool = { file, done: (async (): Promise<boolean> => {
+        let bytes = 0, ok = true;
+        try {
+          for (;;) {
+            const n = await it.next();
+            if (n.done) break;
+            bytes += (n.value as Buffer).length;
+            if (bytes > MAX_SPOOL) ok = false;
+            if (stopSpool || !ok) continue;   // dropped: the push is over or too big, what is left is read and discarded
+            if (!ws.write(n.value as Buffer)) await once(ws, "drain");
+          }
+        } catch { ok = false; }
+        ws.end();
+        await once(ws, "close").catch(() => undefined);
+        return ok && !stopSpool;
+      })() };
+    };
+    const dropSpool = (): void => { stopSpool = true; const sp = spool; if (sp) void sp.done.finally(() => fs.rm(sp.file, { force: true }, () => undefined)); };
 
     let read: { update: Update; head: Buffer };
     const got = { bytes: 0 };
@@ -301,7 +334,7 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     const { update, head } = read;
     const refuse = (message: string): void => {
       log("git proxy: a push was turned down", { repo, refs: update.commands.length });
-      req.resume();   // what the client is still sending is read and dropped, never kept
+      if (spool) dropSpool(); else req.resume();   // what the client is still sending is read and dropped, never kept
       if (res.headersSent) { res.write(remoteLine(message)); res.end(refusedReport(update.commands, message, update.sideBand)); return; }
       if (update.reportStatus) {
         res.writeHead(200, { "content-type": "application/x-git-receive-pack-result", "cache-control": "no-store" });
@@ -327,8 +360,10 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
       const mine = needs.filter((n) => n.need === kind), say = sayOf(mine);
       const got = await obtain(s, repo, kind, say, {
         force: mine.some((n) => n.always),
+        // a push to the default branch is approved for exactly that push, once: repo, ref, old and new object (modules/github/handlers/me.ts)
+        ...(kind === "push_default" ? { consumer: `git.push:${crypto.createHash("sha256").update(`${repo}\n${mine.map((n) => `${n.command.ref} ${n.command.old} ${n.command.new}`).sort().join("\n")}`).digest("hex").slice(0, 16)}` } : {}),
         gone: () => gone,
-        onWait: (who) => { start(); if (begun.v) res.write(remoteLine(`Waiting for ${who} to approve ${say.phrase}. Approve it in Vyre.`)); },
+        onWait: (who) => { startSpool(); start(); if (begun.v) res.write(remoteLine(`Waiting for ${who} to approve ${say.phrase}. Approve it in Vyre.`)); },
         onTick: (who) => { if (begun.v) res.write(remoteLine(`Still waiting for ${who} to approve ${say.phrase}...`)); },
       });
       if (got.until === "no") return refuse(got.message);
@@ -342,12 +377,21 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     up.once("error", () => { /* surfaced through response */ });
     let r: http.IncomingMessage;
     const pump = (async (): Promise<void> => {
+      const send = async (c: Buffer): Promise<void> => { if (!up.write(c)) await new Promise<void>((ok) => up.once("drain", ok)); };
       try {
-        if (!up.write(head)) await new Promise<void>((ok) => up.once("drain", ok));
-        for (;;) {
-          const n = await it.next();
-          if (n.done) break;
-          if (!up.write(n.value as Buffer)) await new Promise<void>((ok) => up.once("drain", ok));
+        await send(head);
+        const sp = spool as { file: string; done: Promise<boolean> } | null;
+        if (sp) {
+          // the rest of the body is on disk: replayed in order, then deleted
+          if (!(await sp.done)) { up.destroy(); return; }
+          for await (const c of fs.createReadStream(sp.file)) await send(c as Buffer);
+          fs.rm(sp.file, { force: true }, () => undefined);
+        } else {
+          for (;;) {
+            const n = await it.next();
+            if (n.done) break;
+            await send(n.value as Buffer);
+          }
         }
       } catch { /* the client or GitHub went away */ }
       up.end();

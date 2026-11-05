@@ -27,7 +27,7 @@ export const PERMISSIONS: Record<Action, Record<string, string>> = {
   merge: { pull_requests: "write", contents: "write", metadata: "read" },
   push_default: { contents: "write", metadata: "read" },
 };
-const STATE_TTL = 10 * 60_000, GRANT_MS = 10 * 60_000, EARLY = 60_000;
+const STATE_TTL = 10 * 60_000, GRANT_MS = 10 * 60_000, EARLY = 60_000, ONCE_MS = 2 * 60_000;
 
 /** Insert the row, or change the one with the same key: a select then an update or an insert (the same statements the test database understands). */
 function put(ctx: GithubCtx, table: string, keys: Record<string, string | number>, values: Record<string, string | number>): void {
@@ -226,14 +226,18 @@ async function installationOfRepo(ctx: GithubCtx, person: string, repo: string):
   throw fail("validation.not_found", ctx.trace.traceId, { message: "GitHub does not show you that repository through the Vyre app. Install the app on its owner, or ask the owner to." });
 }
 
-/** Check the person's policy for the use; Always passes, Never refuses, Ask me first goes to the Gate and passes once approved. */
+/** A push to the default branch asks for exactly that push (repo, ref, old and new object), once: the consumer carries a fingerprint of it (host/src/seams/git-proxy.ts). */
+const ONCE = /^git\.push:[0-9a-f]{16}$/;
+
+/** Check the person's policy for the use; Always passes, Never refuses, Ask me first goes to the Gate and passes once approved. A consumer that names one push is approved for that push alone and the approval is used up by it. */
 async function allowed(ctx: GithubCtx, person: string, repo: string, action: Action, consumer: string): Promise<void> {
   const mode = policyOf(ctx, person)[action];
   if (mode === "never") refuse(ctx, `You set GitHub to never let anything ${WORDS[action]}. Change it in Settings, GitHub.`);
-  if (mode === "ask") {
-    const g = first(ctx.db.all(`SELECT "until" FROM github_grant WHERE "person" = ? AND "repo" = ? AND "action" = ?`, person, repo, action));
-    if (!g || Number(g.until) < ctx.now()) await ctx.call("github.me.approve", { repo, action, consumer });   // the Gate holds this; it throws until the person approves, and the approval records the grant
-  }
+  const once = ONCE.test(consumer);
+  const key = once ? `${repo}#${consumer.slice(9)}` : repo;
+  const g = first(ctx.db.all(`SELECT "until" FROM github_grant WHERE "person" = ? AND "repo" = ? AND "action" = ?`, person, key, action));
+  if (once && g) ctx.db.run(`DELETE FROM github_grant WHERE "person" = ? AND "repo" = ? AND "action" = ?`, person, key, action);   // used up, whether or not the settings needed it
+  if (mode === "ask" && (!g || Number(g.until) < ctx.now())) await ctx.call("github.me.approve", { repo, action, consumer });   // the Gate holds this; it throws until the person approves, and the approval records the grant
 }
 
 /**
@@ -269,39 +273,19 @@ export function meApprove(ctx: GithubCtx, input: { repo: string; action: Action;
   ensureMe(ctx);
   const person = ctx.principal.kind === "person" ? ctx.principal.id : ctx.actingFor;
   if (!person) throw fail("permission.no_grant", ctx.trace.traceId, { message: "An approval belongs to a person." });
-  put(ctx, "github_grant", { person, repo: input.repo, action: input.action }, { until: ctx.now() + GRANT_MS });
+  // one push: the grant is for that push alone (repo#fingerprint), is not the ten-minute window of the repository, and is used up by the push (allowed)
+  const key = ONCE.test(input.consumer) ? `${input.repo}#${input.consumer.slice(9)}` : input.repo;
+  put(ctx, "github_grant", { person, repo: key, action: input.action }, { until: ctx.now() + (ONCE.test(input.consumer) ? ONCE_MS : GRANT_MS) });
   return { approved: true };
 }
 
 /**
- * What a Claude Code, Codex or Grok session gets for one turn: GH_TOKEN as a filler handle (filled at the last moment, scrubbed from output) and a git credential helper that reads it, for the repositories the
- * policy lets that kind of use do without asking. One token covers one owner's repositories; repositories of other owners come back as skipped.
+ * Gone: a session no longer gets a GitHub token of any kind. A Claude Code, Codex or Grok session pushes and fetches through the Space's own git address with a proxy token (host/src/seams/git-proxy.ts),
+ * and the Space makes a GitHub token for one request at a time under the person's settings. Kept as a capability that refuses, so nothing that still calls it is handed a token.
  */
-export async function sessionEnv(ctx: GithubCtx, input: { repos: string[]; consumer: string }): Promise<{ env: Record<string, string>; gitConfig: string[]; repos: string[]; skipped: string[]; expiresAt: number }> {
+export async function sessionEnv(ctx: GithubCtx, _input: { repos: string[]; consumer: string }): Promise<{ env: Record<string, string>; gitConfig: string[]; repos: string[]; skipped: string[]; expiresAt: number }> {
   ensure(ctx); ensureMe(ctx);
-  const person = forWhom(ctx, undefined), policy = policyOf(ctx, person);
-  const ok = ACTIONS.filter((a) => policy[a] === "always");
-  const perms: Record<string, string> = {};
-  for (const a of ok) for (const [k, v] of Object.entries(PERMISSIONS[a])) if (perms[k] !== "write") perms[k] = v;
-  if (!ok.length) refuse(ctx, "Your GitHub settings let nothing run without asking, so a session gets no GitHub token. Change it in Settings, GitHub.");
-  const token0 = await userToken(ctx, person), installs = await installsOf(ctx, token0);
-  const owner = input.repos[0]?.split("/")[0]?.toLowerCase();
-  const inst = installs.find((i) => i.account.toLowerCase() === owner);
-  const chosen: string[] = [], skipped: string[] = [];
-  const reach = inst ? (inst.selection === "all" ? null : (await reposOf(ctx, token0, inst)).map((r) => r.toLowerCase())) : [];
-  for (const r of input.repos.slice(0, 20)) {
-    repoPath(ctx, r);
-    if (inst && r.split("/")[0]!.toLowerCase() === owner && (reach === null || reach.includes(r.toLowerCase()))) chosen.push(r); else skipped.push(r);
-  }
-  if (!inst || !chosen.length) throw fail("validation.not_found", ctx.trace.traceId, { message: "GitHub does not show you those repositories through the Vyre app." });
-  const minted = await mintToken(ctx, inst.id, chosen.map((r) => r.split("/")[1]!), perms);
-  const handle = await needHost(ctx).fillerHandle(ctx, { token: minted.token, expiresAt: minted.expiresAt });
-  for (const r of chosen) note(ctx, person, input.consumer, r, "session");
-  return {
-    env: { GH_TOKEN: handle, GITHUB_TOKEN: handle },
-    gitConfig: ["credential.https://github.com.helper=", "credential.https://github.com.helper=!f() { echo username=x-access-token; echo \"password=$GH_TOKEN\"; }; f"],
-    repos: chosen, skipped, expiresAt: minted.expiresAt,
-  };
+  return refuse(ctx, "A session no longer gets a GitHub token. It pushes and fetches through Vyre's git address, and opens pull requests and comments through Vyre's GitHub tool.");
 }
 
 export function meUsage(ctx: GithubCtx): { uses: Array<{ consumer: string; repo: string; action: string; at: number }> } {

@@ -113,9 +113,12 @@ const MEMORY_RULES = "You remember through Vyre memory. Facts recalled for a mes
  * as the nightly job last wrote it (agent layer only, never a person's memory); what memory recalled for this one message follows as a volatile block. A turn with no context (a failed build,
  * a test) gets the one-line role as before.
  */
+/** What a CLI session knows about GitHub: it holds no token, git goes through Vyre, and a held push is waiting for a person. */
+export const GIT_RULE = "You have no GitHub token. git push and git fetch work through Vyre; a push to the default branch waits for the person's OK in Vyre, so wait for it and do not retry in a loop. Open pull requests, comment and merge with Vyre's GitHub tool, not gh or the API.";
+
 export function roleBlocks(call: OpenerHost["call"]): (spec: SessionSpec, input?: TurnInput) => Promise<SystemBlock[]> {
   return async (spec, input) => {
-    const memory: ContextSection[] = [{ id: "memory", stable: true, text: `${MEMORY_RULES} ${PROBE_RULE} ${PEOPLE_RULE}` }];
+    const memory: ContextSection[] = [{ id: "memory", stable: true, text: `${MEMORY_RULES} ${PROBE_RULE} ${PEOPLE_RULE} ${GIT_RULE}` }];
     try {
       const out = (await call("memory.map.get", { agentId: spec.agent.id }, spec.asker)) as { map?: { body?: string } };
       if (out.map?.body) memory.push({ id: "memory", stable: true, text: `Your memory map (MAP.md):\n${out.map.body}` });

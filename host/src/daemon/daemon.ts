@@ -2366,8 +2366,6 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const server = h.server;
     if (hubFactory) server.on("upgrade", (req, socket, head) => { if (computeStream.claims(req)) computeStream.upgrade(req, socket, head); });
     server.removeAllListeners("request");
-    // a push waits for the person's OK for up to ten minutes with its body unfinished (git-proxy.ts): the server's limit on a whole request must be longer than that
-    if (server.requestTimeout > 0 && server.requestTimeout < 25 * 60_000) server.requestTimeout = 25 * 60_000;
     // a site's container reaches this machine only through its own network; a connection on that network's address is a site trying the Space's API, and is closed at once
     server.on("connection", (sock) => { if (siteGuard(sock.localAddress)) sock.destroy(); });
     const listener = requestListener({

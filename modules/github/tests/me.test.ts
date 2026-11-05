@@ -181,21 +181,33 @@ test("agents: an agent uses a person's GitHub only on that person's own turn", a
   await refused(token(w.as({ principal: { kind: "person", id: "usr_other" } }), { person: MAYA, repo: "vyre-ai/website", action: "read", consumer: "crew" }), "permission.no_grant");
 });
 
-test("session: Claude Code, Codex and Grok get GH_TOKEN as a handle and a credential helper, only for what the person lets run without asking", async () => {
+test("session: no GitHub token of any kind is made for a session; it reaches GitHub through Vyre's git address", async () => {
   const w = world();
   await w.connect();
   const agent = w.as({ principal: { kind: "agent", id: "agt_scout" }, actingFor: MAYA });
-  const s = await sessionEnv(agent, { repos: ["vyre-ai/website", "vyre-ai/docs", "other-org/x", "vyre-ai/hidden"], consumer: "session.claude_code" });
-  assert.deepEqual(s.repos, ["vyre-ai/website", "vyre-ai/docs"]);
-  assert.deepEqual(s.skipped, ["other-org/x", "vyre-ai/hidden"]);
-  assert.match(s.env["GH_TOKEN"]!, /^#GitHub_Filler_/);
-  assert.equal(s.env["GH_TOKEN"], s.env["GITHUB_TOKEN"]);
-  assert.match(s.gitConfig.join("\n"), /password=\$GH_TOKEN/);
-  const mint = w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!;
-  assert.deepEqual(mint.body, { repositories: ["website", "docs"], permissions: { contents: "read", pull_requests: "read", issues: "read", checks: "read", metadata: "read" } }, "only read: everything else asks");
-  policySet(w.h.ctx, { policy: { read: "ask" } });
-  await refused(sessionEnv(agent, { repos: ["vyre-ai/website"], consumer: "session.codex" }), "validation.precondition_failed");
-  await refused(sessionEnv(w.as({ principal: { kind: "agent", id: "agt_scout" } }), { repos: ["vyre-ai/website"], consumer: "session.grok" }), "permission.no_grant");
+  const before = w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).length;
+  await refused(sessionEnv(agent, { repos: ["vyre-ai/website"], consumer: "session.claude_code" }), "validation.precondition_failed");
+  assert.equal(w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).length, before, "nothing was minted");
+});
+
+test("one push: an approval covers exactly that push, once, and is not the repository's ten-minute window", async () => {
+  const w = world();
+  await w.connect();
+  policySet(w.h.ctx, { policy: { push_default: "ask" } });
+  const ask = (consumer: string) => token(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer });
+  const A = "git.push:aaaaaaaaaaaaaaaa", B = "git.push:bbbbbbbbbbbbbbbb";
+  await refused(ask(A), "permission.needs_approval");
+  meApprove(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: A });
+  await refused(ask(B), "permission.needs_approval");                              // another push is not covered
+  await refused(ask("crew"), "permission.needs_approval");                         // the ten-minute window was never opened
+  assert.ok((await ask(A)).handle, "that push goes");
+  await refused(ask(A), "permission.needs_approval");                              // the same push again asks again
+  // under Always nothing is asked, and a left-over approval is used up all the same
+  policySet(w.h.ctx, { policy: { push_default: "always" } });
+  meApprove(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: B });
+  assert.ok((await ask(B)).handle);
+  policySet(w.h.ctx, { policy: { push_default: "ask" } });
+  await refused(ask(B), "permission.needs_approval");
 });
 
 test("disconnect: the grant is revoked, the Vault item and approvals are gone, and the status says disconnected", async () => {

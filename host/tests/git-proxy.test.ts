@@ -19,7 +19,7 @@ const PERSON = "usr_maya";
 
 interface World {
   gh: FakeGit; base: string; env: Record<string, string>; modes: Record<string, Mode>; posts: Array<Record<string, unknown>>; calls: Array<{ cap: string; input: Record<string, unknown>; seed: Record<string, unknown> }>;
-  holds: Map<string, { repo: string; action: string }>; proxy: ReturnType<typeof createGitProxy>; token: string; end: () => void; tmp: string;
+  holds: Map<string, { repo: string; action: string; consumer: string }>; proxy: ReturnType<typeof createGitProxy>; token: string; end: () => void; tmp: string;
   approve(taskId: string): void; deny(taskId: string): void; held(): string[]; waitHeld(n?: number): Promise<string>; clone(name?: string): Promise<string>; run(cwd: string, ...args: string[]): Promise<{ code: number; out: string }>;
   commit(cwd: string, file: string, text?: string): Promise<string>; close(): Promise<void>;
 }
@@ -27,7 +27,7 @@ interface World {
 async function world(o: { modes?: Partial<Record<string, Mode>>; branch?: string; parkMs?: number; scope?: string[] } = {}): Promise<World> {
   const gh = await fakeGithubGit([REPO], o.branch ?? "main");
   const modes: Record<string, Mode> = { read: "always", push_branch: "always", push_default: "ask", open_pr: "ask", comment: "ask", merge: "ask", ...o.modes };
-  const grants = new Set<string>(), holds = new Map<string, { repo: string; action: string }>(), fills = new Map<string, string>();
+  const grants = new Set<string>(), holds = new Map<string, { repo: string; action: string; consumer: string }>(), fills = new Map<string, string>();
   const events: Array<{ seq: number; name: string; payload: Record<string, unknown> }> = [];
   const posts: Array<Record<string, unknown>> = [], calls: World["calls"] = [];
   let n = 0;
@@ -38,11 +38,14 @@ async function world(o: { modes?: Partial<Record<string, Mode>>; branch?: string
     if (cap === "identity.whoami") return ok({ name: "Maya Chen" });
     if (cap === "github.me.policy.get") return ok({ policy: modes });
     if (cap === "chat.post") { posts.push(i); return ok({}); }
-    if (cap === "github.me.approve") { const taskId = `tsk_${++n}`; holds.set(taskId, { repo: i["repo"]!, action: i["action"]! }); return { status: "held" as const, taskId, traceId: "t" }; }
+    if (cap === "github.me.approve") { const taskId = `tsk_${++n}`; holds.set(taskId, { repo: i["repo"]!, action: i["action"]!, consumer: i["consumer"]! }); return { status: "held" as const, taskId, traceId: "t" }; }
     if (cap === "github.token") {
       const mode = modes[i["action"]!];
       if (mode === "never") throw { error: { code: "validation.precondition_failed", message: `You set GitHub to never let anything ${i["action"] === "push_default" ? "push to the default branch" : "push a branch"}. Change it in Settings, GitHub.` } };
-      if (mode === "ask" && !grants.has(`${i["repo"]}|${i["action"]}`)) { const taskId = `tsk_${++n}`; holds.set(taskId, { repo: i["repo"]!, action: i["action"]! }); return { status: "held" as const, taskId, traceId: "t" }; }
+      const once = /^git\.push:[0-9a-f]{16}$/.test(i["consumer"]!), gkey = once ? `${i["repo"]}#${i["consumer"]}|${i["action"]}` : `${i["repo"]}|${i["action"]}`;
+      const had = grants.has(gkey);
+      if (once) grants.delete(gkey);
+      if (mode === "ask" && !had) { const taskId = `tsk_${++n}`; holds.set(taskId, { repo: i["repo"]!, action: i["action"]!, consumer: i["consumer"]! }); return { status: "held" as const, taskId, traceId: "t" }; }
       const handle = `#h${++n}`, token = `ghs_${i["action"] === "read" ? "read" : "write"}_${n}`;
       gh.tokens.set(token, i["action"] === "read" ? "read" : "write");
       fills.set(handle, token);
@@ -56,7 +59,8 @@ async function world(o: { modes?: Partial<Record<string, Mode>>; branch?: string
     parkMs: o.parkMs ?? 30_000, keepAliveMs: 150, pollMs: 15,
     gate: { head: async () => events.length, since: async (seq) => events.filter((e) => e.seq > seq) },
   });
-  const server = http.createServer((q, r) => { if (!proxy.handle(q, r)) { r.writeHead(404); r.end("no"); } });
+  // a short request timeout, checked often: a parked push must survive it (its body is spooled while it waits)
+  const server = http.createServer({ requestTimeout: 2_000, connectionsCheckingInterval: 200 }, (q, r) => { if (!proxy.handle(q, r)) { r.writeHead(404); r.end("no"); } });
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   const call = async (cap: string): Promise<unknown> => {
@@ -79,7 +83,7 @@ async function world(o: { modes?: Partial<Record<string, Mode>>; branch?: string
   let seq = 0;
   const w: World = {
     gh, base, env, modes, posts, calls, holds, proxy, tmp, end: made.end, token: made.env["VYRE_GIT_TOKEN"]!, run,
-    approve(taskId) { const h = holds.get(taskId)!; grants.add(`${h.repo}|${h.action}`); events.push({ seq: ++seq, name: "gate.approved", payload: { taskId } }); },
+    approve(taskId) { const h = holds.get(taskId)!; grants.add(/^git\.push:/.test(h.consumer) ? `${h.repo}#${h.consumer}|${h.action}` : `${h.repo}|${h.action}`); events.push({ seq: ++seq, name: "gate.approved", payload: { taskId } }); },
     deny(taskId) { events.push({ seq: ++seq, name: "gate.denied", payload: { taskId, mode: "drop" } }); },
     held: () => [...holds.keys()],
     async waitHeld(count = 1) {
@@ -156,6 +160,26 @@ test("a push to the default branch is held, never lands before the yes, and land
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /Waiting for Maya to approve the push to main/, "the client was told why it waits");
   assert.equal(w.gh.ref(REPO, "refs/heads/main"), sha, "landed after the yes");
+}));
+
+test("an approval is for that one push: the same push asks again, and another push asks too", T, () => withWorld({}, async (w) => {
+  const dir = await w.clone();
+  await w.commit(dir, "one.txt");
+  const first = w.run(dir, "push", "origin", "HEAD:main");
+  const t1 = await w.waitHeld();
+  assert.match(w.holds.get(t1)!.consumer, /^git\.push:[0-9a-f]{16}$/, "the question names the push");
+  w.approve(t1);
+  assert.equal((await first).code, 0);
+  // a second push to main, moments after the first was approved, asks on its own
+  await w.commit(dir, "two.txt");
+  const second = w.run(dir, "push", "origin", "HEAD:main");
+  const t2 = await w.waitHeld(2);
+  assert.notEqual(w.holds.get(t2)!.consumer, w.holds.get(t1)!.consumer, "another push, another question");
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(landed(w), 1, "nothing more landed while it waits");
+  w.approve(t2);
+  assert.equal((await second).code, 0);
+  assert.equal(landed(w), 2);
 }));
 
 test("a no leaves GitHub untouched and git says so", T, () => withWorld({}, async (w) => {
@@ -289,7 +313,7 @@ test("a large push to the default branch waits with its pack unsent, then lands 
   assert.equal(w.gh.ref(REPO, "refs/heads/main"), before);
   const yes = w.run(dir, "push", "origin", "HEAD:main");
   const second = await w.waitHeld(2);
-  await new Promise((r) => setTimeout(r, 500));
+  await new Promise((r) => setTimeout(r, 3_500));   // longer than the server's request timeout
   assert.equal(w.gh.ref(REPO, "refs/heads/main"), before, "the pack waits too");
   w.approve(second);
   const r = await yes;
