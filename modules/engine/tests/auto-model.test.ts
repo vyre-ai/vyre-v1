@@ -79,3 +79,27 @@ test("an account nothing can choose a model for stops the turn before any reques
   assert.match(PINNED_MODEL["opencode_go"]!, /^glm-/, "OpenCode Go's from its provider entry");
   for (const d of ["openai", "xai", "google", "openrouter", "custom", "local"]) assert.equal(PINNED_MODEL[d], undefined, `${d} has no pin`);
 });
+
+test("Auto with a list that names nothing runs on the model the account last ran on, before the pin; with none, the person is asked", async () => {
+  const s = seen();
+  await withConcreteModel(s.open, { models: async () => { throw new Error("no list"); }, recall: async () => "gpt-5-nano" })(spec("openai", "auto"));
+  assert.deepEqual(s.models, ["gpt-5-nano"]);
+  const t = seen();
+  await withConcreteModel(t.open, { models: async () => [], recall: async () => "claude-haiku-5-5" })(spec("anthropic", undefined));
+  assert.deepEqual(t.models, ["claude-haiku-5-5"], "the last-used model, not the pin");
+  const u = seen();
+  await withConcreteModel(u.open, { models: async () => ["gpt-5"], recall: async () => "gpt-5-nano" })(spec("openai", "auto"));
+  assert.deepEqual(u.models, ["gpt-5"], "a readable list still decides");
+  await assert.rejects(withConcreteModel(seen().open, { models: async () => [], recall: async () => undefined })(spec("openai", "auto")), (e: { code?: string }) => e.code === NO_MODEL_PICKED);
+});
+
+test("Auto asks the vendor for the list only after the saved list, the last-used model and the pin say nothing", async () => {
+  const s = seen();
+  const asked: string[] = [];
+  await withConcreteModel(s.open, { models: async () => [], recall: async () => undefined, ask: async (_r, _p, provider) => { asked.push(provider); return ["acme/big-pro", "acme/mid"]; } })(spec("openrouter", "auto"));
+  assert.deepEqual(s.models, ["acme/mid"]);
+  assert.deepEqual(asked, ["openrouter"]);
+  const t = seen();
+  await withConcreteModel(t.open, { models: async () => [], recall: async () => undefined, ask: async () => { throw new Error("must not be asked: the pin answers"); } })(spec("anthropic", "auto"));
+  assert.deepEqual(t.models, [PINNED_MODEL["anthropic"]]);
+});
