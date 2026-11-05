@@ -598,7 +598,7 @@ export function createBridge(o: BridgeOptions): Bridge {
       void (async () => {
         const mine = heldNow.get(threadId) ?? [];
         if (!mine.includes(messageId) || mine[mine.length - 1] !== messageId) { return; }   // a later held result looks after the wake
-        const still = await othersStillWorking(ctx, readAs, threadId, [{ type: "helper", data: { status: "done", threadId: "" } }]);
+        const still = await othersStillWorking(ctx, readAs, threadId, [{ type: "crew_result", data: { threadId: "" } }]);
         if (still) { if (tries < 40) scheduleRelease(ctx, threadId, readAs, messageId, tries + 1); return; }
         heldNow.delete(threadId);
         try { if (engine) engine.wakeHeld(threadId, messageId); } catch { /* the thread is closed: nothing to wake */ }
@@ -609,7 +609,7 @@ export function createBridge(o: BridgeOptions): Bridge {
 
   /** True when the message is a helper's result and another member of the crew is still working or waiting for a person. */
   async function othersStillWorking(ctx: EngineCtx, readAs: string, threadId: string, blocks: ReadonlyArray<{ type?: string; data?: unknown }> | undefined): Promise<boolean> {
-    const done = (blocks ?? []).find((b) => b.type === "helper" && ((b.data ?? {}) as Record<string, unknown>)["status"] !== undefined);
+    const done = (blocks ?? []).find((b) => (b.type === "helper" && ((b.data ?? {}) as Record<string, unknown>)["status"] !== undefined) || b.type === "crew_result");
     if (!done) return false;
     const own = str(((done.data ?? {}) as Record<string, unknown>)["threadId"]);
     try {
