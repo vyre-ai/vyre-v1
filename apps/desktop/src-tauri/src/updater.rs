@@ -22,11 +22,13 @@ pub const PROGRESS_EVENT: &str = "vyre://update-progress";
 const CHECK_TIMEOUT: Duration = Duration::from_secs(8);
 /// The most the page may wait for the startup check.
 const MAX_WAIT: Duration = Duration::from_secs(10);
-/// How long the update waits for chat turns on this computer to finish before it leaves the update for the next start.
+/// How long the update waits for chat turns on this computer to finish. When it runs out, or the person presses "Stop and update now", the running turns are ended cleanly and the update goes on:
+/// the wait is never open ended.
 const TURN_WAIT: Duration = Duration::from_secs(10 * 60);
+/// After the turns were told to stop: how long they get to end before the daemons are stopped anyway (a turn a daemon had not ended is picked up again when it starts).
+const STOP_TURNS_GRACE: Duration = Duration::from_secs(10);
 /// How long a daemon has to end after it was asked to stop, before it is killed.
 const STOP_WAIT: Duration = Duration::from_secs(15);
-pub const STILL_RUNNING: &str = "A chat is still running on this computer. Vyre will update the next time it opens.";
 
 /// `beta` for a prerelease version, `stable` for a release.
 pub(crate) fn channel_of(version: &str) -> &'static str {
@@ -73,7 +75,7 @@ pub struct DesktopUpdate {
 }
 
 #[derive(Default)]
-struct Inner { done: bool, failed: bool, found: Option<Update>, checked_at: Option<u64>, installing: bool }
+struct Inner { done: bool, failed: bool, found: Option<Update>, checked_at: Option<u64>, installing: bool, stop_now: bool }
 
 /// The app's one record of updates, shared by the startup check, Check now and the install.
 #[derive(Default)]
@@ -116,8 +118,17 @@ impl UpdateState {
         let Ok(mut i) = self.inner.lock() else { return false };
         if i.installing { return false; }
         i.installing = true;
+        i.stop_now = false;
         true
     }
+    /// "Stop and update now": the wait for running replies ends at its next look.
+    fn request_stop_now(&self) -> bool {
+        let Ok(mut i) = self.inner.lock() else { return false };
+        if !i.installing { return false; }
+        i.stop_now = true;
+        true
+    }
+    fn stop_now_requested(&self) -> bool { self.inner.lock().map(|i| i.stop_now).unwrap_or(false) }
     fn end_install(&self) { if let Ok(mut i) = self.inner.lock() { i.installing = false; } }
 }
 
@@ -174,10 +185,15 @@ pub async fn check_desktop_update(app: AppHandle) -> Result<DesktopUpdate, Strin
 }
 
 #[derive(Clone, Serialize)]
-struct Progress { phase: &'static str, downloaded: u64, total: Option<u64>, turns: u32 }
+struct Progress { phase: &'static str, downloaded: u64, total: Option<u64>, turns: u32, chats: Vec<String>, left: Option<u64> }
 
 fn tell(app: &AppHandle, phase: &'static str, downloaded: u64, total: Option<u64>, turns: u32) {
-    let _ = app.emit(PROGRESS_EVENT, Progress { phase, downloaded, total, turns });
+    let _ = app.emit(PROGRESS_EVENT, Progress { phase, downloaded, total, turns, chats: Vec::new(), left: None });
+}
+
+/// While the update waits for replies: which chats they are in and how long the wait has left before the update goes on by itself.
+fn tell_waiting(app: &AppHandle, turns: u32, chats: &[String], left: Duration) {
+    let _ = app.emit(PROGRESS_EVENT, Progress { phase: "waiting", downloaded: 0, total: None, turns, chats: chats.iter().take(6).cloned().collect(), left: Some(left.as_secs()) });
 }
 
 /// Words for a download that failed: a bad signature says so plainly.
@@ -195,26 +211,42 @@ pub(crate) trait LocalService: Send + Sync {
     fn drain(&self) -> Option<u32>;
     /// How many turns still run here.
     fn busy(&self) -> Option<u32>;
+    /// The titles of the chats those turns are in. Empty when the daemon cannot say (one from before this).
+    fn chats(&self) -> Vec<String> { Vec::new() }
+    /// End every running turn cleanly (each chat keeps what it had written and says it was stopped). The turns still running after it, None when the daemon cannot (one from before this).
+    fn stop_turns(&self) -> Option<u32> { None }
     /// Stop it and wait for its process to end; true when it ended on its own.
     fn stop(&self, timeout: Duration) -> bool;
     fn resume(&self);
 }
 
-/// Wait until no chat turn runs on this computer: first every running daemon hands over what can go on on the server, then the rest is waited for, at most `limit`. `on_wait` hears the count.
-pub(crate) fn wait_for_turns(services: &[Box<dyn LocalService>], limit: Duration, poll: Duration, on_wait: &mut dyn FnMut(u32)) -> Result<(), String> {
+/// Wait until no chat turn runs on this computer: first every running daemon hands over what can go on on the server, then the rest is waited for, at most `limit`. `on_wait` hears how many turns
+/// run, which chats they are in and how long the wait has left. The wait ends early when `stop_now` says so ("Stop and update now"), and it ends when `limit` runs out: either way the turns still
+/// running are told to stop, cleanly, and given `grace` to end; the update then goes on (a daemon that cannot end its turns is stopped anyway). Returns how many turns it ended this way.
+pub(crate) fn wait_for_turns(services: &[Box<dyn LocalService>], limit: Duration, poll: Duration, grace: Duration, stop_now: &dyn Fn() -> bool, on_wait: &mut dyn FnMut(u32, &[String], Duration)) -> u32 {
     let begun = Instant::now();
     let mut turns: u32 = services.iter().filter(|s| s.running()).map(|s| s.drain().unwrap_or(0)).sum();
     while turns > 0 {
-        if begun.elapsed() >= limit {
-            println!("vyre-desktop: update: {turns} turn(s) still running after {}s; left for the next start", limit.as_secs());
-            return Err(STILL_RUNNING.to_string());
+        let out_of_time = begun.elapsed() >= limit;
+        if out_of_time || stop_now() {
+            println!("vyre-desktop: update: {turns} turn(s) still running {}; ending them cleanly", if out_of_time { format!("after {}s", limit.as_secs()) } else { "and the person chose to update now".to_string() });
+            let ended = turns;
+            for s in services.iter().filter(|s| s.running() && s.busy().unwrap_or(0) > 0) { let _ = s.stop_turns(); }
+            let waited = Instant::now();
+            loop {
+                let left: u32 = services.iter().filter(|s| s.running()).map(|s| s.busy().unwrap_or(0)).sum();
+                if left == 0 || waited.elapsed() >= grace { if left > 0 { println!("vyre-desktop: update: {left} turn(s) did not end in {}s; the daemon is stopped anyway", grace.as_secs()); } break; }
+                std::thread::sleep(poll);
+            }
+            return ended;
         }
+        let chats: Vec<String> = services.iter().filter(|s| s.running()).flat_map(|s| s.chats()).collect();
         println!("vyre-desktop: update: waiting for {turns} turn(s) on this computer");
-        on_wait(turns);
+        on_wait(turns, &chats, limit.saturating_sub(begun.elapsed()));
         std::thread::sleep(poll);
         turns = services.iter().filter(|s| s.running()).map(|s| s.busy().unwrap_or(0)).sum();
     }
-    Ok(())
+    0
 }
 
 /// Stop every running daemon and wait for each process to end. Returns the ones it stopped, to start again if the install fails.
@@ -235,11 +267,12 @@ pub(crate) fn resume_all(services: &[Box<dyn LocalService>], stopped: &[usize]) 
     }
 }
 
-/// The steps between a verified download and the install, in order: wait for the turns, stop the daemons, install, and start the daemons again if the install failed.
-pub(crate) fn quiet_then_install(services: &[Box<dyn LocalService>], limits: (Duration, Duration, Duration), on_wait: &mut dyn FnMut(u32), on_stop: &mut dyn FnMut(), install: &mut dyn FnMut() -> Result<(), String>) -> Result<(), String> {
-    let (turn_wait, poll, stop_wait) = limits;
-    wait_for_turns(services, turn_wait, poll, on_wait)?;
-    on_stop();
+/// The steps between a verified download and the install, in order: wait for the turns (at most the cap, or until "Stop and update now"), end any still running, stop the daemons, install, and start
+/// the daemons again if the install failed. It does not give up on a chat that runs: the wait is never open ended.
+pub(crate) fn quiet_then_install(services: &[Box<dyn LocalService>], limits: (Duration, Duration, Duration, Duration), stop_now: &dyn Fn() -> bool, on_wait: &mut dyn FnMut(u32, &[String], Duration), on_stop: &mut dyn FnMut(u32), install: &mut dyn FnMut() -> Result<(), String>) -> Result<(), String> {
+    let (turn_wait, poll, stop_wait, grace) = limits;
+    let ended = wait_for_turns(services, turn_wait, poll, grace, stop_now, on_wait);
+    on_stop(ended);
     let stopped = stop_all(services, stop_wait);
     match install() {
         Ok(()) => Ok(()),
@@ -253,6 +286,12 @@ struct Daemon { app: AppHandle, shared: crate::sidecar::Shared, name: &'static s
 pub(crate) fn parse_turns(body: &str) -> Option<u32> {
     let v: serde_json::Value = serde_json::from_str(body.trim()).ok()?;
     v.get("data")?.get("turns")?.as_u64().map(|n| n.min(u32::MAX as u64) as u32)
+}
+
+/// `{"data":{"chats":[{"id":..,"title":..}]}}` from /local/daemon/busy: the titles, the first few, a chat with no title as "a chat".
+pub(crate) fn parse_chats(body: &str) -> Vec<String> {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(body.trim()) else { return Vec::new() };
+    v.get("data").and_then(|d| d.get("chats")).and_then(|c| c.as_array()).map(|a| a.iter().take(6).map(|c| c.get("title").and_then(|t| t.as_str()).filter(|t| !t.trim().is_empty()).unwrap_or("a chat").to_string()).collect()).unwrap_or_default()
 }
 
 /// How long a daemon that is still starting is given to come up before the update asks it what runs and stops it.
@@ -279,6 +318,8 @@ impl LocalService for Daemon {
     fn running(&self) -> bool { crate::sidecar::is_running(&self.shared) }
     fn drain(&self) -> Option<u32> { self.settle(); crate::sidecar::local_json(&self.shared, "POST", "/local/daemon/drain").and_then(|b| parse_turns(&b)) }
     fn busy(&self) -> Option<u32> { crate::sidecar::local_json(&self.shared, "GET", "/local/daemon/busy").and_then(|b| parse_turns(&b)) }
+    fn chats(&self) -> Vec<String> { crate::sidecar::local_json(&self.shared, "GET", "/local/daemon/busy").map(|b| parse_chats(&b)).unwrap_or_default() }
+    fn stop_turns(&self) -> Option<u32> { crate::sidecar::local_json(&self.shared, "POST", "/local/daemon/stop-turns").and_then(|b| parse_turns(&b)) }
     fn stop(&self, timeout: Duration) -> bool { self.settle(); crate::sidecar::stop_and_wait(&self.shared, timeout) }
     fn resume(&self) { crate::sidecar::resume(&self.app, &self.shared) }
 }
@@ -290,6 +331,14 @@ fn daemons(app: &AppHandle) -> Vec<Box<dyn LocalService>> {
         Box::new(Daemon { app: app.clone(), shared: state.personal.clone(), name: "the Personal Space" }),
         Box::new(Daemon { app: app.clone(), shared: state.server.clone(), name: "the Space this Mac hosts" }),
     ]
+}
+
+/// "Stop and update now" on the Updating screen: the wait for running replies ends, they are stopped cleanly and the update goes on. Only while an install is running.
+#[tauri::command]
+pub fn update_stop_now(app: AppHandle) -> bool {
+    let asked = shared(&app).request_stop_now();
+    println!("vyre-desktop: update: the person chose to stop and update now ({})", if asked { "while an install runs" } else { "but no install is running" });
+    asked
 }
 
 /// Download the newer Vyre, check its signature, make this computer quiet, install it and restart. Returns only if something failed.
@@ -335,11 +384,13 @@ async fn install(app: &AppHandle, st: &SharedUpdate) -> Result<(), String> {
     let waiting = app.clone();
     let stopping = app.clone();
     let installing = app.clone();
+    let asked = st.clone();
     tauri::async_runtime::spawn_blocking(move || {
         quiet_then_install(
-            &services, (TURN_WAIT, Duration::from_secs(1), STOP_WAIT),
-            &mut |turns| tell(&waiting, "waiting", 0, None, turns),
-            &mut || tell(&stopping, "stopping", 0, None, 0),
+            &services, (TURN_WAIT, Duration::from_secs(1), STOP_WAIT, STOP_TURNS_GRACE),
+            &|| asked.stop_now_requested(),
+            &mut |turns, chats, left| tell_waiting(&waiting, turns, chats, left),
+            &mut |ended| tell(&stopping, "stopping", 0, None, ended),
             &mut || {
                 tell(&installing, "installing", 0, None, 0);
                 println!("vyre-desktop: update: installing {}", update.version);
@@ -427,7 +478,7 @@ mod tests {
     }
 
     /// A daemon on this computer, scripted: its turns, whether it can hand them over, and what it was asked.
-    struct Fake { name: &'static str, up: Arc<AtomicUsize>, turns: Arc<AtomicU32>, handover: bool, log: Arc<Mutex<Vec<String>>> }
+    struct Fake { name: &'static str, up: Arc<AtomicUsize>, turns: Arc<AtomicU32>, handover: bool, log: Arc<Mutex<Vec<String>>>, titles: Vec<String>, stoppable: bool, stuck: bool }
     impl LocalService for Fake {
         fn name(&self) -> &'static str { self.name }
         fn running(&self) -> bool { self.up.load(Ordering::SeqCst) == 1 }
@@ -437,13 +488,20 @@ mod tests {
             Some(self.turns.load(Ordering::SeqCst))
         }
         fn busy(&self) -> Option<u32> {
-            // a turn that cannot move finishes on its own after a while
+            // a turn that cannot move finishes on its own after a while (a stuck one never does)
             let n = self.turns.load(Ordering::SeqCst);
-            if n > 0 { self.turns.store(n - 1, Ordering::SeqCst); }
+            if n > 0 && !self.stuck { self.turns.store(n - 1, Ordering::SeqCst); }
             Some(self.turns.load(Ordering::SeqCst))
         }
+        fn chats(&self) -> Vec<String> { self.titles.clone() }
+        fn stop_turns(&self) -> Option<u32> {
+            self.log.lock().unwrap().push(format!("stop turns {}", self.name));
+            if !self.stoppable { return None; }
+            self.turns.store(0, Ordering::SeqCst);
+            Some(0)
+        }
         fn stop(&self, _t: Duration) -> bool {
-            assert_eq!(self.turns.load(Ordering::SeqCst), 0, "{} was stopped with a turn running", self.name);
+            if !self.stuck { assert_eq!(self.turns.load(Ordering::SeqCst), 0, "{} was stopped with a turn running", self.name); }
             self.log.lock().unwrap().push(format!("stop {}", self.name));
             self.up.store(0, Ordering::SeqCst);
             true
@@ -451,9 +509,14 @@ mod tests {
         fn resume(&self) { self.log.lock().unwrap().push(format!("resume {}", self.name)); self.up.store(1, Ordering::SeqCst); }
     }
     fn fake(name: &'static str, up: bool, turns: u32, handover: bool, log: &Arc<Mutex<Vec<String>>>) -> Box<dyn LocalService> {
-        Box::new(Fake { name, up: Arc::new(AtomicUsize::new(up as usize)), turns: Arc::new(AtomicU32::new(turns)), handover, log: log.clone() })
+        Box::new(Fake { name, up: Arc::new(AtomicUsize::new(up as usize)), turns: Arc::new(AtomicU32::new(turns)), handover, log: log.clone(), titles: Vec::new(), stoppable: true, stuck: false })
     }
-    const QUICK: (Duration, Duration, Duration) = (Duration::from_secs(5), Duration::from_millis(1), Duration::from_millis(10));
+    /// A daemon whose turn never ends by itself: it names its chat, and can (or cannot) be told to stop it.
+    fn stuck(name: &'static str, title: &str, stoppable: bool, log: &Arc<Mutex<Vec<String>>>) -> Box<dyn LocalService> {
+        Box::new(Fake { name, up: Arc::new(AtomicUsize::new(1)), turns: Arc::new(AtomicU32::new(1)), handover: false, log: log.clone(), titles: vec![title.to_string()], stoppable, stuck: true })
+    }
+    const QUICK: (Duration, Duration, Duration, Duration) = (Duration::from_secs(5), Duration::from_millis(1), Duration::from_millis(10), Duration::from_millis(20));
+    const NEVER: &dyn Fn() -> bool = &|| false;
 
     #[test]
     fn a_turn_that_can_move_is_handed_over_and_one_that_cannot_is_waited_for_before_anything_stops() {
@@ -462,7 +525,7 @@ mod tests {
         let services = vec![fake("links", true, 2, true, &log), fake("personal", true, 2, false, &log), fake("server", false, 0, false, &log)];
         let mut waits = Vec::new();
         let mut installed = 0;
-        let r = quiet_then_install(&services, QUICK, &mut |n| waits.push(n), &mut || log.lock().unwrap().push("stopping".into()), &mut || { installed += 1; log.lock().unwrap().push("install".into()); Ok(()) });
+        let r = quiet_then_install(&services, QUICK, NEVER, &mut |n, _c, _l| waits.push(n), &mut |_| log.lock().unwrap().push("stopping".into()), &mut || { installed += 1; log.lock().unwrap().push("install".into()); Ok(()) });
         assert!(r.is_ok());
         assert_eq!(waits, vec![2, 1], "it waited for the turn that stays here, and only that one");
         assert_eq!(installed, 1);
@@ -473,7 +536,7 @@ mod tests {
     fn a_failed_install_starts_the_daemons_it_stopped_again() {
         let log = Arc::new(Mutex::new(Vec::new()));
         let services = vec![fake("device", true, 0, false, &log), fake("personal", false, 0, false, &log)];
-        let r = quiet_then_install(&services, QUICK, &mut |_| {}, &mut || {}, &mut || Err("The update did not install: disk full".into()));
+        let r = quiet_then_install(&services, QUICK, NEVER, &mut |_, _, _| {}, &mut |_| {}, &mut || Err("The update did not install: disk full".into()));
         assert_eq!(r.unwrap_err(), "The update did not install: disk full");
         assert_eq!(*log.lock().unwrap(), vec!["drain device", "stop device", "resume device"]);
         assert!(services[0].running(), "running again");
@@ -481,21 +544,70 @@ mod tests {
     }
 
     #[test]
-    fn turns_that_never_finish_leave_the_update_for_the_next_start_and_nothing_is_stopped() {
+    fn a_reply_that_never_ends_does_not_hold_the_update_forever_at_the_cap_it_is_stopped_cleanly_and_the_update_goes_on() {
         let log = Arc::new(Mutex::new(Vec::new()));
-        struct Busy;
-        impl LocalService for Busy {
-            fn name(&self) -> &'static str { "busy" }
-            fn running(&self) -> bool { true }
-            fn drain(&self) -> Option<u32> { Some(1) }
-            fn busy(&self) -> Option<u32> { Some(1) }
-            fn stop(&self, _t: Duration) -> bool { panic!("never stopped with a turn running") }
-            fn resume(&self) {}
-        }
-        let services: Vec<Box<dyn LocalService>> = vec![Box::new(Busy), fake("device", true, 0, false, &log)];
-        let r = quiet_then_install(&services, (Duration::from_millis(30), Duration::from_millis(5), Duration::from_millis(10)), &mut |_| {}, &mut || {}, &mut || panic!("never installed"));
-        assert_eq!(r.unwrap_err(), STILL_RUNNING);
-        assert!(log.lock().unwrap().iter().all(|l| !l.starts_with("stop")));
+        let services: Vec<Box<dyn LocalService>> = vec![stuck("device", "Rivera intake", true, &log), fake("personal", true, 0, false, &log)];
+        let mut seen: Vec<(u32, Vec<String>, Duration)> = Vec::new();
+        let mut stopped_with = None;
+        let mut installed = 0;
+        let r = quiet_then_install(&services, (Duration::from_millis(40), Duration::from_millis(5), Duration::from_millis(10), Duration::from_millis(30)), NEVER,
+            &mut |n, c, l| seen.push((n, c.to_vec(), l)), &mut |ended| stopped_with = Some(ended), &mut || { installed += 1; Ok(()) });
+        assert!(r.is_ok(), "the cap ran out: the update went on");
+        assert_eq!(installed, 1);
+        assert_eq!(stopped_with, Some(1), "it says how many replies it ended");
+        assert!(!seen.is_empty() && seen.iter().all(|(n, c, _)| *n == 1 && c == &vec!["Rivera intake".to_string()]), "while it waited it named the chat");
+        assert!(seen.windows(2).all(|w| w[1].2 <= w[0].2), "the time left only goes down");
+        assert!(seen.iter().all(|(_, _, l)| *l <= Duration::from_millis(40)), "and never more than the cap");
+        let l = log.lock().unwrap().clone();
+        let pos = |x: &str| l.iter().position(|e| e == x).unwrap_or(usize::MAX);
+        assert!(pos("stop turns device") < pos("stop device"), "the turns were ended before the daemon was stopped: {l:?}");
+        assert!(l.iter().filter(|e| e.starts_with("stop turns")).count() == 1 && !l.contains(&"stop turns personal".to_string()), "only a daemon that runs a turn is asked");
+    }
+
+    #[test]
+    fn stop_and_update_now_ends_the_wait_at_once_and_ends_the_reply_cleanly() {
+        let log = Arc::new(Mutex::new(Vec::new()));
+        let services: Vec<Box<dyn LocalService>> = vec![stuck("device", "Weekly update", true, &log)];
+        let asked = std::sync::atomic::AtomicBool::new(false);
+        let mut waits = 0;
+        let begun = Instant::now();
+        // the person presses the button while the shell is waiting: the next look sees it
+        let r = quiet_then_install(&services, (Duration::from_secs(600), Duration::from_millis(5), Duration::from_millis(10), Duration::from_millis(30)), &|| asked.load(Ordering::SeqCst),
+            &mut |_, _, _| { waits += 1; if waits == 3 { asked.store(true, Ordering::SeqCst); } }, &mut |_| {}, &mut || Ok(()));
+        assert!(r.is_ok());
+        assert_eq!(waits, 3, "it waited until the press, no longer");
+        assert!(begun.elapsed() < Duration::from_secs(5), "and did not wait out the ten minute cap");
+        assert!(log.lock().unwrap().contains(&"stop turns device".to_string()));
+    }
+
+    #[test]
+    fn a_daemon_that_cannot_end_its_turns_is_stopped_anyway_after_the_grace_and_the_update_still_goes_on() {
+        let log = Arc::new(Mutex::new(Vec::new()));
+        let services: Vec<Box<dyn LocalService>> = vec![stuck("old", "A chat", false, &log)];
+        let mut installed = 0;
+        let r = quiet_then_install(&services, (Duration::from_millis(10), Duration::from_millis(2), Duration::from_millis(10), Duration::from_millis(20)), NEVER, &mut |_, _, _| {}, &mut |_| {}, &mut || { installed += 1; Ok(()) });
+        assert!(r.is_ok());
+        assert_eq!(installed, 1);
+        assert_eq!(*log.lock().unwrap(), vec!["drain old", "stop turns old", "stop old"], "asked to end it, then stopped as the update always does");
+    }
+
+    #[test]
+    fn the_stop_now_request_counts_only_while_an_install_runs_and_starts_clear() {
+        let st = UpdateState::default();
+        assert!(!st.request_stop_now(), "nothing is installing: the press is ignored");
+        assert!(st.begin_install());
+        assert!(!st.stop_now_requested());
+        assert!(st.request_stop_now() && st.stop_now_requested());
+        st.end_install();
+        assert!(st.begin_install());
+        assert!(!st.stop_now_requested(), "a new install does not inherit an old press");
+    }
+
+    #[test]
+    fn the_daemon_answer_names_the_chats() {
+        assert_eq!(parse_chats(r#"{"data":{"turns":1,"sources":[],"chats":[{"id":"thr_1","title":"Rivera intake"},{"id":"thr_2","title":""}]}}"#), vec!["Rivera intake".to_string(), "a chat".to_string()]);
+        assert!(parse_chats(r#"{"data":{"turns":0,"sources":[]}}"#).is_empty(), "a daemon from before this names none");
+        assert!(parse_chats("not json").is_empty());
     }
 
     #[test]
@@ -511,7 +623,7 @@ mod tests {
         }
         let services: Vec<Box<dyn LocalService>> = vec![Box::new(Old)];
         let mut n = 0;
-        assert!(quiet_then_install(&services, QUICK, &mut |_| {}, &mut || {}, &mut || { n += 1; Ok(()) }).is_ok());
+        assert!(quiet_then_install(&services, QUICK, NEVER, &mut |_, _, _| {}, &mut |_| {}, &mut || { n += 1; Ok(()) }).is_ok());
         assert_eq!(n, 1);
     }
 
