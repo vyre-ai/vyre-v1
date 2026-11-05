@@ -16,6 +16,7 @@ export function internalNames(text: string): string[] {
 
 /** What a helper is doing right now, in words a person reads: never the name of the tool. `detail` is what the call touches (a file, an address), already in safe words. */
 export function stepWords(tool: string, detail?: string): string {
+  tool = tool.replace(/^mcp__.+?__/, "");   // a tool that comes through a server is named server__tool: the tool is what is said
   const d = detail ? ` ${detail.length > 60 ? `${detail.slice(0, 59)}…` : detail}` : "";
   if (/^(Read|Glob|Grep|files_read|files_tree|files_list)/i.test(tool)) return `Reading${d || " files"}`;
   if (/^(Write|Edit|MultiEdit|NotebookEdit|files_create|files_write)/i.test(tool)) return `Editing${d || " a file"}`;
