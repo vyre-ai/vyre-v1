@@ -364,41 +364,25 @@ if (g6193 === "object") {
 }
 }
 
-function e651_payload(v: unknown, p: string, e: string[]): void {
+function e652_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7258 = v;
-const g7258 = typeOf(x7258);
-const b7258: string[] = []; lf(x7258, p, b7258, L0); if (b7258.length) e.push(...b7258);
-if (g7258 === "object") {
-if (g7258 === 'object') { const o7258 = x7258 as Record<string, unknown>;
-if (!("person" in o7258)) e.push(p + "/person" + ': required');
-if (!("on" in o7258)) e.push(p + "/on" + ': required');
-if (!("provider" in o7258)) e.push(p + "/provider" + ': required');
-if (!("language" in o7258)) e.push(p + "/language" + ': required');
-if (!("model" in o7258)) e.push(p + "/model" + ': required');
-if (!("by" in o7258)) e.push(p + "/by" + ': required');
-if ("person" in o7258) lf(o7258["person"], p + "/person", e, L16);
-if ("on" in o7258) lf(o7258["on"], p + "/on", e, L3);
-if ("provider" in o7258) lf(o7258["provider"], p + "/provider", e, L1);
-if ("language" in o7258) lf(o7258["language"], p + "/language", e, L1);
-if ("model" in o7258) lf(o7258["model"], p + "/model", e, L1);
-if ("by" in o7258) lf(o7258["by"], p + "/by", e, L1);
-}
-}
-}
-}
-
-function e654_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7259 = v;
-const g7259 = typeOf(x7259);
-const b7259: string[] = []; lf(x7259, p, b7259, L0); if (b7259.length) e.push(...b7259);
-if (g7259 === "object") {
-if (g7259 === 'object') { const o7259 = x7259 as Record<string, unknown>;
-if (!("on" in o7259)) e.push(p + "/on" + ': required');
-if (!("by" in o7259)) e.push(p + "/by" + ': required');
-if ("on" in o7259) lf(o7259["on"], p + "/on", e, L3);
-if ("by" in o7259) lf(o7259["by"], p + "/by", e, L1);
+const x7261 = v;
+const g7261 = typeOf(x7261);
+const b7261: string[] = []; lf(x7261, p, b7261, L0); if (b7261.length) e.push(...b7261);
+if (g7261 === "object") {
+if (g7261 === 'object') { const o7261 = x7261 as Record<string, unknown>;
+if (!("person" in o7261)) e.push(p + "/person" + ': required');
+if (!("on" in o7261)) e.push(p + "/on" + ': required');
+if (!("provider" in o7261)) e.push(p + "/provider" + ': required');
+if (!("language" in o7261)) e.push(p + "/language" + ': required');
+if (!("model" in o7261)) e.push(p + "/model" + ': required');
+if (!("by" in o7261)) e.push(p + "/by" + ': required');
+if ("person" in o7261) lf(o7261["person"], p + "/person", e, L16);
+if ("on" in o7261) lf(o7261["on"], p + "/on", e, L3);
+if ("provider" in o7261) lf(o7261["provider"], p + "/provider", e, L1);
+if ("language" in o7261) lf(o7261["language"], p + "/language", e, L1);
+if ("model" in o7261) lf(o7261["model"], p + "/model", e, L1);
+if ("by" in o7261) lf(o7261["by"], p + "/by", e, L1);
 }
 }
 }
@@ -406,13 +390,29 @@ if ("by" in o7259) lf(o7259["by"], p + "/by", e, L1);
 
 function e655_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7260 = v;
-const g7260 = typeOf(x7260);
-const b7260: string[] = []; lf(x7260, p, b7260, L0); if (b7260.length) e.push(...b7260);
-if (g7260 === "object") {
-if (g7260 === 'object') { const o7260 = x7260 as Record<string, unknown>;
-if (!("state" in o7260)) e.push(p + "/state" + ': required');
-if ("state" in o7260) lf(o7260["state"], p + "/state", e, L403);
+const x7262 = v;
+const g7262 = typeOf(x7262);
+const b7262: string[] = []; lf(x7262, p, b7262, L0); if (b7262.length) e.push(...b7262);
+if (g7262 === "object") {
+if (g7262 === 'object') { const o7262 = x7262 as Record<string, unknown>;
+if (!("on" in o7262)) e.push(p + "/on" + ': required');
+if (!("by" in o7262)) e.push(p + "/by" + ': required');
+if ("on" in o7262) lf(o7262["on"], p + "/on", e, L3);
+if ("by" in o7262) lf(o7262["by"], p + "/by", e, L1);
+}
+}
+}
+}
+
+function e656_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7263 = v;
+const g7263 = typeOf(x7263);
+const b7263: string[] = []; lf(x7263, p, b7263, L0); if (b7263.length) e.push(...b7263);
+if (g7263 === "object") {
+if (g7263 === 'object') { const o7263 = x7263 as Record<string, unknown>;
+if (!("state" in o7263)) e.push(p + "/state" + ': required');
+if ("state" in o7263) lf(o7263["state"], p + "/state", e, L403);
 }
 }
 }
@@ -433,11 +433,11 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "talk.configured": e651_payload,
+  "talk.configured": e652_payload,
   "talk.connected": d_s_0980d8c930,
   "talk.disconnected": d_s_0980d8c930,
-  "talk.space_changed": e654_payload,
-  "talk.space_checked": e655_payload,
+  "talk.space_changed": e655_payload,
+  "talk.space_checked": e656_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

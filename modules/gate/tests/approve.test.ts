@@ -101,6 +101,7 @@ test("only people approve, unless the Space names agents for a low-risk act", as
 test("nobody approves what they asked for, except an asker approving her own agent", async () => {
   const h = harness();
   h.callee("sites.promote", () => ({ promoted: true }));
+  h.callee("identity.whoami", () => ({ roles: ["rol_admin"], groups: [] }));
   const p = await park(h, { capName: "sites.promote", act: "site_promote", principal: alice, actingFor: undefined, input: { siteId: "sit_1" } }, as(alice));
   assert.deepEqual(findHold(h.db, p.holdId)!.approver, { kind: "role", id: "rol_admin" });
   await refused(release(h, p, { by: alice.id }), "validation.precondition_failed", "self_approval");
@@ -394,4 +395,36 @@ test("a chat turn's hold keeps the call's answer for the engine only: not in hol
   await release(h, late, { decision: "dec_4" });
   h.advance(30 * HOUR);
   assert.deepEqual(await h.call("gate.result.take", { holdId: late.holdId }, svc), { found: false });
+});
+
+// ---- who decides follows the task ----
+
+import { consumers } from "../impl.ts";
+const movedEvent = (name: string, payload: Record<string, unknown>) => ({ name, payload });
+
+test("the hold's approver follows its task: assigned, delegated and escalated moves are written down, the old approver is refused and the new one decides", async () => {
+  const h = harness();
+  h.callee("mail.send", () => ({ messageId: "msg_1" }));
+  h.callee("identity.whoami", () => ({ roles: [], groups: [] }));
+  const p = await park(h);
+  const sync = (name: string, payload: Record<string, unknown>) => consumers["gate.approver_sync"].run(h.ctxFor(null, { id: "svc_host", kind: "service" as const }), movedEvent(name, { taskId: p.taskId, ...payload }));
+  assert.deepEqual(findHold(h.db, p.holdId)!.approver, { kind: "person", id: alice.id });
+  // not the approver slot, or the same person: nothing moves
+  assert.deepEqual(await sync("task.assigned", { slot: "reviewer", to: { kind: "person", id: bob.id }, from: null }), []);
+  assert.deepEqual(await sync("task.assigned", { slot: "approver", to: { kind: "person", id: alice.id }, from: null }), []);
+  // alice hands it to bob
+  assert.deepEqual(await sync("task.delegated", { from: alice.id, to: { kind: "person", id: bob.id }, passedTo: { kind: "person", id: bob.id } }), [p.holdId]);
+  assert.deepEqual(findHold(h.db, p.holdId)!.approver, { kind: "person", id: bob.id });
+  const moved = h.events.filter((e) => e.name === "gate.approver_moved");
+  assert.deepEqual(moved.map((e) => e.payload), [{ holdId: p.holdId, act: "send", taskId: p.taskId, from: { kind: "person", id: alice.id }, to: { kind: "person", id: bob.id }, by: alice.id, how: "delegated" }]);
+  await refused(release(h, p, { by: alice.id }), "validation.precondition_failed", "not_the_approver");   // her old token
+  assert.equal(sent(h), 0);
+  // an admin moves it to a role, audited with who; a member of the role may release, a person outside it may not
+  await sync("task.assigned", { slot: "approver", to: { kind: "role", id: "rol_finance" }, from: { kind: "person", id: bob.id }, by: "usr_admin" });
+  assert.equal(h.events.filter((e) => e.name === "gate.approver_moved").at(-1)!.payload["by"], "usr_admin");
+  await refused(release(h, p, { by: bob.id }, person(bob)), "validation.precondition_failed", "not_the_approver");
+  h.callee("identity.whoami", () => ({ roles: ["rol_finance"], groups: [] }));
+  await release(h, p, { by: bob.id }, person(bob));
+  assert.equal(findHold(h.db, p.holdId)!.state, "approved");
+  assert.equal(sent(h), 1);
 });

@@ -678,64 +678,7 @@ if ("key" in o5673) lf(o5673["key"], p + "/key", e, L1);
 }
 }
 
-function e569_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7183 = v;
-const g7183 = typeOf(x7183);
-const b7183: string[] = []; lf(x7183, p, b7183, L0); if (b7183.length) e.push(...b7183);
-if (g7183 === "object") {
-if (g7183 === 'object') { const o7183 = x7183 as Record<string, unknown>;
-if (!("key" in o7183)) e.push(p + "/key" + ': required');
-if (!("scope" in o7183)) e.push(p + "/scope" + ': required');
-if (!("before" in o7183)) e.push(p + "/before" + ': required');
-if (!("after" in o7183)) e.push(p + "/after" + ': required');
-if (!("by" in o7183)) e.push(p + "/by" + ': required');
-if ("key" in o7183) lf(o7183["key"], p + "/key", e, L1);
-if ("scope" in o7183) lf(o7183["scope"], p + "/scope", e, L8);
-if ("person" in o7183) lf(o7183["person"], p + "/person", e, L16);
-if ("by" in o7183) lf(o7183["by"], p + "/by", e, L1);
-}
-}
-}
-}
-
 function e570_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7184 = v;
-const g7184 = typeOf(x7184);
-const b7184: string[] = []; lf(x7184, p, b7184, L0); if (b7184.length) e.push(...b7184);
-if (g7184 === "object") {
-if (g7184 === 'object') { const o7184 = x7184 as Record<string, unknown>;
-if (!("person" in o7184)) e.push(p + "/person" + ': required');
-if (!("channel" in o7184)) e.push(p + "/channel" + ': required');
-if (!("reason" in o7184)) e.push(p + "/reason" + ': required');
-if ("person" in o7184) lf(o7184["person"], p + "/person", e, L16);
-if ("channel" in o7184) lf(o7184["channel"], p + "/channel", e, L313);
-if ("reason" in o7184) lf(o7184["reason"], p + "/reason", e, L1);
-}
-}
-}
-}
-
-function e572_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7185 = v;
-const g7185 = typeOf(x7185);
-const b7185: string[] = []; lf(x7185, p, b7185, L0); if (b7185.length) e.push(...b7185);
-if (g7185 === "object") {
-if (g7185 === 'object') { const o7185 = x7185 as Record<string, unknown>;
-if (!("person" in o7185)) e.push(p + "/person" + ': required');
-if (!("channel" in o7185)) e.push(p + "/channel" + ': required');
-if (!("why" in o7185)) e.push(p + "/why" + ': required');
-if ("person" in o7185) lf(o7185["person"], p + "/person", e, L16);
-if ("channel" in o7185) lf(o7185["channel"], p + "/channel", e, L313);
-if ("why" in o7185) lf(o7185["why"], p + "/why", e, L1);
-}
-}
-}
-}
-
-function e574_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7186 = v;
 const g7186 = typeOf(x7186);
@@ -743,9 +686,66 @@ const b7186: string[] = []; lf(x7186, p, b7186, L0); if (b7186.length) e.push(..
 if (g7186 === "object") {
 if (g7186 === 'object') { const o7186 = x7186 as Record<string, unknown>;
 if (!("key" in o7186)) e.push(p + "/key" + ': required');
+if (!("scope" in o7186)) e.push(p + "/scope" + ': required');
+if (!("before" in o7186)) e.push(p + "/before" + ': required');
+if (!("after" in o7186)) e.push(p + "/after" + ': required');
 if (!("by" in o7186)) e.push(p + "/by" + ': required');
 if ("key" in o7186) lf(o7186["key"], p + "/key", e, L1);
+if ("scope" in o7186) lf(o7186["scope"], p + "/scope", e, L8);
+if ("person" in o7186) lf(o7186["person"], p + "/person", e, L16);
 if ("by" in o7186) lf(o7186["by"], p + "/by", e, L1);
+}
+}
+}
+}
+
+function e571_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7187 = v;
+const g7187 = typeOf(x7187);
+const b7187: string[] = []; lf(x7187, p, b7187, L0); if (b7187.length) e.push(...b7187);
+if (g7187 === "object") {
+if (g7187 === 'object') { const o7187 = x7187 as Record<string, unknown>;
+if (!("person" in o7187)) e.push(p + "/person" + ': required');
+if (!("channel" in o7187)) e.push(p + "/channel" + ': required');
+if (!("reason" in o7187)) e.push(p + "/reason" + ': required');
+if ("person" in o7187) lf(o7187["person"], p + "/person", e, L16);
+if ("channel" in o7187) lf(o7187["channel"], p + "/channel", e, L313);
+if ("reason" in o7187) lf(o7187["reason"], p + "/reason", e, L1);
+}
+}
+}
+}
+
+function e573_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7188 = v;
+const g7188 = typeOf(x7188);
+const b7188: string[] = []; lf(x7188, p, b7188, L0); if (b7188.length) e.push(...b7188);
+if (g7188 === "object") {
+if (g7188 === 'object') { const o7188 = x7188 as Record<string, unknown>;
+if (!("person" in o7188)) e.push(p + "/person" + ': required');
+if (!("channel" in o7188)) e.push(p + "/channel" + ': required');
+if (!("why" in o7188)) e.push(p + "/why" + ': required');
+if ("person" in o7188) lf(o7188["person"], p + "/person", e, L16);
+if ("channel" in o7188) lf(o7188["channel"], p + "/channel", e, L313);
+if ("why" in o7188) lf(o7188["why"], p + "/why", e, L1);
+}
+}
+}
+}
+
+function e575_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7189 = v;
+const g7189 = typeOf(x7189);
+const b7189: string[] = []; lf(x7189, p, b7189, L0); if (b7189.length) e.push(...b7189);
+if (g7189 === "object") {
+if (g7189 === 'object') { const o7189 = x7189 as Record<string, unknown>;
+if (!("key" in o7189)) e.push(p + "/key" + ': required');
+if (!("by" in o7189)) e.push(p + "/by" + ': required');
+if ("key" in o7189) lf(o7189["key"], p + "/key", e, L1);
+if ("by" in o7189) lf(o7189["by"], p + "/by", e, L1);
 }
 }
 }
@@ -773,12 +773,12 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "settings.changed": e569_payload,
-  "settings.contact_code_failed": e570_payload,
+  "settings.changed": e570_payload,
+  "settings.contact_code_failed": e571_payload,
   "settings.contact_code_sent": d_s_8b8037ac4a,
-  "settings.contact_unverified": e572_payload,
+  "settings.contact_unverified": e573_payload,
   "settings.contact_verified": d_s_8b8037ac4a,
-  "settings.floor_changed": e574_payload,
+  "settings.floor_changed": e575_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

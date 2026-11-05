@@ -697,53 +697,38 @@ if ("allowed" in o4252) lf(o4252["allowed"], p + "/toolsets" + '/' + i4251 + "/a
 }
 }
 
-function e338_payload(v: unknown, p: string, e: string[]): void {
-{
-const x6975 = v;
-const g6975 = typeOf(x6975);
-const b6975: string[] = []; lf(x6975, p, b6975, L0); if (b6975.length) e.push(...b6975);
-if (g6975 === "object") {
-if (g6975 === 'object') { const o6975 = x6975 as Record<string, unknown>;
-if (!("agentId" in o6975)) e.push(p + "/agentId" + ': required');
-if (!("person" in o6975)) e.push(p + "/person" + ': required');
-if (!("clientName" in o6975)) e.push(p + "/clientName" + ': required');
-if ("agentId" in o6975) lf(o6975["agentId"], p + "/agentId", e, L10);
-if ("person" in o6975) lf(o6975["person"], p + "/person", e, L1);
-if ("clientName" in o6975) lf(o6975["clientName"], p + "/clientName", e, L1);
-if ("redirectHost" in o6975) lf(o6975["redirectHost"], p + "/redirectHost", e, L1);
-}
-}
-}
-}
-
 function e339_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6976 = v;
-const g6976 = typeOf(x6976);
-const b6976: string[] = []; lf(x6976, p, b6976, L0); if (b6976.length) e.push(...b6976);
-if (g6976 === "object") {
-if (g6976 === 'object') { const o6976 = x6976 as Record<string, unknown>;
-if (!("requestId" in o6976)) e.push(p + "/requestId" + ': required');
-if (!("person" in o6976)) e.push(p + "/person" + ': required');
-if (!("clientName" in o6976)) e.push(p + "/clientName" + ': required');
-if ("requestId" in o6976) lf(o6976["requestId"], p + "/requestId", e, L1);
-if ("person" in o6976) lf(o6976["person"], p + "/person", e, L1);
-if ("clientName" in o6976) lf(o6976["clientName"], p + "/clientName", e, L1);
+const x6978 = v;
+const g6978 = typeOf(x6978);
+const b6978: string[] = []; lf(x6978, p, b6978, L0); if (b6978.length) e.push(...b6978);
+if (g6978 === "object") {
+if (g6978 === 'object') { const o6978 = x6978 as Record<string, unknown>;
+if (!("agentId" in o6978)) e.push(p + "/agentId" + ': required');
+if (!("person" in o6978)) e.push(p + "/person" + ': required');
+if (!("clientName" in o6978)) e.push(p + "/clientName" + ': required');
+if ("agentId" in o6978) lf(o6978["agentId"], p + "/agentId", e, L10);
+if ("person" in o6978) lf(o6978["person"], p + "/person", e, L1);
+if ("clientName" in o6978) lf(o6978["clientName"], p + "/clientName", e, L1);
+if ("redirectHost" in o6978) lf(o6978["redirectHost"], p + "/redirectHost", e, L1);
 }
 }
 }
 }
 
-function e342_payload(v: unknown, p: string, e: string[]): void {
+function e340_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6977 = v;
-const g6977 = typeOf(x6977);
-const b6977: string[] = []; lf(x6977, p, b6977, L0); if (b6977.length) e.push(...b6977);
-if (g6977 === "object") {
-if (g6977 === 'object') { const o6977 = x6977 as Record<string, unknown>;
-if (!("sessionId" in o6977)) e.push(p + "/sessionId" + ': required');
-if ("sessionId" in o6977) lf(o6977["sessionId"], p + "/sessionId", e, L420);
-if ("calls" in o6977) lf(o6977["calls"], p + "/calls", e, L2);
+const x6979 = v;
+const g6979 = typeOf(x6979);
+const b6979: string[] = []; lf(x6979, p, b6979, L0); if (b6979.length) e.push(...b6979);
+if (g6979 === "object") {
+if (g6979 === 'object') { const o6979 = x6979 as Record<string, unknown>;
+if (!("requestId" in o6979)) e.push(p + "/requestId" + ': required');
+if (!("person" in o6979)) e.push(p + "/person" + ': required');
+if (!("clientName" in o6979)) e.push(p + "/clientName" + ': required');
+if ("requestId" in o6979) lf(o6979["requestId"], p + "/requestId", e, L1);
+if ("person" in o6979) lf(o6979["person"], p + "/person", e, L1);
+if ("clientName" in o6979) lf(o6979["clientName"], p + "/clientName", e, L1);
 }
 }
 }
@@ -751,19 +736,14 @@ if ("calls" in o6977) lf(o6977["calls"], p + "/calls", e, L2);
 
 function e343_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6978 = v;
-const g6978 = typeOf(x6978);
-const b6978: string[] = []; lf(x6978, p, b6978, L0); if (b6978.length) e.push(...b6978);
-if (g6978 === "object") {
-if (g6978 === 'object') { const o6978 = x6978 as Record<string, unknown>;
-if (!("sessionId" in o6978)) e.push(p + "/sessionId" + ': required');
-if (!("kind" in o6978)) e.push(p + "/kind" + ': required');
-if (!("principal" in o6978)) e.push(p + "/principal" + ': required');
-if ("sessionId" in o6978) lf(o6978["sessionId"], p + "/sessionId", e, L420);
-if ("kind" in o6978) lf(o6978["kind"], p + "/kind", e, L1);
-if ("principal" in o6978) lf(o6978["principal"], p + "/principal", e, L1);
-if ("actingFor" in o6978) lf(o6978["actingFor"], p + "/actingFor", e, L1);
-if ("threadId" in o6978) lf(o6978["threadId"], p + "/threadId", e, L13);
+const x6980 = v;
+const g6980 = typeOf(x6980);
+const b6980: string[] = []; lf(x6980, p, b6980, L0); if (b6980.length) e.push(...b6980);
+if (g6980 === "object") {
+if (g6980 === 'object') { const o6980 = x6980 as Record<string, unknown>;
+if (!("sessionId" in o6980)) e.push(p + "/sessionId" + ': required');
+if ("sessionId" in o6980) lf(o6980["sessionId"], p + "/sessionId", e, L420);
+if ("calls" in o6980) lf(o6980["calls"], p + "/calls", e, L2);
 }
 }
 }
@@ -771,19 +751,39 @@ if ("threadId" in o6978) lf(o6978["threadId"], p + "/threadId", e, L13);
 
 function e344_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6979 = v;
-const g6979 = typeOf(x6979);
-const b6979: string[] = []; lf(x6979, p, b6979, L0); if (b6979.length) e.push(...b6979);
-if (g6979 === "object") {
-if (g6979 === 'object') { const o6979 = x6979 as Record<string, unknown>;
-if (!("agentId" in o6979)) e.push(p + "/agentId" + ': required');
-if (!("person" in o6979)) e.push(p + "/person" + ': required');
-if (!("setup" in o6979)) e.push(p + "/setup" + ': required');
-if (!("by" in o6979)) e.push(p + "/by" + ': required');
-if ("agentId" in o6979) lf(o6979["agentId"], p + "/agentId", e, L10);
-if ("person" in o6979) lf(o6979["person"], p + "/person", e, L1);
-if ("setup" in o6979) lf(o6979["setup"], p + "/setup", e, L3);
-if ("by" in o6979) lf(o6979["by"], p + "/by", e, L1);
+const x6981 = v;
+const g6981 = typeOf(x6981);
+const b6981: string[] = []; lf(x6981, p, b6981, L0); if (b6981.length) e.push(...b6981);
+if (g6981 === "object") {
+if (g6981 === 'object') { const o6981 = x6981 as Record<string, unknown>;
+if (!("sessionId" in o6981)) e.push(p + "/sessionId" + ': required');
+if (!("kind" in o6981)) e.push(p + "/kind" + ': required');
+if (!("principal" in o6981)) e.push(p + "/principal" + ': required');
+if ("sessionId" in o6981) lf(o6981["sessionId"], p + "/sessionId", e, L420);
+if ("kind" in o6981) lf(o6981["kind"], p + "/kind", e, L1);
+if ("principal" in o6981) lf(o6981["principal"], p + "/principal", e, L1);
+if ("actingFor" in o6981) lf(o6981["actingFor"], p + "/actingFor", e, L1);
+if ("threadId" in o6981) lf(o6981["threadId"], p + "/threadId", e, L13);
+}
+}
+}
+}
+
+function e345_payload(v: unknown, p: string, e: string[]): void {
+{
+const x6982 = v;
+const g6982 = typeOf(x6982);
+const b6982: string[] = []; lf(x6982, p, b6982, L0); if (b6982.length) e.push(...b6982);
+if (g6982 === "object") {
+if (g6982 === 'object') { const o6982 = x6982 as Record<string, unknown>;
+if (!("agentId" in o6982)) e.push(p + "/agentId" + ': required');
+if (!("person" in o6982)) e.push(p + "/person" + ': required');
+if (!("setup" in o6982)) e.push(p + "/setup" + ': required');
+if (!("by" in o6982)) e.push(p + "/by" + ': required');
+if ("agentId" in o6982) lf(o6982["agentId"], p + "/agentId", e, L10);
+if ("person" in o6982) lf(o6982["person"], p + "/person", e, L1);
+if ("setup" in o6982) lf(o6982["setup"], p + "/setup", e, L3);
+if ("by" in o6982) lf(o6982["by"], p + "/by", e, L1);
 }
 }
 }
@@ -810,13 +810,13 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "mcp.client_allowed": e338_payload,
-  "mcp.client_declined": e339_payload,
+  "mcp.client_allowed": e339_payload,
+  "mcp.client_declined": e340_payload,
   "mcp.client_removed": d_s_02b7591c93,
   "mcp.client_replayed": d_s_c282f10646,
-  "mcp.session_ended": e342_payload,
-  "mcp.session_started": e343_payload,
-  "mcp.setup_changed": e344_payload,
+  "mcp.session_ended": e343_payload,
+  "mcp.session_started": e344_payload,
+  "mcp.setup_changed": e345_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

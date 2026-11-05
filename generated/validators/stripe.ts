@@ -857,64 +857,7 @@ if ("nextPageToken" in o6007) lf(o6007["nextPageToken"], p + "/nextPageToken", e
 }
 }
 
-function e628_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7238 = v;
-const g7238 = typeOf(x7238);
-const b7238: string[] = []; lf(x7238, p, b7238, L0); if (b7238.length) e.push(...b7238);
-if (g7238 === "object") {
-if (g7238 === 'object') { const o7238 = x7238 as Record<string, unknown>;
-if (!("eventId" in o7238)) e.push(p + "/eventId" + ': required');
-if (!("type" in o7238)) e.push(p + "/type" + ': required');
-if (!("objectId" in o7238)) e.push(p + "/objectId" + ': required');
-if ("eventId" in o7238) lf(o7238["eventId"], p + "/eventId", e, L1);
-if ("type" in o7238) lf(o7238["type"], p + "/type", e, L1);
-if ("objectId" in o7238) lf(o7238["objectId"], p + "/objectId", e, L1);
-}
-}
-}
-}
-
 function e629_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7239 = v;
-const g7239 = typeOf(x7239);
-const b7239: string[] = []; lf(x7239, p, b7239, L0); if (b7239.length) e.push(...b7239);
-if (g7239 === "object") {
-if (g7239 === 'object') { const o7239 = x7239 as Record<string, unknown>;
-if (!("eventId" in o7239)) e.push(p + "/eventId" + ': required');
-if (!("subscriptionId" in o7239)) e.push(p + "/subscriptionId" + ': required');
-if ("eventId" in o7239) lf(o7239["eventId"], p + "/eventId", e, L1);
-if ("customerId" in o7239) lf(o7239["customerId"], p + "/customerId", e, L1);
-if ("recordId" in o7239) lf(o7239["recordId"], p + "/recordId", e, L28);
-if ("siteId" in o7239) lf(o7239["siteId"], p + "/siteId", e, L46);
-if ("subscriptionId" in o7239) lf(o7239["subscriptionId"], p + "/subscriptionId", e, L1);
-}
-}
-}
-}
-
-function e630_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7240 = v;
-const g7240 = typeOf(x7240);
-const b7240: string[] = []; lf(x7240, p, b7240, L0); if (b7240.length) e.push(...b7240);
-if (g7240 === "object") {
-if (g7240 === 'object') { const o7240 = x7240 as Record<string, unknown>;
-if (!("eventId" in o7240)) e.push(p + "/eventId" + ': required');
-if (!("subscriptionId" in o7240)) e.push(p + "/subscriptionId" + ': required');
-if ("eventId" in o7240) lf(o7240["eventId"], p + "/eventId", e, L1);
-if ("customerId" in o7240) lf(o7240["customerId"], p + "/customerId", e, L1);
-if ("recordId" in o7240) lf(o7240["recordId"], p + "/recordId", e, L28);
-if ("siteId" in o7240) lf(o7240["siteId"], p + "/siteId", e, L46);
-if ("subscriptionId" in o7240) lf(o7240["subscriptionId"], p + "/subscriptionId", e, L1);
-if ("priceId" in o7240) lf(o7240["priceId"], p + "/priceId", e, L1);
-}
-}
-}
-}
-
-function e631_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7241 = v;
 const g7241 = typeOf(x7241);
@@ -922,14 +865,71 @@ const b7241: string[] = []; lf(x7241, p, b7241, L0); if (b7241.length) e.push(..
 if (g7241 === "object") {
 if (g7241 === 'object') { const o7241 = x7241 as Record<string, unknown>;
 if (!("eventId" in o7241)) e.push(p + "/eventId" + ': required');
-if (!("subscriptionId" in o7241)) e.push(p + "/subscriptionId" + ': required');
-if (!("status" in o7241)) e.push(p + "/status" + ': required');
+if (!("type" in o7241)) e.push(p + "/type" + ': required');
+if (!("objectId" in o7241)) e.push(p + "/objectId" + ': required');
 if ("eventId" in o7241) lf(o7241["eventId"], p + "/eventId", e, L1);
-if ("customerId" in o7241) lf(o7241["customerId"], p + "/customerId", e, L1);
-if ("recordId" in o7241) lf(o7241["recordId"], p + "/recordId", e, L28);
-if ("siteId" in o7241) lf(o7241["siteId"], p + "/siteId", e, L46);
-if ("subscriptionId" in o7241) lf(o7241["subscriptionId"], p + "/subscriptionId", e, L1);
-if ("status" in o7241) lf(o7241["status"], p + "/status", e, L1);
+if ("type" in o7241) lf(o7241["type"], p + "/type", e, L1);
+if ("objectId" in o7241) lf(o7241["objectId"], p + "/objectId", e, L1);
+}
+}
+}
+}
+
+function e630_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7242 = v;
+const g7242 = typeOf(x7242);
+const b7242: string[] = []; lf(x7242, p, b7242, L0); if (b7242.length) e.push(...b7242);
+if (g7242 === "object") {
+if (g7242 === 'object') { const o7242 = x7242 as Record<string, unknown>;
+if (!("eventId" in o7242)) e.push(p + "/eventId" + ': required');
+if (!("subscriptionId" in o7242)) e.push(p + "/subscriptionId" + ': required');
+if ("eventId" in o7242) lf(o7242["eventId"], p + "/eventId", e, L1);
+if ("customerId" in o7242) lf(o7242["customerId"], p + "/customerId", e, L1);
+if ("recordId" in o7242) lf(o7242["recordId"], p + "/recordId", e, L28);
+if ("siteId" in o7242) lf(o7242["siteId"], p + "/siteId", e, L46);
+if ("subscriptionId" in o7242) lf(o7242["subscriptionId"], p + "/subscriptionId", e, L1);
+}
+}
+}
+}
+
+function e631_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7243 = v;
+const g7243 = typeOf(x7243);
+const b7243: string[] = []; lf(x7243, p, b7243, L0); if (b7243.length) e.push(...b7243);
+if (g7243 === "object") {
+if (g7243 === 'object') { const o7243 = x7243 as Record<string, unknown>;
+if (!("eventId" in o7243)) e.push(p + "/eventId" + ': required');
+if (!("subscriptionId" in o7243)) e.push(p + "/subscriptionId" + ': required');
+if ("eventId" in o7243) lf(o7243["eventId"], p + "/eventId", e, L1);
+if ("customerId" in o7243) lf(o7243["customerId"], p + "/customerId", e, L1);
+if ("recordId" in o7243) lf(o7243["recordId"], p + "/recordId", e, L28);
+if ("siteId" in o7243) lf(o7243["siteId"], p + "/siteId", e, L46);
+if ("subscriptionId" in o7243) lf(o7243["subscriptionId"], p + "/subscriptionId", e, L1);
+if ("priceId" in o7243) lf(o7243["priceId"], p + "/priceId", e, L1);
+}
+}
+}
+}
+
+function e632_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7244 = v;
+const g7244 = typeOf(x7244);
+const b7244: string[] = []; lf(x7244, p, b7244, L0); if (b7244.length) e.push(...b7244);
+if (g7244 === "object") {
+if (g7244 === 'object') { const o7244 = x7244 as Record<string, unknown>;
+if (!("eventId" in o7244)) e.push(p + "/eventId" + ': required');
+if (!("subscriptionId" in o7244)) e.push(p + "/subscriptionId" + ': required');
+if (!("status" in o7244)) e.push(p + "/status" + ': required');
+if ("eventId" in o7244) lf(o7244["eventId"], p + "/eventId", e, L1);
+if ("customerId" in o7244) lf(o7244["customerId"], p + "/customerId", e, L1);
+if ("recordId" in o7244) lf(o7244["recordId"], p + "/recordId", e, L28);
+if ("siteId" in o7244) lf(o7244["siteId"], p + "/siteId", e, L46);
+if ("subscriptionId" in o7244) lf(o7244["subscriptionId"], p + "/subscriptionId", e, L1);
+if ("status" in o7244) lf(o7244["status"], p + "/status", e, L1);
 }
 }
 }
@@ -965,10 +965,10 @@ export const eventValidators: Record<string, Check> = {
   "payment.failed": d_s_0c4c35954e,
   "payment.succeeded": d_s_0c4c35954e,
   "refund.created": d_s_0c4c35954e,
-  "stripe.event_received": e628_payload,
-  "subscription.canceled": e629_payload,
-  "subscription.created": e630_payload,
-  "subscription.updated": e631_payload,
+  "stripe.event_received": e629_payload,
+  "subscription.canceled": e630_payload,
+  "subscription.created": e631_payload,
+  "subscription.updated": e632_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

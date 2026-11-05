@@ -9,6 +9,7 @@ import { syncPolicy } from "./projections.ts";
 import type { GateCtx } from "./projections.ts";
 
 export { handlers, recover, rejectAllOf, sweep };
+import { syncApprover } from "./handlers/approve.ts";
 export { ACTS, effectiveRule, summaryLine } from "./projections.ts";
 
 /** Once, on update: holds raised for a placeholder call (example.com, "test", __probe_none__) are dropped and their tasks leave Needs you. */
@@ -24,6 +25,14 @@ export const consumers = {
   "gate.settings_sync": {
     on: ["settings.changed"],
     async run(ctx: GateCtx, event: { payload: Record<string, unknown> }): Promise<string[]> { return syncPolicy(ctx.db, event.payload) ? [String(event.payload["key"])] : []; },
+  },
+  /**
+   * The Gate is the one source of truth for who decides a hold. When its task is assigned, delegated or escalated to someone else, the hold's approver follows, and the move is on the log: who moved it, from whom,
+   * to whom (gate.approver_moved). gate.release then asks the releaser to be the current approver. A person-only act is never moved (the task layer refuses it).
+   */
+  "gate.approver_sync": {
+    on: ["task.assigned", "task.delegated", "task.escalated"],
+    async run(ctx: GateCtx, event: { name: string; payload: Record<string, unknown> }): Promise<string[]> { return syncApprover(ctx, event); },
   },
   /** An agent was deleted: what it had held at the Gate is dropped, so nobody can approve an act of an agent that is gone (hole 10). */
   "gate.agent_deleted": {

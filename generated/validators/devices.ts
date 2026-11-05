@@ -630,37 +630,37 @@ if ("reason" in o6836) lf(o6836["reason"], p + "/reason", e, L636);
 }
 }
 
-function e562_payload(v: unknown, p: string, e: string[]): void {
+function e563_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7176 = v;
-const g7176 = typeOf(x7176);
-const b7176: string[] = []; lf(x7176, p, b7176, L0); if (b7176.length) e.push(...b7176);
-if (g7176 === "object") {
-if (g7176 === 'object') { const o7176 = x7176 as Record<string, unknown>;
-if (!("sessionId" in o7176)) e.push(p + "/sessionId" + ': required');
-if (!("person" in o7176)) e.push(p + "/person" + ': required');
-if (!("by" in o7176)) e.push(p + "/by" + ': required');
-if ("sessionId" in o7176) lf(o7176["sessionId"], p + "/sessionId", e, L420);
-if ("person" in o7176) lf(o7176["person"], p + "/person", e, L16);
-if ("by" in o7176) lf(o7176["by"], p + "/by", e, L1);
+const x7179 = v;
+const g7179 = typeOf(x7179);
+const b7179: string[] = []; lf(x7179, p, b7179, L0); if (b7179.length) e.push(...b7179);
+if (g7179 === "object") {
+if (g7179 === 'object') { const o7179 = x7179 as Record<string, unknown>;
+if (!("sessionId" in o7179)) e.push(p + "/sessionId" + ': required');
+if (!("person" in o7179)) e.push(p + "/person" + ': required');
+if (!("by" in o7179)) e.push(p + "/by" + ': required');
+if ("sessionId" in o7179) lf(o7179["sessionId"], p + "/sessionId", e, L420);
+if ("person" in o7179) lf(o7179["person"], p + "/person", e, L16);
+if ("by" in o7179) lf(o7179["by"], p + "/by", e, L1);
 }
 }
 }
 }
 
-function e563_payload(v: unknown, p: string, e: string[]): void {
+function e564_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7177 = v;
-const g7177 = typeOf(x7177);
-const b7177: string[] = []; lf(x7177, p, b7177, L0); if (b7177.length) e.push(...b7177);
-if (g7177 === "object") {
-if (g7177 === 'object') { const o7177 = x7177 as Record<string, unknown>;
-if (!("sessionId" in o7177)) e.push(p + "/sessionId" + ': required');
-if (!("person" in o7177)) e.push(p + "/person" + ': required');
-if (!("deviceId" in o7177)) e.push(p + "/deviceId" + ': required');
-if ("sessionId" in o7177) lf(o7177["sessionId"], p + "/sessionId", e, L420);
-if ("person" in o7177) lf(o7177["person"], p + "/person", e, L16);
-if ("deviceId" in o7177) lf(o7177["deviceId"], p + "/deviceId", e, L306);
+const x7180 = v;
+const g7180 = typeOf(x7180);
+const b7180: string[] = []; lf(x7180, p, b7180, L0); if (b7180.length) e.push(...b7180);
+if (g7180 === "object") {
+if (g7180 === 'object') { const o7180 = x7180 as Record<string, unknown>;
+if (!("sessionId" in o7180)) e.push(p + "/sessionId" + ': required');
+if (!("person" in o7180)) e.push(p + "/person" + ': required');
+if (!("deviceId" in o7180)) e.push(p + "/deviceId" + ': required');
+if ("sessionId" in o7180) lf(o7180["sessionId"], p + "/sessionId", e, L420);
+if ("person" in o7180) lf(o7180["person"], p + "/person", e, L16);
+if ("deviceId" in o7180) lf(o7180["deviceId"], p + "/deviceId", e, L306);
 }
 }
 }
@@ -689,8 +689,8 @@ export const eventValidators: Record<string, Check> = {
   "device.registered": e169_payload,
   "device.revoked": e170_payload,
   "epoch.bumped": e190_payload,
-  "session.revoked": e562_payload,
-  "session.started": e563_payload,
+  "session.revoked": e563_payload,
+  "session.started": e564_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

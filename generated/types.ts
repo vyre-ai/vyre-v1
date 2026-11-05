@@ -47926,6 +47926,21 @@ export type GateApprovedPayload = {
   agentId?: string;
   actingFor?: string;
 };
+export type GateApproverMovedPayload = {
+  holdId: string;
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
+  taskId: string;
+  from?: {
+    kind: string;
+    id: string;
+  };
+  to: {
+    kind: string;
+    id: string;
+  };
+  by?: string;
+  how: "assigned" | "delegated" | "escalated";
+};
 export type GateDeniedPayload = {
   holdId: string;
   act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
@@ -51120,6 +51135,7 @@ export interface EventMap {
   "form.published": FormPublishedPayload;
   "form.submitted": FormSubmittedPayload;
   "gate.approved": GateApprovedPayload;
+  "gate.approver_moved": GateApproverMovedPayload;
   "gate.denied": GateDeniedPayload;
   "gate.expired": GateExpiredPayload;
   "gate.requested": GateRequestedPayload;

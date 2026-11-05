@@ -19,7 +19,7 @@ Re-invoke the parked capability with an approval token bound to the payload hash
 | HTTP | POST /v1/gate/release |
 | MCP tool | none |
 | CLI | none |
-| Emits | gate.approved |
+| Emits | gate.approved, gate.approver_moved |
 
 ## Input
 

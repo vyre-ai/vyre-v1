@@ -707,55 +707,7 @@ if ("appSid" in o6491) lf(o6491["appSid"], p + "/appSid", e, L1);
 }
 }
 
-function e715_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7313 = v;
-const g7313 = typeOf(x7313);
-const b7313: string[] = []; lf(x7313, p, b7313, L0); if (b7313.length) e.push(...b7313);
-if (g7313 === "object") {
-if (g7313 === 'object') { const o7313 = x7313 as Record<string, unknown>;
-if (!("dedupeKey" in o7313)) e.push(p + "/dedupeKey" + ': required');
-if (!("sid" in o7313)) e.push(p + "/sid" + ': required');
-if ("dedupeKey" in o7313) lf(o7313["dedupeKey"], p + "/dedupeKey", e, L1);
-if ("sid" in o7313) lf(o7313["sid"], p + "/sid", e, L1);
-}
-}
-}
-}
-
 function e716_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7314 = v;
-const g7314 = typeOf(x7314);
-const b7314: string[] = []; lf(x7314, p, b7314, L0); if (b7314.length) e.push(...b7314);
-if (g7314 === "object") {
-if (g7314 === 'object') { const o7314 = x7314 as Record<string, unknown>;
-if (!("dedupeKey" in o7314)) e.push(p + "/dedupeKey" + ': required');
-if (!("sid" in o7314)) e.push(p + "/sid" + ': required');
-if ("dedupeKey" in o7314) lf(o7314["dedupeKey"], p + "/dedupeKey", e, L1);
-if ("sid" in o7314) lf(o7314["sid"], p + "/sid", e, L1);
-}
-}
-}
-}
-
-function e717_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7315 = v;
-const g7315 = typeOf(x7315);
-const b7315: string[] = []; lf(x7315, p, b7315, L0); if (b7315.length) e.push(...b7315);
-if (g7315 === "object") {
-if (g7315 === 'object') { const o7315 = x7315 as Record<string, unknown>;
-if (!("dedupeKey" in o7315)) e.push(p + "/dedupeKey" + ': required');
-if (!("sid" in o7315)) e.push(p + "/sid" + ': required');
-if ("dedupeKey" in o7315) lf(o7315["dedupeKey"], p + "/dedupeKey", e, L1);
-if ("sid" in o7315) lf(o7315["sid"], p + "/sid", e, L1);
-}
-}
-}
-}
-
-function e718_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7316 = v;
 const g7316 = typeOf(x7316);
@@ -766,6 +718,54 @@ if (!("dedupeKey" in o7316)) e.push(p + "/dedupeKey" + ': required');
 if (!("sid" in o7316)) e.push(p + "/sid" + ': required');
 if ("dedupeKey" in o7316) lf(o7316["dedupeKey"], p + "/dedupeKey", e, L1);
 if ("sid" in o7316) lf(o7316["sid"], p + "/sid", e, L1);
+}
+}
+}
+}
+
+function e717_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7317 = v;
+const g7317 = typeOf(x7317);
+const b7317: string[] = []; lf(x7317, p, b7317, L0); if (b7317.length) e.push(...b7317);
+if (g7317 === "object") {
+if (g7317 === 'object') { const o7317 = x7317 as Record<string, unknown>;
+if (!("dedupeKey" in o7317)) e.push(p + "/dedupeKey" + ': required');
+if (!("sid" in o7317)) e.push(p + "/sid" + ': required');
+if ("dedupeKey" in o7317) lf(o7317["dedupeKey"], p + "/dedupeKey", e, L1);
+if ("sid" in o7317) lf(o7317["sid"], p + "/sid", e, L1);
+}
+}
+}
+}
+
+function e718_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7318 = v;
+const g7318 = typeOf(x7318);
+const b7318: string[] = []; lf(x7318, p, b7318, L0); if (b7318.length) e.push(...b7318);
+if (g7318 === "object") {
+if (g7318 === 'object') { const o7318 = x7318 as Record<string, unknown>;
+if (!("dedupeKey" in o7318)) e.push(p + "/dedupeKey" + ': required');
+if (!("sid" in o7318)) e.push(p + "/sid" + ': required');
+if ("dedupeKey" in o7318) lf(o7318["dedupeKey"], p + "/dedupeKey", e, L1);
+if ("sid" in o7318) lf(o7318["sid"], p + "/sid", e, L1);
+}
+}
+}
+}
+
+function e719_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7319 = v;
+const g7319 = typeOf(x7319);
+const b7319: string[] = []; lf(x7319, p, b7319, L0); if (b7319.length) e.push(...b7319);
+if (g7319 === "object") {
+if (g7319 === 'object') { const o7319 = x7319 as Record<string, unknown>;
+if (!("dedupeKey" in o7319)) e.push(p + "/dedupeKey" + ': required');
+if (!("sid" in o7319)) e.push(p + "/sid" + ': required');
+if ("dedupeKey" in o7319) lf(o7319["dedupeKey"], p + "/dedupeKey", e, L1);
+if ("sid" in o7319) lf(o7319["sid"], p + "/sid", e, L1);
 }
 }
 }
@@ -796,10 +796,10 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "twilio.recording_received": e715_payload,
-  "twilio.sms_received": e716_payload,
-  "twilio.status_received": e717_payload,
-  "twilio.voice_received": e718_payload,
+  "twilio.recording_received": e716_payload,
+  "twilio.sms_received": e717_payload,
+  "twilio.status_received": e718_payload,
+  "twilio.voice_received": e719_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

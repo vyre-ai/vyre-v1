@@ -59,6 +59,47 @@ const emitGate = (ctx: GateCtx, name: string, h: Hold, extra: Record<string, unk
   ctx.emit(name, `task/${h.taskId}`, clean, { vis: "participants" });
 };
 
+// ---- who decides ----
+
+const asAssignee = (v: unknown): Assignee | null => (v && typeof v === "object" && typeof (v as Assignee).id === "string" && typeof (v as Assignee).kind === "string" ? { kind: (v as Assignee).kind, id: (v as Assignee).id } : null);
+
+/** A task slot moved: the hold follows it, and the move is written down. Only a hold still waiting, and never a person-only one. */
+export async function syncApprover(ctx: GateCtx, event: { name: string; payload: Record<string, unknown> }): Promise<string[]> {
+  const p = event.payload, taskId = typeof p["taskId"] === "string" ? p["taskId"] : "";
+  if (!taskId) return [];
+  const how = event.name === "task.assigned" ? "assigned" : event.name === "task.delegated" ? "delegated" : "escalated";
+  if (how === "assigned" && p["slot"] !== "approver") return [];
+  const to = asAssignee(how === "delegated" ? p["passedTo"] : p["to"]);
+  if (!to) return [];
+  const h = holdsWhere(ctx.db, "task_id = ? AND state = 'held'", taskId)[0];
+  if (!h || actOf(h.act).personOnly || (h.approver.kind === to.kind && h.approver.id === to.id)) return [];
+  const from = h.approver;
+  h.approver = to;
+  saveHold(ctx.db, h);
+  const by = typeof p["by"] === "string" ? p["by"] : typeof p["from"] === "string" ? p["from"] : undefined;
+  ctx.emit("gate.approver_moved", `task/${taskId}`, { holdId: h.id, act: h.act, taskId, from, to, ...(by ? { by } : {}), how }, { vis: "participants" });
+  return [h.id];
+}
+
+/**
+ * May this releaser decide the hold? The one it waits on now (a person, or a member of its role or group, read from their own roles); or someone the Space's own grants let act on its task (the owner approves a
+ * member's agent's send: that is how the product works and tests hold it); or, where the Space names agents for a low-risk act, an agent. Moving the task's slot changes who it waits on (gate.approver_moved),
+ * so an approval handed on by anyone is followed by the hold. A person-only act never reaches here: it is judged before, by identity alone.
+ */
+async function decides(ctx: GateCtx, h: Hold, claims: Claims): Promise<boolean> {
+  const a = h.approver;
+  if (ctx.principal.kind === "agent" && !h.rule.peopleOnly) return true;
+  if ((a.kind === "person" || a.kind === "agent" || a.kind === "automation") && (ctx.principal.id === a.id || claims.forPerson === a.id)) return true;
+  if ((a.kind === "role" || a.kind === "group") && ctx.call) {
+    try {
+      const me = (await ctx.call("identity.whoami", {})) as { roles?: unknown; groups?: unknown } | null;
+      const have = a.kind === "role" ? me?.roles : me?.groups;
+      if (Array.isArray(have) && have.includes(a.id)) return true;
+    } catch { /* falls to the grants */ }
+  }
+  return !!ctx.authorize && !!h.taskId && ctx.authorize({ perm: null, level: "use" }, { type: "task", id: h.taskId }).effect === "allow";
+}
+
 // ---- gate.release ----
 
 export async function release(ctx: GateCtx, input: In): Promise<unknown> {
@@ -88,6 +129,8 @@ export async function release(ctx: GateCtx, input: In): Promise<unknown> {
   if (!h.askedBy && h.principal.kind === "person" && h.principal.id === claims.by && h.rule.approvers !== "asker" && !h.step) {
     raise(ctx, "validation.precondition_failed", "Someone else has to approve what you asked for.", { reason: "self_approval" });
   }
+  // the Gate is the one source of truth for who decides: whatever a task slot says, the releaser is the hold's current approver, or in its role (the slot moves it through gate.approver_moved)
+  if (!(await decides(ctx, h, claims))) raise(ctx, "validation.precondition_failed", "This is waiting on someone else.", { reason: "not_the_approver" });
   if ((await sha(h.input)) !== h.inputHash) raise(ctx, "internal.unexpected", "The held act changed after it was parked.", { reason: "tampered" });
   if (!ctx.call) raise(ctx, "internal.unavailable", "Approvals are not available right now.", { service: "call" });
 

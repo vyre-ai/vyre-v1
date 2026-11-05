@@ -1166,59 +1166,59 @@ if ("seq" in o6826) lf(o6826["seq"], p + "/seq", e, L2);
 }
 }
 
-function e638_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7246 = v;
-const g7246 = typeOf(x7246);
-const b7246: string[] = []; lf(x7246, p, b7246, L0); if (b7246.length) e.push(...b7246);
-if (g7246 === "object") {
-if (g7246 === 'object') { const o7246 = x7246 as Record<string, unknown>;
-if (!("personId" in o7246)) e.push(p + "/personId" + ': required');
-if (!("epoch" in o7246)) e.push(p + "/epoch" + ': required');
-if (!("reason" in o7246)) e.push(p + "/reason" + ': required');
-if ("personId" in o7246) lf(o7246["personId"], p + "/personId", e, L16);
-if ("epoch" in o7246) lf(o7246["epoch"], p + "/epoch", e, L2);
-if ("reason" in o7246) lf(o7246["reason"], p + "/reason", e, L1);
-if ("deviceId" in o7246) lf(o7246["deviceId"], p + "/deviceId", e, L306);
-}
-}
-}
-}
-
 function e639_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7247 = v;
-const g7247 = typeOf(x7247);
-const b7247: string[] = []; lf(x7247, p, b7247, L0); if (b7247.length) e.push(...b7247);
-if (g7247 === "object") {
-if (g7247 === 'object') { const o7247 = x7247 as Record<string, unknown>;
-if (!("opId" in o7247)) e.push(p + "/opId" + ': required');
-if (!("personId" in o7247)) e.push(p + "/personId" + ': required');
-if (!("deviceId" in o7247)) e.push(p + "/deviceId" + ': required');
-if (!("cap" in o7247)) e.push(p + "/cap" + ': required');
-if (!("code" in o7247)) e.push(p + "/code" + ': required');
-if ("opId" in o7247) lf(o7247["opId"], p + "/opId", e, L1);
-if ("personId" in o7247) lf(o7247["personId"], p + "/personId", e, L16);
-if ("deviceId" in o7247) lf(o7247["deviceId"], p + "/deviceId", e, L306);
-if ("cap" in o7247) lf(o7247["cap"], p + "/cap", e, L1);
-if ("code" in o7247) lf(o7247["code"], p + "/code", e, L1);
+const x7249 = v;
+const g7249 = typeOf(x7249);
+const b7249: string[] = []; lf(x7249, p, b7249, L0); if (b7249.length) e.push(...b7249);
+if (g7249 === "object") {
+if (g7249 === 'object') { const o7249 = x7249 as Record<string, unknown>;
+if (!("personId" in o7249)) e.push(p + "/personId" + ': required');
+if (!("epoch" in o7249)) e.push(p + "/epoch" + ': required');
+if (!("reason" in o7249)) e.push(p + "/reason" + ': required');
+if ("personId" in o7249) lf(o7249["personId"], p + "/personId", e, L16);
+if ("epoch" in o7249) lf(o7249["epoch"], p + "/epoch", e, L2);
+if ("reason" in o7249) lf(o7249["reason"], p + "/reason", e, L1);
+if ("deviceId" in o7249) lf(o7249["deviceId"], p + "/deviceId", e, L306);
 }
 }
 }
 }
 
-function e644_payload(v: unknown, p: string, e: string[]): void {
+function e640_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7250 = v;
 const g7250 = typeOf(x7250);
 const b7250: string[] = []; lf(x7250, p, b7250, L0); if (b7250.length) e.push(...b7250);
 if (g7250 === "object") {
 if (g7250 === 'object') { const o7250 = x7250 as Record<string, unknown>;
-if (!("entity" in o7250)) e.push(p + "/entity" + ': required');
-if (!("rows" in o7250)) e.push(p + "/rows" + ': required');
-if ("entity" in o7250) lf(o7250["entity"], p + "/entity", e, L1);
+if (!("opId" in o7250)) e.push(p + "/opId" + ': required');
+if (!("personId" in o7250)) e.push(p + "/personId" + ': required');
+if (!("deviceId" in o7250)) e.push(p + "/deviceId" + ': required');
+if (!("cap" in o7250)) e.push(p + "/cap" + ': required');
+if (!("code" in o7250)) e.push(p + "/code" + ': required');
+if ("opId" in o7250) lf(o7250["opId"], p + "/opId", e, L1);
 if ("personId" in o7250) lf(o7250["personId"], p + "/personId", e, L16);
-if ("rows" in o7250) lf(o7250["rows"], p + "/rows", e, L2);
+if ("deviceId" in o7250) lf(o7250["deviceId"], p + "/deviceId", e, L306);
+if ("cap" in o7250) lf(o7250["cap"], p + "/cap", e, L1);
+if ("code" in o7250) lf(o7250["code"], p + "/code", e, L1);
+}
+}
+}
+}
+
+function e645_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7253 = v;
+const g7253 = typeOf(x7253);
+const b7253: string[] = []; lf(x7253, p, b7253, L0); if (b7253.length) e.push(...b7253);
+if (g7253 === "object") {
+if (g7253 === 'object') { const o7253 = x7253 as Record<string, unknown>;
+if (!("entity" in o7253)) e.push(p + "/entity" + ': required');
+if (!("rows" in o7253)) e.push(p + "/rows" + ': required');
+if ("entity" in o7253) lf(o7253["entity"], p + "/entity", e, L1);
+if ("personId" in o7253) lf(o7253["personId"], p + "/personId", e, L16);
+if ("rows" in o7253) lf(o7253["rows"], p + "/rows", e, L2);
 }
 }
 }
@@ -1247,9 +1247,9 @@ export const eventValidators: Record<string, Check> = {
   "conflict.opened": e134_payload,
   "doc.compacted": e174_payload,
   "doc.updated": e175_payload,
-  "sync.epoch_bumped": e638_payload,
-  "sync.op_rejected": e639_payload,
-  "sync.scope_changed": e644_payload,
+  "sync.epoch_bumped": e639_payload,
+  "sync.op_rejected": e640_payload,
+  "sync.scope_changed": e645_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

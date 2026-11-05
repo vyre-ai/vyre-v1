@@ -18,7 +18,7 @@
     "gate.holds.revise@1": "d47f1819ccdcd49a03673d52c1aa26fcba6bfa302a89e47f5664d62e55d20a8e",
     "gate.links.known@1": "bc42884b6a6dc7cc1892fe6593bb5b4c36c410be8209cc72d578a85ce0a69b0c",
     "gate.park@1": "087b670aeb988a75749ca8b5e420b2eed5384ed321d18b0e34dc6ff09ab00372",
-    "gate.release@1": "2c929a04c862141d1e413753f1386ce4bd932a2fe4d7983236aed29b4190ba78",
+    "gate.release@1": "d932772137d2a3b02156f234678e88172707b8a89079778689be2fc1da846dc3",
     "gate.result.take@1": "98320d242c8523bf42a2b4551d113b567505fce84a27563631158d7518295eff",
     "gate.rules.list@1": "0a15a7a029bd91dec6575e00fb5ee9c2a5e2e48858c0e15cb99068e69ce0d314",
     "gate.rules.set@1": "a48a3a532edba9d8b236a56040acd4e7cf1813d0df78d0bbc8de049da11024f4",
@@ -26,6 +26,7 @@
   },
   "events": {
     "gate.approved": "6f277f2c699b7009076fda9dc98696ac8cf61664c2318926cafc5d9a988cc8f9",
+    "gate.approver_moved": "90fd68358d1ef0a4158c4da79faa6dd4e2be4f2ba89b7c0effca2b52bd7b4e31",
     "gate.denied": "376a852a45590c7b2efd7fe39d3aed3039165738b7326e883aec99ac4dd0cb3c",
     "gate.expired": "d1f886458858333d61b9995077c1ffca7aa633313434c497ad83c36f61401c26",
     "gate.requested": "40e2b129d3d858f335f7d361a61a3bd493dc42703c0fed7361d30462264261fa",

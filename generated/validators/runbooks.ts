@@ -395,45 +395,23 @@ if ("online" in o5442) lf(o5442["online"], p + "/targets" + '/' + i5441 + "/onli
 }
 }
 
-function e541_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7154 = v;
-const g7154 = typeOf(x7154);
-const b7154: string[] = []; lf(x7154, p, b7154, L0); if (b7154.length) e.push(...b7154);
-if (g7154 === "object") {
-if (g7154 === 'object') { const o7154 = x7154 as Record<string, unknown>;
-if (!("runId" in o7154)) e.push(p + "/runId" + ': required');
-if (!("fileId" in o7154)) e.push(p + "/fileId" + ': required');
-if (!("blockId" in o7154)) e.push(p + "/blockId" + ': required');
-if (!("exit" in o7154)) e.push(p + "/exit" + ': required');
-if (!("ms" in o7154)) e.push(p + "/ms" + ': required');
-if ("runId" in o7154) lf(o7154["runId"], p + "/runId", e, L30);
-if ("fileId" in o7154) lf(o7154["fileId"], p + "/fileId", e, L43);
-if ("blockId" in o7154) lf(o7154["blockId"], p + "/blockId", e, L1);
-if ("exit" in o7154) lf(o7154["exit"], p + "/exit", e, L2);
-if ("ms" in o7154) lf(o7154["ms"], p + "/ms", e, L2);
-}
-}
-}
-}
-
 function e542_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7155 = v;
-const g7155 = typeOf(x7155);
-const b7155: string[] = []; lf(x7155, p, b7155, L0); if (b7155.length) e.push(...b7155);
-if (g7155 === "object") {
-if (g7155 === 'object') { const o7155 = x7155 as Record<string, unknown>;
-if (!("runId" in o7155)) e.push(p + "/runId" + ': required');
-if (!("fileId" in o7155)) e.push(p + "/fileId" + ': required');
-if (!("state" in o7155)) e.push(p + "/state" + ': required');
-if (!("ms" in o7155)) e.push(p + "/ms" + ': required');
-if ("runId" in o7155) lf(o7155["runId"], p + "/runId", e, L30);
-if ("fileId" in o7155) lf(o7155["fileId"], p + "/fileId", e, L43);
-if ("state" in o7155) lf(o7155["state"], p + "/state", e, L276);
-if ("exit" in o7155) lf(o7155["exit"], p + "/exit", e, L2);
-if ("ms" in o7155) lf(o7155["ms"], p + "/ms", e, L2);
-if ("failedBlock" in o7155) lf(o7155["failedBlock"], p + "/failedBlock", e, L1);
+const x7157 = v;
+const g7157 = typeOf(x7157);
+const b7157: string[] = []; lf(x7157, p, b7157, L0); if (b7157.length) e.push(...b7157);
+if (g7157 === "object") {
+if (g7157 === 'object') { const o7157 = x7157 as Record<string, unknown>;
+if (!("runId" in o7157)) e.push(p + "/runId" + ': required');
+if (!("fileId" in o7157)) e.push(p + "/fileId" + ': required');
+if (!("blockId" in o7157)) e.push(p + "/blockId" + ': required');
+if (!("exit" in o7157)) e.push(p + "/exit" + ': required');
+if (!("ms" in o7157)) e.push(p + "/ms" + ': required');
+if ("runId" in o7157) lf(o7157["runId"], p + "/runId", e, L30);
+if ("fileId" in o7157) lf(o7157["fileId"], p + "/fileId", e, L43);
+if ("blockId" in o7157) lf(o7157["blockId"], p + "/blockId", e, L1);
+if ("exit" in o7157) lf(o7157["exit"], p + "/exit", e, L2);
+if ("ms" in o7157) lf(o7157["ms"], p + "/ms", e, L2);
 }
 }
 }
@@ -441,23 +419,45 @@ if ("failedBlock" in o7155) lf(o7155["failedBlock"], p + "/failedBlock", e, L1);
 
 function e543_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7156 = v;
-const g7156 = typeOf(x7156);
-const b7156: string[] = []; lf(x7156, p, b7156, L0); if (b7156.length) e.push(...b7156);
-if (g7156 === "object") {
-if (g7156 === 'object') { const o7156 = x7156 as Record<string, unknown>;
-if (!("runId" in o7156)) e.push(p + "/runId" + ': required');
-if (!("fileId" in o7156)) e.push(p + "/fileId" + ': required');
-if (!("target" in o7156)) e.push(p + "/target" + ': required');
-if (!("blocks" in o7156)) e.push(p + "/blocks" + ': required');
-if (!("all" in o7156)) e.push(p + "/all" + ': required');
-if (!("by" in o7156)) e.push(p + "/by" + ': required');
-if ("runId" in o7156) lf(o7156["runId"], p + "/runId", e, L30);
-if ("fileId" in o7156) lf(o7156["fileId"], p + "/fileId", e, L43);
-if ("target" in o7156) d_s_2f2c8c4c69(o7156["target"], p + "/target", e);
-if ("blocks" in o7156) lf(o7156["blocks"], p + "/blocks", e, L2);
-if ("all" in o7156) lf(o7156["all"], p + "/all", e, L3);
-if ("by" in o7156) lf(o7156["by"], p + "/by", e, L1);
+const x7158 = v;
+const g7158 = typeOf(x7158);
+const b7158: string[] = []; lf(x7158, p, b7158, L0); if (b7158.length) e.push(...b7158);
+if (g7158 === "object") {
+if (g7158 === 'object') { const o7158 = x7158 as Record<string, unknown>;
+if (!("runId" in o7158)) e.push(p + "/runId" + ': required');
+if (!("fileId" in o7158)) e.push(p + "/fileId" + ': required');
+if (!("state" in o7158)) e.push(p + "/state" + ': required');
+if (!("ms" in o7158)) e.push(p + "/ms" + ': required');
+if ("runId" in o7158) lf(o7158["runId"], p + "/runId", e, L30);
+if ("fileId" in o7158) lf(o7158["fileId"], p + "/fileId", e, L43);
+if ("state" in o7158) lf(o7158["state"], p + "/state", e, L276);
+if ("exit" in o7158) lf(o7158["exit"], p + "/exit", e, L2);
+if ("ms" in o7158) lf(o7158["ms"], p + "/ms", e, L2);
+if ("failedBlock" in o7158) lf(o7158["failedBlock"], p + "/failedBlock", e, L1);
+}
+}
+}
+}
+
+function e544_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7159 = v;
+const g7159 = typeOf(x7159);
+const b7159: string[] = []; lf(x7159, p, b7159, L0); if (b7159.length) e.push(...b7159);
+if (g7159 === "object") {
+if (g7159 === 'object') { const o7159 = x7159 as Record<string, unknown>;
+if (!("runId" in o7159)) e.push(p + "/runId" + ': required');
+if (!("fileId" in o7159)) e.push(p + "/fileId" + ': required');
+if (!("target" in o7159)) e.push(p + "/target" + ': required');
+if (!("blocks" in o7159)) e.push(p + "/blocks" + ': required');
+if (!("all" in o7159)) e.push(p + "/all" + ': required');
+if (!("by" in o7159)) e.push(p + "/by" + ': required');
+if ("runId" in o7159) lf(o7159["runId"], p + "/runId", e, L30);
+if ("fileId" in o7159) lf(o7159["fileId"], p + "/fileId", e, L43);
+if ("target" in o7159) d_s_2f2c8c4c69(o7159["target"], p + "/target", e);
+if ("blocks" in o7159) lf(o7159["blocks"], p + "/blocks", e, L2);
+if ("all" in o7159) lf(o7159["all"], p + "/all", e, L3);
+if ("by" in o7159) lf(o7159["by"], p + "/by", e, L1);
 }
 }
 }
@@ -474,9 +474,9 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "runbook.block_finished": e541_payload,
-  "runbook.run_finished": e542_payload,
-  "runbook.run_started": e543_payload,
+  "runbook.block_finished": e542_payload,
+  "runbook.run_finished": e543_payload,
+  "runbook.run_started": e544_payload,
   "runbook.target_set": d_s_83ded911cc,
 };
 

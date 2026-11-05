@@ -474,18 +474,18 @@ if ("hit" in o5611) d_s_ba6adca8f3(o5611["hit"], p + "/hit", e);
 }
 }
 
-function e557_payload(v: unknown, p: string, e: string[]): void {
+function e558_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7171 = v;
-const g7171 = typeOf(x7171);
-const b7171: string[] = []; lf(x7171, p, b7171, L0); if (b7171.length) e.push(...b7171);
-if (g7171 === "object") {
-if (g7171 === 'object') { const o7171 = x7171 as Record<string, unknown>;
-if (!("documents" in o7171)) e.push(p + "/documents" + ': required');
-if (!("runId" in o7171)) e.push(p + "/runId" + ': required');
-if ("entity" in o7171) lf(o7171["entity"], p + "/entity", e, L1);
-if ("documents" in o7171) lf(o7171["documents"], p + "/documents", e, L2);
-if ("runId" in o7171) lf(o7171["runId"], p + "/runId", e, L30);
+const x7174 = v;
+const g7174 = typeOf(x7174);
+const b7174: string[] = []; lf(x7174, p, b7174, L0); if (b7174.length) e.push(...b7174);
+if (g7174 === "object") {
+if (g7174 === 'object') { const o7174 = x7174 as Record<string, unknown>;
+if (!("documents" in o7174)) e.push(p + "/documents" + ': required');
+if (!("runId" in o7174)) e.push(p + "/runId" + ': required');
+if ("entity" in o7174) lf(o7174["entity"], p + "/entity", e, L1);
+if ("documents" in o7174) lf(o7174["documents"], p + "/documents", e, L2);
+if ("runId" in o7174) lf(o7174["runId"], p + "/runId", e, L30);
 }
 }
 }
@@ -507,7 +507,7 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "search.reindexed": e557_payload,
+  "search.reindexed": e558_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

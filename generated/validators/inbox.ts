@@ -1250,17 +1250,17 @@ if ("recordId" in o6816) lf(o6816["recordId"], p + "/recordId", e, L28);
 }
 }
 
-function e296_payload(v: unknown, p: string, e: string[]): void {
+function e297_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6935 = v;
-const g6935 = typeOf(x6935);
-const b6935: string[] = []; lf(x6935, p, b6935, L0); if (b6935.length) e.push(...b6935);
-if (g6935 === "object") {
-if (g6935 === 'object') { const o6935 = x6935 as Record<string, unknown>;
-if (!("refId" in o6935)) e.push(p + "/refId" + ': required');
-if (!("removed" in o6935)) e.push(p + "/removed" + ': required');
-if ("refId" in o6935) lf(o6935["refId"], p + "/refId", e, L1);
-if ("removed" in o6935) lf(o6935["removed"], p + "/removed", e, L17);
+const x6938 = v;
+const g6938 = typeOf(x6938);
+const b6938: string[] = []; lf(x6938, p, b6938, L0); if (b6938.length) e.push(...b6938);
+if (g6938 === "object") {
+if (g6938 === 'object') { const o6938 = x6938 as Record<string, unknown>;
+if (!("refId" in o6938)) e.push(p + "/refId" + ': required');
+if (!("removed" in o6938)) e.push(p + "/removed" + ': required');
+if ("refId" in o6938) lf(o6938["refId"], p + "/refId", e, L1);
+if ("removed" in o6938) lf(o6938["removed"], p + "/removed", e, L17);
 }
 }
 }
@@ -1297,7 +1297,7 @@ export const eventValidators: Record<string, Check> = {
   "conversation.needs_match": e162_payload,
   "conversation.reply_received": e163_payload,
   "conversation.unmatched": e164_payload,
-  "inbox.item_erased": e296_payload,
+  "inbox.item_erased": e297_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

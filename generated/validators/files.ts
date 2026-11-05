@@ -4240,35 +4240,35 @@ lf(a6870[i6870], p + "/fields" + '/' + i6870, e, L1);
 }
 }
 
-function e577_payload(v: unknown, p: string, e: string[]): void {
+function e578_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7187 = v;
-const g7187 = typeOf(x7187);
-const b7187: string[] = []; lf(x7187, p, b7187, L0); if (b7187.length) e.push(...b7187);
-if (g7187 === "object") {
-if (g7187 === 'object') { const o7187 = x7187 as Record<string, unknown>;
-if (!("fileId" in o7187)) e.push(p + "/fileId" + ': required');
-if (!("sheet" in o7187)) e.push(p + "/sheet" + ': required');
-if (!("rowId" in o7187)) e.push(p + "/rowId" + ': required');
-if (!("columns" in o7187)) e.push(p + "/columns" + ': required');
-if ("fileId" in o7187) lf(o7187["fileId"], p + "/fileId", e, L43);
-if ("sheet" in o7187) lf(o7187["sheet"], p + "/sheet", e, L1);
-if ("rowId" in o7187) lf(o7187["rowId"], p + "/rowId", e, L1);
-if ("columns" in o7187) {
+const x7190 = v;
+const g7190 = typeOf(x7190);
+const b7190: string[] = []; lf(x7190, p, b7190, L0); if (b7190.length) e.push(...b7190);
+if (g7190 === "object") {
+if (g7190 === 'object') { const o7190 = x7190 as Record<string, unknown>;
+if (!("fileId" in o7190)) e.push(p + "/fileId" + ': required');
+if (!("sheet" in o7190)) e.push(p + "/sheet" + ': required');
+if (!("rowId" in o7190)) e.push(p + "/rowId" + ': required');
+if (!("columns" in o7190)) e.push(p + "/columns" + ': required');
+if ("fileId" in o7190) lf(o7190["fileId"], p + "/fileId", e, L43);
+if ("sheet" in o7190) lf(o7190["sheet"], p + "/sheet", e, L1);
+if ("rowId" in o7190) lf(o7190["rowId"], p + "/rowId", e, L1);
+if ("columns" in o7190) {
 {
-const x7188 = o7187["columns"];
-const g7188 = typeOf(x7188);
-const b7188: string[] = []; lf(x7188, p + "/columns", b7188, L4); if (b7188.length) e.push(...b7188);
-if (g7188 === "array") {
-if (g7188 === 'array') { const a7188 = x7188 as unknown[];
-for (let i7188 = 0; i7188 < a7188.length; i7188++) {
-lf(a7188[i7188], p + "/columns" + '/' + i7188, e, L1);
+const x7191 = o7190["columns"];
+const g7191 = typeOf(x7191);
+const b7191: string[] = []; lf(x7191, p + "/columns", b7191, L4); if (b7191.length) e.push(...b7191);
+if (g7191 === "array") {
+if (g7191 === 'array') { const a7191 = x7191 as unknown[];
+for (let i7191 = 0; i7191 < a7191.length; i7191++) {
+lf(a7191[i7191], p + "/columns" + '/' + i7191, e, L1);
 }
 }
 }
 }
 }
-if ("runId" in o7187) lf(o7187["runId"], p + "/runId", e, L30);
+if ("runId" in o7190) lf(o7190["runId"], p + "/runId", e, L30);
 }
 }
 }
@@ -4397,7 +4397,7 @@ export const eventValidators: Record<string, Check> = {
   "folder.settings_changed": e228_payload,
   "sheet.row_appended": d_s_d956989f44,
   "sheet.row_deleted": d_s_d956989f44,
-  "sheet.row_updated": e577_payload,
+  "sheet.row_updated": e578_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

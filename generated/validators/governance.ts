@@ -746,67 +746,67 @@ if ("overrodeHold" in o6838) lf(o6838["overrodeHold"], p + "/overrodeHold", e, L
 }
 }
 
-function e285_payload(v: unknown, p: string, e: string[]): void {
-{
-const x6925 = v;
-const g6925 = typeOf(x6925);
-const b6925: string[] = []; lf(x6925, p, b6925, L0); if (b6925.length) e.push(...b6925);
-if (g6925 === "object") {
-if (g6925 === 'object') { const o6925 = x6925 as Record<string, unknown>;
-if (!("target" in o6925)) e.push(p + "/target" + ': required');
-if (!("reason" in o6925)) e.push(p + "/reason" + ': required');
-if (!("by" in o6925)) e.push(p + "/by" + ': required');
-if ("target" in o6925) d_s_8000f960cb(o6925["target"], p + "/target", e);
-if ("reason" in o6925) lf(o6925["reason"], p + "/reason", e, L1);
-if ("by" in o6925) lf(o6925["by"], p + "/by", e, L1);
-}
-}
-}
-}
-
 function e286_payload(v: unknown, p: string, e: string[]): void {
 {
-const x6926 = v;
-const g6926 = typeOf(x6926);
-const b6926: string[] = []; lf(x6926, p, b6926, L0); if (b6926.length) e.push(...b6926);
-if (g6926 === "object") {
-if (g6926 === 'object') { const o6926 = x6926 as Record<string, unknown>;
-if (!("target" in o6926)) e.push(p + "/target" + ': required');
-if (!("by" in o6926)) e.push(p + "/by" + ': required');
-if ("target" in o6926) d_s_8000f960cb(o6926["target"], p + "/target", e);
-if ("by" in o6926) lf(o6926["by"], p + "/by", e, L1);
+const x6928 = v;
+const g6928 = typeOf(x6928);
+const b6928: string[] = []; lf(x6928, p, b6928, L0); if (b6928.length) e.push(...b6928);
+if (g6928 === "object") {
+if (g6928 === 'object') { const o6928 = x6928 as Record<string, unknown>;
+if (!("target" in o6928)) e.push(p + "/target" + ': required');
+if (!("reason" in o6928)) e.push(p + "/reason" + ': required');
+if (!("by" in o6928)) e.push(p + "/by" + ': required');
+if ("target" in o6928) d_s_8000f960cb(o6928["target"], p + "/target", e);
+if ("reason" in o6928) lf(o6928["reason"], p + "/reason", e, L1);
+if ("by" in o6928) lf(o6928["by"], p + "/by", e, L1);
 }
 }
 }
 }
 
-function e529_payload(v: unknown, p: string, e: string[]): void {
+function e287_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7144 = v;
-const g7144 = typeOf(x7144);
-const b7144: string[] = []; lf(x7144, p, b7144, L0); if (b7144.length) e.push(...b7144);
-if (g7144 === "object") {
-if (g7144 === 'object') { const o7144 = x7144 as Record<string, unknown>;
-if (!("kind" in o7144)) e.push(p + "/kind" + ': required');
-if (!("removed" in o7144)) e.push(p + "/removed" + ': required');
-if (!("skippedOnHold" in o7144)) e.push(p + "/skippedOnHold" + ': required');
-if ("kind" in o7144) lf(o7144["kind"], p + "/kind", e, L478);
-if ("removed" in o7144) lf(o7144["removed"], p + "/removed", e, L17);
-if ("skippedOnHold" in o7144) lf(o7144["skippedOnHold"], p + "/skippedOnHold", e, L17);
+const x6929 = v;
+const g6929 = typeOf(x6929);
+const b6929: string[] = []; lf(x6929, p, b6929, L0); if (b6929.length) e.push(...b6929);
+if (g6929 === "object") {
+if (g6929 === 'object') { const o6929 = x6929 as Record<string, unknown>;
+if (!("target" in o6929)) e.push(p + "/target" + ': required');
+if (!("by" in o6929)) e.push(p + "/by" + ': required');
+if ("target" in o6929) d_s_8000f960cb(o6929["target"], p + "/target", e);
+if ("by" in o6929) lf(o6929["by"], p + "/by", e, L1);
 }
 }
 }
 }
 
-function e703_payload(v: unknown, p: string, e: string[]): void {
+function e530_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7301 = v;
-const g7301 = typeOf(x7301);
-const b7301: string[] = []; lf(x7301, p, b7301, L0); if (b7301.length) e.push(...b7301);
-if (g7301 === "object") {
-if (g7301 === 'object') { const o7301 = x7301 as Record<string, unknown>;
-if (!("count" in o7301)) e.push(p + "/count" + ': required');
-if ("count" in o7301) lf(o7301["count"], p + "/count", e, L17);
+const x7147 = v;
+const g7147 = typeOf(x7147);
+const b7147: string[] = []; lf(x7147, p, b7147, L0); if (b7147.length) e.push(...b7147);
+if (g7147 === "object") {
+if (g7147 === 'object') { const o7147 = x7147 as Record<string, unknown>;
+if (!("kind" in o7147)) e.push(p + "/kind" + ': required');
+if (!("removed" in o7147)) e.push(p + "/removed" + ': required');
+if (!("skippedOnHold" in o7147)) e.push(p + "/skippedOnHold" + ': required');
+if ("kind" in o7147) lf(o7147["kind"], p + "/kind", e, L478);
+if ("removed" in o7147) lf(o7147["removed"], p + "/removed", e, L17);
+if ("skippedOnHold" in o7147) lf(o7147["skippedOnHold"], p + "/skippedOnHold", e, L17);
+}
+}
+}
+}
+
+function e704_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7304 = v;
+const g7304 = typeOf(x7304);
+const b7304: string[] = []; lf(x7304, p, b7304, L0); if (b7304.length) e.push(...b7304);
+if (g7304 === "object") {
+if (g7304 === 'object') { const o7304 = x7304 as Record<string, unknown>;
+if (!("count" in o7304)) e.push(p + "/count" + ': required');
+if ("count" in o7304) lf(o7304["count"], p + "/count", e, L17);
 }
 }
 }
@@ -833,10 +833,10 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 export const eventValidators: Record<string, Check> = {
   "erase.completed": e191_payload,
   "erase.started": e192_payload,
-  "hold.placed": e285_payload,
-  "hold.released": e286_payload,
-  "retention.purged": e529_payload,
-  "tombstones.reapplied": e703_payload,
+  "hold.placed": e286_payload,
+  "hold.released": e287_payload,
+  "retention.purged": e530_payload,
+  "tombstones.reapplied": e704_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

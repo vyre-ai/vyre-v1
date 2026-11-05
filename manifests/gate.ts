@@ -55,6 +55,7 @@ export default defineManifest({
     ev('gate.revised', 'A held message was edited before it was sent: the approval is bound to the new words', { p: { holdId, act: actKey, taskId: id.task, by: t.str(), was: t.str({ maxLength: 20000 }), now: t.str({ maxLength: 20000 }) }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject' }),
     ev('gate.denied', 'A gated act was sent back or dropped', { p: { holdId, act: actKey, taskId: id.task, by: t.str(), mode: t.enm('send_back', 'drop'), note: t.opt(t.str()), askedBy: t.opt(principalRef), ...heldFrom }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject' }),
     ev('gate.expired', 'A hold timed out: dropped or escalated to a delegate or role', { p: { holdId, act: actKey, taskId: id.task, outcome: t.enm('dropped', 'escalated'), escalatedTo: t.opt(t.str()), askedBy: t.opt(principalRef) }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit', label: 'subject', trigger: { title: 'A gated act expires', fields: ['/act'] } }),
+    ev('gate.approver_moved', 'The person or role a held act waits on changed (the task was assigned, delegated or escalated): who moved it, from whom, to whom', { p: { holdId, act: actKey, taskId: id.task, from: t.opt(t.obj({ kind: t.str(), id: t.str() })), to: t.obj({ kind: t.str(), id: t.str() }), by: t.opt(t.str()), how: t.enm('assigned', 'delegated', 'escalated') }, subject: ['task', '/taskId'], vis: 'participants', retention: 'audit' }),
     ev('gate.rule_changed', 'A Gate rule changed (Space default, owner floor or per-agent override)', { p: { act: actKey, scope: t.enm('space', 'floor', 'agent'), agentId: t.opt(id.agent), by: t.str() }, subject: ['entity', '/act'], retention: 'audit' }),
   ],
   capabilities: [
@@ -105,7 +106,7 @@ export default defineManifest({
     }),
     write('gate.release', 'Re-invoke the parked capability with an approval token bound to the payload hash, then resume the turn or step', {
       in: { holdId, taskId: id.task, approvalToken: t.str({ description: 'Approval token, valid 10 minutes, bound to the payload hash' }) },
-      out: { result: t.json() }, on: ['task', '/taskId'], level: 'use', emits: ['gate.approved'], audit: 'always', idem: 'natural',
+      out: { result: t.json() }, on: ['task', '/taskId'], level: 'use', emits: ['gate.approved', 'gate.approver_moved'], audit: 'always', idem: 'natural',
       errors: ['permission.expired', 'validation.precondition_failed'],
     }),
     // The edit of a held message: the stored call is rewritten (its words only), the hash the approval is bound to is made again, and the task's card shows it was edited by the person. The person who may approve it

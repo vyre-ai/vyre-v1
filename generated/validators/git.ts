@@ -779,65 +779,7 @@ if ("sha" in o3252) lf(o3252["sha"], p + "/sha", e, L335);
 }
 }
 
-function e243_payload(v: unknown, p: string, e: string[]): void {
-{
-const x6883 = v;
-const g6883 = typeOf(x6883);
-const b6883: string[] = []; lf(x6883, p, b6883, L0); if (b6883.length) e.push(...b6883);
-if (g6883 === "object") {
-if (g6883 === 'object') { const o6883 = x6883 as Record<string, unknown>;
-if (!("folderId" in o6883)) e.push(p + "/folderId" + ': required');
-if (!("branch" in o6883)) e.push(p + "/branch" + ': required');
-if (!("action" in o6883)) e.push(p + "/action" + ': required');
-if ("folderId" in o6883) lf(o6883["folderId"], p + "/folderId", e, L44);
-if ("branch" in o6883) lf(o6883["branch"], p + "/branch", e, L1);
-if ("action" in o6883) lf(o6883["action"], p + "/action", e, L708);
-}
-}
-}
-}
-
 function e244_payload(v: unknown, p: string, e: string[]): void {
-{
-const x6884 = v;
-const g6884 = typeOf(x6884);
-const b6884: string[] = []; lf(x6884, p, b6884, L0); if (b6884.length) e.push(...b6884);
-if (g6884 === "object") {
-if (g6884 === 'object') { const o6884 = x6884 as Record<string, unknown>;
-if (!("folderId" in o6884)) e.push(p + "/folderId" + ': required');
-if (!("sha" in o6884)) e.push(p + "/sha" + ': required');
-if (!("branch" in o6884)) e.push(p + "/branch" + ': required');
-if (!("by" in o6884)) e.push(p + "/by" + ': required');
-if (!("files" in o6884)) e.push(p + "/files" + ': required');
-if (!("message" in o6884)) e.push(p + "/message" + ': required');
-if ("folderId" in o6884) lf(o6884["folderId"], p + "/folderId", e, L44);
-if ("sha" in o6884) lf(o6884["sha"], p + "/sha", e, L335);
-if ("branch" in o6884) lf(o6884["branch"], p + "/branch", e, L1);
-if ("by" in o6884) lf(o6884["by"], p + "/by", e, L1);
-if ("files" in o6884) lf(o6884["files"], p + "/files", e, L2);
-if ("message" in o6884) lf(o6884["message"], p + "/message", e, L1);
-}
-}
-}
-}
-
-function e245_payload(v: unknown, p: string, e: string[]): void {
-{
-const x6885 = v;
-const g6885 = typeOf(x6885);
-const b6885: string[] = []; lf(x6885, p, b6885, L0); if (b6885.length) e.push(...b6885);
-if (g6885 === "object") {
-if (g6885 === 'object') { const o6885 = x6885 as Record<string, unknown>;
-if (!("folderId" in o6885)) e.push(p + "/folderId" + ': required');
-if (!("branch" in o6885)) e.push(p + "/branch" + ': required');
-if ("folderId" in o6885) lf(o6885["folderId"], p + "/folderId", e, L44);
-if ("branch" in o6885) lf(o6885["branch"], p + "/branch", e, L1);
-}
-}
-}
-}
-
-function e247_payload(v: unknown, p: string, e: string[]): void {
 {
 const x6886 = v;
 const g6886 = typeOf(x6886);
@@ -846,19 +788,16 @@ if (g6886 === "object") {
 if (g6886 === 'object') { const o6886 = x6886 as Record<string, unknown>;
 if (!("folderId" in o6886)) e.push(p + "/folderId" + ': required');
 if (!("branch" in o6886)) e.push(p + "/branch" + ': required');
-if (!("to" in o6886)) e.push(p + "/to" + ': required');
-if (!("conflicts" in o6886)) e.push(p + "/conflicts" + ': required');
+if (!("action" in o6886)) e.push(p + "/action" + ': required');
 if ("folderId" in o6886) lf(o6886["folderId"], p + "/folderId", e, L44);
 if ("branch" in o6886) lf(o6886["branch"], p + "/branch", e, L1);
-if ("from" in o6886) lf(o6886["from"], p + "/from", e, L335);
-if ("to" in o6886) lf(o6886["to"], p + "/to", e, L335);
-if ("conflicts" in o6886) lf(o6886["conflicts"], p + "/conflicts", e, L2);
+if ("action" in o6886) lf(o6886["action"], p + "/action", e, L708);
 }
 }
 }
 }
 
-function e248_payload(v: unknown, p: string, e: string[]): void {
+function e245_payload(v: unknown, p: string, e: string[]): void {
 {
 const x6887 = v;
 const g6887 = typeOf(x6887);
@@ -866,15 +805,76 @@ const b6887: string[] = []; lf(x6887, p, b6887, L0); if (b6887.length) e.push(..
 if (g6887 === "object") {
 if (g6887 === 'object') { const o6887 = x6887 as Record<string, unknown>;
 if (!("folderId" in o6887)) e.push(p + "/folderId" + ': required');
-if (!("branch" in o6887)) e.push(p + "/branch" + ': required');
-if (!("remote" in o6887)) e.push(p + "/remote" + ': required');
 if (!("sha" in o6887)) e.push(p + "/sha" + ': required');
-if (!("protectedBranch" in o6887)) e.push(p + "/protectedBranch" + ': required');
+if (!("branch" in o6887)) e.push(p + "/branch" + ': required');
+if (!("by" in o6887)) e.push(p + "/by" + ': required');
+if (!("files" in o6887)) e.push(p + "/files" + ': required');
+if (!("message" in o6887)) e.push(p + "/message" + ': required');
 if ("folderId" in o6887) lf(o6887["folderId"], p + "/folderId", e, L44);
-if ("branch" in o6887) lf(o6887["branch"], p + "/branch", e, L1);
-if ("remote" in o6887) lf(o6887["remote"], p + "/remote", e, L45);
 if ("sha" in o6887) lf(o6887["sha"], p + "/sha", e, L335);
-if ("protectedBranch" in o6887) lf(o6887["protectedBranch"], p + "/protectedBranch", e, L3);
+if ("branch" in o6887) lf(o6887["branch"], p + "/branch", e, L1);
+if ("by" in o6887) lf(o6887["by"], p + "/by", e, L1);
+if ("files" in o6887) lf(o6887["files"], p + "/files", e, L2);
+if ("message" in o6887) lf(o6887["message"], p + "/message", e, L1);
+}
+}
+}
+}
+
+function e246_payload(v: unknown, p: string, e: string[]): void {
+{
+const x6888 = v;
+const g6888 = typeOf(x6888);
+const b6888: string[] = []; lf(x6888, p, b6888, L0); if (b6888.length) e.push(...b6888);
+if (g6888 === "object") {
+if (g6888 === 'object') { const o6888 = x6888 as Record<string, unknown>;
+if (!("folderId" in o6888)) e.push(p + "/folderId" + ': required');
+if (!("branch" in o6888)) e.push(p + "/branch" + ': required');
+if ("folderId" in o6888) lf(o6888["folderId"], p + "/folderId", e, L44);
+if ("branch" in o6888) lf(o6888["branch"], p + "/branch", e, L1);
+}
+}
+}
+}
+
+function e248_payload(v: unknown, p: string, e: string[]): void {
+{
+const x6889 = v;
+const g6889 = typeOf(x6889);
+const b6889: string[] = []; lf(x6889, p, b6889, L0); if (b6889.length) e.push(...b6889);
+if (g6889 === "object") {
+if (g6889 === 'object') { const o6889 = x6889 as Record<string, unknown>;
+if (!("folderId" in o6889)) e.push(p + "/folderId" + ': required');
+if (!("branch" in o6889)) e.push(p + "/branch" + ': required');
+if (!("to" in o6889)) e.push(p + "/to" + ': required');
+if (!("conflicts" in o6889)) e.push(p + "/conflicts" + ': required');
+if ("folderId" in o6889) lf(o6889["folderId"], p + "/folderId", e, L44);
+if ("branch" in o6889) lf(o6889["branch"], p + "/branch", e, L1);
+if ("from" in o6889) lf(o6889["from"], p + "/from", e, L335);
+if ("to" in o6889) lf(o6889["to"], p + "/to", e, L335);
+if ("conflicts" in o6889) lf(o6889["conflicts"], p + "/conflicts", e, L2);
+}
+}
+}
+}
+
+function e249_payload(v: unknown, p: string, e: string[]): void {
+{
+const x6890 = v;
+const g6890 = typeOf(x6890);
+const b6890: string[] = []; lf(x6890, p, b6890, L0); if (b6890.length) e.push(...b6890);
+if (g6890 === "object") {
+if (g6890 === 'object') { const o6890 = x6890 as Record<string, unknown>;
+if (!("folderId" in o6890)) e.push(p + "/folderId" + ': required');
+if (!("branch" in o6890)) e.push(p + "/branch" + ': required');
+if (!("remote" in o6890)) e.push(p + "/remote" + ': required');
+if (!("sha" in o6890)) e.push(p + "/sha" + ': required');
+if (!("protectedBranch" in o6890)) e.push(p + "/protectedBranch" + ': required');
+if ("folderId" in o6890) lf(o6890["folderId"], p + "/folderId", e, L44);
+if ("branch" in o6890) lf(o6890["branch"], p + "/branch", e, L1);
+if ("remote" in o6890) lf(o6890["remote"], p + "/remote", e, L45);
+if ("sha" in o6890) lf(o6890["sha"], p + "/sha", e, L335);
+if ("protectedBranch" in o6890) lf(o6890["protectedBranch"], p + "/protectedBranch", e, L3);
 }
 }
 }
@@ -899,12 +899,12 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "git.branch_changed": e243_payload,
-  "git.committed": e244_payload,
-  "git.initialized": e245_payload,
+  "git.branch_changed": e244_payload,
+  "git.committed": e245_payload,
+  "git.initialized": e246_payload,
   "git.protection_changed": d_s_90ff7d13ee,
-  "git.pulled": e247_payload,
-  "git.pushed": e248_payload,
+  "git.pulled": e248_payload,
+  "git.pushed": e249_payload,
   "git.remote_added": d_s_0c3e093520,
   "git.remote_removed": d_s_0c3e093520,
 };
