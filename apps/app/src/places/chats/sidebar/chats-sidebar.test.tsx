@@ -209,3 +209,17 @@ test("a section head's tools are always under the pointer: drawn on hover or foc
   assert.ok(out.includes('data-testid="all-agents"'), "the tool is in the head");
   assert.ok(!out.includes("r-pointerEvents"), "a tool hidden until hover must still take the pointer, or the head sits over it and it cannot be pressed");
 });
+
+test("only the open page's row is drawn selected: none on the new-chat page (with a filter on too), Tasks on Tasks, one chat on that chat (lane l-polish)", () => {
+  const draw = (open: string | null, startFilter?: "unread"): string[] => {
+    const s = createSampleSidebar();
+    const out = renderToStaticMarkup(<ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} open={open} {...(startFilter ? { startFilter } : {})} />);
+    return [...out.matchAll(/aria-selected="true"[^>]*data-testid="([^"]+)"|data-testid="([^"]+)"[^>]*aria-selected="true"/g)].map((m) => m[1] ?? m[2]!);
+  };
+  assert.deepEqual(draw(null), [], "the new-chat page has no row");
+  assert.deepEqual(draw(null, "unread"), [], "and the Unread filter selects nothing either");
+  assert.deepEqual(draw("tasks"), ["row-nav:tasks"]);
+  const s = createSampleSidebar();
+  const first = /data-testid="row-c:([^"]+)"/.exec(renderToStaticMarkup(<ChatsSidebar data={s.data} window={{ start: 0, end: 500 }} open={null} />))![1]!;
+  assert.deepEqual(draw(`t:${first}`), [`row-c:${first}`]);
+});
