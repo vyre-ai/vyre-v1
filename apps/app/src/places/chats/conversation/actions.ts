@@ -179,6 +179,8 @@ export async function errorAction(data: ConversationData, key: string, turnId: s
     if (turnId) await retryTurn(data, turnId);
     return;
   }
+  // Continue on "Stopped for an update": that turn runs again, same message and account (engine.turn.retry takes a stopped turn as it takes a failed one)
+  if (key.startsWith("continue_turn:")) { await retryTurn(data, key.slice("continue_turn:".length)); return; }
   if (key === "pick_model") { say("Choose another model in the composer."); return; }
   // Undo on "Moved ... to Vyre's Trash": each file comes back where it was
   if (key.startsWith("undo_trash:")) {

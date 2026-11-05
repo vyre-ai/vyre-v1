@@ -388,7 +388,7 @@ export async function turnRetry(
   input: { turnId: string; model?: string; provider?: string; accountRef?: string },
 ): Promise<{ turn: TurnOut }> {
   const old = loadTurn(ctx, input.turnId);
-  if (str(old["state"]) !== "failed") raise(ctx, "validation.precondition_failed", "Only a failed turn can be retried.", { turnId: input.turnId, state: str(old["state"]) });
+  if (str(old["state"]) !== "failed" && str(old["state"]) !== "cancelled") raise(ctx, "validation.precondition_failed", "Only a failed or stopped turn can be retried.", { turnId: input.turnId, state: str(old["state"]) });
   // A retry that is already queued or running is the answer to a second click.
   const again = rows(ctx, "SELECT * FROM engine_turns WHERE retry_of = ? AND state IN ('queued', 'running', 'waiting') ORDER BY started_at DESC LIMIT 1", input.turnId)[0];
   if (again) return { turn: turnOf(again) };

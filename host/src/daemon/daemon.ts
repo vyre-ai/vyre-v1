@@ -1428,14 +1428,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         return [...seen].map(([id, title]) => ({ id, title }));
       };
       engineSource.stopTurns = async () => {
-        const out = (await system("engine.running_here", {})) as { turns?: Array<{ threadId: string; agentId: string; asker: string }> };
+        const out = (await system("engine.running_here", {})) as { turns?: Array<{ threadId: string; agentId: string; asker: string; turnId?: string }> };
         let stopped = 0;
         const said = new Set<string>();
         for (const t of out.turns ?? []) {
           // each chat gets one quiet line, so the person who comes back knows why the reply stopped and that nothing was lost; the agent speaks for the person whose turn it was, as the engine's own posts do
           if (said.has(t.threadId) || !t.asker.startsWith("usr_")) continue;
           said.add(t.threadId);
-          try { await invoke("chat.post", { threadId: t.threadId, body: "", mentions: [], clientId: `msg_brg${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`, idempotencyKey: `brg-upd-${t.threadId}-${Date.now().toString(36)}`, blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: "Stopped for an update. Your message and the steps so far are kept; ask again when Vyre has opened." } }] }, { space: spaceId, principal: { kind: "agent", id: t.agentId }, actingFor: t.asker, origin: "engine" }); } catch { /* the line is a courtesy: the stop goes on */ }
+          try { await invoke("chat.post", { threadId: t.threadId, body: "", mentions: [], clientId: `msg_brg${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`, idempotencyKey: `brg-upd-${t.threadId}-${Date.now().toString(36)}`, blocks: [{ type: "turn_status", v: 1, data: { state: "stopped_for_update", text: "Stopped for an update. Your message is kept.", ...(t.turnId ? { turnId: t.turnId } : {}) } }] }, { space: spaceId, principal: { kind: "agent", id: t.agentId }, actingFor: t.asker, origin: "engine" }); } catch { /* the line is a courtesy: the stop goes on */ }
         }
         for (const id of new Set((out.turns ?? []).map((t) => t.threadId))) {
           try { stopped += ((await system("engine.stop_all", { threadId: id })) as { stopped?: number }).stopped ?? 0; } catch { /* that chat ends by itself or at the stop */ }

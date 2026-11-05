@@ -42,6 +42,22 @@ test("a reply is running: the daemon names its chat, stop-turns ends it cleanly,
     const blocks = ((await call(d, "chat.messages.list", { threadId })).data.messages as Array<{ blocks?: Array<{ type: string; data?: { text?: string } }> }>).flatMap((m) => m.blocks ?? []);
     assert.equal(blocks.filter((b) => b.type === "turn_status" && /Stopped for an update/.test(String(b.data?.text))).length, 1, "the chat says, once and quietly, why the reply stopped");
 
+    // after the update the line carries Continue: pressing it runs that turn again on the same message, and this time it finishes
+    const note = ((await call(d, "chat.messages.list", { threadId })).data.messages as Array<{ blocks?: Array<{ type: string; data?: { state?: string; turnId?: string } }> }>).flatMap((m) => m.blocks ?? []).find((b) => b.type === "turn_status" && b.data?.state === "stopped_for_update");
+    assert.ok(note?.data?.turnId, "the line names the turn that was stopped, so Continue can run it");
+    const messagesBefore = ((await call(d, "chat.messages.list", { threadId })).data.messages as unknown[]).filter((m) => (m as { author?: { kind?: string } }).author?.kind === "person").length;
+    release();
+    const retried = await call(d, "engine.turn.retry", { turnId: note!.data!.turnId });
+    assert.equal(retried.status, 200, JSON.stringify(retried.data));
+    const reply = await waitFor(async () => {
+      await d.hooks?.pump?.();
+      const m = ((await call(d, "chat.messages.list", { threadId })).data.messages as Array<{ author?: { kind?: string }; body?: string }>).find((x) => x.author?.kind === "agent" && (x.body ?? "").includes("never allowed to finish"));
+      return m ?? null;
+    });
+    assert.ok(reply, "Continue ran the turn again and the reply arrived");
+    const people = ((await call(d, "chat.messages.list", { threadId })).data.messages as Array<{ author?: { kind?: string } }>).filter((m) => m.author?.kind === "person").length;
+    assert.equal(people, messagesBefore, "the message was not posted again");
+
     // the route is the admin token's alone, and a second press has nothing to end
     assert.equal((await fetch(`${d.url}/local/daemon/stop-turns`, { method: "POST" })).status, 401);
     assert.equal((await fetch(`${d.url}/local/daemon/stop-turns`, { method: "POST", headers: admin })).status, 200);

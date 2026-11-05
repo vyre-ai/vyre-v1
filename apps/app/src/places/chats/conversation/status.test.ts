@@ -150,3 +150,10 @@ test("no model works: one plain card that says what to do, with Open AI accounts
   assert.deepEqual(w.next, [{ key: "connect_ai", label: "Open AI accounts" }]);
   assert.doesNotMatch(`${w.message} ${w.cause ?? ""}`, /engine\.|--/);
 });
+
+test("the line for a reply ended for an update carries Continue, for the turn that was stopped; without a turn it is a quiet note", async () => {
+  const { statusView } = await import("./status.ts");
+  const text = "Stopped for an update. Your message is kept.";
+  assert.deepEqual(statusView({ id: "b1", type: "turn_status", v: 1, data: { state: "stopped_for_update", text, turnId: "trn_9" } } as never), { kind: "wait", id: "b1", text, action: { key: "continue_turn:trn_9", label: "Continue" } });
+  assert.deepEqual(statusView({ id: "b2", type: "turn_status", v: 1, data: { state: "stopped_for_update", text } } as never), { kind: "note", id: "b2", text });
+});

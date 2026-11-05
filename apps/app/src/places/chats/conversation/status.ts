@@ -139,6 +139,8 @@ export function statusView(b: MessageBlock): StatusView {
   if (state === "trashed" && str(d.text) !== "" && Array.isArray(d.fileIds)) return { kind: "wait", id: b.id, text: str(d.text), action: { key: `undo_trash:${(d.fileIds as unknown[]).filter((x): x is string => typeof x === "string").join(",")}`, label: "Undo" } };
   // the chat was answered by another account because the person's own sign-in is locked on this server: the one line carries Unlock, which opens the same small sheet as the banner
   if (state === "key_locked" && str(d.text) !== "") return { kind: "wait", id: b.id, text: str(d.text), action: { key: "unlock_vault", label: "Unlock" } };
+  // a reply that was ended so Vyre could update (host/src/daemon): one quiet line, and Continue runs that turn again, with the same message, on the same account
+  if (state === "stopped_for_update" && str(d.text) !== "") return str(d.turnId) !== "" ? { kind: "wait", id: b.id, text: str(d.text), action: { key: `continue_turn:${str(d.turnId)}`, label: "Continue" } } : { kind: "note", id: b.id, text: str(d.text) };
   if (state === "cancelled") return { kind: "note", id: b.id, text: stoppedWords(str(d.reason)) };
   if (state === "waiting" && str(d.taskId) !== "") return { kind: "approval", id: b.id, taskId: str(d.taskId) };
   if (state === "waiting") return { kind: "note", id: b.id, text: "Waiting for your approval." };
