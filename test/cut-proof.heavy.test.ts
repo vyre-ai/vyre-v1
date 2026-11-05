@@ -34,7 +34,9 @@ test("agent computers on a real Team server: Set up, Ready, desktop, Terminal, o
     pass("the Space was claimed through the app on the compose-installed server");
     const token = await page.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string);
     const api = async (cap: string, data: unknown): Promise<any> => { // eslint-disable-line @typescript-eslint/no-explicit-any
-      const r = await context.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token}` }, data });
+      // Docker moves the published port's NAT each time vyred joins a computer's network, which resets connections that were open: one retry on a 502 (the edge's "daemon unreachable") is the client reconnecting
+      let r = await context.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token}` }, data });
+      for (let i = 0; i < 3 && r.status() === 502; i++) { await new Promise((x) => setTimeout(x, 1500)); r = await context.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token}` }, data }); }
       const body = await r.json().catch(() => ({})); assert.ok(r.status() === 200 || r.status() === 201, `${cap}: ${r.status()} ${JSON.stringify(body).slice(0, 400)}`); return body.data ?? body;
     };
     const hosts = await api("computers.hosts", {});
@@ -122,7 +124,8 @@ test("agent computers on a real Team server: Set up, Ready, desktop, Terminal, o
     pass("a member joined the Team Space through an invite");
     const mtoken = await mp.evaluate(() => JSON.parse(localStorage.getItem("vyre.session.v1")!).sessions[location.origin].token as string);
     const mapi = async (cap: string, data: unknown): Promise<any> => { // eslint-disable-line @typescript-eslint/no-explicit-any
-      const r = await mctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${mtoken}` }, data });
+      let r = await mctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${mtoken}` }, data });
+      for (let i = 0; i < 3 && r.status() === 502; i++) { await new Promise((x) => setTimeout(x, 1500)); r = await mctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${mtoken}` }, data }); }
       const body = await r.json().catch(() => ({})); assert.ok(r.status() === 200 || r.status() === 201, `member ${cap}: ${r.status()} ${JSON.stringify(body).slice(0, 400)}`); return body.data ?? body;
     };
     const mine2 = (await mapi("agents.create", { name: "Memberbot", role: "You help.", idempotencyKey: "cut-member-agent" })).agent as { agentId: string };
