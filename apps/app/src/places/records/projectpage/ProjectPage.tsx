@@ -333,7 +333,7 @@ const s = StyleSheet.create({
   pillText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   dot: { width: 8, height: 8, borderRadius: 4 },
   stack: { flexDirection: "row", marginRight: 2 },
-  stackFace: { marginLeft: -6, borderRadius: 12, borderWidth: 2, borderColor: "var(--win)" as string },
+  stackFace: { marginLeft: -8, borderRadius: 12, borderWidth: 2, borderColor: "var(--win)" as string },
   stackFirst: { marginLeft: 0 },
   title: { fontSize: 20, fontWeight: "600", letterSpacing: -0.3, color: "var(--ink)" as string },
   facts: { flexDirection: "row", flexWrap: "wrap", columnGap: 24, rowGap: 6, marginTop: 8 },
