@@ -33,7 +33,7 @@ async function gatewayPort(portFile: string): Promise<number> {
     if (/^[1-9]\d*$/.test(t)) port = Number(t); else await new Promise((r) => setTimeout(r, 200));
   }
   if (port === 0) throw new Error("fake gateway not reachable from WSL: it never wrote its port");
-  const probe = spawnSync(wslExe(), ["-d", DISTRO_PIN.name, "-u", DISTRO_PIN.user, "--exec", "/usr/bin/node", "-e", `require("net").connect(${port},"127.0.0.1").on("connect",()=>process.exit(0)).on("error",()=>process.exit(3));setTimeout(()=>process.exit(4),5000)`], { encoding: "utf8", timeout: 30_000, windowsHide: true });
+  const probe = spawnSync(wslExe(), ["-d", DISTRO_PIN.name, "-u", DISTRO_PIN.user, "--exec", "/usr/bin/node", "-e", `require("node:net").connect(${port},"127.0.0.1").on("connect",()=>process.exit(0)).on("error",()=>process.exit(3));setTimeout(()=>process.exit(4),5000)`], { encoding: "utf8", timeout: 30_000, windowsHide: true });
   if (probe.status !== 0) throw new Error(`fake gateway not reachable from WSL (127.0.0.1:${port} inside ${DISTRO_PIN.name}, exit ${String(probe.status)}): ${probe.stderr.slice(-300)}`);
   return port;
 }

@@ -134,6 +134,7 @@ export function SettingsRow({ id, label, sub, subAlert = false, lead, control, f
         />
         </RowWrapContext.Provider>
         {subAlert && sub ? <Text accessibilityRole="alert" style={s.srOnly}>{sub}</Text> : null}
+        {/* ui-rows-lint: not a list (the parts of one stacked control, a field and its button, side by side) */}
         {stack ? (stackParts(control) ? <View style={s.stackedRow}>{stackParts(control)![0]}{stackParts(control)!.slice(1).map((c, i) => <View key={i} style={{ flex: 1 }}>{c}</View>)}</View> : <View style={s.stacked}>{control}</View>) : null}
       </View>
     </>
