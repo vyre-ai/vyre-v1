@@ -1,8 +1,39 @@
 {
   "targets": [
-    { "id": "ZONES_01-records", "route": "/m/ZONES_01?scene=records&type=meetings", "proto": "records,{skin}", "waitFor": "[data-testid^='rec-']", "note": "A Meetings table: the When datetime reads in the Space zone (Pacific); hover shows both zones." },
-    { "id": "ZONES_01-project", "route": "/m/ZONES_01?scene=project", "proto": "projects,{skin}", "waitFor": "[data-testid='overview-mount']", "note": "A project's Dates property in the Space zone." },
-    { "id": "ZONES_01-files", "route": "/m/ZONES_01?scene=files&place=files&open=1", "proto": "files,{skin}", "waitFor": "[data-testid='files-list']", "note": "A file's modified time in the Space zone; hover shows both zones." },
-    { "id": "ZONES_01-history", "route": "/m/ZONES_01?scene=history&part=history", "proto": "files,{skin}", "waitFor": "[data-testid='history-tab']", "note": "A version's date in the Space zone." }
+    {
+      "id": "ZONES_01-records",
+      "route": "/m/ZONES_01?scene=records&type=meetings",
+      "proto": "records,{skin}",
+      "waitFor": "[data-testid^='rec-']",
+      "note": "A Meetings table: the When datetime reads in the Space zone (Pacific); hover shows both zones."
+    },
+    {
+      "id": "ZONES_01-project",
+      "route": "/m/ZONES_01?scene=project",
+      "proto": "projects,{skin}",
+      "waitFor": "[data-testid='overview-mount']",
+      "note": "A project's Dates property in the Space zone."
+    },
+    {
+      "id": "ZONES_01-files",
+      "route": "/m/ZONES_01?scene=files&place=files&open=1",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='files-list']",
+      "note": "A file's modified time in the Space zone; hover shows both zones."
+    },
+    {
+      "id": "ZONES_01-history",
+      "route": "/m/ZONES_01?scene=history&part=history",
+      "proto": "files,{skin}",
+      "waitFor": "[data-testid='history-tab']",
+      "note": "A version's date in the Space zone."
+    },
+    {
+      "id": "ZONES_01-artifacts",
+      "route": "/m/ZONES_01?scene=artifacts",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='time-pop']",
+      "note": "Artifact cards with the updated time in the Space zone (Pacific); hover shows both zones."
+    }
   ]
 }
