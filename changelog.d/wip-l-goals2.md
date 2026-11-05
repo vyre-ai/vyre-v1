@@ -4,3 +4,4 @@
 - An agent acting for the owner can start a draft goal when the owner just asked for it in their own message; it grants no permission. Otherwise the goal card keeps its Start button.
 - The goal's Details pane is a list of settings that edit in place: deadline, check-in rhythm and quiet hours, budget cap, what the goal may do without asking (add and remove), and the people. It no longer repeats the finish line, and the stray close button on the tab is gone.
 - A running goal's step renames in place on the goal page.
+Projects: a project with unread messages stays in view under the "N more" cap, like a starred or open one.

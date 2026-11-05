@@ -444,8 +444,10 @@ export function buildEntries(i: SidebarInput): Entry[] {
   if (!i.searching && projectLines.length > 0) {
     out.push({ key: "h:projects", type: "head", section: "projects", label: "Projects", count: projectLines.length, open: open("projects") });
     if (open("projects")) {
-      const { shown, hidden } = all(i.moreProjects) ? { shown: projectLines, hidden: 0 } : capped(projectLines, PROJECTS_SHOWN, (p) => p.starred || i.open === `p:${p.id}`);
-      for (const p of shown) { const ch = p.recordId === undefined ? undefined : i.channels.find((c) => c.recordId === p.recordId); out.push({ key: `pj:${p.id}`, type: "project", project: ch && ch.unread > 0 ? { ...p, unread: ch.unread } : p }); }
+      // a project with unread messages stays in view, like a starred or open one
+      const lit = projectLines.map((p) => { const ch = p.recordId === undefined ? undefined : i.channels.find((c) => c.recordId === p.recordId); return ch && ch.unread > 0 ? { ...p, unread: ch.unread } : p; });
+      const { shown, hidden } = all(i.moreProjects) ? { shown: lit, hidden: 0 } : capped(lit, PROJECTS_SHOWN, (p) => p.starred || (p.unread ?? 0) > 0 || i.open === `p:${p.id}`);
+      for (const p of shown) out.push({ key: `pj:${p.id}`, type: "project", project: p });
       if (hidden > 0) out.push({ key: "m:projects", type: "more", label: `${hidden} more`, to: "projects" });
     }
   }

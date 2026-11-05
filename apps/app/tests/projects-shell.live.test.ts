@@ -119,6 +119,8 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
         if (who === "admin") assert.ok(await p.getByTestId(`row-pj:${q4}`).getByTestId("unread-dot").count() > 0, "Q4 billing shows an unread pip");
         assert.ok(await p.getByTestId("row-m:projects").count() > 0, "the group has an N more row with more than three projects");
         await both(p, `projects-1b-plus-hover-and-more-${who}-${size}`, async () => { await p.getByTestId("head-projects").hover(); });
+        // the group folds to three, so a project past them opens through the "N more" row
+        if (await p.getByTestId(`row-pj:${pid}`).count() === 0) await p.getByTestId("row-m:projects").click();
         await p.getByTestId(`row-pj:${pid}`).click();
       } else {
         await p.goto(`${web.origin}/chat#subject=project:${pid}`, { waitUntil: "load" });
@@ -149,7 +151,7 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
       });
       await p.waitForTimeout(500);
       await ok("Plan");
-      await both(p, `projects-3-plan-${who}-${size}`, async () => { await p.getByTestId("tab-plan").click(); await p.getByTestId("project-plan").waitFor({ timeout: 15_000 }); await p.waitForTimeout(500); });
+      await both(p, `projects-3-plan-${who}-${size}`, async () => { if (await p.getByTestId("tab-plan-selected").count() === 0) await p.getByTestId("tab-plan").click(); await p.getByTestId("project-plan").waitFor({ timeout: 15_000 }); await p.waitForTimeout(500); });
       for (const k of ["overview", "linked", "chat"]) { await p.getByTestId(`tab-${k}`).click(); await p.waitForTimeout(500); await ok(`the ${k} tab`); }
       await p.getByTestId("project-chat-main").waitFor({ timeout: 15_000 });
       if (who === "admin" && size === "wide") {
