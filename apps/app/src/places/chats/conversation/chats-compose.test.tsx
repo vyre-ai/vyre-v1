@@ -535,19 +535,18 @@ test("a plugin command with a colon in its name is a command, and its prompt is 
   assert.deepEqual(r.flags.sent, ["Say hello to Dana"]);
 });
 
-test("an agent's answer in a chat of people has Make task in its hover bar; in a chat of one person it does not, and a person's own message never does; nothing of it is drawn at rest", async () => {
+test("an agent's answer has Make task in its hover bar, in a chat of people and in a chat of one person alike, and a person's own message never does; nothing of it is drawn at rest", async () => {
   const r = rig();
   const reply: Message = { messageId: "m_ans", threadId: r.data.threadId, threadSeq: 2, author: { kind: "agent", id: "agt_billing" }, kind: "agent", body: "Three invoices are paid, two are open.", blocks: [], createdAt: 2, reactions: [], pinned: false } as unknown as Message;
-  const bar = (withPeople: boolean, visible: boolean, byAgent = true): string => clean(renderToStaticMarkup(
-    <HoverBar m={reply} mine={!byAgent} byAgent={byAgent} visible={visible} onEdit={() => undefined} a={{ openBeside: () => undefined, nameOf: r.data.nameOf, makeTask: () => undefined, withPeople, copy: () => undefined, openThread: () => undefined, setPinned: () => undefined, fork: () => undefined, showMenu: () => undefined } as never} />,
+  const bar = (visible: boolean, byAgent = true): string => clean(renderToStaticMarkup(
+    <HoverBar m={reply} mine={!byAgent} byAgent={byAgent} visible={visible} onEdit={() => undefined} a={{ openBeside: () => undefined, nameOf: r.data.nameOf, makeTask: () => undefined, copy: () => undefined, openThread: () => undefined, setPinned: () => undefined, fork: () => undefined, showMenu: () => undefined } as never} />,
   ));
-  assert.ok(bar(true, true).includes('data-testid="act-make-m_ans"'), "Make task sits in the bar next to Copy, Reply in thread, Fork and Pin");
-  assert.ok(!bar(false, true).includes('data-testid="act-make-m_ans"'), "a chat of one person has the message menu only");
-  assert.ok(!bar(true, true, false).includes('data-testid="act-make-m_ans"'), "never on a person's own message");
-  assert.ok(!bar(true, false).includes('act-make-m_ans'), "at rest no action is drawn");
+  assert.ok(bar(true).includes('data-testid="act-make-m_ans"'), "Make task sits in the bar next to Copy, Reply in thread, Fork and Pin, whoever is in the chat");
+  assert.ok(!bar(true, false).includes('data-testid="act-make-m_ans"'), "never on a person's own message");
+  assert.ok(!bar(false).includes('act-make-m_ans'), "at rest no action is drawn");
   // the message itself draws none of it at rest
   const items = timeline([reply], { meId: r.data.me.id, nameOf: r.data.nameOf, kindOf: r.data.kindOf, clock: r.data.clock() });
-  const html = clean(items.map((it) => renderToStaticMarkup(<MessageView item={it} actions={{ openBeside: () => undefined, nameOf: r.data.nameOf, makeTask: () => undefined, withPeople: true, copy: () => undefined, openThread: () => undefined, setPinned: () => undefined, fork: () => undefined } as never} meId={r.data.me.id} />)).join(""));
+  const html = clean(items.map((it) => renderToStaticMarkup(<MessageView item={it} actions={{ openBeside: () => undefined, nameOf: r.data.nameOf, makeTask: () => undefined, copy: () => undefined, openThread: () => undefined, setPinned: () => undefined, fork: () => undefined } as never} meId={r.data.me.id} />)).join(""));
   const text = html.replace(/<[^>]+>/g, " ");
   for (const word of ["Copy", "Reply in thread", "Fork from here", "Pin", "Make task", "Remember"]) assert.ok(!new RegExp(`\\b${word}\\b`).test(text), `${word} is not shown at rest`);
   // and the long-press sheet on a phone has it

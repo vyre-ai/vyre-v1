@@ -29,3 +29,19 @@ export async function shoot(p: Page, dir: string, step: string, o: { phone?: boo
   await setScheme(p, "light");
   return out;
 }
+
+/** A step shot light and dark at the size the page already has (a tablet, or a bar that only shows while hovered): nothing is resized, so what is open stays open. */
+export async function shootHere(p: Page, dir: string, step: string): Promise<string[]> {
+  const out: string[] = [];
+  const k = String(++n).padStart(2, "0");
+  fs.mkdirSync(dir, { recursive: true });
+  for (const scheme of SCHEMES) {
+    await setScheme(p, scheme);
+    await p.waitForTimeout(250);
+    const file = path.join(dir, `${k}-${step}-${scheme}.png`);
+    await p.screenshot({ path: file, animations: "disabled" });
+    out.push(file);
+  }
+  await setScheme(p, "light");
+  return out;
+}
