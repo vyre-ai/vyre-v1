@@ -76,6 +76,11 @@ test("Space admin without Manage: change a role, remove, and add people on a pro
     await p.getByTestId("conversation").or(p.getByTestId("conversation-loading")).first().waitFor({ timeout: 20_000 }).catch(() => undefined);
     await p.waitForTimeout(800);
     await guard.check("after the project opened");
+    // Ada is not in the project's invite-only chat: a calm line with Join chat, never an error with Retry
+    await p.getByTestId("project-chat-gate").waitFor({ timeout: 20_000 });
+    assert.equal(await p.getByText("Retry").count(), 0, "no Retry on the not-in-chat state");
+    assert.equal(await p.getByText("Couldn't load this chat").count(), 0, "no error on the not-in-chat state");
+    await p.getByTestId("project-chat-join").waitFor({ timeout: 5_000 });
 
     // the people popover with a row's role menu open: the controls an admin gets
     const openRoleMenu = async (): Promise<void> => {

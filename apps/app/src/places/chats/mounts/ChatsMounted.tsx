@@ -17,6 +17,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { Principal } from "../../../shell/session/runtime-data.ts";
 import { conversationData } from "../../../shell/providers/chats-data.ts";
 import type { ChatsActions } from "../../../shell/providers/chats-data.ts";
+import { allows } from "../../../shell/providers/runtime.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
 import { AgentPage, AgentPageLoading } from "../agentpage/AgentPage.tsx";
 import { ComputerPopup, ComputerPopupLoading } from "../computer/ComputerPopup.tsx";
@@ -42,6 +43,7 @@ import type { ConnectProps } from "./ConnectOutsideAgent.tsx";
 import { SearchPage } from "../search/SearchPage.tsx";
 import type { SearchData } from "../search/SearchPage.tsx";
 import { TextButton } from "../conversation/parts.tsx";
+import { ProjectChatGate } from "../projects/ProjectChatGate.tsx";
 import { channelThread, isChannelId, copy, threadDoor, agentPageData, askWith, chatOpening, chatWith, createCapture, createGo, helperData, needsData, newKey, popupData, terminalData, wireConversation, wirePane, wireSidebar } from "./data.ts";
 import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
@@ -239,19 +241,24 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   // while the project page frames it
   const projectView = shown.route.view === "project" ? shown.route : null;
   const projectChat = projectView !== null && (projectView.tab === null || projectView.tab === "chat");
-  const [pjChannel, setPjChannel] = useState<{ projectId: string; channelId: string; title?: string; why?: string } | null>(null);
+  const [pjChannel, setPjChannel] = useState<{ projectId: string; channelId: string; title?: string; why?: string; notIn?: boolean } | null>(null);
+  const [pjTick, setPjTick] = useState(0);
   useEffect(() => {
     if (!projectView) return undefined;
     let live = true;
     // the project's channel is shown as its main thread (the thread capabilities refuse a channel id); it is resolved here, so the route stays the project's and the page frames the chat
     let title: string | undefined;
-    const set = (channelId: string, why?: string): void => { if (live) setPjChannel({ projectId: projectView.projectId, channelId, ...(title ? { title } : {}), ...(why ? { why } : {}) }); };
+    const set = (channelId: string, why?: string, notIn?: boolean): void => { if (live) setPjChannel({ projectId: projectView.projectId, channelId, ...(title ? { title } : {}), ...(why ? { why } : {}), ...(notIn ? { notIn } : {}) }); };
     void Promise.resolve(rt.call("projects.get", { projectId: projectView.projectId })).then(
-      (o) => { const pj = (o as { project: { channelId: string; title?: string } }).project; const channelId = pj.channelId; title = pj.title; void channelThread(rt.call as (cap: string, input: unknown) => Promise<unknown>, channelId).then((r) => set("threadId" in r ? r.threadId : "", "failure" in r && r.failure.code !== undefined ? r.failure.message : undefined), () => set("", "The project chat could not be read.")); },
+      (o) => { const pj = (o as { project: { channelId: string; title?: string } }).project; const channelId = pj.channelId; title = pj.title; void channelThread(rt.call as (cap: string, input: unknown) => Promise<unknown>, channelId).then(async (r) => {
+        if (!("threadId" in r)) { set("", "failure" in r && r.failure.code !== undefined ? r.failure.message : undefined); return; }
+        // the chat is invite-only: someone who may see the project but is not in its chat (a Space admin) cannot read the thread, which is not an error but a place they are not in yet
+        try { await rt.call("threads.get", { threadId: r.threadId }); set(r.threadId); } catch { set("", undefined, true); }
+      }, () => set("", "The project chat could not be read.")); },
       () => set(""),
     );
     return () => { live = false; };
-  }, [rt, projectView?.projectId]);   // eslint-disable-line react-hooks/exhaustive-deps -- one read per project
+  }, [rt, projectView?.projectId, pjTick]);   // eslint-disable-line react-hooks/exhaustive-deps -- one read per project, and again after the person joins
   const pjReady = projectChat && projectView !== null && pjChannel?.projectId === projectView.projectId;
   // no main channel (yet): the empty chat with the composer ready, never a list of old chats
   const route: Route = pjReady ? (pjChannel!.channelId === "" ? { view: "new" } : { view: "chat", threadId: pjChannel!.channelId }) : shown.route;
@@ -466,7 +473,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
 
   // the project's page frames its channel's chat
   if (projectChat && projectView && !pjReady) main = <ProjectScreen key={projectView.projectId} rt={rt} projectId={projectView.projectId} tab={projectView.tab} onTab={(tab) => act({ t: "project", projectId: projectView.projectId, tab })} chatSlot={<ConversationLoading />} />;
-  else if (projectChat && projectView && (route.view === "chat" || route.view === "new")) main = <ProjectScreen key={projectView.projectId} rt={rt} projectId={projectView.projectId} tab={projectView.tab} onTab={(tab) => act({ t: "project", projectId: projectView.projectId, tab })} chatSlot={pjChannel?.channelId === "" && pjChannel.why ? <View testID="project-chat-unavailable" style={{ padding: 24 }}><Text style={{ fontSize: 13, color: "var(--ink-3)" }}>{`This project's chat is not available to you: ${pjChannel.why}`}</Text></View> : main} {...(pjChannel?.title ? { title: pjChannel.title } : {})} />;
+  else if (projectChat && projectView && (route.view === "chat" || route.view === "new")) main = <ProjectScreen key={projectView.projectId} rt={rt} projectId={projectView.projectId} tab={projectView.tab} onTab={(tab) => act({ t: "project", projectId: projectView.projectId, tab })} chatSlot={pjChannel?.channelId === "" && pjChannel.notIn ? <ProjectChatGate projectId={projectView.projectId} me={rt.me.id} admin={allows(rt, "console.access")} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} onJoined={() => setPjTick((n) => n + 1)} /> : pjChannel?.channelId === "" && pjChannel.why ? <View testID="project-chat-unavailable" style={{ padding: 24 }}><Text style={{ fontSize: 13, color: "var(--ink-3)" }}>{`This project's chat is not available to you: ${pjChannel.why}`}</Text></View> : main} {...(pjChannel?.title ? { title: pjChannel.title } : {})} />;
   const showMain = !(narrow && right !== null);
   return (
     <CrewProvider call={rt.call as (cap: string, input: unknown) => Promise<unknown>} threadId={threadId ?? ""} >

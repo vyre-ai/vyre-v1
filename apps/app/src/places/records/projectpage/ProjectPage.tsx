@@ -212,11 +212,11 @@ function ProjectPeople({ o, projectId, at, onClose, toOverview, menu, reload, sa
   // the Lead, or the Space's owner or admin whoever is Lead: naming an agent Lead must not lock the people out of their own project (the server asks for Manage on the project, not for the Lead role)
   const manages = meRole === "lead" || d.admin === true;
   const run = (p: Promise<unknown>): void => { p.then(reload, say); };
-  const act = (action: MemberAction, r: MemberRow): void => {
+  const act = (action: MemberAction, r: MemberRow, beside?: { x: number; y: number }): void => {
     if (action === "link") { const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard; void clip?.writeText(itemLink(r.kind === "person" ? "person" : "agent", r.id)); return; }
     if (action === "remove") { run(Promise.resolve(d.call("projects.members.remove", { projectId, principal: r.id }))); return; }
     if (action === "role") {
-      menu.show((["lead", "member", "reviewer", "guest"] as const).map((role) => ({ label: ROLE_WORDS[role], checked: ROLE_WORDS[role] === r.role, onSelect: () => run(Promise.resolve(d.call("projects.members.set", { projectId, principal: r.id, role, idempotencyKey: globalThis.crypto.randomUUID() }))) })), at.x, at.y, "context", { label: `Role for ${r.name}` });
+      menu.show((["lead", "member", "reviewer", "guest"] as const).map((role) => ({ label: ROLE_WORDS[role], checked: ROLE_WORDS[role] === r.role, onSelect: () => run(Promise.resolve(d.call("projects.members.set", { projectId, principal: r.id, role, idempotencyKey: globalThis.crypto.randomUUID() }))) })), beside?.x ?? at.x, beside?.y ?? at.y, "context", { label: `Role for ${r.name}` });
     }
   };
   return (

@@ -42,7 +42,7 @@ export function memberMenu(row: MemberRow, perms: MemberPerms, meId: string | un
   if (perms.agentControls === true && row.kind !== "person") out.push({ id: "poke", label: "Poke" }, { id: "settings", label: "How and when it responds" });
   if (perms.changeRole) out.push({ id: "role", label: "Change role" });
   if (perms.remove && !me) out.push({ id: "remove", label: "Remove", danger: true });
-  out.push({ id: "link", label: "Copy Link" });
+  out.push({ id: "link", label: "Copy link" });
   return out;
 }
 

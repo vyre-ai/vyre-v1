@@ -245,7 +245,7 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   const entries = useMemo(() => (searching ? filterMenuEntries(all, query) : all), [all, searching, query]);
   const window = useWindowDimensions();
   const [gone, setGone] = useState(false);
-  const [active, setActive] = useState(() => moveActive(entries, -1, "Home"));
+  const [active, setActive] = useState(-1);
   const [size, setSize] = useState<{ w: number; h: number }>({ w: MENU_W, h: MENU_H });
   const nodes = useRef<Record<number, unknown>>({});
   const typed = useRef<{ text: string; at: number }>({ text: "", at: 0 });
@@ -267,6 +267,8 @@ export function Menu(props: MenuViewProps): ReactElement | null {
   useEffect(() => {
     const at = activeRef.current;
     const still = at >= 0 && entries[at] !== undefined && isItem(entries[at]!) && entries[at]!.disabled !== true;
+    // a menu opens with nothing lit (the first arrow key or the pointer lights a row); a searchable one lights its first match as the person types
+    if (!still && at < 0 && !searching) return;
     land(still ? at : moveActive(entries, -1, "Home"));
   }, [entries, land]);
 
