@@ -176,13 +176,12 @@ export function statusView(b: MessageBlock, opts?: { admin?: boolean }): StatusV
   // the engine process stopped and said nothing a person can use: the sentence never stands alone, the exit code is the reason there is
   if (str(d.code) === "engine.cli_error") {
     // the engine named a setup cause on the server: say it plainly, and that trying again will fail the same way until it is fixed (no Retry)
-    const fix = admin === true ? "Open Console > Computers to check the server, then send the message again." : "Tell the Space owner or an admin. Send the message again once they have fixed it.";
     const why = str(d.why);
-    if (why === "sandbox") w = { message: "The engine could not start on this server.", cause: `The server will not let the sandbox start (it cannot create the isolated space the engine runs in). Trying again will fail the same way until the server is fixed. ${fix}`, retryable: false };
-    else if (why === "image") w = { message: "The engine could not start on this server.", cause: `The engine's image is not on the server. Trying again will fail the same way until it is installed. ${fix}`, retryable: false };
+    if (why === "sandbox") w = { message: "The engine could not start on this server.", cause: admin === true ? "This server needs an update before Claude Code can run here. On the server run `vyre-server update` (or ask whoever manages it), then send the message again." : "The server will not let the sandbox start. Trying again will fail the same way until the server is fixed. Tell the Space owner or an admin. Send the message again once they have fixed it.", retryable: false };
+    else if (why === "image") w = { message: "The engine could not start on this server.", cause: admin === true ? "This server needs an update before agent computers can start. On the server run `vyre-server update`, then try again." : "The engine's image is not on the server. Trying again will fail the same way until it is installed. Tell the Space owner or an admin. Send the message again once they have fixed it.", retryable: false };
     else {
       const help = admin === true ? "If it keeps happening, open Details and use Report to send it to Vyre." : "If it keeps happening, open Details and tell the Space owner or an admin.";
-      w = { ...w, message: "The engine stopped before it replied.", cause: str(d.exit) !== "" ? `It exited with code ${str(d.exit)}. Try again. ${help}` : `It gave no reason. Try again. ${help}` };
+      w = { ...w, message: "The engine stopped before it replied.", cause: str(d.exit) !== "" ? `It stopped with an error (code ${str(d.exit)}). Try again. ${help}` : `It gave no reason. Try again. ${help}` };
     }
   }
   return { kind: "error", block: { ...b, type: "error", data: { code: str(d.code), message: w.message, ...(w.cause ? { cause: w.cause } : {}), next: w.next ?? [], retryable: w.retryable, turnId: str(d.turnId), steps: [...(str(d.code) ? [["Code", str(d.code)]] : []), ["Reply", str(d.turnId)]] } } };

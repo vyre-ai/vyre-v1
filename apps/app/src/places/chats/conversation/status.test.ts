@@ -178,7 +178,7 @@ test("an engine failure never stands alone: a missing sign-in, an engine that ca
   const unusable = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_unusable" })));
   assert.match(unusable.cause ?? "", /not installed here|not signed in here|not connected/);
   const crash = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", exit: "137" })));
-  assert.match(crash.cause ?? "", /exited with code 137/);
+  assert.match(crash.cause ?? "", /stopped with an error \(code 137\)/);
   const bare = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error" })));
   assert.ok((bare.cause ?? "").length > 0, "no reason: still says what to do, and Details holds the code");
   assert.ok(!/^The engine stopped with an error before it replied\.$/.test(crash.message));
@@ -209,8 +209,11 @@ test("an engine that stopped for a server setup cause says so, says trying again
   assert.match(member.cause ?? "", /Space owner or an admin/);
   assert.equal(member.retryable, false);
   const owner = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", why: "image" }), { admin: true }));
-  assert.match(owner.cause ?? "", /image is not on the server/);
-  assert.match(owner.cause ?? "", /Console > Computers/);
+  assert.match(owner.cause ?? "", /needs an update before agent computers can start/);
+  assert.match(owner.cause ?? "", /vyre-server update/);
+  const ownerSandbox = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", why: "sandbox" }), { admin: true }));
+  assert.match(ownerSandbox.cause ?? "", /needs an update before Claude Code can run here.*vyre-server update/);
+  assert.ok(!/Console/.test(ownerSandbox.cause ?? ""));
   assert.ok(!/admin\.|your admin/.test(owner.cause ?? ""));
   assert.equal(owner.retryable, false);
 });
