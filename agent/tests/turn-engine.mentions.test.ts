@@ -54,3 +54,15 @@ test("a held message is kept in the chat and wakes nobody", async () => {
   const next = engine.receive({ threadId: "T", author: agent("intake"), mentions: [agent("docs")], depth: 1, asker: "dana", body: "result two" });
   assert.deepEqual(next.responders, ["docs"], "the next, unheld message wakes as usual");
 });
+
+test("a held message wakes its agents when it is released, once", async () => {
+  const p = scriptedProvider({ script: quiet });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
+  engine.openThread({ id: "T", kind: "chat", starter: "dana", agents: team() });
+  const held = engine.receive({ threadId: "T", author: agent("intake"), mentions: [agent("docs")], depth: 1, asker: "dana", body: "result", hold: true });
+  const woke = engine.release("T", held.messageId);
+  assert.deepEqual(woke?.responders, ["docs"]);
+  await engine.idle("T");
+  assert.equal(p.sessions.filter((s) => s.spec.agent.id === "docs").length, 1);
+  assert.equal(engine.release("T", held.messageId), null, "a second release does nothing");
+});

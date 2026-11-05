@@ -163,6 +163,8 @@ export interface TurnEngine {
   openThread(thread: OpenThread): void;
   /** Persist, route and queue a message. `interrupt` = "stop and send": cancel the running turn now and run this first. */
   receive(msg: IncomingMessage, opts?: { interrupt?: boolean }): ReceiveResult;
+  /** Wake the agents for a message that was kept with `hold`: it is routed now as it would have been when it arrived. Null when it is not held (or already woken). */
+  release(threadId: string, messageId: string): ReceiveResult | null;
   /** A background wait fired for an agent: queue a wake on the starter's account. */
   /** `routine`: the turn is a routine's (its reply is labelled "on a routine <person> set"); `from`: the person it runs for (default the thread's starter). */
   wake(threadId: string, agentId: string, o?: { routine?: boolean; from?: string }): number;
@@ -262,9 +264,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     return item;
   }
 
+  /** What a held message needs to be routed later (who it replies to, whose job it is, who pays). */
+  const heldArgs = new Map<string, { replyToPerson?: string | undefined; job?: string | undefined; asker?: string | undefined; poke?: { agentId: string; by: string } | undefined; minutes?: number | undefined }>();
+
   function ingest(st: ThreadState, m: IncomingMessage, interrupt: boolean): ReceiveResult {
     if (m.people) st.thread.people = [...m.people];
-    if (m.hold === true) { const kept = store(st, m); return { responders: [], reason: "no_lead", qseqs: [], messageId: kept.id }; }
+    if (m.hold === true) { const kept = store(st, m); heldArgs.set(kept.id, { replyToPerson: m.replyToPerson, job: m.job, asker: m.asker, poke: m.poke, minutes: m.minutes }); return { responders: [], reason: "no_lead", qseqs: [], messageId: kept.id }; }
     return dispatch(st, store(st, m), interrupt, m.replyToPerson, m.job, m.asker, m.poke, m.minutes);
   }
 
@@ -767,6 +772,14 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       threads.set(thread.id, { thread: { ...thread, agents: thread.agents.map((a) => ({ ...a })) }, messages: messages.recent(thread.id, historyWindow), running: null, worker: null, active: false });
     },
     receive: (msg, o) => ingest(need(msg.threadId), msg, o?.interrupt === true),
+    release(threadId, messageId) {
+      const a = heldArgs.get(messageId);
+      if (!a) return null;
+      heldArgs.delete(messageId);
+      const st = need(threadId);
+      const msg = findMessage(st, messageId);
+      return msg ? dispatch(st, msg, false, a.replyToPerson, a.job, a.asker, a.poke, a.minutes) : null;
+    },
     wake(threadId, agentId, o) {
       const st = need(threadId);
       const item = enqueue(st, { kind: "wake", agentId, from: o?.from ?? st.thread.starter, messageId: null, priority: 0, routine: o?.routine === true });

@@ -320,7 +320,7 @@ export function createBridge(o: BridgeOptions): Bridge {
             emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "call", id, ...(name ? { name } : {}) });
           } else if (ev.kind === "tool_result" && id !== "") {
             const call = seg.calls?.get(id);
-            if (seg.step?.id === id) delete seg.step;
+            // the step stays as the latest one until the next call: a helper that is thinking between calls still shows what it did last (the helper rows and the Island read it)
             emit({ kind: "step", threadId: input.threadId, turnId: input.turnId, agentId: input.agent.id, phase: "result", id, ...(call?.name ? { name: call.name } : {}), ...(typeof p.ok === "boolean" ? { ok: p.ok } : {}) });
             if (call) data = { ...data, name: call.name, secs: Math.max(0, Math.round((now - call.at) / 1000)) };
           }
@@ -568,6 +568,8 @@ export function createBridge(o: BridgeOptions): Bridge {
       threadId, author: { kind: a.kind === "agent" ? "agent" : "person", id: authorId }, mentions, depth: Number(p["depth"] ?? 0), body: got.message.body + note + (poke ? POKE_NOTE : ""), replyToPerson, ...(people ? { people } : {}), ...(job ? { job } : {}), ...(speaksFor ? { asker: speaksFor } : {}),
       ...(poke ? { poke: { agentId: poke.agentId, by: poke.by ?? authorId } } : {}), ...(minutes === undefined ? {} : { minutes }),
     }));
+    // held: look again shortly, because the last two helpers can end together and each sees the other still working; the lead is woken once, for the latest held result, when nobody works any more
+    if (hold) scheduleRelease(ctx, threadId, readAs, res.messageId);
     // the person said go in the thread of a task assigned to them, and an agent answers: the task is theirs to do through it, so it moves to Doing and says who is on it for them
     if (a.kind === "person" && res.responders.length > 0) {
       try {
@@ -586,6 +588,23 @@ export function createBridge(o: BridgeOptions): Bridge {
       catch (e) { ctx.log.warn("the hand-off line could not be shown", { threadId, error: e instanceof Error ? e.message : String(e) }); }
     }
     return { receivedAs: res.responders };
+  }
+
+  const heldNow = new Map<string, string[]>();
+  function scheduleRelease(ctx: EngineCtx, threadId: string, readAs: string, messageId: string, tries = 0): void {
+    const list = heldNow.get(threadId) ?? [];
+    if (tries === 0) heldNow.set(threadId, [...list, messageId]);
+    const t = setTimeout(() => {
+      void (async () => {
+        const mine = heldNow.get(threadId) ?? [];
+        if (!mine.includes(messageId) || mine[mine.length - 1] !== messageId) { return; }   // a later held result looks after the wake
+        const still = await othersStillWorking(ctx, readAs, threadId, [{ type: "helper", data: { status: "done", threadId: "" } }]);
+        if (still) { if (tries < 40) scheduleRelease(ctx, threadId, readAs, messageId, tries + 1); return; }
+        heldNow.delete(threadId);
+        try { if (engine) engine.release(threadId, messageId); } catch { /* the thread is closed: nothing to wake */ }
+      })();
+    }, 1500);
+    (t as { unref?: () => void }).unref?.();
   }
 
   /** True when the message is a helper's result and another member of the crew is still working or waiting for a person. */

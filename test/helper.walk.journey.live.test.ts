@@ -39,13 +39,14 @@ test("running helpers: a held request, Change model, a person messaging a helper
     const body = input.trigger?.body ?? "";
     if (input.agent.id === lead && input.threadId === chat) {
       if (/start the crew/.test(body)) {
-        yield { type: "text", text: "Three helpers and a coder are on it. I will bring it together when they are back." };
+        if (!process.env["INTRO_LAST"]) yield { type: "text", text: "Three helpers and a coder are on it. I will bring it together when they are back." };
         yield* run("tool_search", { query: "sub task helper" });
         yield* run("sub_task_model", { threadId: input.threadId, title: "Check the calendar", instruction: "Calendar job: find a free slot next week.", idempotencyKey: "w-1" });
         yield* run("sub_task_model", { threadId: input.threadId, title: "Compare the quotes", instruction: "Quotes job: compare the two vendor quotes.", idempotencyKey: "w-2" });
         yield* run("sub_task_model", { threadId: input.threadId, title: "Read the Pine quote", instruction: "Writer job: read the Pine Works quote page.", idempotencyKey: "w-3" });
         yield* run("tool_search", { query: "crew teammate" });
         yield* run("crew_start", { threadId: input.threadId, idempotencyKey: "w-code", title: "Fix the invoice date bug", brief: "Fix the invoice date bug and add a test." });
+        if (process.env["INTRO_LAST"]) yield { type: "text", text: "Three helpers and a coder are on it. I will bring it together when they are back." };
       } else if (input.trigger?.author.kind === "agent") {
         // the engine wakes the lead once, after the last helper is back
         yield { type: "text", text: "Harbor costs more up front but is ready in two weeks [2]. Pine Works is cheaper but takes four [3]. Thursday at 14:00 is free on the calendar [1]." };
@@ -55,6 +56,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
     if (input.agent.id !== lead) {
       // a coder teammate: it adds its file on its own branch, then says so
       const work = workFolder(dir, owner, input.threadId, input.agent.id);
+      console.log("CODER start", work, fs.existsSync(work));
       await waitFor(async () => (fs.existsSync(path.join(work, ".git")) ? true : null), 30_000);
       fs.writeFileSync(path.join(work, "invoice-dates.ts"), "export const fixed = true;\n");
       git(work, "add", "-A"); git(work, "commit", "--quiet", "-m", "fix the invoice date bug");
@@ -104,7 +106,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
 
     lead = await waitFor(async () => { await d.hooks?.pump?.(); const r = await api("agents.assistant_of", { personId: (await api("identity.whoami", {})).principal.id }); return typeof r.agentId === "string" ? (r.agentId as string) : null; }, 40_000);
     chat = (await api("chat.start", { kind: "chat", agentIds: [lead], title: "Vendor call and quotes", idempotencyKey: "j-chat" })).thread.threadId as string;
-    await api("hooks.set", { scope: "chat", threadId: chat, event: "tool.before", matcher: "read_link", kind: "command", command: "exit 0", summary: "before a link is opened, note where it goes" });
+    if (!process.env["NO_HOOK"]) await api("hooks.set", { scope: "chat", threadId: chat, event: "tool.before", matcher: "read_link", kind: "command", command: "exit 0", summary: "before a link is opened, note where it goes" });
     for (const flow of ["team", "personal", "member"]) await api("spaces.onboarding.seen", { flow }).catch(() => undefined);
     const me = (await api("identity.whoami", {})).principal.id as string;
     owner = me;
@@ -122,6 +124,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
       console.log("STATUS", JSON.stringify(((await api("engine.crew.status", { threadId: chat })).members as Array<{ title: string; state: string }>).map((m) => [m.title, m.state])));
       throw e;
     });
+    if (process.env["EARLY_STEER"]) { const hs = ((await api("engine.helpers.status", { threadId: chat })).helpers as Array<{ title: string; threadId: string }>).find((h) => h.title === "Compare the quotes")!; await api("chat.helper.steer", { threadId: hs.threadId, body: "Take your time.", idempotencyKey: "w-early-steer" }); }
     const size = phone ? "phone" : "wide";
     for (const [skin, mode] of [["paper", "light"], ["graphite", "dark"]] as const) {
       const ctx = await browser.newContext({ viewport: phone ? { width: 390, height: 844 } : { width: 1440, height: 900 } });
@@ -178,8 +181,8 @@ test("running helpers: a held request, Change model, a person messaging a helper
       // everyone is done: the person allows the held link, the helpers finish, and the chat gets one answer
       await page.goto(`${web.origin}/chats?skin=${skin}`, { waitUntil: "load" });
       await page.getByText("Vendor call and quotes", { exact: false }).first().click({ timeout: 30_000 });
-      await page.getByRole("button", { name: "Allow", exact: true }).first().click({ timeout: 30_000 }).catch(async (e) => { await guard.check("FAILED-allow"); await shoot(page, `FAILED-allow-${mode}`); throw e; });
-      await page.getByText(/Pine Works is cheaper/).first().waitFor({ timeout: 150_000 }).catch(async (e) => { await guard.check("FAILED-answer"); await shoot(page, `FAILED-answer-${mode}`); throw e; });
+      await page.getByRole("button", { name: "Allow", exact: true }).first().click({ timeout: 30_000 }).catch(async (e) => { await guard.check("FAILED-allow"); await shoot(page, `FAILED-allow-${mode}`); console.log("STATUS", JSON.stringify(((await api("engine.crew.status", { threadId: chat })).members as Array<{ title: string; state: string }>).map((m) => [m.title, m.state]))); console.log("CREWLIST", JSON.stringify(await api("engine.crew.list", { threadId: chat }).catch((x: unknown) => String(x))).slice(0, 700)); { const jt = ((await api("engine.crew.list", { threadId: chat })).jobs as Array<{ threadId: string }>)[0]?.threadId; if (jt) console.log("CODERMSGS", JSON.stringify(((await api("chat.messages.list", { threadId: jt })).messages as Array<{ author: { kind: string }; body: string; blocks: Array<{ type: string; data?: unknown }> }>).map((m) => [m.author.kind, m.body.slice(0, 200), m.blocks.map((b) => b.type + ":" + JSON.stringify(b.data).slice(0, 200))])).slice(0, 1800)); } throw e; });
+      await page.getByText(/Pine Works is cheaper/).first().waitFor({ timeout: 150_000 }).catch(async (e) => { await guard.check("FAILED-answer"); await shoot(page, `FAILED-answer-${mode}`); console.log("STATUS", JSON.stringify(((await api("engine.crew.status", { threadId: chat })).members as Array<{ title: string; state: string; found?: string }>).map((m) => [m.title, m.state, m.found ?? ""]))); console.log("CREWLIST", JSON.stringify(await api("engine.crew.list", { threadId: chat }).catch((x: unknown) => String(x))).slice(0, 1500)); { const jt = ((await api("engine.crew.list", { threadId: chat })).jobs as Array<{ threadId: string }>)[0]?.threadId; if (jt) console.log("CODERMSGS", JSON.stringify(((await api("chat.messages.list", { threadId: jt })).messages as Array<{ author: { kind: string }; body: string; blocks: Array<{ type: string; data?: unknown }> }>).map((m) => [m.author.kind, m.body.slice(0, 200), m.blocks.map((b) => b.type + ":" + JSON.stringify(b.data).slice(0, 200))])).slice(0, 1800)); } { const jt = ((await api("engine.crew.list", { threadId: chat })).jobs as Array<{ threadId: string }>)[0]?.threadId; if (jt) { console.log("CODERLOG", JSON.stringify(hostLog(d)).split('","').filter((l: string) => l.includes(jt.slice(-12))).slice(0, 12).join("\n").slice(0, 3000)); console.log("CODERQ", JSON.stringify(await api("engine.queue.list", { threadId: jt }).catch((x: unknown) => String(x))).slice(0, 600)); } } console.log("HOSTLOG", JSON.stringify(hostLog(d)).split("\\\",\\\"").filter((l: string) => /crew|teammate|hook|fail|error/i.test(l)).slice(-14).join("\n").slice(0, 3500)); throw e; });
       await page.locator('[data-testid^="cite-"]').first().waitFor({ timeout: 20_000 }).catch(() => undefined);
       console.log("CITE_CHIPS", mode, await page.locator('[data-testid^="cite-"]').count());
       await page.locator('[data-testid="cite-2"]').first().hover().catch(() => undefined);
