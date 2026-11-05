@@ -111,6 +111,10 @@ test("a fresh install: pick Codex, go back, switch to Claude, keep an answer, im
       // 3. switch to Claude: the Claude sign-in goes in first, then Codex is removed
       await p.getByTestId(`ai-switch-${afterCodex[0]!.id}`).click();
       await p.getByTestId("ai-local-claude-code").click();
+      // this computer has no Claude program either: the same plain line; the person keeps it, and the Codex account goes
+      await p.getByTestId("ai-problem").waitFor({ timeout: 30_000 });
+      assert.match(await p.getByTestId("ai-problem").innerText(), /Claude is not installed on this computer/);
+      await p.getByTestId("ai-continue-anyway").click();
       await p.getByTestId("ai-note").waitFor({ timeout: 30_000 });
       assert.match(await p.getByTestId("ai-note").innerText(), /Switched from .*Codex/);
       const afterSwitch = (await call("providers.list", {})).providers as Array<{ providerKey: string }>;

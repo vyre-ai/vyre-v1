@@ -114,3 +114,25 @@ test("picking Codex on a computer without the Codex program says so in the card,
     assert.deepEqual(got, ["prv_x"]);
   } finally { restore(); }
 });
+
+test("switching to an account that cannot run here: Keep it anyway still removes the one it replaces", async () => {
+  const restore = installDom();
+  try {
+    const calls: Array<{ cap: string; input: unknown }> = [];
+    const call = (async (cap: string, input: unknown) => {
+      calls.push({ cap, input });
+      if (cap === "providers.list") return { providers: [{ id: "prv_codex", providerKey: "codex", name: "OpenAI", scope: "mine" }, { id: "prv_new", providerKey: "claude-code", name: "Claude", scope: "mine" }] };
+      if (cap === "providers.subscription_start") return { flowId: "f", instruction: "x", needsCode: false };
+      if (cap === "providers.subscription_complete") return { provider: { id: "prv_new" } };
+      if (cap === "engine.providers.list") return { providers: [{ driver: "claude_code", allowed: false, reason: "Claude is not installed on this computer. Install it, or pick another AI." }] };
+      if (cap === "providers.remove") return { ok: true };
+      throw new Error(`no ${cap}`);
+    }) as unknown as CapCall;
+    const root = await mount(createRoot, <ConnectAiCard call={call} local connected onConnected={() => undefined} />);
+    await flush();
+    await press(find(root, "ai-switch-prv_codex")); await press(find(root, "ai-local-claude-code")); await flush(); await flush();
+    assert.ok(!calls.some((c) => c.cap === "providers.remove"), "nothing removed while the person decides");
+    await press(find(root, "ai-continue-anyway")); await flush(); await flush();
+    assert.deepEqual(calls.filter((c) => c.cap === "providers.remove").map((c) => (c.input as { providerId: string }).providerId), ["prv_codex"]);
+  } finally { restore(); }
+});

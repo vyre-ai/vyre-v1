@@ -48,16 +48,19 @@ export function ConnectAiCard({ call, connected, onConnected, onDisconnected, in
       return row && !row.allowed && row.reason ? row.reason : "";
     } catch { return ""; }
   };
-  const connectedNew = async (id: string): Promise<void> => {
-    const old = replacing;
-    setReplacing(null); setChanging(false); setNote("");
-    const trouble = await problemOf(id);
-    if (trouble !== "") { setHeld({ id, text: trouble, old }); return; }
+  const settle = async (id: string, old: AccountRow | null): Promise<void> => {
     onConnected(id);
     if (old && old.id !== id) {
       try { await call("providers.remove", { providerId: old.id }); setNote(`Switched from ${accountLine(old)}.`); }
       catch (e) { setNote(`The new account is connected. ${accountLine(old)} could not be removed: ${e instanceof Error && e.message ? e.message : "That did not work."}`); }
     }
+  };
+  const connectedNew = async (id: string): Promise<void> => {
+    const old = replacing;
+    setReplacing(null); setChanging(false); setNote("");
+    const trouble = await problemOf(id);
+    if (trouble !== "") { setHeld({ id, text: trouble, old }); return; }
+    await settle(id, old);
   };
   const disconnect = (a: AccountRow): void => void run(async () => {
     await call("providers.remove", { providerId: a.id });
@@ -76,7 +79,7 @@ export function ConnectAiCard({ call, connected, onConnected, onDisconnected, in
         <Text accessibilityRole="alert" style={s.warn}>{held.text}</Text>
         <View style={s.row}>
           <Pressable testID="ai-pick-another" accessibilityRole="button" onPress={() => { setHeld(null); setChanging(true); }} style={s.ghost}><Text style={s.tileText}>Pick another AI</Text></Pressable>
-          <Pressable testID="ai-continue-anyway" accessibilityRole="button" onPress={() => { const h = held; setHeld(null); onConnected(h.id); }} style={s.ghost}><Text style={s.tileText}>Keep it anyway</Text></Pressable>
+          <Pressable testID="ai-continue-anyway" accessibilityRole="button" onPress={() => { const h = held; setHeld(null); void settle(h.id, h.old); }} style={s.ghost}><Text style={s.tileText}>Keep it anyway</Text></Pressable>
         </View>
       </View>
     );
