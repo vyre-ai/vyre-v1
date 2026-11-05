@@ -27,6 +27,11 @@ export function whatItDoes(c: Pick<Connector, "mode" | "syncedTypes">): string {
 /** Goes back to the list once: the page an app stood on is gone (a custom app was removed). */
 function GoBack({ to }: { to: () => void }): null { useEffect(() => { to(); }, []); return null; } // eslint-disable-line react-hooks/exhaustive-deps
 
+/** The quiet line under an app: what it does, or for a custom app still being built that it is a draft and not connected yet. */
+export function appNote(c: Pick<Connector, "mode" | "syncedTypes" | "state" | "connections">): string {
+  return c.state !== "live" && c.connections === 0 ? "Draft. Not connected yet." : whatItDoes(c);
+}
+
 /** The connections that belong to no app on the list. */
 export function otherSignIns<C extends { connector: string }>(connections: readonly C[], apps: readonly { key: string }[]): C[] {
   const keys = new Set(apps.map((a) => a.key));
@@ -63,7 +68,8 @@ export function AppsPage(): ReactElement {
   if (!connectors.ready || !connections.ready) return <ReadState error={connectors.error ?? connections.error} retry={refresh} />;
 
   // a custom app stays on the list while it is a draft, so a person can come back to finish and publish it
-  const apps = connectors.rows.filter((c) => c.state === "live" || c.connections > 0 || !c.builtin);
+  const COMPANY_KEYS = ["google", "microsoft"];
+  const apps = connectors.rows.filter((c) => (c.state === "live" || c.connections > 0 || !c.builtin) && !COMPANY_KEYS.includes(c.key));
   const signIns = (key: string): Connection[] => connections.rows.filter((c) => c.connector === key);
 
   if (view.kind === "app") {
@@ -109,27 +115,34 @@ export function AppsPage(): ReactElement {
 
   const loose = otherSignIns(connections.rows, connectors.rows);
   const googleOn = google.data?.configured === true, microsoftOn = microsoft.data?.consentGiven === true;
-  const count = apps.length + 3;
+  const registryOf = (key: string): Connector | undefined => connectors.rows.find((c) => c.key === key);
+  const signIns2 = (key: string): number => registryOf(key)?.connections ?? 0;
+  const company = [
+    { key: "google", title: "Google Workspace", page: "google", connect: "Connect", on: googleOn || signIns2("google") > 0, note: googleOn ? `Connected${google.data?.domain ? ` for ${google.data.domain}` : ""}` : `${signIns2("google")} sign-in${signIns2("google") === 1 ? "" : "s"}`, registry: registryOf("google") },
+    { key: "microsoft", title: "Microsoft 365", page: "microsoft", connect: "Connect with admin consent", on: microsoftOn || signIns2("microsoft") > 0, note: microsoftOn ? "Connected" : `${signIns2("microsoft")} sign-in${signIns2("microsoft") === 1 ? "" : "s"}`, registry: registryOf("microsoft") },
+  ];
+  const count = apps.length + company.length;
   return (
     <View testID="console-apps">
       <Section title="Connected apps" count={count} right={<Button label="Add a custom app" testID="apps-new" onPress={() => setView({ kind: "newapp" })} />}>
         <Group testID="apps-list">
           {apps.map((c) => (
-            <Row key={c.key} id={`app-${c.key}`} title={c.title} note={whatItDoes(c)} leading={<Logo name={c.title} />}
+            <Row key={c.key} id={`app-${c.key}`} title={c.title} note={appNote(c)} leading={<Logo name={c.title} />}
               trailing={c.connections > 0
                 ? <Actions><StatusLabel status="active" /><Button label="Manage" testID={`app-manage-${c.key}`} onPress={() => setView({ kind: "app", key: c.key })} />{!c.builtin ? <Button label="Settings" testID={`app-settings-${c.key}`} onPress={() => setView({ kind: "settings", key: c.key })} /> : null}</Actions>
                 : <Actions>{c.state === "live" ? <Button label="Connect" testID={`app-connect-${c.key}`} onPress={() => setView({ kind: "connect", key: c.key })} /> : null}{!c.builtin ? <Button label="Settings" testID={`app-settings-${c.key}`} onPress={() => setView({ kind: "settings", key: c.key })} /> : null}</Actions>} />
           ))}
-          <Row id="app-google" title="Google Workspace" note={googleOn ? `Connected${google.data?.domain ? ` for ${google.data.domain}` : ""}` : "Sign-in, mail, calendar and files for the whole company"} leading={<Logo name="Google Workspace" />}
-            trailing={googleOn
-              ? <Actions><StatusLabel status="active" /><Button label="Manage" testID="app-manage-google" onPress={() => data.nav.openPage("google")} /></Actions>
-              : <Button label="Connect" testID="app-connect-google" onPress={() => data.nav.openPage("google")} />} />
-          <Row id="app-microsoft" title="Microsoft 365" note={microsoftOn ? "Connected" : "Sign-in, mail, calendar and files for the whole company"} leading={<Logo name="Microsoft 365" />}
-            trailing={microsoftOn
-              ? <Actions><StatusLabel status="active" /><Button label="Manage" testID="app-manage-microsoft" onPress={() => data.nav.openPage("microsoft")} /></Actions>
-              : <Button label="Connect with admin consent" testID="app-connect-microsoft" onPress={() => data.nav.openPage("microsoft")} />} />
-          <Row id="app-kit" title="Kit" note="The scripts and tools your Space runs" leading={<Logo name="Kit" />}
-            trailing={<Button label="Open diagnostics" testID="app-kit-diagnostics" onPress={() => data.nav.openPage("diagnostics")} />} />
+          {/* One Google Workspace row and one Microsoft 365 row: the company sign-ins. The registry holds a connector of the same name for each (keys google, microsoft); those are not drawn as rows of their own.
+              What each one offered, and where it is now: the company row opens the setup page (Connect, or Manage once configured); the registry connector offered Connect (a Space account, NewConnection) and, once it had
+              sign-ins, Manage (who signed in, Add a sign-in, Disconnect). The kept row carries both: Manage/Connect for the setup page, and Accounts for the registry connector's page, which keeps Add a sign-in and Disconnect. */}
+          {company.map((c) => (
+            <Row key={c.key} id={`app-${c.key}`} title={c.title} note={c.on ? c.note : "Sign-in, mail, calendar and files for the whole company"} leading={<Logo name={c.title} />}
+              trailing={<Actions>
+                {c.on ? <StatusLabel status="active" /> : null}
+                {c.on ? <Button label="Manage" testID={`app-manage-${c.key}`} onPress={() => data.nav.openPage(c.page)} /> : <Button label={c.connect} testID={`app-connect-${c.key}`} onPress={() => data.nav.openPage(c.page)} />}
+                {c.registry && (c.registry.state === "live" || c.registry.connections > 0) ? <Button label="Accounts" testID={`app-accounts-${c.key}`} onPress={() => setView({ kind: "app", key: c.registry!.key })} /> : null}
+              </Actions>} />
+          ))}
         </Group>
       </Section>
       {loose.length ? (

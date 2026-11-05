@@ -35,14 +35,14 @@ const SAYS: Record<string, string> = {
 };
 
 /** What the plan says for a kind: the scripted install.get, the Vault with nothing in it, the check for a newer version. */
-const keyOf = (kind: string): string => (kind === "mcpadded" ? "mcp" : KEY[kind] ?? "skill");
+const keyOf = (kind: string): string => (kind === "mcpadded" ? "mcp" : kind === "older" ? "update" : KEY[kind] ?? "skill");
 const VERSIONS: Record<string, string> = { skill: "1.2.0", plugin: "0.9.4", mcp: "2.1.0", update: "1.3.0" };
 export function scripted(kind: string): Call {
   const k = keyOf(kind);
   return async (cap, input) => {
     const i = (input ?? {}) as Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
     switch (cap) {
-      case "install.get": { const raw = PLANS[k] as Record<string, unknown>; const plan = { ...raw, ...(VERSIONS[k] ? { version: VERSIONS[k] } : {}), ...(k === "update" ? { diff: { ...(raw["diff"] as object), fromVersion: "1.2.0", toVersion: "1.3.0", newAccess: ["cdn.example.com"] } } : {}) }; return { plan: kind === "member" ? { ...plan, who: WHO(false) } : kind === "done" ? { ...plan, state: "installed" } : plan }; }
+      case "install.get": { const raw = PLANS[k] as Record<string, unknown>; const plan = { ...raw, ...(VERSIONS[k] ? { version: VERSIONS[k] } : {}), ...(k === "update" ? { diff: kind === "older" ? { ...(raw["diff"] as object), from: "7d03be8".padEnd(40, "0"), to: "a41f9c2".padEnd(40, "0"), fromVersion: "1.3.0", toVersion: "1.2.0", older: true, newAccess: [] } : { ...(raw["diff"] as object), fromVersion: "1.2.0", toVersion: "1.3.0", newAccess: ["cdn.example.com"] } } : {}) }; return { plan: kind === "member" ? { ...plan, who: WHO(false) } : kind === "done" ? { ...plan, state: "installed" } : plan }; }
       case "vault.items.list": return { items: [{ name: "GitHub token (yours)" }, ...(kind === "mcpadded" ? [{ name: "DATABASE_URL" }] : [])] };
       case "install.list": return { installs: INSTALLS.map((x, n) => ({ ...x, at: NOV4 - n * 86_400_000, ...(x.kind === "skill" ? { version: "1.2.0" } : x.kind === "mcp_local" ? { version: "2.1.0" } : {}), installed: { for: n === 0 ? "space" : "me" } })) };
       case "access.principals.list": return { principals: Object.entries(NAMES).filter(([id]) => id.startsWith("usr_")).map(([id, name]) => ({ id, name })) };
@@ -54,7 +54,7 @@ export function scripted(kind: string): Call {
       };
       case "skills.of_agents": return { skills: [{ skillId: "sko_5", name: "Write a brief", description: "", agentId: "agt_mira", agentName: "Mira", version: "1.4", source: "agent", rev: 2, updatedAt: NOV4 }, { skillId: "sko_6", name: "Review a pull request", description: "", agentId: "agt_ember", agentName: "Ember", version: "0.9", source: "github:acme/review-kit@3be07d1", rev: 1, updatedAt: NOV4 }] };
       case "skills.members": return { skills: [] };
-      case "skills.history": return { revisions: [{ rev: 1, by: "usr_irfad", authorKind: "person", summary: "Installed from a link", at: NOV4 }] };
+      case "skills.history": return { revisions: [{ rev: 1, by: "usr_irfad", authorKind: "person", version: "1.2.0", summary: "Installed from a link · a41f9c2", at: NOV4 }] };
       default: void i; return undefined;
     }
   };
@@ -84,9 +84,9 @@ function useChatData(kind: string) {
     const mk = (n: number, author: Message["author"], body: string, blocks: unknown[] = []): Message => ({ messageId: `msg_inst_${n}`, threadId: s.data.threadId, threadSeq: last.threadSeq + n, author, kind: author.kind === "agent" ? "agent" : "person", body, depth: 0, attachments: [], reactions: [], pinned: false, createdAt: at(n), blocks } as unknown as Message);
     const agent = { kind: "agent", id: "agt_intake" } as Message["author"];
     const me = { kind: "person", id: s.data.me.id } as Message["author"];
-    const block = { type: "install_plan", v: 1, id: "blk_inst", state: "done", traceId: "tr", data: { planId: plan.planId, name: plan.name, kind: plan.kind, ...(kind === "update" ? { update: true, installId: "ins_1" } : {}) } };
-    const msgs = kind === "update"
-      ? [mk(1, me, (LINKS[kind] ?? LINKS["mcp"]!)), mk(2, agent, "pdf-tools has a newer version. I will not update anything until you say so.", [block])]
+    const block = { type: "install_plan", v: 1, id: "blk_inst", state: "done", traceId: "tr", data: { planId: plan.planId, name: plan.name, kind: plan.kind, ...(kind === "update" || kind === "older" ? { update: true, installId: "ins_1" } : {}) } };
+    const msgs = kind === "update" || kind === "older"
+      ? [mk(1, me, kind === "older" ? "Check pdf-tools again" : (LINKS[kind] ?? LINKS["mcp"]!)), mk(2, agent, kind === "older" ? "The repository now points at an older pdf-tools, 1.2.0, while 1.3.0 is installed. I will not change anything until you say so." : "pdf-tools has a newer version. I will not update anything until you say so.", [block])]
       : [mk(1, me, (LINKS[kind] ?? LINKS["mcp"]!)), mk(2, agent, SAYS[kind === "member" || kind === "done" ? "skill" : kind === "mcpadded" ? "mcp" : kind]!, [block])];
     s.replica.put("messages", msgs.map((m) => ({ id: m.messageId, ...m })));
     const d = s.data as unknown as { nav?: object };

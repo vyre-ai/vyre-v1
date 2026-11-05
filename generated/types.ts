@@ -35143,6 +35143,7 @@ export type SkillsHistoryOut = {
       by: string;
       authorKind: "person" | "agent";
       summary: string;
+      version?: string;
       undoOf?: number;
       at: number;
     }>;

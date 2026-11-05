@@ -63,7 +63,7 @@ export const installCapabilities: CapabilityDef[] = [
     errors: ['validation.bad_input', 'validation.too_large', 'validation.not_found', 'permission.role_lacks_permission'],
   }),
   read('skills.history', 'The versions of a skill, newest first, each with who saved it and what changed', {
-    in: { skillId: skoId }, out: { revisions: t.arr(t.obj({ rev: t.int({ minimum: 1 }), by: t.str(), authorKind: t.enm('person', 'agent'), summary: t.str(), undoOf: t.opt(t.int()), at: t.ts() })) },
+    in: { skillId: skoId }, out: { revisions: t.arr(t.obj({ rev: t.int({ minimum: 1 }), by: t.str(), authorKind: t.enm('person', 'agent'), summary: t.str(), version: t.opt(t.str()), undoOf: t.opt(t.int()), at: t.ts() })) },
     perm: null, level: 'view', tool: 'agents', mcpName: 'skill_history', errors: ['validation.not_found'],
   }),
   write('skills.undo', 'Undo the latest version of a skill; the version before it comes back as a new version, and undoing again brings the undone one back', {

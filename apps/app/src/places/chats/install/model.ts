@@ -60,7 +60,7 @@ export function sourceWords(source: string): string {
 }
 
 /** History row: "v3 · 4 Nov · pdf-tools updated to 7d03be8". */
-export function historyLine(r: { rev: number; at: number; summary: string; by: string; authorKind: "person" | "agent" }, nameOf: (id: string) => string): string {
+export function historyLine(r: { rev: number; at: number; summary: string; by: string; authorKind: "person" | "agent"; version?: string | undefined }, nameOf: (id: string) => string): string {
   const d = new Date(r.at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-  return `v${r.rev} · ${d} · ${r.summary}${r.authorKind === "agent" ? ` · ${nameOf(r.by)}` : ""}`;
+  return `${r.version ? `v${r.version.replace(/^v/, "")}` : `v${r.rev}`} · ${d} · ${r.summary}${r.authorKind === "agent" ? ` · ${nameOf(r.by)}` : ""}`;
 }

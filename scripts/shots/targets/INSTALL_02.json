@@ -99,6 +99,23 @@
       "proto": "chat,{skin}",
       "waitFor": "[data-testid='skills-installed']",
       "note": "Console > Skills: Installed from links."
+    },
+    {
+      "id": "INSTALL_02-older",
+      "route": "/m/INSTALL_02?part=chat&kind=older",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-update-blk_inst']",
+      "note": "A lower version: has an older version, not an update."
+    },
+    {
+      "id": "INSTALL_02-older-diff",
+      "route": "/m/INSTALL_02?part=chat&kind=older",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid='install-update-blk_inst']",
+      "click": [
+        "[data-testid='install-diff-toggle-blk_inst']"
+      ],
+      "note": "Older version opened: versions, diff, Go back to it, Not now."
     }
   ]
 }
