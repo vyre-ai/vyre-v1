@@ -527,6 +527,9 @@ export default defineManifest({
     write('engine.helpers.stop_all', 'Stop every helper still working under a chat; what they did so far is kept', {
       in: { ...threadT }, out: { stopped: t.int({ minimum: 0 }) }, on: ['thread', '/threadId'], level: 'use', idem: 'natural', tool: 'chats', emits: ['turn.cancelled'],
     }),
+    read('engine.running_here', 'System: the turns running now with the chat each is in and who asked, for the desktop update screen to name the reply it waits for and to end it (host/src/daemon, GET /local/daemon/busy)', {
+      in: {}, out: { turns: t.arr(t.obj({ threadId: id.thread, agentId: id.agent, asker: t.str() })) }, perm: 'console.access', tool: 'chats',
+    }),
     read('engine.health', 'Engine health: queue age, lease holders, provider reachability', {
       out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()), oldestQueuedMs: t.int() },
     }),

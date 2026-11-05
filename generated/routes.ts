@@ -11503,6 +11503,24 @@ const routes2: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/engine/running_here",
+    "cap": "engine.running_here",
+    "v": 1,
+    "module": "engine",
+    "effects": "read",
+    "permission": "console.access",
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/engine/runtime/opt_in",
     "cap": "engine.runtime.opt_in",
     "v": 1,
@@ -16611,7 +16629,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "connection_change"
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/google/dwd/members",
@@ -16629,10 +16650,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/google/dwd/my_account",
@@ -22097,7 +22115,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/meetings/closeout/sync",
@@ -22115,10 +22136,7 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/meetings/get",
@@ -27567,7 +27585,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/plugins/connections/policy",
@@ -27585,10 +27606,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/plugins/connections/policy_set",
@@ -33133,7 +33151,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sites/tables",
@@ -33152,10 +33173,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sites/update",
@@ -38636,7 +38654,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/vault/fill",
@@ -38656,10 +38677,7 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/vault/folders/create",

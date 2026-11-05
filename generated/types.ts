@@ -12097,6 +12097,14 @@ export type EngineRoutePreviewOut = {
   responders: Array<string>;
   line: string;
 };
+export type EngineRunningHereIn = Record<string, unknown>;
+export type EngineRunningHereOut = {
+  turns: Array<{
+      threadId: string;
+      agentId: string;
+      asker: string;
+    }>;
+};
 export type EngineRuntimeOptInIn = {
   enabled: boolean;
   wrappedRuntimeKey?: string;
@@ -45085,6 +45093,7 @@ export interface CapMap {
   "engine.reviewer.get": { in: EngineReviewerGetIn; out: EngineReviewerGetOut };
   "engine.reviewer.set": { in: EngineReviewerSetIn; out: EngineReviewerSetOut };
   "engine.route.preview": { in: EngineRoutePreviewIn; out: EngineRoutePreviewOut };
+  "engine.running_here": { in: EngineRunningHereIn; out: EngineRunningHereOut };
   "engine.runtime.opt_in": { in: EngineRuntimeOptInIn; out: EngineRuntimeOptInOut };
   "engine.set_mode": { in: EngineSetModeIn; out: EngineSetModeOut };
   "engine.set_model": { in: EngineSetModelIn; out: EngineSetModelOut };

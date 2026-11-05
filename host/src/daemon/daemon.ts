@@ -1416,15 +1416,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // The desktop shell updating the app asks which chats the running turns are in (it tells the person which reply it waits for) and, when the wait runs out or the person says so, to end them
       // cleanly (routes/local-work.ts). The engine names what works now (engine.now) and stops a chat's agents (engine.stop_all), the same ends a person's Stop reaches.
       engineSource.chats = async () => {
-        const out = (await system("engine.now", {})) as { working?: Array<{ threadId?: string; title?: string }> };
+        const out = (await system("engine.running_here", {})) as { turns?: Array<{ threadId: string; asker: string }> };
         const seen = new Map<string, string>();
-        for (const w of out.working ?? []) if (w.threadId && !seen.has(w.threadId)) seen.set(w.threadId, w.title ?? "a chat");
+        for (const t of out.turns ?? []) {
+          if (seen.has(t.threadId)) continue;
+          // the title is read as the person whose turn it is: their own chat, on their own computer
+          let title = "a chat";
+          try { title = ((await invoke("threads.get", { threadId: t.threadId }, { space: spaceId, principal: { kind: "person", id: t.asker }, origin: "seam" }).then((r) => (r.status === "ok" ? r.output : null))) as { thread?: { title?: string } } | null)?.thread?.title || "a chat"; } catch { /* a chat that cannot be read is "a chat" */ }
+          seen.set(t.threadId, title);
+        }
         return [...seen].map(([id, title]) => ({ id, title }));
       };
       engineSource.stopTurns = async () => {
-        const out = (await system("engine.now", {})) as { working?: Array<{ threadId?: string }> };
+        const out = (await system("engine.running_here", {})) as { turns?: Array<{ threadId: string }> };
         let stopped = 0;
-        for (const id of new Set((out.working ?? []).map((w) => w.threadId).filter((x): x is string => typeof x === "string"))) {
+        for (const id of new Set((out.turns ?? []).map((t) => t.threadId))) {
           try { stopped += ((await system("engine.stop_all", { threadId: id })) as { stopped?: number }).stopped ?? 0; } catch { /* that chat ends by itself or at the stop */ }
         }
         return stopped;
