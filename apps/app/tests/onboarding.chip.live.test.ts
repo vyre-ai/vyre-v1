@@ -41,7 +41,7 @@ test("Finish setup entry: none on a brand-new Space, a true count once a step is
         const u = new URL(page.url()); if (q) u.searchParams.set("skin", q); else u.searchParams.delete("skin");
         if (q) { await page.goto(u.toString(), { waitUntil: "load" }); await page.getByTestId("shell").waitFor({ timeout: 30_000 }); await dismissOnboarding(page, { wait: 1500 }); await page.waitForTimeout(1500); }
         await guard.check(`${name} ${skin}`);
-        await page.screenshot({ path: path.join(shots, `${name}-${skin}-1440.png`), clip: { x: 0, y: 0, width: 1440, height: 110 } });
+        await page.screenshot({ path: path.join(shots, `${name}-${skin}-1440.png`) });
       }
       await page.goto(new URL(page.url()).origin + "/chat", { waitUntil: "load" });
       await page.getByTestId("shell").waitFor({ timeout: 30_000 });
