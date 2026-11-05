@@ -494,6 +494,8 @@ export async function apply(ctx: AgentsCtx, input: In) {
     return { installed: { ...parse<Record<string, unknown>>(old["installed_json"], {}), kind: p.kind, updated: true, commit: p.commit } };
   }
 
+  // a plugin or a local MCP that runs in an agent's sandbox needs that agent: refused before any write (raise-after-write)
+  if ((p.kind === "plugin" || (p.kind === "mcp_local" && input.runOn !== "space")) && forWho !== "space" && !agentId) raise(ctx, "validation.bad_input", "Pick the agent whose sandbox runs it.");
   switch (p.kind) {
     case "skill": {
       const s = skillsInTree(files, p.name).skills[0];
@@ -514,7 +516,7 @@ export async function apply(ctx: AgentsCtx, input: In) {
       if (p.kind === "mcp_local" && input.runOn === "space") { Object.assign(done, await deployOnSites(ctx, p, input, key)); break; }
       const scope = forWho === "space" ? "space" : "agent";
       const owner = scope === "agent" ? agentId : "";
-      if (scope === "agent" && !owner) raise(ctx, "validation.bad_input", "Pick the agent whose sandbox runs it.");
+      // the agent was checked before any write, above the switch
       const contents = contentsOf(p, files);
       // skills a plugin brings join the library the way a marketplace install adds them
       for (const sk of contents.skills) await (ctx.call?.("skills.add", { text: sk.text, name: `${p.name}:${sk.name}`, ...(owner ? { agentId: owner } : {}), source: `plugin:${p.name}`, files: sk.files, idempotencyKey: `${key}:skill:${sk.name}` }, { idempotencyKey: `${key}:skill:${sk.name}` }) ?? Promise.resolve()).catch(() => undefined);
