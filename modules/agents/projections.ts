@@ -611,7 +611,7 @@ export function nextRun(expr: string, after: number): number | null {
 
 // ---- routines ------------------------------------------------------------------------------------------------------------------------------------------
 
-export interface RoutineRec { watchChannel?: string; setBy?: { kind: "agent" | "person"; id: string }; lastRun?: { runId: string; status: string }; id: string; agentId: string; ownerId: string; title: string; cron: string; prompt: string; channelId?: string; enabled: boolean; lastRunAt?: number; nextRunAt?: number; createdAt: number; updatedAt: number }
+export interface RoutineRec { watchChannel?: string; setBy?: { kind: "agent" | "person"; id: string }; lastRun?: { runId: string; status: string }; pausedReason?: string; id: string; agentId: string; ownerId: string; title: string; cron: string; prompt: string; channelId?: string; enabled: boolean; lastRunAt?: number; nextRunAt?: number; createdAt: number; updatedAt: number }
 export function routineOf(r: Row): RoutineRec {
   const o: RoutineRec = { id: str(r["id"]), agentId: str(r["agentId"]), ownerId: str(r["ownerId"]), title: str(r["title"]), cron: str(r["cron"]), prompt: str(r["prompt"]), enabled: flag(r["enabled"]), createdAt: num(r["createdAt"]), updatedAt: num(r["updatedAt"]) };
   const ch = optStr(r["channelId"]); if (ch !== undefined) o.channelId = ch;
@@ -629,6 +629,8 @@ export function routineBy(db: Db, id: string): RoutineRec | null {
   if (b) rec.setBy = { kind: str(b["byKind"]) === "agent" ? "agent" : "person", id: str(b["byId"]) };
   const l = (db.all("SELECT runId, status FROM agents_routine_last WHERE routineId = ?", id) as Row[])[0];
   if (l) rec.lastRun = { runId: str(l["runId"]), status: str(l["status"]) };
+  // paused by itself after repeated failed runs (modules/agents/routine-guard.ts): why, for the row; the table exists once a routine has failed
+  try { const sp = (db.all("SELECT reason FROM agents_routine_selfpaused WHERE routineId = ?", id) as Row[])[0]; if (sp && !rec.enabled) rec.pausedReason = str(sp["reason"]); } catch { /* no routine has paused itself yet */ }
   return rec;
 }
 export function routineOut(r: RoutineRec): Record<string, unknown> {
@@ -636,6 +638,7 @@ export function routineOut(r: RoutineRec): Record<string, unknown> {
     routineId: r.id, agentId: r.agentId, title: r.title, ...(r.watchChannel === undefined ? { cron: r.cron } : { kind: "watch", watch: { on: "message", channelId: r.watchChannel } }), prompt: r.prompt, ...(r.channelId !== undefined ? { channelId: r.channelId } : {}), enabled: r.enabled, ownerId: r.ownerId,
     ...(r.lastRunAt !== undefined ? { lastRunAt: r.lastRunAt } : {}), ...(r.nextRunAt !== undefined ? { nextRunAt: r.nextRunAt } : {}),
     ...(r.setBy !== undefined ? { setBy: r.setBy } : {}), ...(r.lastRun !== undefined ? { lastRun: r.lastRun } : {}),
+    ...(r.pausedReason !== undefined ? { pausedReason: `Paused after 3 failed runs: ${r.pausedReason}` } : {}),
   };
 }
 /** The line under a message an agent posts because of a routine: "Sent by Intake on a routine Dana set". */

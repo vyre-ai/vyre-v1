@@ -176,3 +176,34 @@ test("the line for a reply ended for an update carries Continue, for the turn th
   assert.deepEqual(statusView({ id: "b1", type: "turn_status", v: 1, data: { state: "stopped_for_update", text, turnId: "trn_9" } } as never), { kind: "wait", id: "b1", text, action: { key: "continue_turn:trn_9", label: "Continue" } });
   assert.deepEqual(statusView({ id: "b2", type: "turn_status", v: 1, data: { state: "stopped_for_update", text } } as never), { kind: "note", id: "b2", text });
 });
+
+test("an engine failure never stands alone: a missing sign-in, an engine that cannot run here, a crash with its exit code", () => {
+  const data = (b: ReturnType<typeof statusView>): { message: string; cause?: string; next?: Array<{ label: string }> } => (b as { block: { data: never } }).block.data;
+  const miss = data(statusView(block({ state: "failed", turnId: "t", code: "engine.signin_missing" })));
+  assert.match(miss.message, /sign-in/);
+  assert.equal(miss.next?.[0]?.label, "Sign in again");
+  const unusable = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_unusable" })));
+  assert.match(unusable.cause ?? "", /not installed here|not signed in here|not connected/);
+  const crash = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", exit: "137" })));
+  assert.match(crash.cause ?? "", /exited with code 137/);
+  const bare = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error" })));
+  assert.ok((bare.cause ?? "").length > 0, "no reason: still says what to do, and Details holds the code");
+  assert.ok(!/^The engine stopped with an error before it replied\.$/.test(crash.message));
+});
+
+test("a missing sign-in's button names the account it opens", () => {
+  const v = statusView(block({ state: "failed", turnId: "t", code: "engine.signin_missing", account: "Claude_Code" })) as { block: { data: { next: Array<{ key: string; label: string }> } } };
+  assert.deepEqual(v.block.data.next, [{ key: "sign_in:Claude_Code", label: "Sign in again" }]);
+});
+
+test("an engine that cannot run here says why in the connect card's own words, and a sign-in names its account", () => {
+  const data = (b: ReturnType<typeof statusView>): { message: string; next?: Array<{ key: string; label: string }> } => (b as { block: { data: never } }).block.data;
+  const missing = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_unusable", cli: "codex", cliMissing: true })));
+  assert.equal(missing.message, "Codex is not installed on this computer. Install it, or pick another AI.");
+  assert.deepEqual(missing.next?.map((n) => n.key), ["install:codex", "connect_ai"]);
+  const signin = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_unusable", cli: "codex", cliMissing: false, account: "Codex" })));
+  assert.equal(signin.message, "Sign in to Codex again.");
+  assert.equal(signin.next?.[0]?.key, "sign_in:Codex");
+  const auth = data(statusView(block({ state: "failed", turnId: "t", code: "provider.auth_failed", account: "Claude_Code" })));
+  assert.equal(auth.next?.[0]?.key, "sign_in:Claude_Code");
+});

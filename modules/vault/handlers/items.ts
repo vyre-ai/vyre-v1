@@ -388,6 +388,8 @@ export async function itemUpdate(ctx: VaultCtx, input: {
   if (!fieldsChanged.length && !settings.length) return { item: metaOut(ctx, r) };
   patchMeta(ctx, str(r, "id"), changed);
   if (settings.length) record(ctx, str(r, "id"), "edited", { detail: settings.join(", ") });
+  // a sign-in saved again on an account that read "Sign in again" puts it back to working; the next turn proves it
+  if (fieldsChanged.some((k) => k === "setup_token" || k === "credentials" || k === "api_key")) { try { ctx.db.run(`UPDATE vault_provider SET "state" = 'ok' WHERE "itemId" = ? AND "state" = 'needs_sign_in'`, str(r, "id")); } catch { /* no provider table yet: nothing to put back */ } }
   ctx.emit("vault.item_updated", `vault_item/${str(r, "id")}`, { itemId: str(r, "id"), fieldsChanged, settingsChanged: settings }, { vis: "participants" });
   return { item: metaOut(ctx, liveItem(ctx, str(r, "id"))) };
 }

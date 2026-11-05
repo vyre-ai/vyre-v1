@@ -16,7 +16,8 @@ import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.
 import { ALL_AGENTS, route as routeOf } from "../../../lib/route.ts";
 import { localClock, readPublicTime } from "../../../lib/presence.ts";
 import { hasReads } from "../../../host/src/seams/answer-reads.ts";
-import { sqlMessages, withMessageId, mintId } from "../projections.ts";
+import { findProgram } from "../cli-programs.ts";
+import { engineIfBound, sqlMessages, withMessageId, mintId } from "../projections.ts";
 import { setUsing } from "../node-turns.ts";
 import type { EngineCtx } from "../projections.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
@@ -209,7 +210,16 @@ export function createBridge(o: BridgeOptions): Bridge {
       const reason = e.code === "engine.vault_unreadable" ? /^The Vault could not be read \(([a-z_]+(?:\.[a-z_]+)*)\)\.$/.exec(e.message ?? "")?.[1] : undefined;
       // a picked model nothing can serve: the words name the model and what can run (model-fallback.ts noModelWords), a fixed sentence of Vyre's own
       const detail = e.code === "engine.model_unavailable" || e.code === "engine.no_model_picked" ? e.message : undefined;
-      return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(detail ? { detail } : {}), ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}) } };
+      // how the engine process ended, when it says (an exit code or a signal): a number is no secret, and it is what a person reads out to get help
+      // the account whose sign-in is missing (its Vault handle, no secret), so the chat's button opens that account
+      const named = e.code === "engine.signin_missing" ? /\[account ([\w.-]{1,60})\]/.exec(e.message ?? "")?.[1] : undefined;
+      const needsSignin = e.code === "engine.signin_missing" || e.code === "provider.auth_failed" || e.code === "engine.cli_unusable";
+      const account = needsSignin ? (named ?? (e.account?.ref && /^[\w.#-]{1,60}$/.test(e.account.ref) ? e.account.ref.replace(/^#/, "") : undefined)) : undefined;
+      // the same plain reasons the connect card shows (engine.providers.list, cliTrouble): the program is not on this computer, or its sign-in needs doing again
+      const cliProgram = e.account ? ({ claude_code: "claude", codex: "codex", grok: "grok" } as Record<string, string>)[e.account.driver] : undefined;
+      const trouble = e.code === "engine.cli_unusable" && cliProgram ? { program: cliProgram, missing: findProgram(cliProgram) === null } : undefined;
+      const exit = e.code === "engine.cli_error" ? /(?:exited|exit(?:ed)? with|code) (?:code )?(-?\d{1,3})\b|signal (SIG[A-Z]+)/i.exec(e.message ?? "") : null;
+      return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(detail ? { detail } : {}), ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}), ...(exit ? { exit: exit[1] ?? exit[2] } : {}), ...(account ? { account } : {}), ...(trouble ? { cli: trouble.program, cliMissing: trouble.missing } : {}) } };
     }
     return { type: "turn_status", v: 1, data: { state: "cancelled", turnId: e.turnId, ...(e.type === "turn.cancelled" && e.reason ? { reason: e.reason } : {}) } };
   };
@@ -250,6 +260,13 @@ export function createBridge(o: BridgeOptions): Bridge {
         return;
       }
       case "turn.failed": case "turn.cancelled": case "turn.waiting": {
+        if (e.type === "turn.waiting" && e.reason === "hop_limit") {
+          // an agent's mention of another was cut at the hand-off limit: said in the chat once, and logged with the depth, so a drop is never silent
+          warn("an agent's hand-off was cut at the hop limit", { threadId: e.threadId, messageId: e.messageId, depth: e.depth ?? null });
+          const who = engine?.agents(e.threadId).find((a) => a.mode === "lead")?.id ?? engine?.agents(e.threadId)[0]?.id;
+          if (who) enqueuePost(e.threadId, who, { threadId: e.threadId, body: "", blocks: [{ type: "turn_status", v: 1, data: { state: "note", text: "Stopped passing this on after 3 hand-offs between agents." } }], mentions: [], clientId: brgId() }, "");
+          return;
+        }
         if (e.type === "turn.waiting" && e.reason !== "approval") return;
         // a turn a dead host left has no turn.started here: who it ran for comes with the event, so the agent can still say so in the chat
         if (e.type === "turn.failed" && e.asker) askerOf.set(e.threadId, e.asker);
@@ -529,7 +546,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     const known = new Set(eng.agents(threadId).map((a) => a.id));
     if (named.length > 0 || toAll || poke !== undefined || dirty.delete(threadId) || withSettings.has(threadId)) {
       try {
-        const now = (await reader(ctx, authorId, threadId)("threads.get", { threadId })) as ThreadGet;
+        const now = (await reader(ctx, readAs, threadId)("threads.get", { threadId })) as ThreadGet;
         withSettings.delete(threadId);
         for (const a of now.thread.agents) {
           if (Object.keys(settingsOf(a)).length > 0) withSettings.add(threadId);
@@ -689,6 +706,11 @@ export const bridgeConsumers = {
       if (bound && threadId !== "") bound.rosterChanged(threadId);
       return {};
     },
+  },
+  // a person signed in again (a Vault item was saved or changed): the turns parked on a missing sign-in run once. Whose sign-in is not in the event, and a turn whose account is still missing parks again at once.
+  "engine.signin_resume": {
+    on: ["vault.item_updated", "vault.item_created"],
+    run: async (): Promise<{ skipped?: string; resumed?: number }> => { const e = engineIfBound(); return e ? { resumed: e.resumeLocked(undefined, "engine.signin_missing") } : { skipped: "engine_not_running" }; },
   },
   "engine.bridge": {
     on: ["message.received", "message.edited"],

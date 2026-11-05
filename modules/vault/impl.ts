@@ -67,6 +67,7 @@ export const handlers: Record<string, Handler> = {
   "providers.space_key.set": (ctx, i) => sk.set(ctx, i),
   "providers.space_key.remove": (ctx, i) => sk.remove(ctx, i),
   "providers.space_key.use": (ctx, i) => sk.use(ctx, i),
+  "providers.mark_signin_needed": (ctx, i) => pr.markSigninNeeded(ctx, i),
   "vault.folders.update": (ctx, i) => g.foldersUpdate(ctx, i),
   "vault.folders.delete": (ctx, i) => g.foldersDelete(ctx, i),
   "vault.generate": (ctx, i) => g.generate(ctx, i),

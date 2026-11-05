@@ -63,6 +63,7 @@ type Out = {
       runId: string;
       status: "running" | "succeeded" | "failed" | "stopped";
     };
+    pausedReason?: string;
   };
   previousOwnerId: string;
 };
@@ -107,6 +108,7 @@ type Out = {
       "lastRunAt": 1760000000000,
       "nextRunAt": 1760000000000,
       "ownerId": "usr_a1b2c3",
+      "pausedReason": "example",
       "prompt": "example",
       "routineId": "rtn_a1b2c3",
       "setBy": {

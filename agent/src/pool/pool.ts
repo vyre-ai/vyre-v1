@@ -194,7 +194,7 @@ export function createPool(o: PoolOptions): EnginePool {
 
   const pool: EnginePool = {
     async acquire(spec) {
-      if (closed) throw new Error("the pool is closed");
+      if (closed) throw Object.assign(new Error("the pool is closed"), { code: "engine.closing" });
       const d = driverOf(spec.key.driver);
       const key = keyString(spec.key);
       const thread = threadOf(d.kind, spec);

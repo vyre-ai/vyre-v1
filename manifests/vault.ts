@@ -247,6 +247,9 @@ export default defineManifest({
     write('providers.space_key.remove', 'Remove the Space AI key; people with their own accounts keep working', {
       in: {}, out: spaceKeyRow, perm: 'policy.manage', gate: { act: 'delete', when: "actor.kind != 'person'" }, audit: 'always', offline: 'online', emits: ['provider.removed', 'vault.item_deleted'],
     }),
+    write('providers.mark_signin_needed', 'System: the engine found a sign-in missing or refused when a turn ran on this account; the account reads "Sign in again" in Settings until it is signed in (a person\'s own account only; an API key is never marked here)', {
+      in: { handle: handleField }, out: { marked: t.bool() }, level: 'member', audit: 'sensitive', offline: 'online', emits: ['provider.updated'],
+    }),
     write('providers.space_key.use', 'System: the engine asks to run one turn on the Space AI key for the person it acts for. Answers the handle, never the value; each use is an audit row', {
       in: { handle: handleField }, out: { handle: id.handle, itemId: id.vaultItem }, level: 'member', audit: 'sensitive', offline: 'online', emits: ['vault.used'], errors: ['validation.not_found'],
     }),

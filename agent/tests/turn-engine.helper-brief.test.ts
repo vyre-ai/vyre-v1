@@ -27,3 +27,14 @@ test("an agent mention after the brief in the same helper chat is still cut at t
   const r = e.receive({ threadId: "H", author: { kind: "agent", id: "lead" }, mentions: [{ kind: "agent", id: "coder" }], depth: 7, body: "again" });
   assert.deepEqual(r.responders, []);
 });
+
+test("a hand-off cut at the hop limit is never silent: the engine says so, with the depth", async () => {
+  const p = scriptedProvider({ script: () => say });
+  const e = createTurnEngine({ holder: "host:s", openSession: p.openSession, resolveAccount: async () => account() });
+  const seen: Array<{ type: string; reason?: string; depth?: number }> = [];
+  e.subscribe((ev) => seen.push(ev as never));
+  e.openThread({ id: "C", kind: "chat", starter: "dana", agents: [{ id: "lead", mode: "lead" }, { id: "docs", mode: "listen" }] });
+  const r = e.receive({ threadId: "C", author: { kind: "agent", id: "lead" }, mentions: [{ kind: "agent", id: "docs" }], depth: 6, body: "over to you", asker: "dana" });
+  assert.deepEqual(r.responders, []);
+  assert.deepEqual(seen.filter((x) => x.type === "turn.waiting").map((x) => [x.reason, x.depth]), [["hop_limit", 6]]);
+});

@@ -143,6 +143,8 @@ export function createEngineSessionHost(d: EngineSessionHostDeps): EngineSession
           if (code === "validation.not_found" || code === "validation.bad_input") {
             // the plain words go to the log with the field NAME, never to the caller: a refusal looks the same to the one asking, so nothing is leaked and nothing changes for them
             d.log?.("the vault could not give the account its key", { code, handle: item, field: field ?? null, why: whyUnusable(e, code) });
+            // the turn's own account has no usable sign-in in the Vault (the item is gone, or has no such field): the person signs in again. Said once, as itself: never "locked", never tried again for every message.
+            if (who.account === true) throw coded("engine.signin_missing", `${whyUnusable(e, code)} [account ${item}]`);
             return { kind: "unknown" };
           }
           // Never the original text: it may carry request text. A locked key and every other refusal carry a code of their own, so the chat shows an Unlock card or a precise reason, not "did not finish".
