@@ -3,7 +3,7 @@
 import { useOpenConnect } from "../../shell/connect/context.ts";
 import { connectEntries } from "../../shell/connect/model.ts";
 import type { Connected, ConnectNeed } from "../../shell/connect/model.ts";
-import { createElement, isValidElement, useState } from "react";
+import { Children, Fragment, createElement, isValidElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
@@ -103,6 +103,13 @@ export interface SettingsRowProps {
 }
 
 /** One row: the shared ui/Row with the label, a sub line only when it adds information, and the control at the right. Wrapped here only for what Settings adds (the line between rows, the search highlight, the indent). */
+/** A control made of an icon and buttons (the assistant's look) stays on one row when stacked: the icon at the left, the buttons filling the rest. */
+const stackParts = (control: ReactNode): ReactNode[] | null => {
+  if (!isValidElement(control) || control.type !== Fragment) return null;
+  const parts = Children.toArray((control.props as { children?: ReactNode }).children);
+  return parts.length > 1 ? parts : null;
+};
+
 /** Below this width (a phone) a control that needs room sits under its label and takes the full width, the field and the button alike. */
 export const STACK_BELOW = 720;
 export const stacksAt = (width: number): boolean => width < STACK_BELOW;
@@ -125,7 +132,7 @@ export function SettingsRow({ id, label, sub, subAlert = false, lead, control, f
           {...(onPress ? { onPress } : { domProps: { role: undefined, tabIndex: undefined, style: { cursor: "default", backgroundColor: "transparent" } } })}
         />
         {subAlert && sub ? <Text accessibilityRole="alert" style={s.srOnly}>{sub}</Text> : null}
-        {stack ? <View style={s.stacked}>{control}</View> : null}
+        {stack ? (stackParts(control) ? <View style={s.stackedRow}>{stackParts(control)![0]}{stackParts(control)!.slice(1).map((c, i) => <View key={i} style={{ flex: 1 }}>{c}</View>)}</View> : <View style={s.stacked}>{control}</View>) : null}
       </View>
     </>
   );
@@ -299,7 +306,8 @@ export const s = StyleSheet.create({
   sNote: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string, marginTop: 8, paddingHorizontal: 2 },
   card: { borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
   rowWrap: { paddingHorizontal: 4, paddingVertical: 4, justifyContent: "center" },
-  stacked: { flexDirection: "column", alignItems: "stretch", gap: 8, paddingHorizontal: 16, paddingBottom: 10 },   // under the label, full width (a field and a button fill it)
+  stacked: { flexDirection: "column", alignItems: "stretch", gap: 8, paddingLeft: 8, paddingRight: 16, paddingBottom: 10 },   // the left edge is the label's (the row's own padding is the rest); the right edge stays
+  stackedRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 8, paddingRight: 16, paddingBottom: 10 },   // under the label, full width (a field and a button fill it)
   srOnly: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   dangerDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--danger)" as string },
   rowLine: { borderTopWidth: 1, borderTopColor: "var(--line)" as string },

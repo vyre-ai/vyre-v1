@@ -142,3 +142,13 @@ test("on a phone a control that needs room goes under its label at full width: t
   assert.equal(stacksAt(720), false);
   assert.equal(stacksAt(1280), false);
 });
+
+test("a stacked control lines up with its label (no extra left padding or margin), keeps its right edge, and an icon with buttons stays on one row", async () => {
+  const { s } = await import("./ui.tsx");
+  const st = s.stacked as { paddingLeft: number; paddingRight: number; marginLeft?: number; flexDirection: string };
+  assert.equal(st.paddingLeft, 8, "the label's left edge: the row's own padding is the rest");
+  assert.equal(st.marginLeft, undefined);
+  assert.equal(st.paddingRight, 16, "the right edge stays");
+  assert.equal(st.flexDirection, "column");
+  assert.equal((s.stackedRow as { flexDirection: string }).flexDirection, "row", "the look: the icon beside the button");
+});
