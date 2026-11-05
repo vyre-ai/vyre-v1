@@ -286,7 +286,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     else if (askedAll.get(st.thread.id)?.has(msg.author.id) && r.reason !== "mention") { askedAll.get(st.thread.id)!.delete(msg.author.id); responders = []; }
     // An agent's @mention is a hand-off: at most MENTION_HOPS of them follow one person's message, and the same two agents never pass it back and forth more than twice (owner ruling 4 Nov 2026).
     let chain: { from: string; to: string[] } | undefined;
-    if (msg.author.kind === "agent" && job === undefined && r.reason === "mention" && responders.length > 0) {
+    // The first line of a helper's own chat is a brief: the lead started the helper on purpose (helperStart already counted it against the chat's one budget of agent turns), so it is no hand-off to be cut by this limit.
+    // Cut here, a coder started late in a long chat never ran its first turn, and its job ended lost.
+    const brief = st.thread.kind === "helper" && !st.messages.some((x) => x.id !== msg.id);
+    if (msg.author.kind === "agent" && job === undefined && r.reason === "mention" && responders.length > 0 && !brief) {
       if ((msg.depth ?? 0) > MENTION_HOPS) { responders = []; emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id }); }
       else {
         const since = st.messages.slice(); let k = since.length - 1;
