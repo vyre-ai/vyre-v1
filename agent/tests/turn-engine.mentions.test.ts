@@ -60,9 +60,9 @@ test("a held message wakes its agents when it is released, once", async () => {
   const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession });
   engine.openThread({ id: "T", kind: "chat", starter: "dana", agents: team() });
   const held = engine.receive({ threadId: "T", author: agent("intake"), mentions: [agent("docs")], depth: 1, asker: "dana", body: "result", hold: true });
-  const woke = engine.release("T", held.messageId);
+  const woke = engine.wakeHeld("T", held.messageId);
   assert.deepEqual(woke?.responders, ["docs"]);
   await engine.idle("T");
   assert.equal(p.sessions.filter((s) => s.spec.agent.id === "docs").length, 1);
-  assert.equal(engine.release("T", held.messageId), null, "a second release does nothing");
+  assert.equal(engine.wakeHeld("T", held.messageId), null, "a second release does nothing");
 });

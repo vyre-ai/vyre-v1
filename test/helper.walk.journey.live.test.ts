@@ -39,14 +39,13 @@ test("running helpers: a held request, Change model, a person messaging a helper
     const body = input.trigger?.body ?? "";
     if (input.agent.id === lead && input.threadId === chat) {
       if (/start the crew/.test(body)) {
-        if (!process.env["INTRO_LAST"]) yield { type: "text", text: "Three helpers and a coder are on it. I will bring it together when they are back." };
+        yield { type: "text", text: "Three helpers and a coder are on it. I will bring it together when they are back." };
         yield* run("tool_search", { query: "sub task helper" });
         yield* run("sub_task_model", { threadId: input.threadId, title: "Check the calendar", instruction: "Calendar job: find a free slot next week.", idempotencyKey: "w-1" });
         yield* run("sub_task_model", { threadId: input.threadId, title: "Compare the quotes", instruction: "Quotes job: compare the two vendor quotes.", idempotencyKey: "w-2" });
         yield* run("sub_task_model", { threadId: input.threadId, title: "Read the Pine quote", instruction: "Writer job: read the Pine Works quote page.", idempotencyKey: "w-3" });
         yield* run("tool_search", { query: "crew teammate" });
         yield* run("crew_start", { threadId: input.threadId, idempotencyKey: "w-code", title: "Fix the invoice date bug", brief: "Fix the invoice date bug and add a test." });
-        if (process.env["INTRO_LAST"]) yield { type: "text", text: "Three helpers and a coder are on it. I will bring it together when they are back." };
       } else if (input.trigger?.author.kind === "agent") {
         // the engine wakes the lead once, after the last helper is back
         yield { type: "text", text: "Harbor costs more up front but is ready in two weeks [2]. Pine Works is cheaper but takes four [3]. Thursday at 14:00 is free on the calendar [1]." };
@@ -106,7 +105,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
 
     lead = await waitFor(async () => { await d.hooks?.pump?.(); const r = await api("agents.assistant_of", { personId: (await api("identity.whoami", {})).principal.id }); return typeof r.agentId === "string" ? (r.agentId as string) : null; }, 40_000);
     chat = (await api("chat.start", { kind: "chat", agentIds: [lead], title: "Vendor call and quotes", idempotencyKey: "j-chat" })).thread.threadId as string;
-    if (!process.env["NO_HOOK"]) await api("hooks.set", { scope: "chat", threadId: chat, event: "tool.before", matcher: "read_link", kind: "command", command: "exit 0", summary: "before a link is opened, note where it goes" });
+    await api("hooks.set", { scope: "chat", threadId: chat, event: "tool.before", matcher: "read_link", kind: "command", command: "exit 0", summary: "before a link is opened, note where it goes" });
     for (const flow of ["team", "personal", "member"]) await api("spaces.onboarding.seen", { flow }).catch(() => undefined);
     const me = (await api("identity.whoami", {})).principal.id as string;
     owner = me;
@@ -124,7 +123,8 @@ test("running helpers: a held request, Change model, a person messaging a helper
       console.log("STATUS", JSON.stringify(((await api("engine.crew.status", { threadId: chat })).members as Array<{ title: string; state: string }>).map((m) => [m.title, m.state])));
       throw e;
     });
-    if (process.env["EARLY_STEER"]) { const hs = ((await api("engine.helpers.status", { threadId: chat })).helpers as Array<{ title: string; threadId: string }>).find((h) => h.title === "Compare the quotes")!; await api("chat.helper.steer", { threadId: hs.threadId, body: "Take your time.", idempotencyKey: "w-early-steer" }); }
+    // the person asks the quotes helper something early (a quiet line in the chat above; it also gets the crew coder going in the scripted world)
+    { const hs = ((await api("engine.helpers.status", { threadId: chat })).helpers as Array<{ title: string; threadId: string }>).find((h) => h.title === "Compare the quotes")!; await api("chat.helper.steer", { threadId: hs.threadId, body: "Take your time.", idempotencyKey: "w-early-steer" }); }
     const size = phone ? "phone" : "wide";
     for (const [skin, mode] of [["paper", "light"], ["graphite", "dark"]] as const) {
       const ctx = await browser.newContext({ viewport: phone ? { width: 390, height: 844 } : { width: 1440, height: 900 } });

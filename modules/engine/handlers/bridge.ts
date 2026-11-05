@@ -601,7 +601,7 @@ export function createBridge(o: BridgeOptions): Bridge {
         const still = await othersStillWorking(ctx, readAs, threadId, [{ type: "helper", data: { status: "done", threadId: "" } }]);
         if (still) { if (tries < 40) scheduleRelease(ctx, threadId, readAs, messageId, tries + 1); return; }
         heldNow.delete(threadId);
-        try { if (engine) engine.release(threadId, messageId); } catch { /* the thread is closed: nothing to wake */ }
+        try { if (engine) engine.wakeHeld(threadId, messageId); } catch { /* the thread is closed: nothing to wake */ }
       })();
     }, 1500);
     (t as { unref?: () => void }).unref?.();
