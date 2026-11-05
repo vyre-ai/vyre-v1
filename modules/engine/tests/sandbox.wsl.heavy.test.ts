@@ -58,7 +58,7 @@ const s = http.createServer((req, res) => {
     sse(res, [["message_start", { type: "message_start", message: msg }], ["content_block_start", { type: "content_block_start", index: 0, content_block: block }], ["content_block_delta", { type: "content_block_delta", index: 0, delta }], ["content_block_stop", { type: "content_block_stop", index: 0 }], ["message_delta", { type: "message_delta", delta: { stop_reason: result ? "end_turn" : "tool_use", stop_sequence: null }, usage: { output_tokens: 1 } }], ["message_stop", { type: "message_stop" }]]);
   });
 });
-s.listen(0, "127.0.0.1", () => fs.writeFileSync(portFile, String(s.address().port)));
+s.listen(0, "127.0.0.1", () => { fs.writeFileSync(portFile + ".tmp", String(s.address().port)); fs.renameSync(portFile + ".tmp", portFile); });
 setTimeout(() => process.exit(0), 30 * 60000);
 `;
 
