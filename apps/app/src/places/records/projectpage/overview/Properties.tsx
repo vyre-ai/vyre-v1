@@ -1,6 +1,7 @@
 // The properties row of the Overview: the project's own facts (status, lead, dates, health) as read-only rows, then the fields of the Project record type. A field is edited in place (a pause or Enter
 // saves it as an edit of the page, so it has a version and an Undo); "Add a property" fills a field of the type that is still empty.
 import { useState } from "react";
+import { currentZones, partsIn } from "../../../../../../../lib/zones.ts";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useProjectPageData } from "../data.tsx";
@@ -9,7 +10,9 @@ import type { Property } from "./model.ts";
 
 export interface Facts { status: string; lead?: string | undefined; start?: number | undefined; due?: number | undefined; health?: string | undefined }
 const HEALTH: Readonly<Record<string, string>> = { on: "On track", risk: "At risk", off: "Off track", hold: "On hold", done: "Done" };
-const day = (ms: number | undefined): string => (ms === undefined ? "" : new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" }));
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "Oct 25", the day in the Space's zone. */
+export const day = (ms: number | undefined): string => { if (ms === undefined) return ""; const p = partsIn(ms, currentZones().space); return `${MONTHS[p.month - 1]} ${p.day}`; };
 
 function Field({ p, canEdit, onSet }: { p: Property; canEdit: boolean; onSet(key: string, text: string): void }): ReactElement {
   const [v, setV] = useState(propertyText(p));

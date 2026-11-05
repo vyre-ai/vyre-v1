@@ -336,6 +336,7 @@ test("a shared place gives the Space's zone and now in it, so agents write dates
   assert.match(now, /^It is Thursday, 29 October 2026, 15:07 \(America\/Los_Angeles\)\./, "the Space's clock, not Karachi's");
   assert.match(now, /That is the Space's time zone \(Pacific Time\), and this place is shared: write every date and time in it/);
   assert.match(now, /Check-ins, due times and anything else the team will see are scheduled in it\. Something only for one person[^.]*is in that person's own zone/);
+  assert.match(now, /When a card already shows a due date, don't repeat it in the title or summary\./);
   assert.doesNotMatch(now, /Asia\/Karachi/, "no one's own zone in a shared place");
   const solo = { ...withZone, "threads.get": { thread: { kind: "chat", title: "Me", members: [{ kind: "person", id: "usr_maya" }], agents: [{ agentId: "agt_intake", mode: "lead" }] } } };
   const priv = await createContextBuilder({ call: fake(solo).call, skills, now: () => at }).build(input());

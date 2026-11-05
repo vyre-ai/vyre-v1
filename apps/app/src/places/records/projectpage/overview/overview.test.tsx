@@ -522,3 +522,15 @@ test("an overview task's due day is the Space's day: 10 PM Pacific on the 5th re
   assert.deepEqual(dueWords(due, "todo", now, "America/Los_Angeles"), { text: "Due Nov 5", late: false });
   assert.deepEqual(dueWords(due, "todo", now), { text: "Due Nov 6", late: false }, "no zone: the UTC day, as before");
 });
+
+test("the Dates property reads in the Space's zone", async () => {
+  const { setCurrentZones } = await import("../../../../../../../lib/zones.ts");
+  const { day } = await import("./Properties.tsx");
+  try {
+    setCurrentZones({ space: "America/Los_Angeles", viewer: "Asia/Karachi" });
+    assert.equal(day(Date.parse("2026-11-06T06:00:00Z")), "Nov 5", "10 PM Pacific on the 5th");
+    assert.equal(day(undefined), "");
+    setCurrentZones({ space: "UTC", viewer: "UTC" });
+    assert.equal(day(Date.parse("2026-11-06T06:00:00Z")), "Nov 6");
+  } finally { setCurrentZones(null); }
+});

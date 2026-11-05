@@ -13,6 +13,7 @@ import type { MenuEntry } from "../Menu/index.tsx";
 import { Row } from "../Row/index.tsx";
 import { HISTORY_ACTIONS } from "./props.ts";
 import type { Density, HistoryResourceType, HistoryTabProps, HistoryVersion } from "./props.ts";
+import { clockIn, currentZones, partsIn } from "../../../lib/zones.ts";
 
 export type { Density, HistoryResourceType, HistoryTabProps, HistoryVersion } from "./props.ts";
 export { HISTORY_ACTIONS, HISTORY_RESOURCE_TYPES, frozenHistoryTabProps } from "./props.ts";
@@ -63,20 +64,21 @@ export function undoRunInput(runId: string, reason?: string): Record<string, unk
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
-/** "Oct 24" in UTC, so the same version reads the same on every device and in every test. */
+/** "Oct 24" in the Space's zone, the same for everyone in the Space. */
 export function shortDate(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
-  return `${MONTHS[at.getUTCMonth()] ?? ""} ${at.getUTCDate()}`;
+  const p = partsIn(at.getTime(), currentZones().space);
+  return `${MONTHS[p.month - 1] ?? ""} ${p.day}`;
 }
 
-/** "Oct 20 at 11:00 am" in UTC, the stamp the Viewing banner gives. */
+/** "Oct 20 at 11:00 am" in the Space's zone, the stamp the Viewing banner gives. */
 export function longStamp(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return "";
-  const hour = at.getUTCHours();
-  const minute = String(at.getUTCMinutes()).padStart(2, "0");
-  return `${MONTHS[at.getUTCMonth()] ?? ""} ${at.getUTCDate()} at ${hour % 12 === 0 ? 12 : hour % 12}:${minute} ${hour < 12 ? "am" : "pm"}`;
+  const zone = currentZones().space;
+  const p = partsIn(at.getTime(), zone);
+  return `${MONTHS[p.month - 1] ?? ""} ${p.day} at ${clockIn(at.getTime(), zone).toLowerCase()}`;
 }
 
 /** The banner above a page that shows an older version: "Viewing v4 from Oct 20 at 11:00 am by Lena Ortiz. Showing what changed since." */

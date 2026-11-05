@@ -230,3 +230,12 @@ export function deadlineExample(now: number, from: string, to: string): { before
   const line = (zone: string): string => `${dateIn(at, zone)}, ${clockIn(at, zone)} ${zoneName(zone, at)}`;
   return { before: line(from), after: line(to) };
 }
+
+let current: Zones | null = null;
+/** The zones of the person looking, kept where plain-string formatters (a table cell, a file's modified time) can read them without a component. The shell sets them (ZonesHost); without them it is this computer's zone. */
+export function setCurrentZones(z: Zones | null): void { current = z; }
+export function currentZones(): Zones {
+  if (current) return current;
+  const here = deviceZone();
+  return { space: here, viewer: here };
+}

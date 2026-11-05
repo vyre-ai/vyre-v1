@@ -1,6 +1,7 @@
 // Files model: the pure part. Where the list is (a folder, Recent, Shared with me, Trash, Knowledge), what a line is, how a selection grows with click, Cmd-click and Shift-click,
 // what a drop does, and how long a dragged item rests on a folder before it opens (spring-load). No React and no clock; every rule is tested without a renderer.
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { clockIn, currentZones, dayIn, partsIn } from "../../../../../../lib/zones.ts";
 
 export type FileRow = CapMap["files.list"]["out"]["files"][number];
 export type FolderRow = CapMap["files.list"]["out"]["folders"][number];
@@ -98,18 +99,15 @@ export function sizeText(bytes: number): string {
 const DAY = 86_400_000;
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
-/** Today: the clock time. Yesterday: the word. Otherwise the date. */
-export function updatedText(at: number, now: number, offsetMin: number): string {
+/** Today: the clock time. Yesterday: the word. Otherwise the date. In the Space's zone (a file is shared); `_offsetMin` is the old fixed offset, no longer used. */
+export function updatedText(at: number, now: number, _offsetMin?: number): string {
   if (at <= 0) return "";
-  const day = (t: number): number => Math.floor((t + offsetMin * 60_000) / DAY);
-  const local = new Date(at + offsetMin * 60_000);
-  const age = day(now) - day(at);
-  if (age <= 0) {
-    const h = local.getUTCHours(), m = local.getUTCMinutes();
-    return `${h % 12 === 0 ? 12 : h % 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
-  }
+  const zone = currentZones().space;
+  const age = dayIn(now, zone) - dayIn(at, zone);
+  if (age <= 0) return clockIn(at, zone);
   if (age === 1) return "Yesterday";
-  return `${MONTH[local.getUTCMonth()] ?? ""} ${local.getUTCDate()}${local.getUTCFullYear() === new Date(now + offsetMin * 60_000).getUTCFullYear() ? "" : `, ${local.getUTCFullYear()}`}`;
+  const p = partsIn(at, zone);
+  return `${MONTH[p.month - 1] ?? ""} ${p.day}${p.year === partsIn(now, zone).year ? "" : `, ${p.year}`}`;
 }
 
 /** Folders first, then files, each by the chosen key. Name sorts without case and with numbers in order ("file 2" before "file 10"). */

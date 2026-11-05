@@ -422,3 +422,14 @@ test("the view toggle says which choice is current: the current radio is checked
   const out = list(folder("fld_sales"));
   assert.ok(has(tag(out, "files-view-list"), 'aria-checked="true"') && has(tag(out, "files-view-grid"), 'aria-checked="false"'));
 });
+
+test("a file's modified time reads in the Space's zone, whatever the viewer's offset", async () => {
+  const { setCurrentZones } = await import("../../../../../../lib/zones.ts");
+  const at = Date.parse("2026-11-05T01:30:00Z");
+  const now = Date.parse("2026-11-05T09:00:00Z");
+  try {
+    setCurrentZones({ space: "America/Los_Angeles", viewer: "Asia/Karachi" });
+    assert.equal(updatedText(at, now, 300), "Yesterday", "5:30 PM on the 4th Pacific; now is 1 AM on the 5th Pacific");
+    assert.equal(updatedText(now - 3_600_000, now, 300), "12:00 AM", "midnight in the Space, not 1 PM in Karachi");
+  } finally { setCurrentZones(null); }
+});
