@@ -22,13 +22,14 @@ export function citeBody(body: string, count: number): string {
 
 function Chip({ n, member, onOpen }: { n: number; member: CrewMember; onOpen: (m: CrewMember) => void }): ReactElement {
   const [over, setOver] = useState(false);
+  const [below, setBelow] = useState(false);
   return (
     <View style={{ position: "relative" } as object}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${nameOf(member)}: ${lineOf(member)}`} testID={`cite-${n}`} onPress={() => onOpen(member)} onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} style={st.chip}>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${nameOf(member)}: ${lineOf(member)}`} testID={`cite-${n}`} onPress={() => onOpen(member)} onHoverIn={(e: unknown) => { const r = (e as { currentTarget?: { getBoundingClientRect?: () => { top: number } } }).currentTarget?.getBoundingClientRect?.(); setBelow(r !== undefined && r.top < 150); setOver(true); }} onHoverOut={() => setOver(false)} style={st.chip}>
         <Text style={st.n}>{n}</Text>
       </Pressable>
       {over ? (
-        <View testID={`cite-${n}-pop`} style={st.pop}>
+        <View testID={`cite-${n}-pop`} style={[st.pop, below && st.popBelow]}>
           <View style={st.top}>
             <Avatar name={nameOf(member)} seedId={faceSeed(member)} kind="agent" size={22} />
             <Text numberOfLines={1} style={[st.who, { flexShrink: 1 }]}>{nameOf(member)} <Text style={st.role}>{roleOf(member)}</Text></Text>
@@ -57,7 +58,8 @@ export function citeRender(members: readonly CrewMember[], onOpen: (m: CrewMembe
 const st = StyleSheet.create({
   chip: { minWidth: 19, height: 19, paddingHorizontal: 5, marginHorizontal: 1, borderRadius: 7, alignItems: "center", justifyContent: "center", backgroundColor: "var(--accent-wash)" as string },
   n: { fontSize: 11.5, fontWeight: "600", color: "var(--accent)" as string },
-  pop: { position: "absolute", bottom: 26, left: -8, width: 262, padding: 10, borderRadius: 14, gap: 4, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)", zIndex: 90 } as object,
+  pop: { position: "absolute", bottom: 27, left: -8, borderWidth: 1, borderColor: "var(--line-2)" as string, width: 262, padding: 10, borderRadius: 14, gap: 4, backgroundColor: "var(--raised)" as string, boxShadow: "var(--sh-pop)", zIndex: 90 } as object,
+  popBelow: { bottom: undefined, top: 27 } as object,
   top: { flexDirection: "row", alignItems: "center", gap: 8 },
   who: { fontSize: 13.5, fontWeight: "600", color: "var(--ink)" as string },
   role: { fontSize: 12.5, fontWeight: "400", color: "var(--ink-3)" as string },
