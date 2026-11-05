@@ -195,10 +195,21 @@ export function routed(inner: OpenSession, o: RouteDeps): OpenSession {
     }
     return onSpace(spec);
   };
+  /** A one-shot for a person whose chats run on their own computer (memory learning): there is no thread to decide on, so it goes to one of their linked computers that has the engine, over a private link; else it is refused, never run on the Space. */
+  const onDevice = async (spec: SessionSpec): Promise<EngineSession> => {
+    const driver = spec.account?.driver ?? "";
+    const links = (relay.devices?.(spec.asker) ?? []).filter((l) => l.person === spec.asker && l.engines.includes(driver)).sort((a, b) => (a.deviceId < b.deviceId ? -1 : 1));
+    const link = links.find((l) => relay.connected(deviceNode(l.deviceId)));
+    if (!link) throw new DriverError("engine.device_off", "Your computer is off.");
+    if (!relay.secure(deviceNode(link.deviceId))) throw new DriverError("engine.link_insecure", "Your computer's link to the Space is not private (https).");
+    return o.nodeOpener(deviceNode(link.deviceId), spec.asker)(spec);
+  };
   // One turn at a time is placed and started on a machine: the next decides after the first engine process is on its machine, so a limit of 1 holds for two turns started back to back (the Space
   // counts the processes it started, at decide time). A turn that runs on the Space's own engine lets the next go at once.
   let gate: Promise<void> = Promise.resolve();
   return async (spec) => {
+    // a one-shot is not a turn: it neither waits for the one-at-a-time gate nor holds it, so learning never delays a person's turn
+    if (spec.onDevice === true) return onDevice(spec);
     const before = gate;
     let release: () => void = () => undefined;
     gate = new Promise<void>((r) => { release = r; });
