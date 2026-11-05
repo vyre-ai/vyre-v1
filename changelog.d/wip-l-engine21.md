@@ -49,6 +49,7 @@
 - A reply that cannot run because the Vault is locked on this computer waits once: the chat shows one failed turn with Unlock, messages that come meanwhile fold into it instead of starting a turn that fails the same way (an owner's Mac failed 1,493 in a row), it runs once when the Vault opens, and a waiting turn no longer holds back an app update.
 - Memory learns for a member on their own API key: the learning pass and the chat's title ask the Vault as the member and run on the Space with that member's key, while a member whose chats run on their own computer and uses a CLI engine is skipped until the device runner exists (issue 875). A chat's found tools survive its engine process being started again.
 - A crew coder started by the lead later in a long chat always has its first turn: the lead's brief to a helper is not cut by the agent-to-agent hop limit, which silently dropped it and left the job lost (it showed as Could not finish).
+- When an agent's computer is made but its start is refused or fails, the computer panel says so with the server's own words and a Copy details button, and the pane says it too, instead of dropping the failed wake and offering Set up its computer again. The server logs each step of making and starting a computer.
 
 ## What's new
 - Agents on Claude Code or Codex can work in a goal's folder: it shows as goal/ and their changes are saved to Vyre.

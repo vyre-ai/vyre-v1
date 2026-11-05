@@ -82,7 +82,7 @@ export function harness(o: HarnessOptions = {}) {
       if (action.level === "manage" && action.perm === "computers.use" && !manager) return { effect: "deny" };
       return { effect: deny.has(`${resource.type}:${resource.id}`) ? "deny" : "allow" };
     },
-    log: { warn() {} },
+    log: { debug() {}, info() {}, warn() {}, error() {} },
   };
   return {
     ctx, raw, db, fake, emitted, called, clock, respond,

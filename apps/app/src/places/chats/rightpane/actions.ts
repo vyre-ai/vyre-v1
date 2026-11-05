@@ -23,19 +23,77 @@ const key = (what: string, id: string): string => `rp-${what}-${id}-${++seq}`;
 
 /* ---------- computer ---------- */
 
-export function wake(d: PaneDeps, computerId: string, name: string): Promise<boolean> {
-  return attempt(d, "wake it", async () => { await d.call("computers.wake", { computerId }); d.note(`${name} is awake`); });
+/**
+ * Why the last wake of a computer was refused or failed, kept here because a refusal before the server's own handler (the gateway, the network) never reaches the computer's row: the row says Asleep, and this is
+ * the only place that knows it did not start. The computer panel shows it as the failed state with the server's own words in Details. A wake that works, or a new press, clears it.
+ */
+export interface Failure { message: string; code?: string }
+const wakeFailed = new Map<string, Failure>();
+const wakeSubs = new Set<() => void>();
+export const wakeFailure = {
+  get: (computerId: string): Failure | undefined => wakeFailed.get(computerId),
+  subscribe: (fn: () => void): (() => void) => { wakeSubs.add(fn); return () => { wakeSubs.delete(fn); }; },
+  set(computerId: string, f: Failure | null): void { if (f === null) wakeFailed.delete(computerId); else wakeFailed.set(computerId, f); for (const fn of [...wakeSubs]) fn(); },
+};
+
+const fullOf = (e: unknown): string => (e instanceof Error ? e.message.trim() : "");
+
+/** A refused provision is kept under the agent (there is no computer row yet), a failed wake under the computer. */
+export const provisionKey = (agentId: string): string => `agent:${agentId}`;
+
+const SERVER_CANNOT = /^This server can't start agent computers yet/i;
+const failureOf = (e: unknown, fallback: string): Failure => {
+  const code = (e as { code?: unknown } | null)?.code;
+  return { message: fullOf(e) || fallback, ...(typeof code === "string" ? { code } : {}) };
+};
+export interface Words { sentence: string; details: string; /** the cause is the server itself: pressing again cannot help, so a member has no button and an admin is sent to Console */ server: boolean }
+/**
+ * What the panel says for a computer that could not be made or woken, from the server's own message. A first line the server wrote for people ("This server can't start agent computers yet.") shows as it is, worded by
+ * role. provider.unavailable (the runtime is down) is the same kind of cause, in plain words. Anything else shows "Vyre couldn't start <name>'s computer." and the server's words go under Details, never as the sentence.
+ */
+export function computerWords(f: Failure, admin: boolean, name = "its"): Words {
+  const body = f.message.replace(/^The computer (?:could not be created|did not start): /, "").trim();
+  const [first = "", ...rest] = body.split(/\n+Details: /);
+  const line = first.split("\n")[0]!.trim();
+  const details = rest.length ? `${rest.join("\n").trim()}\n${line}`.trim() : body;
+  const role = admin ? "Check Console > Computers." : "Ask your admin.";
+  if (SERVER_CANNOT.test(line)) return { sentence: `This server can't start agent computers yet. ${admin ? "Update this server from Console > Computers." : "Ask your admin to update it."}`, details: rest.join("\n").trim() || body, server: true };
+  if (f.code === "provider.unavailable") return { sentence: `This server can't start agent computers right now. ${role}`, details: body, server: true };
+  return { sentence: `Vyre couldn't start ${name === "its" ? "its" : `${name}'s`} computer.`, details: body, server: false };
+}
+
+export async function wake(d: PaneDeps, computerId: string, name: string, o: { quiet?: boolean } = {}): Promise<boolean> {
+  try {
+    await d.call("computers.wake", { computerId });
+    wakeFailure.set(computerId, null);
+    if (o.quiet !== true) d.note(`${name} is awake`);
+    return true;
+  } catch (e) {
+    const why = reasonOf(e) || "The computer did not start";
+    wakeFailure.set(computerId, failureOf(e, why));
+    d.note(`Could not wake it: ${why}`);
+    return false;
+  }
 }
 
 /** Make the computer and wake it: "Set up its computer" is one press. `nodeId` is a server of the person's, left out for the Space server. */
-export function provision(d: PaneDeps, agentId: string, name: string, nodeId?: string): Promise<boolean> {
-  return attempt(d, "set up its computer", async () => {
-    const out = (await d.call("computers.provision", { agentId, ...(nodeId ? { nodeId } : {}), idempotencyKey: key("computer", agentId) })) as { computer?: { computerId?: string } } | null;
-    d.note(`Setting up ${name}'s computer`);
-    const id = out?.computer?.computerId;
-    // waking can take a minute: the pane follows its state, so this does not wait here; a failure shows on the computer itself, with its reason
-    if (id) void d.call("computers.wake", { computerId: id }).catch(() => undefined);
-  });
+export async function provision(d: PaneDeps, agentId: string, name: string, nodeId?: string): Promise<boolean> {
+  let out: { computer?: { computerId?: string } } | null;
+  try {
+    out = (await d.call("computers.provision", { agentId, ...(nodeId ? { nodeId } : {}), idempotencyKey: key("computer", agentId) })) as typeof out;
+  } catch (e) {
+    // the server's own words stay on the panel, with Copy details: a refusal here (the host cannot run computers, the runtime is down) is the reason, not "could not set up"
+    const why = reasonOf(e);
+    wakeFailure.set(provisionKey(agentId), failureOf(e, why || "The computer could not be created."));
+    d.note(why ? `Could not set up its computer: ${why}` : "Could not set up its computer.");
+    return false;
+  }
+  wakeFailure.set(provisionKey(agentId), null);
+  d.note(`Setting up ${name}'s computer`);
+  const id = out?.computer?.computerId;
+  // waking can take a minute: the pane follows its state, so this does not wait here. A failed or refused wake is not dropped: wake() says it in the pane and keeps the reason for the computer's panel.
+  if (id) void wake(d, id, name, { quiet: true });
+  return true;
 }
 
 export function signOut(d: PaneDeps, computerId: string, site: string): Promise<boolean> {
