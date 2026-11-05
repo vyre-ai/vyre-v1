@@ -150,3 +150,17 @@ test("no model works: one plain card that says what to do, with Open AI accounts
   assert.deepEqual(w.next, [{ key: "connect_ai", label: "Open AI accounts" }]);
   assert.doesNotMatch(`${w.message} ${w.cause ?? ""}`, /engine\.|--/);
 });
+
+test("an engine failure never stands alone: a missing sign-in, an engine that cannot run here, a crash with its exit code", () => {
+  const data = (b: ReturnType<typeof statusView>): { message: string; cause?: string; next?: Array<{ label: string }> } => (b as { block: { data: never } }).block.data;
+  const miss = data(statusView(block({ state: "failed", turnId: "t", code: "engine.signin_missing" })));
+  assert.match(miss.message, /sign-in/);
+  assert.equal(miss.next?.[0]?.label, "Sign in again");
+  const unusable = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_unusable" })));
+  assert.match(unusable.cause ?? "", /not installed here|not signed in here|not connected/);
+  const crash = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error", exit: "137" })));
+  assert.match(crash.cause ?? "", /exited with code 137/);
+  const bare = data(statusView(block({ state: "failed", turnId: "t", code: "engine.cli_error" })));
+  assert.ok((bare.cause ?? "").length > 0, "no reason: still says what to do, and Details holds the code");
+  assert.ok(!/^The engine stopped with an error before it replied\.$/.test(crash.message));
+});

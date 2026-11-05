@@ -61,3 +61,11 @@ test("nothing works: the host's own code ends the turn; without a host hook, or 
   await e3.idle("T");
   assert.equal(r.sessions.length, 1, "no repeat after output");
 });
+
+test("the CLI's own words map to a reason a person can read: network, an engine that cannot run here, a sign-in", () => {
+  assert.equal(classifyCli("Error: getaddrinfo ENOTFOUND api.anthropic.com"), "provider.network");
+  assert.equal(classifyCli("workspace routing discovery failed"), "engine.cli_unusable");
+  assert.equal(classifyCli("Please run /login"), "provider.auth_failed");
+  assert.equal(classifyCli("usage limit reached"), "provider.rate_limited");
+  assert.equal(classifyCli("something unknown"), "engine.cli_error");
+});

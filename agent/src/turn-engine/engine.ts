@@ -232,7 +232,13 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   const turnRows: TurnRow[] = [];
   const spendRows: SpendRow[] = [];
   /** `${thread}|${agent}` -> the turn that waits for the person's Vault; later messages for that agent fold into it instead of starting a turn that fails the same way. */
-  const lockedPark = new Map<string, { threadId: string; agentId: string; asker: string; messageId: string | null; from: string; since: number }>();
+  const lockedPark = new Map<string, { threadId: string; agentId: string; asker: string; messageId: string | null; from: string; since: number; code: string; /** parked for repeating, not for a lock: a person's own message gets through again after a minute */ repeat: boolean }>();
+  /** Failures in a row of one reason, per chat and agent: three of the same ones park the turn instead of trying each message again. */
+  const failStreak = new Map<string, { code: string; n: number }>();
+  const STREAK_PARK = 3;
+  const PERSON_RETRY_MS = 60_000;
+  /** Failures that need the person to act (the Vault is locked, a sign-in is missing): the turn waits once instead of failing again for every message. */
+  const PARK_CODES: ReadonlySet<string> = new Set(["engine.vault_locked", "engine.signin_missing"]);
   const PARK_MAX_MS = 10 * 60_000;   // a host that cannot see the unlock still tries again on the next message after this
   const enqueuedHr = new Map<string, number>();   // `${thread}:${qseq}` -> hr() at enqueue
   let counter = 0;
@@ -372,7 +378,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         return;
       }
       const parked = lockedPark.get(`${id}|${next.agentId}`);
-      if (parked && now() - parked.since >= PARK_MAX_MS) lockedPark.delete(`${id}|${next.agentId}`);
+      if (parked && (now() - parked.since >= PARK_MAX_MS || (parked.repeat && next.from.startsWith("usr_") && next.kind !== "wake" && now() - parked.since >= PERSON_RETRY_MS))) lockedPark.delete(`${id}|${next.agentId}`);
       else if (parked) {
         // the Vault is still locked for this agent's turn: this message folds into the one waiting turn, which will answer the newest one
         if (next.messageId) parked.messageId = next.messageId;
@@ -382,6 +388,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       const item = queue.dequeue(id);
       if (!item) continue;
       await runTurn(st, item);
+      if (!st.active) { leases.release(id, opts.holder); return; }   // the host is closing: what is queued waits for the next start
     }
   }
 
@@ -741,6 +748,14 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     if (run.cancelled) turn.state = "cancelled";
     else if (turn.error) turn.state = "failed";
     else turn.state = "completed";
+    // the host is shutting down under the turn (its pool is closed): the message is not answered and not failed, it waits in the queue for the next start
+    if (turn.error?.code === "engine.closing" && !run.cancelled) {
+      turn.state = "cancelled";
+      queue.setState(st.thread.id, item.qseq, "queued");
+      emit({ type: "turn.cancelled", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, reason: "closing" });
+      st.active = false;
+      return;
+    }
     queue.setState(st.thread.id, item.qseq, turn.state === "cancelled" ? "cancelled" : "done");
     recordSpend(turn);
     if (opts.hooks && hooksAsked) {
@@ -748,10 +763,15 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       try { await opts.hooks.fire({ ...base, event: "turn.end" }); if (st.thread.kind === "helper") await opts.hooks.fire({ ...base, event: "helper.end" }); } catch { /* a hook never fails the turn */ }
     }
     try { await opts.onTurnEnd?.(turn, paying ?? null); } catch { /* metering must never fail the turn */ }
-    if (turn.state === "completed") emit({ type: "turn.completed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId });
+    if (turn.state === "completed") { failStreak.delete(`${st.thread.id}|${item.agentId}`); emit({ type: "turn.completed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId }); }
     else if (turn.state === "cancelled") emit({ type: "turn.cancelled", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, ...(run.why ? { reason: run.why } : {}) });
     else {
-      if (turn.error?.code === "engine.vault_locked") lockedPark.set(`${st.thread.id}|${item.agentId}`, { threadId: st.thread.id, agentId: item.agentId, asker, messageId: item.messageId, from: item.from, since: now() });
+      const code = turn.error?.code ?? "engine_error";
+      const pk = `${st.thread.id}|${item.agentId}`;
+      const streak = failStreak.get(pk);
+      const n = streak?.code === code ? streak.n + 1 : 1;
+      failStreak.set(pk, { code, n });
+      if (PARK_CODES.has(code) || n >= STREAK_PARK) lockedPark.set(pk, { threadId: st.thread.id, agentId: item.agentId, asker, messageId: item.messageId, from: item.from, since: now(), code, repeat: !PARK_CODES.has(code) });
       emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}) });
     }
     // The agent's answer is a message like any other: it can @mention the next agent, which counts a hop.
@@ -911,7 +931,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     },
     events: (threadId) => (threadId === undefined ? journal.slice() : journal.filter((e) => e.threadId === threadId)),
     subscribe(fn) { listeners.add(fn); return () => { listeners.delete(fn); }; },
-    parkedLocked: () => [...lockedPark.values()].map((x) => ({ threadId: x.threadId, agentId: x.agentId, asker: x.asker, messageId: x.messageId })),
+    parkedLocked: () => [...lockedPark.values()].filter((x) => x.code === "engine.vault_locked").map((x) => ({ threadId: x.threadId, agentId: x.agentId, asker: x.asker, messageId: x.messageId })),
     resumeLocked(asker) {
       let n = 0;
       for (const [key, x] of [...lockedPark]) {
