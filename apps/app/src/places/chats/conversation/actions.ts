@@ -193,6 +193,8 @@ export async function errorAction(data: ConversationData, key: string, turnId: s
     if (turnId) await retryTurn(data, turnId);
     return;
   }
+  // Continue on "Stopped for an update": that turn runs again, same message and account (engine.turn.retry takes a stopped turn as it takes a failed one)
+  if (key.startsWith("continue_turn:")) { await retryTurn(data, key.slice("continue_turn:".length)); return; }
   // the Model menu opens (a turn that had no model to run on says "Pick a model for <account>"); without a menu to open it says where it is
   if (key === "pick_model") { if (open?.pickModel) open.pickModel(); else say("Choose a model in the composer."); return; }
   // Undo on "Moved ... to Vyre's Trash": each file comes back where it was

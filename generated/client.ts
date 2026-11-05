@@ -892,6 +892,7 @@ export function createClient(transport: Transport) {
       route: {
         preview: call("engine.route.preview", 1),
       },
+      running_here: call("engine.running_here", 1),
       runtime: {
         opt_in: call("engine.runtime.opt_in", 1),
       },

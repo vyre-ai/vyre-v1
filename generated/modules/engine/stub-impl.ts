@@ -65,6 +65,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.reviewer.get": async () => ({"reviewer":{"id":"example","kind":"agent"}} as unknown) as never,
   "engine.reviewer.set": async () => ({"reviewer":{"id":"example","kind":"agent"}} as unknown) as never,
   "engine.route.preview": async () => ({"line":"Intake will reply","responders":["agt_a1b2c3"]} as unknown) as never,
+  "engine.running_here": async () => ({"turns":[{"agentId":"agt_a1b2c3","asker":"example","threadId":"thr_a1b2c3","turnId":"trn_a1b2c3"}]} as unknown) as never,
   "engine.runtime.opt_in": async () => ({"enabled":true} as unknown) as never,
   "engine.set_mode": async () => ({"leadAgentId":"agt_a1b2c3","mode":"lead"} as unknown) as never,
   "engine.set_model": async () => ({"accountRef":"#Team_Anthropic_Key","effort":"low","model":"example","provider":"example"} as unknown) as never,

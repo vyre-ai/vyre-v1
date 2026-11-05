@@ -169,3 +169,10 @@ test("Details: Reason is one plain sentence and the provider's raw words sit in 
   const odd = await turnDetail({ call: async () => ({ what: { turn: { startedAt: 1, model: "", error: { code: "x.unknown", message: '{"a":1}' }, traceId: "t".repeat(32) }, machine: "device", denials: [] } }) } as never, "trn_2");
   assert.ok(!/^\s*\{/.test(String(odd.find((r) => r[0] === "Reason")?.[1])), "a code with no words of its own never shows raw JSON as the Reason");
 });
+
+test("the line for a reply ended for an update carries Continue, for the turn that was stopped; without a turn it is a quiet note", async () => {
+  const { statusView } = await import("./status.ts");
+  const text = "Stopped for an update. Your message is kept.";
+  assert.deepEqual(statusView({ id: "b1", type: "turn_status", v: 1, data: { state: "stopped_for_update", text, turnId: "trn_9" } } as never), { kind: "wait", id: "b1", text, action: { key: "continue_turn:trn_9", label: "Continue" } });
+  assert.deepEqual(statusView({ id: "b2", type: "turn_status", v: 1, data: { state: "stopped_for_update", text } } as never), { kind: "note", id: "b2", text });
+});

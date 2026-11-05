@@ -2,7 +2,7 @@ import { liveTurns } from "./bridge.ts";
 import { helpersChangeModel, helpersStatus, helpersStopAll } from "./helpers.ts";
 import { helperModels } from "./helper-models.ts";
 import { crewStatus } from "./crew-status.ts";
-import { now as engineNow } from "./now.ts";
+import { now as engineNow, runningHere } from "./now.ts";
 // Handler table of the engine module for the capabilities this module implements so far. The rest of engine.* is served by the generated stubs
 // until the packets that own them land (the turn worker's engine.turn.*, the pool P-L2_04, models, policy and review).
 import { complete } from "./complete.ts";
@@ -35,6 +35,7 @@ export const handlers = {
   "engine.helpers.stop_all": helpersStopAll,
   "engine.helpers.change_model": helpersChangeModel,
   "engine.now": engineNow,
+  "engine.running_here": runningHere,
   "engine.set_mode": setMode,
   "engine.last_pick.get": lastPickGet,
   "engine.set_model": setModel,

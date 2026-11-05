@@ -18,9 +18,12 @@ test("a device daemon says what runs on this computer, and hands over on drain, 
   try {
     const busy = await fetch(`${d.url}/local/daemon/busy`, { headers: { authorization: `Bearer ${d.token}` } });
     assert.equal(busy.status, 200);
-    assert.deepEqual(((await busy.json()) as { data: unknown }).data, { turns: 0, sources: [{ name: "engine", turns: 0 }] });
+    assert.deepEqual(((await busy.json()) as { data: unknown }).data, { turns: 0, sources: [{ name: "engine", turns: 0 }], chats: [] });
     const drain = await fetch(`${d.url}/local/daemon/drain`, { method: "POST", headers: { authorization: `Bearer ${d.token}` } });
     assert.equal(((await drain.json()) as { data: { turns: number } }).data.turns, 0);
+    const stop = await fetch(`${d.url}/local/daemon/stop-turns`, { method: "POST", headers: { authorization: `Bearer ${d.token}` } });
+    assert.deepEqual(((await stop.json()) as { data: unknown }).data, { turns: 0, sources: [{ name: "engine", turns: 0 }], chats: [] }, "nothing runs: stop-turns ends nothing and says so");
+    assert.equal((await fetch(`${d.url}/local/daemon/stop-turns`, { method: "POST" })).status, 401);
     assert.equal((await fetch(`${d.url}/local/daemon/busy`)).status, 401);
     assert.equal((await fetch(`${d.url}/local/daemon/drain`, { method: "POST", headers: { authorization: "Bearer not-the-token" } })).status, 401);
   } finally { await d.stop(); fs.rmSync(dir, { recursive: true, force: true }); }

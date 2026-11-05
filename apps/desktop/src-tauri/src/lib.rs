@@ -323,6 +323,7 @@ pub fn run() {
             updater::startup_update,
             updater::check_desktop_update,
             updater::install_desktop_update,
+            updater::update_stop_now,
             native::notify,
             native::discover_codex_sessions,
             native::discover_session_sources,

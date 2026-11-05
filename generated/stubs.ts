@@ -892,6 +892,7 @@ export function stubs(ctx: CallCtx) {
       route: {
         preview: call("engine.route.preview"),
       },
+      running_here: call("engine.running_here"),
       runtime: {
         opt_in: call("engine.runtime.opt_in"),
       },
