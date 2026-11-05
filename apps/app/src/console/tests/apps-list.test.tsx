@@ -20,17 +20,15 @@ test("what an app does is in plain words and sign-ins with no app are the other 
   assert.deepEqual(otherSignIns([{ connector: "a" }, { connector: "z" }], [{ key: "a" }]), [{ connector: "z" }]);
 });
 
-test("one list: connected apps show Manage, the others Connect, Google and Microsoft are rows, the Kit row opens diagnostics, stray sign-ins sit under Other sign-ins", async () => {
+test("one list: connected apps show Manage, the others Connect, Google and Microsoft are rows, there is no Kit row, stray sign-ins sit under Other sign-ins", async () => {
   const p = await mountPage(createRoot, <AppsPage />, ROWS);
   try {
     const t = p.text();
     assert.ok(p.has("app-manage-hubspot") && !p.has("app-connect-hubspot"), "connected: Manage only");
     assert.ok(p.has("app-connect-lawmatics") && !p.has("app-manage-lawmatics"), "not connected: Connect only");
     assert.ok(p.has("app-manage-google") && p.has("app-connect-microsoft"), "company sign-ins");
-    assert.ok(t.includes("Connect with admin consent") && t.includes("Open diagnostics"));
+    assert.ok(t.includes("Connect with admin consent") && !t.includes("Open diagnostics") && !p.has("row-app-kit"), "no Kit row: Diagnostics is reached from Computers");
     assert.ok(t.includes("Other sign-ins") && p.has("row-app-other-con_3"), "the sign-in of no app is listed");
-    await p.press("app-kit-diagnostics");
-    assert.deepEqual(p.opened.at(-1), { page: "diagnostics", args: undefined });
   } finally { p.restore(); }
 });
 
@@ -87,4 +85,21 @@ test("a custom app still being built says it is a draft and not connected yet; a
   assert.equal(appNote({ ...base, state: "draft", connections: 0 } as never), "Draft. Not connected yet.");
   assert.equal(appNote({ ...base, state: "live", connections: 0 } as never), "Connects with an API key");
   assert.equal(appNote({ ...base, state: "draft", connections: 2 } as never), "Connects with an API key");
+});
+
+test("the registry's Google and Microsoft connectors do not draw a second row: one of each, the registry's sign-ins and actions stay on the kept row, and a custom draft still shows", async () => {
+  const withRegistry = { ...ROWS,
+    "connectors.list": { connectors: [...ROWS["connectors.list"].connectors, connector("google", "Google Workspace", 2, { mode: "dwd" }), connector("microsoft", "Microsoft 365", 0, { mode: "oauth_app" }), connector("fixture_draft", "Fixture draft app", 0, { builtin: false, state: "draft" })] },
+    "connections.list": { connections: [...ROWS["connections.list"].connections, connection("con_g1", "google", "Ada's Google", "usr_ada"), connection("con_g2", "google", "Bo's Google", "usr_bo")] } };
+  const p = await mountPage(createRoot, <AppsPage />, withRegistry);
+  try {
+    const t = p.text();
+    assert.equal(t.split("Google Workspace").length - 1, 1, "one Google Workspace row");
+    assert.equal(t.split("Microsoft 365").length - 1, 1, "one Microsoft 365 row");
+    assert.ok(!p.has("app-manage-microsoft") && p.has("app-connect-microsoft") && p.has("app-accounts-google") && p.has("app-accounts-microsoft"), "Manage or Connect for the setup page, Accounts for the registry connector");
+    assert.ok(t.includes("Draft. Not connected yet.") && p.has("app-settings-fixture_draft"), "the draft app still shows");
+    assert.ok(!t.includes("Kit"));
+    await p.press("app-accounts-google");
+    assert.ok(p.has("console-app-detail") && p.text().includes("People signed in") && p.has("app-add-signin") && p.has("app-disconnect"), "the registry connector's sign-ins, Add a sign-in and Disconnect are still reachable");
+  } finally { p.restore(); }
 });
