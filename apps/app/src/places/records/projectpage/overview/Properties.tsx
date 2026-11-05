@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { useProjectPageData } from "../data.tsx";
 import { propertyText, stageWord } from "./model.ts";
 import type { Property } from "./model.ts";
+import { TimePop } from "../../../../../../../ui/src/Time/index.tsx";
 
 export interface Facts { status: string; lead?: string | undefined; start?: number | undefined; due?: number | undefined; health?: string | undefined }
 const HEALTH: Readonly<Record<string, string>> = { on: "On track", risk: "At risk", off: "Off track", hold: "On hold", done: "Done" };
@@ -32,7 +33,7 @@ export function PropertiesRow({ facts, props, canEdit, onSet, onAdd }: { facts: 
   if (facts) {
     rows.push({ k: "Status", node: <Text style={s.val} testID="prop-status">{stageWord(facts.status)}</Text> });
     if (facts.lead) rows.push({ k: "Lead", node: <Text style={s.val} testID="prop-lead">{d.nameOf(facts.lead)}</Text> });
-    if (facts.start !== undefined || facts.due !== undefined) rows.push({ k: "Dates", node: <Text style={s.val} testID="prop-dates">{[day(facts.start), day(facts.due)].filter(Boolean).join(" to ")}</Text> });
+    if (facts.start !== undefined || facts.due !== undefined) rows.push({ k: "Dates", node: <View testID="prop-dates-wrap" style={{ flexDirection: "row", gap: 4 }}>{facts.start !== undefined ? <TimePop at={facts.start}><Text style={s.val} testID="prop-dates">{day(facts.start)}</Text></TimePop> : null}{facts.start !== undefined && facts.due !== undefined ? <Text style={s.val}>to</Text> : null}{facts.due !== undefined ? <TimePop at={facts.due}><Text style={s.val} testID={facts.start === undefined ? "prop-dates" : "prop-dates-due"}>{day(facts.due)}</Text></TimePop> : null}</View> });
     if (facts.health) rows.push({ k: "Health", node: <Text style={s.val} testID="prop-health">{HEALTH[facts.health] ?? facts.health}</Text> });
   }
   // a page being read shows only the properties that have a value

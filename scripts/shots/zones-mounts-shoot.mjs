@@ -37,6 +37,7 @@ for (const t of targets) for (const skin of ["paper", "graphite"]) for (const [s
   await page.waitForTimeout(500);
   let found = true;
   if (t.waitFor) await page.waitForSelector(t.waitFor, { timeout: 8000 }).catch(() => { found = false; });
+  if (t.id.endsWith("-files")) { await page.click("[data-testid='row-nav:recent']", { timeout: 5000 }).catch(() => undefined); await page.waitForTimeout(900); }
   await page.waitForTimeout(900);
   const hov = page.locator("[data-testid='time-pop'] > *").first();
   const has = await hov.count();

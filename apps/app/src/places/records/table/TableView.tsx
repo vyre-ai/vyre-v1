@@ -330,7 +330,10 @@ function webCell(field: FieldDef, row: RecordRow, names: (id: string) => string,
   }
   if (field.type === "checkbox") return v === true ? <Glyph name="check" size={14} color="var(--ink-2)" width={1.8} /> : null;
   if (field.type === "person") return createElement("span", { className: "vrt-p" }, dot(String(v), names(String(v))), fit(names(String(v)), width - 25));
-  return createElement("span", { className: isNumeric(field) ? "vrt-c vrt-n" : "vrt-c" }, fit(cellText(field, v, names), width));
+  const cell = createElement("span", { className: isNumeric(field) ? "vrt-c vrt-n" : "vrt-c" }, fit(cellText(field, v, names), width));
+  // a moment (a date with a time) opens the hover card with both zones; a plain calendar date has no second clock
+  const at = field.type === "datetime" ? (typeof v === "number" ? v : typeof v === "string" ? Date.parse(v) : NaN) : NaN;
+  return Number.isFinite(at) ? createElement(TimePop, { at }, cell) : cell;
 }
 
 const RowBody = memo(function RowBody(p: PieceProps & { left: number; width: number; cols: readonly Column[]; from: number; to: number; pad: number }): ReactElement {
