@@ -1,10 +1,60 @@
 {
   "targets": [
-    { "id": "AUTOUPDATE_01-updating", "route": "/m/AUTOUPDATE_01?part=updating", "proto": "home,{skin}", "waitFor": "[data-testid='updating-screen']", "note": "On start, before the lock screen: Updating Vyre, the version it goes to, a thin bar with the real bytes and percent, and calm words." },
-    { "id": "AUTOUPDATE_01-waiting", "route": "/m/AUTOUPDATE_01?part=waiting", "proto": "home,{skin}", "waitFor": "[data-testid='updating-screen']", "note": "The update waits for a reply running on this computer to finish before it stops the background service." },
-    { "id": "AUTOUPDATE_01-failed", "route": "/m/AUTOUPDATE_01?part=failed", "proto": "home,{skin}", "waitFor": "[data-testid='updating-failed']", "note": "An install that failed: one line and Open Vyre anyway; the next start tries again." },
-    { "id": "AUTOUPDATE_01-whats-new", "route": "/m/AUTOUPDATE_01?part=whats-new", "proto": "home,{skin}", "waitFor": "[data-testid='whats-new']", "note": "The first open after an update: What's new in Vyre, the release's own lines, Continue. Once per version." },
-    { "id": "AUTOUPDATE_01-dot", "route": "/m/AUTOUPDATE_01?part=dot", "proto": "home,{skin}", "waitFor": "[data-testid='shell-rail']", "note": "Automatic updates off and a newer version waiting: a quiet dot on the foot of the rail, where Settings is." },
-    { "id": "AUTOUPDATE_01-about", "route": "/m/AUTOUPDATE_01?part=about", "proto": "settings,{skin}", "waitFor": "[data-testid='about-vyre']", "note": "Settings, About Vyre: the version, the channel and when it last checked, Check now, Update available with Update now, Update Vyre automatically (off here), What's new." }
+    {
+      "id": "AUTOUPDATE_01-updating",
+      "route": "/m/AUTOUPDATE_01?part=updating",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='updating-screen']",
+      "note": "On start, before the lock screen: Updating Vyre, the version it goes to, a thin bar with the real bytes and percent, and calm words."
+    },
+    {
+      "id": "AUTOUPDATE_01-waiting",
+      "route": "/m/AUTOUPDATE_01?part=waiting",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='updating-screen']",
+      "note": "The update waits for the reply in a named chat to finish: which chat, the time left (the wait has a cap), and Stop and update now."
+    },
+    {
+      "id": "AUTOUPDATE_01-waiting-two",
+      "route": "/m/AUTOUPDATE_01?part=waiting-two",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='updating-screen']",
+      "note": "Two replies running: both chats named, a minute left."
+    },
+    {
+      "id": "AUTOUPDATE_01-stopped",
+      "route": "/m/AUTOUPDATE_01?part=stopped",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='updating-screen']",
+      "note": "After Stop and update now, or at the cap: the reply was ended cleanly and the update goes on."
+    },
+    {
+      "id": "AUTOUPDATE_01-failed",
+      "route": "/m/AUTOUPDATE_01?part=failed",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='updating-failed']",
+      "note": "An install that failed: one line and Open Vyre anyway; the next start tries again."
+    },
+    {
+      "id": "AUTOUPDATE_01-whats-new",
+      "route": "/m/AUTOUPDATE_01?part=whats-new",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='whats-new']",
+      "note": "The first open after an update: What's new in Vyre, the release's own lines, Continue. Once per version."
+    },
+    {
+      "id": "AUTOUPDATE_01-dot",
+      "route": "/m/AUTOUPDATE_01?part=dot",
+      "proto": "home,{skin}",
+      "waitFor": "[data-testid='shell-rail']",
+      "note": "Automatic updates off and a newer version waiting: a quiet dot on the foot of the rail, where Settings is."
+    },
+    {
+      "id": "AUTOUPDATE_01-about",
+      "route": "/m/AUTOUPDATE_01?part=about",
+      "proto": "settings,{skin}",
+      "waitFor": "[data-testid='about-vyre']",
+      "note": "Settings, About Vyre: the version, the channel and when it last checked, Check now, Update available with Update now, Update Vyre automatically (off here), What's new."
+    }
   ]
 }

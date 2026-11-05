@@ -1,5 +1,5 @@
 // Mount for AUTOUPDATE_01: Vyre updating itself. ?part=
-//   updating (the Updating screen while it downloads), waiting (it waits for a reply on this computer to finish), failed (one line and Open Vyre anyway),
+//   updating (the Updating screen while it downloads), waiting (it waits for the reply in a named chat, with the time left and Stop and update now), waiting-two (two chats), stopped (the reply was ended cleanly, getting ready), failed (one line and Open Vyre anyway),
 //   whats-new (the sheet over the shell on the first open after an update), dot (the shell with the quiet dot on Settings: the toggle is off and a newer version waits),
 //   about (Settings, About Vyre: the version row, Update available with Update now, the toggle off, What's new)
 import { useEffect, useMemo, useState } from "react";
@@ -66,7 +66,9 @@ export default function Mount(): ReactNode {
   const skin = q.get("skin") ?? "paper";
   let body: ReactNode;
   if (part === "updating") body = <UpdatingScreen version="1.0.0-rc.17" progress={{ phase: "download", downloaded: 56.5 * MB, total: 134 * MB }} failure="" onOpenAnyway={() => undefined} />;
-  else if (part === "waiting") body = <UpdatingScreen version="1.0.0-rc.17" progress={{ phase: "waiting", downloaded: 0, total: null, turns: 1 }} failure="" onOpenAnyway={() => undefined} />;
+  else if (part === "waiting") body = <UpdatingScreen version="1.0.0-rc.17" progress={{ phase: "waiting", downloaded: 0, total: null, turns: 1, chats: ["Rivera intake"], left: 522 }} failure="" onOpenAnyway={() => undefined} onStopNow={() => undefined} />;
+  else if (part === "waiting-two") body = <UpdatingScreen version="1.0.0-rc.17" progress={{ phase: "waiting", downloaded: 0, total: null, turns: 2, chats: ["Rivera intake", "Weekly update"], left: 61 }} failure="" onOpenAnyway={() => undefined} onStopNow={() => undefined} />;
+  else if (part === "stopped") body = <UpdatingScreen version="1.0.0-rc.17" progress={{ phase: "stopping", downloaded: 0, total: null, turns: 1 }} failure="" onOpenAnyway={() => undefined} onStopNow={() => undefined} />;
   else if (part === "failed") body = <UpdatingScreen version="1.0.0-rc.17" progress={null} failure={INSTALL_FAILED} onOpenAnyway={() => undefined} />;
   else if (part === "whats-new") body = <ShellView skin={skin} dot={false}><WhatsNewSheet notes={NOTES} onClose={() => undefined} /></ShellView>;
   else if (part === "dot") body = <ShellView skin={skin} dot />;
