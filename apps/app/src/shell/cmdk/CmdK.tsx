@@ -12,7 +12,7 @@ import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { CmdKController } from "./controller.ts";
 import type { AskState, CmdKData, CmdKOptions, CmdKState } from "./controller.ts";
 import { filterEntries, filterLabels } from "./view.ts";
-import { answerParts, revealed } from "./model.ts";
+import { answerParts, revealed, sameText } from "./model.ts";
 import type { CmdAction, Hit, RowModel } from "./model.ts";
 import { formatCombo } from "../keyboard/map.ts";
 import type { Platform as KeyPlatform } from "../keyboard/map.ts";
@@ -233,7 +233,8 @@ function renderRow(
     row = <Row id={r.key} title={r.source.title} {...(meta ? { titleSuffix: meta } : {})} leading={<View style={styles.tile}><View style={[styles.num, on ? { backgroundColor: "rgba(255,255,255,0.22)" } : null]}><Text style={[styles.numText, on ? { color: "#FFFFFF" } : null]}>{r.source.n}</Text></View></View>} trailing={<Text style={styles.kind}>{r.source.where}</Text>} onPress={() => ctl.choose(i, false)} />;
   } else if (r.type === "hit") {
     // One line, as the prototype draws it: the title, the grey meta after it, the kind right aligned.
-    const meta = r.hit.snippet ?? r.hit.path;
+    const raw = r.hit.snippet ?? r.hit.path;
+    const meta = raw !== undefined && !sameText(raw, r.hit.title) ? raw : (r.hit.path !== undefined && r.hit.path !== raw && !sameText(r.hit.path, r.hit.title) ? r.hit.path : undefined);
     row = <Row id={r.key} title={r.hit.title} {...(meta ? { titleSuffix: meta } : {})} leading={<Tile hit={r.hit} />} onPress={() => ctl.choose(i, false)} />;
   } else if (r.type === "action") {
     row = <Row id={r.key} title={r.action.title} leading={<ActionTile action={r.action} />} trailing={r.action.keys ? <Text style={styles.keys}>{formatCombo(r.action.keys, platform)}</Text> : undefined} onPress={() => ctl.choose(i, false)} />;

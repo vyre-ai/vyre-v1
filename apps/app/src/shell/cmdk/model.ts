@@ -127,6 +127,9 @@ export const isSelectable = (r: RowModel): boolean => r.type === "hit" || r.type
 /** The search marks the typed word in a snippet with [ ]: shown as plain text, the marks are not part of what a person wrote. */
 export const plainMarks = (text: string): string => text.replace(/\[([^\[\]]+)\]/g, "$1");
 
+/** The second line of a row is dropped when it only repeats the title (case and outer spaces do not count). */
+export const sameText = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase();
+
 /** One row per thing: the same title twice in a group (and a channel's own thread beside the channel) (a chat's title, then a message hit of that chat) is one row that keeps the first hit and takes a snippet from the later one when it has none. */
 export function oneEach(hits: readonly Hit[]): Hit[] {
   const at = new Map<string, number>(), out: Hit[] = [];

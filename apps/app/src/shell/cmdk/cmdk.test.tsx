@@ -277,3 +277,10 @@ test("one row per thing, no raw [ ] marks, no group name repeated on the row (po
   assert.deepEqual(both.map((r) => r.hit.kind), ["channel"], "a channel's own thread is not a second row beside the channel");
   assert.equal(both[0]!.hit.snippet, "Review the launch post");
 });
+
+test("a row's second line is dropped when it only repeats the title, whatever the case or spacing", async () => {
+  const { sameText } = await import("./model.ts");
+  assert.equal(sameText("launch", "launch"), true);
+  assert.equal(sameText("  Launch-Page-Live-By-Friday ", "launch-page-live-by-friday"), true);
+  assert.equal(sameText("Review the launch post", "launch"), false);
+});
