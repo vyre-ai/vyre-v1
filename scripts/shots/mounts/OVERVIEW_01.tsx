@@ -13,7 +13,7 @@ export default function Mount() {
   useEffect(() => {
     const q = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "");
     const sample = createSampleOverview();
-    if (q.get("agent") === "1") sample.agentEdits("added a section: Open invoices", `${sample.state().markdown}\n\n<!--b:blk_y1-->\n:::live {"type":"metric","spec":{"title":"Unpaid","type":"invoice","op":"sum","field":"amount"},"view":"count"}`);
+    if (q.get("agent") === "1") sample.agentEdits('added a live metric block "Unpaid"', `${sample.state().markdown}\n\n<!--b:blk_y1-->\n:::live {"type":"metric","spec":{"title":"Unpaid","type":"invoice","op":"sum","field":"amount"},"view":"count"}`);
     setS({ sample, read: q.get("read") === "1" });
   }, []);
   if (s === null) return <View style={{ flex: 1 }} />;

@@ -18,6 +18,7 @@ import { REPLY_FORMAT } from "../../lib/reply-format.ts";
 import { READ_LIMIT, isRoom, packText, recentWindow } from "./room-pack.ts";
 import type { RoomMessage } from "./room-pack.ts";
 import { offsetMinutes } from "../../lib/time-convert.ts";
+import { validZone, zoneName as niceZone } from "../../lib/zones.ts";
 import { CAPABILITY_MAP } from "./capability-map.ts";
 
 /** The titles of the chats the Vault (Add to Automations) and the step picker (Build a connector) start, and the skill they run on. */
@@ -128,6 +129,14 @@ export function timeLine(at: number, zone?: string): string {
   const off = offsetMinutes(at, tz);
   // the person's zone and its offset are stated, and the model is told to convert with time_convert: the owner's Assistant worked a meeting's day out wrong from epoch numbers in its head
   return `It is ${text.replace(" at ", ", ")} (${tz}). That is UTC${off < 0 ? "-" : "+"}${Math.floor(Math.abs(off) / 60)}${Math.abs(off) % 60 ? `:${String(Math.abs(off) % 60).padStart(2, "0")}` : ""}. The person's time zone is ${tz}: say times in it. To move a time between zones, or to turn "tomorrow 2pm PT" into a time, call time_convert; never work out zones, dates or epoch numbers yourself.`;
+}
+
+/** The time in a shared place: the Space's zone, the one everyone there reads in. Dates and times the agent writes for the room, and what it schedules for the room (check-ins, due times), are in it. */
+export function sharedTimeLine(at: number, spaceZone: string): string {
+  const zone = validZone(spaceZone) ? spaceZone : "UTC";
+  const base = timeLine(at, zone);
+  const now = base.slice(0, base.indexOf(" The person's time zone is"));
+  return `${now} That is the Space's time zone (${niceZone(zone, at)}), and this place is shared: write every date and time in it, never in one person's own, and name the zone when it could be unclear. Check-ins, due times and anything else the team will see are scheduled in it. Something only for one person (their reminder, their private routine) is in that person's own zone. To move a time between zones, or to turn "tomorrow 2pm PT" into a time, call time_convert; never work out zones, dates or epoch numbers yourself.`;
 }
 
 /** A routine or watcher in one line the agent can act on: kind, title, when, state, id. */
@@ -576,8 +585,11 @@ export function createContextBuilder(d: ContextDeps) {
     // a room (a group chat, a project chat, a channel): the roster, a digest of what came before, and the recent messages with names and times, from the database and with no tool call
     let roomKeep = false;
     let cutFromSeq: number | undefined;
+    // a shared place (a room, a project's or a channel's chat, a record's) is read in the Space's time zone; a private chat in the person's own
+    const spaceZone = str((space?.["space"] as Obj | undefined)?.["timezone"]);
+    const shared = validZone(spaceZone) && (isRoom(roomTh) || str(roomTh?.["channelId"]) !== undefined || str(roomTh?.["recordId"]) !== undefined);
     if (isRoom(roomTh) && process.env["VYRE_ROOM_PACK"] !== "off") {   // the switch is for measuring the pack against none
-      const zoneName = str((zone?.["row"] as Obj | undefined)?.["value"]) ?? "UTC";
+      const zoneName = (shared ? spaceZone : undefined) ?? str((zone?.["row"] as Obj | undefined)?.["value"]) ?? "UTC";
       const isThread = kind === "thread" || str(th?.["parentThreadId"]) !== undefined;
       const listed = await read<Obj>("chat.messages.list", { threadId: roomId, limit: READ_LIMIT }, asker);
       const all = arr<Obj>(listed?.["messages"]).map((m): RoomMessage => ({ messageId: str(m["messageId"]) ?? "", threadSeq: Number(m["threadSeq"] ?? 0), author: { kind: String((m["author"] as Obj | undefined)?.["kind"] ?? ""), id: str((m["author"] as Obj | undefined)?.["id"]) ?? "" }, kind: str(m["kind"]) ?? "text", body: str(m["body"]) ?? "", createdAt: Number(m["createdAt"] ?? 0) }));
@@ -612,7 +624,7 @@ export function createContextBuilder(d: ContextDeps) {
     const taken = d.handoff?.(input.threadId);
     if (taken) add("handoff", false, taken);
     add("screen", false, screenText(screen));
-    add("now", false, timeLine(now(), str(((zone?.["row"] as Obj | undefined)?.["value"])) ));
+    add("now", false, shared && spaceZone ? sharedTimeLine(now(), spaceZone) : timeLine(now(), str(((zone?.["row"] as Obj | undefined)?.["value"])) ));
     const w = (waits ?? []).filter((x) => x !== "");
     if (w.length > 0) add("waiting", false, w.map((x) => `- ${x}`).join("\n"));
 

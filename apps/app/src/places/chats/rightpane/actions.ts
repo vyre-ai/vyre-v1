@@ -224,3 +224,8 @@ export function hookRemove(d: PaneDeps, id: string, threadId: string, again: Rec
 export function hookSave(d: PaneDeps, input: Record<string, unknown>): Promise<boolean> {
   return attempt(d, "save that hook", async () => { await d.call("hooks.set", input); d.note("Hook saved"); });
 }
+
+/** Take an always-allow rule away: the hook guards that kind of act again. */
+export function hookAllowRemove(d: PaneDeps, ruleId: string, what: string): Promise<boolean> {
+  return attempt(d, "remove that rule", async () => { await d.call("hooks.allow_remove", { id: ruleId }); d.note(`The hook guards ${what} again`); });
+}

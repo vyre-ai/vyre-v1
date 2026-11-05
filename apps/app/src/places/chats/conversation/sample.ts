@@ -168,7 +168,7 @@ export interface Sample {
   push(delta: string): void;
 }
 
-export interface SampleOptions { online?: boolean; streamText?: string; /** the chat's stored title (the sample has "Rivera intake"; "" is a chat with none yet) */ title?: string; /** the chat's members, in place of the sample's (a group chat for the header faces) */ members?: Thread["members"]; /** The signed-in person can only view this chat: they may add viewers, not members. */ viewOnly?: boolean }
+export interface SampleOptions { online?: boolean; streamText?: string; /** the chat's stored title (the sample has "Rivera intake"; "" is a chat with none yet) */ title?: string; /** the chat's members, in place of the sample's (a group chat for the header faces) */ members?: Thread["members"]; /** The signed-in person can only view this chat: they may add viewers, not members. */ viewOnly?: boolean; /** What the chat really has for a newcomer: both a files folder and a record (default), a folder only, or neither. */ scope?: "both" | "folder" | "none" }
 
 const HELD_TEXT = "I read the standard engagement letter and filled in the **consult fee** from the fee schedule. Two things need your eye:\n\n1. The retainer is `$2,500`, which Maya has not confirmed\n2. Elena's address is the old one from the web form";
 
@@ -185,7 +185,10 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
   let counter = 0;
   const built = build(variant);
   const { messages, helpers } = built;
-  const thread: Thread = { ...built.thread, ...(o.title === undefined ? {} : { title: o.title }), ...(o.members === undefined ? {} : { members: o.members }) };
+  // the files folder and record this chat is about, with names that are not the chat's own, so a shot shows which name is which
+  const scope = o.scope ?? "both";
+  const about = scope === "none" ? {} : { folderId: "fld_intake_uploads", ...(scope === "both" ? { recordId: "rec_elena_rivera" } : {}) };
+  const thread: Thread = { ...built.thread, ...about, ...(o.title === undefined ? {} : { title: o.title }), ...(o.members === undefined ? {} : { members: o.members }) };
 
   replica.put("threads", [{ id: thread.threadId, ...thread }]);
   replica.put("messages", messages.map((m) => ({ id: m.messageId, ...m })));
@@ -246,8 +249,10 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     },
     // the Add people and agents sheet (lane l-addsheet): the directory it reads and the calls it makes
     "threads.get": () => { const { id: _id, ...rest } = threadRow(); return { thread: rest as Thread }; },
+    "files.folder.get": (i: { folderId: string }) => ({ folder: { folderId: i.folderId, name: "Client intake uploads", path: "/Client intake uploads", fileCount: 3, folderCount: 0, scope: "space", label: 0 } }),
+    "search.resolve": (i: { itemId: string }) => ({ hit: { kind: "record", id: i.itemId, title: "Elena Rivera", link: `vyre://record/${i.itemId}`, score: 1 } }),
     "access.principals.list": () => ({ principals: [
-      { id: "usr_irfad", kind: "person", name: "You", status: "active", roles: [], groups: [], createdAt: SAMPLE_NOW },
+      { id: "usr_irfad", kind: "person", name: "You", status: "active", roles: ["rol_owner"], groups: [], createdAt: SAMPLE_NOW },
       { id: "usr_maya", kind: "person", name: "Maya Chen", status: "active", roles: [], groups: [], title: "Partner", createdAt: SAMPLE_NOW },
       { id: "usr_omar", kind: "person", name: "Omar Haddad", status: "active", roles: [], groups: [], title: "Operations", createdAt: SAMPLE_NOW },
     ] }),
@@ -356,7 +361,7 @@ export function createSample(variant: Variant = "idle", o: SampleOptions = {}): 
     },
     connection,
     threadId: thread.threadId,
-    me: { id: "usr_irfad", name: "You" },
+    me: { id: "usr_irfad", name: "Irfad Imtiaz" },
     nameOf: (id) => NAMES[id] ?? id,
     kindOf: (id) => KINDS[id] ?? "person",
     nav,

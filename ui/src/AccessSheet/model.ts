@@ -249,7 +249,18 @@ export function addLines(i: AddLinesInput): Line[] {
   const noun = targetNoun(t.kind);
   const std = P.filter((p) => p.kind !== "guest");
   const guests = P.filter((p) => p.kind === "guest");
-  if (std.length > 0) out.push({ id: "std", tone: "plain", text: i.earlier ? `They'll see the whole ${noun.replace(/^this /, "")}, its files folder ${t.filesFolder}, and records in ${t.recordsFolder}.` : `They'll see ${noun}'s messages from now on, its files folder ${t.filesFolder}, and records in ${t.recordsFolder}.` });
+  if (std.length > 0) {
+    // what they get is only what the target really has: a folder and records are named when there are some, and left out when there are none
+    const pr = t.project;
+    const parts = pr
+      ? [...(pr.hasFiles ? [`${pr.name}'s files`] : []), ...(pr.linkedRecords > 0 ? [`its ${pr.linkedRecords} linked record${pr.linkedRecords === 1 ? "" : "s"}`] : [])]
+      : [...(t.filesFolder ? [`its files folder ${t.filesFolder}`] : []), ...(t.recordsFolder ? [`records in ${t.recordsFolder}`] : [])];
+    // a project's chat is still a chat to the person reading this line
+    const said = pr ? "this chat" : noun;
+    const lead = i.earlier ? `They'll see the whole ${said.replace(/^this /, "")}` : `They'll see ${said}'s messages from now on`;
+    const tail = parts.length === 0 ? "." : parts.length === 1 ? `, and ${parts[0]}.` : `, ${parts[0]}, and ${parts[1]}.`;
+    out.push({ id: "std", tone: "plain", text: lead + tail });
+  }
   if (guests.length > 0) out.push({ id: "guests", tone: "plain", text: `${joinNames(guests.map((g) => g.name))} ${guests.length === 1 ? "sees" : "see"} only what ${noun} allows: messages from now on, no files folder, no records.` });
   for (const o of P.filter((p) => p.kind === "outside")) {
     const reads = t.kind === "project" ? "the project's context and folders" : "its folder and the records folder";

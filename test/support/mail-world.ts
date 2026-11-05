@@ -141,8 +141,9 @@ export async function bootMailWorld(o: WorldOptions): Promise<MailWorld> {
 }
 
 /** The owner unlocks the Vault the way the app does once signed in, so Shared items can be filed and Mine items opened. */
+// the same stand-in key a browser seat hands the daemon (test/support/mail-browser.ts seat()): a vault filled here stays readable once a seat opens the app
 export async function unlockVault(w: MailWorld): Promise<void> {
-  const r = await fetch(`${w.d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${w.owner.token}` }, body: JSON.stringify({ key: Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(32))).toString("base64") }) });
+  const r = await fetch(`${w.d.url}/local/vault/key/unlock`, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${w.owner.token}` }, body: JSON.stringify({ key: Buffer.from(new Uint8Array(32).fill(7)).toString("base64") }) });
   assert.equal(r.status, 204, `unlock: ${r.status}`);
 }
 export async function lockVault(w: MailWorld): Promise<void> {

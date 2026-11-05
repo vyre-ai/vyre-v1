@@ -10,6 +10,8 @@ import { api, door, join } from "./member-key-kit.ts";
 const KEY = process.env["OPENCODE_API_KEY"];
 
 test("real model: time to first visible text in a seeded 300-message room, with and without the pack, and one real digest", { skip: !KEY && "OPENCODE_API_KEY is not set", timeout: 1_700_000 }, async () => {
+  let phase = "pre-join";
+  const leaks: string[] = [];
   if (process.env["SPY"]) {
     const real = globalThis.fetch;
     let n = 0;
@@ -19,6 +21,12 @@ test("real model: time to first visible text in a seeded 300-message room, with 
         const h = Object.fromEntries(Object.entries((init?.headers ?? {}) as Record<string, string>).map(([k, v]) => [k, k.toLowerCase() === "authorization" ? (() => { const got = String(v).slice(7); let pre = 0; while (pre < got.length && got[pre] === KEY![pre]) pre++; return `Bearer <${got.length} chars, common prefix ${pre}, is substring ${KEY!.includes(got)}, has newline ${/\s/.test(got)}, first4 ${got.slice(0, 4)}>`; })() : v]));
         const b = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
         console.log(`SPY ${url} headers ${JSON.stringify(h)} body keys ${Object.keys(b).join(",")} model ${String(b["model"])} tools ${Array.isArray(b["tools"]) ? b["tools"].length : 0}`);
+      }
+      if (url.includes("chat/completions") && /(80|61)[, ]?000/.test(String(init?.body ?? ""))) {
+        const body = String(init?.body ?? "");
+        const hits = [...body.matchAll(/(80|61)[, ]?000/g)].slice(0, 4).map((m) => body.slice(Math.max(0, m.index! - 260), m.index! + 60).replace(/\\n/g, " / "));
+        if (phase === "post-join") leaks.push(hits[0] ?? "");
+        console.log("OUT|LEAKSRC[" + phase + "] " + JSON.stringify(hits));
       }
       return real(input, init);
     }) as typeof fetch;
@@ -41,6 +49,10 @@ test("real model: time to first visible text in a seeded 300-message room, with 
     // the first engine call builds the runtime that routes a tag into a turn
     assert.equal((await api(d, d.token, "engine.pool.status", {})).status, 200);
     const omar = await join(d, "omar");
+    assert.equal((await door(d, omar.token, "unlock", omar.personKey)).status, 204);
+    const provO = await as(omar.token, "providers.add", { providerKey: "opencode-go", connection: "api_key", apiKey: KEY, scope: "mine" });
+    assert.equal(provO.status, 200, JSON.stringify(provO.data).replaceAll(KEY!, "***"));
+    assert.equal((await as(omar.token, "providers.set_space_use", { providerId: provO.data.provider.id, allow: true })).status, 200);
     const made0 = await as(maya.token, "agents.create", { name: "Intake", role: "You answer intake questions briefly." });
     assert.equal(made0.status, 200, JSON.stringify(made0.data));
     const agent = made0.data.agent.agentId as string;
@@ -102,10 +114,13 @@ test("real model: time to first visible text in a seeded 300-message room, with 
       await new Promise<void>((res) => setTimeout(res, 800));
       return at - t0;
     };
+    const timing = process.env["ROOM_TIMING"] !== "off";
+    if (timing) {
     await firstText("off", 0);   // the first turn builds the runtime and warms the connection
     const on: number[] = [], off: number[] = [];
     for (let n = 1; n <= 5; n++) { off.push(await firstText("off", n * 2)); on.push(await firstText("on", n * 2 + 1)); }
     console.log(`OUT|REAL first visible text (ms), model ${model}: without the pack ${off.join(", ")}; with the pack ${on.join(", ")}`);
+    }
     const last = (await api(d, maya.token, "chat.messages.list", { threadId, limit: 4 })).data.messages as Array<{ author: { kind: string }; body: string }>;
     console.log(`OUT|last reply: ${last.filter((m) => m.author.kind === "agent").at(-1)?.body.slice(0, 300)}`);
     // the digest the 300 messages caused
@@ -130,10 +145,15 @@ test("real model: time to first visible text in a seeded 300-message room, with 
       }
       return waitFor(async () => {
         await d.hooks?.pump?.();
+        if (process.env["SPY"] && Date.now() % 20 === 0) console.log("OUT|WAIT");
         const m = (await api(d, maya.token, "chat.messages.list", { threadId: tid, limit: 20 })).data.messages as Array<{ threadSeq: number; author: { kind: string }; body: string }>;
         const a = m.filter((x) => x.threadSeq > before && x.author.kind === "agent" && x.body.trim() !== "");
         return a.length ? a.map((x) => x.body).join(" ") : null;
-      }, 120_000);
+      }, 120_000).catch(async (e) => {
+        const m = (await api(d, maya.token, "chat.messages.list", { threadId: tid, limit: 8 })).data.messages as Array<{ threadSeq: number; author: { kind: string }; body: string }>;
+        console.log("OUT|NOREPLY " + JSON.stringify(m.map((x) => [x.threadSeq, x.author.kind, x.body.slice(0, 160)])));
+        throw e;
+      });
     };
     // 1. a channel: tagged by Maya, whose account pays
     console.log(`OUT|WALK channel: ${(await ask(threadId, maya.token, "@Intake in one sentence: when does the launch email go out, and what is blocked?", "rr-w1")).slice(0, 400)}`);
@@ -153,12 +173,28 @@ test("real model: time to first visible text in a seeded 300-message room, with 
     await api(d, maya.token, "threads.set_agent_replies", { threadId: pt, inThreads: false, idempotencyKey: "rr-rep2" });
     await api(d, maya.token, "engine.set_model", { threadId: pt, agentId: agent, model, provider: "opencode_go", idempotencyKey: "rr-pick2" });
     await ask(pt, maya.token, "@Intake private note for me only: my budget ceiling for the Acme deal is 80000 dollars, remember it.", "rr-w3a");
+    await ask(pt, maya.token, "@Intake private note for me only: my walk-away price for the Harbor deal is 61000 dollars, remember it too.", "rr-w3a2");
+    phase = "post-join";
     const add = await api(d, maya.token, "channels.members.add", { channelId: priv.data.channel.channelId, personIds: [omar.personId], idempotencyKey: "rr-add2" });
     assert.equal(add.status, 200, JSON.stringify(add.data));
     await waitFor(async () => { await d.hooks?.pump?.(); return (await api(d, maya.token, "chat.messages.list", { threadId: pt }).then((r) => r)).status === 200 ? true : null; }, 20_000);
     await new Promise<void>((res) => setTimeout(res, 1_500));
     const tg = await api(d, maya.token, "threads.get", { threadId: pt });
+    const lastBefore = ((await api(d, maya.token, "chat.messages.list", { threadId: pt, limit: 3 })).data.messages as Array<{ threadSeq: number }>).reduce((n, m) => Math.max(n, m.threadSeq), 0);
     console.log(`OUT|joinedAt ${JSON.stringify(tg.data.thread?.joinedAt)} members ${(tg.data.thread?.members ?? []).length}`);
-    console.log(`OUT|WALK gained-a-person: ${(await ask(pt, maya.token, "@Intake what is the budget ceiling for the Acme deal that was discussed here earlier?", "rr-w3b")).slice(0, 400)}`);
+    const answerOmar = await ask(pt, omar.token, "@Intake what is the budget ceiling for the Acme deal and the walk-away price for Harbor?", "rr-w3b-omar");
+    console.log(`OUT|WALK gained-a-person asker=omar: ${answerOmar.slice(0, 400)}`);
+    const answer = await ask(pt, maya.token, "@Intake what is the budget ceiling for the Acme deal and the walk-away price for Harbor that we discussed earlier?", "rr-w3b");
+    {
+      const tr = await api(d, maya.token, "chat.transcript.read", { threadId: pt });
+      const md = String((tr.data as { markdown?: string }).markdown ?? "");
+      const tail = md.slice(-3500).replaceAll("\n", " // ");
+      console.log(`OUT|TOOLS (transcript tail, ${md.length} chars): ${tail}`);
+    }
+    console.log(`OUT|WALK gained-a-person asker=maya: ${answer.slice(0, 400)}`);
+    if (process.env["SPY"]) {
+      assert.equal(leaks.length, 0, `a request after the join carried a figure said before it: ${leaks[0]?.slice(0, 300)}`);
+      assert.doesNotMatch(`${answerOmar} ${answer}`, /(80|61)[, ]?000/, "no answer carries a figure said before the join");
+    }
   } finally { delete process.env["VYRE_ROOM_PACK"]; await d.stop(); }
 });

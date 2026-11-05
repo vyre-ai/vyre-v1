@@ -417,6 +417,9 @@ export default defineManifest({
       in: { ...threadT, body: t.str({ maxLength: 400 }), kind: t.enm('added', 'changed', 'removed', 'paused', 'resumed', 'blocked', 'failed', 'allowed', 'asked'), hookId: t.opt(t.str()), scope: t.opt(t.str()), by: t.opt(t.str()), byKind: t.opt(t.enm('admin', 'person', 'agent')), reason: t.opt(t.str({ maxLength: 300 })), tool: t.opt(t.str({ maxLength: 80 })), subject: t.opt(t.str({ maxLength: 200 })), agentId: t.opt(id.agent), next: t.opt(t.arr(t.obj({ label: t.str({ maxLength: 40 }), ask: t.str({ maxLength: 200 }) }), { maxItems: 2 })) },
       out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', errors: ['validation.bad_input', 'validation.not_found'],
     }),
+    write('chat.hook_resolve', 'Hooks module only: mark a stop line answered (allowed this time, always allowed, or denied), for everyone in the chat', {
+      in: { ...threadT, messageId: id.message, resolution: t.enm('allowed', 'always', 'denied'), by: t.str(), what: t.opt(t.str({ maxLength: 200 })) }, out: { ok: t.bool() }, on: ['thread', '/threadId'], level: 'use', errors: ['validation.not_found'],
+    }),
     write('chat.note_offer.answer', 'Save or dismiss an offer to keep something from this chat as a note. Save makes the person\'s own private note that links back to the message', {
       in: { ...threadT, blockId: id.block, decision: t.enm('save', 'dismiss') }, out: { state: t.enm('saved', 'dismissed'), noteId: t.opt(t.str()) },
       on: ['thread', '/threadId'], level: 'use', offline: 'online', agent: false, errors: ['validation.not_found', 'validation.precondition_failed'],
@@ -483,7 +486,7 @@ export default defineManifest({
       errors: ['validation.not_found', 'validation.precondition_failed', 'validation.bad_input'],
     }),
     write('chat.helper.restart', 'Start a helper again on another model: the person it works for picks an account and a model, and it does its brief again from the start', {
-      in: { ...threadT, model: t.opt(t.str()), account: t.opt(t.str({ description: 'An account from models_for_helpers: its ref, or its label' })), provider: t.opt(t.str()) },
+      in: { ...threadT, helperId: id.thread, model: t.opt(t.str()), account: t.opt(t.str({ description: 'An account from models_for_helpers: its ref, or its label' })), provider: t.opt(t.str()) },
       out: { messageId: id.message, model: t.str(), account: t.str(), fellBackFrom: t.opt(t.str()) }, on: ['thread', '/threadId'], level: 'use', emits: ['helper.note', 'message.received', 'message.direct', 'message.mentioned', 'thread.replied', 'thread.unarchived'], tool: 'chats',
       errors: ['validation.not_found', 'validation.precondition_failed', 'validation.bad_input', 'permission.no_grant', 'provider.unavailable'],
     }),
@@ -491,7 +494,7 @@ export default defineManifest({
       in: threadT, out: { marked: t.int() }, on: ['thread', '/threadId'], level: 'use', tool: 'chats', errors: ['validation.not_found'],
     }),
     read('chat.helper.notes', 'The notes in a helper chat with who sent each: the person, the agent that started it, or the helper', {
-      in: threadT, out: { notes: t.arr(t.obj({ messageId: id.message, authorId: t.str(), who: t.enm('brief', 'person', 'parent', 'helper'), body: t.str(), kind: t.opt(t.str()), state: t.opt(t.str()), seenAt: t.opt(t.ts()) })) },
+      in: threadT, out: { notes: t.arr(t.obj({ messageId: id.message, authorId: t.str(), who: t.enm('brief', 'person', 'parent', 'helper'), body: t.str(), kind: t.opt(t.str()), state: t.opt(t.str()), seenAt: t.opt(t.ts()), restart: t.opt(t.bool()), model: t.opt(t.str()) })) },
       on: ['thread', '/threadId'], tool: 'chats',
     }),
     read('chat.helpers.list', 'Helpers running under a chat, with status', {

@@ -1,6 +1,7 @@
 // engine.crew.status (owner, 4 Nov 2026): one read of everything under a chat that works for it, for the Island, the header chip and the Crew pane. Helpers come from engine.helpers.status; teammates from their jobs
 // (branch, files from the git summary the job kept). Tokens and cost are the turn rows' own, the model is the one each turn reported, the account is the one that paid. Nothing is estimated: a number that is not
 // known is left out (test counts are not kept anywhere yet, so they are not here).
+import { oneLine } from "../../../lib/plain-words.ts";
 import { testsOf } from "../helper-tests.ts";
 import { ensure } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -46,7 +47,7 @@ export async function crewStatus(ctx: EngineCtx, input: { threadId: string }) {
     const end = j.endedAt;
     const name = (await agentDisplay((cap, i) => ctx.call(cap, i), j.agentId)).name;
     members.push({
-      kind: "teammate", id: j.threadId, parentThreadId: input.threadId, title: j.title, name, agentId: j.agentId, state: JOB_STATE[j.state] ?? "working", ...(live ? { step: live } : {}),
+      kind: "teammate", id: j.threadId, jobId: j.jobId, parentThreadId: input.threadId, title: j.title, name, agentId: j.agentId, state: JOB_STATE[j.state] ?? "working", ...(live ? { step: live } : {}), ...(typeof j.result?.["text"] === "string" && String(j.result["text"]).trim() !== "" ? { found: oneLine(String(j.result["text"])) } : {}),
       startedAt: j.startedAt, ...(end !== undefined ? { endedAt: end } : {}), elapsedMs: Math.max(0, (end ?? now) - j.startedAt), ...(last && String(last["model"]) !== "unknown" ? { model: String(last["model"]) } : {}),
       ...(acct ? { accountLabel: acct.name ?? acct.title ?? ref } : {}), branch: j.branch, files, added: files.reduce((n, f) => n + f.added, 0), deleted: files.reduce((n, f) => n + f.deleted, 0), merged: j.state === "merged",
       tokensIn: turns.reduce((n, t) => n + num(t["tokens_in"]), 0), tokensOut: turns.reduce((n, t) => n + num(t["tokens_out"]), 0), costMicros: turns.reduce((n, t) => n + num(t["cost_micros"]), 0),

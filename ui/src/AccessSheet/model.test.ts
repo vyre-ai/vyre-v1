@@ -581,3 +581,22 @@ test("addCalls sends fromStart only when Include earlier messages is on", () => 
   const on = addCalls({ kind: "chat", threadId: "thr_1" }, [person], () => "k", { earlier: true });
   assert.deepEqual(on.calls.map((c) => c.input), [{ threadId: "thr_1", personId: "usr_sara", fromStart: true }]);
 });
+
+test("the what-they-get line names a folder and records only when the target has them", () => {
+  const picks = [sara("member")];
+  const bare = { kind: "chat" as const, name: "Upload contract" };
+  assert.equal(addLines({ target: bare, picks, earlier: false, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from now on.");
+  assert.equal(addLines({ target: { ...bare, filesFolder: "Portal uploads" }, picks, earlier: false, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from now on, and its files folder Portal uploads.");
+  assert.equal(addLines({ target: { ...bare, recordsFolder: "Clients" }, picks, earlier: true, ownerName: "Irfad" })[0]?.text, "They'll see the whole chat, and records in Clients.");
+  assert.equal(addLines({ target: { ...bare, filesFolder: "Portal uploads", recordsFolder: "Clients" }, picks, earlier: true, ownerName: "Irfad" })[0]?.text, "They'll see the whole chat, its files folder Portal uploads, and records in Clients.");
+});
+
+test("a project chat reads: the project's files, and its N linked records, with the real count", () => {
+  const picks = [sara("member")];
+  const t = (linkedRecords: number, hasFiles = true) => ({ kind: "project" as const, name: "Busy project", project: { name: "Busy project", hasFiles, linkedRecords } });
+  assert.equal(addLines({ target: t(3), picks, earlier: false, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from now on, Busy project's files, and its 3 linked records.");
+  assert.equal(addLines({ target: t(1), picks, earlier: false, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from now on, Busy project's files, and its 1 linked record.");
+  assert.equal(addLines({ target: t(0), picks, earlier: false, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from now on, and Busy project's files.");
+  assert.equal(addLines({ target: t(2), picks, earlier: true, ownerName: "Irfad" })[0]?.text, "They'll see the whole chat, Busy project's files, and its 2 linked records.");
+  assert.equal(addLines({ target: t(0, false), picks, earlier: false, ownerName: "Irfad" })[0]?.text, "They'll see this chat's messages from now on.");
+});

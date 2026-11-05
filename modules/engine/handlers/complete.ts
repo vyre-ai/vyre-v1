@@ -4,6 +4,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ResolvedAccount } from "../../../agent/src/turn-engine/types.ts";
 import { ensureRuntime, completerOf, providerOfDriver } from "../runtime.ts";
 import { accountsList } from "./accounts.ts";
+import { turnsRunHere } from "./place.ts";
 import { raise } from "../projections.ts";
 import type { EngineCtx } from "../projections.ts";
 
@@ -16,6 +17,8 @@ export async function complete(ctx: Ctx, input: { accountRef: string; prompt: st
   const list = (await accountsList(ctx, {} as never)) as { accounts: Array<{ ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean; itemId?: string }> };
   const row = list.accounts.find((a) => a.ref === input.accountRef);
   if (!row) raise(ctx as unknown as EngineCtx, "validation.not_found", "That account is not one you can run on.", { accountRef: input.accountRef });
+  // a CLI engine's request needs an engine process, which belongs on the computer where this person's chats run; an API key's request stays here on their own key
+  if (!(await turnsRunHere((cap, i) => ctx.call(cap, i), ctx.actingFor ?? ctx.principal.id, ctx.now(), row.driver))) raise(ctx as unknown as EngineCtx, "internal.unavailable", "This person's chats run on their own computer, not here.");
   const payer = ctx.actingFor ?? ctx.principal.id;
   const account: ResolvedAccount = {
     ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer, reason: "starter",

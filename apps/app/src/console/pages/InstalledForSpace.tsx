@@ -28,7 +28,7 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 export const dayWord = (at: number): string => { const d = new Date(at); return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`; };
 const loose = (o: unknown, k: string): string | undefined => { const v = (o as Record<string, unknown>)[k]; return typeof v === "string" && v !== "" ? v.replace(/^v/, "") : undefined; };
 /** The version an update brings, when the plan says; the new commit otherwise. */
-export const readyWord = (p: Plan): string => { const v = loose(p, "version"); return `${v ? `v${v}` : shortOf(p.commit)} is ready`; };
+export const readyWord = (p: Plan): string => { const v = loose(p, "version"); return `${v ? `v${v}` : shortOf(p.commit)} ${p.diff?.older === true ? "is an older version" : "is ready"}`; };
 /** The two lines under a name: who put it there, when and for whom; then its commit and version. */
 export function metaLines(i: Install, nameOf: (id: string) => string, hold: string | null): string {
   const v = loose(i.installed, "version") ?? loose(i, "version");
@@ -159,7 +159,7 @@ export function InstalledForSpace({ call, nameOf = (id) => id, onAddSkill }: { c
 
     {updating && up ? (
       <Dialog title={`${updating.name} ${shortOf(up.diff?.from ?? updating.commit)} to ${shortOf(up.commit)}`} onClose={() => setUpdating(null)} width={600} fill testID="install-update-sheet"
-        actions={[{ label: "Update for the Space", primary: true, disabled: busy, testID: "install-update-go", onPress: () => void update() }, { label: "Not now", onPress: () => setUpdating(null) }]}>
+        actions={[{ label: up.diff?.older === true ? "Go back to it for the Space" : "Update for the Space", primary: true, disabled: busy, testID: "install-update-go", onPress: () => void update() }, { label: "Not now", onPress: () => setUpdating(null) }]}>
         <View style={{ gap: 6 }}>
           {up.diff ? <Text style={quiet}>{`${changedCount(up.diff)} ${changedCount(up.diff) === 1 ? "file" : "files"} changed`}</Text> : null}
           <Text testID="install-update-access" style={quiet}>{`New access: ${reaches(up).length > 0 ? `it now also reaches ${reaches(up).join(", ")}` : "none"}.`}</Text>

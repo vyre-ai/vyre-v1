@@ -60,7 +60,7 @@ test("a memory learned in a channel keeps its place, its message and the words a
   assert.equal(out.merged, 1);
   const row = s.raw.all("SELECT place_kind, place_id, msg_id, span, source_person, kind, audience, layer FROM memory_facts")[0] as Record<string, string>;
   assert.deepEqual([row.place_kind, row.place_id, row.msg_id, row.span, row.source_person, row.kind, row.layer], ["channel", "chn_deals", "msg_1", "We decided to go with Harbor for the freight contract.", MAYA, "decision", "agent"]);
-  assert.deepEqual(JSON.parse(row.audience), { people: [DANA, MAYA], live: "thr_chan" });
+  assert.deepEqual({ ...JSON.parse(row.audience), at: undefined }, { people: [DANA, MAYA], live: "thr_chan", at: undefined });
   assert.equal(s.noted.length, 1);
   assert.equal(s.noted[0]!["kind"], "decision");
   assert.match(String(s.noted[0]!["text"]), /Harbor/);
@@ -126,8 +126,8 @@ test("a thread keeps its parent's place, a task its project, a project chat its 
     "threads.get": (b) => b["threadId"] === "thr_t" ? { thread: { threadId: "thr_t", kind: "chat", scopeType: "task", scopeId: "tsk_1", members: [person(DANA), person(MAYA)] } } : threadsFor(DANA, s.w, [])(b),
     "tasks.get": () => ({ task: { projectId: "prj_x" } }),
   });
-  assert.deepEqual(await placeOf(h.ctx, "thr_sub"), { kind: "channel", id: "chn_deals" });
-  assert.deepEqual(await placeOf(h.ctx, "thr_t"), { kind: "task", id: "tsk_1", parent: { kind: "project", id: "prj_x" } });
+  assert.deepEqual(await placeOf(h.ctx, "thr_sub"), { kind: "channel", id: "chn_deals", thread: "thr_chan" });
+  assert.deepEqual(await placeOf(h.ctx, "thr_t"), { kind: "task", id: "tsk_1", thread: "thr_t", parent: { kind: "project", id: "prj_x" } });
 });
 
 test("a channel of one person still keeps its memory for that channel: a stranger never reads it (L1)", async () => {
@@ -398,4 +398,92 @@ test("the Knows list comes with linked places and Space markers, each only where
   assert.equal(by("space").length, 1);
   assert.equal(by("space")[0]!["text"], "We decided to go with Harbor for freight shipping.");
   assert.equal(by("linked")[0]!["canEdit"], false);
+});
+
+// ---- a private chat that gains a person keeps what it learned before (MEMORY-RULES 8; rc.22 blocker)
+
+test("LEAK: what an agent saved for its memory in a private chat stays the starter's after the chat gains a person; what it learns afterwards is the room's", async () => {
+  const raw = openRaw();
+  const clock = { t: NOW };
+  const sharedAt = NOW + 1000;
+  let two = false;
+  const threads = (me: string) => (b: Record<string, unknown>) => {
+    const id = String(b["threadId"]);
+    if (id === "thr_priv") {
+      if (!two && me !== DANA) throw new Error("not found");
+      if (two && me !== DANA && me !== MAYA) throw new Error("not found");
+      return { thread: { threadId: id, kind: "chat", starter: DANA, members: two ? [person(DANA), person(MAYA)] : [person(DANA)], agents: [{ agentId: AGENT, mode: "lead" }], ...(two ? { sharedAt } : {}) } };
+    }
+    if (id === "thr_own") return { thread: { threadId: id, kind: "chat", starter: DANA, members: [person(DANA)], agents: [{ agentId: AGENT, mode: "lead" }] } };
+    throw new Error("not found");
+  };
+  const as = (who: string, principal: { kind: "person" | "agent"; id: string } = person(who) as never) => harness({ raw, clock, principal, ...(principal.kind === "agent" ? { actingFor: who } : {}), respond: { "threads.get": threads(who), "agents.get": () => ({ agent: { folderId: "fld_helper", captureMode: "auto", ownerId: DANA } }), "chat.noted": () => ({ posted: true }) } });
+  // Dana alone: the agent keeps her budget in its own memory, from this chat
+  const alone = as(DANA, { kind: "agent", id: AGENT });
+  (alone.ctx as { thread?: string }).thread = "thr_priv";
+  await remember(alone.ctx, { text: "The cobalt budget is eighty thousand dollars.", layer: "agent", agentId: AGENT, threadId: "thr_priv" });
+  clock.t = sharedAt + 1000;
+  two = true;   // Maya is added
+  const q = "what is the cobalt budget in dollars";
+  for (const [who, thread] of [[MAYA, "thr_priv"], [DANA, "thr_priv"]] as const) {
+    const h = as(who);
+    assert.doesNotMatch(await ask(h, thread, q), /eighty/, `${who} in the chat that gained a person`);
+    const tool = as(who, { kind: "agent", id: AGENT });
+    (tool.ctx as { thread?: string }).thread = thread;
+    assert.doesNotMatch(JSON.stringify([await search(tool.ctx, { q: "cobalt budget", agentId: AGENT, mode: "keyword" }), await factsList(tool.ctx, {}), await factsAsOf(tool.ctx, { date: clock.t })]), /eighty/, `${who}'s agent tools in that chat`);
+  }
+  // Dana in a chat of her own still has it; and what the agent learns once Maya is in is the room's
+  assert.match(await ask(as(DANA), "thr_own", q), /eighty/);
+  const room = as(DANA, { kind: "agent", id: AGENT });
+  (room.ctx as { thread?: string }).thread = "thr_priv";
+  await remember(room.ctx, { text: "The cobalt launch review is on Friday.", layer: "agent", agentId: AGENT, threadId: "thr_priv" });
+  assert.match(await ask(as(MAYA), "thr_priv", "cobalt launch review on friday"), /Friday/);
+});
+
+test("LEAK: a channel that began with one person keeps what the agent kept before the second person was added; a channel made with its people shows late joiners everything", async () => {
+  const raw = openRaw();
+  const clock = { t: NOW };
+  let added = false;
+  const sharedAt = NOW + 1000;
+  const threads = (me: string) => (b: Record<string, unknown>) => {
+    const id = String(b["threadId"]);
+    if (id !== "thr_plans") throw new Error("not found");
+    if (me !== MAYA && !(added && me === OMAR)) throw new Error("not found");
+    return { thread: { threadId: id, kind: "channel", channelId: "chn_plans", starter: MAYA, members: added ? [person(MAYA), person(OMAR)] : [person(MAYA)], agents: [{ agentId: AGENT, mode: "lead" }], ...(added ? { sharedAt } : {}) } };
+  };
+  const as = (who: string, principal: { kind: "person" | "agent"; id: string } = person(who) as never) => harness({ raw, clock, principal, ...(principal.kind === "agent" ? { actingFor: who } : {}), respond: {
+    "threads.get": threads(who), "channels.get": () => ({ channel: { visibility: "invite", members: added ? [person(MAYA), person(OMAR)] : [person(MAYA)] } }), "agents.get": () => ({ agent: { folderId: "fld_helper", captureMode: "auto", ownerId: MAYA } }), "chat.noted": () => ({ posted: true }) } });
+  const agent = as(MAYA, { kind: "agent", id: AGENT });
+  (agent.ctx as { thread?: string }).thread = "thr_plans";
+  await remember(agent.ctx, { text: "The acme budget ceiling is eighty thousand dollars.", layer: "agent", agentId: AGENT, threadId: "thr_plans" });
+  clock.t = sharedAt + 1000;
+  added = true;
+  for (const who of [OMAR, MAYA]) {
+    assert.doesNotMatch(await ask(as(who), "thr_plans", "what is the acme budget ceiling in dollars"), /eighty/, `${who} in the channel that gained a person`);
+  }
+});
+
+test("a fact the person marks as for them only is kept in their own layer in any kind of place, by the agent's save tool and by capture", async () => {
+  const s = setup();
+  s.w.channelMembers = [DANA, MAYA, OMAR];
+  const said = "Note, private for me only: my budget ceiling for the Acme deal is 80000 dollars, remember it.";
+  // the agent's save tool: the model asks for the agent layer, the person's words decide
+  const agent = harness({ raw: s.raw, principal: { kind: "agent", id: AGENT }, actingFor: MAYA, respond: {
+    "threads.get": threadsFor(MAYA, s.w, []), "channels.get": () => ({ channel: { visibility: "invite", members: s.w.channelMembers.map(person) } }), "agents.get": () => ({ agent: { folderId: "fld_helper", captureMode: "auto", ownerId: DANA } }),
+    "chat.noted": (b) => { s.noted.push(b); return { posted: true }; }, "chat.messages.list": () => ({ messages: [{ messageId: "msg_p", author: person(MAYA), body: said }] }),
+  } });
+  (agent.ctx as { thread?: string }).thread = "thr_chan";
+  const out = await remember(agent.ctx, { text: "Maya's acme budget ceiling is 80000 dollars.", layer: "agent", agentId: AGENT, threadId: "thr_chan" });
+  assert.equal(out.fact.layer, "person");
+  // and capture: the same words said in the channel, read by the rules
+  s.w.said["thr_chan"] = [msg("msg_9", MAYA, said)];
+  await capture(s.svc().ctx, { threadId: "thr_chan", reason: "closed" });
+  assert.deepEqual(s.raw.all("SELECT DISTINCT layer, owner_ref FROM memory_facts").map((r) => `${(r as { layer: string }).layer}:${(r as { owner_ref: string }).owner_ref}`), [`person:${MAYA}`]);
+  assert.equal(s.noted.length, 0, "nothing was said in the room: it is not the room's memory");
+  // nobody else in the room reads it, through any read
+  for (const who of [OMAR, DANA]) {
+    const h = s.as(who, []);
+    assert.doesNotMatch(await ask(h, "thr_chan", "acme budget ceiling dollars"), /80000/, `${who} asking in the channel`);
+    assert.doesNotMatch(JSON.stringify([await search(h.ctx, { q: "acme budget", agentId: AGENT, mode: "keyword" }), await factsList(h.ctx, {})]), /80000/, `${who} reading`);
+  }
 });

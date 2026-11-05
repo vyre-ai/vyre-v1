@@ -2,7 +2,7 @@
 # @heavy: the Linux installer on a fresh host with real Docker (P-L10_09, spec 3.13, ARCH 7.13).
 #
 # Builds a signed release of a stand-in server (busybox: an HTTP /healthz and a sleeping "caddy" sharing its network, the same compose shape
-# as images/vyred/compose.server.yml), serves it from a file:// channel, then drives the real install.sh and the real vyre-server:
+# as images/vyred/compose.server.yml), serves it from a channel on a local HTTP server (127.0.0.1; vyre-server refuses a file:// feed), then drives the real install.sh and the real vyre-server:
 #   install refuses a plain disk, --dry-run changes nothing, a bad signature and a bad hash stop it, a real install ends with `doctor` green,
 #   the setup code stays out of the output and is kept at mode 0600, a re-run keeps vyre.env, doctor goes red on a plain disk, update backs up
 #   and switches, a manual rollback works, a release that never gets healthy is rolled back by update, uninstall keeps the data and --purge removes it.
@@ -30,12 +30,18 @@ cleanup() {
   if [ -d "$W/srv/current" ]; then COMPOSE_PROJECT_NAME=$PROJECT "$W/shim/docker" compose --project-directory "$W/srv/current" --env-file "$W/srv/compose.env" -f "$W/srv/current/compose.server.yml" -f "$W/srv/compose.override.yml" down -v --remove-orphans >/dev/null 2>&1 || true; fi
   docker ps -aq --filter "label=com.docker.compose.project=$PROJECT" 2>/dev/null | while read -r c; do docker rm -f "$c" >/dev/null 2>&1 || true; done
   docker volume ls -q --filter "label=com.docker.compose.project=$PROJECT" 2>/dev/null | while read -r vol; do docker volume rm -f "$vol" >/dev/null 2>&1 || true; done
+  if [ -n "${CHAN_PID:-}" ]; then kill "$CHAN_PID" 2>/dev/null || true; fi
   rm -rf "$W"
 }
 trap cleanup EXIT
 
 # ---- the fake machine ---------------------------------------------------------------------------------------------------------------
 mkdir -p "$W/shim" "$W/bin" "$W/units" "$W/chan" "$W/stage"
+# the release channel: a plain HTTP server on a free loopback port over $W/chan (the scripts accept only an HTTP or HTTPS feed address)
+command -v python3 >/dev/null || { echo "not ok 0 - python3 is needed to serve the release channel" >&2; exit 1; }
+CHAN_PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')
+python3 -m http.server "$CHAN_PORT" --bind 127.0.0.1 --directory "$W/chan" >"$W/chan-server.log" 2>&1 &
+CHAN_PID=$!
 printf '#!/bin/sh\nif [ "${1:-}" = compose ] && [ -n "${VYRE_COMPOSE_BIN:-}" ]; then shift; exec "$VYRE_COMPOSE_BIN" "$@"; fi\nexec "%s" "$@"\n' "$REAL_DOCKER" >"$W/shim/docker"
 printf '#!/bin/sh\necho "systemctl $*" >>"%s/systemctl.log"\n' "$W" >"$W/shim/systemctl"
 printf '#!/bin/sh\nprintf "crypt\\ndisk\\n"\n' >"$W/shim/lsblk-crypt"
@@ -113,7 +119,7 @@ envrun() {
   # envrun MOUNTS LSBLK CMD...
   m=$1; l=$2; shift 2
   env PATH="$SHIM_PATH" VYRE_TEST_MODE=1 VYRE_TEST_NONROOT=1 VYRE_DIR="$W/srv" VYRE_BIN_DIR="$W/bin" VYRE_SYSTEMD_DIR="$W/units" \
-    VYRE_UPDATE_URL="file://$W/chan/" VYRE_RELEASE_KEY_PEM="$W/release.pub" VYRE_TEST_PROC_MOUNTS="$W/mounts-$m" VYRE_TEST_LSBLK="$W/shim/lsblk-$l" \
+    VYRE_UPDATE_URL="http://127.0.0.1:$CHAN_PORT/" VYRE_RELEASE_KEY_PEM="$W/release.pub" VYRE_TEST_PROC_MOUNTS="$W/mounts-$m" VYRE_TEST_LSBLK="$W/shim/lsblk-$l" \
     VYRE_MIN_FREE_MB=100 VYRE_UP_WAIT=60 VYRE_TEST_HEALTH_URL="http://127.0.0.1:$PORT/healthz" COMPOSE_PROJECT_NAME=$PROJECT \
     "$@"
 }

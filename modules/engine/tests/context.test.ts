@@ -2,7 +2,7 @@
 // the screen comes from the message that caused the turn, and nothing in the context is a secret value.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SKILL_INDEX_MAX, capabilitySkills, createContextBuilder, diskSkills, routineLine, timeLine, withTurnContext } from "../context.ts";
+import { SKILL_INDEX_MAX, capabilitySkills, createContextBuilder, diskSkills, routineLine, sharedTimeLine, timeLine, withTurnContext } from "../context.ts";
 import type { SkillsPort } from "../context.ts";
 import type { StoredMessage, TurnInput } from "../../../agent/src/turn-engine/types.ts";
 import type { EngineSession, OpenSession } from "../../../agent/src/turn-engine/types.ts";
@@ -327,4 +327,22 @@ test("group guidance is in the context of a group chat and a channel, and absent
   assert.match(await where(FULL), new RegExp(GROUP_STYLE.slice(0, 40)), "Docs and Omar are also here: a group");
   assert.doesNotMatch(await where({ ...FULL, "threads.get": { thread: { threadId: "thr_1", kind: "chat", title: "Intake desk", members: [{ kind: "person", id: "usr_maya" }], agents: [{ agentId: "agt_intake", mode: "lead" }] } } }), /group conversation/, "a 1:1 keeps the agent's own style");
   assert.match(await where({ ...FULL, "threads.get": { thread: { threadId: "thr_1", kind: "channel", title: "general", members: [{ kind: "person", id: "usr_maya" }], agents: [{ agentId: "agt_intake", mode: "lead" }] } } }), /group conversation/, "a channel is a group even with one other");
+});
+
+test("a shared place gives the Space's zone and now in it, so agents write dates there; a private chat keeps the person's own zone", async () => {
+  const withZone = { ...FULL, "spaces.get": { space: { name: "Northwind", kind: "team", timezone: "America/Los_Angeles" } } };
+  const room = await createContextBuilder({ call: fake(withZone).call, skills, now: () => at }).build(input());
+  const now = room.sections.find((x) => x.id === "now")?.text ?? "";
+  assert.match(now, /^It is Thursday, 29 October 2026, 15:07 \(America\/Los_Angeles\)\./, "the Space's clock, not Karachi's");
+  assert.match(now, /That is the Space's time zone \(Pacific Time\), and this place is shared: write every date and time in it/);
+  assert.match(now, /Check-ins, due times and anything else the team will see are scheduled in it\. Something only for one person[^.]*is in that person's own zone/);
+  assert.doesNotMatch(now, /Asia\/Karachi/, "no one's own zone in a shared place");
+  const solo = { ...withZone, "threads.get": { thread: { kind: "chat", title: "Me", members: [{ kind: "person", id: "usr_maya" }], agents: [{ agentId: "agt_intake", mode: "lead" }] } } };
+  const priv = await createContextBuilder({ call: fake(solo).call, skills, now: () => at }).build(input());
+  const mine = priv.sections.find((x) => x.id === "now")?.text ?? "";
+  assert.match(mine, /^It is Friday, 30 October 2026, 03:07 \(Asia\/Karachi\)\./);
+  assert.match(mine, /The person's time zone is Asia\/Karachi/);
+  const noZone = await createContextBuilder({ call: fake(FULL).call, skills, now: () => at }).build(input());
+  assert.match(noZone.sections.find((x) => x.id === "now")?.text ?? "", /Asia\/Karachi/, "a Space with no zone yet falls back to the person's");
+  assert.match(sharedTimeLine(at, "Not/AZone"), /^It is Thursday, 29 October 2026, 22:07 \(UTC\)\./);
 });

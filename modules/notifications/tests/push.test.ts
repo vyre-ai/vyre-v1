@@ -20,7 +20,7 @@ test("push payload carries no content: the Space name, a deep link, a tag and th
   const p = h.pushes[0]!;
   assert.deepEqual(p, {
     device: "dev_phone", platform: "ios", token: "tok-dev_phone", title: "Northwind needs you", deepLink: "vyre://task/tsk_1", tag: "approval.requested:tsk_1",
-    category: "needs_you", actions: [{ key: "allow", cap: "tasks.act" }, { key: "send_back", cap: "tasks.act" }],
+    category: "needs_you", actions: [{ key: "allow", cap: "tasks.act" }, { key: "deny", cap: "tasks.act" }],
   });
   const wire = JSON.stringify({ ...p, token: undefined });
   for (const leak of ["Wire", "48,000", "Lee", "Smith", "ssn", "123-45", "Please", "funds", "hunter2", "Bob"]) assert.ok(!wire.includes(leak), `the push must not contain "${leak}"`);

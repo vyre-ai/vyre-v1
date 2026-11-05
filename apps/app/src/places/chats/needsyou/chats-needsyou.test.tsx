@@ -67,7 +67,7 @@ test("a request: what it is, why, who made it, where it came from, with one prim
   assert.ok(has(out, "The monthly run, same as September. Two clients have new rates since last month; both are marked."));
   assert.ok(has(out, 'data-testid="block-table"') && has(out, "Harlow & Price") && has(out, "$2,400") && has(out, "7 more in the chat"));
   assert.ok(has(out, "From ") && has(out, 'data-testid="needs-source"') && has(out, "October invoices"));
-  assert.ok(has(out, 'data-testid="needs-primary"') && has(out, ">Approve<") && has(out, 'data-testid="needs-sendback"') && has(out, ">Send back<"));
+  assert.ok(has(out, 'data-testid="needs-primary"') && has(out, ">Allow<") && has(out, 'data-testid="needs-sendback"') && has(out, ">Deny<"));   // an approval: Allow and Deny
   inOrder(out, ['data-testid="needs-primary"', 'data-testid="needs-sendback"']);
   assert.ok(has(out, ">A<") && has(out, ">B<"), "the keys that do the same");
 });

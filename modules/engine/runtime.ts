@@ -95,6 +95,7 @@ export interface EngineHostSeam {
   own?: (person: string) => boolean;
   /** A Space server only: does it hold this person's key now (locked-account.ts). Absent on a person's own computer. */
   keyHeld?: (person: string) => boolean;
+  keyOpen?: (person: string) => boolean;
   /** Is this module db handle this daemon's own? Two daemons in one process (the two-computer tests) share the engine module, and only the daemon whose host half it holds builds its runtime. */
   ours?: (db: unknown) => boolean;
   /** Bytes into a Files upload slot, in process (the daemon's putToSlot): a goal's files over the inline limit go up this way. */
@@ -141,10 +142,11 @@ const awake = createKeepAwake();
 let host: EngineHostSeam | null = null;
 let building: Promise<TurnEngine | null> | null = null;
 let closeOpener: (() => Promise<void>) | null = null;
+let closeUnlockWatch: (() => void) | null = null;
 
 /** The module's seam: the daemon calls this at boot with the host half (null at shutdown). */
 export function setEngineHost(h: EngineHostSeam | null): void {
-  if (h === null) { void closePluginRuntime(); awake.stop(); }   // plugin servers end with the daemon, and so does holding the computer awake
+  if (h === null) { void closePluginRuntime(); awake.stop(); closeUnlockWatch?.(); closeUnlockWatch = null; }   // plugin servers end with the daemon, and so does holding the computer awake
   // At shutdown the engine processes end and MCP tokens are revoked, and then the default sandbox's wall (its egress proxy) stops: the proxy outlives nothing it served, and nothing keeps the daemon's process alive.
   if (h === null) {
     const done = (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve()).then(() => closeDefaultSandbox()).catch(() => undefined);
@@ -307,14 +309,16 @@ export const bindCompleter = (c: typeof completer): void => { completer = c; };
 async function digestComplete(call: (cap: string, input: unknown, as?: string) => Promise<unknown>, i: { asker: string; accountRef: string; model?: string; system: string; prompt: string }): Promise<{ text: string }> {
   const run = completer;
   if (!run) throw new Error("The engine is not running on this host.");
+  const { turnsRunHere } = await import("./handlers/place.ts");
   const list = (await call("engine.accounts.list", {}, i.asker)) as { accounts: Array<{ ref: string; driver: string; kind: "api_key" | "subscription"; base?: string; keyless?: boolean; itemId?: string }> };
   const row = list.accounts.find((a) => a.ref === i.accountRef);
   if (!row) throw new Error("That account is not one the asker can run on.");
+  if (!(await turnsRunHere((cap, x) => call(cap, x, i.asker), i.asker, Date.now(), row.driver))) throw new Error("This person's chats run on their own computer, not here.");
   const account = {
     ref: row.ref, driver: row.driver, provider: providerOfDriver(row.driver), kind: row.kind, payer: i.asker, reason: "starter",
     ...(row.itemId ? { itemId: row.itemId } : {}), ...(row.base ? { base: row.base } : {}), ...(row.keyless ? { keyless: true } : {}),
   } as ResolvedAccount;
-  const out = await run({ account, prompt: i.prompt, system: i.system, ...(i.model ? { model: i.model } : {}) });
+  const out = await run({ account, prompt: i.prompt, system: i.system, agentId: "room-digest", ...(i.model ? { model: i.model } : {}) });
   return { text: out.text };
 }
 
@@ -512,7 +516,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     const roller = createRoller({ db: ctx.db, engine: () => running, compactor: () => compactor, ...(h.log ? { log: h.log } : {}) });
     const turnContext = createContextBuilder({
       call: h.call, skills: h.skills ?? capabilitySkills(h.call), now, handoff: takeHandoff,
-      digests: { get: (t, a) => getDigest(ctx.db, t, a), refresh: (o) => { maybeRefreshDigest({ db: ctx.db, call: h.call, now, ...(h.log ? { log: h.log } : {}), complete: (i) => digestComplete(h.call, i) }, o); } },
+      digests: { get: (t, a) => getDigest(ctx.db, t, a), refresh: (o) => { if (process.env["VYRE_ROOM_DIGEST"] === "off") return; maybeRefreshDigest({ db: ctx.db, call: h.call, now, ...(h.log ? { log: h.log } : {}), complete: (i) => digestComplete(h.call, i) }, o); } },
       waiting: (threadId, agentId) => (running?.waiting(threadId) ?? []).filter((w) => w.agentId === agentId).map((w) => `an answer to task ${w.taskId} (a held call needs approval)`),
     });
     const limitSwitch = createLimitSwitch({
@@ -559,6 +563,13 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       ...(h.nodes?.devices ? { place: (thread: { id: string }) => (waitsForComputer(ctx.db, h.nodes, thread.id) ? "device" as const : "host" as const) } : {}),
     });
     running = engine;
+    // A turn parked because the person's Vault is locked runs once when this host holds their key (the Unlock a person presses lands here): one look at the keys every few seconds, no turn is started to find out.
+    if (h.keyOpen ?? h.keyHeld) {
+      const held = (h.keyOpen ?? h.keyHeld)!;
+      const timer = setInterval(() => { for (const p of engine.parkedLocked()) if (held(p.asker)) engine.resumeLocked(p.asker); }, 5_000);
+      timer.unref?.();
+      closeUnlockWatch?.(); closeUnlockWatch = () => clearInterval(timer);
+    }
     // The reviewer seat: after a lead turn completes, the chat's reviewer is asked to check it.
     // Every turn this engine runs is reported to engine.turn.record under the engine's own id, in order per turn, so the turn list, review sampling and the agent's Working status see it.
     const recording = new Map<string, Promise<void>>();

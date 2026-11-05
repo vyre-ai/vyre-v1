@@ -4,14 +4,14 @@ on:
   workflow_call:
     inputs:
       only:
-        description: "Run one job only (sandbox-windows, frame-macos)"
+        description: "Run one job only (sandbox-windows, frame-macos), or update-proof: the Windows build and its update proof only, for diagnosis (the cut needs the full run)"
         required: false
         type: string
         default: ""
   workflow_dispatch:
     inputs:
       only:
-        description: "Run one job only (sandbox-windows), to prove a lane's change without the full build"
+        description: "Run one job only (sandbox-windows), to prove a lane's change without the full build; update-proof runs the Windows build and its update proof only, for diagnosis (the cut needs the full run)"
         required: false
         default: ""
   pull_request:
@@ -43,12 +43,13 @@ permissions:
 
 jobs:
   desktop:
-    if: ${{ !inputs.only }}
+    if: ${{ !inputs.only || inputs.only == 'update-proof' }}
     name: desktop (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest]
+        # only=update-proof (diagnosis): the Windows leg alone, which builds the installer and runs the update proof over the shipped rc.18
+        os: ${{ inputs.only == 'update-proof' && fromJSON('["windows-latest"]') || fromJSON('["macos-latest", "windows-latest"]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     # A built app checks for a newer Vyre when it opens and installs it (updater.rs); no test run of a build may update itself. Only the update proof below turns it back on.

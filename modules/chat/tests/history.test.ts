@@ -91,3 +91,22 @@ test("filler words alone find nothing", async () => {
   assert.equal((await h["chat.history.search"]!(dana.ctx, { q: "zebra contract" })).hits.length, 1);
   assert.deepEqual((await h["chat.history.search"]!(dana.ctx, { q: "what did they about the" })).hits, []);
 });
+
+test("an agent working for a person reads a shared chat only from the latest join on: what was said before was not said to the room, and its answer lands there", async () => {
+  const raw = openRaw();
+  const clock = { t: Date.UTC(2026, 10, 4, 9, 0) };
+  const dana = baseHarness({ raw, principal: { kind: "person", id: DANA }, clock });
+  const ch = (await h["channels.create"]!(dana.ctx, { name: "Plans", visibility: "invite", memberIds: [], agentIds: [INTAKE], idempotencyKey: key() })).channel;
+  await h["chat.post"]!(dana.ctx, { threadId: ch.mainThreadId, body: "Private note: the Acme ceiling is 80000 dollars", idempotencyKey: key() });
+  clock.t += 60_000;
+  await h["channels.members.add"]!(dana.ctx, { channelId: ch.channelId, personIds: [MAYA], idempotencyKey: key() });
+  clock.t += 60_000;
+  await h["chat.post"]!(dana.ctx, { threadId: ch.mainThreadId, body: "Welcome Maya, the Acme proposal is due Friday", idempotencyKey: key() });
+  const q = { q: "Acme ceiling dollars" };
+  // Dana herself, reading her own channel, still finds her old line
+  assert.equal((await h["chat.history.search"]!(dana.ctx, q)).hits.length, 1);
+  // the agent working for Dana, whose reply Maya reads, does not
+  const viaAgent = baseHarness({ raw, principal: { kind: "agent", id: INTAKE }, actingFor: DANA, clock });
+  assert.deepEqual((await h["chat.history.search"]!(viaAgent.ctx, q)).hits, []);
+  assert.equal((await h["chat.history.search"]!(viaAgent.ctx, { q: "Acme proposal due Friday" })).hits.length, 1, "what was said after the join is there");
+});

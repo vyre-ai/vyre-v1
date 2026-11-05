@@ -46,8 +46,8 @@ export interface EngineSessionHostDeps {
 
 /** The agent id of an automation AI step that runs as no agent in particular (the same word as modules/engine/step-turn.ts STEP_AGENT; host never imports a module). */
 const STEP_AGENT = "step";
-/** Work that has no agent of its own and asks as the person it is for: an AI step, and a one-shot request (memory upkeep, the room digest: modules/engine/runtime.ts oneShot). A pseudo-agent id is no member of the Space, so the Vault would refuse it. */
-const NOT_AN_AGENT: ReadonlySet<string> = new Set([STEP_AGENT, "memory-upkeep"]);
+/** Work that has no agent of its own and asks as the person it is for: an AI step, and a one-shot request (the room digest: modules/engine/runtime.ts oneShot, agentId "room-digest"). A pseudo-agent id is no member of the Space, so the Vault would refuse it. */
+const NOT_AN_AGENT: ReadonlySet<string> = new Set([STEP_AGENT, "room-digest", "memory-upkeep"]);
 const SYSTEM = { kind: "service", id: "svc_host" } as const;
 const TRACE_ID = /^[0-9a-f]{32}$/;
 

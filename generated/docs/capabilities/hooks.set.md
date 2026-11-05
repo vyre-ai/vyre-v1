@@ -66,6 +66,12 @@ type Out = {
     updatedAt: number;
     spec: unknown;
     mine: boolean;
+    allowed: Array<{
+        id: string;
+        what: string;
+        by: string;
+        createdAt: number;
+      }>;
     canChange: boolean;
     endedAt?: number;
   };
@@ -109,6 +115,14 @@ type Out = {
   "output": {
     "hook": {
       "agentId": "agt_a1b2c3",
+      "allowed": [
+        {
+          "by": "example",
+          "createdAt": 1760000000000,
+          "id": "alw_a1b2c3",
+          "what": "example"
+        }
+      ],
       "canChange": true,
       "createdAt": 1760000000000,
       "endedAt": 1760000000000,

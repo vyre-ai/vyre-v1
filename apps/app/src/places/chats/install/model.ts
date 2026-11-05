@@ -11,6 +11,8 @@ export const SCOPES: ReadonlyArray<{ key: Scope; label: string }> = [{ key: "me"
 
 /** The card's title: "Install pdf-forms (a skill)", or for an update "pdf-forms 1.2.0 to 1.3.0". */
 export const titleOf = (p: Pick<Plan, "name" | "kind" | "diff">): string => (p.diff ? `${p.name} ${p.diff.fromVersion ?? shortOf(p.diff.from)} to ${p.diff.toVersion ?? shortOf(p.diff.to)}` : `Install ${p.name} (${KIND_WORDS[p.kind]})`);
+/** A commit that names a lower version than the one installed is an older version, never an "update". */
+export const isOlder = (p: { diff?: { older?: boolean } | undefined }): boolean => p.diff?.older === true;
 export const shortOf = (commit: string): string => commit.slice(0, 7);
 
 /** What it needs, in the card's two lines: the web addresses it reaches, and the Vault keys it wants. "none" where it asks for nothing. */

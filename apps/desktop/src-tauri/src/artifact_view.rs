@@ -72,8 +72,9 @@ fn view_of(window: &Window) -> Option<Webview> {
 }
 
 /// Open the artifact in a child webview over the viewer's frame, or move the one that is open when the address is the same. A different address replaces it.
+// async: on Windows a webview created inside a synchronous command waits for the main thread it is running on (the page's call never returned and the app did not quit)
 #[tauri::command]
-pub fn artifact_view_show(window: Window, url: String, x: f64, y: f64, width: f64, height: f64) -> Result<(), String> {
+pub async fn artifact_view_show(window: Window, url: String, x: f64, y: f64, width: f64, height: f64) -> Result<(), String> {
     if !artifact_url_ok(&url) {
         return Err("That address can't be opened in the viewer.".to_string());
     }
@@ -92,7 +93,9 @@ pub fn artifact_view_show(window: Window, url: String, x: f64, y: f64, width: f6
     }
     let home = parsed.clone();
     // the page may stay on its own host (the code redirects to the artifact's clean address there) and nowhere else
-    let builder = WebviewBuilder::new(VIEW, WebviewUrl::External(parsed)).on_navigation(move |to| same_origin(to, &home));
+    let builder = WebviewBuilder::new(VIEW, WebviewUrl::External(parsed))
+        .on_navigation(move |to| { let ok = same_origin(to, &home); eprintln!("vyre-desktop: artifactview navigation {} -> {}", to.host_str().unwrap_or(""), if ok { "allowed" } else { "refused" }); ok })
+        .on_page_load(|_, p| eprintln!("vyre-desktop: artifactview page {:?} {}", p.event(), p.url().host_str().unwrap_or("")));
     window.add_child(builder, LogicalPosition::new(x, y), LogicalSize::new(width, height)).map_err(|e| e.to_string())?;
     *SHOWING.lock().map_err(|_| "The viewer is busy.".to_string())? = Some(url);
     Ok(())
@@ -100,7 +103,7 @@ pub fn artifact_view_show(window: Window, url: String, x: f64, y: f64, width: f6
 
 /// The frame moved or changed size (the window resized, the page scrolled, a sidebar opened).
 #[tauri::command]
-pub fn artifact_view_bounds(window: Window, x: f64, y: f64, width: f64, height: f64) -> Result<(), String> {
+pub async fn artifact_view_bounds(window: Window, x: f64, y: f64, width: f64, height: f64) -> Result<(), String> {
     if !rect_ok(x, y, width, height) {
         return Err("That frame is not on the screen.".to_string());
     }
@@ -113,7 +116,7 @@ pub fn artifact_view_bounds(window: Window, x: f64, y: f64, width: f64, height: 
 
 /// The viewer closed, or a menu or sheet needs the space the webview covers (a native view draws above the page).
 #[tauri::command]
-pub fn artifact_view_hide(window: Window) -> Result<(), String> {
+pub async fn artifact_view_hide(window: Window) -> Result<(), String> {
     if let Some(view) = view_of(&window) {
         view.close().map_err(|e| e.to_string())?;
     }

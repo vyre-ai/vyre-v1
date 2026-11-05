@@ -65,6 +65,12 @@ export function madeByWords(h: Pick<Hook, "madeBy" | "madeByKind">, nameOf: (id:
   return `Made by ${nameOf(h.madeBy)}${h.madeByKind === "admin" ? " (admin)" : h.madeByKind === "agent" ? " (agent)" : ""}`;
 }
 
+/** An always-allow rule on a hook (hooks.list returns them as `allowed`); `what` is plain words and is shown as it comes. */
+export interface AllowRule { id: string; what: string; by: string; createdAt: number }
+type HookRowData = Hook & { allowed?: AllowRule[] };
+/** The words for one rule line. */
+export const ruleWords = (r: Pick<AllowRule, "what">): string => `Always allowed for ${r.what}`;
+
 interface Loaded { hooks: Hook[]; runs: Run[]; bad: Run[]; agentHooks: boolean }
 
 /** Reads the policy, the Space's hooks, each Space agent's own hooks and the latest runs. A read that fails on its own leaves the rest standing. */
@@ -106,12 +112,19 @@ const dim = (extra: object = {}): object => ({ fontSize: 11.5, lineHeight: "16px
  * One hook: the icon, the plain line, then two muted lines that wrap in full, and Pause and Remove. Wide, the buttons sit to the right; at a phone's width they go on their own line under the
  * text, left-aligned with the title, 8px below it. A 1px divider separates rows and each has 12px above and below.
  */
-function HookRow({ id, index, narrow, icon, title, lines, actions }: { id: string; index: number; narrow: boolean; icon: ReactElement; title: string; lines: string[]; actions: ReactElement }): ReactElement {
+function HookRow({ id, index, narrow, icon, title, lines, actions, rules = [] }: { id: string; index: number; narrow: boolean; icon: ReactElement; title: string; lines: string[]; actions: ReactElement; rules?: Array<{ id: string; text: string; button: ReactElement }> }): ReactElement {
   const text = (
     <View style={{ flex: 1, minWidth: 0 }}>
       <Text style={{ fontSize: 13, lineHeight: "18px", color: "var(--ink)" as string }}>{title}</Text>
       {/* ui-rows-lint: not a list (the two muted lines under one hook's title) */}
       {lines.map((l, n) => <Text key={n} style={dim() as never}>{l}</Text>)}
+      {/* ui-rows-lint: not a list (the always-allow lines under one hook's meta lines) */}
+      {rules.map((r) => (
+        <View key={r.id} style={{ flexDirection: narrow ? "column" : "row", alignItems: narrow ? "flex-start" : "center", gap: narrow ? 2 : 8, paddingTop: 4 }}>
+          <Text testID={`hook-allowed-${r.id}`} style={dim({ flex: 1, minWidth: 0 }) as never}>{r.text}</Text>
+          {r.button}
+        </View>
+      ))}
     </View>
   );
   return (
@@ -199,7 +212,11 @@ export function HooksPage(): ReactElement {
                   <QuietButton label="Remove" testID={`hook-remove-${h.id}`} disabled={action.busy || !h.canChange} {...(!h.canChange ? { why } : {})} onPress={() => { setRemoved(null); setConfirm(h.id); }} />
                 </>
               );
-              return <HookRow key={h.id} id={`hook-${h.id}`} index={n} narrow={narrow} icon={<IconTile icon="bolt" />} title={h.line} lines={[`${kindWord(h)}: ${whatOf(h)}`, `${whereWords(h, nameOf)} · ${madeByWords(h, nameOf)} · ${how}`]} actions={actions} />;
+              return <HookRow key={h.id} id={`hook-${h.id}`} index={n} narrow={narrow} icon={<IconTile icon="bolt" />} title={h.line} lines={[`${kindWord(h)}: ${whatOf(h)}`, `${whereWords(h, nameOf)} · ${madeByWords(h, nameOf)} · ${how}`]} actions={actions}
+                rules={((h as HookRowData).allowed ?? []).map((r) => ({ id: r.id, text: ruleWords(r), button: (
+                  <QuietButton label="Stop allowing" testID={`hook-allowed-stop-${r.id}`} disabled={action.busy || !h.canChange} {...(!h.canChange ? { why } : {})}
+                    onPress={() => void action.run("hooks.allow_remove", { id: r.id }, "Stopped allowing it")} />
+                ) }))} />;
             })}
           </Group>
         )}

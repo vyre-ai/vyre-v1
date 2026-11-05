@@ -24,6 +24,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "spaces.onboarding.seen": Handler<"spaces.onboarding.seen", X>;
   "spaces.switch_address": Handler<"spaces.switch_address", X>;
   "spaces.switcher": Handler<"spaces.switcher", X>;
+  "spaces.timezone.set": Handler<"spaces.timezone.set", X>;
   "spaces.transfer_ownership": Handler<"spaces.transfer_ownership", X>;
   "spaces.update": Handler<"spaces.update", X>;
   "stars.list": Handler<"stars.list", X>;

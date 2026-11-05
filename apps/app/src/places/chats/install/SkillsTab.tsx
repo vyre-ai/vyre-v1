@@ -53,15 +53,15 @@ export function SkillsTab({ deps, nameOf = SAME, highlight, renderShare }: { dep
     } catch { deps.note("Could not read its history."); }
   };
   // Update marker: a skill installed from a link is looked at once when the tab opens (a few at a time, never blocking the list). A newer commit puts "Update available" on its row.
-  const [updates, setUpdates] = useState<Record<string, { installId: string; to: string }>>({});
+  const [updates, setUpdates] = useState<Record<string, { installId: string; to: string; older: boolean }>>({});
   useEffect(() => {
     let live = true;
     void (async () => {
       try {
         const list = ((await deps.call("install.list", {})) as { installs: Array<{ installId: string; kind: string; installed: { skillId?: string } }> }).installs.filter((i) => i.kind === "skill" && i.installed.skillId).slice(0, 4);
         for (const i of list) {
-          const out = (await deps.call("install.check_update", { installId: i.installId }).catch(() => null)) as { changed: boolean; plan?: { planId: string; commit: string } } | null;
-          if (live && out?.changed && out.plan) setUpdates((u) => ({ ...u, [i.installed.skillId!]: { installId: i.installId, to: out.plan!.commit } }));
+          const out = (await deps.call("install.check_update", { installId: i.installId }).catch(() => null)) as { changed: boolean; plan?: { planId: string; commit: string; diff?: { older?: boolean } } } | null;
+          if (live && out?.changed && out.plan) setUpdates((u) => ({ ...u, [i.installed.skillId!]: { installId: i.installId, to: out.plan!.commit, older: out.plan!.diff?.older === true } }));
         }
       } catch { /* no marker */ }
     })();
@@ -79,7 +79,7 @@ export function SkillsTab({ deps, nameOf = SAME, highlight, renderShare }: { dep
           {/* ui-rows-lint: not a list (one skill: its ui/Row and the controls under it) */}
           {g.rows.map((r) => (
             <View key={r.skillId}>
-              <Row id={`skill-${r.skillId}`} title={r.name} {...(r.version ? { titleSuffix: `v${r.version.replace(/^v/, "")}` } : {})} {...(updates[r.skillId] ? { titleMarks: <Text testID={`skill-update-${r.skillId}`} style={st.upd}>Update ready</Text> } : {})} note={r.line} selected={highlight !== undefined && r.name === highlight} leading={<View style={st.face}><Face name={r.faceName} seedId={r.faceId} size={22} /></View>} />
+              <Row id={`skill-${r.skillId}`} title={r.name} {...(r.version ? { titleSuffix: `v${r.version.replace(/^v/, "")}` } : {})} {...(updates[r.skillId] ? { titleMarks: <Text testID={`skill-update-${r.skillId}`} style={st.upd}>{updates[r.skillId]!.older ? "Older version" : "Update ready"}</Text> } : {})} note={r.line} selected={highlight !== undefined && r.name === highlight} leading={<View style={st.face}><Face name={r.faceName} seedId={r.faceId} size={22} /></View>} />
               <View testID={`skill-row-${r.skillId}`} style={st.under}>
                 {/* ui-rows-lint: not a list (the controls under one skill's row) */}
                 <View style={st.actions}>

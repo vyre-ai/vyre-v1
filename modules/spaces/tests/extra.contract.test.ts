@@ -48,8 +48,8 @@ async function populated(cap: string): Promise<World> {
 
 afterEach(() => configureSpaceAdmin(null));
 
-test("the registry declares exactly the twelve capabilities this packet handles", () => {
-  assert.equal(caps.length, 12);
+test("the registry declares exactly the thirteen capabilities this packet handles", () => {
+  assert.equal(caps.length, 13);
   assert.deepEqual(caps.map((c) => c.name).sort(), [...mine].sort());
 });
 

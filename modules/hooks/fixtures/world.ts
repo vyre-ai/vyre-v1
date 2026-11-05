@@ -27,6 +27,8 @@ export function world() {
     plugins: [] as Array<{ pluginId: string; plugin: string; event: string; matcher: string; command: string; args: string[] }>,
     pluginRun: (async () => ok) as () => Promise<CommandResult>,
     threadsDenied: new Set<string>(),
+    /** the stop lines marked answered (chat.hook_resolve) */
+    resolved: [] as Array<Record<string, unknown>>,
     /** helper thread to the chat it works for, as threads.get says it (before any helper-started event was folded in) */
     helperParents: {} as Record<string, string>,
   };
@@ -42,6 +44,7 @@ export function world() {
     "threads.get": (i) => { if (s.threadsDenied.has(String(i["threadId"]))) throw new Error("no"); const parent = s.helperParents[String(i["threadId"])]; return { thread: { threadId: i["threadId"], ...(parent ? { kind: "helper", parentThreadId: parent } : {}) } }; },
     "agents.get": () => ({ agent: { name: "Assistant" } }),
     "chat.hook_line": (i) => { s.lines.push(i); return { messageId: "msg_1" }; },
+    "chat.hook_resolve": (i) => { s.resolved.push(i); return { ok: true }; },
   };
   const ctxFor = (who: Caller): HooksCtx => ({
     space: "spc_test", principal: { kind: who.kind, id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}), trace: { traceId: "0123456789abcdef0123456789abcdef" }, now: () => s.now, db,

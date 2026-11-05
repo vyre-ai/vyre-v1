@@ -112,10 +112,14 @@ export async function loadEverything(o: { call: Call; type: string; recordId: st
  * The feed is drawn once, with each row's level already known: one access.reach for every thing the rows point at, before the first draw, so no row flips after it shows. A row for a thing the
  * person cannot open keeps its kind and its time and loses its name and its link: it says what kind of thing it is, and nothing about it. A Space that does not answer leaves the rows as they are.
  */
+/** Rows whose own read already answers for this viewer: tasks.list returns the tasks a person is assigned or may see, a rule access.reach (the kernel's grants) does not know, so asking reach would hide a task assigned to them. */
+const ANSWERED_BY_THE_LIST: ReadonlySet<string> = new Set(["task"]);
+const askable = (it: Item): string | undefined => (it.subject && !ANSWERED_BY_THE_LIST.has(it.subject.type) ? RESOURCE_OF[it.subject.type] : undefined);
+
 export async function withReach(call: Call, feed: Item[]): Promise<Item[]> {
   const asked = new Map<string, { type: string; id: string }>();
   for (const it of feed) {
-    const type = it.subject ? RESOURCE_OF[it.subject.type] : undefined;
+    const type = askable(it);
     if (it.subject && type) asked.set(`${type}:${it.subject.id}`, { type, id: it.subject.id });
   }
   if (asked.size === 0) return feed;
@@ -125,7 +129,7 @@ export async function withReach(call: Call, feed: Item[]): Promise<Item[]> {
     for (const r of out.items ?? []) level.set(`${r.type}:${r.id}`, r.level);
   } catch { return feed; }
   return feed.map((it) => {
-    const type = it.subject ? RESOURCE_OF[it.subject.type] : undefined;
+    const type = askable(it);
     if (!it.subject || !type || level.get(`${type}:${it.subject.id}`) !== "none") return it;
     const { subject: _s, note: _n, ...rest } = it;
     return { ...rest, title: hiddenTitle(it.subject.type) };

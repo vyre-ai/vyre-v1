@@ -43,10 +43,10 @@ export function scripted(kind: string): Call {
     const i = (input ?? {}) as Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
     switch (cap) {
       case "install.get": { const raw = PLANS[k] as Record<string, unknown>; const plan = { ...raw, ...(VERSIONS[k] ? { version: VERSIONS[k] } : {}), ...(k === "update" ? { diff: { ...(raw["diff"] as object), fromVersion: "1.2.0", toVersion: "1.3.0", newAccess: ["cdn.example.com"] } } : {}) }; return { plan: kind === "member" ? { ...plan, who: WHO(false) } : kind === "done" ? { ...plan, state: "installed" } : plan }; }
-      case "vault.items.list": return { items: kind === "mcpadded" ? [{ name: "DATABASE_URL" }] : [] };
+      case "vault.items.list": return { items: [{ name: "GitHub token (yours)" }, ...(kind === "mcpadded" ? [{ name: "DATABASE_URL" }] : [])] };
       case "install.list": return { installs: INSTALLS.map((x, n) => ({ ...x, at: NOV4 - n * 86_400_000, ...(x.kind === "skill" ? { version: "1.2.0" } : x.kind === "mcp_local" ? { version: "2.1.0" } : {}), installed: { for: n === 0 ? "space" : "me" } })) };
       case "access.principals.list": return { principals: Object.entries(NAMES).filter(([id]) => id.startsWith("usr_")).map(([id, name]) => ({ id, name })) };
-      case "install.check_update": return { changed: true, plan: { planId: "ins_5", commit: "7d03be8".padEnd(40, "0"), version: "1.3.0" } };
+      case "install.check_update": { if (i["installId"] !== "ins_1") return { changed: false }; const u = PLANS["update"] as Record<string, unknown>; return { changed: true, plan: { ...u, version: "1.3.0", diff: { ...(u["diff"] as object), fromVersion: "1.2.0", toVersion: "1.3.0", newAccess: ["cdn.example.com"] } } }; }
       case "skills.page": return {
         waiting: [], builtin: [], agents: [], policy: { scriptsAdminOnly: true }, admin: true, me: "usr_irfad", space: [],
         mine: [{ skillId: "sko_1", name: "pdf-tools", description: "", source: "github:acme/pdf-tools@a41f9c2", origin: "acme/pdf-tools", version: "1.2.0", agents: ["*"], enabled: true, needs: [], health: "ok" }, { skillId: "sko_2", name: "Weekly report format", description: "", source: "upload", origin: "", version: "2.0", agents: ["*"], enabled: true, needs: [], health: "ok" }],
@@ -89,7 +89,8 @@ function useChatData(kind: string) {
       ? [mk(1, me, (LINKS[kind] ?? LINKS["mcp"]!)), mk(2, agent, "pdf-tools has a newer version. I will not update anything until you say so.", [block])]
       : [mk(1, me, (LINKS[kind] ?? LINKS["mcp"]!)), mk(2, agent, SAYS[kind === "member" || kind === "done" ? "skill" : kind === "mcpadded" ? "mcp" : kind]!, [block])];
     s.replica.put("messages", msgs.map((m) => ({ id: m.messageId, ...m })));
-    return { ...s.data, call: over(scripted(kind), s.data.call as Call) as never };
+    const d = s.data as unknown as { nav?: object };
+    return { ...s.data, nav: { ...(d.nav ?? {}), openSkills: () => undefined }, call: over(scripted(kind), s.data.call as Call) as never } as typeof s.data;
   }, [kind]);
 }
 

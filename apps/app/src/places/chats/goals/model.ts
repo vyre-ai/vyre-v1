@@ -1,6 +1,11 @@
 // Goals, as the screens draw them: the words of a status, the note under a row, the steady bar, the chart, the budget line and the activity by day. Pure, so the sidebar, the goal page,
 // the card in a chat and the phone read one source, and the tests read it without a screen.
 
+import { dateIn, dayIn, dueText, instantOf, localInput, whenText } from "../../../../../../lib/zones.ts";
+import type { Zones } from "../../../../../../lib/zones.ts";
+/** A dash (hyphen, en or em) left at the end of a line once the deadline is cut off. Built from code points so no dash character sits in the source (no-em-dash lint). */
+const TRAILING_DASH = new RegExp(`\\s*[${String.fromCharCode(0x2014, 0x2013)}-]+\\s*$`);
+
 export type Status = "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
 export type Tone = "plain" | "need" | "stuck" | "ok" | "dim";
 export interface Who { kind: string; id: string }
@@ -59,27 +64,18 @@ export function numberOf(p: Progress): string {
 }
 export const fmt = (n: number): string => (Number.isInteger(n) ? n.toLocaleString("en-US") : n.toLocaleString("en-US", { maximumFractionDigits: 1 }));
 
-/** A time as people say it, from now: "9:00", "Tomorrow 9:00", "Thu 9:00", "7 Nov". `offsetMin` is the person's zone against UTC. */
-export function whenWords(at: number, now: number, offsetMin = 0): string {
-  const local = (t: number): Date => new Date(t + offsetMin * MIN);
-  const a = local(at), n = local(now);
-  const hm = `${a.getUTCHours()}:${String(a.getUTCMinutes()).padStart(2, "0")}`;
-  const dayA = Math.floor((at + offsetMin * MIN) / DAY), dayN = Math.floor((now + offsetMin * MIN) / DAY);
-  if (dayA === dayN) return hm;
-  if (dayA === dayN + 1) return `Tomorrow ${hm}`;
-  if (dayA === dayN - 1) return `Yesterday ${hm}`;
-  if (Math.abs(dayA - dayN) < 7) return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][a.getUTCDay()]} ${hm}`;
-  return `${a.getUTCDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][a.getUTCMonth()]}`;
+/** A time as people say it, from now, in the Space's zone with the viewer's beside it when it differs: "9:00 AM (10:00 PM your time)", "Tomorrow 9:00 AM", "Thu 9:00 AM", "7 Nov". */
+export function whenWords(at: number, now: number, z: Zones): string {
+  return whenText(at, now, z);
 }
-/** The deadline as a date: "Fri 7 Nov, 18:00", in the person's zone. The finish line's subtitle and the Due chip both say it from the one deadline. */
-export function dueWords(at: number, offsetMin = 0): string {
-  const a = new Date(at + offsetMin * MIN);
-  return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][a.getUTCDay()]} ${a.getUTCDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][a.getUTCMonth()]}, ${a.getUTCHours()}:${String(a.getUTCMinutes()).padStart(2, "0")}`;
+/** The deadline as a date: "Fri 7 Nov, 6:00 PM", in the Space's zone with the viewer's time in brackets. The finish line's subtitle and the Due chip both say it from the one deadline. */
+export function dueWords(at: number, z: Zones): string {
+  return dueText(at, z);
 }
-/** The finish line in words, ending with the real deadline: a date the words carry ("by Friday") is replaced, so the line and the chip never disagree. */
-export function lineWithDue(line: string, deadline: number, offsetMin = 0): string {
-  const bare = line.replace(/\s+by\s+[^,.]*(,?\s*\d{1,2}:\d{2}(\s*[ap]m)?(\s+[A-Z]{2,5}\b)?)?\.?\s*$/i, "").replace(/\.\s*$/, "");
-  return `${bare} by ${dueWords(deadline, offsetMin)}`;
+/** The finish line in words, ending with the real deadline: a date the words carry ("by Friday") is replaced, so the line and the chip never disagree. A dash the agent left before its own date goes with it. */
+export function lineWithDue(line: string, deadline: number, z: Zones): string {
+  const bare = line.replace(/\s+by\s+[^,.]*(,?\s*\d{1,2}:\d{2}(\s*[ap]m)?(\s+[A-Z]{2,5}\b)?)?\.?\s*$/i, "").replace(/\.\s*$/, "").replace(TRAILING_DASH, "").trim();
+  return `${bare} by ${dueWords(deadline, z)}`;
 }
 /** "4 days left", "18 hours left", "Due now". */
 export function leftWords(deadline: number, now: number): string {
@@ -92,12 +88,12 @@ export function leftWords(deadline: number, now: number): string {
 }
 
 /** The second line of a goal's row: what changes what you do first, else when it next checks in. */
-export function rowNote(g: GoalLine, now: number, offsetMin = 0, me?: string): { lead?: string; tone?: Tone; text: string } {
+export function rowNote(g: GoalLine, now: number, z: Zones, me?: string): { lead?: string; tone?: Tone; text: string } {
   const s = statusOf(g, me);
   const num = numberOf(g.progress);
   if (g.status === "waiting" || g.status === "stuck") return { lead: s.word, tone: s.tone, text: num };
   if (ENDED.has(g.status) || g.status === "paused" || g.status === "draft") return { lead: s.word, tone: s.tone, text: num };
-  return { text: g.nextCheckinAt ? `${num} · Check-in ${whenWords(g.nextCheckinAt, now, offsetMin)}` : num };
+  return { text: g.nextCheckinAt ? `${num} · Check-in ${whenWords(g.nextCheckinAt, now, z)}` : num };
 }
 
 /** The Goals group: what needs you first, then live goals by their next check-in, then the rest, newest first. Ended goals leave after a week. */
@@ -178,13 +174,12 @@ export function niceStep(raw: number): number {
   return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
 }
 
-/** The activity, newest first, grouped by day: "Today", "Yesterday", "Mon 3 Nov". */
-export function byDay(items: readonly ActivityLine[], now: number, offsetMin = 0): Array<{ day: string; items: ActivityLine[] }> {
+/** The activity, newest first, grouped by day in the Space's zone: "Today", "Yesterday", "Mon 3 Nov". */
+export function byDay(items: readonly ActivityLine[], now: number, z: Zones): Array<{ day: string; items: ActivityLine[] }> {
   const out: Array<{ day: string; items: ActivityLine[] }> = [];
-  const dayOf = (t: number): number => Math.floor((t + offsetMin * MIN) / DAY);
   for (const it of items) {
-    const d = dayOf(it.at), n = dayOf(now);
-    const label = d === n ? "Today" : d === n - 1 ? "Yesterday" : (() => { const a = new Date(it.at + offsetMin * MIN); return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][a.getUTCDay()]} ${a.getUTCDate()} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][a.getUTCMonth()]}`; })();
+    const d = dayIn(it.at, z.space), n = dayIn(now, z.space);
+    const label = d === n ? "Today" : d === n - 1 ? "Yesterday" : dateIn(it.at, z.space);
     const last = out[out.length - 1];
     if (last && last.day === label) last.items.push(it); else out.push({ day: label, items: [it] });
   }
@@ -218,18 +213,13 @@ export function delta(b: Pick<GoalBlock, "value" | "prev">): string | null {
 export function bareLine(line: string): string {
   return line.replace(/\s+by\s+[^,.]*(,\s*\d{1,2}:\d{2})?\.?\s*$/i, "").replace(/\.\s*$/, "").trim();
 }
-const two = (n: number): string => String(n).padStart(2, "0");
-/** A time as a date-and-time field holds it ("2026-11-07T18:00"), in the person's zone. */
-export function toLocalInput(at: number, offsetMin = 0): string {
-  const d = new Date(at + offsetMin * MIN);
-  return `${d.getUTCFullYear()}-${two(d.getUTCMonth() + 1)}-${two(d.getUTCDate())}T${two(d.getUTCHours())}:${two(d.getUTCMinutes())}`;
+/** A time as a date-and-time field holds it ("2026-11-07T18:00"), in the Space's zone. */
+export function toLocalInput(at: number, z: Zones): string {
+  return localInput(at, z.space);
 }
-/** The time a date-and-time field holds, back to a moment; null when the field is not a full date and time. */
-export function fromLocalInput(v: string, offsetMin = 0): number | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(v.trim());
-  if (!m) return null;
-  const t = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]));
-  return Number.isFinite(t) ? t - offsetMin * MIN : null;
+/** The time a date-and-time field holds, back to a moment in the Space's zone; null when the field is not a full date and time. */
+export function fromLocalInput(v: string, z: Zones): number | null {
+  return instantOf(v.trim(), z.space);
 }
 /** The list with the item at `from` moved to `to` (drag to reorder). */
 export function moved<T>(list: readonly T[], from: number, to: number): T[] {

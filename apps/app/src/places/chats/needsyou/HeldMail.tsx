@@ -1,4 +1,4 @@
-// A held send in Needs you: the draft as it will go out on one side, the record it is about on the other (stacked on a narrow screen). The buttons are the request's own, relabelled Send and Ask for changes.
+// A held send in Needs you: the draft as it will go out on one side, the record it is about on the other (stacked on a narrow screen). The buttons are the request's own, relabelled Allow and Deny.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";

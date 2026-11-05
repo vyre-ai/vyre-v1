@@ -27,6 +27,7 @@ Let a hook that stopped something go by, once, in this chat: the next time it wo
 type In = {
   id: string;
   threadId: string;
+  messageId?: string;
 };
 ```
 
@@ -54,6 +55,7 @@ type Out = {
   "name": "example",
   "input": {
     "id": "example",
+    "messageId": "msg_a1b2c3",
     "threadId": "thr_a1b2c3"
   },
   "output": {

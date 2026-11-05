@@ -33,3 +33,60 @@ test("the row reads its name, status and found line from the folded block", () =
   assert.deepEqual(helperRowOf(folded as never), { title: "Crew test: subagent 2", threadId: "thr_h", status: "done", found: "The pricing page lists three plans.", startedAt: 1000 });
   assert.equal(helperRowOf(foldHelperRows([start])[0]!.blocks[0]! as never).status, "running");
 });
+
+import { mergeCrewAnswer } from "./helper-rows.ts";
+
+test("the agent's intro, the strip and its answer read as one message once the helpers have ended; the answer waits while one still works; a person's line ends the run", () => {
+  const agent = { kind: "agent", id: "agt_1" }, person = { kind: "person", id: "usr_1" };
+  const strip = (id: string, status: string) => ({ messageId: `s_${id}`, body: "", author: agent, blocks: [{ type: "crew_strip", id: `strip-${id}`, data: { blocks: [{ type: "helper", id: "b1", data: { helperThreadId: "thr_1", status } }] } }] });
+  const text = (id: string, body: string, who = agent) => ({ messageId: id, body, author: who, blocks: [] });
+  // start lines first, then the agent's words, then the answer
+  const done = mergeCrewAnswer([strip("1", "done"), text("i", "Two helpers are on it."), text("a", "Thursday works [1]."), text("b", "Say the word.")]);
+  assert.equal(done.length, 1);
+  assert.equal(done[0]!.messageId, "i"); assert.equal(done[0]!.body, "Two helpers are on it.");
+  assert.equal(((done[0]!.blocks[0]!.data as { after?: string }).after), "Thursday works [1].\n\nSay the word.");
+  // still working: the intro joins the strip and the answer stays where it is
+  const working = mergeCrewAnswer([strip("1", "running"), text("i", "Two helpers are on it."), text("a", "Not yet.")]);
+  assert.equal(working.length, 2); assert.equal(((working[0]!.blocks[0]!.data as { after?: string }).after), undefined);
+  // the agent spoke first
+  assert.equal(mergeCrewAnswer([text("i", "Let me get helpers."), strip("1", "done")]).length, 1);
+  // a person's line, another author or a card ends the run
+  const cut = mergeCrewAnswer([strip("1", "done"), text("p", "Thanks", person as never), text("a", "Later.")]);
+  assert.equal(cut.length, 3);
+  assert.equal(mergeCrewAnswer([strip("1", "done"), text("o", "Someone else", { kind: "agent", id: "agt_2" })]).length, 2);
+});
+
+
+import { hideCrewPosts } from "./helper-rows.ts";
+
+test("nothing is posted per coder: the start line and the result card go once the strip holds the coder; words and other cards stay", () => {
+  const start = { messageId: "s", body: "", blocks: [{ type: "helper", id: "b1", data: { crew: true, helperThreadId: "thr_c" } }] };
+  const result = { messageId: "r", body: "Ember finished Fix it: 1 commit.", blocks: [{ type: "crew_result", id: "b2", data: { jobId: "crw_1", threadId: "thr_c" } }] };
+  const words = { messageId: "w", body: "Three helpers are on it.", blocks: [{ type: "helper", id: "b3", data: { crew: true, helperThreadId: "thr_c" } }] };
+  const other = { messageId: "o", body: "", blocks: [{ type: "crew_result", id: "b4", data: { jobId: "crw_9", threadId: "thr_x" } }] };
+  const started = { messageId: "t", body: "Started a helper: Fix it", blocks: [{ type: "helper", id: "b5", data: { crew: true, helperThreadId: "thr_c" } }] };
+  const out = hideCrewPosts([start, started, result, words, other], new Set(["thr_c"]), new Set(["crw_1"]));
+  assert.deepEqual(out.map((m) => m.messageId), ["w", "o"], "'Started a helper' lines go with the strip row");
+  assert.equal(out[0]!.blocks.length, 0, "the words stay, without the star line");
+  assert.deepEqual(hideCrewPosts([start], new Set(), new Set()).map((m) => m.messageId), ["s"], "no coder in the strip, nothing is hidden");
+});
+
+import { stripFromCoders } from "./helper-rows.ts";
+
+test("a crew of coders only gets a strip made of the first coder's start line: the lead's words stay above it, other start lines go, and the answer that follows joins it once they are done", () => {
+  const agent = { kind: "agent", id: "agt_1" };
+  const lead = { messageId: "m1", body: "Two coders are on it.", author: agent, blocks: [{ type: "helper", id: "b1", data: { crew: true, helperThreadId: "thr_a" } }, { type: "helper", id: "b2", data: { crew: true, helperThreadId: "thr_b" } }] };
+  const second = { messageId: "m2", body: "", author: agent, blocks: [{ type: "helper", id: "b3", data: { crew: true, helperThreadId: "thr_b" } }] };
+  const answer = { messageId: "m3", body: "Both are in.", author: agent, blocks: [] };
+  const out = stripFromCoders([lead, second, answer], new Set(["thr_a", "thr_b"]));
+  assert.deepEqual(out.map((m) => m.messageId), ["m1", "m3"]);
+  assert.deepEqual(out[0]!.blocks.map((b) => b.type), ["crew_strip"]);
+  assert.equal(out[0]!.body, "Two coders are on it.");
+  const startOnly = { messageId: "m0", body: "Started a helper: Dark mode", author: agent, blocks: [{ type: "helper", id: "b0", data: { crew: true, helperThreadId: "thr_a" } }] };
+  assert.equal(stripFromCoders([startOnly], new Set(["thr_a"]))[0]!.body, "", "a line that held only the start keeps no words");
+  assert.equal(stripFromCoders([lead], new Set()).length, 1);
+  // done: the answer joins the strip under the lead's own words
+  const done = mergeCrewAnswer(out.map((m, i) => (i === 0 ? { ...m, blocks: [{ ...m.blocks[0]!, data: { blocks: [{ type: "helper", id: "x", data: { helperThreadId: "thr_a", status: "done" } }] } }] } : m)));
+  assert.equal(done.length, 1);
+  assert.equal((done[0]!.blocks[0]!.data as { after?: string }).after, "Both are in.");
+});
