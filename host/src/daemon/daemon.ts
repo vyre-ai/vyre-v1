@@ -1,4 +1,5 @@
 import { ownsSubject } from "./own-subject.ts";
+import { isExportItself, waitForQuiet } from "./export-quiet.ts";
 import { createChoiceSource } from "./forms-choices.ts";
 import {syncEndpointOrigin} from "./sync-endpoint.ts";
 import {collectSpaceExport,SpaceExportError} from '../seams/space-export.ts';
@@ -40,7 +41,7 @@ import { createFormsPageRoute } from "../routes/forms-page.ts";
 import { createPublicPathRoute } from "../routes/public-path.ts";
 import type { PublicPathDeps, ServedSite } from "../routes/public-path.ts";
 import { createDomainEdge, createSitesHost, dnsPointsAt, mimeOf } from "../seams/sites-host.ts";
-import { createSiteHostRoute, createSiteSigninPage, inSubnets } from "../routes/site-host.ts";
+import { clientOnNetwork, createSiteHostRoute, createSiteSigninPage } from "../routes/site-host.ts";
 import { createArtifactHostRoute } from "../routes/artifact-host.ts";
 import type { SiteHostDeps } from "../routes/site-host.ts";
 import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf } from "../caddy/index.ts";
@@ -541,7 +542,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let refreshDomains: () => Promise<void> = () => Promise.resolve();
   // sites Vyre deploys, at addresses of their own: set once the sites module is loaded (configureRoutes); until then no host is a site
   let siteHosts: SiteHostDeps | null = null;
-  let siteGuard: (localAddress: string | undefined) => boolean = () => false;
+  let siteGuard: (localAddress: string | undefined, remoteAddress: string | undefined) => boolean = () => false;
   let computerSubnetsOf: () => string[] = () => [];
   // the runner's socket and token, shared by sites and agent computers; the token is new at each runner start, so it is read again on every call
   const computersRunnerSocket = (): string | undefined => o.sitesRunnerSocket ?? process.env["VYRE_SITES_RUNNER"] ?? undefined;
@@ -691,7 +692,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // The engine module reports its running turns through its seam (turns below); a link that runs a person's Team Space turns here adds itself as a source that hands over on drain.
   const localWork = createLocalWork();
   let engineTurns = 0;
-  localWork.add({ name: "engine", running: () => engineTurns });
+  const engineSource: import("../routes/local-work.ts").LocalWorkSource = { name: "engine", running: () => engineTurns };
+  localWork.add(engineSource);
   const localWorkRoute = createLocalWorkRoute({ token, work: localWork, sameToken });
   const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r), jobs: (n, r) => computeJobs(n, r), result: (n, a) => computeResult(n, a), home: (n, a) => computeHome(n, a), recording: (n, a) => computeRecording(n, a) });
   const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), automation: (a) => webhooks.automation(a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
@@ -1110,7 +1112,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       };
       const ownerArchives=createOwnerArchives({db:db!,blobs,space:spaceId,now,owner:()=>access.owner()??null,register:(id,ctx)=>registerExport({id,ownerId:ctx.principal.id},ctx),assertSnapshot:ctx=>{if(exportMutationsInFlight!==0||exportSnapshots.get(ctx)!==exportMutationRevision)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'Shared Space data changed during export persistence. Retry the snapshot.'});},collect:async(ctx,assertOwner)=>{
         if(!ctx.call)throw new Error('Canonical Space export reads are unavailable.');
-        if(exportMutationsInFlight!==0)throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'A shared Space write is still in progress. Retry after it finishes.'});
+        // a save in progress is waited for (up to twenty seconds) and the export then starts by itself; only a Space that never goes quiet answers "retry"
+        if(!(await waitForQuiet(()=>exportMutationsInFlight)))throw fail('validation.precondition_failed',ctx.trace.traceId,{message:'A shared Space write is still in progress. Retry after it finishes.'});
         const mutationBefore=exportMutationRevision;try {const result=await collectSpaceExport({revision:()=>exportMutationRevision,space:spaceId,requester:ctx.principal.id,now,secrets:[token],head:async()=>(await spaceLog.currentHead()).seq,assertOwner:async()=>{assertOwner();if(exportMutationsInFlight!==0)throw new SpaceExportError('A shared Space write is still in progress. Retry after it finishes.');},read:(cap,input)=>ctx.call!(cap as never,input),recordScope:async(_type,row)=>{
           const scope=row.scope??row.visibility;
           if(['private','personal','invite'].includes(scope)||row.private===true)return 'private';
@@ -1191,7 +1194,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         handler: (cap, v) => whoamiWithDeferred(cap, (() => {
           const original = o.extra?.handlers?.[cap] ?? hookRunner.handlers[cap] ?? loaded.handler(cap, v);
           // Count a public content/access mutation before its handler writes, including the interval before its log commit.
-          const mutation = publicExportCaps.has(cap)&&publicExportCaps.get(cap)!=='read'&&/^(records|schema|files|chat|threads|channels|settings|spaces|access|projects|tasks|agents|esign|sources|connectors|kits|members|identity|devices|network)\./.test(cap);
+          const mutation = !isExportItself(cap)&&publicExportCaps.has(cap)&&publicExportCaps.get(cap)!=='read'&&/^(records|schema|files|chat|threads|channels|settings|spaces|access|projects|tasks|agents|esign|sources|connectors|kits|members|identity|devices|network)\./.test(cap);
           const h:Handler|undefined=original&&mutation?((async(ctx,input)=>{exportMutationRevision++;exportMutationsInFlight++;try{return await original(ctx,input);}finally{exportMutationsInFlight--;exportMutationRevision++;}})):original;
           if (h && cap === "access.view_as") return ((ctx, input) => h({ ...ctx, preview: { issue: (person: string) => {
             const sid = (ctx as typeof ctx & { sessionId?: string }).sessionId;
@@ -1410,6 +1413,35 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // `trace`: a call the host makes on behalf of a caller keeps that caller's trace (only the principal changes), so the events it writes stay in the caller's trace
       const system = (cap: string, input: unknown, trace?: { traceId: string; spanId: string }): Promise<unknown> =>
         invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...(trace ? { trace } : {}) }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
+      // The desktop shell updating the app asks which chats the running turns are in (it tells the person which reply it waits for) and, when the wait runs out or the person says so, to end them
+      // cleanly (routes/local-work.ts). The engine names what works now (engine.now) and stops a chat's agents (engine.stop_all), the same ends a person's Stop reaches.
+      engineSource.chats = async () => {
+        const out = (await system("engine.running_here", {})) as { turns?: Array<{ threadId: string; asker: string }> };
+        const seen = new Map<string, string>();
+        for (const t of out.turns ?? []) {
+          if (seen.has(t.threadId)) continue;
+          // the title is read as the person whose turn it is: their own chat, on their own computer
+          let title = "a chat";
+          try { title = ((await invoke("threads.get", { threadId: t.threadId }, { space: spaceId, principal: { kind: "person", id: t.asker }, origin: "seam" }).then((r) => (r.status === "ok" ? r.output : null))) as { thread?: { title?: string } } | null)?.thread?.title || "a chat"; } catch { /* a chat that cannot be read is "a chat" */ }
+          seen.set(t.threadId, title);
+        }
+        return [...seen].map(([id, title]) => ({ id, title }));
+      };
+      engineSource.stopTurns = async () => {
+        const out = (await system("engine.running_here", {})) as { turns?: Array<{ threadId: string; agentId: string; asker: string; turnId?: string }> };
+        let stopped = 0;
+        const said = new Set<string>();
+        for (const t of out.turns ?? []) {
+          // each chat gets one quiet line, so the person who comes back knows why the reply stopped and that nothing was lost; the agent speaks for the person whose turn it was, as the engine's own posts do
+          if (said.has(t.threadId) || !t.asker.startsWith("usr_")) continue;
+          said.add(t.threadId);
+          try { await invoke("chat.post", { threadId: t.threadId, body: "", mentions: [], clientId: `msg_brg${Math.random().toString(36).slice(2, 12)}${Date.now().toString(36)}`, idempotencyKey: `brg-upd-${t.threadId}-${Date.now().toString(36)}`, blocks: [{ type: "turn_status", v: 1, data: { state: "stopped_for_update", text: "Stopped for an update. Your message is kept.", ...(t.turnId ? { turnId: t.turnId } : {}) } }] }, { space: spaceId, principal: { kind: "agent", id: t.agentId }, actingFor: t.asker, origin: "engine" }); } catch { /* the line is a courtesy: the stop goes on */ }
+        }
+        for (const id of new Set((out.turns ?? []).map((t) => t.threadId))) {
+          try { stopped += ((await system("engine.stop_all", { threadId: id })) as { stopped?: number }).stopped ?? 0; } catch { /* that chat ends by itself or at the stop */ }
+        }
+        return stopped;
+      };
       // the Space record store the L3 data modules share (P-H_08): one file in the data directory, opened by the first module that needs it, closed at shutdown
       const spaceStore = createSpaceStore({ path: spaceStorePath(paths.root), space: spaceId, ours: (x: unknown) => { const r = rawDbOf(x); return r === null || r === db; } });
       closers.push(() => spaceStore.close());
@@ -1680,9 +1712,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           computerSubnetsOf = () => (computers as { computerSubnets?: () => string[] } | undefined)?.computerSubnets?.() ?? [];
           // sites never reach this daemon: a connection that arrives on a site network's address is closed (the ingress sits on every site's network to proxy to it)
           let subnets: { at: number; list: string[] } = { at: 0, list: [] };
-          siteGuard = (address) => {
+          siteGuard = (address, remote) => {
             if (Date.now() - subnets.at > 10_000) subnets = { at: Date.now(), list: (sitesExports?.["siteSubnets"] as ((c: { db: unknown }) => string[]) | undefined)?.({ db: db! }) ?? [] };
-            return inSubnets(address, subnets.list);
+            return clientOnNetwork(address, remote, subnets.list);
           };
           const ownHosts = (): Set<string> => {
             const out = new Set(["localhost", "127.0.0.1", "[::1]"]);
@@ -1781,7 +1813,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the turn engine: capabilities run for a person through this pipeline, the agent speaks into chat as itself, and the session opener's ports come from the Vault (P-L2_23)
         setEngineHost: (d) => (engineSeam = createEngineHost({ space: spaceId, invoke, now, putToSlot, githubFill,
           // each person on their own grants, never as anyone's agent: the answer check of a shared chat (gap 6)
-          mayAll: (people, action, resource) => people.every((p) => { try { return !staleFor(p) && authorize(access.snap, { principal: p, action, resource, now: now() }).effect === "allow"; } catch { return false; } }), publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, ...(cfg.roles.includes("device") ? {} : { keyHeld: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; } }), ours: (x: unknown) => { const r = rawDbOf(x); return r === null || r === db; }, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p), onDevice: (f) => computeStream.onDevice(f) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineApiTools !== undefined ? { onApiTools: o.engineApiTools } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; }, turns: (n) => { engineTurns = n; machinesSync(); } })),
+          mayAll: (people, action, resource) => people.every((p) => { try { return !staleFor(p) && authorize(access.snap, { principal: p, action, resource, now: now() }).effect === "allow"; } catch { return false; } }), publishTurn: () => hub?.publishTurn ? hub.publishTurn.bind(hub) : null, log: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "engine", ...(attrs ? { attrs } : {}) }), ...(d.vault ? { vault: d.vault } : {}), dataDir: paths.root, own: ownNode, keyOpen: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; }, ...(cfg.roles.includes("device") ? {} : { keyHeld: (p: string) => { const k = keyring.get(p); k?.fill(0); return k !== null; } }), ours: (x: unknown) => { const r = rawDbOf(x); return r === null || r === db; }, nodes: { spawn: (n, s) => computeStream.spawnProc(n, s), connected: (n) => computeStream.connected(n), secure: (n) => computeStream.secure(n), devices: (p) => computeStream.devices(p), onDevice: (f) => computeStream.onDevice(f) }, ...(o.engineCli !== undefined ? { cli: o.engineCli } : {}), ...(o.engineInstall ? { engineInstall: true } : {}), ...(o.engineOpenSession !== undefined ? { openSession: o.engineOpenSession } : {}), ...(o.engineApiTools !== undefined ? { onApiTools: o.engineApiTools } : {}), ...(o.mcpFetch !== undefined ? { mcpFetch: o.mcpFetch } : {}), ...(o.engineSandbox !== undefined ? { sandbox: o.engineSandbox } : {}), saveSignin: (r) => signinRefresh.save(r), closing: (done) => { engineClosing = done; }, turns: (n) => { engineTurns = n; machinesSync(); } })),
         // Report a problem: the bundle sources (the person's last actions from the log, the versions) and the reports.vyre.run client, signed with a key derived from this Space's seal key
         configureReports: () => createReportsHost({
           space: spaceId, now, fetch: o.reportsFetch ?? ((u, i) => globalThis.fetch(u, i as RequestInit) as never),
@@ -2340,7 +2372,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     if (hubFactory) server.on("upgrade", (req, socket, head) => { if (computeStream.claims(req)) computeStream.upgrade(req, socket, head); });
     server.removeAllListeners("request");
     // a site's container reaches this machine only through its own network; a connection on that network's address is a site trying the Space's API, and is closed at once
-    server.on("connection", (sock) => { if (siteGuard(sock.localAddress)) sock.destroy(); });
+    server.on("connection", (sock) => { if (siteGuard(sock.localAddress, sock.remoteAddress)) sock.destroy(); });
     const listener = requestListener({
       health, coerce,
       gateway: gateway ?? (() => Promise.resolve({ status: 404, headers: {}, body: { error: makeError("validation.unknown_capability", ZERO_TRACE, { message: "This daemon runs the device role only; it has no Space API." }) } })),
@@ -2358,7 +2390,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const appFiles = createAppFilesRoute({ dir: () => o.appDir !== undefined ? o.appDir : defaultAppDir() });
     server.on("request", (req, res) => {
       // an agent computer reaches this daemon only on its own network, and there only the Vault channel agentd posts to: nothing else of the Space's API
-      const onComputerNet = inSubnets(req.socket.localAddress, computerSubnetsOf());
+      const onComputerNet = clientOnNetwork(req.socket.localAddress, req.socket.remoteAddress, computerSubnetsOf());
       if (onComputerNet && !(req.method === "POST" && (req.url ?? "").split("?")[0] === FILL_PATH)) { res.writeHead(403, { "content-type": "application/json" }); res.end(JSON.stringify({ code: "refused", message: "A computer reaches only the Vault channel." })); return; }
       if (carryDoor.handle(req, res)) return;
       if(desktopCors(req,res))return;

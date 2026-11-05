@@ -64,7 +64,7 @@ export interface HeldCardProps {
   onSend(): Promise<void>;
   onSave?(saved: HeldSaved): Promise<void>;
   onDrop(reason: string): Promise<void>;
-  /** A quiet item in the card's "..." menu: always let this agent do this (its words, e.g. "Always let Dex message Aliza"). Pressing it keeps the rule and sends. */
+  /** A quiet item in the card's "..." menu: always let this agent do this (its words, e.g. "Always allow Dex to message Aliza"). Pressing it keeps the rule and sends. */
   alwaysLabel?: string;
   onAlways?: () => Promise<void>;
   /** The editor the body turns into. The shared MarkdownEditor unless a test or a screenshot puts its own in (a browser's TipTap cannot be typed into under test). */

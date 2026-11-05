@@ -65,7 +65,18 @@ export function madeByWords(h: Pick<Hook, "madeBy" | "madeByKind">, nameOf: (id:
   return `Made by ${nameOf(h.madeBy)}${h.madeByKind === "admin" ? " (admin)" : h.madeByKind === "agent" ? " (agent)" : ""}`;
 }
 
-interface Loaded { hooks: Hook[]; runs: Run[]; bad: Run[]; agentHooks: boolean }
+/** An always-allow rule on a hook (hooks.list returns them as `allowed`); `what` is plain words and is shown as it comes. */
+export interface AllowRule { id: string; what: string; by: string; createdAt: number }
+type HookRowData = Hook & { allowed?: AllowRule[] };
+/** The words for one rule line. */
+export const ruleWords = (r: Pick<AllowRule, "what">): string => `Always allowed for ${r.what}`;
+
+/** The runs read asks for this many, newest first. */
+export const RUNS_LIMIT = 200;
+/** What a hook with no run says. "Never ran" only when the read answered and was not cut off at its limit, so it covered every run the viewer may see; else "Not run lately" (an older run may be past the cut). */
+export const neverWords = (runs: readonly unknown[], read: boolean): string => (read && runs.length < RUNS_LIMIT ? "Never ran" : "Not run lately");
+
+interface Loaded { hooks: Hook[]; runs: Run[]; runsRead: boolean; bad: Run[]; agentHooks: boolean }
 
 /** Reads the policy, the Space's hooks, each Space agent's own hooks and the latest runs. A read that fails on its own leaves the rest standing. */
 function useHooks(): { data: Loaded | undefined; error: string | undefined; refresh: () => void } {
@@ -83,14 +94,14 @@ function useHooks(): { data: Loaded | undefined; error: string | undefined; refr
       if (!space) { if (alive) setError("Couldn’t load this page. Check access and try again."); return; }
       const [policy, runs, bad, agents] = await Promise.all([
         soft<CapMap["hooks.policy.get"]["out"]>("hooks.policy.get", {}),
-        soft<CapMap["hooks.runs.list"]["out"]>("hooks.runs.list", { limit: 200 }),
+        soft<CapMap["hooks.runs.list"]["out"]>("hooks.runs.list", { limit: RUNS_LIMIT }),
         soft<CapMap["hooks.runs.list"]["out"]>("hooks.runs.list", NEEDS_ASK(clockRef.current().now)),
         soft<CapMap["agents.list"]["out"]>("agents.list", { section: "space" }),
       ]);
       const mine = await Promise.all((agents?.agents ?? []).map((a) => soft<CapMap["hooks.list"]["out"]>("hooks.list", { scope: "agent", agentId: a.agentId })));
       const byId = new Map<string, Hook>();
       for (const h of [...space.hooks, ...mine.flatMap((m) => m?.hooks ?? [])]) if (!byId.has(h.id)) byId.set(h.id, h);
-      if (alive) { setError(undefined); setData({ hooks: [...byId.values()].sort((a, b) => a.createdAt - b.createdAt), runs: runs?.runs ?? [], bad: bad?.runs ?? [], agentHooks: policy?.agentHooks ?? space.agentHooks }); }
+      if (alive) { setError(undefined); setData({ hooks: [...byId.values()].sort((a, b) => a.createdAt - b.createdAt), runs: runs?.runs ?? [], runsRead: runs !== undefined, bad: bad?.runs ?? [], agentHooks: policy?.agentHooks ?? space.agentHooks }); }
     })();
     return () => { alive = false; };
   }, [call, rev]);
@@ -106,12 +117,19 @@ const dim = (extra: object = {}): object => ({ fontSize: 11.5, lineHeight: "16px
  * One hook: the icon, the plain line, then two muted lines that wrap in full, and Pause and Remove. Wide, the buttons sit to the right; at a phone's width they go on their own line under the
  * text, left-aligned with the title, 8px below it. A 1px divider separates rows and each has 12px above and below.
  */
-function HookRow({ id, index, narrow, icon, title, lines, actions }: { id: string; index: number; narrow: boolean; icon: ReactElement; title: string; lines: string[]; actions: ReactElement }): ReactElement {
+function HookRow({ id, index, narrow, icon, title, lines, actions, rules = [] }: { id: string; index: number; narrow: boolean; icon: ReactElement; title: string; lines: string[]; actions: ReactElement; rules?: Array<{ id: string; text: string; button: ReactElement }> }): ReactElement {
   const text = (
     <View style={{ flex: 1, minWidth: 0 }}>
       <Text style={{ fontSize: 13, lineHeight: "18px", color: "var(--ink)" as string }}>{title}</Text>
       {/* ui-rows-lint: not a list (the two muted lines under one hook's title) */}
       {lines.map((l, n) => <Text key={n} style={dim() as never}>{l}</Text>)}
+      {/* ui-rows-lint: not a list (the always-allow lines under one hook's meta lines) */}
+      {rules.map((r) => (
+        <View key={r.id} style={{ flexDirection: narrow ? "column" : "row", alignItems: narrow ? "flex-start" : "center", gap: narrow ? 2 : 8, paddingTop: 4 }}>
+          <Text testID={`hook-allowed-${r.id}`} style={dim({ flex: 1, minWidth: 0 }) as never}>{r.text}</Text>
+          {r.button}
+        </View>
+      ))}
     </View>
   );
   return (
@@ -141,7 +159,7 @@ export function HooksPage(): ReactElement {
   const [removed, setRemoved] = useState<Hook | null>(null);
   const [adding, setAdding] = useState(false);
   if (!read.data) return <ReadState error={read.error} retry={read.refresh} />;
-  const { hooks, runs, bad, agentHooks } = read.data;
+  const { hooks, runs, runsRead, bad, agentHooks } = read.data;
   const now = cd.clock().now;
   const nameOf = (id: string): string => cd.name(id);
   const lastRun = (id: string): Run | undefined => runs.filter((r) => r.hookId === id).sort((a, b) => b.at - a.at)[0];
@@ -191,7 +209,7 @@ export function HooksPage(): ReactElement {
             {/* ui-rows-lint: not a list (each hook is its own row with a divider; the rows wrap in full, which ui/Row clamps) */}
             {hooks.map((h, n) => {
               const last = lastRun(h.id);
-              const how = h.paused ? "Paused" : last ? `Last ran ${ago(now, last.at)}, ${lastRunWords(last, h.kind)}` : "Not run lately";
+              const how = h.paused ? "Paused" : last ? `Last ran ${ago(now, last.at)}, ${lastRunWords(last, h.kind)}` : neverWords(runs, runsRead);
               const actions = (
                 <>
                   <QuietButton label={h.paused ? "Resume" : "Pause"} testID={`hook-pause-${h.id}`} disabled={action.busy || !h.canChange} {...(!h.canChange ? { why } : {})}
@@ -199,7 +217,11 @@ export function HooksPage(): ReactElement {
                   <QuietButton label="Remove" testID={`hook-remove-${h.id}`} disabled={action.busy || !h.canChange} {...(!h.canChange ? { why } : {})} onPress={() => { setRemoved(null); setConfirm(h.id); }} />
                 </>
               );
-              return <HookRow key={h.id} id={`hook-${h.id}`} index={n} narrow={narrow} icon={<IconTile icon="bolt" />} title={h.line} lines={[`${kindWord(h)}: ${whatOf(h)}`, `${whereWords(h, nameOf)} · ${madeByWords(h, nameOf)} · ${how}`]} actions={actions} />;
+              return <HookRow key={h.id} id={`hook-${h.id}`} index={n} narrow={narrow} icon={<IconTile icon="bolt" />} title={h.line} lines={[`${kindWord(h)}: ${whatOf(h)}`, `${whereWords(h, nameOf)} · ${madeByWords(h, nameOf)} · ${how}`]} actions={actions}
+                rules={((h as HookRowData).allowed ?? []).map((r) => ({ id: r.id, text: ruleWords(r), button: (
+                  <QuietButton label="Stop allowing" testID={`hook-allowed-stop-${r.id}`} disabled={action.busy || !h.canChange} {...(!h.canChange ? { why } : {})}
+                    onPress={() => void action.run("hooks.allow_remove", { id: r.id }, "Stopped allowing it")} />
+                ) }))} />;
             })}
           </Group>
         )}

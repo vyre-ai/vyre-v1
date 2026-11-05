@@ -11,6 +11,8 @@ export const SCOPES: ReadonlyArray<{ key: Scope; label: string }> = [{ key: "me"
 
 /** The card's title: "Install pdf-forms (a skill)", or for an update "pdf-forms 1.2.0 to 1.3.0". */
 export const titleOf = (p: Pick<Plan, "name" | "kind" | "diff">): string => (p.diff ? `${p.name} ${p.diff.fromVersion ?? shortOf(p.diff.from)} to ${p.diff.toVersion ?? shortOf(p.diff.to)}` : `Install ${p.name} (${KIND_WORDS[p.kind]})`);
+/** A commit that names a lower version than the one installed is an older version, never an "update". */
+export const isOlder = (p: { diff?: { older?: boolean } | undefined }): boolean => p.diff?.older === true;
 export const shortOf = (commit: string): string => commit.slice(0, 7);
 
 /** What it needs, in the card's two lines: the web addresses it reaches, and the Vault keys it wants. "none" where it asks for nothing. */
@@ -40,6 +42,14 @@ export function diffRows(d: NonNullable<Plan["diff"]>): Array<{ kind: "head" | "
   for (const r of d.removed) rows.push({ kind: "head", text: `${r} (removed)` });
   return rows;
 }
+/** What going back to an older version takes away, in plain words: the lines it no longer has, by file, and the files it drops. */
+export function losesWords(d: NonNullable<Plan["diff"]>): string {
+  const parts: string[] = [];
+  for (const c of d.changed) if (c.minus.length > 0) parts.push(`${c.minus.length} ${c.minus.length === 1 ? "line" : "lines"} in ${c.path}`);
+  for (const r of d.removed) parts.push(`the file ${r}`);
+  if (parts.length === 0) return "";
+  return `Going back removes ${parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`}.`;
+}
 export const changedCount = (d: NonNullable<Plan["diff"]>): number => d.changed.length + d.added.length + d.removed.length;
 
 /** The note under an update's diff when it reaches somewhere new. Names only what is new against what the install already named. */
@@ -58,7 +68,7 @@ export function sourceWords(source: string): string {
 }
 
 /** History row: "v3 · 4 Nov · pdf-tools updated to 7d03be8". */
-export function historyLine(r: { rev: number; at: number; summary: string; by: string; authorKind: "person" | "agent" }, nameOf: (id: string) => string): string {
+export function historyLine(r: { rev: number; at: number; summary: string; by: string; authorKind: "person" | "agent"; version?: string | undefined }, nameOf: (id: string) => string): string {
   const d = new Date(r.at).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-  return `v${r.rev} · ${d} · ${r.summary}${r.authorKind === "agent" ? ` · ${nameOf(r.by)}` : ""}`;
+  return `${r.version ? `v${r.version.replace(/^v/, "")}` : `v${r.rev}`} · ${d} · ${r.summary}${r.authorKind === "agent" ? ` · ${nameOf(r.by)}` : ""}`;
 }

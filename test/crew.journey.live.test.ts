@@ -37,13 +37,24 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
   git(repo, "add", "-A"); git(repo, "commit", "--quiet", "-m", "first");
 
   let dir = ""; let owner = ""; let teammate = ""; let project = ""; let lead = "";
+  let openEdit!: () => void;
+  const editGate = new Promise<void>((r) => { openEdit = r; });
   const model = scriptedModel(async function* (input, run) {
     if (input.agent.id === teammate) {
       const work = workFolder(dir, owner, input.threadId, teammate);
       await waitFor(async () => (fs.existsSync(path.join(work, "README.md")) ? true : null), 20_000);
+      // the coder is at work on a file while the person looks: its row says which one
+      yield { type: "block", kind: "tool_call", payload: { id: "edit-1", name: "Edit" } };
+      yield { type: "block", kind: "tool_input", payload: { id: "edit-1", detail: "dark-mode.txt" } };
+      await editGate;
+      yield { type: "block", kind: "tool_result", payload: { id: "edit-1", ok: true } };
       fs.writeFileSync(path.join(work, "dark-mode.txt"), "toggle: on\n");
       fs.writeFileSync(path.join(work, "dark-mode.test.txt"), "test: toggle is on\n");
-      yield { type: "text", text: "Added the dark mode toggle and a test. The test passes." };
+      // a test run the way a real engine reports it: the call, the command, and the summary lines of what it printed
+      yield { type: "block", kind: "tool_call", payload: { id: "tst-1", name: "Bash" } };
+      yield { type: "block", kind: "tool_input", payload: { id: "tst-1", detail: "node --test dark-mode.test.js" } };
+      yield { type: "block", kind: "tool_result", payload: { id: "tst-1", ok: false, detail: "✔ toggle is on (1ms)\n✖ toggle survives a reload (2ms)\nℹ pass 1\nℹ fail 1" } };
+      yield { type: "text", text: "Added the dark mode toggle and a test. One test fails: the toggle does not survive a reload." };
       return;
     }
     if (input.agent.id !== lead) return;
@@ -51,9 +62,9 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
     if (/build dark mode/.test(ask)) {
       yield* run("tool_search", { query: "crew teammate" });
       yield* run("crew_start", { threadId: input.threadId, idempotencyKey: "journey-start", projectId: project, teammateId: teammate, title: "Dark mode", brief: "Add a dark mode toggle and a test." });
-      yield { type: "text", text: "I started Ember on the dark mode toggle. You will get one card when it is done." };
+      yield { type: "text", text: "I started Ember on the dark mode toggle." };
     } else if (input.trigger?.author.id === teammate) {
-      yield { type: "text", text: "Ember is done. The branch is ready for you to merge." };
+      yield { type: "text", text: "Ember is done." };
     }
   });
   const fresh = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-crew-journey-")));
@@ -112,6 +123,13 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
       if (mode === "light") {
         // the lead is asked in the chat the way a person asks: the message is posted into the thread
         await api("chat.post", { threadId: chat, body: "build dark mode", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "j-ask" });
+        if (!phone) {
+          // while the coder is editing, its row names the file
+          await page.getByText("Build the site", { exact: false }).first().click({ timeout: 30_000 });
+          await page.getByText("Editing dark-mode.txt").first().waitFor({ timeout: 60_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-editing`); throw e; });
+          await shoot(page, `${mode}-0-coder-editing`);
+        }
+        openEdit();
         await waitFor(async () => {
           const jobs = (await api("engine.crew.list", { threadId: chat })).jobs as Array<{ state: string }>;
           return jobs[0] && jobs[0].state !== "working" ? true : null;
@@ -121,34 +139,35 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
       if (await later.count()) await later.first().click().catch(() => undefined);
       await (phone ? Promise.resolve() : page.getByText("Build the site", { exact: false }).first().click({ timeout: 30_000 })).catch(async (e) => { await shoot(page, `${mode}-FAILED-open-chat`); await page.getByText("Details", { exact: true }).click().catch(() => undefined); console.error("DETAILS", (await page.locator("body").innerText()).slice(0, 1500), errors.join(" | ")); throw e; });
       const jobId = ((await api("engine.crew.list", { threadId: chat })).jobs as Array<{ jobId: string }>)[0]!.jobId;
-      const card = page.getByTestId(`crew-card-${jobId}`);
-      await card.waitFor({ timeout: 40_000 });
-      // the dark pass opens the chat after the merge: the same card, now one line
-      assert.match(await card.innerText(), mode === "light" ? /Ember finished Dark mode[\s\S]*1 commit · 2 files/ : /Merged · Ember: Dark mode/);
+      // nothing is posted per coder: the strip holds Ember, with Merge in its header; no result card, no "Ember is on ..." line (owner, 5 Nov 2026)
+      await page.getByTestId("crew-strip").first().waitFor({ timeout: 40_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-strip`); throw e; });
+      assert.equal(await page.getByTestId(`crew-card-${jobId}`).count(), 0, "no result card in the chat");
+      assert.equal(await page.getByText("Ember is on Dark mode").count(), 0, "no line that says it started");
+      assert.equal(await page.getByText(/Started a helper/).count(), 0);
+      await waitFor(async () => ((await page.getByText("Working", { exact: true }).count()) === 0 ? true : null), 15_000);   // the live read catches up a moment after the job ends
+      assert.equal(await page.getByText("Working", { exact: true }).count(), 0, "the header is not left on Working");
+      await shoot(page, `${mode}-1-strip`);
+      // the coder's row and peek say how its last test run went: counts and the first failing test
+      console.log("MEMBERS", JSON.stringify(((await api("engine.crew.status", { threadId: chat })).members as Array<{ id: string; kind: string; state: string; tests?: unknown; step?: string }>).map((m) => [m.id.slice(-6), m.kind, m.state, m.tests, m.step])));
+      assert.match(await page.getByTestId(`crew-chip-${((await api("engine.crew.status", { threadId: chat })).members as Array<{ id: string }>)[0]!.id}-tests`).innerText(), /1 passing, 1 failing/);
       if (mode === "light") {
-        // the start of the job is one line, not "Started a helper" plus a chip; and nobody is left marked Working once the job is done
-        await page.getByText("Ember is on Dark mode").first().waitFor({ timeout: 15_000 });
-        assert.equal(await page.getByText(/Started a helper/).count(), 0);
-        assert.equal(await page.getByText("Working", { exact: true }).count(), 0, "the header is not left on Working");
-      }
-      await shoot(page, `${mode}-1-card`);
-      // the Crew tab: open the pane, choose Crew, one row for Ember
-      await page.getByTestId("pane-button").click({ timeout: 10_000 });
-      await page.getByTestId("chats-right-pane").waitFor({ timeout: 15_000 });
-      await page.getByTestId("tab-crew").click({ timeout: 15_000 });
-      const row = page.getByText("Ember · Dark mode").first();
-      await row.waitFor({ timeout: 15_000 }).catch(async (e) => { await shoot(page, `${mode}-FAILED-crew-tab`); throw e; });
-      assert.match(await page.getByTestId("chats-right-pane").innerText(), mode === "light" ? /Done .* · 2 files/ : /Merged/);
-      await shoot(page, `${mode}-2-crew-tab`);
-      if (mode === "light") {
-        // Merge on the card lands the branch and the card collapses to one line
-        await page.getByTestId(`crew-merge-${jobId}`).first().click();
-        // on a phone the pane covers the chat: the pane saying Merged is the check, and the phone run stops there
-        if (phone) { await page.getByText(/Merged/).first().waitFor({ timeout: 15_000 }); await shoot(page, `${mode}-3-merged-pane`); await ctx.close(); return; }
-        await card.getByText(/Merged/).first().waitFor({ timeout: 15_000 });
+        await page.getByTestId("crew-strip").first().locator('[data-testid^="crew-chip-"][role="button"]').first().click({ timeout: 15_000 });
+        await page.getByTestId("crew-peek-failing").waitFor({ timeout: 20_000 });
+        assert.match(await page.getByTestId("crew-peek-failing").innerText(), /toggle survives a reload/);
+        // a finished helper says what it did, in the short plain labels that were kept: the file's name and the test counts
+        assert.ok(await page.getByText("Edited dark-mode.txt").count() > 0, "Edited <file>");
+        assert.ok(await page.getByText("Ran the tests: 1 passing, 1 failing").count() > 0, "Ran the tests: counts");
+        await shoot(page, `${mode}-2-code-peek`);
+        // Merge in the strip header lands the branch, and the header then says Merged
+        await page.getByTestId("crew-strip-merge").click({ timeout: 20_000 });
+        await page.getByTestId("crew-strip-merged").waitFor({ timeout: 20_000 });
         assert.equal(fs.readFileSync(path.join(repo, "dark-mode.txt"), "utf8"), "toggle: on\n");
         assert.match(git(repo, "log", "--format=%s", "-n", "2"), /Merge crew\/ember-1/);
+        // the chat keeps one quiet line saying what landed where
+        await page.getByText(/^Merged crew\/ember-1 into main · \+\d+ -\d+$/).first().waitFor({ timeout: 20_000 });
         await shoot(page, `${mode}-3-merged`);
+      } else {
+        await page.getByTestId("crew-strip-merged").waitFor({ timeout: 20_000 });
       }
       assert.deepEqual(errors.filter((e) => !/#418/.test(e)), [], "no page error");
       await ctx.close();

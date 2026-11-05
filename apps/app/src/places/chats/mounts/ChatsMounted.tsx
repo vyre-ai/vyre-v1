@@ -27,6 +27,7 @@ import type { ComposerFill } from "../conversation/data.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { AgentPane } from "../AgentPane.tsx";
 import { CrewProvider } from "../crew/context.tsx";
+import { CrewSide } from "../crew/CrewSide.tsx";
 import { useAddSheet } from "../addsheet/index.ts";
 import { AgentShareHost } from "../agentform/AgentShare.tsx";
 import { pokeInput } from "../../../../../../ui/src/AccessSheet/index.tsx";
@@ -468,7 +469,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
   else if (projectChat && projectView && (route.view === "chat" || route.view === "new")) main = <ProjectScreen key={projectView.projectId} rt={rt} projectId={projectView.projectId} tab={projectView.tab} onTab={(tab) => act({ t: "project", projectId: projectView.projectId, tab })} chatSlot={pjChannel?.channelId === "" && pjChannel.why ? <View testID="project-chat-unavailable" style={{ padding: 24 }}><Text style={{ fontSize: 13, color: "var(--ink-3)" }}>{`This project's chat is not available to you: ${pjChannel.why}`}</Text></View> : main} {...(pjChannel?.title ? { title: pjChannel.title } : {})} />;
   const showMain = !(narrow && right !== null);
   return (
-    <CrewProvider call={rt.call as (cap: string, input: unknown) => Promise<unknown>} threadId={threadId ?? ""} onShow={() => { if (!shown.pane) go.togglePane(); }}>
+    <CrewProvider call={rt.call as (cap: string, input: unknown) => Promise<unknown>} threadId={threadId ?? ""} >
     <View testID="chats-place" style={st.row}>
       <ChatsSidebarSlot data={side} open={openKey} {...(window ? { window } : {})} />
       {showMain ? (
@@ -476,7 +477,7 @@ export function ChatsMounted({ rt, hash = "", initial, window, opened, onSwitch,
           <View style={st.fill}>{main}</View>
         </View>
       ) : null}
-      {right}
+      <CrewSide fallback={right} nameOf={nameOf} openHelper={(id) => go.thread(id)} narrow={narrow} />
       {narrow ? beside : null}
       {add.element}
       {shareAgent !== null ? <AgentShareHost agentId={shareAgent} name={nameOf(shareAgent)} call={rt.call as (cap: string, input: unknown) => Promise<unknown>} newKey={newKey} say={setLine} sharing={{ directory, meName: rt.me.name, meId: rt.me.id, nameOf }} onClose={() => setShareAgent(null)} /> : null}

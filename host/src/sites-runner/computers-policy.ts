@@ -22,7 +22,9 @@ export function computerImages(extra = process.env["VYRE_COMPUTER_IMAGES"] ?? ""
   const repos = ["vyre/agent-computer", "ghcr.io/vyre-ai/agent-computer", ...extra.split(",").map((s) => s.trim()).filter((s) => /^[a-z0-9][a-z0-9./_-]{0,100}$/.test(s))];
   return new RegExp(`^(${repos.map((r) => r.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")).join("|")}):[A-Za-z0-9_.-]{1,64}$`);
 }
-export const isComputerImage = (name: string): boolean => computerImages().test(name);
+/** The same two repositories by digest (`repo@sha256:<64 hex>`): immutable, so a tag cannot be swapped under a server. Nothing else, and no other repository, by digest. */
+export const COMPUTER_DIGEST = /^(vyre\/agent-computer|ghcr\.io\/vyre-ai\/agent-computer)@sha256:[0-9a-f]{64}$/;
+export const isComputerImage = (name: string): boolean => computerImages().test(name) || COMPUTER_DIGEST.test(name);
 
 export const MAX = { nanoCpus: 4e9, memory: 8 * 1024 ** 3, pids: 2048 };
 export const LOGS = { Type: "json-file", Config: { "max-size": "10m", "max-file": "3" } };

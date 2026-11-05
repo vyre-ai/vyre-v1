@@ -2,11 +2,11 @@
 //   Space hooks are an admin's. Person hooks are the person's own. An agent sets hooks only for itself (agent, chat and run scope) and for the helpers it starts (run scope), as checks, notes and its own
 //   actions: nothing an agent makes can loosen a Space or person hook, skip the Gate, approve a held act or reach past the agent's own reach, because a hook can only stop work, add a note or run an
 //   action through the normal pipeline as the agent. An admin can turn agent-made hooks off for the whole Space.
-import { HOOK_EVENTS, HOOK_KINDS, HOOK_SCOPES, plainLine, plainTools, redact } from "../../../lib/hooks.ts";
+import { HOOK_EVENTS, HOOK_KINDS, HOOK_SCOPES, actWithTarget, ruleWords, plainLine, plainTools, redact } from "../../../lib/hooks.ts";
 import { isTenantService, isTrustedService } from "../../../lib/trust.ts";
 import type { HookFire } from "../../../lib/hooks.ts";
 import { ACTION_DENIED, fire as fireHooks } from "../eval.ts";
-import { addPass, PASS_MS, agentHooksOn, allHooks, ensure, helpersActive, hookById, lineage, link, nextSeq, parentOf, raise, setAgentHooks } from "../projections.ts";
+import { addAllows, addNote, allowById, allowsOf, lastStopped, removeAllow, addPass, PASS_MS, agentHooksOn, allHooks, ensure, helpersActive, hookById, lineage, link, nextSeq, parentOf, raise, setAgentHooks } from "../projections.ts";
 import type { HooksCtx, Rec, Spec } from "../projections.ts";
 
 type Row = Record<string, unknown>;
@@ -40,9 +40,10 @@ function mayChange(h: Rec, a: Actor): boolean {
   if (a.kind === "agent") return h.madeBy === a.id;
   return h.scope !== "space" && (h.madeBy === a.id || h.forPerson === a.id || h.personId === a.id);
 }
-const outRow = (h: Rec, actor: Actor): Row => ({
+const outRow = (ctx: HooksCtx, h: Rec, actor: Actor): Row => ({
   id: h.id, scope: h.scope, event: h.event, kind: h.kind, matcher: h.matcher, line: h.line, paused: h.paused, madeBy: h.madeBy, madeByKind: h.madeByKind,
   ...(h.threadId ? { threadId: h.threadId } : {}), ...(h.agentId ? { agentId: h.agentId } : {}), helpers: h.helpers, timeoutSec: h.timeoutSec, createdAt: h.createdAt, updatedAt: h.updatedAt,
+  allowed: allowsOf(ctx, h.id).map((r) => ({ id: r.id, what: ruleWords(r.tool, r.target), by: r.by, createdAt: r.createdAt })),
   spec: h.spec, mine: h.madeBy === actor.id || (actor.admin && h.scope === "space"), canChange: mayChange(h, actor), ...(h.endedAt ? { endedAt: h.endedAt } : {}),
 });
 
@@ -54,11 +55,16 @@ async function mayUseThread(ctx: HooksCtx, threadId: string): Promise<boolean> {
 async function nameOf(ctx: HooksCtx, agentId: string): Promise<string> {
   try { return ((await ctx.call?.("agents.get", { agentId })) as { agent?: { name?: string } } | undefined)?.agent?.name || "Assistant"; } catch { return "Assistant"; }
 }
+/** A person's display name, as the rest of the Space reads it (access.principals.get); undefined when it cannot be read, and the line then keeps its old words. */
+async function personName(ctx: HooksCtx, id: string): Promise<string | undefined> {
+  if (!id.startsWith("usr_")) return undefined;
+  try { const n = ((await ctx.call?.("access.principals.get", { principal: { kind: "person", id } })) as { principal?: { name?: unknown } } | undefined)?.principal?.name; return typeof n === "string" && n.trim() !== "" && n !== id ? n.trim() : undefined; } catch { return undefined; }
+}
 async function tell(ctx: HooksCtx, a: Actor, h: Rec, did: "added" | "changed" | "removed" | "paused" | "resumed", threadId: string | undefined): Promise<void> {
   ctx.emit("hook.changed", h.threadId ?? threadId ?? h.id, { hookId: h.id, scope: h.scope, change: did, by: h.madeBy, line: h.line, ...(h.threadId ? { threadId: h.threadId } : {}), ...(h.agentId ? { agentId: h.agentId } : {}) });
   const where = threadId ?? h.threadId;
   if (!where || !ctx.call) return;
-  const who = a.kind === "agent" ? await nameOf(ctx, a.id) : a.admin && h.scope === "space" ? "An admin" : "Someone";
+  const who = a.kind === "agent" ? await nameOf(ctx, a.id) : (await personName(ctx, a.id)) ?? (a.admin && h.scope === "space" ? "An admin" : "Someone");
   const place = h.scope === "chat" || h.scope === "run" ? " in this chat" : h.scope === "space" ? " for the Space" : h.scope === "agent" ? " for this agent" : " for you";
   const verb = { added: "added a hook", changed: "changed a hook", removed: "removed a hook", paused: "paused a hook", resumed: "turned a hook back on" }[did];
   try { await ctx.call("chat.hook_line", { threadId: where, body: `${who} ${verb}${place}: ${h.line}`, kind: did, hookId: h.id, scope: h.scope, by: h.madeBy, byKind: h.madeByKind }); } catch (e) { ctx.log?.warn("a hook line was not posted", { error: e instanceof Error ? e.message : String(e) }); }
@@ -125,7 +131,7 @@ export async function set(ctx: HooksCtx, i: SetIn): Promise<{ hook: Row }> {
       i.event, i.kind, i.matcher ?? "", JSON.stringify(spec), timeoutSec, line, (i.helpers ?? existing.helpers) ? 1 : 0, (i.paused ?? existing.paused) ? 1 : 0, now, existing.id);
     const h = hookById(ctx, existing.id)!;
     await tell(ctx, a, h, "changed", i.threadId);
-    return { hook: outRow(h, a) };
+    return { hook: outRow(ctx, h, a) };
   }
   const id = `hok_${now.toString(36)}${Math.random().toString(36).slice(2, 8)}`;
   ctx.db.run(
@@ -135,7 +141,7 @@ export async function set(ctx: HooksCtx, i: SetIn): Promise<{ hook: Row }> {
   );
   const h = hookById(ctx, id)!;
   await tell(ctx, a, h, "added", i.threadId);
-  return { hook: outRow(h, a) };
+  return { hook: outRow(ctx, h, a) };
 }
 
 function mayTouch(ctx: HooksCtx, a: Actor, h: Rec): void {
@@ -163,7 +169,7 @@ export async function pause(ctx: HooksCtx, i: { id: string; paused: boolean; thr
   ctx.db.run("UPDATE hooks_hook SET paused = ?, updated_at = ? WHERE id = ?", i.paused ? 1 : 0, ctx.now(), h.id);
   const now = hookById(ctx, h.id)!;
   await tell(ctx, a, now, i.paused ? "paused" : "resumed", i.threadId);
-  return { hook: outRow(now, a) };
+  return { hook: outRow(ctx, now, a) };
 }
 
 export async function list(ctx: HooksCtx, i: { scope?: string; threadId?: string; agentId?: string }): Promise<{ hooks: Row[]; agentHooks: boolean }> {
@@ -179,11 +185,66 @@ export async function list(ctx: HooksCtx, i: { scope?: string; threadId?: string
     // the thread's own hooks, and the chat and run hooks of every chat above it: what a helper works under
     return h.threadId === i.threadId || ((h.scope === "run" || h.scope === "chat") && h.threadId !== null && lineage(ctx, i.threadId).includes(h.threadId));
   });
-  return { hooks: rows.map((h) => outRow(h, a)), agentHooks: agentHooksOn(ctx) };
+  return { hooks: rows.map((h) => outRow(ctx, h, a)), agentHooks: agentHooksOn(ctx) };
+}
+
+/** The stop line is answered for everyone in the chat: its block says how, so it stays resolved after a reload. */
+async function resolveLine(ctx: HooksCtx, threadId: string, messageId: string | undefined, resolution: "allowed" | "always" | "denied", by: string, what?: string): Promise<void> {
+  if (!ctx.call || !messageId) return;
+  try { await ctx.call("chat.hook_resolve", { threadId, messageId, resolution, by, ...(what ? { what } : {}) }); } catch (e) { ctx.log?.warn("a stop line was not marked", { error: e instanceof Error ? e.message : String(e) }); }
+}
+/** Who may decide about a stop: the same rule as letting the hook go by once. */
+function mayDecide(ctx: HooksCtx, a: Actor, h: Rec): void {
+  if (a.kind === "agent") raise(ctx, "permission.no_grant", "Only a person decides about a stop.");
+  if (h.scope === "space" && !a.admin) raise(ctx, "permission.no_grant", "Only an admin can decide about a Space hook. You can ask one.");
+  if (!a.admin && !mayChange(h, a)) raise(ctx, "permission.no_grant", "That hook is not yours to decide about. You can ask an admin.");
+}
+/** Always allow: from now on this hook lets this kind of act go by, in its own scope, and keeps guarding everything else. The act is the one the newest stop of this hook in this chat was about. */
+export async function allowAlways(ctx: HooksCtx, i: { id: string; threadId: string; messageId?: string }): Promise<{ allowed: { id: string; what: string } }> {
+  ensure(ctx.db);
+  const a = actorOf(ctx);
+  const h = hookById(ctx, i.id);
+  if (!h) raise(ctx, "validation.not_found", "That hook does not exist.");
+  if (!(await mayUseThread(ctx, i.threadId))) raise(ctx, "permission.no_grant", "That chat is not one you can use.");
+  mayDecide(ctx, a, h);
+  const stopped = lastStopped(ctx, h.id, i.threadId);
+  if (!stopped) raise(ctx, "validation.precondition_failed", "This hook has not stopped anything here yet, so there is nothing to always allow.");
+  const rules = addAllows(ctx, h.id, stopped.tool, stopped.targets, a.id);
+  // the act and everything it was aimed at, in plain words: "sending an email to sara@acme.com", or "every email" when it had no target
+  const what = stopped.targets.length > 0 ? actWithTarget(stopped.tool, stopped.targets.join(" and ")) : ruleWords(stopped.tool, "");
+  await resolveLine(ctx, i.threadId, i.messageId, "always", a.id, what);
+  ctx.emit("hook.changed", i.threadId, { hookId: h.id, scope: h.scope, change: "allowed_always", by: a.id, line: h.line, threadId: i.threadId });
+  return { allowed: { id: rules[0]!.id, what } };
+}
+/** Take an always-allow rule away: the hook guards that kind of act again. Whoever may change the hook may remove it. */
+export async function allowRemove(ctx: HooksCtx, i: { id: string }): Promise<{ removed: boolean }> {
+  ensure(ctx.db);
+  const a = actorOf(ctx);
+  const r = allowById(ctx, i.id);
+  if (!r) return { removed: false };
+  const h = hookById(ctx, r.hookId);
+  if (!h) return { removed: false };
+  mayTouch(ctx, a, h);
+  removeAllow(ctx, r.id);
+  ctx.emit("hook.changed", h.threadId ?? h.id, { hookId: h.id, scope: h.scope, change: "allow_removed", by: a.id, line: h.line, ...(h.threadId ? { threadId: h.threadId } : {}) });
+  return { removed: true };
+}
+/** Deny: the stop stands. The line is marked for everyone in the chat, and the agent is told on its next turn so it does not try the same thing again. */
+export async function deny(ctx: HooksCtx, i: { id: string; threadId: string; messageId?: string }): Promise<{ denied: boolean }> {
+  ensure(ctx.db);
+  const a = actorOf(ctx);
+  const h = hookById(ctx, i.id);
+  if (!h) raise(ctx, "validation.not_found", "That hook does not exist.");
+  if (!(await mayUseThread(ctx, i.threadId))) raise(ctx, "permission.no_grant", "That chat is not one you can use.");
+  mayDecide(ctx, a, h);
+  await resolveLine(ctx, i.threadId, i.messageId, "denied", a.id);
+  addNote(ctx, i.threadId, `The person was asked and denied it: the stop stands (${h.line}). Do not try that again unless they ask.`);
+  ctx.emit("hook.changed", i.threadId, { hookId: h.id, scope: h.scope, change: "denied", by: a.id, line: h.line, threadId: i.threadId });
+  return { denied: true };
 }
 
 /** The same rules as changing the hook, for letting it go by once: a person's own press (never an agent), and a Space hook only an admin's. */
-export async function allowOnce(ctx: HooksCtx, i: { id: string; threadId: string }): Promise<{ allowed: boolean; expiresAt: number }> {
+export async function allowOnce(ctx: HooksCtx, i: { id: string; threadId: string; messageId?: string }): Promise<{ allowed: boolean; expiresAt: number }> {
   ensure(ctx.db);
   const a = actorOf(ctx);
   if (a.kind === "agent") raise(ctx, "permission.no_grant", "Only a person lets a hook go by.");
@@ -193,6 +254,7 @@ export async function allowOnce(ctx: HooksCtx, i: { id: string; threadId: string
   if (h.scope === "space" && !a.admin) raise(ctx, "permission.no_grant", "Only an admin can let a Space hook go by. You can ask one.");
   if (!a.admin && !mayChange(h, a)) raise(ctx, "permission.no_grant", "That hook is not yours to let go by. You can ask an admin.");
   addPass(ctx, h.id, i.threadId, a.id);
+  await resolveLine(ctx, i.threadId, i.messageId, "allowed", a.id);
   ctx.emit("hook.changed", i.threadId, { hookId: h.id, scope: h.scope, change: "allowed_once", by: a.id, line: h.line, threadId: i.threadId });
   if (ctx.call) { try { await ctx.call("chat.hook_line", { threadId: i.threadId, body: `${a.admin && h.scope === "space" ? "An admin" : "Someone"} let a hook go by once: ${h.line}`, kind: "allowed", hookId: h.id, scope: h.scope, by: a.id, subject: h.line }); } catch { /* the pass stands without its line */ } }
   return { allowed: true, expiresAt: ctx.now() + PASS_MS };

@@ -48,6 +48,7 @@ import { canRelease, canTake, handInLabel, movesFor } from "./moves.ts";
 import type { Move } from "./moves.ts";
 import { useTaskPeople } from "./people.ts";
 import type { Seat } from "./people.ts";
+import { TimePop, useZones } from "../../../../../../ui/src/Time/index.tsx";
 
 type History = CapMap["tasks.history"]["out"];
 type TaskOut = CapMap["tasks.get"]["out"];
@@ -335,10 +336,10 @@ function YourAction({ task, view, me, run, menu, list, mode, setMode, nameOf }: 
   if (mode === "submit") return prompt("What you did, in one line", task.reviewer || task.approver ? "Hand in" : "Mark done", () => { if (text.trim()) void run("tasks.submit", { summary: text.trim() }).then(close); });
   if (mode === "block") return prompt("What is in the way", "Report it", () => { if (text.trim()) void run("tasks.block", { reason: text.trim() }).then(close); });
   if (mode === "fixes") return prompt("One fix per line", "Send back", () => { const fixes = fixesFromText(text); if (fixes.length) void run("tasks.review", { verdict: "send_back", fixes }).then(close); }, true);
-  if (mode === "reject") return prompt("Why not", "Send back", () => { if (text.trim()) void run("tasks.decide", { verdict: "reject", reason: text.trim() }).then(close); }, true);
+  if (mode === "reject") return prompt("Why not", "Deny", () => { if (text.trim()) void run("tasks.decide", { verdict: "reject", reason: text.trim() }).then(close); }, true);
   const giveBack = canRelease(task, me) ? <Btn label="Give it back" testID="task-release" onPress={() => void run("tasks.release", {})} /> : null;
-  if (move === "review") return <View style={st.actions}><Btn label="Allow" primary testID="task-approve" onPress={() => void run("tasks.review", { verdict: "approve" })} /><Btn label="Send back" testID="task-send-back" onPress={() => setMode("fixes")} /></View>;
-  if (move === "approve") return <View style={st.actions}><Btn label="Allow" primary testID="task-approve" onPress={() => void run("tasks.decide", { verdict: "approve" })} /><Btn label="Send back" testID="task-reject" onPress={() => setMode("reject")} /></View>;
+  if (move === "review") return <View style={st.actions}><Btn label="Looks good" primary testID="task-approve" onPress={() => void run("tasks.review", { verdict: "approve" })} /><Btn label="Send back" testID="task-send-back" onPress={() => setMode("fixes")} /></View>;
+  if (move === "approve") return <View style={st.actions}><Btn label="Allow" primary testID="task-approve" onPress={() => void run("tasks.decide", { verdict: "approve" })} /><Btn label="Deny" testID="task-reject" onPress={() => setMode("reject")} /></View>;
   // from To do or Doing the same moves: start (from To do), hand in, say what blocks it; from To do it can also go to an agent
   const handIn = <Btn label={handInLabel(task)} primary={task.state !== "todo"} testID="task-submit" onPress={() => setMode("submit")} />;
   const blocked = <Btn label="Blocked" testID="task-blocked" onPress={() => setMode("block")} />;
@@ -601,7 +602,8 @@ function Rail({ task, rt, nameOf, run, menu, seats, openTask, kidsCount, begin }
   useEffect(() => setLabelText((task.labels ?? []).join(" ")), [task.labels]);
   const notes = Object.entries(task.workingNotes).filter(([k]) => !OWN_NOTE.test(k));
   const fieldsQ = useTypeFields(rt);
-  const due = dueLabel(task.due, clock.now, clock.offsetMin);
+  const zones = useZones();
+  const due = dueLabel(task.due, clock.now, zones);
   const noteRows: ReactElement[] = [];
   for (const [k, v] of notes) if (k !== NOTES_KEY) noteRows.push(<Text key={k} style={st.quiet}>{`${k}: ${v}`}</Text>);
   const customRows: ReactElement[] = [];
@@ -615,7 +617,7 @@ function Rail({ task, rt, nameOf, run, menu, seats, openTask, kidsCount, begin }
     {(task.assigned.kind === "group" || task.assigned.kind === "role") ? <KV label="Taken by" testID="rail-taken" {...(canTake(task) ? { onPress: () => void run("tasks.take", {}) } : canRelease(task, rt.me.id) ? { onPress: () => void run("tasks.release", {}) } : {})}>{task.takenBy ? <Text numberOfLines={1} style={st.kvVal}>{task.takenBy === rt.me.id ? "You (give it back)" : nameOf(task.takenBy)}</Text> : <Text style={st.kvAdd}>{canTake(task) ? "Take it" : "Nobody yet"}</Text>}</KV> : null}
     <KV label="Reviewer" testID="rail-reviewer" onPress={(e) => slotMenu("reviewer", e)}>{person("reviewer", task.reviewer)}</KV>
     <KV label="Approver" testID="rail-approver" onPress={(e) => slotMenu("approver", e)}>{person("approver", task.approver)}</KV>
-    <KV label="Due" testID="rail-due" onPress={(e) => { const at = pointAt(e); menu.show(dueEntries(act, (when) => void run("tasks.update", { due: when })), at.x, at.y, "other", { label: "Due" }); }}>{due.text ? <Text style={[st.kvVal, due.late && { color: "var(--danger)" as string }]}>{due.text}</Text> : <Text style={st.kvAdd}>Add</Text>}</KV>
+    <KV label="Due" testID="rail-due" onPress={(e) => { const at = pointAt(e); menu.show(dueEntries(act, (when) => void run("tasks.update", { due: when })), at.x, at.y, "other", { label: "Due" }); }}>{due.text ? <TimePop at={task.due as number}><Text style={[st.kvVal, due.late && { color: "var(--danger)" as string }]}>{due.text}</Text></TimePop> : <Text style={st.kvAdd}>Add</Text>}</KV>
     <KV label="Priority" testID="rail-priority" onPress={(e) => { const at = pointAt(e); menu.show(priorityEntries(task.priority, (k) => void run("tasks.update", { priority: k })), at.x, at.y, "other", { label: "Priority" }); }}><Text style={st.kvVal}>{PRIORITIES.find((p) => p.key === (task.priority ?? "normal"))?.title}</Text></KV>
     <View style={{ height: 12 }} />
     <KV label="Project" testID="rail-project" onPress={(e) => { if (task.recordId) rt.open({ subject: { type: "record", id: task.recordId } }); else void pickProject(e); }}>{task.recordId ? <ProjectName rt={rt} recordId={task.recordId} /> : <Text style={st.kvAdd}>Add</Text>}</KV>

@@ -24,7 +24,7 @@ import type { Who } from "../trail.ts";
 import { actorOf, autoMergeKinds, bm25, ensure, mintId, num, raise, readFact, rowsOf } from "../projections.ts";
 import type { Fact, FactStatus, Layer, MemCtx, SourceKind } from "../projections.ts";
 import { heuristicExtract } from "./facts.ts";
-import { kindOf, placeOf } from "../place.ts";
+import { kindOf, placeOf, privateIntent } from "../place.ts";
 import type { Place } from "../place.ts";
 import { postNoted, writeSharedWith } from "../shared.ts";
 import { chatAudience } from "../../../lib/audience.ts";
@@ -143,7 +143,7 @@ export async function modeOf(ctx: MemCtx, agentId: string | null): Promise<Captu
   } catch { return null; }
 }
 
-interface ThreadIn extends LearnThread { kind?: string; agents?: Array<{ agentId: string; mode: string }>; members?: Array<{ kind?: string; id?: string }> }
+interface ThreadIn extends LearnThread { kind?: string; /** when each person after the first joined: what was said before is not theirs to have read */ joinedAt?: Record<string, number>; agents?: Array<{ agentId: string; mode: string }>; members?: Array<{ kind?: string; id?: string }> }
 
 /**
  * The model this account learns with: the one remembered for it, else the cheapest on its saved list. The list is read passively (probe: false): a learning pass never asks the vendor,
@@ -187,6 +187,8 @@ export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> 
   moveCursor(ctx, input.threadId, asker, Math.max(...fresh.map((m) => num(m.threadSeq))));
   const lines: Line[] = [];
   let chars = 0;
+  const cut = Math.max(0, ...Object.entries(t.joinedAt ?? {}).filter(([id]) => id !== asker).map(([, at]) => num(at)));
+  const beforeJoin = new Set<string>();
   for (const m of fresh) {
     if (sealedBody(m) || IMPORTED_PREAMBLE.test(String(m.body ?? ""))) continue;
     // a system or quiet line (a "Noted" line, a card) is the product talking, even when it is posted under a person's name
@@ -194,6 +196,11 @@ export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> 
     const mine = m.author.kind === "person" && m.author.id === asker;
     // other people's lines never reach the pass: what they said is not this person's to keep
     if (!mine && m.author.kind !== "agent") continue;
+    // a line said before someone now in the place joined is not theirs to read. An agent's line from then (a "Noted" line, an answer) is not handed to the model at all, so nothing can be made of it
+    // in the place's memory; a line the asker said then, still waiting for its pass, may be kept, but only in their own layer
+    const early = num((m as { createdAt?: number }).createdAt) < cut;
+    if (early && !mine) continue;
+    if (early && mine) beforeJoin.add(m.messageId);
     if (chars > MAX_PROMPT_LINES_CHARS) break;
     chars += Math.min(m.body.length, MAX_LINE_CHARS);
     lines.push({ n: lines.length + 1, mine, m });
@@ -212,7 +219,7 @@ export async function learnTurn(ctx: MemCtx, input: LearnIn): Promise<LearnOut> 
   const sourceKind: SourceKind = t.kind === "channel" ? "channel" : "chat";
   const known = liveFacts(ctx, target);
   const keepLessons = await lessonsOn(ctx);
-  const w: Writer = { ctx, threadId: input.threadId, target, audience, who, sourceKind, statusFor, low: (kind) => kinds.includes(kind), known, mode, lessons: keepLessons, shared, agentId, ...(place && heard ? { place, heard } : {}) };
+  const w: Writer = { ctx, threadId: input.threadId, target, audience, who, sourceKind, statusFor, low: (kind) => kinds.includes(kind), known, mode, lessons: keepLessons, shared, agentId, said: new Map(lines.map((l) => [l.m.messageId, String(l.m.body ?? "")])), beforeJoin, ...(place && heard ? { place, heard } : {}) };
   const tally: Tally = { proposed: 0, merged: 0, updated: 0, closed: 0 };
 
   const tz = await timezoneOf(ctx);
@@ -256,6 +263,9 @@ async function modelPass(
     out = (await ctx.call("engine.complete", { accountRef: acct.ref, model, system, prompt })) as typeof out;
   } catch (e) {
     settle(ctx, p.asker, p.day, held, null);
+    // the person's computer is off or not on a private link: nothing is wrong with the account, so the pass is only skipped (the rules run) and no pause is put on it
+    const code = String((e as { code?: unknown })?.code ?? (e as { error?: { code?: unknown } })?.error?.code ?? "");
+    if (code === "engine.device_off" || code === "engine.link_insecure" || code === "internal.unavailable") { ctx.log.warn("memory learning skipped: the person's computer did not take the pass", { code }); return false; }
     accountFailed(ctx, acct.ref, ctx.now(), isLimitError(e));
     ctx.log.warn("memory learning paused for an account", { limit: isLimitError(e), reason: e instanceof Error ? e.name : "error" });
     return false;
@@ -304,12 +314,15 @@ export function relatedOf(known: Fact[], said: CaptureMessage[]): Fact[] {
 
 interface Writer {
   ctx: MemCtx; threadId: string; target: LearnTarget; audience: Array<[string, string]>; who: Who; sourceKind: SourceKind; statusFor(kind: string): FactStatus; low(kind: string): boolean;
-  known: Fact[]; mode: CaptureMode | null; lessons: boolean; shared: boolean; agentId: string | null; place?: Place; heard?: Audience;
+  known: Fact[]; mode: CaptureMode | null; lessons: boolean; shared: boolean; agentId: string | null; place?: Place; heard?: Audience; /** what the person wrote on a line, by message id: a line they marked for themselves only stays theirs */ said?: Map<string, string>; /** their lines said before another person in the place joined: kept in their own layer only */ beforeJoin?: Set<string>;
 }
 
 const lineLink = (threadId: string, messageId: string): string => `/chats/${threadId}#${messageId}`;
 
-function write(w: Writer, f: { text: string; kind: string; messageId: string; key: string; replaces?: string; why?: string }, status: FactStatus): Fact {
+function write(w0: Writer, f: { text: string; kind: string; messageId: string; key: string; replaces?: string; why?: string }, status: FactStatus): Fact {
+  // a line the person marked for themselves only is theirs, in their own layer, in any kind of place
+  const priv = privateIntent(w0.said?.get(f.messageId) ?? "") || w0.beforeJoin?.has(f.messageId) === true;
+  const w: Writer = priv ? { ...w0, target: { layer: "person", ownerRef: actorOf(w0.ctx), agentId: w0.target.agentId, projectId: null }, place: undefined as never, heard: undefined as never } : w0;
   const { ctx, target } = w;
   let note: { replaced?: Fact; disputedWith?: Fact; questionId?: string } = {};
   const base = {

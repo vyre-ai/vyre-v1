@@ -117,7 +117,9 @@ export function judge(r: Request): Verdict | { ok: true; kind: "container"; id: 
   if ((m === "GET" || m === "HEAD") && (p === "/_ping" || p === "/version")) return { ok: true, kind: "plain" };
   if (m === "POST" && p === "/build") return { ok: true, kind: "build" };
   if (m === "POST" && p === "/images/create") {
-    const ref = `${r.query.get("fromImage") ?? ""}:${r.query.get("tag") ?? "latest"}`;
+    const from = r.query.get("fromImage") ?? "";
+    // a digest pull names the whole reference in fromImage and sets no tag; any other pull is repo and tag
+    const ref = from.includes("@") ? (r.query.has("tag") ? `${from}:${r.query.get("tag")}` : from) : `${from}:${r.query.get("tag") ?? "latest"}`;
     for (const k of r.query.keys()) if (k !== "fromImage" && k !== "tag") return no(`a pull may not set ${k}`);
     return Object.values(ADDON_IMAGES).includes(ref) || isComputerImage(ref) ? { ok: true, kind: "plain" } : no(`only ${Object.values(ADDON_IMAGES).join(" and ")} and the agent computer image may be fetched`);
   }

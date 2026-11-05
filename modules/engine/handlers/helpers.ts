@@ -17,6 +17,13 @@ export interface HelperStatus {
   threadId: string; title: string; agentId: string; state: HelperState; step?: string; found?: string; startedAt: number; endedAt?: number; elapsedMs: number; tokensIn: number; tokensOut: number; costMicros: number;
 }
 
+export type WaitingMsg = { author?: { kind?: string }; createdAt?: number; blocks?: Array<{ data?: { restart?: boolean } }> };
+/** What the helper will do next, when its last line is a person's (or a restart) written after its last turn ended: "Starting again" or "Reading your message"; nothing when it has no line waiting. */
+export function waitingLine(tail: WaitingMsg | undefined, lastEndedAt: number): string | undefined {
+  if (!tail || tail.author?.kind !== "person" || (tail.createdAt ?? 0) < lastEndedAt) return undefined;
+  return tail.blocks?.some((b) => b.data?.restart === true) ? "Starting again" : "Reading your message";
+}
+
 type HoldMsg = { blocks?: Array<{ type?: string; data?: { state?: string; taskId?: string } }> };
 /** The held request a helper's chat ends on: the newest turn status that is waiting with a task. */
 export function holdOf(messages: readonly HoldMsg[]): string | undefined {
@@ -33,7 +40,16 @@ export async function helpersStatus(ctx: EngineCtx, input: { threadId: string })
     const live = (await liveTurns(ctx, { threadId: h.threadId }).catch(() => ({ turns: [] as Array<{ step?: string }> }))).turns;
     // the helper's own turns say how it stands: the start line's block is not rewritten when it ends (the report is a second message)
     const lastState = last ? String(last["state"]) : "";
-    const state: HelperState = lastState === "waiting" ? "needs_you" : lastState === "completed" ? "done" : lastState === "failed" ? "failed" : lastState === "cancelled" ? "stopped" : h.status === "failed" ? "failed" : "working";
+    let state: HelperState = lastState === "waiting" ? "needs_you" : lastState === "completed" ? "done" : lastState === "failed" ? "failed" : lastState === "cancelled" ? "stopped" : h.status === "failed" ? "failed" : "working";
+    // a person's line or a restart waits for the helper's next turn: it is working on that, not stopped or done
+    let starting: string | undefined;
+    if ((state === "stopped" || state === "done" || state === "failed") && last) {
+      try {
+        const ms = ((await ctx.call("chat.messages.list", { threadId: h.threadId })) as { messages: WaitingMsg[] }).messages;
+        const waits = waitingLine(ms[ms.length - 1], num(last["ended_at"] ?? 0));
+        if (waits) { state = "working"; starting = waits; }
+      } catch { /* the state stays as the turns say */ }
+    }
     const now = ctx.now();
     const startedAt = h.startedAt;
     const endedAt = state === "working" || state === "needs_you" ? undefined : last && last["ended_at"] !== null && last["ended_at"] !== undefined ? num(last["ended_at"]) : undefined;
@@ -45,13 +61,23 @@ export async function helpersStatus(ctx: EngineCtx, input: { threadId: string })
       } catch { /* no words to quote */ }
     }
     let holdTaskId: string | undefined;
+    let needsWhat: string | undefined;
     if (state === "needs_you") {
       try {
         const ms = ((await ctx.call("chat.messages.list", { threadId: h.threadId })) as { messages: HoldMsg[] }).messages;
         holdTaskId = holdOf(ms);
+        // what it waits for, in the held request's own words: "Needs your OK to open pine-works.example"
+        if (holdTaskId) {
+          try {
+            const t = ((await ctx.call("tasks.get", { taskId: holdTaskId })) as { task?: { title?: string } }).task?.title ?? "";
+            const what = t.replace(/^.*?\bwants to\s+/i, "").trim();
+            if (what !== "" && what !== t) needsWhat = `Needs your OK to ${oneLine(what)}`;
+            else if (t !== "") needsWhat = `Needs your OK: ${oneLine(t)}`;
+          } catch { /* the line stays "Needs you" */ }
+        }
       } catch { /* the card then shows in the helper's own chat */ }
     }
-    const step = state === "working" ? live.find((l) => l.step)?.step : undefined;
+    const step = state === "working" ? (live.find((l) => l.step)?.step || starting) : state === "needs_you" ? needsWhat : undefined;
     const pick = h.pick ?? {};
     const used = last ? String(last["model"] ?? "") : "";
     const picked = typeof pick["model"] === "string" ? (pick["model"] as string) : undefined;
@@ -84,6 +110,6 @@ export async function helpersChangeModel(ctx: EngineCtx, input: { threadId: stri
   if (!before) throw new Error("That helper does not belong to this chat.");
   // the old turn ends first, so the new one is the only one running; a stopped turn reports nothing to the chat above
   await stop(ctx, { threadId: input.helperId }).catch(() => ({ stopped: 0 }));
-  const out = (await ctx.call("chat.helper.restart", { threadId: input.helperId, ...(input.account !== undefined ? { account: input.account } : {}), ...(input.model !== undefined ? { model: input.model } : {}) })) as { model: string; account: string; fellBackFrom?: string };
+  const out = (await ctx.call("chat.helper.restart", { threadId: input.threadId, helperId: input.helperId, ...(input.account !== undefined ? { account: input.account } : {}), ...(input.model !== undefined ? { model: input.model } : {}) })) as { model: string; account: string; fellBackFrom?: string };
   return { restarted: true, model: out.model, account: out.account, ...(out.fellBackFrom ? { fellBackFrom: out.fellBackFrom } : {}), spentMicros: before?.costMicros ?? 0 };
 }

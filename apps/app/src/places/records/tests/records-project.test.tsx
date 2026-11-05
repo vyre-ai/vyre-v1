@@ -168,3 +168,12 @@ test("a missing project says so, and no copy on these screens uses an em dash", 
   const all = [within(s, <OverviewTab o={o} now={SAMPLE_NOW} />), within(s, <ChatTab o={o} channelName="#x" now={SAMPLE_NOW} />), within(s, <FilesTab o={o} />)].join("\n");
   assert.ok(!has(all, String.fromCharCode(0x2014)));
 });
+
+test("project dates read in the Space's zone: a task due at 10 PM Pacific on the 5th is due the 5th there, not the 6th", () => {
+  const due = Date.parse("2026-11-06T06:00:00Z");   // Thu 5 Nov 10:00 PM Pacific, already Fri in UTC
+  const now = Date.parse("2026-11-05T15:00:00Z");   // Thu 7:00 AM Pacific
+  assert.equal(dueWords(due, now, "America/Los_Angeles"), "Due today");
+  assert.equal(dueWords(due, now), "Due in 1 day", "without a zone it is still the UTC day");
+  assert.equal(dateWords(due, "America/Los_Angeles"), "Nov 5");
+  assert.equal(dateWords(due), "Nov 6");
+});

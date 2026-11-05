@@ -392,3 +392,17 @@ test("stop idle sessions: the Space server's is Space-wide; on a member's own co
   assert.equal((await w.call("machines.get", { machineId: MAYA_AIR }, admin)).idleSessions, 0, "an admin is told nothing of a member's own sessions");
   w.bind(null);
 });
+
+test("a server the Space approved that has not reported yet is listed offline and opens, so an admin can remove it; a member does not see it", async () => {
+  const w = world({ servers: [{ serverId: "srv_quiet1", name: "Office Linux box" }, { serverId: "srv_asking1", name: "Stranger", enrollment: "pending" }] });
+  w.feed("space", "space", "Northwind server", report({ cpu: 30, mem: 55, cores: 8, can: ["docker"], turns: 0 }));
+  const list = await w.call("machines.list", {}, admin);
+  const quiet = list.machines.find((m: any) => m.machineId === "srv_quiet1");
+  assert.ok(quiet, "listed");
+  assert.equal(quiet.online, false);
+  assert.equal(list.machines.some((m: any) => m.machineId === "srv_asking1"), false, "a computer still asking to join is not a machine yet");
+  const one = await w.call("machines.get", { machineId: "srv_quiet1" }, admin);
+  assert.equal(one.machine.name, "Office Linux box");
+  const mine = await w.call("machines.list", {}, maya);
+  assert.equal(mine.machines.some((m: any) => m.machineId === "srv_quiet1"), false);
+});

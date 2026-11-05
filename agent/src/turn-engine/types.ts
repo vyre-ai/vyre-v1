@@ -76,6 +76,8 @@ export interface IncomingMessage {
   poke?: { agentId: string; by: string } | undefined;
   /** Minutes since midnight where the speaker is, for agents set to answer only inside hours. */
   minutes?: number | undefined;
+  /** Keep the message in the chat's record but wake nobody: a helper's result while the others still work (the lead answers once, after the last one). */
+  hold?: boolean | undefined;
 }
 
 export interface StoredMessage {
@@ -301,6 +303,8 @@ export interface SessionSpec {
    * no skills, no saved session. A CLI engine runs its leanest command (CommandOptions.lean); an API driver sends the role alone. Implies tools "none".
    */
   lean?: boolean;
+  /** A one-shot for a person whose chats run on their own computer: its CLI engine process starts there, through the computer's link, never on the Space's server (modules/engine/node-turns.ts). */
+  onDevice?: boolean;
 }
 export type OpenSession = (spec: SessionSpec) => Promise<EngineSession>;
 

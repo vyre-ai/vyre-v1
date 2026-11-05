@@ -50,6 +50,17 @@ export function inSubnets(address: string | undefined, subnets: readonly string[
   return subnets.some((c) => { const [base, bits] = c.split("/"); const b = n(base ?? ""); const k = Number(bits); if (b === null || !(k >= 0 && k <= 32)) return false; const mask = k === 0 ? 0 : (~0 << (32 - k)) >>> 0; return ((v & mask) >>> 0) === ((b & mask) >>> 0); });
 }
 
+/**
+ * Did this connection come FROM a container on one of these networks (a site, an agent computer), to this daemon's address on that network? Both ends sit in the subnet, and the client is not the network's
+ * gateway (the first address, the machine's own side of the bridge). Docker publishes a port by pointing its NAT at one of the daemon's addresses, and after the daemon joins a computer's or a site's network
+ * that can be the address on THAT network: such a connection arrives with the daemon's local address in the subnet but comes from the host (the gateway address), not from a container, and is a person's.
+ */
+export function clientOnNetwork(local: string | undefined, remote: string | undefined, subnets: readonly string[]): boolean {
+  if (!inSubnets(local, subnets) || !inSubnets(remote, subnets)) return false;
+  const ip = (remote ?? "").replace(/^::ffff:/, "");
+  return !subnets.some((c) => { const [base, bits] = c.split("/"); const k = Number(bits); if (!(k >= 0 && k <= 30)) return false; const b = base!.split(".").map(Number); if (b.length !== 4 || b.some((x) => !Number.isInteger(x))) return false; const n = ((b[0]! << 24) | (b[1]! << 16) | (b[2]! << 8) | b[3]!) >>> 0; const mask = k === 0 ? 0 : (0xffffffff << (32 - k)) >>> 0; const gw = ((n & mask) + 1) >>> 0; return `${gw >>> 24}.${(gw >>> 16) & 255}.${(gw >>> 8) & 255}.${gw & 255}` === ip; });
+}
+
 export function cookieOf(header: string | undefined, name: string): string | null {
   for (const part of (header ?? "").split(";")) {
     const [k, ...v] = part.trim().split("=");

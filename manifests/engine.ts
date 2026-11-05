@@ -504,11 +504,11 @@ export default defineManifest({
     read('engine.crew.status', 'Everything that works for a chat, in one read for the Island, the header chip and the Crew pane: each helper and teammate with its state, the step it is on, model, account, branch, files changed, tokens and cost, and the totals for the crew. Only what is known; nothing is estimated', {
       in: { ...threadT }, out: {
         members: t.arr(t.obj({
-          kind: t.enm('helper', 'teammate'), id: id.thread, parentThreadId: id.thread, title: t.str(), name: t.opt(t.str()), agentId: id.agent, state: t.enm('working', 'done', 'needs_you', 'failed', 'stopped'), holdTaskId: t.opt(id.task), step: t.opt(t.str()), found: t.opt(t.str()),
+          kind: t.enm('helper', 'teammate'), id: id.thread, jobId: t.opt(t.str()), parentThreadId: id.thread, title: t.str(), name: t.opt(t.str()), agentId: id.agent, state: t.enm('working', 'done', 'needs_you', 'failed', 'stopped'), holdTaskId: t.opt(id.task), step: t.opt(t.str()), found: t.opt(t.str()),
           startedAt: t.ts(), endedAt: t.opt(t.ts()), elapsedMs: t.int({ minimum: 0 }), model: t.opt(t.str()), provider: t.opt(t.str()), accountLabel: t.opt(t.str()), why: t.opt(t.str()), fellBackFrom: t.opt(t.str()),
           branch: t.opt(t.str()), files: t.opt(t.arr(t.obj({ path: t.str(), added: t.int(), deleted: t.int() }))), added: t.opt(t.int()), deleted: t.opt(t.int()), merged: t.opt(t.bool()),
           tokensIn: t.int({ minimum: 0 }), tokensOut: t.int({ minimum: 0 }), costMicros: t.int({ minimum: 0 }),
-          tests: t.opt(t.obj({ state: t.enm('running', 'passing', 'failing'), passed: t.opt(t.int({ minimum: 0 })), failed: t.opt(t.int({ minimum: 0 })) })),
+          tests: t.opt(t.obj({ state: t.enm('running', 'passing', 'failing'), passed: t.opt(t.int({ minimum: 0 })), failed: t.opt(t.int({ minimum: 0 })), failing: t.opt(t.str({ maxLength: 200 })) })),
         })),
         totals: t.obj({ members: t.int(), working: t.int(), done: t.int(), needsYou: t.int(), failed: t.int(), stopped: t.int(), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), filesChanged: t.int(), added: t.int(), deleted: t.int(), elapsedMs: t.int() }),
       }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',
@@ -526,6 +526,9 @@ export default defineManifest({
     }),
     write('engine.helpers.stop_all', 'Stop every helper still working under a chat; what they did so far is kept', {
       in: { ...threadT }, out: { stopped: t.int({ minimum: 0 }) }, on: ['thread', '/threadId'], level: 'use', idem: 'natural', tool: 'chats', emits: ['turn.cancelled'],
+    }),
+    read('engine.running_here', 'System: the turns running now with the chat each is in and who asked, for the desktop update screen to name the reply it waits for and to end it (host/src/daemon, GET /local/daemon/busy)', {
+      in: {}, out: { turns: t.arr(t.obj({ threadId: id.thread, agentId: id.agent, asker: t.str(), turnId: t.opt(id.turn) })) }, perm: 'console.access', tool: 'chats',
     }),
     read('engine.health', 'Engine health: queue age, lease holders, provider reachability', {
       out: { state: t.enm('healthy', 'degraded', 'down'), detail: t.opt(t.str()), latencyMs: t.opt(t.int()), oldestQueuedMs: t.int() },

@@ -112,7 +112,7 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, setup:
   const showComputer = hasComputer || (setup && !noComputers);
   const [own, setOwn] = useState<TabKey>(initialTab ?? DEFAULT_TAB);
   const wanted = controlled ?? own;
-  const tab: TabKey = wanted === "computer" && !showComputer ? "about" : wanted === "terminal" && !hasComputer ? "about" : wanted;
+  const tab: TabKey = wanted === "computer" && !showComputer ? "about" : wanted;
   // Open on an install card: the Skills tab, with that skill lit
   const [lit, setLit] = useState<string | undefined>(undefined);
   // the Skills tab appears once the person has skills (their own, an agent's they own, or shared with them)
@@ -176,7 +176,6 @@ function PaneView({ open, onToggle, tab: controlled, initialTab, hookSel, setup:
       {tab === "memory" ? (data.memory ? <KnowsTab deps={deps} memory={data.memory} spaceName={data.space.name} {...(window ? { window } : {})} /> : <MemoryTab deps={deps} spaceName={data.space.name} {...(window ? { window } : {})} />) : null}
       {tab === "skills" ? <SkillsTab deps={deps} {...(data.nameOf ? { nameOf: data.nameOf } : {})} {...(lit ? { highlight: lit } : {})} {...(data.renderShare ? { renderShare: data.renderShare } : {})} /> : null}
       {tab === "routines" ? <RoutinesTab deps={deps} {...(window ? { window } : {})} {...(openRoutine ? { initial: { routineId: openRoutine } } : {})} /> : null}
-      {tab === "skills" ? <SkillsTab deps={deps} {...(data.nameOf ? { nameOf: data.nameOf } : {})} {...(lit ? { highlight: lit } : {})} {...(data.renderShare ? { renderShare: data.renderShare } : {})} /> : null}
     </View>
     {notice ? <Notice text={notice.text} onClose={() => setNotice(null)} {...(notice.undo ? { onUndo: () => { const u = notice.undo; setNotice(null); void u?.(); } } : {})} /> : null}
     {menu.element}

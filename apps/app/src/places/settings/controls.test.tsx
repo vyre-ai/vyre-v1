@@ -1,7 +1,7 @@
 // Every control on the pages, pressed in a mounted tree (the test renderer, as the Console tests do) with the capability it calls asserted. The server is the sample Space, which records each call.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { find, installDom, mount, press, textOf } from "../../../../../ui/src/testing/dom.ts";
+import { find, flush, installDom, mount, press, textOf } from "../../../../../ui/src/testing/dom.ts";
 import { SettingsDataProvider } from "./data.tsx";
 import { SettingsPlace } from "./SettingsPlace.tsx";
 import { createSampleSettings, harbor, northwind } from "./sample.ts";
@@ -102,5 +102,45 @@ test("Appearance: Make a skin saves one skin into the look; Paste a link finds a
     await press(find(root, "make-save"));
     const v = (calls("settings.set").at(-1)!.input as { value: { mine: { accent: string }[] } }).value;
     assert.equal(v.mine.length, 1); assert.equal(v.mine[0]!.accent, "#E4572E");
+  } finally { restore(); }
+});
+
+test("Profile: Your time zone is a city picker; choosing a city saves profile.timezone, and Use this computer's time zone saves this computer's", async () => {
+  const { root, calls, restore } = await open("profile");
+  try {
+    const picker = find(root, "ctl-profile.timezone");
+    assert.ok(picker, "the row has the zone picker");
+    assert.match(textOf(root), /Your time zone/);
+    await press(picker);
+    await flush();
+    await press(find(root, "row-zone-Asia/Karachi"));
+    await flush();
+    const sets = calls("settings.set").filter((c) => (c.input as { key: string }).key === "profile.timezone");
+    assert.deepEqual(sets.at(-1)!.input, { key: "profile.timezone", value: "Asia/Karachi" });
+    await press(find(root, "ctl-profile.timezone"));
+    await flush();
+    await press(find(root, "row-zone-extra"));
+    await flush();
+    const device = new Intl.DateTimeFormat().resolvedOptions().timeZone;
+    assert.deepEqual(calls("settings.set").filter((c) => (c.input as { key: string }).key === "profile.timezone").at(-1)!.input, { key: "profile.timezone", value: device });
+  } finally { restore(); }
+});
+
+test("Profile: the Space's time zone is a read-only row with where to change it", async () => {
+  const { root, restore } = await open("profile");
+  try {
+    assert.match(textOf(root), /Space time zone/);
+    assert.match(textOf(root), /shared places show times in .*\. Your time follows beside them\./);
+    assert.match(textOf(root), /Matches this computer\.|This computer is in /, "the line says what this computer is");
+    assert.equal(find(root, "reset-profile.timezone"), null, "a time zone has no Reset");
+    assert.ok(find(root, "row-space.timezone"));
+  } finally { restore(); }
+});
+
+test("Privacy and security: the GitHub line opens the GitHub page", async () => {
+  const { root, restore } = await open("signin");
+  try {
+    await press(find(root, "gh-open"));
+    assert.ok(find(root, "page-github"), "the GitHub page is open");
   } finally { restore(); }
 });

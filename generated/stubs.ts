@@ -403,6 +403,7 @@ export function stubs(ctx: CallCtx) {
       composer: {
         suggest: call("chat.composer.suggest"),
       },
+      crew_line: call("chat.crew_line"),
       delete_message: call("chat.delete_message"),
       edit: call("chat.edit"),
       flow_card: call("chat.flow_card"),
@@ -424,6 +425,7 @@ export function stubs(ctx: CallCtx) {
         search: call("chat.history.search"),
       },
       hook_line: call("chat.hook_line"),
+      hook_resolve: call("chat.hook_resolve"),
       make_task: call("chat.make_task"),
       message: {
         get: call("chat.message.get"),
@@ -891,6 +893,7 @@ export function stubs(ctx: CallCtx) {
       route: {
         preview: call("engine.route.preview"),
       },
+      running_here: call("engine.running_here"),
       runtime: {
         opt_in: call("engine.runtime.opt_in"),
       },
@@ -1384,8 +1387,11 @@ export function stubs(ctx: CallCtx) {
       write_digest: call("home.write_digest"),
     },
     hooks: {
+      allow_always: call("hooks.allow_always"),
       allow_once: call("hooks.allow_once"),
+      allow_remove: call("hooks.allow_remove"),
       ask_admin: call("hooks.ask_admin"),
+      deny: call("hooks.deny"),
       fire: call("hooks.fire"),
       list: call("hooks.list"),
       pause: call("hooks.pause"),
@@ -2185,6 +2191,7 @@ export function stubs(ctx: CallCtx) {
         apply_template: call("projects.overview_doc.apply_template"),
         get: call("projects.overview_doc.get"),
         history: call("projects.overview_doc.history"),
+        restore: call("projects.overview_doc.restore"),
         save: call("projects.overview_doc.save"),
         templates: {
           list: call("projects.overview_doc.templates.list"),
@@ -2597,6 +2604,9 @@ export function stubs(ctx: CallCtx) {
       },
       switch_address: call("spaces.switch_address"),
       switcher: call("spaces.switcher"),
+      timezone: {
+        set: call("spaces.timezone.set"),
+      },
       transfer_ownership: call("spaces.transfer_ownership"),
       update: call("spaces.update"),
     },

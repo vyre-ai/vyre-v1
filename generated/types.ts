@@ -6739,6 +6739,13 @@ export type ChatComposerSuggestOut = {
       detail?: string;
     }>;
 };
+export type ChatCrewLineIn = {
+  threadId: string;
+  jobId: string;
+};
+export type ChatCrewLineOut = {
+  messageId: string;
+};
 export type ChatDeleteMessageIn = {
   messageId: string;
   threadId: string;
@@ -6955,10 +6962,13 @@ export type ChatHelperNotesOut = {
       kind?: string;
       state?: string;
       seenAt?: number;
+      restart?: boolean;
+      model?: string;
     }>;
 };
 export type ChatHelperRestartIn = {
   threadId: string;
+  helperId: string;
   model?: string;
   account?: string;
   provider?: string;
@@ -7154,6 +7164,16 @@ export type ChatHookLineIn = {
 };
 export type ChatHookLineOut = {
   messageId: string;
+};
+export type ChatHookResolveIn = {
+  threadId: string;
+  messageId: string;
+  resolution: "allowed" | "always" | "denied";
+  by: string;
+  what?: string;
+};
+export type ChatHookResolveOut = {
+  ok: boolean;
 };
 export type ChatMakeTaskIn = {
   threadId: string;
@@ -7643,6 +7663,7 @@ export type ChatRecentOut = {
       lastAt: number;
       preview?: string;
       people?: Array<string>;
+      goalId?: string;
     }>;
   today: Array<{
       threadId: string;
@@ -7656,6 +7677,7 @@ export type ChatRecentOut = {
       lastAt: number;
       preview?: string;
       people?: Array<string>;
+      goalId?: string;
     }>;
   yesterday: Array<{
       threadId: string;
@@ -7669,6 +7691,7 @@ export type ChatRecentOut = {
       lastAt: number;
       preview?: string;
       people?: Array<string>;
+      goalId?: string;
     }>;
   earlier: Array<{
       threadId: string;
@@ -7682,6 +7705,7 @@ export type ChatRecentOut = {
       lastAt: number;
       preview?: string;
       people?: Array<string>;
+      goalId?: string;
     }>;
   archived: Array<{
       threadId: string;
@@ -7695,6 +7719,7 @@ export type ChatRecentOut = {
       lastAt: number;
       preview?: string;
       people?: Array<string>;
+      goalId?: string;
     }>;
   nextUnread: string | null;
   threadsUnread?: number;
@@ -11302,6 +11327,7 @@ export type EngineCrewStatusOut = {
   members: Array<{
       kind: "helper" | "teammate";
       id: string;
+      jobId?: string;
       parentThreadId: string;
       title: string;
       name?: string;
@@ -11334,6 +11360,7 @@ export type EngineCrewStatusOut = {
         state: "running" | "passing" | "failing";
         passed?: number;
         failed?: number;
+        failing?: string;
       };
     }>;
   totals: {
@@ -12082,6 +12109,15 @@ export type EngineRoutePreviewIn = {
 export type EngineRoutePreviewOut = {
   responders: Array<string>;
   line: string;
+};
+export type EngineRunningHereIn = Record<string, unknown>;
+export type EngineRunningHereOut = {
+  turns: Array<{
+      threadId: string;
+      agentId: string;
+      asker: string;
+      turnId?: string;
+    }>;
 };
 export type EngineRuntimeOptInIn = {
   enabled: boolean;
@@ -19218,13 +19254,31 @@ export type HomeWriteDigestIn = {
 export type HomeWriteDigestOut = {
   digestId: string;
 };
+export type HooksAllowAlwaysIn = {
+  id: string;
+  threadId: string;
+  messageId?: string;
+};
+export type HooksAllowAlwaysOut = {
+  allowed: {
+    id: string;
+    what: string;
+  };
+};
 export type HooksAllowOnceIn = {
   id: string;
   threadId: string;
+  messageId?: string;
 };
 export type HooksAllowOnceOut = {
   allowed: boolean;
   expiresAt: number;
+};
+export type HooksAllowRemoveIn = {
+  id: string;
+};
+export type HooksAllowRemoveOut = {
+  removed: boolean;
 };
 export type HooksAskAdminIn = {
   id: string;
@@ -19233,6 +19287,14 @@ export type HooksAskAdminIn = {
 };
 export type HooksAskAdminOut = {
   asked: boolean;
+};
+export type HooksDenyIn = {
+  id: string;
+  threadId: string;
+  messageId?: string;
+};
+export type HooksDenyOut = {
+  denied: boolean;
 };
 export type HooksFireIn = {
   event: "session.start" | "prompt.submit" | "tool.before" | "tool.after" | "outward.before" | "turn.end" | "helper.start" | "helper.end";
@@ -19289,6 +19351,12 @@ export type HooksListOut = {
       updatedAt: number;
       spec: unknown;
       mine: boolean;
+      allowed: Array<{
+          id: string;
+          what: string;
+          by: string;
+          createdAt: number;
+        }>;
       canChange: boolean;
       endedAt?: number;
     }>;
@@ -19318,6 +19386,12 @@ export type HooksPauseOut = {
     updatedAt: number;
     spec: unknown;
     mine: boolean;
+    allowed: Array<{
+        id: string;
+        what: string;
+        by: string;
+        createdAt: number;
+      }>;
     canChange: boolean;
     endedAt?: number;
   };
@@ -19350,7 +19424,7 @@ export type HooksRunsLatestOut = {
       threadId?: string;
       agentId?: string;
       tool?: string;
-      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once";
+      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once" | "allowed_always";
       detail?: string;
       ms: number;
       at: number;
@@ -19372,7 +19446,7 @@ export type HooksRunsListOut = {
       threadId?: string;
       agentId?: string;
       tool?: string;
-      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once";
+      outcome: "ok" | "blocked" | "note" | "error" | "timeout" | "skipped" | "allowed_once" | "allowed_always";
       detail?: string;
       ms: number;
       at: number;
@@ -19415,6 +19489,12 @@ export type HooksSetOut = {
     updatedAt: number;
     spec: unknown;
     mine: boolean;
+    allowed: Array<{
+        id: string;
+        what: string;
+        by: string;
+        createdAt: number;
+      }>;
     canChange: boolean;
     endedAt?: number;
   };
@@ -20751,6 +20831,7 @@ export type InstallCheckUpdateOut = {
       to: string;
       fromVersion?: string;
       toVersion?: string;
+      older?: boolean;
       newAccess?: Array<string>;
       added: Array<string>;
       removed: Array<string>;
@@ -20816,6 +20897,7 @@ export type InstallFromLinkOut = {
       to: string;
       fromVersion?: string;
       toVersion?: string;
+      older?: boolean;
       newAccess?: Array<string>;
       added: Array<string>;
       removed: Array<string>;
@@ -20881,6 +20963,7 @@ export type InstallGetOut = {
       to: string;
       fromVersion?: string;
       toVersion?: string;
+      older?: boolean;
       newAccess?: Array<string>;
       added: Array<string>;
       removed: Array<string>;
@@ -30178,11 +30261,18 @@ export type ProjectsLiveBlockQueryOut = {
       state?: string;
       detail?: string;
       url?: string;
+      who?: string;
+      due?: number;
     }>;
   hidden: number;
   total: number;
   value?: number;
   label?: string;
+  unit?: string;
+  parts?: Array<{
+      unit?: string;
+      value: number;
+    }>;
 };
 export type ProjectsMembersListIn = {
   projectId: string;
@@ -30396,6 +30486,28 @@ export type ProjectsOverviewDocHistoryOut = {
       summary: string;
       undoOf?: number;
       at: number;
+    }>;
+};
+export type ProjectsOverviewDocRestoreIn = {
+  projectId: string;
+  rev: number;
+  baseRev?: number;
+};
+export type ProjectsOverviewDocRestoreOut = {
+  rev: number;
+  restored: number;
+  blocks: Array<{
+      id: string;
+      kind: "text" | "heading" | "live";
+      text?: string;
+      level?: number;
+      live?: {
+        type: "tasks" | "milestones" | "links" | "records" | "metric" | "ci" | "goal" | "people" | "status";
+        spec: Record<string, unknown>;
+        view?: "list" | "table" | "count" | "cards";
+      };
+      by?: string;
+      at?: number;
     }>;
 };
 export type ProjectsOverviewDocSaveIn = {
@@ -35053,6 +35165,7 @@ export type SkillsHistoryOut = {
       by: string;
       authorKind: "person" | "agent";
       summary: string;
+      version?: string;
       undoOf?: number;
       at: number;
     }>;
@@ -36034,6 +36147,7 @@ export type SpacesGetOut = {
     hostedOn?: string;
     defaults: Record<string, unknown>;
     createdAt: number;
+    timezone?: string;
     deletionAt?: number;
   };
 };
@@ -36122,6 +36236,7 @@ export type SpacesSwitchAddressOut = {
     hostedOn?: string;
     defaults: Record<string, unknown>;
     createdAt: number;
+    timezone?: string;
     deletionAt?: number;
   };
 };
@@ -36133,6 +36248,29 @@ export type SpacesSwitcherOut = {
   role: string;
   needsYou: number;
   unread: number;
+};
+export type SpacesTimezoneSetIn = {
+  timezone: string;
+};
+export type SpacesTimezoneSetOut = {
+  space: {
+    id: string;
+    name: string;
+    legalName?: string;
+    logoFileId?: string;
+    kind: "personal" | "team";
+    owner: string;
+    fingerprint: string;
+    address: {
+      mode: "relay" | "own_domain" | "device";
+      host?: string;
+    };
+    hostedOn?: string;
+    defaults: Record<string, unknown>;
+    createdAt: number;
+    timezone?: string;
+    deletionAt?: number;
+  };
 };
 export type SpacesTransferOwnershipIn = {
   to: string;
@@ -36162,6 +36300,7 @@ export type SpacesUpdateOut = {
     hostedOn?: string;
     defaults: Record<string, unknown>;
     createdAt: number;
+    timezone?: string;
     deletionAt?: number;
   };
 };
@@ -44628,6 +44767,7 @@ export interface CapMap {
   "chat.asks_of": { in: ChatAsksOfIn; out: ChatAsksOfOut };
   "chat.catch_up": { in: ChatCatchUpIn; out: ChatCatchUpOut };
   "chat.composer.suggest": { in: ChatComposerSuggestIn; out: ChatComposerSuggestOut };
+  "chat.crew_line": { in: ChatCrewLineIn; out: ChatCrewLineOut };
   "chat.delete_message": { in: ChatDeleteMessageIn; out: ChatDeleteMessageOut };
   "chat.edit": { in: ChatEditIn; out: ChatEditOut };
   "chat.flow_card": { in: ChatFlowCardIn; out: ChatFlowCardOut };
@@ -44643,6 +44783,7 @@ export interface CapMap {
   "chat.history.page": { in: ChatHistoryPageIn; out: ChatHistoryPageOut };
   "chat.history.search": { in: ChatHistorySearchIn; out: ChatHistorySearchOut };
   "chat.hook_line": { in: ChatHookLineIn; out: ChatHookLineOut };
+  "chat.hook_resolve": { in: ChatHookResolveIn; out: ChatHookResolveOut };
   "chat.make_task": { in: ChatMakeTaskIn; out: ChatMakeTaskOut };
   "chat.message.get": { in: ChatMessageGetIn; out: ChatMessageGetOut };
   "chat.message_person": { in: ChatMessagePersonIn; out: ChatMessagePersonOut };
@@ -44968,6 +45109,7 @@ export interface CapMap {
   "engine.reviewer.get": { in: EngineReviewerGetIn; out: EngineReviewerGetOut };
   "engine.reviewer.set": { in: EngineReviewerSetIn; out: EngineReviewerSetOut };
   "engine.route.preview": { in: EngineRoutePreviewIn; out: EngineRoutePreviewOut };
+  "engine.running_here": { in: EngineRunningHereIn; out: EngineRunningHereOut };
   "engine.runtime.opt_in": { in: EngineRuntimeOptInIn; out: EngineRuntimeOptInOut };
   "engine.set_mode": { in: EngineSetModeIn; out: EngineSetModeOut };
   "engine.set_model": { in: EngineSetModelIn; out: EngineSetModelOut };
@@ -45331,8 +45473,11 @@ export interface CapMap {
   "home.mark_digest_seen": { in: HomeMarkDigestSeenIn; out: HomeMarkDigestSeenOut };
   "home.routines_today": { in: HomeRoutinesTodayIn; out: HomeRoutinesTodayOut };
   "home.write_digest": { in: HomeWriteDigestIn; out: HomeWriteDigestOut };
+  "hooks.allow_always": { in: HooksAllowAlwaysIn; out: HooksAllowAlwaysOut };
   "hooks.allow_once": { in: HooksAllowOnceIn; out: HooksAllowOnceOut };
+  "hooks.allow_remove": { in: HooksAllowRemoveIn; out: HooksAllowRemoveOut };
   "hooks.ask_admin": { in: HooksAskAdminIn; out: HooksAskAdminOut };
+  "hooks.deny": { in: HooksDenyIn; out: HooksDenyOut };
   "hooks.fire": { in: HooksFireIn; out: HooksFireOut };
   "hooks.list": { in: HooksListIn; out: HooksListOut };
   "hooks.pause": { in: HooksPauseIn; out: HooksPauseOut };
@@ -45899,6 +46044,7 @@ export interface CapMap {
   "projects.overview_doc.apply_template": { in: ProjectsOverviewDocApplyTemplateIn; out: ProjectsOverviewDocApplyTemplateOut };
   "projects.overview_doc.get": { in: ProjectsOverviewDocGetIn; out: ProjectsOverviewDocGetOut };
   "projects.overview_doc.history": { in: ProjectsOverviewDocHistoryIn; out: ProjectsOverviewDocHistoryOut };
+  "projects.overview_doc.restore": { in: ProjectsOverviewDocRestoreIn; out: ProjectsOverviewDocRestoreOut };
   "projects.overview_doc.save": { in: ProjectsOverviewDocSaveIn; out: ProjectsOverviewDocSaveOut };
   "projects.overview_doc.templates.list": { in: ProjectsOverviewDocTemplatesListIn; out: ProjectsOverviewDocTemplatesListOut };
   "projects.overview_doc.templates.save": { in: ProjectsOverviewDocTemplatesSaveIn; out: ProjectsOverviewDocTemplatesSaveOut };
@@ -46210,6 +46356,7 @@ export interface CapMap {
   "spaces.onboarding.seen": { in: SpacesOnboardingSeenIn; out: SpacesOnboardingSeenOut };
   "spaces.switch_address": { in: SpacesSwitchAddressIn; out: SpacesSwitchAddressOut };
   "spaces.switcher": { in: SpacesSwitcherIn; out: SpacesSwitcherOut };
+  "spaces.timezone.set": { in: SpacesTimezoneSetIn; out: SpacesTimezoneSetOut };
   "spaces.transfer_ownership": { in: SpacesTransferOwnershipIn; out: SpacesTransferOwnershipOut };
   "spaces.update": { in: SpacesUpdateIn; out: SpacesUpdateOut };
   "stars.list": { in: StarsListIn; out: StarsListOut };
@@ -48153,7 +48300,7 @@ export type HookBlockedPayload = {
 export type HookChangedPayload = {
   hookId: string;
   scope: string;
-  change: "added" | "changed" | "removed" | "paused" | "resumed" | "allowed_once" | "agents_on" | "agents_off";
+  change: "added" | "changed" | "removed" | "paused" | "resumed" | "allowed_once" | "allowed_always" | "allow_removed" | "denied" | "agents_on" | "agents_off";
   by: string;
   line: string;
   threadId?: string;

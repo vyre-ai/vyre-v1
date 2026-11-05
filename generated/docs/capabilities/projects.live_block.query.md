@@ -43,11 +43,18 @@ type Out = {
       state?: string;
       detail?: string;
       url?: string;
+      who?: string;
+      due?: number;
     }>;
   hidden: number;
   total: number;
   value?: number;
   label?: string;
+  unit?: string;
+  parts?: Array<{
+      unit?: string;
+      value: number;
+    }>;
 };
 ```
 
@@ -73,17 +80,26 @@ type Out = {
   "output": {
     "hidden": 1,
     "label": "example",
+    "parts": [
+      {
+        "unit": "example",
+        "value": 1
+      }
+    ],
     "rows": [
       {
         "detail": "example",
+        "due": 1760000000000,
         "id": "example",
         "state": "example",
         "title": "example",
-        "url": "example"
+        "url": "example",
+        "who": "example"
       }
     ],
     "total": 1,
     "type": "tasks",
+    "unit": "example",
     "value": 1
   }
 }

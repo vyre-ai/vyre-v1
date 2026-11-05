@@ -84,6 +84,19 @@ pub(crate) const NO_SERVICE_WORKER: &str = r#"(function () {
   }, function () {});
 })();"#;
 
+/// Run in the page after every load: the first script errors are said to the shell's log (the page's own words, cut short), so a window that draws nothing says why in the log of a CI run.
+pub(crate) const PAGE_ERRORS: &str = r#"(function () {
+  if (window.__vyreErr) return;
+  window.__vyreErr = true;
+  var n = 0;
+  function say(t) {
+    var inv = window.__TAURI__ && window.__TAURI__.core && window.__TAURI__.core.invoke;
+    if (inv && n++ < 5) inv("page_report", { kind: "jserror", text: String(t).slice(0, 180) }).catch(function () {});
+  }
+  window.addEventListener("error", function (e) { say((e && e.message) || "error"); });
+  window.addEventListener("unhandledrejection", function (e) { say("rejected: " + ((e && e.reason && (e.reason.message || e.reason)) || "")); });
+})();"#;
+
 /// Two animation frames after the page starts drawing, tell the shell. rAF stops in a window that cannot be seen, so the timer keeps this from depending on it.
 const FIRST_FRAME: &str = r#"(function () {
   var sent = false;
@@ -257,6 +270,7 @@ pub fn run() {
                 let _ = webview.eval(PAGE_PROBE);
                 let _ = webview.eval(EXTERNAL_LINKS);
                 let _ = webview.eval(NO_SERVICE_WORKER);
+                let _ = webview.eval(PAGE_ERRORS);
                 if std::env::var("VYRE_SHELL_BANNER").is_ok() {
                     let _ = webview.eval(BANNER);
                 }
@@ -264,6 +278,12 @@ pub fn run() {
                 if let Ok(url) = std::env::var("VYRE_SHELL_ARTIFACT_PROOF_URL") {
                     if url.starts_with("http://127.0.0.1:") && url[17..].bytes().all(|b| b.is_ascii_digit()) {
                         let shown = format!("http://a.localhost:{}/x/proofcode1", &url[17..]);
+                        {
+                            // what the system resolver says about a.localhost, for the CI log: a webview that cannot resolve it never makes the request
+                            use std::net::ToSocketAddrs;
+                            let probe = format!("a.localhost:{}", &url[17..]);
+                            std::thread::spawn(move || eprintln!("vyre-desktop: a.localhost resolves to {:?}", probe.to_socket_addrs().map(|a| a.collect::<Vec<_>>())));
+                        }
                         let _ = webview.eval(ARTIFACT_PROOF.replace("__ARTIFACT_URL__", &shown));
                     }
                 }
@@ -279,6 +299,12 @@ pub fn run() {
             // A banner was shown a moment ago and the window comes forward: open what the banner was about (native.rs).
             if let tauri::WindowEvent::Focused(true) = event {
                 native::on_focus(window.app_handle());
+            }
+            // the artifact viewer's child webview ends before its window does: a window closed with a child webview still open did not let the Windows app exit
+            if let tauri::WindowEvent::CloseRequested { .. } | tauri::WindowEvent::Destroyed = event {
+                if let Some(view) = window.app_handle().get_webview(artifact_view::VIEW) {
+                    let _ = view.close();
+                }
             }
         })
         .manage(updater::SharedUpdate::default())
@@ -297,6 +323,7 @@ pub fn run() {
             updater::startup_update,
             updater::check_desktop_update,
             updater::install_desktop_update,
+            updater::update_stop_now,
             native::notify,
             native::discover_codex_sessions,
             native::discover_session_sources,

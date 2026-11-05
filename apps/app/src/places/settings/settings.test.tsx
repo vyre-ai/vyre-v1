@@ -124,7 +124,7 @@ test("a row that differs from the Space default shows Reset, and Reset puts the 
 test("controls follow the value: a switch, a choice, a field and hours", () => {
   const by = (k: string): SettingRow => rowsOf(createSampleSettings(northwind)).find((r) => r.key === k)!;
   assert.equal(controlFor(by("chat.agent_tabs")).kind, "switch");
-  assert.equal(controlFor(by("profile.timezone")).kind, "choice");
+  assert.equal(controlFor(by("profile.timezone")).kind, "zone");
   assert.equal(controlFor(by("profile.handle")).kind, "text");
   assert.equal(controlFor(by("profile.working_hours")).kind, "hours");
 });
@@ -226,10 +226,10 @@ test("the shortcuts listed are the ones the keys do, from the table that drives 
   assert.ok(!has(out, "<input") || !has(out, 'data-testid="ctl-shortcut-search"'), "nothing reads a custom key, so there is nothing to type");
 });
 
-test("Your Spaces, on Sign-in: each Space with its address and role; Open for the others, Leave for the open Team Space", () => {
+test("Your Spaces, on Sign-in: each Space with its address and role; Open for the others; an owner of the open Team Space is told to transfer ownership first, with no Leave", () => {
   const out = html(createSampleSettings(northwind), { initialPage: "signin" });
   assert.ok(has(out, "northwind.vyre.run, Owner") && has(out, "harbor.vyre.run, Member, 2 waiting on you") && has(out, "Only on this computer") && !has(out, "Only on this computer, Owner"), "a Personal Space carries no role label");
-  assert.ok(has(out, 'data-testid="open-harbor"') && has(out, 'data-testid="leave-northwind"') && !has(out, 'data-testid="leave-personal"') && !has(out, 'data-testid="leave-harbor"'));
+  assert.ok(has(out, 'data-testid="open-harbor"') && !has(out, 'data-testid="leave-northwind"') && has(out, "Transfer ownership first") && !has(out, 'data-testid="leave-personal"') && !has(out, 'data-testid="leave-harbor"'));
 });
 
 test("Copy from another Space offers only what that Space has, never the title, and applying copies it here", async () => {

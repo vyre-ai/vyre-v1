@@ -133,3 +133,22 @@ test("Who pays for memory: nothing to pick for your own memory, the plain line a
   assert.equal(find(root, "ctl-memory-key-person"), null);
   assert.ok(s.calls.some((c) => c.cap === "memory.learning.today"));
 });
+
+test("on a phone a control that needs room goes under its label at full width: the rule is below 720", async () => {
+  const { stacksAt, STACK_BELOW } = await import("./ui.tsx");
+  assert.equal(STACK_BELOW, 720);
+  assert.equal(stacksAt(390), true);
+  assert.equal(stacksAt(719), true);
+  assert.equal(stacksAt(720), false);
+  assert.equal(stacksAt(1280), false);
+});
+
+test("a stacked control lines up with its label (no extra left padding or margin), keeps its right edge, and an icon with buttons stays on one row", async () => {
+  const { s } = await import("./ui.tsx");
+  const st = s.stacked as { paddingLeft: number; paddingRight: number; marginLeft?: number; flexDirection: string };
+  assert.equal(st.paddingLeft, 8, "the label's left edge: the row's own padding is the rest");
+  assert.equal(st.marginLeft, undefined);
+  assert.equal(st.paddingRight, 16, "the right edge stays");
+  assert.equal(st.flexDirection, "column");
+  assert.equal((s.stackedRow as { flexDirection: string }).flexDirection, "row", "the look: the icon beside the button");
+});

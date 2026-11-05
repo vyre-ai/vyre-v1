@@ -35,3 +35,30 @@ test("a helper that waits on a person points at its held request: the newest wai
   assert.equal(holdOf([{ blocks: [{ type: "turn_status", data: { state: "waiting", taskId: "tsk_old" } }] }, { blocks: [{ type: "text" }] }, { blocks: [{ type: "turn_status", data: { state: "waiting", taskId: "tsk_new" } }] }]), "tsk_new");
   assert.equal(holdOf([{ blocks: [{ type: "turn_status", data: { state: "done", taskId: "tsk_x" } }] }]), undefined);
 });
+
+test("a helper whose last turn ended but has a person's line or a restart waiting reads as working with what it will do; otherwise as the turns say", async () => {
+  const { waitingLine } = await import("../handlers/helpers.ts");
+  const ended = 1_000;
+  const person = (createdAt: number, restart = false) => ({ author: { kind: "person" }, createdAt, blocks: restart ? [{ data: { restart: true } }] : [] });
+  assert.equal(waitingLine(person(2_000, true), ended), "Starting again", "stopped, then restarted: starting, not stopped");
+  assert.equal(waitingLine(person(2_000), ended), "Reading your message", "a line to a helper that has finished");
+  assert.equal(waitingLine(person(500), ended), undefined, "a line written before the last turn ended was answered by it");
+  assert.equal(waitingLine({ author: { kind: "agent" }, createdAt: 2_000 }, ended), undefined, "the helper's own reply is not a line waiting");
+  assert.equal(waitingLine(undefined, ended), undefined);
+});
+
+test("a node test run's output gives the counts and the first failing name", async () => {
+  const { testLines } = await import("../handlers/bridge.ts");
+  const out = ["▶ suite", "✔ adds (1ms)", "✖ date is Thursday (2ms)", "ℹ tests 2", "ℹ pass 1", "ℹ fail 1", "", "✖ failing tests:", "", "test at x.test.js:3:1", "✖ date is Thursday (2ms)"].join("\n");
+  const lines = testLines(out);
+  assert.match(lines, /ℹ pass 1/);
+  assert.match(lines, /ℹ fail 1/);
+  assert.ok(!/suite/.test(lines), "only the summary lines travel");
+});
+
+test("noteSteps keeps the counts and the failing name from a node test run's summary lines", () => {
+  const db = mk();
+  noteSteps(db, "thr_c", [{ phase: "call", id: "s1", name: "Bash" }, { phase: "input", id: "s1", detail: "node --test dates.test.js" }], 1);
+  noteSteps(db, "thr_c", [{ phase: "result", id: "s1", ok: false, detail: "ℹ pass 1\nℹ fail 1\n✖ date is Thursday (2ms)" }], 2);
+  assert.deepEqual(testsOf(db, "thr_c"), { state: "failing", passed: 1, failed: 1, failing: "date is Thursday" });
+});

@@ -2864,6 +2864,12 @@
     },
     {
       "deferred": false,
+      "name": "engine_running_here",
+      "summary": "System: the turns running now with the chat each is in and who asked, for the desktop update screen to name the reply it waits for and to end it (host/src/daemon, GET /local/daemon/busy)",
+      "toolset": "chats"
+    },
+    {
+      "deferred": false,
       "name": "engine_runtime_opt_in",
       "summary": "Let the Space continue my chats when my computer is off, by wrapping my runtime key for the Space; revocable",
       "toolset": "meta"
@@ -7082,6 +7088,12 @@
     },
     {
       "deferred": false,
+      "name": "projects_overview_doc_restore",
+      "summary": "Bring an older version of the Overview back: its blocks become the page again, as a new revision (so the restore can be undone)",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "projects_overview_doc_save",
       "summary": "Save the whole Overview page from the editor, as Markdown (or blocks); baseRev is the revision it was opened at, and a page changed since says so instead of overwriting",
       "toolset": "records"
@@ -8644,6 +8656,12 @@
       "deferred": false,
       "name": "spaces_switcher",
       "summary": "This Space tile for the switcher: name, logo, kind, role, and whether it needs the person (red dot)",
+      "toolset": "meta"
+    },
+    {
+      "deferred": false,
+      "name": "spaces_timezone_set",
+      "summary": "Set the Space time zone (an IANA name). Shared places read times in it; each person sees their own beside it. Deadlines keep their moment. An agent needs an admin to approve",
       "toolset": "meta"
     },
     {

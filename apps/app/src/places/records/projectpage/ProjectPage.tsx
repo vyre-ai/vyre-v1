@@ -32,6 +32,8 @@ import { useAddSheet } from "../../chats/addsheet/index.ts";
 import { PeoplePopover } from "../../../../../../ui/src/PeoplePopover/index.tsx";
 import type { MemberAction, MemberRow } from "../../../../../../ui/src/PeoplePopover/index.tsx";
 import { itemLink } from "../../../share/rows.ts";
+import { useZones } from "../../../../../../ui/src/Time/index.tsx";
+import { stageWord } from "./overview/model.ts";
 
 export interface ProjectPageProps {
   projectId: string;
@@ -135,6 +137,7 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
   const pick = (k: ProjectTabKey): void => { setTab(k); onTabChange?.(k); };
   const at = (e: unknown): { x: number; y: number } => { const t = (e as { nativeEvent?: { pageX?: number; pageY?: number }; clientX?: number; clientY?: number } | undefined); return { x: t?.clientX ?? t?.nativeEvent?.pageX ?? 24, y: (t?.clientY ?? t?.nativeEvent?.pageY ?? 40) + 12 }; };
   const health = p.health;
+  // with no health set the pill says the stage the Overview shows, so the header and the Status property never disagree
   const lead = p.lead;
   const counts: Partial<Record<ProjectTabKey, number>> = { plan: plan.tasks.filter((t) => t.status === "awaiting_approval" || t.status === "in_review").length };
   const tabs = PROJECT_TABS.map((t) => ({ key: t.key, title: counts[t.key] ? `${t.title} ${counts[t.key]}` : t.title }));
@@ -152,18 +155,18 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
           <Pressable accessibilityRole="button" accessibilityLabel={mine.starred ? "Unstar" : "Star"} accessibilityState={{ selected: mine.starred }} testID="project-star" onPress={() => { const on = !mine.starred; void api.projectStar(projectId, on).then(() => { setMine((m) => ({ ...m, starred: on })); setNote(on ? "Starred" : "Star removed"); }, say); }} style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, hovered === true && s.hover]}>
             <Text style={[s.star, mine.starred && s.starOn]}>{mine.starred ? "\u2605" : "\u2606"}</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Status: ${health ? HEALTH_LABEL[health] : "Not set"}`} testID="project-health" disabled={!canEdit}
+          <Pressable accessibilityRole="button" accessibilityLabel={`Status: ${health ? HEALTH_LABEL[health] : p.status ? stageWord(p.status) : "Not set"}`} testID="project-health" disabled={!canEdit}
             onPress={(e: unknown) => { const q = at(e); menu.show([...HEALTH_ORDER.map((h) => ({ label: HEALTH_LABEL[h], onSelect: () => setHealth(h) })), ...(health ? [{ separator: true as const }, { label: "Clear", onSelect: () => setHealth(null) }] : [])], q.x, q.y, "other", { label: "Status" }); }}
             style={({ hovered }: { hovered?: boolean }) => [s.pill, hovered === true && canEdit && s.hover]}>
             <View style={[s.dot, { backgroundColor: HEALTH_COLOR[health ?? "none"] }]} />
-            <Text style={s.pillText}>{health ? HEALTH_LABEL[health] : "No status"}</Text>
+            <Text style={s.pillText}>{health ? HEALTH_LABEL[health] : p.status ? stageWord(p.status) : "No status"}</Text>
             {canEdit ? <Text style={s.chev}>{"\u2304"}</Text> : null}
           </Pressable>
           {lead && !phone ? (
             <Pressable accessibilityRole="button" accessibilityLabel={`Lead: ${d.nameOf(lead)}`} testID="project-lead" disabled={!canEdit} onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; right: number; bottom: number } } }) => { const r = e.currentTarget?.getBoundingClientRect?.(); setPeople(r ? { x: r.right, y: r.bottom, left: r.left } : { x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 }); }} style={({ hovered }: { hovered?: boolean }) => [s.pill, hovered === true && canEdit && s.hover]}><Avatar name={d.nameOf(lead)} size={18} /><Text style={s.pillText}>{d.nameOf(lead)}</Text>{canEdit ? <Text style={s.chev}>{"\u2304"}</Text> : null}</Pressable>
           ) : null}
         </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="People and agents" testID="project-members" aria-haspopup="dialog" onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; right: number; bottom: number } } }) => { const r = e.currentTarget?.getBoundingClientRect?.(); setPeople(r ? { x: r.right, y: r.bottom, left: r.left } : { x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 }); }} style={({ hovered }: { hovered?: boolean }) => [s.pill, hovered === true && s.hover]}>
+        <Pressable accessibilityRole="button" accessibilityLabel="People and agents" testID="project-members" aria-haspopup="dialog" onPress={(ev: unknown) => { const e = ev as { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; right: number; bottom: number } } }; const r = e.currentTarget?.getBoundingClientRect?.(); setPeople(r ? { x: r.right, y: r.bottom, left: r.left } : { x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 }); }} style={({ hovered }: { hovered?: boolean }) => [s.pill, hovered === true && s.hover]}>
           {/* ui-rows-lint: not a list (up to four stacked faces on the members button) */}
           <View style={s.stack}>{[...new Set(mine.people)].slice(0, 4).map((id, i) => <View key={id} style={[s.stackFace, i === 0 && s.stackFirst]}><Avatar name={d.nameOf(id)} seedId={id} size={20} /></View>)}</View>
           <Text style={s.pillText}>{String(p.memberCount)}</Text>
@@ -241,9 +244,10 @@ function ProjectPeople({ o, projectId, at, onClose, toOverview, menu, reload, sa
 
 export function OverviewTab({ o, now }: { o: Overview; now: number }): ReactElement {
   const d = useProjectPageData();
+  const zone = useZones().space;
   const rows = (list: Overview["milestones"], prefix: string): ReactElement[] => {
     const out: ReactElement[] = [];
-    for (const t of list) out.push(<Row key={t.taskId} id={`${prefix}:${t.taskId}`} title={t.title} note={[t.stage, t.due !== undefined ? `${dateWords(t.due)} · ${dueWords(t.due, now)}` : undefined, t.assigned ? d.nameOf(t.assigned) : undefined].filter(Boolean).join(" · ")} />);
+    for (const t of list) out.push(<Row key={t.taskId} id={`${prefix}:${t.taskId}`} title={t.title} note={[t.stage, t.due !== undefined ? `${dateWords(t.due, zone)} · ${dueWords(t.due, now, zone)}` : undefined, t.assigned ? d.nameOf(t.assigned) : undefined].filter(Boolean).join(" · ")} />);
     return out;
   };
   const people: ReactElement[] = [];

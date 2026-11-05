@@ -75,3 +75,8 @@ test("the build's What's new is read once per open, and offline is nothing", asy
   assert.equal(await fetchWhatsNew(async () => { throw new Error("offline"); }), null);
   assert.equal(await fetchWhatsNew(undefined), null);
 });
+
+test("readProgress carries the chats a wait names and the seconds left, and drops what it cannot read", () => {
+  assert.deepEqual(readProgress({ phase: "waiting", downloaded: 0, total: null, turns: 2, chats: ["Rivera intake", "", 5, "Weekly update"], left: 300, of: 600 }), { phase: "waiting", downloaded: 0, total: null, turns: 2, chats: ["Rivera intake", "Weekly update"], left: 300, of: 600 });
+  assert.deepEqual(readProgress({ phase: "waiting", turns: 1, chats: "no", left: -4 }), { phase: "waiting", downloaded: 0, total: null, turns: 1 });
+});

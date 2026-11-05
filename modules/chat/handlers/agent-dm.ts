@@ -206,7 +206,7 @@ function directBetween(db: Db, a: string, b: string): ThreadRec | null {
   const ids = (db.all(
     `SELECT t.id AS id FROM chat_thread t WHERE t.kind = 'chat' AND t.channelId IS NULL AND t.scopeType IS NULL AND t.deleted_at IS NULL
        AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL)
-       AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL) ORDER BY t.createdAt LIMIT 20`, a, b,
+       AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL) AND NOT EXISTS (SELECT 1 FROM chat_thread_agent x WHERE x.thread = t.id AND x.deleted_at IS NULL) ORDER BY t.createdAt LIMIT 20`, a, b,
   ) as Row[]).map((r) => String(r["id"]));
   for (const id of ids) { const t = threadBy(db, id); if (t && isDirect({ db }, t)) return t; }
   return null;
@@ -336,7 +336,7 @@ async function makeCard(ctx: ChatCtx, card: NonNullable<MessageIn["card"]>, o: {
   })) as { task?: { id?: string } } | null;
   const taskId = String(r?.task?.id ?? "");
   if (!taskId) raise(ctx, "internal.unexpected", "The card was not made.");
-  return { task: taskId, block: { type: "link_card", v: 1, id, state: "done", data: { icon: approval ? "approval" : "task", lead: approval ? "Approve" : "Review", title: clip(card.title.trim(), 80), target: { type: "task", id: taskId } } } };
+  return { task: taskId, block: { type: "link_card", v: 1, id, state: "done", data: { icon: approval ? "approval" : "task", lead: approval ? "Allow" : "Review", title: clip(card.title.trim(), 80), target: { type: "task", id: taskId } } } };
 }
 
 export async function messagePerson(ctx: ChatCtx, rawInput: MessageIn) {

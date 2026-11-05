@@ -29,5 +29,5 @@ HTTP 422. Retryable: no.
 - chat.answer_block
 - chat.approve_plan
 - chat.aside_keep
+- chat.crew_line
 - chat.fork
-- chat.handoff

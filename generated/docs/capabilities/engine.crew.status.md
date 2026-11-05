@@ -36,6 +36,7 @@ type Out = {
   members: Array<{
       kind: "helper" | "teammate";
       id: string;
+      jobId?: string;
       parentThreadId: string;
       title: string;
       name?: string;
@@ -68,6 +69,7 @@ type Out = {
         state: "running" | "passing" | "failing";
         passed?: number;
         failed?: number;
+        failing?: string;
       };
     }>;
   totals: {
@@ -126,6 +128,7 @@ type Out = {
         "found": "example",
         "holdTaskId": "tsk_a1b2c3",
         "id": "thr_a1b2c3",
+        "jobId": "example",
         "kind": "helper",
         "merged": true,
         "model": "example",
@@ -137,6 +140,7 @@ type Out = {
         "step": "example",
         "tests": {
           "failed": 1,
+          "failing": "example",
           "passed": 1,
           "state": "running"
         },

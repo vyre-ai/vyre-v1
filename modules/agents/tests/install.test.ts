@@ -179,6 +179,17 @@ test("Run it on the Space deploys a local MCP server on Sites behind a route wit
   assert.equal(JSON.stringify(sites).includes("secret"), false, "only the Vault handle goes, never a value");
 });
 
+test("a skill installed from a link starts its history with where it came from and the exact commit, for a person and for an agent", async () => {
+  const { hn } = world();
+  const mine = (await call(hn, "install.apply", { planId: (await plan(hn, "acme/pdf-skill")).planId, for: "me" })).installed;
+  const revs = (await call(hn, "skills.history", { skillId: mine.skillId })).revisions;
+  assert.deepEqual(revs.map((r: { summary: string }) => r.summary), ["Installed from a link · aaaaaaa"]);
+  assert.equal(revs[0].version, "aaaaaaa", "a repo that names no version: the commit stands in");
+  const agent = await agentOf(hn, hn.ctx, "Intake");
+  const theirs = (await call(hn, "install.apply", { planId: (await plan(hn, "acme/pdf-skill")).planId, for: "agent", agentId: agent })).installed;
+  assert.deepEqual((await call(hn, "skills.history", { skillId: theirs.skillId })).revisions.map((r: { summary: string }) => r.summary), ["Installed from a link · aaaaaaa"]);
+});
+
 test("an update shows the diff and waits to be applied; nothing updates by itself", async () => {
   const { hn } = world();
   const p = await plan(hn, "acme/pdf-skill");
@@ -203,6 +214,40 @@ test("an update shows the diff and waits to be applied; nothing updates by itsel
     assert.equal((await call(hn, "install.list", {})).installs.length, 1, "one install, now at the new commit");
     assert.equal((await call(hn, "install.list", {})).installs[0].commit, "9999999zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz99");
   } finally { repos.set("acme/pdf-skill", before); }
+});
+
+repos.set("acme/versioned-plugin", { revision: "1010101aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa10", files: {
+  ".claude-plugin/plugin.json": JSON.stringify({ name: "versioned-plugin", version: "1.10.0", description: "Has a version." }),
+  "skills/hello/SKILL.md": SKILL("hello", "Say hello."), "README.md": "# Versioned\n",
+} });
+
+test("a commit that names a lower version than the installed one is flagged older by check_update itself, and nothing is applied until the person says so", async () => {
+  const { hn } = world();
+  const agent = await agentOf(hn, hn.ctx, "Ops");
+  await call(hn, "install.apply", { planId: (await plan(hn, "acme/versioned-plugin")).planId, for: "agent", agentId: agent });
+  const installId = (await call(hn, "install.list", {})).installs[0].installId;
+  assert.equal((await call(hn, "install.list", {})).installs[0].version, "1.10.0", "the install knows its version");
+  const r = repos.get("acme/versioned-plugin")!;
+  const before = { ...r, files: { ...r.files } };
+  const offer = async (version: string, rev: string) => {
+    r.revision = rev;
+    r.files = { ...before.files, ".claude-plugin/plugin.json": JSON.stringify({ name: "versioned-plugin", version, description: "Has a version." }), "README.md": `# ${version}\n` };
+    return call(hn, "install.check_update", { installId });
+  };
+  try {
+    const down = await offer("1.9.0", "9090909bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb90");
+    assert.equal(down.changed, true);
+    assert.deepEqual([down.plan.diff.older, down.plan.diff.fromVersion, down.plan.diff.toVersion], [true, "1.10.0", "1.9.0"], "1.9.0 is below 1.10.0 (numbers, not text)");
+    assert.equal(String(hn.rows("SELECT version FROM agents_plugins")[0]!["version"]), "1.10.0", "looking changes nothing: still on the installed version");
+    assert.equal(hn.rows("SELECT * FROM agents_install WHERE state = 'installed'").length, 1);
+    const up = await offer("1.11.0", "1111111cccccccccccccccccccccccccccccccc11");
+    assert.equal(up.plan.diff.older, undefined, "a higher version is an update, not flagged");
+    assert.equal(up.plan.diff.toVersion, "1.11.0");
+    const same = await offer("1.10.0", "1212121dddddddddddddddddddddddddddddddd12");
+    assert.equal(same.plan.diff.older, undefined, "the same version on a different commit is not older");
+    await offer("1.9.0", "9191919eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee91");
+    assert.equal(String(hn.rows("SELECT version FROM agents_plugins")[0]!["version"]), "1.10.0", "still nothing applied after three looks");
+  } finally { repos.set("acme/versioned-plugin", before); }
 });
 
 test("a plugin update replaces its files and version only once applied", async () => {
@@ -502,4 +547,13 @@ test("a skill is an access resource: it is born with its owner named, nobody cal
   assert.equal(hn.world.calls.some((c) => c.cap === "access.share" && c.input.resource.id === mine.skillId), false, "no self-share");
   assert.equal(hn.named("skill.mine_changed").find((e) => e.payload["skillId"] === mine.skillId)?.payload["ownerId"], DANA, "born with its owner named");
   assert.equal((await call(hn, "skills.history", { skillId: mine.skillId })).revisions.length, 1);
+});
+
+test("versionBelow: a lower version is older, compared as numbers; no version to compare is not called older", async () => {
+  const { versionBelow } = await import("../handlers/install.ts");
+  assert.equal(versionBelow("1.2.0", "1.3.0"), true);
+  assert.equal(versionBelow("1.3.0", "1.2.0"), false);
+  assert.equal(versionBelow("1.9.0", "1.10.0"), true, "numbers, not text");
+  assert.equal(versionBelow("v2.1.0", "2.1.0"), false);
+  assert.equal(versionBelow(undefined, "1.0.0"), null, "no version to compare: not called older");
 });

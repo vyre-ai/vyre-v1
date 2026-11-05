@@ -28,6 +28,7 @@ const answer = (list: Hook[] = SPACE, mine: Hook[] = AGENT) => (cap: string, inp
   if (cap === "hooks.list") return { hooks: input["scope"] === "agent" ? mine : list, agentHooks: true };
   if (cap === "hooks.set") return { hook: hook("hk_new") };
   if (cap === "hooks.pause") return { hook: hook(String(input["id"])) };
+  if (cap === "hooks.allow_remove") return { removed: true };
   if (cap === "hooks.remove") return { removed: true };
   if (cap === "hooks.policy.set") return { agentHooks: input["agentHooks"] };
   return {};
@@ -174,4 +175,38 @@ test("Only for is a plain-words picker defaulting to Any action; each choice map
   assert.ok(namesOf({ tool: "Bash" }).some((n) => matches(matcherFor("command"), n)));
   assert.ok(namesOf({ cap: "stripe.charge" }).some((n) => matches(matcherFor("money"), n)), "a family name matches");
   for (const c of ACTION_CHOICES) assert.doesNotMatch(c.title, /_|\./, "no tool names on the page");
+});
+
+const RULES = [{ id: "al_1", what: "sending an email to sara@acme.com", by: "usr_sara", createdAt: 1 }, { id: "al_2", what: "opening a link on acme.com", by: "usr_sara", createdAt: 2 }];
+
+test("a hook with rules shows each as Always allowed for, Stop allowing ends one and the list refreshes, and the row keeps one Remove", async () => {
+  const p = await mountPage(createRoot, <HooksPage />, ROWS, answer([hook("hk_r", { allowed: RULES }), hook("hk_plain"), hook("hk_empty", { allowed: [] })], []), clock);
+  try {
+    const t = p.text();
+    assert.ok(t.includes("Always allowed for sending an email to sara@acme.com") && t.includes("Always allowed for opening a link on acme.com"));
+    assert.ok(p.has("hook-allowed-al_1") && p.has("hook-allowed-al_2") && p.has("hook-allowed-stop-al_2"));
+    assert.equal((t.match(/Always allowed for/g) ?? []).length, 2, "hooks without rules show no rule lines");
+    assert.equal((t.match(/Stop allowing/g) ?? []).length, 2);
+    assert.equal((t.match(/Remove/g) ?? []).length, 3, "one Remove per hook, none per rule");
+    const before = p.called("hooks.list").length;
+    await p.press("hook-allowed-stop-al_2");
+    assert.deepEqual(p.called("hooks.allow_remove").map((c) => c.input), [{ id: "al_2" }]);
+    assert.ok(p.called("hooks.list").length > before, "the list is read again");
+  } finally { p.restore(); }
+});
+
+test("Stop allowing is off when the person cannot change the hook", async () => {
+  const p = await mountPage(createRoot, <HooksPage />, ROWS, answer([hook("hk_l", { canChange: false, allowed: RULES })], []), clock);
+  try {
+    await p.press("hook-allowed-stop-al_1");
+    assert.equal(p.called("hooks.allow_remove").length, 0);
+  } finally { p.restore(); }
+});
+
+test("a hook with no run says Never ran when the read answered in full, and Not run lately when it was cut off or failed", async () => {
+  const { neverWords, RUNS_LIMIT } = await import("../pages/Hooks.tsx");
+  assert.equal(neverWords([], true), "Never ran");
+  assert.equal(neverWords(new Array(RUNS_LIMIT - 1).fill({}), true), "Never ran");
+  assert.equal(neverWords(new Array(RUNS_LIMIT).fill({}), true), "Not run lately", "cut off at the limit: an older run may be past it");
+  assert.equal(neverWords([], false), "Not run lately", "the read failed");
 });

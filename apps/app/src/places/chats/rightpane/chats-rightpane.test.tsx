@@ -10,7 +10,7 @@ import { FilesTab, treeOrder } from "./FilesTab.tsx";
 import { NoneBody, setupView } from "./ComputerTab.tsx";
 import type { HostsAnswer } from "./ComputerTab.tsx";
 import {
-  accept, correct, deleteRoutine, duplicateRoutine, provision, reasonOf, reject, removeFact, renameRoutine, saveInstructions, setRoutine, signOut, takeOver, giveBack, wake,
+  accept, correct, deleteRoutine, duplicateRoutine, provision, reasonOf, reject, removeFact, renameRoutine, saveInstructions, setRoutine, signOut, takeOver, giveBack, wake, wakeFailure, computerWords, provisionKey,
 } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import {
@@ -313,6 +313,75 @@ test("computer actions: wake, take over, give back, sign out, set up", async () 
   await provision(d, "agt_intake", "Intake");
   assert.deepEqual(s.calls.map((c) => c.cap), ["computers.wake", "computers.take_over", "computers.give_back", "computers.session.sign_out", "computers.provision", "computers.wake"]);
   assert.ok(notes.every((n) => !n.text.startsWith("Could not")));
+});
+
+test("a wake the server refuses is said in the pane and the computer shows why it did not start, with Details; a wake that works clears it", async () => {
+  const s = createSample("asleep");
+  const { d, notes } = deps(s);
+  wakeFailure.set("cmp_intake", null);
+  s.failNext("computers.wake");
+  assert.equal(await wake(d, "cmp_intake", "Intake"), false);
+  assert.deepEqual(notes.map((n) => n.text), ["Could not wake it: computers.wake failed"]);
+  const failed = html(s, "computer");
+  assert.ok(failed.includes('data-testid="computer-failed"'), "the panel is the failed state, not the Set up its computer button");
+  assert.ok(/Vyre couldn(?:'|&#x27;)t start [A-Za-z ]+(?:'|&#x27;)s computer\./.test(failed), "no curated sentence: Vyre says it could not start it, the server's words are in Details");
+  assert.ok(!failed.includes("computers.wake failed"), "the raw server message is not the sentence");
+  assert.ok(failed.includes('data-testid="computer-again"') && failed.includes("Try again"), "a wake that might pass on retry offers Try again");
+  assert.ok(failed.includes('data-testid="computer-copy-details"'), "Details can be copied");
+  assert.ok(!failed.includes('data-testid="computer-provision"'));
+  assert.equal(await wake(d, "cmp_intake", "Intake"), true);
+  assert.ok(!html(s, "computer").includes('data-testid="computer-failed"'), "a wake that works clears it");
+  assert.ok(html(s, "computer").includes("Working: Waking up"));
+  assert.equal(wakeFailure.get("cmp_intake"), undefined);
+});
+
+test("setting up a computer whose wake is refused says so: the wake is not dropped", async () => {
+  const s = createSample("asleep");
+  const { d, notes } = deps(s);
+  wakeFailure.set("cmp_intake", null);
+  s.failNext("computers.wake");
+  await provision(d, "agt_intake", "Intake");
+  await new Promise<void>((r) => setTimeout(r, 0));
+  assert.ok(notes.some((n) => n.text === "Could not wake it: computers.wake failed"), JSON.stringify(notes));
+  wakeFailure.set("cmp_intake", null);
+});
+
+test("a provision the server refuses (provider.unavailable) is said in plain words by role, with the runtime's sentence in Details", async () => {
+  const s = createSample();
+  const { d, notes } = deps(s);
+  const why = "The computer could not be created: The container runtime did not answer.";
+  const refuse: PaneDeps = { call: async (cap, input) => { if (cap === "computers.provision") throw Object.assign(new Error(why), { code: "provider.unavailable" }); return d.call(cap, input); }, note: d.note };
+  wakeFailure.set(provisionKey("agt_intake"), null);
+  assert.equal(await provision(refuse, "agt_intake", "Intake"), false);
+  assert.deepEqual(notes.map((n) => n.text), ["Could not set up its computer: The computer could not be created: The container runtime did not answer"]);
+  const f = wakeFailure.get(provisionKey("agt_intake"))!;
+  assert.equal(f.code, "provider.unavailable");
+  const admin = computerWords(f, true, "Dex");
+  const member = computerWords(f, false, "Dex");
+  assert.equal(admin.sentence, "This server can't start agent computers right now. Check Console > Computers.");
+  assert.equal(member.sentence, "This server can't start agent computers right now. Ask your admin.");
+  for (const w of [admin, member]) { assert.equal(w.server, true); assert.equal(w.details, "The container runtime did not answer."); assert.ok(!/runtime|container/i.test(w.sentence)); }
+  wakeFailure.set(provisionKey("agt_intake"), null);
+});
+
+test("a refusal with no curated sentence says Vyre could not start the computer, and the server's words are Details", () => {
+  const w = computerWords({ message: "A computer reaches only the Vault channel." }, true, "Dex");
+  assert.equal(w.sentence, "Vyre couldn't start Dex's computer.");
+  assert.equal(w.details, "A computer reaches only the Vault channel.");
+  assert.equal(w.server, false, "it might pass on retry: Try again is offered");
+});
+
+test("a server with no agent computer image says one plain sentence by role, the rest goes to Details, and the cause is the server", () => {
+  const raw = "The computer could not be created: This server can't start agent computers yet.\nDetails: the agent computer image vyre/computer:1 is not on this server and could not be fetched (offline). Load it with: docker pull vyre/computer:1";
+  const admin = computerWords({ message: raw }, true);
+  const member = computerWords({ message: raw }, false);
+  assert.equal(admin.sentence, "This server can't start agent computers yet. Update this server from Console > Computers.");
+  assert.equal(member.sentence, "This server can't start agent computers yet. Ask your admin to update it.");
+  for (const w of [admin, member]) {
+    assert.equal(w.server, true);
+    assert.ok(!/image|docker|digest/i.test(w.sentence), "no jargon in the sentence");
+    assert.ok(w.details.includes("docker pull vyre/computer:1"), "the rest is in Details");
+  }
 });
 
 test("a failed write is one quiet line, not a thrown error", async () => {

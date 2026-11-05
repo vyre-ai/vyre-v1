@@ -57,6 +57,6 @@ export function StartupUpdate(props: { children: ReactNode; updates?: DesktopUpd
     return () => { on = false; };
   }, [updates, store, waitMs]);
   if (stage.kind === "checking") return <Opening />;
-  if (stage.kind === "updating") return <UpdatingScreen version={stage.to} progress={progress} failure={failure} onOpenAnyway={() => setStage({ kind: "open" })} />;
+  if (stage.kind === "updating") return <UpdatingScreen version={stage.to} progress={progress} failure={failure} onOpenAnyway={() => setStage({ kind: "open" })} onStopNow={() => { void updates?.stopNow().catch(() => undefined); }} />;
   return <>{children}</>;
 }

@@ -142,3 +142,16 @@ test("resolve names one visible item, a record's type included, and nothing for 
   seed(h, { id: "fld_x", title: "A folder", kind: "folder" });
   assert.equal((await resolveItem(h.ctx, { kind: "folder", itemId: "fld_x" })).hit?.recordType, undefined, "only a record hit names a type");
 });
+
+test("an agent's search of a room that gained a person reads it only from the last join on; a person's own search reads all of it", async () => {
+  const old = { messageId: "msg_1", body: "my budget ceiling for the Acme deal is 80000 dollars", createdAt: 100, enc: 0 };
+  const fresh = { messageId: "msg_2", body: "the launch email goes out on Thursday", createdAt: 300, enc: 0 };
+  const h = harness({ respond: { "threads.get": () => ({ thread: { threadId: "thr_plans", kind: "channel", joinedAt: { usr_omar: 200 } } }), "chat.messages.list": () => ({ messages: [old, fresh] }), "channels.get": () => ({ channel: {} }) } });
+  seed(h, { id: "thr_plans", title: "plans", kind: "chat", body: `${old.body}\n${fresh.body}` });
+  const asAgent = { ...h.ctx, origin: "engine" };
+  assert.deepEqual((await query(asAgent, { q: "budget ceiling Acme" })).hits, [], "the line from before the join is not found by an agent");
+  const later = (await query(asAgent, { q: "launch email Thursday" })).hits;
+  assert.deepEqual(later.map((x) => x.id), ["thr_plans"], "what was said after the join is found");
+  assert.ok(!/80000/.test(later[0]!.snippet ?? ""), "and the snippet holds none of the earlier text");
+  assert.deepEqual((await query(h.ctx, { q: "budget ceiling Acme" })).hits.map((x) => x.id), ["thr_plans"], "a person searching for themselves keeps their own floor");
+});

@@ -76,3 +76,10 @@ test("Records only exports one record type as a spreadsheet through records.expo
     assert.ok(p.text().includes("The export is ready."));
   } finally { p.restore(); }
 });
+
+test("a save still going after the server's wait is not a bare error: the page says so and goes on", async () => {
+  const { saveInProgress } = await import("../pages/SpaceExport.tsx");
+  assert.equal(saveInProgress("A shared Space write is still in progress. Retry after it finishes."), true);
+  assert.equal(saveInProgress("Shared Space data changed during collection. Retry the snapshot."), true);
+  assert.equal(saveInProgress("Only the owner can export."), false);
+});

@@ -12,7 +12,6 @@ import { collect } from "./model.ts";
 import { askLine, askRows, denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, plainRows, sentLine, wantsLine } from "./approval-model.ts";
 import type { DiffLine } from "./approval-model.ts";
 import { Face } from "../needsyou/parts.tsx";
-import { MarkdownText } from "../../../../../../ui/src/stream/MarkdownText.tsx";
 import { HeldCard } from "./held-card.tsx";
 import type { HeldEditor } from "./held-card.tsx";
 import { outwardOf, scheduleLine, verbOfChannel, whenWords } from "../../../../../../lib/outward.ts";
@@ -39,7 +38,7 @@ async function subjectOf(data: Data, cap: string, input: Record<string, unknown>
 /** 24-hour clock time of a moment, in a zone or the viewer's own. */
 const clock = (at: number, timeZone?: string): string => { try { return new Date(at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: false, ...(timeZone ? { timeZone } : {}) }); } catch { return new Date(at).toLocaleTimeString("en-GB", { hour: "numeric", minute: "2-digit", hour12: false }); } };
 
-export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { taskId: string; agent: string; agentId: string; data: Data; /** an agent asking for its person wears that person's face (lane l-agentdm) */ face?: string; /** the held card's editor, when a test or a screenshot puts its own in */ editor?: HeldEditor }): ReactElement | null {
+export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, editor }: { taskId: string; /** a helper's request wears the helper's own face: the id its face is drawn from */ faceSeed?: string; agent: string; agentId: string; data: Data; /** an agent asking for its person wears that person's face (lane l-agentdm) */ face?: string; /** the held card's editor, when a test or a screenshot puts its own in */ editor?: HeldEditor }): ReactElement | null {
   const [task, setTask] = useState<Task | null | undefined>(undefined);
   const [subject, setSubject] = useState<string | undefined>(undefined);
   const [theirTz, setTheirTz] = useState<string | undefined>(undefined);
@@ -112,7 +111,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { t
           invitees: ow.to.map((r) => ({ name: r.name ?? r.address ?? "A guest", seed: r.address ?? r.id ?? agentId })),
           inviteNote: ow.to.length === 0 ? "No guests" : ev.notify ? "They get an email invite" : "They are not emailed",
         } : {})}
-        {...(always ? { alwaysLabel: `Always let ${agent} ${verbOfChannel(ow, nameOf)}`, onAlways: always } : {})}
+        {...(always ? { alwaysLabel: `Always allow ${agent} to ${verbOfChannel(ow, nameOf)}`, onAlways: always } : {})}
         edited={Boolean(ow.edited)} state={ended === "allowed" ? "sent" : ended === "denied" ? "dropped" : "waiting"}
         doneLine={ended === "allowed" ? (ev ? `${ev.notify ? "Invites sent" : "Added to the calendar"} · ${hhmm}` : `Sent${first ? ` to ${first}` : ""} · ${hhmm}`) : "Not sent"} editable={Boolean(held.holdId) && !ended} editSubject={Boolean(ev)}
         {...(editor ? { editor } : {})} onSend={() => answer("approve")} onDrop={(reason) => answer("reject", denyNote(reason))}
@@ -159,7 +158,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { t
   return (
     <View testID={`approval-${taskId}`} style={st.card} accessibilityRole="summary" accessibilityLabel={headline}>
       <View style={st.head}>
-        <Face name={agent} seedId={face ?? agentId} kind={face ? "person" : "agent"} size={20} />
+        <Face name={agent} seedId={face ?? faceSeed ?? agentId} kind={face ? "person" : "agent"} size={20} />
         <Text style={st.title}>{headline}</Text>
       </View>
       {diff && diff.lines.length > 0 ? (
@@ -177,7 +176,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { t
           {collect(rows, (r) => (
             <View key={r.label} style={st.line}>
               <Text style={st.label}>{r.label}</Text>
-              {/^https?:\/\/\S+$/.test(r.text) ? <View><MarkdownText text={`[${r.text.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}](${r.text})`} /></View> : <Text numberOfLines={5} style={st.value}>{r.text}</Text>}
+              {/^https?:\/\/\S+$/.test(r.text) ? <Text accessibilityRole="link" {...({ href: r.text, hrefAttrs: { target: "_blank", rel: "noopener noreferrer" } } as object)} style={st.link}>{r.text.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</Text> : <Text numberOfLines={5} style={st.value}>{r.text}</Text>}
             </View>
           ))}
         </View>
@@ -187,12 +186,12 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, editor }: { t
           <TextInput accessibilityLabel="Why not (optional)" testID={`approval-reason-${taskId}`} value={reason} onChangeText={setReason} placeholder="Reason (optional)" placeholderTextColor="var(--ink-4)" multiline style={st.input} />
           <View style={st.acts}>
             <TextButton label="Back" onPress={() => setDenying(false)} testID={`approval-back-${taskId}`} />
-            <TextButton label={held.plain ? "Send back" : "Deny"} danger disabled={busy} onPress={() => act("reject", denyNote(reason))} testID={`approval-deny-go-${taskId}`} />
+            <TextButton label="Deny" danger disabled={busy} onPress={() => act("reject", denyNote(reason))} testID={`approval-deny-go-${taskId}`} />
           </View>
         </View>
       ) : (
         <View style={st.acts}>
-          <TextButton label={held.plain ? "Send back" : "Deny"} onPress={() => setDenying(true)} disabled={busy} testID={`approval-deny-${taskId}`} />
+          <TextButton label="Deny" onPress={() => setDenying(true)} disabled={busy} testID={`approval-deny-${taskId}`} />
           {allowable ? <TextButton label="Always allow" disabled={busy} onPress={always} testID={`approval-always-${taskId}`} /> : null}
           <TextButton label="Allow" primary disabled={busy} onPress={() => act("approve")} testID={`approval-allow-${taskId}`} />
         </View>
@@ -209,6 +208,7 @@ const st = StyleSheet.create({
   excerpt: { gap: 6, padding: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
   line: { gap: 1 },
   label: { fontSize: 11.5, color: "var(--ink-3)" as string },
+  link: { fontSize: 13, lineHeight: 18, color: "var(--accent)" as string },
   value: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
   diffLine: { flexDirection: "row", gap: 8 },
   mark: { width: 12, fontSize: 13, fontWeight: "600" },

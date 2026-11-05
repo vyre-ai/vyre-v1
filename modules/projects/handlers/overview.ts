@@ -5,7 +5,7 @@
 // DECISION: the notes module here is a Keep-style note with no block document, collaboration or history, so the page lives in this module: its blocks, and a log of revisions. Two writers are kept apart by
 // the revision they based their change on, not by live merging.
 import {
-  LIVE_TYPES, attachesOf, call, clean, codeOf, docOf, emitP, ensure, isOpenState, loadTasks, me, membersOf, newId, planTask, plansOf, projectRow, raise, readRecord, revsOf, saveDoc, saveTemplate,
+  LIVE_TYPES, revBlocks, attachesOf, call, clean, codeOf, docOf, emitP, ensure, isOpenState, loadTasks, me, membersOf, newId, planTask, plansOf, projectRow, raise, readRecord, revsOf, saveDoc, saveTemplate,
   templateBy, templatesOf, tolerant, visible, writeRecord,
 } from "../projections.ts";
 import type { In, LiveType, PageBlock, Project, ProjectsCtx, RevRow } from "../projections.ts";
@@ -20,38 +20,44 @@ const live = (id: string, type: LiveType, spec: Record<string, unknown>, view: V
 const head = (id: string, text: string, level = 2): PageBlock => ({ id, kind: "heading", text, level });
 const text = (id: string, t: string): PageBlock => ({ id, kind: "text", text: t });
 
+/** One name on a page, once: a heading that repeats the title of the live block under it goes, since the block's own title is the section's name (and carries its Edit and menu). */
+const tidy = (blocks: PageBlock[]): PageBlock[] => blocks.filter((b, i) => {
+  const next = blocks[i + 1];
+  return !(b.kind === "heading" && next?.kind === "live" && String((next.live?.spec as { title?: unknown } | undefined)?.title ?? "").trim().toLowerCase() === b.text.trim().toLowerCase());
+});
+
 /** A page for a project that never had one: how it stands, what is next, who is on it. */
-export const defaultBlocks = (): PageBlock[] => [
+export const defaultBlocks = (): PageBlock[] => tidy([
   live("blk_status", "status", { title: "Status" }), head("blk_h_next", "Next"), live("blk_next", "milestones", { title: "Next milestones", limit: 3 }),
   head("blk_h_work", "Late or waiting"), live("blk_open", "tasks", { title: "Open tasks", status: "late" }), head("blk_h_people", "People and agents"), live("blk_people", "people", { title: "People and agents" }),
-];
+]);
 
 export interface Builtin { templateId: string; title: string; summary: string; blocks: PageBlock[] }
 export const BUILTIN_TEMPLATES: readonly Builtin[] = [
   {
     templateId: "tpl_client_account", title: "Client account", summary: "A client's work in one place: invoices, mail, tasks and who is on it.",
-    blocks: [
+    blocks: tidy([
       live("b_status", "status", { title: "Status" }), head("b_h_about", "About this client"), text("b_about", "Who they are, what we do for them, and what to watch."),
       head("b_h_inv", "Invoices"), live("b_inv", "records", { title: "Invoices", type: "invoice" }, "table"), live("b_owed", "metric", { title: "Unpaid", type: "invoice", op: "sum", field: "amount", filter: { field: "status", op: "eq", value: "sent" } }, "count"),
       head("b_h_mail", "Mail"), live("b_mail", "links", { title: "Mail threads", kind: "mail_thread" }), head("b_h_tasks", "Work"), live("b_tasks", "tasks", { title: "Open tasks", status: "open" }),
       live("b_next", "milestones", { title: "Next milestones", limit: 3 }), head("b_h_people", "People and agents"), live("b_people", "people", { title: "People and agents" }),
-    ],
+    ]),
   },
   {
     templateId: "tpl_software_project", title: "Software project", summary: "Pull requests, CI, tasks and milestones for a code project.",
-    blocks: [
+    blocks: tidy([
       live("b_status", "status", { title: "Status" }), head("b_h_goal", "Goal"), live("b_goal", "goal", { title: "Goal" }), head("b_h_code", "Code"),
       live("b_prs", "links", { title: "Pull requests", kind: "github.pr" }), live("b_ci", "ci", { title: "CI runs" }), head("b_h_work", "Work"), live("b_tasks", "tasks", { title: "Open tasks", status: "open" }),
       live("b_next", "milestones", { title: "Next milestones", limit: 3 }), head("b_h_people", "People and agents"), live("b_people", "people", { title: "People and agents" }),
-    ],
+    ]),
   },
   {
     templateId: "tpl_hiring", title: "Hiring", summary: "Candidates, interviews and the people running the search.",
-    blocks: [
+    blocks: tidy([
       live("b_status", "status", { title: "Status" }), head("b_h_role", "The role"), text("b_role", "What the role is, what good looks like, and the pay range."),
       head("b_h_cand", "Candidates"), live("b_cand", "records", { title: "Candidates", type: "candidate" }, "table"), live("b_count", "metric", { title: "Candidates in the pipeline", type: "candidate", op: "count" }, "count"),
       head("b_h_int", "Interviews"), live("b_cal", "links", { title: "Interviews", kind: "calendar_event" }), live("b_tasks", "tasks", { title: "Open tasks", status: "open" }), head("b_h_people", "People and agents"), live("b_people", "people", { title: "People and agents" }),
-    ],
+    ]),
   },
 ];
 
@@ -134,7 +140,8 @@ function checkLive(ctx: ProjectsCtx, l: In | undefined): NonNullable<PageBlock["
   return clean({ type: l.type as LiveType, spec, view: v });
 }
 
-const brief = (b: PageBlock): string => (b.kind === "live" ? `a live ${b.live!.type} block` : b.kind === "heading" ? `the heading "${(b.text ?? "").slice(0, 40)}"` : "a paragraph");
+const liveName = (b: PageBlock): string => { const ti = (b.live?.spec as { title?: unknown } | undefined)?.title; return typeof ti === "string" && ti.trim() !== "" ? ` "${ti.trim().slice(0, 40)}"` : ""; };
+const brief = (b: PageBlock): string => (b.kind === "live" ? `a live ${b.live!.type} block${liveName(b)}` : b.kind === "heading" ? `the heading "${(b.text ?? "").slice(0, 40)}"` : "a paragraph");
 
 /** Apply ops to a page: answers the new blocks, a line saying what changed, and the property values the ops replaced. */
 export async function applyOps(ctx: ProjectsCtx, p: Project, start: readonly PageBlock[], ops: readonly In[]): Promise<{ blocks: PageBlock[]; summary: string; props: Record<string, unknown>; changed: number }> {
@@ -212,6 +219,23 @@ function stale(ctx: ProjectsCtx, p: Project, baseRev: unknown): void {
   if (typeof baseRev === "number" && baseRev !== cur) raise(ctx, "validation.precondition_failed", "Someone changed the page since you opened it. Open it again and redo your change.", { reason: "stale_revision", rev: cur });
 }
 
+/** What a save changed, in a few words: which live block was added, removed or set differently, which text was written. */
+export function describeChange(before: readonly PageBlock[], after: readonly PageBlock[]): string {
+  const said: string[] = [];
+  const was = new Map(before.map((b) => [b.id, b]));
+  const now = new Map(after.map((b) => [b.id, b]));
+  for (const b of after) {
+    const o = was.get(b.id);
+    if (!o) { said.push(`added ${brief(b)}`); continue; }
+    if (JSON.stringify({ ...o, by: undefined, at: undefined }) === JSON.stringify({ ...b, by: undefined, at: undefined })) continue;
+    if (b.kind === "live" && o.kind === "live") said.push(JSON.stringify(o.live!.spec) !== JSON.stringify(b.live!.spec) ? `changed the filter of ${(b.live!.spec as { title?: string }).title ?? b.live!.type}` : `changed the view of ${(b.live!.spec as { title?: string }).title ?? b.live!.type}`);
+    else said.push(b.kind === "heading" ? `renamed the heading "${(b.text ?? "").slice(0, 40)}"` : "edited a paragraph");
+  }
+  for (const b of before) if (!now.has(b.id)) said.push(`removed ${brief(b)}`);
+  if (said.length === 0) return before.map((b) => b.id).join() === after.map((b) => b.id).join() ? "no change" : "moved a block";
+  return said.slice(0, 3).join(", ") + (said.length > 3 ? ` and ${said.length - 3} more` : "");
+}
+
 export async function docSave(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
   const p = visible(ctx, input.projectId, "edit");
@@ -230,7 +254,7 @@ export async function docSave(ctx: ProjectsCtx, input: In): Promise<unknown> {
     return old && JSON.stringify({ ...old, by: undefined, at: undefined }) === JSON.stringify({ id, ...checked }) ? old : withAuthor({ id, ...checked }, me(ctx), at);
   });
   if (blocks.length > 300) raise(ctx, "validation.bad_input", "A page holds at most 300 blocks.");
-  const summary = JSON.stringify(blocks) === JSON.stringify(before) ? "no change" : "edited the page";
+  const summary = JSON.stringify(blocks) === JSON.stringify(before) ? "no change" : describeChange(before, blocks);
   const rev = await commit(ctx, p, before, { blocks, summary, props: {} });
   return { rev, blocks: blocks.map(view), markdown: toMarkdown(blocks) };
 }
@@ -263,6 +287,22 @@ export async function undo(ctx: ProjectsCtx, input: In): Promise<unknown> {
   }
   const rev = await commit(ctx, p, cur.blocks, { blocks: last.before, summary: `undid: ${last.summary}`, props: reverted }, last.rev);
   return { rev, undid: last.rev, blocks: last.before.map(view) };
+}
+
+/** Bring an older version back: its blocks are the page again, as a new revision, so the restore can be undone like any change. */
+export async function restore(ctx: ProjectsCtx, input: In): Promise<unknown> {
+  ensure(ctx.db);
+  const p = visible(ctx, input.projectId, "edit");
+  stale(ctx, p, input.baseRev);
+  const rev = Number(input.rev);
+  const blocks = revBlocks(ctx.db, p.projectId, rev);
+  if (!blocks) raise(ctx, "validation.not_found", "That version is no longer kept.", { rev });
+  const before = docOf(ctx.db, p.projectId)?.blocks ?? defaultBlocks();
+  const at = ctx.now();
+  const next = blocks!.map((b) => withAuthor({ ...b }, me(ctx), at));
+  const now = await commit(ctx, p, before, { blocks: next, summary: `restored version ${rev}`, props: {} });
+  await say(ctx, p, `restored version ${rev}`);
+  return { rev: now, restored: rev, blocks: next.map(view) };
 }
 
 // ---- templates ----
@@ -386,15 +426,15 @@ export async function overviewGet(ctx: ProjectsCtx, input: In): Promise<unknown>
 
 // ---- live blocks ----
 
-export interface LiveRow { id: string; title: string; state?: string | undefined; detail?: string | undefined; url?: string | undefined }
+export interface LiveRow { id: string; title: string; state?: string | undefined; detail?: string | undefined; url?: string | undefined; who?: string | undefined; due?: number | undefined }
 const day = (ms: number | undefined): string | undefined => (ms === undefined ? undefined : new Date(ms).toISOString().slice(0, 10));
 const cap = (spec: Record<string, unknown>, dflt = 20): number => Math.min(100, Math.max(1, Number(spec["limit"] ?? dflt)));
 const asText = (v: unknown): string => (v === null || v === undefined ? "" : String(v));
 
 /** Evaluate a live block for the reader: the rows they may open, how many they may not, and for a metric its value. The block stores only its spec. */
-export async function evaluate(ctx: ProjectsCtx, p: Project, type: LiveType, spec: Record<string, unknown>): Promise<{ rows: LiveRow[]; hidden: number; total: number; value?: number; label?: string }> {
+export async function evaluate(ctx: ProjectsCtx, p: Project, type: LiveType, spec: Record<string, unknown>): Promise<{ rows: LiveRow[]; hidden: number; total: number; value?: number; label?: string; unit?: string; parts?: { unit?: string; value: number }[] }> {
   const now = ctx.now();
-  const done = (rows: LiveRow[], hidden = 0, extra: { value?: number; label?: string } = {}) => ({ rows: rows.slice(0, cap(spec)).map((r) => clean(r)), hidden, total: rows.length + hidden, ...extra });
+  const done = (rows: LiveRow[], hidden = 0, extra: { value?: number; label?: string; unit?: string; parts?: { unit?: string; value: number }[] } = {}) => ({ rows: rows.slice(0, cap(spec)).map((r) => clean(r)), hidden, total: rows.length + hidden, ...extra });
   switch (type) {
     case "tasks": case "milestones": {
       const tasks = await loadTasks(ctx, p);
@@ -406,14 +446,15 @@ export async function evaluate(ctx: ProjectsCtx, p: Project, type: LiveType, spe
         if (st === "late") all = all.filter((t) => isOpenState(t.status) && t.due !== undefined && t.due < now);
         else if (st === "open" || st === undefined) all = all.filter((t) => isOpenState(t.status));
         else if (st === "done") all = all.filter((t) => t.status === "done");
+        else if (st === "waiting") all = all.filter((t) => t.status === "in_review" || t.status === "awaiting_approval");
       }
-      if (typeof spec["assigned"] === "string") all = all.filter((t) => t.assigned === spec["assigned"]);
+      if (typeof spec["assigned"] === "string" && spec["assigned"] !== "") { const want = spec["assigned"] === "me" ? me(ctx) : spec["assigned"]; all = all.filter((t) => t.assigned === want); }
       all.sort((a, b) => (a.due ?? Infinity) - (b.due ?? Infinity));
       // Tasks can be private or restricted. `tasks.list` answers the ones the reader may open; the task records of this project counted without regard to access say how many exist, and the difference
       // is what is hidden from them. (A count that cannot be read leaves hidden at 0 rather than guessing.)
       const everyTask = await tolerant<{ count?: number }>(ctx, "records.counts", { type: "task", filter: { field: "project", op: "eq", value: p.recordId } }, {});
       const hiddenTasks = everyTask.count === undefined ? 0 : Math.max(0, everyTask.count - tasks.length);
-      return done(all.map((t) => ({ id: t.taskId, title: t.title, state: t.status, detail: [day(t.due), t.due !== undefined && t.due < now && isOpenState(t.status) ? "late" : undefined].filter(Boolean).join(" · ") || undefined, url: `/tasks/${t.taskId}` })), hiddenTasks);
+      return done(all.map((t) => ({ id: t.taskId, title: t.title, state: t.status, detail: [day(t.due), t.due !== undefined && t.due < now && isOpenState(t.status) ? "late" : undefined].filter(Boolean).join(" · ") || undefined, url: `/tasks/${t.taskId}`, ...(t.assigned ? { who: t.assigned } : {}), ...(t.due !== undefined ? { due: t.due } : {}) })), hiddenTasks);
     }
     case "links": case "ci": {
       const kind = type === "ci" ? "ci.run" : typeof spec["kind"] === "string" ? spec["kind"] : undefined;
@@ -438,8 +479,21 @@ export async function evaluate(ctx: ProjectsCtx, p: Project, type: LiveType, spe
       const hidden = Math.max(0, (all.count ?? visibleN) - visibleN);
       if (type === "metric") {
         const field = String(spec["field"] ?? "");
-        const value = spec["op"] === "sum" ? seen.reduce((s, r) => s + (Number(r.fields[field]) || 0), 0) : visibleN;
-        return { rows: [], hidden, total: visibleN + hidden, value, label: asText(spec["title"]) || (spec["op"] === "sum" ? `Sum of ${field}` : "Count") };
+        // a money field holds { amount, currency }; a number field holds the number
+        const amountOf = (v: unknown): number => (typeof v === "number" ? v : v !== null && typeof v === "object" && typeof (v as { amount?: unknown }).amount === "number" ? (v as { amount: number }).amount : Number(v) || 0);
+        const sums = new Map<string, number>();
+        let plain = 0;
+        for (const r of seen) { const v = r.fields[field]; const cur = v !== null && typeof v === "object" ? (v as { currency?: unknown }).currency : undefined; if (typeof cur === "string") sums.set(cur, (sums.get(cur) ?? 0) + amountOf(v)); else plain += amountOf(v); }
+        const label = asText(spec["title"]) || (spec["op"] === "sum" ? `Sum of ${field}` : "Count");
+        if (spec["op"] !== "sum") return { rows: [], hidden, total: visibleN + hidden, value: visibleN, label };
+        // amounts in different currencies are never added together: one total per currency (a plain number joins the money's currency when there is only one)
+        if (sums.size > 1) {
+          const parts = [...sums].map(([unit, value]) => ({ unit, value })).sort((x, y) => y.value - x.value);
+          if (plain !== 0) parts.push({ value: plain } as { unit: string; value: number });
+          return { rows: [], hidden, total: visibleN + hidden, label, parts };
+        }
+        const [unit] = [...sums.keys()];
+        return { rows: [], hidden, total: visibleN + hidden, value: (unit ? sums.get(unit)! : 0) + plain, label, ...(unit ? { unit } : {}) };
       }
       const titleOf = (f: Record<string, unknown>, id: string): string => asText(f["title"] ?? f["name"] ?? f["number"] ?? id);
       return done(seen.map((r) => ({ id: r.id, title: titleOf(r.fields, r.id), state: asText(r.fields["status"] ?? r.fields["stage"]) || undefined, detail: spec["show"] && typeof spec["show"] === "string" ? asText(r.fields[spec["show"]]) || undefined : undefined, url: `/records/${recType}/${r.id}` })), hidden);

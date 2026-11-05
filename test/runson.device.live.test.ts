@@ -35,7 +35,8 @@ test("Automatic: her linked computer runs her turns, the server runs none (N tur
     // her computer goes away: Automatic runs the next turn on the server
     await mac.unlink();
     assert.equal(await replyAfter(s, threadId, await send(s, threadId, agentId, "whereami", "rs-off")), "ran-on=space handover=no", hostLog(s.d));
-    assert.equal(await hostSpawns(s), 1, "now the server ran one");
+    // two: the turn on the server, and memory's learning pass for the turn before it, which finds her computer gone and so runs on the server on her account (a pass runs where her turns run: her computer while it is linked, the server otherwise)
+    assert.equal(await hostSpawns(s), 1, "now the server ran the turn only: the learning pass for each earlier turn ran on her computer while it was linked (#875)");
     const after = (await s.as(null, "engine.turns.list", { threadId })).data.turns as Array<{ ranOn?: Array<{ kind: string }> }>;
     assert.deepEqual(after[0]?.ranOn?.map((r) => r.kind), ["space"]);
   } finally { await mac.stop(); await s.stop(); }

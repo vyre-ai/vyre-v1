@@ -15,6 +15,9 @@ export interface CrewCtx {
   show(helperThreadId: string | null): void;
   /** Counts up on each show(): the pane switches to its Crew tab when it changes. */
   seq: number;
+  /** The Crew pane (the shared side pane with its own Crew tab) is showing. */
+  open: boolean;
+  close(): void;
   call: Call | undefined;
   threadId: string;
 }
@@ -27,9 +30,10 @@ export function CrewProvider({ call, threadId, onShow, children }: { call: Call 
   const { status } = useCrewStatus(call, threadId, signal);
   const [selected, setSelected] = useState<string | null>(null);
   const [seq, setSeq] = useState(0);
+  const [open, setOpen] = useState(false);
   const value = useMemo<CrewCtx>(() => ({
-    status, refresh: () => setSignal((n) => n + 1), selected, seq, call, threadId,
-    show: (id) => { setSelected(id); setSeq((n) => n + 1); onShow?.(); },
-  }), [status, selected, seq, call, threadId, onShow]);
+    status, refresh: () => setSignal((n) => n + 1), selected, seq, call, threadId, open, close: () => { setOpen(false); setSelected(null); },
+    show: (id) => { setSelected(id); setSeq((n) => n + 1); setOpen(true); onShow?.(); },
+  }), [status, selected, seq, call, threadId, onShow, open]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

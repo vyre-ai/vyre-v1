@@ -78,3 +78,20 @@ test("Mark Unread From Here is in the keep group where the chat can do it, and r
   await markUnreadFrom({ threadId: "thr_1", call: async (cap: string, input: unknown) => { sent.push({ cap, input }); return { unread: 2 }; } } as never, 7);
   assert.deepEqual(sent, [{ cap: "threads.mark_unread_from", input: { threadId: "thr_1", seq: 7 } }]);
 });
+
+test("message times in a shared place read in the Space zone, hover names both zones, and a private chat keeps the device clock", async () => {
+  const { timeLabel, dayLabel, timeTitle, timeline } = await import("./model.ts");
+  const zones = { space: "America/Los_Angeles", viewer: "Asia/Karachi" };
+  const at = Date.parse("2026-11-05T17:05:00Z");          // 9:05 AM Pacific, 10:05 PM Karachi
+  const shared = { now: Date.parse("2026-11-05T20:00:00Z"), offsetMin: 300, zones };
+  assert.equal(timeLabel(at, shared), "09:05");
+  assert.equal(dayLabel(at, shared), "Today");
+  assert.match(timeTitle(at, shared) ?? "", /^Thu 5 Nov 2026, 9:05 AM Pacific Time\. Your time: Thu 5 Nov, 10:05 PM Pakistan/);
+  const priv = { now: shared.now, offsetMin: 300 };
+  assert.equal(timeLabel(at, priv), "22:05");
+  assert.equal(timeTitle(at, priv), undefined, "no hover where there is no second zone");
+  const items = timeline([msg({ createdAt: at, messageId: "m_t" })], { meId: "me", nameOf: (id: string) => id, kindOf: () => "person" as never, clock: shared, shared: true } as never);
+  const other = items.find((i) => i.kind === "other") as { time: string; timeTitle?: string };
+  assert.equal(other.time, "09:05");
+  assert.match(other.timeTitle ?? "", /Pacific Time/);
+});

@@ -79,10 +79,28 @@ export function canSpeak(ctx: ChatCtx, thread: ThreadRec): boolean {
   return false;
 }
 
-/** Exactly two people and a chat, no channel: a direct message. */
+/** The people in a chat (its members that are not agents). */
+function peopleIn(ctx: Pick<ChatCtx, "db">, t: ThreadRec): string[] {
+  return membersOf(ctx.db, t.id).filter((p) => !p.startsWith("agt_"));
+}
+
+/**
+ * A direct message: a chat, no channel, exactly two people and no agent. A chat of two people with agents in it ("Billing review" with Dev, Ledger and Nova) is a group chat: pressing Dev must open
+ * the direct message with Dev, never that chat (lane l-polish, L0). Agents sit in chat_thread_agent, not in the members, so they are counted there.
+ */
 export function isDirect(ctx: Pick<ChatCtx, "db">, t: ThreadRec): boolean {
   if (t.kind !== "chat" || t.channelId !== undefined) return false;
-  return membersOf(ctx.db, t.id).filter((p) => !p.startsWith("agt_")).length === 2;
+  return peopleIn(ctx, t).length === 2 && agentsOf(ctx.db, t.id).length === 0;
+}
+
+/**
+ * The one other person in a chat of exactly two people, with or without agents: a person's message there reaches them as message.direct, so a two-person chat with an agent notifies as it did before
+ * isDirect counted agents. A chat of three or more people notifies by mention only.
+ */
+function otherOfTwo(ctx: Pick<ChatCtx, "db">, t: ThreadRec, author: string): string | undefined {
+  if (t.kind !== "chat" || t.channelId !== undefined) return undefined;
+  const people = peopleIn(ctx, t);
+  return people.length === 2 ? people.find((p) => p !== author) : undefined;
 }
 
 function cleanMentions(ctx: ChatCtx, raw: Mention[] | undefined): Mention[] {
@@ -135,7 +153,7 @@ export function deliver(ctx: ChatCtx, thread: ThreadRec, m: MessageRec, mentions
   });
   if (opts.notify === false) return;
   const root = rootOf(ctx, thread);
-  const direct = author.kind === "person" && isDirect(ctx, root) ? membersOf(ctx.db, root.id).find((p) => !p.startsWith("agt_") && p !== author.id) : undefined;
+  const direct = author.kind === "person" ? otherOfTwo(ctx, root, author.id) : undefined;
   if (direct !== undefined) ctx.emit("message.direct", thread.id, { messageId: m.id, threadId: thread.id, personId: direct, author });
   for (const mention of mentions) {
     // an @mention is the one new message that brings an archived chat back into that person's list (a direct message gets message.direct instead, but the mention still counts)

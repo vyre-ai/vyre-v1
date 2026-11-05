@@ -163,6 +163,8 @@ export interface TurnEngine {
   openThread(thread: OpenThread): void;
   /** Persist, route and queue a message. `interrupt` = "stop and send": cancel the running turn now and run this first. */
   receive(msg: IncomingMessage, opts?: { interrupt?: boolean }): ReceiveResult;
+  /** Wake the agents for a message that was kept with `hold`: it is routed now as it would have been when it arrived. Null when it is not held (or already woken). */
+  wakeHeld(threadId: string, messageId: string): ReceiveResult | null;
   /** A background wait fired for an agent: queue a wake on the starter's account. */
   /** `routine`: the turn is a routine's (its reply is labelled "on a routine <person> set"); `from`: the person it runs for (default the thread's starter). */
   wake(threadId: string, agentId: string, o?: { routine?: boolean; from?: string }): number;
@@ -203,6 +205,10 @@ export interface TurnEngine {
   idle(threadId: string): Promise<void>;
   events(threadId?: string): EngineEvent[];
   subscribe(fn: (e: EngineEvent) => void): () => void;
+  /** Turns parked because the person's Vault is locked on this computer: one per chat and agent, however many messages came since. A parked turn is not running. */
+  parkedLocked(): Array<{ threadId: string; agentId: string; asker: string; messageId: string | null }>;
+  /** The Vault is open: run the one waiting turn of each chat parked for this person (everyone's when no one is named). Returns how many were resumed. */
+  resumeLocked(asker?: string): number;
   turns(threadId?: string): TurnRow[];
   spend(): SpendRow[];
   messages(threadId: string): StoredMessage[];
@@ -227,6 +233,9 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   const listeners = new Set<(e: EngineEvent) => void>();
   const turnRows: TurnRow[] = [];
   const spendRows: SpendRow[] = [];
+  /** `${thread}|${agent}` -> the turn that waits for the person's Vault; later messages for that agent fold into it instead of starting a turn that fails the same way. */
+  const lockedPark = new Map<string, { threadId: string; agentId: string; asker: string; messageId: string | null; from: string; since: number }>();
+  const PARK_MAX_MS = 10 * 60_000;   // a host that cannot see the unlock still tries again on the next message after this
   const enqueuedHr = new Map<string, number>();   // `${thread}:${qseq}` -> hr() at enqueue
   let counter = 0;
   const nextId = opts.newId ?? ((p: string): string => `${p}_${++counter}`);
@@ -262,8 +271,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     return item;
   }
 
+  /** What a held message needs to be routed later (who it replies to, whose job it is, who pays). */
+  const heldArgs = new Map<string, { replyToPerson?: string | undefined; job?: string | undefined; asker?: string | undefined; poke?: { agentId: string; by: string } | undefined; minutes?: number | undefined }>();
+
   function ingest(st: ThreadState, m: IncomingMessage, interrupt: boolean): ReceiveResult {
     if (m.people) st.thread.people = [...m.people];
+    if (m.hold === true) { const kept = store(st, m); heldArgs.set(kept.id, { replyToPerson: m.replyToPerson, job: m.job, asker: m.asker, poke: m.poke, minutes: m.minutes }); return { responders: [], reason: "no_lead", qseqs: [], messageId: kept.id }; }
     return dispatch(st, store(st, m), interrupt, m.replyToPerson, m.job, m.asker, m.poke, m.minutes);
   }
 
@@ -279,7 +292,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     else if (askedAll.get(st.thread.id)?.has(msg.author.id) && r.reason !== "mention") { askedAll.get(st.thread.id)!.delete(msg.author.id); responders = []; }
     // An agent's @mention is a hand-off: at most MENTION_HOPS of them follow one person's message, and the same two agents never pass it back and forth more than twice (owner ruling 4 Nov 2026).
     let chain: { from: string; to: string[] } | undefined;
-    if (msg.author.kind === "agent" && job === undefined && r.reason === "mention" && responders.length > 0) {
+    // The first line of a helper's own chat is a brief: the lead started the helper on purpose (helperStart already counted it against the chat's one budget of agent turns), so it is no hand-off to be cut by this limit.
+    // Cut here, a coder started late in a long chat never ran its first turn, and its job ended lost.
+    const brief = st.thread.kind === "helper" && !st.messages.some((x) => x.id !== msg.id);
+    if (msg.author.kind === "agent" && job === undefined && r.reason === "mention" && responders.length > 0 && !brief) {
       if ((msg.depth ?? 0) > MENTION_HOPS) { responders = []; emit({ type: "turn.waiting", threadId: st.thread.id, reason: "hop_limit", messageId: msg.id }); }
       else {
         const since = st.messages.slice(); let k = since.length - 1;
@@ -360,6 +376,14 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         emit({ type: "agent.handoff", threadId: id, to: where });
         st.active = false;
         return;
+      }
+      const parked = lockedPark.get(`${id}|${next.agentId}`);
+      if (parked && now() - parked.since >= PARK_MAX_MS) lockedPark.delete(`${id}|${next.agentId}`);
+      else if (parked) {
+        // the Vault is still locked for this agent's turn: this message folds into the one waiting turn, which will answer the newest one
+        if (next.messageId) parked.messageId = next.messageId;
+        queue.setState(id, next.qseq, "cancelled");
+        continue;
       }
       const item = queue.dequeue(id);
       if (!item) continue;
@@ -732,7 +756,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     try { await opts.onTurnEnd?.(turn, paying ?? null); } catch { /* metering must never fail the turn */ }
     if (turn.state === "completed") emit({ type: "turn.completed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId });
     else if (turn.state === "cancelled") emit({ type: "turn.cancelled", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, ...(run.why ? { reason: run.why } : {}) });
-    else emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}) });
+    else {
+      if (turn.error?.code === "engine.vault_locked") lockedPark.set(`${st.thread.id}|${item.agentId}`, { threadId: st.thread.id, agentId: item.agentId, asker, messageId: item.messageId, from: item.from, since: now() });
+      emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}) });
+    }
     // The agent's answer is a message like any other: it can @mention the next agent, which counts a hop.
     // a turn that was stopped by a hook and then said nothing says what happened itself, so the stop is never the last thing in the chat
     if (turn.state === "completed" && reply === "" && mentions.length === 0 && opts.hooks?.stoppedSince) {
@@ -766,6 +793,14 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       threads.set(thread.id, { thread: { ...thread, agents: thread.agents.map((a) => ({ ...a })) }, messages: messages.recent(thread.id, historyWindow), running: null, worker: null, active: false });
     },
     receive: (msg, o) => ingest(need(msg.threadId), msg, o?.interrupt === true),
+    wakeHeld(threadId, messageId) {
+      const a = heldArgs.get(messageId);
+      if (!a) return null;
+      heldArgs.delete(messageId);
+      const st = need(threadId);
+      const msg = findMessage(st, messageId);
+      return msg ? dispatch(st, msg, false, a.replyToPerson, a.job, a.asker, a.poke, a.minutes) : null;
+    },
     wake(threadId, agentId, o) {
       const st = need(threadId);
       const item = enqueue(st, { kind: "wake", agentId, from: o?.from ?? st.thread.starter, messageId: null, priority: 0, routine: o?.routine === true });
@@ -890,6 +925,20 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     },
     events: (threadId) => (threadId === undefined ? journal.slice() : journal.filter((e) => e.threadId === threadId)),
     subscribe(fn) { listeners.add(fn); return () => { listeners.delete(fn); }; },
+    parkedLocked: () => [...lockedPark.values()].map((x) => ({ threadId: x.threadId, agentId: x.agentId, asker: x.asker, messageId: x.messageId })),
+    resumeLocked(asker) {
+      let n = 0;
+      for (const [key, x] of [...lockedPark]) {
+        if (asker !== undefined && x.asker !== asker) continue;
+        lockedPark.delete(key);
+        const st = threads.get(x.threadId);
+        if (!st) continue;
+        enqueue(st, { kind: x.messageId ? "message" : "wake", agentId: x.agentId, from: x.from, messageId: x.messageId, priority: 0, routine: false });
+        kick(st);
+        n++;
+      }
+      return n;
+    },
     turns: (threadId) => (threadId === undefined ? turnRows.slice() : turnRows.filter((t) => t.threadId === threadId)),
     spend: () => spendRows.slice(),
     messages: (threadId) => need(threadId).messages.slice(),

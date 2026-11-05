@@ -40,8 +40,8 @@ function build(variant: Variant): { thread: Thread; messages: Message[] } {
     ]
     : notes ? [
       msg(1, 1, "agt_lead", "Look at the county site for parcel 104-22-009 and tell me the owner.", started),
-      msg(2, 2, agent, "Which county site: the main one or a mirror?", started + 5_000, [{ type: "helper_note", v: 1, id: "n1", data: { direction: "up", kind: "question", state: "answered", from: { kind: "agent", id: agent } }, state: "sent", traceId: "tr_n1" }]),
-      msg(3, 3, "agt_lead", "Use the mirror.", started + 9_000, [{ type: "helper_note", v: 1, id: "n2", data: { direction: "down", kind: "followup", state: "seen", seenAt: started + 10_000, from: { kind: "agent", id: "agt_lead" } }, state: "sent", traceId: "tr_n2" }]),
+      msg(2, 2, agent, "Which county site: the main one or a mirror?", started + 5_000, [{ type: "helper_note", v: 1, id: "n1", data: { direction: "up", kind: "question", state: "answered", from: { kind: "agent", id: agent } }, state: "done", traceId: "tr_n1" }]),
+      msg(3, 3, "agt_lead", "Use the mirror.", started + 9_000, [{ type: "helper_note", v: 1, id: "n2", data: { direction: "down", kind: "followup", state: "seen", seenAt: started + 10_000, from: { kind: "agent", id: "agt_lead" } }, state: "done", traceId: "tr_n2" }]),
       { ...msg(4, 4, "usr_irfad", "Also tell me the filing date.", started + 14_000), author: { kind: "person", id: "usr_irfad" }, kind: "text" } as Message,
       msg(5, 5, agent, "Noted. I will include the filing date.", started + 16_000),
     ]
@@ -81,7 +81,7 @@ export function createSample(variant: Variant = "done", o: { online?: boolean; h
     hk("hok_run", "run", "c2", "before any search, no client names", "check", { instruction: "No client names" }, "agt_lead", "agent"),
     hk("hok_space", "space", undefined, "before a helper acts, keep to the Space rules", "command", { command: "rules.sh" }, "usr_irfad", "admin"),
   ]);
-  replica.resolve("hooks.list", () => ({ hooks: o.hooks ? (replica.rows("hooks") as unknown[]) : [], agentHooks: true }));
+  replica.resolve("hooks.list", () => ({ hooks: o.hooks ? (replica.rows("hooks") as never[]) : [], agentHooks: true }));
   replica.resolve("threads.get", (_t, input) => {
     const r = (replica.rows("threads") as unknown as (Thread & Row)[]).find((x) => x.threadId === input.threadId);
     if (!r) throw new Error("no such thread");

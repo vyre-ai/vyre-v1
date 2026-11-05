@@ -5,8 +5,11 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "hooks.allow_always": Handler<"hooks.allow_always", X>;
   "hooks.allow_once": Handler<"hooks.allow_once", X>;
+  "hooks.allow_remove": Handler<"hooks.allow_remove", X>;
   "hooks.ask_admin": Handler<"hooks.ask_admin", X>;
+  "hooks.deny": Handler<"hooks.deny", X>;
   "hooks.fire": Handler<"hooks.fire", X>;
   "hooks.list": Handler<"hooks.list", X>;
   "hooks.pause": Handler<"hooks.pause", X>;

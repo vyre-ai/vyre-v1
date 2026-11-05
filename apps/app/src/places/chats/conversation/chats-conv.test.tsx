@@ -437,3 +437,13 @@ test("the header's faces: the other people of a chat, never the viewer, listed o
   assert.deepEqual(otherPeople({ members }, "usr_me"), ["usr_maya", "usr_omar"]);
   assert.deepEqual(otherPeople({ members: [{ kind: "person", id: "usr_me" }] as never }, "usr_me"), []);
 });
+
+test("Continue on a reply stopped for an update runs that turn again, once, with nothing posted", async () => {
+  const s = createSample("errors");
+  const said: string[] = [];
+  await act.errorAction(s.data, "continue_turn:trn_stopped", undefined, (t) => said.push(t));
+  const retries = s.calls.filter((c) => c.cap === "engine.turn.retry");
+  assert.deepEqual(retries.map((c) => c.input), [{ turnId: "trn_stopped" }], "one press, one retry of that very turn");
+  assert.equal(s.calls.some((c) => c.cap === "chat.post"), false, "the message is not posted again");
+  assert.deepEqual(said, []);
+});

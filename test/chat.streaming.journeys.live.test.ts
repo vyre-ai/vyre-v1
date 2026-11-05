@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { cli, connectSubscription } from "./support/cli-world.ts";
 import { bootScreens, browserOrSkip, open, seat } from "./support/mail-browser.ts";
 import { shoot } from "./support/chat-shots.ts";
+import { hostLog } from "./support/live.ts";
 
 const OUT = "shots-evidence/chat-streaming";
 test("a reply from the CLI shows a sign of work at once, streams in pieces, repeats nothing, and carries no recall cards", async (t) => {
@@ -32,7 +33,7 @@ test("a reply from the CLI shows a sign of work at once, streams in pieces, repe
     await me.page.getByTestId("composer-send").click();
 
     // 1. a sign of work: the Stop button is the app's mark that an agent is writing; it must be there before the first word (the fake pauses 1.4 s first)
-    await me.page.getByTestId("stop-button").waitFor({ timeout: 1_200 }).catch((e) => { throw new Error(`no sign of work; turn frames: ${JSON.stringify(frames)}; ${String(e).slice(0, 80)}`); });
+    await me.page.getByTestId("stop-button").waitFor({ timeout: 1_200 }).catch((e) => { throw new Error(`no sign of work; turn frames: ${JSON.stringify(frames)}; ${String(e).slice(0, 80)}; host log (the engine's own error, e.g. the sandbox start): ${hostLog(s.world.d)}`); });
     const signAt = Date.now() - sent;
     assert.equal(await me.page.getByText(/word1/).count(), 0, "and no word yet: the sign came first");
     await shoot(me.page, dir, "working-before-text", { phone: false });
@@ -48,7 +49,7 @@ test("a reply from the CLI shows a sign of work at once, streams in pieces, repe
       if (n >= 8 && (await me.page.getByTestId("stop-button").count()) === 0) break;
       await me.page.waitForTimeout(100);
     }
-    assert.ok(seen.length >= 4, `the words arrived in pieces, not as one block: ${JSON.stringify(seen)}`);
+    assert.ok(seen.length >= 4, `the words arrived in pieces, not as one block: ${JSON.stringify(seen)}; host log (the engine's own error, e.g. the sandbox start): ${hostLog(s.world.d)}`);
     assert.ok(seen.every((n, i) => i === 0 || n > seen[i - 1]!), `and only grew: ${JSON.stringify(seen)}`);
     await me.page.waitForTimeout(2_500);
     const after = (await me.page.getByTestId("conversation-feed").innerText()).match(/word\d/g) ?? [];

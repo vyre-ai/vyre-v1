@@ -38,6 +38,7 @@ type Out = {
       by: string;
       authorKind: "person" | "agent";
       summary: string;
+      version?: string;
       undoOf?: number;
       at: number;
     }>;
@@ -68,7 +69,8 @@ type Out = {
         "by": "example",
         "rev": 1,
         "summary": "example",
-        "undoOf": 1
+        "undoOf": 1,
+        "version": "example"
       }
     ]
   }

@@ -89,7 +89,7 @@ export function runMenu(run: Run, a: RunActions, nav: { openRun(id: string): voi
     { label: "Open to the Side", onSelect: () => nav.openRunSide(run.id) },
     { label: "Open in Main", onSelect: () => nav.openRun(run.id) },
     { label: "Copy Link", onSelect: () => a.copy(runLink(run), "the link to this run") },
-    { label: "Copy Trace Id", onSelect: () => a.copy(run.traceId, "the trace id") },
+    { label: "Copy error details", onSelect: () => a.copy(run.traceId, "the error details") },
   ];
   if (failedStillOpen) items.push({ separator: true }, { label: "Retry", onSelect: () => void a.retry(run) });
   if (isActive(run)) items.push({ separator: true }, { label: "Stop", danger: true, onSelect: () => show([{ head: "Stop this run?" }, { label: "Stop", danger: true, onSelect: () => void a.stop(run) }, { label: "Cancel" }], at.x, at.y, "other") });

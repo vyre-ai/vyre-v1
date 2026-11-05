@@ -48,12 +48,13 @@ function emitStarted(ctx: ChatCtx, t: ThreadRec): void {
 }
 
 /** A direct message between the same two people is one conversation: starting it again opens it. */
+/** The direct message of two people: no agent in it (the query skips agent chats, so twenty group chats with the same person cannot hide it), then isDirect for the exact rule. */
 function directBetween(ctx: ChatCtx, a: string, b: string): ThreadRec | null {
   const rows = ctx.db.all(
     `SELECT t.id AS id FROM chat_thread t
       WHERE t.kind = 'chat' AND t.channelId IS NULL AND t.scopeType IS NULL AND t.deleted_at IS NULL
         AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL)
-        AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL)
+        AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL) AND NOT EXISTS (SELECT 1 FROM chat_thread_agent x WHERE x.thread = t.id AND x.deleted_at IS NULL)
       ORDER BY t.createdAt LIMIT 20`, a, b,
   ) as Row[];
   for (const r of rows) {

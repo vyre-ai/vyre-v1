@@ -43,3 +43,9 @@ test("a title says message only for a message", () => {
   }
   assert.equal(holdTitle("automations.read_link", { url: "https://www.example.com/a" }, "Send a message"), "Open example.com");
 });
+
+test("a held change of the Space time zone says the zone in words: Pacific Time, not an id", () => {
+  assert.equal(wantsFromInput("spaces.timezone.set", { timezone: "America/Los_Angeles" }), "change the Space time zone to Pacific Time");
+  assert.equal(wantsFromInput("spaces.timezone.set", { timezone: "Mars/Olympus" }), "change the Space time zone", "a zone nobody knows is not named");
+  assert.equal(HOLD_PHRASES["spaces.timezone.set"], "change the Space time zone");
+});

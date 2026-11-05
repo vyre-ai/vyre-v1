@@ -1,4 +1,4 @@
-// A held send in Needs you: the draft is found in the task, read as the person will, with its record beside it; the buttons say Send and Ask for changes; a task that is not a held send is untouched.
+// A held send in Needs you: the draft is found in the task, read as the person will, with its record beside it; the buttons say Allow and Deny (one approval vocabulary); a task that is not a held send is untouched.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { act } from "react";
@@ -18,11 +18,11 @@ test("the draft is read from the held mail.send: recipients, subject, text or th
   assert.equal(heldMail({ kind: "review", blocks: [] } as never), null);
 });
 
-test("the buttons of a held send say Send and Ask for changes, and every other task keeps its own words", () => {
+test("the buttons of a held send say Allow and Deny, and every other task keeps its own words", () => {
   const m = heldMail(held({ to: [{ address: "a@b.test" }], subject: "s", text: "t" }));
-  assert.equal(labelOf(m, { key: "approve", label: "Approve" }), "Send");
-  assert.equal(labelOf(m, { key: "send_back", label: "Send back" }), "Ask for changes");
-  assert.equal(labelOf(m, { key: "reject", label: "Send back" }), "Ask for changes");
+  assert.equal(labelOf(m, { key: "approve", label: "Approve" }), "Allow");
+  assert.equal(labelOf(m, { key: "send_back", label: "Send back" }), "Deny");
+  assert.equal(labelOf(m, { key: "reject", label: "Send back" }), "Deny");
   assert.equal(labelOf(null, { key: "approve", label: "Approve" }), "Approve");
 });
 

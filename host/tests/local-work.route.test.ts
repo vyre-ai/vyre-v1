@@ -27,13 +27,13 @@ async function rig() {
 test("busy counts the turns of every source; nothing running is 0", async () => {
   const r = await rig();
   try {
-    assert.deepEqual((await r.call("/local/daemon/busy")).body.data, { turns: 0, sources: [] });
+    assert.deepEqual((await r.call("/local/daemon/busy")).body.data, { turns: 0, sources: [], chats: [] });
     let engine = 2;
     r.work.add({ name: "engine", running: () => engine });
     const off = r.work.add({ name: "links", running: () => 1 });
     const b = await r.call("/local/daemon/busy");
     assert.equal(b.status, 200);
-    assert.deepEqual(b.body.data, { turns: 3, sources: [{ name: "engine", turns: 2 }, { name: "links", turns: 1 }] });
+    assert.deepEqual(b.body.data, { turns: 3, sources: [{ name: "engine", turns: 2 }, { name: "links", turns: 1 }], chats: [] });
     engine = 0; off();
     assert.equal((await r.call("/local/daemon/busy")).body.data?.turns, 0);
   } finally { r.close(); }
@@ -50,7 +50,7 @@ test("drain hands over the turns a source can move to the server and leaves the 
     const d = await r.call("/local/daemon/drain", "POST");
     assert.equal(d.status, 200);
     assert.deepEqual(handed, ["links"], "only a source with turns running hands over");
-    assert.deepEqual(d.body.data, { turns: 1, sources: [{ name: "engine", turns: 1 }, { name: "links", turns: 0 }, { name: "idle", turns: 0 }] });
+    assert.deepEqual(d.body.data, { turns: 1, sources: [{ name: "engine", turns: 1 }, { name: "links", turns: 0 }, { name: "idle", turns: 0 }], chats: [] });
     local = 0;
     assert.equal((await r.call("/local/daemon/drain", "POST")).body.data?.turns, 0);
   } finally { r.close(); }
@@ -62,7 +62,7 @@ test("a source that throws counts as nothing and a failed hand-over still answer
     r.work.add({ name: "broken", running: () => { throw new Error("gone"); } });
     r.work.add({ name: "stuck", running: () => 1, handOver: () => Promise.reject(new Error("the Space is unreachable")) });
     const d = await r.call("/local/daemon/drain", "POST");
-    assert.deepEqual(d.body.data, { turns: 1, sources: [{ name: "broken", turns: 0 }, { name: "stuck", turns: 1 }] });
+    assert.deepEqual(d.body.data, { turns: 1, sources: [{ name: "broken", turns: 0 }, { name: "stuck", turns: 1 }], chats: [] });
   } finally { r.close(); }
 });
 
@@ -74,5 +74,40 @@ test("without the admin token it is 401, a wrong method is 405, and any other pa
     assert.equal((await r.call("/local/daemon/drain", "GET")).status, 405);
     assert.equal((await r.call("/local/daemon/busy", "POST")).status, 405);
     assert.equal((await r.call("/local/daemon/other")).status, 404);
+  } finally { r.close(); }
+});
+
+test("busy names the chats the turns are in; stop-turns ends them and answers what is left; a source that cannot name or stop is counted only", async () => {
+  const r = await rig();
+  try {
+    let running = 2;
+    const stopped: string[] = [];
+    r.work.add({
+      name: "engine", running: () => running,
+      chats: () => [{ id: "thr_1", title: "Rivera intake" }, { id: "thr_2", title: "Weekly update" }],
+      stopTurns: async () => { stopped.push("engine"); running = 0; return 2; },
+    });
+    r.work.add({ name: "links", running: () => 1 });
+    const b = await r.call("/local/daemon/busy");
+    assert.deepEqual(b.body.data?.chats, [{ id: "thr_1", title: "Rivera intake" }, { id: "thr_2", title: "Weekly update" }]);
+    assert.equal(b.body.data?.turns, 3);
+    const s = await r.call("/local/daemon/stop-turns", "POST");
+    assert.equal(s.status, 200);
+    assert.deepEqual(stopped, ["engine"], "only a source that has running turns and can stop is asked");
+    assert.deepEqual(s.body.data?.sources, [{ name: "engine", turns: 0 }, { name: "links", turns: 1 }], "the one that cannot be stopped from here stays counted");
+    assert.equal((await r.call("/local/daemon/stop-turns", "POST")).body.data?.turns, 1);
+    assert.deepEqual(stopped, ["engine"], "a source with nothing running is not asked again");
+    assert.equal((await r.call("/local/daemon/stop-turns", "POST", "")).status, 401);
+    assert.equal((await r.call("/local/daemon/stop-turns", "GET")).status, 405);
+  } finally { r.close(); }
+});
+
+test("a source that throws while naming or stopping does not break the answer", async () => {
+  const r = await rig();
+  try {
+    r.work.add({ name: "bad", running: () => 1, chats: () => { throw new Error("no"); }, stopTurns: () => { throw new Error("no"); } });
+    const b = await r.call("/local/daemon/busy");
+    assert.deepEqual([b.status, b.body.data?.turns, b.body.data?.chats], [200, 1, []]);
+    assert.equal((await r.call("/local/daemon/stop-turns", "POST")).status, 200);
   } finally { r.close(); }
 });

@@ -41,6 +41,8 @@ type Out = {
       kind?: string;
       state?: string;
       seenAt?: number;
+      restart?: boolean;
+      model?: string;
     }>;
 };
 ```
@@ -68,6 +70,8 @@ type Out = {
         "body": "example",
         "kind": "example",
         "messageId": "msg_a1b2c3",
+        "model": "example",
+        "restart": true,
         "seenAt": 1760000000000,
         "state": "example",
         "who": "brief"

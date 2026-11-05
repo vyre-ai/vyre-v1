@@ -264,7 +264,12 @@ export function createSampleSidebar(space: SampleSpace = northwind, o: { online?
     "notifications.mute.list": () => ({ mutes: [...menus.mutes].map((k) => { const [kind, ...id] = k.split(":"); return { target: { kind, id: id.join(":") }, until: 0 }; }) }),
     "notifications.mute.set": (i: { target: { kind: string; id: string } }) => { refuse("notifications.mute.set", i); menus.mutes.add(`${i.target.kind}:${i.target.id}`); return { until: 0 }; },
     "notifications.mute.clear": (i: { target: { kind: string; id: string } }) => { refuse("notifications.mute.clear", i); menus.mutes.delete(`${i.target.kind}:${i.target.id}`); return { cleared: true }; },
-    "stars.list": () => ({ stars: [...starredProjects].map((id) => ({ resource: { type: "project", id } })) }),
+    // every star the person holds, as the server lists them: projects, agents and chats
+    "stars.list": () => ({ stars: [
+      ...[...starredProjects].map((id) => ({ resource: { type: "project", id } })),
+      ...(replica.rows("agents") as unknown as { id: string; starred?: boolean }[]).filter((a) => a.starred === true).map((a) => ({ resource: { type: "agent", id: a.id } })),
+      ...threads().filter((x) => x.starred).map((x) => ({ resource: { type: "thread", id: x.threadId } })),
+    ] }),
     "threads.poke": (i: { threadId: string; agentId: string }) => { refuse("threads.poke", i); return { poked: true }; },
     "threads.move": (i: { threadId: string; projectId: string }) => { return { thread: { threadId: i.threadId, kind: "chat", listed: true, planMode: false } }; },
     "goals.list": (i: { scope?: string }) => ({ goals: i.scope === "mine" ? [...(o.goals ?? [])] : [] }),

@@ -13,6 +13,7 @@
 // instructions>", so `/compact <what to keep>` sent as a user message on stdin compacts with those instructions; `--resume <id>` of a session that is not there says "No conversation found with session ID: <id>".
 // With partial messages on, the text of a message arrives twice: as deltas and again in its `assistant` line. The deltas are the ones passed on; the whole message only fills in when no delta
 // was seen for it (an older CLI, or partial messages off).
+import { testLines } from "./test-lines.ts";
 import { arr, num, obj, parseLine, str } from "./json.ts";
 import { toolDetail } from "./detail.ts";
 import { claudeSettings } from "./hooks-config.ts";
@@ -129,6 +130,11 @@ export function createClaudeDecoder(): CliDecoder {
     return out;
   }
 
+  /** A tool result's test-run summary lines (a string, or a list of text parts). */
+  function tail(content: unknown): string {
+    return testLines(typeof content === "string" ? content : arr(content).map((p) => str(obj(p)?.["text"])).join("\n"));
+  }
+
   function onUser(j: Json): CliEvent[] {
     const m = obj(j["message"]);
     const out: CliEvent[] = [];
@@ -136,7 +142,7 @@ export function createClaudeDecoder(): CliDecoder {
     if (j["isReplay"] === true) out.push({ type: "read" });
     for (const raw of arr(m?.["content"])) {
       const b = obj(raw);
-      if (b && str(b["type"]) === "tool_result" && str(b["tool_use_id"]) !== "") out.push({ type: "tool", phase: "result", id: str(b["tool_use_id"]), ok: b["is_error"] !== true });
+      if (b && str(b["type"]) === "tool_result" && str(b["tool_use_id"]) !== "") out.push({ type: "tool", phase: "result", id: str(b["tool_use_id"]), ok: b["is_error"] !== true, ...(tail(b["content"]) !== "" ? { output: tail(b["content"]) } : {}) });
     }
     return out;
   }

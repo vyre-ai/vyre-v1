@@ -11,7 +11,7 @@ import { LESSON } from "../lessons.ts";
 import { meaningScores } from "../meaning.ts";
 import { carryPlace } from "../profile.ts";
 import { postNoted, writeShared } from "../shared.ts";
-import { kindOf, placeOf } from "../place.ts";
+import { kindOf, placeOf, privateIntent } from "../place.ts";
 import { reviewRequired } from "../policy.ts";
 import { trail, whoIs } from "../trail.ts";
 import { learnTurn, readByTurns, shouldLearn } from "./learn.ts";
@@ -924,7 +924,7 @@ export async function promote(ctx: MemCtx, input: { factId: string; toLayer: ToL
     const text = f.text.length > 200 ? `${f.text.slice(0, 197)}...` : f.text;
     const res = (await ctx.call("tasks.create", {
       title: `Add to ${input.toLayer} memory`, kind: "approve", assigned: approver, summary: `${me} proposes adding this to the ${input.toLayer} memory: ${text}`,
-      actions: [{ key: "approve", label: "Approve" }, { key: "reject", label: "Reject", note: "optional" }], source: { kind: "manual", id }, idempotencyKey: `memprom:${id}`,
+      actions: [{ key: "approve", label: "Allow" }, { key: "reject", label: "Deny", note: "optional" }], source: { kind: "manual", id }, idempotencyKey: `memprom:${id}`,
     })) as { task?: { id?: string } };
     taskId = res.task?.id ?? null;
   } catch {
@@ -1064,10 +1064,11 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
   let proposed = 0;
   let merged = 0;
   // an imported session's first message (the preamble and the transcript it carries) is history to read, not something the person said: nothing is learned from it
-  // a private chat that gained people: what was said before it was shared stays the starter's and is never learned into the room's memory (rule 8)
+  // a private chat that gained people: what was said before it was shared stays the starter's and is never learned into the room's memory (rule 8). A thread has no such time: its second person joins when they reply
   const sharedAt = typeof (t as { sharedAt?: unknown }).sharedAt === "number" ? (t as { sharedAt: number }).sharedAt : null;
   const unread = page.messages.filter((m) => m.kind !== "system" && m.kind !== "quiet" && !IMPORTED_PREAMBLE.test(String((m as { body?: unknown }).body ?? "")) && !readByTurns(ctx, input.threadId, m.author.id, m.threadSeq, m.messageId)
-    && (sharedAt === null || !shared || Number((m as { createdAt?: unknown }).createdAt ?? sharedAt) >= sharedAt));
+    && (sharedAt === null || !shared || t.kind === "thread" || Number((m as { createdAt?: unknown }).createdAt ?? sharedAt) >= sharedAt));
+  const joinCut = Math.max(0, ...Object.values((t as { joinedAt?: Record<string, number> }).joinedAt ?? {}).map((n) => Number(n) || 0));
   for (const c of await extractor(unread)) {
     const key = `${input.threadId}:${c.messageId}:${c.index}`;
     if (rowsOf(ctx.db, "SELECT fact_id FROM memory_fact_links WHERE kind = 'capture' AND ref = ?", key)[0]) continue;
@@ -1075,6 +1076,12 @@ export async function capture(ctx: MemCtx, input: { threadId: string; reason: "c
     let status: FactStatus = auto || kinds.includes(c.kind) ? "current" : "proposed";
     let sourceKind: SourceKind = "chat";
     if (fromRun) { layer = "agent"; status = auto ? "current" : "proposed"; sourceKind = "run"; }
+    // when the person said it is for them only it is theirs, in their own layer, in any kind of place
+    const said = String(page.messages.find((m) => m.messageId === c.messageId)?.body ?? "");
+    // a line said before a person now in the place joined is not theirs to read: it stays in its author's own layer
+    const early = Number((page.messages.find((m) => m.messageId === c.messageId) as { createdAt?: unknown } | undefined)?.createdAt ?? Infinity) < joinCut;
+    const mine = privateIntent(said) || (early && shared);
+    if (mine && !fromRun) { layer = "person"; status = auto || kinds.includes(c.kind) ? "current" : "proposed"; }
     else if (shared) { sourceKind = "channel"; if (projectId) { layer = "project"; status = "current"; } else { layer = agentId ? "agent" : "space"; status = auto ? "current" : "proposed"; } }
     // "Require review for shared memory": a Space or project fact waits in Proposed whatever the mode.
     if (status === "current" && (await reviewRequired(ctx, layer, projectId))) status = "proposed";

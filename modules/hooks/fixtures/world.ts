@@ -21,12 +21,14 @@ export function world() {
   const raw: Db = { all: (sql, ...a) => sqlite.prepare(sql).all(...(a.map((x) => (x === undefined ? null : x)) as never[])), run: (sql, ...a) => ({ changes: Number(sqlite.prepare(sql).run(...(a.map((x) => (x === undefined ? null : x)) as never[])).changes) }) };
   const db = scopedDb("hooks", raw, "0123456789abcdef0123456789abcdef") as Db;
   const s = {
-    now: T0, events: [] as Array<{ name: string; payload: Record<string, unknown> }>, lines: [] as Array<Record<string, unknown>>, ran: [] as string[], actions: [] as Array<{ cap: string; input: unknown }>,
+    now: T0, events: [] as Array<{ name: string; payload: Record<string, unknown> }>, lines: [] as Array<Record<string, unknown>>, names: {} as Record<string, string>, ran: [] as string[], actions: [] as Array<{ cap: string; input: unknown }>,
     command: (async () => ok) as (cmd: string, event: Record<string, unknown>) => Promise<CommandResult>,
     check: (async () => ({ decision: "allow" })) as (instruction: string, event: unknown) => Promise<unknown>,
     plugins: [] as Array<{ pluginId: string; plugin: string; event: string; matcher: string; command: string; args: string[] }>,
     pluginRun: (async () => ok) as () => Promise<CommandResult>,
     threadsDenied: new Set<string>(),
+    /** the stop lines marked answered (chat.hook_resolve) */
+    resolved: [] as Array<Record<string, unknown>>,
     /** helper thread to the chat it works for, as threads.get says it (before any helper-started event was folded in) */
     helperParents: {} as Record<string, string>,
   };
@@ -41,7 +43,10 @@ export function world() {
   const calls: Record<string, (i: Record<string, unknown>) => unknown> = {
     "threads.get": (i) => { if (s.threadsDenied.has(String(i["threadId"]))) throw new Error("no"); const parent = s.helperParents[String(i["threadId"])]; return { thread: { threadId: i["threadId"], ...(parent ? { kind: "helper", parentThreadId: parent } : {}) } }; },
     "agents.get": () => ({ agent: { name: "Assistant" } }),
+    // a person's display name, as access.principals.get answers it; an id with no name set here cannot be read
+    "access.principals.get": (i) => { const id = String((i["principal"] as { id: string }).id), name = s.names[id]; if (!name) throw new Error("not readable"); return { principal: { id, kind: "person", name } }; },
     "chat.hook_line": (i) => { s.lines.push(i); return { messageId: "msg_1" }; },
+    "chat.hook_resolve": (i) => { s.resolved.push(i); return { ok: true }; },
   };
   const ctxFor = (who: Caller): HooksCtx => ({
     space: "spc_test", principal: { kind: who.kind, id: who.id }, ...(who.actingFor ? { actingFor: who.actingFor } : {}), trace: { traceId: "0123456789abcdef0123456789abcdef" }, now: () => s.now, db,

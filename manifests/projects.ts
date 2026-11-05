@@ -32,7 +32,7 @@ const pageOp = t.obj({
 const pageProp = t.obj({ key: t.str(), title: t.str(), type: t.str(), value: t.opt(t.json()) });
 const revRow = t.obj({ rev: t.int({ minimum: 1 }), by: t.str(), authorKind: t.enm('person', 'agent'), summary: t.str(), undoOf: t.opt(t.int()), at: t.ts() });
 const pageTemplate = t.obj({ templateId: t.str({ examples: ['tpl_client_account'] }), title: t.str(), summary: t.opt(t.str()), builtin: t.bool(), blocks: t.int({ minimum: 0 }), by: t.str(), at: t.ts() });
-const liveRow = t.obj({ id: t.str(), title: t.str(), state: t.opt(t.str()), detail: t.opt(t.str()), url: t.opt(t.str()) });
+const liveRow = t.obj({ id: t.str(), title: t.str(), state: t.opt(t.str()), detail: t.opt(t.str()), url: t.opt(t.str()), who: t.opt(t.str({ description: 'The person or agent a task is assigned to' })), due: t.opt(t.ts()) });
 const helperRow = t.obj({
   jobId: t.str(), threadId: id.thread, agentId: id.agent, name: t.opt(t.str()), title: t.str(), state: t.enm('working', 'done', 'needs_you', 'stopped'), startedAt: t.ts(), endedAt: t.opt(t.ts()),
 });
@@ -95,7 +95,7 @@ export default defineManifest({
       field('title', 'text', 'Title', { required: true }),
       field('summary', 'text', 'Summary'),
       field('why', 'longtext', 'Why'),
-      field('kind', 'choice', 'Kind', { default: 'work', options: { choices: [{ key: 'work', title: 'Work' }, { key: 'approve', title: 'Approve' }, { key: 'review', title: 'Review' }, { key: 'answer', title: 'Answer' }, { key: 'unblock', title: 'Unblock' }, { key: 'signature', title: 'Signature' }] } }),
+      field('kind', 'choice', 'Kind', { default: 'work', options: { choices: [{ key: 'work', title: 'Work' }, { key: 'approve', title: 'Approval' }, { key: 'review', title: 'Review' }, { key: 'answer', title: 'Answer' }, { key: 'unblock', title: 'Unblock' }, { key: 'signature', title: 'Signature' }] } }),
       field('status', 'status', 'Status', { default: 'todo', writeOnlyBy: ['tasks.transition'], options: { stages: [{ key: 'todo', title: 'To do' }, { key: 'doing', title: 'Doing' }, { key: 'in_review', title: 'In review' }, { key: 'awaiting_approval', title: 'Awaiting approval' }, { key: 'done', title: 'Done' }, { key: 'canceled', title: 'Canceled' }] } }),
       field('project', 'relation', 'Project', { options: { target: 'project', inverse: 'tasks' } }),
       field('stage', 'text', 'Stage'),
@@ -293,12 +293,16 @@ export default defineManifest({
       in: { projectId: id.project, rev: t.opt(t.int({ minimum: 1 })) }, out: { rev: t.int({ minimum: 1 }), undid: t.int({ minimum: 1 }), blocks: t.arr(pageBlock) },
       on: ['project', '/projectId'], level: 'edit', audit: 'always', emits: ['project.overview_edited'], tool: 'records', errors: ['validation.precondition_failed'],
     }),
+    write('projects.overview_doc.restore', 'Bring an older version of the Overview back: its blocks become the page again, as a new revision (so the restore can be undone)', {
+      in: { projectId: id.project, rev: t.int({ minimum: 1 }), baseRev: t.opt(t.int({ minimum: 0 })) }, out: { rev: t.int({ minimum: 1 }), restored: t.int({ minimum: 1 }), blocks: t.arr(pageBlock) },
+      on: ['project', '/projectId'], level: 'edit', audit: 'always', emits: ['project.overview_edited'], tool: 'records', errors: ['validation.precondition_failed', 'validation.not_found'],
+    }),
     read('projects.overview_doc.history', 'The Overview\'s revisions, newest first, each with who made it and what changed', {
       in: { projectId: id.project, limit: t.opt(t.int({ minimum: 1, maximum: 100 })) }, out: { revisions: t.arr(revRow) }, on: ['project', '/projectId'], tool: 'records', label: 'filter',
     }),
     read('projects.live_block.query', 'Evaluate a live block for the reader: the rows they may open, how many they may not (hidden), and for a metric its value. The block stores only its spec', {
       in: { projectId: id.project, blockId: t.opt(t.str()), type: t.opt(liveType), spec: t.opt(t.rec(t.json())) },
-      out: { type: liveType, rows: t.arr(liveRow), hidden: t.int({ minimum: 0 }), total: t.int({ minimum: 0 }), value: t.opt(t.num()), label: t.opt(t.str()) },
+      out: { type: liveType, rows: t.arr(liveRow), hidden: t.int({ minimum: 0 }), total: t.int({ minimum: 0 }), value: t.opt(t.num()), label: t.opt(t.str()), unit: t.opt(t.str({ description: 'The currency code of a sum of a money field (USD)' })), parts: t.opt(t.arr(t.obj({ unit: t.opt(t.str()), value: t.num() }), { description: 'A sum over more than one currency: one total per currency, never added together (value is then left out)' })) },
       on: ['project', '/projectId'], tool: 'records', label: 'check', errors: ['validation.bad_input', 'validation.not_found'],
     }),
     read('projects.overview_doc.templates.list', 'The Space\'s Overview page templates: Client account, Software project and Hiring, and any saved since', {
