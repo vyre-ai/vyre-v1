@@ -306,3 +306,36 @@ test("parseOps keeps only well-formed ops", () => {
   assert.deepEqual(parseOps("{\"ops\":[{\"op\":\"add\",\"line\":\"2\",\"text\":\"Likes tea\",\"kind\":\"weird\"},{\"op\":\"close\",\"line\":1},{\"op\":\"update\",\"id\":\"fct_a\",\"line\":1,\"text\":\"x\"}]}"),
     [{ op: "add", line: 2, text: "Likes tea", kind: "note" }]);
 });
+
+// ---- a member on a CLI subscription whose chats run on their own computer (#875): the same pass, the same write rules, and a computer that does not answer only skips it
+
+const CLI = { ref: "#Dana_Claude", driver: "claude_code", kind: "subscription", payer: DANA };
+
+test("on a CLI subscription a computer that is off skips the pass, the rules still learn, and the account is not paused: the next turn tries the computer again", async () => {
+  const seen: Seen = { complete: [], listed: 0 };
+  const off = Object.assign(new Error("Your computer is off."), { code: "engine.device_off" });
+  const s: Script = { messages: [say(1, "I prefer morning meetings.")], models: [], answer: () => off as never };
+  const h = harness({ respond: chat(s, seen) });
+  const out = await capture(h.ctx, turn(CLI));
+  assert.equal(out.via, "rules");
+  assert.equal(seen.complete.length, 1);
+  assert.equal(h.rows("SELECT id FROM memory_facts").length, 1, "the rules kept what the person said");
+  s.messages.push(say(2, "I prefer tea."));
+  await capture(h.ctx, turn(CLI));
+  assert.equal(seen.complete.length, 2, "no pause was put on the account: it asked again");
+});
+
+test("on a CLI subscription the model's keeps follow the same rules: a note marked for the person only stays in their own layer in a room that has people", async () => {
+  const seen: Seen = { complete: [], listed: 0 };
+  const s: Script = {
+    members: [DANA, OMAR], models: [],
+    messages: [say(1, "Private note for me only: my reserve for the Quartz bid is 70000 dollars, remember it."), say(2, "We decided the launch review is on Friday morning.")],
+    answer: () => ({ text: JSON.stringify({ ops: [{ op: "add", line: 1, text: "Dana's reserve for the Quartz bid is 70000 dollars", kind: "note" }, { op: "add", line: 2, text: "The launch review is on Friday morning", kind: "decision" }] }) }),
+  };
+  const h = harness({ respond: chat(s, seen) });
+  await capture(h.ctx, turn(CLI));
+  const rows = h.rows("SELECT layer, owner_ref, text FROM memory_facts ORDER BY layer") as Array<{ layer: string; owner_ref: string }>;
+  assert.deepEqual(rows.map((r) => `${r.layer}:${r.owner_ref}`).sort(), [`agent:agt_intake`, `person:${DANA}`].sort(), "the private line is hers, the decision is the room's");
+  const omar = asPerson(h, { kind: "person", id: OMAR }, { respond: chat(s, seen) });
+  assert.doesNotMatch(JSON.stringify(await factsAsOf(omar.ctx, { date: NOW + 1 })), /70000|Quartz/);
+});

@@ -256,6 +256,9 @@ async function modelPass(
     out = (await ctx.call("engine.complete", { accountRef: acct.ref, model, system, prompt })) as typeof out;
   } catch (e) {
     settle(ctx, p.asker, p.day, held, null);
+    // the person's computer is off or not on a private link: nothing is wrong with the account, so the pass is only skipped (the rules run) and no pause is put on it
+    const code = String((e as { code?: unknown })?.code ?? (e as { error?: { code?: unknown } })?.error?.code ?? "");
+    if (code === "engine.device_off" || code === "engine.link_insecure" || code === "internal.unavailable") { ctx.log.warn("memory learning skipped: the person's computer did not take the pass", { code }); return false; }
     accountFailed(ctx, acct.ref, ctx.now(), isLimitError(e));
     ctx.log.warn("memory learning paused for an account", { limit: isLimitError(e), reason: e instanceof Error ? e.name : "error" });
     return false;
