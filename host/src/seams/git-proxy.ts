@@ -178,10 +178,12 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; /** The p
     if ("ok" in a) return { until: "ok", token: a.ok };
     if ("refused" in a) return { until: "no", message: a.refused };
     const who = await first(s);
+    const held = a.held;
     const key = s.person;
     if ((parked.get(key) ?? 0) >= MAX_PARKED || parkedAll >= MAX_PARKED_ALL) return { until: "no", message: "Too many pushes are already waiting for an answer. Answer them in Vyre, then try again." };
     parked.set(key, (parked.get(key) ?? 0) + 1);
     parkedAll++;
+    let settled = false;
     try {
       void card(s, a.held, `${say.title} on ${repo}`);
       o.onWait?.(who);
@@ -193,7 +195,7 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; /** The p
         for (const e of await d.gate.since(cursor).catch(() => [])) {
           cursor = Math.max(cursor, e.seq);
           if (e.payload["taskId"] !== a.held) continue;
-          if (e.name === "gate.approved") { a = await ask(s, repo, action, false, o.consumer); return "ok" in a ? { until: "ok", token: a.ok } : { until: "no", message: "refused" in a ? a.refused : `${Cap} was approved, but GitHub still wants an answer. Try again.` }; }
+          if (e.name === "gate.approved") { settled = true; a = await ask(s, repo, action, false, o.consumer); return "ok" in a ? { until: "ok", token: a.ok } : { until: "no", message: "refused" in a ? a.refused : `${Cap} was approved, but GitHub still wants an answer. Try again.` }; }
           if (e.name === "gate.denied") return { until: "no", message: `${Cap} was not approved.` };
           if (e.name === "gate.expired" && e.payload["outcome"] !== "escalated") return { until: "no", message: `Nobody answered, so ${say.phrase} did not happen.` };
         }
@@ -202,6 +204,8 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; /** The p
         await sleep(Math.min(pollMs, Math.max(1, deadline - now())));
       }
     } finally {
+      // the proxy gave up (time, the client left): the question is withdrawn, so it is not left in the person's Needs you for a yes that nothing waits for
+      if (!settled) void d.invoke("tasks.withdraw", { taskId: held, note: "The push that asked is not waiting any more." }, { space: d.space, principal: { kind: "service", id: "svc_host" }, origin: "engine", preAuth: true } as CtxSeed).catch(() => undefined);
       parkedAll--;
       const n = (parked.get(key) ?? 1) - 1;
       if (n <= 0) parked.delete(key); else parked.set(key, n);
@@ -392,6 +396,7 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; /** The p
       return plain(res, e instanceof PktError && e.code === "too_big" ? 413 : 400, e instanceof Error ? e.message : "That is not a git push.");
     }
     const { update, head } = read;
+    const nonce = rand(12);
     const refuse = (message: string): void => {
       log("git proxy: a push was turned down", { repo, refs: update.commands.length });
       if (spool) dropSpool(); else req.resume();   // what the client is still sending is read and dropped, never kept
@@ -422,8 +427,9 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; /** The p
       const mine = needs.filter((n) => n.need === kind), say = sayOf(mine);
       const got = await obtain(s, repo, kind, kind === "push_default" ? { ...say, title: `${say.title} (${mine.map((n) => (n.kind === "delete" ? `was ${n.command.old.slice(0, 7)}` : `${n.command.old.slice(0, 7)} to ${n.command.new.slice(0, 7)}`)).join(", ")})` } : say, {
         force: mine.some((n) => n.always),
-        // a push to the default branch is approved for exactly that push, once: repo, ref, old and new object (modules/github/handlers/me.ts). A delete of it carries its own prefix, which needs that approval even under Always.
-        ...(kind === "push_default" ? { consumer: `${mine.some((n) => n.always) ? "git.del" : "git.push"}:${Buffer.from(sha256b64(`${repo}\n${mine.map((n) => `${n.command.ref} ${n.command.old} ${n.command.new}`).sort().join("\n")}`), "base64url").toString("hex").slice(0, 48)}` } : {}),
+        // every push, to any ref, is asked for as exactly that attempt, once: repo, refs, old and new objects, and a nonce of this attempt (modules/github/handlers/me.ts). A late yes to an attempt the
+        // proxy gave up on is for that nonce alone, so the same push tried again asks again. A delete of the default branch carries git.del and needs the approval even under Always.
+        consumer: `${mine.some((n) => n.always) ? "git.del" : "git.push"}:${Buffer.from(sha256b64(`${nonce}\n${repo}\n${mine.map((n) => `${n.command.ref} ${n.command.old} ${n.command.new}`).sort().join("\n")}`), "base64url").toString("hex").slice(0, 48)}`,
         gone: () => gone,
         onWait: (who) => { startSpool(); start(); if (begun.v) res.write(remoteLine(`Waiting for ${who} to approve ${say.phrase}. Approve it in Vyre.`)); },
         onTick: (who) => { if (begun.v) res.write(remoteLine(`Still waiting for ${who} to approve ${say.phrase}...`)); },

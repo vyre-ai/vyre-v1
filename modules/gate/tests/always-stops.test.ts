@@ -43,3 +43,14 @@ test("the acts marked this way are the only ones, and the rest keep their rule",
   assert.deepEqual(ACTS.filter((a) => a.alwaysStops).map((a) => a.key).sort(), [...ACT_KEYS].sort());
   assert.equal(effectiveRule(harness().db, alice, "send").hold, false, "a person's own send still goes");
 });
+
+test("github_approval is the asker's alone: no rule names another approver, escalates it or times it out to someone else", async () => {
+  const h = harness();
+  for (const change of [{ approvers: "owner" }, { approvers: "role:admin" }, { escalateTo: "role" }, { onTimeout: "escalate" }, { onTimeout: "drop" }]) {
+    await assert.rejects(h.call("gate.rules.set", { act: "github_approval", scope: "space", mode: "hold", ...change }, owner), (e) => codeOf(e) === "validation.precondition_failed" && reasonOf(e) === "person_only", JSON.stringify(change));
+  }
+  putRule(h.db, { act: "github_approval", scope: "space", agentId: "", mode: "hold", approvers: "role:admin", onTimeout: "escalate", escalateTo: "role", updatedAt: 1 });   // a row that got in some other way
+  const e = effectiveRule(h.db, bot, "github_approval");
+  assert.equal(e.approvers, "asker");
+  assert.equal(e.onTimeout, "drop");
+});

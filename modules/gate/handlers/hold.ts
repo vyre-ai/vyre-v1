@@ -236,6 +236,7 @@ export async function rulesSet(ctx: GateCtx, input: In): Promise<unknown> {
   if (scope === "floor" && input.mode === "allow") raise(ctx, "validation.precondition_failed", "The owner floor only asks. To let something through, change the Space rule.", { reason: "floor_holds_only" });
   if (input.approvers !== undefined && !APPROVERS.test(input.approvers)) raise(ctx, "validation.precondition_failed", "Approvers are owner, asker or role:<name>.", { reason: "bad_approvers" });
   if (a.alwaysStops && (input.mode === "allow" || input.agentOkFor !== undefined || input.approvers === "asker")) raise(ctx, "validation.precondition_failed", "A company connection or a sign-in change always waits for a person with the right role.", { reason: "always_stops" });
+  if (a.personOnly && (input.approvers !== undefined || input.escalateTo !== undefined || input.onTimeout !== undefined)) raise(ctx, "validation.precondition_failed", "This is decided by the person it is asked of, and by nobody else. Who approves and what happens on a timeout are not changeable.", { reason: "person_only" });
 
   // a rule can never loosen the strictest level: below the Space, it can only tighten what the Space says
   if (scope !== "space") {

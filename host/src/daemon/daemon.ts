@@ -509,7 +509,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     mint: (a) => { if (!gitProxy) throw new Error("the git address is not ready"); return gitProxy.port.mint(a); },
     revoke: (t) => { gitProxy?.port.revoke(t); },
     base: () => gitProxy?.port.base() ?? "",
-    serve: (req, res) => gitProxy?.handle(req, res) ?? false,
+    serve: (req, res) => gitProxy?.port.serve(req, res) ?? false,
   };
   let startMcpRuntime: ((port: number) => void) | null = null;
   let stopMcpRuntime: (() => void) | null = null;

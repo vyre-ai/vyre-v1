@@ -21,9 +21,11 @@ export interface ActDef {
   escalateTo: "delegate" | "role"; emailBackstopHours: number; humanToo: boolean;
   /** Stops for a person with the right role however it was reached: no rule, grant, mode or automation lifts it. A person pressing it themselves is let through by the capability's own `when`, before this. */
   alwaysStops: boolean;
+  /** Only the person the act is asked of decides it: no rule names another approver, escalates it or lets it time out into someone else's hands. */
+  personOnly: boolean;
 }
 const act = (key: ActKey, title: string, risk: Risk, block: string, approvers: string, o: Partial<ActDef> = {}): ActDef => ({
-  key, title, risk, block, approvers, peopleOnly: true, afterHours: 24, onTimeout: "escalate", escalateTo: "delegate", emailBackstopHours: 4, humanToo: false, alwaysStops: false, ...o,
+  key, title, risk, block, approvers, peopleOnly: true, afterHours: 24, onTimeout: "escalate", escalateTo: "delegate", emailBackstopHours: 4, humanToo: false, alwaysStops: false, personOnly: false, ...o,
 });
 export const ACTS: readonly ActDef[] = [
   act("send", "Send a message", "medium", "doc_excerpt", "asker", { agentOkFor: "low" }),
@@ -40,7 +42,7 @@ export const ACTS: readonly ActDef[] = [
   act("spend_raise", "Raise a spend cap", "medium", "table", "role:admin"),
   act("signin_change", "Change how people sign in to the Space", "high", "record_card", "role:admin", { alwaysStops: true }),
   act("approve", "Allow this step", "medium", "doc_excerpt", "asker"),
-  act("github_approval", "Let a session use my GitHub", "high", "table", "asker", { alwaysStops: true }),
+  act("github_approval", "Let a session use my GitHub", "high", "table", "asker", { alwaysStops: true, personOnly: true, onTimeout: "drop" }),
 ];
 export const actOf = (k: string): ActDef => ACTS.find((a) => a.key === k) ?? ACTS[0]!;
 
@@ -189,7 +191,7 @@ export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: P
     : "Acts of this kind wait for approval.";
   // approvers: the strictest named by any level
   const named = [floor?.approvers, agent?.approvers, space?.approvers].filter((x): x is string => x !== undefined);
-  const approvers = named.reduce((best, x) => (APPROVER_RANK(x) > APPROVER_RANK(best) ? x : best), a.approvers);
+  const approvers = a.personOnly ? a.approvers : named.reduce((best, x) => (APPROVER_RANK(x) > APPROVER_RANK(best) ? x : best), a.approvers);
   // agents may approve only up to the risk the Space names; an agent's own rule can only lower it
   const base = space?.agentOkFor ?? a.agentOkFor;
   const okFor = a.alwaysStops ? undefined : minRisk(base, agent?.agentOkFor);
@@ -197,7 +199,7 @@ export function effectiveRule(db: Db, p: PrincipalRef, actKey: string, policy: P
   // timing: the Space sets it; the floor and the agent can only shorten
   const spaceHours = space?.afterHours ?? policy.timeoutHours;
   const afterHours = Math.min(...[spaceHours, floor?.afterHours, agent?.afterHours].filter((x): x is number => x !== undefined));
-  const dropped = [space?.onTimeout ?? a.onTimeout, floor?.onTimeout, agent?.onTimeout].includes("drop");
+  const dropped = a.personOnly || [space?.onTimeout ?? a.onTimeout, floor?.onTimeout, agent?.onTimeout].includes("drop");
   const e: Effective = {
     hold, reason, approvers, peopleOnly, afterHours, onTimeout: dropped ? "drop" : "escalate",
     escalateTo: space?.escalateTo ?? agent?.escalateTo ?? a.escalateTo, emailBackstopHours: Math.min(policy.emailBackstopHours, a.emailBackstopHours), sources,

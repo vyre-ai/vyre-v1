@@ -39,6 +39,7 @@ async function world(o: { modes?: Partial<Record<string, Mode>>; branch?: string
     if (cap === "identity.whoami") return ok({ name: "Maya Chen" });
     if (cap === "github.me.policy.get") return ok({ policy: modes });
     if (cap === "chat.post") { posts.push(i); return ok({}); }
+    if (cap === "tasks.withdraw") return ok({ withdrawn: 1 });
     if (cap === "github.me.approve") { const taskId = `tsk_${++n}`; holds.set(taskId, { repo: i["repo"]!, action: i["action"]!, consumer: i["consumer"]! }); return { status: "held" as const, taskId, traceId: "t" }; }
     if (cap === "github.token") {
       const mode = modes[i["action"]!];
@@ -245,10 +246,33 @@ test("push a branch on Ask: nothing is asked at the start, the push is held, and
   const r = await push;
   assert.equal(r.code, 0, r.out);
   assert.equal(w.gh.ref(REPO, "refs/heads/x"), sha, "landed after the yes");
-  // inside the ten minutes of that approval a second branch push goes without a second question (the repository's window, as for any use)
+  // the yes was for that push: another branch push asks again, even inside ten minutes
   await w.commit(dir, "y.txt");
-  assert.equal((await w.run(dir, "push", "origin", "x:y")).code, 0);
-  assert.equal(w.holds.size, 1);
+  const second = w.run(dir, "push", "origin", "x:y");
+  const t2 = await w.waitHeld(2);
+  assert.notEqual(w.holds.get(t2)!.consumer, w.holds.get(taskId)!.consumer);
+  w.approve(t2);
+  assert.equal((await second).code, 0);
+}));
+
+test("a late yes to a push the proxy gave up on writes nothing that lets the same push through, and the retry asks again", T, () => withWorld({ parkMs: 600 }, async (w) => {
+  const dir = await w.clone();
+  await w.commit(dir, "m.txt");
+  const before = w.gh.ref(REPO, "refs/heads/main");
+  const first = await w.run(dir, "push", "origin", "HEAD:main");
+  assert.notEqual(first.code, 0);
+  assert.match(first.out, /Nobody answered/);
+  const t1 = w.held()[0]!;
+  assert.ok(w.calls.some((c) => c.cap === "tasks.withdraw" && c.input["taskId"] === t1), "the proxy withdrew its question when it gave up");
+  w.approve(t1);   // the person, or someone else, says yes much later
+  const retry = w.run(dir, "push", "origin", "HEAD:main");
+  const t2 = await w.waitHeld(2);
+  assert.notEqual(t2, t1, "the identical retry asked again");
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(w.gh.ref(REPO, "refs/heads/main"), before, "the late yes let nothing through");
+  assert.equal(landed(w), 0);
+  w.approve(t2);
+  assert.equal((await retry).code, 0);
 }));
 
 test("push a branch on Ask, denied: nothing lands and no write token is made", T, () => withWorld({ modes: { push_branch: "ask" } }, async (w) => {
