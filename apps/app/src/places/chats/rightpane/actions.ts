@@ -27,12 +27,13 @@ const key = (what: string, id: string): string => `rp-${what}-${id}-${++seq}`;
  * Why the last wake of a computer was refused or failed, kept here because a refusal before the server's own handler (the gateway, the network) never reaches the computer's row: the row says Asleep, and this is
  * the only place that knows it did not start. The computer panel shows it as the failed state with the server's own words in Details. A wake that works, or a new press, clears it.
  */
-const wakeFailed = new Map<string, string>();
+export interface Failure { message: string; code?: string }
+const wakeFailed = new Map<string, Failure>();
 const wakeSubs = new Set<() => void>();
 export const wakeFailure = {
-  get: (computerId: string): string | undefined => wakeFailed.get(computerId),
+  get: (computerId: string): Failure | undefined => wakeFailed.get(computerId),
   subscribe: (fn: () => void): (() => void) => { wakeSubs.add(fn); return () => { wakeSubs.delete(fn); }; },
-  set(computerId: string, why: string | null): void { if (why === null) wakeFailed.delete(computerId); else wakeFailed.set(computerId, why); for (const f of [...wakeSubs]) f(); },
+  set(computerId: string, f: Failure | null): void { if (f === null) wakeFailed.delete(computerId); else wakeFailed.set(computerId, f); for (const fn of [...wakeSubs]) fn(); },
 };
 
 const fullOf = (e: unknown): string => (e instanceof Error ? e.message.trim() : "");
@@ -41,16 +42,24 @@ const fullOf = (e: unknown): string => (e instanceof Error ? e.message.trim() : 
 export const provisionKey = (agentId: string): string => `agent:${agentId}`;
 
 const SERVER_CANNOT = /^This server can't start agent computers yet/i;
+const failureOf = (e: unknown, fallback: string): Failure => {
+  const code = (e as { code?: unknown } | null)?.code;
+  return { message: fullOf(e) || fallback, ...(typeof code === "string" ? { code } : {}) };
+};
+export interface Words { sentence: string; details: string; /** the cause is the server itself: pressing again cannot help, so a member has no button and an admin is sent to Console */ server: boolean }
 /**
- * What the panel says for a computer that could not be made or woken, from the server's own message: the first line only is the sentence; everything after "Details: " (and the whole message) goes to Details.
- * A server that has no agent computers yet says so by role: an admin is pointed at Console, a member at their admin. Any other refusal is shown in the server's own words, never replaced by a generic line.
+ * What the panel says for a computer that could not be made or woken, from the server's own message. A first line the server wrote for people ("This server can't start agent computers yet.") shows as it is, worded by
+ * role. provider.unavailable (the runtime is down) is the same kind of cause, in plain words. Anything else shows "Vyre couldn't start <name>'s computer." and the server's words go under Details, never as the sentence.
  */
-export function computerWords(raw: string, admin: boolean): { sentence: string; details: string } {
-  const body = raw.replace(/^The computer (?:could not be created|did not start): /, "").trim();
+export function computerWords(f: Failure, admin: boolean, name = "its"): Words {
+  const body = f.message.replace(/^The computer (?:could not be created|did not start): /, "").trim();
   const [first = "", ...rest] = body.split(/\n+Details: /);
   const line = first.split("\n")[0]!.trim();
-  if (SERVER_CANNOT.test(line)) return { sentence: `This server can't start agent computers yet. ${admin ? "Update this server from Console > Computers." : "Ask your admin to update it."}`, details: rest.join("\n").trim() || body };
-  return { sentence: line === "" ? "The computer did not start." : /[.!?]$/.test(line) ? line : `${line}.`, details: rest.length ? rest.join("\n").trim() : body };
+  const details = rest.length ? `${rest.join("\n").trim()}\n${line}`.trim() : body;
+  const role = admin ? "Check Console > Computers." : "Ask your admin.";
+  if (SERVER_CANNOT.test(line)) return { sentence: `This server can't start agent computers yet. ${admin ? "Update this server from Console > Computers." : "Ask your admin to update it."}`, details: rest.join("\n").trim() || body, server: true };
+  if (f.code === "provider.unavailable") return { sentence: `This server can't start agent computers right now. ${role}`, details: body, server: true };
+  return { sentence: `Vyre couldn't start ${name === "its" ? "its" : `${name}'s`} computer.`, details: body, server: false };
 }
 
 export async function wake(d: PaneDeps, computerId: string, name: string, o: { quiet?: boolean } = {}): Promise<boolean> {
@@ -61,7 +70,7 @@ export async function wake(d: PaneDeps, computerId: string, name: string, o: { q
     return true;
   } catch (e) {
     const why = reasonOf(e) || "The computer did not start";
-    wakeFailure.set(computerId, fullOf(e) || why);
+    wakeFailure.set(computerId, failureOf(e, why));
     d.note(`Could not wake it: ${why}`);
     return false;
   }
@@ -75,7 +84,7 @@ export async function provision(d: PaneDeps, agentId: string, name: string, node
   } catch (e) {
     // the server's own words stay on the panel, with Copy details: a refusal here (the host cannot run computers, the runtime is down) is the reason, not "could not set up"
     const why = reasonOf(e);
-    wakeFailure.set(provisionKey(agentId), fullOf(e) || why || "The computer could not be created.");
+    wakeFailure.set(provisionKey(agentId), failureOf(e, why || "The computer could not be created."));
     d.note(why ? `Could not set up its computer: ${why}` : "Could not set up its computer.");
     return false;
   }

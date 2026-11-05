@@ -24,10 +24,12 @@ export default function Mount(): ReactNode {
     </View>
   );
   if (part === "provision-unavailable") {
-    const w = computerWords(UNAVAILABLE, true);
-    return card(<><RefusedBody name="Dex" sentence={w.sentence} details={w.details} onCopy={() => undefined} /><NoneBody name="Dex" hosts={HOSTS} canProvision onProvision={() => undefined} /></>);
+    const w = computerWords({ message: UNAVAILABLE, code: "provider.unavailable" }, true, "Dex");
+    return card(<><RefusedBody name="Dex" sentence={w.sentence} details={w.details} onCopy={() => undefined} {...(w.server ? { onAction: () => undefined, actionLabel: "Open Console > Computers" } : {})} /><NoneBody name="Dex" hosts={HOSTS} canProvision onProvision={() => undefined} /></>);
   }
-  const raw = part === "wake-refused" ? "The server refused this: A computer reaches only the Vault channel." : NO_IMAGE;
-  const w = computerWords(raw, part !== "wake-member");
-  return card(<FailedBody name="Dex" reason={w.sentence} details={`Dex's computer cmp_demo\nstate: asleep\nreason: ${w.details}`} onCopy={() => undefined} onAgain={() => undefined} />);
+  const raw = part === "wake-refused" ? "A computer reaches only the Vault channel." : NO_IMAGE;
+  const admin = part !== "wake-member";
+  const w = computerWords({ message: raw }, admin, "Dex");
+  const again = w.server ? (admin ? { onAgain: () => undefined, againLabel: "Open Console > Computers" } : {}) : { onAgain: () => undefined };
+  return card(<FailedBody name="Dex" reason={w.sentence} details={`Dex's computer cmp_demo\nstate: asleep\nreason: ${w.details}`} onCopy={() => undefined} {...again} />);
 }

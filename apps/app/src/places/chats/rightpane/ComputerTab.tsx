@@ -8,6 +8,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { LiveScreen } from "../computer/LiveScreen.tsx";
+import type { Failure } from "./actions.ts";
 import { computerWords, copyText, giveBack, provision, provisionKey, signOut, sleep, takeOver, wake, wakeFailure } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import { useOnline, usePaneData, useScreenQuery } from "./data.tsx";
@@ -189,7 +190,7 @@ export function SettingUp({ name, step, where }: { name: string; step: number; w
 }
 
 /** The real reason and the next step, and a way to keep the details. */
-export function FailedBody({ name, reason, details, onCopy, onAgain }: { name: string; reason: string; details: string; onCopy(text: string): void; onAgain(): void }): ReactElement {
+export function FailedBody({ name, reason, details, onCopy, onAgain, againLabel = "Try again" }: { name: string; reason: string; details: string; onCopy(text: string): void; onAgain?: () => void; againLabel?: string }): ReactElement {
   return (
     <View testID="computer-failed" style={st.padded}>
       <Text accessibilityRole="header" style={st.headline}>{`${name}'s computer`}</Text>
@@ -199,21 +200,21 @@ export function FailedBody({ name, reason, details, onCopy, onAgain }: { name: s
       </View>
       <View style={st.row2}>
         <TextButton label="Copy details" onPress={() => onCopy(details)} testID="computer-copy-details" />
-        <TextButton label="Set up again" primary onPress={onAgain} testID="computer-again" />
+        {onAgain ? <TextButton label={againLabel} primary onPress={onAgain} testID="computer-again" /> : null}
       </View>
     </View>
   );
 }
 
 /** A provision the server refused, above the Set up button: its own words in one sentence, and Copy details for the rest. */
-export function RefusedBody({ name, sentence, details, onCopy }: { name: string; sentence: string; details: string; onCopy(text: string): void }): ReactElement {
+export function RefusedBody({ name, sentence, details, onCopy, onAction, actionLabel }: { name: string; sentence: string; details: string; onCopy(text: string): void; onAction?: () => void; actionLabel?: string }): ReactElement {
   return (
     <View testID="computer-refused" style={st.padded}>
       <View style={st.fail}>
         <View style={st.cannotHead}><Icon name="warn" size={14} color="var(--danger)" /><Text style={st.failTitle}>The computer could not be set up</Text></View>
         <Text testID="computer-refused-reason" style={st.failText}>{sentence}</Text>
       </View>
-      <View style={st.row2}><TextButton label="Copy details" onPress={() => onCopy(`${name}'s computer\nstate: not made\nreason: ${details}`)} testID="computer-copy-details" /></View>
+      <View style={st.row2}><TextButton label="Copy details" onPress={() => onCopy(`${name}'s computer\nstate: not made\nreason: ${details}`)} testID="computer-copy-details" />{onAction && actionLabel ? <TextButton label={actionLabel} primary onPress={onAction} testID="computer-action" /> : null}</View>
     </View>
   );
 }
@@ -242,12 +243,13 @@ function useHosts(): HostsAnswer {
 
 function ComputerNone({ deps, agentId, name, canProvision }: { deps: PaneDeps; agentId: string; name: string; canProvision: boolean }): ReactElement {
   const hosts = useHosts();
+  const nav = usePaneData().nav;
   const [picked, setPicked] = useState<string | null>(null);
   const refused = useSyncExternalStore(wakeFailure.subscribe, () => wakeFailure.get(provisionKey(agentId)), () => wakeFailure.get(provisionKey(agentId)));
-  const words = refused !== undefined ? computerWords(refused, canProvision) : null;
+  const words = refused !== undefined ? computerWords(refused, canProvision, name) : null;
   return (
     <>
-      {words ? <RefusedBody name={name} sentence={words.sentence} details={words.details} onCopy={(text) => void copyText(deps, text)} /> : null}
+      {words ? <RefusedBody name={name} sentence={words.sentence} details={words.details} onCopy={(text) => void copyText(deps, text)} {...(words.server && canProvision ? { onAction: () => nav.openMachines?.(), actionLabel: "Open Console > Computers" } : {})} /> : null}
       <NoneBody hosts={hosts} canProvision={canProvision} name={name} picked={picked} onPick={setPicked} onProvision={(nodeId) => void provision(deps, agentId, name, nodeId ?? undefined)} />
     </>
   );
@@ -273,10 +275,10 @@ function ComputerBody({ deps, computerId, window, canTake, admin }: { deps: Pane
   const where = c.nodeId ? hostName(hosts, c.nodeId) : hostName(hosts, null);
   // a wake the server refused or failed before it could write the row's own error: the row says Asleep, this says why it did not start
   if (c.state === "error" || (refused !== undefined && c.state === "asleep")) {
-    const raw = c.state === "error" ? (c.error ?? "It could not start. Look at the server's logs for the reason.") : (refused ?? "");
-    const words = computerWords(raw, admin);
+    const raw: Failure = c.state === "error" ? { message: c.error ?? "It could not start. Look at the server's logs for the reason." } : (refused ?? { message: "" });
+    const words = computerWords(raw, admin, name);
     const reason = words.sentence;
-    return <FailedBody name={name} reason={reason} details={`${name}'s computer ${c.computerId}\nstate: ${c.state}\nreason: ${words.details}${where ? `\nruns on: ${where}` : ""}`} onCopy={(text) => void copyText(deps, text)} onAgain={() => void wake(deps, c.computerId, name)} />;
+    return <FailedBody name={name} reason={reason} details={`${name}'s computer ${c.computerId}\nstate: ${c.state}\nreason: ${words.details}${where ? `\nruns on: ${where}` : ""}`} onCopy={(text) => void copyText(deps, text)} {...(words.server ? (admin ? { onAgain: () => data.nav.openMachines?.(c.nodeId ?? undefined), againLabel: "Open Console > Computers" } : {}) : { onAgain: () => void wake(deps, c.computerId, name) })} />;
   }
   if (isSettingUp(c)) return <SettingUp name={name} step={setupStep(c)} {...(where ? { where } : {})} />;
   const view = computerView(c);
