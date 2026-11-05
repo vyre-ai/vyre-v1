@@ -8,6 +8,7 @@
 //     later expires_at. The reply names the new token's digest, never the token.
 //   prompt "authcrash <tag>": the same refresh, then the process dies (exit 3) before it answers
 //   prompt "authhang <tag>": the same refresh, then the process stays up without answering until it is killed (a turn still running when the daemon stops)
+//   prompt "authargv": answers with the model flag it was started with: `model-flag none models-given 0` when there is none, else `model-flag "<name>" models-given 1`
 //   prompt "authlogout": removes the file, as `codex logout` does
 //   anything else: echoes the prompt
 import fs from "node:fs";
@@ -43,7 +44,7 @@ function refresh(tag) {
 
 function answer(prompt) {
   // the command is the last one in the prompt: a daemon's turn puts Vyre's context and earlier messages before the person's own words
-  const all = [...prompt.matchAll(/(?:^|\s)(authcheck|authlogout|auth(?:refresh|crash|hang) \S+)(?=\s|$)/g)];
+  const all = [...prompt.matchAll(/(?:^|\s)(authcheck|authargv|authlogout|auth(?:refresh|crash|hang) \S+)(?=\s|$)/g)];
   const cmd = all.length > 0 ? all[all.length - 1][1] : "";
   const m = /^auth(refresh|crash|hang) (\S+)$/.exec(cmd);
   if (m) {
@@ -52,6 +53,8 @@ function answer(prompt) {
     if (m[1] === "hang") { setInterval(() => undefined, 60_000); return null; }
     return `${cli} refreshed to ${token.length}:${token.slice(-4)}`;
   }
+  // the command line this process was started with, as JSON: a test reads which flags the driver built (a model flag, or none)
+  if (cmd === "authargv") { const flag = cli === "claude" ? "--model" : "-m"; const at = argv.indexOf(flag); return `model-flag ${at < 0 ? "none" : JSON.stringify(argv[at + 1] ?? "")} models-given ${argv.filter((a) => a === flag || a === "--model").length}`; }
   if (cmd === "authlogout") { fs.rmSync(file, { force: true }); return `${cli} signed out`; }
   const d = describe();
   if (cmd === "authcheck") return d.found ? `${cli} signed in as ${d.digest} mode ${d.mode} env ${d.env.join(",") || "none"}` : `${cli} has no sign-in files`;
