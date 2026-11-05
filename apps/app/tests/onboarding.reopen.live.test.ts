@@ -85,7 +85,10 @@ test("a fresh install: pick Codex, go back, switch to Claude, keep an answer, im
       const ok = (where: string): Promise<void> => guard.check(`${size} ${where}`);
       const row = (k: string) => p.getByTestId(`row-step-${k}`);
       await p.goto(`${web.origin}/chat`, { waitUntil: "load" });
-      await p.getByTestId("onboarding").waitFor({ timeout: 40_000 });
+      // it opened by itself once, in the claim browser, and was left; here it is reopened from "Finish setup", as a person does
+      await p.getByTestId("resume-open").waitFor({ timeout: 40_000 });
+      await p.getByTestId("resume-open").click();
+      await p.getByTestId("onboarding").waitFor({ timeout: 20_000 });
       await ok("onboarding opens");
       // 1. the AI step: pick the Codex sign-in on this computer
       await p.getByTestId("ai-tiles").waitFor({ timeout: 20_000 });
