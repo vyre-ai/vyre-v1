@@ -61,18 +61,25 @@ export function Feed({ children, followKey, store, follow = true, startAway = fa
     }
   }, [onAtEndChange]);
 
-  useLayoutEffect(() => {
-    if (!follow || !atEnd.current) return;
+  const toEnd = useCallback((): void => {
     if (Platform.OS === "web") {
       const node = (ref.current as unknown as { getScrollableNode?: () => ScrollNode } | null)?.getScrollableNode?.();
       if (node) node.scrollTop = node.scrollHeight;
     } else {
       ref.current?.scrollToEnd({ animated: false });
     }
-  }, [followKey, version, follow, endKey]);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!follow || !atEnd.current) return;
+    toEnd();
+  }, [followKey, version, follow, endKey, toEnd]);
+
+  // the list got shorter (a notice line, a taller composer, a menu opened under it) while the person was at the end: the end stays in view, so the last card's buttons are not cut off
+  const onLayout = useCallback(() => { if (follow && atEnd.current) toEnd(); }, [follow, toEnd]);
 
   return (
-    <ScrollView ref={ref} testID={testID} accessibilityLabel={away ? "Conversation, scrolled up" : "Conversation"} onScroll={onScroll} scrollEventThrottle={16} style={[{ flex: 1 }, GUTTER]} contentContainerStyle={contentStyle}>
+    <ScrollView ref={ref} testID={testID} accessibilityLabel={away ? "Conversation, scrolled up" : "Conversation"} onScroll={onScroll} onLayout={onLayout} scrollEventThrottle={16} style={[{ flex: 1 }, GUTTER]} contentContainerStyle={contentStyle}>
       {children}
     </ScrollView>
   );

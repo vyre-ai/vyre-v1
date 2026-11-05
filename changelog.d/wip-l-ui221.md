@@ -2,3 +2,5 @@
 - Model menu: in a composer narrower than 540 px (the Thread pane) the menu fills the composer's width and its lists open inline, so it stays inside the pane.
 - Model menu: choosing the account already in use writes and says nothing; the notice never prints an email address.
 - Tabs: the strip rests at its start when everything fits, and reveals a tab near the start from the true left edge, so the first tab is not left cut.
+- Conversation: the list stays at its end when it gets shorter (a notice line, a taller composer), so the last card's Retry, Details and Report are not cut off.
+- Tabs: a saved list loads with one blank "New chat" tab and one Inbox tab.

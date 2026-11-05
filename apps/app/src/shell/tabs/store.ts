@@ -207,6 +207,9 @@ export function tabsStorageKey(deviceId: string, personId: string, spaceId: stri
 /**
  * Tabs saved before the rule held can show the same thing twice. One tab stays for each place, chat or record, the one used last. Two chats are two tabs even when neither has a name yet.
  */
+/** Places that are one tab however they were reached: a conversation opened in Inbox moves the Inbox tab, it is never a second Inbox. */
+const ONE_TAB_PLACES: readonly PlaceId[] = ["inbox"];
+
 export function dedupeTabs(state: TabsState): TabsState {
   const newest = (a: TabEntry, b: TabEntry): TabEntry => ((b.at ?? 0) >= (a.at ?? 0) && state.tabs.indexOf(b) > state.tabs.indexOf(a)) || (b.at ?? 0) > (a.at ?? 0) ? b : a;
   const winner = new Map<string, TabEntry>();
@@ -219,7 +222,14 @@ export function dedupeTabs(state: TabsState): TabsState {
   // blank chats left open: one stays, the one used last
   const blanks = state.tabs.filter((t) => t.empty === true && t.pinned !== true && winner.get(tabKey(t.place, t.hash)) === t);
   const blank = blanks.reduce<TabEntry | undefined>((a, b) => (a === undefined ? b : newest(a, b)), undefined);
-  const tabs = state.tabs.filter((t) => (t.isNew === true || winner.get(tabKey(t.place, t.hash)) === t || t.pinned === true) && !(t.empty === true && t.pinned !== true && t !== blank));
+  // an Inbox tab saved twice (the place and a conversation in it): the one used last stays
+  const lone = new Map<string, TabEntry>();
+  for (const t of state.tabs) {
+    if (t.isNew === true || !ONE_TAB_PLACES.includes(t.place)) continue;
+    const cur = lone.get(t.place);
+    lone.set(t.place, cur === undefined || cur.pinned !== true && (t.pinned === true || newest(cur, t) === t) ? t : cur);
+  }
+  const tabs = state.tabs.filter((t) => (t.isNew === true || winner.get(tabKey(t.place, t.hash)) === t || t.pinned === true) && !(t.empty === true && t.pinned !== true && t !== blank) && (t.isNew === true || !ONE_TAB_PLACES.includes(t.place) || lone.get(t.place) === t));
   if (tabs.length === state.tabs.length) return state;
   return { tabs, active: tabs.some((t) => t.key === state.active) ? state.active : ([...tabs].sort((a, b) => (b.at ?? 0) - (a.at ?? 0))[0]?.key ?? "") };
 }
@@ -281,7 +291,8 @@ export function readTabs(raw: string | null): TabsState | null {
       ...(isNew === true ? { isNew: true } : {}),
       ...(pinned === true ? { pinned: true } : {}),
       ...(typeof at === "number" ? { at } : {}),
-      ...(empty === true && hashText !== undefined ? { empty: true as const } : {}),
+      // a chat saved while its name read as blank carries the placeholder title: tab lists saved before the mark held are marked now, so they collapse to one like the rest
+      ...((empty === true || (title === NEW_CHAT && pinned !== true && isNew !== true)) && hashText !== undefined ? { empty: true as const } : {}),
     });
   }
   const active = renamed.get(data["active"]) ?? data["active"];
