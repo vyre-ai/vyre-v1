@@ -98,3 +98,42 @@ test("two turns started back to back respect a limit of 1: the second is placed 
   await Promise.all([slowSpace(two(3)), slowSpace(two(4))]);
   assert.ok(Date.now() - t0 < 140, "both opened at the same time");
 });
+
+// ---- a one-shot (memory learning) for a person whose chats run on their own computer
+
+const oneShot = { threadId: "oneshot_x", agent: { id: "memory-upkeep" }, asker: "usr_dana", turnId: "trn_x", traceId: "a".repeat(32), onDevice: true, lean: true, account: { ref: "#Dana_Claude", driver: "claude_code" } } as unknown as SessionSpec;
+const deviceRelay = (o: { connected?: boolean; secure?: boolean; engines?: string[]; person?: string } = {}): NodeRelay => ({
+  connected: () => o.connected !== false, secure: () => o.secure !== false, spawn: async () => { throw new Error("no spawn"); },
+  devices: () => [{ nodeId: "device:dev_1", deviceId: "dev_1", person: o.person ?? "usr_dana", engines: o.engines ?? ["claude_code"] }],
+});
+
+test("a one-shot for a person whose chats run on their computer starts on that computer, asks no placement, and does not wait for the turn gate", async () => {
+  const h = harness();
+  const opened: string[] = [];
+  const asked: string[] = [];
+  let release: () => void = () => undefined;
+  const slow = new Promise<void>((r) => { release = r; });
+  // a turn is being placed (the gate is held while its first engine process starts)
+  const make = routed((async () => { opened.push("host"); await slow; return {} as never; }) as never, { call: async (cap: string) => { asked.push(cap); return { placement: "host", reason: "shared_thread" }; }, relay: deviceRelay(), nodeOpener: ((id: string, person?: string) => async () => { opened.push(`node:${id}:${person}`); return {} as never; }) as never, db: h.db });
+  let turnDone = false;
+  const turn = make(spec).then((x) => { turnDone = true; return x; });
+  await new Promise<void>((r) => setTimeout(r, 20));   // the turn is now inside its opener, holding the gate
+  await make(oneShot);
+  assert.equal(turnDone, false, "the turn is still being placed");
+  assert.ok(opened.includes("node:device:dev_1:usr_dana"), "the one-shot opened on the computer while the turn held the gate");
+  assert.deepEqual(asked.filter((c) => c === "engine.placement.decide").length, 1, "only the turn asked for a placement");
+  release();
+  await turn;
+});
+
+test("a one-shot never runs on the Space: a computer that is off, on a link that is not private, without the engine, or someone else's refuses it with its engine code", async () => {
+  const h = harness();
+  const opened: string[] = [];
+  const inner = (async () => { opened.push("host"); return {} as never; }) as never;
+  const route = (relay: NodeRelay) => routed(inner, { call: async () => ({}), relay, nodeOpener: (() => async () => { opened.push("node"); return {} as never; }) as never, db: h.db });
+  await assert.rejects(() => route(deviceRelay({ connected: false }))(oneShot), (e) => (e as { code?: string }).code === "engine.device_off");
+  await assert.rejects(() => route(deviceRelay({ secure: false }))(oneShot), (e) => (e as { code?: string }).code === "engine.link_insecure");
+  await assert.rejects(() => route(deviceRelay({ engines: ["codex"] }))(oneShot), (e) => (e as { code?: string }).code === "engine.device_off");
+  await assert.rejects(() => route(deviceRelay({ person: "usr_omar" }))(oneShot), (e) => (e as { code?: string }).code === "engine.device_off");
+  assert.deepEqual(opened, [], "nothing opened anywhere, and in particular not on the Space's own engine");
+});

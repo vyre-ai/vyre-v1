@@ -86,6 +86,20 @@ test("when the agent has finished the footer says Done with its one-line outcome
   assert.doesNotMatch(textOf(find(root, "replies-c2")), /Done/);
 });
 
+test("while helpers work under the thread the footer says so, with how many, instead of Done", async () => {
+  installDom(); widen(1280);
+  const s = channel();
+  s.replica.put("threads", [threadRow({ replyCount: 3, lastMessageAt: at(9, 40), repliers: [{ kind: "agent", id: "agt_intake" }], preview: "Two helpers are on it." })]);
+  const call = s.data.call;
+  s.data.call = async (cap: string, input: unknown) => (cap === "engine.crew.status" ? { members: [], totals: { working: 2, needsYou: 0 } } : call(cap, input));
+  const root = await mount(createRoot, <Conversation data={s.data} />);
+  await flush();
+  await flush();
+  const foot = textOf(find(root, "replies-c2"));
+  assert.match(foot, /Working\s+\S\s+2 helpers/);
+  assert.doesNotMatch(foot, /Done/);
+});
+
 const waitingBlock = [{ type: "turn_status", v: 1, id: "ts1", data: { state: "waiting", turnId: "turn_1", taskId: "tsk_1" } }] as never;
 function parked(assignee: string): Sample {
   const s = channel();

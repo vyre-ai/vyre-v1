@@ -122,6 +122,31 @@ function asSeen(d: DocRow, agent: AgentDocs): DocRow | null {
   return { ...d, title: a.title, path: a.path, body: a.body };
 }
 
+/**
+ * A room that gained a person (a channel or thread with a later join) is read by an agent only from the last join on: what was said before was not said to the people there now, and an agent's
+ * answer is read by all of them. The index holds the whole text of the room, so for an agent-bound caller the text is read again from the messages after the cut, and a hit that matches only
+ * words from before it is dropped. A person searching their own history is not cut here.
+ */
+async function afterJoin(ctx: SearchCtx, d: DocRow, memo: Map<string, DocRow | null>): Promise<DocRow | null> {
+  if (d.kind !== "chat" || !agentBound(ctx)) return d;
+  const had = memo.get(d.id);
+  if (had !== undefined) return had;
+  let out: DocRow | null = null;
+  try {
+    const th = ((await ctx.call("threads.get", { threadId: d.id })) as { thread?: { joinedAt?: Record<string, unknown> } }).thread;
+    const joins = Object.values(th?.joinedAt ?? {}).filter((x): x is number => typeof x === "number");
+    if (joins.length === 0) out = d;
+    else {
+      const cut = Math.max(...joins);
+      const m = (await ctx.call("chat.messages.list", { threadId: d.id, limit: 200 })) as { messages?: Array<{ body?: unknown; enc?: unknown; createdAt?: unknown }> };
+      const body = (m.messages ?? []).filter((x) => Number(x.enc) !== 2 && Number(x.createdAt ?? 0) >= cut).map((x) => (typeof x.body === "string" ? x.body : "")).filter((t) => t.length > 0).join("\n");
+      out = body === "" ? null : { ...d, body };
+    }
+  } catch { out = null; }
+  memo.set(d.id, out);
+  return out;
+}
+
 const fold = (s: string): string => s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 
 /** Is every typed word the start of a word of the title or body, as the full text index matches it (prefix, case and accents folded)? `any` asks for one word instead (Related). */
@@ -234,11 +259,14 @@ export async function query(ctx: SearchCtx, input: QueryInput): Promise<{ hits: 
   const agent = agentDocs(ctx, [...docs.keys()]);
   const hits: Hit[] = [];
   const opened = new Map<string, boolean>();
+  const cuts = new Map<string, DocRow | null>();
   let more = false;
   for (const [n, e] of order) {
     const raw = docs.get(n);
     if (!raw) continue;
-    const d = asSeen(raw, agent);
+    const seenDoc = asSeen(raw, agent);
+    if (!seenDoc) continue;
+    const d = await afterJoin(ctx, seenDoc, cuts);
     if (!d) continue;
     if (d !== raw && !wordsIn(d, words)) continue;
     if (kinds && !kinds.has(d.kind)) continue;
@@ -264,7 +292,8 @@ export async function recentList(ctx: SearchCtx, input: { types?: readonly Kind[
     const d = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", str(r["kind"]), str(r["item_id"]))[0];
     if (!d) continue;
     const raw = docOf(d);
-    const doc = asSeen(raw, agentDocs(ctx, [raw.n]));
+    const seenDoc = asSeen(raw, agentDocs(ctx, [raw.n]));
+    const doc = seenDoc ? await afterJoin(ctx, seenDoc, new Map()) : null;
     if (!doc || !(await readable(ctx, doc))) continue;
     hits.push(hitOf(doc, 1 / (RRF + hits.length), []));
     if (hits.length === limit) break;
@@ -280,7 +309,8 @@ export async function resolveItem(ctx: SearchCtx, input: { kind: Kind; itemId: s
   const row = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", input.kind, input.itemId)[0];
   if (!row) return {};
   const raw = docOf(row);
-  const doc = asSeen(raw, agentDocs(ctx, [raw.n]));
+  const seenDoc = asSeen(raw, agentDocs(ctx, [raw.n]));
+  const doc = seenDoc ? await afterJoin(ctx, seenDoc, new Map()) : null;
   return doc && (await readable(ctx, doc)) ? { hit: hitOf(doc, 1, []) } : {};
 }
 
@@ -303,7 +333,8 @@ export async function related(ctx: SearchCtx, input: { kind: Kind; itemId: strin
   const row = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", input.kind, input.itemId)[0];
   if (!row) return { hits: [] };
   const selfRaw = docOf(row);
-  const self = asSeen(selfRaw, agentDocs(ctx, [selfRaw.n]));
+  const selfSeen = asSeen(selfRaw, agentDocs(ctx, [selfRaw.n]));
+  const self = selfSeen ? await afterJoin(ctx, selfSeen, new Map()) : null;
   if (!self || !(await readable(ctx, self))) return { hits: [] };
   const terms = termsOf(self);
   if (terms.length === 0) return { hits: [] };
@@ -315,10 +346,12 @@ export async function related(ctx: SearchCtx, input: { kind: Kind; itemId: strin
   const docs = docsByRowid(ctx, cands.map((c) => Number(c["n"])));
   const agent = agentDocs(ctx, [...docs.keys()]);
   const hits: Hit[] = [];
+  const cuts = new Map<string, DocRow | null>();
   for (const c of cands) {
     const raw = docs.get(Number(c["n"]));
     if (!raw || raw.n === self.n) continue;
-    const d = asSeen(raw, agent);
+    const seenDoc = asSeen(raw, agent);
+    const d = seenDoc ? await afterJoin(ctx, seenDoc, cuts) : null;
     if (!d || (d !== raw && !wordsIn(d, terms, true)) || !(await readable(ctx, d))) continue;
     hits.push(hitOf(d, 1 / (RRF + hits.length), terms));
     if (hits.length === limit) break;

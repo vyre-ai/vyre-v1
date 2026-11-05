@@ -423,3 +423,11 @@ test("a helper chat line with no words and only the turn's bookkeeping is not dr
   await flush(); await flush();
   assert.equal(find(root, "msg-m_blank"), null);
 });
+
+test("while a citation card is open the message's hover toolbar is not drawn; closing the card brings it back", async () => {
+  const { barShows } = await import("./cite.tsx");
+  assert.equal(barShows(true, false), true, "hovered, no card: the bar shows");
+  assert.equal(barShows(true, true), false, "a card is open: the bar steps aside");
+  assert.equal(barShows(false, false), false, "not hovered: no bar");
+  assert.equal(barShows(true, false), true, "the card closed: the bar is back");
+});

@@ -21,9 +21,10 @@ const mem = (init: Record<string, string> = {}): Store & { data: Map<string, str
 };
 const found = (o: Partial<UpdateCheck> = {}): UpdateCheck => ({ phase: "available", current: "1.0.0-rc.16", channel: "beta", version: "1.0.0-rc.17", notes: null, checkedAt: 1, ...o });
 
-function shell(answer: UpdateCheck | (() => Promise<UpdateCheck>), install: (on: (p: Progress) => void) => Promise<void> = () => new Promise(() => undefined)): DesktopUpdates & { installs: number } {
+function shell(answer: UpdateCheck | (() => Promise<UpdateCheck>), install: (on: (p: Progress) => void) => Promise<void> = () => new Promise(() => undefined)): DesktopUpdates & { installs: number; stops: number } {
   const u = {
-    installs: 0,
+    installs: 0, stops: 0,
+    stopNow: () => { u.stops++; return Promise.resolve(); },
     startup: () => (typeof answer === "function" ? answer() : Promise.resolve(answer)),
     check: () => Promise.resolve(typeof answer === "function" ? found() : answer),
     install: (on?: (p: Progress) => void) => { u.installs++; return install(on ?? (() => undefined)); },
@@ -154,4 +155,40 @@ test("What's new shows once after an update, Continue closes it for good, and a 
   } finally { restore(); }
   const out = renderToStaticMarkup(<WhatsNewSheet notes={notes} onClose={() => undefined} />);
   for (const t of ["What&#x27;s new in Vyre", "Version 1.0.0-rc.17", "Settings has About Vyre.", "Continue"]) assert.ok(out.includes(t), t);
+});
+
+test("while a reply runs the screen names its chat, counts down the wait, and offers Stop and update now once", async () => {
+  const restore = installDom();
+  resetUpdateState();
+  let report: (p: Progress) => void = () => undefined;
+  const u = shell(found(), (on) => { report = on; return new Promise(() => undefined); });
+  try {
+    const root = await mount(createRoot, <StartupUpdate updates={u} store={mem({ [SEEN_KEY]: "1.0.0-rc.16" })}><Lock /></StartupUpdate>);
+    assert.equal(find(root, "updating-stop-now"), null, "no button before the wait");
+    await act(async () => { report({ phase: "waiting", downloaded: 0, total: null, turns: 1, chats: ["Rivera intake"], left: 522, of: 600 }); });
+    assert.match(textOf(find(root, "updating-line")), /Waiting for the reply in \u201cRivera intake\u201d to finish/);
+    assert.match(textOf(find(root, "updating-left")), /8:42 left, then Vyre updates on its own/);
+    await act(async () => { report({ phase: "waiting", downloaded: 0, total: null, turns: 1, chats: ["Rivera intake"], left: 0 }); });
+    assert.match(textOf(find(root, "updating-left")), /0:00 left/, "the cap ran out: it says so and the shell goes on by itself");
+    await press(find(root, "updating-stop-now"));
+    await press(find(root, "updating-stop-now"));
+    assert.equal(u.stops, 1, "pressed once, asked once");
+    assert.match(textOf(find(root, "updating-stop-now")), /Stopping/);
+    await act(async () => { report({ phase: "stopping", downloaded: 0, total: null, turns: 1 }); });
+    assert.match(textOf(find(root, "updating-line")), /Stopped the reply cleanly\. Getting ready to install/);
+    await act(async () => { report({ phase: "stopping", downloaded: 0, total: null, turns: 2 }); });
+    assert.match(textOf(find(root, "updating-line")), /Stopped the replies cleanly\./, "two chats: plural");
+    assert.equal(find(root, "updating-stop-now"), null, "the button goes once the wait is over");
+    assert.equal(find(root, "updating-left"), null);
+  } finally { restore(); }
+});
+
+test("a wait with no chat name still reads plainly, and a wait that has no countdown shows none", async () => {
+  const restore = installDom();
+  try {
+    const root = await mount(createRoot, <UpdatingScreen version="1.0.0-rc.17" progress={{ phase: "waiting", downloaded: 0, total: null, turns: 2 }} failure="" onOpenAnyway={() => undefined} onStopNow={() => undefined} />);
+    assert.match(textOf(find(root, "updating-line")), /Waiting for 2 replies on this computer to finish/);
+    assert.equal(find(root, "updating-left"), null);
+    assert.ok(find(root, "updating-stop-now"), "Stop and update now is there even before the shell says how long is left");
+  } finally { restore(); }
 });

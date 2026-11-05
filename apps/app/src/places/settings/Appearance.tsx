@@ -2,7 +2,7 @@
 // Get a skin from a link, Make your own, then Display (text size, density, reduce motion, language) and the keyboard shortcuts. The look is one person setting (look.ts); the shell paints it (settings-look.ts).
 import { useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { skins } from "../../../../../ui/src/tokens/skins.ts";
 import type { Palette } from "../../../../../ui/src/tokens/skins.ts";
 import { Overlay } from "../automations/config/Overlay.tsx";
@@ -11,7 +11,7 @@ import { ACCENTS, LANGUAGES, LOOK_KEY, TEXT_MAX, TEXT_MIN, TEXT_STEP, baseOfSlot
 import type { Contrast, CustomSkin, Look, LookMode } from "./look.ts";
 import type { SettingRow } from "./model.ts";
 import { useSaved } from "./saved.tsx";
-import { Choice, Glyph, Section, Segmented, SettingsRow, SmallButton, Slider, Switch, pointer, webOnly } from "./ui.tsx";
+import { Choice, Glyph, IconTile, Section, Segmented, SettingsRow, SmallButton, Slider, Switch, pointer, webOnly } from "./ui.tsx";
 import { Shortcuts } from "./pages-b.tsx";
 
 const stock = skins;
@@ -24,10 +24,12 @@ export function Thumb({ palette, big = false }: { palette: Palette; big?: boolea
   const p = palette;
   return (
     <View testID="skin-thumb" aria-hidden style={[t.thumb, big && t.thumbBig, { backgroundColor: p.win, borderColor: p.me }]}>
-      <View style={[t.side, { backgroundColor: p.side }]}><View style={[t.dot, { backgroundColor: p.accent }]} /><View style={[t.bar, { backgroundColor: p.me }]} /><View style={[t.bar, { backgroundColor: p.ink4 }]} /></View>
+      <View style={{ width: "11%", backgroundColor: p.rail }} />
+      <View style={[t.side, { backgroundColor: p.side, borderRightColor: p.me }]}><View style={[t.bar, { backgroundColor: p.ink4 }]} /><View style={[t.bar, { width: "88%", height: "15%", backgroundColor: p.me }]} /></View>
       <View style={t.main}>
-        <View style={[t.msg, { backgroundColor: p.me }]} /><View style={[t.line, { backgroundColor: p.ink3 }]} /><View style={[t.line, { width: "60%", backgroundColor: p.ink4 }]} />
-        <View style={[t.field, { backgroundColor: p.raised, borderColor: p.me }]}><View style={[t.send, { backgroundColor: p.accent }]} /></View>
+        <View style={[t.line, { width: "70%", backgroundColor: p.me }]} />
+        <View style={[t.msg, { backgroundColor: p.me }]} />
+        <View style={[t.send, { backgroundColor: p.accent }]} />
       </View>
     </View>
   );
@@ -35,6 +37,7 @@ export function Thumb({ palette, big = false }: { palette: Palette; big?: boolea
 
 export function AppearancePage({ rows, found }: { rows: readonly SettingRow[]; found?: string | null }): ReactElement {
   const data = useSettingsData();
+  const narrow = useWindowDimensions().width < 560;
   const saved = useSaved();
   const stored = rows.find((r) => r.key === LOOK_KEY)?.value;
   const [look, setLook] = useState<Look>(() => lookFrom(stored));
@@ -66,7 +69,7 @@ export function AppearancePage({ rows, found }: { rows: readonly SettingRow[]; f
     return (
       <Pressable
         key={id} accessibilityRole="button" accessibilityState={{ selected: on }} aria-pressed={on} accessibilityLabel={`${name}. ${note}`} testID={`skin-${id}`} onPress={() => pick(id)}
-        onHoverIn={() => data.nav.previewSkin?.(id)} onHoverOut={() => data.nav.previewSkin?.(null)} style={[t.tile, on && t.tileOn, pointer]}
+        onHoverIn={() => data.nav.previewSkin?.(id)} onHoverOut={() => data.nav.previewSkin?.(null)} style={[t.tile, { width: (narrow ? "calc(50% - 6px)" : "calc(25% - 9px)") as unknown as number }, on && t.tileOn, pointer]}
       >
         <Thumb palette={paletteById(id, look.mine)} />
         <View style={t.tileName}><Text numberOfLines={1} style={t.name}>{name}</Text>{on ? <Glyph name="check" size={12} color="var(--accent)" /> : null}</View>
@@ -76,15 +79,15 @@ export function AppearancePage({ rows, found }: { rows: readonly SettingRow[]; f
   const grid = (list: readonly { id: string; name: string; note: string }[], tid: string): ReactElement | null => (list.length ? <View style={t.grid} testID={tid}>{list.map((k) => tile(k.id, k.name, k.note))}</View> : null);
   const slot = (k: "day" | "night" | "light" | "dark", label: string, on: boolean, press: () => void): ReactElement => (
     <Pressable key={k} accessibilityRole="button" aria-pressed={on} accessibilityLabel={`${label}: ${nameById(look[k], look.mine)}. Pick to change it`} testID={`slot-${k}`} onPress={press} style={[t.slot, on && t.slotOn, pointer]}>
-      <Thumb palette={paletteById(look[k], look.mine)} /><View style={{ flex: 1, minWidth: 0 }}><Text style={t.slotLabel}>{label}</Text><Text numberOfLines={1} style={t.slotName}>{nameById(look[k], look.mine)}</Text></View>
+      <Thumb palette={paletteById(look[k], look.mine)} /><View style={{ paddingHorizontal: 2, paddingBottom: 2 }}><Text style={t.slotLabel}>{label}</Text><Text numberOfLines={1} style={t.slotName}>{nameById(look[k], look.mine)}</Text></View>
     </Pressable>
   );
   const stockShown = stock.filter((k) => all || k.base === base);
   return (
     <>
-      <Section title="When" testID="look-when">
-        <View style={t.pad}><Segmented value={look.mode} label="When" testID="look-mode" onChange={setMode} options={[{ value: "device", label: "Match my device" }, { value: "light", label: "Always light" }, { value: "dark", label: "Always dark" }]} /></View>
-      </Section>
+      <View style={t.when} testID="look-when">
+        <Segmented value={look.mode} label="When" testID="look-mode" onChange={setMode} options={[{ value: "device", label: "Match my device" }, { value: "light", label: "Always light" }, { value: "dark", label: "Always dark" }]} />
+      </View>
       <View style={t.slots} testID="look-slots">
         {look.mode === "device"
           ? [slot("day", "By day", editing === "day", () => setEditing("day")), slot("night", "At night", editing === "night", () => setEditing("night"))]
@@ -100,8 +103,8 @@ export function AppearancePage({ rows, found }: { rows: readonly SettingRow[]; f
         {ofBase(look.mine).length > 0 ? <><Text style={t.sub}>Yours</Text>{grid(ofBase(look.mine).map((k) => ({ id: k.id, name: k.name, note: k.note })), "skins-mine")}</> : null}
       </View>
       <Section>
-        <SettingsRow id="appearance.link" first label="Get a skin from a link" sub="Someone shared a skin with you" lead={<Glyph name="link" size={16} />} control={<SmallButton label="Paste a link" testID="look-link" onPress={() => setDlg("link")} />} />
-        <SettingsRow id="appearance.make" label="Make your own" sub="Pick a base, an accent and the contrast" lead={<Glyph name="palette" size={16} />} control={<SmallButton label="Make a skin" testID="look-make" onPress={() => setDlg("make")} />} />
+        <SettingsRow id="appearance.link" first label="Get a skin from a link" sub="Someone shared a skin with you" lead={<IconTile name="link" />} control={<SmallButton label="Paste a link" testID="look-link" onPress={() => setDlg("link")} />} />
+        <SettingsRow id="appearance.make" label="Make your own" sub="Pick a base, an accent and the contrast" lead={<IconTile name="palette" />} control={<SmallButton label="Make a skin" testID="look-make" onPress={() => setDlg("make")} />} />
       </Section>
       <Section title="Display" testID="look-display">
         <SettingsRow id="appearance.text" first label="Text size" sub="The quick brown fox jumps over the lazy dog."
@@ -166,9 +169,10 @@ function LinkDialog({ onClose, onAdd }: { onClose(): void; onAdd(s: CustomSkin):
 
 const t = StyleSheet.create({
   pad: { padding: 12 },
-  slots: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 12 },
-  slot: { flex: 1, minWidth: 200, flexDirection: "row", alignItems: "center", gap: 12, padding: 10, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string },
-  slotOn: { borderColor: "var(--accent)" as string, borderWidth: 2 },
+  when: { alignItems: "center", marginTop: 4, marginBottom: 14 },
+  slots: { flexDirection: "row", gap: 12, maxWidth: 400, width: "100%", alignSelf: "center" },
+  slot: { flex: 1, minWidth: 0, flexDirection: "column", gap: 8, padding: 8, borderRadius: 14, borderWidth: 2, borderColor: "var(--line)" as string },
+  slotOn: { borderColor: "var(--accent)" as string },
   slotLabel: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
   slotName: { fontSize: 12, color: "var(--ink-3)" as string },
   foot: { fontSize: 12.5, lineHeight: 18, color: "var(--ink-3)" as string, marginTop: 10, paddingHorizontal: 2 },
@@ -177,21 +181,21 @@ const t = StyleSheet.create({
   link: { fontSize: 12.5, color: "var(--accent)" as string },
   sub: { fontSize: 12.5, color: "var(--ink-3)" as string, marginTop: 14, marginBottom: 8 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
-  tile: { width: "23%" as unknown as number, minWidth: 130, flexGrow: 1, padding: 8, borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, gap: 8 },
-  tileOn: { borderColor: "var(--accent)" as string, borderWidth: 2 },
+  tile: { minWidth: 0, padding: 6, borderRadius: 12, borderWidth: 2, borderColor: "var(--line)" as string, gap: 8 },
+  tileOn: { borderColor: "var(--accent)" as string },
   tileName: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6 },
   name: { fontSize: 12.5, fontWeight: "500", color: "var(--ink)" as string },
   found: { backgroundColor: "var(--accent-wash)" as string },
-  thumb: { height: 62, flexDirection: "row", borderRadius: 8, borderWidth: 1, overflow: "hidden", width: 100 },
-  thumbBig: { height: 120, width: 200 },
-  side: { width: 26, padding: 5, gap: 4 },
+  thumb: { aspectRatio: 1.6, flexDirection: "row", borderRadius: 8, borderWidth: 1, overflow: "hidden", width: "100%" },
+  thumbBig: { width: 240, maxWidth: "100%" },
+  side: { width: "30%", paddingVertical: "12%", paddingHorizontal: "7%", gap: 6, borderRightWidth: 1 },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  bar: { height: 4, borderRadius: 2 },
-  main: { flex: 1, padding: 6, gap: 4, justifyContent: "flex-start" },
-  msg: { height: 10, width: "55%", alignSelf: "flex-end", borderRadius: 4 },
-  line: { height: 4, borderRadius: 2, width: "85%" },
+  bar: { height: "11%", borderRadius: 99 },
+  main: { flex: 1, padding: "8%", gap: 5 },
+  msg: { height: "17%", width: "52%", alignSelf: "flex-end", borderRadius: 4 },
+  line: { height: "14%", borderRadius: 99 },
   field: { marginTop: "auto" as unknown as number, height: 12, borderRadius: 4, borderWidth: 1, alignItems: "flex-end", justifyContent: "center", paddingRight: 3 },
-  send: { width: 8, height: 6, borderRadius: 3 },
+  send: { marginTop: "auto" as unknown as number, alignSelf: "flex-end", width: "32%", height: "17%", borderRadius: 4 },
   dlg: { width: 360, maxWidth: "100%", borderRadius: 16, padding: 20, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   dlgTitle: { fontSize: 16, fontWeight: "600", color: "var(--ink)" as string },
   dlgText: { fontSize: 13, lineHeight: 18, color: "var(--ink-3)" as string, marginTop: 4 },

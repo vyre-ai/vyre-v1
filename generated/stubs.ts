@@ -403,6 +403,7 @@ export function stubs(ctx: CallCtx) {
       composer: {
         suggest: call("chat.composer.suggest"),
       },
+      crew_line: call("chat.crew_line"),
       delete_message: call("chat.delete_message"),
       edit: call("chat.edit"),
       flow_card: call("chat.flow_card"),
@@ -892,6 +893,7 @@ export function stubs(ctx: CallCtx) {
       route: {
         preview: call("engine.route.preview"),
       },
+      running_here: call("engine.running_here"),
       runtime: {
         opt_in: call("engine.runtime.opt_in"),
       },

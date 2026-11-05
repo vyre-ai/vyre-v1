@@ -3,7 +3,7 @@
 import { checkIn, d_s_0a70adf1b7, d_s_f3add3544d, d_s_f34c269949, L0, L1, L3, L43, lf, typeOf } from './core.ts';
 import type { Check } from './core.ts';
 
-function c529_in(v: unknown, p: string, e: string[]): void {
+function c530_in(v: unknown, p: string, e: string[]): void {
 {
 const x2593 = v;
 const g2593 = typeOf(x2593);
@@ -17,7 +17,7 @@ if ("remoteId" in o2593) lf(o2593["remoteId"], p + "/remoteId", e, L1);
 }
 }
 
-function c529_out(v: unknown, p: string, e: string[]): void {
+function c530_out(v: unknown, p: string, e: string[]): void {
 {
 const x2594 = v;
 const g2594 = typeOf(x2594);
@@ -31,7 +31,7 @@ if ("cancelled" in o2594) lf(o2594["cancelled"], p + "/cancelled", e, L3);
 }
 }
 
-function c530_out(v: unknown, p: string, e: string[]): void {
+function c531_out(v: unknown, p: string, e: string[]): void {
 {
 const x2595 = v;
 const g2595 = typeOf(x2595);
@@ -45,7 +45,7 @@ if ("remoteId" in o2595) lf(o2595["remoteId"], p + "/remoteId", e, L1);
 }
 }
 
-function c531_in(v: unknown, p: string, e: string[]): void {
+function c532_in(v: unknown, p: string, e: string[]): void {
 {
 const x2596 = v;
 const g2596 = typeOf(x2596);
@@ -59,7 +59,7 @@ if ("remoteId" in o2596) lf(o2596["remoteId"], p + "/remoteId", e, L1);
 }
 }
 
-function c531_out(v: unknown, p: string, e: string[]): void {
+function c532_out(v: unknown, p: string, e: string[]): void {
 {
 const x2597 = v;
 const g2597 = typeOf(x2597);
@@ -73,7 +73,7 @@ if ("fileId" in o2597) lf(o2597["fileId"], p + "/fileId", e, L43);
 }
 }
 
-function c532_in(v: unknown, p: string, e: string[]): void {
+function c533_in(v: unknown, p: string, e: string[]): void {
 {
 const x2598 = v;
 const g2598 = typeOf(x2598);
@@ -83,7 +83,7 @@ if (g2598 === "object") {
 }
 }
 
-function c533_in(v: unknown, p: string, e: string[]): void {
+function c534_in(v: unknown, p: string, e: string[]): void {
 {
 const x2599 = v;
 const g2599 = typeOf(x2599);
@@ -97,7 +97,7 @@ if ("remoteId" in o2599) lf(o2599["remoteId"], p + "/remoteId", e, L1);
 }
 }
 
-function c533_out(v: unknown, p: string, e: string[]): void {
+function c534_out(v: unknown, p: string, e: string[]): void {
 {
 const x2600 = v;
 const g2600 = typeOf(x2600);
@@ -112,11 +112,11 @@ if ("status" in o2600) lf(o2600["status"], p + "/status", e, L1);
 }
 
 export const validators: Record<string, { in: Check; out: Check }> = {
-  "dropbox_sign.cancel@1": { in: c529_in, out: c529_out },
-  "dropbox_sign.create@1": { in: d_s_f3add3544d, out: c530_out },
-  "dropbox_sign.fetch_signed@1": { in: c531_in, out: c531_out },
-  "dropbox_sign.health@1": { in: c532_in, out: d_s_0a70adf1b7 },
-  "dropbox_sign.status@1": { in: c533_in, out: c533_out },
+  "dropbox_sign.cancel@1": { in: c530_in, out: c530_out },
+  "dropbox_sign.create@1": { in: d_s_f3add3544d, out: c531_out },
+  "dropbox_sign.fetch_signed@1": { in: c532_in, out: c532_out },
+  "dropbox_sign.health@1": { in: c533_in, out: d_s_0a70adf1b7 },
+  "dropbox_sign.status@1": { in: c534_in, out: c534_out },
 };
 
 export const eventValidators: Record<string, Check> = {

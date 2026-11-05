@@ -16,7 +16,7 @@ import type { GithubCtx, UserHost } from "../projections.ts";
 export const ACTIONS = ["read", "push_branch", "open_pr", "comment", "merge", "push_default"] as const;
 export type Action = (typeof ACTIONS)[number];
 export type Mode = "always" | "ask" | "never";
-export const DEFAULT_POLICY: Record<Action, Mode> = { read: "always", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "never" };
+export const DEFAULT_POLICY: Record<Action, Mode> = { read: "always", push_branch: "always", open_pr: "always", comment: "always", merge: "ask", push_default: "ask" };
 const WORDS: Record<Action, string> = { read: "read", push_branch: "push a branch", open_pr: "open a pull request", comment: "comment", merge: "merge", push_default: "push to the default branch" };
 /** What the installation token is allowed to do for each kind of use. */
 export const PERMISSIONS: Record<Action, Record<string, string>> = {
@@ -129,10 +129,11 @@ export async function adoptSignIn(ctx: GithubCtx, input: { githubId: string; per
   return { adopted: true };
 }
 
-export function meStatus(ctx: GithubCtx): { connected: boolean; login?: string; source?: "space" | "vyre"; connectedAt?: number; needsReconnect: boolean } {
+export async function meStatus(ctx: GithubCtx): Promise<{ connected: boolean; login?: string; source?: "space" | "vyre"; connectedAt?: number; needsReconnect: boolean }> {
   ensureMe(ctx);
   const me = first(ctx.db.all(`SELECT * FROM github_me WHERE "person" = ?`, personOf(ctx)));
-  if (!me) return { connected: false, needsReconnect: false };
+  // not connected yet: the member is told which app the sign-in will use, the same fact github.me.connect hands them (source only: no client id, no app id, no secret, no installation)
+  if (!me) { const source = await userHost(ctx).app(ctx).then((a) => a.source, () => undefined); return { connected: false, ...(source ? { source } : {}), needsReconnect: false }; }
   return { connected: true, login: String(me.login), source: me.source as "space" | "vyre", connectedAt: Number(me.connectedAt), needsReconnect: me.needsReconnect === 1 };
 }
 
@@ -283,6 +284,13 @@ export async function sessionEnv(ctx: GithubCtx, input: { repos: string[]; consu
   const ok = ACTIONS.filter((a) => policy[a] === "always");
   const perms: Record<string, string> = {};
   for (const a of ok) for (const [k, v] of Object.entries(PERMISSIONS[a])) if (perms[k] !== "write") perms[k] = v;
+  // GitHub scopes a token by permission, not by branch or by action: a token that can write contents can push to the default branch, and one that can write pull requests can merge. So a permission is
+  // written only when EVERY action that needs that write is Always; otherwise the session gets read, and a push to main or a merge goes through github.token, where Ask me first holds a card.
+  for (const k of Object.keys(perms)) {
+    if (perms[k] !== "write") continue;
+    const needers = ACTIONS.filter((a) => PERMISSIONS[a][k] === "write");
+    if (needers.some((a) => policy[a] !== "always")) perms[k] = "read";
+  }
   if (!ok.length) refuse(ctx, "Your GitHub settings let nothing run without asking, so a session gets no GitHub token. Change it in Settings, GitHub.");
   const token0 = await userToken(ctx, person), installs = await installsOf(ctx, token0);
   const owner = input.repos[0]?.split("/")[0]?.toLowerCase();

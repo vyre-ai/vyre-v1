@@ -1,6 +1,7 @@
 // The Crew pane (owner, 4 Nov 2026, prototype p-crew). The overview: one sentence of totals, a Show menu, the helpers sorted needs you first, a token bar, the timeline of who ran when, "Ran together", Stop all and the
 // keys. A row opens that helper's peek: its brief, what it is on, its answer, the notes between it and the agent that started it, cost and time, Ask it something, Open chat and Stop. All of it from engine.crew.status
 // and the helper's own chat; nothing is estimated.
+import { doneWords, stepWords } from "../../../../../../lib/plain-words.ts";
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -154,7 +155,15 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
       void Promise.resolve(call("chat.messages.list", { threadId: member.id })).then((r) => {
         if (dead) return;
         const blocks = ((r as { messages?: Array<{ blocks: Array<{ id: string; type: string; data?: unknown; state?: string }> }> } | undefined)?.messages ?? []).flatMap((m) => m.blocks).filter((b) => !NOT_STEPS.has(b.type));
-        setSteps(blocks.map((b) => { const l = blockLine(b as never); return { id: b.id, title: l.title, sub: l.sub, ...(b.state ? { state: b.state } : {}) }; }));
+        const dat = (b: { data?: unknown }): Record<string, unknown> => (typeof b.data === "object" && b.data !== null ? (b.data as Record<string, unknown>) : {});
+        const ended = new Set(blocks.filter((b) => b.type === "tool_result").map((b) => String(dat(b)["id"] ?? "")));
+        const detail = new Map(blocks.filter((b) => b.type === "tool_input").map((b) => [String(dat(b)["id"] ?? ""), String(dat(b)["detail"] ?? "")] as const));
+        // a tool's call, what it touched and its result are one step, said in plain words ("Reading next-week.ics")
+        setSteps(blocks.filter((b) => b.type !== "tool_input" && b.type !== "tool_result").map((b) => {
+          if (b.type === "tool_call") { const id = String(dat(b)["id"] ?? ""); return { id: b.id, title: ended.has(id) ? doneWords(String(dat(b)["name"] ?? ""), typeof dat(b)["label"] === "string" ? String(dat(b)["label"]) : undefined, typeof dat(b)["ran"] === "string" ? String(dat(b)["ran"]) : undefined) : stepWords(String(dat(b)["name"] ?? ""), (typeof dat(b)["detail"] === "string" && dat(b)["detail"] !== "" ? String(dat(b)["detail"]) : undefined) ?? (detail.get(id) || undefined)), sub: "", state: ended.has(id) ? "done" : "live" }; }
+          const l = blockLine(b as never);
+          return { id: b.id, title: l.title, sub: l.sub, ...(b.state ? { state: b.state } : {}) };
+        }));
       }, () => undefined);
     };
     read();
@@ -199,7 +208,7 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
       {live || member.state === "failed" || member.state === "stopped" ? <ChangeModel member={member} call={call} onDone={onRefresh} /> : null}
       <HelperHooksSection threadId={member.id} call={call} lead={brief ? (nameOfId?.(brief.authorId) ?? "the agent") : "the agent"} name={nameOf(member)} />
       {member.found ? <><Text style={st.section}>Answer</Text><Text testID="crew-peek-answer" style={st.rowLine}>{member.found}</Text></> : null}
-      {isCode(member) ? <><Text style={st.section}>Code</Text><Text testID="crew-peek-code" style={st.mono}>{member.branch} · +{member.added ?? 0} −{member.deleted ?? 0} · {member.files?.length ?? 0} files{member.tests ? ` · ${testsWords(member.tests)}` : ""}</Text></> : null}
+      {isCode(member) ? <><Text style={st.section}>Code</Text><Text testID="crew-peek-code" style={st.mono}>{member.branch} · +{member.added ?? 0} −{member.deleted ?? 0} · {member.files?.length ?? 0} files{member.tests ? ` · ${testsWords(member.tests)}` : ""}</Text>{member.tests?.failing ? <Text testID="crew-peek-failing" style={[st.mono, { color: "var(--danger)" as string }]}>Failing: {member.tests.failing}</Text> : null}</> : null}
       {log.length > 0 ? <Text style={st.section}>Notes</Text> : null}
       {/* ui-rows-lint: not a list (a read-only log of what was said between the helper and the agent that started it, each entry a sender and words, nothing to press) */}
       {log.map((n) => <View key={n.messageId} testID={`crew-note-${n.messageId}`} style={st.note}><Text style={st.noteWho}>{WHO[n.who]}{n.who === "parent" && n.seenAt !== undefined ? " · seen" : ""}</Text><Text style={st.rowLine}>{n.body}</Text></View>)}

@@ -3,7 +3,7 @@
 import { checkIn, d_s_0a70adf1b7, d_s_f3add3544d, d_s_f34c269949, L0, L1, L3, L43, lf, typeOf } from './core.ts';
 import type { Check } from './core.ts';
 
-function c496_in(v: unknown, p: string, e: string[]): void {
+function c497_in(v: unknown, p: string, e: string[]): void {
 {
 const x2520 = v;
 const g2520 = typeOf(x2520);
@@ -17,7 +17,7 @@ if ("remoteId" in o2520) lf(o2520["remoteId"], p + "/remoteId", e, L1);
 }
 }
 
-function c496_out(v: unknown, p: string, e: string[]): void {
+function c497_out(v: unknown, p: string, e: string[]): void {
 {
 const x2521 = v;
 const g2521 = typeOf(x2521);
@@ -31,7 +31,7 @@ if ("cancelled" in o2521) lf(o2521["cancelled"], p + "/cancelled", e, L3);
 }
 }
 
-function c497_out(v: unknown, p: string, e: string[]): void {
+function c498_out(v: unknown, p: string, e: string[]): void {
 {
 const x2522 = v;
 const g2522 = typeOf(x2522);
@@ -45,7 +45,7 @@ if ("remoteId" in o2522) lf(o2522["remoteId"], p + "/remoteId", e, L1);
 }
 }
 
-function c498_in(v: unknown, p: string, e: string[]): void {
+function c499_in(v: unknown, p: string, e: string[]): void {
 {
 const x2523 = v;
 const g2523 = typeOf(x2523);
@@ -59,7 +59,7 @@ if ("remoteId" in o2523) lf(o2523["remoteId"], p + "/remoteId", e, L1);
 }
 }
 
-function c498_out(v: unknown, p: string, e: string[]): void {
+function c499_out(v: unknown, p: string, e: string[]): void {
 {
 const x2524 = v;
 const g2524 = typeOf(x2524);
@@ -73,7 +73,7 @@ if ("fileId" in o2524) lf(o2524["fileId"], p + "/fileId", e, L43);
 }
 }
 
-function c499_in(v: unknown, p: string, e: string[]): void {
+function c500_in(v: unknown, p: string, e: string[]): void {
 {
 const x2525 = v;
 const g2525 = typeOf(x2525);
@@ -83,7 +83,7 @@ if (g2525 === "object") {
 }
 }
 
-function c500_in(v: unknown, p: string, e: string[]): void {
+function c501_in(v: unknown, p: string, e: string[]): void {
 {
 const x2526 = v;
 const g2526 = typeOf(x2526);
@@ -97,7 +97,7 @@ if ("remoteId" in o2526) lf(o2526["remoteId"], p + "/remoteId", e, L1);
 }
 }
 
-function c500_out(v: unknown, p: string, e: string[]): void {
+function c501_out(v: unknown, p: string, e: string[]): void {
 {
 const x2527 = v;
 const g2527 = typeOf(x2527);
@@ -112,11 +112,11 @@ if ("status" in o2527) lf(o2527["status"], p + "/status", e, L1);
 }
 
 export const validators: Record<string, { in: Check; out: Check }> = {
-  "documenso.cancel@1": { in: c496_in, out: c496_out },
-  "documenso.create@1": { in: d_s_f3add3544d, out: c497_out },
-  "documenso.fetch_signed@1": { in: c498_in, out: c498_out },
-  "documenso.health@1": { in: c499_in, out: d_s_0a70adf1b7 },
-  "documenso.status@1": { in: c500_in, out: c500_out },
+  "documenso.cancel@1": { in: c497_in, out: c497_out },
+  "documenso.create@1": { in: d_s_f3add3544d, out: c498_out },
+  "documenso.fetch_signed@1": { in: c499_in, out: c499_out },
+  "documenso.health@1": { in: c500_in, out: d_s_0a70adf1b7 },
+  "documenso.status@1": { in: c501_in, out: c501_out },
 };
 
 export const eventValidators: Record<string, Check> = {

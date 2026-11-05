@@ -12,7 +12,6 @@ import { collect } from "./model.ts";
 import { askLine, askRows, denyNote, diffLines, doneLine, excerptLines, heldOf, outcomeOf, plainRows, sentLine, wantsLine } from "./approval-model.ts";
 import type { DiffLine } from "./approval-model.ts";
 import { Face } from "../needsyou/parts.tsx";
-import { MarkdownText } from "../../../../../../ui/src/stream/MarkdownText.tsx";
 import { HeldCard } from "./held-card.tsx";
 import type { HeldEditor } from "./held-card.tsx";
 import { outwardOf, scheduleLine, verbOfChannel, whenWords } from "../../../../../../lib/outward.ts";
@@ -177,7 +176,7 @@ export function ApprovalCard({ taskId, agent, agentId, data, face, faceSeed, edi
           {collect(rows, (r) => (
             <View key={r.label} style={st.line}>
               <Text style={st.label}>{r.label}</Text>
-              {/^https?:\/\/\S+$/.test(r.text) ? <View><MarkdownText text={`[${r.text.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}](${r.text})`} /></View> : <Text numberOfLines={5} style={st.value}>{r.text}</Text>}
+              {/^https?:\/\/\S+$/.test(r.text) ? <Text accessibilityRole="link" {...({ href: r.text, hrefAttrs: { target: "_blank", rel: "noopener noreferrer" } } as object)} style={st.link}>{r.text.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}</Text> : <Text numberOfLines={5} style={st.value}>{r.text}</Text>}
             </View>
           ))}
         </View>
@@ -209,6 +208,7 @@ const st = StyleSheet.create({
   excerpt: { gap: 6, padding: 10, borderRadius: 8, backgroundColor: "var(--sunk)" as string },
   line: { gap: 1 },
   label: { fontSize: 11.5, color: "var(--ink-3)" as string },
+  link: { fontSize: 13, lineHeight: 18, color: "var(--accent)" as string },
   value: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
   diffLine: { flexDirection: "row", gap: 8 },
   mark: { width: 12, fontSize: 13, fontWeight: "600" },

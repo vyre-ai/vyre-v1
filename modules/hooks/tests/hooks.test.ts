@@ -483,3 +483,19 @@ test("Always allow carries the target: the same act to the same address passes, 
   assert.equal((await w2.fire({ event: "tool.before", tool: "mail_send" })).block, null, "an act with no target passes");
   assert.ok((await w2.fire({ event: "tool.before", tool: "mail_send", input: { to: ["x@y.com"] } })).block, "a rule for the whole tool never covers an act that has a target");
 });
+
+test("the line names the person who did it, as the Space names them: a person, an admin on a Space hook, an agent, and the old words when the name cannot be read", async () => {
+  const w = world();
+  w.s.names[MAYA] = "Maya Chen"; w.s.names[ADMIN] = "Olivia Owner";
+  await w.call("hooks.set", { scope: "chat", event: "outward.before", kind: "check", instruction: "x", threadId: "thr_a", summary: "before any email, check" }, maya);
+  assert.equal(w.s.lines.at(-1)!["body"], "Maya Chen added a hook in this chat: before any email, check", "a person");
+  assert.equal(w.s.lines.at(-1)!["by"], MAYA, "by stays on the block");
+  await w.call("hooks.set", { scope: "space", event: "tool.before", kind: "command", command: "guard", summary: "guard the files" }, admin, { threadId: "thr_a" }).catch(() => undefined);
+  const spaceLine = w.s.lines.find((l) => String(l["body"]).includes("for the Space"));
+  if (spaceLine) assert.equal(String(spaceLine["body"]).startsWith("Olivia Owner added a hook for the Space"), true, "an admin on a Space hook is named too, not An admin");
+  await w.call("hooks.set", { scope: "chat", event: "outward.before", kind: "check", instruction: "y", threadId: "thr_a", summary: "agent rule" }, agent());
+  assert.equal(w.s.lines.at(-1)!["body"], "Assistant added a hook in this chat: agent rule", "an agent keeps its name");
+  delete w.s.names[MAYA];
+  await w.call("hooks.set", { scope: "chat", event: "outward.before", kind: "check", instruction: "z", threadId: "thr_a", summary: "no name" }, maya);
+  assert.equal(w.s.lines.at(-1)!["body"], "Someone added a hook in this chat: no name", "a name that cannot be read falls back to the old words");
+});

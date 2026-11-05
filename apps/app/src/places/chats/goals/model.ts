@@ -102,7 +102,8 @@ export function sidebarGoals(goals: readonly GoalLine[], now: number): GoalLine[
   return goals
     .filter((g) => !ENDED.has(g.status) || now - g.updatedAt < 7 * DAY)
     .slice()
-    .sort((a, b) => rank(a) - rank(b) || (a.nextCheckinAt ?? Infinity) - (b.nextCheckinAt ?? Infinity) || b.updatedAt - a.updatedAt);
+    // ties end on the deadline, the title and the id, so two loads of the same goals draw the same list (lane l-polish L5)
+    .sort((a, b) => rank(a) - rank(b) || (a.nextCheckinAt ?? Infinity) - (b.nextCheckinAt ?? Infinity) || b.updatedAt - a.updatedAt || a.deadline - b.deadline || a.title.localeCompare(b.title) || a.id.localeCompare(b.id));
 }
 
 /** "$4.10 of $25 · 38 of 200 turns", and how much is used (0 to 1). */

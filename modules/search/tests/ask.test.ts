@@ -12,7 +12,7 @@ const ACCOUNTS = [
 ];
 function rig(accounts: unknown[] = ACCOUNTS, text = "The deposit is 4200 dollars [1]."): { h: Harness; sent: Array<Record<string, unknown>> } {
   const sent: Array<Record<string, unknown>> = [];
-  const h = harness({ respond: { "engine.accounts.list": () => ({ accounts }), "engine.complete": (i) => { sent.push(i); return { text, tokensIn: 1, tokensOut: 1 }; }, "chat.messages.list": () => ({ messages: [] }) } });
+  const h = harness({ respond: { "engine.accounts.list": () => ({ accounts }), "engine.complete": (i) => { sent.push(i); return { text, tokensIn: 1, tokensOut: 1 }; }, "chat.messages.list": () => ({ messages: [] }), "threads.get": (i) => ({ thread: { threadId: i["threadId"], kind: "channel" } }) } });
   seed(h, { id: "thr_a", title: "Rivera channel", kind: "chat", body: "The Rivera lease deposit is 4200 dollars, due Thursday." });
   seed(h, { id: "rec_secret", title: "Rivera settlement terms", kind: "record", body: "settlement 9100000" });
   seed(h, { id: "mem_x", title: "Rivera nickname", kind: "memory", body: "my private nickname for the Rivera lease is Skylark" });

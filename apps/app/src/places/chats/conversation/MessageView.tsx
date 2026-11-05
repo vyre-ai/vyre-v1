@@ -6,7 +6,7 @@ import { CrewStrip } from "../crew/strip.tsx";
 import { memberFromBlock, memberOf } from "../crew/status.ts";
 import { holdsOf, mergeStateOf, withTeammates } from "../crew/model.ts";
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
-import { citable, citeBody, citeRender } from "../crew/cite.tsx";
+import { barShows, citable, citeBody, citeRender } from "../crew/cite.tsx";
 import type { CrewMember, CrewStatusOut } from "../crew/model.ts";
 import { useLinkState } from "../../../../../../ui/src/reach/index.tsx";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -468,7 +468,8 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   // the answer that brings helpers together marks each claim with the number of the helper it came from: [1], [2]. Those marks are chips that open that helper.
   const crewRows = actions.crew?.status ? citable(actions.crew.status.members) : [];
   const words = !person && !stream ? citeBody(namedIds(m.body, actions.nameOf), crewRows.length) : namedIds(m.body, actions.nameOf);
-  const citeLink = useMemo(() => (actions.crew ? citeRender(crewRows, (x) => actions.crew!.peek(x.id)) : undefined), [actions.crew, crewRows.length]);  // eslint-disable-line react-hooks/exhaustive-deps
+  const [cardOpen, setCardOpen] = useState(false);   // a citation card is showing: the hover toolbar steps aside
+  const citeLink = useMemo(() => (actions.crew ? citeRender(crewRows, (x) => actions.crew!.peek(x.id), setCardOpen) : undefined), [actions.crew, crewRows.length]);  // eslint-disable-line react-hooks/exhaustive-deps
   const chips = useRefChips(words, actions.files);
   const blocks = stream || crewCard ? null : bodyBlocks(chips.body === words ? m.messageId : `${m.messageId}#${chips.body.length}:${chips.body.slice(-24)}`, chips.body);
   const runCfg = actions.runCode;
@@ -479,7 +480,7 @@ function Theirs({ item, actions, stream, openWork, mark, meId, replies }: Messag
   return (
     <View testID={`msg-${m.messageId}`} accessibilityLabel={`${item.who.name}, ${item.time}`} {...h.props} {...menuTrigger((x, y) => actions.showMenu(menuFor(m, false, actions, () => undefined, { x, y }), x, y, "Message"))} style={[st.msg, item.newgroup && st.gapTop, mark === "match" && st.found, mark === "active" && st.foundActive, mark === "selected" && st.selected]}>
       {h.touch || sheet ? <ActionSheet open={sheet} entries={menuFor(m, false, actions, () => undefined)} onClose={() => setSheet(false)} /> : null}
-      {h.touch ? null : <HoverBar byAgent={!person} m={m} mine={false} a={actions} onEdit={() => undefined} visible={h.over || h.focus} />}
+      {h.touch ? null : <HoverBar byAgent={!person} m={m} mine={false} a={actions} onEdit={() => undefined} visible={barShows(h.over || h.focus, cardOpen)} />}
       {item.newgroup ? (
         <View style={st.by}>
           {withCard(

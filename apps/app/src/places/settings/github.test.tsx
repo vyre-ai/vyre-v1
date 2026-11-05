@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SettingsDataProvider } from "./data.tsx";
 import { SettingsPlace } from "./SettingsPlace.tsx";
-import { GH_PERMS, consumerWords, installWords } from "./GithubPage.tsx";
+import { GH_PERMS, appLine, consumerWords, installWords } from "./GithubPage.tsx";
 import { createSampleSettings, harbor, northwind } from "./sample.ts";
 
 const html = (s: ReturnType<typeof createSampleSettings>, page = "github"): string => renderToStaticMarkup(<SettingsDataProvider value={s.data}><SettingsPlace width={1280} initialPage={page as never} /></SettingsDataProvider>).replaceAll("<!-- -->", "").replaceAll("&#x27;", "'");
@@ -26,18 +26,27 @@ test("old addresses land on the page that holds them", () => {
 
 test("connected: the account, the reconnect banner, orgs with Install or Change, six permissions and what used it", () => {
   const out = html(createSampleSettings(northwind));
-  for (const n of ["@irfad7","Signs you in to Vyre","the Vyre GitHub app","github-reconnect","uses its own GitHub app. Reconnect once.","All repos","2 repos","Not installed","gh-org-irfad7","Opened a pull request","Crews"]) assert.ok(out.includes(n), n);
+  for (const n of ["@irfad7","Signs you in to Vyre","the Vyre GitHub app","github-reconnect","Reconnect GitHub once","All repos","2 repos","Not installed","gh-org-irfad7","vyre-ai/vyre-v1","days ago","Crews"]) assert.ok(out.includes(n), n);
   assert.ok(out.includes("@irfad7") && out.includes("Signs you in to Vyre") && out.includes("the Vyre GitHub app"));
-  assert.ok(out.includes('data-testid="github-reconnect"') && out.includes("uses its own GitHub app. Reconnect once."));
+  assert.ok(out.includes('data-testid="github-reconnect"') && out.includes("Reconnect GitHub once"));
   assert.ok(out.includes("All repos") && out.includes("2 repos") && out.includes("Not installed"));
   assert.ok(out.includes('data-testid="gh-org-irfad7"') && !out.includes('data-testid="gh-org-northwind"'), "an org with no link has no button");
   for (const p of GH_PERMS) assert.ok(out.includes(`data-testid="gh-perm-${p.key}"`), p.key);
-  assert.ok(out.includes("Opened a pull request") && out.includes("Crews"));
+  assert.ok(out.includes("vyre-ai/vyre-v1") && out.includes("days ago") && out.includes("Crews"));
 });
 
 test("not connected: one button", () => {
   const out = html(createSampleSettings(harbor));
   assert.ok(out.includes("Connect GitHub once") && out.includes('data-testid="gh-connect"') && !out.includes('data-testid="github-account"'));
+});
+
+test("not connected: the line above Connect says which GitHub app the Space uses, the Vyre one or its own", () => {
+  assert.equal(appLine("vyre"), "Your Space uses the Vyre GitHub app.");
+  assert.equal(appLine("space"), "Your Space uses its own GitHub app.");
+  const out = html(createSampleSettings(harbor));
+  assert.ok(out.includes("Your Space uses the Vyre GitHub app.") && out.indexOf("Your Space uses the Vyre GitHub app.") < out.indexOf('data-testid="gh-connect"'), "the line comes first");
+  const own = renderToStaticMarkup(<SettingsDataProvider value={createSampleSettings(harbor).data}><SettingsPlace width={1280} initialPage={"github" as never} /></SettingsDataProvider>);
+  assert.ok(own.includes("Your Space uses"), "drawn for a member who is not connected");
 });
 
 test("each control calls its capability", async () => {

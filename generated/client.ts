@@ -403,6 +403,7 @@ export function createClient(transport: Transport) {
       composer: {
         suggest: call("chat.composer.suggest", 1),
       },
+      crew_line: call("chat.crew_line", 1),
       delete_message: call("chat.delete_message", 1),
       edit: call("chat.edit", 1),
       flow_card: call("chat.flow_card", 1),
@@ -892,6 +893,7 @@ export function createClient(transport: Transport) {
       route: {
         preview: call("engine.route.preview", 1),
       },
+      running_here: call("engine.running_here", 1),
       runtime: {
         opt_in: call("engine.runtime.opt_in", 1),
       },

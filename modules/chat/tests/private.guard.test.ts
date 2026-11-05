@@ -85,6 +85,20 @@ test("direct messages between people, channels and a missing thread keep the rul
   assert.equal((await reasonOf(() => h["chat.post"]!(hn.ctx, plain("thr_none", "x"))))[0], "validation.not_found");
 });
 
+test("a chat of two people with an agent in it is an agent chat, not a direct message: its owner can seal it, and plain text is refused after (lane l-polish L0)", async () => {
+  const hn = harness();
+  const t = await newChat(hn);
+  await h["threads.members.add"]!(hn.ctx, { threadId: t, personId: MAYA });
+  await h["chat.post"]!(hn.ctx, seal(t, "sealed with Maya and the agent"));
+  assert.equal(sealedBy(hn.db, t)?.owner, DANA, "sealed like any chat with an agent");
+  assert.deepEqual(await reasonOf(() => h["chat.post"]!(hn.person(MAYA), plain(t, "plain from Maya"))), ["validation.bad_input", "sealed_thread"]);
+  // the direct message of the same two people stays plain
+  const dm = (await h["chat.start"]!(hn.ctx, { kind: "chat", personId: MAYA, agentIds: [], idempotencyKey: "dm-l0" })).thread.threadId;
+  assert.notEqual(dm, t);
+  await h["chat.post"]!(hn.ctx, seal(dm, "sealed in a dm"));
+  assert.equal(sealedBy(hn.db, dm), null);
+});
+
 test("an inline thread under a sealed chat is sealed with it", async () => {
   const hn = harness();
   const t = await newChat(hn);

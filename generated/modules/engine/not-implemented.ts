@@ -66,6 +66,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "engine.reviewer.get": async (ctx) => { throw new VyreErr(notImplemented("engine.reviewer.get", ctx.trace)); },
   "engine.reviewer.set": async (ctx) => { throw new VyreErr(notImplemented("engine.reviewer.set", ctx.trace)); },
   "engine.route.preview": async (ctx) => { throw new VyreErr(notImplemented("engine.route.preview", ctx.trace)); },
+  "engine.running_here": async (ctx) => { throw new VyreErr(notImplemented("engine.running_here", ctx.trace)); },
   "engine.runtime.opt_in": async (ctx) => { throw new VyreErr(notImplemented("engine.runtime.opt_in", ctx.trace)); },
   "engine.set_mode": async (ctx) => { throw new VyreErr(notImplemented("engine.set_mode", ctx.trace)); },
   "engine.set_model": async (ctx) => { throw new VyreErr(notImplemented("engine.set_model", ctx.trace)); },

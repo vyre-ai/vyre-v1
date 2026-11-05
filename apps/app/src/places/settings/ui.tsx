@@ -3,11 +3,11 @@
 import { useOpenConnect } from "../../shell/connect/context.ts";
 import { connectEntries } from "../../shell/connect/model.ts";
 import type { Connected, ConnectNeed } from "../../shell/connect/model.ts";
-import { createElement, isValidElement, useState } from "react";
+import { Children, Fragment, createContext, createElement, isValidElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { Row } from "../../../../../ui/src/Row/index.tsx";
+import { Row, RowWrapContext } from "../../../../../ui/src/Row/index.tsx";
 import { Info, Tip } from "../../../../../ui/src/Tip/index.tsx";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
@@ -34,7 +34,7 @@ export const PATHS: Readonly<Record<string, readonly string[]>> = {
   doc: ["M4 2.5h6l2.5 2.5v8.500h-8.500z", "M10 2.500v2.500h2.500M6 8h4M6 10.500h4"],
   lock: ["M4.5 7.5h7v6h-7z", "M6 7.5V5.5a2 2 0 014 0v2"],
   shield: ["M8 2l5 1.8v4c0 3-2.2 5-5 6.2C5.2 12.8 3 10.8 3 7.8v-4z"],
-  key: ["M6 9.5a3 3 0 110-6 3 3 0 010 6z", "M8.2 7.8L13 12.5M11 10.5l1.5 1.5"],
+  key: ["M4.500 5.500a2.500 2.500 0 100 5 2.500 2.500 0 000-5z", "M7 8h7.500M11.500 8v2.500M14 8v1.800"],
   palette: ["M8 2.5a5.5 5.5 0 100 11c1 0 1.5-.7 1.2-1.5-.3-.8.2-1.500 1-1.500H11.500a2 2 0 002-2A5.500 5.500 0 008 2.500z", "M5.500 7.500h.01M8 5.500h.01M10.500 7h.01"],
   keyboard: ["M2.5 4.5h11v7h-11z", "M5 7h.01M8 7h.01M11 7h.01M5.500 9.500h5"],
   laptop: ["M3.500 4.500h9v6h-9z", "M2 12.500h12"],
@@ -103,10 +103,21 @@ export interface SettingsRowProps {
 }
 
 /** One row: the shared ui/Row with the label, a sub line only when it adds information, and the control at the right. Wrapped here only for what Settings adds (the line between rows, the search highlight, the indent). */
+/** A control made of an icon and buttons (the assistant's look) stays on one row when stacked: the icon at the left, the buttons filling the rest. */
+const stackParts = (control: ReactNode): ReactNode[] | null => {
+  if (!isValidElement(control) || control.type !== Fragment) return null;
+  const parts = Children.toArray((control.props as { children?: ReactNode }).children);
+  return parts.length > 1 ? parts : null;
+};
+
+/** Below this width (a phone) a control that needs room sits under its label and takes the full width, the field and the button alike. */
+export const STACK_BELOW = 720;
+export const stacksAt = (width: number): boolean => width < STACK_BELOW;
+
 export function SettingsRow({ id, label, sub, subAlert = false, lead, control, first = false, onPress, indent = false, found = false, danger = false, inline = false, help }: SettingsRowProps): ReactElement {
   const wrap = [s.rowWrap, !first && s.rowLine, indent && { paddingLeft: 20 }, found && { backgroundColor: "var(--accent-wash)" as string }];
   // On a phone a control that needs room (a menu, a field, a stepper) goes under its label and takes the width; a switch or a small button stays beside it.
-  const narrow = useWindowDimensions().width < 560;
+  const narrow = stacksAt(useWindowDimensions().width);
   const small = inline || isValidElement(control) && (control.type === Switch || control.type === SmallButton || control.type === Value);
   const shortPick = isValidElement(control) && control.type === Choice && !pickerStacks(label, choiceLabel(control.props as ChoiceProps));
   // a button beside a long sentence would cut the sentence off on a phone, so it goes under it
@@ -114,14 +125,17 @@ export function SettingsRow({ id, label, sub, subAlert = false, lead, control, f
   return (
     <>
       <View style={wrap} {...webOnly({ dataSet: { sid: id } })}>
+        <RowWrapContext.Provider value={narrow}>
         <Row
-          id={id} title={label} {...(sub ? { note: sub, tall: sub.length > 56 } : {})} {...(subAlert ? { noteLead: "Failed", noteLeadTone: "warning" as const } : {})}
+          id={id} title={label} {...(sub ? { note: sub, tall: sub.length > (narrow ? 30 : 56) } : {})} {...(subAlert ? { noteLead: "Failed", noteLeadTone: "warning" as const } : {})}
           {...(lead ? { leading: <View style={s.lead}>{lead}</View> } : {})} {...(control && !stack ? { trailing: <View style={small ? s.controlFixed : s.control}>{control}</View> } : {})}
           {...(danger ? { titleMarks: <View style={s.dangerDot} /> } : help ? { titleMarks: <Info help={help} testID={`help-${id}`} /> } : {})}
           {...(onPress ? { onPress } : { domProps: { role: undefined, tabIndex: undefined, style: { cursor: "default", backgroundColor: "transparent" } } })}
         />
+        </RowWrapContext.Provider>
         {subAlert && sub ? <Text accessibilityRole="alert" style={s.srOnly}>{sub}</Text> : null}
-        {stack ? <View style={s.stacked}>{control}</View> : null}
+        {/* ui-rows-lint: not a list (the parts of one stacked control, a field and its button, side by side) */}
+        {stack ? (stackParts(control) ? <View style={s.stackedRow}>{stackParts(control)![0]}{stackParts(control)!.slice(1).map((c, i) => <View key={i} style={{ flex: 1 }}>{c}</View>)}</View> : <View style={s.stacked}>{control}</View>) : null}
       </View>
     </>
   );
@@ -182,6 +196,7 @@ export function Field({ value, onCommit, label, placeholder, mono = false, patte
 }): ReactElement {
   const [draft, setDraft] = useState<string | null>(null);
   const [err, setErr] = useState(false);
+  const full = stacksAt(useWindowDimensions().width);   // on a phone the field takes the width its row gives it
   const shown = draft ?? value;
   const bad = (v: string): boolean => (pattern ? !new RegExp(pattern).test(v) : false);
   const done = (): void => {
@@ -193,13 +208,13 @@ export function Field({ value, onCommit, label, placeholder, mono = false, patte
     onClose?.();
   };
   return (
-    <View style={s.fieldWrap}>
+    <View style={[s.fieldWrap, full && { width: "100%" as unknown as number }]}>
       {prefix ? <Text style={s.prefix}>{prefix}</Text> : null}
       <TextField
         accessibilityLabel={label} testID={testID} value={shown} placeholder={placeholder} secureTextEntry={secureTextEntry} autoFocus={autoFocus}
         onChangeText={(t) => { setDraft(t); setErr(false); }} onBlur={done} onSubmitEditing={done}
         onKeyPress={((e: KeyEventLike) => { if (e.key === "Escape") { setDraft(null); setErr(false); onClose?.(); } }) as never}
-        style={[{ width, height: 32, borderRadius: 7, paddingHorizontal: 10, fontSize: 13 }, mono && s.mono, err && { borderColor: "var(--danger)" as string }]}
+        style={[{ width: full ? ("100%" as unknown as number) : width, height: 32, borderRadius: 7, paddingHorizontal: 10, fontSize: 13 }, mono && s.mono, err && { borderColor: "var(--danger)" as string }]}
       />
     </View>
   );
@@ -251,6 +266,21 @@ export function Segmented({ value, options, onChange, label, testID }: { value: 
   return <View accessibilityRole="radiogroup" accessibilityLabel={label} testID={testID} style={s.seg}>{items}</View>;
 }
 
+/** Opens another Settings page from inside one (the place provides it): "GitHub: manage it in Settings, GitHub". */
+export const GoToPage = createContext<(page: string) => void>(() => undefined);
+
+/** A 30px rounded square holding a glyph: the prototype's mark at the left of a link or action row. */
+export function IconTile({ name, size = 16 }: { name: string; size?: number }): ReactElement {
+  return <View aria-hidden style={{ width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string }}><Glyph name={name} size={size} color="var(--ink-2)" /></View>;
+}
+
+/** A 30px picture of a GitHub account or org (github.com/<login>.png); the GitHub mark in a tile stands in when it cannot be loaded. */
+export function GithubAvatar({ login }: { login: string }): ReactElement {
+  const [bad, setBad] = useState(false);
+  if (bad || !login) return <IconTile name="github" />;
+  return <Image aria-hidden accessibilityIgnoresInvertColors source={{ uri: `https://github.com/${encodeURIComponent(login)}.png?size=60` }} onError={() => setBad(true)} style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: "var(--sunk)" as string }} />;
+}
+
 /** A stepped slider with a small A at each end and the value after it; arrow keys move it by one step, a tap on the track picks the nearest step. */
 export function Slider({ value, min, max, step, onChange, label, format, testID }: { value: number; min: number; max: number; step: number; onChange(n: number): void; label: string; format?: (n: number) => string; testID?: string }): ReactElement {
   const hits: ReactElement[] = [];
@@ -294,7 +324,8 @@ export const s = StyleSheet.create({
   sNote: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string, marginTop: 8, paddingHorizontal: 2 },
   card: { borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
   rowWrap: { paddingHorizontal: 4, paddingVertical: 4, justifyContent: "center" },
-  stacked: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 8, paddingHorizontal: 8, paddingBottom: 6 },
+  stacked: { flexDirection: "column", alignItems: "stretch", gap: 8, paddingLeft: 8, paddingRight: 16, paddingBottom: 10 },   // the left edge is the label's (the row's own padding is the rest); the right edge stays
+  stackedRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingLeft: 8, paddingRight: 16, paddingBottom: 10 },   // under the label, full width (a field and a button fill it)
   srOnly: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   dangerDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--danger)" as string },
   rowLine: { borderTopWidth: 1, borderTopColor: "var(--line)" as string },

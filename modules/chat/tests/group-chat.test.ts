@@ -140,3 +140,22 @@ test("the file export of a chat (its transcript) and the channel stream hold the
   assert.ok(maya.includes("after Maya joined"));
   assert.ok((await h["chat.transcript.read"]!(hn.ctx, { threadId: id })).markdown.includes("the old retainer"), "Dana's export still has it");
 });
+
+test("a chat of two people with an agent (not a direct message since l-polish L0) still hides its earlier messages from a third person added later", async () => {
+  const { hn } = world();
+  const id = await chatOf(hn);
+  await h["threads.members.add"]!(hn.ctx, { threadId: id, personId: MAYA });
+  await say(hn.ctx, id, "Dana: the settlement floor is 120000");
+  await say(hn.person(MAYA), id, "Maya: and the client wants it quiet");
+  hn.advance(5_000);
+  await h["threads.members.add"]!(hn.ctx, { threadId: id, personId: LEO });
+  hn.advance(5_000);
+  await say(hn.ctx, id, "Leo is here now");
+  const leo = hn.person(LEO);
+  const seen = await bodies(leo, id);
+  assert.ok(!seen.some((b) => b.includes("120000") || b.includes("quiet")), `the newcomer reads nothing from before: ${seen.join(" | ")}`);
+  assert.ok(seen.some((b) => b.includes("Leo is here now")));
+  const hits = await h["chat.history.search"]!(leo, { q: "settlement" });
+  assert.ok(!hits.hits.some((x: any) => String(x.text).includes("120000")), "nor by search");
+  assert.ok((await bodies(hn.person(MAYA), id)).some((b) => b.includes("120000")), "Maya, there from before, reads it all");
+});

@@ -33,39 +33,52 @@ test("running helpers: a held request, Change model, a person messaging a helper
 
   let lead = ""; let chat = ""; let dir = ""; let owner = ""; let decisionThread = "";
   // the restart turn of Change model is held until the person has asked the helper something, so the helper is still at work when they do
+  // a step the way a real engine reports it: a call, what it touches, a pause, then its result
+  async function* step(id: string, name: string, detail: string, ms: number): AsyncGenerator<{ type: "block"; kind: string; payload: Record<string, unknown> }> {
+    yield { type: "block", kind: "tool_call", payload: { id, name } };
+    yield { type: "block", kind: "tool_input", payload: { id, detail } };
+    await new Promise((r) => setTimeout(r, ms));
+    yield { type: "block", kind: "tool_result", payload: { id, ok: true } };
+  }
+  let answered = false;
   let release!: () => void;
   const restartGate = new Promise<void>((resolve) => { release = resolve; });
   const model = scriptedModel(async function* (input, run) {
     const body = input.trigger?.body ?? "";
     if (input.agent.id === lead && input.threadId === chat) {
       if (/start the crew/.test(body)) {
+        yield { type: "text", text: "Three helpers and a coder are on it. I will bring it together when they are back." };
         yield* run("tool_search", { query: "sub task helper" });
         yield* run("sub_task_model", { threadId: input.threadId, title: "Check the calendar", instruction: "Calendar job: find a free slot next week.", idempotencyKey: "w-1" });
         yield* run("sub_task_model", { threadId: input.threadId, title: "Compare the quotes", instruction: "Quotes job: compare the two vendor quotes.", idempotencyKey: "w-2" });
         yield* run("sub_task_model", { threadId: input.threadId, title: "Read the Pine quote", instruction: "Writer job: read the Pine Works quote page.", idempotencyKey: "w-3" });
         yield* run("tool_search", { query: "crew teammate" });
         yield* run("crew_start", { threadId: input.threadId, idempotencyKey: "w-code", title: "Fix the invoice date bug", brief: "Fix the invoice date bug and add a test." });
-        yield { type: "text", text: "Three helpers and a coder are on it. I will bring it together when they are back." };
-      } else if (/Compare the quotes/.test(body) && input.trigger?.author.kind === "agent") {
-        yield { type: "text", text: "Harbor costs more up front but is ready in two weeks [2]. Pine Works is cheaper but takes four [3]. The calendar check is still running [1]." };
+      } else if (input.trigger?.author.kind === "agent" && !answered) {
+        answered = true;
+        // the engine wakes the lead once, after the last helper is back
+        yield { type: "text", text: "Harbor costs more up front but is ready in two weeks [2]. Pine Works is cheaper but takes four [3]. Thursday at 14:00 is free on the calendar [1]." };
       }
       return;
     }
     if (input.agent.id !== lead) {
       // a coder teammate: it adds its file on its own branch, then says so
       const work = workFolder(dir, owner, input.threadId, input.agent.id);
+      console.log("CODER start", work, fs.existsSync(work));
       await waitFor(async () => (fs.existsSync(path.join(work, ".git")) ? true : null), 30_000);
       fs.writeFileSync(path.join(work, "invoice-dates.ts"), "export const fixed = true;\n");
       git(work, "add", "-A"); git(work, "commit", "--quiet", "-m", "fix the invoice date bug");
-      yield { type: "text", text: "Fixed the date bug and added a test." };
+      yield* step("cd-1", "Read", "invoice-dates.ts", 1_000);
+      yield* step("cd-2", "Bash", "node --test invoice-dates.test.ts", 2_000);
+      yield { type: "text", text: "Fixed the date bug and added a test. The test passes." };
       return;
     }
     if (/Keep it short/.test(body)) { yield { type: "text", text: "Noted. I will keep it short." }; return; }
     if (/Starting again on/.test(body)) { yield { type: "text", text: "Restarted. Thursday at 14:00 is free." }; return; }
-    if (/Calendar job/.test(body)) { yield* run("tool_search", { query: "calendar events" }); await new Promise((r) => setTimeout(r, 60_000)); yield { type: "text", text: "Thursday at 14:00 is free." }; return; }
-    if (/Quotes job/.test(body)) { await new Promise((r) => setTimeout(r, 20_000)); yield { type: "text", text: "Harbor is $4,180 in two weeks. Pine Works is $3,920 in four." }; return; }
+    if (/Calendar job/.test(body)) { yield* step("cs-1", "Read", "next-week.ics", 9_000); yield* step("cs-2", "Bash", "grep -c FREE next-week.ics", 20_000); await new Promise((r) => setTimeout(r, 30_000)); yield { type: "text", text: "Thursday at 14:00 is free." }; return; }
+    if (/Quotes job/.test(body)) { yield* step("qs-1", "Read", "harbor-quote.pdf", 10_000); yield* step("qs-2", "Read", "pine-works-quote.pdf", 8_000); yield { type: "text", text: "Harbor is $4,180 in two weeks. Pine Works is $3,920 in four." }; return; }
     if (/Writer job/.test(body)) {
-      await new Promise((r) => setTimeout(r, 8_000));
+      yield* step("wr-1", "Read", "pine-works-notes.md", 8_000);
       yield* run("tool_search", { query: "read link" });
       // a link the agent put together itself waits for the person: the held request
       yield* run("read_link", { url: "https://pine-works.example/quote?ref=harbor-compare" });
@@ -103,6 +116,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
 
     lead = await waitFor(async () => { await d.hooks?.pump?.(); const r = await api("agents.assistant_of", { personId: (await api("identity.whoami", {})).principal.id }); return typeof r.agentId === "string" ? (r.agentId as string) : null; }, 40_000);
     chat = (await api("chat.start", { kind: "chat", agentIds: [lead], title: "Vendor call and quotes", idempotencyKey: "j-chat" })).thread.threadId as string;
+    await api("hooks.set", { scope: "chat", threadId: chat, event: "tool.before", matcher: "read_link", kind: "command", command: "exit 0", summary: "before a link is opened, note where it goes" });
     for (const flow of ["team", "personal", "member"]) await api("spaces.onboarding.seen", { flow }).catch(() => undefined);
     const me = (await api("identity.whoami", {})).principal.id as string;
     owner = me;
@@ -120,15 +134,10 @@ test("running helpers: a held request, Change model, a person messaging a helper
       console.log("STATUS", JSON.stringify(((await api("engine.crew.status", { threadId: chat })).members as Array<{ title: string; state: string }>).map((m) => [m.title, m.state])));
       throw e;
     });
+    // the person asks the quotes helper something early (a quiet line in the chat above; it also gets the crew coder going in the scripted world)
+    await waitFor(async () => (((await api("chat.messages.list", { threadId: chat })).messages as Array<{ body: string }>).some((m) => /Three helpers and a coder/.test(m.body)) ? true : null), 30_000, () => hostLog(d));
+    { const hs = ((await api("engine.helpers.status", { threadId: chat })).helpers as Array<{ title: string; threadId: string }>).find((h) => h.title === "Compare the quotes")!; await api("chat.helper.steer", { threadId: hs.threadId, body: "Take your time.", idempotencyKey: "w-early-steer" }); }
     const size = phone ? "phone" : "wide";
-    // a thread under the first message, and a reply sent also to the chat
-    const first = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ messageId: string }>)[0]!.messageId;
-    const th = (await api("chat.thread", { threadId: chat, messageId: first })).thread.threadId as string;
-    // a person's reply in the thread, sent also to the chat (the walk has no agent that can post into an inline thread)
-    await api("chat.post", { threadId: th, body: "Decision: book Thursday 14:00 and go with Harbor.", alsoToChat: true, idempotencyKey: "w-also" });
-    const copied = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ body: string; blocks: Array<{ type: string }> }>).some((m) => m.body.startsWith("Decision:") && m.blocks.some((b) => b.type === "from_thread"));
-    assert.ok(copied, "Also post to the chat puts the decision in the chat, marked from the thread");
-
     for (const [skin, mode] of [["paper", "light"], ["graphite", "dark"]] as const) {
       const ctx = await browser.newContext({ viewport: phone ? { width: 390, height: 844 } : { width: 1440, height: 900 } });
       await ctx.addInitScript((s: unknown) => { try { localStorage.setItem("vyre.session.v1", JSON.stringify({ sessions: { [(s as { baseUrl: string }).baseUrl]: s } })); } catch { /* blocked */ } }, session);
@@ -148,15 +157,6 @@ test("running helpers: a held request, Change model, a person messaging a helper
       await page.locator('[data-testid^="approval-"]').first().waitFor({ timeout: 40_000 }).catch(() => undefined);
       console.log("HELD_CARD", mode, await page.locator('[data-testid^="approval-"]').count());
       await shot(`crew-t27-held-${mode}-${size}`);
-      // the quotes helper reports: the answer marks what came from which helper with chips
-      await page.getByText(/Pine Works is cheaper/).first().waitFor({ timeout: 90_000 }).catch(async (e) => { await guard.check("FAILED-answer"); await shoot(page, `FAILED-answer-${mode}`); throw e; });
-      await page.locator('[data-testid^="cite-"]').first().waitFor({ timeout: 20_000 }).catch(() => undefined);
-      console.log("CITE_CHIPS", mode, await page.locator('[data-testid^="cite-"]').count());
-      await page.locator('[data-testid="cite-2"]').first().hover().catch(() => undefined);
-      await page.waitForTimeout(400);
-      await shot(`crew-t45-citations-${mode}-${size}`);
-      console.log("CODE_ROW", mode, await page.locator('[data-testid$="-branch"]').count());
-      await shot(`crewcode-${mode}-${size}`);
       // the header chip and the Crew pane
       await page.getByTestId("helpers-button").first().click({ timeout: 15_000 });
       await page.getByTestId("crew-overview").first().waitFor({ timeout: 20_000 });
@@ -189,6 +189,43 @@ test("running helpers: a held request, Change model, a person messaging a helper
         await page.getByText("Vendor call and quotes", { exact: false }).first().click({ timeout: 10_000 }).catch(() => undefined);
         await page.getByText(/^To ".*": Keep it short\.$/).first().waitFor({ timeout: 30_000 }).catch(async (e) => { await guard.check("FAILED-to-line"); await shoot(page, `FAILED-to-line-${mode}`); throw e; });
         await shot(`crew-t27-toline-${mode}-${size}`);
+      }
+      // everyone is done: the person allows the held link, the helpers finish, and the chat gets one answer
+      await page.goto(`${web.origin}/chats?skin=${skin}`, { waitUntil: "load" });
+      await page.getByText("Vendor call and quotes", { exact: false }).first().click({ timeout: 30_000 });
+      if (mode === "light") await page.getByRole("button", { name: "Allow", exact: true }).first().click({ timeout: 30_000 }).catch(async (e) => { await guard.check("FAILED-allow"); await shoot(page, `FAILED-allow-${mode}`); console.log("STATUS", JSON.stringify(((await api("engine.crew.status", { threadId: chat })).members as Array<{ title: string; state: string }>).map((m) => [m.title, m.state]))); console.log("CREWLIST", JSON.stringify(await api("engine.crew.list", { threadId: chat }).catch((x: unknown) => String(x))).slice(0, 700)); { const jt = ((await api("engine.crew.list", { threadId: chat })).jobs as Array<{ threadId: string }>)[0]?.threadId; if (jt) console.log("CODERMSGS", JSON.stringify(((await api("chat.messages.list", { threadId: jt })).messages as Array<{ author: { kind: string }; body: string; blocks: Array<{ type: string; data?: unknown }> }>).map((m) => [m.author.kind, m.body.slice(0, 200), m.blocks.map((b) => b.type + ":" + JSON.stringify(b.data).slice(0, 200))])).slice(0, 1800)); } throw e; });
+      await page.getByText(/Pine Works is cheaper/).first().waitFor({ timeout: 150_000 }).catch(async (e) => { await guard.check("FAILED-answer"); await shoot(page, `FAILED-answer-${mode}`); console.log("STATUS", JSON.stringify(((await api("engine.crew.status", { threadId: chat })).members as Array<{ title: string; state: string; found?: string }>).map((m) => [m.title, m.state, m.found ?? ""]))); console.log("CREWLIST", JSON.stringify(await api("engine.crew.list", { threadId: chat }).catch((x: unknown) => String(x))).slice(0, 1500)); { const jt = ((await api("engine.crew.list", { threadId: chat })).jobs as Array<{ threadId: string }>)[0]?.threadId; if (jt) console.log("CODERMSGS", JSON.stringify(((await api("chat.messages.list", { threadId: jt })).messages as Array<{ author: { kind: string }; body: string; blocks: Array<{ type: string; data?: unknown }> }>).map((m) => [m.author.kind, m.body.slice(0, 200), m.blocks.map((b) => b.type + ":" + JSON.stringify(b.data).slice(0, 200))])).slice(0, 1800)); } { const jt = ((await api("engine.crew.list", { threadId: chat })).jobs as Array<{ threadId: string }>)[0]?.threadId; if (jt) { console.log("CODERLOG", JSON.stringify(hostLog(d)).split('","').filter((l: string) => l.includes(jt.slice(-12))).slice(0, 12).join("\n").slice(0, 3000)); console.log("CODERQ", JSON.stringify(await api("engine.queue.list", { threadId: jt }).catch((x: unknown) => String(x))).slice(0, 600)); } } console.log("HOSTLOG", JSON.stringify(hostLog(d)).split("\\\",\\\"").filter((l: string) => /crew|teammate|hook|fail|error/i.test(l)).slice(-14).join("\n").slice(0, 3500)); throw e; });
+      await page.locator('[data-testid^="cite-"]').first().waitFor({ timeout: 20_000 }).catch(() => undefined);
+      console.log("CITE_CHIPS", mode, await page.locator('[data-testid^="cite-"]').count());
+      await page.locator('[data-testid="cite-2"]').first().hover().catch(() => undefined);
+      await page.waitForTimeout(400);
+      await shot(`crew-t45-citations-${mode}-${size}`);
+      console.log("CODE_ROW", mode, await page.locator('[data-testid$="-branch"]').count());
+      await shot(`crewcode-${mode}-${size}`);
+      // the finished crew in the pane: Ran together, and a done helper's peek
+      await page.getByTestId("helpers-button").first().click({ timeout: 15_000 });
+      await page.getByTestId("crew-overview").first().waitFor({ timeout: 20_000 });
+      await shot(`crew-over-done-${mode}-${size}`);
+      await page.getByTestId("crew-overview").locator('[data-testid^="crew-chip-"][role="button"]').filter({ hasText: "Check the calendar" }).first().click({ timeout: 15_000 });
+      await page.getByTestId("crew-peek").first().waitFor({ timeout: 20_000 });
+      await shot(`crew-peek-done-${mode}-${size}`);
+      // the coder's peek: its branch, what changed and the test it ran
+      await page.getByTestId("crew-peek-back").click({ timeout: 10_000 });
+      await page.getByTestId("crew-overview").locator('[data-testid^="crew-chip-"][role="button"]').filter({ hasText: "Fix the invoice date bug" }).first().click({ timeout: 15_000 });
+      await page.getByTestId("crew-peek").first().waitFor({ timeout: 20_000 });
+      await shot(`crewcode-peek-${mode}-${size}`);
+      if (mode === "light") {
+      // a thread under the first message, and a reply sent also to the chat
+      const first = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ messageId: string }>)[0]!.messageId;
+      const th = (await api("chat.thread", { threadId: chat, messageId: first })).thread.threadId as string;
+      // a person's reply in the thread, sent also to the chat (the walk has no agent that can post into an inline thread)
+      await api("chat.post", { threadId: th, body: "Decision: book Thursday 14:00 and go with Harbor.", alsoToChat: true, idempotencyKey: "w-also" });
+      const copied = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ body: string; blocks: Array<{ type: string }> }>).some((m) => m.body.startsWith("Decision:") && m.blocks.some((b) => b.type === "from_thread"));
+      assert.ok(copied, "Also post to the chat puts the decision in the chat, marked from the thread");
+        await page.reload({ waitUntil: "load" });
+        await page.getByText("Vendor call and quotes", { exact: false }).first().click({ timeout: 30_000 }).catch(() => undefined);
+        await page.getByText(/Also sent to the chat from a thread/).first().waitFor({ timeout: 30_000 });
+        await shot(`crewthread-also-${mode}-${size}`);
       }
       await ctx.close();
     }
