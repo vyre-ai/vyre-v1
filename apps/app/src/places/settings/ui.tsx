@@ -7,7 +7,7 @@ import { createElement, isValidElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { Row } from "../../../../../ui/src/Row/index.tsx";
+import { Row, RowWrapContext } from "../../../../../ui/src/Row/index.tsx";
 import { Info, Tip } from "../../../../../ui/src/Tip/index.tsx";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
@@ -114,12 +114,14 @@ export function SettingsRow({ id, label, sub, subAlert = false, lead, control, f
   return (
     <>
       <View style={wrap} {...webOnly({ dataSet: { sid: id } })}>
+        <RowWrapContext.Provider value={narrow}>
         <Row
           id={id} title={label} {...(sub ? { note: sub, tall: sub.length > (narrow ? 30 : 56) } : {})} {...(subAlert ? { noteLead: "Failed", noteLeadTone: "warning" as const } : {})}
           {...(lead ? { leading: <View style={s.lead}>{lead}</View> } : {})} {...(control && !stack ? { trailing: <View style={small ? s.controlFixed : s.control}>{control}</View> } : {})}
           {...(danger ? { titleMarks: <View style={s.dangerDot} /> } : help ? { titleMarks: <Info help={help} testID={`help-${id}`} /> } : {})}
           {...(onPress ? { onPress } : { domProps: { role: undefined, tabIndex: undefined, style: { cursor: "default", backgroundColor: "transparent" } } })}
         />
+        </RowWrapContext.Provider>
         {subAlert && sub ? <Text accessibilityRole="alert" style={s.srOnly}>{sub}</Text> : null}
         {stack ? <View style={s.stacked}>{control}</View> : null}
       </View>
