@@ -403,6 +403,7 @@ export function stubs(ctx: CallCtx) {
       composer: {
         suggest: call("chat.composer.suggest"),
       },
+      crew_line: call("chat.crew_line"),
       delete_message: call("chat.delete_message"),
       edit: call("chat.edit"),
       flow_card: call("chat.flow_card"),

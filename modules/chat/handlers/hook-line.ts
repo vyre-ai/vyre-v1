@@ -24,3 +24,16 @@ export function hookLine(ctx: ChatCtx, input: HookLineInput): { messageId: strin
   return { messageId: m.id };
 }
 export const hookLineHandlers = { "chat.hook_line": (ctx: ChatCtx, input: HookLineInput) => hookLine(ctx, input) };
+
+export interface CrewLineInput { threadId: string; body: string; branch?: string; base?: string; added?: number; deleted?: number }
+
+/** The quiet line after a teammate's branch lands ("Merged crew/ember-1 into main · +2 -0"). Written by the crew when Merge lands work; nothing in it wakes an agent. */
+export function crewLine(ctx: ChatCtx, input: CrewLineInput): { messageId: string } {
+  const t = threadBy(ctx.db, input.threadId);
+  if (!t || !canSpeak(ctx, t)) raise(ctx, "validation.not_found", "That chat does not exist or is not yours.");
+  const body = input.body.replace(/\s+/g, " ").trim().slice(0, 300);
+  if (body === "") raise(ctx, "validation.bad_input", "Say what happened.");
+  const m = insertMessage(ctx, t.id, { author: ctx.principal.id, kind: "quiet", body, blocks: [{ type: "crew_line", v: 1, id: mintId("blk", ctx.now()), data: { line: body, ...(input.branch ? { branch: input.branch } : {}), ...(input.base ? { base: input.base } : {}), ...(input.added !== undefined ? { added: input.added } : {}), ...(input.deleted !== undefined ? { deleted: input.deleted } : {}) }, state: "done", traceId: ctx.trace.traceId }] });
+  return { messageId: m.id };
+}
+export const crewLineHandlers = { "chat.crew_line": (ctx: ChatCtx, input: CrewLineInput) => crewLine(ctx, input) };

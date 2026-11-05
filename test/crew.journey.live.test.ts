@@ -134,6 +134,8 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
         await page.getByTestId("crew-strip-merged").waitFor({ timeout: 20_000 });
         assert.equal(fs.readFileSync(path.join(repo, "dark-mode.txt"), "utf8"), "toggle: on\n");
         assert.match(git(repo, "log", "--format=%s", "-n", "2"), /Merge crew\/ember-1/);
+        // the chat keeps one quiet line saying what landed where
+        await page.getByText(/^Merged crew\/ember-1 into main · \+\d+ -\d+$/).first().waitFor({ timeout: 20_000 });
         await shoot(page, `${mode}-3-merged`);
       } else {
         await page.getByTestId("crew-strip-merged").waitFor({ timeout: 20_000 });

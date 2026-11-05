@@ -6739,6 +6739,17 @@ export type ChatComposerSuggestOut = {
       detail?: string;
     }>;
 };
+export type ChatCrewLineIn = {
+  threadId: string;
+  body: string;
+  branch?: string;
+  base?: string;
+  added?: number;
+  deleted?: number;
+};
+export type ChatCrewLineOut = {
+  messageId: string;
+};
 export type ChatDeleteMessageIn = {
   messageId: string;
   threadId: string;
@@ -44632,6 +44643,7 @@ export interface CapMap {
   "chat.asks_of": { in: ChatAsksOfIn; out: ChatAsksOfOut };
   "chat.catch_up": { in: ChatCatchUpIn; out: ChatCatchUpOut };
   "chat.composer.suggest": { in: ChatComposerSuggestIn; out: ChatComposerSuggestOut };
+  "chat.crew_line": { in: ChatCrewLineIn; out: ChatCrewLineOut };
   "chat.delete_message": { in: ChatDeleteMessageIn; out: ChatDeleteMessageOut };
   "chat.edit": { in: ChatEditIn; out: ChatEditOut };
   "chat.flow_card": { in: ChatFlowCardIn; out: ChatFlowCardOut };

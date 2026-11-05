@@ -417,6 +417,10 @@ export default defineManifest({
       in: { ...threadT, body: t.str({ maxLength: 400 }), kind: t.enm('added', 'changed', 'removed', 'paused', 'resumed', 'blocked', 'failed', 'allowed', 'asked'), hookId: t.opt(t.str()), scope: t.opt(t.str()), by: t.opt(t.str()), byKind: t.opt(t.enm('admin', 'person', 'agent')), reason: t.opt(t.str({ maxLength: 300 })), tool: t.opt(t.str({ maxLength: 80 })), subject: t.opt(t.str({ maxLength: 200 })), agentId: t.opt(id.agent), next: t.opt(t.arr(t.obj({ label: t.str({ maxLength: 40 }), ask: t.str({ maxLength: 200 }) }), { maxItems: 2 })) },
       out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', errors: ['validation.bad_input', 'validation.not_found'],
     }),
+    write('chat.crew_line', 'The crew only: leave a quiet line in a chat when a teammate\'s branch has been merged ("Merged crew/ember-1 into main · +2 -0"). It wakes no agent', {
+      in: { ...threadT, body: t.str({ maxLength: 300 }), branch: t.opt(t.str({ maxLength: 120 })), base: t.opt(t.str({ maxLength: 120 })), added: t.opt(t.int({ minimum: 0 })), deleted: t.opt(t.int({ minimum: 0 })) },
+      out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', agent: false, errors: ['validation.bad_input', 'validation.not_found'],
+    }),
     write('chat.note_offer.answer', 'Save or dismiss an offer to keep something from this chat as a note. Save makes the person\'s own private note that links back to the message', {
       in: { ...threadT, blockId: id.block, decision: t.enm('save', 'dismiss') }, out: { state: t.enm('saved', 'dismissed'), noteId: t.opt(t.str()) },
       on: ['thread', '/threadId'], level: 'use', offline: 'online', agent: false, errors: ['validation.not_found', 'validation.precondition_failed'],

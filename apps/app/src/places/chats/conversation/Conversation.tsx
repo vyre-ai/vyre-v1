@@ -6,7 +6,7 @@ import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
 import { useCrew } from "../crew/context.tsx";
-import { crewChipOf, mergedLine } from "../crew/model.ts";
+import { crewChipOf } from "../crew/model.ts";
 import { CrewIsland } from "../crew/island.tsx";
 import { AlsoToChat } from "../crew/also.tsx";
 import { readReplyDetails } from "../details/read.ts";
@@ -570,7 +570,7 @@ function ConversationView(): ReactElement {
       status: crew.status, selected: crew.selected, peek: (id: string) => crew.show(id), openPane: () => crew.show(null),
       stopAll: () => void act.stopHelpers(data).then(() => crew.refresh(), fail("Could not stop the helpers.")),
       retry: (id: string) => void act.retryHelper(data, id, data.newKey()).then(() => crew.refresh(), fail("Could not start it again.")),
-      merge: (jobIds: readonly string[]) => void Promise.all(jobIds.map((jobId) => data.call("engine.crew.merge", { jobId, idempotencyKey: data.newKey() }))).then((rs) => { crew.refresh(); say(mergedLine(jobIds.map((id, i) => ({ m: crew.status?.members.find((x) => x.jobId === id), ref: (rs[i] as { ref?: string } | undefined)?.ref })))); }, fail("Could not merge it.")),
+      merge: (jobIds: readonly string[]) => void Promise.all(jobIds.map((jobId) => data.call("engine.crew.merge", { jobId, idempotencyKey: data.newKey() }))).then(() => { crew.refresh(); }, fail("Could not merge it.")),
     } } : {}),
     share: (id, x, y) => void act.shareTargets(data, thread.threadId).then((targets) => {
       const entries: MenuEntry[] = [];

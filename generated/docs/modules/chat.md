@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: engine, hooks, mcp, members.
 
-## Capabilities (113)
+## Capabilities (114)
 
 - [channels.agent_watch.set](../capabilities/channels.agent_watch.set.md): Let an agent act unmentioned in a channel ("watches this channel"); every such act is logged like a routine
 - [channels.agents.add](../capabilities/channels.agents.add.md): Invite an agent into a channel; agents listen by default
@@ -35,6 +35,7 @@ Requires: engine, hooks, mcp, members.
 - [chat.asks_of](../capabilities/chat.asks_of.md): Ask panes opened on one object (the pane history of a record, file, event, page, site or automation)
 - [chat.catch_up](../capabilities/chat.catch_up.md): What you missed in a thread since you last read it: counts, who wrote, tasks and decisions that landed, and messages with an @ in them. A plain read, kept until something new arrives
 - [chat.composer.suggest](../capabilities/chat.composer.suggest.md): Composer symbol tables: @ people and agents, # folders, channels, records and files, / commands, skills and templates
+- [chat.crew_line](../capabilities/chat.crew_line.md): The crew only: leave a quiet line in a chat when a teammate's branch has been merged ("Merged crew/ember-1 into main · +2 -0"). It wakes no agent
 - [chat.delete_message](../capabilities/chat.delete_message.md): Delete a message you wrote (kept in the audit trail)
 - [chat.edit](../capabilities/chat.edit.md): Edit the text of a message you wrote
 - [chat.flow_card](../capabilities/chat.flow_card.md): Leave the card of a drafted Flow in its chat: its name, what it does in plain words and Turn on and Test buttons. Written by the server from the draft itself; only a draft gets one
