@@ -194,8 +194,18 @@ test("session: Claude Code, Codex and Grok get GH_TOKEN as a handle and a creden
   assert.equal(s.env["GH_TOKEN"], s.env["GITHUB_TOKEN"]);
   assert.match(s.gitConfig.join("\n"), /password=\$GH_TOKEN/);
   const mint = w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!;
-  assert.deepEqual(mint.body, { repositories: ["website", "docs"], permissions: { contents: "write", pull_requests: "write", issues: "write", checks: "read", metadata: "read" } }, "what the defaults allow: merge and push to main ask");
-  policySet(w.h.ctx, { policy: { read: "ask", push_branch: "ask", open_pr: "ask", comment: "ask" } });
+  assert.deepEqual(mint.body, { repositories: ["website", "docs"], permissions: { contents: "read", pull_requests: "read", issues: "write", checks: "read", metadata: "read" } }, "no contents or pull request write permission while merge and push to main ask: a write token could do both");
+  // a session's raw `git push origin HEAD:main` can only be held if the token cannot write: GitHub cannot limit a write token to a branch, so contents:write is minted only when Push to main is Always too, and pull_requests:write only when Merge is
+  policySet(w.h.ctx, { policy: { push_default: "always", merge: "always" } });
+  await sessionEnv(agent, { repos: ["vyre-ai/website"], consumer: "session.claude_code" });
+  assert.deepEqual(w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!.body, { repositories: ["website"], permissions: { contents: "write", pull_requests: "write", issues: "write", checks: "read", metadata: "read" } }, "everything Always: a write token");
+  policySet(w.h.ctx, { policy: { push_default: "ask" } });
+  await sessionEnv(agent, { repos: ["vyre-ai/website"], consumer: "session.claude_code" });
+  assert.equal((w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!.body as { permissions: Record<string, string> }).permissions["contents"], "read", "Push to main asks: the token cannot push at all, so a raw push to main is refused by GitHub and the person is asked through github.token");
+  policySet(w.h.ctx, { policy: { push_default: "always", merge: "ask" } });
+  await sessionEnv(agent, { repos: ["vyre-ai/website"], consumer: "session.claude_code" });
+  assert.equal((w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!.body as { permissions: Record<string, string> }).permissions["pull_requests"], "read", "Merge asks: no pull request write, so no merge");
+  policySet(w.h.ctx, { policy: { read: "ask", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "ask" } });
   await refused(sessionEnv(agent, { repos: ["vyre-ai/website"], consumer: "session.codex" }), "validation.precondition_failed");
   await refused(sessionEnv(w.as({ principal: { kind: "agent", id: "agt_scout" } }), { repos: ["vyre-ai/website"], consumer: "session.grok" }), "permission.no_grant");
 });

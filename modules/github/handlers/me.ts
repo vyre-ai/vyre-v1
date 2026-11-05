@@ -283,6 +283,13 @@ export async function sessionEnv(ctx: GithubCtx, input: { repos: string[]; consu
   const ok = ACTIONS.filter((a) => policy[a] === "always");
   const perms: Record<string, string> = {};
   for (const a of ok) for (const [k, v] of Object.entries(PERMISSIONS[a])) if (perms[k] !== "write") perms[k] = v;
+  // GitHub scopes a token by permission, not by branch or by action: a token that can write contents can push to the default branch, and one that can write pull requests can merge. So a permission is
+  // written only when EVERY action that needs that write is Always; otherwise the session gets read, and a push to main or a merge goes through github.token, where Ask me first holds a card.
+  for (const k of Object.keys(perms)) {
+    if (perms[k] !== "write") continue;
+    const needers = ACTIONS.filter((a) => PERMISSIONS[a][k] === "write");
+    if (needers.some((a) => policy[a] !== "always")) perms[k] = "read";
+  }
   if (!ok.length) refuse(ctx, "Your GitHub settings let nothing run without asking, so a session gets no GitHub token. Change it in Settings, GitHub.");
   const token0 = await userToken(ctx, person), installs = await installsOf(ctx, token0);
   const owner = input.repos[0]?.split("/")[0]?.toLowerCase();
