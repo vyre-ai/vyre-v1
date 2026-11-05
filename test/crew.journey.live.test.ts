@@ -144,9 +144,11 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
       assert.equal(await page.getByTestId(`crew-card-${jobId}`).count(), 0, "no result card in the chat");
       assert.equal(await page.getByText("Ember is on Dark mode").count(), 0, "no line that says it started");
       assert.equal(await page.getByText(/Started a helper/).count(), 0);
+      await waitFor(async () => ((await page.getByText("Working", { exact: true }).count()) === 0 ? true : null), 15_000);   // the live read catches up a moment after the job ends
       assert.equal(await page.getByText("Working", { exact: true }).count(), 0, "the header is not left on Working");
       await shoot(page, `${mode}-1-strip`);
       // the coder's row and peek say how its last test run went: counts and the first failing test
+      console.log("MEMBERS", JSON.stringify(((await api("engine.crew.status", { threadId: chat })).members as Array<{ id: string; kind: string; state: string; tests?: unknown; step?: string }>).map((m) => [m.id.slice(-6), m.kind, m.state, m.tests, m.step])));
       assert.match(await page.getByTestId(`crew-chip-${((await api("engine.crew.status", { threadId: chat })).members as Array<{ id: string }>)[0]!.id}-tests`).innerText(), /1 passing, 1 failing/);
       if (mode === "light") {
         await page.getByTestId("crew-strip").first().locator('[data-testid^="crew-chip-"][role="button"]').first().click({ timeout: 15_000 });

@@ -9,6 +9,8 @@ interface Step { phase?: string; id?: string; name?: string; ok?: boolean; detai
 const RUNNER = /\b(?:node\s+--test|npm\s+(?:run\s+)?test|pnpm\s+(?:run\s+)?test|yarn\s+test|vitest|jest|pytest|cargo\s+test|go\s+test|mocha|rspec|phpunit|dotnet\s+test|mvn\s+test|gradle\s+test)\b/i;
 const SHELL = /^(?:bash|shell|terminal_run|exec|run_command|command_execution|command)$/i;
 const test = new Map<string, Set<string>>();   // thread -> step ids that are test runs
+/** The tool name of each call seen, so a command that comes in a later step still knows what ran it. */
+const callNames = new Map<string, string>();
 
 export function ensureTests(db: Db): void {
   db.run("CREATE TABLE IF NOT EXISTS engine_helper_tests (thread_id TEXT PRIMARY KEY, state TEXT NOT NULL, passed INTEGER, failed INTEGER, at INTEGER NOT NULL)");
@@ -20,7 +22,7 @@ const count = (text: string, re: RegExp): number | undefined => { const m = re.e
 /** Read a turn's tool steps for a test run and keep the latest state. */
 export function noteSteps(db: Db, threadId: string, steps: readonly unknown[], now: number): void {
   const mine = test.get(threadId) ?? new Set<string>();
-  const names = new Map<string, string>();
+  const names = callNames;
   for (const raw of steps) {
     const s = raw as Step;
     const id = typeof s.id === "string" ? s.id : "";
