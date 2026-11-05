@@ -23,10 +23,9 @@ const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
 const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1 (the 20 s shard never builds or starts the agent computer)";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-// this run builds its own tag (never the shared vyre/agent-computer:1, which another job on the same dockerd could replace under these containers) and removes it at the end; a tag named in the env is the caller's
-const suffix0 = `${process.pid}${Math.random().toString(36).slice(2, 6)}`;
+import { agentComputerImageName, registerImage } from "../../test/support/heavy-images.ts";
 const OWN_IMAGE = process.env["VYRE_AGENT_COMPUTER_IMAGE"] === undefined;
-const IMAGE = process.env["VYRE_AGENT_COMPUTER_IMAGE"] ?? `vyre/agent-computer:hv${suffix0}`;
+const IMAGE = agentComputerImageName();
 const CTL = "/opt/agentd/ctl";
 const suffix = `${process.pid}${Math.random().toString(36).slice(2, 6)}`;
 const NAME = `vyre-comp-hv${suffix}`;
@@ -116,6 +115,7 @@ before(async () => {
   fs.cpSync(path.join(ROOT, "images/agent-computer"), ctxDir, { recursive: true });
   fs.cpSync(ext!, path.join(ctxDir, "vyre-chrome"), { recursive: true });
   const built = await runHost("docker", ["build", "-t", IMAGE, ctxDir], 1_200_000);
+  if (OWN_IMAGE) registerImage(IMAGE);
   fs.rmSync(ctxDir, { recursive: true, force: true });
   assert.equal(built.code, 0, `building ${IMAGE} failed: ${built.out.slice(-1500)}`);
   fs.chmodSync(filesRoot, 0o777);
@@ -136,7 +136,6 @@ after(async () => {
   await api.exec(NAME, { cmd: ["sh", "-c", `rm -rf ${FILES_GUEST}/work ${FILES_GUEST}/*`], env: [] }).catch(() => undefined);
   await api.containerRemove(NAME).catch(() => undefined);
   await http({ method: "DELETE", path: `/volumes/${NAME}-profile`, query: { force: "true" } }).catch(() => undefined);
-  if (OWN_IMAGE) await http({ method: "DELETE", path: `/images/${IMAGE}`, query: { force: "true" } }).catch(() => undefined);
   try { fs.rmSync(filesRoot, { recursive: true, force: true }); } catch { /* a leftover temp folder is not a failure */ }
 });
 

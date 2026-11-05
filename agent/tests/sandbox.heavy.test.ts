@@ -74,10 +74,9 @@ const RAVI_SECRET = path.join(raviRoot, "secret.txt");
 const TOKEN = `TOP-SECRET-${Math.random().toString(36).slice(2)}`;
 const VAULT_ENV = "VYRE_HEAVY_VAULT_VALUE";
 const VAULT_VALUE = `vault-sk-live-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+import { sandboxImage, sandboxImageName } from "../../test/support/heavy-images.ts";
 const suffix = `${process.pid}${Math.random().toString(36).slice(2, 6)}`;
-/** This run's own image tag: another job on the same dockerd building vyre/person-sandbox:1 must never replace the image under these containers (and this run's tag is removed at the end). */
-const RUN_IMAGE = process.env["VYRE_SANDBOX_IMAGE"] ?? `vyre/person-sandbox:hv${suffix}`;
-const OWN_TAG = process.env["VYRE_SANDBOX_IMAGE"] === undefined;
+const RUN_IMAGE = sandboxImageName();
 
 function world(): void {
   for (const d of [site, reference, raviRoot, path.join(base, "scratch", "dana")]) fs.mkdirSync(d, { recursive: true });
@@ -155,12 +154,7 @@ const egress: Partial<EgressOptions> = {
   onEvent: (e: EgressEvent) => { events.push(e); },
 };
 
-async function ensureImage(): Promise<void> {
-  if (await api.imageExists(RUN_IMAGE)) return;
-  // Built from the repository's own Dockerfile, with one tiny pinned package standing in for the engines (the image's build refuses an unpinned engine).
-  const r = await runHost("docker", ["build", "-t", RUN_IMAGE, "--build-arg", "ENGINE_PACKAGES=is-odd@3.0.1", "images/person-sandbox"], { timeoutMs: 600_000 });
-  assert.equal(r.exitCode, 0, `building ${RUN_IMAGE} failed: ${r.stderr.slice(-800)}`);
-}
+async function ensureImage(): Promise<void> { sandboxImage(); }
 
 before(async () => {
   world();
@@ -191,8 +185,6 @@ after(async () => {
   // Whatever a failed test left running: this test's names only.
   for (const n of spawnSync("docker", ["ps", "-aq", "--filter", `name=vyre-sbx-hv${suffix}`], { encoding: "utf8" }).stdout.split("\n").filter(Boolean)) spawnSync("docker", ["rm", "-f", n]);
   for (const n of spawnSync("docker", ["network", "ls", "-q", "--filter", `name=vyre-sbx-hv${suffix}`], { encoding: "utf8" }).stdout.split("\n").filter(Boolean)) spawnSync("docker", ["network", "rm", n]);
-  // a tag the step named (VYRE_SANDBOX_IMAGE) is shared with the files after this one and removed by the step; a tag of this run's own goes with it
-  if (OWN_TAG) spawnSync("docker", ["rmi", "-f", RUN_IMAGE], { encoding: "utf8" });
   fs.rmSync(base, { recursive: true, force: true });
 });
 

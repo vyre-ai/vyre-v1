@@ -11,9 +11,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createDockerApi, DEFAULT_IMAGE as SHARED_IMAGE, unixSocketHttp } from "../../../sandbox/src/docker.ts";
-/** The step names its own tag (VYRE_SANDBOX_IMAGE, built once by agent/tests/sandbox.heavy.test.ts and removed by the step); the shared name only when run by hand. */
-const DEFAULT_IMAGE = process.env["VYRE_SANDBOX_IMAGE"] ?? SHARED_IMAGE;
+import { createDockerApi, unixSocketHttp } from "../../../sandbox/src/docker.ts";
+import { sandboxImage, sandboxImageName } from "../../../test/support/heavy-images.ts";
+const DEFAULT_IMAGE = sandboxImageName();
 import { tarFiles } from "../../../sandbox/src/tar.ts";
 import { createDockerComputerHost, FILES_GUEST } from "../impl.ts";
 import { bindHost } from "../projections.ts";
@@ -104,6 +104,7 @@ async function wakeWithCtl(h: ReturnType<typeof harness>, computerId: string) {
 before(async () => {
   if (!ON) return;
   assert.equal(await api.ping(), true, "the Docker daemon answers");
+  sandboxImage();
   assert.equal(await api.imageExists(DEFAULT_IMAGE), true, `the image ${DEFAULT_IMAGE} is on this runner`);
   fs.chmodSync(filesRoot, 0o777);
 });
