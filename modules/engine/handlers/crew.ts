@@ -1,7 +1,7 @@
 // The crew (DESIGN-crew.md, steps 1 and 2): a project's repository on this computer, and teammate jobs. A job is a teammate agent working in its own copy of that repository, on its own branch, in its own thread
 // under the lead's chat. Nothing new is made for it: the thread is a helper thread, the teammate is a project teammate, the work folder is the engine's per-thread folder with a clone in it (../crew-git.ts).
 import { engineHost } from "../runtime.ts";
-import { GitError, branchFacts, cleanBranch, commitLeftovers, git, initLocalRepo, landBranch, prepareClone, pushBase, repoHead } from "../crew-git.ts";
+import { GitError, branchFacts, cleanBranch, commitLeftovers, git, initLocalRepo, landBranch, prepareClone, pushBase, repoHead, summarize } from "../crew-git.ts";
 import { ensure, actorOf, mintEngineId, raise } from "../projections.ts";
 import { workFolder } from "../sandbox.ts";
 import { GUIDE_FILES } from "../../../lib/memory-guide.ts";
@@ -354,10 +354,18 @@ export async function merge(ctx: EngineCtx, input: { jobId: string }) {
   const dir = workFolder(dataDir, str(r["asker"]), str(r["thread_id"]), str(r["agent_id"]));
   try {
     await commitLeftovers(dir, `Work in progress by ${str(r["agent_id"])}`);
+    let plus = 0, minus = 0;
+    try { const sm = await summarize(dir, str(r["base_branch"])); for (const f of sm.files) { plus += f.added; minus += f.deleted; } } catch { /* the counts are left out */ }
     const landed = await landBranch({ repo: str(r["repo_path"]), clone: dir, branch: str(r["branch"]), base: str(r["base_branch"]) });
     if (landed.landed) {
       ctx.db.run("UPDATE engine_crew_job SET state = 'merged', ended_at = COALESCE(ended_at, ?) WHERE job_id = ?", ctx.now(), input.jobId);
       ctx.emit("crew.job_merged", str(r["lead_thread_id"]), { jobId: input.jobId, threadId: str(r["thread_id"]), leadThreadId: str(r["lead_thread_id"]), branch: str(r["branch"]), landed: true });
+      // what landed is kept on the job, and the chat line is built from it by the chat module: nobody passes the words
+      const prior = jobOut(jobRow(ctx, input.jobId)).result ?? {};
+      ctx.db.run("UPDATE engine_crew_job SET result_json = ? WHERE job_id = ?", JSON.stringify({ ...prior, merged: { by: actorOf(ctx), added: plus, deleted: minus, at: ctx.now() } }), input.jobId);
+      try {
+        await ctx.call("chat.crew_line", { threadId: str(r["lead_thread_id"]), jobId: input.jobId });
+      } catch (e) { ctx.log.warn("the merge line could not be posted", { jobId: input.jobId, error: e instanceof Error ? e.message : String(e) }); }
     }
     return { job: jobOut(jobRow(ctx, input.jobId)), landed: landed.landed, ref: landed.ref, ...(landed.note ? { note: landed.note } : {}) };
   } catch (e) { return gitFailure(ctx, e); }

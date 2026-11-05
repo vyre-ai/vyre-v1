@@ -225,7 +225,7 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
               ? { type: "block", kind: "tool_call", payload: { id: item.id, name: item.name } }
               : item.phase === "input"
                 ? { type: "block", kind: "tool_input", payload: { id: item.id, detail: item.detail } }
-                : { type: "block", kind: "tool_result", payload: { id: item.id, ok: item.ok } };
+                : { type: "block", kind: "tool_result", payload: { id: item.id, ok: item.ok, ...(item.output ? { detail: item.output } : {}) } };
             break;
           case "usage":
             yield {

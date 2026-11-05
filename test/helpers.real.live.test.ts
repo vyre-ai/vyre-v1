@@ -1,6 +1,7 @@
 // Helpers as a person meets them (owner, 4 Nov 2026), in the real app against a booted daemon whose model vendor is a scripted session: two helpers are one row each in the chat, updated in place, with one line of what they found;
 // row for it; one result card arrives in the lead's chat; pressing Merge on the card lands the branch in the project's repository and the card collapses to one line. Screenshots of every step go to
 // VYRE_CREW_SHOTS (light and dark). Needs the web export (VYRE_APP_DIST) and a browser; without Chrome it fails when VYRE_REQUIRE_CHROME=1 and skips otherwise.
+import { internalNames as internalNamesOf } from "../lib/plain-words.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -69,7 +70,11 @@ test("REAL MODEL: helpers are one row each, the lead answers once, a helper chat
     const shoot = async (page: import("playwright-core").Page, name: string): Promise<void> => { await page.screenshot({ path: path.join(shots, `${name}.png`) }); };
     const phone = process.env["VYRE_CREW_PHONE"] === "1";
 
-    await api("chat.post", { threadId: chat, body: "Use two helpers at the same time. Helper one: tell me two facts about the Moon. Helper two: tell me two facts about Mars. When both are done, give me one short combined answer.", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "r-ask" });
+    // while the helpers run, the rows must say what each is doing in plain words (a step that is not "Working"): the real engine's own tool events reach helpers.status
+    const stepsSeen = new Set<string>();
+    let polling = true;
+    const poll = (async () => { while (polling) { try { for (const h of ((await api("engine.helpers.status", { threadId: chat })).helpers ?? []) as Array<{ state: string; step?: string }>) if (h.state === "working" && h.step && h.step !== "Working") stepsSeen.add(h.step); } catch { /* the chat is not ready yet */ } await new Promise((r) => setTimeout(r, 700)); } })();
+    await api("chat.post", { threadId: chat, body: "Use two helpers at the same time. Helper one: look up two facts about the Moon with your web search tool, then tell me them. Helper two: look up two facts about Mars with your web search tool, then tell me them. When both are done, give me one short combined answer.", mentions: [{ kind: "agent", id: lead }], idempotencyKey: "r-ask" });
     const list = async (id: string): Promise<Array<{ author: { kind: string; id: string }; body: string; blocks: Array<{ type: string; state?: string; data?: Record<string, unknown> }> }>> => (await api("chat.messages.list", { threadId: id })).messages;
     await waitFor(async () => {
       const ms = await list(chat);
@@ -82,6 +87,10 @@ test("REAL MODEL: helpers are one row each, the lead answers once, a helper chat
       const started = rows.filter((b) => b.state === "live" || b.data?.["status"] === undefined).length;
       return started >= 2 && reports.length >= started && lastReport >= 0 && combined.length >= 1 ? ms : null;
     }, 170_000, () => hostLog(d)).catch(async (e) => { console.log("TRANSCRIPT", JSON.stringify((await list(chat)).map((m) => [m.author.kind, m.body.slice(0, 200), m.blocks.map((b) => b.type)]))); { const { DatabaseSync } = await import("node:sqlite"); const db = new DatabaseSync(d.paths.modules, { readOnly: true }); console.log("TURNS", JSON.stringify(db.prepare("SELECT model, engine, account_ref, state, substr(error, 1, 600) AS error FROM engine_turns").all())); db.close(); } throw e; });
+    polling = false; await poll;
+    console.log("STEPS_SEEN", JSON.stringify([...stepsSeen]));
+    assert.ok(stepsSeen.size > 0, "a running helper's row shows a plain-words step, not only Working");
+    assert.deepEqual([...stepsSeen].flatMap((x) => internalNamesOf(x)), [], "and the step names no tool");
     const ms = await list(chat);
     console.log("TRANSCRIPT", JSON.stringify(ms.map((m) => [m.author.kind, m.body.slice(0, 400), m.blocks.map((b) => `${b.type}:${b.state ?? ""}:${String(b.data?.["status"] ?? "")}`)])));
     const helperThreads = [...new Set(ms.flatMap((m) => m.blocks.filter((b) => b.type === "helper").map((b) => String(b.data?.["helperThreadId"] ?? b.data?.["threadId"] ?? ""))))].filter((x) => x !== "");

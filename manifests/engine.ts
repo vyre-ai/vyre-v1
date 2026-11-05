@@ -508,7 +508,7 @@ export default defineManifest({
           startedAt: t.ts(), endedAt: t.opt(t.ts()), elapsedMs: t.int({ minimum: 0 }), model: t.opt(t.str()), provider: t.opt(t.str()), accountLabel: t.opt(t.str()), why: t.opt(t.str()), fellBackFrom: t.opt(t.str()),
           branch: t.opt(t.str()), files: t.opt(t.arr(t.obj({ path: t.str(), added: t.int(), deleted: t.int() }))), added: t.opt(t.int()), deleted: t.opt(t.int()), merged: t.opt(t.bool()),
           tokensIn: t.int({ minimum: 0 }), tokensOut: t.int({ minimum: 0 }), costMicros: t.int({ minimum: 0 }),
-          tests: t.opt(t.obj({ state: t.enm('running', 'passing', 'failing'), passed: t.opt(t.int({ minimum: 0 })), failed: t.opt(t.int({ minimum: 0 })) })),
+          tests: t.opt(t.obj({ state: t.enm('running', 'passing', 'failing'), passed: t.opt(t.int({ minimum: 0 })), failed: t.opt(t.int({ minimum: 0 })), failing: t.opt(t.str({ maxLength: 200 })) })),
         })),
         totals: t.obj({ members: t.int(), working: t.int(), done: t.int(), needsYou: t.int(), failed: t.int(), stopped: t.int(), tokensIn: t.int(), tokensOut: t.int(), costMicros: t.int(), filesChanged: t.int(), added: t.int(), deleted: t.int(), elapsedMs: t.int() }),
       }, on: ['thread', '/threadId'], tool: 'chats', label: 'check',

@@ -6739,6 +6739,13 @@ export type ChatComposerSuggestOut = {
       detail?: string;
     }>;
 };
+export type ChatCrewLineIn = {
+  threadId: string;
+  jobId: string;
+};
+export type ChatCrewLineOut = {
+  messageId: string;
+};
 export type ChatDeleteMessageIn = {
   messageId: string;
   threadId: string;
@@ -11353,6 +11360,7 @@ export type EngineCrewStatusOut = {
         state: "running" | "passing" | "failing";
         passed?: number;
         failed?: number;
+        failing?: string;
       };
     }>;
   totals: {
@@ -12101,6 +12109,15 @@ export type EngineRoutePreviewIn = {
 export type EngineRoutePreviewOut = {
   responders: Array<string>;
   line: string;
+};
+export type EngineRunningHereIn = Record<string, unknown>;
+export type EngineRunningHereOut = {
+  turns: Array<{
+      threadId: string;
+      agentId: string;
+      asker: string;
+      turnId?: string;
+    }>;
 };
 export type EngineRuntimeOptInIn = {
   enabled: boolean;
@@ -44750,6 +44767,7 @@ export interface CapMap {
   "chat.asks_of": { in: ChatAsksOfIn; out: ChatAsksOfOut };
   "chat.catch_up": { in: ChatCatchUpIn; out: ChatCatchUpOut };
   "chat.composer.suggest": { in: ChatComposerSuggestIn; out: ChatComposerSuggestOut };
+  "chat.crew_line": { in: ChatCrewLineIn; out: ChatCrewLineOut };
   "chat.delete_message": { in: ChatDeleteMessageIn; out: ChatDeleteMessageOut };
   "chat.edit": { in: ChatEditIn; out: ChatEditOut };
   "chat.flow_card": { in: ChatFlowCardIn; out: ChatFlowCardOut };
@@ -45091,6 +45109,7 @@ export interface CapMap {
   "engine.reviewer.get": { in: EngineReviewerGetIn; out: EngineReviewerGetOut };
   "engine.reviewer.set": { in: EngineReviewerSetIn; out: EngineReviewerSetOut };
   "engine.route.preview": { in: EngineRoutePreviewIn; out: EngineRoutePreviewOut };
+  "engine.running_here": { in: EngineRunningHereIn; out: EngineRunningHereOut };
   "engine.runtime.opt_in": { in: EngineRuntimeOptInIn; out: EngineRuntimeOptInOut };
   "engine.set_mode": { in: EngineSetModeIn; out: EngineSetModeOut };
   "engine.set_model": { in: EngineSetModelIn; out: EngineSetModelOut };

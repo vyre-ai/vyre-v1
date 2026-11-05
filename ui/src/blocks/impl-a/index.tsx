@@ -314,7 +314,8 @@ export function QuestionBlock({ block, host }: BlockViewProps): ReactElement {
   }
   return (
     <Card type="question" block={block} testID={`blk-question-${block.id}`} menu={menu}>
-      <Head testID={`blk-question-${block.id}`} title={d.prompt} />
+      <Head testID={`blk-question-${block.id}`} title={d.prompt.split("\n")[0] ?? d.prompt} />
+      {d.prompt.includes("\n") ? <Text testID={`blk-question-${block.id}-why`} style={styles.why}>{d.prompt.slice(d.prompt.indexOf("\n") + 1).trim()}</Text> : null}
       {answered ? (
         <StatusLine tone="ok" testID={`blk-question-${block.id}-answered`} text={`${d.answeredBy !== "" ? `${d.answeredBy} answered` : "You answered"}: ${answerLine(d.options, sent)}`} />
       ) : (
@@ -665,6 +666,7 @@ const styles = StyleSheet.create({
   opts: { marginHorizontal: -6, gap: 2 },
   opt: { flexDirection: "row", alignItems: "flex-start", gap: 8, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 8 },
   optMark: { color: "var(--ink-3)" as string, fontSize: 13, lineHeight: 19, width: 16 },
+  why: { fontSize: 13, lineHeight: 19, color: "var(--ink-2)" as string, paddingHorizontal: 12, paddingBottom: 6 },
   optLabel: { ...textBase },
   free: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 },
   input: { flex: 1, minWidth: 0, height: 28, borderRadius: 8, paddingHorizontal: 10, borderWidth: 1, borderColor: "var(--field-line)", backgroundColor: "var(--field)" as string, color: "var(--ink)" as string, fontSize: 13 },

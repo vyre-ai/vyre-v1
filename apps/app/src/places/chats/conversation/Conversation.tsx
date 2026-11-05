@@ -575,7 +575,7 @@ function ConversationView(): ReactElement {
       status: crew.status, selected: crew.selected, peek: (id: string) => crew.show(id), openPane: () => crew.show(null),
       stopAll: () => void act.stopHelpers(data).then(() => crew.refresh(), fail("Could not stop the helpers.")),
       retry: (id: string) => void act.retryHelper(data, id, data.newKey()).then(() => crew.refresh(), fail("Could not start it again.")),
-      merge: (jobIds: readonly string[]) => void Promise.all(jobIds.map((jobId) => data.call("engine.crew.merge", { jobId, idempotencyKey: data.newKey() }))).then(() => { crew.refresh(); say("Merged."); }, fail("Could not merge it.")),
+      merge: (jobIds: readonly string[]) => void Promise.all(jobIds.map((jobId) => data.call("engine.crew.merge", { jobId, idempotencyKey: data.newKey() }))).then(() => { crew.refresh(); }, fail("Could not merge it.")),
     } } : {}),
     share: (id, x, y) => void act.shareTargets(data, thread.threadId).then((targets) => {
       const entries: MenuEntry[] = [];

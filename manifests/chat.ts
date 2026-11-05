@@ -420,6 +420,10 @@ export default defineManifest({
     }),
     write('chat.hook_resolve', 'Hooks module only: mark a stop line answered (allowed this time, always allowed, or denied), for everyone in the chat', {
       in: { ...threadT, messageId: id.message, resolution: t.enm('allowed', 'always', 'denied'), by: t.str(), what: t.opt(t.str({ maxLength: 200 })) }, out: { ok: t.bool() }, on: ['thread', '/threadId'], level: 'use', errors: ['validation.not_found'],
+      }),
+    write('chat.crew_line', 'The crew only: after Merge lands a teammate\'s branch, leave one quiet line in the chat. The text is built from the merge record ("Merged crew/ember-1 into main · +2 -0"); no words are passed in, only the job, and only the person who merged it can ask. It wakes no agent', {
+      in: { ...threadT, jobId: t.str({ examples: ['crw_01a1b2'] }) },
+      out: { messageId: id.message }, on: ['thread', '/threadId'], level: 'use', agent: false, errors: ['validation.not_found', 'validation.precondition_failed', 'permission.no_grant'],
     }),
     write('chat.note_offer.answer', 'Save or dismiss an offer to keep something from this chat as a note. Save makes the person\'s own private note that links back to the message', {
       in: { ...threadT, blockId: id.block, decision: t.enm('save', 'dismiss') }, out: { state: t.enm('saved', 'dismissed'), noteId: t.opt(t.str()) },
