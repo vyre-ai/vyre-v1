@@ -206,7 +206,7 @@ function directBetween(db: Db, a: string, b: string): ThreadRec | null {
   const ids = (db.all(
     `SELECT t.id AS id FROM chat_thread t WHERE t.kind = 'chat' AND t.channelId IS NULL AND t.scopeType IS NULL AND t.deleted_at IS NULL
        AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL)
-       AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL) ORDER BY t.createdAt LIMIT 20`, a, b,
+       AND EXISTS (SELECT 1 FROM chat_thread_member m WHERE m.thread = t.id AND m.principal = ? AND m.deleted_at IS NULL) AND NOT EXISTS (SELECT 1 FROM chat_thread_agent x WHERE x.thread = t.id AND x.deleted_at IS NULL) ORDER BY t.createdAt LIMIT 20`, a, b,
   ) as Row[]).map((r) => String(r["id"]));
   for (const id of ids) { const t = threadBy(db, id); if (t && isDirect({ db }, t)) return t; }
   return null;

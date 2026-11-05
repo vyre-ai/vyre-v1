@@ -65,6 +65,8 @@ export interface ChatRow {
   archived?: boolean;
   /** A chat with no agent is with other people (a direct message): the menu offers Leave chat, not Delete chat. */
   withPeople?: boolean;
+  /** A direct message: no agent and exactly one other person. It lives under People, not in Recent. A people-only group chat is not one. */
+  direct?: boolean;
 }
 
 /** The one person a direct message is with: a chat with no agent and exactly one other person. Null for anything else (an older server that names nobody, too). */
@@ -92,6 +94,8 @@ export function rowOf(item: RecentItem, agentName: (id: string) => string, perso
     lastAt: item.lastAt,
     local: item.threadId.startsWith(LOCAL_PREFIX),
     withPeople: item.agents.length === 0,
+    // an older server that names nobody: a chat with no agent was a direct message there, as before
+    ...(person !== null || (item.kind === "chat" && item.agents.length === 0 && item.people === undefined) ? { direct: true } : {}),
   };
 }
 
@@ -360,7 +364,8 @@ export function buildEntries(i: SidebarInput): Entry[] {
   const unique = rows.filter((r, n) => rows.findIndex((x) => x.threadId === r.threadId) === n);
   const isNow = (r: ChatRow): boolean => r.working || i.waitingThreads?.has(r.threadId) === true;
   const now = unique.filter(isNow);
-  const rest = unique.filter((r) => !isNow(r) && !(r.kind === "person" && r.withPeople === true));
+  // a direct message is the person's row under People; every other chat, a people-only group chat too ("Offsite planning", lane l-polish L9), is in Recent
+  const rest = unique.filter((r) => !isNow(r) && r.direct !== true);
   if (now.length) {
     out.push({ key: "h:now", type: "head", section: "now", label: "Now", count: now.length, open: open("now") });
     if (open("now")) for (const r of now) out.push({ key: `c:${r.threadId}`, type: "chat", row: r });

@@ -396,7 +396,7 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
   });
   const faceMenu = (e: Extract<Entry, { type: "face" }>, x: number, y: number): MenuEntry[] => {
     const a = e.agent, pc = facts.current.computers.get(a.agentId);
-    return agentMenu({ name: e.assistant ? data.space.assistant.name : a.name, assistant: e.assistant === true, starred: starred("agent", a.agentId) || true, status: a.status, hasComputer: a.hasComputer, computer: pc, muted: muted("agent", a.agentId), manage: manageAgents, provision: provisionPc }, {
+    return agentMenu({ name: e.assistant ? data.space.assistant.name : a.name, assistant: e.assistant === true, starred: starred("agent", a.agentId), status: a.status, hasComputer: a.hasComputer, computer: pc, muted: muted("agent", a.agentId), manage: manageAgents, provision: provisionPc }, {
       message: () => { data.nav.openAgentChat(a.agentId); leave(); },
       openProfile: data.nav.openAgent ? () => { data.nav.openAgent?.(a.agentId); leave(); } : undefined,
       openComputer: pc && data.nav.openSubject ? () => { data.nav.openSubject?.({ type: "computer", id: pc.computerId }); leave(); } : undefined,
@@ -405,7 +405,8 @@ function Sidebar({ window, query, slot, open: shown, startFilter }: { window?: V
       giveComputer: () => { again(menuApi.provision(a.agentId)); readFacts(true); },
       pause: () => again(menuApi.pause(a.agentId)),
       resume: () => again(menuApi.resume(a.agentId)),
-      star: (on) => guard(api.star("agent", a.agentId, on)),
+      // the next menu says what was just done, before the read behind it comes back
+      star: (on) => { const next = new Set(facts.current.stars); if (on) next.add(`agent:${a.agentId}`); else next.delete(`agent:${a.agentId}`); facts.current.stars = next; guard(api.star("agent", a.agentId, on)); },
       mute: (on) => setMute("agent", a.agentId, on),
       ...(dmWith(a.agentId) ? { poke: () => { const t = dmWith(a.agentId)!; void menuApi.poke(t.threadId, a.agentId).then(() => say(`Poked ${a.name}`), () => say(`Could not poke ${a.name}. Try again.`)); } } : {}),
       addToChat: () => pickChat(`Add ${a.name} to`, x, y, (threadId) => menuApi.addAgentToChat(threadId, a.agentId)),
