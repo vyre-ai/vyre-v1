@@ -68,12 +68,13 @@ export interface Seat { ctx: BrowserContext; page: Page; who: Person; errors: st
  * A browser for one person. Opening a provider's sign-in page is answered the way the provider does after the person approves: a redirect back to the app with a code for the
  * account `setEmail` named last. The app's own popup then finishes the sign-in as that person.
  */
-export async function seat(s: Screens, who: Person, role: string): Promise<Seat> {
+export async function seat(s: Screens, who: Person, role: string, o: { touch?: { width: number; height: number } } = {}): Promise<Seat> {
   const saved = await sessionFor(s, who, role);
   // The app on this computer shows its launch lock until the daemon holds the person's key (KeyGate). A person types their password once; the world's passwords are stand-ins that open nothing,
   // so the seat hands the daemon a key the way that entry would. The lock screen itself is walked by test/vault.lock-screen.live.test.ts.
   await holdKeyOnOwnNode(s.web.origin, who.token, new Uint8Array(32).fill(7)).catch(() => false);
-  const ctx = await s.browser.newContext({ viewport: SIZES.desktop });
+  // a touch seat is a tablet: a finger for a pointer (no hover), whatever the width
+  const ctx = await s.browser.newContext(o.touch ? { viewport: o.touch, hasTouch: true, isMobile: false } : { viewport: SIZES.desktop });
   await ctx.addInitScript((v: string) => { try { if (!localStorage.getItem("vyre.session.v1")) localStorage.setItem("vyre.session.v1", v); } catch { /* blocked storage */ } }, saved);
   let email = "";
   await ctx.route(/^https:\/\/(accounts\.google\.com|login\.microsoftonline\.com)\//, async (route) => {

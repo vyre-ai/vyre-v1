@@ -543,7 +543,6 @@ function ConversationView(): ReactElement {
     pickReaction: (id, x, y) => setPicker({ id, x, y }),
     humanChat: thread.agents.length === 0,
     ...(thread.agents.length === 0 || thread.kind === "channel" ? {} : { fork: (id: string) => void act.forkChat(data, id, data.newKey()).then((next) => { say("Branched into a new chat, linked back to this one"); data.nav.openThread(next); }, fail("Could not fork it.")) }),
-    withPeople: thread.members.filter((p) => p.kind === "person").length >= 2,
     ...(thread.kind === "channel" && thread.agents.length > 0 ? { askAgent: (id: string, x: number, y: number) => openAskPicker(id, x, y) } : {}),
     makeTask: (id) => {
       const m = all.find((x) => x.messageId === id);
