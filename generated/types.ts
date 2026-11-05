@@ -1972,6 +1972,7 @@ export type AgentsRoutineDelegateOut = {
       runId: string;
       status: "running" | "succeeded" | "failed" | "stopped";
     };
+    pausedReason?: string;
   };
   previousOwnerId: string;
 };
@@ -2012,6 +2013,7 @@ export type AgentsRoutineRunNowOut = {
       runId: string;
       status: "running" | "succeeded" | "failed" | "stopped";
     };
+    pausedReason?: string;
   };
   runId: string;
 };
@@ -2055,6 +2057,7 @@ export type AgentsRoutineSaveOut = {
       runId: string;
       status: "running" | "succeeded" | "failed" | "stopped";
     };
+    pausedReason?: string;
   };
 };
 export type AgentsRoutinesListIn = {
@@ -2085,6 +2088,7 @@ export type AgentsRoutinesListOut = {
         runId: string;
         status: "running" | "succeeded" | "failed" | "stopped";
       };
+      pausedReason?: string;
     }>;
 };
 export type AgentsSetOwnerIn = {
@@ -31052,6 +31056,12 @@ export type ProvidersListOut = {
       models?: Array<string>;
     }>;
 };
+export type ProvidersMarkSigninNeededIn = {
+  handle: string;
+};
+export type ProvidersMarkSigninNeededOut = {
+  marked: boolean;
+};
 export type ProvidersOwnPeopleIn = Record<string, unknown>;
 export type ProvidersOwnPeopleOut = {
   people: Array<{
@@ -46057,6 +46067,7 @@ export interface CapMap {
   "providers.custom_list": { in: ProvidersCustomListIn; out: ProvidersCustomListOut };
   "providers.custom_remove": { in: ProvidersCustomRemoveIn; out: ProvidersCustomRemoveOut };
   "providers.list": { in: ProvidersListIn; out: ProvidersListOut };
+  "providers.mark_signin_needed": { in: ProvidersMarkSigninNeededIn; out: ProvidersMarkSigninNeededOut };
   "providers.own_people": { in: ProvidersOwnPeopleIn; out: ProvidersOwnPeopleOut };
   "providers.remove": { in: ProvidersRemoveIn; out: ProvidersRemoveOut };
   "providers.set_keeps_nothing": { in: ProvidersSetKeepsNothingIn; out: ProvidersSetKeepsNothingOut };

@@ -5,6 +5,7 @@
 //   template.get / .preview / .apply                the Agent template: add, never remove, never overwrite; changed files become suggestions; try one agent first
 //   guide.get / builtin_skills.list                 Vyre's own text, rewritten by app updates
 import { readFileSync } from "node:fs";
+import { forgetSelfPause } from "../routine-guard.ts";
 import {
   BUILTIN_SKILLS, GUIDE_MD, GUIDE_VERSION, MAX_DIFF, MAX_PROMPT, TREE_FOLDERS, agentBy, allAgents, allows, applyUnifiedDiff, askerOf, call, canSee, ensure, fingerprint, insertSuggestion, makeFile,
   makeFolder, markRoutineRan, messageOf, noteRoutineRun, meta, mintId, nextRun, onlyLearnedChanged, parseCron, raise, routineBy, routineOf, routineOut, setMeta, simpleDiff, saveFile, suggestionBy, suggestionOf, suggestionOut, textOf, tolerant, visible, walkFolder,
@@ -58,6 +59,7 @@ export async function routineSave(ctx: AgentsCtx, input: { agentId: string; rout
       title, cron, input.prompt, input.channelId ?? null, enabled ? 1 : 0, next, now, old.id,
     );
     id = old.id;
+    forgetSelfPause(ctx.db, old.id);   // a person's own save puts it back in their hands
   } else {
     id = mintId("rtn", now);
     ctx.db.run(

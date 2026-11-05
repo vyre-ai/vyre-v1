@@ -2234,6 +2234,7 @@ export function stubs(ctx: CallCtx) {
       custom_list: call("providers.custom_list"),
       custom_remove: call("providers.custom_remove"),
       list: call("providers.list"),
+      mark_signin_needed: call("providers.mark_signin_needed"),
       own_people: call("providers.own_people"),
       remove: call("providers.remove"),
       set_keeps_nothing: call("providers.set_keeps_nothing"),

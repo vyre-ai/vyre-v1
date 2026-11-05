@@ -54,7 +54,11 @@ export const consumers = {
         if (!paused) continue;
         ctx.log.warn("a routine paused itself after repeated failed runs", { routineId: id, reason: paused.reason });
         if (paused.threadId && ctx.call) {
-          try { await ctx.call("chat.post", { threadId: paused.threadId, body: `Paused "${paused.title}" after ${3} failed runs: ${paused.reason}`, mentions: [], idempotencyKey: `routine-paused:${id}:${ctx.now()}` }); }
+          try {
+            // a channel's id names its main chat; the chat capabilities take that chat's own id
+            let threadId = paused.threadId;
+            if (threadId.startsWith("chn_")) threadId = String(((await ctx.call("channels.get", { channelId: threadId })) as { channel?: { mainThreadId?: string } }).channel?.mainThreadId ?? threadId);
+            await ctx.call("chat.post", { threadId, body: `Paused "${paused.title}" after ${3} failed runs: ${paused.reason}`, mentions: [], idempotencyKey: `routine-paused:${id}:${ctx.now()}` }); }
           catch (e) { ctx.log.warn("the routine's pause could not be said in its chat", { routineId: id, error: e instanceof Error ? e.message : String(e) }); }
         }
       }
@@ -65,6 +69,11 @@ export const consumers = {
   "agents.routine_resume": {
     on: ["vault.item_updated", "vault.item_created"],
     run: (ctx: AgentsCtx): string[] => resumeSelfPaused(ctx.db, ctx.now(), nextRun),
+  },
+  /** The Vault opened on this computer and the turn it kept waiting ran: the agent works again, so its routines that paused themselves start again (a sign-in saved later does the same through the consumer above). */
+  "agents.routine_resume_on_turn": {
+    on: ["turn.completed"],
+    run: (ctx: AgentsCtx, event: { payload: { agentId?: string } }): string[] => (event.payload.agentId ? resumeSelfPaused(ctx.db, ctx.now(), nextRun, event.payload.agentId) : []),
   },
   /** A person's account exists (claim or join): they get their private assistant, with or without an AI account. */
   "agents.ensure_assistant": {

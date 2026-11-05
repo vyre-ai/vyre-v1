@@ -44,6 +44,8 @@ const routineRow = t.obj({
   setBy: t.opt(principalRef),
   // the last run it started and how it went (running until its agent's turn ends)
   lastRun: t.opt(t.obj({ runId: id.run, status: t.enm('running', 'succeeded', 'failed', 'stopped') })),
+  // why it paused itself, when three runs in a row failed for one reason (shown on the row; cleared when the person saves it again or the cause clears)
+  pausedReason: t.opt(t.str()),
 });
 const suggestionRow = t.obj({
   suggestionId: t.id('sug'), agentId: id.agent, kind: t.enm('agent_md', 'template'), file: t.str({ examples: ['AGENT.md'] }), diff: t.str(), reason: t.opt(t.str()),

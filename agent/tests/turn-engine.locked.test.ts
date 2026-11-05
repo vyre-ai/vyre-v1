@@ -123,3 +123,13 @@ test("a person signs in again: the turn parked on a missing sign-in runs once, a
   assert.equal(engine.turns("T").at(-1)?.state, "completed");
   assert.equal(p.sessions.length, 2, "one run answers the newest message");
 });
+
+test("a failed turn says which account it ran on, so the chat can open that sign-in", async () => {
+  const p = scriptedProvider({ script: () => [{ type: "error" as const, code: "provider.auth_failed", message: "Please run /login" }] });
+  const engine = createTurnEngine({ holder: "host:s", openSession: p.openSession, resolveAccount: async () => account() });
+  const failed: Array<{ account?: { ref: string; driver: string } }> = [];
+  engine.subscribe((e) => { if (e.type === "turn.failed") failed.push(e as never); });
+  engine.openThread(thread());
+  engine.receive({ threadId: "T", author: person, body: "hi" }); await engine.idle("T");
+  assert.deepEqual(failed[0]?.account, { ref: "#A", driver: "anthropic" });
+});

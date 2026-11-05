@@ -429,6 +429,7 @@ export function nextDay(ts: number, c: Clock): string {
 
 export function routineNote(r: Routine, c: Clock): string {
   const cron = r.cron ?? "";
+  if (!r.enabled && r.pausedReason) return r.pausedReason;   // paused by itself after failed runs: the row says why
   if (!r.enabled) return `Paused · ${isWatcher(r) ? "on new messages" : cronWords(cron, c)}`;
   if (isWatcher(r)) return "on new messages";
   return r.nextRunAt !== undefined ? `${shortSchedule(cron, c)} · next ${nextDay(r.nextRunAt, c)}` : shortSchedule(cron, c);

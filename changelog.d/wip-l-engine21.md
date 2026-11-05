@@ -53,3 +53,4 @@
 
 ## What's new
 - Agents on Claude Code or Codex can work in a goal's folder: it shows as goal/ and their changes are saved to Vyre.
+- A routine that paused itself starts again when its agent completes a turn (the turn the locked Vault kept waiting runs once the Vault opens), as well as when a sign-in is saved. A person's own save of the routine clears its self-pause. The Routines row shows why a routine paused (pausedReason). A failed turn carries its account, so Settings > Your AI offers "Sign in again" for provider.auth_failed and engine.cli_unusable, and engine.cli_unusable reads the connect card's words per engine. Routine turns folded into a parked turn end their run as failed, so a routine that cannot run pauses itself.

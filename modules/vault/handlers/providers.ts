@@ -541,3 +541,21 @@ export async function customRemove(ctx: VaultCtx, input: { key: string }) {
   ctx.db.run(`UPDATE vault_provider_def SET "deleted_at" = ? WHERE "key" = ?`, ctx.now(), input.key);
   return { ok: true };
 }
+
+/**
+ * System: a turn found this account's sign-in missing or refused. The person's own subscription account reads "Sign in again" (needs_sign_in) until the sign-in is done;
+ * a key, a Shared account and an account of someone else are never marked here.
+ */
+export function markSigninNeeded(ctx: VaultCtx, input: { handle: string }): { marked: boolean } {
+  ensureProviders(ctx);
+  const want = String(input.handle ?? "").replace(/^#/, "").split(".")[0]!.toLowerCase();
+  if (want === "") return { marked: false };
+  const mine = rowsOf(ctx.db.all(`SELECT * FROM vault_provider WHERE "owner" = ? AND "connection" = 'subscription' AND "scope" = 'mine'`, me(ctx))).filter(live);
+  const p = mine.find((r) => str(first(ctx.db.all(`SELECT * FROM vault_meta WHERE id = ?`, str(r, "itemId"))), "handle").replace(/^#/, "").toLowerCase() === want);
+  if (!p) return { marked: false };
+  if (str(p, "state") !== "needs_sign_in") {
+    ctx.db.run(`UPDATE vault_provider SET "state" = ? WHERE "id" = ?`, "needs_sign_in", str(p, "id"));
+    ctx.emit("provider.updated", `entity/${str(p, "id")}`, { providerId: str(p, "id"), state: "needs_sign_in" }, { vis: "participants" });
+  }
+  return { marked: true };
+}

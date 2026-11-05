@@ -22,7 +22,7 @@ export function noteRun(db: Db, routineId: string, ok: boolean, code: string, me
   if (n < ROUTINE_FAILS_TO_PAUSE) return null;
   const r = (db.all('SELECT "title", "channelId", "enabled" FROM agents_routine WHERE "id" = ?', routineId) as Row[])[0];
   if (!r || Number(r["enabled"]) !== 1) return null;
-  const reason = message.replace(/\s+/g, " ").trim().slice(0, 200) || code;
+  const reason = message.replace(/\s*\[account [\w.-]+\]/g, "").replace(/\s+/g, " ").trim().slice(0, 200) || code;
   db.run('UPDATE agents_routine SET "enabled" = 0, "nextRunAt" = NULL, "updatedAt" = ? WHERE "id" = ?', at, routineId);
   db.run('INSERT OR REPLACE INTO agents_routine_selfpaused ("routineId", "reason", "at") VALUES (?, ?, ?)', routineId, reason, at);
   db.run('DELETE FROM agents_routine_streak WHERE "routineId" = ?', routineId);
@@ -30,9 +30,11 @@ export function noteRun(db: Db, routineId: string, ok: boolean, code: string, me
 }
 
 /** The cause may have cleared: every routine that paused itself starts again. Returns their ids. */
-export function resumeSelfPaused(db: Db, at: number, nextRun: (cron: string, at: number) => number | null): string[] {
+export function resumeSelfPaused(db: Db, at: number, nextRun: (cron: string, at: number) => number | null, agentId?: string): string[] {
   ensure(db);
-  const ids = (db.all('SELECT "routineId" FROM agents_routine_selfpaused') as Row[]).map((r) => String(r["routineId"]));
+  const ids = (agentId === undefined
+    ? (db.all('SELECT "routineId" FROM agents_routine_selfpaused') as Row[])
+    : (db.all('SELECT s."routineId" FROM agents_routine_selfpaused s JOIN agents_routine r ON r."id" = s."routineId" WHERE r."agentId" = ?', agentId) as Row[])).map((r) => String(r["routineId"]));
   for (const id of ids) {
     const r = (db.all('SELECT "cron" FROM agents_routine WHERE "id" = ?', id) as Row[])[0];
     if (r) db.run('UPDATE agents_routine SET "enabled" = 1, "nextRunAt" = ?, "updatedAt" = ? WHERE "id" = ?', nextRun(String(r["cron"]), at), at, id);

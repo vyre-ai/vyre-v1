@@ -232,7 +232,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   const turnRows: TurnRow[] = [];
   const spendRows: SpendRow[] = [];
   /** `${thread}|${agent}` -> the turn that waits for the person's Vault; later messages for that agent fold into it instead of starting a turn that fails the same way. */
-  const lockedPark = new Map<string, { threadId: string; agentId: string; asker: string; messageId: string | null; from: string; since: number; code: string; /** parked for repeating, not for a lock: a person's own message gets through again after a minute */ repeat: boolean }>();
+  const lockedPark = new Map<string, { threadId: string; agentId: string; asker: string; messageId: string | null; from: string; since: number; code: string; /** what the failure said, so a routine folded into the wait ends with the same words */ message?: string; /** parked for repeating, not for a lock: a person's own message gets through again after a minute */ repeat: boolean }>();
   /** Failures in a row of one reason, per chat and agent: three of the same ones park the turn instead of trying each message again. */
   const failStreak = new Map<string, { code: string; n: number }>();
   const STREAK_PARK = 3;
@@ -383,6 +383,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         // the Vault is still locked for this agent's turn: this message folds into the one waiting turn, which will answer the newest one
         if (next.messageId) parked.messageId = next.messageId;
         queue.setState(id, next.qseq, "cancelled");
+        if (next.routine) emit({ type: "routine.folded", threadId: id, agentId: next.agentId, qseq: next.qseq, code: parked.code, asker: parked.asker, ...(parked.message ? { message: parked.message } : {}) });
         continue;
       }
       const item = queue.dequeue(id);
@@ -771,8 +772,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       const streak = failStreak.get(pk);
       const n = streak?.code === code ? streak.n + 1 : 1;
       failStreak.set(pk, { code, n });
-      if (PARK_CODES.has(code) || n >= STREAK_PARK) lockedPark.set(pk, { threadId: st.thread.id, agentId: item.agentId, asker, messageId: item.messageId, from: item.from, since: now(), code, repeat: !PARK_CODES.has(code) });
-      emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}) });
+      if (PARK_CODES.has(code) || n >= STREAK_PARK) lockedPark.set(pk, { threadId: st.thread.id, agentId: item.agentId, asker, messageId: item.messageId, from: item.from, since: now(), code, ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}), repeat: !PARK_CODES.has(code) });
+      emit({ type: "turn.failed", threadId: st.thread.id, turnId: turn.id, agentId: turn.agentId, code: turn.error?.code ?? "engine_error", ...(paying ? { account: { ref: paying.ref, driver: paying.driver } } : {}), ...(turn.error?.message ? { message: turn.error.message.slice(0, 300) } : {}) });
     }
     // The agent's answer is a message like any other: it can @mention the next agent, which counts a hop.
     // a turn that was stopped by a hook and then said nothing says what happened itself, so the stop is never the last thing in the chat

@@ -608,6 +608,16 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         if (row) noteLine(row.agentId, row.from.startsWith("usr_") ? row.from : (waitsForComputer(ctx.db, h.nodes, ev.threadId)?.person ?? row.from), ev.threadId, { state: "device_wait", text: DEVICE_WAIT_LINE, threadId: ev.threadId });
         return;
       }
+      if (ev.type === "routine.folded") {
+        // the run's row is written right after wake() returns, and the fold can be said before that: finish it on a later turn of the loop, and once more if the row was not there yet
+        const finish = (again: boolean): void => {
+          void finishRoutineRun(ctx, { call: h.call, ...(h.log ? { log: h.log } : {}) }, { type: "turn.failed", turnId: `fold:${ev.threadId}:${ev.qseq}`, threadId: ev.threadId, qseq: ev.qseq, code: ev.code, message: ev.message ?? `Not run: ${ev.code} (the chat is waiting for the person to put it right).` } as Parameters<typeof finishRoutineRun>[2], () => ev.qseq)
+            .then((done) => { if (done === null && again) setTimeout(() => finish(false), 500).unref?.(); })
+            .catch((err) => h.log?.("a routine run was not finished", { threadId: ev.threadId, error: err instanceof Error ? err.message : String(err) }));
+        };
+        setTimeout(() => finish(true), 0).unref?.();
+        return;
+      }
       if (ev.type === "turn.started") waitingFor.delete(ev.threadId);
       // a message for an agent that runs outside Vyre waits in its queue: the owner's only, the queue checks that
       if (ev.type === "agent.outside_asked") {
@@ -623,6 +633,12 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           .catch((err: unknown) => h.log?.("a lost turn could not be recorded", { turnId: ev.turnId, error: err instanceof Error ? err.message : String(err) }));
       }
       else if (ev.type === "turn.started" || ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled" || ev.type === "turn.resumed" || (ev.type === "turn.waiting" && ev.reason === "approval")) report(ev.turnId, ev);
+      // a sign-in the turn found missing or refused: the account reads "Sign in again" in Settings (the person's own subscription account only; the Vault decides)
+      if (ev.type === "turn.failed" && (ev.code === "engine.signin_missing" || ev.code === "provider.auth_failed") && ev.account?.ref) {
+        const who = engine.turns().find((t) => t.id === ev.turnId)?.asker;
+        void h.call("providers.mark_signin_needed", { handle: ev.account.ref.startsWith("#") ? ev.account.ref : `#${ev.account.ref}` }, who)
+          .catch((err: unknown) => h.log?.("an account could not be marked as needing a sign-in", { turnId: ev.turnId, error: err instanceof Error ? err.message : String(err) }));
+      }
       if (ev.type === "turn.completed" || ev.type === "turn.failed" || ev.type === "turn.cancelled") {
         // a routine's run ends with the turn it woke (handlers/routine-run.ts)
         void finishRoutineRun(ctx, { call: h.call, ...(h.log ? { log: h.log } : {}) }, ev as Parameters<typeof finishRoutineRun>[2], (id) => engine.turns().find((t) => t.id === id)?.qseq)

@@ -16,6 +16,7 @@ import { sessionWorkKey, workBlocks } from "../../../agent/src/tools/work-cards.
 import { ALL_AGENTS, route as routeOf } from "../../../lib/route.ts";
 import { localClock, readPublicTime } from "../../../lib/presence.ts";
 import { hasReads } from "../../../host/src/seams/answer-reads.ts";
+import { findProgram } from "../cli-programs.ts";
 import { engineIfBound, sqlMessages, withMessageId, mintId } from "../projections.ts";
 import { setUsing } from "../node-turns.ts";
 import type { EngineCtx } from "../projections.ts";
@@ -205,9 +206,14 @@ export function createBridge(o: BridgeOptions): Bridge {
       const detail = e.code === "engine.model_unavailable" ? e.message : undefined;
       // how the engine process ended, when it says (an exit code or a signal): a number is no secret, and it is what a person reads out to get help
       // the account whose sign-in is missing (its Vault handle, no secret), so the chat's button opens that account
-      const account = e.code === "engine.signin_missing" ? /\[account ([\w.-]{1,60})\]/.exec(e.message ?? "")?.[1] : undefined;
+      const named = e.code === "engine.signin_missing" ? /\[account ([\w.-]{1,60})\]/.exec(e.message ?? "")?.[1] : undefined;
+      const needsSignin = e.code === "engine.signin_missing" || e.code === "provider.auth_failed" || e.code === "engine.cli_unusable";
+      const account = needsSignin ? (named ?? (e.account?.ref && /^[\w.#-]{1,60}$/.test(e.account.ref) ? e.account.ref.replace(/^#/, "") : undefined)) : undefined;
+      // the same plain reasons the connect card shows (engine.providers.list, cliTrouble): the program is not on this computer, or its sign-in needs doing again
+      const cliProgram = e.account ? ({ claude_code: "claude", codex: "codex", grok: "grok" } as Record<string, string>)[e.account.driver] : undefined;
+      const trouble = e.code === "engine.cli_unusable" && cliProgram ? { program: cliProgram, missing: findProgram(cliProgram) === null } : undefined;
       const exit = e.code === "engine.cli_error" ? /(?:exited|exit(?:ed)? with|code) (?:code )?(-?\d{1,3})\b|signal (SIG[A-Z]+)/i.exec(e.message ?? "") : null;
-      return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(detail ? { detail } : {}), ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}), ...(exit ? { exit: exit[1] ?? exit[2] } : {}), ...(account ? { account } : {}) } };
+      return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(detail ? { detail } : {}), ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}), ...(exit ? { exit: exit[1] ?? exit[2] } : {}), ...(account ? { account } : {}), ...(trouble ? { cli: trouble.program, cliMissing: trouble.missing } : {}) } };
     }
     return { type: "turn_status", v: 1, data: { state: "cancelled", turnId: e.turnId, ...(e.type === "turn.cancelled" && e.reason ? { reason: e.reason } : {}) } };
   };

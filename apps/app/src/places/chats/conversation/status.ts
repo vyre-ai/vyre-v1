@@ -159,8 +159,15 @@ export function statusView(b: MessageBlock): StatusView {
       w = { message: cause ? `${engine.name} could not be set up here.` : `${engine.name} is not installed here.`, cause: cause ?? "Vyre can set it up for you.", next: [{ key: `install:${str(d.program)}`, label: `Install ${engine.name}` }, ...(w.next ?? [])], retryable: false };
     }
   }
+  // the engine cannot run here: the same plain reasons as the connect card (engine.providers.list), the program is missing or its sign-in needs doing again
+  if (str(d.code) === "engine.cli_unusable" && Object.hasOwn(ENGINES, str(d.cli))) {
+    const name = ENGINES[str(d.cli)]!.name;
+    w = d.cliMissing === true
+      ? { message: `${name} is not installed on this computer. Install it, or pick another AI.`, next: [{ key: `install:${str(d.cli)}`, label: `Install ${name}` }, { key: "connect_ai", label: "Pick another AI" }], retryable: false }
+      : { message: `Sign in to ${name} again.`, next: [{ key: str(d.account) !== "" ? `sign_in:${str(d.account)}` : "connect_ai", label: "Sign in again" }, { key: "connect_ai", label: "Pick another AI" }], retryable: false };
+  }
   // a missing sign-in opens Settings > Your AI at that account, not the generic connect flow
-  if (str(d.code) === "engine.signin_missing" && str(d.account) !== "") w = { ...w, next: [{ key: `sign_in:${str(d.account)}`, label: "Sign in again" }] };
+  if ((str(d.code) === "engine.signin_missing" || str(d.code) === "provider.auth_failed") && str(d.account) !== "") w = { ...w, next: [{ key: `sign_in:${str(d.account)}`, label: "Sign in again" }] };
   if (str(d.code) === "engine.vault_unreadable" && str(d.reason) !== "") w = { ...w, cause: `The Vault answered: ${str(d.reason)}.` };
   // the engine process stopped and said nothing a person can use: the sentence never stands alone, the exit code is the reason there is
   if (str(d.code) === "engine.cli_error") w = { ...w, message: "The engine stopped before it replied.", cause: str(d.exit) !== "" ? `It exited with code ${str(d.exit)}. Try again. If it keeps happening, open Details and send them to your admin.` : "It gave no reason. Try again. If it keeps happening, open Details and send them to your admin." };
