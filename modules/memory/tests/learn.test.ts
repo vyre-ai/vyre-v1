@@ -338,6 +338,8 @@ test("on a CLI subscription the model's keeps follow the same rules: a note mark
   assert.deepEqual(rows.map((r) => `${r.layer}:${r.owner_ref}`).sort(), [`agent:agt_intake`, `person:${DANA}`].sort(), "the private line is hers, the decision is the room's");
   const omar = asPerson(h, { kind: "person", id: OMAR }, { respond: chat(s, seen) });
   assert.doesNotMatch(JSON.stringify(await factsAsOf(omar.ctx, { date: NOW + 1 })), /70000|Quartz/);
+});
+
 test("a pass after a person joined never hands the model what was said before, and keeps the asker's own earlier line in their own layer; the newcomer reads none of it", async () => {
   const seen: Seen = { complete: [], listed: 0 };
   const s: Script = {
