@@ -41,7 +41,10 @@ async function stubGithub(page: import("playwright-core").Page): Promise<void> {
 }
 const BANNED = ["principal", "grant", "actor", "schema", "gate", "suppression", "retention", "tenant", "capability", "sandbox.denied", "trace"];
 
-export async function walkSettings(t: TestContext, only: "owner" | "member"): Promise<void> {
+/** Three parts of the walk, so each file stays well under the release-evidence watchdog: a is Profile, Your AI and This device; b is GitHub; c is Notifications, Appearance and Privacy and security (with the saved channel and look). */
+export const GROUPS: Record<"a" | "b" | "c", string[]> = { a: ["profile", "ai", "computer"], b: ["github"], c: ["notifications", "appearance", "signin"] };
+export async function walkSettings(t: TestContext, only: "owner" | "member", group: "a" | "b" | "c"): Promise<void> {
+  const mine = PAGES.filter((p) => GROUPS[group].includes(p.id));
   const env = await browserOrSkip();
   if (typeof env === "string") { t.skip(env); return; }
   // the default Vyre GitHub app, as a real server has in its environment (#876: a member who is not connected is told which app)
@@ -64,7 +67,7 @@ export async function walkSettings(t: TestContext, only: "owner" | "member"): Pr
       const nav = (await me.page.getByTestId("settings-nav").innerText()).replace(/\s+/g, " ");
       for (const p of PAGES) assert.ok(nav.includes(p.title), `${who}: the page list has ${p.title}`);
       for (const gone of ["Connected", "Email and calendar", "Memory and privacy", "Skills", "About Vyre"]) assert.ok(!nav.includes(gone), `${who}: ${gone} left the page list`);
-      for (const p of PAGES) {
+      for (const p of mine) {
         await me.page.getByTestId(`row-page-${p.id}`).click();
         await me.page.getByTestId(`page-${p.id}`).waitFor({ timeout: 20_000 });
         await me.page.waitForTimeout(800);
@@ -104,6 +107,7 @@ export async function walkSettings(t: TestContext, only: "owner" | "member"): Pr
         }
       }
       // a notification channel and the look, as that person, saved on the server
+      if (group === "c") {
       await me.page.getByTestId("row-page-notifications").click();
       await me.page.getByTestId("kind-mention-email").click();
       await me.page.waitForTimeout(800);
@@ -117,9 +121,10 @@ export async function walkSettings(t: TestContext, only: "owner" | "member"): Pr
       await setScheme(me.page, "dark");
       await guard.check("appearance-after");
       await shoot(me.page, dir, "appearance-after");
+      }
       // the phone: every page, light and dark (the list is one screen and a page another, with a back arrow between them)
       await me.page.setViewportSize(SIZES.phone);
-      for (const p of PAGES) {
+      for (const p of mine) {
         await open(me, s, "/settings?skin=paper");
         const row = me.page.getByTestId(`row-page-${p.id}`);
         if (!(await row.isVisible().catch(() => false))) await me.page.getByTestId("back").click().catch(() => undefined);
