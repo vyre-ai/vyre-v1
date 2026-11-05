@@ -100,7 +100,10 @@ jobs:
           fi
           echo "no boundary violations in changed files"
       - name: Typecheck ratchet for apps/app and ui (scripts/typecheck-ratchet.ts); the error count in scripts/typecheck-baseline.json may only fall
-        run: node scripts/typecheck-ratchet.ts
+        run: |
+          tsc=tools/gen/node_modules/.bin/tsc
+          [ -x "$tsc" ] || bash tools/gen/check.sh
+          TSC="$PWD/$tsc" node scripts/typecheck-ratchet.ts
       - name: Lints on the changed files (scripts/lint/run.ts)
         run: |
           git fetch -q origin main
