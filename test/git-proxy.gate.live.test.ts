@@ -67,6 +67,7 @@ test("a real git push to main on a booted daemon: held, approved, landed; then a
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
     vault: { secret: async (h: string) => (h.includes("Id") ? "424242" : "fixture-secret"), signRs256: async () => "sig" },
     gitUpstream: gh.url,
+    gitParkMs: 6_000,
   } as never);
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-gitgate-work-"));
   const saved = { id: process.env["VYRE_GH_OAUTH_CLIENT_ID"], secret: process.env["VYRE_GH_OAUTH_CLIENT_SECRET"] };
@@ -175,6 +176,23 @@ test("a real git push to main on a booted daemon: held, approved, landed; then a
     assert.match(r2.out, /was not approved/);
     assert.equal(gh.ref(REPO, "refs/heads/main"), featureSha, "main is where the first push left it");
     assert.notEqual(gh.ref(REPO, "refs/heads/main"), secondSha);
+    assert.equal(landed(), 2, "nothing was written");
+    // ---- run 3: nobody answers; the proxy gives up and withdraws its question, so no dead card is left in the person's tasks
+    await commit("c.txt");
+    const push3 = git(work, "push", "origin", "HEAD:main");
+    const hold3 = await waitFor(d, async () => (await holds("held")).find((h) => h.taskId !== hold1.taskId && h.taskId !== hold2.taskId) ?? null);
+    const open3 = (await call(d, token, "tasks.get", { taskId: hold3.taskId })).data.task;
+    assert.ok(!["done", "cancelled", "withdrawn", "closed"].includes(open3.state), `the card is live while it waits: ${open3.state}`);
+    const liveState = open3.state as string;
+    const r3 = await push3;
+    assert.notEqual(r3.code, 0);
+    assert.match(r3.out, /Nobody answered/);
+    const gone3 = await waitFor(d, async () => { const t = (await call(d, token, "tasks.get", { taskId: hold3.taskId })).data.task; return t && t.state !== liveState ? t : null; }, 10_000);
+    assert.equal(gone3.state, "canceled", "the card is withdrawn, not left up");
+    const late = await call(d, token, "tasks.act", { taskId: hold3.taskId, action: "approve" });
+    assert.notEqual(late.status, 200, "a late yes on the withdrawn card is refused");
+    const listed = (await call(d, token, "tasks.list", { scope: "mine", states: [liveState] })).data;
+    assert.equal(JSON.stringify(listed).includes(hold3.taskId), false, "and it is gone from the person's open tasks");
     assert.equal(landed(), 2, "nothing was written");
     session.end();
   } finally {
