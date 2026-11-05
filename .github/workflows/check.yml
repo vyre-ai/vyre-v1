@@ -102,7 +102,7 @@ jobs:
       - name: Typecheck ratchet for apps/app and ui (scripts/typecheck-ratchet.ts); the error count in scripts/typecheck-baseline.json may only fall
         run: |
           tsc=tools/gen/node_modules/.bin/tsc
-          [ -x "$tsc" ] || bash tools/gen/check.sh
+          [ -x "$tsc" ] || (cd tools/gen && npm install --no-package-lock --no-audit --no-fund --loglevel=error)
           TSC="$PWD/$tsc" node scripts/typecheck-ratchet.ts
       - name: Lints on the changed files (scripts/lint/run.ts)
         run: |
