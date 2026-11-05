@@ -50373,6 +50373,7 @@ export type TaskEscalatedPayload = {
     id: string;
   };
   reason: "timeout" | "manual" | "away";
+  by?: string;
 };
 export type TaskFollowerAddedPayload = {
   taskId: string;

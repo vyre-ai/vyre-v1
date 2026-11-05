@@ -4,6 +4,7 @@
 // Held -> sending is one guarded UPDATE, so two taps send once. A failed send goes back to held with its error: the person approved it and may try again.
 import { actOf, cut, getHold, holdsWhere, raise, saveHold, sha } from "../projections.ts";
 import type { Assignee, GateCtx, Hold } from "../projections.ts";
+import { isTrustedService } from "../../../lib/trust.ts";
 import { addStepTargets } from "./grants.ts";
 
 type In = Record<string, any>;   // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -73,12 +74,37 @@ export async function syncApprover(ctx: GateCtx, event: { name: string; payload:
   if (!to) return [];
   const h = holdsWhere(ctx.db, "task_id = ? AND state = 'held'", taskId)[0];
   if (!h || actOf(h.act).personOnly || (h.approver.kind === to.kind && h.approver.id === to.id)) return [];
+  const by = typeof p["by"] === "string" ? p["by"] : typeof p["from"] === "string" ? p["from"] : undefined;
+  // only a move made by someone who may decide the hold is followed (a member with Edit on the task can write the slot, but that does not hand them the approval); a move onto the mover needs the same
+  if (!(await mayMove(ctx, h, by))) {
+    ctx.log?.warn("gate.approver_move_refused", { holdId: h.id, taskId, by: by ?? null, to, how });
+    return [];
+  }
   const from = h.approver;
   h.approver = to;
   saveHold(ctx.db, h);
-  const by = typeof p["by"] === "string" ? p["by"] : typeof p["from"] === "string" ? p["from"] : undefined;
   ctx.emit("gate.approver_moved", `task/${taskId}`, { holdId: h.id, act: h.act, taskId, from, to, ...(by ? { by } : {}), how }, { vis: "participants" });
   return [h.id];
+}
+
+/** May this person move the hold's approval on? The current approver, a member of its role or group, someone holding Manage on its task, or a trusted service (the timeout sweep). Nobody else, and an agent never. */
+async function mayMove(ctx: GateCtx, h: Hold, by: string | undefined): Promise<boolean> {
+  if (!by) return false;
+  if (by.startsWith("svc_") && isTrustedService({ kind: "service", id: by })) return true;
+  const a = h.approver;
+  if ((a.kind === "person" || a.kind === "agent" || a.kind === "automation") && a.id === by) return a.kind === "person";
+  if (!ctx.call) return false;
+  try {
+    if (a.kind === "role") {
+      const r = (await ctx.call("access.roles.get", { roleId: a.id })) as { holders?: Array<{ id?: string }> } | null;
+      if (r?.holders?.some((x) => x.id === by)) return true;
+    } else if (a.kind === "group") {
+      const g = (await ctx.call("access.groups.get", { groupId: a.id })) as { members?: Array<{ id?: string }> } | null;
+      if (g?.members?.some((x) => x.id === by)) return true;
+    }
+    const d = (await ctx.call("access.check", { principal: { kind: "person", id: by }, action: { perm: null, level: "manage" }, resource: { type: "task", id: h.taskId } })) as { decision?: { effect?: string } } | null;
+    return d?.decision?.effect === "allow";
+  } catch { return false; }
 }
 
 /**
@@ -97,7 +123,7 @@ async function decides(ctx: GateCtx, h: Hold, claims: Claims): Promise<boolean> 
       if (Array.isArray(have) && have.includes(a.id)) return true;
     } catch { /* falls to the grants */ }
   }
-  return !!ctx.authorize && !!h.taskId && ctx.authorize({ perm: null, level: "use" }, { type: "task", id: h.taskId }).effect === "allow";
+  return !!ctx.authorize && !!h.taskId && ctx.authorize({ perm: null, level: "manage" }, { type: "task", id: h.taskId }).effect === "allow";
 }
 
 // ---- gate.release ----
@@ -136,7 +162,7 @@ export async function release(ctx: GateCtx, input: In): Promise<unknown> {
 
   // held -> sending, once
   const at = ctx.now();
-  const won = ctx.db.run("UPDATE gate_holds SET sending_at = ?, error = NULL WHERE id = ? AND state = 'held' AND sending_at IS NULL", at, h.id).changes === 1;
+  const won = ctx.db.run("UPDATE gate_holds SET sending_at = ?, error = NULL WHERE id = ? AND state = 'held' AND sending_at IS NULL AND json_extract(approver, '$.kind') = ? AND json_extract(approver, '$.id') = ?", at, h.id, h.approver.kind, h.approver.id).changes === 1;
   if (!won) raise(ctx, "validation.precondition_failed", "This is being sent right now.", { reason: "sending" });
   let result: unknown;
   try {

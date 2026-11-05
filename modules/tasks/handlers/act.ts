@@ -253,7 +253,7 @@ export async function escalate(ctx: TasksCtx, input: In): Promise<unknown> {
   t[slot] = target;
   delete t.takenBy; delete t.takenAt; delete t.snoozedUntil;
   touch(ctx, ctx.db, t);
-  emitTask(ctx, ctx.db, "task.escalated", t, { to: target, reason: input.reason }, { type: "escalated", by: ctx.principal.id });
+  emitTask(ctx, ctx.db, "task.escalated", t, { to: target, reason: input.reason, by: ctx.principal.id }, { type: "escalated", by: ctx.principal.id });
   await syncThread(ctx, t);
   return { task: out(ctx, t) };
 }
