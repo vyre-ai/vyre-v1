@@ -283,7 +283,7 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.notes && typeof input.notes === "object") {
     // notes the task starts with: a brief, a checklist, a schema. The two reserved keys belong to a held act and are never taken from here.
     const notes: Record<string, string> = {};
-    for (const [k, v] of Object.entries(input.notes as Record<string, unknown>).slice(0, MAX_START_NOTES)) if (!(k in RESERVED_NOTES) && typeof v === "string") notes[k] = v.slice(0, MAX_NOTE_CHARS);
+    for (const [k, v] of Object.entries(input.notes as Record<string, unknown>).slice(0, MAX_START_NOTES)) if (!(k in RESERVED_NOTES) && !k.startsWith("gate.") && typeof v === "string") notes[k] = v.slice(0, MAX_NOTE_CHARS);
     t.workingNotes = notes;
   }
   // a request that came from a chat lives in that chat: its feed is the conversation that asked, never a second thread beside it
@@ -438,6 +438,7 @@ export async function assign(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
   const slot = input.slot as Slot;
   const to: Assignee | null = input.to ? asAssignee(input.to) : null;
+  guardGateSlots(ctx, t);
   mustEdit(ctx, t, "change who is on it");
   if (!isOpen(t.state)) raise(ctx, "validation.precondition_failed", "Reopen the task before changing who is on it.", { reason: "closed" });
   if (to === null && slot === "assigned") raise(ctx, "validation.precondition_failed", "A task always has someone it is assigned to.", { reason: "assigned_required" });
@@ -562,9 +563,21 @@ export async function followersRemove(ctx: TasksCtx, input: In): Promise<unknown
 /** Reserved working-note keys. A Gate hold writes its decision id and payload hash once; they land in columns, never in the notes, and are never edited. */
 export const RESERVED_NOTES = { decision_id: "decisionId", payload_hash: "payloadHash" } as const;
 
+/**
+ * Who may change who decides a Gate hold. A person-only hold (a session using someone's GitHub) is never handed on by anyone but the server; any other hold is not handed on by an agent, for the
+ * person it acts for or otherwise. The marker is a note only the server writes.
+ */
+export function guardGateSlots(ctx: TasksCtx, t: Task): void {
+  if (t.source?.kind !== "gate" || isTrustedService(ctx.principal)) return;
+  if (t.workingNotes["gate.person_only"] === "1") raise(ctx, "validation.precondition_failed", "This is decided by the person it was asked of. It is not handed to anyone else.", { reason: "person_only" });
+  if (ctx.principal.kind === "agent") raise(ctx, "validation.precondition_failed", "An agent cannot hand on an approval that was asked of a person.", { reason: "agent_cannot_reassign" });
+}
+
 export async function notesSet(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
   const key = String(input.key ?? "");
+  // the Gate marks its own held acts (it runs as the asker, so this is not a check on who): only a held act takes the mark, only as "1", and it can never be changed or removed, so nobody can clear it
+  if (key.startsWith("gate.") && (t.source?.kind !== "gate" || String(input.value ?? "") !== "1")) raise(ctx, "validation.field_locked", "Only a held act carries that.", { field: key });
   if (!key.trim()) raise(ctx, "validation.bad_input", "A note needs a key.", { errors: ["/key: required"] });
   const value = String(input.value ?? "");
   // a writer that names the value it started from is refused when someone changed the note meanwhile: nothing is overwritten, and the refusal says what the note holds now and who changed it.
@@ -609,7 +622,7 @@ export async function heldRevise(ctx: TasksCtx, input: In): Promise<unknown> {
 export async function notesDelete(ctx: TasksCtx, input: In): Promise<unknown> {
   const t = getTask(ctx, input.taskId);
   const key = String(input.key ?? "");
-  if (key in RESERVED_NOTES) raise(ctx, "validation.field_locked", "That value is never removed.", { field: key });
+  if (key in RESERVED_NOTES || key.startsWith("gate.")) raise(ctx, "validation.field_locked", "That value is never removed.", { field: key });
   if (key in t.workingNotes) {
     const rest = { ...t.workingNotes }; delete rest[key];
     t.workingNotes = rest;

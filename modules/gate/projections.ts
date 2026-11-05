@@ -238,6 +238,8 @@ function holdFrom(r: Raw): Hold {
     taskId: (r.task_id as string) ?? "", state: r.state as HoldState, summary: r.summary as string, approver: parse<Assignee>(r.approver, { kind: "role", id: "rol_admin" }),
     rule: parse<Effective>(r.rule, effectiveFallback()), createdAt: r.created_at as number, expiresAt: r.expires_at as number, possiblySent: num(r.possibly_sent) === 1,
   };
+  // a hold parked for a person-only act before the rule was pinned is pinned now: its approver is the asker and it never escalates
+  if (actOf(h.act).personOnly) h.rule = { ...h.rule, approvers: "asker", peopleOnly: true, onTimeout: "drop" };
   const res = str(r.result); if (res) h.result = parse<unknown>(res, null);
   const stp = str(r.step); if (stp) h.step = JSON.parse(stp) as StepRef;
   const ab = str(r.asked_by); if (ab) h.askedBy = parse<PrincipalRef>(ab, { kind: "agent", id: "" });

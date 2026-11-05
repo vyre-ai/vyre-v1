@@ -75,6 +75,10 @@ export async function release(ctx: GateCtx, input: In): Promise<unknown> {
   }
   if (claims.by !== ctx.principal.id) raise(ctx, "validation.precondition_failed", "That approval was given by someone else.", { reason: "token_mismatch" });
   if (claims.device !== null && claims.device !== ctx.device) raise(ctx, "validation.precondition_failed", "Approve from the device you started on.", { reason: "device_mismatch" });
+  // an act that is the person's alone (a session using their GitHub): only the person it was asked of, from their own session, and never as someone acting for them. Whatever the task's slots say now.
+  if (actOf(h.act).personOnly && (ctx.principal.kind !== "person" || h.approver.kind !== "person" || claims.by !== h.approver.id || claims.forPerson !== null)) {
+    raise(ctx, "validation.precondition_failed", "Only the person this was asked of can approve it.", { reason: "not_the_person" });
+  }
   if (ctx.principal.kind !== "person" && h.rule.peopleOnly) raise(ctx, "validation.precondition_failed", "Only a person can approve this.", { reason: "people_only" });
   // Ask the person: it runs as them, so only their own press, from their own session, releases it. An agent acting for them, a delegate or an admin cannot.
   if (h.askedBy && (claims.by !== h.principal.id || claims.forPerson !== null || ctx.principal.kind !== "person")) {

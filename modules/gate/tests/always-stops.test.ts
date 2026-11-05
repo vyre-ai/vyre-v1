@@ -2,9 +2,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { harness, codeOf, reasonOf } from "../fixtures/db.ts";
-import { alice, as, bot } from "../fixtures/seed.ts";
+import { alice, as, bob, bot } from "../fixtures/seed.ts";
 import { effectiveRule, ACTS } from "../impl.ts";
-import { putRule } from "../projections.ts";
+import { findHold, putRule } from "../projections.ts";
 
 const owner = { id: "usr_owner", kind: "person" as const };
 const ACT_KEYS = ["connection_change", "github_approval", "signin_change"] as const;
@@ -53,4 +53,24 @@ test("github_approval is the asker's alone: no rule names another approver, esca
   const e = effectiveRule(h.db, bot, "github_approval");
   assert.equal(e.approvers, "asker");
   assert.equal(e.onTimeout, "drop");
+});
+
+test("a person-only hold is released only by the person it was asked of, whatever the task's slots say", async () => {
+  const h = harness();
+  h.callee("github.me.approve", () => ({ approved: true }));
+  const input = { capName: "github.me.approve", capVersion: 1, input: { repo: "a/b", action: "push_default", consumer: "x" }, payloadHash: "ph_1", act: "github_approval", principal: bot, actingFor: alice.id, decisionId: "dec_1" };
+  const p = await h.call("gate.park", input, { id: bot.id, kind: "agent" });
+  const hold = findHold(h.db, p.holdId)!;
+  assert.deepEqual(hold.approver, { kind: "person", id: alice.id });
+  assert.deepEqual([hold.rule.approvers, hold.rule.onTimeout], ["asker", "drop"]);
+  assert.ok(h.callsTo("tasks.working_notes.set").some((c) => (c.input as { key?: string }).key === "gate.person_only"), "the task is marked");
+  const token = (by: string, forPerson: string | null = null) => h.sealToken({ task: p.taskId, hold: p.holdId, decision: "dec_1", hash: "ph_1", by, forPerson, device: "dev_1", exp: h.now() + 600_000 });
+  const rel = (by: string, who: { id: string; kind: "person" | "agent" | "service"; device?: string }, forPerson: string | null = null) => h.call("gate.release", { holdId: p.holdId, taskId: p.taskId, approvalToken: token(by, forPerson) }, who);
+  const notThePerson = (e: unknown) => codeOf(e) === "validation.precondition_failed" && reasonOf(e) === "not_the_person";
+  await assert.rejects(rel(bob.id, { id: bob.id, kind: "person", device: "dev_1" }), notThePerson, "another person, even an admin, with the task slot moved to them");
+  await assert.rejects(rel(alice.id, { id: alice.id, kind: "person", device: "dev_1" }, bob.id), notThePerson, "alice's token minted while acting for someone");
+  await assert.rejects(rel(bot.id, { id: bot.id, kind: "agent", device: "dev_1" }), (e) => codeOf(e) === "validation.precondition_failed", "the agent itself");
+  assert.equal(findHold(h.db, p.holdId)!.state, "held");
+  await rel(alice.id, { id: alice.id, kind: "person", device: "dev_1" });
+  assert.equal(findHold(h.db, p.holdId)!.state, "approved");
 });

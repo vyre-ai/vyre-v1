@@ -129,6 +129,8 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
     taskId = r.task.id;
     await ctx.call("tasks.working_notes.set", { taskId, key: "decision_id", value: input.decisionId });
     await ctx.call("tasks.working_notes.set", { taskId, key: "payload_hash", value: input.payloadHash });
+    // the task layer reads this to refuse any reassigning of the approval (tasks.assign, delegate, escalate)
+    if (a.personOnly) await ctx.call("tasks.working_notes.set", { taskId, key: "gate.person_only", value: "1" });
   } catch (e) {
     ctx.db.run("DELETE FROM gate_holds WHERE id = ?", id);
     throw e;

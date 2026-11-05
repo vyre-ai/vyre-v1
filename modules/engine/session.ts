@@ -317,9 +317,9 @@ export function withAccess(spec: LaunchSpec, asked: AccessAsked): LaunchSpec {
 export type EgressWatch = (where: { person: string; threadId: string }, e: EgressEvent) => void;
 
 /** The person and the thread of a work folder (sandbox.ts workParts: `<dataDir>/work/<person>/<thread>`, or the short Windows layout), or null for any other folder. */
-function workOf(dataDir: string, cwd: string | undefined): { person: string; threadId: string } | null {
+function workOf(dataDir: string, cwd: string | undefined): { person: string; threadId: string; agent?: string } | null {
   const w = workParts(dataDir, cwd);
-  return w ? { person: w.person, threadId: w.threadId } : null;
+  return w ? { person: w.person, threadId: w.threadId, ...(w.agent !== undefined ? { agent: w.agent } : {}) } : null;
 }
 
 /** One report per host, port and verdict for the life of a process, and at most 40 hosts reached and 40 refused: a turn that fetches a thousand files from one registry is one line. */
@@ -441,12 +441,12 @@ export function buildOpener(h: OpenerHost): SessionOpener {
         if (h.access && who) ruled = withAccess(ruled, await h.access(who.person, "space").catch(() => ({ where: "server" as const, folders: [] })));
         // GitHub for the person whose turn this is: the Space's git address and a token for this process alone (a chat of a project whose Files folder points at GitHub); set last
         let gitEnd: (() => void) | null = null;
-        if (h.gitProxy && who) {
+        if (h.gitProxy && who?.agent) {
           // behind the wall (bubblewrap, Seatbelt) the engine reaches the Space only through the wall's proxy, which answers the git name itself, so a Space reachable on its own loopback works as any other; a
           // Windows Personal Space engine has the loopback and uses the address (the ruling), and the Windows VM's wall cannot call into this process, so it uses the address too
           const kind = (await plan()).sandbox.kind;
           const via = kind === "bwrap" || kind === "seatbelt" ? "socket" : "address";
-          const g = await githubEnv({ call: h.call, git: h.gitProxy }, who.person, who.threadId, spec.agent.id, via);
+          const g = await githubEnv({ call: h.call, git: h.gitProxy }, who.person, who.threadId, who.agent, via);
           ruled = withGithub(via === "address" ? withGitHost(ruled, h.gitProxy.base()) : ruled, g.env);
           gitEnd = g.end;
         }

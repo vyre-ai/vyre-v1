@@ -30,6 +30,9 @@ const MAX_SESSIONS_PERSON = 20;
 /** Pushes waiting for an answer: per person, and for the whole process. */
 const MAX_PARKED = 4;
 const MAX_PARKED_ALL = 32;
+/** Advertisement fetches held in memory at once (each up to 16 MiB): per person, and for the whole process. */
+const MAX_ADVERT = 2;
+const MAX_ADVERT_ALL = 8;
 /** What a parked push may put on disk while it waits (its pack, so the connection finishes its upload and the server's normal request timeout is never in the way). */
 const MAX_SPOOL = 1024 ** 3;
 /** Bytes spooled at once: per person, and for the whole process. */
@@ -89,6 +92,8 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; /** The p
   const sessions = new Map<string, GitSession>();
   const parked = new Map<string, number>();
   let parkedAll = 0;
+  const adverts = new Map<string, number>();
+  let advertsAll = 0;
   const spooled = new Map<string, number>();
   let spooledAll = 0;
   // what a parked push spools is kept in a private folder of this process, emptied now: a file left by a crash is never read again
@@ -517,9 +522,12 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; /** The p
       if ((["push_branch", "push_default"] as const).every((k) => modes[k] === "never")) return plain(res, 403, "You set GitHub to never let anything push. Change it in Settings, GitHub.");
       const rd = await obtain(s, repo, "read", { title: "Read", phrase: "the read" }, { gone: () => res.destroyed });
       if (rd.until === "no") return plain(res, 403, rd.message);
+      if ((adverts.get(s.person) ?? 0) >= MAX_ADVERT || advertsAll >= MAX_ADVERT_ALL) return plain(res, 503, "Too many pushes are starting at once. Try again in a moment.", { "retry-after": "5" });
+      adverts.set(s.person, (adverts.get(s.person) ?? 0) + 1); advertsAll++;
       let got: { status: number; body: Buffer; cut: boolean };
       try { got = await getWhole(upstreamUrl(repo, "info/refs", "?service=git-upload-pack"), { authorization: basic(rd.token), "user-agent": "git/2.43 vyre-proxy" }, 16 * 1024 * 1024); }
       catch { return plain(res, 502, "GitHub could not be reached."); }
+      finally { advertsAll--; const n = (adverts.get(s.person) ?? 1) - 1; if (n <= 0) adverts.delete(s.person); else adverts.set(s.person, n); }
       const made = got.status === 200 && !got.cut ? receiveAdvert(got.body) : null;
       if (!made) return plain(res, 502, "GitHub's answer could not be turned into a push. Try again.");
       res.writeHead(200, { "content-type": "application/x-git-receive-pack-advertisement", "cache-control": "no-store" });
