@@ -17,13 +17,13 @@ const ACCOUNT = { ref: "#Dana_OpenRouter", driver: "openrouter", kind: "api_key"
 const person = (id: string) => ({ kind: "person", id });
 const agent = { kind: "agent", id: "agt_intake" };
 
-interface Msg { messageId: string; threadSeq: number; author: { kind: string; id: string }; body: string }
-interface Script { messages: Msg[]; members?: string[]; kind?: string; mode?: string; models?: unknown[]; answer?: (prompt: string) => { text: string; tokensIn?: number; tokensOut?: number } | Error }
+interface Msg { messageId: string; threadSeq: number; author: { kind: string; id: string }; body: string; createdAt?: number }
+interface Script { messages: Msg[]; members?: string[]; joinedAt?: Record<string, number>; kind?: string; mode?: string; models?: unknown[]; answer?: (prompt: string) => { text: string; tokensIn?: number; tokensOut?: number } | Error }
 interface Seen { complete: Array<{ accountRef: string; model: string; prompt: string; system: string }>; listed: number }
 
 function chat(s: Script, seen: Seen): Record<string, Responder> {
   return {
-    "threads.get": (b: Record<string, unknown>) => ({ thread: { threadId: b["threadId"], kind: s.kind ?? "chat", starter: DANA, agents: [{ agentId: "agt_intake", mode: "lead" }], members: (s.members ?? [DANA]).map(person) } }),
+    "threads.get": (b: Record<string, unknown>) => ({ thread: { threadId: b["threadId"], kind: s.kind ?? "chat", starter: DANA, agents: [{ agentId: "agt_intake", mode: "lead" }], members: (s.members ?? [DANA]).map(person), ...(s.joinedAt ? { joinedAt: s.joinedAt } : {}) } }),
     "agents.get": () => ({ agent: { folderId: "fld_intake", ownerId: "usr_boss", captureMode: s.mode ?? "auto" } }),
     "chat.messages.list": (i) => ({ messages: s.messages.filter((m) => i["after"] === undefined || m.threadSeq > Number(i["after"])), hasMore: false }),
     "engine.models.list": () => { seen.listed++; return { models: s.models ?? [] }; },
@@ -305,4 +305,32 @@ test("parseOps keeps only well-formed ops", () => {
   assert.deepEqual(parseOps("nothing"), []);
   assert.deepEqual(parseOps("{\"ops\":[{\"op\":\"add\",\"line\":\"2\",\"text\":\"Likes tea\",\"kind\":\"weird\"},{\"op\":\"close\",\"line\":1},{\"op\":\"update\",\"id\":\"fct_a\",\"line\":1,\"text\":\"x\"}]}"),
     [{ op: "add", line: 2, text: "Likes tea", kind: "note" }]);
+});
+
+test("a pass after a person joined never hands the model what was said before, and keeps the asker's own earlier line in their own layer; the newcomer reads none of it", async () => {
+  const seen: Seen = { complete: [], listed: 0 };
+  const s: Script = {
+    members: [DANA, OMAR], models: priced, joinedAt: { [OMAR]: 200 },
+    messages: [
+      { ...say(1, "Noted: your walk-away price for the Harbor deal is $61,000. Saved to your private profile only.", agent), createdAt: 100 },
+      { ...say(2, "My walk-away price for the Harbor deal is 61000 dollars, I decided that."), createdAt: 100 },
+      { ...say(3, "I prefer morning meetings. We decided to ship on Friday."), createdAt: 300 },
+    ],
+    answer: (prompt) => ({ text: JSON.stringify({ ops: [{ op: "add", line: 1, text: "Dana's walk-away price for Harbor is 61000 dollars", kind: "decision" }, { op: "add", line: 2, text: "Dana prefers morning meetings", kind: "preference" }] }), tokensIn: prompt.length }),
+  };
+  const h = harness({ respond: chat(s, seen) });
+  await capture(h.ctx, turn());
+  const prompt = seen.complete[0]!.prompt;
+  assert.ok(!prompt.includes("Noted: your walk-away"), "the agent's line from before the join is not in the request");
+  const rows = h.rows("SELECT text, layer, owner_ref FROM memory_facts ORDER BY text");
+  assert.deepEqual(rows.map((r) => `${r["layer"]}/${r["owner_ref"]}`).sort(), ["agent/agt_intake", `person/${DANA}`]);
+  const omar = asPerson(h, { kind: "person", id: OMAR }, { respond: chat(s, { complete: [], listed: 0 }) });
+  const read = (await factsAsOf(omar.ctx, { date: NOW + 1 })).facts.map((f) => f.text).join(" | ");
+  assert.ok(!/61000|61,000|Harbor/.test(read), `the newcomer reads nothing of it: ${read}`);
+  // the rules path holds the same line the same way
+  const { answer: _a, ...plain } = s;
+  const rules = harness({ respond: chat(plain, { complete: [], listed: 0 }) });
+  await capture(rules.ctx, turn(null));
+  const early = rules.rows("SELECT layer FROM memory_facts WHERE text LIKE '%61000%'");
+  assert.ok(early.every((r) => r["layer"] === "person"), "the rules keep the earlier line in the person's layer");
 });

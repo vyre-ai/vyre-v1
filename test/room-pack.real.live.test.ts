@@ -25,8 +25,13 @@ test("real model: time to first visible text in a seeded 300-message room, with 
       if (url.includes("chat/completions") && /(80|61)[, ]?000/.test(String(init?.body ?? ""))) {
         const body = String(init?.body ?? "");
         const hits = [...body.matchAll(/(80|61)[, ]?000/g)].slice(0, 4).map((m) => body.slice(Math.max(0, m.index! - 260), m.index! + 60).replace(/\\n/g, " / "));
-        if (phase === "post-join") leaks.push(hits[0] ?? "");
-        console.log("OUT|LEAKSRC[" + phase + "] " + JSON.stringify(hits));
+        // each request is attributed to the person it was made for: the turn and the memory pass both quote the asker's own line, and the two asks differ ("that we discussed earlier" is Maya's)
+        const forOmar = body.includes("what is the budget ceiling for the Acme deal and the walk-away price for Harbor?") && !body.includes("for Harbor that we discussed earlier?");
+        if (phase.startsWith("post-join") && forOmar) leaks.push(hits[0] ?? "");
+        console.log("OUT|ATTRIB[" + phase + "] for " + (forOmar ? "OMAR" : "maya or no asker"));
+        let shape = "";
+        try { const bj = JSON.parse(body) as { messages?: Array<{ role: string; content: unknown }> }; const ms = bj.messages ?? []; const txt = (c: unknown): string => typeof c === "string" ? c : JSON.stringify(c); shape = JSON.stringify({ n: ms.length, first: txt(ms[0]?.content).slice(0, 220), last: txt(ms.at(-1)?.content).slice(-260), len: body.length }); } catch { /* not json */ }
+        console.log("OUT|LEAKSRC[" + phase + "] " + shape + " HITS " + JSON.stringify(hits));
       }
       return real(input, init);
     }) as typeof fetch;
@@ -182,8 +187,10 @@ test("real model: time to first visible text in a seeded 300-message room, with 
     const tg = await api(d, maya.token, "threads.get", { threadId: pt });
     const lastBefore = ((await api(d, maya.token, "chat.messages.list", { threadId: pt, limit: 3 })).data.messages as Array<{ threadSeq: number }>).reduce((n, m) => Math.max(n, m.threadSeq), 0);
     console.log(`OUT|joinedAt ${JSON.stringify(tg.data.thread?.joinedAt)} members ${(tg.data.thread?.members ?? []).length}`);
+    phase = "post-join-omar-turn";
     const answerOmar = await ask(pt, omar.token, "@Intake what is the budget ceiling for the Acme deal and the walk-away price for Harbor?", "rr-w3b-omar");
     console.log(`OUT|WALK gained-a-person asker=omar: ${answerOmar.slice(0, 400)}`);
+    phase = "post-join-maya-turn";
     const answer = await ask(pt, maya.token, "@Intake what is the budget ceiling for the Acme deal and the walk-away price for Harbor that we discussed earlier?", "rr-w3b");
     {
       const tr = await api(d, maya.token, "chat.transcript.read", { threadId: pt });
@@ -193,7 +200,17 @@ test("real model: time to first visible text in a seeded 300-message room, with 
     }
     console.log(`OUT|WALK gained-a-person asker=maya: ${answer.slice(0, 400)}`);
     if (process.env["SPY"]) {
-      assert.equal(leaks.length, 0, `a request after the join carried a figure said before it: ${leaks[0]?.slice(0, 300)}`);
+      // let Maya's memory pass finish, then Omar reads memory every way he can: nothing of the figures
+      await new Promise<void>((res) => setTimeout(res, 12_000)); await d.hooks?.pump?.();
+      const readOmar = JSON.stringify([
+        (await api(d, omar.token, "memory.facts.list", {})).data, (await api(d, omar.token, "memory.facts.list", { agentId: agent })).data,
+        (await api(d, omar.token, "memory.search", { query: "Acme budget ceiling Harbor walk-away price 80000 61000" })).data,
+      ]);
+      console.log(`OUT|OMAR-READS ${readOmar.length} chars, figures: ${/(80|61)[, ]?000/.test(readOmar)}`);
+      assert.doesNotMatch(readOmar, /(80|61)[, ]?000/, "after the pass, Omar's memory reads and search give nothing of the figures");
+      const mayaFacts = JSON.stringify((await api(d, maya.token, "memory.facts.list", {})).data);
+      console.log(`OUT|MAYA-READS own layer holds the figures: ${/(80|61)[, ]?000/.test(mayaFacts)}`);
+      assert.equal(leaks.length, 0, `a request made for Omar after the join carried a figure said before it: ${leaks[0]?.slice(0, 300)}`);
       assert.doesNotMatch(`${answerOmar} ${answer}`, /(80|61)[, ]?000/, "no answer carries a figure said before the join");
     }
   } finally { delete process.env["VYRE_ROOM_PACK"]; await d.stop(); }
