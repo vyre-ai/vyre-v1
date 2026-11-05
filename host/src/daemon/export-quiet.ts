@@ -4,3 +4,6 @@ export async function waitForQuiet(inFlight: () => number, o: { stepMs?: number;
   for (let i = 0; i < max && inFlight() !== 0; i++) await new Promise<void>((resolve) => setTimeout(resolve, step));
   return inFlight() === 0;
 }
+
+/** The export is the snapshot, not a write to it: it never counts itself among the saves it waits for (counted, it refused every time with "a save is still in progress"). */
+export const isExportItself = (cap: string): boolean => cap === "spaces.export";
