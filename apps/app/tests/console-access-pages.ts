@@ -1,6 +1,6 @@
-// Console Access pages (Groups, Roles, Policies, Reviews) in Chromium against the production export and a fresh claimed daemon: every flow is driven through the real UI and read back from the server. Screenshots (desktop and phone,
+// Console Access pages (Groups, Roles, Policies, Reviews), shared by the console.access-pages-*.live.test.ts files: each file runs its own parts so every file stays well under the 120 s cap. In Chromium against the production export and a fresh claimed daemon: every flow is driven through the real UI and read back from the server. Screenshots (desktop and phone,
 // light "paper" and "graphite" skins) go to VYRE_CONSOLE_ACCESS_SHOTS for review.
-import test from "node:test";
+import type { TestContext } from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,7 +13,8 @@ const KEYS = { personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk", publicKey: "cHVi
 const PASSWORD = "fixture password 123";
 const MATRIX = [["paper", "desktop", 1280, 900], ["graphite", "desktop", 1280, 900], ["paper", "phone", 390, 844], ["graphite", "phone", 390, 844]] as const;
 
-test("production Console Access pages: Groups, Roles, Policies and Access reviews", async (t) => {
+export type AccessPart = "groups" | "roles" | "policies" | "reviews";
+export async function runAccessPages(t: TestContext, parts: readonly AccessPart[]): Promise<void> {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) { if (process.env["VYRE_REQUIRE_CHROME"] === "1") assert.fail("VYRE_APP_DIST required"); t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
   const { chromium } = await import("playwright-core");
@@ -78,7 +79,7 @@ test("production Console Access pages: Groups, Roles, Policies and Access review
     const toPeople = async (p: Page): Promise<void> => { await goTo(p, "people"); await p.getByTestId("console-people").waitFor(); };
 
     // ---- Groups
-    await t.test("Groups: create, rename, add and remove members, change managers, roles, bulk delete", async () => {
+    if (parts.includes("groups")) await t.test("Groups: create, rename, add and remove members, change managers, roles, bulk delete", async () => {
       await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
       await goTo(page, "groups"); await page.getByTestId("console-groups").waitFor();
       await page.getByTestId("group-create-open").click(); await page.getByTestId("group-name").fill("Intake team"); await page.getByTestId("group-create").click();
@@ -107,9 +108,9 @@ test("production Console Access pages: Groups, Roles, Policies and Access review
       for (const id of [extra]) { await page.getByTestId("row-object-row-" + id).click({ button: "right" }); await page.getByRole("menuitem", { name: /^Select$/ }).click(); }
       await page.getByRole("button", { name: "Delete selected custom teams…" }).click(); await page.getByRole("button", { name: "Delete selected teams", exact: true }).click(); await eventually(async () => !((await api("access.groups.list", {})).groups as { id: string }[]).some((g) => g.id === extra), "the group was deleted");
     });
-    await guard.check("after Groups");
+    if (parts.includes("groups")) await guard.check("after Groups");
     // ---- Roles
-    await t.test("Roles: matrix, clone, stage and apply permissions, clearance, holders, delete", async () => {
+    if (parts.includes("roles")) await t.test("Roles: matrix, clone, stage and apply permissions, clearance, holders, delete", async () => {
       await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
       await goTo(page, "roles"); await page.getByTestId("permission-matrix").waitFor();
       await matrix("roles-matrix", async (p) => { await goTo(p, "roles"); await p.getByTestId("permission-matrix").waitFor(); });
@@ -150,9 +151,9 @@ test("production Console Access pages: Groups, Roles, Policies and Access review
       await page.getByTestId("object-more").click(); await page.getByRole("menuitem", { name: "Delete role", exact: true }).click(); await page.getByTestId("object-confirm-go").click();
       await eventually(async () => !((await api("access.roles.list", {})).roles as { id: string }[]).some((r) => r.id === cloned.id), "the role was deleted");
     });
-    await guard.check("after Roles");
+    if (parts.includes("roles")) await guard.check("after Roles");
     // ---- Policies
-    await t.test("Policies: filter, public links policy with review, honest sign-in prerequisites, linked controls, activity", async () => {
+    if (parts.includes("policies")) await t.test("Policies: filter, public links policy with review, honest sign-in prerequisites, linked controls, activity", async () => {
       await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
       await goTo(page, "policies"); await page.getByTestId("console-policies").waitFor();
       await page.getByTestId("object-list-filter").click(); await page.getByTestId("menu").getByText("People", { exact: true }).click();
@@ -180,9 +181,9 @@ test("production Console Access pages: Groups, Roles, Policies and Access review
       await page.getByTestId("console-domains").waitFor();
     });
 
-    await guard.check("after Policies");
+    if (parts.includes("policies")) await guard.check("after Policies");
     // ---- Access reviews
-    await t.test("Access reviews: start, decide grants, close, with review tasks", async () => {
+    if (parts.includes("reviews")) await t.test("Access reviews: start, decide grants, close, with review tasks", async () => {
       await page.goto(`${web.origin}/console`, { waitUntil: "load" }); await page.getByTestId("console").waitFor({ timeout: 30_000 });
       const folder = (await api("files.tree", {})).roots.find((r: { key: string }) => r.key === "projects").folderId as string;
       const guest = await join("gus", "Gus Hale", "Guest");
@@ -214,11 +215,11 @@ test("production Console Access pages: Groups, Roles, Policies and Access review
       await page.getByTestId("object-more").click(); await page.getByRole("menuitem", { name: "Close review", exact: true }).click(); await page.getByTestId("object-confirm-go").click();
       await eventually(async () => ((await api("access.reviews.get", { reviewId: id })).review as { state: string }).state === "closed", "the review closed");
     });
-    await guard.check("after Access reviews");
+    if (parts.includes("reviews")) await guard.check("after Access reviews");
     assert.deepEqual(errors, []);
   } catch (error) {
     await page.screenshot({ path: path.join(shots, "failure.png") }).catch(() => undefined);
     fs.writeFileSync(path.join(shots, "failure.txt"), `${String(error)}\n${await page.locator("body").innerText().catch(() => "")}`);
     throw error;
   } finally { await context.close(); await browser.close(); web.close(); await space.stop(); fs.rmSync(space.dir, { recursive: true, force: true }); }
-});
+}
