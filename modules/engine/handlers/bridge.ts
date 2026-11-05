@@ -204,8 +204,10 @@ export function createBridge(o: BridgeOptions): Bridge {
       // a picked model nothing can serve: the words name the model and what can run (model-fallback.ts noModelWords), a fixed sentence of Vyre's own
       const detail = e.code === "engine.model_unavailable" ? e.message : undefined;
       // how the engine process ended, when it says (an exit code or a signal): a number is no secret, and it is what a person reads out to get help
+      // the account whose sign-in is missing (its Vault handle, no secret), so the chat's button opens that account
+      const account = e.code === "engine.signin_missing" ? /\[account ([\w.-]{1,60})\]/.exec(e.message ?? "")?.[1] : undefined;
       const exit = e.code === "engine.cli_error" ? /(?:exited|exit(?:ed)? with|code) (?:code )?(-?\d{1,3})\b|signal (SIG[A-Z]+)/i.exec(e.message ?? "") : null;
-      return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(detail ? { detail } : {}), ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}), ...(exit ? { exit: exit[1] ?? exit[2] } : {}) } };
+      return { type: "turn_status", v: 1, data: { state: "failed", turnId: e.turnId, code: e.code, ...(detail ? { detail } : {}), ...(program ? { program } : {}), ...(setup ? { setup } : {}), ...(reason ? { reason } : {}), ...(exit ? { exit: exit[1] ?? exit[2] } : {}), ...(account ? { account } : {}) } };
     }
     return { type: "turn_status", v: 1, data: { state: "cancelled", turnId: e.turnId, ...(e.type === "turn.cancelled" && e.reason ? { reason: e.reason } : {}) } };
   };

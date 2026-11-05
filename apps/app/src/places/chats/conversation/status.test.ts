@@ -164,3 +164,8 @@ test("an engine failure never stands alone: a missing sign-in, an engine that ca
   assert.ok((bare.cause ?? "").length > 0, "no reason: still says what to do, and Details holds the code");
   assert.ok(!/^The engine stopped with an error before it replied\.$/.test(crash.message));
 });
+
+test("a missing sign-in's button names the account it opens", () => {
+  const v = statusView(block({ state: "failed", turnId: "t", code: "engine.signin_missing", account: "Claude_Code" })) as { block: { data: { next: Array<{ key: string; label: string }> } } };
+  assert.deepEqual(v.block.data.next, [{ key: "sign_in:Claude_Code", label: "Sign in again" }]);
+});

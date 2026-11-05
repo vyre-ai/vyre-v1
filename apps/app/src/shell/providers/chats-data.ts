@@ -174,6 +174,7 @@ export function conversationData(rt: ShellRuntime, a: ChatsActions, threadId: st
     openGoal: (goalId) => rt.open({ subject: { type: "goal", id: goalId } }),
     openUrl: (url) => rt.openUrl(url),
     openAiSetup: () => rt.open({ screen: "vault.layout", args: { addProvider: "true" } }),   // the same page the Needs you sign-in opens
+    openAiAccount: (ref: string) => rt.open({ screen: "settings.page", args: { page: "ai", account: ref } }),
     openSpaceAiKey: () => rt.open({ screen: "console.ai-models" }),
     ...(rt.unlockVault ? { unlockVault: () => askVaultUnlock(rt.unlockVault!) } : {}),
   };
