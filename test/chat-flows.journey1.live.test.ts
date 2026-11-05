@@ -24,7 +24,10 @@ test("journey 1, Team: Catch me up on open, Make a task from a message, Remember
     // Catch me up: one line on open, naming who wrote, with a way to jump and a way to dismiss
     await me.page.getByTestId("catch-up-line").waitFor({ timeout: 30_000 });
     assert.match(await me.page.getByTestId("catch-up-line").innerText(), /^maya wrote\./i);
-    await shoot(me.page, dir, "catch-up", { restore: async () => { await open(me, s, hash(dm)); } });
+    await shoot(me.page, dir, "catch-up", { only: "desktop" });   // no reopen here: opening the chat again reads it, and the line is gone
+    // Got it clears the line, and it does not come back
+    await me.page.getByTestId("catch-up-done").click();
+    assert.equal(await me.page.getByTestId("catch-up").count(), 0, "the line is gone");
 
     // Make a task: a person's message has no Make task on its bar (that is for an agent's answer); hover it, open More, press Make a Task; a card says where it went
     await me.page.getByTestId(`msg-${ask}`).hover();
@@ -47,10 +50,7 @@ test("journey 1, Team: Catch me up on open, Make a task from a message, Remember
     const facts = (await w.owner.ok("memory.facts.list", {})).facts as Array<{ text: string }>;
     assert.ok(facts.some((f) => /ship the letter on Friday/.test(f.text)), "the fact is in memory");
 
-    // Got it clears the line and the thread reads as read
-    await open(me, s, hash(dm));
-    await me.page.getByTestId("catch-up-done").click();
-    assert.equal(await me.page.getByTestId("catch-up").count(), 0, "the line is gone");
+    // the thread reads as read
     await open(me, s, hash(dm));
     await me.page.waitForTimeout(1200);
     assert.equal(await me.page.getByTestId("catch-up").count(), 0, "and does not come back");

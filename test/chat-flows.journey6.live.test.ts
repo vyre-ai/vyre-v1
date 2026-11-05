@@ -29,7 +29,11 @@ test("journey 6, Team on a tablet: a long press on an agent's answer opens the s
     await me.page.getByText(/Three invoices are paid, two are open\./).first().waitFor({ timeout: 40_000 });
     const reply = await until(async () => { const r = await w.owner.ok("chat.messages.list", { threadId: dm }); return (r.messages as Array<{ messageId: string; author?: { kind?: string }; body?: string }>).find((x) => x.author?.kind === "agent" && /Three invoices are paid, two are open\./.test(x.body ?? ""))?.messageId ?? null; }, "the answer is on the server");
     // a long press (touchstart, held past 450 ms, touchend) on the answer
-    const longPress = async (): Promise<void> => { const row = me.page.getByTestId(`msg-${reply}`); await row.dispatchEvent("touchstart"); await me.page.waitForTimeout(650); await row.dispatchEvent("touchend"); };
+    const touch = (type: "touchstart" | "touchend"): Promise<void> => me.page.getByTestId(`msg-${reply}`).evaluate((el, ty) => {
+      const r = el.getBoundingClientRect(); const t = new Touch({ identifier: 1, target: el, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 });
+      el.dispatchEvent(new TouchEvent(ty, { bubbles: true, cancelable: true, touches: ty === "touchend" ? [] : [t], targetTouches: ty === "touchend" ? [] : [t], changedTouches: [t] }));
+    }, type);
+    const longPress = async (): Promise<void> => { await touch("touchstart"); await me.page.waitForTimeout(650); await touch("touchend"); };
     await longPress();
     await me.page.getByText("Make a Task", { exact: true }).waitFor({ timeout: 10_000 });
     await me.page.getByText("Remember This", { exact: true }).waitFor({ timeout: 10_000 });
