@@ -14,6 +14,8 @@ export interface GithubSessionPort {
   log?(msg: string, attrs?: Record<string, unknown>): void;
 }
 
+/** What a session is told about GitHub, in plain words: it can read, it cannot push yet, and a pull request is opened with Vyre's GitHub tool. Carried in the environment as VYRE_GITHUB_NOTE. */
+export const GITHUB_SESSION_NOTE = "GitHub: this session can read your repositories. It cannot push from here yet, so ask the person to push, or open a pull request for a branch that is already on GitHub with Vyre's GitHub tool (github.pull_request.create). Do not retry a push that GitHub refuses.";
 const REMOTE = /^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/i;
 
 /** The GitHub repositories of the project a chat belongs to (the remotes of its Files folder), or none. */
@@ -40,7 +42,7 @@ export async function githubEnv(port: GithubSessionPort, person: string, threadI
   if (!token) return {};
   // whatever the process writes back is cleaned of this token, until the token ends (agent/src/drivers/cli/redact.ts)
   holdSecret(token, Number((got as { expiresAt?: number }).expiresAt ?? 0) + 5 * 60_000 || Date.now() + 65 * 60_000);
-  const out: Record<string, string> = { GH_TOKEN: token, GITHUB_TOKEN: token };
+  const out: Record<string, string> = { GH_TOKEN: token, GITHUB_TOKEN: token, VYRE_GITHUB_NOTE: GITHUB_SESSION_NOTE };
   const pairs = (got.gitConfig ?? []).map((l) => { const i = l.indexOf("="); return i > 0 ? [l.slice(0, i), l.slice(i + 1)] as const : null; }).filter((p): p is readonly [string, string] => p !== null);
   out["GIT_CONFIG_COUNT"] = String(pairs.length);
   pairs.forEach(([k, v], n) => { out[`GIT_CONFIG_KEY_${n}`] = k; out[`GIT_CONFIG_VALUE_${n}`] = v; });
