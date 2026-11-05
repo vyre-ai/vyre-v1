@@ -1,6 +1,6 @@
 // Citations in the parent's answer (owner, 4 Nov 2026, prototype p-crew): the agent marks which helper a claim came from with [1], [2] after it, numbered in the order the helpers' rows appear. Each mark is a small
 // chip: hovering shows who it was and what it found, pressing opens that helper's peek. A number with no helper behind it stays the plain text the agent wrote.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { lineOf, nameOf, roleOf } from "./model.ts";
@@ -19,8 +19,9 @@ export function citeBody(body: string, count: number): string {
   return body.split(/(```[\s\S]*?```|`[^`\n]*`)/g).map((part, i) => (i % 2 === 1 ? part : part.replace(MARK, (all, n: string) => (Number(n) <= count ? `[${n}](${CITE_HOST}${n})` : all)))).join("");
 }
 
-function Chip({ n, member, onOpen }: { n: number; member: CrewMember; onOpen: (m: CrewMember) => void }): ReactElement {
+function Chip({ n, member, onOpen, onCard }: { n: number; member: CrewMember; onOpen: (m: CrewMember) => void; onCard?: ((open: boolean) => void) | undefined }): ReactElement {
   const [over, setOver] = useState(false);
+  useEffect(() => { onCard?.(over); return () => { if (over) onCard?.(false); }; }, [over]);   // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <View style={{ position: "relative" } as object}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${nameOf(member)}: ${lineOf(member)}`} testID={`cite-${n}`} onPress={() => onOpen(member)} onHoverIn={() => setOver(true)} onHoverOut={() => setOver(false)} style={st.chip}>
@@ -36,15 +37,18 @@ function Chip({ n, member, onOpen }: { n: number; member: CrewMember; onOpen: (m
   );
 }
 
+/** While a citation card is open the message's hover toolbar is not drawn (it covered the card): the toolbar shows when `barShows` says so. */
+export const barShows = (hovered: boolean, cardOpen: boolean): boolean => hovered && !cardOpen;
+
 /** The link renderer for the cite hrefs, or none when there is nothing to cite. */
-export function citeRender(members: readonly CrewMember[], onOpen: (m: CrewMember) => void): ((href: string, kids: ReactNode, key: number) => ReactElement | null) | undefined {
+export function citeRender(members: readonly CrewMember[], onOpen: (m: CrewMember) => void, onCard?: (open: boolean) => void): ((href: string, kids: ReactNode, key: number) => ReactElement | null) | undefined {
   const list = citable(members);
   if (list.length === 0) return undefined;
   return (href, kids, key) => {
     if (!href.startsWith(CITE_HOST)) return null;
     const n = Number(href.slice(CITE_HOST.length));
     const m = list[n - 1];
-    return m ? <Chip key={key} n={n} member={m} onOpen={onOpen} /> : <>{kids}</>;
+    return m ? <Chip key={key} n={n} member={m} onOpen={onOpen} onCard={onCard} /> : <>{kids}</>;
   };
 }
 
