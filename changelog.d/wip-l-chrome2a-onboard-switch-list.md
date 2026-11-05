@@ -1,0 +1,1 @@
+- Onboarding, Connect your AI: after a switch the list and the preview show the new account and drop the replaced one at once (they kept showing both until you left the step).

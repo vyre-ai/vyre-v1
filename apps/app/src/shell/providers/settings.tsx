@@ -117,7 +117,7 @@ export default function SettingsShellPlace(_props: { place: string }): ReactElem
   const raw = target.screen === "mail.connections" ? "mail" : typeof target.args["page"] === "string" ? target.args["page"] : "";
   const asked = OLD_PAGES[raw] ?? raw;
   const page = PAGES.some((x) => x.key === asked) ? (asked as PageKey) : undefined;
-  const { page: _page, admin: askedAdmin, ...adminArgs } = target.args as Record<string, string>;
+  const { page: _page, admin: askedAdmin, account: askedAccount, ...adminArgs } = target.args as Record<string, string>;
   // may this person open the Console? One answer for every link (reach): console.nav, the read the Console itself makes
   const pages = useConsolePages(rt);
   const consoleAllowed = pages !== null && pages.size > 0;
@@ -129,7 +129,7 @@ export default function SettingsShellPlace(_props: { place: string }): ReactElem
   }, [rt, askedAdmin]);
   const data = useMemo(() => (rt ? settingsData(rt, (kind) => setSecurity(kind), signIn, consoleAllowed, pages?.has("company") === true) : null), [rt, signIn, consoleAllowed, pages]);
   if (!data) return <View style={s.page} testID="settings-loading" />;
-  return <SettingsDataProvider value={data}><SettingsPlace key={`${nonce}:${page ?? ""}:${askedAdmin ?? ""}`} {...(addServerAsked() ? { initialPage: "computer" as const } : page ? { initialPage: page } : {})} />{security === "link" ? <LinkSheet spaces={linkSpaces(rt!)} device={deviceFor(isDesktopWindow() ? "desktop" : "web")} onSession={(id, token, username) => storeLinkedSession(id, token, username, rt!.space.id)} onClose={() => setSecurity(null)} /> : security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} spaceName={rt!.space.name} others={otherSpaces(rt!)} /> : null}</SettingsDataProvider>;
+  return <SettingsDataProvider value={data}><SettingsPlace key={`${nonce}:${page ?? ""}:${askedAdmin ?? ""}:${askedAccount ?? ""}`} {...(askedAccount ? { initialAccount: askedAccount } : {})} {...(addServerAsked() ? { initialPage: "computer" as const } : page ? { initialPage: page } : {})} />{security === "link" ? <LinkSheet spaces={linkSpaces(rt!)} device={deviceFor(isDesktopWindow() ? "desktop" : "web")} onSession={(id, token, username) => storeLinkedSession(id, token, username, rt!.space.id)} onClose={() => setSecurity(null)} /> : security ? <SecuritySheet key={security} action={security} call={rt!.call} onClose={() => setSecurity(null)} spaceName={rt!.space.name} others={otherSpaces(rt!)} /> : null}</SettingsDataProvider>;
 }
 
 const s = StyleSheet.create({ page: { flex: 1, backgroundColor: "var(--win)" as string } });

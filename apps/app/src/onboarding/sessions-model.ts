@@ -57,9 +57,28 @@ export function selectState(keys: readonly string[], picked: ReadonlySet<string>
   return n === 0 ? "none" : n === keys.length ? "all" : "some";
 }
 
-/** What the card and the summary say once sessions are imported: they are in Chats. */
-export function importedNote(count: number): string {
-  return count === 1 ? "Imported 1. It is in Chats." : `Imported ${count}. They are in Chats.`;
+/** What the card and the summary say once sessions are imported: they are in Chats. `empty` is how many ticked sessions held no readable messages (only tool calls, setup text or nothing) and were left out. */
+export function importedNote(count: number, empty = 0): string {
+  const head = count === 1 ? "Imported 1. It is in Chats." : `Imported ${count}. They are in Chats.`;
+  return empty > 0 ? `${head} ${empty === 1 ? "1 session had nothing to read and was left out." : `${empty} sessions had nothing to read and were left out.`}` : head;
+}
+
+/** What one run of Import did: how many went in, how many held nothing readable, and the sessions that failed with the reason in plain words. */
+export interface ImportTally { imported: number; empty: number; failed: Array<{ key: string; name: string; why: string }> }
+
+/** One plain line for a run that did not fully go through, or "" when nothing is left to say. It names the first reason and how many failed; Retry (the same button) tries only those. */
+export function failureLine(t: ImportTally): string {
+  if (t.failed.length === 0) return "";
+  const first = t.failed[0]!;
+  const lead = t.imported > 0 ? `Imported ${t.imported}. ` : "";
+  return t.failed.length === 1 ? `${lead}${first.name} could not be imported: ${first.why}` : `${lead}${t.failed.length} sessions could not be imported. ${first.name}: ${first.why}`;
+}
+
+/** The reason an error gives, in its own words when they are words a person can read (the server's refusals are), else a plain fallback. */
+export function whyWords(e: unknown): string {
+  const m = e instanceof Error ? e.message : typeof (e as { message?: unknown })?.message === "string" ? String((e as { message: string }).message) : "";
+  const text = m.replace(/\s+/g, " ").trim();
+  return text !== "" && text.length <= 200 && !(e instanceof TypeError || e instanceof ReferenceError || e instanceof SyntaxError) && !text.startsWith("[object") && !text.includes("    at ") ? text : "That did not work.";
 }
 
 let lastImported = 0;

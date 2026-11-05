@@ -240,23 +240,24 @@ export function OnboardingScreen(p: OnboardingScreenProps): ReactElement {
   const isDone = def ? stateOn(p.progress, def, device) === "done" : false;
   const [saving, setSaving] = useState(false);
   const canNext = isDone || (armed && !saving);
+  const advance = (): void => { if (isLast) { setEnded(true); return; } open(steps[at + 1]!.key); };
+  // Continue does the card's own action first when it has one (Import 3, Save), also on a step that is done and was reopened to change something; then it moves on
   const next = (): void => {
-    if (!def) return;
-    if (!isDone) {
-      const save = gateRef.current;
-      if (!save || saving) return;
+    if (!def || saving) return;
+    const save = gateRef.current;
+    if (save) {
       setSaving(true);
-      void save().then((ok) => { setSaving(false); if (ok && ctx) ctx.done(); }, () => setSaving(false));
+      void save().then((ok) => { setSaving(false); if (!ok) return; if (isDone) advance(); else if (ctx) ctx.done(); }, () => setSaving(false));
       return;
     }
-    if (isLast) { setEnded(true); return; }
-    open(steps[at + 1]!.key);
+    if (!isDone) return;
+    advance();
   };
   // Skip for now marks the step skipped and moves on; a done step has no Skip, Continue moves on
   const skip = (): void => { if (!def || !ctx || isDone) return; ctx.later(); };
   // Back opens the step before, whatever its state; nothing is marked
   const back = at > 0 ? (): void => open(steps[at - 1]!.key) : null;
-  const nextLabel = !isDone && gateLabel ? gateLabel : isLast ? "Done" : "Continue";
+  const nextLabel = gateLabel ?? (isLast ? "Done" : "Continue");
   // a Continue that waits says why, just above it (and to a screen reader); a phone has the hint only
   const why = !canNext && !saving && def ? waitFor(def.card) : "";
   const ask = def ? askFor(def.card) : null;

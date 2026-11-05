@@ -4,6 +4,13 @@ import type { CapCall } from "../shell/session/caps.ts";
 import type { CardKind } from "./flow.ts";
 import { folderPathOf, tildePath } from "./folders-model.ts";
 
+// A card that changes what a preview reads without moving the step's progress (a switch of AI account: the new one is in, the old one is out) pings this, and the pane reads again.
+let version = 0;
+const listeners = new Set<() => void>();
+export const previewVersion = (): number => version;
+export const watchPreview = (fn: () => void): (() => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; };
+export const refreshPreview = (): void => { version += 1; for (const fn of [...listeners]) fn(); };
+
 export interface PreviewItem { id: string; label: string; note?: string }
 export interface Preview { heading: string; items: PreviewItem[]; /** shown when there are no items; empty hides the preview until there is something to show */ hint: string }
 

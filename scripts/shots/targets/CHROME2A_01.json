@@ -148,6 +148,20 @@
       "proto": "inbox,{skin}",
       "waitFor": "[data-testid^='draft:']",
       "note": "An agent's text draft in the same card: no subject."
+    },
+    {
+      "id": "CHROME2A_01-ai-flagged",
+      "route": "/m/CHROME2A_01?part=ai-flagged",
+      "proto": "settings,{skin}",
+      "waitFor": "[data-testid^='account-sign-in-again-']",
+      "note": "Settings > Your AI with one account flagged: its row offers Sign in again."
+    },
+    {
+      "id": "CHROME2A_01-ai-signin",
+      "route": "/m/CHROME2A_01?part=ai-signin",
+      "proto": "settings,{skin}",
+      "waitFor": "[data-testid='account-sign-in']",
+      "note": "Opened on that account by a link (a failed turn's Sign in again): the account is marked and its sign-in starts under it."
     }
   ]
 }

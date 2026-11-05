@@ -8,7 +8,9 @@ import { find, flush, installDom, press, textOf } from "./test-dom.ts";
 import { SessionsCard } from "./SessionsCard.tsx";
 import { OnboardingScreen } from "./OnboardingScreen.tsx";
 import type { CapCall } from "../shell/session/caps.ts";
+import { draftClear } from "./drafts.ts";
 
+test.beforeEach(() => draftClear());
 const HOUR = 3_600_000;
 // The clock reads midday today, so "2 hours ago" never crosses midnight into "Yesterday" whenever the suite runs.
 const realNow = Date.now;
@@ -22,6 +24,7 @@ const found = () => [
 ];
 
 async function open() {
+  draftClear();   // a card reopened keeps its ticks (drafts.ts); each test starts from a first visit
   installDom();
   (globalThis as { __TAURI__?: unknown }).__TAURI__ = { core: { invoke: async (cmd: string) => (cmd === "discover_session_sources" ? found().reverse() : {}) } };
   const call = (async () => ({})) as unknown as CapCall;
@@ -183,4 +186,39 @@ test("with no sessions on this computer the card says so and Continue moves on",
   await press(find(root, "step-next"));
   await flush();
   assert.deepEqual(steps, ["sessions:done"]);
+});
+
+test("a failed session does not stop the rest: empty ones are left out, a refused one is named with its reason, the button reads Retry, and Retry imports only that one", async () => {
+  installDom();
+  const sources = found();
+  const reads: Record<string, number> = {};
+  const docs: Record<string, string> = {
+    "claude:a1": JSON.stringify({ type: "user", uuid: "u", timestamp: "2026-11-04T10:00:00Z", message: { role: "user", content: "Fix the login bug" } }),
+    "codex:b2": JSON.stringify({ type: "session_meta", payload: { id: "b2" } }),   // nothing readable when it is imported
+    "claude:c3": JSON.stringify({ type: "user", uuid: "w", timestamp: "2026-11-04T10:00:00Z", message: { role: "user", content: "Older note" } }),
+  };
+  (globalThis as { __TAURI__?: unknown }).__TAURI__ = { core: { invoke: async (cmd: string, args?: { sessionKey?: string }) => (cmd === "discover_session_sources" ? sources : { source: sources.find((x) => x.sessionKey === args?.sessionKey), documents: [{ namespace: "main", text: reads[args!.sessionKey!] = (reads[args!.sessionKey!] ?? 0) + 1, ...{} && "", ...{} }].map((d) => ({ namespace: d.namespace, text: args!.sessionKey === "codex:b2" && reads["codex:b2"]! <= 1 ? JSON.stringify({ type: "response_item", payload: { type: "message", id: "m", role: "user", content: [{ type: "input_text", text: "Looked fine until now" }] } }) : docs[args!.sessionKey!] })) }) } };
+  const imports: string[] = [];
+  let refuse = true;
+  const call = (async (cap: string, input: { sourceKey: string }) => {
+    if (cap !== "sessions.import") return {};
+    if (input.sourceKey === "claude:c3" && refuse) throw new Error("Open your Personal Space to import or read local history.");
+    imports.push(input.sourceKey);
+    return {};
+  }) as unknown as CapCall;
+  const r = createRoot();
+  await act(async () => { r.render(<SessionsCard call={call} onDone={() => undefined} />); });
+  await flush();
+  const root = r.container as never;
+  await press(find(root, "sessions-all"));
+  await press(find(root, "sessions-import")); await flush(); await flush();
+  assert.deepEqual(imports, ["claude:a1"], "the readable one went in; the empty one was left out; the refused one did not stop anything");
+  const err = textOf(find(root, "sessions-error"));
+  assert.ok(err.includes("Imported 1.") && err.includes("Older note could not be imported: Open your Personal Space"), err);
+  assert.ok(textOf(find(root, "sessions-import")).includes("Retry 1"), "only the failed one is ticked, and the button says Retry");
+  refuse = false;
+  await press(find(root, "sessions-import")); await flush(); await flush();
+  assert.deepEqual(imports, ["claude:a1", "claude:c3"], "Retry imports only the failed session");
+  const done = textOf(find(root, "sessions-imported"));
+  assert.ok(done.includes("Imported 2.") && done.includes("1 session had nothing to read and was left out."), done);
 });
