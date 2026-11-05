@@ -6,6 +6,7 @@ import { act } from "react";
 import { press, find, flush, typeInto } from "../../../onboarding/test-dom.ts";
 import type { Node } from "../../../onboarding/test-dom.ts";
 import { drawn, fireUp, rowIds } from "../sidebar/chats-open.support.tsx";
+import { northwind } from "../sidebar/sample.ts";
 
 const rightClick = (root: Node, rowId: string): Promise<void> => fireUp(root, rowId, "onContextMenu", { preventDefault() {}, clientX: 10, clientY: 10, nativeEvent: {} });
 const itemIds = (root: Node): string[] => itemIdsAll(root).filter((x) => x !== "report");
@@ -22,7 +23,9 @@ test("an agent row: right-click gives the agent menu (not the chat menu), admin 
   const ids = itemIds(root);
   assert.ok(ids.some((x) => x.startsWith("Message ")), ids.join("|"));
   assert.ok(!ids.includes("Mark as Unread") && !ids.includes("Archive"), "it is not the chat menu");
-  assert.ok(ids.includes("Pause") && ids.includes("Mute") && ids.includes("Remove Star"), ids.join("|"));
+  const starredNow = northwind.agents.find((a) => a.agentId === agentId)?.starred === true;
+  // the star item says what the star is now (it said Remove Star for every agent before, lane l-polish L7)
+  assert.ok(ids.includes("Pause") && ids.includes("Mute") && ids.includes(starredNow ? "Remove Star" : "Star"), ids.join("|"));
   assert.equal(ids.at(-1), "Delete Agent…", "danger last");
   await press(find(root, "menu-item-Pause"));
   await flush();
@@ -179,4 +182,25 @@ test("a goal row: right-click gives the goal menu for its owner; Pause calls goa
   await press(find(root, "menu-item-Pause")); await flush();
   assert.deepEqual(caps(s, "goals.pause"), [{ goalId: "gol_a" }]);
   assert.deepEqual(s.rejected, []);
+});
+
+test("an agent row's star item follows the star: Remove Star on a starred agent, Star once it is unstarred, and back (lane l-polish L7)", async () => {
+  const { s, root } = await drawn(createRoot, { open: null });
+  const face = rowIds(root, "row-f:").find((i) => i !== "row-f:agt_assistant")!;
+  const agentId = face.slice("row-f:".length);
+  const was = northwind.agents.find((a) => a.agentId === agentId)?.starred === true;
+  const on = was ? "Remove Star" : "Star", off = was ? "Star" : "Remove Star";
+  await rightClick(root, face); await flush(); await rightClick(root, face);
+  assert.ok(find(root, `menu-item-${on}`) && !find(root, `menu-item-${off}`), itemIds(root).join("|"));
+  await press(find(root, `menu-item-${on}`));
+  await flush();
+  assert.deepEqual(caps(s, "stars.toggle").at(-1), { resource: { type: "agent", id: agentId }, on: !was });
+  await rightClick(root, face);
+  assert.ok(find(root, `menu-item-${off}`) && !find(root, `menu-item-${on}`), "the next menu says what was just done");
+  await press(find(root, `menu-item-${off}`));
+  await flush();
+  assert.deepEqual(caps(s, "stars.toggle").at(-1), { resource: { type: "agent", id: agentId }, on: was });
+  // and the Assistant, never starred in this Space, says Star (it said Remove Star before)
+  await rightClick(root, "row-f:agt_assistant"); await flush(); await rightClick(root, "row-f:agt_assistant");
+  if (!northwind.agents.find((a) => a.agentId === "agt_assistant")?.starred) assert.ok(find(root, "menu-item-Star"), itemIds(root).join("|"));
 });

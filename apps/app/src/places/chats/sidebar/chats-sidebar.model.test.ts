@@ -138,3 +138,25 @@ test("new replies to messages you follow ride on the chat's own row: its count, 
   assert.equal(rowOf({ ...(item as object), repliesUnread: undefined } as never, () => "Mira").repliesUnread, undefined);
   assert.deepEqual(FILTERS.map((f) => f.label), ["All", "Unread", "Needs you", "Running", "Asks"]);
 });
+
+test("a people-only group chat is in Recent; only a one-to-one direct message lives under People (lane l-polish L9)", () => {
+  const r: RecentOut = {
+    starred: [], yesterday: [], earlier: [], nextUnread: null,
+    today: [
+      item("dm", "", { people: ["usr_maya"] } as never),
+      item("grp", "Offsite planning", { people: ["usr_maya", "usr_dev", "usr_tom"], unread: 1 } as never),
+      item("ag", "Pricing", { agents: ["a1"] }),
+      item("old", "Omar Haddad"),
+    ],
+  };
+  const groups = groupRecent(r, [], name, (id) => id.slice(4));
+  const rows = Object.fromEntries(groups.flatMap((g) => g.rows).map((x) => [x.threadId, x]));
+  assert.equal(rows["dm"]!.direct, true, "exactly one other person and no agent: a direct message");
+  assert.equal(rows["grp"]!.direct, undefined, "three other people: a group chat");
+  assert.equal(rows["ag"]!.direct, undefined);
+  assert.equal(rows["old"]!.direct, true, "an older server that names nobody keeps its no-agent chats out of Recent, as before");
+  const recentKeys = (e: ReturnType<typeof buildEntries>): string[] => e.slice(e.findIndex((x) => x.key === "h:recent") + 1).filter((x) => x.type === "chat").map((x) => x.key);
+  const e = buildEntries({ ...base, groups, moreRecent: true });
+  assert.deepEqual(recentKeys(e), ["c:grp", "c:ag"], "the group chat shows, the direct messages do not");
+  assert.ok(matchesFilter(rows["grp"]!, "unread"), "and the Unread filter keeps it");
+});

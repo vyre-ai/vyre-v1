@@ -39,6 +39,19 @@ async function asked(hn: ReturnType<typeof harness>, body = "tell Maya the River
 }
 const msgs = (hn: ReturnType<typeof harness>, thread: string) => hn.rows("SELECT id, author, kind, body, blocks FROM chat_message WHERE thread = ? ORDER BY threadSeq", thread).map((r) => ({ ...r, blocks: JSON.parse(String(r["blocks"])) as Array<{ type: string; data: Record<string, unknown> }> }));
 
+test("an older chat of Dana and Maya with an agent in it is not the direct chat: the message makes the real one (lane l-polish L0)", async () => {
+  const { hn } = world();
+  const group = (await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [INTAKE], idempotencyKey: key() })).thread.threadId as string;
+  await h["threads.members.add"]!(hn.ctx, { threadId: group, personId: MAYA });
+  const { agent } = await asked(hn);
+  const out = await h["chat.message_person"]!(agent, { to: MAYA, body: "The Rivera draft is ready for you.", idempotencyKey: key() });
+  assert.notEqual(out.threadId, group, "never into the group chat");
+  const members = hn.rows("SELECT principal FROM chat_thread_member WHERE thread = ?", out.threadId).map((r) => r["principal"]).sort();
+  assert.deepEqual(members, [DANA, MAYA].sort());
+  assert.equal(hn.rows("SELECT 1 FROM chat_thread_agent WHERE thread = ? AND deleted_at IS NULL", out.threadId).length, 0);
+  assert.equal((await h["chat.start"]!(hn.ctx, { kind: "chat", agentIds: [], personId: MAYA, idempotencyKey: key() })).thread.threadId, out.threadId, "chat.start finds the same direct chat");
+});
+
 test("asked this turn: the message goes now, in Dana's own direct chat with Maya, written by the agent and signed for Dana; Maya is told", async () => {
   const { hn } = world();
   const { origin, agent } = await asked(hn);

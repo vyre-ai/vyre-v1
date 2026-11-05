@@ -1,0 +1,4 @@
+- Pressing a person in the Chats sidebar opens your direct message with them. Before, it could open an older chat of the two of you that had agents in it ("Billing review" instead of Dev). A direct message is now exactly two people and no agent, everywhere the server looks one up, and twenty shared group chats can no longer hide it.
+- A chat of two people with an agent in it still tells the other person about each message, as before.
+- A group chat of people with no agent ("Offsite planning") shows in Recent. Before, it showed nowhere in the sidebar.
+- The star item in an agent's menu says Star or Remove Star to match the agent. Before, it always said Remove Star.
