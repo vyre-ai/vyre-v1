@@ -123,7 +123,7 @@ test("walk: connect, reach, a refused repository, Ask me first, the policy and a
     assert.equal(env["GIT_CONFIG_COUNT"], "2");
     const mint = g.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!;
     assert.deepEqual(mint.body, { repositories: ["website"], permissions: { contents: "write", pull_requests: "write", issues: "write", checks: "read", metadata: "read" } }, "the session gets what the defaults allow: read, push branches, open pull requests and comment; merge and push to main ask");
-    me.policySet(g.ctx, { policy: { read: "ask" } });
+    me.policySet(g.ctx, { policy: { read: "ask", push_branch: "ask", open_pr: "ask", comment: "ask" } });
     assert.deepEqual(await githubEnv(port, PERSON, "thr_1"), {}, "when reading asks first, a session gets no token");
     assert.deepEqual(me.meUsage(g.ctx).uses.map((x) => x.consumer).sort(), ["crew", "session.engine"]);
 

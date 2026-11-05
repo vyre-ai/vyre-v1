@@ -194,8 +194,8 @@ test("session: Claude Code, Codex and Grok get GH_TOKEN as a handle and a creden
   assert.equal(s.env["GH_TOKEN"], s.env["GITHUB_TOKEN"]);
   assert.match(s.gitConfig.join("\n"), /password=\$GH_TOKEN/);
   const mint = w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!;
-  assert.deepEqual(mint.body, { repositories: ["website", "docs"], permissions: { contents: "read", pull_requests: "read", issues: "read", checks: "read", metadata: "read" } }, "only read: everything else asks");
-  policySet(w.h.ctx, { policy: { read: "ask" } });
+  assert.deepEqual(mint.body, { repositories: ["website", "docs"], permissions: { contents: "write", pull_requests: "write", issues: "write", checks: "read", metadata: "read" } }, "what the defaults allow: merge and push to main ask");
+  policySet(w.h.ctx, { policy: { read: "ask", push_branch: "ask", open_pr: "ask", comment: "ask" } });
   await refused(sessionEnv(agent, { repos: ["vyre-ai/website"], consumer: "session.codex" }), "validation.precondition_failed");
   await refused(sessionEnv(w.as({ principal: { kind: "agent", id: "agt_scout" } }), { repos: ["vyre-ai/website"], consumer: "session.grok" }), "permission.no_grant");
 });
