@@ -822,3 +822,15 @@ test("restore puts the old data back when the server is not healthy on the resto
     assert.deepEqual(fs.readdirSync(path.join(dir, "data")).sort(), ["caddy", "space"]);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("compose.server.yml: vyred may make the namespaces bubblewrap needs, and the agent image variable is the one the updater writes", () => {
+  const yml = read(path.join(HERE, "../../../images/vyred/compose.server.yml"));
+  const vyred = /^  vyred:\n([\s\S]*?)^  sites-runner:/m.exec(yml)?.[1] ?? "";
+  for (const opt of ["no-new-privileges:true", "seccomp=unconfined", "apparmor=unconfined", "systempaths=unconfined"]) {
+    assert.match(vyred, new RegExp(`security_opt:[\\s\\S]*- ${opt}`), `vyred has ${opt}`);
+  }
+  const reads = /\$\{(VYRE_AGENT_COMPUTER_IMAGE)(?::-[^}]*)?\}/.exec(vyred)?.[1];
+  assert.equal(reads, "VYRE_AGENT_COMPUTER_IMAGE", "compose reads VYRE_AGENT_COMPUTER_IMAGE");
+  assert.match(read(path.join(HERE, "vyre-server")), /printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\\n'/, "the updater writes the variable compose reads");
+  assert.match(read(path.join(HERE, "install.sh")), /VYRE_AGENT_COMPUTER_IMAGE/, "the installer writes it too");
+});

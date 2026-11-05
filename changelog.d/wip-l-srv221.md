@@ -1,0 +1,3 @@
+- fix(server): vyred in compose.server.yml may make user namespaces and mounts (seccomp, AppArmor and systempaths unconfined), so the engine sandbox runs on a Space server
+- fix(release): a version bump also covers the desktop app (package.json, Cargo.toml, tauri.conf.json, Cargo.lock) and the lockfile roots, and versionProblems reports a mismatch
+- test(install): the agent image variable compose reads is the one the updater and installer write
