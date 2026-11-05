@@ -25,7 +25,7 @@ Always allow: a rule the Gate reads, for one agent or one chat, one act and one 
 
 ```ts
 type In = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
   target: string;
   agentId?: string;
   threadId?: string;
@@ -41,7 +41,7 @@ type Out = {
   rule: {
     id: string;
     kind: "standing" | "always" | "goal";
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval";
     target: string;
     agentId?: string;
     threadId?: string;

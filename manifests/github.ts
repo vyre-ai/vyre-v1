@@ -138,7 +138,7 @@ const capabilities = [
     in: { policy: t.obj({ read: t.opt(meMode), push_branch: t.opt(meMode), open_pr: t.opt(meMode), comment: t.opt(meMode), merge: t.opt(meMode), push_default: t.opt(meMode) }) }, out: { policy: mePolicy }, level: 'use', audit: 'always', idem: 'natural',
   }),
   outward('github.me.approve', 'Ask me before something uses my GitHub for this repository and kind of use (the Gate holds it; once I approve, it is good for ten minutes)', {
-    in: { repo, action: meAction, consumer: t.str() }, out: { approved: t.bool() }, gate: 'post',
+    in: { repo, action: meAction, consumer: t.str() }, out: { approved: t.bool() }, gate: 'github_approval',
   }),
   write('github.token', 'The one way to get a GitHub token: for a person (the caller, or an agent on that person\'s own turn), one repository and one kind of use; short-lived, narrowed to that, returned as a filler handle and never the token. Follows the person\'s Always, Ask me first or Never', {
     in: { person: t.opt(t.str()), repo, action: meAction, consumer: t.str({ pattern: '^[a-z][a-z0-9_.:-]{1,60}$', examples: ['crew', 'agent.github', 'linked.prs'] }) },

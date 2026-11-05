@@ -14886,7 +14886,7 @@ const routes2: Route[] = [
     "risk": "high",
     "offline": null,
     "teamOnly": false,
-    "gate": "post"
+    "gate": "github_approval"
   },
   {
     "method": "POST",

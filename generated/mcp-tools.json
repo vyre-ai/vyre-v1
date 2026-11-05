@@ -23415,7 +23415,8 @@
               "spend_raise",
               "signin_change",
               "install",
-              "approve"
+              "approve",
+              "github_approval"
             ],
             "type": "string"
           },
@@ -23508,7 +23509,8 @@
               "spend_raise",
               "signin_change",
               "install",
-              "approve"
+              "approve",
+              "github_approval"
             ],
             "type": "string"
           },
@@ -23602,7 +23604,8 @@
               "spend_raise",
               "signin_change",
               "install",
-              "approve"
+              "approve",
+              "github_approval"
             ],
             "type": "string"
           },

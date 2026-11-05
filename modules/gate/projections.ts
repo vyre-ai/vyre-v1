@@ -40,6 +40,7 @@ export const ACTS: readonly ActDef[] = [
   act("spend_raise", "Raise a spend cap", "medium", "table", "role:admin"),
   act("signin_change", "Change how people sign in to the Space", "high", "record_card", "role:admin", { alwaysStops: true }),
   act("approve", "Allow this step", "medium", "doc_excerpt", "asker"),
+  act("github_approval", "Let a session use my GitHub", "high", "table", "asker", { alwaysStops: true }),
 ];
 export const actOf = (k: string): ActDef => ACTS.find((a) => a.key === k) ?? ACTS[0]!;
 

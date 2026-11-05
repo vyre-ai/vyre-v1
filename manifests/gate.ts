@@ -6,7 +6,7 @@
 import { defineManifest, ev, gateAct, read, screen, setting, t, write } from '../packages/contracts/src/index.ts';
 import { id, pageIn, pageOut, principalRef, risk } from './_common.ts';
 
-const actKey = t.enm('send', 'post', 'pay', 'delete', 'transfer', 'enroll_node', 'connection_change', 'push_protected', 'secret_export', 'site_promote', 'signature_send', 'spend_raise', 'signin_change', 'install', 'approve');
+const actKey = t.enm('send', 'post', 'pay', 'delete', 'transfer', 'enroll_node', 'connection_change', 'push_protected', 'secret_export', 'site_promote', 'signature_send', 'spend_raise', 'signin_change', 'install', 'approve', 'github_approval');
 const holdState = t.enm('held', 'approved', 'denied', 'expired');
 const approverRule = t.str({ description: "role:<name>, owner or asker", examples: ['role:admin'] });
 const ruleRow = t.obj({
@@ -44,6 +44,8 @@ export default defineManifest({
     gateAct('signature_send', 'Send a document for signature', 'high', 'file'),
     gateAct('spend_raise', 'Raise a spend cap', 'medium', 'table'),
     gateAct('signin_change', 'Change how people sign in to the Space', 'high', 'record_card', { approvers: { default: 'asker', peopleOnly: true } }),
+    // A session's use of the person's own GitHub (a push to the default branch, a merge, a delete of it): only the person it acts for lifts it, once. No Space rule, Always allow, goal or turn can.
+    gateAct('github_approval', 'Let a session use my GitHub', 'high', 'table', { approvers: { default: 'asker', peopleOnly: true } }),
     // Ask mode in a chat: the agent stops before any step that changes something and the person it works for allows it, whatever the step is.
     gateAct('approve', 'Allow this step', 'medium', 'doc_excerpt', { approvers: { default: 'asker', peopleOnly: true } }),
   ],

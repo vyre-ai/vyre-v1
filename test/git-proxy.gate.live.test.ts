@@ -138,6 +138,7 @@ test("a real git push to main on a booted daemon: held, approved, landed; then a
     void push1.then((r) => { early = r; });
     const hold1 = await waitFor(d, async () => { if (early) throw new Error(`the push ended before it was held: ${JSON.stringify(early)}`); return (await holds("held"))[0] ?? null; }, 20_000);
     assert.equal(hold1.capName, "github.me.approve");
+    assert.equal(hold1.act, "github_approval", "its own act, not post");
     assert.deepEqual([hold1.principal, hold1.actingFor], [{ kind: "agent", id: assistant.agentId }, me], "asked by the session's agent, for the person");
     await new Promise((r) => setTimeout(r, 600));
     assert.equal(gh.ref(REPO, "refs/heads/main"), mainBefore, "not landed while it waits");
@@ -154,6 +155,12 @@ test("a real git push to main on a booted daemon: held, approved, landed; then a
     assert.ok(approved, "the Gate's approval is on the log, and it is what woke the push");
     assert.ok((await d.log!.read({ type: "gate.*", limit: 500 })).length > after1);
     assert.equal(landed(), 2);
+
+    // ---- the Space lets agents post, and the person has an Always allow for posting for this agent: a push to main is still held, because GitHub approval is its own act that only the person lifts
+    assert.equal((await call(d, token, "gate.rules.set", { act: "post", scope: "space", mode: "allow", agentOkFor: "high" })).status, 200);
+    assert.equal((await call(d, token, "gate.allow.set", { act: "post", target: "*", agentId: assistant.agentId, days: 30 })).status < 500, true);
+    const refusedRule = await call(d, token, "gate.rules.set", { act: "github_approval", scope: "space", mode: "allow" });
+    assert.notEqual(refusedRule.status, 200, "no rule can let a GitHub approval through");
 
     // ---- run 2: the next push to main asks again, the person says no, nothing is written
     const secondSha = await commit("b.txt");

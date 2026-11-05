@@ -11,7 +11,7 @@ Ask me before something uses my GitHub for this repository and kind of use (the 
 | Grant level | use |
 | Risk | high |
 | Resource | space |
-| Gate | post |
+| Gate | github_approval |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

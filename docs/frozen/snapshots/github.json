@@ -15,7 +15,7 @@
     "github.issue.create@1": "3c568f489a84ea0e0160f12bcf056e4ce7633fd28f71fa2585b3c4782a1e0176",
     "github.issue.get@1": "ee739ef28f38de95cd026acaabc02fefa7690facb3b21c3cd6469f5a7cf7dc5d",
     "github.issue.update@1": "5ae0a7f73c78dec06ae08fb61309997af7de5d1694c0dca6ca3a844d946b33cf",
-    "github.me.approve@1": "f93a5f3a8a4882292bf959651837aef347de1bc8d7d16cd5db9a0c80bed7187d",
+    "github.me.approve@1": "a03218bd19a46de28feda92728ece6dc3aaf46c625435f65b16b1da06c6f2c0c",
     "github.me.complete@1": "c16f3cc77368e9b00ca218b1d2078b02ed92c039931b706a082733975484f34c",
     "github.me.connect@1": "571203fc969a04cdb620400167cc4955305da73d219b61d260dadea1c724c782",
     "github.me.disconnect@1": "3a503d663090184bc41ec4b4b8444f635731f209d634bcb75b992a4957726f27",

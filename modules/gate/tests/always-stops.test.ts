@@ -7,7 +7,7 @@ import { effectiveRule, ACTS } from "../impl.ts";
 import { putRule } from "../projections.ts";
 
 const owner = { id: "usr_owner", kind: "person" as const };
-const ACT_KEYS = ["connection_change", "signin_change"] as const;
+const ACT_KEYS = ["connection_change", "github_approval", "signin_change"] as const;
 
 for (const act of ACT_KEYS) {
   test(`${act} holds for an agent, a service and a Run that runs as a person, with a person of the right role to decide`, () => {
@@ -17,7 +17,7 @@ for (const act of ACT_KEYS) {
       assert.equal(e.hold, true, who.id);
       assert.equal(e.adminRule, true, "nothing a turn asked or an Always allow holds lifts it");
       assert.equal(e.peopleOnly, true);
-      assert.equal(e.approvers, "role:admin");
+      assert.equal(e.approvers, act === "github_approval" ? "asker" : "role:admin", "GitHub is the asker's own: the person the session acts for decides, not an admin");
     }
   });
 
@@ -39,7 +39,7 @@ for (const act of ACT_KEYS) {
   });
 }
 
-test("the two acts are the only ones marked this way, and the rest keep their rule", () => {
+test("the acts marked this way are the only ones, and the rest keep their rule", () => {
   assert.deepEqual(ACTS.filter((a) => a.alwaysStops).map((a) => a.key).sort(), [...ACT_KEYS].sort());
   assert.equal(effectiveRule(harness().db, alice, "send").hold, false, "a person's own send still goes");
 });
