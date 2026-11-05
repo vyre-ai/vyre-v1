@@ -159,7 +159,7 @@ export function CrewPeek({ member, call, nameOfId, onBack, onOpenChat, onRefresh
         const detail = new Map(blocks.filter((b) => b.type === "tool_input").map((b) => [String(dat(b)["id"] ?? ""), String(dat(b)["detail"] ?? "")] as const));
         // a tool's call, what it touched and its result are one step, said in plain words ("Reading next-week.ics")
         setSteps(blocks.filter((b) => b.type !== "tool_input" && b.type !== "tool_result").map((b) => {
-          if (b.type === "tool_call") { const id = String(dat(b)["id"] ?? ""); return { id: b.id, title: stepWords(String(dat(b)["name"] ?? ""), detail.get(id) || undefined), sub: "", state: ended.has(id) ? "done" : "live" }; }
+          if (b.type === "tool_call") { const id = String(dat(b)["id"] ?? ""); return { id: b.id, title: stepWords(String(dat(b)["name"] ?? ""), (typeof dat(b)["detail"] === "string" && dat(b)["detail"] !== "" ? String(dat(b)["detail"]) : undefined) ?? (detail.get(id) || undefined)), sub: "", state: ended.has(id) ? "done" : "live" }; }
           const l = blockLine(b as never);
           return { id: b.id, title: l.title, sub: l.sub, ...(b.state ? { state: b.state } : {}) };
         }));
