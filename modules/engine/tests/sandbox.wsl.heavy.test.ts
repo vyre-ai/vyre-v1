@@ -7,7 +7,7 @@
 //   - the MCP shim reaches Vyre's tools across the VM boundary, over the agent's relay, with its session token.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -21,6 +21,23 @@ import { ensureDistro, toWslPath, wslExe } from "../../../sandbox/src/wsl/wsl.ts
 const ON = process.env["VYRE_HEAVY_WSL"] === "1" && process.platform === "win32";
 
 /** A fake Anthropic Messages API: the first call asks for one Bash tool call, the call with its result ends the turn. Every call and tool result is logged. */
+/**
+ * The fake gateway's port once it is written in full, and a connect to it from inside the VM, the place the sandbox's proxy connects from. The server creates the port file before it writes the number, so a read as soon as
+ * the file exists could see it empty: port 0, and a turn that failed with "502 Could not reach that host (api.fake.test)" which looked like a sandbox fault (runs 41931328871 and 41936626466 failed, 41937941905 passed).
+ * A gateway that cannot be reached fails here, by name, before the turn starts. No retry of the turn.
+ */
+async function gatewayPort(portFile: string): Promise<number> {
+  let port = 0;
+  for (let i = 0; i < 300 && port === 0; i++) {
+    const t = fs.existsSync(portFile) ? fs.readFileSync(portFile, "utf8").trim() : "";
+    if (/^[1-9]\d*$/.test(t)) port = Number(t); else await new Promise((r) => setTimeout(r, 200));
+  }
+  if (port === 0) throw new Error("fake gateway not reachable from WSL: it never wrote its port");
+  const probe = spawnSync(wslExe(), ["-d", DISTRO_PIN.name, "-u", DISTRO_PIN.user, "--exec", "/usr/bin/node", "-e", `require("net").connect(${port},"127.0.0.1").on("connect",()=>process.exit(0)).on("error",()=>process.exit(3));setTimeout(()=>process.exit(4),5000)`], { encoding: "utf8", timeout: 30_000, windowsHide: true });
+  if (probe.status !== 0) throw new Error(`fake gateway not reachable from WSL (127.0.0.1:${port} inside ${DISTRO_PIN.name}, exit ${String(probe.status)}): ${probe.stderr.slice(-300)}`);
+  return port;
+}
+
 const FAKE_API = `import fs from "node:fs";
 import http from "node:http";
 const [portFile, logFile] = process.argv.slice(2);
@@ -41,7 +58,7 @@ const s = http.createServer((req, res) => {
     sse(res, [["message_start", { type: "message_start", message: msg }], ["content_block_start", { type: "content_block_start", index: 0, content_block: block }], ["content_block_delta", { type: "content_block_delta", index: 0, delta }], ["content_block_stop", { type: "content_block_stop", index: 0 }], ["message_delta", { type: "message_delta", delta: { stop_reason: result ? "end_turn" : "tool_use", stop_sequence: null }, usage: { output_tokens: 1 } }], ["message_stop", { type: "message_stop" }]]);
   });
 });
-s.listen(0, "127.0.0.1", () => fs.writeFileSync(portFile, String(s.address().port)));
+s.listen(0, "127.0.0.1", () => { fs.writeFileSync(portFile + ".tmp", String(s.address().port)); fs.renameSync(portFile + ".tmp", portFile); });
 setTimeout(() => process.exit(0), 30 * 60000);
 `;
 
@@ -76,8 +93,7 @@ test("the Windows sandbox: a Claude Code turn with a Bash tool call, and nothing
   const portFile = path.join(apiDir, "port.txt");
   const logFile = path.join(apiDir, "log.jsonl");
   const api = spawn(wslExe(), ["-d", DISTRO_PIN.name, "-u", DISTRO_PIN.user, "--exec", "/usr/bin/node", toWslPath(path.join(apiDir, "api.mjs")), toWslPath(portFile), toWslPath(logFile)], { windowsHide: true, stdio: "ignore" });
-  for (let i = 0; i < 300 && !fs.existsSync(portFile); i++) await new Promise((r) => setTimeout(r, 200));
-  const port = Number(fs.readFileSync(portFile, "utf8"));
+  const port = await gatewayPort(portFile);
 
   const t1 = Date.now();
   const d = await defaultSandbox({ platform: "win32", windowsMode: "contained", dataDir, wslRoot, egressHosts: ["api.fake.test"], wslTestRoutes: { "api.fake.test": port }, programRead: [engines] });
@@ -156,8 +172,7 @@ test("a Team Space turn on a member's Windows computer runs under B (WSL2 + bwra
   const portFile = path.join(apiDir, "port.txt");
   const logFile = path.join(apiDir, "log.jsonl");
   const api = spawn(wslExe(), ["-d", DISTRO_PIN.name, "-u", DISTRO_PIN.user, "--exec", "/usr/bin/node", toWslPath(path.join(apiDir, "api.mjs")), toWslPath(portFile), toWslPath(logFile)], { windowsHide: true, stdio: "ignore" });
-  for (let i = 0; i < 300 && !fs.existsSync(portFile); i++) await new Promise((r) => setTimeout(r, 200));
-  setContainedOptions({ wslTestRoutes: { "api.fake.test": Number(fs.readFileSync(portFile, "utf8")) } });
+  setContainedOptions({ wslTestRoutes: { "api.fake.test": await gatewayPort(portFile) } });
   try {
     const cwd = workFolder(dataDir, "usr_dana", "prc_team1");
     const launcher = nodeCliLauncher(dataDir, { install: true });
