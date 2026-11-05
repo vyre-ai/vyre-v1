@@ -1,14 +1,14 @@
 // Right pane > Computer (spec 2.7, 3.2): the agent's screen, what it is doing, the steps of its session, and the sites it is signed in to. Asleep shows the last frame dimmed
 // with Wake; working shows a small live view with the caption; after you take over it says "You're in control" with Give back. Click the screen and the computer opens at 90
 // percent of the window (P-L9b_08). A Personal Space has no agent computers: one sentence says so.
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { VirtualWindow } from "../../../../../../ui/src/VirtualList/index.tsx";
 import { LiveScreen } from "../computer/LiveScreen.tsx";
-import { copyText, giveBack, provision, signOut, sleep, takeOver, wake } from "./actions.ts";
+import { copyText, giveBack, provision, signOut, sleep, takeOver, wake, wakeFailure } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import { useOnline, usePaneData, useScreenQuery } from "./data.tsx";
 import { GATE, allows, useOptionalShellRuntime } from "../../../shell/providers/runtime.tsx";
@@ -238,6 +238,7 @@ function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; c
   const online = useOnline();
   const [sel, setSel] = useState<number | null>(null);
   const hosts = useHosts();
+  const refused = useSyncExternalStore(wakeFailure.subscribe, () => wakeFailure.get(computerId), () => wakeFailure.get(computerId));
   const q = useScreenQuery<ComputerOut>(COMPUTER_SCREEN, "computer", { computerId });
   const sq = useScreenQuery<SessionsOut>(COMPUTER_SCREEN, "sessions", { computerId });
   const tq = useScreenQuery<TimelineOut>(POPUP_SCREEN, "timeline", { computerId });
@@ -250,9 +251,10 @@ function ComputerBody({ deps, computerId, window, canTake }: { deps: PaneDeps; c
 
   const c: Computer = q.data.computer;
   const where = c.nodeId ? hostName(hosts, c.nodeId) : hostName(hosts, null);
-  if (c.state === "error") {
-    const reason = c.error ?? "It could not start. Look at the server's logs for the reason.";
-    return <FailedBody name={name} reason={reason} details={`${name}'s computer ${c.computerId}\nstate: error\nreason: ${reason}${where ? `\nruns on: ${where}` : ""}`} onCopy={(text) => void copyText(deps, text)} onAgain={() => void wake(deps, c.computerId, name)} />;
+  // a wake the server refused or failed before it could write the row's own error: the row says Asleep, this says why it did not start
+  if (c.state === "error" || (refused !== undefined && c.state === "asleep")) {
+    const reason = c.state === "error" ? (c.error ?? "It could not start. Look at the server's logs for the reason.") : `It did not start: ${refused}`;
+    return <FailedBody name={name} reason={reason} details={`${name}'s computer ${c.computerId}\nstate: ${c.state}\nreason: ${reason}${where ? `\nruns on: ${where}` : ""}`} onCopy={(text) => void copyText(deps, text)} onAgain={() => void wake(deps, c.computerId, name)} />;
   }
   if (isSettingUp(c)) return <SettingUp name={name} step={setupStep(c)} {...(where ? { where } : {})} />;
   const view = computerView(c);

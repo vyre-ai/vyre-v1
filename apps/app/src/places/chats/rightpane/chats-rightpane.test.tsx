@@ -10,7 +10,7 @@ import { FilesTab, treeOrder } from "./FilesTab.tsx";
 import { NoneBody, setupView } from "./ComputerTab.tsx";
 import type { HostsAnswer } from "./ComputerTab.tsx";
 import {
-  accept, correct, deleteRoutine, duplicateRoutine, provision, reasonOf, reject, removeFact, renameRoutine, saveInstructions, setRoutine, signOut, takeOver, giveBack, wake,
+  accept, correct, deleteRoutine, duplicateRoutine, provision, reasonOf, reject, removeFact, renameRoutine, saveInstructions, setRoutine, signOut, takeOver, giveBack, wake, wakeFailure,
 } from "./actions.ts";
 import type { PaneDeps } from "./actions.ts";
 import {
@@ -313,6 +313,35 @@ test("computer actions: wake, take over, give back, sign out, set up", async () 
   await provision(d, "agt_intake", "Intake");
   assert.deepEqual(s.calls.map((c) => c.cap), ["computers.wake", "computers.take_over", "computers.give_back", "computers.session.sign_out", "computers.provision", "computers.wake"]);
   assert.ok(notes.every((n) => !n.text.startsWith("Could not")));
+});
+
+test("a wake the server refuses is said in the pane and the computer shows why it did not start, with Details; a wake that works clears it", async () => {
+  const s = createSample("asleep");
+  const { d, notes } = deps(s);
+  wakeFailure.set("cmp_intake", null);
+  s.failNext("computers.wake");
+  assert.equal(await wake(d, "cmp_intake", "Intake"), false);
+  assert.deepEqual(notes.map((n) => n.text), ["Could not wake it: computers.wake failed"]);
+  const failed = html(s, "computer");
+  assert.ok(failed.includes('data-testid="computer-failed"'), "the panel is the failed state, not the Set up its computer button");
+  assert.ok(failed.includes("It did not start: computers.wake failed"), "the server's own words");
+  assert.ok(failed.includes('data-testid="computer-copy-details"'), "Details can be copied");
+  assert.ok(!failed.includes('data-testid="computer-provision"'));
+  assert.equal(await wake(d, "cmp_intake", "Intake"), true);
+  assert.ok(!html(s, "computer").includes('data-testid="computer-failed"'), "a wake that works clears it");
+  assert.ok(html(s, "computer").includes("Working: Waking up"));
+  assert.equal(wakeFailure.get("cmp_intake"), undefined);
+});
+
+test("setting up a computer whose wake is refused says so: the wake is not dropped", async () => {
+  const s = createSample("asleep");
+  const { d, notes } = deps(s);
+  wakeFailure.set("cmp_intake", null);
+  s.failNext("computers.wake");
+  await provision(d, "agt_intake", "Intake");
+  await new Promise<void>((r) => setTimeout(r, 0));
+  assert.ok(notes.some((n) => n.text === "Could not wake it: computers.wake failed"), JSON.stringify(notes));
+  wakeFailure.set("cmp_intake", null);
 });
 
 test("a failed write is one quiet line, not a thrown error", async () => {

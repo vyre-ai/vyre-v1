@@ -23,8 +23,30 @@ const key = (what: string, id: string): string => `rp-${what}-${id}-${++seq}`;
 
 /* ---------- computer ---------- */
 
-export function wake(d: PaneDeps, computerId: string, name: string): Promise<boolean> {
-  return attempt(d, "wake it", async () => { await d.call("computers.wake", { computerId }); d.note(`${name} is awake`); });
+/**
+ * Why the last wake of a computer was refused or failed, kept here because a refusal before the server's own handler (the gateway, the network) never reaches the computer's row: the row says Asleep, and this is
+ * the only place that knows it did not start. The computer panel shows it as the failed state with the server's own words in Details. A wake that works, or a new press, clears it.
+ */
+const wakeFailed = new Map<string, string>();
+const wakeSubs = new Set<() => void>();
+export const wakeFailure = {
+  get: (computerId: string): string | undefined => wakeFailed.get(computerId),
+  subscribe: (fn: () => void): (() => void) => { wakeSubs.add(fn); return () => { wakeSubs.delete(fn); }; },
+  set(computerId: string, why: string | null): void { if (why === null) wakeFailed.delete(computerId); else wakeFailed.set(computerId, why); for (const f of [...wakeSubs]) f(); },
+};
+
+export async function wake(d: PaneDeps, computerId: string, name: string, o: { quiet?: boolean } = {}): Promise<boolean> {
+  try {
+    await d.call("computers.wake", { computerId });
+    wakeFailure.set(computerId, null);
+    if (o.quiet !== true) d.note(`${name} is awake`);
+    return true;
+  } catch (e) {
+    const why = reasonOf(e) || "The computer did not start";
+    wakeFailure.set(computerId, why);
+    d.note(`Could not wake it: ${why}`);
+    return false;
+  }
 }
 
 /** Make the computer and wake it: "Set up its computer" is one press. `nodeId` is a server of the person's, left out for the Space server. */
@@ -33,8 +55,8 @@ export function provision(d: PaneDeps, agentId: string, name: string, nodeId?: s
     const out = (await d.call("computers.provision", { agentId, ...(nodeId ? { nodeId } : {}), idempotencyKey: key("computer", agentId) })) as { computer?: { computerId?: string } } | null;
     d.note(`Setting up ${name}'s computer`);
     const id = out?.computer?.computerId;
-    // waking can take a minute: the pane follows its state, so this does not wait here; a failure shows on the computer itself, with its reason
-    if (id) void d.call("computers.wake", { computerId: id }).catch(() => undefined);
+    // waking can take a minute: the pane follows its state, so this does not wait here. A failed or refused wake is not dropped: wake() says it in the pane and keeps the reason for the computer's panel.
+    if (id) void wake(d, id, name, { quiet: true });
   });
 }
 
