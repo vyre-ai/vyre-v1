@@ -1,0 +1,1 @@
+- The desktop app reports 1.0.0-rc.22, so the Mac update to rc.22 installs once instead of offering itself again.

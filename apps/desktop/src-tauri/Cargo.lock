@@ -4774,7 +4774,7 @@ dependencies = [
 
 [[package]]
 name = "vyre-desktop"
-version = "1.0.0-rc.21"
+version = "1.0.0-rc.22"
 dependencies = [
  "flate2",
  "minisign-verify 0.2.5",
