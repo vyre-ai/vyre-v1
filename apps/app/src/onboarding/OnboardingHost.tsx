@@ -6,7 +6,7 @@ import { StyleSheet, Text, View } from "react-native";
 import type { CapCall } from "../shell/session/caps.ts";
 import { ConnectAiCard } from "./ConnectAiCard.tsx";
 import { SpaceAiStatus } from "../ai-signin/SpaceAiStatus.tsx";
-import { ResumeChip, ResumeContext, resumeInfo } from "./ResumeChip.tsx";
+import { ResumeChip, ResumeContext, resumeInfo, startedSetup } from "./ResumeChip.tsx";
 import { detectDevice } from "./device.ts";
 import { FirstWinCard } from "./FirstWinCard.tsx";
 import { ChromeCard } from "./ChromeCard.tsx";
@@ -141,7 +141,7 @@ export function OnboardingHost({ call, space, children, cards, onAddSpace, mac =
   const resume = useMemo(() => (info && flow ? {
     done: info.done, total: info.total, open: () => { setStep(info.step); setShown(true); },
     // the entry itself, for the title bar to draw: it is never a floating pill over the rail or the page
-    pill: <ResumeChip flow={flow} progress={progress} device={device} onOpen={(k) => { setStep(k); setShown(true); }} />,
+    pill: startedSetup(flow, progress, device) ? <ResumeChip flow={flow} progress={progress} device={device} onOpen={(k) => { setStep(k); setShown(true); }} /> : null,
   } : null), [info?.done, info?.total, info?.step, flow, progress, device]);
 
   // the shell stays mounted underneath, so closing the screen returns to exactly where the person was
