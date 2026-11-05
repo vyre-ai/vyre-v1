@@ -12,7 +12,8 @@ import { useMenu } from "../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../ui/src/Menu/index.tsx";
 import { Row } from "../../../../ui/src/Row/index.tsx";
 import { Mark } from "./ProviderLogo.tsx";
-import { folderChoices, folderName, folderMenuLabel, importedNote, modifiedAt, newestFirst, relativeDate, rememberImported, selectState, sessionName } from "./sessions-model.ts";
+import { failureLine, folderChoices, folderName, folderMenuLabel, importedNote, modifiedAt, newestFirst, relativeDate, rememberImported, selectState, sessionName, whyWords } from "./sessions-model.ts";
+import type { ImportTally } from "./sessions-model.ts";
 import { CARD } from "./card-style.ts";
 
 const label = (src: SessionSource): string => `${src.provider === "codex" ? "Codex" : "Claude Code"}`;
@@ -32,7 +33,10 @@ export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCal
   const [folder, setFolder] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [imported, setImported] = useState<number | null>(null);
+  const [imported, setImported] = useState<{ count: number; empty: number } | null>(null);
+  // what earlier runs already brought in (a retry does the failed ones only)
+  const doneBefore = useRef(0);
+  const emptyBefore = useRef(0);
   const menu = useMenu();
   useEffect(() => {
     let off = false;
@@ -53,20 +57,31 @@ export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCal
     const imp = desktopSessionImporter();
     if (!imp || busy || on.size === 0) return false;
     setBusy(true); setError("");
+    // each ticked session is its own try: one that is empty or refused does not stop the rest, and the card says which failed and why
+    const tally: ImportTally = { imported: 0, empty: 0, failed: [] };
     try {
-      let count = 0;
       for (const src of found ?? []) {
         if (!on.has(src.sessionKey)) continue;
-        const at = Date.now();
-        const session = await imp.preview(src);
-        await call("sessions.import", confirmedSessionInput({ source: src, session, at }, Date.now()));
-        count++;
+        try {
+          const at = Date.now();
+          const session = await imp.preview(src);
+          if (session.messages.length === 0) { tally.empty++; continue; }
+          await call("sessions.import", confirmedSessionInput({ source: src, session, at }, Date.now()));
+          tally.imported++;
+        } catch (e) { tally.failed.push({ key: src.sessionKey, name: sessionName(src), why: whyWords(e) }); }
       }
-      rememberImported(count);
-      setImported(count);
+      doneBefore.current += tally.imported; emptyBefore.current += tally.empty;
+      rememberImported(doneBefore.current);
+      if (tally.failed.length > 0) {
+        // stay on the card with only the failed ones ticked, so the same button retries exactly those
+        setOn(new Set(tally.failed.map((f) => f.key)));
+        setError(failureLine({ ...tally, imported: doneBefore.current }));
+        return false;
+      }
+      setImported({ count: doneBefore.current, empty: emptyBefore.current });
       if (!gate) onDone();
       return true;
-    } catch (e) { setError(e instanceof Error ? e.message : "That did not work. Try again."); return false; } finally { setBusy(false); }
+    } finally { setBusy(false); }
   };
   const runRef = useRef(run);
   runRef.current = run;
@@ -75,10 +90,10 @@ export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCal
   useEffect(() => {
     if (!gate) return undefined;
     if (imported !== null || nothing) gate(async () => true);
-    else if (count > 0) gate(async () => { await runRef.current(); return false; }, busy ? "Importing" : `Import ${count}`);
+    else if (count > 0) gate(async () => { await runRef.current(); return false; }, busy ? "Importing" : error ? `Retry ${count}` : `Import ${count}`);
     else gate(null);
     return () => gate(null);
-  }, [gate, imported, nothing, count, busy]);
+  }, [gate, imported, nothing, count, busy, error]);
   const folderMenu = (x: number, y: number): void => {
     const total = (found ?? []).length;
     const entries: MenuEntry[] = [{ label: "All folders", checked: folder === "", count: total, onSelect: () => setFolder("") }, { separator: true }];
@@ -102,7 +117,7 @@ export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCal
   if (imported !== null) {
     return (
       <View testID="sessions-card" style={s.col}>
-        <Text testID="sessions-imported" accessibilityRole="text" style={s.name}>{importedNote(imported)}</Text>
+        <Text testID="sessions-imported" accessibilityRole="text" style={s.name}>{importedNote(imported.count, imported.empty)}</Text>
         {onOpenChats ? <Pressable testID="sessions-open-chats" accessibilityRole="link" onPress={onOpenChats} style={s.ghost}><Text style={s.ghostText}>Open Chats</Text></Pressable> : null}
       </View>
     );
@@ -130,7 +145,7 @@ export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCal
       ) : null}
       {rows.length > 0 ? <View testID="sessions-list" style={s.list}>{rows}</View> : null}
       {error ? <Text accessibilityRole="alert" testID="sessions-error" style={s.err}>{error}</Text> : null}
-      {!gate && rows.length > 0 ? <Pressable testID="sessions-import" accessibilityRole="button" disabled={busy || count === 0} onPress={() => void run()} style={[s.primary, (busy || count === 0) && s.off]}><Text style={[s.primaryText, (busy || count === 0) && s.offText]}>{busy ? "Importing" : count === 0 ? "Import" : `Import ${count}`}</Text></Pressable> : null}
+      {!gate && rows.length > 0 ? <Pressable testID="sessions-import" accessibilityRole="button" disabled={busy || count === 0} onPress={() => void run()} style={[s.primary, (busy || count === 0) && s.off]}><Text style={[s.primaryText, (busy || count === 0) && s.offText]}>{busy ? "Importing" : count === 0 ? "Import" : error ? `Retry ${count}` : `Import ${count}`}</Text></Pressable> : null}
       {menu.element}
     </View>
   );
