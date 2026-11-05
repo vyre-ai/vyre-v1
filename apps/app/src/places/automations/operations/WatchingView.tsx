@@ -9,7 +9,7 @@ import { useAutomationsData } from "../canvas/data.tsx";
 import { Glyph } from "../canvas/icons.tsx";
 import { IconButton, pointer } from "../canvas/parts.tsx";
 import { EMPTY_WATCHING_NEXT, WATCHING_LINE } from "../chrome.ts";
-import { possessive } from "../../home/sections-a/model.ts";
+const possessive = (n: string): string => (n.endsWith("s") ? `${n}'` : `${n}'s`);
 import { everyShort, lastWords, tellWords, watchItems, watchNote } from "./read.ts";
 import type { WatchItem } from "./read.ts";
 import { Empty, Frame, Status, useCall, useRowMenu, v } from "./parts.tsx";

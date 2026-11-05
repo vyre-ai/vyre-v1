@@ -1,7 +1,7 @@
 // join/Checklist: the first-run checklist (spec 3.13, 2.1, ARCH 7.0), drawn inside the Home first-run layout as the prototype has it: the greeting, the date line and the
 // "Get started n of N" card of rows on the page itself, never a modal over a wash. It follows the Space skin like Home does (join pages proper keep the platform palette).
 // Items come from home.checklist; the AI account row leads, each row has its own action, done rows say Done, and the assistant waits behind the AI account. Hidden once all
-// are done or dismissed ("All set"). Home's own card (places/home/sections-b) is a separate lane's code; this is the join screen's copy of the same layout.
+// are done or dismissed ("All set"). The Home place that had its own card is gone.
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../ui/src/Row/index.tsx";

@@ -1,4 +1,4 @@
-// You (spec 3.11): who you are in this Space, then My work, Starred and Settings. Rows are the shared ui/Row with a chevron; each one opens its screen through the shell's history,
+// You (spec 3.11): who you are in this Space, then My work (the Tasks list in Chats; Home is gone), Starred and Settings. Rows are the shared ui/Row with a chevron; each one opens its screen through the shell's history,
 // so Back returns here.
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -16,8 +16,8 @@ export interface YouData {
 }
 
 export function YouScreen({ data, nav }: { data: YouData; nav: MobileNav }): ReactElement {
-  const rows: { key: string; title: string; note: string; icon: MobileIcon }[] = [
-    { key: "my-work", title: "My work", note: data.workOpen === 0 ? "All caught up" : `${data.workOpen} open`, icon: "work" },
+  const rows: { key: string; title: string; note: string; icon: MobileIcon; open?: { tab: "chats"; screen: string; title: string } }[] = [
+    { key: "my-work", title: "My work", note: data.workOpen === 0 ? "All caught up" : `${data.workOpen} open`, icon: "work", open: { tab: "chats", screen: "tasks:list", title: "My work" } },
     { key: "starred", title: "Starred", note: data.starred === 0 ? "Nothing starred" : `${data.starred} starred`, icon: "star" },
     { key: "settings", title: "Settings", note: "Profile, appearance, notifications", icon: "settings" },
   ];
@@ -28,7 +28,7 @@ export function YouScreen({ data, nav }: { data: YouData; nav: MobileNav }): Rea
         key={r.key} id={`you-${r.key}`} title={r.title} note={r.note}
         leading={<View style={st.lead}><Icon name={r.icon} size={18} /></View>}
         trailing={<Icon name="chev" size={14} color="var(--ink-4)" />}
-        onPress={() => nav.open({ tab: "you", screen: `you:${r.key}`, title: r.title })}
+        onPress={() => nav.open(r.open ?? { tab: "you", screen: `you:${r.key}`, title: r.title })}
       />,
     );
   }

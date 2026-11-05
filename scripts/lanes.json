@@ -286,10 +286,10 @@
       "id": "L9b",
       "name": "Home and Chats",
       "owns": [
-        "apps/app/src/places/home/",
         "apps/app/src/places/chats/",
         "apps/app/src/shell/places.test.tsx",
-        "apps/app/src/shell/providers/home.tsx",
+        "apps/app/src/shell/places-fixture/",
+        "apps/app/src/shell/session/runtime-data.ts",
         "scripts/shots/targets/",
         "scripts/shots/mounts/",
         "scripts/shots/prototype/",

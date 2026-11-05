@@ -76,7 +76,6 @@ export function entryFor(place: PlaceId, hash: string): Entry {
   if (t.subject) return { tab: tabOf(place), screen: `${t.subject.type}:${t.subject.id}` };
   if ((TAB_PLACES as readonly string[]).includes(place)) return { tab: place as TabId, screen: place };
   if (place === "settings") return { tab: "you", screen: "you:settings", title: "Settings" };
-  if (place === "home") return { tab: "you", screen: "you:my-work", title: "My work" };
   return { tab: "you", screen: "you" };
 }
 

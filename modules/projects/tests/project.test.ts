@@ -343,7 +343,7 @@ test("an agent with a project role is a teammate there; a role or an automation 
 test("only someone who manages the project can change who is on it, and the same key answers the same", async () => {
   const h = harness();
   const p = await mkProject(h);
-  h.allowOnly((a) => a.level === "view" || a.level === "edit");
+  h.allowOnly((a) => a.perm !== "console.access" && (a.level === "view" || a.level === "edit"));   // no Manage, and not a Space admin
   await refused(run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }), "permission.no_grant");
   await refused(run(h, "projects.members.remove", { projectId: p.projectId, principal: DANA }), "permission.no_grant");
   h.allowOnly(() => true);
@@ -567,4 +567,47 @@ test("archive and unarchive need Manage: a person with no grant on the project i
   await refused(run(h, "projects.archive", { projectId: p.projectId }, h.person(LEO)), "validation.not_found");
   h.allowOnly(() => true);
   assert.deepEqual((await run(h, "projects.list", {})).projects.length, 1, "nothing changed");
+});
+
+test("a person given a role on a project is added to its invite-only channel (so the Chat tab opens for them), and leaves it when removed", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" });
+  assert.ok(h.world.channelPeople.get(p.channelId)?.has(MAYA), "Maya is in the project's channel");
+  await run(h, "projects.members.remove", { projectId: p.projectId, principal: MAYA });
+  assert.ok(!h.world.channelPeople.get(p.channelId)?.has(MAYA), "and out of it when she leaves the project");
+});
+
+test("a Space owner or admin with no Manage on the project sets and removes roles whoever leads, the grants carry the project as source; a person with no Manage and no Console right is told in one plain line, and nothing changes", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: BOT, role: "lead" });
+  h.allowOnly((a) => a.perm === "console.access" || a.level === "view" || a.level === "edit");   // a Space admin: the Console right, no Manage on this project
+  const set = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" });
+  assert.equal(set.member.role, "member", "the admin names a member though an agent leads");
+  const mine = h.world.grants.filter((g) => g.subject.id === MAYA);
+  assert.deepEqual(mine.map((g) => [g.resource.type, g.level, g.source]).sort(), [["channel", "edit", `project:${p.projectId}`], ["folder", "edit", `project:${p.projectId}`], ["project", "edit", `project:${p.projectId}`]], "the grants landed on the project, its folder and its channel");
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "reviewer" });
+  assert.ok(h.world.grants.filter((g) => g.subject.id === MAYA).every((g) => g.level === "view"), "a role change replaces the grants");
+  assert.deepEqual(await run(h, "projects.members.remove", { projectId: p.projectId, principal: MAYA }), { removed: true });
+  assert.equal(h.world.grants.filter((g) => g.subject.id === MAYA).length, 0, "and removing takes them all back");
+  h.allowOnly((a) => a.perm === null && (a.level === "view" || a.level === "edit"));   // can open and edit, no Manage, no Console right
+  const before = h.world.grants.length;
+  const err = await run(h, "projects.members.set", { projectId: p.projectId, principal: MAYA, role: "member" }).then(() => null, (e: unknown) => e);
+  assert.equal(codeOf(err), "permission.no_grant");
+  assert.match(String((err as Error).message), /You need to manage this project to change roles\. Ask its Lead or the Space owner\./);
+  assert.equal(h.world.grants.length, before, "no grant was written");
+  assert.ok(!h.world.channelPeople.get(p.channelId)?.has(MAYA), "Maya is not in the channel");
+  const list = await run(h, "projects.members.list", { projectId: p.projectId });
+  assert.ok(!list.members.some((m: { principal: string }) => m.principal === MAYA), "and not on the list");
+});
+
+test("an agent given a project role joins the project's channel too (Lead answers, the rest listen), and leaves it when removed", async () => {
+  const h = harness();
+  const p = await mkProject(h);
+  await run(h, "projects.members.set", { projectId: p.projectId, principal: BOT, role: "member" });
+  assert.ok(h.world.channelPeople.get(p.channelId)?.has(BOT), "the agent is in the project's channel");
+  assert.equal(h.world.calls.filter((c) => c.cap === "channels.agents.add").at(-1)?.input["mode"], "listen");
+  await run(h, "projects.members.remove", { projectId: p.projectId, principal: BOT });
+  assert.ok(!h.world.channelPeople.get(p.channelId)?.has(BOT), "and out of it when it leaves");
 });

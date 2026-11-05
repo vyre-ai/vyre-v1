@@ -445,7 +445,7 @@ export function buildEntries(i: SidebarInput): Entry[] {
     out.push({ key: "h:projects", type: "head", section: "projects", label: "Projects", count: projectLines.length, open: open("projects") });
     if (open("projects")) {
       const { shown, hidden } = all(i.moreProjects) ? { shown: projectLines, hidden: 0 } : capped(projectLines, PROJECTS_SHOWN, (p) => p.starred || i.open === `p:${p.id}`);
-      for (const p of shown) out.push({ key: `pj:${p.id}`, type: "project", project: p });
+      for (const p of shown) { const ch = p.recordId === undefined ? undefined : i.channels.find((c) => c.recordId === p.recordId); out.push({ key: `pj:${p.id}`, type: "project", project: ch && ch.unread > 0 ? { ...p, unread: ch.unread } : p }); }
       if (hidden > 0) out.push({ key: "m:projects", type: "more", label: `${hidden} more`, to: "projects" });
     }
   }

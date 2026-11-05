@@ -9,6 +9,23 @@ import { guardCrashes } from "./crash-guard.ts";
 
 const PASSWORD = "fixture password 123";
 
+/** The review shots: the page in paper, then the same address in graphite (?skin=graphite wins for that view), then back; `redo` puts back what the address does not hold (an open pane). */
+async function both(p: { url(): string; goto(u: string, o: { waitUntil: "load" }): Promise<unknown>; screenshot(o: { path: string }): Promise<unknown>; waitForTimeout(ms: number): Promise<void> }, name: string, redo?: () => Promise<void>): Promise<void> {
+  const dir = process.env["VYRE_PROJECTS_SHOTS"] ?? "";
+  await p.screenshot({ path: path.join(dir, `${name}-paper.png`) });
+  const here = p.url();
+  const u = new URL(here);
+  u.searchParams.set("skin", "graphite");
+  await p.goto(u.toString(), { waitUntil: "load" });
+  await p.waitForTimeout(2500);
+  if (redo) await redo();
+  await p.screenshot({ path: path.join(dir, `${name}-graphite.png`) });
+  const back = new URL(here); back.searchParams.delete("skin");
+  await p.goto(back.toString(), { waitUntil: "load" });
+  await p.waitForTimeout(2500);
+  if (redo) await redo();
+}
+
 test("Projects shell: sidebar group, project tab, header, tabs and status, as an admin and as a member", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) { t.skip("VYRE_APP_DIST required for production browser evidence"); return; }
@@ -20,7 +37,7 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
   const shots = process.env["VYRE_PROJECTS_SHOTS"] ?? "/tmp/vyre-projects-shots"; fs.mkdirSync(shots, { recursive: true });
   const errs: string[] = [];
   try {
-    const owner = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const owner = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await owner.newPage();
     page.on("pageerror", (e) => errs.push(e.message));
     const guards = new Map<unknown, ReturnType<typeof guardCrashes>>();
@@ -46,7 +63,7 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
     // Maya joins through the real join screens, and is made a member of the first project
     const roles = (await call("access.roles.list", {})).roles as { id: string; name: string }[];
     const inv = await call("members.invites.create", { role: roles.find((r) => r.name === "Member")!.id, idempotencyKey: "inv-maya" });
-    const joinCtx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const joinCtx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const jp = await joinCtx.newPage();
     const link = new URL(inv.link);
     await jp.goto(web.origin + link.pathname + link.hash);
@@ -70,18 +87,22 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
         const agents = (await call("agents.list", { limit: 20 })).agents as Array<{ agentId: string }>;
         const chat = (await call("chat.start", { kind: "chat", agentIds: [agents[0]!.agentId], idempotencyKey: "plain-chat" })).thread.threadId as string;
         await p.goto(`${web.origin}/chat#subject=thread:${chat}`, { waitUntil: "load" });
-        await p.getByTestId("conversation").waitFor({ timeout: 30_000 });
+        await p.getByTestId("conversation").waitFor({ timeout: 30_000 }).catch(async (e: Error) => {
+          const ids = await p.evaluate(() => [...document.querySelectorAll("[data-testid]")].map((x) => x.getAttribute("data-testid")).slice(0, 40));
+          await p.screenshot({ path: path.join(shots, "debug-plain-chat.png") });
+          throw new Error(`no conversation at ${p.url()}: ${JSON.stringify(ids)} body=${(await p.locator("body").innerText()).slice(0, 200)} / ${e.message.slice(0, 50)}`);
+        });
         await p.waitForTimeout(800);
         assert.equal(await p.getByText("Couldn't draw this page").count(), 0, "a plain chat draws");
         await ok("a plain chat");
-        await p.screenshot({ path: path.join(shots, `projects-0-plain-chat-${who}-${size}-paper.png`) });
+        await both(p, `projects-0-plain-chat-${who}-${size}`);
         await p.goto(`${web.origin}/chat`, { waitUntil: "load" });
       }
       // the group in the sidebar, after Goals, and a row
       if (size === "wide") {
         await p.getByTestId("head-projects").waitFor({ timeout: 20_000 });
         await ok("the sidebar");
-        await p.screenshot({ path: path.join(shots, `projects-1-sidebar-${who}-${size}-paper.png`) });
+        await both(p, `projects-1-sidebar-${who}-${size}`);
         await p.getByTestId(`row-pj:${pid}`).click();
       } else {
         await p.goto(`${web.origin}/chat#subject=project:${pid}`, { waitUntil: "load" });
@@ -96,23 +117,31 @@ test("Projects shell: sidebar group, project tab, header, tabs and status, as an
       await p.waitForTimeout(800);
       assert.equal(await p.getByText("Couldn't draw this page").count(), 0, "the project page draws with its chat loaded");
       await ok("the project page");
-      await p.screenshot({ path: path.join(shots, `projects-2-project-${who}-${size}-paper.png`) });
+      // the Chat tab is the project channel's own thread for everyone on the project, never a fresh draft chat (the new-chat home) and never a silent blank
+      assert.equal(await p.getByTestId("project-chat-main").getByText("What are we working on?").count(), 0, `${who}: the project chat opened the new-chat home instead of the project's channel (${await p.getByTestId("project-chat-main").innerText().then((t) => t.slice(0, 200))})`);
+      assert.equal(await p.getByTestId("project-chat-unavailable").count(), 0, `${who}: the project chat is not available: ${await p.getByTestId("project-chat-unavailable").innerText().catch(() => "")}`);
+      await both(p, `projects-2-project-${who}-${size}`);
       // the regression: pressing Plan opens the Plan
       await p.getByTestId("tab-plan").click();
-      await p.getByTestId("project-plan").waitFor({ timeout: 15_000 });
+      await p.getByTestId("project-plan").waitFor({ timeout: 15_000 }).catch(async (e: Error) => {
+        const ids = await p.evaluate(() => [...document.querySelectorAll("[data-testid]")].map((x) => x.getAttribute("data-testid")).filter((x) => /project|tab-|plan|loading|gone/.test(x ?? "")).slice(0, 30));
+        await p.screenshot({ path: path.join(shots, `debug-plan-${who}-${size}.png`) });
+        throw new Error(`Plan did not open at ${p.url()}: ${JSON.stringify(ids)} body=${(await p.locator("body").innerText()).slice(0, 200)} / ${e.message.slice(0, 40)}`);
+      });
       await p.waitForTimeout(500);
       await ok("Plan");
-      await p.screenshot({ path: path.join(shots, `projects-3-plan-${who}-${size}-paper.png`) });
-      for (const k of ["overview", "linked", "knows", "chat"]) { await p.getByTestId(`tab-${k}`).click(); await p.waitForTimeout(500); await ok(`the ${k} tab`); }
-      await p.getByTestId("project-chat").waitFor({ timeout: 10_000 });
+      await both(p, `projects-3-plan-${who}-${size}`);
+      for (const k of ["overview", "linked", "chat"]) { await p.getByTestId(`tab-${k}`).click(); await p.waitForTimeout(500); await ok(`the ${k} tab`); }
+      await p.getByTestId("project-chat-main").waitFor({ timeout: 15_000 });
       if (who === "admin" && size === "wide") {
         await p.getByTestId("project-health").click();
         await p.getByTestId("menu-item-At risk").click();
         await p.getByText("At risk").first().waitFor({ timeout: 10_000 });
-        await p.getByTestId("tab-knows").click();
-        await p.getByTestId("project-knows").waitFor({ timeout: 10_000 });
+        const openKnows = async (): Promise<void> => { await p.getByTestId("project-more").click(); await p.getByTestId("menu-item-What Vyre knows").click(); await p.getByTestId("project-knows").waitFor({ timeout: 10_000 }); };
+        await openKnows();
+        await p.waitForTimeout(5000);   // the status toast clears first
         await ok("Knows and the status");
-        await p.screenshot({ path: path.join(shots, `projects-4-knows-${who}-${size}-paper.png`) });
+        await both(p, `projects-4-knows-${who}-${size}`, openKnows);
       }
     };
     await walk("admin", page, "wide");

@@ -8,7 +8,7 @@ import type { ComposerFill, ConversationData, ConversationNav, PluginCommand } f
 import { othersNeedingYou } from "../spaces/model.ts";
 import type { Candidate } from "../../places/chats/conversation/model.ts";
 import type { ChatRightPaneData, RightPaneNav } from "../../places/chats/rightpane/data.tsx";
-import type { Principal } from "../../places/home/sections-a/data.tsx";
+import type { Principal } from "../session/runtime-data.ts";
 import { createMemoryStore } from "../../places/chats/memory/data.tsx";
 import type { ChatMemoryData, MemoryStore } from "../../places/chats/memory/data.tsx";
 import { KNOW_SCREEN, routeToArgs } from "../../places/files/memory/know.ts";
@@ -99,6 +99,7 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openNewChannel: () => requestChannelSheet("new"),
     openSubject: (subject) => rt.open({ subject }),
     openProject: (projectId) => rt.open({ subject: { type: "project", id: projectId } }),
+    openNewProject: () => rt.open({ screen: "records.projects", args: { create: true } }),
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.changes ? { changes: rt.changes } : {}),

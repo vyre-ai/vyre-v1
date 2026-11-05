@@ -6,7 +6,7 @@ import { createFakeReplica, createScreenHooks } from "../../../../../../client/s
 import type { LiveQuery, QueryState, ScreenHooks } from "../../../../../../client/src/index.ts";
 import { screensById } from "../../../../../../generated/screens.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
-import type { Principal } from "../../home/sections-a/data.tsx";
+import type { Principal } from "../../../shell/session/runtime-data.ts";
 import type { ShellRuntime, ShellTarget } from "../../../shell/providers/runtime.tsx";
 import { createSample as createAgent } from "../agentpage/sample.ts";
 import { createSample as createComputer } from "../computer/sample.ts";

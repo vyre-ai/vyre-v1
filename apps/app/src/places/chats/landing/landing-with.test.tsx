@@ -8,7 +8,7 @@ import type { Node } from "../../../../../../ui/src/testing/dom.ts";
 import type { LiveQuery, ScreenHooks } from "../../../../../../client/src/index.ts";
 import { createSample } from "../conversation/sample.ts";
 import { createSampleSidebar } from "../sidebar/sample.ts";
-import type { Principal } from "../../home/sections-a/data.tsx";
+import type { Principal } from "../../../shell/session/runtime-data.ts";
 import { INBOX_SOURCE_QUERIES } from "../../../shell/rail/inbox-sources.ts";
 import { ResumeContext } from "../../../onboarding/resume-context.ts";
 import { publishProgress } from "../../../onboarding/store.ts";

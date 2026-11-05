@@ -22,6 +22,8 @@ export interface AddSheetDeps {
   nameOf(id: string): string;
   newKey(): string;
   toast(text: string): void;
+  /** The person is an admin of the Space: on a project they may give any role, Manage or not (the server writes the grants for them). */
+  admin?: boolean;
 }
 
 /* ---------- how an agent answers in a chat ---------- */

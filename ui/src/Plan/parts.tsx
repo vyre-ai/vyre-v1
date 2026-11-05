@@ -35,7 +35,7 @@ export const win = (): Win => globalThis as unknown as Win;
 export const h = createElement as unknown as (tag: string | ((p: never) => ReactElement), props: Record<string, unknown> | null, ...children: ReactNode[]) => ReactElement;
 
 export const RESET: CSSProperties = { border: 0, background: "none", padding: 0, margin: 0, font: "inherit", color: "inherit", cursor: "pointer" };
-export const BTN: CSSProperties = { border: "1px solid var(--line)", background: "var(--raised)", color: "var(--ink)", borderRadius: 7, padding: "3px 10px", fontSize: 12, cursor: "pointer", font: "inherit" };
+export const BTN: CSSProperties = { border: "1px solid var(--line)", background: "var(--raised)", color: "var(--ink)", borderRadius: 7, padding: "0 10px", cursor: "pointer", font: "inherit", fontSize: 12.5, height: 28, whiteSpace: "nowrap" };
 export const BTN_PRIMARY: CSSProperties = { ...BTN, border: "1px solid var(--accent)", background: "var(--accent)", color: "var(--accent-ink)" };
 
 /** Status paints a bar: a wash of the status colour with a line of it, never a filled block. */

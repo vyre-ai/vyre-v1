@@ -27,6 +27,8 @@ export interface ChatsNav {
   /** One goal's page, from its row in the Goals group. */
   openGoal?(goalId: string): void;
   openProject?(projectId: string): void;
+  /** The group's +: the same new-project path Home uses (Records, Projects, create). */
+  openNewProject?(): void;
   /** The two rows at the top of the list: everything you owe, and the threads you are in. */
   openTasks?(): void;
   /** Notes: the grid of your notes; the same in a tab behind this one; the grid with Take a note open. Left out where the shell has no Notes page. */

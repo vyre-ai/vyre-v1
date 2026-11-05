@@ -98,8 +98,8 @@ test("a project opens in Chats as its own page: subject=project:<id>, with the t
   assert.deepEqual(fromHash("#subject=project:prj_1").route, { view: "project", projectId: "prj_1", tab: null });
   assert.deepEqual(fromHash("#subject=project:prj_1&tab=plan").route, { view: "project", projectId: "prj_1", tab: "plan" });
   assert.equal(openKeyOf(fromHash("#subject=project:prj_1").route), "p:prj_1", "the sidebar selects its row");
-  const next = step(START, { t: "project", projectId: "prj_1", tab: "knows" });
-  assert.deepEqual(next.route, { view: "project", projectId: "prj_1", tab: "knows" });
+  const next = step(START, { t: "project", projectId: "prj_1", tab: "linked" });
+  assert.deepEqual(next.route, { view: "project", projectId: "prj_1", tab: "linked" });
   assert.equal(next.pane, false);
 });
 

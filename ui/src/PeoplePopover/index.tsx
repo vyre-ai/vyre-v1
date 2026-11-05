@@ -25,7 +25,8 @@ export interface PeoplePopoverProps {
   /** The trigger's box: its right edge and bottom, and its left edge when known. A trigger in the left half of the window opens rightwards from its left edge, one in the right half leftwards from its right edge. */
   anchor: { x: number; y: number; left?: number };
   onOpen(row: MemberRow): void;
-  onAction(action: MemberAction, row: MemberRow): void;
+  /** `beside` is where a follow-up menu (the roles) opens: just right of the popover, so it never covers the rows. */
+  onAction(action: MemberAction, row: MemberRow, beside?: { x: number; y: number }): void;
   /** The footer action: "overview" opens the project's Overview People section, "add" opens the Add sheet. */
   onFooter(id: "overview" | "add"): void;
   onClose(): void;
@@ -65,9 +66,14 @@ export function PeoplePopover({ where, rows, meId, perms, anchor, onOpen, onActi
   const spot = placeOf(anchor, win.width || 1024, where);
   const { left, top, width } = spot;
   const place = (phone ? { position: web ? "fixed" : "absolute", left: 0, right: 0, bottom: 0 } : { position: web ? "fixed" : "absolute", left, top, width }) as unknown as ViewStyle;
+  // menus from a row open beside the popover, not over its rows (on a phone the sheet is the whole width, so the menu opens where it was pressed)
+  // right of the popover when there is room, else left of it (the popover often sits at the screen's right edge); never over its rows
+  const MENU_ROOM = 240;
+  const sideX = phone ? 0 : left + width + 6 + MENU_ROOM <= (win.width || 1024) ? left + width + 6 : Math.max(8, left - MENU_ROOM);
   const rowMenu = (r: MemberRow, x: number, y: number): void => {
     const items = memberMenu(r, perms, meId);
-    menu.show(items.map((i) => ({ label: i.label, ...(i.danger ? { danger: true } : {}), onSelect: () => onAction(i.id, r) })), x, y, "context", { label: `${r.name}` });
+    const bx = phone ? x : sideX;
+    menu.show(items.map((i) => ({ label: i.label, ...(i.danger ? { danger: true } : {}), onSelect: () => onAction(i.id, r, { x: bx, y }) })), bx, y, "context", { label: `${r.name}` });
   };
   const rowsView = (
     <>
@@ -79,7 +85,11 @@ export function PeoplePopover({ where, rows, meId, perms, anchor, onOpen, onActi
             >
               <Avatar name={r.name} seedId={r.id} {...(r.kind === "person" ? {} : { kind: "agent" as const })} size={24} />
               <Text style={st.name} numberOfLines={1}>{r.id === meId ? "You" : r.name}</Text>
-              <Text style={st.role} numberOfLines={1} testID={`people-role-${r.id}`}>{r.role}</Text>
+              {perms.changeRole ? (
+                <Pressable accessibilityRole="button" accessibilityLabel={`Change role of ${r.name}, now ${r.role}`} testID={`people-role-${r.id}`} onPress={(e: { nativeEvent?: { pageY?: number } }) => onAction("role", r, { x: phone ? 16 : sideX, y: e?.nativeEvent?.pageY ?? top })} style={({ hovered }: { hovered?: boolean }) => [st.roleBtn, hovered === true && st.roleLit]}>
+                  <Text style={st.role} numberOfLines={1}>{r.role}</Text>
+                </Pressable>
+              ) : <Text style={st.role} numberOfLines={1} testID={`people-role-${r.id}`}>{r.role}</Text>}
             </Pressable>
       ))}
       <View style={st.rule} />
@@ -124,6 +134,8 @@ const st = StyleSheet.create({
   lit: { backgroundColor: "var(--hover)" as string },
   kb: { backgroundColor: "var(--sel)" as string },
   name: { flex: 1, minWidth: 0, fontSize: 13, color: "var(--ink)" as string },
+  roleBtn: { borderRadius: 6, paddingHorizontal: 4, marginLeft: 4 },
+  roleLit: { backgroundColor: "var(--hover)" as string },
   role: { fontSize: 12, color: "var(--ink-3)" as string, paddingLeft: 12 },
   ic: { width: 22, alignItems: "center", justifyContent: "center" },
   sheet: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingBottom: 14 },

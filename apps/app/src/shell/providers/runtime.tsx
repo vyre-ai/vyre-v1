@@ -6,7 +6,7 @@ import type {RecordsPreviewTicket,RecordsPreviewReader} from "../../../../../cli
 // The shell builds one runtime per Space and keeps it stable while that Space is open, so the providers below memoise on its identity.
 import { createContext, useContext } from "react";
 import type { ReactElement, ReactNode } from "react";
-import type { HomeData } from "../../places/home/sections-a/data.tsx";
+import type { RuntimeBase } from "../session/runtime-data.ts";
 import { setAssistantId } from "../../../../../ui/src/Avatar/assistant.ts";
 import type { LinkPolicy } from "../../../../../ui/src/reach/index.tsx";
 import type { TurnStreams } from "../session/turn-streams.ts";
@@ -24,7 +24,7 @@ export interface ShellTarget {
 
 export type SpaceKind = "team" | "personal";
 
-export interface ShellRuntime extends Omit<HomeData, "nav"> {
+export interface ShellRuntime extends RuntimeBase {
   createRecordsPreview?(ticket:RecordsPreviewTicket):RecordsPreviewReader;
   space: { id: string; kind: SpaceKind; name: string };
   /** The Space changed: what a card that reads by capability follows, on the same tick that re-reads the live queries. */

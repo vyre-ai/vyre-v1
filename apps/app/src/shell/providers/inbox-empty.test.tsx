@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { LiveQuery, ScreenHooks } from "../../../../../client/src/index.ts";
 import { createSampleInbox } from "../../places/inbox/contactlist/sample.ts";
-import type { Principal } from "../../places/home/sections-a/data.tsx";
+import type { Principal } from "../session/runtime-data.ts";
 import { INBOX_SOURCE_QUERIES } from "../rail/inbox-sources.ts";
 import InboxPlace from "./inbox.tsx";
 import { PlaceHashProvider } from "../hash/context.tsx";

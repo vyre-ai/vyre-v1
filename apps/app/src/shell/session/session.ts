@@ -10,7 +10,7 @@ import {createRecordsPreview} from "../../../../../client/src/gateway/records-pr
 import type { LiveQuery, QueryState } from "../../../../../client/src/index.ts";
 import type { ScreenIndexEntry } from "../../../../../generated/screens.ts";
 import type { CapMap } from "../../../../../generated/types.ts";
-import type { Principal } from "../../places/home/sections-a/data.tsx";
+import type { Principal } from "./runtime-data.ts";
 import { formatHash, placeForSubject } from "../hash/hash.ts";
 import type { ShellRuntime, ShellTarget } from "../providers/runtime.tsx";
 import type { PlaceId } from "../rail/kits.ts";

@@ -41,10 +41,10 @@ const page = (t: ReturnType<typeof setup>, tab?: ProjectTabKey): JSX.Element => 
   <ProjectPageDataProvider value={t.data}><ProjectPage projectId="pj_0" space={SPACE} {...(tab ? { tab } : {})} onTabChange={(k) => t.tabs.push(k)} /></ProjectPageDataProvider>
 );
 
-test("the tabs are Chat, Plan, Overview, Linked and Knows, in that order, and the first is Chat", () => {
-  assert.deepEqual(PROJECT_TABS.map((t) => t.title), ["Chat", "Plan", "Overview", "Linked", "Knows"]);
+test("the tabs are Chat, Plan, Overview and Linked, in that order, and the first is Chat", () => {
+  assert.deepEqual(PROJECT_TABS.map((t) => t.title), ["Chat", "Plan", "Overview", "Linked"]);
   assert.equal(DEFAULT_PROJECT_TAB, "chat");
-  assert.ok(isProjectTab("knows") && !isProjectTab("teammates") && !isProjectTab(undefined));
+  assert.ok(!isProjectTab("knows") && isProjectTab("linked") && !isProjectTab("teammates") && !isProjectTab(undefined));
 });
 
 test("the header: the name, the status the lead set, the lead, the people count; and the tab strip", async () => {
@@ -75,9 +75,11 @@ test("each tab is one press and tells the shell; its body is the one the contrac
     assert.ok(find(root, "tab-overview-selected") && !find(root, "project-overview-stub"), "the Overview body is l-editor's component, not the stub");
     await press(find(root, "tab-linked")); await flush();
     assert.ok(find(root, "linked") || find(root, "linked-empty") || find(root, "project-linked") || textOf(root).includes("Linked"), "the Linked body is l-artifacts' component");
-    await press(find(root, "tab-knows")); await flush();
-    assert.ok(find(root, "project-knows"));
-    assert.deepEqual(t.tabs, ["plan", "overview", "linked", "knows"]);
+    assert.ok(!find(root, "tab-knows"), "Knows is not a tab: it opens in the side pane from More");
+    await press(find(root, "project-more")); await flush();
+    await press(find(root, "menu-item-What Vyre knows")); await flush();
+    assert.ok(find(root, "project-knows-pane") && find(root, "project-knows"), "What Vyre knows opens the pane");
+    assert.deepEqual(t.tabs, ["plan", "overview", "linked"]);
   } finally { off(); }
 });
 
@@ -132,8 +134,10 @@ test("Knows reads memory.place.list for the project and draws what Vyre remember
   try {
     const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
     const t = setup({ "memory.place.list": (i) => { calls.push({ cap: "memory.place.list", input: i }); return { facts: [{ factId: "fct_1", kind: "decision", text: "Send the retainer Friday", state: "current", said_by: "usr_maya", at: 1_762_000_000_000 - 3_600_000 }] }; } });
-    const root = await mount(createRoot, page(t, "knows"));
+    const root = await mount(createRoot, page(t));
     await flush();
+    await press(find(root, "project-more")); await flush();
+    await press(find(root, "menu-item-What Vyre knows")); await flush();
     assert.deepEqual(calls[0]!.input, { placeKind: "project", placeId: "pj_0", history: true });
     assert.ok(find(root, "knows-row-fct_1"));
     assert.ok(textOf(find(root, "knows-row-fct_1")).includes("Send the retainer Friday"));
@@ -196,5 +200,52 @@ test("the Chat tab's header carries the chat's find and pane, and More is the pr
     assert.ok(labels.indexOf("Copy Link") >= 0 && labels.indexOf("Plan Mode") > labels.indexOf("Copy Link"), `the project's items first, then the chat's: ${labels.join(", ")}`);
     await press(find(root, "tab-plan")); await flush();
     for (const id of ["find-button", "pane-button", "helpers-button"]) assert.equal(find(root, id), null, `${id} only on the Chat tab`);
+  } finally { off(); }
+});
+
+test("roles are set in the people popover: a project's Lead gets Change role (Lead, Member, Reviewer, Guest) through projects.members.set; a member gets no role control", async () => {
+  const { act } = await import("react");
+  const off = installDom(); widen(1280);
+  try {
+    for (const lead of [true, false]) {
+      const t = setup();
+      // the popover's rows and who may change them come from the overview's people: Maya is the Lead, Omar a member
+      if (!lead) t.data = { ...t.data, me: { id: "usr_omar", name: "Omar Haddad" } };
+      const root = await mount(createRoot, page(t));
+      await flush(); await flush();
+      await press(find(root, "project-members")); await flush();
+      const open = find(root, lead ? "people-row-usr_omar" : "people-row-usr_maya")?.props["onContextMenu"] as ((e: unknown) => void) | undefined;
+      assert.equal(typeof open, "function", "a row opens its menu");
+      await act(async () => { open?.({ preventDefault() {}, nativeEvent: { pageX: 20, pageY: 20 }, pageX: 20, pageY: 20, clientX: 20, clientY: 20 }); });
+      await flush();
+      assert.equal(find(root, "menu-item-Change role") !== null, lead, lead ? "the Lead may change a role" : "a member may not");
+      if (!lead) continue;
+      await press(find(root, "menu-item-Change role")); await flush();
+      for (const w of ["Lead", "Member", "Reviewer", "Guest"]) assert.ok(find(root, `menu-item-${w}`), w);
+      await press(find(root, "menu-item-Reviewer")); await flush();
+      const set = t.calls.filter((c) => c.cap === "projects.members.set").map((c) => c.input);
+      assert.equal(set.length, 1);
+      assert.deepEqual([set[0]!["projectId"], set[0]!["principal"], set[0]!["role"]], ["pj_0", "usr_omar", "reviewer"]);
+      assert.equal(typeof set[0]!["idempotencyKey"], "string", "the call carries its key");
+    }
+  } finally { off(); }
+});
+
+test("a Space owner or admin keeps role control when someone else is Lead; a plain member does not", async () => {
+  const { act } = await import("react");
+  const off = installDom(); widen(1280);
+  try {
+    for (const admin of [true, false]) {
+      const t = setup();
+      t.data = { ...t.data, me: { id: "usr_omar", name: "Omar Haddad" }, admin };
+      const root = await mount(createRoot, page(t));
+      await flush(); await flush();
+      await press(find(root, "project-members")); await flush();
+      const open = find(root, "people-row-usr_maya")?.props["onContextMenu"] as ((e: unknown) => void) | undefined;
+      await act(async () => { open?.({ preventDefault() {}, nativeEvent: { pageX: 20, pageY: 20 }, pageX: 20, pageY: 20, clientX: 20, clientY: 20 }); });
+      await flush();
+      assert.equal(find(root, "menu-item-Change role") !== null, admin, admin ? "the admin changes roles though Maya leads" : "a plain member may not");
+      assert.equal(typeof find(root, "people-role-usr_maya")?.props.onClick === "function", admin, "the role text is a button only for who may change it");
+    }
   } finally { off(); }
 });

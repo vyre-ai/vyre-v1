@@ -47,7 +47,7 @@ export function KnowsTab({ projectId, canEdit }: ProjectTabProps): ReactElement 
 }
 
 const s = StyleSheet.create({
-  fill: { flex: 1, minHeight: 0 },
+  fill: { flex: 1, minHeight: 0, padding: 24 },
   pad: { padding: 24 },
   dim: { fontSize: 13, color: "var(--ink-3)" as string },
 });

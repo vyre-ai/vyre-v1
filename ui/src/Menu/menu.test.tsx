@@ -140,9 +140,9 @@ test("a rendered menu lists the items in order and Report a problem last, with a
   assert.ok(html.lastIndexOf('data-separator="true"') < html.indexOf('data-report="true"'));
 });
 
-test("the first item is lit on open (hover and focus paint the whole row)", () => {
+test("nothing is lit on open: hover or an arrow key lights a row, and the lit row is filled with the accent", () => {
   const html = renderToStaticMarkup(<Menu items={[{ label: "Open" }, { label: "Copy" }]} x={0} y={0} />);
-  assert.equal(html.match(/background-color:var\(--accent\)/g)?.length, 1, "exactly one lit row, filled with the accent");
+  assert.equal(html.match(/background-color:var\(--accent\)/g)?.length ?? 0, 0, "no row is filled when the menu opens");
   assert.match(html, /r-width-/, "rows carry a full width style");
 });
 
@@ -236,7 +236,7 @@ test("a count sits in its own quiet right-aligned column, never in the label", (
   assert.match(html, /data-testid="menu-count-Email"[^>]*>8</, "the count renders as its own element");
   assert.ok(!html.includes("Email (8)"), "the label stays plain");
   assert.ok(html.indexOf(">8<") < html.indexOf("✓"), "the count comes before the check");
-  assert.ok(html.includes("background-color:var(--accent)"), "the lit row is filled with the prototype accent");
+  assert.ok(!html.includes("background-color:var(--accent)"), "no row is lit on open");
 });
 
 test("the checked item (the current Space, a chosen filter) says it is current for assistive tech and for a click gate", () => {
