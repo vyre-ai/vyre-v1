@@ -14,6 +14,11 @@ export function isAtEnd(scrollTop: number, clientHeight: number, scrollHeight: n
   return scrollHeight - scrollTop - clientHeight <= slack;
 }
 
+/** When the feed's own height changes: it goes back to the end only while it follows and the person is at the end. Someone who scrolled up is left where they are. */
+export function holdsEnd(follow: boolean, atEnd: boolean): boolean {
+  return follow && atEnd;
+}
+
 export interface FeedProps {
   children: ReactNode;
   /** Changes whenever the content grew (a stream's snapshot version). The feed follows the end after each change. */
@@ -76,7 +81,7 @@ export function Feed({ children, followKey, store, follow = true, startAway = fa
   }, [followKey, version, follow, endKey, toEnd]);
 
   // the list got shorter (a notice line, a taller composer, a menu opened under it) while the person was at the end: the end stays in view, so the last card's buttons are not cut off
-  const onLayout = useCallback(() => { if (follow && atEnd.current) toEnd(); }, [follow, toEnd]);
+  const onLayout = useCallback(() => { if (holdsEnd(follow, atEnd.current)) toEnd(); }, [follow, toEnd]);
 
   return (
     <ScrollView ref={ref} testID={testID} accessibilityLabel={away ? "Conversation, scrolled up" : "Conversation"} onScroll={onScroll} onLayout={onLayout} scrollEventThrottle={16} style={[{ flex: 1 }, GUTTER]} contentContainerStyle={contentStyle}>

@@ -53,4 +53,30 @@ for (const skin of ["paper", "graphite"]) for (const [size, vp] of Object.entrie
   await page.screenshot({ path: path.join(out, `thread-notice-${skin}-${size}.png`) });
   await ctx.close();
 }
+// the error card (Docs: restricted file, with Retry, Details and Report) as the last message, with the account notice showing under it
+for (const skin of ["paper", "graphite"]) for (const [size, vp] of Object.entries({ w1440: SIZES.w1440, phone: SIZES.phone })) {
+  const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 1, colorScheme: skin === "graphite" ? "dark" : "light", reducedMotion: "reduce" });
+  const page = await ctx.newPage();
+  const url = routeUrl(real.origin, "/m/P-L9b_04?v=errors", skin);
+  await page.goto(url, { waitUntil: "load", timeout: 60000 }).catch(() => page.goto(url, { waitUntil: "load", timeout: 60000 }));
+  await page.waitForSelector("[data-testid=err-retry]", { timeout: 15000 }).catch(() => console.log("no error card"));
+  await page.waitForTimeout(1200);
+  const measure = () => page.evaluate(() => {
+    const f = document.querySelector("[data-testid=conversation-feed]").getBoundingClientRect();
+    const out = {};
+    for (const id of ["err-retry", "err-what", "err-report"]) { const e = document.querySelector(`[data-testid=${id}]`); out[id] = e ? Math.round(f.bottom - e.getBoundingClientRect().bottom) : null; }
+    return out;
+  });
+  const before = await measure();
+  await page.screenshot({ path: path.join(out, `error-before-${skin}-${size}.png`) });
+  await page.locator("[data-testid=composer-strip]").first().click().catch((e) => console.log("strip", String(e).slice(0, 80)));
+  await page.waitForTimeout(600);
+  const model = page.locator("[data-testid=composer-panel]").getByText("Model", { exact: true }).first();
+  if (await model.count()) { await model.click().catch(() => undefined); await page.waitForTimeout(400); await page.locator("[data-testid=composer-panel]").getByText("Sonnet", { exact: true }).first().click().catch(() => undefined); await page.waitForTimeout(1200); }
+  await page.keyboard.press("Escape").catch(() => undefined); await page.waitForTimeout(600);
+  const after = await measure();
+  console.log(skin, size, "notice", await page.locator("[data-testid=conversation-line]").allTextContents(), "space under buttons before", JSON.stringify(before), "after", JSON.stringify(after));
+  await page.screenshot({ path: path.join(out, `error-notice-${skin}-${size}.png`) });
+  await ctx.close();
+}
 await browser.close(); real.close();
