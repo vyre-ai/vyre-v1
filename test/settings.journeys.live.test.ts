@@ -1,6 +1,7 @@
 // The real app, Settings walked as a person: the seven pages, as the Owner and as a Member, in a real Chromium against a Team world. Each page opens, shows its sentence, has no error and no banned word; the
 // controls that matter are pressed (a notification channel, the look, GitHub) and the capability they call is checked on the server. Needs VYRE_APP_DIST and Chromium; without them it skips and says why.
 // Screenshots of every page, light and dark, desktop and phone, go to shots-evidence/settings/<who>/.
+import { guardCrashes } from "../apps/app/tests/crash-guard.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -21,12 +22,16 @@ const BANNED = ["principal", "grant", "actor", "schema", "gate", "suppression", 
 test("settings journey: the seven pages as Owner and as Member, the look and a channel saved on the server", async (t) => {
   const env = await browserOrSkip();
   if (typeof env === "string") { t.skip(env); return; }
+  process.env["VYRE_GH_OAUTH_CLIENT_ID"] = "Iv1.fixture-default-app"; process.env["VYRE_GH_OAUTH_CLIENT_SECRET"] = "fixture-default-secret-0123456789";
   const s = await bootScreens({ kind: "team" }, env);
   try {
     const w = s.world;
     const member = await w.join("mia");
+    // the default Vyre GitHub app (a real server has one in its environment): a member who is not connected is told so, with the source and nothing else
+    assert.deepEqual(await member.ok("github.me.status", {}), { connected: false, source: "vyre", needsReconnect: false });
     for (const [who, person, role] of [["owner", w.owner, "Owner"], ["member", member, "Member"]] as const) {
       const me = await seat(s, person, role);
+      const guard = guardCrashes(me.page);
       const dir = `${OUT}/${who}`;
       await me.page.setViewportSize({ width: 1440, height: 900 });   // the prototype's width, for side-by-side shots
       await open(me, s, "/settings");
@@ -42,6 +47,7 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
         assert.ok(text.includes(p.sub), `${who}/${p.id}: the sentence under the title`);
         for (const b of BANNED) { const m = new RegExp(`(^|[^a-z])${b}([^a-z]|$)`, "i").exec(text); assert.ok(!m, `${who}/${p.id}: no "${b}" in: ...${m ? text.slice(Math.max(0, m.index - 60), m.index + 60) : ""}...`); }
         assert.ok(!/Couldn't load|Something went wrong|undefined|\[object/.test(text), `${who}/${p.id}: no error text`);
+        await guard.check(`${who} ${p.id}`);
         await shoot(me.page, dir, p.id);
       }
       // a notification channel and the look, as that person, saved on the server
@@ -57,6 +63,10 @@ test("settings journey: the seven pages as Owner and as Member, the look and a c
       assert.equal(look.rm, true, `${who}: Reduce motion saved`);
       await setScheme(me.page, "dark");
       await shoot(me.page, dir, "appearance-after");
+      // GitHub in the dark skin: the line above Connect names the app the Space uses (the default Vyre app), for the owner and for a member alike
+      await me.page.getByTestId("row-page-github").click(); await me.page.getByTestId("page-github").waitFor({ timeout: 20_000 });
+      await me.page.getByText("Your Space uses the Vyre GitHub app.").waitFor({ timeout: 20_000 });   // the page names the app the Space uses, before Connect
+      await guard.check(`${who} github dark`); await shoot(me.page, dir, "github-dark");
       // the phone: every page, light and dark (the list is one screen and a page another, with a back arrow between them)
       await me.page.setViewportSize(SIZES.phone);
       for (const p of PAGES) {

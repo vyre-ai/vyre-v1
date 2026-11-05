@@ -129,10 +129,11 @@ export async function adoptSignIn(ctx: GithubCtx, input: { githubId: string; per
   return { adopted: true };
 }
 
-export function meStatus(ctx: GithubCtx): { connected: boolean; login?: string; source?: "space" | "vyre"; connectedAt?: number; needsReconnect: boolean } {
+export async function meStatus(ctx: GithubCtx): Promise<{ connected: boolean; login?: string; source?: "space" | "vyre"; connectedAt?: number; needsReconnect: boolean }> {
   ensureMe(ctx);
   const me = first(ctx.db.all(`SELECT * FROM github_me WHERE "person" = ?`, personOf(ctx)));
-  if (!me) return { connected: false, needsReconnect: false };
+  // not connected yet: the member is told which app the sign-in will use, the same fact github.me.connect hands them (source only: no client id, no app id, no secret, no installation)
+  if (!me) { const source = await userHost(ctx).app(ctx).then((a) => a.source, () => undefined); return { connected: false, ...(source ? { source } : {}), needsReconnect: false }; }
   return { connected: true, login: String(me.login), source: me.source as "space" | "vyre", connectedAt: Number(me.connectedAt), needsReconnect: me.needsReconnect === 1 };
 }
 

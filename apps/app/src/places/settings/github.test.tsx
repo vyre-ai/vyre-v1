@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SettingsDataProvider } from "./data.tsx";
 import { SettingsPlace } from "./SettingsPlace.tsx";
-import { GH_PERMS, consumerWords, installWords } from "./GithubPage.tsx";
+import { GH_PERMS, appLine, consumerWords, installWords } from "./GithubPage.tsx";
 import { createSampleSettings, harbor, northwind } from "./sample.ts";
 
 const html = (s: ReturnType<typeof createSampleSettings>, page = "github"): string => renderToStaticMarkup(<SettingsDataProvider value={s.data}><SettingsPlace width={1280} initialPage={page as never} /></SettingsDataProvider>).replaceAll("<!-- -->", "").replaceAll("&#x27;", "'");
@@ -38,6 +38,15 @@ test("connected: the account, the reconnect banner, orgs with Install or Change,
 test("not connected: one button", () => {
   const out = html(createSampleSettings(harbor));
   assert.ok(out.includes("Connect GitHub once") && out.includes('data-testid="gh-connect"') && !out.includes('data-testid="github-account"'));
+});
+
+test("not connected: the line above Connect says which GitHub app the Space uses, the Vyre one or its own", () => {
+  assert.equal(appLine("vyre"), "Your Space uses the Vyre GitHub app.");
+  assert.equal(appLine("space"), "Your Space uses its own GitHub app.");
+  const out = html(createSampleSettings(harbor));
+  assert.ok(out.includes("Your Space uses the Vyre GitHub app.") && out.indexOf("Your Space uses the Vyre GitHub app.") < out.indexOf('data-testid="gh-connect"'), "the line comes first");
+  const own = renderToStaticMarkup(<SettingsDataProvider value={createSampleSettings(harbor).data}><SettingsPlace width={1280} initialPage={"github" as never} /></SettingsDataProvider>);
+  assert.ok(own.includes("Your Space uses"), "drawn for a member who is not connected");
 });
 
 test("each control calls its capability", async () => {
