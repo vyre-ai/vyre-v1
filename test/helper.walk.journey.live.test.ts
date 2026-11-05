@@ -68,7 +68,9 @@ test("running helpers: a held request, Change model, a person messaging a helper
       await waitFor(async () => (fs.existsSync(path.join(work, ".git")) ? true : null), 30_000);
       fs.writeFileSync(path.join(work, "invoice-dates.ts"), "export const fixed = true;\n");
       git(work, "add", "-A"); git(work, "commit", "--quiet", "-m", "fix the invoice date bug");
-      yield { type: "text", text: "Fixed the date bug and added a test." };
+      yield* step("cd-1", "Read", "invoice-dates.ts", 1_000);
+      yield* step("cd-2", "Bash", "node --test invoice-dates.test.ts", 2_000);
+      yield { type: "text", text: "Fixed the date bug and added a test. The test passes." };
       return;
     }
     if (/Keep it short/.test(body)) { yield { type: "text", text: "Noted. I will keep it short." }; return; }
@@ -207,6 +209,11 @@ test("running helpers: a held request, Change model, a person messaging a helper
       await page.getByTestId("crew-overview").locator('[data-testid^="crew-chip-"][role="button"]').filter({ hasText: "Check the calendar" }).first().click({ timeout: 15_000 });
       await page.getByTestId("crew-peek").first().waitFor({ timeout: 20_000 });
       await shot(`crew-peek-done-${mode}-${size}`);
+      // the coder's peek: its branch, what changed and the test it ran
+      await page.getByTestId("crew-peek-back").click({ timeout: 10_000 });
+      await page.getByTestId("crew-overview").locator('[data-testid^="crew-chip-"][role="button"]').filter({ hasText: "Fix the invoice date bug" }).first().click({ timeout: 15_000 });
+      await page.getByTestId("crew-peek").first().waitFor({ timeout: 20_000 });
+      await shot(`crewcode-peek-${mode}-${size}`);
       if (mode === "light") {
       // a thread under the first message, and a reply sent also to the chat
       const first = ((await api("chat.messages.list", { threadId: chat })).messages as Array<{ messageId: string }>)[0]!.messageId;
