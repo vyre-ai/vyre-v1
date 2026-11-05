@@ -692,7 +692,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   // The engine module reports its running turns through its seam (turns below); a link that runs a person's Team Space turns here adds itself as a source that hands over on drain.
   const localWork = createLocalWork();
   let engineTurns = 0;
-  localWork.add({ name: "engine", running: () => engineTurns });
+  const engineSource: import("../routes/local-work.ts").LocalWorkSource = { name: "engine", running: () => engineTurns };
+  localWork.add(engineSource);
   const localWorkRoute = createLocalWorkRoute({ token, work: localWork, sameToken });
   const computeRoute = createComputeRoute({ poll: (c, r) => computePoll(c, r), jobs: (n, r) => computeJobs(n, r), result: (n, a) => computeResult(n, a), home: (n, a) => computeHome(n, a), recording: (n, a) => computeRecording(n, a) });
   const webhookRoute = createWebhookRoute({ has: (c) => webhooks.has(c), accept: (c, a) => webhooks.accept(c, a), automation: (a) => webhooks.automation(a), publicBase: () => { const a = cfg.address ?? `http://${cfg.host}:${boundPort}`; return /^https?:\/\//.test(a) ? a : `https://${a}`; } });
@@ -1412,6 +1413,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // `trace`: a call the host makes on behalf of a caller keeps that caller's trace (only the principal changes), so the events it writes stay in the caller's trace
       const system = (cap: string, input: unknown, trace?: { traceId: string; spanId: string }): Promise<unknown> =>
         invoke(cap, input, { space: spaceId, principal: { ...SYSTEM_PRINCIPAL }, preAuth: true, origin: "hook", ...(trace ? { trace } : {}) }).then((r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))));
+      // The desktop shell updating the app asks which chats the running turns are in (it tells the person which reply it waits for) and, when the wait runs out or the person says so, to end them
+      // cleanly (routes/local-work.ts). The engine names what works now (engine.now) and stops a chat's agents (engine.stop_all), the same ends a person's Stop reaches.
+      engineSource.chats = async () => {
+        const out = (await system("engine.now", {})) as { working?: Array<{ threadId?: string; title?: string }> };
+        const seen = new Map<string, string>();
+        for (const w of out.working ?? []) if (w.threadId && !seen.has(w.threadId)) seen.set(w.threadId, w.title ?? "a chat");
+        return [...seen].map(([id, title]) => ({ id, title }));
+      };
+      engineSource.stopTurns = async () => {
+        const out = (await system("engine.now", {})) as { working?: Array<{ threadId?: string }> };
+        let stopped = 0;
+        for (const id of new Set((out.working ?? []).map((w) => w.threadId).filter((x): x is string => typeof x === "string"))) {
+          try { stopped += ((await system("engine.stop_all", { threadId: id })) as { stopped?: number }).stopped ?? 0; } catch { /* that chat ends by itself or at the stop */ }
+        }
+        return stopped;
+      };
       // the Space record store the L3 data modules share (P-H_08): one file in the data directory, opened by the first module that needs it, closed at shutdown
       const spaceStore = createSpaceStore({ path: spaceStorePath(paths.root), space: spaceId, ours: (x: unknown) => { const r = rawDbOf(x); return r === null || r === db; } });
       closers.push(() => spaceStore.close());
