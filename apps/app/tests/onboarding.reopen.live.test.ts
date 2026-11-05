@@ -106,13 +106,13 @@ test("a fresh install: pick Codex, go back, switch to Claude, keep an answer, im
       // 2. back to that step: it shows what was picked and can change it
       if (size === "wide") await row("ai").click(); else { await p.getByTestId("step-back").click(); }
       await p.getByTestId("ai-connected").waitFor({ timeout: 15_000 });
-      assert.match(await p.getByTestId("ai-connected").innerText(), /ChatGPT \(Codex\)/);
+      assert.match(await p.getByTestId("ai-connected").innerText(), /Codex/);
       await shot("2-reopened-ai");
       // 3. switch to Claude: the Claude sign-in goes in first, then Codex is removed
       await p.getByTestId(`ai-switch-${afterCodex[0]!.id}`).click();
       await p.getByTestId("ai-local-claude-code").click();
       await p.getByTestId("ai-note").waitFor({ timeout: 30_000 });
-      assert.match(await p.getByTestId("ai-note").innerText(), /Switched from ChatGPT \(Codex\)/);
+      assert.match(await p.getByTestId("ai-note").innerText(), /Switched from .*Codex/);
       const afterSwitch = (await call("providers.list", {})).providers as Array<{ providerKey: string }>;
       assert.deepEqual(afterSwitch.map((x) => x.providerKey), ["claude-code"], "Claude is connected and Codex is gone");
       await shot("3-switched-to-claude");

@@ -358,3 +358,19 @@ test("providers.own_people counts the people on their own sign-ins and carries n
   assert.ok(!JSON.stringify(got).includes(SECRET) && !JSON.stringify(got).includes("openai"), "no value, no provider name");
   h.cleanup();
 });
+
+test("a subscription account whose item holds neither credentials nor setup_token reads needs sign in, so Settings offers Sign in again; one that holds either reads ok", async () => {
+  const h = harness();
+  const { port } = fakeSignin([{ state: "done", fields: [{ key: "setup_token", value: "sk-ant-oat01-x-0123456789", secret: true }] }]); // secret-scan: fake
+  u.configureVault({ sinks: {}, signin: port });
+  try {
+    const started = out(await p.subscriptionStart(h.ctx, { providerKey: "claude-code", idempotencyKey: key() }));
+    const row = out(out(await p.subscriptionComplete(h.ctx, { flowId: String(started.flowId) })).provider);
+    assert.equal(row.state, "ok");
+    assert.equal(out((out(await p.list(h.ctx, {})).providers as unknown[])[0]).state, "ok", "setup_token is enough");
+    h.ctx.db.run(`UPDATE vault_meta SET "fieldKeys" = ? WHERE id = ?`, '["note"]', String(row.itemId));
+    assert.equal(out((out(await p.list(h.ctx, {})).providers as unknown[])[0]).state, "needs_sign_in", "nothing to sign in with");
+    h.ctx.db.run(`UPDATE vault_meta SET "fieldKeys" = ? WHERE id = ?`, '["credentials"]', String(row.itemId));
+    assert.equal(out((out(await p.list(h.ctx, {})).providers as unknown[])[0]).state, "ok", "credentials is enough");
+  } finally { u.configureVault(null); h.cleanup(); }
+});

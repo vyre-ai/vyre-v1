@@ -67,6 +67,14 @@ function viaOf(connection: string, scope: string): string {
   return `${connection === "subscription" ? "Subscription" : "API key"}, ${scope === "mine" ? "yours" : "shared"}`;
 }
 
+/** A subscription account whose item holds neither a credentials nor a setup_token field has nothing to sign in with: it reads "needs sign in" whatever its saved state says, so Settings offers Sign in again. */
+export function hasSignin(item: Row | null): boolean {
+  if (!item) return true;
+  let keys: unknown = [];
+  try { keys = JSON.parse(String(item["fieldKeys"] ?? "[]")); } catch { keys = []; }
+  return Array.isArray(keys) && (keys.includes("credentials") || keys.includes("setup_token"));
+}
+
 function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: number }, spaceKey = spaceKeyProviderId(ctx), older = olderOf(ctx, str(p, "owner"))): Record<string, unknown> {
   const c = entry(ctx, str(p, "providerKey"));
   const item = itemOf(ctx, str(p, "itemId"));
@@ -84,7 +92,7 @@ function rowOut(ctx: VaultCtx, p: Row, used?: { tokens: number; costCents: numbe
     ...(item && str(item, "name") ? { itemName: str(item, "name") } : {}),
     ...(item && str(item, "handle") ? { handle: str(item, "handle") } : {}), agentsUsing: [],
     usage: { tokens: used?.tokens ?? 0, costCents: used?.costCents ?? 0, periodStart: monthStart(ctx.now()) }, engine: c?.engine ?? str(p, "providerKey"),
-    spaceMayUse: num(p, "spaceMayUse") === 1, state: str(p, "state"), keepsNothing: keepsNothingOf(ctx, p),
+    spaceMayUse: num(p, "spaceMayUse") === 1, state: sub && str(p, "state") === "ok" && !hasSignin(item) ? "needs_sign_in" : str(p, "state"), keepsNothing: keepsNothingOf(ctx, p),
     ...(address ? { address: str(address, "address") } : {}), ...(c?.keyless || str(p, "connection") === "local_model" ? { keyless: true } : {}),
     ...(spaceKey !== null && spaceKey === str(p, "id") ? { spaceKey: true } : {}),
   };
