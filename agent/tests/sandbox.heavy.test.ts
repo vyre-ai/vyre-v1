@@ -75,6 +75,8 @@ const TOKEN = `TOP-SECRET-${Math.random().toString(36).slice(2)}`;
 const VAULT_ENV = "VYRE_HEAVY_VAULT_VALUE";
 const VAULT_VALUE = `vault-sk-live-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
 const suffix = `${process.pid}${Math.random().toString(36).slice(2, 6)}`;
+/** This run's own image tag: another job on the same dockerd building vyre/person-sandbox:1 must never replace the image under these containers (and this run's tag is removed at the end). */
+const RUN_IMAGE = `vyre/person-sandbox:hv${suffix}`;
 
 function world(): void {
   for (const d of [site, reference, raviRoot, path.join(base, "scratch", "dana")]) fs.mkdirSync(d, { recursive: true });
@@ -98,7 +100,7 @@ const roots = (person: string, root: string): Roots => ({ work: [root], scratch:
 function danaSpec(id: string, over: Partial<SandboxSpec> = {}): SandboxSpec {
   return {
     id, person: "usr_dana", kind: "docker", mounts: [{ host: site, mode: "rw" }, { host: reference, mode: "ro" }],
-    egressHosts: ["allowed.test", "internal.test", "metadata.test"], limits: { cpus: 1, memoryMb: 512, pids: 128 }, ...over,
+    image: RUN_IMAGE, egressHosts: ["allowed.test", "internal.test", "metadata.test"], limits: { cpus: 1, memoryMb: 512, pids: 128 }, ...over,
   };
 }
 
@@ -153,10 +155,12 @@ const egress: Partial<EgressOptions> = {
 };
 
 async function ensureImage(): Promise<void> {
-  if (await api.imageExists(DEFAULT_IMAGE)) return;
+  if (await api.imageExists(RUN_IMAGE)) return;
   // Built from the repository's own Dockerfile, with one tiny pinned package standing in for the engines (the image's build refuses an unpinned engine).
-  const r = await runHost("docker", ["build", "-t", DEFAULT_IMAGE, "--build-arg", "ENGINE_PACKAGES=is-odd@3.0.1", "images/person-sandbox"], { timeoutMs: 600_000 });
-  assert.equal(r.exitCode, 0, `building ${DEFAULT_IMAGE} failed: ${r.stderr.slice(-800)}`);
+  const r = await runHost("docker", ["build", "-t", RUN_IMAGE, "--build-arg", "ENGINE_PACKAGES=is-odd@3.0.1", "images/person-sandbox"], { timeoutMs: 600_000 });
+  assert.equal(r.exitCode, 0, `building ${RUN_IMAGE} failed: ${r.stderr.slice(-800)}`);
+  // the computers heavy tests that run after this file read the shared name: give it only when it is missing, as an alias of this run's image (never a rebuild that replaces one under another job's containers)
+  if (!(await api.imageExists(DEFAULT_IMAGE))) spawnSync("docker", ["tag", RUN_IMAGE, DEFAULT_IMAGE], { encoding: "utf8" });
 }
 
 before(async () => {
@@ -188,6 +192,7 @@ after(async () => {
   // Whatever a failed test left running: this test's names only.
   for (const n of spawnSync("docker", ["ps", "-aq", "--filter", `name=vyre-sbx-hv${suffix}`], { encoding: "utf8" }).stdout.split("\n").filter(Boolean)) spawnSync("docker", ["rm", "-f", n]);
   for (const n of spawnSync("docker", ["network", "ls", "-q", "--filter", `name=vyre-sbx-hv${suffix}`], { encoding: "utf8" }).stdout.split("\n").filter(Boolean)) spawnSync("docker", ["network", "rm", n]);
+  spawnSync("docker", ["rmi", "-f", RUN_IMAGE], { encoding: "utf8" });
   fs.rmSync(base, { recursive: true, force: true });
 });
 
