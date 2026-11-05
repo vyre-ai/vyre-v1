@@ -150,3 +150,21 @@ test("no model works: one plain card that says what to do, with Open AI accounts
   assert.deepEqual(w.next, [{ key: "connect_ai", label: "Open AI accounts" }]);
   assert.doesNotMatch(`${w.message} ${w.cause ?? ""}`, /engine\.|--/);
 });
+
+test("no model to run on: the chat says Pick a model for the account, with one button that opens the Model menu; the provider's raw JSON is not the Reason", async () => {
+  const { statusView } = await import("./status.ts");
+  const v = statusView({ id: "b1", type: "turn_status", v: 1, data: { state: "failed", turnId: "trn_1", code: "engine.no_model_picked", detail: "Pick a model for Saqib's OpenCode." } } as never) as { kind: "error"; block: { data: { message: string; next: Array<{ key: string; label: string }> } } };
+  assert.equal(v.block.data.message, "Pick a model for Saqib's OpenCode.");
+  assert.deepEqual(v.block.data.next, [{ key: "pick_model", label: "Pick a model" }]);
+});
+
+test("Details: Reason is one plain sentence and the provider's raw words sit in their own row, never as the Reason", async () => {
+  const { turnDetail } = await import("./actions.ts");
+  const raw = '{"message":"`model` must be a non-empty string","type":"invalid_request_error","param":"model"}';
+  const data = { call: async () => ({ what: { turn: { startedAt: 1, endedAt: 3001, model: "", error: { code: "provider.bad_request", message: raw }, traceId: "t".repeat(32), ranOn: [] }, machine: "device", denials: [], paid: "My OpenAI" } }) } as never;
+  const rows = await turnDetail(data, "trn_1");
+  assert.deepEqual(rows.find((r) => r[0] === "Reason"), ["Reason", "Your AI provider refused this request."]);
+  assert.deepEqual(rows.find((r) => r[0] === "Provider said"), ["Provider said", raw]);
+  const odd = await turnDetail({ call: async () => ({ what: { turn: { startedAt: 1, model: "", error: { code: "x.unknown", message: '{"a":1}' }, traceId: "t".repeat(32) }, machine: "device", denials: [] } }) } as never, "trn_2");
+  assert.ok(!/^\s*\{/.test(String(odd.find((r) => r[0] === "Reason")?.[1])), "a code with no words of its own never shows raw JSON as the Reason");
+});
