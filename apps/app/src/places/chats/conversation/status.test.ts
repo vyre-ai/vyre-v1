@@ -1,3 +1,4 @@
+// @tsx  (the Details test renders the block view, a .tsx module)
 // A turn that ended without a reply is a plain sentence with one action, never a card named after its internal status.
 import test from "node:test";
 import assert from "node:assert/strict";
