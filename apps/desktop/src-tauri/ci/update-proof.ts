@@ -132,7 +132,10 @@ if (kept) {
   await run.waitFor(/page rendered: [1-9]\d* chars/, 30_000);
   await sleep(4000);
   shot("upgraded-start");
-  const after = charsOf(run.log().split("page serviceworker")[1] ?? "");
+  // the largest count the page reported after the worker's removal: a report made while the page was still reloading says 0 and is followed by the real one (run 41931328871 failed on the first, 41936626466 passed)
+  const afterAll = [...(run.log().split("page serviceworker")[1] ?? "").matchAll(/page rendered: (\d+) chars/g)].map((m) => Number(m[1]));
+  const after = afterAll.length ? Math.max(...afterAll) : 0;
+  console.log(`update-proof: page reports after the worker was removed: ${afterAll.join(", ") || "none"}`);
   console.log(`update-proof: first start over the shipped app's profile: worker removed=${removed}, then ${after} chars`);
   if (!removed) failures.push("upgrade: the earlier version's service worker was not removed");
   if (after === 0) { failures.push("upgrade: the app draws nothing after removing the earlier worker"); console.log(`update-proof: the shell said, after the worker was removed:\n${(run.log().split("page serviceworker")[1] ?? "").split("\n").slice(0, 40).join("\n")}`); }
