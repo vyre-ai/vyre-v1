@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { Dimensions } from "react-native";
-import { find, flush, installDom, mount } from "../../../../../ui/src/testing/dom.ts";
+import { find, flush, installDom, mount, press } from "../../../../../ui/src/testing/dom.ts";
 import { SettingsDataProvider } from "./data.tsx";
 import { SettingsPlace } from "./SettingsPlace.tsx";
 import { createSampleSettings, northwind } from "./sample.ts";
@@ -43,4 +43,26 @@ test("Your AI opened on an account starts that account's sign-in, once; opened w
   assert.equal(asked.marked, true, "its sign-in shows under that account");
   assert.deepEqual((await open(undefined)).started, []);
   assert.deepEqual((await open("#Nobody")).started, [], "an account that is not there starts nothing");
+});
+
+test("an account that needs a sign-in shows a Sign in again button that starts its sign-in; a working one shows none", async () => {
+  const s = createSampleSettings(northwind);
+  s.replica.put("accounts", [
+    { id: "acc_a", ref: "#Dana_Claude", driver: "claude_code", kind: "subscription", provider: "claude-code", title: "Claude", name: "Claude", mine: true, status: "ok" },
+    { id: "acc_b", ref: "#Dana_Codex", driver: "codex", kind: "subscription", provider: "codex", title: "Codex", name: "Codex", mine: true, status: "expired" },
+  ] as never);
+  const base = s.data.call;
+  const seen: string[] = [];
+  const data = { ...s.data, call: async (cap: string, input: unknown) => { if (cap === "providers.subscription_start") { seen.push((input as { providerKey: string }).providerKey); return { flowId: "f1", instruction: "Sign in.", needsCode: false }; } return base(cap, input); } };
+  const restore = installDom();
+  try {
+    const root = await mount(createRoot, <SettingsDataProvider value={data as never}><SettingsPlace width={1280} initialPage="ai" /></SettingsDataProvider>);
+    await flush(); await flush();
+    assert.equal(find(root as never, "account-sign-in-again-#Dana_Claude"), null);
+    assert.deepEqual(seen, []);
+    await press(find(root as never, "account-sign-in-again-#Dana_Codex"));
+    await flush();
+    assert.deepEqual(seen, ["codex"]);
+    assert.ok(find(root as never, "account-sign-in"));
+  } finally { restore(); }
 });

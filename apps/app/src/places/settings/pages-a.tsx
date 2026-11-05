@@ -296,13 +296,17 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
   const asked = useAskedAccount();
   const target = accounts.status === "ready" ? accounts.data.accounts.find((a) => isAskedAccount(asked, a)) : undefined;
   const [flow, setFlow] = useState<SignInFlow | null>(null);
+  const [flowRef, setFlowRef] = useState<string | null>(null);
   const startedFor = useRef<string | null>(null);
+  const signInAgain = (a: { ref: string; provider?: string | undefined; driver: string }): void => {
+    void startFlow(data.call as never, a.provider ?? a.driver, `again:${a.ref}:${data.clock().now}`).then((f) => { setFlowRef(a.ref); setFlow(f); }).catch((e: unknown) => saved.failed(e instanceof Error ? e.message : "That did not work."));
+  };
   useEffect(() => {
     if (!target || target.kind !== "subscription" || startedFor.current === target.ref) return;
     startedFor.current = target.ref;
     const doc = (globalThis as { document?: { querySelector(q: string): { scrollIntoView?: (o: unknown) => void } | null } }).document;
     setTimeout(() => doc?.querySelector(`[data-sid="account.${target.ref}"]`)?.scrollIntoView?.({ block: "center" }), 80);
-    void startFlow(data.call as never, target.provider ?? target.driver, `again:${target.ref}:${data.clock().now}`).then(setFlow).catch((e: unknown) => saved.failed(e instanceof Error ? e.message : "That did not work."));
+    signInAgain(target);
   }, [target?.ref]);   // eslint-disable-line react-hooks/exhaustive-deps -- once per asked account
   // a Team Space with no Space AI key says so, with who can add one, so AI accounts is never an empty list with nowhere to go
   const personal = useIsPersonal();
@@ -358,10 +362,10 @@ export function AiPage({ rows, found }: PageProps): ReactElement {
       acc.push(
         <SettingsRow
           key={a.ref} id={`account.${a.ref}`} label={a.name ?? a.title} first={i === 0 && !line && !noSpaceKey} found={target?.ref === a.ref || found === `account.${a.ref}`} sub={`${a.kind === "subscription" ? "Sign-in" : "API key"}, ${a.mine ? "yours" : "shared in the Space"}`}
-          control={<Value text={a.status === "ok" ? "Working" : a.status === "expired" ? "Sign in again" : a.status === "failed" ? "Failed" : "Not tested"} accent={a.status !== "ok"} />}
+          control={a.status === "expired" && a.kind === "subscription" && a.mine ? <SmallButton label="Sign in again" primary testID={`account-sign-in-again-${a.ref}`} onPress={() => signInAgain(a)} /> : <Value text={a.status === "ok" ? "Working" : a.status === "expired" ? "Sign in again" : a.status === "failed" ? "Failed" : "Not tested"} accent={a.status !== "ok"} />}
         />,
       );
-      if (flow && target?.ref === a.ref) acc.push(<View key={`${a.ref}-signin`} testID="account-sign-in" style={{ paddingHorizontal: 16, paddingBottom: 12 }}><SignInPanel call={data.call as never} flow={flow} onCancel={() => setFlow(null)} onDone={() => { setFlow(null); saved.saved("Signed in again"); }} /></View>);
+      if (flow && flowRef === a.ref) acc.push(<View key={`${a.ref}-signin`} testID="account-sign-in" style={{ paddingHorizontal: 16, paddingBottom: 12 }}><SignInPanel call={data.call as never} flow={flow} onCancel={() => setFlow(null)} onDone={() => { setFlow(null); saved.saved("Signed in again"); }} /></View>);
       const older = (a.older ?? []).filter((o) => !removed.has(o.providerId));
       const quiet = olderLine(older.length);
       if (!quiet) return;
