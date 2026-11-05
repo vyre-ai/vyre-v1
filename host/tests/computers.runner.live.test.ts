@@ -9,7 +9,6 @@
 //   - with the runner stopped, hosts and provision say why, in words, and never "try again".
 // Runs only with VYRE_HEAVY_DOCKER=1 and the agent computer image on the box (VYRE_AGENT_COMPUTER_IMAGE, default vyre/agent-computer:1).
 import test from "node:test";
-import { agentComputerImage } from "../../test/support/heavy-images.ts";
 import assert from "node:assert/strict";
 import { execFile, spawn } from "node:child_process";
 import fs from "node:fs";
@@ -51,7 +50,7 @@ async function call(d: Daemon, cap: string, input: unknown): Promise<{ status: n
 }
 
 test("computers behind the runner: set up, wake, run a command, two agents isolated, the runner's refusals, and the reason in words when it is not there", { skip, timeout: 900_000 }, async (t) => {
-  const IMAGE = agentComputerImage();
+  const IMAGE = process.env["VYRE_AGENT_COMPUTER_IMAGE"] ?? "vyre/agent-computer:1";
   assert.equal((await docker(["image", "inspect", IMAGE])).code, 0, `${IMAGE} is on this box`);
   const work = tmp("vyre-computers-runner-");
   t.after(() => fs.rmSync(work, { recursive: true, force: true }));

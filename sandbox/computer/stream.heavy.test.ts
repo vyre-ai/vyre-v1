@@ -23,9 +23,7 @@ const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
 const skip: string | false = ON ? false : "needs VYRE_HEAVY_DOCKER=1 (the 20 s shard never builds or starts the agent computer)";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-import { agentComputerImageName, registerImage } from "../../test/support/heavy-images.ts";
-const OWN_IMAGE = process.env["VYRE_AGENT_COMPUTER_IMAGE"] === undefined;
-const IMAGE = agentComputerImageName();
+const IMAGE = process.env["VYRE_AGENT_COMPUTER_IMAGE"] ?? "vyre/agent-computer:1";
 const CTL = "/opt/agentd/ctl";
 const suffix = `${process.pid}${Math.random().toString(36).slice(2, 6)}`;
 const NAME = `vyre-comp-hv${suffix}`;
@@ -115,7 +113,6 @@ before(async () => {
   fs.cpSync(path.join(ROOT, "images/agent-computer"), ctxDir, { recursive: true });
   fs.cpSync(ext!, path.join(ctxDir, "vyre-chrome"), { recursive: true });
   const built = await runHost("docker", ["build", "-t", IMAGE, ctxDir], 1_200_000);
-  if (OWN_IMAGE) registerImage(IMAGE);
   fs.rmSync(ctxDir, { recursive: true, force: true });
   assert.equal(built.code, 0, `building ${IMAGE} failed: ${built.out.slice(-1500)}`);
   fs.chmodSync(filesRoot, 0o777);

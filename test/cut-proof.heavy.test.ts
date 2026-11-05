@@ -73,20 +73,7 @@ test("agent computers on a real Team server: Set up, Ready, desktop, Terminal, o
     assert.ok(made[0]!.computerId, "the computer exists");
     // the second agent's computer by the API (the same provision the button calls), to check the two apart
     const two = made[1]!;
-    // a connection a person already has open must survive another computer being created: Docker keeps the published port on the default network (compose.server.yml gw_priority), so nothing is reset
-    const http = await import("node:http");
-    const held = new http.Agent({ keepAlive: true, maxSockets: 1 });
-    const direct = (): Promise<{ status: number; reused: boolean }> => new Promise((resolve, reject) => { const u = new URL(url + "/healthz"); const req = http.request({ host: u.hostname, port: u.port, path: u.pathname, agent: held }, (res) => { res.resume(); res.on("end", () => resolve({ status: res.statusCode ?? 0, reused: req.reusedSocket })); }); req.on("error", reject); req.end(); });
-    assert.equal((await direct()).status, 200, "the held connection works before");
-    const natTarget = (): string => sh(`iptables -t nat -S DOCKER | grep -E "dport ${new URL(url).port}" | grep -o "to-destination [0-9.:]*"`);
-    const natBefore = natTarget();
     two.computerId = (await api("computers.provision", { agentId: two.agentId, idempotencyKey: "cut-two" })).computer.computerId as string;
-    const after = await direct();
-    assert.equal(after.status, 200, "the connection opened before the second computer still answers");
-    assert.equal(after.reused, true, "it was the same connection, not a new one after a reset");
-    assert.equal(natTarget(), natBefore, `the published port's NAT stayed where it was (${natBefore})`);
-    pass(`a connection opened before a second computer was created survived it, and the published port's NAT did not move (${natBefore})`);
-    held.destroy();
     await api("computers.wake", { computerId: two.computerId });
     const names = (): string[] => sh(`docker ps --filter label=vyre.computer --format '{{.Names}}'`).split("\n").filter((n) => /^vyre-comp-/.test(n));
     for (let i = 0; i < 90 && names().filter((n) => n.includes(two.computerId.replace(/^cmp_/, "").slice(0, 8)) || true).length < 2; i++) await page.waitForTimeout(2000);

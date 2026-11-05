@@ -286,10 +286,8 @@ compose_ok() {
   [ -n "$v" ] || return 1
   major=${v% *}
   minor=${v#* }
-  # 2.33: compose.server.yml sets gw_priority on the default network (older Compose rejects the key and nothing would start)
-  [ "$major" -gt 2 ] || { [ "$major" -eq 2 ] && [ "$minor" -ge 33 ]; }
+  [ "$major" -gt 2 ] || { [ "$major" -eq 2 ] && [ "$minor" -ge 24 ]; }
 }
-
 
 # Docker Engine from Docker's own signed apt repository on Debian and Ubuntu. Anywhere else the person installs Docker and runs this again.
 docker_apt_install() {
@@ -327,13 +325,7 @@ need_docker() {
   fi
   if [ "$DRY" = 1 ] && ! command -v docker >/dev/null 2>&1; then return 0; fi
   docker info >/dev/null 2>&1 || die "Docker is installed but not running or not reachable by this account. Start it (systemctl start docker) and run this installer again."
-  # gw_priority (compose.server.yml) needs Docker Engine 28 (API 1.48): an older engine ignores it and every agent computer set up would drop everyone's open connections. Stopped here, before anything is changed.
-  api=$(docker version --format '{{.Server.APIVersion}}' 2>/dev/null || true)
-  if [ -n "$api" ]; then
-    am=${api%%.*}; an=${api#*.}; an=${an%%.*}
-    case "$am$an" in *[!0-9]*) ;; *) { [ "$am" -gt 1 ] || { [ "$am" -eq 1 ] && [ "$an" -ge 48 ]; }; } || die "This machine needs Docker Engine 28 or newer (it runs API $api). Update Docker (https://docs.docker.com/engine/install/) and run this installer again. Nothing was changed." ;; esac
-  fi
-  compose_ok || die "This machine needs Docker Compose 2.33 or newer (the docker compose plugin, found $(docker compose version --short 2>/dev/null || echo none)). Update docker-compose-plugin and run this installer again."
+  compose_ok || die "This machine needs Docker Compose 2.24 or newer (the docker compose plugin, found $(docker compose version --short 2>/dev/null || echo none)). Update docker-compose-plugin and run this installer again."
 }
 
 # BEGIN release

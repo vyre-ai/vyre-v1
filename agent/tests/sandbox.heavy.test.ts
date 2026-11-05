@@ -74,9 +74,7 @@ const RAVI_SECRET = path.join(raviRoot, "secret.txt");
 const TOKEN = `TOP-SECRET-${Math.random().toString(36).slice(2)}`;
 const VAULT_ENV = "VYRE_HEAVY_VAULT_VALUE";
 const VAULT_VALUE = `vault-sk-live-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
-import { sandboxImage, sandboxImageName } from "../../test/support/heavy-images.ts";
 const suffix = `${process.pid}${Math.random().toString(36).slice(2, 6)}`;
-const RUN_IMAGE = sandboxImageName();
 
 function world(): void {
   for (const d of [site, reference, raviRoot, path.join(base, "scratch", "dana")]) fs.mkdirSync(d, { recursive: true });
@@ -100,7 +98,7 @@ const roots = (person: string, root: string): Roots => ({ work: [root], scratch:
 function danaSpec(id: string, over: Partial<SandboxSpec> = {}): SandboxSpec {
   return {
     id, person: "usr_dana", kind: "docker", mounts: [{ host: site, mode: "rw" }, { host: reference, mode: "ro" }],
-    image: RUN_IMAGE, egressHosts: ["allowed.test", "internal.test", "metadata.test"], limits: { cpus: 1, memoryMb: 512, pids: 128 }, ...over,
+    egressHosts: ["allowed.test", "internal.test", "metadata.test"], limits: { cpus: 1, memoryMb: 512, pids: 128 }, ...over,
   };
 }
 
@@ -154,7 +152,12 @@ const egress: Partial<EgressOptions> = {
   onEvent: (e: EgressEvent) => { events.push(e); },
 };
 
-async function ensureImage(): Promise<void> { sandboxImage(); }
+async function ensureImage(): Promise<void> {
+  if (await api.imageExists(DEFAULT_IMAGE)) return;
+  // Built from the repository's own Dockerfile, with one tiny pinned package standing in for the engines (the image's build refuses an unpinned engine).
+  const r = await runHost("docker", ["build", "-t", DEFAULT_IMAGE, "--build-arg", "ENGINE_PACKAGES=is-odd@3.0.1", "images/person-sandbox"], { timeoutMs: 600_000 });
+  assert.equal(r.exitCode, 0, `building ${DEFAULT_IMAGE} failed: ${r.stderr.slice(-800)}`);
+}
 
 before(async () => {
   world();
