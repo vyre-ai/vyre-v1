@@ -103,10 +103,14 @@ export interface SettingsRowProps {
 }
 
 /** One row: the shared ui/Row with the label, a sub line only when it adds information, and the control at the right. Wrapped here only for what Settings adds (the line between rows, the search highlight, the indent). */
+/** Below this width (a phone) a control that needs room sits under its label and takes the full width, the field and the button alike. */
+export const STACK_BELOW = 720;
+export const stacksAt = (width: number): boolean => width < STACK_BELOW;
+
 export function SettingsRow({ id, label, sub, subAlert = false, lead, control, first = false, onPress, indent = false, found = false, danger = false, inline = false, help }: SettingsRowProps): ReactElement {
   const wrap = [s.rowWrap, !first && s.rowLine, indent && { paddingLeft: 20 }, found && { backgroundColor: "var(--accent-wash)" as string }];
   // On a phone a control that needs room (a menu, a field, a stepper) goes under its label and takes the width; a switch or a small button stays beside it.
-  const narrow = useWindowDimensions().width < 560;
+  const narrow = stacksAt(useWindowDimensions().width);
   const small = inline || isValidElement(control) && (control.type === Switch || control.type === SmallButton || control.type === Value);
   const shortPick = isValidElement(control) && control.type === Choice && !pickerStacks(label, choiceLabel(control.props as ChoiceProps));
   // a button beside a long sentence would cut the sentence off on a phone, so it goes under it
@@ -182,6 +186,7 @@ export function Field({ value, onCommit, label, placeholder, mono = false, patte
 }): ReactElement {
   const [draft, setDraft] = useState<string | null>(null);
   const [err, setErr] = useState(false);
+  const full = stacksAt(useWindowDimensions().width);   // on a phone the field takes the width its row gives it
   const shown = draft ?? value;
   const bad = (v: string): boolean => (pattern ? !new RegExp(pattern).test(v) : false);
   const done = (): void => {
@@ -193,13 +198,13 @@ export function Field({ value, onCommit, label, placeholder, mono = false, patte
     onClose?.();
   };
   return (
-    <View style={s.fieldWrap}>
+    <View style={[s.fieldWrap, full && { width: "100%" as unknown as number }]}>
       {prefix ? <Text style={s.prefix}>{prefix}</Text> : null}
       <TextField
         accessibilityLabel={label} testID={testID} value={shown} placeholder={placeholder} secureTextEntry={secureTextEntry} autoFocus={autoFocus}
         onChangeText={(t) => { setDraft(t); setErr(false); }} onBlur={done} onSubmitEditing={done}
         onKeyPress={((e: KeyEventLike) => { if (e.key === "Escape") { setDraft(null); setErr(false); onClose?.(); } }) as never}
-        style={[{ width, height: 32, borderRadius: 7, paddingHorizontal: 10, fontSize: 13 }, mono && s.mono, err && { borderColor: "var(--danger)" as string }]}
+        style={[{ width: full ? ("100%" as unknown as number) : width, height: 32, borderRadius: 7, paddingHorizontal: 10, fontSize: 13 }, mono && s.mono, err && { borderColor: "var(--danger)" as string }]}
       />
     </View>
   );
@@ -294,7 +299,7 @@ export const s = StyleSheet.create({
   sNote: { fontSize: 12, lineHeight: 17, color: "var(--ink-3)" as string, marginTop: 8, paddingHorizontal: 2 },
   card: { borderRadius: 12, borderWidth: 1, borderColor: "var(--line)" as string, backgroundColor: "var(--raised)" as string, overflow: "hidden" },
   rowWrap: { paddingHorizontal: 4, paddingVertical: 4, justifyContent: "center" },
-  stacked: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap", gap: 8, paddingHorizontal: 8, paddingBottom: 6 },
+  stacked: { flexDirection: "column", alignItems: "stretch", gap: 8, paddingHorizontal: 16, paddingBottom: 10 },   // under the label, full width (a field and a button fill it)
   srOnly: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   dangerDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "var(--danger)" as string },
   rowLine: { borderTopWidth: 1, borderTopColor: "var(--line)" as string },

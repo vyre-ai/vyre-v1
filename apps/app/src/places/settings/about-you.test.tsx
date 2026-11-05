@@ -133,3 +133,12 @@ test("Who pays for memory: nothing to pick for your own memory, the plain line a
   assert.equal(find(root, "ctl-memory-key-person"), null);
   assert.ok(s.calls.some((c) => c.cap === "memory.learning.today"));
 });
+
+test("on a phone a control that needs room goes under its label at full width: the rule is below 720", async () => {
+  const { stacksAt, STACK_BELOW } = await import("./ui.tsx");
+  assert.equal(STACK_BELOW, 720);
+  assert.equal(stacksAt(390), true);
+  assert.equal(stacksAt(719), true);
+  assert.equal(stacksAt(720), false);
+  assert.equal(stacksAt(1280), false);
+});
