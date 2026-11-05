@@ -36,6 +36,8 @@ export interface ApiDriverDeps {
   summarize?: SessionDeps["summarize"];
   retry?: SessionDeps["retry"];
   idleMs?: number;
+  firstTokenMs?: number;
+  onNoFirstToken?: SessionDeps["onNoFirstToken"];
   maxSteps?: number;
   random?: () => number;
   /** The account a session runs on: the agent's accountRef (the accounts module resolved it before the engine opened the session), with the address the account names for itself. */
@@ -128,6 +130,8 @@ export function createApiDriver(adapter: ProviderAdapter, deps: ApiDriverDeps): 
         ...(deps.summarize ? { summarize: deps.summarize } : {}),
         ...(deps.retry ? { retry: deps.retry } : {}),
         ...(deps.idleMs !== undefined ? { idleMs: deps.idleMs } : {}),
+        ...(deps.firstTokenMs !== undefined ? { firstTokenMs: deps.firstTokenMs } : {}),
+        ...(deps.onNoFirstToken ? { onNoFirstToken: deps.onNoFirstToken } : {}),
         ...(deps.maxSteps !== undefined ? { maxSteps: deps.maxSteps } : {}),
         ...(deps.random ? { random: deps.random } : {}),
       }, spec);

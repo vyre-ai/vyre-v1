@@ -157,6 +157,10 @@ test("real model: time to first visible text in a seeded 300-message room, with 
       }, 120_000).catch(async (e) => {
         const m = (await api(d, maya.token, "chat.messages.list", { threadId: tid, limit: 8 })).data.messages as Array<{ threadSeq: number; author: { kind: string }; body: string }>;
         console.log("OUT|NOREPLY " + JSON.stringify(m.map((x) => [x.threadSeq, x.author.kind, x.body.slice(0, 160)])));
+        const tl = await api(d, maya.token, "engine.turns.list", { threadId: tid });
+        const lv = await api(d, maya.token, "engine.live_turns", { threadId: tid });
+        console.log("OUT|NOREPLY-TURNS " + JSON.stringify(tl.data).slice(0, 1500) + " LIVE " + JSON.stringify(lv.data).slice(0, 600));
+        console.log("OUT|NOREPLY-LOG " + hostLog(d).replaceAll(KEY!, "***").slice(0, 4000));
         throw e;
       });
     };

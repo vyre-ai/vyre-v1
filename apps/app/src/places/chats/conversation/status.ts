@@ -69,6 +69,7 @@ const STATUS_WORDS: Record<string, { message: string; cause?: string; next?: { k
   "engine.nothing_to_compact": { message: "There is nothing to compact yet.", retryable: false },
   "provider.error": { message: "Your AI provider stopped with an error.", retryable: true },
   "provider.filtered": { message: "Your AI provider declined to answer this.", retryable: false },
+  "engine.no_first_token": { message: "Your AI didn't answer in time", retryable: true },
   "engine.timeout": { message: "The engine did not answer in time.", retryable: true },
   "engine.session_gone": { message: "The engine lost this chat's earlier session.", cause: "Try again: it starts from the chat's summary.", retryable: true },
   "engine.model_unavailable": { message: "That model cannot run here.", next: [{ key: "pick_model", label: "Choose another model" }, { key: "run_on_my_computer", label: "Run it on my computer" }], retryable: false },

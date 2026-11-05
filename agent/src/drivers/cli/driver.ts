@@ -36,6 +36,8 @@ export interface CliDriverDeps {
   /** Models an account can reach, when the host knows better than the built-in list (a subscription's plan). */
   modelsFor?(acct: AccountRef): Promise<ModelInfo[]> | ModelInfo[];
   idleMs?: number;
+  firstTokenMs?: number;
+  onNoFirstToken?: CliSessionDeps["onNoFirstToken"];
   graceMs?: number;
   /** Start a persistent engine's process when the session opens, before anyone waits for it. Default true. */
   prewarm?: boolean;
@@ -106,6 +108,9 @@ export function createCliDriver(adapter: CliAdapter, deps: CliDriverDeps): CliDr
         ...(deps.planMode ? { planMode: () => deps.planMode?.(spec) ?? false } : {}),
         ...(deps.prompt ? { prompt: deps.prompt } : {}),
         ...(deps.idleMs !== undefined ? { idleMs: deps.idleMs } : {}),
+        ...(deps.firstTokenMs !== undefined ? { firstTokenMs: deps.firstTokenMs } : {}),
+        ...(deps.onNoFirstToken ? { onNoFirstToken: deps.onNoFirstToken } : {}),
+        account: spec.agent.accountRef ?? "",
         ...(deps.graceMs !== undefined ? { graceMs: deps.graceMs } : {}),
         onClose: async () => { if (!noTools) await deps.mcpClose?.(spec, endpoint); },
         ...(deps.checkpoint && !lean ? { checkpoint: (id: string | null) => deps.checkpoint?.(spec, id) } : {}),
