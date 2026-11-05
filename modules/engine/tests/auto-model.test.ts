@@ -73,6 +73,7 @@ test("an account nothing can choose a model for stops the turn before any reques
   assert.deepEqual(s.models, [], "nothing was opened, so nothing was sent");
   // pins come only from the catalogs this release ships; no provider is given a name from memory
   assert.deepEqual(Object.keys(PINNED_MODEL).sort(), ["anthropic", "opencode_go"]);
+  assert.equal(PINNED_MODEL["anthropic"], "claude-sonnet-5-5", "Anthropic's everyday model by id, not the dearest");
   const prices = JSON.parse(readFileSync(new URL("../prices.json", import.meta.url), "utf8")) as { providers: { anthropic: Record<string, unknown> } };
   assert.ok(Object.keys(prices.providers.anthropic).includes(PINNED_MODEL["anthropic"]!), `Anthropic's pin is a model the prices table names: ${PINNED_MODEL["anthropic"]}`);
   assert.match(PINNED_MODEL["opencode_go"]!, /^glm-/, "OpenCode Go's from its provider entry");

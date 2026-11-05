@@ -16,7 +16,8 @@ const json = <T>(rel: string): T => JSON.parse(readFileSync(new URL(rel, import.
  * pin: nothing is guessed, and the turn asks the person to pick a model.
  */
 export const PINNED_MODEL: Readonly<Record<string, string>> = Object.freeze(Object.fromEntries(([
-  ["anthropic", pick(Object.keys(json<{ providers: { anthropic?: Record<string, unknown> } }>("./prices.json").providers.anthropic ?? {}), "standard")],
+  // Anthropic's everyday model by its id, when the table names it (Auto is the sensible default, not the dearest); a table without it leaves Anthropic unpinned and the person is asked
+  ["anthropic", Object.keys(json<{ providers: { anthropic?: Record<string, unknown> } }>("./prices.json").providers.anthropic ?? {}).find((m) => m === "claude-sonnet-5-5")],
   ["opencode_go", pick(json<{ models?: string[] }>("../vault/providers/opencode-go.json").models ?? [], "standard")],
 ] as Array<[string, string | undefined]>).filter((e): e is [string, string] => e[1] !== undefined)));
 

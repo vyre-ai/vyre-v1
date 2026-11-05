@@ -5,6 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { claimedSpace, hostLog, stop, waitFor } from "./support/eco-live.ts";
+import { completerOf } from "../modules/engine/runtime.ts";
 
 type Json = any;   // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -71,5 +72,26 @@ test("Auto on an OpenAI key whose list cannot be read: nothing is guessed, the c
     assert.equal(failed.data.code, "engine.no_model_picked");
     assert.match(String(failed.data.detail), /^Pick a model for .+\.$/);
     assert.deepEqual(asked, [], "nothing reached the vendor: the person never sees its 400");
+  } finally { await stop(s.d); }
+});
+
+test("a one-shot on Auto (what memory capture and the room digest use, engine.complete) gets the same concrete model as a turn: unset on an OpenCode key it runs on the catalog's model, never an empty one", async () => {
+  const asked: Array<string | undefined> = [];
+  const v = vendor(asked);
+  const s = await claimedSpace(null as never, "Fresh Co", { engineOpenSession: undefined, engineCli: { apiFetch: v } as never, providerFetch: v });
+  try {
+    const mine = (await s.api("vault.folders.list", { scope: "mine" })).folders[0].id as string;
+    const key = (await s.api("providers.add", { idempotencyKey: "am-key-os", providerKey: "opencode-go", connection: "api_key", apiKey: "sk-live-TESTkeyKEY0123456789", scope: "mine", folderId: mine })).provider;
+    // the one-shot path itself, as memory upkeep and the room digest call it (the daemon runs in this process, so its completer is the real one)
+    const owner = (await s.api("identity.whoami", {})).principal.id as string;
+    const account = { ref: key.handle, name: "Irfad's OpenCode", driver: "opencode_go", provider: "opencode-go", kind: "api_key", payer: owner, reason: "starter" } as never;
+    const run = completerOf();
+    assert.ok(run, "the engine's completer exists");
+    const complete = async (extra: Record<string, unknown>): Promise<string> => (await run({ account, prompt: "Say hello.", ...extra })).text;
+    assert.match(await complete({}), /^Hello from glm-5\.3\./);
+    // the same call with the word Auto, and with a model the person picked
+    assert.match(await complete({ model: "auto" }), /^Hello from glm-5\.3\./);
+    assert.match(await complete({ model: "deepseek-v4.1-flash" }), /^Hello from deepseek-v4\.1-flash\./);
+    assert.ok(asked.length === 3 && asked.every((m) => typeof m === "string" && m !== ""), `the vendor never saw an empty model: ${JSON.stringify(asked)}`);
   } finally { await stop(s.d); }
 });
