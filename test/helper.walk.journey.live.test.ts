@@ -33,6 +33,13 @@ test("running helpers: a held request, Change model, a person messaging a helper
 
   let lead = ""; let chat = ""; let dir = ""; let owner = ""; let decisionThread = "";
   // the restart turn of Change model is held until the person has asked the helper something, so the helper is still at work when they do
+  // a step the way a real engine reports it: a call, what it touches, a pause, then its result
+  async function* step(id: string, name: string, detail: string, ms: number): AsyncGenerator<{ type: "block"; kind: string; payload: Record<string, unknown> }> {
+    yield { type: "block", kind: "tool_call", payload: { id, name } };
+    yield { type: "block", kind: "tool_input", payload: { id, detail } };
+    await new Promise((r) => setTimeout(r, ms));
+    yield { type: "block", kind: "tool_result", payload: { id, ok: true } };
+  }
   let answered = false;
   let release!: () => void;
   const restartGate = new Promise<void>((resolve) => { release = resolve; });
@@ -66,8 +73,8 @@ test("running helpers: a held request, Change model, a person messaging a helper
     }
     if (/Keep it short/.test(body)) { yield { type: "text", text: "Noted. I will keep it short." }; return; }
     if (/Starting again on/.test(body)) { yield { type: "text", text: "Restarted. Thursday at 14:00 is free." }; return; }
-    if (/Calendar job/.test(body)) { yield* run("tool_search", { query: "calendar events" }); await new Promise((r) => setTimeout(r, 60_000)); yield { type: "text", text: "Thursday at 14:00 is free." }; return; }
-    if (/Quotes job/.test(body)) { await new Promise((r) => setTimeout(r, 20_000)); yield { type: "text", text: "Harbor is $4,180 in two weeks. Pine Works is $3,920 in four." }; return; }
+    if (/Calendar job/.test(body)) { yield* step("cs-1", "Read", "next-week.ics", 9_000); yield* step("cs-2", "Bash", "grep -c FREE next-week.ics", 20_000); await new Promise((r) => setTimeout(r, 30_000)); yield { type: "text", text: "Thursday at 14:00 is free." }; return; }
+    if (/Quotes job/.test(body)) { yield* step("qs-1", "Read", "harbor-quote.pdf", 10_000); yield* step("qs-2", "Read", "pine-works-quote.pdf", 8_000); yield { type: "text", text: "Harbor is $4,180 in two weeks. Pine Works is $3,920 in four." }; return; }
     if (/Writer job/.test(body)) {
       await new Promise((r) => setTimeout(r, 8_000));
       yield* run("tool_search", { query: "read link" });
