@@ -99,6 +99,7 @@ export function sidebarData(rt: ShellRuntime, a: ChatsActions): ChatsSidebarData
     openNewChannel: () => requestChannelSheet("new"),
     openSubject: (subject) => rt.open({ subject }),
     openProject: (projectId) => rt.open({ subject: { type: "project", id: projectId } }),
+    openNewProject: () => rt.open({ screen: "records.projects", args: { create: true } }),
   };
   return {
     screens: rt.screens, call: rt.call, connection: rt.connection, ...(rt.changes ? { changes: rt.changes } : {}),

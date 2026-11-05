@@ -13,7 +13,6 @@ export const PROJECT_TABS = [
   { key: "plan", title: "Plan" },
   { key: "overview", title: "Overview" },
   { key: "linked", title: "Linked" },
-  { key: "knows", title: "Knows" },
 ] as const;
 export type ProjectTabKey = (typeof PROJECT_TABS)[number]["key"];
 export const DEFAULT_PROJECT_TAB: ProjectTabKey = "chat";

@@ -61,6 +61,9 @@ export async function applyRole(ctx: ProjectsCtx, p: Project, principal: string,
     if (before) await call(ctx, "access.unshare", { resource: r, subject: subjectOf(member), source: sourceTag(p.projectId) });
     await shareRole(ctx, p, r, member, role);
   }
+  // the project's channel is invite-only: a grant lets a person read it, but they are only IN it (and the Chat tab opens it, channels.get answers) once they are added
+  if (kind === "person" && p.channelId && !ownPersonal) await tolerant(ctx, "channels.members.add", { channelId: p.channelId, personIds: [principal] }, null);
+  if (kind === "agent" && p.channelId) await tolerant(ctx, "channels.agents.add", { channelId: p.channelId, agentId: principal, mode: role === "lead" ? "lead" : "listen" }, null);
   saveMember(ctx.db, p.projectId, member);
   if (role === "lead") await writeRecord(ctx, p, { lead: principal });
   // projects.create and projects.from_channel declare project.created, not project.member_set: the first people on a project are part of its creation
@@ -95,9 +98,17 @@ export async function membersList(ctx: ProjectsCtx, input: In): Promise<unknown>
   return { members: membersOf(ctx.db, p.projectId) };
 }
 
+/** Roles change only for someone who manages the project (its Lead, its owner). Anyone else, a Space admin without Manage included, is told so in one plain line, before anything is written. */
+function manageToChangeRoles(ctx: ProjectsCtx, projectId: string): Project {
+  try { return visible(ctx, projectId, "manage"); } catch (e) {
+    if (codeOf(e) === "permission.no_grant") raise(ctx, "permission.no_grant", "You need to manage this project to change roles. Ask its Lead or the Space owner.", { reason: "needs_level", level: "manage" });
+    throw e;
+  }
+}
+
 export async function membersSet(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
-  const p = visible(ctx, input.projectId, "manage");
+  const p = manageToChangeRoles(ctx, input.projectId);
   const again = keyed<{ member: Member }>(ctx.db, input.idempotencyKey, "projects.members.set");
   if (again) return again;
   const { member } = await applyRole(ctx, p, input.principal, input.role);
@@ -109,6 +120,8 @@ export async function membersSet(ctx: ProjectsCtx, input: In): Promise<unknown> 
 /** Take a principal off a project: its grants of this project go, the lead field is cleared if it was the lead, and the project says so. */
 export async function removeMember(ctx: ProjectsCtx, p: Project, m: Member): Promise<void> {
   for (const r of resourcesOf(p)) await call(ctx, "access.unshare", { resource: r, subject: subjectOf(m), source: sourceTag(p.projectId) });
+  if (m.kind === "person" && p.channelId) await tolerant(ctx, "channels.members.remove", { channelId: p.channelId, personId: m.principal }, null);
+  if (m.kind === "agent" && p.channelId) await tolerant(ctx, "channels.agents.remove", { channelId: p.channelId, agentId: m.principal }, null);
   dropMember(ctx.db, p.projectId, m.principal);
   if (m.role === "lead") {
     const fields = await readRecord(ctx, p);
@@ -119,7 +132,7 @@ export async function removeMember(ctx: ProjectsCtx, p: Project, m: Member): Pro
 
 export async function membersRemove(ctx: ProjectsCtx, input: In): Promise<unknown> {
   ensure(ctx.db);
-  const p = visible(ctx, input.projectId, "manage");
+  const p = manageToChangeRoles(ctx, input.projectId);
   const m = memberOf(ctx.db, p.projectId, input.principal);
   if (!m) return { removed: false };
   await removeMember(ctx, p, m);

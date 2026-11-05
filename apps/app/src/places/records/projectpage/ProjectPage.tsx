@@ -57,6 +57,7 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
   const [tab, setTab] = useState<ProjectTabKey>(first);
   useEffect(() => setTab(first), [first]);
   const [note, setNote] = useState<string | null>(null);
+  const [knowsOpen, setKnowsOpen] = useState(false);
   const menu = useMenu();
   const noFrame = useMemo(() => ({ subscribe: () => () => undefined, version: () => 0, get: () => null }), []);
   const frameStore = chatControls ?? noFrame;
@@ -122,7 +123,7 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
     unarchive: () => { void api.projectUnarchive(projectId).then(() => { setNote("Back in the lists"); void read(); }, say); }, copyLink: () => { copyToClipboard(vyreLink("project", projectId)); setNote("Link copied"); },
   });
   // More is one menu: the project's items, a divider, then the chat's (only on the Chat tab)
-  const moreEntries = (): MenuEntry[] => { const mine = projectEntries(); const theirs = chat ? chat.chatEntries() : []; return theirs.length > 0 ? [...mine, { separator: true } as MenuEntry, ...theirs] : mine; };
+  const moreEntries = (): MenuEntry[] => { const mine = [...projectEntries(), { label: "What Vyre knows", onSelect: () => setKnowsOpen(true) } as MenuEntry]; const theirs = chat ? chat.chatEntries() : []; return theirs.length > 0 ? [...mine, { separator: true } as MenuEntry, ...theirs] : mine; };
   const pick = (k: ProjectTabKey): void => { setTab(k); onTabChange?.(k); };
   const at = (e: unknown): { x: number; y: number } => { const t = (e as { nativeEvent?: { pageX?: number; pageY?: number }; clientX?: number; clientY?: number } | undefined); return { x: t?.clientX ?? t?.nativeEvent?.pageX ?? 24, y: (t?.clientY ?? t?.nativeEvent?.pageY ?? 40) + 12 }; };
   const health = p.health;
@@ -149,9 +150,10 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
             style={({ hovered }: { hovered?: boolean }) => [s.pill, hovered === true && canEdit && s.hover]}>
             <View style={[s.dot, { backgroundColor: HEALTH_COLOR[health ?? "none"] }]} />
             <Text style={s.pillText}>{health ? HEALTH_LABEL[health] : p.status ? stageWord(p.status) : "No status"}</Text>
+            {canEdit ? <Text style={s.chev}>{"\u2304"}</Text> : null}
           </Pressable>
           {lead ? (
-            <View style={s.pill} testID="project-lead"><Avatar name={d.nameOf(lead)} size={18} /><Text style={s.pillText}>{d.nameOf(lead)}</Text></View>
+            <Pressable accessibilityRole="button" accessibilityLabel={`Lead: ${d.nameOf(lead)}`} testID="project-lead" disabled={!canEdit} onPress={(e: { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; right: number; bottom: number } } }) => { const r = e.currentTarget?.getBoundingClientRect?.(); setPeople(r ? { x: r.right, y: r.bottom, left: r.left } : { x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 }); }} style={({ hovered }: { hovered?: boolean }) => [s.pill, hovered === true && canEdit && s.hover]}><Avatar name={d.nameOf(lead)} size={18} /><Text style={s.pillText}>{d.nameOf(lead)}</Text>{canEdit ? <Text style={s.chev}>{"\u2304"}</Text> : null}</Pressable>
           ) : null}
         </View>
         <Pressable accessibilityRole="button" accessibilityLabel="People and agents" testID="project-members" aria-haspopup="dialog" onPress={(ev: unknown) => { const e = ev as { nativeEvent?: { pageX?: number; pageY?: number }; currentTarget?: { getBoundingClientRect?: () => { left: number; right: number; bottom: number } } }; const r = e.currentTarget?.getBoundingClientRect?.(); setPeople(r ? { x: r.right, y: r.bottom, left: r.left } : { x: e.nativeEvent?.pageX ?? 0, y: e.nativeEvent?.pageY ?? 0 }); }} style={({ hovered }: { hovered?: boolean }) => [s.pill, hovered === true && s.hover]}>
@@ -169,7 +171,7 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
         ) : null}
         <Pressable accessibilityRole="button" accessibilityLabel="More" testID="project-more" onPress={(e: unknown) => { const q = at(e); menu.show(moreEntries(), q.x, q.y, "other", { label: p.title }); }} style={({ hovered }: { hovered?: boolean }) => [s.iconBtn, hovered === true && s.hover]}><Text style={s.iconText}>{"\u2026"}</Text></Pressable>
       </View>
-      <TabStrip underline tabs={tabs} active={tab} onSelect={(k) => pick(k as ProjectTabKey)} />
+      <TabStrip noOptions noClose tabs={tabs} active={tab} onSelect={(k) => pick(k as ProjectTabKey)} />
       {tab === "chat" && chatSlot ? <View style={s.chatSlot} testID="project-chat-main">{chatSlot}</View> : null}
       {tab === "chat" && !chatSlot ? <ChatTab o={o} projectId={projectId} channelName={`#${p.title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`} now={now} /> : null}
       {tab === "plan" ? (
@@ -180,7 +182,12 @@ export function ProjectPage({ projectId, tab: first = DEFAULT_PROJECT_TAB, planV
       ) : null}
       {tab === "overview" ? <ProjectOverview projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
       {tab === "linked" ? <ProjectLinked projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
-      {tab === "knows" ? <KnowsTab projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} /> : null}
+      {knowsOpen ? (
+        <View style={s.knowsPane} testID="project-knows-pane" accessibilityLabel="What Vyre knows">
+          <View style={s.knowsHead}><Text accessibilityRole="header" style={s.knowsTitle}>What Vyre knows</Text><IconButton icon="x" label="Close" testID="project-knows-close" onPress={() => setKnowsOpen(false)} /></View>
+          <KnowsTab projectId={projectId} space={{ ...space, id: d.spaceId ?? space.id }} canEdit={canEdit} admin={d.admin === true} />
+        </View>
+      ) : null}
       {note ? <Text style={s.note} accessibilityLiveRegion="polite" testID="project-note">{note}</Text> : null}
       {add.element}
       {people ? <ProjectPeople o={o} projectId={projectId} at={people} onClose={() => setPeople(null)} toOverview={() => { setPeople(null); setTab("overview"); onTabChange?.("overview"); }} menu={menu} reload={() => { void read(); }} say={say} /> : null}
@@ -197,12 +204,13 @@ function Section({ title, count, children, id }: { title: string; count?: number
   );
 }
 
-/** The head's people popover for a project: one row per member with the project role, Manage on the Overview in the footer. Lead (or whoever manages) may change a role or remove. */
+/** The head's people popover for a project: one row per member with the project role, Manage on the Overview in the footer. Lead, or a Space owner or admin, may change a role or remove. */
 function ProjectPeople({ o, projectId, at, onClose, toOverview, menu, reload, say }: { o: Overview; projectId: string; at: { x: number; y: number; left?: number }; onClose(): void; toOverview(): void; menu: ReturnType<typeof useMenu>; reload(): void; say(e: unknown): void }): ReactElement {
   const d = useProjectPageData();
   const rows: MemberRow[] = o.people.map((m) => ({ id: m.principal, name: d.nameOf(m.principal), kind: m.kind === "agent" ? "agent" : "person", role: ROLE_WORDS[m.role] }));
   const meRole = d.me ? o.people.find((m) => m.principal === d.me?.id)?.role : undefined;
-  const manages = meRole === "lead";
+  // the Lead, or the Space's owner or admin whoever is Lead: naming an agent Lead must not lock the people out of their own project (the server asks for Manage on the project, not for the Lead role)
+  const manages = meRole === "lead" || d.admin === true;
   const run = (p: Promise<unknown>): void => { p.then(reload, say); };
   const act = (action: MemberAction, r: MemberRow): void => {
     if (action === "link") { const clip = (globalThis as { navigator?: { clipboard?: { writeText(t: string): Promise<void> } } }).navigator?.clipboard; void clip?.writeText(itemLink(r.kind === "person" ? "person" : "agent", r.id)); return; }
@@ -305,6 +313,10 @@ const s = StyleSheet.create({
   star: { fontSize: 16, color: "var(--ink-3)" as string },
   starOn: { color: "var(--warn)" as string },
   pill: { height: 28, flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, borderRadius: 8 },
+  chev: { fontSize: 12, color: "var(--ink-3)" as string, marginLeft: 2 },
+  knowsPane: { position: "absolute", top: 0, right: 0, bottom: 0, width: "100%", maxWidth: 400, zIndex: 20, backgroundColor: "var(--raised)" as string, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },
+  knowsHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 24, paddingTop: 16 },
+  knowsTitle: { fontSize: 15, fontWeight: "600", color: "var(--ink)" as string },
   pillText: { fontSize: 12.5, color: "var(--ink-2)" as string },
   dot: { width: 8, height: 8, borderRadius: 4 },
   stack: { flexDirection: "row", marginRight: 2 },

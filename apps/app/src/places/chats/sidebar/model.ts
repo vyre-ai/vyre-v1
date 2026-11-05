@@ -352,7 +352,7 @@ export function buildEntries(i: SidebarInput): Entry[] {
     out.push({ key: "h:projects", type: "head", section: "projects", label: "Projects", count: projects.length, open: open("projects") });
     if (open("projects")) {
       const shown = i.moreProjects === true ? projects : projects.slice(0, PROJECTS_SHOWN);
-      for (const p of shown) out.push({ key: `pj:${p.id}`, type: "project", project: p });
+      for (const p of shown) { const ch = p.recordId === undefined ? undefined : i.channels.find((c) => c.recordId === p.recordId); out.push({ key: `pj:${p.id}`, type: "project", project: ch && ch.unread > 0 ? { ...p, unread: ch.unread } : p }); }
       if (shown.length < projects.length) out.push({ key: "m:projects", type: "more", label: `${projects.length - shown.length} more`, to: "projects" });
     }
   }
