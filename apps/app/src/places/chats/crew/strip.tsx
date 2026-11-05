@@ -139,7 +139,7 @@ const st = StyleSheet.create({
   badgeFail: { backgroundColor: "var(--warn)" as string },
   badgeMark: { fontSize: 9, lineHeight: 10, fontWeight: "700", color: "#fff" },
   chipWait: { backgroundColor: "color-mix(in srgb, var(--warn) 10%, var(--raised))" as string },
-  chipSel: { boxShadow: "0 0 0 1.5px var(--accent)" } as object,
+  chipSel: { boxShadow: "inset 0 0 0 1.5px var(--accent)" } as object,
   av: { width: 38, height: 38, alignItems: "center", justifyContent: "center" },
   main: { flex: 1, minWidth: 0, gap: 1 },
   l1: { flexDirection: "row", alignItems: "baseline", gap: 8, minWidth: 0 },

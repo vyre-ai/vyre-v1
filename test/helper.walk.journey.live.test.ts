@@ -78,7 +78,7 @@ test("running helpers: a held request, Change model, a person messaging a helper
     if (/Calendar job/.test(body)) { yield* step("cs-1", "Read", "next-week.ics", 9_000); yield* step("cs-2", "Bash", "grep -c FREE next-week.ics", 20_000); await new Promise((r) => setTimeout(r, 30_000)); yield { type: "text", text: "Thursday at 14:00 is free." }; return; }
     if (/Quotes job/.test(body)) { yield* step("qs-1", "Read", "harbor-quote.pdf", 10_000); yield* step("qs-2", "Read", "pine-works-quote.pdf", 8_000); yield { type: "text", text: "Harbor is $4,180 in two weeks. Pine Works is $3,920 in four." }; return; }
     if (/Writer job/.test(body)) {
-      await new Promise((r) => setTimeout(r, 8_000));
+      yield* step("wr-1", "Read", "pine-works-notes.md", 8_000);
       yield* run("tool_search", { query: "read link" });
       // a link the agent put together itself waits for the person: the held request
       yield* run("read_link", { url: "https://pine-works.example/quote?ref=harbor-compare" });
