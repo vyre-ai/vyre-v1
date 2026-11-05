@@ -88,3 +88,12 @@ test("Chat about it opens an Ask with the assistant carrying the item, and the p
   assert.equal(isAskEntry(shown), true);
   assert.equal(parseHash(placeOf(shown)!.hash).args["about"], "automation:aut_1");
 });
+
+test("Settings and an open Apps page draw their own top bar, so the phone shows one bar, not the shell's '< You' above Settings' own back (polish audit X2)", async () => {
+  const { ownsHeaderScreen } = await import("./mobile-map.ts");
+  assert.equal(ownsHeaderScreen("you:settings", ""), true);
+  assert.equal(ownsHeaderScreen("apps:site:sit_1", "x"), true);
+  assert.equal(ownsHeaderScreen("apps:list", ""), false);
+  assert.equal(ownsHeaderScreen("you", undefined), false);
+  assert.equal(ownsHeaderScreen("chats", undefined), false);
+});

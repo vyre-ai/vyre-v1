@@ -15,7 +15,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import type { PlaceHash } from "../hash/context.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 import { PlaceHost } from "./PlaceHost.tsx";
-import { chatAboutOf, desktopLine, desktopOnly, entryFor, headerBack, isAskEntry, phoneStart, placeOf, subjectEntry } from "./mobile-map.ts";
+import { chatAboutOf, desktopLine, desktopOnly, entryFor, headerBack, isAskEntry, ownsHeaderScreen, phoneStart, placeOf, subjectEntry } from "./mobile-map.ts";
 import { openAsk } from "../providers/ask.ts";
 import { othersNeedingYou } from "../spaces/model.ts";
 import { threadsNote } from "../../places/chats/mounts/threads-model.ts";
@@ -107,5 +107,5 @@ export function PhoneHost({ session, location, needsYou, registerGo, onSignOut, 
   };
   // another Space needing you is a dot on the You tab, where the Space switcher is
   const youDot = session ? othersNeedingYou(session.runtime.knownSpaces ?? [], session.def.spaceId).length > 0 : false;
-  return <MobileShell {...(start.current.initialEntry ? { initialEntry: start.current.initialEntry } : {})} renderScreen={render} needsYou={needsYou} initialTab={start.current.initialTab} ownsHeader={(entry) => entry.screen.startsWith("apps:") && placeOf(entry)?.hash !== ""} headerBack={headerBack} youDot={youDot} notices={<PhoneNotices />} />;
+  return <MobileShell {...(start.current.initialEntry ? { initialEntry: start.current.initialEntry } : {})} renderScreen={render} needsYou={needsYou} initialTab={start.current.initialTab} ownsHeader={(entry) => ownsHeaderScreen(entry.screen, placeOf(entry)?.hash)} headerBack={headerBack} youDot={youDot} notices={<PhoneNotices />} />;
 }

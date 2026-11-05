@@ -202,3 +202,11 @@ test("Stop allowing is off when the person cannot change the hook", async () => 
     assert.equal(p.called("hooks.allow_remove").length, 0);
   } finally { p.restore(); }
 });
+
+test("a hook with no run says Never ran when the read answered in full, and Not run lately when it was cut off or failed", async () => {
+  const { neverWords, RUNS_LIMIT } = await import("../pages/Hooks.tsx");
+  assert.equal(neverWords([], true), "Never ran");
+  assert.equal(neverWords(new Array(RUNS_LIMIT - 1).fill({}), true), "Never ran");
+  assert.equal(neverWords(new Array(RUNS_LIMIT).fill({}), true), "Not run lately", "cut off at the limit: an older run may be past it");
+  assert.equal(neverWords([], false), "Not run lately", "the read failed");
+});

@@ -264,3 +264,23 @@ test("the sheet renders the search field, a filter menu button, quiet group head
   assert.ok(!/border-radius:999px|pill/i.test(html), "no pill chips");
   c.dispose();
 });
+
+test("one row per thing, no raw [ ] marks, no group name repeated on the row (polish audit L15)", async () => {
+  const { groupRows, plainMarks } = await import("./model.ts");
+  assert.equal(plainMarks("Review the [launch] post"), "Review the launch post");
+  const hit = (kind: string, id: string, title: string, snippet?: string) => ({ kind, id, title, ...(snippet ? { snippet } : {}), score: 1, link: `vyre://${kind}/${id}` }) as never;
+  const rows = groupRows([hit("chat", "thr_1", "Launch page live by Friday"), hit("chat", "msg_9", "Launch page live by Friday", "Review the [launch] post"), hit("channel", "chn_1", "launch")], 8);
+  const hits = rows.filter((r) => r.type === "hit") as { type: "hit"; hit: { title: string; snippet?: string } }[];
+  assert.equal(hits.length, 2, "the chat once, the channel once");
+  assert.equal(hits[0]!.hit.snippet, "Review the launch post", "the later hit's snippet fills the row, without the marks");
+  const both = groupRows([hit("chat", "thr_9", "launch", "Review the [launch] post"), hit("channel", "chn_9", "launch")], 8).filter((r) => r.type === "hit") as { hit: { kind: string; snippet?: string } }[];
+  assert.deepEqual(both.map((r) => r.hit.kind), ["channel"], "a channel's own thread is not a second row beside the channel");
+  assert.equal(both[0]!.hit.snippet, "Review the launch post");
+});
+
+test("a row's second line is dropped when it only repeats the title, whatever the case or spacing", async () => {
+  const { sameText } = await import("./model.ts");
+  assert.equal(sameText("launch", "launch"), true);
+  assert.equal(sameText("  Launch-Page-Live-By-Friday ", "launch-page-live-by-friday"), true);
+  assert.equal(sameText("Review the launch post", "launch"), false);
+});
