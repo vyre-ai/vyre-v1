@@ -42,6 +42,14 @@ export function diffRows(d: NonNullable<Plan["diff"]>): Array<{ kind: "head" | "
   for (const r of d.removed) rows.push({ kind: "head", text: `${r} (removed)` });
   return rows;
 }
+/** What going back to an older version takes away, in plain words: the lines it no longer has, by file, and the files it drops. */
+export function losesWords(d: NonNullable<Plan["diff"]>): string {
+  const parts: string[] = [];
+  for (const c of d.changed) if (c.minus.length > 0) parts.push(`${c.minus.length} ${c.minus.length === 1 ? "line" : "lines"} in ${c.path}`);
+  for (const r of d.removed) parts.push(`the file ${r}`);
+  if (parts.length === 0) return "";
+  return `Going back removes ${parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`}.`;
+}
 export const changedCount = (d: NonNullable<Plan["diff"]>): number => d.changed.length + d.added.length + d.removed.length;
 
 /** The note under an update's diff when it reaches somewhere new. Names only what is new against what the install already named. */

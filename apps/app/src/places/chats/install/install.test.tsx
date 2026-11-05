@@ -265,6 +265,7 @@ test("a commit that names a lower version is an older version, held like any cha
   await press(find(c.root, "install-diff-toggle-m1")!);
   assert.match(textOf(find(c.root, "install-diff-m1")!), /pdf-tools 1\.3\.0 to 1\.2\.0/);
   assert.match(textOf(find(c.root, "install-diff-m1")!), /Go back to it/);
+  assert.match(textOf(find(c.root, "install-loses-m1")!), /Older version:\s+Going back removes 1 line in SKILL\.md/, "it says what going back takes away");
   assert.doesNotMatch(textOf(find(c.root, "install-update-m1")!), /has an update/);
   assert.equal(c.calls.some((x) => x.cap === "install.apply"), false, "nothing is applied until the person says so");
 });
@@ -278,4 +279,10 @@ test("a key the plan names that is in the Vault stays on the card as 'added'", a
     assert.equal(find(c.root, "install-addkey-DATABASE_URL-m1"), null);
     assert.equal(find(c.root, "install-waits-m1"), null);
   } finally { VAULT = undefined; }
+});
+
+test("what going back removes, in plain words", async () => {
+  const { losesWords } = await import("./model.ts");
+  assert.equal(losesWords({ from: "a", to: "b", added: [], removed: ["tools.json"], changed: [{ path: "SKILL.md", plus: [], minus: ["x", "y"] }] }), "Going back removes 2 lines in SKILL.md and the file tools.json.");
+  assert.equal(losesWords({ from: "a", to: "b", added: ["n.md"], removed: [], changed: [{ path: "A.md", plus: ["p"], minus: [] }] }), "", "nothing taken away: no line");
 });
