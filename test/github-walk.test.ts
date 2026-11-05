@@ -96,12 +96,14 @@ test("walk: connect, reach, a refused repository, Ask me first, the policy and a
     await assert.rejects(me.token(g.ctx, { repo: "vyre-ai/private-notes", action: "read", consumer: "crew" }), (e: any) => e.error.code === "validation.not_found");   // eslint-disable-line @typescript-eslint/no-explicit-any
 
     // ---- 4. Ask me first holds a card; once approved the token comes, and the filler holds it, not the module
+    me.policySet(g.ctx, { policy: { open_pr: "ask" } });
     await assert.rejects(me.token(g.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" }), (e: any) => e.error.code === "permission.needs_approval");   // eslint-disable-line @typescript-eslint/no-explicit-any
     assert.equal(gate.held, 1);
     me.meApprove(g.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" });
     const t = await me.token(g.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" });
     assert.match(t.handle, /^#fill_/);
     assert.equal(JSON.stringify(t).includes("ghs_"), false);
+    me.policySet(g.ctx, { policy: { push_default: "never" } });
     await assert.rejects(me.token(g.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: "crew" }), (e: any) => e.error.code === "validation.precondition_failed");   // eslint-disable-line @typescript-eslint/no-explicit-any
 
     // ---- 5. a CLI session: the engine asks the broker as the person and takes the token out of the real filler
@@ -120,8 +122,8 @@ test("walk: connect, reach, a refused repository, Ask me first, the policy and a
     assert.equal(env["GITHUB_TOKEN"], env["GH_TOKEN"]);
     assert.equal(env["GIT_CONFIG_COUNT"], "2");
     const mint = g.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!;
-    assert.deepEqual(mint.body, { repositories: ["website"], permissions: { contents: "read", pull_requests: "read", issues: "read", checks: "read", metadata: "read" } }, "the session got read only: everything else asks");
-    me.policySet(g.ctx, { policy: { read: "ask" } });
+    assert.deepEqual(mint.body, { repositories: ["website"], permissions: { contents: "read", pull_requests: "read", issues: "write", checks: "read", metadata: "read" } }, "a session token never writes while a push to main or a merge asks first: GitHub cannot limit a write token to a branch");
+    me.policySet(g.ctx, { policy: { read: "ask", push_branch: "ask", open_pr: "ask", comment: "ask" } });
     assert.deepEqual(await githubEnv(port, PERSON, "thr_1"), {}, "when reading asks first, a session gets no token");
     assert.deepEqual(me.meUsage(g.ctx).uses.map((x) => x.consumer).sort(), ["crew", "session.engine"]);
 
@@ -166,7 +168,7 @@ test("walk: signing in with GitHub through the default Vyre app connects it too,
     const item = v.rows(`SELECT * FROM vault_meta WHERE "owner" = ?`, PERSON)[0]!;
     assert.equal(await u.secretPort(v.ctx.db).secret(`${item.handle}.refresh_token`, "", PERSON), "ghr_signin_1");
     assert.equal(JSON.stringify([v.everything(), g.emitted]).includes("ghr_signin_1"), false);
-    assert.deepEqual(me.policyGet(g.ctx).policy, { read: "always", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "never" });
+    assert.deepEqual(me.policyGet(g.ctx).policy, { read: "always", push_branch: "always", open_pr: "always", comment: "always", merge: "ask", push_default: "ask" });
     // a second sign-in does not disturb the connection, and a server with no app says so
     assert.deepEqual(await me.adoptSignIn(g.ctx, { githubId: "4242", person: PERSON }), { adopted: false });
     const none = createGithubHost({ vault: u.secretPort(v.ctx.db) as never, fetch: f, blobs: {} as never, tickets });

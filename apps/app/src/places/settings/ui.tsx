@@ -3,11 +3,11 @@
 import { useOpenConnect } from "../../shell/connect/context.ts";
 import { connectEntries } from "../../shell/connect/model.ts";
 import type { Connected, ConnectNeed } from "../../shell/connect/model.ts";
-import { createElement, isValidElement, useState } from "react";
+import { createContext, createElement, isValidElement, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Image, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { ViewStyle } from "react-native";
-import { Row } from "../../../../../ui/src/Row/index.tsx";
+import { Row, RowWrapContext } from "../../../../../ui/src/Row/index.tsx";
 import { Info, Tip } from "../../../../../ui/src/Tip/index.tsx";
 import { TextField } from "../../../../../ui/src/TextField/index.tsx";
 import { useMenu } from "../../../../../ui/src/Menu/index.tsx";
@@ -34,7 +34,7 @@ export const PATHS: Readonly<Record<string, readonly string[]>> = {
   doc: ["M4 2.5h6l2.5 2.5v8.500h-8.500z", "M10 2.500v2.500h2.500M6 8h4M6 10.500h4"],
   lock: ["M4.5 7.5h7v6h-7z", "M6 7.5V5.5a2 2 0 014 0v2"],
   shield: ["M8 2l5 1.8v4c0 3-2.2 5-5 6.2C5.2 12.8 3 10.8 3 7.8v-4z"],
-  key: ["M6 9.5a3 3 0 110-6 3 3 0 010 6z", "M8.2 7.8L13 12.5M11 10.5l1.5 1.5"],
+  key: ["M4.500 5.500a2.500 2.500 0 100 5 2.500 2.500 0 000-5z", "M7 8h7.500M11.500 8v2.500M14 8v1.800"],
   palette: ["M8 2.5a5.5 5.5 0 100 11c1 0 1.5-.7 1.2-1.5-.3-.8.2-1.500 1-1.500H11.500a2 2 0 002-2A5.500 5.500 0 008 2.500z", "M5.500 7.500h.01M8 5.500h.01M10.500 7h.01"],
   keyboard: ["M2.5 4.5h11v7h-11z", "M5 7h.01M8 7h.01M11 7h.01M5.500 9.500h5"],
   laptop: ["M3.500 4.500h9v6h-9z", "M2 12.500h12"],
@@ -114,12 +114,14 @@ export function SettingsRow({ id, label, sub, subAlert = false, lead, control, f
   return (
     <>
       <View style={wrap} {...webOnly({ dataSet: { sid: id } })}>
+        <RowWrapContext.Provider value={narrow}>
         <Row
-          id={id} title={label} {...(sub ? { note: sub, tall: sub.length > 56 } : {})} {...(subAlert ? { noteLead: "Failed", noteLeadTone: "warning" as const } : {})}
+          id={id} title={label} {...(sub ? { note: sub, tall: sub.length > (narrow ? 30 : 56) } : {})} {...(subAlert ? { noteLead: "Failed", noteLeadTone: "warning" as const } : {})}
           {...(lead ? { leading: <View style={s.lead}>{lead}</View> } : {})} {...(control && !stack ? { trailing: <View style={small ? s.controlFixed : s.control}>{control}</View> } : {})}
           {...(danger ? { titleMarks: <View style={s.dangerDot} /> } : help ? { titleMarks: <Info help={help} testID={`help-${id}`} /> } : {})}
           {...(onPress ? { onPress } : { domProps: { role: undefined, tabIndex: undefined, style: { cursor: "default", backgroundColor: "transparent" } } })}
         />
+        </RowWrapContext.Provider>
         {subAlert && sub ? <Text accessibilityRole="alert" style={s.srOnly}>{sub}</Text> : null}
         {stack ? <View style={s.stacked}>{control}</View> : null}
       </View>
@@ -249,6 +251,21 @@ export function Segmented({ value, options, onChange, label, testID }: { value: 
     );
   }
   return <View accessibilityRole="radiogroup" accessibilityLabel={label} testID={testID} style={s.seg}>{items}</View>;
+}
+
+/** Opens another Settings page from inside one (the place provides it): "GitHub: manage it in Settings, GitHub". */
+export const GoToPage = createContext<(page: string) => void>(() => undefined);
+
+/** A 30px rounded square holding a glyph: the prototype's mark at the left of a link or action row. */
+export function IconTile({ name, size = 16 }: { name: string; size?: number }): ReactElement {
+  return <View aria-hidden style={{ width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: "var(--sunk)" as string }}><Glyph name={name} size={size} color="var(--ink-2)" /></View>;
+}
+
+/** A 30px picture of a GitHub account or org (github.com/<login>.png); the GitHub mark in a tile stands in when it cannot be loaded. */
+export function GithubAvatar({ login }: { login: string }): ReactElement {
+  const [bad, setBad] = useState(false);
+  if (bad || !login) return <IconTile name="github" />;
+  return <Image aria-hidden accessibilityIgnoresInvertColors source={{ uri: `https://github.com/${encodeURIComponent(login)}.png?size=60` }} onError={() => setBad(true)} style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: "var(--sunk)" as string }} />;
 }
 
 /** A stepped slider with a small A at each end and the value after it; arrow keys move it by one step, a tap on the track picks the nearest step. */

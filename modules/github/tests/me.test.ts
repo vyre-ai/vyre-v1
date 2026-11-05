@@ -126,7 +126,7 @@ test("reach: organisations with their install state and the address to install o
 test("policy: sensible defaults, changed per kind of use, and a bad value refused", async () => {
   const w = world();
   await w.connect();
-  assert.deepEqual(policyGet(w.h.ctx).policy, { read: "always", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "never" });
+  assert.deepEqual(policyGet(w.h.ctx).policy, { read: "always", push_branch: "always", open_pr: "always", comment: "always", merge: "ask", push_default: "ask" });
   assert.equal(policySet(w.h.ctx, { policy: { comment: "always" } }).policy.comment, "always");
   await refused(Promise.resolve().then(() => policySet(w.h.ctx, { policy: { merge: "maybe" as never } })), "validation.bad_input");
   await refused(Promise.resolve().then(() => policySet(w.h.ctx, { policy: { delete_repo: "always" } as never })), "validation.bad_input");
@@ -154,7 +154,9 @@ test("broker: a token is short-lived, narrowed to one repository and to what the
 test("policy: Never refuses with the person's own words; Ask me first goes to the Gate and a token follows once approved, for ten minutes", async () => {
   const w = world();
   await w.connect();
+  policySet(w.h.ctx, { policy: { push_default: "never" } });
   await assert.rejects(token(w.h.ctx, { repo: "vyre-ai/website", action: "push_default", consumer: "crew" }), (e: unknown) => { assert.equal(codeOf(e), "validation.precondition_failed"); assert.match((e as Error & { error: { message: string } }).error.message, /never let anything push to the default branch/); return true; });
+  policySet(w.h.ctx, { policy: { open_pr: "ask" } });
   await refused(token(w.h.ctx, { repo: "vyre-ai/website", action: "open_pr", consumer: "crew" }), "permission.needs_approval");
   assert.deepEqual(w.gate.held, [{ repo: "vyre-ai/website", action: "open_pr", consumer: "crew" }]);
   assert.equal(w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).length, 0, "nothing minted while held");
@@ -192,8 +194,18 @@ test("session: Claude Code, Codex and Grok get GH_TOKEN as a handle and a creden
   assert.equal(s.env["GH_TOKEN"], s.env["GITHUB_TOKEN"]);
   assert.match(s.gitConfig.join("\n"), /password=\$GH_TOKEN/);
   const mint = w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!;
-  assert.deepEqual(mint.body, { repositories: ["website", "docs"], permissions: { contents: "read", pull_requests: "read", issues: "read", checks: "read", metadata: "read" } }, "only read: everything else asks");
-  policySet(w.h.ctx, { policy: { read: "ask" } });
+  assert.deepEqual(mint.body, { repositories: ["website", "docs"], permissions: { contents: "read", pull_requests: "read", issues: "write", checks: "read", metadata: "read" } }, "no contents or pull request write permission while merge and push to main ask: a write token could do both");
+  // a session's raw `git push origin HEAD:main` can only be held if the token cannot write: GitHub cannot limit a write token to a branch, so contents:write is minted only when Push to main is Always too, and pull_requests:write only when Merge is
+  policySet(w.h.ctx, { policy: { push_default: "always", merge: "always" } });
+  await sessionEnv(agent, { repos: ["vyre-ai/website"], consumer: "session.claude_code" });
+  assert.deepEqual(w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!.body, { repositories: ["website"], permissions: { contents: "write", pull_requests: "write", issues: "write", checks: "read", metadata: "read" } }, "everything Always: a write token");
+  policySet(w.h.ctx, { policy: { push_default: "ask" } });
+  await sessionEnv(agent, { repos: ["vyre-ai/website"], consumer: "session.claude_code" });
+  assert.equal((w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!.body as { permissions: Record<string, string> }).permissions["contents"], "read", "Push to main asks: the token cannot push at all, so a raw push to main is refused by GitHub and the person is asked through github.token");
+  policySet(w.h.ctx, { policy: { push_default: "always", merge: "ask" } });
+  await sessionEnv(agent, { repos: ["vyre-ai/website"], consumer: "session.claude_code" });
+  assert.equal((w.h.withPath("POST", `/app/installations/${INSTALL}/access_tokens`).at(-1)!.body as { permissions: Record<string, string> }).permissions["pull_requests"], "read", "Merge asks: no pull request write, so no merge");
+  policySet(w.h.ctx, { policy: { read: "ask", push_branch: "ask", open_pr: "ask", comment: "ask", merge: "ask", push_default: "ask" } });
   await refused(sessionEnv(agent, { repos: ["vyre-ai/website"], consumer: "session.codex" }), "validation.precondition_failed");
   await refused(sessionEnv(w.as({ principal: { kind: "agent", id: "agt_scout" } }), { repos: ["vyre-ai/website"], consumer: "session.grok" }), "permission.no_grant");
 });

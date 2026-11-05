@@ -37,7 +37,7 @@ export function useSaved(): Api {
   return v;
 }
 
-/** The line itself: a fixed-height slot so the page never jumps when it appears. */
+/** The line itself: a thin slot; the line floats over the top of the page so nothing jumps when it appears. */
 export function SavedBar(): ReactElement {
   const { line, undo } = useSaved();
   return (
@@ -54,8 +54,8 @@ export function SavedBar(): ReactElement {
 }
 
 const s = StyleSheet.create({
-  slot: { height: 22, justifyContent: "center" },
-  line: { flexDirection: "row", alignItems: "center", gap: 7 },
+  slot: { height: 10, zIndex: 5 },
+  line: { position: "absolute", top: 0, left: 0, flexDirection: "row", alignItems: "center", gap: 7, paddingVertical: 4, paddingHorizontal: 10, borderRadius: 99, backgroundColor: "var(--raised)" as string, borderWidth: 1, borderColor: "var(--line)" as string },
   text: { fontSize: 12.5, color: "var(--ink-2)" as string },
   link: { fontSize: 12.5, color: "var(--accent)" as string },
 });

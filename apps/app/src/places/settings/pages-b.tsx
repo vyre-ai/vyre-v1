@@ -1,6 +1,6 @@
 // The rest of You: Sign-in and devices (with your Spaces), Appearance (skin and the keyboard list) and This computer.
 import { KEYBOARD_MAP, formatCombo } from "../../shell/keyboard/map.ts";
-import { useState, useSyncExternalStore } from "react";
+import { useContext, useState, useSyncExternalStore } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { skins, system } from "../../../../../ui/src/tokens/skins.ts";
@@ -12,7 +12,7 @@ import type { SettingsData, SpaceSecurity, SpaceTile } from "./data.tsx";
 import type { SettingRow } from "./model.ts";
 import { useChange } from "./rows.tsx";
 import { useSaved } from "./saved.tsx";
-import { Glyph, Mark, Section, SettingsRow, SmallButton, Value, pointer, webOnly } from "./ui.tsx";
+import { Glyph, GoToPage, Mark, Section, SettingsRow, SmallButton, Value, pointer, webOnly } from "./ui.tsx";
 import type { PageProps } from "./pages-a.tsx";
 
 const rowOf = (rows: readonly SettingRow[], key: string): SettingRow | undefined => rows.find((r) => r.key === key);
@@ -81,6 +81,7 @@ export function SignInPage(): ReactElement {
 }
 
 function AccountCard({ sec }: { sec: NonNullable<SettingsData["security"]> }): ReactElement {
+  const goTo = useContext(GoToPage);
   const data = useSettingsData();
   const gh = sec.account.github;
   const first = data.spaces.find((sp) => sp.current)?.id ?? data.space.id;
@@ -92,8 +93,8 @@ function AccountCard({ sec }: { sec: NonNullable<SettingsData["security"]> }): R
       {(sec.account.carried ?? []).slice(0, 3).map((c, i) => <SettingsRow key={`carried-${i}`} id={`signin.carried.${i}`} label={`Signed in from ${c.host}`} lead={<Glyph name="key" size={16} />} sub={`To bring your account to another Space, ${c.day}`} />)}
       {data.spaces.length > 1 ? <SettingsRow id="signin.link" label="Use one account everywhere" lead={<Glyph name="key" size={16} />} sub="Two Vyre accounts? Keep one; your work stays where it is" control={<SmallButton label="Choose..." testID="link-open" onPress={() => data.nav.manageSecurity?.("link", first)} />} /> : null}
       <SettingsRow
-        id="signin.github" label="GitHub" lead={<Glyph name="github" size={16} />} sub={gh ? `Connected as @${gh}` : "Sign in with one click"}
-        control={<SmallButton label={gh ? "Disconnect" : "Connect"} testID="gh-toggle" onPress={() => data.nav.manageSecurity?.(gh ? "github-off" : "github-on", first)} />}
+        id="signin.github" label="GitHub" lead={<Glyph name="github" size={16} />} sub={gh ? `Connected as @${gh}. Manage it in Settings, GitHub` : "Connect it in Settings, GitHub"}
+        control={<SmallButton label="Open GitHub" testID="gh-open" onPress={() => goTo("github")} />}
       />
     </Section>
   );
@@ -170,7 +171,7 @@ function YourSpaces(): ReactElement {
           ) : (
             <>
               {sp.current ? <Value text="Open now" /> : <SmallButton label="Open" testID={`open-${sp.id}`} onPress={() => data.nav.openSpace(sp.id)} />}
-              {sp.kind === "team" && sp.current ? <SmallButton label="Leave" testID={`leave-${sp.id}`} onPress={() => setSure(sp.id)} /> : null}
+              {sp.kind === "team" && sp.current ? (sp.role.toLowerCase() === "owner" ? <Text testID={`leave-blocked-${sp.id}`} style={{ fontSize: 12, color: "var(--ink-3)" as string }}>Transfer ownership first</Text> : <SmallButton label="Leave" testID={`leave-${sp.id}`} onPress={() => setSure(sp.id)} />) : null}
             </>
           )
         }
