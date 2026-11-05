@@ -15,6 +15,7 @@ import { Mark } from "./ProviderLogo.tsx";
 import { failureLine, folderChoices, folderName, folderMenuLabel, importedNote, modifiedAt, newestFirst, relativeDate, rememberImported, selectState, sessionName, whyWords } from "./sessions-model.ts";
 import type { ImportTally } from "./sessions-model.ts";
 import { CARD } from "./card-style.ts";
+import { dropEmpty } from "./sessions-filter.ts";
 import { draftGet, draftSet } from "./drafts.ts";
 
 const label = (src: SessionSource): string => `${src.provider === "codex" ? "Codex" : "Claude Code"}`;
@@ -45,7 +46,7 @@ export function SessionsCard({ call, onDone, gate, onOpenChats }: { call: CapCal
     let off = false;
     const imp = desktopSessionImporter();
     if (!imp) { setFound([]); return undefined; }
-    void imp.discover().then((r) => { if (!off) setFound(newestFirst(r)); }).catch(() => { if (!off) { setFound([]); setError("Could not look for sessions."); } });
+    void imp.discover().then(async (r) => { const sorted = newestFirst(r); const keep = await dropEmpty(sorted, async (src) => (await imp.preview(src)).messages.length); if (!off) setFound(keep); }).catch(() => { if (!off) { setFound([]); setError("Could not look for sessions."); } });
     return () => { off = true; };
   }, []);
   const toggle = (key: string): void => setOn((old) => { const n = new Set(old); if (n.has(key)) n.delete(key); else n.add(key); return n; });

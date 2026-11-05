@@ -191,12 +191,13 @@ test("with no sessions on this computer the card says so and Continue moves on",
 test("a failed session does not stop the rest: empty ones are left out, a refused one is named with its reason, the button reads Retry, and Retry imports only that one", async () => {
   installDom();
   const sources = found();
+  const reads: Record<string, number> = {};
   const docs: Record<string, string> = {
     "claude:a1": JSON.stringify({ type: "user", uuid: "u", timestamp: "2026-11-04T10:00:00Z", message: { role: "user", content: "Fix the login bug" } }),
-    "codex:b2": JSON.stringify({ type: "session_meta", payload: { id: "b2" } }),   // nothing readable
+    "codex:b2": JSON.stringify({ type: "session_meta", payload: { id: "b2" } }),   // nothing readable when it is imported
     "claude:c3": JSON.stringify({ type: "user", uuid: "w", timestamp: "2026-11-04T10:00:00Z", message: { role: "user", content: "Older note" } }),
   };
-  (globalThis as { __TAURI__?: unknown }).__TAURI__ = { core: { invoke: async (cmd: string, args?: { sessionKey?: string }) => (cmd === "discover_session_sources" ? sources : { source: sources.find((x) => x.sessionKey === args?.sessionKey), documents: [{ namespace: "main", text: docs[args!.sessionKey!] }] }) } };
+  (globalThis as { __TAURI__?: unknown }).__TAURI__ = { core: { invoke: async (cmd: string, args?: { sessionKey?: string }) => (cmd === "discover_session_sources" ? sources : { source: sources.find((x) => x.sessionKey === args?.sessionKey), documents: [{ namespace: "main", text: reads[args!.sessionKey!] = (reads[args!.sessionKey!] ?? 0) + 1, ...{} && "", ...{} }].map((d) => ({ namespace: d.namespace, text: args!.sessionKey === "codex:b2" && reads["codex:b2"]! <= 1 ? JSON.stringify({ type: "response_item", payload: { type: "message", id: "m", role: "user", content: [{ type: "input_text", text: "Looked fine until now" }] } }) : docs[args!.sessionKey!] })) }) } };
   const imports: string[] = [];
   let refuse = true;
   const call = (async (cap: string, input: { sourceKey: string }) => {

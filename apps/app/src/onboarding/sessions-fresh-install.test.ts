@@ -64,3 +64,16 @@ test("the words: what was imported, what was empty, what failed and why", () => 
   assert.equal(whyWords(new TypeError("x is not a function")), "That did not work.");
   assert.equal(whyWords("boom"), "That did not work.");
 });
+
+test("the list leaves out sessions with nothing readable, checks only the newest few within its budget, and keeps ones it cannot read", async () => {
+  const { dropEmpty } = await import("./sessions-filter.ts");
+  const rows = ["a", "b", "c", "d", "e"].map((k) => ({ sessionKey: k }));
+  const counts: Record<string, number> = { a: 3, b: 0, c: 2, d: 0, e: 0 };
+  const seen: string[] = [];
+  const got = await dropEmpty(rows, async (s) => { seen.push(s.sessionKey); if (s.sessionKey === "c") throw new Error("unreadable"); return counts[s.sessionKey]!; }, { limit: 4 });
+  assert.deepEqual(got.map((s) => s.sessionKey), ["a", "c", "e"], "b and d are empty and gone; c could not be read so it stays; e was beyond the limit so it stays");
+  assert.ok(!seen.includes("e"));
+  let t = 0;
+  const slow = await dropEmpty(rows, async () => 0, { budgetMs: 5, now: () => (t += 10), concurrency: 1 });
+  assert.equal(slow.length, 5, "out of time before the first check: nothing is dropped");
+});
