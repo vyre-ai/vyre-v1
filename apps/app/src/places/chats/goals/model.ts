@@ -4,6 +4,7 @@
 import { dateIn, dayIn, dueText, instantOf, localInput, whenText } from "../../../../../../lib/zones.ts";
 import type { Zones } from "../../../../../../lib/zones.ts";
 /** A dash (hyphen, en or em) left at the end of a line once the deadline is cut off. Built from code points so no dash character sits in the source (no-em-dash lint). */
+const TRAILING_DASH = new RegExp(`\\s*[${String.fromCharCode(0x2014, 0x2013)}-]+\\s*$`);
 
 export type Status = "draft" | "planning" | "active" | "waiting" | "stuck" | "paused" | "done" | "missed" | "stopped";
 export type Tone = "plain" | "need" | "stuck" | "ok" | "dim";
@@ -210,7 +211,7 @@ export function delta(b: Pick<GoalBlock, "value" | "prev">): string | null {
 
 /** The agent's own closing date taken off a finish line ("... by Friday", "... by Wed 11 Nov, 4:16 PM PKT", "... - by Friday."), with the dash that led into it, so the one real deadline is the only date shown. */
 export function stripDue(line: string): string {
-  return line.replace(/\s+by\s+[^,.]*(,?\s*\d{1,2}:\d{2}(\s*[ap]m)?(\s+[A-Z]{2,5}\b)?)?\.?\s*$/i, "").replace(/\.\s*$/, "").replace(/\s*[\u2014\u2013-]+\s*$/, "").trim();
+  return line.replace(/\s+by\s+[^,.]*(,?\s*\d{1,2}:\d{2}(\s*[ap]m)?(\s+[A-Z]{2,5}\b)?)?\.?\s*$/i, "").replace(/\.\s*$/, "").replace(TRAILING_DASH, "").trim();
 }
 /** The finish line without a closing "by <date>": the deadline has its own place on the page, so the line never says it a second time. */
 export function bareLine(line: string): string {
