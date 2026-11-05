@@ -75,6 +75,25 @@ export interface Progress {
   total: number | null;
   /** Chat turns still running on this computer, while the shell waits for them. */
   turns?: number;
+  /** The titles of the chats those replies are in, while the shell waits for them. */
+  chats?: string[];
+  /** Seconds left before the wait ends and the update goes ahead on its own (the wait has a cap), while the shell waits. */
+  left?: number;
+}
+
+/** "8:42": minutes and seconds, for the countdown. */
+export function clock(seconds: number): string {
+  const s = Math.max(0, Math.ceil(seconds));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+/** The chats a wait names: one title, two, or the first and a count. Quotes around each. */
+export function chatsWords(chats: readonly string[] | undefined, turns: number | undefined): string {
+  const names = (chats ?? []).filter((c) => c.trim() !== "");
+  if (names.length === 0) return turns && turns > 1 ? `${turns} replies` : "a reply";
+  if (names.length === 1) return `the reply in \u201c${names[0]}\u201d`;
+  if (names.length === 2) return `the replies in \u201c${names[0]}\u201d and \u201c${names[1]}\u201d`;
+  return `the replies in \u201c${names[0]}\u201d and ${names.length - 1} other chats`;
 }
 
 export function bytes(n: number): string {
@@ -100,8 +119,8 @@ export function progressLine(p: Progress | null): string {
       return f === null ? `${bytes(p.downloaded)} downloaded` : `${bytes(p.downloaded)} of ${bytes(p.total ?? 0)}, ${Math.floor(f * 100)}%`;
     }
     case "verify": return "Checking the release signature";
-    case "waiting": return p.turns && p.turns > 1 ? `Waiting for ${p.turns} replies on this computer to finish` : "Waiting for a reply on this computer to finish";
-    case "stopping": return "Getting ready to install";
+    case "waiting": return p.chats && p.chats.length > 0 ? `Waiting for ${chatsWords(p.chats, p.turns)} to finish` : p.turns && p.turns > 1 ? `Waiting for ${p.turns} replies on this computer to finish` : "Waiting for a reply on this computer to finish";
+    case "stopping": return p.turns && p.turns > 0 ? `Stopped ${p.turns === 1 ? "the reply" : `${p.turns} replies`} cleanly. Getting ready to install` : "Getting ready to install";
     case "installing": return "Installing";
     case "restarting": return "Opening the new Vyre";
   }

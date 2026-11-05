@@ -17,6 +17,8 @@ export interface DesktopUpdates {
   check(): Promise<UpdateCheck>;
   /** Download, verify, stop the background service, install and restart. Resolves only if something failed before the restart; `onProgress` hears each step. */
   install(onProgress?: (p: Progress) => void): Promise<void>;
+  /** "Stop and update now": end the replies still running here, cleanly, and go on with the install. Only while the wait is on. */
+  stopNow(): Promise<void>;
 }
 
 const str = (v: unknown): string | null => (typeof v === "string" && v !== "" ? v : null);
@@ -37,7 +39,11 @@ export function readProgress(v: unknown): Progress | null {
   const phase = phases.find((p) => p === o["phase"]);
   if (!phase) return null;
   const n = (x: unknown): number => (typeof x === "number" && Number.isFinite(x) && x >= 0 ? x : 0);
-  return { phase, downloaded: n(o["downloaded"]), total: typeof o["total"] === "number" && o["total"] > 0 ? o["total"] : null, ...(typeof o["turns"] === "number" ? { turns: o["turns"] } : {}) };
+  const chats = Array.isArray(o["chats"]) ? o["chats"].filter((c): c is string => typeof c === "string" && c.trim() !== "").slice(0, 6) : [];
+  return {
+    phase, downloaded: n(o["downloaded"]), total: typeof o["total"] === "number" && o["total"] > 0 ? o["total"] : null,
+    ...(typeof o["turns"] === "number" ? { turns: o["turns"] } : {}), ...(chats.length > 0 ? { chats } : {}), ...(typeof o["left"] === "number" && o["left"] >= 0 ? { left: o["left"] } : {}),
+  };
 }
 
 /** The shell's update commands; undefined in a browser. */
@@ -48,6 +54,7 @@ export function desktopUpdates(tauri: TauriLike | undefined = (globalThis as { _
   return {
     async startup(waitMs) { return readCheck(await invoke("startup_update", { waitMs: Math.max(0, Math.min(10_000, Math.round(waitMs))) })); },
     async check() { return readCheck(await invoke("check_desktop_update")); },
+    async stopNow() { await invoke("update_stop_now"); },
     async install(onProgress) {
       let off: (() => void) | undefined;
       if (onProgress && listen) { try { off = await listen(PROGRESS_EVENT, (e) => { const p = readProgress(e.payload); if (p) onProgress(p); }); } catch { off = undefined; } }
