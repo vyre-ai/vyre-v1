@@ -8,11 +8,11 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createGitProxy } from "../src/seams/git-proxy.ts";
-import { GIT_LOCAL_HOST, githubEnv } from "../../modules/engine/github-session.ts";
-import { createEgressProxy } from "../../sandbox/src/egress.ts";
-import { fakeGithubGit } from "./helpers/fake-github-git.ts";
-import type { FakeGit } from "./helpers/fake-github-git.ts";
+import { createGitProxy } from "../host/src/seams/git-proxy.ts";
+import { GIT_LOCAL_HOST, githubEnv } from "../modules/engine/github-session.ts";
+import { createEgressProxy } from "../sandbox/src/egress.ts";
+import { fakeGithubGit } from "../host/tests/helpers/fake-github-git.ts";
+import type { FakeGit } from "../host/tests/helpers/fake-github-git.ts";
 
 type Mode = "always" | "ask" | "never";
 const REPO = "vyre-ai/website";

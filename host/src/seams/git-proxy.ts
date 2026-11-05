@@ -13,7 +13,7 @@
 // DECISION: the pack is streamed, never held. Only the command list (capped) is read, and every byte after it is handed on as it arrives.
 import http from "node:http";
 import https from "node:https";
-import crypto from "node:crypto";
+import { sha256b64 } from "../../../kernel/src/seal/wire.ts";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -64,7 +64,8 @@ export interface GitProxyDeps {
 type Hold = "held" | "approved" | "denied" | "expired";
 type Asked = { ok: string } | { held: string } | { refused: string };
 
-const sha = (s: string): string => crypto.createHash("sha256").update(s).digest("hex");
+const sha = (s: string): string => sha256b64(s);
+const rand = (n: number): string => Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(n))).toString("base64url");
 const sleep = (ms: number): Promise<void> => new Promise((r) => { const t = setTimeout(r, ms); (t as { unref?: () => void }).unref?.(); });
 const HOP = new Set(["connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade", "set-cookie", "content-length", "host"]);
 
@@ -84,7 +85,7 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     mint(s) {
       for (const [k, v] of sessions) if (v.expiresAt <= now()) sessions.delete(k);
       if (sessions.size >= MAX_SESSIONS) { const oldest = [...sessions.entries()].sort((a, b) => a[1].expiresAt - b[1].expiresAt)[0]; if (oldest) sessions.delete(oldest[0]); }
-      const token = `vgp_${crypto.randomBytes(32).toString("base64url")}`, expiresAt = now() + SESSION_MS;
+      const token = `vgp_${rand(32)}`, expiresAt = now() + SESSION_MS;
       sessions.set(sha(token), { person: s.person, agentId: s.agentId ?? "", threadId: s.threadId, repos: new Set(s.repos.map((r) => r.toLowerCase())), expiresAt });
       return { token, expiresAt };
     },
@@ -115,7 +116,7 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     if (!s.agentId) return { refused: "This session has no agent to ask for, so GitHub is not available to it." };
     try {
       if (force) {
-        const a = await d.invoke("github.me.approve", { repo, action, consumer, idempotencyKey: `gitp-${crypto.randomUUID()}` }, agentSeed(s));
+        const a = await d.invoke("github.me.approve", { repo, action, consumer, idempotencyKey: `gitp-${globalThis.crypto.randomUUID()}` }, agentSeed(s));
         if (a.status === "held") return { held: a.taskId };
       }
       const r = await d.invoke("github.token", { repo, action, consumer }, agentSeed(s));
@@ -300,7 +301,7 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
     let stopSpool = false;
     const startSpool = (): void => {
       if (spool) return;
-      const file = path.join(os.tmpdir(), `vyre-gitp-${crypto.randomUUID()}`);
+      const file = path.join(os.tmpdir(), `vyre-gitp-${globalThis.crypto.randomUUID()}`);
       const ws = fs.createWriteStream(file, { mode: 0o600 });
       ws.on("error", () => { stopSpool = true; });
       spool = { file, done: (async (): Promise<boolean> => {
@@ -364,7 +365,7 @@ export function createGitProxy(d: GitProxyDeps): { port: GitProxyPort; handle(re
       const got = await obtain(s, repo, kind, say, {
         force: mine.some((n) => n.always),
         // a push to the default branch is approved for exactly that push, once: repo, ref, old and new object (modules/github/handlers/me.ts)
-        ...(kind === "push_default" ? { consumer: `git.push:${crypto.createHash("sha256").update(`${repo}\n${mine.map((n) => `${n.command.ref} ${n.command.old} ${n.command.new}`).sort().join("\n")}`).digest("hex").slice(0, 16)}` } : {}),
+        ...(kind === "push_default" ? { consumer: `git.push:${Buffer.from(sha256b64(`${repo}\n${mine.map((n) => `${n.command.ref} ${n.command.old} ${n.command.new}`).sort().join("\n")}`), "base64url").toString("hex").slice(0, 16)}` } : {}),
         gone: () => gone,
         onWait: (who) => { startSpool(); start(); if (begun.v) res.write(remoteLine(`Waiting for ${who} to approve ${say.phrase}. Approve it in Vyre.`)); },
         onTick: (who) => { if (begun.v) res.write(remoteLine(`Still waiting for ${who} to approve ${say.phrase}...`)); },
