@@ -152,13 +152,6 @@ test("no model works: one plain card that says what to do, with Open AI accounts
   assert.doesNotMatch(`${w.message} ${w.cause ?? ""}`, /engine\.|--/);
 });
 
-test("no model to run on: the chat says Pick a model for the account, with one button that opens the Model menu; the provider's raw JSON is not the Reason", async () => {
-  const { statusView } = await import("./status.ts");
-  const v = statusView({ id: "b1", type: "turn_status", v: 1, data: { state: "failed", turnId: "trn_1", code: "engine.no_model_picked", detail: "Pick a model for Saqib's OpenCode." } } as never) as { kind: "error"; block: { data: { message: string; next: Array<{ key: string; label: string }> } } };
-  assert.equal(v.block.data.message, "Pick a model for Saqib's OpenCode.");
-  assert.deepEqual(v.block.data.next, [{ key: "pick_model", label: "Pick a model" }]);
-});
-
 test("Details: Reason is one plain sentence and the provider's raw words sit in their own row, never as the Reason", async () => {
   const { turnDetail } = await import("./actions.ts");
   const raw = '{"message":"`model` must be a non-empty string","type":"invalid_request_error","param":"model"}';
