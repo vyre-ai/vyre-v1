@@ -85,3 +85,19 @@ test("public, private, stopped and taken down; the Space's own name and an unkno
   assert.match(page.body, /sites\/signin_link/);
   assert.match(String(page.headers["content-security-policy"]), /connect-src 'self'/);
 });
+
+test("clientOnNetwork: a container on the network is a client; the host's own side of the bridge (the gateway), which Docker's published-port NAT arrives from, is not", async () => {
+  const { clientOnNetwork } = await import("./site-host.ts");
+  const computers = ["192.168.48.0/20", "192.168.32.0/20"];
+  // the compose topology: vyred has 192.168.16.2 on the default network and 192.168.48.2 on the computer's network
+  assert.equal(clientOnNetwork("192.168.48.2", "192.168.48.3", computers), true, "the computer itself (a container) is a computer");
+  assert.equal(clientOnNetwork("192.168.48.2", "::ffff:192.168.48.3", computers), true, "an IPv4-mapped address is the same");
+  assert.equal(clientOnNetwork("192.168.48.2", "192.168.48.1", computers), false, "the owner's browser arriving through the published port is the bridge gateway, not a computer");
+  assert.equal(clientOnNetwork("192.168.48.2", "::ffff:192.168.48.1", computers), false);
+  assert.equal(clientOnNetwork("192.168.16.2", "192.168.16.1", computers), false, "the default network is no computer network");
+  assert.equal(clientOnNetwork("127.0.0.1", "127.0.0.1", computers), false, "Caddy's loopback proxy is the Space's own");
+  assert.equal(clientOnNetwork("192.168.48.2", "10.0.0.5", computers), false, "a client outside the subnet is not on it");
+  assert.equal(clientOnNetwork("192.168.16.2", "192.168.48.3", computers), false, "a computer reaching the default network's address is not on its own network (it cannot, but the rule is about its own network)");
+  assert.equal(clientOnNetwork(undefined, undefined, computers), false);
+  assert.equal(clientOnNetwork("192.168.48.2", "192.168.48.3", []), false);
+});
